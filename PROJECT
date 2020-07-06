@@ -1,0 +1,7 @@
+domain: oam.dev
+repo: github.com/cloud-native-application/rudrx
+resources:
+- group: admin
+  kind: Template
+  version: v1alpha2
+version: "2"

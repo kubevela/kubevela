@@ -1,0 +1,24 @@
+# permissions for end users to edit templates.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: template-editor-role
+rules:
+- apiGroups:
+  - admin.oam.dev
+  resources:
+  - templates
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - admin.oam.dev
+  resources:
+  - templates/status
+  verbs:
+  - get

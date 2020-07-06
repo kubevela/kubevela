@@ -1,0 +1,29 @@
+apiVersion: admin.oam.dev/v1alpha2
+kind: Template
+metadata:
+  annotation:
+    version: 0.0.1
+  name: containerizedworkload-template
+spec:
+  object:
+    apiVersion: core.oam.dev/v1alpha2
+    kind: ContainerizedWorkload
+    spec:
+      containers:
+        - image: myrepo/myapp:v1
+          name: master
+          ports:
+            - containerPort: 6379
+              protocol: TCP
+  lastCommandParam: image
+  parameters:
+    - name: image
+      short: i
+      required: true
+      fieldPaths:
+        - "spec.containers[0].image"
+    - name: port
+      short: p
+      required: false
+      fieldPaths:
+        - "spec.containers[0].ports[0].containerPort"
