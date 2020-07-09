@@ -64,10 +64,8 @@ func NewCmdRun(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) 
 	rudrx run containerized frontend -p 80 oam-dev/demo:v1
 `,
 		Run: func(cmd *cobra.Command, args []string) {
-			if len(args) == 0 {
-				fmt.Println("You must specify a workload, like " + strings.Join(workloadShortNames, ", ") +
-					"\nSee 'rudr run -h' for help and examples")
-			}
+			fmt.Println("You must specify a workload, like " + strings.Join(workloadShortNames, ", ") +
+				"\nSee 'rudr run -h' for help and examples")
 		},
 	}
 
