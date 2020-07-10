@@ -8,6 +8,8 @@ spec:
   object:
     apiVersion: core.oam.dev/v1alpha2
     kind: ContainerizedWorkload
+    metadata:
+      name: TBD
     spec:
       containers:
         - image: myrepo/myapp:v1
@@ -15,6 +17,7 @@ spec:
           ports:
             - containerPort: 6379
               protocol: TCP
+              name: tbd # TODO(zzxwill) A temporary workaround for ContainerizedWorkload
   lastCommandParam: image
   parameters:
     - name: image
