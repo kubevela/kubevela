@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
@@ -109,9 +110,18 @@ func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []stri
 	for _, v := range o.Template.Spec.Parameters {
 		flagSet := cmd.Flag(v.Name)
 		for _, path := range v.FieldPaths {
-			pvd.SetString(path, flagSet.Value.String())
+			fValue := flagSet.Value.String()
+			if v.Name == "port" {
+				portValue, _ := strconv.ParseFloat(fValue, 64)
+				pvd.SetNumber(path, portValue)
+				break
+			}
+			pvd.SetString(path, fValue)
 		}
 	}
+
+	pvd.SetString("metadata.name", args[0])
+
 	namespaceCover := cmd.Flag("namespace").Value.String()
 	if namespaceCover != "" {
 		namespace = namespaceCover
