@@ -3,9 +3,9 @@ package run
 import (
 	"context"
 	"fmt"
-	"os"
-
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"os"
+	"strings"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 
@@ -35,6 +35,26 @@ func NewCmdRun(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) 
 
 	ctx := context.Background()
 
+	var workloadDefs corev1alpha2.WorkloadDefinitionList
+	err := c.List(ctx, &workloadDefs)
+	if err != nil {
+		fmt.Println("list workload Definition err", err)
+		os.Exit(1)
+	}
+
+	var workloadShortNames []string
+
+	workloadDefsItem := workloadDefs.Items
+
+	for _, wd := range workloadDefsItem {
+		n := wd.ObjectMeta.Annotations["short"]
+		if n == "" {
+			n = wd.Name
+		}
+		workloadShortNames = append(workloadShortNames, n)
+		wd.ObjectMeta.Annotations["short"] = n
+	}
+
 	cmd := &cobra.Command{
 		Use:                   "run [WORKLOAD_KIND] [args]",
 		DisableFlagsInUseLine: true,
@@ -43,18 +63,13 @@ func NewCmdRun(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) 
 		Example: `
 	rudrx run containerized frontend -p 80 oam-dev/demo:v1
 `,
-		//Run: func(cmd *cobra.Command, args []string) {
-		//	cmdutil.CheckErr(o.Complete(f, cmd, args))
-		//	cmdutil.CheckErr(o.Run(f, cmd))
-		//},
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println("You must specify a workload, like " + strings.Join(workloadShortNames, ", ") +
+				"\nSee 'rudr run -h' for help and examples")
+		},
 	}
-	var workloadDefs corev1alpha2.WorkloadDefinitionList
-	err := c.List(ctx, &workloadDefs)
-	if err != nil {
-		fmt.Println("list workload Definition err", err)
-		os.Exit(1)
-	}
-	for _, wd := range workloadDefs.Items {
+
+	for _, wd := range workloadDefsItem {
 		templateRef, ok := wd.ObjectMeta.Annotations["defatultTemplateRef"]
 		if !ok {
 			continue
