@@ -71,6 +71,12 @@ func NewCmdRun(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) 
 		},
 	}
 
+	if len(workloadDefsItem) == 0 {
+		// TODO(zzxwill) Refine this prompt message
+		fmt.Println("Somehow Workload Definitions are NOT preconfigured, please report this to OAM maintainers.")
+		os.Exit(1)
+	}
+
 	for _, wd := range workloadDefsItem {
 		templateRef, ok := wd.ObjectMeta.Annotations["defatultTemplateRef"]
 		if !ok {
@@ -101,8 +107,9 @@ func NewCmdRun(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) 
 		}
 		cmd.PersistentFlags().StringP("namespace", "n", "", "namespace for apps")
 		for _, v := range tmp.Spec.Parameters {
-			cmd.PersistentFlags().StringP(v.Name, v.Short, v.Default, v.Usage)
-			fmt.Println("args ", v.Name, v.Short)
+			if tmp.Spec.LastCommandParam != v.Name {
+				cmd.PersistentFlags().StringP(v.Name, v.Short, v.Default, v.Usage)
+			}
 		}
 		tmp.DeepCopyInto(&o.Template)
 		cmd.AddCommand(subcmd)
@@ -117,14 +124,40 @@ func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []stri
 	} else if !explicitNamespace {
 		namespace = "default"
 	}
-	if len(args) < 1 {
+
+	argsLenght := len(args)
+	lastCommandParam := o.Template.Spec.LastCommandParam
+
+	if argsLenght < 1 {
 		fmt.Println("must specify name for workload")
 		os.Exit(1)
+	} else if argsLenght < 2 && lastCommandParam != "" {
+		// TODO(zzxwill): Could not determine whether the argument is the workload name or image name if without image tag
+		errMsg := fmt.Sprintf("You must specify `%s` as the last command.\nSee 'rudr run -h' for help and examples",
+			lastCommandParam)
+		fmt.Println(errMsg)
+		os.Exit(1)
 	}
+
 	o.Namespace = namespace
 	pvd := fieldpath.Pave(o.Template.Spec.Object.Object)
 	for _, v := range o.Template.Spec.Parameters {
 		flagSet := cmd.Flag(v.Name)
+		lastCommandValue := args[argsLenght-1]
+		var paraV string
+		if v.Name == lastCommandParam {
+			paraV = lastCommandValue
+		} else {
+			flagSet := cmd.Flag(v.Name)
+			paraV = flagSet.Value.String()
+		}
+
+		if paraV == "" {
+			errMsg := fmt.Sprintf("Flag `%s` is NOT set, please check and try again. \nSee 'rudr run -h' for help and examples", v.Name)
+			fmt.Println(errMsg)
+			os.Exit(1)
+		}
+
 		for _, path := range v.FieldPaths {
 			fValue := flagSet.Value.String()
 			if v.Name == "port" {
