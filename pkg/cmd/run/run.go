@@ -71,6 +71,12 @@ func NewCmdRun(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) 
 		},
 	}
 
+	if len(workloadDefsItem) == 0 {
+		// TODO(zzxwill) Refine this prompt message
+		fmt.Println("Somehow Workload Definitions are NOT preconfigured, please report this to OAM maintainers.")
+		os.Exit(1)
+	}
+
 	for _, wd := range workloadDefsItem {
 		templateRef, ok := wd.ObjectMeta.Annotations["defatultTemplateRef"]
 		if !ok {
@@ -125,7 +131,7 @@ func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []stri
 	if argsLenght < 1 {
 		fmt.Println("must specify name for workload")
 		os.Exit(1)
-	} else if argsLenght < 2 {
+	} else if argsLenght < 2 && lastCommandParam != "" {
 		// TODO(zzxwill): Could not determine whether the argument is the workload name or image name if without image tag
 		errMsg := fmt.Sprintf("You must specify `%s` as the last command.\nSee 'rudr run -h' for help and examples",
 			lastCommandParam)
