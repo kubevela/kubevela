@@ -1,0 +1,38 @@
+apiVersion: admin.oam.dev/v1alpha2
+kind: Template
+metadata:
+  annotation:
+    version: 0.0.1
+  name: simplerollouttraits.extend.oam.dev-template
+spec:
+  object:
+    apiVersion: extend.oam.dev/v1alpha2
+    kind: SimpleRolloutTrait
+    metadata:
+      name:  example-rollout-trait
+    spec:
+      replica: 6
+      maxUnavailable: 2
+      batch: 2
+  parameters:
+    - name: replica
+      required: true
+      type: int
+      default: "6"
+      short: r
+      fieldPaths:
+        - "spec.replica"
+    - name: maxUnavailable
+      required: true
+      type: int
+      default: "2"
+      short: u
+      fieldPaths:
+        - "spec.maxUnavailable"
+    - name: batch
+      required: true
+      type: int
+      default: "2"
+      short: b
+      fieldPaths:
+        - "spec.batch"

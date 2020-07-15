@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/cloud-native-application/rudrx/pkg/cmd/traits"
+	"github.com/cloud-native-application/rudrx/pkg/cmd"
 	"math/rand"
 	"os"
 	"time"
@@ -78,7 +78,8 @@ func newCommand() *cobra.Command {
 	}
 	cmds.AddCommand(
 		run.NewCmdRun(f, client, ioStream),
-		traits.NewCmdTraits(f, client, ioStream),
+		cmd.NewCmdTraits(f, client, ioStream),
+		cmd.NewCmdBind(f, client, ioStream),
 	)
 
 	return cmds
