@@ -52,16 +52,16 @@ func printTraitList(ctx context.Context, c client.Client, workloadName string) {
 
 type TraitMeta struct {
 	Name       string `json:"name"`
-	Short string `json:"shot"`
+	Short      string `json:"shot"`
 	Definition string `json:"name:,omitempty"`
 	AppliesTo  string `json:"name:,omitempty"`
 	Status     string `json:"name:,omitempty"`
 }
 
-func RetrieveTraitsByWorkload(ctx context.Context, c client.Client, workloadName string) ([]TraitMeta, error){
+func RetrieveTraitsByWorkload(ctx context.Context, c client.Client, workloadName string) ([]TraitMeta, error) {
 	/*
-	Get trait list by optional filter `workloadName`
-	 */
+		Get trait list by optional filter `workloadName`
+	*/
 	var traitList []TraitMeta
 
 	var traitDefinitionList corev1alpha2.TraitDefinitionList
@@ -88,7 +88,7 @@ func RetrieveTraitsByWorkload(ctx context.Context, c client.Client, workloadName
 			// TODO(zzxwill) `Status` might not be proper as I'd like to describe where the trait is, in cluster or in registry
 			traitList = append(traitList, TraitMeta{
 				Name:       r.Name,
-				Short:		r.ObjectMeta.Annotations["short"],
+				Short:      r.ObjectMeta.Annotations["short"],
 				Definition: r.Spec.Reference.Name,
 				AppliesTo:  appliesTo,
 				Status:     "-",
