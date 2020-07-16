@@ -43,6 +43,8 @@ spec:
             parameters:
               items:
                 properties:
+                  default:
+                    type: string
                   fieldPaths:
                     items:
                       type: string
@@ -53,11 +55,13 @@ spec:
                     type: boolean
                   short:
                     type: string
+                  type:
+                    type: string
+                  usage:
+                    type: string
                 required:
                 - fieldPaths
                 - name
-                - required
-                - short
                 type: object
               type: array
           required:

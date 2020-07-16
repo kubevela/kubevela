@@ -35,11 +35,12 @@ type TemplateSpec struct {
 
 type Parameter struct {
 	Name       string   `json:"name"`
-	Short      string   `json:"short"`
-	Required   bool     `json:"required"`
+	Short      string   `json:"short,omitempty"`
+	Required   bool     `json:"required,omitempty"`
 	FieldPaths []string `json:"fieldPaths"`
-	Default    string   `json:"default"`
-	Usage      string   `json:"usage"`
+	Default    string   `json:"default,omitempty"`
+	Usage      string   `json:"usage,omitempty"`
+	Type       string   `json:"type,omitempty"`
 }
 
 // TemplateStatus defines the observed state of Template

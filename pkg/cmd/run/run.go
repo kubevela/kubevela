@@ -142,7 +142,6 @@ func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []stri
 	o.Namespace = namespace
 	pvd := fieldpath.Pave(o.Template.Spec.Object.Object)
 	for _, v := range o.Template.Spec.Parameters {
-		flagSet := cmd.Flag(v.Name)
 		lastCommandValue := args[argsLenght-1]
 		var paraV string
 		if v.Name == lastCommandParam {
@@ -159,13 +158,12 @@ func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []stri
 		}
 
 		for _, path := range v.FieldPaths {
-			fValue := flagSet.Value.String()
-			if v.Name == "port" {
-				portValue, _ := strconv.ParseFloat(fValue, 64)
+			if v.Type == "int" {
+				portValue, _ := strconv.ParseFloat(paraV, 64)
 				pvd.SetNumber(path, portValue)
 				break
 			}
-			pvd.SetString(path, fValue)
+			pvd.SetString(path, paraV)
 		}
 	}
 
