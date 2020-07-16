@@ -23,10 +23,12 @@ spec:
     - name: image
       short: i
       required: true
+      type: string
       fieldPaths:
         - "spec.containers[0].image"
     - name: port
       short: p
       required: false
+      type: int
       fieldPaths:
         - "spec.containers[0].ports[0].containerPort"
