@@ -3,16 +3,17 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
+
 	"github.com/cloud-native-application/rudrx/api/v1alpha2"
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strconv"
-	"strings"
 )
 
 type commandOptions struct {
@@ -81,7 +82,7 @@ func NewCmdBind(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams)
 			}
 		}
 
-		traitTemplate.DeepCopyInto(&o.Template)
+		// traitTemplate.DeepCopyInto(&o.Template)
 	}
 
 	return cmd
@@ -92,13 +93,10 @@ func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []
 	var componentName string
 
 	c := o.Client
-	traitList, err := RetrieveTraitsByWorkload(ctx, o.Client, "")
-	if err != nil {
-		fmt.Println("List available traits hit an issue:", err)
-	}
 
 	if argsLength == 0 {
-		fmt.Println("Please append the name of an application. Use `rudr bind -h` for more detailed information.")
+		cmdutil.PrintErrorMessage("Please append the name of an application. Use `rudr bind -h` for more "+
+			"detailed information.", 1)
 	} else if argsLength <= 2 {
 		componentName = args[0]
 		err := c.Get(ctx, client.ObjectKey{Namespace: "default", Name: componentName}, &o.AppConfig)
@@ -111,45 +109,58 @@ func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []
 		var component corev1alpha2.Component
 		err = c.Get(ctx, client.ObjectKey{Namespace: ns, Name: componentName}, &component)
 		if err != nil {
-			fmt.Println("Please choose an existed component name.", err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("%s. Please choose an existed component name.", err)
+			cmdutil.PrintErrorMessage(errMsg, 1)
+		}
+
+		// Retrieve all traits which can be used for the following 1) help and 2) validating
+		traitList, err := RetrieveTraitsByWorkload(ctx, o.Client, "")
+		if err != nil {
+			errMsg := fmt.Sprintf("List available traits hit an issue: %s", err)
+			cmdutil.PrintErrorMessage(errMsg, 1)
 		}
 
 		switch argsLength {
 		case 1:
 			// Validate component and suggest trait
-			fmt.Print("Please specify a trait: ")
+			fmt.Print("Error: No trait specified.\nPlease choose a trait: ")
 			for _, t := range traitList {
 				n := t.Short
 				if n == "" {
 					n = t.Name
 				}
-
-				fmt.Println(n, " ")
-				os.Exit(1)
+				fmt.Print(n, " ")
 			}
+			os.Exit(1)
 
 		case 2:
 			// validate trait
 			traitName := args[1]
+			var traitLongName string
 
 			validTrait := false
 			for _, t := range traitList {
 				// Support trait name or trait short name case-sensitively
 				if strings.EqualFold(t.Name, traitName) || strings.EqualFold(t.Short, traitName) {
 					validTrait = true
+					traitLongName = t.Name
 					break
 				}
 			}
 
 			if !validTrait {
 				msg := fmt.Sprintf("The trait `%s` is NOT valid, please try a valid one.", traitName)
-				fmt.Println(msg)
-				os.Exit(1)
+				cmdutil.PrintErrorMessage(msg, 1)
 			}
 
-			pvd := fieldpath.Pave(o.Template.Spec.Object.Object)
-			for _, v := range o.Template.Spec.Parameters {
+			var traitDefinition corev1alpha2.TraitDefinition
+			c.Get(ctx, client.ObjectKey{Namespace: ns, Name: traitLongName}, &traitDefinition)
+
+			var traitTemplate v1alpha2.Template
+			c.Get(ctx, client.ObjectKey{Namespace: "default", Name: traitDefinition.ObjectMeta.Annotations["defatultTemplateRef"]}, &traitTemplate)
+
+			pvd := fieldpath.Pave(traitTemplate.Spec.Object.Object)
+			for _, v := range traitTemplate.Spec.Parameters {
 				flagSet := cmd.Flag(v.Name)
 				for _, path := range v.FieldPaths {
 					fValue := flagSet.Value.String()
@@ -162,7 +173,8 @@ func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []
 				}
 			}
 
-			pvd.SetString("metadata.name", traitName)
+			// metadata.name needs to be in lower case.
+			pvd.SetString("metadata.name", strings.ToLower(traitName))
 
 			var t corev1alpha2.ComponentTrait
 			t.Trait.Object = &unstructured.Unstructured{Object: pvd.UnstructuredContent()}
@@ -175,10 +187,9 @@ func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []
 			}
 		}
 	} else {
-		fmt.Println("Unknown command is specified, please check and try again.")
-		os.Exit(1)
+		cmdutil.PrintErrorMessage("Unknown command is specified, please check and try again.", 1)
 	}
-	return err
+	return nil
 }
 
 func (o *commandOptions) Run(f cmdutil.Factory, cmd *cobra.Command, ctx context.Context) error {
@@ -188,8 +199,7 @@ func (o *commandOptions) Run(f cmdutil.Factory, cmd *cobra.Command, ctx context.
 	if err != nil {
 		// msg := fmt.Sprintf("Applying trait %s to component %s failed: %s", traitName, componentName, err)
 		msg := fmt.Sprintf("Applying trait hit an issue: %s", err)
-		fmt.Println(msg)
-		os.Exit(1)
+		cmdutil.PrintErrorMessage(msg, 1)
 	}
 
 	msg := fmt.Sprintf("Succeeded!")

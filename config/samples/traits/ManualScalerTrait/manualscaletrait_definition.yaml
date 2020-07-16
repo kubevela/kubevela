@@ -1,0 +1,12 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: manualscalertrait.core.oam.dev
+  annotations:
+    defatultTemplateRef: manualscalertrait.core.oam.dev-template
+    short: ManualScaler
+spec:
+  appliesToWorkloads:
+    - core.oam.dev/v1alpha2.ContainerizedWorkload
+  definitionRef:
+    name: manualscalertrait.core.oam.dev
