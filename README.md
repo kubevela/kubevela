@@ -97,7 +97,7 @@ metadata:
   generation: 2
   name: poc
   namespace: default
-  xxx
+  ...
 spec:
   components:
   - componentName: poc

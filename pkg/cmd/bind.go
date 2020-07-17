@@ -44,7 +44,6 @@ func NewCmdBind(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams)
 			cmdutil.CheckErr(o.Run(f, cmd, ctx))
 		},
 	}
-	//var traitList []Trait
 
 	var traitDefinitions corev1alpha2.TraitDefinitionList
 	err := c.List(ctx, &traitDefinitions)
@@ -55,11 +54,6 @@ func NewCmdBind(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams)
 
 	for _, t := range traitDefinitions.Items {
 		template := t.ObjectMeta.Annotations["defatultTemplateRef"]
-
-		//traitList = append(traitList, Trait{
-		//	Name: t.Name,
-		//	Short: t.ObjectMeta.Annotations["short"],
-		//})
 
 		var traitTemplate v1alpha2.Template
 		err := c.Get(ctx, client.ObjectKey{Namespace: "default", Name: template}, &traitTemplate)
@@ -81,8 +75,6 @@ func NewCmdBind(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams)
 				cmd.PersistentFlags().String(p.Name, p.Default, p.Usage)
 			}
 		}
-
-		// traitTemplate.DeepCopyInto(&o.Template)
 	}
 
 	return cmd
@@ -197,7 +189,6 @@ func (o *commandOptions) Run(f cmdutil.Factory, cmd *cobra.Command, ctx context.
 	c := o.Client
 	err := c.Update(ctx, &o.AppConfig)
 	if err != nil {
-		// msg := fmt.Sprintf("Applying trait %s to component %s failed: %s", traitName, componentName, err)
 		msg := fmt.Sprintf("Applying trait hit an issue: %s", err)
 		cmdutil.PrintErrorMessage(msg, 1)
 	}
