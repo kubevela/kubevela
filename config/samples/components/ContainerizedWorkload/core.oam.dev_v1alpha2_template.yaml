@@ -9,7 +9,7 @@ spec:
     apiVersion: core.oam.dev/v1alpha2
     kind: ContainerizedWorkload
     metadata:
-      name: TBD
+      name: tbd
     spec:
       containers:
         - image: myrepo/myapp:v1

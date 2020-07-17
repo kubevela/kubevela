@@ -1,6 +1,10 @@
 package util
 
-import "io"
+import (
+	"fmt"
+	"io"
+	"os"
+)
 
 // IOStreams provides the standard names for iostreams.  This is useful for embedding and for unit testing.
 // Inconsistent and different names make it hard to read and review code
@@ -11,4 +15,9 @@ type IOStreams struct {
 	Out io.Writer
 	// ErrOut think, os.Stderr
 	ErrOut io.Writer
+}
+
+func PrintErrorMessage(errorMessage string, exitCode int) {
+	fmt.Println(errorMessage)
+	os.Exit(exitCode)
 }

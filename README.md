@@ -85,7 +85,45 @@ $ rudr traits
 
 - apply a trait to the workload
 ```shell script
-$ rudr bind poc simplerollout --replica 6 --maxUnavailable 2 --batch 2
+$ rudr bind poc ManualScaler --replicaCount 5
 Applying trait for component poc
 Succeeded!
+
+$ kubectl get applicationconfiguration poc2159 -o yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: ApplicationConfiguration
+metadata:
+  creationTimestamp: "2020-07-16T13:58:13Z"
+  generation: 2
+  name: poc
+  namespace: default
+  ...
+spec:
+  components:
+  - componentName: poc
+    traits:
+    - trait:
+        apiVersion: core.oam.dev/v1alpha2
+        kind: ManualScalerTrait
+        metadata:
+          name: manualscaler
+        spec:
+          replicaCount: 5
+status:
+  conditions:
+  - lastTransitionTime: "2020-07-16T13:58:13Z"
+    reason: Successfully reconciled resource
+    status: "True"
+    type: Synced
+  workloads:
+  - componentName: poc
+    traits:
+    - traitRef:
+        apiVersion: core.oam.dev/v1alpha2
+        kind: ManualScalerTrait
+        name: manualscaler
+    workloadRef:
+      apiVersion: core.oam.dev/v1alpha2
+      kind: ContainerizedWorkload
+      name: poc
 ```
