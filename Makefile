@@ -20,6 +20,7 @@ test: generate fmt vet manifests
 # Build manager binary
 manager: generate fmt vet
 	go build -o bin/manager cmd/server/main.go
+	go build -o bin/rudrx cmd/rudrx/main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: generate fmt vet manifests
@@ -78,3 +79,12 @@ CONTROLLER_GEN=$(GOBIN)/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)
 endif
+
+e2e-setup:
+	# install oam-k8s-runtime
+
+e2e-test:
+	# Run e2e test
+
+e2e-cleanup:
+	# Clean up
