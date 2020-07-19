@@ -3,16 +3,17 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
+
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
-	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
-func NewCmdTraits(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewTraitsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "traits [-workload WORKLOADNAME]",
@@ -53,9 +54,9 @@ func printTraitList(ctx context.Context, c client.Client, workloadName string) {
 type TraitMeta struct {
 	Name       string `json:"name"`
 	Short      string `json:"shot"`
-	Definition string `json:"name:,omitempty"`
-	AppliesTo  string `json:"name:,omitempty"`
-	Status     string `json:"name:,omitempty"`
+	Definition string `json:"definition,omitempty"`
+	AppliesTo  string `json:"appliesTo,omitempty"`
+	Status     string `json:"status,omitempty"`
 }
 
 func RetrieveTraitsByWorkload(ctx context.Context, c client.Client, workloadName string) ([]TraitMeta, error) {

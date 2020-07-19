@@ -29,10 +29,7 @@ func NewCommandOptions(ioStreams cmdutil.IOStreams) *commandOptions {
 	return &commandOptions{IOStreams: ioStreams}
 }
 
-func NewCmdBind(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
-	ctx := context.Background()
-
-	o := NewCommandOptions(ioStreams)
+func NewBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "bind APPLICATION-NAME TRAIT-NAME [FLAG]",
 		DisableFlagsInUseLine: true,
@@ -40,43 +37,55 @@ func NewCmdBind(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams)
 		Long:                  "Attach a trait to a component.",
 		Example:               `rudr bind frontend scaler --max=5`,
 		Run: func(cmd *cobra.Command, args []string) {
-			cmdutil.CheckErr(o.Complete(f, cmd, args, ctx))
-			cmdutil.CheckErr(o.Run(f, cmd, ctx))
+			var traitDefinitions corev1alpha2.TraitDefinitionList
+			ctx := context.Background()
+			o := NewCommandOptions(ioStreams)
+			o.Client = c
+
+			bindCmd := &cobra.Command{
+				Use: "run [WORKLOAD_KIND] [args]",
+			}
+			if len(args) > 0 {
+				bindCmd.SetArgs(args[1:])
+			}
+
+			err := c.List(ctx, &traitDefinitions)
+			if err != nil {
+				fmt.Println("Listing trait definitions hit an issue:", err)
+				os.Exit(1)
+			}
+
+			for _, t := range traitDefinitions.Items {
+				template := t.ObjectMeta.Annotations["defatultTemplateRef"]
+
+				var traitTemplate v1alpha2.Template
+				err := c.Get(ctx, client.ObjectKey{Namespace: "default", Name: template}, &traitTemplate)
+				if err != nil {
+					fmt.Println("Listing trait template hit an issue:", err)
+					os.Exit(1)
+				}
+
+				for _, p := range traitTemplate.Spec.Parameters {
+					if p.Type == "int" {
+						v, err := strconv.Atoi(p.Default)
+						if err != nil {
+							fmt.Println("Parameters type is wrong: ", err, ".Please report this to OAM maintainer, thanks.")
+						}
+						bindCmd.PersistentFlags().Int(p.Name, v, p.Usage)
+					} else {
+						bindCmd.PersistentFlags().String(p.Name, p.Default, p.Usage)
+					}
+				}
+			}
+
+			bindCmd.Run = func(cmd *cobra.Command, args []string) {
+				cmdutil.CheckErr(o.Complete(f, bindCmd, args, ctx))
+				cmdutil.CheckErr(o.Run(f, bindCmd, ctx))
+			}
+			bindCmd.Execute()
 		},
 	}
-
-	var traitDefinitions corev1alpha2.TraitDefinitionList
-	err := c.List(ctx, &traitDefinitions)
-	if err != nil {
-		fmt.Println("Listing trait definitions hit an issue:", err)
-		os.Exit(1)
-	}
-
-	for _, t := range traitDefinitions.Items {
-		template := t.ObjectMeta.Annotations["defatultTemplateRef"]
-
-		var traitTemplate v1alpha2.Template
-		err := c.Get(ctx, client.ObjectKey{Namespace: "default", Name: template}, &traitTemplate)
-		if err != nil {
-			fmt.Println("Listing trait template hit an issue:", err)
-			os.Exit(1)
-		}
-
-		o.Client = c
-
-		for _, p := range traitTemplate.Spec.Parameters {
-			if p.Type == "int" {
-				v, err := strconv.Atoi(p.Default)
-				if err != nil {
-					fmt.Println("Parameters type is wrong: ", err, ".Please report this to OAM maintainer, thanks.")
-				}
-				cmd.PersistentFlags().Int(p.Name, v, p.Usage)
-			} else {
-				cmd.PersistentFlags().String(p.Name, p.Default, p.Usage)
-			}
-		}
-	}
-
+	cmd.SetArgs(args)
 	return cmd
 }
 

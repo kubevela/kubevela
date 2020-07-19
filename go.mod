@@ -9,7 +9,7 @@ require (
 	github.com/gosuri/uitable v0.0.4
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.8.1
-	github.com/spf13/cobra v0.0.5
+	github.com/spf13/cobra v1.0.0
 	k8s.io/apimachinery v0.18.5
 	k8s.io/cli-runtime v0.18.5
 	k8s.io/client-go v0.18.5
