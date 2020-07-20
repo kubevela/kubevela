@@ -10,6 +10,7 @@ Check out [DEVELOPMENT.md](./DEVELOPMENT.md) to see how to develop with RudrX
 ```shell script
 $ cd cmd/rudrx
 $ go build -o rudr
+$ chmod +x rudr
 $ cp ./rudr /usr/local/bin
 ```
 
