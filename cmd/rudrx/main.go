@@ -52,9 +52,7 @@ func main() {
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
-	if err := command.Execute(); err != nil {
-		os.Exit(1)
-	}
+	cmdutil.CheckErr(command.Execute())
 }
 
 func newCommand(args []string) *cobra.Command {

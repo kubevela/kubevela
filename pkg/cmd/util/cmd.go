@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -20,4 +21,33 @@ type IOStreams struct {
 func PrintErrorMessage(errorMessage string, exitCode int) {
 	fmt.Println(errorMessage)
 	os.Exit(exitCode)
+}
+
+// NewTestIOStreams returns a valid IOStreams and in, out, errout buffers for unit tests
+func NewTestIOStreams() (IOStreams, *bytes.Buffer, *bytes.Buffer, *bytes.Buffer) {
+	in := &bytes.Buffer{}
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+
+	return IOStreams{
+		In:     in,
+		Out:    out,
+		ErrOut: errOut,
+	}, in, out, errOut
+}
+
+func (i *IOStreams) Info(a ...interface{}) {
+	i.Out.Write([]byte(fmt.Sprint(a...)))
+}
+
+func (i *IOStreams) Infof(format string, a ...interface{}) {
+	i.Out.Write([]byte(fmt.Sprintf(format, a...)))
+}
+
+func (i *IOStreams) Errorf(format string, a ...interface{}) {
+	i.ErrOut.Write([]byte(fmt.Sprintf(format, a...)))
+}
+
+func (i *IOStreams) Error(a ...interface{}) {
+	i.ErrOut.Write([]byte(fmt.Sprint(a...)))
 }

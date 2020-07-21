@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -31,90 +31,83 @@ func newRunOptions(ioStreams cmdutil.IOStreams) *runOptions {
 }
 
 func NewRunCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:                   "run [WORKLOAD_KIND] [args]",
-		DisableFlagsInUseLine: true,
-		Short:                 "Run OAM workloads",
-		Long:                  "Create and Run one component one AppConfig OAM APP",
-		Example: `
-  rudrx run containerized frontend -p 80 oam-dev/demo:v1
-`,
-		Run: func(cmd *cobra.Command, args []string) {
-			workloadNames := []string{}
-			ctx := context.Background()
-			o := newRunOptions(ioStreams)
-			o.client = c
-
-			// init new cmd, append sub cmd
-			runCmd := &cobra.Command{
-				Use: "run [WORKLOAD_KIND] [args]",
-			}
-			if len(args) > 0 {
-				runCmd.SetArgs(args[1:])
-			}
-			runCmd.PersistentFlags().StringP("namespace", "n", "", "namespace for apps")
-
-			var workloadDefs corev1alpha2.WorkloadDefinitionList
-			err := c.List(ctx, &workloadDefs)
-			if err != nil {
-				fmt.Println("list workload Definition err", err)
-				os.Exit(1)
-			}
-			workloadDefsItem := workloadDefs.Items
-
-			if len(workloadDefsItem) == 0 {
-				// TODO(zzxwill) Refine this prompt message
-				fmt.Println("Somehow Workload Definitions are NOT preconfigured, please report this to OAM maintainers.")
-				os.Exit(1)
-			}
-
-			for _, wd := range workloadDefsItem {
-				name := wd.ObjectMeta.Annotations["short"]
-				if name == "" {
-					name = wd.Name
-				}
-				workloadNames = append(workloadNames, name)
-				templateRef, ok := wd.ObjectMeta.Annotations["defatultTemplateRef"]
-				if !ok {
-					continue
-				}
-
-				var tmp v1alpha2.Template
-				// TODO namespace is variable
-				err = c.Get(ctx, client.ObjectKey{Namespace: "default", Name: templateRef}, &tmp)
-				if err != nil {
-					fmt.Println("list workload Definition err", err)
-					os.Exit(1)
-				}
-
-				subcmd := &cobra.Command{
-					Use:                   name + " [args]",
-					DisableFlagsInUseLine: true,
-					Short:                 "Run " + name + " workloads",
-					Long:                  "Run " + name + " workloads",
-					Run: func(cmd *cobra.Command, args []string) {
-						cmdutil.CheckErr(o.Complete(f, cmd, args))
-						cmdutil.CheckErr(o.Run(f, cmd))
-					},
-				}
-				for _, v := range tmp.Spec.Parameters {
-					if tmp.Spec.LastCommandParam != v.Name {
-						runCmd.PersistentFlags().StringP(v.Name, v.Short, v.Default, v.Usage)
-					}
-				}
-
-				cmd.AddCommand(subcmd)
-			}
-
-			runCmd.Run = func(cmd *cobra.Command, args []string) {
-				fmt.Println("You must specify a workload, like " + strings.Join(workloadNames, ", ") +
-					"\nSee 'rudr run -h' for help and examples")
-			}
-			runCmd.Execute()
-		},
-	}
+	cmd := newRunCommand()
 	cmd.SetArgs(args)
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return runSubRunCommand(f, c, ioStreams, args)
+	}
 	return cmd
+}
+
+func runSubRunCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) error {
+	ctx := context.Background()
+	workloadNames := []string{}
+	o := newRunOptions(ioStreams)
+	o.client = c
+
+	// init new cmd, append sub cmd
+	runCmd := newRunCommand()
+	runCmd.SetOutput(o.Out)
+	runCmd.PersistentFlags().StringP("namespace", "n", "default", "namespace for apps")
+	if len(args) > 0 {
+		runCmd.SetArgs(args[1:])
+	}
+
+	var workloadDefs corev1alpha2.WorkloadDefinitionList
+	err := c.List(ctx, &workloadDefs)
+	if err != nil {
+		return fmt.Errorf("list workload Definition err %s", err)
+	}
+	workloadDefsItem := workloadDefs.Items
+	if len(workloadDefsItem) == 0 {
+		// TODO(zzxwill) Refine this prompt message
+		return errors.New("somehow Workload definitions are NOT preconfigured, please report this to OAM maintainers")
+	}
+
+	for _, wd := range workloadDefsItem {
+		name := wd.ObjectMeta.Annotations["short"]
+		if name == "" {
+			name = wd.Name
+		}
+		workloadNames = append(workloadNames, name)
+		templateRef, ok := wd.ObjectMeta.Annotations["defatultTemplateRef"]
+		if !ok {
+			continue
+		}
+
+		var tmp v1alpha2.Template
+		err = c.Get(ctx, client.ObjectKey{Namespace: "", Name: templateRef}, &tmp)
+		if err != nil {
+			return fmt.Errorf("list workload Definition err: %v", err)
+		}
+
+		subcmd := &cobra.Command{
+			Use:                   name + " [args]",
+			DisableFlagsInUseLine: true,
+			Short:                 "Run " + name + " workloads",
+			Long:                  "Run " + name + " workloads",
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if err := o.Complete(f, cmd, args); err != nil {
+					return err
+				}
+				return o.Run(f, cmd)
+			},
+		}
+		subcmd.SetOutput(o.Out)
+		for _, v := range tmp.Spec.Parameters {
+			if tmp.Spec.LastCommandParam != v.Name {
+				runCmd.PersistentFlags().StringP(v.Name, v.Short, v.Default, v.Usage)
+			}
+		}
+
+		runCmd.AddCommand(subcmd)
+	}
+
+	runCmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return errors.New("You must specify a workload, like " + strings.Join(workloadNames, ", ") +
+			"\nSee 'rudr run -h' for help and examples")
+	}
+	return runCmd.Execute()
 }
 
 func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []string) error {
@@ -129,14 +122,11 @@ func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []stri
 	lastCommandParam := o.Template.Spec.LastCommandParam
 
 	if argsLenght < 1 {
-		fmt.Println("must specify name for workload")
-		os.Exit(1)
+		return errors.New("must specify name for workload")
 	} else if argsLenght < 2 && lastCommandParam != "" {
 		// TODO(zzxwill): Could not determine whether the argument is the workload name or image name if without image tag
-		errMsg := fmt.Sprintf("You must specify `%s` as the last command.\nSee 'rudr run -h' for help and examples",
+		return fmt.Errorf("You must specify `%s` as the last command.\nSee 'rudr run -h' for help and examples",
 			lastCommandParam)
-		fmt.Println(errMsg)
-		os.Exit(1)
 	}
 
 	o.Namespace = namespace
@@ -152,9 +142,7 @@ func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []stri
 		}
 
 		if paraV == "" {
-			errMsg := fmt.Sprintf("Flag `%s` is NOT set, please check and try again. \nSee 'rudr run -h' for help and examples", v.Name)
-			fmt.Println(errMsg)
-			os.Exit(1)
+			return fmt.Errorf("Flag `%s` is NOT set, please check and try again. \nSee 'rudr run -h' for help and examples", v.Name)
 		}
 
 		for _, path := range v.FieldPaths {
@@ -183,17 +171,26 @@ func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []stri
 }
 
 func (o *runOptions) Run(f cmdutil.Factory, cmd *cobra.Command) error {
-	fmt.Println("Creating AppConfig", o.AppConfig.Name)
+	o.Infof("Creating AppConfig %s", o.AppConfig.Name)
 	err := o.client.Create(context.Background(), &o.Component)
 	if err != nil {
-		fmt.Println("create component err", err)
-		os.Exit(1)
+		return fmt.Errorf("create component err: %s", err)
 	}
 	err = o.client.Create(context.Background(), &o.AppConfig)
 	if err != nil {
-		fmt.Println("create appconfig err", err)
-		os.Exit(1)
+		return fmt.Errorf("create appconfig err %s", err)
 	}
-	fmt.Println("SUCCEED")
+	o.Info("SUCCEED")
 	return nil
+}
+
+func newRunCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:                   "run [WORKLOAD_KIND] [args]",
+		DisableFlagsInUseLine: true,
+		Short:                 "Run OAM workloads",
+		Long:                  "Create and Run one component one AppConfig OAM APP",
+		Example: `
+  rudrx run containerized frontend -p 80 oam-dev/demo:v1
+`}
 }
