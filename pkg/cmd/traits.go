@@ -3,16 +3,16 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
-	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strings"
 )
 
-func NewCmdTraits(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewTraitsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "traits [-workload WORKLOADNAME]",
@@ -20,26 +20,25 @@ func NewCmdTraits(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStream
 		Short:                 "List traits",
 		Long:                  "List traits",
 		Example:               `rudr traits`,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			workloadName := cmd.Flag("workload").Value.String()
-			printTraitList(ctx, c, workloadName)
+			return printTraitList(ctx, c, workloadName)
 		},
 	}
 
+	cmd.SetOutput(ioStreams.Out)
 	cmd.PersistentFlags().StringP("workload", "w", "", "Workload name")
-
 	return cmd
 }
 
-func printTraitList(ctx context.Context, c client.Client, workloadName string) {
+func printTraitList(ctx context.Context, c client.Client, workloadName string) error {
 	traitList, err := RetrieveTraitsByWorkload(ctx, c, workloadName)
 
 	table := uitable.New()
 	table.MaxColWidth = 60
 
 	if err != nil {
-		fmt.Println("Listing Trait Definition hit an issue: ", err)
-		os.Exit(1)
+		return fmt.Errorf("Listing Trait Definition hit an issue: %s", err)
 	}
 
 	table.AddRow("NAME", "SHORT", "DEFINITION", "APPLIES TO", "STATUS")
@@ -48,14 +47,16 @@ func printTraitList(ctx context.Context, c client.Client, workloadName string) {
 	}
 
 	fmt.Println(table)
+
+	return nil
 }
 
 type TraitMeta struct {
 	Name       string `json:"name"`
 	Short      string `json:"shot"`
-	Definition string `json:"name:,omitempty"`
-	AppliesTo  string `json:"name:,omitempty"`
-	Status     string `json:"name:,omitempty"`
+	Definition string `json:"definition,omitempty"`
+	AppliesTo  string `json:"appliesTo,omitempty"`
+	Status     string `json:"status,omitempty"`
 }
 
 func RetrieveTraitsByWorkload(ctx context.Context, c client.Client, workloadName string) ([]TraitMeta, error) {

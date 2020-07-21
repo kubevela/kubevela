@@ -4,6 +4,11 @@ IMG ?= controller:latest
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 
+# Rudrx version
+RUDRX_VERSION ?= 0.1.0
+# Repo info
+GIT_COMMIT ?= git-$(shell git rev-parse --short HEAD)
+
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -20,7 +25,7 @@ test: generate fmt vet manifests
 # Build manager binary
 manager: generate fmt vet
 	go build -o bin/manager cmd/server/main.go
-	go build -o bin/rudrx cmd/rudrx/main.go
+	go build -ldflags "-X main.RudrxVersion=${RUDRX_VERSION} -X main.GitRevision=${GIT_COMMIT}" -o bin/rudrx cmd/rudrx/main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: generate fmt vet manifests

@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -25,31 +25,37 @@ type commandOptions struct {
 	cmdutil.IOStreams
 }
 
+// NewCommandOptions bind command options
 func NewCommandOptions(ioStreams cmdutil.IOStreams) *commandOptions {
 	return &commandOptions{IOStreams: ioStreams}
 }
 
-func NewCmdBind(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
-	ctx := context.Background()
+// NewBindCommand return bind command
+func NewBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
+	cmd := newBindCommand()
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return runSubBindCommand(f, c, ioStreams, args)
+	}
+	cmd.SetOutput(ioStreams.Out)
+	cmd.SetArgs(args)
+	return cmd
+}
 
+func runSubBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) error {
+	var traitDefinitions corev1alpha2.TraitDefinitionList
+	ctx := context.Background()
 	o := NewCommandOptions(ioStreams)
-	cmd := &cobra.Command{
-		Use:                   "bind APPLICATION-NAME TRAIT-NAME [FLAG]",
-		DisableFlagsInUseLine: true,
-		Short:                 "Attach a trait to a component",
-		Long:                  "Attach a trait to a component.",
-		Example:               `rudr bind frontend scaler --max=5`,
-		Run: func(cmd *cobra.Command, args []string) {
-			cmdutil.CheckErr(o.Complete(f, cmd, args, ctx))
-			cmdutil.CheckErr(o.Run(f, cmd, ctx))
-		},
+	o.Client = c
+
+	bindCmd := newBindCommand()
+	bindCmd.SetOutput(ioStreams.Out)
+	if len(args) > 0 {
+		bindCmd.SetArgs(args[1:])
 	}
 
-	var traitDefinitions corev1alpha2.TraitDefinitionList
 	err := c.List(ctx, &traitDefinitions)
 	if err != nil {
-		fmt.Println("Listing trait definitions hit an issue:", err)
-		os.Exit(1)
+		return fmt.Errorf("Listing trait definitions hit an issue: %v", err)
 	}
 
 	for _, t := range traitDefinitions.Items {
@@ -58,73 +64,71 @@ func NewCmdBind(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams)
 		var traitTemplate v1alpha2.Template
 		err := c.Get(ctx, client.ObjectKey{Namespace: "default", Name: template}, &traitTemplate)
 		if err != nil {
-			fmt.Println("Listing trait template hit an issue:", err)
-			os.Exit(1)
+			return fmt.Errorf("Listing trait template hit an issue: %v", err)
 		}
-
-		o.Client = c
 
 		for _, p := range traitTemplate.Spec.Parameters {
 			if p.Type == "int" {
 				v, err := strconv.Atoi(p.Default)
 				if err != nil {
-					fmt.Println("Parameters type is wrong: ", err, ".Please report this to OAM maintainer, thanks.")
+					return fmt.Errorf("Parameters type is wrong: %v .Please report this to OAM maintainer, thanks.", err)
 				}
-				cmd.PersistentFlags().Int(p.Name, v, p.Usage)
+				bindCmd.PersistentFlags().Int(p.Name, v, p.Usage)
 			} else {
-				cmd.PersistentFlags().String(p.Name, p.Default, p.Usage)
+				bindCmd.PersistentFlags().String(p.Name, p.Default, p.Usage)
 			}
 		}
 	}
 
-	return cmd
+	bindCmd.RunE = func(cmd *cobra.Command, args []string) error {
+		if err := o.Complete(f, bindCmd, args, ctx); err != nil {
+			return err
+		}
+		return o.Run(f, bindCmd, ctx)
+	}
+	return bindCmd.Execute()
 }
 
 func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []string, ctx context.Context) error {
 	argsLength := len(args)
 	var componentName string
-
 	c := o.Client
 
 	if argsLength == 0 {
-		cmdutil.PrintErrorMessage("Please append the name of an application. Use `rudr bind -h` for more "+
-			"detailed information.", 1)
+		return errors.New("Please append the name of an application. Use `rudr bind -h` for more " +
+			"detailed information.")
 	} else if argsLength <= 2 {
 		componentName = args[0]
 		err := c.Get(ctx, client.ObjectKey{Namespace: "default", Name: componentName}, &o.AppConfig)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return err
 		}
 		ns := o.AppConfig.Namespace
 
 		var component corev1alpha2.Component
 		err = c.Get(ctx, client.ObjectKey{Namespace: ns, Name: componentName}, &component)
 		if err != nil {
-			errMsg := fmt.Sprintf("%s. Please choose an existed component name.", err)
-			cmdutil.PrintErrorMessage(errMsg, 1)
+			return fmt.Errorf("%s. Please choose an existed component name", err)
 		}
 
 		// Retrieve all traits which can be used for the following 1) help and 2) validating
 		traitList, err := RetrieveTraitsByWorkload(ctx, o.Client, "")
 		if err != nil {
-			errMsg := fmt.Sprintf("List available traits hit an issue: %s", err)
-			cmdutil.PrintErrorMessage(errMsg, 1)
+			return fmt.Errorf("List available traits hit an issue: %s", err)
 		}
 
 		switch argsLength {
 		case 1:
 			// Validate component and suggest trait
-			fmt.Print("Error: No trait specified.\nPlease choose a trait: ")
+			errTip := "Error: No trait specified.\nPlease choose a trait: "
 			for _, t := range traitList {
 				n := t.Short
 				if n == "" {
 					n = t.Name
 				}
-				fmt.Print(n, " ")
+				errTip += n + " "
 			}
-			os.Exit(1)
-
+			return errors.New(errTip)
 		case 2:
 			// validate trait
 			traitName := args[1]
@@ -141,8 +145,7 @@ func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []
 			}
 
 			if !validTrait {
-				msg := fmt.Sprintf("The trait `%s` is NOT valid, please try a valid one.", traitName)
-				cmdutil.PrintErrorMessage(msg, 1)
+				return fmt.Errorf("The trait `%s` is NOT valid, please try a valid one.", traitName)
 			}
 
 			var traitDefinition corev1alpha2.TraitDefinition
@@ -170,7 +173,6 @@ func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []
 
 			var t corev1alpha2.ComponentTrait
 			t.Trait.Object = &unstructured.Unstructured{Object: pvd.UnstructuredContent()}
-
 			o.Component.Name = componentName
 			o.AppConfig.Spec.Components = []corev1alpha2.ApplicationConfigurationComponent{{
 				ComponentName: componentName,
@@ -179,21 +181,30 @@ func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []
 			}
 		}
 	} else {
-		cmdutil.PrintErrorMessage("Unknown command is specified, please check and try again.", 1)
+		return errors.New("Unknown command is specified, please check and try again.")
 	}
 	return nil
 }
 
+// Run command
 func (o *commandOptions) Run(f cmdutil.Factory, cmd *cobra.Command, ctx context.Context) error {
-	fmt.Println("Applying trait for component", o.Component.Name)
+	o.Info("Applying trait for component", o.Component.Name)
 	c := o.Client
 	err := c.Update(ctx, &o.AppConfig)
 	if err != nil {
-		msg := fmt.Sprintf("Applying trait hit an issue: %s", err)
-		cmdutil.PrintErrorMessage(msg, 1)
+		return fmt.Errorf("Applying trait hit an issue: %s", err)
 	}
 
-	msg := fmt.Sprintf("Succeeded!")
-	fmt.Println(msg)
+	o.Info("Succeeded!")
 	return nil
+}
+
+func newBindCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:                   "bind APPLICATION-NAME TRAIT-NAME [FLAG]",
+		DisableFlagsInUseLine: true,
+		Short:                 "Attach a trait to a component",
+		Long:                  "Attach a trait to a component.",
+		Example:               `rudr bind frontend scaler --max=5`,
+	}
 }
