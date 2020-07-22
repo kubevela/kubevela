@@ -8,7 +8,7 @@ contributing to `RudrX` or build a PoC (Proof of Concept).
 1. Golang version 1.12+
 2. Kubernetes version v1.15+ with `~/.kube/config` configured.
 3. OAM Kubernetes Runtime installed.
-4. Kustomize latest version installed
+4. Kustomize version 3.8+
 
 ## Build
 * Clone this project
