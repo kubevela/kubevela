@@ -59,9 +59,9 @@ func newCommand(args []string) *cobra.Command {
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 
 	cmds := &cobra.Command{
-		Use:          "rudrx",
-		Short:        "rudrx is a command-line tool to use OAM based micro-app engine.",
-		Long:         "rudrx is a command-line tool to use OAM based micro-app engine.",
+		Use:          "rudr",
+		Short:        "rudr is a command-line tool to use OAM based micro-app engine.",
+		Long:         "rudr is a command-line tool to use OAM based micro-app engine.",
 		Run:          runHelp,
 		SilenceUsage: true,
 	}

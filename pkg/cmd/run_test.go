@@ -9,7 +9,7 @@ import (
 )
 
 func TestNewRunCommand(t *testing.T) {
-	workloadTemplateExample2 := workloadTemplateExample.DeepCopy()
+	// workloadTemplateExample2 := workloadTemplateExample.DeepCopy()
 	workloaddefExample2 := workloaddefExample.DeepCopy()
 	workloaddefExample2.Annotations["short"] = "containerized"
 
@@ -18,7 +18,7 @@ func TestNewRunCommand(t *testing.T) {
 			Resources: test.InitResources{
 				Create: []runtime.Object{
 					workloaddefExample.DeepCopy(),
-					workloadTemplateExample.DeepCopy(),
+					//workloadTemplateExample.DeepCopy(),
 				},
 			},
 			WantException:  true,
@@ -29,7 +29,7 @@ func TestNewRunCommand(t *testing.T) {
 			Resources: test.InitResources{
 				Create: []runtime.Object{
 					workloaddefExample2.DeepCopy(),
-					workloadTemplateExample2.DeepCopy(),
+					//workloadTemplateExample2.DeepCopy(),
 				},
 			},
 			WantException:  true,
@@ -40,7 +40,7 @@ func TestNewRunCommand(t *testing.T) {
 			Resources: test.InitResources{
 				Create: []runtime.Object{
 					workloaddefExample2.DeepCopy(),
-					workloadTemplateExample2.DeepCopy(),
+					//workloadTemplateExample2.DeepCopy(),
 				},
 			},
 			ExpectedResources: []runtime.Object{
@@ -55,7 +55,7 @@ func TestNewRunCommand(t *testing.T) {
 			Resources: test.InitResources{
 				Create: []runtime.Object{
 					workloaddefExample2.DeepCopy(),
-					workloadTemplateExample2.DeepCopy(),
+					//workloadTemplateExample2.DeepCopy(),
 				},
 			},
 			ExpectedString: "-p, --port",
@@ -65,7 +65,7 @@ func TestNewRunCommand(t *testing.T) {
 			Resources: test.InitResources{
 				Create: []runtime.Object{
 					workloaddefExample2.DeepCopy(),
-					workloadTemplateExample2.DeepCopy(),
+					//workloadTemplateExample2.DeepCopy(),
 				},
 			},
 			ExpectedExistResources: []runtime.Object{

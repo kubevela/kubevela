@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cloud-native-application/rudrx/api/v1alpha2"
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
@@ -16,12 +15,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// TemplateLabel is the Annotation refer to template
-const TemplateLabel = "rudrx.oam.dev/template"
-
 type commandOptions struct {
 	Namespace string
-	Template  v1alpha2.Template
+	Template  cmdutil.Template
 	Component corev1alpha2.Component
 	AppConfig corev1alpha2.ApplicationConfiguration
 	Client    client.Client
@@ -70,20 +66,14 @@ func runSubBindCommand(parentCmd *cobra.Command, f cmdutil.Factory, c client.Cli
 	var traitDefinitions corev1alpha2.TraitDefinitionList
 	err := c.List(ctx, &traitDefinitions)
 	if err != nil {
-		return fmt.Errorf("Listing trait definitions hit an issue: %v", err)
+		return fmt.Errorf("listing trait definitions hit an issue: %v", err)
 	}
 
-	for _, template := range traitDefinitions.Items {
-		templateName := template.Annotations[TemplateLabel]
-		// skip tarit that without template
-		if templateName == "" {
-			continue
-		}
-
-		var traitTemplate v1alpha2.Template
-		err := c.Get(ctx, client.ObjectKey{Namespace: "default", Name: templateName}, &traitTemplate)
+	for _, t := range traitDefinitions.Items {
+		var traitTemplate cmdutil.Template
+		traitTemplate, err := cmdutil.ConvertTemplateJson2Object(t.Spec.Extension)
 		if err != nil {
-			return fmt.Errorf("Listing trait template hit an issue: %v", err)
+			return fmt.Errorf("applying the trait hit an issue: %s", err)
 		}
 
 		for _, p := range traitTemplate.Spec.Parameters {
@@ -116,8 +106,7 @@ func (o *commandOptions) Complete(cmd *cobra.Command, f cmdutil.Factory, args []
 	c := o.Client
 
 	if argsLength == 0 {
-		return errors.New("Please append the name of an application. Use `rudr bind -h` for more " +
-			"detailed information.")
+		return errors.New("please append the name of an application. Use `rudr bind -h` for more detailed information")
 	} else if argsLength <= 2 {
 		componentName = args[0]
 		err := c.Get(ctx, client.ObjectKey{Namespace: "default", Name: componentName}, &o.AppConfig)
@@ -135,7 +124,7 @@ func (o *commandOptions) Complete(cmd *cobra.Command, f cmdutil.Factory, args []
 		// Retrieve all traits which can be used for the following 1) help and 2) validating
 		traitList, err := RetrieveTraitsByWorkload(ctx, o.Client, "")
 		if err != nil {
-			return fmt.Errorf("List available traits hit an issue: %s", err)
+			return fmt.Errorf("list available traits hit an issue: %s", err)
 		}
 
 		switch argsLength {
@@ -172,8 +161,12 @@ func (o *commandOptions) Complete(cmd *cobra.Command, f cmdutil.Factory, args []
 			var traitDefinition corev1alpha2.TraitDefinition
 			c.Get(ctx, client.ObjectKey{Namespace: ns, Name: traitLongName}, &traitDefinition)
 
-			var traitTemplate v1alpha2.Template
-			c.Get(ctx, client.ObjectKey{Namespace: "default", Name: traitDefinition.ObjectMeta.Annotations[TemplateLabel]}, &traitTemplate)
+			var traitTemplate cmdutil.Template
+			traitTemplate, err := cmdutil.ConvertTemplateJson2Object(traitDefinition.Spec.Extension)
+
+			if err != nil {
+				return fmt.Errorf("applying the trait hit an issue: %s", err)
+			}
 
 			pvd := fieldpath.Pave(traitTemplate.Spec.Object.Object)
 			for _, v := range traitTemplate.Spec.Parameters {

@@ -1,0 +1,49 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: containerizedworkloads.core.oam.dev
+  annotations:
+    short: containerized
+spec:
+  definitionRef:
+    name: containerizedworkloads.core.oam.dev
+  childResourceKinds:
+    - apiVersion: apps/v1
+      kind: Deployment
+    - apiVersion: v1
+      kind: Service
+  extension:
+    template:
+      apiVersion: admin.oam.dev/v1alpha2
+      kind: Template
+      metadata:
+        annotations:
+          version: 0.0.1
+      spec:
+        object:
+          apiVersion: core.oam.dev/v1alpha2
+          kind: ContainerizedWorkload
+          metadata:
+            name: tbd
+          spec:
+            containers:
+              - image: myrepo/myapp:v1
+                name: master
+                ports:
+                  - containerPort: 6379
+                    protocol: TCP
+                    name: tbd # TODO(zzxwill) A temporary workaround for ContainerizedWorkload
+        lastCommandParam: image
+        parameters:
+          - name: image
+            short: i
+            required: true
+            type: string
+            fieldPaths:
+              - "spec.containers[0].image"
+          - name: port
+            short: p
+            required: false
+            type: int
+            fieldPaths:
+              - "spec.containers[0].ports[0].containerPort"

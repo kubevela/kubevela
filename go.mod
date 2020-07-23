@@ -4,7 +4,7 @@ go 1.13
 
 require (
 	github.com/crossplane/crossplane-runtime v0.8.0
-	github.com/crossplane/oam-kubernetes-runtime v0.0.3
+	github.com/crossplane/oam-kubernetes-runtime v0.0.5
 	github.com/go-logr/logr v0.1.0
 	github.com/gosuri/uitable v0.0.4
 	github.com/onsi/ginkgo v1.11.0

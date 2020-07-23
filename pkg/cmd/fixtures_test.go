@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -24,7 +25,7 @@ func init() {
 
 // used in testing
 var (
-	workloadTemplateExample = &v1alpha2.Template{
+	workloadTemplateExample = &util.Template{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "admin.oam.dev/v1alpha2",
 			Kind:       "Template",
@@ -36,7 +37,7 @@ var (
 			},
 			Namespace: "default",
 		},
-		Spec: v1alpha2.TemplateSpec{
+		Spec: util.TemplateSpec{
 			Object: unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"apiVersion": "core.oam.dev/v1alpha2",
@@ -50,15 +51,15 @@ var (
 				},
 			},
 			LastCommandParam: "image",
-			Parameters: []v1alpha2.Parameter{
-				v1alpha2.Parameter{
+			Parameters: []util.Parameter{
+				util.Parameter{
 					Name:       "image",
 					Short:      "i",
 					Required:   true,
 					Type:       "string",
 					FieldPaths: []string{"spec.containers[0].image"},
 				},
-				v1alpha2.Parameter{
+				util.Parameter{
 					Name:       "port",
 					Short:      "p",
 					Required:   false,
@@ -69,7 +70,7 @@ var (
 		},
 	}
 
-	traitTemplateExample = &v1alpha2.Template{
+	traitTemplateExample = &util.Template{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "admin.oam.dev/v1alpha2",
 			Kind:       "Template",
@@ -81,7 +82,7 @@ var (
 			},
 			Namespace: "default",
 		},
-		Spec: v1alpha2.TemplateSpec{
+		Spec: util.TemplateSpec{
 			Object: unstructured.Unstructured{
 				Object: map[string]interface{}{
 					"apiVersion": "core.oam.dev/v1alpha2",
@@ -94,8 +95,8 @@ var (
 					},
 				},
 			},
-			Parameters: []v1alpha2.Parameter{
-				v1alpha2.Parameter{
+			Parameters: []util.Parameter{
+				util.Parameter{
 					Name:       "replicaCount",
 					Short:      "i",
 					Required:   true,

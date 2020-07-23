@@ -14,9 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha2
+package util
 
 import (
+	"encoding/json"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -43,24 +45,21 @@ type Parameter struct {
 	Type       string   `json:"type,omitempty"`
 }
 
-// TemplateStatus defines the observed state of Template
-type TemplateStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-}
-
-// +kubebuilder:object:root=true
+//// TemplateStatus defines the observed state of Template
+//type TemplateStatus struct {
+//	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+//	// Important: Run "make" to regenerate code after modifying this file
+//}
+//
 
 // Template is the Schema for the templates API
 type Template struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TemplateSpec   `json:"spec,omitempty"`
-	Status TemplateStatus `json:"status,omitempty"`
+	Spec TemplateSpec `json:"spec,omitempty"`
+	//Status TemplateStatus `json:"status,omitempty"`
 }
-
-// +kubebuilder:object:root=true
 
 // TemplateList contains a list of Template
 type TemplateList struct {
@@ -69,6 +68,22 @@ type TemplateList struct {
 	Items           []Template `json:"items"`
 }
 
-func init() {
-	SchemeBuilder.Register(&Template{}, &TemplateList{})
+//func init() {
+//	v1alpha2.SchemeBuilder.Register(&Template{}, &TemplateList{})
+//}
+
+type DefinitionExtensionTemplate struct {
+	ExtensionTemplate Template `json:"template,omitempty"`
+}
+
+func ConvertTemplateJson2Object(in *unstructured.Unstructured) (Template, error) {
+	var t Template
+	var extension DefinitionExtensionTemplate
+	templateJson, _ := in.MarshalJSON()
+	err := json.Unmarshal(templateJson, &extension)
+	if err == nil {
+		t = extension.ExtensionTemplate
+	}
+
+	return t, err
 }
