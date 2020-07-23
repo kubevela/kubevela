@@ -22,16 +22,19 @@ func NewTraitsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOSt
 		Example:               `rudr traits`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			workloadName := cmd.Flag("workload").Value.String()
-			return printTraitList(ctx, c, workloadName)
+			return printTraitList(ctx, c, workloadName, ioStreams)
 		},
 	}
 
-	cmd.SetOutput(ioStreams.Out)
+	// flags pass to new command directly
+	cmd.DisableFlagParsing = true
+	cmd.SetArgs(args)
+	cmd.SetOut(ioStreams.Out)
 	cmd.PersistentFlags().StringP("workload", "w", "", "Workload name")
 	return cmd
 }
 
-func printTraitList(ctx context.Context, c client.Client, workloadName string) error {
+func printTraitList(ctx context.Context, c client.Client, workloadName string, ioStreams cmdutil.IOStreams) error {
 	traitList, err := RetrieveTraitsByWorkload(ctx, c, workloadName)
 
 	table := uitable.New()
@@ -45,8 +48,7 @@ func printTraitList(ctx context.Context, c client.Client, workloadName string) e
 	for _, r := range traitList {
 		table.AddRow(r.Name, r.Short, r.Definition, r.AppliesTo, r.Status)
 	}
-
-	fmt.Println(table)
+	ioStreams.Info(table.String())
 
 	return nil
 }
@@ -64,7 +66,6 @@ func RetrieveTraitsByWorkload(ctx context.Context, c client.Client, workloadName
 		Get trait list by optional filter `workloadName`
 	*/
 	var traitList []TraitMeta
-
 	var traitDefinitionList corev1alpha2.TraitDefinitionList
 	err := c.List(ctx, &traitDefinitionList)
 

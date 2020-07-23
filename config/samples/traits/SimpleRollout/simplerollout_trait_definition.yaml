@@ -3,7 +3,7 @@ kind: TraitDefinition
 metadata:
   name: simplerollouttraits.extend.oam.dev
   annotations:
-    defatultTemplateRef: simplerollouttraits.extend.oam.dev-template
+    rudrx.oam.dev/template: simplerollouttraits.extend.oam.dev-template
     short: SimpleRollout
 spec:
   revisionEnabled: true
