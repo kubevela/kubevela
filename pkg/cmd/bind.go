@@ -16,6 +16,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// TemplateLabel is the Annotation refer to template
+const TemplateLabel = "rudrx.oam.dev/template"
+
 type commandOptions struct {
 	Namespace string
 	Template  v1alpha2.Template
@@ -33,36 +36,52 @@ func NewCommandOptions(ioStreams cmdutil.IOStreams) *commandOptions {
 // NewBindCommand return bind command
 func NewBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
 	cmd := newBindCommand()
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		return runSubBindCommand(f, c, ioStreams, args)
-	}
-	cmd.SetOutput(ioStreams.Out)
 	cmd.SetArgs(args)
+	cmd.SetOut(ioStreams.Out)
+	cmd.DisableFlagParsing = true
+
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return runSubBindCommand(cmd, f, c, ioStreams, args)
+	}
 	return cmd
 }
 
-func runSubBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) error {
-	var traitDefinitions corev1alpha2.TraitDefinitionList
+func runSubBindCommand(parentCmd *cobra.Command, f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) error {
 	ctx := context.Background()
 	o := NewCommandOptions(ioStreams)
 	o.Client = c
 
-	bindCmd := newBindCommand()
-	bindCmd.SetOutput(ioStreams.Out)
+	// init fake command and pass args to fake command
+	// flags and subcommand append to fake comand and parent command
+	// run fake command only, show tips in parent command only
+	fakeCommand := newBindCommand()
+	fakeCommand.SilenceUsage = true
+	fakeCommand.SilenceErrors = true
+	fakeCommand.DisableAutoGenTag = true
+	fakeCommand.DisableFlagsInUseLine = true
+	fakeCommand.DisableSuggestions = true
+	fakeCommand.SetOut(o.Out)
 	if len(args) > 0 {
-		bindCmd.SetArgs(args[1:])
+		fakeCommand.SetArgs(args)
+	} else {
+		fakeCommand.SetArgs([]string{})
 	}
 
+	var traitDefinitions corev1alpha2.TraitDefinitionList
 	err := c.List(ctx, &traitDefinitions)
 	if err != nil {
 		return fmt.Errorf("Listing trait definitions hit an issue: %v", err)
 	}
 
-	for _, t := range traitDefinitions.Items {
-		template := t.ObjectMeta.Annotations["defatultTemplateRef"]
+	for _, template := range traitDefinitions.Items {
+		templateName := template.Annotations[TemplateLabel]
+		// skip tarit that without template
+		if templateName == "" {
+			continue
+		}
 
 		var traitTemplate v1alpha2.Template
-		err := c.Get(ctx, client.ObjectKey{Namespace: "default", Name: template}, &traitTemplate)
+		err := c.Get(ctx, client.ObjectKey{Namespace: "default", Name: templateName}, &traitTemplate)
 		if err != nil {
 			return fmt.Errorf("Listing trait template hit an issue: %v", err)
 		}
@@ -73,23 +92,25 @@ func runSubBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOS
 				if err != nil {
 					return fmt.Errorf("Parameters type is wrong: %v .Please report this to OAM maintainer, thanks.", err)
 				}
-				bindCmd.PersistentFlags().Int(p.Name, v, p.Usage)
+				fakeCommand.PersistentFlags().Int(p.Name, v, p.Usage)
+				parentCmd.PersistentFlags().Int(p.Name, v, p.Usage)
 			} else {
-				bindCmd.PersistentFlags().String(p.Name, p.Default, p.Usage)
+				fakeCommand.PersistentFlags().String(p.Name, p.Default, p.Usage)
+				parentCmd.PersistentFlags().String(p.Name, p.Default, p.Usage)
 			}
 		}
 	}
 
-	bindCmd.RunE = func(cmd *cobra.Command, args []string) error {
-		if err := o.Complete(f, bindCmd, args, ctx); err != nil {
+	fakeCommand.RunE = func(cmd *cobra.Command, args []string) error {
+		if err := o.Complete(fakeCommand, f, args, ctx); err != nil {
 			return err
 		}
-		return o.Run(f, bindCmd, ctx)
+		return o.Run(f, fakeCommand, ctx)
 	}
-	return bindCmd.Execute()
+	return fakeCommand.Execute()
 }
 
-func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []string, ctx context.Context) error {
+func (o *commandOptions) Complete(cmd *cobra.Command, f cmdutil.Factory, args []string, ctx context.Context) error {
 	argsLength := len(args)
 	var componentName string
 	c := o.Client
@@ -121,10 +142,10 @@ func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []
 		case 1:
 			// Validate component and suggest trait
 			errTip := "Error: No trait specified.\nPlease choose a trait: "
-			for _, t := range traitList {
-				n := t.Short
+			for _, trait := range traitList {
+				n := trait.Short
 				if n == "" {
-					n = t.Name
+					n = trait.Name
 				}
 				errTip += n + " "
 			}
@@ -135,11 +156,11 @@ func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []
 			var traitLongName string
 
 			validTrait := false
-			for _, t := range traitList {
+			for _, trait := range traitList {
 				// Support trait name or trait short name case-sensitively
-				if strings.EqualFold(t.Name, traitName) || strings.EqualFold(t.Short, traitName) {
+				if strings.EqualFold(trait.Name, traitName) || strings.EqualFold(trait.Short, traitName) {
 					validTrait = true
-					traitLongName = t.Name
+					traitLongName = trait.Name
 					break
 				}
 			}
@@ -152,7 +173,7 @@ func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []
 			c.Get(ctx, client.ObjectKey{Namespace: ns, Name: traitLongName}, &traitDefinition)
 
 			var traitTemplate v1alpha2.Template
-			c.Get(ctx, client.ObjectKey{Namespace: "default", Name: traitDefinition.ObjectMeta.Annotations["defatultTemplateRef"]}, &traitTemplate)
+			c.Get(ctx, client.ObjectKey{Namespace: "default", Name: traitDefinition.ObjectMeta.Annotations[TemplateLabel]}, &traitTemplate)
 
 			pvd := fieldpath.Pave(traitTemplate.Spec.Object.Object)
 			for _, v := range traitTemplate.Spec.Parameters {
@@ -188,7 +209,7 @@ func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []
 
 // Run command
 func (o *commandOptions) Run(f cmdutil.Factory, cmd *cobra.Command, ctx context.Context) error {
-	o.Info("Applying trait for component", o.Component.Name)
+	o.Infof("Applying trait for component %s\n", o.Component.Name)
 	c := o.Client
 	err := c.Update(ctx, &o.AppConfig)
 	if err != nil {

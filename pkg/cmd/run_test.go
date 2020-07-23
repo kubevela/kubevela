@@ -1,201 +1,81 @@
 package cmd
 
 import (
-	"context"
-	"strings"
 	"testing"
 
-	"gotest.tools/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	k8sRuntime "k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	cmdtesting "k8s.io/kubectl/pkg/cmd/testing"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	coreoamdevv1alpha2 "github.com/cloud-native-application/rudrx/api/v1alpha2"
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
-	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/cloud-native-application/rudrx/pkg/test"
 )
-
-var (
-	scheme = k8sRuntime.NewScheme()
-)
-
-type testResources struct {
-	create []runtime.Object
-	update []runtime.Object
-}
-
-func init() {
-	_ = clientgoscheme.AddToScheme(scheme)
-	_ = coreoamdevv1alpha2.AddToScheme(scheme)
-	_ = core.AddToScheme(scheme)
-	// +kubebuilder:scaffold:scheme
-}
 
 func TestNewRunCommand(t *testing.T) {
-	templateExample, workloaddefExample := getTestExample()
-
-	templateExample2 := templateExample.DeepCopy()
+	workloadTemplateExample2 := workloadTemplateExample.DeepCopy()
 	workloaddefExample2 := workloaddefExample.DeepCopy()
 	workloaddefExample2.Annotations["short"] = "containerized"
 
-	cases := map[string]struct {
-		resources *testResources
-		// want to exist with error
-		wantException bool
-		// output equal to
-		expectedOutput string
-		// output contains
-		expectedString string
-		args           []string
-	}{
+	cases := map[string]*test.CliTestCase{
 		"WorkloadNotDefinited": {
-			resources: &testResources{
-				create: []runtime.Object{
-					workloaddefExample,
-					templateExample,
+			Resources: test.InitResources{
+				Create: []runtime.Object{
+					workloaddefExample.DeepCopy(),
+					workloadTemplateExample.DeepCopy(),
 				},
 			},
-			wantException:  true,
-			expectedString: "You must specify a workload, like containerizedworkloads.core.oam.dev",
-			args:           []string{},
+			WantException:  true,
+			ExpectedString: "You must specify a workload, like containerizedworkloads.core.oam.dev",
+			Args:           []string{},
 		},
 		"WorkloadShortWork": {
-			resources: &testResources{
-				create: []runtime.Object{
-					workloaddefExample2,
-					templateExample2,
+			Resources: test.InitResources{
+				Create: []runtime.Object{
+					workloaddefExample2.DeepCopy(),
+					workloadTemplateExample2.DeepCopy(),
 				},
 			},
-			wantException:  true,
-			expectedString: "You must specify a workload, like containerized",
-			args:           []string{},
+			WantException:  true,
+			ExpectedString: "You must specify a workload, like containerized",
+			Args:           []string{},
 		},
-	}
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			factory := cmdtesting.NewTestFactory().WithNamespace("test")
-			client := fake.NewFakeClientWithScheme(scheme)
-			iostream, _, outPut, _ := cmdutil.NewTestIOStreams()
-
-			if len(tc.resources.create) != 0 {
-				for _, resource := range tc.resources.create {
-					err := client.Create(context.TODO(), resource)
-					assert.NilError(t, err)
-				}
-			}
-
-			if len(tc.resources.update) != 0 {
-				for _, resource := range tc.resources.update {
-					err := client.Update(context.TODO(), resource)
-					println(111, err.Error())
-					assert.NilError(t, err)
-				}
-			}
-			runCmd := NewRunCommand(factory, client, iostream, []string{})
-			runCmd.SetOutput(outPut)
-
-			err := runCmd.Execute()
-			errTip := tc.expectedString
-			if tc.expectedOutput != "" {
-				errTip = tc.expectedOutput
-			}
-			if tc.wantException {
-				assert.ErrorContains(t, err, errTip)
-				return
-			}
-
-			if tc.expectedOutput != "" {
-				assert.Equal(t, tc.expectedOutput, outPut.String())
-				return
-			}
-
-			assert.Equal(t, true, strings.Contains(outPut.String(), tc.expectedString))
-		})
-	}
-}
-
-func getTestExample() (*coreoamdevv1alpha2.Template, *corev1alpha2.WorkloadDefinition) {
-	templateExample := &coreoamdevv1alpha2.Template{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "admin.oam.dev/v1alpha2",
-			Kind:       "Template",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "containerizedworkload-template",
-			Annotations: map[string]string{
-				"version": "0.0.1",
-			},
-		},
-		Spec: coreoamdevv1alpha2.TemplateSpec{
-			Object: unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"apiVersion": "core.oam.dev/v1alpha2",
-					"kind":       "ContainerizedWorkload",
-					"metadata": map[string]interface{}{
-						"name": "pod",
-					},
-					"spec": map[string]interface{}{
-						"containers": `
-        - image: myrepo/myapp:v1
-					name: master
-					ports:
-            - containerPort: 6379
-							protocol: TCP
-              name: tbd`,
-					},
+		"PortFlagNotSet": {
+			Resources: test.InitResources{
+				Create: []runtime.Object{
+					workloaddefExample2.DeepCopy(),
+					workloadTemplateExample2.DeepCopy(),
 				},
 			},
-			LastCommandParam: "image",
-			Parameters: []coreoamdevv1alpha2.Parameter{
-				coreoamdevv1alpha2.Parameter{
-					Name:       "image",
-					Short:      "i",
-					Required:   true,
-					Type:       "string",
-					FieldPaths: []string{"spec.containers[0].image"},
-				},
-				coreoamdevv1alpha2.Parameter{
-					Name:       "port",
-					Short:      "p",
-					Required:   false,
-					Type:       "int",
-					FieldPaths: []string{"spec.containers[0].ports[0].containerPort"},
-				},
+			ExpectedResources: []runtime.Object{
+				appconfigExample,
+				componentExample,
 			},
+			WantException:  true,
+			ExpectedString: "Flag `port` is NOT set, please check and try again.",
+			Args:           []string{"containerized", "app2060", "nginx:1.9.4"},
 		},
-	}
-	workloaddefExample := &corev1alpha2.WorkloadDefinition{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "core.oam.dev/v1alpha2",
-			Kind:       "WorkloadDefinition",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "containerizedworkloads.core.oam.dev",
-			Annotations: map[string]string{
-				"defatultTemplateRef": "containerizedworkload-template",
-			},
-		},
-		Spec: corev1alpha2.WorkloadDefinitionSpec{
-			Reference: corev1alpha2.DefinitionReference{
-				Name: "containerizedworkloads.core.oam.dev",
-			},
-			ChildResourceKinds: []corev1alpha2.ChildResourceKind{
-				corev1alpha2.ChildResourceKind{
-					APIVersion: "apps/v1",
-					Kind:       "Deployment",
-				},
-				corev1alpha2.ChildResourceKind{
-					APIVersion: "v1",
-					Kind:       "Service",
+		"TemplateParametersWork": {
+			Resources: test.InitResources{
+				Create: []runtime.Object{
+					workloaddefExample2.DeepCopy(),
+					workloadTemplateExample2.DeepCopy(),
 				},
 			},
+			ExpectedString: "-p, --port",
+			Args:           []string{"containerized", "-h"},
+		},
+		"AppConfigCreated": {
+			Resources: test.InitResources{
+				Create: []runtime.Object{
+					workloaddefExample2.DeepCopy(),
+					workloadTemplateExample2.DeepCopy(),
+				},
+			},
+			ExpectedExistResources: []runtime.Object{
+				appconfigExample,
+				componentExample,
+			},
+			ExpectedOutput: "Creating AppConfig app2060\nSUCCEED",
+			Args:           []string{"containerized", "app2060", "nginx:1.9.4", "-p", "80"},
 		},
 	}
 
-	return templateExample, workloaddefExample
+	test.NewCliTest(t, scheme, NewRunCommand, cases).Run()
 }

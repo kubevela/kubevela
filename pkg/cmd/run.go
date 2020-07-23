@@ -30,28 +30,50 @@ func newRunOptions(ioStreams cmdutil.IOStreams) *runOptions {
 	return &runOptions{IOStreams: ioStreams}
 }
 
+// NewRunCommand init new command
 func NewRunCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
 	cmd := newRunCommand()
+	// flags pass to new command directly
+	cmd.DisableFlagParsing = true
 	cmd.SetArgs(args)
+	cmd.SetOut(ioStreams.Out)
+
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		return runSubRunCommand(f, c, ioStreams, args)
+		return runSubRunCommand(cmd, f, c, ioStreams, args)
 	}
 	return cmd
 }
 
-func runSubRunCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) error {
+// runSubRunCommand is init a new command and run independent
+func runSubRunCommand(parentCmd *cobra.Command, f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) error {
 	ctx := context.Background()
 	workloadNames := []string{}
 	o := newRunOptions(ioStreams)
 	o.client = c
 
-	// init new cmd, append sub cmd
-	runCmd := newRunCommand()
-	runCmd.SetOutput(o.Out)
-	runCmd.PersistentFlags().StringP("namespace", "n", "default", "namespace for apps")
+	// init fake command and pass args to fake command
+	// flags and subcommand append to fake comand and parent command
+	// run fake command only, show tips in parent command only
+	fakeCommand := newRunCommand()
+	fakeCommand.SilenceUsage = true
+	fakeCommand.SilenceErrors = true
+	fakeCommand.DisableAutoGenTag = true
+	fakeCommand.DisableFlagsInUseLine = true
+	fakeCommand.DisableSuggestions = true
+
+	// set args from parent
 	if len(args) > 0 {
-		runCmd.SetArgs(args[1:])
+		fakeCommand.SetArgs(args)
+	} else {
+		fakeCommand.SetArgs([]string{})
 	}
+	fakeCommand.SetOutput(o.Out)
+	fakeCommand.RunE = func(cmd *cobra.Command, args []string) error {
+		return errors.New("You must specify a workload, like " + strings.Join(workloadNames, ", ") +
+			"\nSee 'rudr run -h' for help and examples")
+	}
+	fakeCommand.PersistentFlags().StringP("namespace", "n", "default", "namespace for apps")
+	parentCmd.PersistentFlags().StringP("namespace", "n", "default", "namespace for apps")
 
 	var workloadDefs corev1alpha2.WorkloadDefinitionList
 	err := c.List(ctx, &workloadDefs)
@@ -70,15 +92,15 @@ func runSubRunCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOSt
 			name = wd.Name
 		}
 		workloadNames = append(workloadNames, name)
-		templateRef, ok := wd.ObjectMeta.Annotations["defatultTemplateRef"]
+		templateRef, ok := wd.ObjectMeta.Annotations[TemplateLabel]
 		if !ok {
 			continue
 		}
 
 		var tmp v1alpha2.Template
-		err = c.Get(ctx, client.ObjectKey{Namespace: "", Name: templateRef}, &tmp)
+		err = c.Get(ctx, client.ObjectKey{Namespace: "default", Name: templateRef}, &tmp)
 		if err != nil {
-			return fmt.Errorf("list workload Definition err: %v", err)
+			return fmt.Errorf("get workload Definition err: %v", err)
 		}
 
 		subcmd := &cobra.Command{
@@ -96,18 +118,16 @@ func runSubRunCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOSt
 		subcmd.SetOutput(o.Out)
 		for _, v := range tmp.Spec.Parameters {
 			if tmp.Spec.LastCommandParam != v.Name {
-				runCmd.PersistentFlags().StringP(v.Name, v.Short, v.Default, v.Usage)
+				subcmd.PersistentFlags().StringP(v.Name, v.Short, v.Default, v.Usage)
 			}
 		}
 
-		runCmd.AddCommand(subcmd)
+		tmp.DeepCopyInto(&o.Template)
+		fakeCommand.AddCommand(subcmd)
+		parentCmd.AddCommand(subcmd)
 	}
 
-	runCmd.RunE = func(cmd *cobra.Command, args []string) error {
-		return errors.New("You must specify a workload, like " + strings.Join(workloadNames, ", ") +
-			"\nSee 'rudr run -h' for help and examples")
-	}
-	return runCmd.Execute()
+	return fakeCommand.Execute()
 }
 
 func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []string) error {
@@ -156,7 +176,6 @@ func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []stri
 	}
 
 	pvd.SetString("metadata.name", args[0])
-
 	namespaceCover := cmd.Flag("namespace").Value.String()
 	if namespaceCover != "" {
 		namespace = namespaceCover
@@ -171,7 +190,7 @@ func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []stri
 }
 
 func (o *runOptions) Run(f cmdutil.Factory, cmd *cobra.Command) error {
-	o.Infof("Creating AppConfig %s", o.AppConfig.Name)
+	o.Infof("Creating AppConfig %s\n", o.AppConfig.Name)
 	err := o.client.Create(context.Background(), &o.Component)
 	if err != nil {
 		return fmt.Errorf("create component err: %s", err)

@@ -52,17 +52,18 @@ func main() {
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
-	cmdutil.CheckErr(command.Execute())
+	command.Execute()
 }
 
 func newCommand(args []string) *cobra.Command {
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 
 	cmds := &cobra.Command{
-		Use:   "rudrx",
-		Short: "rudrx is a command-line tool to use OAM based micro-app engine.",
-		Long:  "rudrx is a command-line tool to use OAM based micro-app engine.",
-		Run:   runHelp,
+		Use:          "rudrx",
+		Short:        "rudrx is a command-line tool to use OAM based micro-app engine.",
+		Long:         "rudrx is a command-line tool to use OAM based micro-app engine.",
+		Run:          runHelp,
+		SilenceUsage: true,
 	}
 
 	flags := cmds.PersistentFlags()

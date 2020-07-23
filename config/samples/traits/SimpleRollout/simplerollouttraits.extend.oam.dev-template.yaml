@@ -1,7 +1,7 @@
 apiVersion: admin.oam.dev/v1alpha2
 kind: Template
 metadata:
-  annotation:
+  annotations:
     version: 0.0.1
   name: simplerollouttraits.extend.oam.dev-template
 spec:
