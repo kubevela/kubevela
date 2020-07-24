@@ -72,7 +72,7 @@ func runSubDeleteCommand(parentCmd *cobra.Command, f cmdutil.Factory, c client.C
 		return errors.New("You must specify a workload, like " + strings.Join(workloadNames, ", ") +
 			"\nSee 'rudrx delete -h' for help and examples")
 	}
-	deleteCommand.PersistentFlags().StringP("namespace", "n", "default", "namespace for apps")
+	deleteCommand.PersistentFlags().StringP("namespace", "n", "", "namespace for apps")
 
 	var workloadDefs corev1alpha2.WorkloadDefinitionList
 	err := c.List(ctx, &workloadDefs)
@@ -104,7 +104,7 @@ func runSubDeleteCommand(parentCmd *cobra.Command, f cmdutil.Factory, c client.C
 			Short:                 "Delete " + name + " workloads",
 			Long:                  "Delete " + name + " workloads",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				if err := o.Complete(cmd, args); err != nil {
+				if err := o.Complete(f, cmd, args); err != nil {
 					return err
 				}
 				return o.Delete()
@@ -117,12 +117,16 @@ func runSubDeleteCommand(parentCmd *cobra.Command, f cmdutil.Factory, c client.C
 	return deleteCommand.Execute()
 }
 
-func (o *deleteOptions) Complete(cmd *cobra.Command, args []string) error {
+func (o *deleteOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []string) error {
+	namespace, _, err := f.ToRawKubeConfigLoader().Namespace()
+	if err != nil {
+		return err
+	}
+
 	if len(args) < 1 {
 		return errors.New("must specify name for workload")
 	}
 
-	namespace := "default"
 	namespaceCover := cmd.Flag("namespace").Value.String()
 	if namespaceCover != "" {
 		namespace = namespaceCover
@@ -135,7 +139,7 @@ func (o *deleteOptions) Complete(cmd *cobra.Command, args []string) error {
 }
 
 func (o *deleteOptions) Delete() error {
-	o.Infof("Deleting AppConfig %s\n", o.AppConfig.Name)
+	o.Infof("Deleting AppConfig \"%s\"\n", o.AppConfig.Name)
 	err := o.client.Delete(context.Background(), &o.Component)
 	if err != nil {
 		return fmt.Errorf("delete component err: %s", err)
