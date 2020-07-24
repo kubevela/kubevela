@@ -18,21 +18,22 @@ func NewAppsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStre
 	cmd := &cobra.Command{
 		Use:                   "apps",
 		DisableFlagsInUseLine: true,
-		Short:                 "List apps",
-		Long:                  "List apps",
+		Short:                 "List applications",
+		Long:                  "List applications with workloads, traits, status and created time",
 		Example:               `rudr apps`,
 		Run: func(cmd *cobra.Command, args []string) {
-			workloadName := cmd.Flag("application").Value.String()
-			printApplicationList(ctx, c, workloadName)
+			workloadName := cmd.Flag("name").Value.String()
+			namespace := cmd.Flag("namespace").Value.String()
+			printApplicationList(ctx, c, workloadName, namespace)
 		},
 	}
 
-	cmd.PersistentFlags().StringP("application", "a", "", "Application name")
+	cmd.PersistentFlags().String("name", "", "Application name")
 	return cmd
 }
 
-func printApplicationList(ctx context.Context, c client.Client, appName string) {
-	applicationMetaList, err := RetrieveApplicationsByApplicationName(ctx, c, appName)
+func printApplicationList(ctx context.Context, c client.Client, appName string, namespace string) {
+	applicationMetaList, err := RetrieveApplicationsByApplicationName(ctx, c, appName, namespace)
 
 	table := uitable.New()
 	table.MaxColWidth = 60
@@ -41,7 +42,7 @@ func printApplicationList(ctx context.Context, c client.Client, appName string) 
 		fmt.Errorf("listing Trait Definition hit an issue: %s", err)
 	}
 
-	table.AddRow("NAME", "WORKLOAD", "TRAITS", "STATUS", "CREATE-TIME")
+	table.AddRow("NAME", "WORKLOAD", "TRAITS", "STATUS", "CREATED-TIME")
 	for _, a := range applicationMetaList {
 		traitNames := strings.Join(a.Traits, ",")
 		table.AddRow(a.Name, a.Workload, traitNames, a.Status, a.CreatedTime)
@@ -61,9 +62,12 @@ type ApplicationMeta struct {
 	Get application list by optional filter `applicationName`
 	Application name is equal to Component name as currently rudrx only supports one component exists in one application
 */
-func RetrieveApplicationsByApplicationName(ctx context.Context, c client.Client, workloadName string) ([]ApplicationMeta, error) {
+func RetrieveApplicationsByApplicationName(ctx context.Context, c client.Client, workloadName string, namespace string) ([]ApplicationMeta, error) {
 	var applicationMetaList []ApplicationMeta
-	namespace := "default"
+
+	if namespace == "" {
+		namespace = "default"
+	}
 
 	var applicationList corev1alpha2.ApplicationConfigurationList
 
