@@ -128,3 +128,24 @@ status:
       kind: ContainerizedWorkload
       name: poc
 ```
+
+- delete an appliction
+```shell script
+$ rudr delete -h
+Delete OAM Applications
+
+Usage:
+  rudrx delete [APPLICATION_NAME]
+
+Examples:
+
+  rudrx delete frontend
+
+
+Flags:
+  -h, --help   help for delete
+
+$ rudr delete poc
+Deleting AppConfig "poc"
+DELETE SUCCEED
+```
