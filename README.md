@@ -128,3 +128,15 @@ status:
       kind: ContainerizedWorkload
       name: poc
 ```
+
+- list all applications
+```shell script
+$ rudr apps
+NAME                        	WORKLOAD             	TRAITS           	STATUS	CREATE-TIME                  
+app                          	ContainerizedWorkload	                 	True  	2020-07-22 11:23:21 +0800 CST
+example-deployment-appconfig	Deployment           	ManualScalerTrait	False 	2020-07-21 20:00:24 +0800 CST
+
+$ rudr apps -a app
+NAME   	WORKLOAD             	TRAITS	STATUS	CREATE-TIME                  
+app 	ContainerizedWorkload	      	True  	2020-07-22 11:23:21 +0800 CST
+```
