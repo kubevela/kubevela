@@ -44,6 +44,7 @@ type initCmd struct {
 	out       io.Writer
 	client    client.Client
 	config    *rest.Config
+	version   string
 }
 
 const (
@@ -83,6 +84,9 @@ func NewInitCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStre
 		},
 	}
 
+	flag := cmd.Flags()
+	flag.StringVarP(&i.version, "version", "v", "", "Override chart version")
+
 	return cmd
 }
 
@@ -103,7 +107,7 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams) error {
 		return nil
 	}
 
-	if err := InstallOamRuntime(ioStreams); err != nil {
+	if err := InstallOamRuntime(ioStreams, i.version); err != nil {
 		return err
 	}
 
@@ -120,7 +124,7 @@ func (i *initCmd) IsOamRuntimeExist() bool {
 	return true
 }
 
-func InstallOamRuntime(ioStreams cmdutil.IOStreams) error {
+func InstallOamRuntime(ioStreams cmdutil.IOStreams, version string) error {
 
 	if !IsHelmRepositoryExist(DefaultOAMRepoName, DefaultOAMRepoUrl) {
 		err := AddHelmRepository(DefaultOAMRepoName, DefaultOAMRepoUrl,
@@ -130,7 +134,7 @@ func InstallOamRuntime(ioStreams cmdutil.IOStreams) error {
 		}
 	}
 
-	chartClient, err := NewHelmInstall()
+	chartClient, err := NewHelmInstall(version)
 	if err != nil {
 		return err
 	}
@@ -149,7 +153,7 @@ func InstallOamRuntime(ioStreams cmdutil.IOStreams) error {
 	return nil
 }
 
-func NewHelmInstall() (*action.Install, error) {
+func NewHelmInstall(version string) (*action.Install, error) {
 	actionConfig := new(action.Configuration)
 
 	if err := actionConfig.Init(
@@ -166,8 +170,12 @@ func NewHelmInstall() (*action.Install, error) {
 	client := action.NewInstall(actionConfig)
 	client.Namespace = DefaultOAMNS
 	client.ReleaseName = DefaultOAMReleaseName
-	client.Version = DefaultOAMVersion
 
+	if len(version) > 0 {
+		client.Version = version
+		return client, nil
+	}
+	client.Version = DefaultOAMVersion
 	return client, nil
 }
 
