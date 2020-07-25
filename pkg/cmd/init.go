@@ -122,10 +122,12 @@ func (i *initCmd) IsOamRuntimeExist() bool {
 
 func InstallOamRuntime(ioStreams cmdutil.IOStreams) error {
 
-	err := AddHelmRepository(DefaultOAMRepoName, DefaultOAMRepoUrl,
-		"", "", "", "", "", false, ioStreams.Out)
-	if err != nil {
-		return err
+	if !IsHelmRepositoryExist(DefaultOAMRepoName, DefaultOAMRepoUrl) {
+		err := AddHelmRepository(DefaultOAMRepoName, DefaultOAMRepoUrl,
+			"", "", "", "", "", false, ioStreams.Out)
+		if err != nil {
+			return err
+		}
 	}
 
 	chartClient, err := NewHelmInstall()
@@ -213,4 +215,30 @@ func AddHelmRepository(name, url, username, password, certFile, keyFile, caFile 
 	}
 	fmt.Fprintf(out, "%q has been added to your repositories\n", name)
 	return nil
+}
+
+func IsHelmRepositoryExist(name, url string) bool {
+	repos := GetHelmRepositoryList()
+	for _, repo := range repos {
+		if repo.Name == name && repo.URL == url {
+			return true
+		}
+	}
+	return false
+}
+
+func GetHelmRepositoryList() []*repo.Entry {
+	f, err := repo.LoadFile(settings.RepositoryConfig)
+	if err == nil && len(f.Repositories) > 0 {
+		return filterRepos(f.Repositories)
+	}
+	return nil
+}
+
+func filterRepos(repos []*repo.Entry) []*repo.Entry {
+	filteredRepos := make([]*repo.Entry, 0)
+	for _, repo := range repos {
+		filteredRepos = append(filteredRepos, repo)
+	}
+	return filteredRepos
 }
