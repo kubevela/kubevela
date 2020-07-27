@@ -31,7 +31,7 @@ func NewAppsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStre
 }
 
 func printApplicationList(ctx context.Context, c client.Client, appName string, namespace string) {
-	applicationMetaList, err := cmdutil.RetrieveApplicationsByApplicationName(ctx, c, appName, namespace)
+	applicationMetaList, err := cmdutil.RetrieveApplicationsByName(ctx, c, appName, namespace)
 
 	table := uitable.New()
 	table.MaxColWidth = 60

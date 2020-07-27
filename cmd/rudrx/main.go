@@ -87,6 +87,7 @@ func newCommand(args []string) *cobra.Command {
 		cmd.NewBindCommand(f, client, ioStream, args),
 		cmd.NewDeleteCommand(f, client, ioStream, args),
 		cmd.NewAppsCommand(f, client, ioStream),
+		cmd.NewDetachCommand(f, client, ioStream),
 		NewVersionCommand(),
 	)
 
