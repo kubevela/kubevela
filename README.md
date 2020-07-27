@@ -129,6 +129,27 @@ status:
       name: poc
 ```
 
+- delete an appliction
+```shell script
+$ rudr delete -h
+Delete OAM Applications
+
+Usage:
+  rudrx delete [APPLICATION_NAME]
+
+Examples:
+
+  rudrx delete frontend
+
+
+Flags:
+  -h, --help   help for delete
+
+$ rudr delete poc
+Deleting AppConfig "poc"
+DELETE SUCCEED
+```
+
 - list all applications
 ```shell script
 $ rudr apps
@@ -139,4 +160,5 @@ example-deployment-appconfig	Deployment           	ManualScalerTrait	False 	2020
 $ rudr apps -a app
 NAME   	WORKLOAD             	TRAITS	STATUS	CREATE-TIME                  
 app 	ContainerizedWorkload	      	True  	2020-07-22 11:23:21 +0800 CST
+```
 ```
