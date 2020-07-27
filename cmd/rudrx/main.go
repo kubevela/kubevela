@@ -88,6 +88,7 @@ func newCommand() *cobra.Command {
 		cmd.NewEnvSwitchCommand(f, ioStream),
 		cmd.NewEnvDeleteCommand(f, ioStream),
 		cmd.NewEnvCommand(f, ioStream),
+		cmd.NewDetachCommand(f, client, ioStream),
 		NewVersionCommand(),
 		cmd.NewAppStatusCommand(client, ioStream),
 	)
