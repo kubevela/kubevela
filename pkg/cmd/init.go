@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"k8s.io/apimachinery/pkg/runtime"
 
 	oamv1 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
@@ -17,6 +19,7 @@ import (
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/repo"
+	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 
@@ -67,6 +70,16 @@ var (
 		&oamv1.ManualScalerTrait{},
 		&oamv1.ScopeDefinition{},
 	}
+
+	workloadResource = map[string]string{
+		"statefulset": "statefulsets.apps",
+		"daemonset":   "daemonsets.apps",
+		"deployment":  "deployments.apps",
+		"job":         "jobs.batch",
+		"secret":      "secrets",
+		"service":     "services",
+		"configmap":   "configmaps",
+	}
 )
 
 func NewInitCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
@@ -111,6 +124,10 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams) error {
 		return err
 	}
 
+	if err := GenNativeResourceDefinition(i.client); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -134,7 +151,7 @@ func InstallOamRuntime(ioStreams cmdutil.IOStreams, version string) error {
 		}
 	}
 
-	chartClient, err := NewHelmInstall(version)
+	chartClient, err := NewHelmInstall(version, ioStreams)
 	if err != nil {
 		return err
 	}
@@ -153,16 +170,14 @@ func InstallOamRuntime(ioStreams cmdutil.IOStreams, version string) error {
 	return nil
 }
 
-func NewHelmInstall(version string) (*action.Install, error) {
+func NewHelmInstall(version string, ioStreams cmdutil.IOStreams) (*action.Install, error) {
 	actionConfig := new(action.Configuration)
 
 	if err := actionConfig.Init(
 		kube.GetConfig(cmdutil.GetKubeConfig(), "", DefaultOAMNS),
 		DefaultOAMNS,
 		os.Getenv("HELM_DRIVER"),
-		func(format string, v ...interface{}) {
-			fmt.Sprintf(format, v)
-		},
+		ioStreams.Infof,
 	); err != nil {
 		return nil, err
 	}
@@ -249,4 +264,32 @@ func filterRepos(repos []*repo.Entry) []*repo.Entry {
 		filteredRepos = append(filteredRepos, repo)
 	}
 	return filteredRepos
+}
+
+func GenNativeResourceDefinition(c client.Client) error {
+	for name, reference := range workloadResource {
+		workload := NewWorkloadDefinition(name, reference)
+		err := c.Get(context.Background(), client.ObjectKey{Name: name}, workload)
+		if kubeerrors.IsNotFound(err) {
+			if err := c.Create(context.Background(), workload); err != nil {
+				return fmt.Errorf("create workload definition %s hit an issue: %v", reference, err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("get workload definition hit an issue: %v", err)
+		}
+	}
+
+	return nil
+
+}
+
+func NewWorkloadDefinition(name, reference string) *oamv1.WorkloadDefinition {
+	return &oamv1.WorkloadDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: oamv1.WorkloadDefinitionSpec{
+			Reference: oamv1.DefinitionReference{Name: reference},
+		},
+	}
 }
