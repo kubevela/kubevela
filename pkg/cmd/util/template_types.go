@@ -19,7 +19,8 @@ package util
 import (
 	"encoding/json"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -27,9 +28,10 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // TemplateSpec defines the desired state of Template
-type TemplateSpec struct {
+type Template struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	Alias            string                    `json:alias,omitempty`
 	Object           unstructured.Unstructured `json:"object"`
 	LastCommandParam string                    `json:"lastCommandParam,omitempty"`
 	Parameters       []Parameter               `json:"parameters,omitempty"`
@@ -45,44 +47,13 @@ type Parameter struct {
 	Type       string   `json:"type,omitempty"`
 }
 
-//// TemplateStatus defines the observed state of Template
-//type TemplateStatus struct {
-//	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-//	// Important: Run "make" to regenerate code after modifying this file
-//}
-//
-
-// Template is the Schema for the templates API
-type Template struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec TemplateSpec `json:"spec,omitempty"`
-	//Status TemplateStatus `json:"status,omitempty"`
-}
-
-// TemplateList contains a list of Template
-type TemplateList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Template `json:"items"`
-}
-
-//func init() {
-//	v1alpha2.SchemeBuilder.Register(&Template{}, &TemplateList{})
-//}
-
-type DefinitionExtensionTemplate struct {
-	ExtensionTemplate Template `json:"template,omitempty"`
-}
-
-func ConvertTemplateJson2Object(in *unstructured.Unstructured) (Template, error) {
+// ConvertTemplateJson2Object convert spec.extension to object
+func ConvertTemplateJson2Object(in runtime.RawExtension) (Template, error) {
 	var t Template
-	var extension DefinitionExtensionTemplate
-	templateJson, _ := in.MarshalJSON()
-	err := json.Unmarshal(templateJson, &extension)
+	var extension Template
+	err := json.Unmarshal(in.Raw, &extension)
 	if err == nil {
-		t = extension.ExtensionTemplate
+		t = extension
 	}
 
 	return t, err

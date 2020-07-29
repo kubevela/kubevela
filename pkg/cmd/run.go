@@ -75,31 +75,19 @@ func runSubRunCommand(parentCmd *cobra.Command, f cmdutil.Factory, c client.Clie
 	parentCmd.PersistentFlags().StringP("namespace", "n", "default", "namespace for apps")
 
 	var workloadDefs corev1alpha2.WorkloadDefinitionList
-	//err := c.List(ctx, &workloadDefs)
-	//if err != nil {
-	//	return fmt.Errorf("listing Workload definition hit an issue: %s", err)
-	//}
-
-	// TODO(zzxwill) Need to check err later
-	c.List(ctx, &workloadDefs)
-	workloadDefsItem := workloadDefs.Items
-	if len(workloadDefsItem) == 0 {
-		// TODO(zzxwill) Refine this prompt message
-		return errors.New("somehow Workload definitions are NOT preconfigured, please report this to OAM maintainers")
+	err := c.List(ctx, &workloadDefs)
+	if err != nil {
+		return fmt.Errorf("listing Workload definition hit an issue: %s", err)
 	}
 
-	for _, wd := range workloadDefsItem {
-		name := wd.ObjectMeta.Annotations["short"]
-		if name == "" {
-			name = wd.Name
-		}
-		workloadNames = append(workloadNames, name)
-
+	for _, wd := range workloadDefs.Items {
 		var tmp cmdutil.Template
 		tmp, err := cmdutil.ConvertTemplateJson2Object(wd.Spec.Extension)
 		if err != nil {
 			return fmt.Errorf("deploying application hit an issue: %s", err)
 		}
+		name := tmp.Alias
+		workloadNames = append(workloadNames, name)
 
 		subcmd := &cobra.Command{
 			Use:                   name + " [args]",
@@ -114,14 +102,15 @@ func runSubRunCommand(parentCmd *cobra.Command, f cmdutil.Factory, c client.Clie
 			},
 		}
 		subcmd.SetOut(o.Out)
-		for _, v := range tmp.Spec.Parameters {
-			if tmp.Spec.LastCommandParam != v.Name {
+		for _, v := range tmp.Parameters {
+			if tmp.LastCommandParam != v.Name {
 				subcmd.PersistentFlags().StringP(v.Name, v.Short, v.Default, v.Usage)
 			}
 		}
 
 		// Comment this line as template content will get mixed when there are more than two WorkloadDefinitions
 		// tmp.DeepCopyInto(&o.Template)
+		o.Template = tmp
 		fakeCommand.AddCommand(subcmd)
 		parentCmd.AddCommand(subcmd)
 	}
@@ -138,7 +127,7 @@ func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []stri
 	}
 
 	argsLength := len(args)
-	lastCommandParam := o.Template.Spec.LastCommandParam
+	lastCommandParam := o.Template.LastCommandParam
 
 	if argsLength < 1 {
 		return errors.New("must specify name for workload")
@@ -151,21 +140,9 @@ func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []stri
 			return fmt.Errorf("You must specify `%s` as the last command.\nSee 'rudr run -h' for help and examples",
 				lastCommandParam)
 		case argsLength == 2:
-			c := o.client
-
-			var w corev1alpha2.WorkloadDefinition
-			c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: workloadName}, &w)
-
-			var workloadTemplate cmdutil.Template
-			workloadTemplate, err := cmdutil.ConvertTemplateJson2Object(w.Spec.Extension)
-			o.Template = workloadTemplate
-
-			if err != nil {
-				return fmt.Errorf("deploying application hit an issue: %s", err)
-			}
-
-			pvd := fieldpath.Pave(workloadTemplate.Spec.Object.Object)
-			for _, v := range workloadTemplate.Spec.Parameters {
+			workloadTemplate := o.Template
+			pvd := fieldpath.Pave(workloadTemplate.Object.Object)
+			for _, v := range workloadTemplate.Parameters {
 				lastCommandValue := args[argsLength-1]
 				var paraV string
 				if v.Name == lastCommandParam {
@@ -189,7 +166,7 @@ func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []stri
 				}
 			}
 
-			pvd.SetString("metadata.name", workloadName)
+			pvd.SetString("metadata.name", strings.ToLower(workloadName))
 			namespaceCover := cmd.Flag("namespace").Value.String()
 			if namespaceCover != "" {
 				namespace = namespaceCover

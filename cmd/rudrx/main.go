@@ -47,7 +47,7 @@ func init() {
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-	command := newCommand(os.Args[1:])
+	command := newCommand()
 
 	logs.InitLogs()
 	defer logs.FlushLogs()
@@ -55,7 +55,7 @@ func main() {
 	command.Execute()
 }
 
-func newCommand(args []string) *cobra.Command {
+func newCommand() *cobra.Command {
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 
 	cmds := &cobra.Command{
@@ -82,12 +82,12 @@ func newCommand(args []string) *cobra.Command {
 	}
 
 	cmds.AddCommand(
-		cmd.NewRunCommand(f, client, ioStream, args),
-		cmd.NewTraitsCommand(f, client, ioStream, args),
+		cmd.NewRunCommand(f, client, ioStream, os.Args[1:]),
+		cmd.NewTraitsCommand(f, client, ioStream),
 		cmd.NewWorkloadsCommand(f, client, ioStream, args),
-		cmd.NewBindCommand(f, client, ioStream, args),
+		cmd.NewBindCommand(f, client, ioStream),
 		cmd.NewInitCommand(f, client, ioStream),
-		cmd.NewDeleteCommand(f, client, ioStream, args),
+		cmd.NewDeleteCommand(f, client, ioStream, os.Args[1:]),
 		cmd.NewAppsCommand(f, client, ioStream),
 		NewVersionCommand(),
 	)

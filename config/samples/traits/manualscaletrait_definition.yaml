@@ -1,0 +1,23 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: manualscalertrait.core.oam.dev
+spec:
+  appliesToWorkloads:
+    - core.oam.dev/v1alpha2.ContainerizedWorkload
+  definitionRef:
+    name: manualscalertrait.core.oam.dev
+  extension:
+    alias: ManualScaler
+    object:
+      apiVersion: core.oam.dev/v1alpha2
+      kind: ManualScalerTrait
+      spec:
+        replicaCount: 2
+    parameters:
+      - name: replicaCount
+        required: true
+        type: int
+        default: "5"
+        fieldPaths:
+          - "spec.replicaCount"

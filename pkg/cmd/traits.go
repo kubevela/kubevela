@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func NewTraitsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
+func NewTraitsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	var workloadName string
 	cmd := &cobra.Command{
@@ -37,17 +37,16 @@ func printTraitList(ctx context.Context, c client.Client, workloadName *string, 
 	table := uitable.New()
 	table.MaxColWidth = 60
 
-	if err != nil {
-		return fmt.Errorf("Listing Trait Definition hit an issue: %s", err)
-	}
+	//if err != nil {
+	//	errMsg := fmt.Sprintf("Listing Trait Definition hit an issue: %s", err)
+	//	cmdutil.PrintErrorMessage(errMsg, 1)
+	//}
 
-	table.AddRow("NAME", "SHORT", "DEFINITION", "APPLIES TO", "STATUS")
+	table.AddRow("NAME", "Alias", "DEFINITION", "APPLIES TO", "STATUS")
 	for _, r := range traitList {
 		table.AddRow(r.Name, r.Short, r.Definition, r.AppliesTo, r.Status)
 	}
-	ioStreams.Info(table.String())
-
-	return nil
+	fmt.Print(table.String())
 }
 
 type TraitMeta struct {
@@ -58,13 +57,14 @@ type TraitMeta struct {
 	Status     string `json:"status,omitempty"`
 }
 
-func RetrieveTraitsByWorkload(ctx context.Context, c client.Client, workloadName string) ([]TraitMeta, error) {
-	/*
-		Get trait list by optional filter `workloadName`
-	*/
+// RetrieveTraitsByWorkload Get trait list by optional filter `workloadName`
+func RetrieveTraitsByWorkload(ctx context.Context, c client.Client, namespace string, workloadName string) ([]TraitMeta, error) {
 	var traitList []TraitMeta
 	var traitDefinitionList corev1alpha2.TraitDefinitionList
-	err := c.List(ctx, &traitDefinitionList)
+	if namespace == "" {
+		namespace = "default"
+	}
+	err := c.List(ctx, &traitDefinitionList, client.InNamespace(namespace))
 
 	for _, r := range traitDefinitionList.Items {
 		var appliesTo string
