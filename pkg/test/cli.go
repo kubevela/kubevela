@@ -115,7 +115,7 @@ func (c *clitestImpl) Run() {
 
 			// check output messages
 			if tc.ExpectedOutput != "" {
-				assert.Equal(t, tc.ExpectedOutput, outPut.String())
+				assert.Equal(t, tc.ExpectedOutput, outPut.String(), name)
 				return
 			}
 

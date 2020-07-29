@@ -14,28 +14,25 @@ import (
 
 func NewTraitsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
 	ctx := context.Background()
+	var workloadName string
 	cmd := &cobra.Command{
-		Use:                   "traits [-workload WORKLOADNAME]",
+		Use:                   "traits [--apply-to WORKLOADNAME]",
 		DisableFlagsInUseLine: true,
 		Short:                 "List traits",
 		Long:                  "List traits",
 		Example:               `rudr traits`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			workloadName := cmd.Flag("workload").Value.String()
-			return printTraitList(ctx, c, workloadName, ioStreams)
+			return printTraitList(ctx, c, &workloadName, ioStreams)
 		},
 	}
 
-	// flags pass to new command directly
-	cmd.DisableFlagParsing = true
-	cmd.SetArgs(args)
 	cmd.SetOut(ioStreams.Out)
-	cmd.PersistentFlags().StringP("workload", "w", "", "Workload name")
+	cmd.Flags().StringVar(&workloadName, "apply-to", "", "Workload name")
 	return cmd
 }
 
-func printTraitList(ctx context.Context, c client.Client, workloadName string, ioStreams cmdutil.IOStreams) error {
-	traitList, err := RetrieveTraitsByWorkload(ctx, c, workloadName)
+func printTraitList(ctx context.Context, c client.Client, workloadName *string, ioStreams cmdutil.IOStreams) error {
+	traitList, err := RetrieveTraitsByWorkload(ctx, c, *workloadName)
 
 	table := uitable.New()
 	table.MaxColWidth = 60
@@ -73,6 +70,9 @@ func RetrieveTraitsByWorkload(ctx context.Context, c client.Client, workloadName
 		var appliesTo string
 		if workloadName == "" {
 			appliesTo = strings.Join(r.Spec.AppliesToWorkloads, ", ")
+			if appliesTo == "" {
+				continue
+			}
 		} else {
 			flag := false
 			for _, w := range r.Spec.AppliesToWorkloads {
@@ -81,21 +81,20 @@ func RetrieveTraitsByWorkload(ctx context.Context, c client.Client, workloadName
 					break
 				}
 			}
-			if flag == true {
-				appliesTo = workloadName
+			if !flag {
+				continue
 			}
+			appliesTo = workloadName
 		}
 
-		if appliesTo != "" {
-			// TODO(zzxwill) `Status` might not be proper as I'd like to describe where the trait is, in cluster or in registry
-			traitList = append(traitList, TraitMeta{
-				Name:       r.Name,
-				Short:      r.ObjectMeta.Annotations["short"],
-				Definition: r.Spec.Reference.Name,
-				AppliesTo:  appliesTo,
-				Status:     "-",
-			})
-		}
+		// TODO(zzxwill) `Status` might not be proper as I'd like to describe where the trait is, in cluster or in registry
+		traitList = append(traitList, TraitMeta{
+			Name:       r.Name,
+			Short:      r.ObjectMeta.Annotations["short"],
+			Definition: r.Spec.Reference.Name,
+			AppliesTo:  appliesTo,
+			Status:     "-",
+		})
 	}
 
 	return traitList, err
