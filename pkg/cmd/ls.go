@@ -14,11 +14,11 @@ import (
 func NewAppsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:                   "apps",
+		Use:                   "ls",
 		DisableFlagsInUseLine: true,
 		Short:                 "List applications",
 		Long:                  "List applications with workloads, traits, status and created time",
-		Example:               `rudr apps`,
+		Example:               `rudr ls`,
 		Run: func(cmd *cobra.Command, args []string) {
 			workloadName := cmd.Flag("name").Value.String()
 			namespace := cmd.Flag("namespace").Value.String()
