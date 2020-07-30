@@ -84,7 +84,7 @@ func newCommand() *cobra.Command {
 	cmds.AddCommand(
 		cmd.NewRunCommand(f, client, ioStream, os.Args[1:]),
 		cmd.NewTraitsCommand(f, client, ioStream),
-		cmd.NewWorkloadsCommand(f, client, ioStream, args),
+		cmd.NewWorkloadsCommand(f, client, ioStream, os.Args[1:]),
 		cmd.NewBindCommand(f, client, ioStream),
 		cmd.NewInitCommand(f, client, ioStream),
 		cmd.NewDeleteCommand(f, client, ioStream, os.Args[1:]),

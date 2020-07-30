@@ -32,21 +32,22 @@ func NewTraitsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOSt
 }
 
 func printTraitList(ctx context.Context, c client.Client, workloadName *string, ioStreams cmdutil.IOStreams) error {
-	traitList, err := RetrieveTraitsByWorkload(ctx, c, *workloadName)
+	traitList, err := RetrieveTraitsByWorkload(ctx, c, "", *workloadName)
 
 	table := uitable.New()
 	table.MaxColWidth = 60
 
-	//if err != nil {
-	//	errMsg := fmt.Sprintf("Listing Trait Definition hit an issue: %s", err)
-	//	cmdutil.PrintErrorMessage(errMsg, 1)
-	//}
+	if err != nil {
+		return fmt.Errorf("Listing Trait Definition hit an issue: %s", err)
+	}
 
 	table.AddRow("NAME", "Alias", "DEFINITION", "APPLIES TO", "STATUS")
 	for _, r := range traitList {
 		table.AddRow(r.Name, r.Short, r.Definition, r.AppliesTo, r.Status)
 	}
-	fmt.Print(table.String())
+	ioStreams.Info(table.String())
+
+	return nil
 }
 
 type TraitMeta struct {

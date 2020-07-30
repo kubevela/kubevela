@@ -32,7 +32,7 @@ type Template struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	Alias            string                    `json:alias,omitempty`
-	Object           unstructured.Unstructured `json:"object"`
+	Object           unstructured.Unstructured `json:"object,omitempty"`
 	LastCommandParam string                    `json:"lastCommandParam,omitempty"`
 	Parameters       []Parameter               `json:"parameters,omitempty"`
 }
@@ -48,7 +48,7 @@ type Parameter struct {
 }
 
 // ConvertTemplateJson2Object convert spec.extension to object
-func ConvertTemplateJson2Object(in runtime.RawExtension) (Template, error) {
+func ConvertTemplateJson2Object(in *runtime.RawExtension) (Template, error) {
 	var t Template
 	var extension Template
 	err := json.Unmarshal(in.Raw, &extension)
