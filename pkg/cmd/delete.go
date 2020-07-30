@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/spf13/cobra"
@@ -15,6 +16,7 @@ type deleteOptions struct {
 	AppConfig corev1alpha2.ApplicationConfiguration
 	client    client.Client
 	cmdutil.IOStreams
+	Env *EnvMeta
 }
 
 func newDeleteOptions(ioStreams cmdutil.IOStreams) *deleteOptions {
@@ -39,6 +41,7 @@ func NewDeleteCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOSt
 	cmd.SetOut(ioStreams.Out)
 	o := newDeleteOptions(ioStreams)
 	o.client = c
+	o.Env, _ = GetEnv()
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		if err := o.Complete(f, cmd, args); err != nil {
 			return err
@@ -49,19 +52,13 @@ func NewDeleteCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOSt
 }
 
 func (o *deleteOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []string) error {
-	namespace, _, err := f.ToRawKubeConfigLoader().Namespace()
-	if err != nil {
-		return err
-	}
 
 	if len(args) < 1 {
 		return errors.New("must specify name for workload")
 	}
 
-	namespaceCover := cmd.Flag("namespace").Value.String()
-	if namespaceCover != "" {
-		namespace = namespaceCover
-	}
+	namespace := o.Env.Namespace
+
 	o.Component.Name = args[0]
 	o.Component.Namespace = namespace
 	o.AppConfig.Name = args[0]

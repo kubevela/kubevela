@@ -54,9 +54,6 @@ type WorkloadData struct {
 }
 
 func ListWorkloads(ctx context.Context, c client.Client) ([]WorkloadData, error) {
-	/*
-		Get trait list by optional filter `workloadName`
-	*/
 	var workloadList []WorkloadData
 	var workloadDefinitionList corev1alpha2.WorkloadDefinitionList
 	err := c.List(ctx, &workloadDefinitionList)

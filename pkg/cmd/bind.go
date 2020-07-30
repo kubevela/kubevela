@@ -17,7 +17,7 @@ import (
 )
 
 type commandOptions struct {
-	Namespace string
+	Env       *EnvMeta
 	Template  cmdutil.Template
 	Component corev1alpha2.Component
 	AppConfig corev1alpha2.ApplicationConfiguration
@@ -30,9 +30,16 @@ func NewCommandOptions(ioStreams cmdutil.IOStreams) *commandOptions {
 }
 
 func NewBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
+
+	var err error
+
 	ctx := context.Background()
 
 	o := NewCommandOptions(ioStreams)
+	o.Env, err = GetEnv()
+	if err != nil {
+		return err
+	}
 	o.Client = c
 	cmd := &cobra.Command{
 		Use:                   "bind APPLICATION-NAME TRAIT-NAME [FLAG]",
@@ -47,15 +54,16 @@ func NewBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStre
 	}
 
 	var traitDefinitions corev1alpha2.TraitDefinitionList
-	c.List(ctx, &traitDefinitions)
-	//if err != nil {
-	//	fmt.Println("Listing trait definitions hit an issue:", err)
-	//	os.Exit(1)
-	//}
+	err = c.List(ctx, &traitDefinitions)
+	if err != nil {
+		fmt.Println("Listing trait definitions hit an issue:", err)
+		os.Exit(1)
+	}
 
 	for _, t := range traitDefinitions.Items {
 		var traitTemplate cmdutil.Template
 		traitTemplate, err := cmdutil.ConvertTemplateJson2Object(t.Spec.Extension)
+
 		if err != nil {
 			fmt.Errorf("applying the trait hit an issue: %s", err)
 		}
@@ -91,7 +99,7 @@ func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []
 		return errors.New("please append the name of an application. Use `rudr bind -h` for more detailed information")
 	} else if argsLength <= 2 {
 		componentName = args[0]
-		err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &o.AppConfig)
+		err := c.Get(ctx, client.ObjectKey{Namespace: o.Env.Namespace, Name: componentName}, &o.AppConfig)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

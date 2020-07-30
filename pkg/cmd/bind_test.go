@@ -54,7 +54,7 @@ func TestNewBindCommand(t *testing.T) {
 					//traitTemplateExample.DeepCopy(),
 				},
 			},
-			ExpectedOutput: "Applying trait for component app2060\nSucceeded!",
+			ExpectedOutput: "Applying trait for component app2060\nSucceeded!\n",
 			Args:           []string{"app2060", "ManualScaler", "--replicaCount", "5"},
 		},
 	}

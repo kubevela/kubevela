@@ -37,7 +37,7 @@ func NewTestIOStreams() (IOStreams, *bytes.Buffer, *bytes.Buffer, *bytes.Buffer)
 }
 
 func (i *IOStreams) Info(a ...interface{}) {
-	i.Out.Write([]byte(fmt.Sprint(a...)))
+	i.Out.Write([]byte(fmt.Sprintln(a...)))
 }
 
 func (i *IOStreams) Infof(format string, a ...interface{}) {
@@ -49,5 +49,5 @@ func (i *IOStreams) Errorf(format string, a ...interface{}) {
 }
 
 func (i *IOStreams) Error(a ...interface{}) {
-	i.ErrOut.Write([]byte(fmt.Sprint(a...)))
+	i.ErrOut.Write([]byte(fmt.Sprintln(a...)))
 }

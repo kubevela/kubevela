@@ -72,7 +72,7 @@ func TestNewRunCommand(t *testing.T) {
 				appconfigExample,
 				componentExample,
 			},
-			ExpectedOutput: "Creating AppConfig app2060\nSUCCEED",
+			ExpectedOutput: "Creating AppConfig app2060\nSUCCEED\n",
 			Args:           []string{"containerized", "app2060", "nginx:1.9.4", "-p", "80"},
 		},
 	}

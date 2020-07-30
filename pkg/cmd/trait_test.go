@@ -28,7 +28,7 @@ func TestNewTraitCommand(t *testing.T) {
 					TraitsNotApply,
 				},
 			},
-			ExpectedOutput: "NAME	SHORT	DEFINITION	APPLIES TO	STATUS",
+			ExpectedOutput: "NAME	SHORT	DEFINITION	APPLIES TO	STATUS\n",
 			Args: []string{},
 		},
 	}

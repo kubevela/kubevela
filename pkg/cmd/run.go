@@ -17,8 +17,8 @@ import (
 )
 
 type runOptions struct {
-	Namespace string
 	Template  cmdutil.Template
+	Env       *EnvMeta
 	Component corev1alpha2.Component
 	AppConfig corev1alpha2.ApplicationConfiguration
 	client    client.Client
@@ -49,6 +49,7 @@ func runSubRunCommand(parentCmd *cobra.Command, f cmdutil.Factory, c client.Clie
 	workloadNames := []string{}
 	o := newRunOptions(ioStreams)
 	o.client = c
+	o.Env, _ = GetEnv()
 
 	// init fake command and pass args to fake command
 	// flags and subcommand append to fake comand and parent command
@@ -119,12 +120,6 @@ func runSubRunCommand(parentCmd *cobra.Command, f cmdutil.Factory, c client.Clie
 }
 
 func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []string, ctx context.Context) error {
-	namespace, explicitNamespace, err := f.ToRawKubeConfigLoader().Namespace()
-	if err != nil {
-		return err
-	} else if !explicitNamespace {
-		namespace = "default"
-	}
 
 	argsLength := len(args)
 	lastCommandParam := o.Template.LastCommandParam
@@ -167,10 +162,7 @@ func (o *runOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []stri
 			}
 
 			pvd.SetString("metadata.name", strings.ToLower(workloadName))
-			namespaceCover := cmd.Flag("namespace").Value.String()
-			if namespaceCover != "" {
-				namespace = namespaceCover
-			}
+			namespace := o.Env.Namespace
 			o.Component.Spec.Workload.Object = &unstructured.Unstructured{Object: pvd.UnstructuredContent()}
 			o.Component.Name = args[0]
 			o.Component.Namespace = namespace
