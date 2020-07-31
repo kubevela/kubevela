@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
-	"github.com/cloud-native-application/rudrx/api/v1alpha2"
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
@@ -16,167 +16,133 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// TemplateLabel is the Annotation refer to template
-const TemplateLabel = "rudrx.oam.dev/template"
-
 type commandOptions struct {
 	Namespace string
-	Template  v1alpha2.Template
+	Template  cmdutil.Template
 	Component corev1alpha2.Component
 	AppConfig corev1alpha2.ApplicationConfiguration
 	Client    client.Client
 	cmdutil.IOStreams
 }
 
-// NewCommandOptions bind command options
 func NewCommandOptions(ioStreams cmdutil.IOStreams) *commandOptions {
 	return &commandOptions{IOStreams: ioStreams}
 }
 
-// NewBindCommand return bind command
-func NewBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
-	cmd := newBindCommand()
-	cmd.SetArgs(args)
-	cmd.SetOut(ioStreams.Out)
-	cmd.DisableFlagParsing = true
-
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		return runSubBindCommand(cmd, f, c, ioStreams, args)
-	}
-	return cmd
-}
-
-func runSubBindCommand(parentCmd *cobra.Command, f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) error {
+func NewBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
+
 	o := NewCommandOptions(ioStreams)
 	o.Client = c
-
-	// init fake command and pass args to fake command
-	// flags and subcommand append to fake comand and parent command
-	// run fake command only, show tips in parent command only
-	fakeCommand := newBindCommand()
-	fakeCommand.SilenceUsage = true
-	fakeCommand.SilenceErrors = true
-	fakeCommand.DisableAutoGenTag = true
-	fakeCommand.DisableFlagsInUseLine = true
-	fakeCommand.DisableSuggestions = true
-	fakeCommand.SetOut(o.Out)
-	if len(args) > 0 {
-		fakeCommand.SetArgs(args)
-	} else {
-		fakeCommand.SetArgs([]string{})
+	cmd := &cobra.Command{
+		Use:                   "bind APPLICATION-NAME TRAIT-NAME [FLAG]",
+		DisableFlagsInUseLine: true,
+		Short:                 "Attach a trait to a component",
+		Long:                  "Attach a trait to a component.",
+		Example:               `rudr bind frontend scaler --max=5`,
+		Run: func(cmd *cobra.Command, args []string) {
+			cmdutil.CheckErr(o.Complete(f, cmd, args, ctx))
+			cmdutil.CheckErr(o.Run(f, cmd, ctx))
+		},
 	}
 
 	var traitDefinitions corev1alpha2.TraitDefinitionList
-	err := c.List(ctx, &traitDefinitions)
-	if err != nil {
-		return fmt.Errorf("Listing trait definitions hit an issue: %v", err)
-	}
+	c.List(ctx, &traitDefinitions)
+	//if err != nil {
+	//	fmt.Println("Listing trait definitions hit an issue:", err)
+	//	os.Exit(1)
+	//}
 
-	for _, template := range traitDefinitions.Items {
-		templateName := template.Annotations[TemplateLabel]
-		// skip tarit that without template
-		if templateName == "" {
-			continue
-		}
-
-		var traitTemplate v1alpha2.Template
-		err := c.Get(ctx, client.ObjectKey{Namespace: "default", Name: templateName}, &traitTemplate)
+	for _, t := range traitDefinitions.Items {
+		var traitTemplate cmdutil.Template
+		traitTemplate, err := cmdutil.ConvertTemplateJson2Object(t.Spec.Extension)
 		if err != nil {
-			return fmt.Errorf("Listing trait template hit an issue: %v", err)
+			fmt.Errorf("applying the trait hit an issue: %s", err)
 		}
 
-		for _, p := range traitTemplate.Spec.Parameters {
+		for _, p := range traitTemplate.Parameters {
 			if p.Type == "int" {
 				v, err := strconv.Atoi(p.Default)
 				if err != nil {
-					return fmt.Errorf("Parameters type is wrong: %v .Please report this to OAM maintainer, thanks.", err)
+					fmt.Println("Parameters type is wrong: ", err, ".Please report this to OAM maintainer, thanks.")
 				}
-				fakeCommand.PersistentFlags().Int(p.Name, v, p.Usage)
-				parentCmd.PersistentFlags().Int(p.Name, v, p.Usage)
+				cmd.PersistentFlags().Int(p.Name, v, p.Usage)
 			} else {
-				fakeCommand.PersistentFlags().String(p.Name, p.Default, p.Usage)
-				parentCmd.PersistentFlags().String(p.Name, p.Default, p.Usage)
+				cmd.PersistentFlags().String(p.Name, p.Default, p.Usage)
 			}
 		}
 	}
 
-	fakeCommand.RunE = func(cmd *cobra.Command, args []string) error {
-		if err := o.Complete(fakeCommand, f, args, ctx); err != nil {
-			return err
-		}
-		return o.Run(f, fakeCommand, ctx)
-	}
-	return fakeCommand.Execute()
+	return cmd
 }
 
-func (o *commandOptions) Complete(cmd *cobra.Command, f cmdutil.Factory, args []string, ctx context.Context) error {
+func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []string, ctx context.Context) error {
 	argsLength := len(args)
 	var componentName string
+
 	c := o.Client
 
+	namespace := cmd.Flag("namespace").Value.String()
+	if namespace == "" {
+		namespace = "default"
+	}
+
 	if argsLength == 0 {
-		return errors.New("Please append the name of an application. Use `rudr bind -h` for more " +
-			"detailed information.")
+		return errors.New("please append the name of an application. Use `rudr bind -h` for more detailed information")
 	} else if argsLength <= 2 {
 		componentName = args[0]
-		err := c.Get(ctx, client.ObjectKey{Namespace: "default", Name: componentName}, &o.AppConfig)
+		err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &o.AppConfig)
 		if err != nil {
-			return err
+			fmt.Println(err)
+			os.Exit(1)
 		}
-		ns := o.AppConfig.Namespace
 
 		var component corev1alpha2.Component
-		err = c.Get(ctx, client.ObjectKey{Namespace: ns, Name: componentName}, &component)
+		err = c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &component)
 		if err != nil {
-			return fmt.Errorf("%s. Please choose an existed component name", err)
+			errMsg := fmt.Sprintf("%s. Please choose an existed component name.", err)
+			cmdutil.PrintErrorMessage(errMsg, 1)
 		}
 
 		// Retrieve all traits which can be used for the following 1) help and 2) validating
-		traitList, err := RetrieveTraitsByWorkload(ctx, o.Client, "")
-		if err != nil {
-			return fmt.Errorf("List available traits hit an issue: %s", err)
-		}
+		traitList, _ := RetrieveTraitsByWorkload(ctx, o.Client, namespace, "")
+		//if err != nil {
+		//	errMsg := fmt.Sprintf("List available traits hit an issue: %s", err)
+		//	cmdutil.PrintErrorMessage(errMsg, 1)
+		//}
 
 		switch argsLength {
 		case 1:
 			// Validate component and suggest trait
-			errTip := "Error: No trait specified.\nPlease choose a trait: "
-			for _, trait := range traitList {
-				n := trait.Short
+			fmt.Print("Error: No trait specified.\nPlease choose a trait: ")
+			for _, t := range traitList {
+				n := t.Short
 				if n == "" {
-					n = trait.Name
+					n = t.Name
 				}
-				errTip += n + " "
+				fmt.Print(n, " ")
 			}
-			return errors.New(errTip)
+			os.Exit(1)
+
 		case 2:
 			// validate trait
 			traitName := args[1]
-			var traitLongName string
+			traitLongName, _, _ := cmdutil.GetTraitNameAliasKind(ctx, c, namespace, traitName)
 
-			validTrait := false
-			for _, trait := range traitList {
-				// Support trait name or trait short name case-sensitively
-				if strings.EqualFold(trait.Name, traitName) || strings.EqualFold(trait.Short, traitName) {
-					validTrait = true
-					traitLongName = trait.Name
-					break
-				}
+			traitDefinition, err := cmdutil.GetTraitDefinitionByName(ctx, c, namespace, traitLongName)
+			if err != nil {
+				errMsg := fmt.Sprintf("trait name [%s] is not valid, please try again", traitName)
+				cmdutil.PrintErrorMessage(errMsg, 1)
 			}
 
-			if !validTrait {
-				return fmt.Errorf("The trait `%s` is NOT valid, please try a valid one.", traitName)
+			traitTemplate, err := cmdutil.ConvertTemplateJson2Object(traitDefinition.Spec.Extension)
+
+			if err != nil {
+				return fmt.Errorf("attaching the trait hit an issue: %s", err)
 			}
 
-			var traitDefinition corev1alpha2.TraitDefinition
-			c.Get(ctx, client.ObjectKey{Namespace: ns, Name: traitLongName}, &traitDefinition)
-
-			var traitTemplate v1alpha2.Template
-			c.Get(ctx, client.ObjectKey{Namespace: "default", Name: traitDefinition.ObjectMeta.Annotations[TemplateLabel]}, &traitTemplate)
-
-			pvd := fieldpath.Pave(traitTemplate.Spec.Object.Object)
-			for _, v := range traitTemplate.Spec.Parameters {
+			pvd := fieldpath.Pave(traitTemplate.Object.Object)
+			for _, v := range traitTemplate.Parameters {
 				flagSet := cmd.Flag(v.Name)
 				for _, path := range v.FieldPaths {
 					fValue := flagSet.Value.String()
@@ -202,30 +168,21 @@ func (o *commandOptions) Complete(cmd *cobra.Command, f cmdutil.Factory, args []
 			}
 		}
 	} else {
-		return errors.New("Unknown command is specified, please check and try again.")
+		cmdutil.PrintErrorMessage("Unknown command is specified, please check and try again.", 1)
 	}
 	return nil
 }
 
-// Run command
 func (o *commandOptions) Run(f cmdutil.Factory, cmd *cobra.Command, ctx context.Context) error {
-	o.Infof("Applying trait for component %s\n", o.Component.Name)
+	fmt.Println("Applying trait for component", o.Component.Name)
 	c := o.Client
 	err := c.Update(ctx, &o.AppConfig)
 	if err != nil {
-		return fmt.Errorf("Applying trait hit an issue: %s", err)
+		msg := fmt.Sprintf("Applying trait hit an issue: %s", err)
+		cmdutil.PrintErrorMessage(msg, 1)
 	}
 
-	o.Info("Succeeded!")
+	msg := fmt.Sprintf("Succeeded!")
+	fmt.Println(msg)
 	return nil
-}
-
-func newBindCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:                   "bind APPLICATION-NAME TRAIT-NAME [FLAG]",
-		DisableFlagsInUseLine: true,
-		Short:                 "Attach a trait to a component",
-		Long:                  "Attach a trait to a component.",
-		Example:               `rudr bind frontend scaler --max=5`,
-	}
 }

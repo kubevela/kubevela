@@ -14,10 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha2
+package util
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"encoding/json"
+
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
@@ -25,10 +28,11 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // TemplateSpec defines the desired state of Template
-type TemplateSpec struct {
+type Template struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	Object           unstructured.Unstructured `json:"object"`
+	Alias            string                    `json:alias,omitempty`
+	Object           unstructured.Unstructured `json:"object,omitempty"`
 	LastCommandParam string                    `json:"lastCommandParam,omitempty"`
 	Parameters       []Parameter               `json:"parameters,omitempty"`
 }
@@ -43,32 +47,14 @@ type Parameter struct {
 	Type       string   `json:"type,omitempty"`
 }
 
-// TemplateStatus defines the observed state of Template
-type TemplateStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-}
+// ConvertTemplateJson2Object convert spec.extension to object
+func ConvertTemplateJson2Object(in *runtime.RawExtension) (Template, error) {
+	var t Template
+	var extension Template
+	err := json.Unmarshal(in.Raw, &extension)
+	if err == nil {
+		t = extension
+	}
 
-// +kubebuilder:object:root=true
-
-// Template is the Schema for the templates API
-type Template struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   TemplateSpec   `json:"spec,omitempty"`
-	Status TemplateStatus `json:"status,omitempty"`
-}
-
-// +kubebuilder:object:root=true
-
-// TemplateList contains a list of Template
-type TemplateList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Template `json:"items"`
-}
-
-func init() {
-	SchemeBuilder.Register(&Template{}, &TemplateList{})
+	return t, err
 }

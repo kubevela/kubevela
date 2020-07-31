@@ -64,5 +64,11 @@ workloaddefinition.core.oam.dev/deployments.apps                      deployment
 workloaddefinition.core.oam.dev/statefulsets.apps                     statefulsets.apps
 ```
 
+## Test
+```
+$ go test ./pkg/test
+ok  	github.com/cloud-native-application/rudrx/pkg/test	14.662s
+```
+
 ## Make a pull request
 Remember to write unit-test and e2e test before making a pull request.

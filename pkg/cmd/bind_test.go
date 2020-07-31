@@ -17,7 +17,7 @@ func TestNewBindCommand(t *testing.T) {
 			Resources: test.InitResources{
 				Create: []runtime.Object{
 					traitDefinitionExample.DeepCopy(),
-					traitTemplateExample.DeepCopy(),
+					//traitTemplateExample.DeepCopy(),
 				},
 			},
 			ExpectedOutput: "Please append the name of an application. Use `rudr bind -h` for more detailed information.",
@@ -28,7 +28,7 @@ func TestNewBindCommand(t *testing.T) {
 			Resources: test.InitResources{
 				Create: []runtime.Object{
 					traitDefinitionExample.DeepCopy(),
-					traitTemplateExample.DeepCopy(),
+					//traitTemplateExample.DeepCopy(),
 				},
 			},
 			ExpectedOutput: "applicationconfigurations.core.oam.dev \"frontend\" not found",
@@ -39,7 +39,7 @@ func TestNewBindCommand(t *testing.T) {
 			Resources: test.InitResources{
 				Create: []runtime.Object{
 					traitDefinitionExample.DeepCopy(),
-					traitTemplateExample.DeepCopy(),
+					//traitTemplateExample.DeepCopy(),
 				},
 			},
 			ExpectedString: "--replicaCount int",
@@ -51,7 +51,7 @@ func TestNewBindCommand(t *testing.T) {
 					appconfigExample.DeepCopy(),
 					componentExample.DeepCopy(),
 					traitDefinitionExample.DeepCopy(),
-					traitTemplateExample.DeepCopy(),
+					//traitTemplateExample.DeepCopy(),
 				},
 			},
 			ExpectedOutput: "Applying trait for component app2060\nSucceeded!",
