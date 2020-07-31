@@ -26,84 +26,60 @@ func init() {
 // used in testing
 var (
 	workloadTemplateExample = &util.Template{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "admin.oam.dev/v1alpha2",
-			Kind:       "Template",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "containerizedworkload-template",
-			Annotations: map[string]string{
-				"version": "0.0.1",
-			},
-			Namespace: "default",
-		},
-		Spec: util.TemplateSpec{
-			Object: unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"apiVersion": "core.oam.dev/v1alpha2",
-					"kind":       "ContainerizedWorkload",
-					"metadata": map[string]interface{}{
-						"name": "pod",
-					},
-					"spec": map[string]interface{}{
-						"containers": "",
-					},
+
+		Object: unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "core.oam.dev/v1alpha2",
+				"kind":       "ContainerizedWorkload",
+				"metadata": map[string]interface{}{
+					"name": "pod",
+				},
+				"spec": map[string]interface{}{
+					"containers": "",
 				},
 			},
-			LastCommandParam: "image",
-			Parameters: []util.Parameter{
-				util.Parameter{
-					Name:       "image",
-					Short:      "i",
-					Required:   true,
-					Type:       "string",
-					FieldPaths: []string{"spec.containers[0].image"},
-				},
-				util.Parameter{
-					Name:       "port",
-					Short:      "p",
-					Required:   false,
-					Type:       "int",
-					FieldPaths: []string{"spec.containers[0].ports[0].containerPort"},
-				},
+		},
+		LastCommandParam: "image",
+		Parameters: []util.Parameter{
+			util.Parameter{
+				Name:       "image",
+				Short:      "i",
+				Required:   true,
+				Type:       "string",
+				FieldPaths: []string{"spec.containers[0].image"},
+			},
+			util.Parameter{
+				Name:       "port",
+				Short:      "p",
+				Required:   false,
+				Type:       "int",
+				FieldPaths: []string{"spec.containers[0].ports[0].containerPort"},
 			},
 		},
 	}
 
 	traitTemplateExample = &util.Template{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "admin.oam.dev/v1alpha2",
-			Kind:       "Template",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "manualscalertrait.core.oam.dev-template",
-			Annotations: map[string]string{
-				"version": "0.0.1",
-			},
-			Namespace: "default",
-		},
-		Spec: util.TemplateSpec{
-			Object: unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"apiVersion": "core.oam.dev/v1alpha2",
-					"kind":       "ManualScalerTrait",
-					"metadata": map[string]interface{}{
-						"name": "pod",
-					},
-					"spec": map[string]interface{}{
-						"replicaCount": "2",
-					},
+
+		Object: unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "core.oam.dev/v1alpha2",
+				"kind":       "ManualScalerTrait",
+				"metadata": map[string]interface{}{
+					"name": "pod",
+				},
+				"spec": map[string]interface{}{
+					"replicaCount": "2",
 				},
 			},
-			Parameters: []util.Parameter{
-				util.Parameter{
-					Name:       "replicaCount",
-					Short:      "i",
-					Required:   true,
-					Type:       "int",
-					FieldPaths: []string{"spec.replicaCount"},
-					Default:    "5",
-				},
+		},
+		Parameters: []util.Parameter{
+			util.Parameter{
+				Name:       "replicaCount",
+				Short:      "i",
+				Required:   true,
+				Type:       "int",
+				FieldPaths: []string{"spec.replicaCount"},
+				Default:    "5",
 			},
 		},
 	}

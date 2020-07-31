@@ -29,7 +29,7 @@ func NewCommandOptions(ioStreams cmdutil.IOStreams) *commandOptions {
 	return &commandOptions{IOStreams: ioStreams}
 }
 
-func NewBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
 
 	var err error
 
@@ -38,7 +38,8 @@ func NewBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStre
 	o := NewCommandOptions(ioStreams)
 	o.Env, err = GetEnv()
 	if err != nil {
-		return err
+		fmt.Printf("Listing trait definitions hit an issue: %v\n", err)
+		os.Exit(1)
 	}
 	o.Client = c
 	cmd := &cobra.Command{
@@ -52,7 +53,7 @@ func NewBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStre
 			cmdutil.CheckErr(o.Run(f, cmd, ctx))
 		},
 	}
-
+	cmd.SetArgs(args)
 	var traitDefinitions corev1alpha2.TraitDefinitionList
 	err = c.List(ctx, &traitDefinitions)
 	if err != nil {
@@ -63,9 +64,9 @@ func NewBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStre
 	for _, t := range traitDefinitions.Items {
 		var traitTemplate cmdutil.Template
 		traitTemplate, err := cmdutil.ConvertTemplateJson2Object(t.Spec.Extension)
-
 		if err != nil {
-			fmt.Errorf("applying the trait hit an issue: %s", err)
+			fmt.Printf("extract template from traitDefinition %v err: %v, ignore it\n", t.Name, err)
+			continue
 		}
 
 		for _, p := range traitTemplate.Parameters {
@@ -73,6 +74,7 @@ func NewBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStre
 				v, err := strconv.Atoi(p.Default)
 				if err != nil {
 					fmt.Println("Parameters type is wrong: ", err, ".Please report this to OAM maintainer, thanks.")
+					os.Exit(1)
 				}
 				cmd.PersistentFlags().Int(p.Name, v, p.Usage)
 			} else {
@@ -90,10 +92,7 @@ func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []
 
 	c := o.Client
 
-	namespace := cmd.Flag("namespace").Value.String()
-	if namespace == "" {
-		namespace = "default"
-	}
+	namespace := o.Env.Namespace
 
 	if argsLength == 0 {
 		return errors.New("please append the name of an application. Use `rudr bind -h` for more detailed information")
@@ -172,8 +171,7 @@ func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []
 			o.AppConfig.Spec.Components = []corev1alpha2.ApplicationConfigurationComponent{{
 				ComponentName: componentName,
 				Traits:        []corev1alpha2.ComponentTrait{t},
-			},
-			}
+			}}
 		}
 	} else {
 		cmdutil.PrintErrorMessage("Unknown command is specified, please check and try again.", 1)

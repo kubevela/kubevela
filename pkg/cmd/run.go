@@ -85,7 +85,8 @@ func runSubRunCommand(parentCmd *cobra.Command, f cmdutil.Factory, c client.Clie
 		var tmp cmdutil.Template
 		tmp, err := cmdutil.ConvertTemplateJson2Object(wd.Spec.Extension)
 		if err != nil {
-			return fmt.Errorf("deploying application hit an issue: %s", err)
+			fmt.Printf("extract template from traitDefinition %v err: %v, ignore it\n", wd.Name, err)
+			continue
 		}
 		name := tmp.Alias
 		workloadNames = append(workloadNames, name)

@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func NewTraitsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewTraitsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
 	ctx := context.Background()
 	var workloadName string
 	cmd := &cobra.Command{
@@ -41,7 +41,7 @@ func printTraitList(ctx context.Context, c client.Client, workloadName *string, 
 		return fmt.Errorf("Listing Trait Definition hit an issue: %s", err)
 	}
 
-	table.AddRow("NAME", "Alias", "DEFINITION", "APPLIES TO", "STATUS")
+	table.AddRow("NAME", "ALIAS", "DEFINITION", "APPLIES TO", "STATUS")
 	for _, r := range traitList {
 		table.AddRow(r.Name, r.Short, r.Definition, r.AppliesTo, r.Status)
 	}
