@@ -18,6 +18,7 @@ package util
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -31,7 +32,7 @@ import (
 type Template struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	Alias            string                    `json:alias,omitempty`
+	Alias            string                    `json:"alias,omitempty"`
 	Object           unstructured.Unstructured `json:"object,omitempty"`
 	LastCommandParam string                    `json:"lastCommandParam,omitempty"`
 	Parameters       []Parameter               `json:"parameters,omitempty"`
@@ -51,6 +52,12 @@ type Parameter struct {
 func ConvertTemplateJson2Object(in *runtime.RawExtension) (Template, error) {
 	var t Template
 	var extension Template
+	if in == nil {
+		return t, fmt.Errorf("extension field is nil")
+	}
+	if in.Raw == nil {
+		return t, fmt.Errorf("template object is nil")
+	}
 	err := json.Unmarshal(in.Raw, &extension)
 	if err == nil {
 		t = extension
