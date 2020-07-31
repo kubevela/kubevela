@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 
+	"github.com/cloud-native-application/rudrx/api/types"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -50,15 +52,6 @@ type initCmd struct {
 	version   string
 }
 
-const (
-	DefaultOAMNS          = "oam-system"
-	DefaultOAMReleaseName = "core-runtime"
-	DefaultOAMChartName   = "crossplane-master/oam-kubernetes-runtime"
-	DefaultOAMRepoName    = "crossplane-master"
-	DefaultOAMRepoUrl     = "https://charts.crossplane.io/master"
-	DefaultOAMVersion     = ">0.0.0-0"
-)
-
 var (
 	defaultObject = []interface{}{
 		&oamv1.WorkloadDefinition{},
@@ -92,7 +85,7 @@ func NewInitCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStre
 		Long:  initDesc,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			i.client = c
-			i.namespace = DefaultOAMNS
+			i.namespace = types.DefaultOAMNS
 			return i.run(ioStreams)
 		},
 	}
@@ -109,8 +102,8 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams) error {
 		return fmt.Errorf("could not get kubernetes client: %s", err)
 	}
 
-	if !cmdutil.IsNamespaceExist(i.client, DefaultOAMNS) {
-		if err := cmdutil.NewNamespace(i.client, DefaultOAMNS); err != nil {
+	if !cmdutil.IsNamespaceExist(i.client, types.DefaultOAMNS) {
+		if err := cmdutil.NewNamespace(i.client, types.DefaultOAMNS); err != nil {
 			return err
 		}
 	}
@@ -143,8 +136,8 @@ func (i *initCmd) IsOamRuntimeExist() bool {
 
 func InstallOamRuntime(ioStreams cmdutil.IOStreams, version string) error {
 
-	if !IsHelmRepositoryExist(DefaultOAMRepoName, DefaultOAMRepoUrl) {
-		err := AddHelmRepository(DefaultOAMRepoName, DefaultOAMRepoUrl,
+	if !IsHelmRepositoryExist(types.DefaultOAMRepoName, types.DefaultOAMRepoUrl) {
+		err := AddHelmRepository(types.DefaultOAMRepoName, types.DefaultOAMRepoUrl,
 			"", "", "", "", "", false, ioStreams.Out)
 		if err != nil {
 			return err
@@ -156,7 +149,7 @@ func InstallOamRuntime(ioStreams cmdutil.IOStreams, version string) error {
 		return err
 	}
 
-	chartRequested, err := GetChart(chartClient, DefaultOAMChartName)
+	chartRequested, err := GetChart(chartClient, types.DefaultOAMChartName)
 	if err != nil {
 		return err
 	}
@@ -174,8 +167,8 @@ func NewHelmInstall(version string, ioStreams cmdutil.IOStreams) (*action.Instal
 	actionConfig := new(action.Configuration)
 
 	if err := actionConfig.Init(
-		kube.GetConfig(cmdutil.GetKubeConfig(), "", DefaultOAMNS),
-		DefaultOAMNS,
+		kube.GetConfig(cmdutil.GetKubeConfig(), "", types.DefaultOAMNS),
+		types.DefaultOAMNS,
 		os.Getenv("HELM_DRIVER"),
 		ioStreams.Infof,
 	); err != nil {
@@ -183,14 +176,14 @@ func NewHelmInstall(version string, ioStreams cmdutil.IOStreams) (*action.Instal
 	}
 
 	client := action.NewInstall(actionConfig)
-	client.Namespace = DefaultOAMNS
-	client.ReleaseName = DefaultOAMReleaseName
+	client.Namespace = types.DefaultOAMNS
+	client.ReleaseName = types.DefaultOAMReleaseName
 
 	if len(version) > 0 {
 		client.Version = version
 		return client, nil
 	}
-	client.Version = DefaultOAMVersion
+	client.Version = types.DefaultOAMVersion
 	return client, nil
 }
 

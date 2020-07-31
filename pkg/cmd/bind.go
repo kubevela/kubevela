@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cloud-native-application/rudrx/api/types"
+
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
@@ -18,7 +20,7 @@ import (
 
 type commandOptions struct {
 	Env       *EnvMeta
-	Template  cmdutil.Template
+	Template  types.Template
 	Component corev1alpha2.Component
 	AppConfig corev1alpha2.ApplicationConfiguration
 	Client    client.Client
@@ -62,8 +64,8 @@ func NewBindCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStre
 	}
 
 	for _, t := range traitDefinitions.Items {
-		var traitTemplate cmdutil.Template
-		traitTemplate, err := cmdutil.ConvertTemplateJson2Object(t.Spec.Extension)
+		var traitTemplate types.Template
+		traitTemplate, err := types.ConvertTemplateJson2Object(t.Spec.Extension)
 		if err != nil {
 			fmt.Printf("extract template from traitDefinition %v err: %v, ignore it\n", t.Name, err)
 			continue
@@ -142,13 +144,13 @@ func (o *commandOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []
 				cmdutil.PrintErrorMessage(errMsg, 1)
 			}
 
-			traitTemplate, err := cmdutil.ConvertTemplateJson2Object(traitDefinition.Spec.Extension)
+			traitTemplate, err := types.ConvertTemplateJson2Object(traitDefinition.Spec.Extension)
 
 			if err != nil {
 				return fmt.Errorf("attaching the trait hit an issue: %s", err)
 			}
 
-			pvd := fieldpath.Pave(traitTemplate.Object.Object)
+			pvd := fieldpath.Pave(traitTemplate.Object)
 			for _, v := range traitTemplate.Parameters {
 				flagSet := cmd.Flag(v.Name)
 				for _, path := range v.FieldPaths {

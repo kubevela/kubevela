@@ -1,0 +1,18 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: deployments.testapps
+spec:
+  definitionRef:
+    name: deployments.testapps
+  extension:
+    alias: deployment
+    object:
+      apiVersion: core.oam.dev/v1alpha2
+      kind: Deployment
+    parameters:
+      - name: image
+        short: i
+        required: true
+        fieldPaths:
+          - "spec.containers[0].image"

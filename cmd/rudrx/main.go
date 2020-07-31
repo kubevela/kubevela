@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/cloud-native-application/rudrx/pkg/cmd/workload"
+
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
 	"github.com/spf13/cobra"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
@@ -14,7 +16,6 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	coreoamdevv1alpha2 "github.com/cloud-native-application/rudrx/api/v1alpha2"
 	"github.com/cloud-native-application/rudrx/pkg/cmd"
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	"github.com/cloud-native-application/rudrx/pkg/utils/logs"
@@ -37,8 +38,6 @@ var (
 
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
-
-	_ = coreoamdevv1alpha2.AddToScheme(scheme)
 
 	_ = core.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
@@ -82,7 +81,6 @@ func newCommand() *cobra.Command {
 	}
 
 	cmds.AddCommand(
-		cmd.NewRunCommand(f, client, ioStream, os.Args[1:]),
 		cmd.NewTraitsCommand(f, client, ioStream, []string{}),
 		cmd.NewWorkloadsCommand(f, client, ioStream, os.Args[1:]),
 		cmd.NewBindCommand(f, client, ioStream, []string{}),
@@ -95,6 +93,10 @@ func newCommand() *cobra.Command {
 		cmd.NewEnvCommand(f, ioStream),
 		NewVersionCommand(),
 	)
+	if err = workload.AddPlugins(cmds, client, ioStream); err != nil {
+		fmt.Println("Add plugins from workloadDefinition err", err)
+		os.Exit(1)
+	}
 
 	return cmds
 }

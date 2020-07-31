@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/cloud-native-application/rudrx/api/types"
+
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
@@ -172,7 +174,7 @@ func GetTraitDefinitionByAlias(ctx context.Context, c client.Client, traitAlias 
 	err := c.List(ctx, &traitDefinitionList)
 	if err == nil {
 		for _, t := range traitDefinitionList.Items {
-			template, err := ConvertTemplateJson2Object(t.Spec.Extension)
+			template, err := types.ConvertTemplateJson2Object(t.Spec.Extension)
 			if err == nil && strings.EqualFold(template.Alias, traitAlias) {
 				traitDefinition = t
 				break
@@ -190,14 +192,14 @@ func GetTraitNameAliasKind(ctx context.Context, c client.Client, namespace strin
 	t, err := GetTraitDefinitionByName(ctx, c, namespace, name)
 
 	if err == nil {
-		template, err := ConvertTemplateJson2Object(t.Spec.Extension)
+		template, err := types.ConvertTemplateJson2Object(t.Spec.Extension)
 		if err == nil {
 			tName, tAlias = t.Name, template.Alias
 		}
 	} else {
 		t, err := GetTraitDefinitionByAlias(ctx, c, name)
 		if err == nil {
-			template, err := ConvertTemplateJson2Object(t.Spec.Extension)
+			template, err := types.ConvertTemplateJson2Object(t.Spec.Extension)
 			if err == nil {
 				tName, tAlias = t.Name, template.Alias
 			}
@@ -230,15 +232,15 @@ func GetWorkloadNameAliasKind(ctx context.Context, c client.Client, namespace st
 	w, err := GetWorkloadDefinitionByName(ctx, c, namespace, workloadName)
 
 	if err == nil { // workloadName is complete name
-		var workloadTemplate Template
-		workloadTemplate, err := ConvertTemplateJson2Object(w.Spec.Extension)
+		var workloadTemplate types.Template
+		workloadTemplate, err := types.ConvertTemplateJson2Object(w.Spec.Extension)
 		if err == nil {
 			name, alias = w.Name, workloadTemplate.Alias
 		}
 	} else { // workloadName is alias or kind
 		w, err := GetWorkloadDefinitionByAlias(ctx, c, name)
 		if err == nil {
-			workloadTemplate, err := ConvertTemplateJson2Object(w.Spec.Extension)
+			workloadTemplate, err := types.ConvertTemplateJson2Object(w.Spec.Extension)
 			if err == nil {
 				name, alias, kind = w.Name, workloadTemplate.Alias, w.Kind
 			}
