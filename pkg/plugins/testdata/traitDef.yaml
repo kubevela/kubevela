@@ -1,0 +1,18 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: routes.extend.oam.dev
+spec:
+  definitionRef:
+    name: routes.extend.oam.dev
+  extension:
+    alias: route
+    object:
+      apiVersion: extend.oam.dev/v1alpha2
+      kind: Route
+    parameters:
+      - name: domain
+        required: true
+        short: d
+        fieldPaths:
+          - "spec.domain"

@@ -1,13 +1,11 @@
 package cmd
 
 import (
-	"github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	"github.com/cloud-native-application/rudrx/api/types"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
-	"github.com/cloud-native-application/rudrx/api/v1alpha2"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 )
@@ -18,37 +16,33 @@ var (
 
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
-	_ = v1alpha2.AddToScheme(scheme)
 	_ = core.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
 // used in testing
 var (
-	workloadTemplateExample = &util.Template{
+	workloadTemplateExample = &types.Template{
 
-		Object: unstructured.Unstructured{
-			Object: map[string]interface{}{
-				"apiVersion": "core.oam.dev/v1alpha2",
-				"kind":       "ContainerizedWorkload",
-				"metadata": map[string]interface{}{
-					"name": "pod",
-				},
-				"spec": map[string]interface{}{
-					"containers": "",
-				},
+		Object: map[string]interface{}{
+			"apiVersion": "core.oam.dev/v1alpha2",
+			"kind":       "ContainerizedWorkload",
+			"metadata": map[string]interface{}{
+				"name": "pod",
+			},
+			"spec": map[string]interface{}{
+				"containers": "",
 			},
 		},
-		LastCommandParam: "image",
-		Parameters: []util.Parameter{
-			util.Parameter{
+		Parameters: []types.Parameter{
+			types.Parameter{
 				Name:       "image",
 				Short:      "i",
 				Required:   true,
 				Type:       "string",
 				FieldPaths: []string{"spec.containers[0].image"},
 			},
-			util.Parameter{
+			types.Parameter{
 				Name:       "port",
 				Short:      "p",
 				Required:   false,
@@ -58,22 +52,21 @@ var (
 		},
 	}
 
-	traitTemplateExample = &util.Template{
+	traitTemplateExample = &types.Template{
 
-		Object: unstructured.Unstructured{
-			Object: map[string]interface{}{
-				"apiVersion": "core.oam.dev/v1alpha2",
-				"kind":       "ManualScalerTrait",
-				"metadata": map[string]interface{}{
-					"name": "pod",
-				},
-				"spec": map[string]interface{}{
-					"replicaCount": "2",
-				},
+		Object: map[string]interface{}{
+			"apiVersion": "core.oam.dev/v1alpha2",
+			"kind":       "ManualScalerTrait",
+			"metadata": map[string]interface{}{
+				"name": "pod",
+			},
+			"spec": map[string]interface{}{
+				"replicaCount": "2",
 			},
 		},
-		Parameters: []util.Parameter{
-			util.Parameter{
+
+		Parameters: []types.Parameter{
+			types.Parameter{
 				Name:       "replicaCount",
 				Short:      "i",
 				Required:   true,

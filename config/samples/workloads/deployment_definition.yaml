@@ -20,7 +20,6 @@ spec:
               - containerPort: 6379
                 protocol: TCP
                 name: tbd # TODO(zzxwill) A temporary workaround for ContainerizedWorkload
-    lastCommandParam: image
     parameters:
       - name: image
         short: i

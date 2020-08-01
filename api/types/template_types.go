@@ -14,29 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package util
+package types
 
 import (
 	"encoding/json"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
-
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// TemplateSpec defines the desired state of Template
+// Template defines the content of a plugin
 type Template struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	Alias            string                    `json:"alias,omitempty"`
-	Object           unstructured.Unstructured `json:"object,omitempty"`
-	LastCommandParam string                    `json:"lastCommandParam,omitempty"`
-	Parameters       []Parameter               `json:"parameters,omitempty"`
+	Name       string                 `json:"name"`
+	Type       DefinitionType         `json:"type"`
+	Alias      string                 `json:"alias,omitempty"`
+	Object     map[string]interface{} `json:"object,omitempty"`
+	Parameters []Parameter            `json:"parameters,omitempty"`
 }
+
+type DefinitionType string
+
+const (
+	TypeWorkload DefinitionType = "workload"
+	TypeTrait    DefinitionType = "trait"
+)
 
 type Parameter struct {
 	Name       string   `json:"name"`
