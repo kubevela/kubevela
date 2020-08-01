@@ -40,6 +40,9 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Cli
 		}
 		tmp.Type = types.TypeWorkload
 		tmp.Name = wd.Name
+		if tmp.Alias == "" {
+			tmp.Alias = tmp.Name
+		}
 		templates = append(templates, tmp)
 	}
 	return templates, nil
@@ -62,6 +65,9 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 		}
 		tmp.Type = types.TypeTrait
 		tmp.Name = td.Name
+		if tmp.Alias == "" {
+			tmp.Alias = tmp.Name
+		}
 		templates = append(templates, tmp)
 	}
 	return templates, nil

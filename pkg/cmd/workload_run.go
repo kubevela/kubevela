@@ -1,4 +1,4 @@
-package workload
+package cmd
 
 import (
 	"context"
@@ -11,8 +11,6 @@ import (
 
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
 
-	"github.com/cloud-native-application/rudrx/pkg/cmd"
-
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/spf13/cobra"
@@ -24,7 +22,7 @@ import (
 
 type runOptions struct {
 	Template  types.Template
-	Env       *cmd.EnvMeta
+	Env       *EnvMeta
 	Component corev1alpha2.Component
 	AppConfig corev1alpha2.ApplicationConfiguration
 	client    client.Client
@@ -35,25 +33,23 @@ func newRunOptions(ioStreams cmdutil.IOStreams) *runOptions {
 	return &runOptions{IOStreams: ioStreams}
 }
 
-func AddPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmdutil.IOStreams) error {
+func AddWorkloadPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmdutil.IOStreams) error {
 	templates, err := plugins.GetWorkloadsFromCluster(context.TODO(), types.DefaultOAMNS, c)
 	if err != nil {
 		return err
 	}
 
 	for _, tmp := range templates {
-		var name string
-		if tmp.Alias != "" {
-			name = tmp.Alias
-		}
+		var name = tmp.Alias
 		o := newRunOptions(ioStreams)
 		o.client = c
-		o.Env, _ = cmd.GetEnv()
+		o.Env, _ = GetEnv()
 		pluginCmd := &cobra.Command{
-			Use:                   name + ":run [args]",
+			Use:                   name + ":run <appname> [args]",
 			DisableFlagsInUseLine: true,
 			Short:                 "Run " + name + " workloads",
 			Long:                  "Run " + name + " workloads",
+			Example:               `rudr deployment:run frontend -i nginx:latest`,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				if err := o.Complete(cmd, args, context.TODO()); err != nil {
 					return err
