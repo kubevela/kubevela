@@ -46,10 +46,7 @@ func GetKubeConfig() string {
 func IsNamespaceExist(c client.Client, namespace string) bool {
 	var ns corev1.Namespace
 	err := c.Get(context.Background(), types.NamespacedName{Name: namespace}, &ns)
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
 
 func NewNamespace(c client.Client, namespace string) error {
