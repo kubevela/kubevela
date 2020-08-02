@@ -7,8 +7,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/cloud-native-application/rudrx/pkg/cmd/workload"
-
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
 	"github.com/spf13/cobra"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
@@ -83,7 +81,6 @@ func newCommand() *cobra.Command {
 	cmds.AddCommand(
 		cmd.NewTraitsCommand(f, client, ioStream, []string{}),
 		cmd.NewWorkloadsCommand(f, client, ioStream, os.Args[1:]),
-		cmd.NewBindCommand(f, client, ioStream, []string{}),
 		cmd.NewInitCommand(f, client, ioStream),
 		cmd.NewDeleteCommand(f, client, ioStream, os.Args[1:]),
 		cmd.NewAppsCommand(f, client, ioStream),
@@ -93,11 +90,14 @@ func newCommand() *cobra.Command {
 		cmd.NewEnvCommand(f, ioStream),
 		NewVersionCommand(),
 	)
-	if err = workload.AddPlugins(cmds, client, ioStream); err != nil {
+	if err = cmd.AddWorkloadPlugins(cmds, client, ioStream); err != nil {
 		fmt.Println("Add plugins from workloadDefinition err", err)
 		os.Exit(1)
 	}
-
+	if err = cmd.AddTraitPlugins(cmds, client, ioStream); err != nil {
+		fmt.Println("Add plugins from traitDefinition err", err)
+		os.Exit(1)
+	}
 	return cmds
 }
 

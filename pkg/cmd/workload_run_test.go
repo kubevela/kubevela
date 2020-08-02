@@ -1,4 +1,4 @@
-package workload
+package cmd
 
 /*
 func TestNewRunCommand(t *testing.T) {
