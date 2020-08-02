@@ -81,7 +81,8 @@ func newCommand() *cobra.Command {
 	cmds.AddCommand(
 		cmd.NewTraitsCommand(f, client, ioStream, []string{}),
 		cmd.NewWorkloadsCommand(f, client, ioStream, os.Args[1:]),
-		cmd.NewInitCommand(f, client, ioStream),
+		cmd.NewAdminInitCommand(f, client, ioStream),
+		cmd.NewAdminInfoCommand(RudrxVersion, ioStream),
 		cmd.NewDeleteCommand(f, client, ioStream, os.Args[1:]),
 		cmd.NewAppsCommand(f, client, ioStream),
 		cmd.NewEnvInitCommand(f, ioStream),

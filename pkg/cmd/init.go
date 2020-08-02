@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 
+	"helm.sh/helm/v3/pkg/release"
+
 	"github.com/cloud-native-application/rudrx/api/types"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,6 +54,10 @@ type initCmd struct {
 	version   string
 }
 
+type infoCmd struct {
+	out io.Writer
+}
+
 var (
 	defaultObject = []interface{}{
 		&oamv1.WorkloadDefinition{},
@@ -75,12 +81,44 @@ var (
 	}
 )
 
-func NewInitCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewAdminInfoCommand(version string, ioStreams cmdutil.IOStreams) *cobra.Command {
+	i := &infoCmd{out: ioStreams.Out}
+
+	cmd := &cobra.Command{
+		Use:   "admin:info",
+		Short: "show RudrX client and cluster version",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return i.run(version, ioStreams)
+		},
+	}
+
+	return cmd
+}
+
+func (i *infoCmd) run(version string, ioStreams cmdutil.IOStreams) error {
+	clusterVersion, err := GetOAMReleaseVersion()
+	if err != nil {
+		ioStreams.Errorf("fail to get cluster version")
+	}
+
+	if len(clusterVersion) < 1 {
+		ioStreams.Info("oam-kubernetes-runtime not found in your kubernetes cluster, please use `ruder admin:init` to install.")
+		ioStreams.Infof("client  version: %s \n", version)
+		return nil
+	}
+
+	ioStreams.Infof("cluster version: %s \n", clusterVersion)
+	ioStreams.Infof("client  version: %s \n", version)
+
+	return nil
+}
+
+func NewAdminInitCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
 
 	i := &initCmd{out: ioStreams.Out}
 
 	cmd := &cobra.Command{
-		Use:   "init",
+		Use:   "admin:init",
 		Short: "Initialize RudrX on both client and server",
 		Long:  initDesc,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -170,7 +208,7 @@ func NewHelmInstall(version string, ioStreams cmdutil.IOStreams) (*action.Instal
 		kube.GetConfig(cmdutil.GetKubeConfig(), "", types.DefaultOAMNS),
 		types.DefaultOAMNS,
 		os.Getenv("HELM_DRIVER"),
-		ioStreams.Infof,
+		info,
 	); err != nil {
 		return nil, err
 	}
@@ -185,6 +223,10 @@ func NewHelmInstall(version string, ioStreams cmdutil.IOStreams) (*action.Instal
 	}
 	client.Version = types.DefaultOAMVersion
 	return client, nil
+}
+
+func info(format string, v ...interface{}) {
+	fmt.Sprintf(format, v)
 }
 
 func GetChart(client *action.Install, name string) (*chart.Chart, error) {
@@ -249,6 +291,35 @@ func GetHelmRepositoryList() []*repo.Entry {
 		return filterRepos(f.Repositories)
 	}
 	return nil
+}
+
+func GetHelmRelease() ([]*release.Release, error) {
+	actionConfig := new(action.Configuration)
+	client := action.NewList(actionConfig)
+
+	if err := actionConfig.Init(settings.RESTClientGetter(), "", os.Getenv("HELM_DRIVER"), info); err != nil {
+		return nil, err
+	}
+	results, err := client.Run()
+	if err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
+
+func GetOAMReleaseVersion() (string, error) {
+	results, err := GetHelmRelease()
+	if err != nil {
+		return "", err
+	}
+
+	for _, result := range results {
+		if result.Chart.ChartFullPath() == types.DefaultOAMRuntimeName {
+			return result.Chart.AppVersion(), nil
+		}
+	}
+	return "", nil
 }
 
 func filterRepos(repos []*repo.Entry) []*repo.Entry {
