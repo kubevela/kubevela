@@ -100,11 +100,6 @@ func ListTraitDefinitionsByApplicationConfiguration(app corev1alpha2.Application
 */
 func RetrieveApplicationsByName(ctx context.Context, c client.Client, applicationName string, namespace string) ([]ApplicationMeta, error) {
 	var applicationMetaList []ApplicationMeta
-
-	if namespace == "" {
-		namespace = "default"
-	}
-
 	var applicationList corev1alpha2.ApplicationConfigurationList
 
 	if applicationName != "" {

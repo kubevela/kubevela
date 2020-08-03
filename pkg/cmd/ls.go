@@ -20,10 +20,11 @@ func NewAppsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStre
 		Long:                  "List applications with workloads, traits, status and created time",
 		Example:               `rudr ls`,
 		Run: func(cmd *cobra.Command, args []string) {
-			//appName := cmd.Flag("app").Value.String()
-			appName := cmd.Flag("app").Value.String()
-			namespace := cmd.Flag("namespace").Value.String()
-			printApplicationList(ctx, c, appName, namespace)
+			env, err := GetEnv()
+			if err != nil {
+				ioStreams.Errorf("Failed to get Env information:%s", err)
+			}
+			printApplicationList(ctx, c, "", env.Namespace)
 		},
 	}
 
