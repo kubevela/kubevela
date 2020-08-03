@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
@@ -23,6 +24,7 @@ func NewAppsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStre
 			env, err := GetEnv()
 			if err != nil {
 				ioStreams.Errorf("Failed to get Env information:%s", err)
+				os.Exit(1)
 			}
 			printApplicationList(ctx, c, "", env.Namespace)
 		},
