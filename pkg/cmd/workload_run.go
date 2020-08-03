@@ -20,6 +20,9 @@ import (
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 )
 
+// ComponentWorkloadDefLabel indicate which workloaddefinition generate from
+const ComponentWorkloadDefLabel = "rudrx.oam.dev/workloadDef"
+
 type runOptions struct {
 	Template  types.Template
 	Env       *EnvMeta
@@ -108,6 +111,8 @@ func (o *runOptions) Complete(cmd *cobra.Command, args []string, ctx context.Con
 	o.Component.Spec.Workload.Object = &unstructured.Unstructured{Object: pvd.UnstructuredContent()}
 	o.Component.Name = args[0]
 	o.Component.Namespace = namespace
+	o.Component.Labels[ComponentWorkloadDefLabel] = workloadName
+
 	o.AppConfig.Name = args[0]
 	o.AppConfig.Namespace = namespace
 	o.AppConfig.Spec.Components = append(o.AppConfig.Spec.Components, corev1alpha2.ApplicationConfigurationComponent{ComponentName: args[0]})
