@@ -45,7 +45,7 @@ e2e-setup:
 
 e2e-test:
 	# Run e2e test
-	go test ./pkg/test
+	ginkgo -v -r pkg/test
 
 e2e-cleanup:
 	# Clean up

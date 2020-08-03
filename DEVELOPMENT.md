@@ -110,6 +110,5 @@ SUCCESS! -- 5 Passed | 0 Failed | 0 Pending | 0 Skipped
 PASS
 ```
 
-
 ## Make a pull request
 Remember to write unit-test and e2e test before making a pull request.
