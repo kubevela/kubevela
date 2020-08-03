@@ -89,6 +89,7 @@ func newCommand() *cobra.Command {
 		cmd.NewEnvDeleteCommand(f, ioStream),
 		cmd.NewEnvCommand(f, ioStream),
 		NewVersionCommand(),
+		cmd.NewAppStatusCommand(f, client, ioStream),
 	)
 	if err = cmd.AddWorkloadPlugins(cmds, client, ioStream); err != nil {
 		fmt.Println("Add plugins from workloadDefinition err", err)

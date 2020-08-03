@@ -68,6 +68,12 @@ type ApplicationMeta struct {
 	CreatedTime string   `json:"created,omitempty"`
 }
 
+type ApplicationStatusMeta struct {
+	Status   string                          `json:"status,omitempty"`
+	Workload corev1alpha2.WorkloadDefinition `json:"workload,omitempty"`
+	Trait    corev1alpha2.TraitDefinition    `json:"trait,omitempty"`
+}
+
 func GetComponent(ctx context.Context, c client.Client, componentName string, namespace string) (corev1alpha2.Component, error) {
 	var component corev1alpha2.Component
 	err := c.Get(ctx, client.ObjectKey{Name: componentName, Namespace: namespace}, &component)
@@ -142,6 +148,34 @@ func RetrieveApplicationsByName(ctx context.Context, c client.Client, applicatio
 	}
 
 	return applicationMetaList, nil
+}
+
+func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, applicationName string, namespace string) ApplicationStatusMeta {
+	var applicationStatusMeta ApplicationStatusMeta
+	var appConfig corev1alpha2.ApplicationConfiguration
+	if err := c.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: namespace}, &appConfig); err == nil {
+
+		componentName := appConfig.Spec.Components[0].ComponentName
+
+		if component, err := GetComponent(ctx, c, componentName, namespace); err == nil {
+			var workload corev1alpha2.WorkloadDefinition
+			json.Unmarshal(component.Spec.Workload.Raw, &workload)
+
+			var trait corev1alpha2.TraitDefinition
+			traitDefinitionList := ListTraitDefinitionsByApplicationConfiguration(appConfig)
+			if len(traitDefinitionList) != 0 {
+				trait = traitDefinitionList[0]
+			}
+
+			applicationStatusMeta = ApplicationStatusMeta{
+				Status:   string(appConfig.Status.Conditions[0].Status),
+				Workload: workload,
+				Trait:    trait,
+			}
+		}
+	}
+
+	return applicationStatusMeta
 }
 
 func GetTraitAliasByTraitDefinition(traitDefinition corev1alpha2.TraitDefinition) string {
