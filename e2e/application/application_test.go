@@ -1,4 +1,4 @@
-package e2e
+e2e/application/application_test.go package e2e
 
 import (
 	"fmt"
@@ -11,10 +11,10 @@ import (
 var (
 	//TODO(zzxwill) Need to change env name after [issue#82](https://github.com/cloud-native-application/RudrX/issues/82) is fixed.
 	envName         = "default"
-	applicationName = "app-testworkloadrun-basic"
+	applicationName = "app-ls-basic"
 )
 
-var _ = ginkgo.Describe("Workload", func() {
+var _ = ginkgo.Describe("Application", func() {
 	ginkgo.Context("env init", func() {
 		ginkgo.It("should print env initiation successful message", func() {
 			cli := fmt.Sprintf("rudr env:init %s --namespace %s", envName, envName)
@@ -44,12 +44,15 @@ var _ = ginkgo.Describe("Workload", func() {
 		})
 	})
 
-	ginkgo.Context("delete", func() {
-		ginkgo.It("should print successful deletion information", func() {
-			cli := fmt.Sprintf("rudr delete %s", applicationName)
-			output, err := e2e.Exec(cli)
+	ginkgo.Context("ls", func() {
+		ginkgo.It("should list all applications", func() {
+			output, err := e2e.Exec("rudr ls")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring("DELETE SUCCEED"))
+			gomega.Expect(output).To(gomega.ContainSubstring("NAME        \tWORKLOAD             \tTRAITS                    \tSTATUS\tCREATED-TIME"))
+			gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
+
 		})
 	})
+
+	e2e.WorkloadDeleteContext(applicationName)
 })

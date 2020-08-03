@@ -6,6 +6,7 @@
 *.so
 *.dylib
 bin
+e2e/rudr
 
 # Test binary, build with `go test -c`
 *.test

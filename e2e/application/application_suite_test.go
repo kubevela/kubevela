@@ -1,4 +1,4 @@
-package e2e
+e2e/application/application_suite_test.gopackage e2e
 
 import (
 	"testing"
@@ -17,7 +17,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 })
 
-func TestEnv(t *testing.T) {
+func TestApplication(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Env Suite")
+	ginkgo.RunSpecs(t, "Application Suite")
 }

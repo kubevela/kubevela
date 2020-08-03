@@ -17,7 +17,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 })
 
-func TestComponent(t *testing.T) {
+func TestWorkload(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
 	ginkgo.RunSpecs(t, "Workload Suite")
 }
