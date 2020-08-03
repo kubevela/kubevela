@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"context"
-	"fmt"
+	"os"
 
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 
@@ -11,41 +11,43 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func NewAppStatusCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewAppStatusCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:     "status",
 		Short:   "get status of an application",
 		Long:    "get status of an application, including its workload and trait",
 		Example: `rudr status <APPLICATION-NAME>`,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength == 0 {
-				cmdutil.PrintErrorMessage("Hint: please specify an application", 1)
-			} else {
-				appName := args[0]
-				if env, err := GetEnv(); err != nil {
-					errMsg := fmt.Sprintf("Error: retrieving namespace from env hit an issue:%s", err)
-					cmdutil.PrintErrorMessage(errMsg, 1)
-				} else {
-					namespace := env.Namespace
-					printApplicationStatus(ctx, c, appName, namespace)
-				}
+				ioStreams.Errorf("Hint: please specify an application")
+				os.Exit(1)
 			}
+			appName := args[0]
+			env, err := GetEnv()
+			if err != nil {
+				ioStreams.Errorf("Error: failed to get Env: %s", err)
+				return err
+			}
+
+			namespace := env.Namespace
+			return printApplicationStatus(ctx, c, ioStreams, appName, namespace)
 		},
 	}
+	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
 
-func printApplicationStatus(ctx context.Context, c client.Client, appName string, namespace string) {
-	application := cmdutil.RetrieveApplicationStatusByName(ctx, c, appName, namespace)
+func printApplicationStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string) error {
+	application, err := cmdutil.RetrieveApplicationStatusByName(ctx, c, appName, namespace)
+	if err != nil {
+		return err
+	}
 
 	// TODO(zzxwill) When application.Trait.Name is "", find a way not to print trait status
 	out, err := yaml.Marshal(application)
 
-	if err != nil {
-		errMsg := fmt.Sprintf("Error: priting workload status hit an issue:%s", err)
-		cmdutil.PrintErrorMessage(errMsg, 1)
-	}
-	fmt.Print(string(out))
+	ioStreams.Info(string(out))
+	return nil
 }
