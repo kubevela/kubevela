@@ -1,9 +1,9 @@
-package component
+package e2e
 
 import (
+	"github.com/cloud-native-application/rudrx/e2e"
 	"testing"
 
-	"github.com/cloud-native-application/rudrx/pkg/test"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 )
@@ -11,7 +11,7 @@ import (
 var rudrPath string
 
 var _ = ginkgo.BeforeSuite(func() {
-	p, err := test.GetCliBinary()
+	p, err := e2e.GetCliBinary()
 	rudrPath = p
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 })
