@@ -14,7 +14,7 @@ all: build
 
 # Run tests
 test: fmt vet
-	go test ./... -coverprofile cover.out
+	go test ./pkg/... -coverprofile cover.out
 
 # Build manager binary
 build: fmt vet
