@@ -19,5 +19,5 @@ var _ = ginkgo.BeforeSuite(func() {
 
 func TestComponent(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Workload Suite")
+	ginkgo.RunSpecs(t, "Env Suite")
 }
