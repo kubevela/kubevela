@@ -3,6 +3,7 @@ module github.com/cloud-native-application/rudrx
 go 1.13
 
 require (
+	cuelang.org/go v0.2.2
 	github.com/crossplane/crossplane-runtime v0.8.0
 	github.com/crossplane/oam-kubernetes-runtime v0.0.8
 	github.com/ghodss/yaml v1.0.0
