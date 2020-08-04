@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -23,11 +24,13 @@ import (
 )
 
 type commandOptions struct {
-	Env       *EnvMeta
-	Template  types.Template
-	Component corev1alpha2.Component
-	AppConfig corev1alpha2.ApplicationConfiguration
-	Client    client.Client
+	Env        *EnvMeta
+	Template   types.Template
+	Component  corev1alpha2.Component
+	AppConfig  corev1alpha2.ApplicationConfiguration
+	Client     client.Client
+	TraitAlias string
+	Detach     bool
 	cmdutil.IOStreams
 }
 
@@ -62,12 +65,14 @@ func AddTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmduti
 		pluginCmd.SetOut(o.Out)
 		for _, v := range tmp.Parameters {
 			pluginCmd.Flags().StringP(v.Name, v.Short, v.Default, v.Usage)
-			if v.Required {
-				pluginCmd.MarkFlagRequired(v.Name)
-			}
+			// These flags are exclusive to `--detach`, so comments the lines.
+			//if v.Required {
+			//	pluginCmd.MarkFlagRequired(v.Name)
+			//}
 		}
-
+		pluginCmd.Flags().Bool("detach", false, "Detach a trait")
 		o.Template = tmp
+		o.TraitAlias = name
 		parentCmd.AddCommand(pluginCmd)
 	}
 	return nil
@@ -113,34 +118,64 @@ func (o *commandOptions) Complete(cmd *cobra.Command, args []string, ctx context
 	}
 	// metadata.name needs to be in lower case.
 	pvd.SetString("metadata.name", strings.ToLower(fmt.Sprintf("%s-%s-trait", appName, o.Template.Alias)))
-	curObj := &unstructured.Unstructured{Object: pvd.UnstructuredContent()}
-	var updated bool
-	for ic, c := range o.AppConfig.Spec.Components {
-		if c.ComponentName != appName {
-			continue
-		}
-		for it, t := range c.Traits {
-			g, v, k := GetGVKFromRawExtension(t.Trait)
+	detachFlag, err := cmd.Flags().GetBool("detach")
+	o.Detach = detachFlag
+	if err != nil {
+		o.IOStreams.Errorf("failed to get `detach` flags:%s", err)
+		os.Exit(1)
+	}
 
-			// TODO(wonderflow): we should get GVK from Definition instead of assuming template object contains
-			gvk := curObj.GroupVersionKind()
-			if gvk.Group == g && gvk.Version == v && gvk.Kind == k {
-				updated = true
-				c.Traits[it] = corev1alpha2.ComponentTrait{Trait: runtime.RawExtension{Object: curObj}}
-				break
+	if !detachFlag {
+		curObj := &unstructured.Unstructured{Object: pvd.UnstructuredContent()}
+		var updated bool
+		for ic, c := range o.AppConfig.Spec.Components {
+			if c.ComponentName != appName {
+				continue
+			}
+			for it, t := range c.Traits {
+				g, v, k := GetGVKFromRawExtension(t.Trait)
+
+				// TODO(wonderflow): we should get GVK from Definition instead of assuming template object contains
+				gvk := curObj.GroupVersionKind()
+				if gvk.Group == g && gvk.Version == v && gvk.Kind == k {
+					updated = true
+					c.Traits[it] = corev1alpha2.ComponentTrait{Trait: runtime.RawExtension{Object: curObj}}
+					break
+				}
+			}
+			if !updated {
+				c.Traits = append(c.Traits, corev1alpha2.ComponentTrait{Trait: runtime.RawExtension{Object: curObj}})
+			}
+			o.AppConfig.Spec.Components[ic] = c
+			break
+		}
+	} else {
+		traitAlias := o.TraitAlias
+		_, _, tKind := cmdutil.GetTraitNameAliasKind(ctx, c, namespace, traitAlias)
+		//if tName == "" && tAlias == "" && tKind == "" {
+		//	errMsg := fmt.Sprintf("Error: trait name `%s` is NOT valid, please try again.", traitName)
+		//	cmdutil.PrintErrorMessage(errMsg, 1)
+		//}
+
+		traits := o.AppConfig.Spec.Components[0].Traits
+		traitDefinitionList := cmdutil.ListTraitDefinitionsByApplicationConfiguration(o.AppConfig)
+		for i := 0; i < len(o.AppConfig.Spec.Components[0].Traits); i++ {
+			if strings.EqualFold(traitDefinitionList[i].Kind, tKind) {
+				o.AppConfig.Spec.Components[0].Traits = append(traits[:i], traits[i+1:]...)
+				i--
 			}
 		}
-		if !updated {
-			c.Traits = append(c.Traits, corev1alpha2.ComponentTrait{Trait: runtime.RawExtension{Object: curObj}})
-		}
-		o.AppConfig.Spec.Components[ic] = c
-		break
 	}
 	return nil
 }
 
 func (o *commandOptions) Run(cmd *cobra.Command, ctx context.Context) error {
-	o.Info("Applying trait for app", o.Component.Name)
+	if o.Detach {
+		o.Info("Detaching trait from app", o.Component.Name)
+	} else {
+		o.Info("Applying trait for app", o.Component.Name)
+	}
+
 	c := o.Client
 	err := c.Update(ctx, &o.AppConfig)
 	if err != nil {
