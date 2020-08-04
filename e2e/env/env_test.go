@@ -1,8 +1,6 @@
 package e2e
 
 import (
-	"fmt"
-
 	"github.com/cloud-native-application/rudrx/e2e"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
@@ -14,47 +12,10 @@ var (
 )
 
 var _ = ginkgo.Describe("Env", func() {
-	ginkgo.Context("env init", func() {
-		ginkgo.It("should print env initiation successful message", func() {
-			cli := fmt.Sprintf("rudr env:init %s --namespace %s", envName, envName)
-			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedOutput := fmt.Sprintf("Create env succeed, current env is %s", envName)
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
-		})
-	})
-
-	ginkgo.Context("env init another one", func() {
-		ginkgo.It("should print env initiation successful message", func() {
-			cli := fmt.Sprintf("rudr env:init %s --namespace %s", envName2, envName2)
-			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedOutput := fmt.Sprintf("Create env succeed, current env is %s", envName2)
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
-		})
-	})
-
-	ginkgo.Context("env show", func() {
-		ginkgo.It("should show detailed env message", func() {
-			cli := fmt.Sprintf("rudr env %s", envName)
-			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedOutput := fmt.Sprintf("%s\t%s", envName, envName)
-			gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
-			gomega.Expect(output).To(gomega.ContainSubstring("NAMESPACE"))
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
-		})
-	})
-
-	ginkgo.Context("env sw", func() {
-		ginkgo.It("should show env switch message", func() {
-			cli := fmt.Sprintf("rudr env:sw %s", envName)
-			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedOutput := fmt.Sprintf("Switch env succeed, current env is %s", envName)
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
-		})
-	})
+	e2e.EnvInitContext("env init", envName)
+	e2e.EnvInitContext("env init another one", envName2)
+	e2e.EnvShowContext("env show", envName)
+	e2e.EnvSwitchContext("env sw", envName)
 
 	ginkgo.Context("env list", func() {
 		ginkgo.It("should list all envs", func() {
@@ -67,23 +28,6 @@ var _ = ginkgo.Describe("Env", func() {
 		})
 	})
 
-	ginkgo.Context("env delete", func() {
-		ginkgo.It("should delete all envs", func() {
-			cli := fmt.Sprintf("rudr env:delete %s", envName2)
-			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedOutput := fmt.Sprintf("%s deleted", envName2)
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
-		})
-	})
-
-	ginkgo.Context("env delete currently using one", func() {
-		ginkgo.It("should delete all envs", func() {
-			cli := fmt.Sprintf("rudr env:delete %s", envName)
-			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedOutput := fmt.Sprintf("Error: you can't delete current using env %s", envName)
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
-		})
-	})
+	e2e.EnvDeleteContext("env delete", envName2)
+	e2e.EnvDeleteCurrentUsingContext("env delete currently using one", envName)
 })

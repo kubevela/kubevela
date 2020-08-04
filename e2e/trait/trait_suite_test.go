@@ -17,7 +17,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 })
 
-func TestApplication(t *testing.T) {
+func TestEnv(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Application Suite")
+	ginkgo.RunSpecs(t, "Trait Suite")
 }

@@ -1,4 +1,4 @@
-e2e/application/application_test.go package e2e
+package e2e
 
 import (
 	"fmt"
@@ -15,44 +15,19 @@ var (
 )
 
 var _ = ginkgo.Describe("Application", func() {
-	ginkgo.Context("env init", func() {
-		ginkgo.It("should print env initiation successful message", func() {
-			cli := fmt.Sprintf("rudr env:init %s --namespace %s", envName, envName)
-			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedOutput := fmt.Sprintf("Create env succeed, current env is %s", envName)
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
-		})
-	})
-
-	ginkgo.Context("env sw", func() {
-		ginkgo.It("should show env switch message", func() {
-			cli := fmt.Sprintf("rudr env:sw %s", envName)
-			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedOutput := fmt.Sprintf("Switch env succeed, current env is %s", envName)
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
-		})
-	})
-
-	ginkgo.Context("run", func() {
-		ginkgo.It("should print successful creation information", func() {
-			cli := fmt.Sprintf("rudr containerized:run %s -p 80 --image nginx:1.9.4", applicationName)
-			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring("SUCCEED"))
-		})
-	})
+	e2e.EnvInitContext("env init", envName)
+	e2e.EnvShowContext("env show", envName)
+	e2e.EnvSwitchContext("env switch", envName)
+	e2e.WorkloadRunContext("run", fmt.Sprintf("rudr containerized:run %s -p 80 --image nginx:1.9.4", applicationName))
 
 	ginkgo.Context("ls", func() {
 		ginkgo.It("should list all applications", func() {
 			output, err := e2e.Exec("rudr ls")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring("NAME        \tWORKLOAD             \tTRAITS                    \tSTATUS\tCREATED-TIME"))
+			gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
 			gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
-
 		})
 	})
 
-	e2e.WorkloadDeleteContext(applicationName)
+	e2e.WorkloadDeleteContext("delete", applicationName)
 })
