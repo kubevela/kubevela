@@ -157,7 +157,7 @@ func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, appli
 		return applicationStatusMeta, err
 	}
 
-	component, err := GetComponent(ctx, c, appConfig.Spec.Components[0].ComponentName, namespace)
+	component, err := GetComponent(ctx, c, applicationName, namespace)
 	if err != nil {
 		return applicationStatusMeta, err
 	}
