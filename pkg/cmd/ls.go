@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
@@ -20,10 +21,12 @@ func NewAppsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStre
 		Long:                  "List applications with workloads, traits, status and created time",
 		Example:               `rudr ls`,
 		Run: func(cmd *cobra.Command, args []string) {
-			//appName := cmd.Flag("app").Value.String()
-			appName := cmd.Flag("app").Value.String()
-			namespace := cmd.Flag("namespace").Value.String()
-			printApplicationList(ctx, c, appName, namespace)
+			env, err := GetEnv()
+			if err != nil {
+				ioStreams.Errorf("Failed to get Env information:%s", err)
+				os.Exit(1)
+			}
+			printApplicationList(ctx, c, "", env.Namespace)
 		},
 	}
 
