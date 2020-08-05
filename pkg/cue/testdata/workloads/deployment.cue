@@ -17,9 +17,13 @@
 }
 
 deployment: {
-	name:  string
+	name: string
+	// +usage=specify app image
+	// +short=i
 	image: string
-	port:  *8080 | int
+	// +usage=specify port for container
+	// +short=p
+	port: *8080 | int
 	env: [...{
 		name:  string
 		value: string

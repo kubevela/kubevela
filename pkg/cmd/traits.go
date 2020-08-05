@@ -38,7 +38,7 @@ func printTraitList(ctx context.Context, c client.Client, workloadName *string, 
 	table.MaxColWidth = 60
 
 	if err != nil {
-		return fmt.Errorf("Listing Trait Definition hit an issue: %s", err)
+		return fmt.Errorf("Listing Trait DefinitionPath hit an issue: %s", err)
 	}
 
 	table.AddRow("NAME", "ALIAS", "DEFINITION", "APPLIES TO", "STATUS")

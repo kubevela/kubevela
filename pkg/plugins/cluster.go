@@ -2,7 +2,14 @@ package plugins
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
+
+	"github.com/cloud-native-application/rudrx/pkg/cue"
+
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/cloud-native-application/rudrx/api/types"
 
@@ -10,12 +17,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func GetTemplatesFromCluster(ctx context.Context, namespace string, c client.Client) ([]types.Template, error) {
-	workloads, err := GetWorkloadsFromCluster(ctx, namespace, c)
+func GetTemplatesFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string) ([]types.Template, error) {
+	workloads, err := GetWorkloadsFromCluster(ctx, namespace, c, syncDir)
 	if err != nil {
 		return nil, err
 	}
-	traits, err := GetTraitsFromCluster(ctx, namespace, c)
+	traits, err := GetTraitsFromCluster(ctx, namespace, c, syncDir)
 	if err != nil {
 		return nil, err
 	}
@@ -23,7 +30,7 @@ func GetTemplatesFromCluster(ctx context.Context, namespace string, c client.Cli
 	return workloads, nil
 }
 
-func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Client) ([]types.Template, error) {
+func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string) ([]types.Template, error) {
 	var templates []types.Template
 	var workloadDefs corev1alpha2.WorkloadDefinitionList
 	err := c.List(ctx, &workloadDefs, &client.ListOptions{Namespace: namespace})
@@ -33,22 +40,18 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Cli
 
 	for _, wd := range workloadDefs.Items {
 		var tmp types.Template
-		tmp, err := types.ConvertTemplateJson2Object(wd.Spec.Extension)
+		tmp, err := HandleTemplate(wd.Spec.Extension, wd.Name, syncDir)
 		if err != nil {
-			fmt.Printf("extract template from workloadDefinition %v err: %v, ignore it\n", wd.Name, err)
+			fmt.Printf("[WARN]handle template %s: %v\n", wd.Name, err)
 			continue
 		}
 		tmp.Type = types.TypeWorkload
-		tmp.Name = wd.Name
-		if tmp.Alias == "" {
-			tmp.Alias = tmp.Name
-		}
 		templates = append(templates, tmp)
 	}
 	return templates, nil
 }
 
-func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client) ([]types.Template, error) {
+func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string) ([]types.Template, error) {
 	var templates []types.Template
 	var traitDefs corev1alpha2.TraitDefinitionList
 	err := c.List(ctx, &traitDefs, &client.ListOptions{Namespace: namespace})
@@ -58,17 +61,34 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 
 	for _, td := range traitDefs.Items {
 		var tmp types.Template
-		tmp, err := types.ConvertTemplateJson2Object(td.Spec.Extension)
+		tmp, err := HandleTemplate(td.Spec.Extension, td.Name, syncDir)
 		if err != nil {
-			fmt.Printf("extract template from workloadDefinition %v err: %v, ignore it\n", td.Name, err)
+			fmt.Printf("[WARN]handle template %s: %v\n", td.Name, err)
 			continue
 		}
 		tmp.Type = types.TypeTrait
-		tmp.Name = td.Name
-		if tmp.Alias == "" {
-			tmp.Alias = tmp.Name
-		}
 		templates = append(templates, tmp)
 	}
 	return templates, nil
+}
+
+func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Template, error) {
+	tmp, err := types.ConvertTemplateJson2Object(in)
+	if err != nil {
+		return types.Template{}, err
+	}
+	if tmp.Template == "" {
+		return types.Template{}, errors.New("template not exist in definition")
+	}
+	filePath := filepath.Join(syncDir, name+".cue")
+	err = ioutil.WriteFile(filePath, []byte(tmp.Template), 0644)
+	if err != nil {
+		return types.Template{}, err
+	}
+	tmp.DefinitionPath = filePath
+	tmp.Parameters, tmp.Name, err = cue.GetParameters(filePath)
+	if err != nil {
+		return types.Template{}, err
+	}
+	return tmp, nil
 }

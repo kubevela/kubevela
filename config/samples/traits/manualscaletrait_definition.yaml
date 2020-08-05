@@ -8,16 +8,15 @@ spec:
   definitionRef:
     name: manualscalertraits.core.oam.dev
   extension:
-    alias: ManualScaler
-    object:
-      apiVersion: core.oam.dev/v1alpha2
-      kind: ManualScalerTrait
-      spec:
-        replicaCount: 2
-    parameters:
-      - name: replicaCount
-        required: true
-        type: int
-        default: "5"
-        fieldPaths:
-          - "spec.replicaCount"
+    template: |
+      #Template: {
+      	apiVersion: "core.oam.dev/v1alpha2"
+      	kind:       "ManualScalerTrait"
+      	spec: {
+      		replicaCount: manualscaler.replica
+      	}
+      }
+      manualscaler: {
+      	//+short=r
+      	replica: *2 | int
+      }

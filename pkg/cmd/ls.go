@@ -41,7 +41,7 @@ func printApplicationList(ctx context.Context, c client.Client, appName string, 
 	table.MaxColWidth = 60
 
 	if err != nil {
-		fmt.Printf("listing Trait Definition hit an issue: %s\n", err)
+		fmt.Printf("listing Trait DefinitionPath hit an issue: %s\n", err)
 		return
 	}
 

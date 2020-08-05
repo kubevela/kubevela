@@ -8,15 +8,17 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/cloud-native-application/rudrx/api/types"
+
+	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 )
 
-const DefaultEnvName = "default"
-
 func NewEnvInitCommand(f cmdutil.Factory, ioStreams cmdutil.IOStreams) *cobra.Command {
-	var envArgs EnvMeta
+	var envArgs types.EnvMeta
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "env:init",
@@ -81,10 +83,6 @@ func NewEnvSwitchCommand(f cmdutil.Factory, ioStreams cmdutil.IOStreams) *cobra.
 	return cmd
 }
 
-type EnvMeta struct {
-	Namespace string `json:"namespace"`
-}
-
 func ListEnvs(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) error {
 	table := uitable.New()
 	table.MaxColWidth = 60
@@ -99,7 +97,7 @@ func ListEnvs(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) e
 		ioStreams.Infof(table.String())
 		return nil
 	}
-	envDir, err := getEnvDir()
+	envDir, err := system.GetEnvDir()
 	if err != nil {
 		return err
 	}
@@ -115,7 +113,7 @@ func ListEnvs(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) e
 		if err != nil {
 			continue
 		}
-		var envMeta EnvMeta
+		var envMeta types.EnvMeta
 		if err = json.Unmarshal(data, &envMeta); err != nil {
 			continue
 		}
@@ -137,7 +135,7 @@ func DeleteEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) 
 	if envname == curEnv {
 		return fmt.Errorf("you can't delete current using env %s", curEnv)
 	}
-	envdir, err := getEnvDir()
+	envdir, err := system.GetEnvDir()
 	if err != nil {
 		return err
 	}
@@ -148,29 +146,7 @@ func DeleteEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) 
 	return nil
 }
 
-func InitDefaultEnv() error {
-	envDir, err := getEnvDir()
-	if err != nil {
-		return err
-	}
-	if err = os.MkdirAll(envDir, 0755); err != nil {
-		return err
-	}
-	data, _ := json.Marshal(&EnvMeta{Namespace: DefaultEnvName})
-	if err = ioutil.WriteFile(filepath.Join(envDir, DefaultEnvName), data, 0644); err != nil {
-		return err
-	}
-	curEnvPath, err := getCurrentEnvPath()
-	if err != nil {
-		return err
-	}
-	if err = ioutil.WriteFile(curEnvPath, []byte(DefaultEnvName), 0644); err != nil {
-		return err
-	}
-	return nil
-}
-
-func CreateOrUpdateEnv(ctx context.Context, envArgs *EnvMeta, args []string, ioStreams cmdutil.IOStreams) error {
+func CreateOrUpdateEnv(ctx context.Context, envArgs *types.EnvMeta, args []string, ioStreams cmdutil.IOStreams) error {
 	if len(args) < 1 {
 		return fmt.Errorf("you must specify env name for rudr env:init command")
 	}
@@ -179,14 +155,14 @@ func CreateOrUpdateEnv(ctx context.Context, envArgs *EnvMeta, args []string, ioS
 	if err != nil {
 		return err
 	}
-	envdir, err := getEnvDir()
+	envdir, err := system.GetEnvDir()
 	if err != nil {
 		return err
 	}
 	if err = ioutil.WriteFile(filepath.Join(envdir, envname), data, 0644); err != nil {
 		return err
 	}
-	curEnvPath, err := getCurrentEnvPath()
+	curEnvPath, err := system.GetCurrentEnvPath()
 	if err != nil {
 		return err
 	}
@@ -197,28 +173,12 @@ func CreateOrUpdateEnv(ctx context.Context, envArgs *EnvMeta, args []string, ioS
 	return nil
 }
 
-func getCurrentEnvPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".rudr", "curenv"), nil
-}
-
-func getEnvDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".rudr", "envs"), nil
-}
-
 func SwitchEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) error {
 	if len(args) < 1 {
 		return fmt.Errorf("you must specify env name for rudr env command")
 	}
 	envname := args[0]
-	currentEnvPath, err := getCurrentEnvPath()
+	currentEnvPath, err := system.GetCurrentEnvPath()
 	if err != nil {
 		return err
 	}
@@ -234,7 +194,7 @@ func SwitchEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) 
 }
 
 func GetCurrentEnvName() (string, error) {
-	currentEnvPath, err := getCurrentEnvPath()
+	currentEnvPath, err := system.GetCurrentEnvPath()
 	if err != nil {
 		return "", err
 	}
@@ -245,22 +205,22 @@ func GetCurrentEnvName() (string, error) {
 	return string(data), nil
 }
 
-func GetEnv() (*EnvMeta, error) {
+func GetEnv() (*types.EnvMeta, error) {
 	envName, err := GetCurrentEnvName()
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
 		}
-		if err = InitDefaultEnv(); err != nil {
+		if err = system.InitDefaultEnv(); err != nil {
 			return nil, err
 		}
-		envName = DefaultEnvName
+		envName = types.DefaultEnvName
 	}
 	return getEnvByName(envName)
 }
 
-func getEnvByName(name string) (*EnvMeta, error) {
-	envdir, err := getEnvDir()
+func getEnvByName(name string) (*types.EnvMeta, error) {
+	envdir, err := system.GetEnvDir()
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +228,7 @@ func getEnvByName(name string) (*EnvMeta, error) {
 	if err != nil {
 		return nil, err
 	}
-	var meta EnvMeta
+	var meta types.EnvMeta
 	if err = json.Unmarshal(data, &meta); err != nil {
 		return nil, err
 	}
