@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -65,14 +64,12 @@ func AddTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmduti
 		pluginCmd.SetOut(o.Out)
 		for _, v := range tmp.Parameters {
 			pluginCmd.Flags().StringP(v.Name, v.Short, v.Default, v.Usage)
-			// These flags are exclusive to `--detach`, so comments the lines.
-			//if v.Required {
-			//	pluginCmd.MarkFlagRequired(v.Name)
-			//}
+			if v.Required {
+				pluginCmd.MarkFlagRequired(v.Name)
+			}
 		}
-		pluginCmd.Flags().Bool("detach", false, "Detach a trait")
+
 		o.Template = tmp
-		o.TraitAlias = name
 		parentCmd.AddCommand(pluginCmd)
 	}
 	return nil
@@ -118,51 +115,88 @@ func (o *commandOptions) Complete(cmd *cobra.Command, args []string, ctx context
 	}
 	// metadata.name needs to be in lower case.
 	pvd.SetString("metadata.name", strings.ToLower(fmt.Sprintf("%s-%s-trait", appName, o.Template.Alias)))
-	detachFlag, err := cmd.Flags().GetBool("detach")
-	o.Detach = detachFlag
+	curObj := &unstructured.Unstructured{Object: pvd.UnstructuredContent()}
+	var updated bool
+	for ic, c := range o.AppConfig.Spec.Components {
+		if c.ComponentName != appName {
+			continue
+		}
+		for it, t := range c.Traits {
+			g, v, k := GetGVKFromRawExtension(t.Trait)
+
+			// TODO(wonderflow): we should get GVK from Definition instead of assuming template object contains
+			gvk := curObj.GroupVersionKind()
+			if gvk.Group == g && gvk.Version == v && gvk.Kind == k {
+				updated = true
+				c.Traits[it] = corev1alpha2.ComponentTrait{Trait: runtime.RawExtension{Object: curObj}}
+				break
+			}
+		}
+		if !updated {
+			c.Traits = append(c.Traits, corev1alpha2.ComponentTrait{Trait: runtime.RawExtension{Object: curObj}})
+		}
+		o.AppConfig.Spec.Components[ic] = c
+		break
+	}
+	return nil
+}
+
+func DetachTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmdutil.IOStreams) error {
+	templates, err := plugins.GetTraitsFromCluster(context.TODO(), types.DefaultOAMNS, c)
 	if err != nil {
-		o.IOStreams.Errorf("failed to get `detach` flags:%s", err)
-		os.Exit(1)
+		return err
+	}
+	ctx := context.Background()
+	for _, tmp := range templates {
+		var name = tmp.Alias
+		o := NewCommandOptions(ioStreams)
+		o.Client = c
+		o.Env, _ = GetEnv()
+		pluginCmd := &cobra.Command{
+			Use:                   name + ":detach <appname>",
+			DisableFlagsInUseLine: true,
+			Short:                 "Detach " + name + " trait from an app",
+			Long:                  "Detach " + name + " trait from an app",
+			Example:               `rudr scale:detach frontend`,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if err := o.DetachTrait(cmd, args, ctx); err != nil {
+					return err
+				}
+				return o.Run(cmd, ctx)
+			},
+		}
+		pluginCmd.SetOut(o.Out)
+		o.TraitAlias = name
+		o.Detach = true
+		parentCmd.AddCommand(pluginCmd)
+	}
+	return nil
+}
+
+func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string, ctx context.Context) error {
+	argsLength := len(args)
+	if argsLength < 1 {
+		return errors.New("please specify the name of the app")
+	}
+	c := o.Client
+	namespace := o.Env.Namespace
+
+	var appName = args[0]
+	if err := c.Get(ctx, client.ObjectKey{Namespace: o.Env.Namespace, Name: appName}, &o.AppConfig); err != nil {
+		return err
 	}
 
-	if !detachFlag {
-		curObj := &unstructured.Unstructured{Object: pvd.UnstructuredContent()}
-		var updated bool
-		for ic, c := range o.AppConfig.Spec.Components {
-			if c.ComponentName != appName {
-				continue
-			}
-			for it, t := range c.Traits {
-				g, v, k := GetGVKFromRawExtension(t.Trait)
+	_, _, tKind := cmdutil.GetTraitNameAliasKind(ctx, c, namespace, o.TraitAlias)
 
-				// TODO(wonderflow): we should get GVK from Definition instead of assuming template object contains
-				gvk := curObj.GroupVersionKind()
-				if gvk.Group == g && gvk.Version == v && gvk.Kind == k {
-					updated = true
-					c.Traits[it] = corev1alpha2.ComponentTrait{Trait: runtime.RawExtension{Object: curObj}}
-					break
+	for _, com := range o.AppConfig.Spec.Components {
+		if com.ComponentName == appName {
+			traits := com.Traits
+			traitDefinitionList := cmdutil.ListTraitDefinitionsByApplicationConfiguration(o.AppConfig)
+			for i := 0; i < len(o.AppConfig.Spec.Components[0].Traits); i++ {
+				if strings.EqualFold(traitDefinitionList[i].Kind, tKind) {
+					o.AppConfig.Spec.Components[0].Traits = append(traits[:i], traits[i+1:]...)
+					i--
 				}
-			}
-			if !updated {
-				c.Traits = append(c.Traits, corev1alpha2.ComponentTrait{Trait: runtime.RawExtension{Object: curObj}})
-			}
-			o.AppConfig.Spec.Components[ic] = c
-			break
-		}
-	} else {
-		traitAlias := o.TraitAlias
-		_, _, tKind := cmdutil.GetTraitNameAliasKind(ctx, c, namespace, traitAlias)
-		//if tName == "" && tAlias == "" && tKind == "" {
-		//	errMsg := fmt.Sprintf("Error: trait name `%s` is NOT valid, please try again.", traitName)
-		//	cmdutil.PrintErrorMessage(errMsg, 1)
-		//}
-
-		traits := o.AppConfig.Spec.Components[0].Traits
-		traitDefinitionList := cmdutil.ListTraitDefinitionsByApplicationConfiguration(o.AppConfig)
-		for i := 0; i < len(o.AppConfig.Spec.Components[0].Traits); i++ {
-			if strings.EqualFold(traitDefinitionList[i].Kind, tKind) {
-				o.AppConfig.Spec.Components[0].Traits = append(traits[:i], traits[i+1:]...)
-				i--
 			}
 		}
 	}
@@ -175,7 +209,6 @@ func (o *commandOptions) Run(cmd *cobra.Command, ctx context.Context) error {
 	} else {
 		o.Info("Applying trait for app", o.Component.Name)
 	}
-
 	c := o.Client
 	err := c.Update(ctx, &o.AppConfig)
 	if err != nil {
