@@ -111,7 +111,7 @@ func (o *runOptions) Complete(cmd *cobra.Command, args []string, ctx context.Con
 	o.Component.Spec.Workload.Object = &unstructured.Unstructured{Object: pvd.UnstructuredContent()}
 	o.Component.Name = args[0]
 	o.Component.Namespace = namespace
-	o.Component.Labels[ComponentWorkloadDefLabel] = workloadName
+	o.Component.Labels = map[string]string{ComponentWorkloadDefLabel: workloadName}
 
 	o.AppConfig.Name = args[0]
 	o.AppConfig.Namespace = namespace
