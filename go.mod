@@ -6,7 +6,6 @@ require (
 	github.com/crossplane/crossplane-runtime v0.8.0
 	github.com/crossplane/oam-kubernetes-runtime v0.0.8
 	github.com/ghodss/yaml v1.0.0
-	github.com/go-logr/logr v0.1.0
 	github.com/gosuri/uitable v0.0.4
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.8.1
@@ -22,5 +21,6 @@ require (
 	k8s.io/client-go v0.18.6
 	k8s.io/klog v1.0.0
 	k8s.io/kubectl v0.18.6
+	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/controller-runtime v0.6.0
 )
