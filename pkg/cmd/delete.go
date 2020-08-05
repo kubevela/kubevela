@@ -25,7 +25,7 @@ func newDeleteOptions(ioStreams cmdutil.IOStreams) *deleteOptions {
 
 func newDeleteCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:                   "delete [APPLICATION_NAME]",
+		Use:                   "app:delete [APPLICATION_NAME]",
 		DisableFlagsInUseLine: true,
 		Short:                 "Delete OAM Applications",
 		Long:                  "Delete OAM Applications",
