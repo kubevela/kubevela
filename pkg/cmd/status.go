@@ -44,10 +44,11 @@ func printApplicationStatus(ctx context.Context, c client.Client, ioStreams cmdu
 	if err != nil {
 		return err
 	}
-
 	// TODO(zzxwill) When application.Trait.Name is "", find a way not to print trait status
 	out, err := yaml.Marshal(application)
-
+	if err != nil {
+		return err
+	}
 	ioStreams.Info(string(out))
 	return nil
 }
