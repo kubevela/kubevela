@@ -57,8 +57,8 @@ func newCommand() *cobra.Command {
 
 	cmds := &cobra.Command{
 		Use:          "rudr",
-		Short:        "rudr is a command-line tool to use OAM based micro-app engine.",
-		Long:         "rudr is a command-line tool to use OAM based micro-app engine.",
+		Short:        "✈️  A Micro App Plafrom for Kubernetes.",
+		Long:         "✈️  A Micro App Plafrom for Kubernetes.",
 		Run:          runHelp,
 		SilenceUsage: true,
 	}

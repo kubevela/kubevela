@@ -14,7 +14,7 @@ import (
 func NewAppStatusCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:     "status",
+		Use:     "app:status",
 		Short:   "get status of an application",
 		Long:    "get status of an application, including its workload and trait",
 		Example: `rudr status <APPLICATION-NAME>`,
