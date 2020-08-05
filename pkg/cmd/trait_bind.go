@@ -23,11 +23,13 @@ import (
 )
 
 type commandOptions struct {
-	Env       *EnvMeta
-	Template  types.Template
-	Component corev1alpha2.Component
-	AppConfig corev1alpha2.ApplicationConfiguration
-	Client    client.Client
+	Env        *EnvMeta
+	Template   types.Template
+	Component  corev1alpha2.Component
+	AppConfig  corev1alpha2.ApplicationConfiguration
+	Client     client.Client
+	TraitAlias string
+	Detach     bool
 	cmdutil.IOStreams
 }
 
@@ -139,8 +141,80 @@ func (o *commandOptions) Complete(cmd *cobra.Command, args []string, ctx context
 	return nil
 }
 
+func DetachTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmdutil.IOStreams) error {
+	templates, err := plugins.GetTraitsFromCluster(context.TODO(), types.DefaultOAMNS, c)
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+	for _, tmp := range templates {
+		var name = tmp.Alias
+		o := NewCommandOptions(ioStreams)
+		o.Client = c
+		o.Env, _ = GetEnv()
+		pluginCmd := &cobra.Command{
+			Use:                   name + ":detach <appname>",
+			DisableFlagsInUseLine: true,
+			Short:                 "Detach " + name + " trait from an app",
+			Long:                  "Detach " + name + " trait from an app",
+			Example:               `rudr scale:detach frontend`,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if err := o.DetachTrait(cmd, args, ctx); err != nil {
+					return err
+				}
+				return o.Run(cmd, ctx)
+			},
+		}
+		pluginCmd.SetOut(o.Out)
+		o.TraitAlias = name
+		o.Detach = true
+		parentCmd.AddCommand(pluginCmd)
+	}
+	return nil
+}
+
+func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string, ctx context.Context) error {
+	argsLength := len(args)
+	if argsLength < 1 {
+		return errors.New("please specify the name of the app")
+	}
+	c := o.Client
+	namespace := o.Env.Namespace
+
+	var appName = args[0]
+	if err := c.Get(ctx, client.ObjectKey{Namespace: o.Env.Namespace, Name: appName}, &o.AppConfig); err != nil {
+		return err
+	}
+
+	_, _, tKind := cmdutil.GetTraitNameAliasKind(ctx, c, namespace, o.TraitAlias)
+	var traitDefinition corev1alpha2.TraitDefinition
+
+	for i, com := range o.AppConfig.Spec.Components {
+		traits := com.Traits
+		if com.ComponentName == appName {
+			for j := 0; j < len(traits); j++ {
+				err := json.Unmarshal(traits[j].Trait.Raw, &traitDefinition)
+				if err != nil {
+					return err
+				}
+				if strings.EqualFold(traitDefinition.Kind, tKind) {
+					traits = append(traits[:j], traits[j+1:]...)
+					j--
+				}
+			}
+		}
+		o.AppConfig.Spec.Components[i].Traits = traits
+	}
+
+	return nil
+}
+
 func (o *commandOptions) Run(cmd *cobra.Command, ctx context.Context) error {
-	o.Info("Applying trait for app", o.Component.Name)
+	if o.Detach {
+		o.Info("Detaching trait from app", o.Component.Name)
+	} else {
+		o.Info("Applying trait for app", o.Component.Name)
+	}
 	c := o.Client
 	err := c.Update(ctx, &o.AppConfig)
 	if err != nil {

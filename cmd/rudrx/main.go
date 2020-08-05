@@ -99,6 +99,10 @@ func newCommand() *cobra.Command {
 		fmt.Println("Add plugins from traitDefinition err", err)
 		os.Exit(1)
 	}
+	if err = cmd.DetachTraitPlugins(cmds, client, ioStream); err != nil {
+		fmt.Println("Add plugins from traitDefinition err", err)
+		os.Exit(1)
+	}
 	return cmds
 }
 

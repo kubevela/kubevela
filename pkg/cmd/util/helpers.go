@@ -7,8 +7,6 @@ import (
 
 	"github.com/cloud-native-application/rudrx/api/types"
 
-	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -94,8 +92,9 @@ func ListTraitDefinitionsByApplicationConfiguration(app corev1alpha2.Application
 	var traitDefinitionList []corev1alpha2.TraitDefinition
 	for _, t := range app.Spec.Components[0].Traits {
 		var trait corev1alpha2.TraitDefinition
-		json.Unmarshal(t.Trait.Raw, &trait)
-		traitDefinitionList = append(traitDefinitionList, trait)
+		if err := json.Unmarshal(t.Trait.Raw, &trait); err == nil {
+			traitDefinitionList = append(traitDefinitionList, trait)
+		}
 	}
 	return traitDefinitionList
 }
@@ -133,18 +132,19 @@ func RetrieveApplicationsByName(ctx context.Context, c client.Client, applicatio
 		}
 
 		var workload corev1alpha2.WorkloadDefinition
-		json.Unmarshal(component.Spec.Workload.Raw, &workload)
-		workloadName := workload.TypeMeta.Kind
+		if err := json.Unmarshal(component.Spec.Workload.Raw, &workload); err == nil {
+			workloadName := workload.TypeMeta.Kind
 
-		traitNames := GetTraitNamesByApplicationConfiguration(a)
+			traitNames := GetTraitNamesByApplicationConfiguration(a)
 
-		applicationMetaList = append(applicationMetaList, ApplicationMeta{
-			Name:        a.Name,
-			Workload:    workloadName,
-			Traits:      traitNames,
-			Status:      string(a.Status.Conditions[0].Status),
-			CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
-		})
+			applicationMetaList = append(applicationMetaList, ApplicationMeta{
+				Name:        a.Name,
+				Workload:    workloadName,
+				Traits:      traitNames,
+				Status:      string(a.Status.Conditions[0].Status),
+				CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
+			})
+		}
 	}
 
 	return applicationMetaList, nil
@@ -222,36 +222,21 @@ func GetTraitNameAliasKind(ctx context.Context, c client.Client, namespace strin
 	if err == nil {
 		template, err := types.ConvertTemplateJson2Object(t.Spec.Extension)
 		if err == nil {
-			tName, tAlias = t.Name, template.Alias
+			tName, tAlias = t.Spec.Reference.Name, template.Alias
+			tKind = fmt.Sprintf("%v", template.Object["kind"])
 		}
 	} else {
 		t, err := GetTraitDefinitionByAlias(ctx, c, name)
 		if err == nil {
 			template, err := types.ConvertTemplateJson2Object(t.Spec.Extension)
 			if err == nil {
-				tName, tAlias = t.Name, template.Alias
+				tName, tAlias = t.Spec.Reference.Name, template.Alias
+				tKind = fmt.Sprintf("%v", template.Object["kind"])
 			}
 		}
 	}
 
-	if tName == "" {
-		tKind = name
-	} else {
-		tKind = GetCRDKind(ctx, c, namespace, tName)
-	}
-
 	return tName, tAlias, tKind
-}
-
-func GetCRDByName(ctx context.Context, c client.Client, namespace string, name string) v1.CustomResourceDefinition {
-	var crd v1.CustomResourceDefinition
-	c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &crd)
-	return crd
-}
-
-func GetCRDKind(ctx context.Context, c client.Client, namespace string, name string) string {
-	crd := GetCRDByName(ctx, c, namespace, name)
-	return crd.Spec.Names.Kind
 }
 
 func GetWorkloadNameAliasKind(ctx context.Context, c client.Client, namespace string, workloadName string) (string, string, string) {
@@ -288,13 +273,12 @@ func GetWorkloadDefinitionByName(ctx context.Context, c client.Client, namespace
 func GetWorkloadDefinitionByAlias(ctx context.Context, c client.Client, traitAlias string) (corev1alpha2.WorkloadDefinition, error) {
 	var workloadDefinitionList corev1alpha2.WorkloadDefinitionList
 	var workloadDefinition corev1alpha2.WorkloadDefinition
-	// TODO(zzxwill) Need to check return error
-	c.List(ctx, &workloadDefinitionList)
-
-	for _, t := range workloadDefinitionList.Items {
-		if strings.EqualFold(t.ObjectMeta.Annotations["short"], traitAlias) {
-			workloadDefinition = t
-			break
+	if err := c.List(ctx, &workloadDefinitionList); err == nil {
+		for _, t := range workloadDefinitionList.Items {
+			if strings.EqualFold(t.ObjectMeta.Annotations["short"], traitAlias) {
+				workloadDefinition = t
+				break
+			}
 		}
 	}
 

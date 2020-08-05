@@ -6,7 +6,7 @@ spec:
   appliesToWorkloads:
     - core.oam.dev/v1alpha2.ContainerizedWorkload
   definitionRef:
-    name: manualscalertrait.core.oam.dev
+    name: manualscalertraits.core.oam.dev
   extension:
     alias: ManualScaler
     object:
