@@ -35,10 +35,12 @@ func NewCommandOptions(ioStreams cmdutil.IOStreams) *commandOptions {
 	return &commandOptions{IOStreams: ioStreams}
 }
 
-func AddTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmdutil.IOStreams) error {
+func AddTraitPlugins(c client.Client, ioStreams cmdutil.IOStreams) ([]*cobra.Command, error) {
+	var traitPluginCommands []*cobra.Command
+
 	templates, err := plugins.GetTraitsFromCluster(context.TODO(), types.DefaultOAMNS, c)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	ctx := context.Background()
 	for _, tmp := range templates {
@@ -68,9 +70,10 @@ func AddTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmduti
 		}
 
 		o.Template = tmp
-		parentCmd.AddCommand(pluginCmd)
+		traitPluginCommands = append(traitPluginCommands, pluginCmd)
 	}
-	return nil
+
+	return traitPluginCommands, nil
 }
 
 func (o *commandOptions) Complete(cmd *cobra.Command, args []string, ctx context.Context) error {

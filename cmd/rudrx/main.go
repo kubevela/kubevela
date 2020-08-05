@@ -9,6 +9,7 @@ import (
 
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/cloud-native-application/rudrx/pkg/cmd"
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	"github.com/cloud-native-application/rudrx/pkg/template"
 	"github.com/cloud-native-application/rudrx/pkg/utils/logs"
 )
 
@@ -63,9 +65,11 @@ func newCommand() *cobra.Command {
 		SilenceUsage: true,
 	}
 
-	flags := cmds.PersistentFlags()
+	// flags of contorller-runtime
+	globalFlags := pflag.NewFlagSet("global", pflag.ContinueOnError)
+
 	kubeConfigFlags := genericclioptions.NewConfigFlags(true).WithDeprecatedPasswordFlag()
-	kubeConfigFlags.AddFlags(flags)
+	kubeConfigFlags.AddFlags(globalFlags)
 	f := cmdutil.NewFactory(kubeConfigFlags)
 	restConf, err := f.ToRESTConfig()
 	if err != nil {
@@ -78,7 +82,8 @@ func newCommand() *cobra.Command {
 		os.Exit(1)
 	}
 
-	cmds.AddCommand(
+	// base usage commands
+	baseCommands := []*cobra.Command{
 		cmd.NewTraitsCommand(f, client, ioStream, []string{}),
 		cmd.NewWorkloadsCommand(f, client, ioStream, os.Args[1:]),
 		cmd.NewInitCommand(f, client, ioStream),
@@ -88,17 +93,35 @@ func newCommand() *cobra.Command {
 		cmd.NewEnvSwitchCommand(f, ioStream),
 		cmd.NewEnvDeleteCommand(f, ioStream),
 		cmd.NewEnvCommand(f, ioStream),
-		NewVersionCommand(),
 		cmd.NewAppStatusCommand(client, ioStream),
-	)
-	if err = cmd.AddWorkloadPlugins(cmds, client, ioStream); err != nil {
+
+		NewVersionCommand(),
+	}
+
+	// advanced commands
+	advancedCommands := []*cobra.Command{}
+
+	// show global flags used by controller-runtime
+	optionsCommand := cmd.NewOptionsCommand(globalFlags, ioStream)
+
+	workloadPluginCommands, err := cmd.AddWorkloadPlugins(client, ioStream)
+	if err != nil {
 		fmt.Println("Add plugins from workloadDefinition err", err)
 		os.Exit(1)
 	}
-	if err = cmd.AddTraitPlugins(cmds, client, ioStream); err != nil {
+	traitPluginCommands, err := cmd.AddTraitPlugins(client, ioStream)
+	if err != nil {
 		fmt.Println("Add plugins from traitDefinition err", err)
 		os.Exit(1)
 	}
+
+	templater := template.NewTemplater(cmds, baseCommands, advancedCommands, workloadPluginCommands,
+		traitPluginCommands, optionsCommand, globalFlags, ioStream)
+	templater.AddCommandsAndFlags()
+
+	cmds.SetUsageFunc(templater.UsageFunc())
+	cmds.SetHelpFunc(templater.HelpFunc())
+
 	return cmds
 }
 

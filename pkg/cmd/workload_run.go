@@ -36,10 +36,12 @@ func newRunOptions(ioStreams cmdutil.IOStreams) *runOptions {
 	return &runOptions{IOStreams: ioStreams}
 }
 
-func AddWorkloadPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmdutil.IOStreams) error {
+func AddWorkloadPlugins(c client.Client, ioStreams cmdutil.IOStreams) ([]*cobra.Command, error) {
+	var workloadPluginCommands []*cobra.Command
+
 	templates, err := plugins.GetWorkloadsFromCluster(context.TODO(), types.DefaultOAMNS, c)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, tmp := range templates {
@@ -69,9 +71,9 @@ func AddWorkloadPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmd
 		}
 
 		o.Template = tmp
-		parentCmd.AddCommand(pluginCmd)
+		workloadPluginCommands = append(workloadPluginCommands, pluginCmd)
 	}
-	return nil
+	return workloadPluginCommands, nil
 }
 
 func (o *runOptions) Complete(cmd *cobra.Command, args []string, ctx context.Context) error {
