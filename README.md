@@ -110,7 +110,7 @@ Deleting AppConfig "app123"
 DELETE SUCCEED
 ```
 
-#### WorkloadDefinitions/TratiDefinitions
+#### WorkloadDefinitions/TraitDefinitions
 ```shell script
 $ rudr traits
 NAME                              	ALIAS	DEFINITION                        	APPLIES TO                                                  	STATUS
