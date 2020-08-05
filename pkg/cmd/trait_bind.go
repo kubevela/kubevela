@@ -187,19 +187,25 @@ func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string, ctx cont
 	}
 
 	_, _, tKind := cmdutil.GetTraitNameAliasKind(ctx, c, namespace, o.TraitAlias)
+	var traitDefinition corev1alpha2.TraitDefinition
 
-	for _, com := range o.AppConfig.Spec.Components {
+	for i, com := range o.AppConfig.Spec.Components {
+		traits := com.Traits
 		if com.ComponentName == appName {
-			traits := com.Traits
-			traitDefinitionList := cmdutil.ListTraitDefinitionsByApplicationConfiguration(o.AppConfig)
-			for i := 0; i < len(o.AppConfig.Spec.Components[0].Traits); i++ {
-				if strings.EqualFold(traitDefinitionList[i].Kind, tKind) {
-					o.AppConfig.Spec.Components[0].Traits = append(traits[:i], traits[i+1:]...)
-					i--
+			for j := 0; j < len(traits); j++ {
+				err := json.Unmarshal(traits[j].Trait.Raw, &traitDefinition)
+				if err != nil {
+					return err
+				}
+				if strings.EqualFold(traitDefinition.Kind, tKind) {
+					traits = append(traits[:j], traits[j+1:]...)
+					j--
 				}
 			}
 		}
+		o.AppConfig.Spec.Components[i].Traits = traits
 	}
+
 	return nil
 }
 
