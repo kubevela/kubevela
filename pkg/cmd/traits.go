@@ -43,7 +43,21 @@ func printTraitList(ctx context.Context, c client.Client, workloadName *string, 
 
 	table.AddRow("NAME", "ALIAS", "DEFINITION", "APPLIES TO", "STATUS")
 	for _, r := range traitList {
-		table.AddRow(r.Name, r.Short, r.Definition, r.AppliesTo, r.Status)
+		wdList := strings.Split(r.AppliesTo, ",")
+		if len(wdList) > 1 {
+			isFirst := true
+			for _, wd := range wdList {
+				wd = strings.Trim(wd, " ")
+				if isFirst {
+					table.AddRow(r.Name, r.Short, r.Definition, wd, r.Status)
+					isFirst = false
+				} else {
+					table.AddRow("", "", "", wd, "")
+				}
+			}
+		} else {
+			table.AddRow(r.Name, r.Short, r.Definition, r.AppliesTo, r.Status)
+		}
 	}
 	ioStreams.Info(table.String())
 
