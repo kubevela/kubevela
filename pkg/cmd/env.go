@@ -8,16 +8,20 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cloud-native-application/rudrx/api/types"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/cloud-native-application/rudrx/api/types"
+	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 )
 
-func NewEnvInitCommand(f cmdutil.Factory, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewEnvInitCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var envArgs types.EnvMeta
 	ctx := context.Background()
 	cmd := &cobra.Command{
@@ -27,7 +31,7 @@ func NewEnvInitCommand(f cmdutil.Factory, ioStreams cmdutil.IOStreams) *cobra.Co
 		Long:                  "Create environment and switch to it",
 		Example:               `rudr env:init test --namespace test`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return CreateOrUpdateEnv(ctx, &envArgs, args, ioStreams)
+			return CreateOrUpdateEnv(ctx, c, &envArgs, args, ioStreams)
 		},
 	}
 	cmd.SetOut(ioStreams.Out)
@@ -35,7 +39,7 @@ func NewEnvInitCommand(f cmdutil.Factory, ioStreams cmdutil.IOStreams) *cobra.Co
 	return cmd
 }
 
-func NewEnvDeleteCommand(f cmdutil.Factory, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewEnvDeleteCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "env:delete",
@@ -51,7 +55,7 @@ func NewEnvDeleteCommand(f cmdutil.Factory, ioStreams cmdutil.IOStreams) *cobra.
 	return cmd
 }
 
-func NewEnvCommand(f cmdutil.Factory, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewEnvCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "env",
@@ -67,7 +71,7 @@ func NewEnvCommand(f cmdutil.Factory, ioStreams cmdutil.IOStreams) *cobra.Comman
 	return cmd
 }
 
-func NewEnvSwitchCommand(f cmdutil.Factory, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewEnvSwitchCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "env:sw",
@@ -146,7 +150,7 @@ func DeleteEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) 
 	return nil
 }
 
-func CreateOrUpdateEnv(ctx context.Context, envArgs *types.EnvMeta, args []string, ioStreams cmdutil.IOStreams) error {
+func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvMeta, args []string, ioStreams cmdutil.IOStreams) error {
 	if len(args) < 1 {
 		return fmt.Errorf("you must specify env name for rudr env:init command")
 	}
@@ -166,6 +170,10 @@ func CreateOrUpdateEnv(ctx context.Context, envArgs *types.EnvMeta, args []strin
 	if err != nil {
 		return err
 	}
+	if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envArgs.Namespace}}); err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+
 	if err = ioutil.WriteFile(curEnvPath, []byte(envname), 0644); err != nil {
 		return err
 	}
