@@ -34,12 +34,6 @@ jobs:
         with:
           version: "v0.7.0"
 
-      - name: Run Make
-        run: make
-
-      - name: Run Make test
-        run: make test
-
       # TODO(zzxwill) This step and the follow one need to be removed after rudr admin:init is ready
       - name: Install OAM runtime and prepare WorkloadDefinitions/TraitDefinitions
         run: |
@@ -71,3 +65,9 @@ jobs:
           make e2e-setup
           make e2e-test
           make e2e-cleanup
+
+      - name: Run Make
+        run: make
+
+      - name: Run Make test
+        run: make test
