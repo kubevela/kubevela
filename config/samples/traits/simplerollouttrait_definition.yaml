@@ -2,6 +2,9 @@ apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata:
   name: simplerollouttraits.extend.oam.dev
+  annotation:
+    "oam.appengine.info/apiVersion": "extend.oam.dev/v1alpha2"
+    "oam.appengine.info/kind": "SimpleRolloutTrait"
 spec:
   revisionEnabled: true
   appliesToWorkloads:
