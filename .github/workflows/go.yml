@@ -62,6 +62,7 @@ jobs:
           kubectl apply -f .github/workflows/core.oam.dev_traitdefinitions.yaml
 
           kubectl get crd | grep oam
+          sleep 10s
 
           kubectl apply -R -f config/samples
 
