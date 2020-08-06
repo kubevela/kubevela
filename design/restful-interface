@@ -1,0 +1,195 @@
+# Vela RESTful API design
+
+Below, I will list the Vela backend RESTful API grouped by each resource.
+
+We will set RESTful version as `APIVersionV1 = "2020-08-15"`
+
+The first version does not use authentication or authorization. We will use go structure to 
+represent request and response body.
+
+We will define some common header keys like "x-oam-client-type", "x-oam-username" but it's not fleshed out yet.
+
+## ApplicationConfiguration related API
+
+### Create 
+**URL** : `/APIVersionV1/appconfig/`
+
+**Method** : `POST`
+
+**Query Parameter** : `None`
+
+**Body** :
+
+```go
+
+type appConfigValue struct {
+    parameter interface{}[] `json:"parameter"` // the parameter list, not sure if they are all string
+    definitionName string `json:"definitionName"` // use to find the definition
+    definitionType string `json:"definitionType"`
+}
+```
+
+**Responses Body** : None
+
+
+### Update 
+**URL** : `/APIVersionV1/appconfig/${appConfigName}`
+
+**Method** : `PUT`
+
+**Query Parameter** : `None`
+
+**Body** :
+
+```go
+
+type appConfigValue struct {
+    parameter interface{}[] `json:"parameter"` // the parameter list, not sure if they are all string
+}
+```
+
+**Responses Body** : None
+
+### Get
+
+**URL** : `/APIVersionV1/appconfig/${appconfigName}`
+
+**Method** : `Get`
+
+**Query Parameter** : `mode` 
+```go
+type mode string
+const fullcontent mode = "fullContent"
+const parameterOnly mode = "parameterOnly"
+const statusOnly mode = "statusOnly"
+```
+**Body** : None
+
+**Responses Body** : 
+```go
+type appConfigValue struct {
+    parameterName string[] `json:"parameterName"` // the parameterName list
+    definition runtime.RawExtension `json:"definition"` // the entire appConfig definition
+    status runtime.RawExtension `json:"status"` // the status only part
+}
+```
+
+### List
+
+**URL** : `/APIVersionV1/appconfig/`
+
+**Method** : `Get`
+
+**Query Parameter** : `None`
+
+**Body** : None
+
+**Responses Body** : 
+```go
+type appConfigNames struct {
+    appConfigName string[] `json:"appConfigName"` // the appconfig name list, no next Token
+}
+```
+
+### Delete
+
+**URL** : `/APIVersionV1/appconfig/${appconfigName}`
+
+**Method** : `Delete`
+
+**Query Parameter** : `dryrun` 
+
+**Body** : None
+
+**Responses Body** : None 
+
+## Definition related API
+
+We will add ${definitionType} in the path to differentiate if it's a workload/trait/scope definition.
+It can be either "workload","trait", or "scope".
+ 
+### Create 
+
+**URL** : `/APIVersionV1/${definitionType}/`
+
+**Method** : `POST`
+
+**Query Parameter** : `None`
+
+**Body** :
+
+```go
+
+type oamDefinition struct {
+    definition runtime.RawExtension `json:"definition"` // the real definition data
+}
+```
+
+### Update 
+
+**URL** : `/APIVersionV1/${definitionType}/${definitionName}`
+
+**Method** : `PUT`
+
+**Query Parameter** : `None`
+
+**Body** :
+
+```go
+
+type oamDefinition struct {
+    definition runtime.RawExtension `json:"definition"` // the real definition data
+}
+```
+
+**Responses Body** : None
+
+### GET
+
+**URL** : `/APIVersionV1/${definitionType}/${definitionName}`
+
+**Method** : `Get`
+
+**Query Parameter** : `mode` 
+```go
+type mode string
+const fullcontent mode = "fullContent"
+const cueTemplate mode = "cueTemplate"
+```
+**Body** : None
+
+**Responses Body** : 
+```go
+type definition struct {
+    definition runtime.RawExtension `json:"definition"` // either the full definition or the cueTempalte
+}
+```
+
+### List
+
+**URL** : `/APIVersionV1/${definitionType}/`
+
+**Method** : `Get`
+
+**Query Parameter** : `None`
+
+**Body** : None
+
+**Responses Body** : 
+```go
+type definitionName struct {
+    definitionNames string[] `json:"definitionNames"` // the definition name list, no next Token
+}
+```
+
+### Delete
+
+**URL** : `/APIVersionV1/${definitionType}/${definitionName}`
+
+**Method** : `Delete`
+
+**Query Parameter** : `dryrun` 
+
+**Body** : None
+
+**Responses Body** : None 
