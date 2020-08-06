@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/cloud-native-application/rudrx/api/types"
+
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/spf13/cobra"
@@ -16,7 +18,7 @@ type deleteOptions struct {
 	AppConfig corev1alpha2.ApplicationConfiguration
 	client    client.Client
 	cmdutil.IOStreams
-	Env *EnvMeta
+	Env *types.EnvMeta
 }
 
 func newDeleteOptions(ioStreams cmdutil.IOStreams) *deleteOptions {

@@ -203,7 +203,7 @@ func GetTraitDefinitionByAlias(ctx context.Context, c client.Client, traitAlias 
 	if err == nil {
 		for _, t := range traitDefinitionList.Items {
 			template, err := types.ConvertTemplateJson2Object(t.Spec.Extension)
-			if err == nil && strings.EqualFold(template.Alias, traitAlias) {
+			if err == nil && strings.EqualFold(template.Name, traitAlias) {
 				traitDefinition = t
 				break
 			}
@@ -214,29 +214,15 @@ func GetTraitDefinitionByAlias(ctx context.Context, c client.Client, traitAlias 
 
 // GetTraitNameAndAlias return the name and alias of a TraitDefinition by a string which might be
 // the trait name, the trait alias, or invalid name
-func GetTraitNameAliasKind(ctx context.Context, c client.Client, namespace string, name string) (string, string, string) {
-	var tName, tAlias, tKind string
+func GetTraitApiVersionKind(ctx context.Context, c client.Client, namespace string, name string) (string, string, error) {
 
 	t, err := GetTraitDefinitionByName(ctx, c, namespace, name)
-
-	if err == nil {
-		template, err := types.ConvertTemplateJson2Object(t.Spec.Extension)
-		if err == nil {
-			tName, tAlias = t.Spec.Reference.Name, template.Alias
-			tKind = fmt.Sprintf("%v", template.Object["kind"])
-		}
-	} else {
-		t, err := GetTraitDefinitionByAlias(ctx, c, name)
-		if err == nil {
-			template, err := types.ConvertTemplateJson2Object(t.Spec.Extension)
-			if err == nil {
-				tName, tAlias = t.Spec.Reference.Name, template.Alias
-				tKind = fmt.Sprintf("%v", template.Object["kind"])
-			}
-		}
+	if err != nil {
+		return "", "", err
 	}
-
-	return tName, tAlias, tKind
+	apiVersion := t.Annotations["oam.appengine.info/apiVersion"]
+	kind := t.Annotations["oam.appengine.info/kind"]
+	return apiVersion, kind, nil
 }
 
 func GetWorkloadNameAliasKind(ctx context.Context, c client.Client, namespace string, workloadName string) (string, string, string) {
@@ -248,14 +234,14 @@ func GetWorkloadNameAliasKind(ctx context.Context, c client.Client, namespace st
 		var workloadTemplate types.Template
 		workloadTemplate, err := types.ConvertTemplateJson2Object(w.Spec.Extension)
 		if err == nil {
-			name, alias = w.Name, workloadTemplate.Alias
+			name, alias = w.Name, workloadTemplate.Name
 		}
 	} else { // workloadName is alias or kind
 		w, err := GetWorkloadDefinitionByAlias(ctx, c, name)
 		if err == nil {
 			workloadTemplate, err := types.ConvertTemplateJson2Object(w.Spec.Extension)
 			if err == nil {
-				name, alias, kind = w.Name, workloadTemplate.Alias, w.Kind
+				name, alias, kind = w.Name, workloadTemplate.Name, w.Kind
 			}
 
 		}

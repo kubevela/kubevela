@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
 	"github.com/spf13/cobra"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
@@ -75,6 +77,14 @@ func newCommand() *cobra.Command {
 	client, err := client.New(restConf, client.Options{Scheme: scheme})
 	if err != nil {
 		fmt.Println("create client from kubeconfig err", err)
+		os.Exit(1)
+	}
+	if err := system.InitApplicationDir(); err != nil {
+		fmt.Println("InitApplicationDir err", err)
+		os.Exit(1)
+	}
+	if err := system.InitDefinitionDir(); err != nil {
+		fmt.Println("InitDefinitionDir err", err)
 		os.Exit(1)
 	}
 

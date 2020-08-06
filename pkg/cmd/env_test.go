@@ -6,6 +6,10 @@ import (
 	"os"
 	"testing"
 
+	"github.com/cloud-native-application/rudrx/api/types"
+
+	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	"github.com/stretchr/testify/assert"
 )
@@ -14,7 +18,7 @@ func TestENV(t *testing.T) {
 	ctx := context.Background()
 
 	// Create Default Env
-	err := InitDefaultEnv()
+	err := system.InitDefaultEnv()
 	assert.NoError(t, err)
 
 	// check and compare create default env success
@@ -23,12 +27,12 @@ func TestENV(t *testing.T) {
 	assert.Equal(t, "default", curEnvName)
 	gotEnv, err := GetEnv()
 	assert.NoError(t, err)
-	assert.Equal(t, &EnvMeta{
+	assert.Equal(t, &types.EnvMeta{
 		Namespace: "default",
 	}, gotEnv)
 
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	exp := &EnvMeta{
+	exp := &types.EnvMeta{
 		Namespace: "test1",
 	}
 
@@ -70,7 +74,7 @@ env1	test1    `, b.String())
 	// check switch success
 	gotEnv, err = GetEnv()
 	assert.NoError(t, err)
-	assert.Equal(t, &EnvMeta{
+	assert.Equal(t, &types.EnvMeta{
 		Namespace: "default",
 	}, gotEnv)
 

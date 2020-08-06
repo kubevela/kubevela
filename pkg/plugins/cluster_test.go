@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io/ioutil"
 
+	"cuelang.org/go/cue"
+
 	"github.com/cloud-native-application/rudrx/api/types"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,36 +26,45 @@ import (
 var _ = Describe("DefinitionFiles", func() {
 	ctx := context.Background()
 	route := types.Template{
-		Name:  "routes.extend.oam.dev",
-		Type:  types.TypeTrait,
-		Alias: "route",
-		Object: map[string]interface{}{
-			"apiVersion": "extend.oam.dev/v1alpha2",
-			"kind":       "Route",
-		},
+		Name: "route",
+		Type: types.TypeTrait,
 		Parameters: []types.Parameter{
 			{
-				Name:       "domain",
-				Short:      "d",
-				Required:   true,
-				FieldPaths: []string{"spec.domain"},
+				Name:     "domain",
+				Required: true,
+				Default:  "",
+				Type:     cue.StringKind,
 			},
 		},
 	}
 	deployment := types.Template{
-		Name:  "deployments.testapps",
-		Type:  types.TypeWorkload,
-		Alias: "deployment",
-		Object: map[string]interface{}{
-			"apiVersion": "core.oam.dev/v1alpha2",
-			"kind":       "Deployment",
-		},
+		Name: "deployment",
+		Type: types.TypeWorkload,
 		Parameters: []types.Parameter{
 			{
-				Name:       "image",
-				Short:      "i",
-				Required:   true,
-				FieldPaths: []string{"spec.containers[0].image"},
+				Name:     "name",
+				Required: true,
+				Type:     cue.StringKind,
+				Default:  "",
+			},
+			{
+				Type: cue.ListKind,
+				Name: "env",
+			},
+			{
+				Name:     "image",
+				Type:     cue.StringKind,
+				Default:  "",
+				Short:    "i",
+				Required: true,
+				Usage:    "specify app image",
+			},
+			{
+				Name:    "port",
+				Type:    cue.IntKind,
+				Short:   "p",
+				Default: int64(8080),
+				Usage:   "specify port for container",
 			},
 		},
 	}
@@ -81,29 +92,38 @@ var _ = Describe("DefinitionFiles", func() {
 
 	})
 
-	// Notice!!  Definition Object is Cluster Scope object
+	// Notice!!  DefinitionPath Object is Cluster Scope object
 	// which means objects created in other DefinitionNamespace will also affect here.
 	It("gettrait", func() {
-		traitDefs, err := GetTraitsFromCluster(context.Background(), DefinitionNamespace, k8sClient)
+		traitDefs, err := GetTraitsFromCluster(context.Background(), DefinitionNamespace, k8sClient, definitionDir)
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting trait definitions %v", traitDefs))
-
+		for i := range traitDefs {
+			traitDefs[i].Template = ""
+			traitDefs[i].DefinitionPath = ""
+		}
 		Expect(traitDefs).Should(Equal([]types.Template{route}))
 	})
-	// Notice!!  Definition Object is Cluster Scope object
+	// Notice!!  DefinitionPath Object is Cluster Scope object
 	// which means objects created in other DefinitionNamespace will also affect here.
 	It("getworkload", func() {
-		workloadDefs, err := GetWorkloadsFromCluster(context.Background(), DefinitionNamespace, k8sClient)
+		workloadDefs, err := GetWorkloadsFromCluster(context.Background(), DefinitionNamespace, k8sClient, definitionDir)
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting workload definitions  %v", workloadDefs))
-
+		for i := range workloadDefs {
+			workloadDefs[i].Template = ""
+			workloadDefs[i].DefinitionPath = ""
+		}
 		Expect(workloadDefs).Should(Equal([]types.Template{deployment}))
 	})
 	It("getall", func() {
-		alldef, err := GetTemplatesFromCluster(context.Background(), DefinitionNamespace, k8sClient)
+		alldef, err := GetTemplatesFromCluster(context.Background(), DefinitionNamespace, k8sClient, definitionDir)
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting all definitions %v", alldef))
-
+		for i := range alldef {
+			alldef[i].Template = ""
+			alldef[i].DefinitionPath = ""
+		}
 		Expect(alldef).Should(Equal([]types.Template{deployment, route}))
 	})
 })

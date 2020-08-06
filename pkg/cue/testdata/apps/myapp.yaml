@@ -1,0 +1,31 @@
+name: myapp
+components:
+  frontend:
+    deployment:
+      image: inanimate/echo-server
+      env:
+        PORT: "8080"
+    traits:
+      autoscaling:
+        max: 10
+        min: 1
+      rollout:
+        strategy: canary
+        step: 5
+      expose:
+        service:
+          type: LoadBalancer
+        ports:
+          http:
+            service_port: 80
+            container_port: 8080
+    scopes:
+      - public-scope
+secrets:
+  secret-foo:
+    key1: 'pass-word'
+appScopes:
+  public-scope:
+    networkPolicy: public
+  private-scope:
+    networkPolicy: private
