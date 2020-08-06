@@ -177,7 +177,7 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvM
 	if err = ioutil.WriteFile(curEnvPath, []byte(envname), 0644); err != nil {
 		return err
 	}
-	ioStreams.Info("Create env succeed, current env is " + envname)
+	ioStreams.Info("Create env succeed, current env is " + envname + " namespace is " + envArgs.Namespace + ", use --namespace=<namespace> to specify namespace with env:init")
 	return nil
 }
 
@@ -190,14 +190,14 @@ func SwitchEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) 
 	if err != nil {
 		return err
 	}
-	_, err = getEnvByName(envname)
+	envMeta, err := getEnvByName(envname)
 	if err != nil {
 		return err
 	}
 	if err = ioutil.WriteFile(currentEnvPath, []byte(envname), 0644); err != nil {
 		return err
 	}
-	ioStreams.Info("Switch env succeed, current env is " + envname)
+	ioStreams.Info("Switch env succeed, current env is " + envname + ", namespace is " + envMeta.Namespace)
 	return nil
 }
 
