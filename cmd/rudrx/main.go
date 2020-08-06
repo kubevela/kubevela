@@ -100,6 +100,8 @@ func newCommand() *cobra.Command {
 		cmd.NewEnvCommand(f, ioStream),
 		NewVersionCommand(),
 		cmd.NewAppStatusCommand(client, ioStream),
+		cmd.NewAddonConfigCommand(ioStream),
+		cmd.NewAddonListCommand(client, ioStream),
 	)
 	if err = cmd.AddWorkloadPlugins(cmds, client, ioStream); err != nil {
 		fmt.Println("Add plugins from workloadDefinition err", err)
