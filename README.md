@@ -27,6 +27,7 @@ Available Commands:
   SimpleRollout     Attach SimpleRollout trait to an app
   app:delete        Delete OAM Applications
   app:ls            List applications
+  completion        Output shell completion code for the specified shell (bash or zsh)
   app:status        get status of an application
   containerized:run Run containerized workloads
   deployment:run    Run deployment workloads
@@ -121,4 +122,21 @@ $ rudr workloads
 NAME                               	SHORT	DEFINITION
 containerizedworkloads.core.oam.dev	     	containerizedworkloads.core.oam.dev
 deployments.apps                   	     	deployments.apps
+```
+
+#### completion
+```shell script
+# bash
+rudrx completion bash > ~/.kube/rudrx.bash.inc
+printf "
+# rudrx shell completion
+source '$HOME/.kube/rudrx.bash.inc'
+" >> $HOME/.bash_profile
+source $HOME/.bash_profile
+
+# add to $HOME/.zshrc
+source <(rudrx completion zsh)
+# or
+rudrx completion zsh > "${fpath[1]}/_rudr"
+
 ```

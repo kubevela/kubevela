@@ -58,7 +58,7 @@ func newCommand() *cobra.Command {
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 
 	cmds := &cobra.Command{
-		Use:          "rudr",
+		Use:          "rudrx",
 		Short:        "✈️  A Micro App Plafrom for Kubernetes.",
 		Long:         "✈️  A Micro App Plafrom for Kubernetes.",
 		Run:          runHelp,
