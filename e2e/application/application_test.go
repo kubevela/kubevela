@@ -22,7 +22,7 @@ var _ = ginkgo.Describe("Application", func() {
 
 	ginkgo.Context("ls", func() {
 		ginkgo.It("should list all applications", func() {
-			output, err := e2e.Exec("rudr ls")
+			output, err := e2e.Exec("rudr app:ls")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
 			gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
