@@ -1,6 +1,6 @@
-# RudrX
+# Vela
 
-RudrX is a command-line tool to use OAM based micro-app engine.
+Vela is a command-line tool to use OAM based micro-app engine.
 
 ## Develop
 Check out [DEVELOPMENT.md](./DEVELOPMENT.md) to see how to develop with RudrX
@@ -11,7 +11,7 @@ $ go build -o /usr/local/bin/vela cmd/vela/main.go
 $ chmod +x /usr/local/bin/vela
 ```
 
-## RudrX commands
+## Vela commands
 
 #### help
 ```shell script
@@ -28,6 +28,7 @@ Available Commands:
   app:delete        Delete OAM Applications
   app:ls            List applications
   app:status        get status of an application
+  completion        Output shell completion code for the specified shell (bash or zsh)
   containerized:run Run containerized workloads
   deployment:run    Run deployment workloads
   env               List environments
@@ -121,4 +122,29 @@ $ vela workloads
 NAME                               	SHORT	DEFINITION
 containerizedworkloads.core.oam.dev	     	containerizedworkloads.core.oam.dev
 deployments.apps                   	     	deployments.apps
+```
+
+#### Auto-Completion
+
+##### bash
+
+```shell script
+To load completions in your current shell session:
+$ source <(vela completion bash)
+
+To load completions for every new session, execute once:
+Linux:
+  $ vela completion bash > /etc/bash_completion.d/vela
+MacOS:
+  $ vela completion bash > /usr/local/etc/bash_completion.d/vela
+```
+
+##### zsh
+
+```shell script
+To load completions in your current shell session:
+$ source <(vela completion zsh)
+
+To load completions for every new session, execute once:
+$ vela completion zsh > "${fpath[1]}/_vela"
 ```

@@ -87,7 +87,7 @@ func NewAdminInfoCommand(version string, ioStreams cmdutil.IOStreams) *cobra.Com
 
 	cmd := &cobra.Command{
 		Use:   "admin:info",
-		Short: "show RudrX client and cluster version",
+		Short: "show vela client and cluster version",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return i.run(version, ioStreams)
 		},

@@ -44,7 +44,7 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Cli
 		var tmp types.Template
 		tmp, err := HandleTemplate(wd.Spec.Extension, wd.Name, syncDir)
 		if err != nil {
-			fmt.Printf("[WARN]handle template %s: %v\n", wd.Name, err)
+			//fmt.Printf("[WARN]handle template %s: %v\n", wd.Name, err)
 			continue
 		}
 		tmp.Type = types.TypeWorkload
@@ -65,7 +65,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 		var tmp types.Template
 		tmp, err := HandleTemplate(td.Spec.Extension, td.Name, syncDir)
 		if err != nil {
-			fmt.Printf("[WARN]handle template %s: %v\n", td.Name, err)
+			//fmt.Printf("[WARN]handle template %s: %v\n", td.Name, err)
 			continue
 		}
 		tmp.Type = types.TypeTrait
