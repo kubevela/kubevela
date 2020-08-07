@@ -156,7 +156,17 @@ func retrievePlugins(ctx context.Context, c client.Client, ioStreams cmdutil.IOS
 				if err != nil {
 					return err
 				}
-				template, err = types.ConvertTemplateJson2Object(workloadDefinition.Spec.Extension)
+				var definitionName string
+				if workloadDefinition.Spec.Extension != nil {
+					template, err = types.ConvertTemplateJson2Object(workloadDefinition.Spec.Extension)
+					if err != nil {
+						return err
+					}
+					definitionName = template.Name
+				} else {
+					definitionName = workloadDefinition.Name
+				}
+
 				if err != nil {
 					return err
 				}
@@ -166,7 +176,7 @@ func retrievePlugins(ctx context.Context, c client.Client, ioStreams cmdutil.IOS
 					status = "installed"
 				}
 				pluginList = append(pluginList, Plugin{
-					Name:       template.Alias,
+					Name:       definitionName,
 					Type:       "workload",
 					Definition: workloadDefinition.Spec.Reference.Name,
 					Status:     status,
@@ -181,17 +191,24 @@ func retrievePlugins(ctx context.Context, c client.Client, ioStreams cmdutil.IOS
 				if err != nil {
 					return err
 				}
-				template, err = types.ConvertTemplateJson2Object(traitDefinition.Spec.Extension)
-				if err != nil {
-					return err
+				var definitionName string
+				if traitDefinition.Spec.Extension != nil {
+					template, err = types.ConvertTemplateJson2Object(traitDefinition.Spec.Extension)
+					if err != nil {
+						return err
+					}
+					definitionName = template.Name
+				} else {
+					definitionName = traitDefinition.Name
 				}
+
 				//Check whether the definition is applied
 				var status = "uninstalled"
 				if _, err = cmdutil.GetTraitDefinitionByName(ctx, c, namespace, traitDefinition.Name); err == nil {
 					status = "installed"
 				}
 				pluginList = append(pluginList, Plugin{
-					Name:       template.Alias,
+					Name:       definitionName,
 					Type:       "trait",
 					Definition: traitDefinition.Spec.Reference.Name,
 					Status:     status,
