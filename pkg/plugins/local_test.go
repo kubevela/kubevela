@@ -49,6 +49,7 @@ func TestLocalSink(t *testing.T) {
 		tmps   []types.Template
 		Type   types.DefinitionType
 		expDef []types.Template
+		err    error
 	}{
 		"Test No Templates": {
 			dir:  "vela-test1",
@@ -86,18 +87,22 @@ func TestLocalSink(t *testing.T) {
 		},
 	}
 	for name, c := range cases {
-		testInDir(t, name, c.dir, c.tmps, c.expDef, c.Type)
+		testInDir(t, name, c.dir, c.tmps, c.expDef, c.Type, c.err)
 	}
 }
 
-func testInDir(t *testing.T, casename, dir string, tmps, defexp []types.Template, Type types.DefinitionType) {
+func testInDir(t *testing.T, casename, dir string, tmps, defexp []types.Template, Type types.DefinitionType, err1 error) {
 	err := os.MkdirAll(dir, 0755)
 	assert.NoError(t, err, casename)
 	defer os.RemoveAll(dir)
-	err = SinkTemp2Local(tmps, dir)
-	assert.NoError(t, err, casename)
+	number := SinkTemp2Local(tmps, dir)
+	assert.Equal(t, len(tmps), number)
 	gottmps, err := LoadTempFromLocal(dir)
-	assert.NoError(t, err, casename)
+	if err1 != nil {
+		assert.Equal(t, err1, err)
+	} else {
+		assert.NoError(t, err, casename)
+	}
 	assert.Equal(t, tmps, gottmps, casename)
 	if Type != "" {
 		gotDef, err := GetDefFromLocal(dir, Type)

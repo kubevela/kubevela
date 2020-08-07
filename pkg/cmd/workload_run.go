@@ -47,9 +47,9 @@ func newRunOptions(ioStreams cmdutil.IOStreams) *runOptions {
 	return &runOptions{IOStreams: ioStreams}
 }
 
-func AddWorkloadPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmdutil.IOStreams) error {
+func AddWorkloadPlugins(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
 	dir, _ := system.GetDefinitionDir()
-	templates, err := plugins.GetWorkloadsFromCluster(context.TODO(), types.DefaultOAMNS, c, dir, nil)
+	templates, err := plugins.LoadTempFromLocal(filepath.Join(dir, "workloads"))
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,6 @@ func AddWorkloadPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmd
 	for _, tmp := range templates {
 		var name = tmp.Name
 		o := newRunOptions(ioStreams)
-		o.client = c
 		o.Env, _ = GetEnv()
 		pluginCmd := &cobra.Command{
 			Use:                   name + ":run <appname> [args]",
@@ -66,6 +65,11 @@ func AddWorkloadPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmd
 			Long:                  "Run " + name + " workloads",
 			Example:               `vela deployment:run frontend -i nginx:latest`,
 			RunE: func(cmd *cobra.Command, args []string) error {
+				newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+				if err != nil {
+					return err
+				}
+				o.client = newClient
 				if err := o.Complete(cmd, args, context.TODO()); err != nil {
 					return err
 				}

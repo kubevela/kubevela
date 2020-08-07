@@ -34,6 +34,10 @@ type Template struct {
 	Template       string         `json:"template,omitempty"`
 	Parameters     []Parameter    `json:"parameters,omitempty"`
 	DefinitionPath string         `json:"definition"`
+	CrdName        string         `json:"crdName,omitempty"`
+
+	//trait only
+	AppliesTo []string `json:"appliesTo,omitempty"`
 }
 
 type DefinitionType string
@@ -72,13 +76,35 @@ func ConvertTemplateJson2Object(in *runtime.RawExtension) (Template, error) {
 func SetFlagBy(cmd *cobra.Command, v Parameter) {
 	switch v.Type {
 	case cue.IntKind:
-		cmd.Flags().Int64P(v.Name, v.Short, v.Default.(int64), v.Usage)
+		var vv int64
+		switch val := v.Default.(type) {
+		case int64:
+			vv = val
+		case json.Number:
+			vv, _ = val.Int64()
+		case int:
+			vv = int64(val)
+		case float64:
+			vv = int64(val)
+		}
+		cmd.Flags().Int64P(v.Name, v.Short, vv, v.Usage)
 	case cue.StringKind:
 		cmd.Flags().StringP(v.Name, v.Short, v.Default.(string), v.Usage)
 	case cue.BoolKind:
 		cmd.Flags().BoolP(v.Name, v.Short, v.Default.(bool), v.Usage)
 	case cue.NumberKind, cue.FloatKind:
-		cmd.Flags().Float64P(v.Name, v.Short, v.Default.(float64), v.Usage)
+		var vv float64
+		switch val := v.Default.(type) {
+		case int64:
+			vv = float64(val)
+		case json.Number:
+			vv, _ = val.Float64()
+		case int:
+			vv = float64(val)
+		case float64:
+			vv = val
+		}
+		cmd.Flags().Float64P(v.Name, v.Short, vv, v.Usage)
 	}
 	if v.Required && v.Name != "name" {
 		cmd.MarkFlagRequired(v.Name)

@@ -3,16 +3,16 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
+	"github.com/cloud-native-application/rudrx/api/types"
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func NewAppsCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewAppsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "app:ls",
@@ -20,13 +20,17 @@ func NewAppsCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command
 		Short:                 "List applications",
 		Long:                  "List applications with workloads, traits, status and created time",
 		Example:               `vela ls`,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			env, err := GetEnv()
 			if err != nil {
-				ioStreams.Errorf("Failed to get Env information:%s", err)
-				os.Exit(1)
+				return err
 			}
-			printApplicationList(ctx, c, "", env.Namespace)
+			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			if err != nil {
+				return err
+			}
+			printApplicationList(ctx, newClient, "", env.Namespace)
+			return nil
 		},
 	}
 

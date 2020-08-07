@@ -30,10 +30,12 @@ var _ = Describe("DefinitionFiles", func() {
 				Type:     cue.StringKind,
 			},
 		},
+		CrdName: "routes.test",
 	}
 	deployment := types.Template{
-		Name: "deployment",
-		Type: types.TypeWorkload,
+		Name:    "deployment",
+		Type:    types.TypeWorkload,
+		CrdName: "deployments.testapps",
 		Parameters: []types.Parameter{
 			{
 				Name:     "name",

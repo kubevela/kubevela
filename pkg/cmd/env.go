@@ -36,7 +36,7 @@ func NewEnvCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd.SetOut(ioStreams.Out)
 	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		cmdutil.PrintUsageIntroduce(cmd, "Prepare environments for applications")
-		subcmds := []*cobra.Command{cmd, NewEnvInitCommand(nil, ioStreams), NewEnvSwitchCommand(ioStreams), NewEnvDeleteCommand(ioStreams)}
+		subcmds := []*cobra.Command{cmd, NewEnvInitCommand(types.Args{}, ioStreams), NewEnvSwitchCommand(ioStreams), NewEnvDeleteCommand(ioStreams)}
 		cmdutil.PrintUsage(cmd, subcmds)
 		cmdutil.PrintExample(cmd, subcmds)
 		cmdutil.PrintFlags(cmd, subcmds)
@@ -44,7 +44,7 @@ func NewEnvCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func NewEnvInitCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var envArgs types.EnvMeta
 	ctx := context.Background()
 	cmd := &cobra.Command{
@@ -54,7 +54,11 @@ func NewEnvInitCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Comm
 		Long:                  "Create environment and switch to it",
 		Example:               `vela env:init test --namespace test`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return CreateOrUpdateEnv(ctx, c, &envArgs, args, ioStreams)
+			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			if err != nil {
+				return err
+			}
+			return CreateOrUpdateEnv(ctx, newClient, &envArgs, args, ioStreams)
 		},
 	}
 	cmd.SetOut(ioStreams.Out)
