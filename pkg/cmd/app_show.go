@@ -8,6 +8,8 @@ import (
 	"github.com/cloud-native-application/rudrx/api/types"
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/ghodss/yaml"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -38,29 +40,62 @@ func NewAppShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 				return err
 			}
 
-			return printApplication(ctx, newClient, cmd, env, appName)
+			return showApplication(ctx, newClient, cmd, env, appName)
 		},
 	}
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
 
-func printApplication(ctx context.Context, c client.Client, cmd *cobra.Command, env *types.EnvMeta, appName string) error {
-	var application corev1alpha2.ApplicationConfiguration
+type Unkown struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+	Spec              interface{} `json:"spec"`
+	Status            interface{} `json:"status"`
+}
 
-	if err := c.Get(ctx, client.ObjectKey{Name: appName, Namespace: env.Namespace}, &application); err != nil {
+func showApplication(ctx context.Context, c client.Client, cmd *cobra.Command, env *types.EnvMeta, appName string) error {
+	var (
+		application corev1alpha2.ApplicationConfiguration
+	)
+	namespace := env.Namespace
+
+	if err := c.Get(ctx, client.ObjectKey{Name: appName, Namespace: namespace}, &application); err != nil {
 		return fmt.Errorf("Fetch application with Err: %s", err)
 	}
 
-	workload, err := cmdutil.GetWorkloadDefinitionByName(context.TODO(), c, env.Namespace, appName)
+	if len(application.Spec.Components) == 0 {
+		cmd.Println("About:")
+		cmd.Printf("  Appset: %s", appName)
+		cmd.Printf("  ENV: %s", namespace)
+		return nil
+	}
+
+	// current only support one component
+	componentName := application.Spec.Components[0].ComponentName
+	component, err := cmdutil.GetComponent(ctx, c, componentName, namespace)
 	if err != nil {
-		return fmt.Errorf("Fetch WorkloadDefinitionByName with Err: %s", err)
+		return fmt.Errorf("Fetch component %s with Err: %s", componentName, err)
+	}
+	if component.Labels == nil {
+		return fmt.Errorf("Can't get workloadDef, please check component %s label \"%s\" is correct.",
+			componentName, ComponentWorkloadDefLabel)
 	}
 
 	traitDefinitions := cmdutil.ListTraitDefinitionsByApplicationConfiguration(application)
+	componentOut, _ := yaml.JSONToYAML(component.Spec.Workload.Raw)
 
 	cmd.Println("About:")
-	cmd.Println(workload.Name)
-	cmd.Println(len(traitDefinitions))
+	cmd.Printf("  Appset: %s\n", appName)
+	cmd.Printf("  ENV: %s\n", namespace)
+	cmd.Printf("%s", string(componentOut))
+
+	if len(traitDefinitions) != 0 {
+		cmd.Println("Traits:")
+
+		traitOut, _ := yaml.Marshal(application.Spec.Components[0].Traits)
+		cmd.Println(string(traitOut))
+	}
+
 	return nil
 }
