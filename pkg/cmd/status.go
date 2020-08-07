@@ -17,7 +17,7 @@ func NewAppStatusCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Co
 		Use:     "app:status",
 		Short:   "get status of an application",
 		Long:    "get status of an application, including its workload and trait",
-		Example: `rudr status <APPLICATION-NAME>`,
+		Example: `vela status <APPLICATION-NAME>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength == 0 {

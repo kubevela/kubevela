@@ -9,7 +9,6 @@ spec:
   definitionRef:
     name: deployments.apps
   extension:
-    alias: deployment
     template: |
       #Template: {
       	apiVersion: "apps/v1"

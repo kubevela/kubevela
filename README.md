@@ -5,22 +5,22 @@ RudrX is a command-line tool to use OAM based micro-app engine.
 ## Develop
 Check out [DEVELOPMENT.md](./DEVELOPMENT.md) to see how to develop with RudrX
 
-## Build `rudr` binary
+## Build `vela` binary
 ```shell script
-$ go build -o /usr/local/bin/rudr cmd/rudrx/main.go
-$ chmod +x /usr/local/bin/rudr
+$ go build -o /usr/local/bin/vela cmd/vela/main.go
+$ chmod +x /usr/local/bin/vela
 ```
 
 ## RudrX commands
 
 #### help
 ```shell script
-$ rudr -h
+$ vela -h
 ✈️  A Micro App Plafrom for Kubernetes.
 
 Usage:
-  rudr [flags]
-  rudr [command]
+  vela [flags]
+  vela [command]
 
 Available Commands:
   ManualScaler      Attach ManualScaler trait to an app
@@ -45,45 +45,45 @@ Available Commands:
 
 #### env
 ```
-$ rudr env:init test --namespace test
+$ vela env:init test --namespace test
 Create env succeed, current env is test
 
-$ rudr env test
+$ vela env test
 NAME	NAMESPACE
 test	test
 
-$ rudr env
+$ vela env
 NAME   	NAMESPACE
 default	default
 test   	test
 
-$ rudr env:sw default
+$ vela env:sw default
 Switch env succeed, current env is default
 
-$ rudr env:delete test
+$ vela env:delete test
 test deleted
 
-$ rudr env:delete default
+$ vela env:delete default
 Error: you can't delete current using default
 ```
 
 #### workload run
 ```shell script
-$ rudr containerized:run app123 -p 80 --image nginx:1.9.4
+$ vela containerized:run app123 -p 80 --image nginx:1.9.4
 Creating AppConfig app123
 SUCCEED
 ```
 
 #### app
 ```
-$ rudr app:ls
+$ vela app:ls
 NAME       	WORKLOAD             	TRAITS                     	STATUS	CREATED-TIME
 app123     	ContainerizedWorkload	app123-manualscaler-trait  	False 	2020-08-05 20:19:03 +0800 CST
 poc08032042	ContainerizedWorkload	                           	True  	2020-08-03 20:43:02 +0800 CST
 poc1039    	ContainerizedWorkload	poc1039-manualscaler-trait 	False 	2020-08-02 10:39:54 +0800 CST
 
 
-$ rudr app:status app123
+$ vela app:status app123
 status: "False"
 trait:
 - apiVersion: core.oam.dev/v1alpha2
@@ -105,19 +105,19 @@ workload:
       name: ""
 
 
-$ rudr app:delete app123
+$ vela app:delete app123
 Deleting AppConfig "app123"
 DELETE SUCCEED
 ```
 
 #### WorkloadDefinitions/TraitDefinitions
 ```shell script
-$ rudr traits
+$ vela traits
 NAME                              	ALIAS	DEFINITION                        	APPLIES TO                                                  	STATUS
 manualscalertraits.core.oam.dev   	     	manualscalertraits.core.oam.dev   	core.oam.dev/v1alpha2.ContainerizedWorkload                 	-
 simplerollouttraits.extend.oam.dev	     	simplerollouttraits.extend.oam.dev	core.oam.dev/v1alpha2.ContainerizedWorkload, deployments....	-
 
-$ rudr workloads
+$ vela workloads
 NAME                               	SHORT	DEFINITION
 containerizedworkloads.core.oam.dev	     	containerizedworkloads.core.oam.dev
 deployments.apps                   	     	deployments.apps

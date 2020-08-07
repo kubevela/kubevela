@@ -2,6 +2,8 @@ apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
   name: deployments.testapps
+  labels:
+    usecase: forplugintest
 spec:
   definitionRef:
     name: deployments.testapps

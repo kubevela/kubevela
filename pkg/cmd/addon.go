@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	addonCenterConfigFile = ".rudr/addon_config"
+	addonCenterConfigFile = ".vela/addon_config"
 	defaultAddonCenter    = "local"
 )
 
@@ -49,7 +49,7 @@ func NewAddonConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		Use:     "addon:config",
 		Short:   "Set the addon center, default is local (built-in ones)",
 		Long:    "Set the addon center, default is local (built-in ones)",
-		Example: `rudr addon:config <REPOSITORY>`,
+		Example: `vela addon:config <REPOSITORY>`,
 		Run: func(cmd *cobra.Command, args []string) {
 			argsLength := len(args)
 			switch {
@@ -88,7 +88,7 @@ func NewAddonListCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Co
 		Use:     "addon:ls",
 		Short:   "List addons",
 		Long:    "List addons of workloads and traits",
-		Example: `rudr addon:ls`,
+		Example: `vela addon:ls`,
 		Run: func(cmd *cobra.Command, args []string) {
 			env, err := GetEnv()
 			if err != nil {
@@ -112,17 +112,17 @@ func retrievePlugins(ctx context.Context, c client.Client, ioStreams cmdutil.IOS
 	var err error
 	var homeDir string
 	if homeDir, err = os.UserHomeDir(); err != nil {
-		ioStreams.Errorf("Failed to retrieve addon center configuration, please run `rudr addon:config` first")
+		ioStreams.Errorf("Failed to retrieve addon center configuration, please run `vela addon:config` first")
 	}
 	if data, err = ioutil.ReadFile(filepath.Join(homeDir, addonCenterConfigFile)); err != nil {
-		ioStreams.Errorf("Failed to retrieve addon center configuration, please run `rudr addon:config` first")
+		ioStreams.Errorf("Failed to retrieve addon center configuration, please run `vela addon:config` first")
 	}
 	if err := json.Unmarshal(data, &config); err != nil {
-		ioStreams.Errorf("Failed to retrieve addon center configuration, please run `rudr addon:config` first")
+		ioStreams.Errorf("Failed to retrieve addon center configuration, please run `vela addon:config` first")
 	}
 
 	if config.IsLocal {
-		//TODO(zzxwill) merge `rudr traits` and `rudr workloads`
+		//TODO(zzxwill) merge `vela traits` and `vela workloads`
 		return nil
 	} else {
 		resp, err := http.Get(config.Name)

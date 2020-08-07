@@ -32,7 +32,7 @@ func newDeleteCommand() *cobra.Command {
 		Short:                 "Delete OAM Applications",
 		Long:                  "Delete OAM Applications",
 		Example: `
-  rudrx delete frontend
+  vela delete frontend
 `}
 }
 

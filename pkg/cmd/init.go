@@ -41,9 +41,9 @@ var (
 
 const initDesc = `
 This command installs oam-kubernetes-runtime  onto your Kubernetes Cluster.
-As with the rest of the RudrX commands, 'rudrx init' discovers Kubernetes clusters
+As with the rest of the Vela commands, 'vela init' discovers Kubernetes clusters
 by reading $KUBECONFIG (default '~/.kube/config') and using the default context.
-When installing oam-kubernetes-runtime, 'rudrx init' will attempt to install the latest released
+When installing oam-kubernetes-runtime, 'vela init' will attempt to install the latest released
 version. 
 `
 
@@ -115,7 +115,7 @@ func NewAdminInitCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.I
 
 	cmd := &cobra.Command{
 		Use:   "admin:init",
-		Short: "Initialize RudrX on both client and server",
+		Short: "Initialize Vela on both client and server",
 		Long:  initDesc,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			i.client = c

@@ -101,7 +101,7 @@ func ListTraitDefinitionsByApplicationConfiguration(app corev1alpha2.Application
 
 /*
 	Get application list by optional filter `applicationName`
-	Application name is equal to Component name as currently rudrx only supports one component exists in one application
+	Application name is equal to Component name as currently vela only supports one component exists in one application
 */
 func RetrieveApplicationsByName(ctx context.Context, c client.Client, applicationName string, namespace string) ([]ApplicationMeta, error) {
 	var applicationMetaList []ApplicationMeta

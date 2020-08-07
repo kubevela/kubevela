@@ -32,7 +32,7 @@ import (
 )
 
 // ComponentWorkloadDefLabel indicate which workloaddefinition generate from
-const ComponentWorkloadDefLabel = "rudrx.oam.dev/workloadDef"
+const ComponentWorkloadDefLabel = "vela.oam.dev/workloadDef"
 
 type runOptions struct {
 	Template     types.Template
@@ -49,7 +49,7 @@ func newRunOptions(ioStreams cmdutil.IOStreams) *runOptions {
 
 func AddWorkloadPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmdutil.IOStreams) error {
 	dir, _ := system.GetDefinitionDir()
-	templates, err := plugins.GetWorkloadsFromCluster(context.TODO(), types.DefaultOAMNS, c, dir)
+	templates, err := plugins.GetWorkloadsFromCluster(context.TODO(), types.DefaultOAMNS, c, dir, nil)
 	if err != nil {
 		return err
 	}
@@ -64,7 +64,7 @@ func AddWorkloadPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmd
 			DisableFlagsInUseLine: true,
 			Short:                 "Run " + name + " workloads",
 			Long:                  "Run " + name + " workloads",
-			Example:               `rudr deployment:run frontend -i nginx:latest`,
+			Example:               `vela deployment:run frontend -i nginx:latest`,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				if err := o.Complete(cmd, args, context.TODO()); err != nil {
 					return err

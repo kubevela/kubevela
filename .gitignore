@@ -30,4 +30,4 @@ vendor/
 # Vscode files
 .vscode
 
-pkg/test/rudr
+pkg/test/vela

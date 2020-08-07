@@ -19,7 +19,7 @@ func NewAppsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStre
 		DisableFlagsInUseLine: true,
 		Short:                 "List applications",
 		Long:                  "List applications with workloads, traits, status and created time",
-		Example:               `rudr ls`,
+		Example:               `vela ls`,
 		Run: func(cmd *cobra.Command, args []string) {
 			env, err := GetEnv()
 			if err != nil {

@@ -9,18 +9,18 @@ import (
 	"github.com/cloud-native-application/rudrx/api/types"
 )
 
-const rudrHome = ".rudr"
+const velaHome = ".vela"
 
-func GetRudrHomeDir() (string, error) {
+func GetVelaHomeDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, rudrHome), nil
+	return filepath.Join(home, velaHome), nil
 }
 
 func GetApplicationDir() (string, error) {
-	home, err := GetRudrHomeDir()
+	home, err := GetVelaHomeDir()
 	if err != nil {
 		return "", err
 	}
@@ -28,7 +28,7 @@ func GetApplicationDir() (string, error) {
 }
 
 func GetDefinitionDir() (string, error) {
-	home, err := GetRudrHomeDir()
+	home, err := GetVelaHomeDir()
 	if err != nil {
 		return "", err
 	}
@@ -40,7 +40,7 @@ func GetEnvDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, rudrHome, "envs"), nil
+	return filepath.Join(home, velaHome, "envs"), nil
 }
 
 func GetCurrentEnvPath() (string, error) {
@@ -48,7 +48,7 @@ func GetCurrentEnvPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, rudrHome, "curenv"), nil
+	return filepath.Join(home, velaHome, "curenv"), nil
 }
 
 func InitDefinitionDir() error {
