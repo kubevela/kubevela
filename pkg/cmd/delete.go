@@ -37,14 +37,19 @@ func newDeleteCommand() *cobra.Command {
 }
 
 // NewDeleteCommand init new command
-func NewDeleteCommand(c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
+func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
 	cmd := newDeleteCommand()
 	cmd.SetArgs(args)
 	cmd.SetOut(ioStreams.Out)
 	o := newDeleteOptions(ioStreams)
-	o.client = c
+
 	o.Env, _ = GetEnv()
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+		if err != nil {
+			return err
+		}
+		o.client = newClient
 		if err := o.Complete(cmd, args); err != nil {
 			return err
 		}

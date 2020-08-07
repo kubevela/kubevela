@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -43,9 +44,9 @@ func NewCommandOptions(ioStreams cmdutil.IOStreams) *commandOptions {
 	return &commandOptions{IOStreams: ioStreams}
 }
 
-func AddTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmdutil.IOStreams) error {
+func AddTraitPlugins(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
 	dir, _ := system.GetDefinitionDir()
-	templates, err := plugins.GetTraitsFromCluster(context.TODO(), types.DefaultOAMNS, c, dir, nil)
+	templates, err := plugins.LoadTempFromLocal(filepath.Join(dir, "traits"))
 	if err != nil {
 		return err
 	}
@@ -53,7 +54,6 @@ func AddTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmduti
 	for _, tmp := range templates {
 		var name = tmp.Name
 		o := NewCommandOptions(ioStreams)
-		o.Client = c
 		o.Env, _ = GetEnv()
 		pluginCmd := &cobra.Command{
 			Use:                   name + " <appname> [args]",
@@ -62,6 +62,11 @@ func AddTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmduti
 			Long:                  "Attach " + name + " trait to an app",
 			Example:               `vela scale frontend --max=5`,
 			RunE: func(cmd *cobra.Command, args []string) error {
+				newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+				if err != nil {
+					return err
+				}
+				o.Client = newClient
 				if err := o.Complete(cmd, args, ctx); err != nil {
 					return err
 				}
@@ -163,9 +168,9 @@ func (o *commandOptions) Complete(cmd *cobra.Command, args []string, ctx context
 	return nil
 }
 
-func DetachTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmdutil.IOStreams) error {
+func DetachTraitPlugins(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
 	dir, _ := system.GetDefinitionDir()
-	templates, err := plugins.GetTraitsFromCluster(context.TODO(), types.DefaultOAMNS, c, dir, nil)
+	templates, err := plugins.LoadTempFromLocal(filepath.Join(dir, "traits"))
 	if err != nil {
 		return err
 	}
@@ -173,7 +178,6 @@ func DetachTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmd
 	for _, tmp := range templates {
 		var name = tmp.Name
 		o := NewCommandOptions(ioStreams)
-		o.Client = c
 		o.Env, _ = GetEnv()
 		pluginCmd := &cobra.Command{
 			Use:                   name + ":detach <appname>",
@@ -182,6 +186,11 @@ func DetachTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmd
 			Long:                  "Detach " + name + " trait from an app",
 			Example:               `vela scale:detach frontend`,
 			RunE: func(cmd *cobra.Command, args []string) error {
+				newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+				if err != nil {
+					return err
+				}
+				o.Client = newClient
 				if err := o.DetachTrait(cmd, args, ctx); err != nil {
 					return err
 				}

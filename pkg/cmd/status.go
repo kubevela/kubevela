@@ -4,6 +4,8 @@ import (
 	"context"
 	"os"
 
+	"github.com/cloud-native-application/rudrx/api/types"
+
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 
 	"github.com/ghodss/yaml"
@@ -11,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func NewAppStatusCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:     "app:status",
@@ -30,9 +32,12 @@ func NewAppStatusCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Co
 				ioStreams.Errorf("Error: failed to get Env: %s", err)
 				return err
 			}
-
 			namespace := env.Namespace
-			return printApplicationStatus(ctx, c, ioStreams, appName, namespace)
+			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			if err != nil {
+				return err
+			}
+			return printApplicationStatus(ctx, newClient, ioStreams, appName, namespace)
 		},
 	}
 	cmd.SetOut(ioStreams.Out)

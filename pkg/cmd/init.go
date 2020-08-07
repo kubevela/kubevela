@@ -18,7 +18,6 @@ import (
 	oamv1 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 
 	"github.com/spf13/cobra"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/pkg/errors"
@@ -51,7 +50,6 @@ type initCmd struct {
 	namespace string
 	out       io.Writer
 	client    client.Client
-	config    *rest.Config
 	version   string
 }
 
@@ -92,7 +90,6 @@ func NewAdminInfoCommand(version string, ioStreams cmdutil.IOStreams) *cobra.Com
 			return i.run(version, ioStreams)
 		},
 	}
-
 	return cmd
 }
 
@@ -109,7 +106,7 @@ func (i *infoCmd) run(version string, ioStreams cmdutil.IOStreams) error {
 	return nil
 }
 
-func NewAdminInitCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewAdminInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 
 	i := &initCmd{out: ioStreams.Out}
 
@@ -118,7 +115,11 @@ func NewAdminInitCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Co
 		Short: "Initialize Vela on both client and server",
 		Long:  initDesc,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			i.client = c
+			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			if err != nil {
+				return err
+			}
+			i.client = newClient
 			i.namespace = types.DefaultOAMNS
 			return i.run(ioStreams)
 		},

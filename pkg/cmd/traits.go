@@ -1,19 +1,20 @@
 package cmd
 
 import (
-	"context"
-	"fmt"
+	"path/filepath"
 	"strings"
 
+	"github.com/cloud-native-application/rudrx/api/types"
+
+	"github.com/cloud-native-application/rudrx/pkg/plugins"
+	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func NewTraitsCommand(c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
-	ctx := context.Background()
+func NewTraitsCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	var workloadName string
 	cmd := &cobra.Command{
 		Use:                   "traits [--apply-to WORKLOADNAME]",
@@ -22,7 +23,16 @@ func NewTraitsCommand(c client.Client, ioStreams cmdutil.IOStreams, args []strin
 		Long:                  "List traits",
 		Example:               `vela traits`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return printTraitList(ctx, c, &workloadName, ioStreams)
+			dir, _ := system.GetDefinitionDir()
+			templates, err := plugins.LoadTempFromLocal(filepath.Join(dir, "traits"))
+			if err != nil {
+				return err
+			}
+			workloads, err := plugins.LoadTempFromLocal(filepath.Join(dir, "workloads"))
+			if err != nil {
+				return err
+			}
+			return printTraitList(templates, workloads, &workloadName, ioStreams)
 		},
 	}
 
@@ -31,32 +41,29 @@ func NewTraitsCommand(c client.Client, ioStreams cmdutil.IOStreams, args []strin
 	return cmd
 }
 
-func printTraitList(ctx context.Context, c client.Client, workloadName *string, ioStreams cmdutil.IOStreams) error {
-	traitList, err := RetrieveTraitsByWorkload(ctx, c, "", *workloadName)
-
+func printTraitList(traits, workloads []types.Template, workloadName *string, ioStreams cmdutil.IOStreams) error {
 	table := uitable.New()
 	table.MaxColWidth = 60
 
-	if err != nil {
-		return fmt.Errorf("Listing Trait DefinitionPath hit an issue: %s", err)
-	}
-
-	table.AddRow("NAME", "ALIAS", "DEFINITION", "APPLIES TO", "STATUS")
-	for _, r := range traitList {
-		wdList := strings.Split(r.AppliesTo, ",")
-		if len(wdList) > 1 {
-			isFirst := true
-			for _, wd := range wdList {
-				wd = strings.Trim(wd, " ")
-				if isFirst {
-					table.AddRow(r.Name, r.Short, r.Definition, wd, r.Status)
-					isFirst = false
+	table.AddRow("NAME", "DEFINITION", "APPLIES TO")
+	for _, r := range traits {
+		convertedApplyTo := ConvertApplyTo(r.AppliesTo, workloads)
+		if *workloadName != "" {
+			if !In(convertedApplyTo, *workloadName) {
+				continue
+			}
+			convertedApplyTo = []string{*workloadName}
+		}
+		if len(convertedApplyTo) > 1 && *workloadName == "" {
+			for i, wd := range convertedApplyTo {
+				if i > 0 {
+					table.AddRow("", "", wd)
 				} else {
-					table.AddRow("", "", "", wd, "")
+					table.AddRow(r.Name, r.CrdName, wd)
 				}
 			}
 		} else {
-			table.AddRow(r.Name, r.Short, r.Definition, r.AppliesTo, r.Status)
+			table.AddRow(r.Name, r.CrdName, strings.Join(convertedApplyTo, ""))
 		}
 	}
 	ioStreams.Info(table.String())
@@ -64,53 +71,32 @@ func printTraitList(ctx context.Context, c client.Client, workloadName *string, 
 	return nil
 }
 
-type TraitMeta struct {
-	Name       string `json:"name"`
-	Short      string `json:"shot"`
-	Definition string `json:"definition,omitempty"`
-	AppliesTo  string `json:"appliesTo,omitempty"`
-	Status     string `json:"status,omitempty"`
+func ConvertApplyTo(applyTo []string, workloads []types.Template) []string {
+	var converted []string
+	for _, v := range applyTo {
+		newName, exist := check(v, workloads)
+		if !exist {
+			continue
+		}
+		converted = append(converted, newName)
+	}
+	return converted
 }
 
-// RetrieveTraitsByWorkload Get trait list by optional filter `workloadName`
-func RetrieveTraitsByWorkload(ctx context.Context, c client.Client, namespace string, workloadName string) ([]TraitMeta, error) {
-	var traitList []TraitMeta
-	var traitDefinitionList corev1alpha2.TraitDefinitionList
-	if namespace == "" {
-		namespace = "default"
-	}
-	err := c.List(ctx, &traitDefinitionList, client.InNamespace(namespace))
-
-	for _, r := range traitDefinitionList.Items {
-		var appliesTo string
-		if workloadName == "" {
-			appliesTo = strings.Join(r.Spec.AppliesToWorkloads, ", ")
-			if appliesTo == "" {
-				continue
-			}
-		} else {
-			flag := false
-			for _, w := range r.Spec.AppliesToWorkloads {
-				if workloadName == w {
-					flag = true
-					break
-				}
-			}
-			if !flag {
-				continue
-			}
-			appliesTo = workloadName
+func check(crdname string, workloads []types.Template) (string, bool) {
+	for _, v := range workloads {
+		if crdname == v.CrdName {
+			return v.Name, true
 		}
-
-		// TODO(zzxwill) `Status` might not be proper as I'd like to describe where the trait is, in cluster or in registry
-		traitList = append(traitList, TraitMeta{
-			Name:       r.Name,
-			Short:      r.ObjectMeta.Annotations["short"],
-			Definition: r.Spec.Reference.Name,
-			AppliesTo:  appliesTo,
-			Status:     "-",
-		})
 	}
+	return "", false
+}
 
-	return traitList, err
+func In(l []string, v string) bool {
+	for _, ll := range l {
+		if ll == v {
+			return true
+		}
+	}
+	return false
 }

@@ -82,24 +82,27 @@ func NewAddonConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func NewAddonListCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewAddonListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:     "addon:ls",
 		Short:   "List addons",
 		Long:    "List addons of workloads and traits",
 		Example: `vela addon:ls`,
-		Run: func(cmd *cobra.Command, args []string) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			env, err := GetEnv()
 			if err != nil {
-				ioStreams.Errorf("Failed to get Env information:%s", err)
-				os.Exit(1)
+				return err
 			}
-			err = retrievePlugins(ctx, c, ioStreams, env.Namespace)
+			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 			if err != nil {
-				ioStreams.Errorf("Failed to list Addons:%s", err)
-				os.Exit(1)
+				return err
 			}
+			err = retrievePlugins(ctx, newClient, ioStreams, env.Namespace)
+			if err != nil {
+				return err
+			}
+			return nil
 		},
 	}
 	return cmd

@@ -1,14 +1,13 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"math/rand"
 	"os"
 	"runtime"
 	"time"
+
+	"github.com/cloud-native-application/rudrx/api/types"
 
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
@@ -18,7 +17,6 @@ import (
 	"github.com/spf13/cobra"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/cloud-native-application/rudrx/pkg/cmd"
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
@@ -71,34 +69,17 @@ func newCommand() *cobra.Command {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		},
 	}
-
 	restConf, err := config.GetConfig()
 	if err != nil {
 		fmt.Println("get kubeconfig err", err)
 		os.Exit(1)
 	}
-	newClient, err := client.New(restConf, client.Options{Scheme: scheme})
-	err = cmds.RegisterFlagCompletionFunc("namespace", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		// Choose a long enough timeout that the user notices somethings is not working
-		// but short enough that the user is not made to wait very long
-		to := int64(3)
-		listOpt := &client.ListOptions{
-			Raw: &metav1.ListOptions{TimeoutSeconds: &to},
-		}
-		nsNames := []string{}
-		namespaces := v1.NamespaceList{}
-		if err = newClient.List(context.Background(), &namespaces, listOpt); err == nil {
-			for _, ns := range namespaces.Items {
-				nsNames = append(nsNames, ns.Name)
-			}
-			return nsNames, cobra.ShellCompDirectiveNoFileComp
-		}
-		return nil, cobra.ShellCompDirectiveDefault
-	})
-	if err != nil {
-		fmt.Println("create client from kubeconfig err", err)
-		os.Exit(1)
+
+	commandArgs := types.Args{
+		Config: restConf,
+		Schema: scheme,
 	}
+
 	if err := system.InitApplicationDir(); err != nil {
 		fmt.Println("InitApplicationDir err", err)
 		os.Exit(1)
@@ -109,31 +90,37 @@ func newCommand() *cobra.Command {
 	}
 
 	cmds.AddCommand(
-		cmd.NewTraitsCommand(newClient, ioStream, []string{}),
-		cmd.NewWorkloadsCommand(newClient, ioStream, os.Args[1:]),
-		cmd.NewAdminInitCommand(newClient, ioStream),
+		cmd.NewAdminInitCommand(commandArgs, ioStream),
 		cmd.NewAdminInfoCommand(VelaVersion, ioStream),
-		cmd.NewDeleteCommand(newClient, ioStream, os.Args[1:]),
-		cmd.NewAppsCommand(newClient, ioStream),
-		cmd.NewEnvInitCommand(newClient, ioStream),
+
+		cmd.NewTraitsCommand(ioStream),
+		cmd.NewWorkloadsCommand(ioStream),
+		cmd.NewRefreshCommand(commandArgs, ioStream),
+
+		cmd.NewDeleteCommand(commandArgs, ioStream, os.Args[1:]),
+		cmd.NewAppsCommand(commandArgs, ioStream),
+		cmd.NewAppStatusCommand(commandArgs, ioStream),
+
+		cmd.NewEnvInitCommand(commandArgs, ioStream),
 		cmd.NewEnvSwitchCommand(ioStream),
 		cmd.NewEnvDeleteCommand(ioStream),
 		cmd.NewEnvCommand(ioStream),
-		NewVersionCommand(),
-		cmd.NewAppStatusCommand(newClient, ioStream),
+
 		cmd.NewAddonConfigCommand(ioStream),
-		cmd.NewAddonListCommand(newClient, ioStream),
+		cmd.NewAddonListCommand(commandArgs, ioStream),
+
 		cmd.NewCompletionCommand(),
+		NewVersionCommand(),
 	)
-	if err = cmd.AddWorkloadPlugins(cmds, newClient, ioStream); err != nil {
+	if err = cmd.AddWorkloadPlugins(cmds, commandArgs, ioStream); err != nil {
 		fmt.Println("Add plugins from workloadDefinition err", err)
 		os.Exit(1)
 	}
-	if err = cmd.AddTraitPlugins(cmds, newClient, ioStream); err != nil {
+	if err = cmd.AddTraitPlugins(cmds, commandArgs, ioStream); err != nil {
 		fmt.Println("Add plugins from traitDefinition err", err)
 		os.Exit(1)
 	}
-	if err = cmd.DetachTraitPlugins(cmds, newClient, ioStream); err != nil {
+	if err = cmd.DetachTraitPlugins(cmds, commandArgs, ioStream); err != nil {
 		fmt.Println("Add plugins from traitDefinition err", err)
 		os.Exit(1)
 	}

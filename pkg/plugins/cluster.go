@@ -48,6 +48,7 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Cli
 			continue
 		}
 		tmp.Type = types.TypeWorkload
+		tmp.CrdName = wd.Spec.Reference.Name
 		templates = append(templates, tmp)
 	}
 	return templates, nil
@@ -69,6 +70,8 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 			continue
 		}
 		tmp.Type = types.TypeTrait
+		tmp.AppliesTo = td.Spec.AppliesToWorkloads
+		tmp.CrdName = td.Spec.Reference.Name
 		templates = append(templates, tmp)
 	}
 	return templates, nil
