@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -19,8 +20,13 @@ import (
 func TestENV(t *testing.T) {
 	ctx := context.Background()
 
+	assert.NoError(t, os.Setenv(system.VelaHomeEnv, ".test_vela"))
+	home, err := system.GetVelaHomeDir()
+	assert.NoError(t, err)
+	assert.Equal(t, true, strings.HasSuffix(home, ".test_vela"))
+	defer os.RemoveAll(home)
 	// Create Default Env
-	err := system.InitDefaultEnv()
+	err = system.InitDefaultEnv()
 	assert.NoError(t, err)
 
 	// check and compare create default env success
@@ -55,14 +61,11 @@ func TestENV(t *testing.T) {
 	ioStream.Out = &b
 	err = ListEnvs(ctx, []string{}, ioStream)
 	assert.NoError(t, err)
-	assert.Equal(t, `NAME   	NAMESPACE
-default	default  
-env1   	test1    `, b.String())
+	assert.Equal(t, "NAME   \tCURRENT\tNAMESPACE\ndefault\t       \tdefault  \nenv1   \t*      \ttest1    \n", b.String())
 	b.Reset()
 	err = ListEnvs(ctx, []string{"env1"}, ioStream)
 	assert.NoError(t, err)
-	assert.Equal(t, `NAME	NAMESPACE
-env1	test1    `, b.String())
+	assert.Equal(t, "NAME\tCURRENT\tNAMESPACE\nenv1\ttest1  \n", b.String())
 	ioStream.Out = os.Stdout
 
 	// can not delete current env

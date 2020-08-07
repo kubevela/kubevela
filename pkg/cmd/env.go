@@ -21,6 +21,29 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func NewEnvCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
+	ctx := context.Background()
+	cmd := &cobra.Command{
+		Use:                   "env",
+		DisableFlagsInUseLine: true,
+		Short:                 "List environments",
+		Long:                  "List all environments",
+		Example:               `vela env [env-name]`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return ListEnvs(ctx, args, ioStreams)
+		},
+	}
+	cmd.SetOut(ioStreams.Out)
+	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		cmdutil.PrintUsageIntroduce(cmd, "Prepare environments for applications")
+		subcmds := []*cobra.Command{cmd, NewEnvInitCommand(nil, ioStreams), NewEnvSwitchCommand(ioStreams), NewEnvDeleteCommand(ioStreams)}
+		cmdutil.PrintUsage(cmd, subcmds)
+		cmdutil.PrintExample(cmd, subcmds)
+		cmdutil.PrintFlags(cmd, subcmds)
+	})
+	return cmd
+}
+
 func NewEnvInitCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var envArgs types.EnvMeta
 	ctx := context.Background()
@@ -55,22 +78,6 @@ func NewEnvDeleteCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func NewEnvCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
-	ctx := context.Background()
-	cmd := &cobra.Command{
-		Use:                   "env",
-		DisableFlagsInUseLine: true,
-		Short:                 "List environments",
-		Long:                  "List all environments",
-		Example:               `vela env [env-name]`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return ListEnvs(ctx, args, ioStreams)
-		},
-	}
-	cmd.SetOut(ioStreams.Out)
-	return cmd
-}
-
 func NewEnvSwitchCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
@@ -78,7 +85,7 @@ func NewEnvSwitchCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Switch environments",
 		Long:                  "switch to another environment",
-		Example:               `vela env test`,
+		Example:               `vela env:sw test`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return SwitchEnv(ctx, args, ioStreams)
 		},
@@ -90,15 +97,19 @@ func NewEnvSwitchCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 func ListEnvs(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) error {
 	table := uitable.New()
 	table.MaxColWidth = 60
-	table.AddRow("NAME", "NAMESPACE")
+	table.AddRow("NAME", "CURRENT", "NAMESPACE")
 	if len(args) > 0 {
 		envName := args[0]
 		env, err := getEnvByName(envName)
 		if err != nil {
+			if os.IsNotExist(err) {
+				ioStreams.Info(fmt.Sprintf("env %s not exist", envName))
+				return nil
+			}
 			return err
 		}
 		table.AddRow(envName, env.Namespace)
-		ioStreams.Infof(table.String())
+		ioStreams.Info(table.String())
 		return nil
 	}
 	envDir, err := system.GetEnvDir()
@@ -108,6 +119,10 @@ func ListEnvs(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) e
 	files, err := ioutil.ReadDir(envDir)
 	if err != nil {
 		return err
+	}
+	curEnv, err := GetCurrentEnvName()
+	if err != nil {
+		curEnv = types.DefaultEnvName
 	}
 	for _, f := range files {
 		if f.IsDir() {
@@ -121,9 +136,13 @@ func ListEnvs(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) e
 		if err = json.Unmarshal(data, &envMeta); err != nil {
 			continue
 		}
-		table.AddRow(f.Name(), envMeta.Namespace)
+		if curEnv == f.Name() {
+			table.AddRow(f.Name(), "*", envMeta.Namespace)
+		} else {
+			table.AddRow(f.Name(), "", envMeta.Namespace)
+		}
 	}
-	ioStreams.Infof(table.String())
+	ioStreams.Info(table.String())
 	return nil
 }
 
