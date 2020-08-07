@@ -6,13 +6,15 @@ spec:
   definitionRef:
     name: routes.extend.oam.dev
   extension:
-    alias: route
-    object:
-      apiVersion: extend.oam.dev/v1alpha2
-      kind: Route
-    parameters:
-      - name: domain
-        required: true
-        short: d
-        fieldPaths:
-          - "spec.domain"
+    template: |
+      #Template: {
+      	apiVersion: "apps/v1"
+      	kind:       "Route"
+      	spec: {
+      		domain: route.domain
+      	}
+      }
+
+      route: {
+      	domain: string
+      }

@@ -8,6 +8,12 @@ import (
 	"strconv"
 	"strings"
 
+	mycue "github.com/cloud-native-application/rudrx/pkg/cue"
+
+	"cuelang.org/go/cue"
+
+	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
@@ -23,11 +29,13 @@ import (
 )
 
 type commandOptions struct {
-	Env       *EnvMeta
-	Template  types.Template
-	Component corev1alpha2.Component
-	AppConfig corev1alpha2.ApplicationConfiguration
-	Client    client.Client
+	Template   types.Template
+	Component  corev1alpha2.Component
+	AppConfig  corev1alpha2.ApplicationConfiguration
+	Client     client.Client
+	TraitAlias string
+	Detach     bool
+	Env        *types.EnvMeta
 	cmdutil.IOStreams
 }
 
@@ -36,13 +44,14 @@ func NewCommandOptions(ioStreams cmdutil.IOStreams) *commandOptions {
 }
 
 func AddTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmdutil.IOStreams) error {
-	templates, err := plugins.GetTraitsFromCluster(context.TODO(), types.DefaultOAMNS, c)
+	dir, _ := system.GetDefinitionDir()
+	templates, err := plugins.GetTraitsFromCluster(context.TODO(), types.DefaultOAMNS, c, dir)
 	if err != nil {
 		return err
 	}
 	ctx := context.Background()
 	for _, tmp := range templates {
-		var name = tmp.Alias
+		var name = tmp.Name
 		o := NewCommandOptions(ioStreams)
 		o.Client = c
 		o.Env, _ = GetEnv()
@@ -61,10 +70,7 @@ func AddTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmduti
 		}
 		pluginCmd.SetOut(o.Out)
 		for _, v := range tmp.Parameters {
-			pluginCmd.Flags().StringP(v.Name, v.Short, v.Default, v.Usage)
-			if v.Required {
-				pluginCmd.MarkFlagRequired(v.Name)
-			}
+			types.SetFlagBy(pluginCmd, v)
 		}
 
 		o.Template = tmp
@@ -98,21 +104,39 @@ func (o *commandOptions) Complete(cmd *cobra.Command, args []string, ctx context
 		return err
 	}
 
-	pvd := fieldpath.Pave(o.Template.Object)
+	var traitData = make(map[string]interface{})
+
+	var tp = o.Template.Name
+
 	for _, v := range o.Template.Parameters {
 		flagSet := cmd.Flag(v.Name)
-		for _, path := range v.FieldPaths {
-			fValue := flagSet.Value.String()
-			if v.Type == "int" {
-				portValue, _ := strconv.ParseFloat(fValue, 64)
-				pvd.SetNumber(path, portValue)
-				continue
-			}
-			pvd.SetString(path, fValue)
+		switch v.Type {
+		case cue.IntKind:
+			d, _ := strconv.ParseInt(flagSet.Value.String(), 10, 64)
+			traitData[v.Name] = d
+		case cue.StringKind:
+			traitData[v.Name] = flagSet.Value.String()
+		case cue.BoolKind:
+			d, _ := strconv.ParseBool(flagSet.Value.String())
+			traitData[v.Name] = d
+		case cue.NumberKind, cue.FloatKind:
+			d, _ := strconv.ParseFloat(flagSet.Value.String(), 64)
+			traitData[v.Name] = d
 		}
 	}
+
+	jsondata, err := mycue.Eval(o.Template.DefinitionPath, tp, traitData)
+	if err != nil {
+		return err
+	}
+	var obj = make(map[string]interface{})
+	if err = json.Unmarshal([]byte(jsondata), &obj); err != nil {
+		return err
+	}
+
+	pvd := fieldpath.Pave(obj)
 	// metadata.name needs to be in lower case.
-	pvd.SetString("metadata.name", strings.ToLower(fmt.Sprintf("%s-%s-trait", appName, o.Template.Alias)))
+	pvd.SetString("metadata.name", strings.ToLower(fmt.Sprintf("%s-%s-trait", appName, o.Template.Name)))
 	curObj := &unstructured.Unstructured{Object: pvd.UnstructuredContent()}
 	var updated bool
 	for ic, c := range o.AppConfig.Spec.Components {
@@ -122,7 +146,7 @@ func (o *commandOptions) Complete(cmd *cobra.Command, args []string, ctx context
 		for it, t := range c.Traits {
 			g, v, k := GetGVKFromRawExtension(t.Trait)
 
-			// TODO(wonderflow): we should get GVK from Definition instead of assuming template object contains
+			// TODO(wonderflow): we should get GVK from DefinitionPath instead of assuming template object contains
 			gvk := curObj.GroupVersionKind()
 			if gvk.Group == g && gvk.Version == v && gvk.Kind == k {
 				updated = true
@@ -139,8 +163,79 @@ func (o *commandOptions) Complete(cmd *cobra.Command, args []string, ctx context
 	return nil
 }
 
+func DetachTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmdutil.IOStreams) error {
+	dir, _ := system.GetDefinitionDir()
+	templates, err := plugins.GetTraitsFromCluster(context.TODO(), types.DefaultOAMNS, c, dir)
+	if err != nil {
+		return err
+	}
+	ctx := context.Background()
+	for _, tmp := range templates {
+		var name = tmp.Name
+		o := NewCommandOptions(ioStreams)
+		o.Client = c
+		o.Env, _ = GetEnv()
+		pluginCmd := &cobra.Command{
+			Use:                   name + ":detach <appname>",
+			DisableFlagsInUseLine: true,
+			Short:                 "Detach " + name + " trait from an app",
+			Long:                  "Detach " + name + " trait from an app",
+			Example:               `rudr scale:detach frontend`,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				if err := o.DetachTrait(cmd, args, ctx); err != nil {
+					return err
+				}
+				return o.Run(cmd, ctx)
+			},
+		}
+		pluginCmd.SetOut(o.Out)
+		o.TraitAlias = name
+		o.Detach = true
+		parentCmd.AddCommand(pluginCmd)
+	}
+	return nil
+}
+
+func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string, ctx context.Context) error {
+	argsLength := len(args)
+	if argsLength < 1 {
+		return errors.New("please specify the name of the app")
+	}
+	c := o.Client
+	namespace := o.Env.Namespace
+
+	var appName = args[0]
+	if err := c.Get(ctx, client.ObjectKey{Namespace: o.Env.Namespace, Name: appName}, &o.AppConfig); err != nil {
+		return err
+	}
+
+	apiVersion, kind, err := cmdutil.GetTraitApiVersionKind(ctx, c, namespace, o.TraitAlias)
+	if err != nil {
+		return err
+	}
+	for i, com := range o.AppConfig.Spec.Components {
+		if com.ComponentName != appName {
+			continue
+		}
+		var traits []corev1alpha2.ComponentTrait
+		for _, tr := range com.Traits {
+			a, k := tr.Trait.Object.GetObjectKind().GroupVersionKind().ToAPIVersionAndKind()
+			if a == apiVersion && k == kind {
+				continue
+			}
+			traits = append(traits, tr)
+		}
+		o.AppConfig.Spec.Components[i].Traits = traits
+	}
+	return nil
+}
+
 func (o *commandOptions) Run(cmd *cobra.Command, ctx context.Context) error {
-	o.Info("Applying trait for app", o.Component.Name)
+	if o.Detach {
+		o.Info("Detaching trait from app", o.Component.Name)
+	} else {
+		o.Info("Applying trait for app", o.Component.Name)
+	}
 	c := o.Client
 	err := c.Update(ctx, &o.AppConfig)
 	if err != nil {

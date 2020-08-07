@@ -2,30 +2,44 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"strconv"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"gopkg.in/yaml.v3"
+
+	"cuelang.org/go/cue"
+
+	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
 	"github.com/cloud-native-application/rudrx/api/types"
 
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
 
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	mycue "github.com/cloud-native-application/rudrx/pkg/cue"
+
+	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 )
 
+// ComponentWorkloadDefLabel indicate which workloaddefinition generate from
+const ComponentWorkloadDefLabel = "rudrx.oam.dev/workloadDef"
+
 type runOptions struct {
-	Template  types.Template
-	Env       *EnvMeta
-	Component corev1alpha2.Component
-	AppConfig corev1alpha2.ApplicationConfiguration
-	client    client.Client
+	Template     types.Template
+	Env          *types.EnvMeta
+	workloadName string
+	client       client.Client
+	app          *types.Application
 	cmdutil.IOStreams
 }
 
@@ -34,13 +48,14 @@ func newRunOptions(ioStreams cmdutil.IOStreams) *runOptions {
 }
 
 func AddWorkloadPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmdutil.IOStreams) error {
-	templates, err := plugins.GetWorkloadsFromCluster(context.TODO(), types.DefaultOAMNS, c)
+	dir, _ := system.GetDefinitionDir()
+	templates, err := plugins.GetWorkloadsFromCluster(context.TODO(), types.DefaultOAMNS, c, dir)
 	if err != nil {
 		return err
 	}
 
 	for _, tmp := range templates {
-		var name = tmp.Alias
+		var name = tmp.Name
 		o := newRunOptions(ioStreams)
 		o.client = c
 		o.Env, _ = GetEnv()
@@ -59,10 +74,7 @@ func AddWorkloadPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmd
 		}
 		pluginCmd.SetOut(o.Out)
 		for _, v := range tmp.Parameters {
-			pluginCmd.Flags().StringP(v.Name, v.Short, v.Default, v.Usage)
-			if v.Required {
-				pluginCmd.MarkFlagRequired(v.Name)
-			}
+			types.SetFlagBy(pluginCmd, v)
 		}
 
 		o.Template = tmp
@@ -80,48 +92,79 @@ func (o *runOptions) Complete(cmd *cobra.Command, args []string, ctx context.Con
 	}
 
 	workloadName := args[0]
+	// TODO(wonderflow): load application from file
+	var app = &types.Application{Name: workloadName}
 
-	workloadTemplate := o.Template
-	pvd := fieldpath.Pave(workloadTemplate.Object)
-	for _, v := range workloadTemplate.Parameters {
-		var paraV string
-
-		flagSet := cmd.Flag(v.Name)
-		paraV = flagSet.Value.String()
-
-		if paraV == "" {
-			continue
-		}
-
-		for _, path := range v.FieldPaths {
-			if v.Type == "int" {
-				portValue, _ := strconv.ParseFloat(paraV, 64)
-				pvd.SetNumber(path, portValue)
-				break
-			}
-			pvd.SetString(path, paraV)
-		}
+	if app.Components == nil {
+		app.Components = make(map[string]map[string]interface{})
+	}
+	tp, workloadData, err := app.GetWorkload(workloadName)
+	if err != nil {
+		// Not exist
+		tp = o.Template.Name
+		workloadData = make(map[string]interface{})
 	}
 
-	pvd.SetString("metadata.name", strings.ToLower(workloadName))
-	namespace := o.Env.Namespace
-	o.Component.Spec.Workload.Object = &unstructured.Unstructured{Object: pvd.UnstructuredContent()}
-	o.Component.Name = args[0]
-	o.Component.Namespace = namespace
-	o.AppConfig.Name = args[0]
-	o.AppConfig.Namespace = namespace
-	o.AppConfig.Spec.Components = append(o.AppConfig.Spec.Components, corev1alpha2.ApplicationConfigurationComponent{ComponentName: args[0]})
-
-	return nil
+	for _, v := range o.Template.Parameters {
+		flagSet := cmd.Flag(v.Name)
+		switch v.Type {
+		case cue.IntKind:
+			d, _ := strconv.ParseInt(flagSet.Value.String(), 10, 64)
+			workloadData[v.Name] = d
+		case cue.StringKind:
+			workloadData[v.Name] = flagSet.Value.String()
+		case cue.BoolKind:
+			d, _ := strconv.ParseBool(flagSet.Value.String())
+			workloadData[v.Name] = d
+		case cue.NumberKind, cue.FloatKind:
+			d, _ := strconv.ParseFloat(flagSet.Value.String(), 64)
+			workloadData[v.Name] = d
+		}
+	}
+	workloadData["name"] = strings.ToLower(workloadName)
+	app.Components[workloadName] = map[string]interface{}{
+		tp: workloadData,
+	}
+	o.workloadName = workloadName
+	o.app = app
+	appDir, _ := system.GetApplicationDir()
+	out, err := yaml.Marshal(app)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(filepath.Join(appDir, workloadName), out, 0644)
 }
 
 func (o *runOptions) Run(cmd *cobra.Command) error {
-	o.Infof("Creating AppConfig %s\n", o.AppConfig.Name)
-	err := o.client.Create(context.Background(), &o.Component)
+	var component corev1alpha2.Component
+	var appconfig corev1alpha2.ApplicationConfiguration
+	tp, data, _ := o.app.GetWorkload(o.workloadName)
+	jsondata, err := mycue.Eval(o.Template.DefinitionPath, tp, data)
+	if err != nil {
+		return err
+	}
+	var obj = make(map[string]interface{})
+	if err = json.Unmarshal([]byte(jsondata), &obj); err != nil {
+		return err
+	}
+
+	component.Spec.Workload.Object = &unstructured.Unstructured{Object: obj}
+	component.Name = o.workloadName
+	component.Namespace = o.Env.Namespace
+	component.Labels = map[string]string{ComponentWorkloadDefLabel: o.workloadName}
+
+	appconfig.Name = o.workloadName
+	appconfig.Namespace = o.Env.Namespace
+	appconfig.Spec.Components = append(appconfig.Spec.Components, corev1alpha2.ApplicationConfigurationComponent{ComponentName: o.workloadName})
+
+	//TODO(wonderflow): we should also support update here
+
+	o.Infof("Creating AppConfig %s\n", appconfig.Name)
+	err = o.client.Create(context.Background(), &component)
 	if err != nil {
 		return fmt.Errorf("create component err: %s", err)
 	}
-	err = o.client.Create(context.Background(), &o.AppConfig)
+	err = o.client.Create(context.Background(), &appconfig)
 	if err != nil {
 		return fmt.Errorf("create appconfig err %s", err)
 	}

@@ -24,55 +24,28 @@ func init() {
 var (
 	workloadTemplateExample = &types.Template{
 
-		Object: map[string]interface{}{
-			"apiVersion": "core.oam.dev/v1alpha2",
-			"kind":       "ContainerizedWorkload",
-			"metadata": map[string]interface{}{
-				"name": "pod",
-			},
-			"spec": map[string]interface{}{
-				"containers": "",
-			},
-		},
 		Parameters: []types.Parameter{
 			types.Parameter{
-				Name:       "image",
-				Short:      "i",
-				Required:   true,
-				Type:       "string",
-				FieldPaths: []string{"spec.containers[0].image"},
+				Name:     "image",
+				Short:    "i",
+				Required: true,
 			},
 			types.Parameter{
-				Name:       "port",
-				Short:      "p",
-				Required:   false,
-				Type:       "int",
-				FieldPaths: []string{"spec.containers[0].ports[0].containerPort"},
+				Name:     "port",
+				Short:    "p",
+				Required: false,
 			},
 		},
 	}
 
 	traitTemplateExample = &types.Template{
 
-		Object: map[string]interface{}{
-			"apiVersion": "core.oam.dev/v1alpha2",
-			"kind":       "ManualScalerTrait",
-			"metadata": map[string]interface{}{
-				"name": "pod",
-			},
-			"spec": map[string]interface{}{
-				"replicaCount": "2",
-			},
-		},
-
 		Parameters: []types.Parameter{
 			types.Parameter{
-				Name:       "replicaCount",
-				Short:      "i",
-				Required:   true,
-				Type:       "int",
-				FieldPaths: []string{"spec.replicaCount"},
-				Default:    "5",
+				Name:     "replicaCount",
+				Short:    "i",
+				Required: true,
+				Default:  "5",
 			},
 		},
 	}

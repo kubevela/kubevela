@@ -5,160 +5,120 @@ RudrX is a command-line tool to use OAM based micro-app engine.
 ## Develop
 Check out [DEVELOPMENT.md](./DEVELOPMENT.md) to see how to develop with RudrX
 
-## Use with command-line
-### Build `rudr` binary
+## Build `rudr` binary
 ```shell script
-$ cd cmd/rudrx
-$ go build -o rudr
-$ chmod +x rudr
-$ cp ./rudr /usr/local/bin
+$ go build -o /usr/local/bin/rudr cmd/rudrx/main.go
+$ chmod +x /usr/local/bin/rudr
 ```
 
-### RudrX commands
+## RudrX commands
 
-- rudr help/prompts
+#### help
 ```shell script
 $ rudr -h
-rudr is a command-line tool to use OAM based micro-app engine.
+✈️  A Micro App Plafrom for Kubernetes.
 
 Usage:
   rudr [flags]
   rudr [command]
 
 Available Commands:
-  bind        Attach a trait to a component
-  help        Help about any command
-  run         Run OAM workloads
-  traits      List traits
+  ManualScaler      Attach ManualScaler trait to an app
+  SimpleRollout     Attach SimpleRollout trait to an app
+  app:delete        Delete OAM Applications
+  app:ls            List applications
+  app:status        get status of an application
+  containerized:run Run containerized workloads
+  deployment:run    Run deployment workloads
+  env               List environments
+  env:delete        Delete environment
+  env:init          Create environments
+  env:sw            Switch environments
+  help              Help about any command
+  init              Initialize RudrX on both client and server
+  route             Attach route trait to an app
+  traits            List traits
+  version           Prints out build version information
+  workloads         List workloads
 ```
 
-- create and run an appliction
+
+#### env
+```
+$ rudr env:init test --namespace test
+Create env succeed, current env is test
+
+$ rudr env test
+NAME	NAMESPACE
+test	test
+
+$ rudr env
+NAME   	NAMESPACE
+default	default
+test   	test
+
+$ rudr env:sw default
+Switch env succeed, current env is default
+
+$ rudr env:delete test
+test deleted
+
+$ rudr env:delete default
+Error: you can't delete current using default
+```
+
+#### workload run
 ```shell script
-$ rudr run -h
-  Create and Run one component one AppConfig OAM APP
-  
-  Usage:
-    rudr run [WORKLOAD_KIND] [args]
-    rudr run [command]
-  
-  Examples:
-  
-  	rudr run containerized frontend -p 80 oam-dev/demo:v1
-  
-  
-  Available Commands:
-    containerized Run containerized workloads
-  
-  Flags:
-    -h, --help          help for run
-    -p, --port string
-
-$ rudr run
-You must specify a workload, like containerized, deployments.apps, statefulsets.apps
-
-$ rudr run containerized
-must specify name for workload
-
-$ go run main.go run containerized poc nginx:1.9.4
-Creating AppConfig poc
+$ rudr containerized:run app123 -p 80 --image nginx:1.9.4
+Creating AppConfig app123
 SUCCEED
 ```
 
-- list traits
-```shell script
-$ rudr traits -h
-List traits
-
-Usage:
-  rudr traits [-workload WORKLOADNAME]
-
-Examples:
-rudr traits
-
-Flags:
-  -h, --help              help for traits
-  -w, --workload string   Workload name
-
-$ rudr traits
-  NAME                              	SHORT        	DEFINITION                        	APPLIES TO                                                  	STATUS
-  simplerollouttraits.extend.oam.dev	SimpleRollout	simplerollouttraits.extend.oam.dev	core.oam.dev/v1alpha2.ContainerizedWorkload, deployments....	-
+#### app
 ```
-
-- apply a trait to the workload
-```shell script
-$ rudr bind poc ManualScaler --replicaCount 5
-Applying trait for component poc
-Succeeded!
-
-$ kubectl get applicationconfiguration poc2159 -o yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: ApplicationConfiguration
-metadata:
-  creationTimestamp: "2020-07-16T13:58:13Z"
-  generation: 2
-  name: poc
-  namespace: default
-  ...
-spec:
-  components:
-  - componentName: poc
-    traits:
-    - trait:
-        apiVersion: core.oam.dev/v1alpha2
-        kind: ManualScalerTrait
-        metadata:
-          name: manualscaler
-        spec:
-          replicaCount: 5
-status:
-  conditions:
-  - lastTransitionTime: "2020-07-16T13:58:13Z"
-    reason: Successfully reconciled resource
-    status: "True"
-    type: Synced
-  workloads:
-  - componentName: poc
-    traits:
-    - traitRef:
-        apiVersion: core.oam.dev/v1alpha2
-        kind: ManualScalerTrait
-        name: manualscaler
-    workloadRef:
-      apiVersion: core.oam.dev/v1alpha2
-      kind: ContainerizedWorkload
-      name: poc
-```
-
-- delete an appliction
-```shell script
-$ rudr delete -h
-Delete OAM Applications
-
-Usage:
-  rudrx delete [APPLICATION_NAME]
-
-Examples:
-
-  rudrx delete frontend
+$ rudr app:ls
+NAME       	WORKLOAD             	TRAITS                     	STATUS	CREATED-TIME
+app123     	ContainerizedWorkload	app123-manualscaler-trait  	False 	2020-08-05 20:19:03 +0800 CST
+poc08032042	ContainerizedWorkload	                           	True  	2020-08-03 20:43:02 +0800 CST
+poc1039    	ContainerizedWorkload	poc1039-manualscaler-trait 	False 	2020-08-02 10:39:54 +0800 CST
 
 
-Flags:
-  -h, --help   help for delete
+$ rudr app:status app123
+status: "False"
+trait:
+- apiVersion: core.oam.dev/v1alpha2
+  kind: ManualScalerTrait
+  metadata:
+    creationTimestamp: null
+    name: app123-manualscaler-trait
+  spec:
+    definitionRef:
+      name: ""
+workload:
+  apiVersion: core.oam.dev/v1alpha2
+  kind: ContainerizedWorkload
+  metadata:
+    creationTimestamp: null
+    name: app123
+  spec:
+    definitionRef:
+      name: ""
 
-$ rudr delete poc
-Deleting AppConfig "poc"
+
+$ rudr app:delete app123
+Deleting AppConfig "app123"
 DELETE SUCCEED
 ```
 
-- list all applications
+#### WorkloadDefinitions/TraitDefinitions
 ```shell script
-$ rudr apps
-NAME                        	WORKLOAD             	TRAITS           	STATUS	CREATE-TIME                  
-app                          	ContainerizedWorkload	                 	True  	2020-07-22 11:23:21 +0800 CST
-example-deployment-appconfig	Deployment           	ManualScalerTrait	False 	2020-07-21 20:00:24 +0800 CST
+$ rudr traits
+NAME                              	ALIAS	DEFINITION                        	APPLIES TO                                                  	STATUS
+manualscalertraits.core.oam.dev   	     	manualscalertraits.core.oam.dev   	core.oam.dev/v1alpha2.ContainerizedWorkload                 	-
+simplerollouttraits.extend.oam.dev	     	simplerollouttraits.extend.oam.dev	core.oam.dev/v1alpha2.ContainerizedWorkload, deployments....	-
 
-$ rudr apps -a app
-NAME   	WORKLOAD             	TRAITS	STATUS	CREATE-TIME                  
-app 	ContainerizedWorkload	      	True  	2020-07-22 11:23:21 +0800 CST
-```
+$ rudr workloads
+NAME                               	SHORT	DEFINITION
+containerizedworkloads.core.oam.dev	     	containerizedworkloads.core.oam.dev
+deployments.apps                   	     	deployments.apps
 ```

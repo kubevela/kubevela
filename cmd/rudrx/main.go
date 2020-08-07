@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
 	"github.com/spf13/cobra"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
@@ -57,8 +59,8 @@ func newCommand() *cobra.Command {
 
 	cmds := &cobra.Command{
 		Use:          "rudr",
-		Short:        "rudr is a command-line tool to use OAM based micro-app engine.",
-		Long:         "rudr is a command-line tool to use OAM based micro-app engine.",
+		Short:        "✈️  A Micro App Plafrom for Kubernetes.",
+		Long:         "✈️  A Micro App Plafrom for Kubernetes.",
 		Run:          runHelp,
 		SilenceUsage: true,
 	}
@@ -77,6 +79,14 @@ func newCommand() *cobra.Command {
 		fmt.Println("create client from kubeconfig err", err)
 		os.Exit(1)
 	}
+	if err := system.InitApplicationDir(); err != nil {
+		fmt.Println("InitApplicationDir err", err)
+		os.Exit(1)
+	}
+	if err := system.InitDefinitionDir(); err != nil {
+		fmt.Println("InitDefinitionDir err", err)
+		os.Exit(1)
+	}
 
 	cmds.AddCommand(
 		cmd.NewTraitsCommand(f, client, ioStream, []string{}),
@@ -85,17 +95,24 @@ func newCommand() *cobra.Command {
 		cmd.NewAdminInfoCommand(RudrxVersion, ioStream),
 		cmd.NewDeleteCommand(f, client, ioStream, os.Args[1:]),
 		cmd.NewAppsCommand(f, client, ioStream),
-		cmd.NewEnvInitCommand(f, ioStream),
-		cmd.NewEnvSwitchCommand(f, ioStream),
-		cmd.NewEnvDeleteCommand(f, ioStream),
-		cmd.NewEnvCommand(f, ioStream),
+		cmd.NewEnvInitCommand(client, ioStream),
+		cmd.NewEnvSwitchCommand(ioStream),
+		cmd.NewEnvDeleteCommand(ioStream),
+		cmd.NewEnvCommand(ioStream),
 		NewVersionCommand(),
+		cmd.NewAppStatusCommand(client, ioStream),
+		cmd.NewAddonConfigCommand(ioStream),
+		cmd.NewAddonListCommand(client, ioStream),
 	)
 	if err = cmd.AddWorkloadPlugins(cmds, client, ioStream); err != nil {
 		fmt.Println("Add plugins from workloadDefinition err", err)
 		os.Exit(1)
 	}
 	if err = cmd.AddTraitPlugins(cmds, client, ioStream); err != nil {
+		fmt.Println("Add plugins from traitDefinition err", err)
+		os.Exit(1)
+	}
+	if err = cmd.DetachTraitPlugins(cmds, client, ioStream); err != nil {
 		fmt.Println("Add plugins from traitDefinition err", err)
 		os.Exit(1)
 	}

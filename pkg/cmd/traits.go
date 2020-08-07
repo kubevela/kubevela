@@ -38,12 +38,26 @@ func printTraitList(ctx context.Context, c client.Client, workloadName *string, 
 	table.MaxColWidth = 60
 
 	if err != nil {
-		return fmt.Errorf("Listing Trait Definition hit an issue: %s", err)
+		return fmt.Errorf("Listing Trait DefinitionPath hit an issue: %s", err)
 	}
 
 	table.AddRow("NAME", "ALIAS", "DEFINITION", "APPLIES TO", "STATUS")
 	for _, r := range traitList {
-		table.AddRow(r.Name, r.Short, r.Definition, r.AppliesTo, r.Status)
+		wdList := strings.Split(r.AppliesTo, ",")
+		if len(wdList) > 1 {
+			isFirst := true
+			for _, wd := range wdList {
+				wd = strings.Trim(wd, " ")
+				if isFirst {
+					table.AddRow(r.Name, r.Short, r.Definition, wd, r.Status)
+					isFirst = false
+				} else {
+					table.AddRow("", "", "", wd, "")
+				}
+			}
+		} else {
+			table.AddRow(r.Name, r.Short, r.Definition, r.AppliesTo, r.Status)
+		}
 	}
 	ioStreams.Info(table.String())
 

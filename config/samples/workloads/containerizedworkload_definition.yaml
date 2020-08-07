@@ -2,6 +2,9 @@ apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
   name: containerizedworkloads.core.oam.dev
+  annotations:
+    oam.appengine.info/apiVersion: "core.oam.dev/v1alpha2"
+    oam.appengine.info/kind: "ContainerizedWorkload"
 spec:
   definitionRef:
     name: containerizedworkloads.core.oam.dev
@@ -11,30 +14,30 @@ spec:
     - apiVersion: v1
       kind: Service
   extension:
-    alias: containerized
-    object:
-      apiVersion: core.oam.dev/v1alpha2
-      kind: ContainerizedWorkload
-      metadata:
-        name: tbd
-      spec:
-        containers:
-          - image: myrepo/myapp:v1
-            name: master
-            ports:
-              - containerPort: 6379
-                protocol: TCP
-                name: tbd # TODO(zzxwill) A temporary workaround for ContainerizedWorkload
-    parameters:
-      - name: image
-        short: i
-        required: true
-        type: string
-        fieldPaths:
-          - "spec.containers[0].image"
-      - name: port
-        short: p
-        required: false
-        type: int
-        fieldPaths:
-          - "spec.containers[0].ports[0].containerPort"
+    template: |
+      #Template: {
+      	apiVersion: "core.oam.dev/v1alpha2"
+      	kind:       "ContainerizedWorkload"
+      	metadata: name: containerized.name
+      	spec: {
+      		containers: [{
+      			image: containerized.image
+      			name:  containerized.name
+      			ports: [{
+      				containerPort: containerized.port
+      				protocol:      "TCP"
+      				name:          "default"
+      			}]
+      		}]
+      	}
+      }
+      containerized: {
+      	name: string
+      	// +usage=specify app image
+      	// +short=i
+      	image: string
+      	// +usage=specify port for container
+      	// +short=p
+      	port: *6379 | int
+      }
+

@@ -2,34 +2,39 @@ apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
   name: deployments.apps
+  annotations:
+    oam.appengine.info/apiVersion: "apps/v1"
+    oam.appengine.info/kind: "Deployment"
 spec:
   definitionRef:
     name: deployments.apps
   extension:
     alias: deployment
-    object:
-      apiVersion: core.oam.dev/v1alpha2
-      kind: deployment
-      metadata:
-        name: tbd
-      spec:
-        containers:
-          - image: myrepo/myapp:v1
-            name: master
-            ports:
-              - containerPort: 6379
-                protocol: TCP
-                name: tbd # TODO(zzxwill) A temporary workaround for ContainerizedWorkload
-    parameters:
-      - name: image
-        short: i
-        required: true
-        type: string
-        fieldPaths:
-          - "spec.containers[0].image"
-      - name: port
-        short: p
-        required: false
-        type: int
-        fieldPaths:
-          - "spec.containers[0].ports[0].containerPort"
+    template: |
+      #Template: {
+      	apiVersion: "apps/v1"
+      	kind:       "Deployment"
+      	metadata: name: deployment.name
+      	spec: {
+      		containers: [{
+      			image: deployment.image
+      			name:  deployment.name
+      			env:   deployment.env
+      			ports: [{
+      				containerPort: deployment.port
+      				protocol:      "TCP"
+      				name:          "default"
+      			}]
+      		}]
+      	}
+      }
+      deployment: {
+      	name:  string
+      	image: string
+      	port:  *8080 | int
+      	env: [...{
+      		name:  string
+      		value: string
+      	}]
+      }
+

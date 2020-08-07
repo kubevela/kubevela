@@ -2,8 +2,11 @@ package plugins
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,6 +35,7 @@ import (
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
+var definitionDir string
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -108,6 +112,9 @@ var _ = BeforeSuite(func(done Done) {
 			},
 		},
 	}
+	definitionDir, err = system.GetDefinitionDir()
+	Expect(err).Should(BeNil())
+	os.MkdirAll(definitionDir, 0755)
 	Expect(k8sClient.Create(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	close(done)
 }, 60)

@@ -7,8 +7,6 @@ import (
 
 	"github.com/cloud-native-application/rudrx/api/types"
 
-	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -68,6 +66,12 @@ type ApplicationMeta struct {
 	CreatedTime string   `json:"created,omitempty"`
 }
 
+type ApplicationStatusMeta struct {
+	Status   string                          `json:"status,omitempty"`
+	Workload corev1alpha2.WorkloadDefinition `json:"workload,omitempty"`
+	Traits   []corev1alpha2.TraitDefinition  `json:"trait,omitempty"`
+}
+
 func GetComponent(ctx context.Context, c client.Client, componentName string, namespace string) (corev1alpha2.Component, error) {
 	var component corev1alpha2.Component
 	err := c.Get(ctx, client.ObjectKey{Name: componentName, Namespace: namespace}, &component)
@@ -88,8 +92,9 @@ func ListTraitDefinitionsByApplicationConfiguration(app corev1alpha2.Application
 	var traitDefinitionList []corev1alpha2.TraitDefinition
 	for _, t := range app.Spec.Components[0].Traits {
 		var trait corev1alpha2.TraitDefinition
-		json.Unmarshal(t.Trait.Raw, &trait)
-		traitDefinitionList = append(traitDefinitionList, trait)
+		if err := json.Unmarshal(t.Trait.Raw, &trait); err == nil {
+			traitDefinitionList = append(traitDefinitionList, trait)
+		}
 	}
 	return traitDefinitionList
 }
@@ -100,11 +105,6 @@ func ListTraitDefinitionsByApplicationConfiguration(app corev1alpha2.Application
 */
 func RetrieveApplicationsByName(ctx context.Context, c client.Client, applicationName string, namespace string) ([]ApplicationMeta, error) {
 	var applicationMetaList []ApplicationMeta
-
-	if namespace == "" {
-		namespace = "default"
-	}
-
 	var applicationList corev1alpha2.ApplicationConfigurationList
 
 	if applicationName != "" {
@@ -132,21 +132,49 @@ func RetrieveApplicationsByName(ctx context.Context, c client.Client, applicatio
 		}
 
 		var workload corev1alpha2.WorkloadDefinition
-		json.Unmarshal(component.Spec.Workload.Raw, &workload)
-		workloadName := workload.TypeMeta.Kind
+		if err := json.Unmarshal(component.Spec.Workload.Raw, &workload); err == nil {
+			workloadName := workload.TypeMeta.Kind
 
-		traitNames := GetTraitNamesByApplicationConfiguration(a)
+			traitNames := GetTraitNamesByApplicationConfiguration(a)
 
-		applicationMetaList = append(applicationMetaList, ApplicationMeta{
-			Name:        a.Name,
-			Workload:    workloadName,
-			Traits:      traitNames,
-			Status:      string(a.Status.Conditions[0].Status),
-			CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
-		})
+			applicationMetaList = append(applicationMetaList, ApplicationMeta{
+				Name:        a.Name,
+				Workload:    workloadName,
+				Traits:      traitNames,
+				Status:      string(a.Status.Conditions[0].Status),
+				CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
+			})
+		}
 	}
 
 	return applicationMetaList, nil
+}
+
+func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, applicationName string, namespace string) (ApplicationStatusMeta, error) {
+	var applicationStatusMeta ApplicationStatusMeta
+	var appConfig corev1alpha2.ApplicationConfiguration
+	if err := c.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: namespace}, &appConfig); err != nil {
+		return applicationStatusMeta, err
+	}
+
+	component, err := GetComponent(ctx, c, applicationName, namespace)
+	if err != nil {
+		return applicationStatusMeta, err
+	}
+
+	var workload corev1alpha2.WorkloadDefinition
+	err = json.Unmarshal(component.Spec.Workload.Raw, &workload)
+	if err != nil {
+		return applicationStatusMeta, err
+	}
+
+	traitDefinitionList := ListTraitDefinitionsByApplicationConfiguration(appConfig)
+	applicationStatusMeta = ApplicationStatusMeta{
+		Status:   string(appConfig.Status.Conditions[0].Status),
+		Workload: workload,
+		Traits:   traitDefinitionList,
+	}
+	return applicationStatusMeta, err
 }
 
 func GetTraitAliasByTraitDefinition(traitDefinition corev1alpha2.TraitDefinition) string {
@@ -175,7 +203,7 @@ func GetTraitDefinitionByAlias(ctx context.Context, c client.Client, traitAlias 
 	if err == nil {
 		for _, t := range traitDefinitionList.Items {
 			template, err := types.ConvertTemplateJson2Object(t.Spec.Extension)
-			if err == nil && strings.EqualFold(template.Alias, traitAlias) {
+			if err == nil && strings.EqualFold(template.Name, traitAlias) {
 				traitDefinition = t
 				break
 			}
@@ -186,44 +214,15 @@ func GetTraitDefinitionByAlias(ctx context.Context, c client.Client, traitAlias 
 
 // GetTraitNameAndAlias return the name and alias of a TraitDefinition by a string which might be
 // the trait name, the trait alias, or invalid name
-func GetTraitNameAliasKind(ctx context.Context, c client.Client, namespace string, name string) (string, string, string) {
-	var tName, tAlias, tKind string
+func GetTraitApiVersionKind(ctx context.Context, c client.Client, namespace string, name string) (string, string, error) {
 
 	t, err := GetTraitDefinitionByName(ctx, c, namespace, name)
-
-	if err == nil {
-		template, err := types.ConvertTemplateJson2Object(t.Spec.Extension)
-		if err == nil {
-			tName, tAlias = t.Name, template.Alias
-		}
-	} else {
-		t, err := GetTraitDefinitionByAlias(ctx, c, name)
-		if err == nil {
-			template, err := types.ConvertTemplateJson2Object(t.Spec.Extension)
-			if err == nil {
-				tName, tAlias = t.Name, template.Alias
-			}
-		}
+	if err != nil {
+		return "", "", err
 	}
-
-	if tName == "" {
-		tKind = name
-	} else {
-		tKind = GetCRDKind(ctx, c, namespace, tName)
-	}
-
-	return tName, tAlias, tKind
-}
-
-func GetCRDByName(ctx context.Context, c client.Client, namespace string, name string) v1.CustomResourceDefinition {
-	var crd v1.CustomResourceDefinition
-	c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &crd)
-	return crd
-}
-
-func GetCRDKind(ctx context.Context, c client.Client, namespace string, name string) string {
-	crd := GetCRDByName(ctx, c, namespace, name)
-	return crd.Spec.Names.Kind
+	apiVersion := t.Annotations["oam.appengine.info/apiVersion"]
+	kind := t.Annotations["oam.appengine.info/kind"]
+	return apiVersion, kind, nil
 }
 
 func GetWorkloadNameAliasKind(ctx context.Context, c client.Client, namespace string, workloadName string) (string, string, string) {
@@ -235,14 +234,14 @@ func GetWorkloadNameAliasKind(ctx context.Context, c client.Client, namespace st
 		var workloadTemplate types.Template
 		workloadTemplate, err := types.ConvertTemplateJson2Object(w.Spec.Extension)
 		if err == nil {
-			name, alias = w.Name, workloadTemplate.Alias
+			name, alias = w.Name, workloadTemplate.Name
 		}
 	} else { // workloadName is alias or kind
 		w, err := GetWorkloadDefinitionByAlias(ctx, c, name)
 		if err == nil {
 			workloadTemplate, err := types.ConvertTemplateJson2Object(w.Spec.Extension)
 			if err == nil {
-				name, alias, kind = w.Name, workloadTemplate.Alias, w.Kind
+				name, alias, kind = w.Name, workloadTemplate.Name, w.Kind
 			}
 
 		}
@@ -260,13 +259,12 @@ func GetWorkloadDefinitionByName(ctx context.Context, c client.Client, namespace
 func GetWorkloadDefinitionByAlias(ctx context.Context, c client.Client, traitAlias string) (corev1alpha2.WorkloadDefinition, error) {
 	var workloadDefinitionList corev1alpha2.WorkloadDefinitionList
 	var workloadDefinition corev1alpha2.WorkloadDefinition
-	// TODO(zzxwill) Need to check return error
-	c.List(ctx, &workloadDefinitionList)
-
-	for _, t := range workloadDefinitionList.Items {
-		if strings.EqualFold(t.ObjectMeta.Annotations["short"], traitAlias) {
-			workloadDefinition = t
-			break
+	if err := c.List(ctx, &workloadDefinitionList); err == nil {
+		for _, t := range workloadDefinitionList.Items {
+			if strings.EqualFold(t.ObjectMeta.Annotations["short"], traitAlias) {
+				workloadDefinition = t
+				break
+			}
 		}
 	}
 

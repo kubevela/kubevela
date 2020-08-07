@@ -2,6 +2,9 @@ apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata:
   name: simplerollouttraits.extend.oam.dev
+  annotations:
+    "oam.appengine.info/apiVersion": "extend.oam.dev/v1alpha2"
+    "oam.appengine.info/kind": "SimpleRolloutTrait"
 spec:
   revisionEnabled: true
   appliesToWorkloads:
@@ -10,35 +13,18 @@ spec:
   definitionRef:
     name: simplerollouttraits.extend.oam.dev
   extension:
-    alias: SimpleRollout
-    object:
-      apiVersion: extend.oam.dev/v1alpha2
-      kind: SimpleRolloutTrait
-      metadata:
-        name:  example-rollout-trait
-      spec:
-        replica: 6
-        maxUnavailable: 2
-        batch: 2
-    parameters:
-      - name: replica
-        required: true
-        type: int
-        default: "6"
-        short: r
-        fieldPaths:
-          - "spec.replica"
-      - name: maxUnavailable
-        required: true
-        type: int
-        default: "2"
-        short: u
-        fieldPaths:
-          - "spec.maxUnavailable"
-      - name: batch
-        required: true
-        type: int
-        default: "2"
-        short: b
-        fieldPaths:
-          - "spec.batch"
+    template: |
+      #Template: {
+      	apiVersion: "extend.oam.dev/v1alpha2"
+      	kind:       "SimpleRolloutTrait"
+      	spec: {
+      		replica:        rollout.replica
+      		maxUnavailable: rollout.maxUnavailable
+      		batch:          rollout.batch
+      	}
+      }
+      rollout: {
+      	replica:        *3 | int
+      	maxUnavailable: *1 | int
+      	batch:          *2 | int
+      }

@@ -35,7 +35,7 @@ func printWorkloadList(ctx context.Context, c client.Client, ioStreams cmdutil.I
 	table.MaxColWidth = 60
 
 	if err != nil {
-		return fmt.Errorf("Listing Trait Definition hit an issue: %s", err)
+		return fmt.Errorf("Listing Trait DefinitionPath hit an issue: %s", err)
 	}
 
 	table.AddRow("NAME", "SHORT", "DEFINITION")

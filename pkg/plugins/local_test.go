@@ -11,53 +11,35 @@ import (
 
 func TestLocalSink(t *testing.T) {
 	deployment := types.Template{
-		Name:  "deployment",
-		Type:  types.TypeWorkload,
-		Alias: "deployment",
-		Object: map[string]interface{}{
-			"apiVersion": "apps/v1",
-			"kind":       "Deployment",
-		},
+		Name: "deployment",
+		Type: types.TypeWorkload,
 		Parameters: []types.Parameter{
 			{
-				Name:       "image",
-				Short:      "i",
-				Required:   true,
-				FieldPaths: []string{"spec.containers[0].image"},
+				Name:     "image",
+				Short:    "i",
+				Required: true,
 			},
 		},
 	}
 	statefulset := types.Template{
-		Name:  "statefulset",
-		Type:  types.TypeWorkload,
-		Alias: "stateful",
-		Object: map[string]interface{}{
-			"apiVersion": "apps/v1",
-			"kind":       "Statefulset",
-		},
+		Name: "statefulset",
+		Type: types.TypeWorkload,
 		Parameters: []types.Parameter{
 			{
-				Name:       "image",
-				Short:      "i",
-				Required:   true,
-				FieldPaths: []string{"spec.containers[0].image"},
+				Name:     "image",
+				Short:    "i",
+				Required: true,
 			},
 		},
 	}
 	route := types.Template{
-		Name:  "route",
-		Type:  types.TypeTrait,
-		Alias: "route",
-		Object: map[string]interface{}{
-			"apiVersion": "apps/v1",
-			"kind":       "Route",
-		},
+		Name: "route",
+		Type: types.TypeTrait,
 		Parameters: []types.Parameter{
 			{
-				Name:       "domain",
-				Short:      "d",
-				Required:   true,
-				FieldPaths: []string{"spec.domain"},
+				Name:     "domain",
+				Short:    "d",
+				Required: true,
 			},
 		},
 	}
