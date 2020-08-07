@@ -151,7 +151,7 @@ func (o *runOptions) Run(cmd *cobra.Command) error {
 	component.Spec.Workload.Object = &unstructured.Unstructured{Object: obj}
 	component.Name = o.workloadName
 	component.Namespace = o.Env.Namespace
-	component.Labels = map[string]string{ComponentWorkloadDefLabel: o.workloadName}
+	component.Labels = map[string]string{ComponentWorkloadDefLabel: getWorkloadName(o.Template.DefinitionPath)}
 
 	appconfig.Name = o.workloadName
 	appconfig.Namespace = o.Env.Namespace
@@ -170,4 +170,18 @@ func (o *runOptions) Run(cmd *cobra.Command) error {
 	}
 	o.Info("SUCCEED")
 	return nil
+}
+
+// get workloaddefinition's name from template
+// definitionPath is: root/.vela/definitions/containerizedworkloads.core.oam.dev.cue
+// workloaddefinition name is containerizedworkloads.core.oam.dev
+func getWorkloadName(definitionPath string) string {
+	pathes := strings.Split(definitionPath, "/")
+
+	if len(pathes) == 0 {
+		return definitionPath
+	}
+
+	name := pathes[len(pathes)-1]
+	return strings.TrimRight(name, ".cue")
 }
