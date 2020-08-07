@@ -107,6 +107,7 @@ func newCommand() *cobra.Command {
 		cmd.NewAppsCommand(commandArgs, ioStream),
 		cmd.NewDeleteCommand(commandArgs, ioStream, os.Args[1:]),
 		cmd.NewAppStatusCommand(commandArgs, ioStream),
+		cmd.NewAppShowCommand(commandArgs, ioStream),
 
 		// Others
 		cmd.NewAddonConfigCommand(ioStream),
