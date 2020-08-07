@@ -126,3 +126,15 @@ func (app *Application) GetTraits(componentName string) (map[string]interface{},
 type EnvMeta struct {
 	Namespace string `json:"namespace"`
 }
+
+const (
+	TagCommandType = "commandType"
+
+	TypeStart     = "Getting Started"
+	TypeApp       = "Applications"
+	TypeWorkloads = "Workloads"
+	TypeTraits    = "Traits"
+	TypeRelease   = "Release"
+	TypeOthers    = "Others"
+	TypeSystem    = "System"
+)

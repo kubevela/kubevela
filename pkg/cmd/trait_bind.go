@@ -72,6 +72,9 @@ func AddTraitPlugins(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.I
 				}
 				return o.Run(cmd, ctx)
 			},
+			Annotations: map[string]string{
+				types.TagCommandType: types.TypeTraits,
+			},
 		}
 		pluginCmd.SetOut(o.Out)
 		for _, v := range tmp.Parameters {
@@ -195,6 +198,9 @@ func DetachTraitPlugins(parentCmd *cobra.Command, c types.Args, ioStreams cmduti
 					return err
 				}
 				return o.Run(cmd, ctx)
+			},
+			Annotations: map[string]string{
+				types.TagCommandType: types.TypeTraits,
 			},
 		}
 		pluginCmd.SetOut(o.Out)

@@ -18,6 +18,7 @@ package logs
 
 import (
 	"flag"
+	"io/ioutil"
 	"log"
 	"time"
 
@@ -41,8 +42,10 @@ func (writer KlogWriter) Write(data []byte) (n int, err error) {
 
 // InitLogs initializes logs the way we want for kubernetes.
 func InitLogs() {
-	log.SetOutput(KlogWriter{})
-	log.SetFlags(0)
+	log.SetOutput(ioutil.Discard)
+	klog.SetOutput(ioutil.Discard)
+	log.SetFlags(-1)
+
 	// The default glog flush interval is one second.
 	go wait.Until(klog.Flush, time.Second, wait.NeverStop)
 }

@@ -32,6 +32,9 @@ func NewEnvCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return ListEnvs(ctx, args, ioStreams)
 		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeStart,
+		},
 	}
 	cmd.SetOut(ioStreams.Out)
 	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
@@ -60,6 +63,9 @@ func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			}
 			return CreateOrUpdateEnv(ctx, newClient, &envArgs, args, ioStreams)
 		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeStart,
+		},
 	}
 	cmd.SetOut(ioStreams.Out)
 	cmd.Flags().StringVar(&envArgs.Namespace, "namespace", "default", "specify K8s namespace for env")
@@ -77,6 +83,9 @@ func NewEnvDeleteCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return DeleteEnv(ctx, args, ioStreams)
 		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeStart,
+		},
 	}
 	cmd.SetOut(ioStreams.Out)
 	return cmd
@@ -92,6 +101,9 @@ func NewEnvSwitchCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		Example:               `vela env:sw test`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return SwitchEnv(ctx, args, ioStreams)
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeStart,
 		},
 	}
 	cmd.SetOut(ioStreams.Out)

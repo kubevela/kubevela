@@ -75,6 +75,9 @@ func AddWorkloadPlugins(parentCmd *cobra.Command, c types.Args, ioStreams cmduti
 				}
 				return o.Run(cmd)
 			},
+			Annotations: map[string]string{
+				types.TagCommandType: types.TypeWorkloads,
+			},
 		}
 		pluginCmd.SetOut(o.Out)
 		for _, v := range tmp.Parameters {

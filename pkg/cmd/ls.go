@@ -32,6 +32,9 @@ func NewAppsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			printApplicationList(ctx, newClient, "", env.Namespace)
 			return nil
 		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeApp,
+		},
 	}
 
 	cmd.PersistentFlags().StringP("app", "a", "", "Application name")

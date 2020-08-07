@@ -39,6 +39,9 @@ func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 			}
 			return printApplicationStatus(ctx, newClient, ioStreams, appName, namespace)
 		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeApp,
+		},
 	}
 	cmd.SetOut(ioStreams.Out)
 	return cmd

@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 
+	"github.com/cloud-native-application/rudrx/pkg/builtin"
+
 	"helm.sh/helm/v3/pkg/release"
 
 	"github.com/cloud-native-application/rudrx/api/types"
@@ -38,14 +40,6 @@ var (
 	settings = cli.New()
 )
 
-const initDesc = `
-This command installs oam-kubernetes-runtime  onto your Kubernetes Cluster.
-As with the rest of the Vela commands, 'vela init' discovers Kubernetes clusters
-by reading $KUBECONFIG (default '~/.kube/config') and using the default context.
-When installing oam-kubernetes-runtime, 'vela init' will attempt to install the latest released
-version. 
-`
-
 type initCmd struct {
 	namespace string
 	out       io.Writer
@@ -70,13 +64,7 @@ var (
 	}
 
 	workloadResource = map[string]string{
-		"statefulset": "statefulsets.apps",
-		"daemonset":   "daemonsets.apps",
-		"deployment":  "deployments.apps",
-		"job":         "jobs.batch",
-		"secret":      "secrets",
-		"service":     "services",
-		"configmap":   "configmaps",
+		"deployment": builtin.Deployment,
 	}
 )
 
@@ -84,10 +72,14 @@ func NewAdminInfoCommand(version string, ioStreams cmdutil.IOStreams) *cobra.Com
 	i := &infoCmd{out: ioStreams.Out}
 
 	cmd := &cobra.Command{
-		Use:   "admin:info",
+		Use:   "system:info",
 		Short: "show vela client and cluster version",
+		Long:  "show vela client and cluster version",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return i.run(version, ioStreams)
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeSystem,
 		},
 	}
 	return cmd
@@ -111,9 +103,9 @@ func NewAdminInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	i := &initCmd{out: ioStreams.Out}
 
 	cmd := &cobra.Command{
-		Use:   "admin:init",
-		Short: "Initialize Vela on both client and server",
-		Long:  initDesc,
+		Use:   "system:init",
+		Short: "Initialize vela on both client and server",
+		Long:  "Install OAM runtime and vela builtin capabilities.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 			if err != nil {
@@ -122,6 +114,9 @@ func NewAdminInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 			i.client = newClient
 			i.namespace = types.DefaultOAMNS
 			return i.run(ioStreams)
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeSystem,
 		},
 	}
 
