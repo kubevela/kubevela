@@ -5,10 +5,13 @@ Vela is a command-line tool to use OAM based micro-app engine.
 ## Develop
 Check out [DEVELOPMENT.md](./DEVELOPMENT.md) to see how to develop with RudrX
 
-## Build `vela` binary
+## Install `vela` binary
+
 ```shell script
-$ go build -o /usr/local/bin/vela cmd/vela/main.go
-$ chmod +x /usr/local/bin/vela
+git clone git@github.com:cloud-native-application/RudrX.git
+cd RudrX
+make
+mv bin/vela /usr/local/bin
 ```
 
 ## Vela commands

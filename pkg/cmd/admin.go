@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 
+	"github.com/cloud-native-application/rudrx/pkg/builtin"
+
 	"helm.sh/helm/v3/pkg/release"
 
 	"github.com/cloud-native-application/rudrx/api/types"
@@ -62,13 +64,7 @@ var (
 	}
 
 	workloadResource = map[string]string{
-		"statefulset": "statefulsets.apps",
-		"daemonset":   "daemonsets.apps",
-		"deployment":  "deployments.apps",
-		"job":         "jobs.batch",
-		"secret":      "secrets",
-		"service":     "services",
-		"configmap":   "configmaps",
+		"deployment": builtin.Deployment,
 	}
 )
 
