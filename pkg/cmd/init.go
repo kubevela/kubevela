@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 
 	"helm.sh/helm/v3/pkg/release"
@@ -98,13 +99,8 @@ func NewAdminInfoCommand(version string, ioStreams cmdutil.IOStreams) *cobra.Com
 func (i *infoCmd) run(version string, ioStreams cmdutil.IOStreams) error {
 	clusterVersion, err := GetOAMReleaseVersion()
 	if err != nil {
-		ioStreams.Errorf("fail to get cluster version")
-	}
-
-	if len(clusterVersion) < 1 {
-		ioStreams.Info("oam-kubernetes-runtime not found in your kubernetes cluster, please use `ruder admin:init` to install.")
-		ioStreams.Infof("client  version: %s \n", version)
-		return nil
+		ioStreams.Errorf("fail to get cluster version, err: %v \n", err)
+		return err
 	}
 
 	ioStreams.Infof("cluster version: %s \n", clusterVersion)
@@ -208,7 +204,7 @@ func NewHelmInstall(version string, ioStreams cmdutil.IOStreams) (*action.Instal
 		kube.GetConfig(cmdutil.GetKubeConfig(), "", types.DefaultOAMNS),
 		types.DefaultOAMNS,
 		os.Getenv("HELM_DRIVER"),
-		info,
+		debug,
 	); err != nil {
 		return nil, err
 	}
@@ -216,7 +212,6 @@ func NewHelmInstall(version string, ioStreams cmdutil.IOStreams) (*action.Instal
 	client := action.NewInstall(actionConfig)
 	client.Namespace = types.DefaultOAMNS
 	client.ReleaseName = types.DefaultOAMReleaseName
-
 	if len(version) > 0 {
 		client.Version = version
 		return client, nil
@@ -225,8 +220,11 @@ func NewHelmInstall(version string, ioStreams cmdutil.IOStreams) (*action.Instal
 	return client, nil
 }
 
-func info(format string, v ...interface{}) {
-	fmt.Sprintf(format, v)
+func debug(format string, v ...interface{}) {
+	if settings.Debug {
+		format = fmt.Sprintf("[debug] %s\n", format)
+		log.Output(2, fmt.Sprintf(format, v...))
+	}
 }
 
 func GetChart(client *action.Install, name string) (*chart.Chart, error) {
@@ -297,7 +295,7 @@ func GetHelmRelease() ([]*release.Release, error) {
 	actionConfig := new(action.Configuration)
 	client := action.NewList(actionConfig)
 
-	if err := actionConfig.Init(settings.RESTClientGetter(), "", os.Getenv("HELM_DRIVER"), info); err != nil {
+	if err := actionConfig.Init(settings.RESTClientGetter(), "", os.Getenv("HELM_DRIVER"), debug); err != nil {
 		return nil, err
 	}
 	results, err := client.Run()
@@ -319,7 +317,7 @@ func GetOAMReleaseVersion() (string, error) {
 			return result.Chart.AppVersion(), nil
 		}
 	}
-	return "", nil
+	return "", errors.New("oam-kubernetes-runtime not found in your kubernetes cluster, please use `ruder admin:init` to install.")
 }
 
 func filterRepos(repos []*repo.Entry) []*repo.Entry {
