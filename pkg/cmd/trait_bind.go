@@ -45,7 +45,7 @@ func NewCommandOptions(ioStreams cmdutil.IOStreams) *commandOptions {
 
 func AddTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmdutil.IOStreams) error {
 	dir, _ := system.GetDefinitionDir()
-	templates, err := plugins.GetTraitsFromCluster(context.TODO(), types.DefaultOAMNS, c, dir)
+	templates, err := plugins.GetTraitsFromCluster(context.TODO(), types.DefaultOAMNS, c, dir, nil)
 	if err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func AddTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmduti
 			DisableFlagsInUseLine: true,
 			Short:                 "Attach " + name + " trait to an app",
 			Long:                  "Attach " + name + " trait to an app",
-			Example:               `rudr scale frontend --max=5`,
+			Example:               `vela scale frontend --max=5`,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				if err := o.Complete(cmd, args, ctx); err != nil {
 					return err
@@ -165,7 +165,7 @@ func (o *commandOptions) Complete(cmd *cobra.Command, args []string, ctx context
 
 func DetachTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmdutil.IOStreams) error {
 	dir, _ := system.GetDefinitionDir()
-	templates, err := plugins.GetTraitsFromCluster(context.TODO(), types.DefaultOAMNS, c, dir)
+	templates, err := plugins.GetTraitsFromCluster(context.TODO(), types.DefaultOAMNS, c, dir, nil)
 	if err != nil {
 		return err
 	}
@@ -180,7 +180,7 @@ func DetachTraitPlugins(parentCmd *cobra.Command, c client.Client, ioStreams cmd
 			DisableFlagsInUseLine: true,
 			Short:                 "Detach " + name + " trait from an app",
 			Long:                  "Detach " + name + " trait from an app",
-			Example:               `rudr scale:detach frontend`,
+			Example:               `vela scale:detach frontend`,
 			RunE: func(cmd *cobra.Command, args []string) error {
 				if err := o.DetachTrait(cmd, args, ctx); err != nil {
 					return err

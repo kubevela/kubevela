@@ -1,5 +1,5 @@
 domain: oam.dev
-repo: github.com/cloud-native-application/rudrx
+repo: github.com/cloud-native-application/vela
 resources:
 - group: admin
   kind: Template

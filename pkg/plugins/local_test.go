@@ -51,35 +51,35 @@ func TestLocalSink(t *testing.T) {
 		expDef []types.Template
 	}{
 		"Test No Templates": {
-			dir:  "rudrx-test1",
+			dir:  "vela-test1",
 			tmps: nil,
 		},
 		"Test Only Workload": {
-			dir:    "rudrx-test2",
+			dir:    "vela-test2",
 			tmps:   []types.Template{deployment, statefulset},
 			Type:   types.TypeWorkload,
 			expDef: []types.Template{deployment, statefulset},
 		},
 		"Test Only Trait": {
-			dir:    "rudrx-test3",
+			dir:    "vela-test3",
 			tmps:   []types.Template{route},
 			Type:   types.TypeTrait,
 			expDef: []types.Template{route},
 		},
 		"Test Only Workload But want trait": {
-			dir:    "rudrx-test3",
+			dir:    "vela-test3",
 			tmps:   []types.Template{deployment, statefulset},
 			Type:   types.TypeTrait,
 			expDef: nil,
 		},
 		"Test Both have Workload and trait But want Workload": {
-			dir:    "rudrx-test4",
+			dir:    "vela-test4",
 			tmps:   []types.Template{deployment, route, statefulset},
 			Type:   types.TypeWorkload,
 			expDef: []types.Template{deployment, statefulset},
 		},
 		"Test Both have Workload and trait But want Trait": {
-			dir:    "rudrx-test5",
+			dir:    "vela-test5",
 			tmps:   []types.Template{deployment, route, statefulset},
 			Type:   types.TypeTrait,
 			expDef: []types.Template{route},

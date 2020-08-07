@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
+	"k8s.io/apimachinery/pkg/labels"
+
 	"github.com/cloud-native-application/rudrx/pkg/cue"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -17,12 +19,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func GetTemplatesFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string) ([]types.Template, error) {
-	workloads, err := GetWorkloadsFromCluster(ctx, namespace, c, syncDir)
+func GetTemplatesFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Template, error) {
+	workloads, err := GetWorkloadsFromCluster(ctx, namespace, c, syncDir, selector)
 	if err != nil {
 		return nil, err
 	}
-	traits, err := GetTraitsFromCluster(ctx, namespace, c, syncDir)
+	traits, err := GetTraitsFromCluster(ctx, namespace, c, syncDir, selector)
 	if err != nil {
 		return nil, err
 	}
@@ -30,10 +32,10 @@ func GetTemplatesFromCluster(ctx context.Context, namespace string, c client.Cli
 	return workloads, nil
 }
 
-func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string) ([]types.Template, error) {
+func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Template, error) {
 	var templates []types.Template
 	var workloadDefs corev1alpha2.WorkloadDefinitionList
-	err := c.List(ctx, &workloadDefs, &client.ListOptions{Namespace: namespace})
+	err := c.List(ctx, &workloadDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
 	if err != nil {
 		return nil, fmt.Errorf("list WorkloadDefinition err: %s", err)
 	}
@@ -51,10 +53,10 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Cli
 	return templates, nil
 }
 
-func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string) ([]types.Template, error) {
+func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Template, error) {
 	var templates []types.Template
 	var traitDefs corev1alpha2.TraitDefinitionList
-	err := c.List(ctx, &traitDefs, &client.ListOptions{Namespace: namespace})
+	err := c.List(ctx, &traitDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
 	if err != nil {
 		return nil, fmt.Errorf("list TraitDefinition err: %s", err)
 	}

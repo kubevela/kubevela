@@ -18,7 +18,7 @@ func NewWorkloadsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.I
 		DisableFlagsInUseLine: true,
 		Short:                 "List workloads",
 		Long:                  "List workloads",
-		Example:               `rudr workloads`,
+		Example:               `vela workloads`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return printWorkloadList(ctx, c, ioStreams)
 		},

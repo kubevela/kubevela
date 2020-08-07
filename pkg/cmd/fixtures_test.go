@@ -58,7 +58,7 @@ var (
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "containerizedworkloads.core.oam.dev",
 			Annotations: map[string]string{
-				"rudrx.oam.dev/template": "containerizedworkload-template",
+				"vela.oam.dev/template": "containerizedworkload-template",
 			},
 			Namespace: "default",
 		},
@@ -87,7 +87,7 @@ var (
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "app2060",
 			Annotations: map[string]string{
-				"rudrx.oam.dev/template": "containerizedworkload-template",
+				"vela.oam.dev/template": "containerizedworkload-template",
 			},
 			Namespace: "default",
 		},
@@ -121,8 +121,8 @@ var (
 			Name:      "manualscalertrait.core.oam.dev",
 			Namespace: "default",
 			Annotations: map[string]string{
-				"rudrx.oam.dev/template": "manualscalertrait.core.oam.dev-template",
-				"short":                  "ManualScaler",
+				"vela.oam.dev/template": "manualscalertrait.core.oam.dev-template",
+				"short":                 "ManualScaler",
 			},
 		},
 		Spec: corev1alpha2.TraitDefinitionSpec{

@@ -29,8 +29,8 @@ type noUsageError struct{ error }
 var (
 	scheme = k8sruntime.NewScheme()
 
-	// RudrxVersion is the version of cli.
-	RudrxVersion = "UNKNOWN"
+	// VelaVersion is the version of cli.
+	VelaVersion = "UNKNOWN"
 
 	// GitRevision is the commit of repo
 	GitRevision = "UNKNOWN"
@@ -58,7 +58,7 @@ func newCommand() *cobra.Command {
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 
 	cmds := &cobra.Command{
-		Use:          "rudr",
+		Use:          "vela",
 		Short:        "✈️  A Micro App Plafrom for Kubernetes.",
 		Long:         "✈️  A Micro App Plafrom for Kubernetes.",
 		Run:          runHelp,
@@ -92,7 +92,7 @@ func newCommand() *cobra.Command {
 		cmd.NewTraitsCommand(f, client, ioStream, []string{}),
 		cmd.NewWorkloadsCommand(f, client, ioStream, os.Args[1:]),
 		cmd.NewAdminInitCommand(f, client, ioStream),
-		cmd.NewAdminInfoCommand(RudrxVersion, ioStream),
+		cmd.NewAdminInfoCommand(VelaVersion, ioStream),
 		cmd.NewDeleteCommand(f, client, ioStream, os.Args[1:]),
 		cmd.NewAppsCommand(f, client, ioStream),
 		cmd.NewEnvInitCommand(client, ioStream),
@@ -132,7 +132,7 @@ func NewVersionCommand() *cobra.Command {
 GitRevision: %v
 GolangVersion: %v
 `,
-				RudrxVersion,
+				VelaVersion,
 				GitRevision,
 				runtime.Version())
 		},

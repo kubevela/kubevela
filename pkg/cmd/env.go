@@ -29,7 +29,7 @@ func NewEnvInitCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Comm
 		DisableFlagsInUseLine: true,
 		Short:                 "Create environments",
 		Long:                  "Create environment and switch to it",
-		Example:               `rudr env:init test --namespace test`,
+		Example:               `vela env:init test --namespace test`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return CreateOrUpdateEnv(ctx, c, &envArgs, args, ioStreams)
 		},
@@ -46,7 +46,7 @@ func NewEnvDeleteCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Delete environment",
 		Long:                  "Delete environment",
-		Example:               `rudr env:delete test`,
+		Example:               `vela env:delete test`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return DeleteEnv(ctx, args, ioStreams)
 		},
@@ -62,7 +62,7 @@ func NewEnvCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "List environments",
 		Long:                  "List all environments",
-		Example:               `rudr env [env-name]`,
+		Example:               `vela env [env-name]`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return ListEnvs(ctx, args, ioStreams)
 		},
@@ -78,7 +78,7 @@ func NewEnvSwitchCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Switch environments",
 		Long:                  "switch to another environment",
-		Example:               `rudr env test`,
+		Example:               `vela env test`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return SwitchEnv(ctx, args, ioStreams)
 		},
@@ -129,7 +129,7 @@ func ListEnvs(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) e
 
 func DeleteEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) error {
 	if len(args) < 1 {
-		return fmt.Errorf("you must specify env name for rudr env:delete command")
+		return fmt.Errorf("you must specify env name for vela env:delete command")
 	}
 	envname := args[0]
 	curEnv, err := GetCurrentEnvName()
@@ -152,7 +152,7 @@ func DeleteEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) 
 
 func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvMeta, args []string, ioStreams cmdutil.IOStreams) error {
 	if len(args) < 1 {
-		return fmt.Errorf("you must specify env name for rudr env:init command")
+		return fmt.Errorf("you must specify env name for vela env:init command")
 	}
 	envname := args[0]
 	data, err := json.Marshal(envArgs)
@@ -183,7 +183,7 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvM
 
 func SwitchEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) error {
 	if len(args) < 1 {
-		return fmt.Errorf("you must specify env name for rudr env command")
+		return fmt.Errorf("you must specify env name for vela env command")
 	}
 	envname := args[0]
 	currentEnvPath, err := system.GetCurrentEnvPath()

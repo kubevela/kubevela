@@ -2,9 +2,13 @@ package plugins
 
 import (
 	"context"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/ghodss/yaml"
 
 	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
@@ -36,6 +40,8 @@ var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var definitionDir string
+var td v1alpha2.TraitDefinition
+var wd v1alpha2.WorkloadDefinition
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -47,7 +53,7 @@ func TestAPIs(t *testing.T) {
 
 var _ = BeforeSuite(func(done Done) {
 	logf.SetLogger(zap.LoggerTo(GinkgoWriter, true))
-
+	ctx := context.Background()
 	By("bootstrapping test environment")
 	useExistCluster := true
 	testEnv = &envtest.Environment{
@@ -116,6 +122,26 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).Should(BeNil())
 	os.MkdirAll(definitionDir, 0755)
 	Expect(k8sClient.Create(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+	Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: DefinitionNamespace}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+	traitdata, err := ioutil.ReadFile("testdata/traitDef.yaml")
+	Expect(err).Should(BeNil())
+	Expect(yaml.Unmarshal(traitdata, &td)).Should(BeNil())
+
+	td.Namespace = DefinitionNamespace
+	logf.Log.Info("Creating trait definition", "data", td)
+	Expect(k8sClient.Create(ctx, &td)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+	workloaddata, err := ioutil.ReadFile("testdata/workloadDef.yaml")
+	Expect(err).Should(BeNil())
+
+	Expect(yaml.Unmarshal(workloaddata, &wd)).Should(BeNil())
+
+	wd.Namespace = DefinitionNamespace
+	logf.Log.Info("Creating workload definition", "data", wd)
+	Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
 	close(done)
 }, 60)
 
@@ -123,7 +149,8 @@ var DefinitionNamespace = "testdef"
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	k8sClient.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: DefinitionNamespace}})
-
+	k8sClient.Delete(context.Background(), &td)
+	k8sClient.Delete(context.Background(), &wd)
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })

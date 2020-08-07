@@ -20,7 +20,7 @@ func NewTraitsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOSt
 		DisableFlagsInUseLine: true,
 		Short:                 "List traits",
 		Long:                  "List traits",
-		Example:               `rudr traits`,
+		Example:               `vela traits`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return printTraitList(ctx, c, &workloadName, ioStreams)
 		},

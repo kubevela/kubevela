@@ -4,11 +4,10 @@ components:
     deployment:
       image: inanimate/echo-server
       env:
-        PORT: "8080"
+        - PORT: "8080"
     traits:
-      autoscaling:
-        max: 10
-        min: 1
+      manualscaler:
+        replica: 2
       rollout:
         strategy: canary
         step: 5

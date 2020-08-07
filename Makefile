@@ -18,7 +18,7 @@ test: fmt vet
 
 # Build manager binary
 build: fmt vet
-	go build -ldflags "-X main.RudrxVersion=${RUDRX_VERSION} -X main.GitRevision=${GIT_COMMIT}" -o bin/rudrx cmd/rudrx/main.go
+	go build -ldflags "-X main.RudrxVersion=${RUDRX_VERSION} -X main.GitRevision=${GIT_COMMIT}" -o bin/vela cmd/vela/main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: fmt vet

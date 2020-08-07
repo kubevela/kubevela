@@ -35,7 +35,7 @@ If you change Template CRD, remember to rerun `make install`.
 Use the following command to develop and debug.
 
 ```shell script
-$ cd cmd/rudrx
+$ cd cmd/vela
 $ go run main.go COMMAND [FLAG]
 ```
 
@@ -67,7 +67,7 @@ workloaddefinition.core.oam.dev/statefulsets.apps                     statefulse
 ## Test
 ```
 $ go test ./pkg/test
-ok  	github.com/cloud-native-application/rudrx/pkg/test	14.662s
+ok  	github.com/cloud-native-application/vela/pkg/test	14.662s
 ```
 
 ## Make a pull request

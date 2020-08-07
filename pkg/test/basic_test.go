@@ -7,10 +7,10 @@ import (
 )
 
 var (
-	rudrPath, _ = os.Getwd()
+	velaPath, _ = os.Getwd()
 )
 
 func Command(name string, arg ...string) *exec.Cmd {
-	commandName := path.Join(rudrPath, name)
+	commandName := path.Join(velaPath, name)
 	return exec.Command(commandName, arg...)
 }
