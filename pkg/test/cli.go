@@ -8,7 +8,6 @@ import (
 	"gotest.tools/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	cmdtesting "k8s.io/kubectl/pkg/cmd/testing"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -50,12 +49,12 @@ type clitestImpl struct {
 	cases   map[string]*CliTestCase
 	t       *testing.T
 	scheme  *runtime.Scheme
-	command func(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command
+	command func(c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command
 }
 
 // NewCliTest return cli testimpl
 func NewCliTest(t *testing.T, scheme *runtime.Scheme,
-	command func(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams,
+	command func(c client.Client, ioStreams cmdutil.IOStreams,
 		args []string) *cobra.Command, cases map[string]*CliTestCase) CliTest {
 	return &clitestImpl{
 		cases:   cases,
@@ -69,7 +68,6 @@ func NewCliTest(t *testing.T, scheme *runtime.Scheme,
 func (c *clitestImpl) Run() {
 	for name, tc := range c.cases {
 		c.t.Run(name, func(t *testing.T) {
-			factory := cmdtesting.NewTestFactory().WithNamespace("default")
 			fakeClient := fake.NewFakeClientWithScheme(c.scheme)
 			iostream, _, outPut, _ := cmdutil.NewTestIOStreams()
 
@@ -88,7 +86,7 @@ func (c *clitestImpl) Run() {
 			}
 
 			// init command
-			runCmd := c.command(factory, fakeClient, iostream, tc.Args)
+			runCmd := c.command(fakeClient, iostream, tc.Args)
 			runCmd.SetOutput(outPut)
 			err := runCmd.Execute()
 

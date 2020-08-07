@@ -37,7 +37,7 @@ func newDeleteCommand() *cobra.Command {
 }
 
 // NewDeleteCommand init new command
-func NewDeleteCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
+func NewDeleteCommand(c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
 	cmd := newDeleteCommand()
 	cmd.SetArgs(args)
 	cmd.SetOut(ioStreams.Out)
@@ -45,7 +45,7 @@ func NewDeleteCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOSt
 	o.client = c
 	o.Env, _ = GetEnv()
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		if err := o.Complete(f, cmd, args); err != nil {
+		if err := o.Complete(cmd, args); err != nil {
 			return err
 		}
 		return o.Delete()
@@ -53,7 +53,7 @@ func NewDeleteCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOSt
 	return cmd
 }
 
-func (o *deleteOptions) Complete(f cmdutil.Factory, cmd *cobra.Command, args []string) error {
+func (o *deleteOptions) Complete(cmd *cobra.Command, args []string) error {
 
 	if len(args) < 1 {
 		return errors.New("must specify name for workload")
