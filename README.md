@@ -23,24 +23,45 @@ Usage:
   vela [command]
 
 Available Commands:
-  ManualScaler      Attach ManualScaler trait to an app
-  SimpleRollout     Attach SimpleRollout trait to an app
-  app:delete        Delete OAM Applications
-  app:ls            List applications
-  app:status        get status of an application
-  completion        Output shell completion code for the specified shell (bash or zsh)
-  containerized:run Run containerized workloads
-  deployment:run    Run deployment workloads
-  env               List environments
-  env:delete        Delete environment
-  env:init          Create environments
-  env:sw            Switch environments
-  help              Help about any command
-  init              Initialize RudrX on both client and server
-  route             Attach route trait to an app
-  traits            List traits
-  version           Prints out build version information
-  workloads         List workloads
+
+  Getting Started:
+    env       	List all environments
+    env:delete	Delete environment
+    env:init  	Create environment and switch to it
+    env:sw    	switch to another environment
+    version   	Prints out build version information
+
+  Applications:
+    app:delete [APPLICATION_NAME]	Delete OAM Applications
+    app:ls                       	List applications with workloads, traits, status and created time
+    app:status                   	get status of an application, including its workload and trait
+
+  Workloads:
+    containerized:run <appname> [args]	Run containerized workloads
+    deployment:run <appname> [args]   	Run deployment workloads
+
+  Traits:
+    manualscaler <appname> [args]	Attach manualscaler trait to an app
+    manualscaler:detach <appname>	Detach manualscaler trait from an app
+    rollout <appname> [args]     	Attach rollout trait to an app
+    rollout:detach <appname>     	Detach rollout trait from an app
+    route <appname> [args]       	Attach route trait to an app
+    route:detach <appname>       	Detach route trait from an app
+
+  Release:
+
+
+  Others:
+    addon:config	Set the addon center, default is local (built-in ones)
+    addon:ls    	List addons of workloads and traits
+
+  System:
+    completion [bash|zsh]	Output shell completion code for the specified shell (bash or zsh...
+    refresh              	Refresh and sync definition files from cluster
+    system:info          	show vela client and cluster version
+    system:init [flags]  	Install OAM runtime and vela builtin capabilities.
+
+Use "vela [command] --help" for more information about a command.
 ```
 
 

@@ -1,11 +1,17 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"math/rand"
 	"os"
 	"runtime"
+	"strings"
 	"time"
+
+	"github.com/gosuri/uitable"
+
+	"k8s.io/klog"
 
 	"github.com/cloud-native-application/rudrx/api/types"
 
@@ -90,32 +96,39 @@ func newCommand() *cobra.Command {
 	}
 
 	cmds.AddCommand(
-		cmd.NewAdminInitCommand(commandArgs, ioStream),
-		cmd.NewAdminInfoCommand(VelaVersion, ioStream),
-
-		cmd.NewTraitsCommand(ioStream),
-		cmd.NewWorkloadsCommand(ioStream),
-		cmd.NewRefreshCommand(commandArgs, ioStream),
-
-		cmd.NewDeleteCommand(commandArgs, ioStream, os.Args[1:]),
-		cmd.NewAppsCommand(commandArgs, ioStream),
-		cmd.NewAppStatusCommand(commandArgs, ioStream),
-
+		// Getting Start
 		cmd.NewEnvInitCommand(commandArgs, ioStream),
 		cmd.NewEnvSwitchCommand(ioStream),
 		cmd.NewEnvDeleteCommand(ioStream),
 		cmd.NewEnvCommand(ioStream),
+		NewVersionCommand(),
 
+		// Apps
+		cmd.NewAppsCommand(commandArgs, ioStream),
+		cmd.NewDeleteCommand(commandArgs, ioStream, os.Args[1:]),
+		cmd.NewAppStatusCommand(commandArgs, ioStream),
+
+		// Others
 		cmd.NewAddonConfigCommand(ioStream),
 		cmd.NewAddonListCommand(commandArgs, ioStream),
 
+		// System
+		cmd.NewAdminInitCommand(commandArgs, ioStream),
+		cmd.NewAdminInfoCommand(VelaVersion, ioStream),
+		cmd.NewRefreshCommand(commandArgs, ioStream),
 		cmd.NewCompletionCommand(),
-		NewVersionCommand(),
+
+		cmd.NewTraitsCommand(ioStream),
+		cmd.NewWorkloadsCommand(ioStream),
 	)
+
+	// Workloads
 	if err = cmd.AddWorkloadPlugins(cmds, commandArgs, ioStream); err != nil {
 		fmt.Println("Add plugins from workloadDefinition err", err)
 		os.Exit(1)
 	}
+
+	// Traits
 	if err = cmd.AddTraitPlugins(cmds, commandArgs, ioStream); err != nil {
 		fmt.Println("Add plugins from traitDefinition err", err)
 		os.Exit(1)
@@ -124,7 +137,42 @@ func newCommand() *cobra.Command {
 		fmt.Println("Add plugins from traitDefinition err", err)
 		os.Exit(1)
 	}
+
+	cmds.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		allCommands := cmd.Commands()
+		cmd.Printf("✈️  A Micro App Plafrom for Kubernetes.\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
+		PrintHelpByTag(cmd, allCommands, types.TypeStart)
+		PrintHelpByTag(cmd, allCommands, types.TypeApp)
+		PrintHelpByTag(cmd, allCommands, types.TypeWorkloads)
+		PrintHelpByTag(cmd, allCommands, types.TypeTraits)
+		PrintHelpByTag(cmd, allCommands, types.TypeRelease)
+		PrintHelpByTag(cmd, allCommands, types.TypeOthers)
+		PrintHelpByTag(cmd, allCommands, types.TypeSystem)
+		cmd.Println("Flags:")
+		cmd.Println("  -h, --help   help for vela")
+		cmd.Println()
+		cmd.Println(`Use "vela [command] --help" for more information about a command.`)
+
+	})
+
+	// this is for mute klog
+	fset := flag.NewFlagSet("logs", flag.ContinueOnError)
+	klog.InitFlags(fset)
+	fset.Set("v", "-1")
 	return cmds
+}
+
+func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
+	cmd.Printf("  %s:\n", tag)
+	table := uitable.New()
+	for _, c := range all {
+		useline := strings.TrimPrefix(c.UseLine(), "vela ")
+		if val, ok := c.Annotations[types.TagCommandType]; ok && val == tag {
+			table.AddRow("    "+useline, c.Long)
+		}
+	}
+	cmd.Println(table.String())
+	cmd.Println()
 }
 
 func runHelp(cmd *cobra.Command, args []string) {
@@ -135,6 +183,7 @@ func NewVersionCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Prints out build version information",
+		Long:  "Prints out build version information",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Printf(`Version: %v
 GitRevision: %v
@@ -143,6 +192,9 @@ GolangVersion: %v
 				VelaVersion,
 				GitRevision,
 				runtime.Version())
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeStart,
 		},
 	}
 }

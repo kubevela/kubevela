@@ -78,6 +78,9 @@ func NewAddonConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 				ioStreams.Errorf("Unnecessary arguments are specified, please try again")
 			}
 		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeOthers,
+		},
 	}
 	return cmd
 }
@@ -103,6 +106,9 @@ func NewAddonListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 				return err
 			}
 			return nil
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeOthers,
 		},
 	}
 	return cmd

@@ -31,6 +31,9 @@ func newDeleteCommand() *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Delete OAM Applications",
 		Long:                  "Delete OAM Applications",
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeApp,
+		},
 		Example: `
   vela delete frontend
 `}

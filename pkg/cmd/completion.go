@@ -2,20 +2,20 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/spf13/cobra"
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/spf13/cobra"
 )
 
-const completionDesc = `
-Output shell completion code for the specified shell (bash or zsh). 
+const completionDesc = `Output shell completion code for the specified shell (bash or zsh). 
 The shell code must be evaluated to provide interactive completion 
 of vela commands.
 `
 
-const bashCompDesc = `
-Generate the autocompletion script for Vela for the bash shell.
+const bashCompDesc = `Generate the autocompletion script for Vela for the bash shell.
 
 To load completions in your current shell session:
 $ source <(vela completion bash)
@@ -27,8 +27,7 @@ MacOS:
   $ vela completion bash > /usr/local/etc/bash_completion.d/vela
 `
 
-const zshCompDesc = `
-Generate the autocompletion script for Vela for the zsh shell.
+const zshCompDesc = `Generate the autocompletion script for Vela for the zsh shell.
 
 To load completions in your current shell session:
 $ source <(vela completion zsh)
@@ -43,6 +42,9 @@ func NewCompletionCommand() *cobra.Command {
 		Short: "Output shell completion code for the specified shell (bash or zsh)",
 		Long:  completionDesc,
 		Args:  cobra.NoArgs,
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeSystem,
+		},
 	}
 
 	bash := &cobra.Command{

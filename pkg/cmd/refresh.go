@@ -28,6 +28,9 @@ func NewRefreshCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			}
 			return RefreshDefinitions(ctx, newClient, ioStreams)
 		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeSystem,
+		},
 	}
 	cmd.SetOut(ioStreams.Out)
 	return cmd
