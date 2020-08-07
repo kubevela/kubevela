@@ -7,12 +7,13 @@ import (
 	"runtime"
 	"time"
 
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
+
 	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
 	"github.com/spf13/cobra"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/cli-runtime/pkg/genericclioptions"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -65,11 +66,7 @@ func newCommand() *cobra.Command {
 		SilenceUsage: true,
 	}
 
-	flags := cmds.PersistentFlags()
-	kubeConfigFlags := genericclioptions.NewConfigFlags(true).WithDeprecatedPasswordFlag()
-	kubeConfigFlags.AddFlags(flags)
-	f := cmdutil.NewFactory(kubeConfigFlags)
-	restConf, err := f.ToRESTConfig()
+	restConf, err := config.GetConfig()
 	if err != nil {
 		fmt.Println("get kubeconfig err", err)
 		os.Exit(1)
@@ -89,12 +86,12 @@ func newCommand() *cobra.Command {
 	}
 
 	cmds.AddCommand(
-		cmd.NewTraitsCommand(f, client, ioStream, []string{}),
-		cmd.NewWorkloadsCommand(f, client, ioStream, os.Args[1:]),
-		cmd.NewAdminInitCommand(f, client, ioStream),
+		cmd.NewTraitsCommand(client, ioStream, []string{}),
+		cmd.NewWorkloadsCommand(client, ioStream, os.Args[1:]),
+		cmd.NewAdminInitCommand(client, ioStream),
 		cmd.NewAdminInfoCommand(VelaVersion, ioStream),
-		cmd.NewDeleteCommand(f, client, ioStream, os.Args[1:]),
-		cmd.NewAppsCommand(f, client, ioStream),
+		cmd.NewDeleteCommand(client, ioStream, os.Args[1:]),
+		cmd.NewAppsCommand(client, ioStream),
 		cmd.NewEnvInitCommand(client, ioStream),
 		cmd.NewEnvSwitchCommand(ioStream),
 		cmd.NewEnvDeleteCommand(ioStream),

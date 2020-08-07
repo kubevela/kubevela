@@ -109,7 +109,7 @@ func (i *infoCmd) run(version string, ioStreams cmdutil.IOStreams) error {
 	return nil
 }
 
-func NewAdminInitCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewAdminInitCommand(c client.Client, ioStreams cmdutil.IOStreams) *cobra.Command {
 
 	i := &initCmd{out: ioStreams.Out}
 

@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func NewTraitsCommand(f cmdutil.Factory, c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
+func NewTraitsCommand(c client.Client, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
 	ctx := context.Background()
 	var workloadName string
 	cmd := &cobra.Command{

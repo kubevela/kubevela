@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/cloud-native-application/rudrx/api/types"
 
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
@@ -269,4 +271,44 @@ func GetWorkloadDefinitionByAlias(ctx context.Context, c client.Client, traitAli
 	}
 
 	return workloadDefinition, nil
+}
+
+func PrintUsageIntroduce(cmd *cobra.Command, introduce string) {
+	cmd.Println(introduce)
+	cmd.Println()
+}
+
+func PrintUsage(cmd *cobra.Command, subcmds []*cobra.Command) {
+	printUsage := func(cmd *cobra.Command) {
+		useline := cmd.UseLine()
+		if !strings.HasPrefix(useline, "vela ") {
+			useline = "vela " + useline
+		}
+		cmd.Printf("  %s\t\t%s\n", useline, cmd.Long)
+	}
+	cmd.Println("Usage:")
+	for _, sub := range subcmds {
+		printUsage(sub)
+	}
+	cmd.Println()
+}
+func PrintExample(cmd *cobra.Command, subcmds []*cobra.Command) {
+	printExample := func(cmd *cobra.Command) {
+		cmd.Printf("  %s\n", cmd.Example)
+	}
+	cmd.Println("Examples:")
+	for _, sub := range subcmds {
+		printExample(sub)
+	}
+	cmd.Println()
+}
+
+func PrintFlags(cmd *cobra.Command, subcmds []*cobra.Command) {
+	cmd.Println("Flags:")
+	for _, sub := range subcmds {
+		if sub.HasLocalFlags() {
+			fmt.Printf(sub.LocalFlags().FlagUsages())
+		}
+	}
+	cmd.Println()
 }
