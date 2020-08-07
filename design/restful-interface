@@ -1,18 +1,63 @@
 # Vela RESTful API design
 
-Below, I will list the Vela backend RESTful API grouped by each resource.
-
-We will set RESTful version as `APIVersionV1 = "2020-08-15"`
+Below, I list the Vela backend RESTful API grouped by each resource.
 
 The first version does not use authentication or authorization. We will use go structure to 
 represent request and response body.
 
-We will define some common header keys like "x-oam-client-type", "x-oam-username" but it's not fleshed out yet.
+## Common properties
+
+### Base URL
+The base URL is **`vela.oam.dev`**, 
+
+### Common Request Headers
+Below are the common request headers. All fields are required.
+
+| Name          | Type   | Values      | Description          |
+|---------------|--------|--------------|----------------------|
+| x-oam-version | String | "2020-08-15" | The REST API version  that user wants to use|
+| x-oam-client-type| String | "CLI", "Dashboard" |  The type of client    |
+| x-oam-request-timestamp | String | yyyy-MM-dd HH:mm:ss.SS | UTC time of the request|
+| x-oam-client-id |  String  |    N/A        |   The unique client id |
+| x-oam-client-request-id|String|  N/A          |   The unique client request id |
+
+### Common Response Headers
+
+ Name          | Type   | Values      | Description          |
+|---------------|--------|--------------|----------------------|
+| x-oam-client-request-id|String|  N/A          |   The unique client request id |
+| x-oam-response-timestamp | String | yyyy-MM-dd HH:mm:ss.SS | UTC time of the response|
+
+
+### Common Error Status
+| Error code                 |  HTTP status code  | User message                                                                       |
+|----------------------------|------------------|------------------------------------------------------------------------------------|
+| Already Exists             | 409              | The specific resource already exists                                               |
+| Not Found                  | 404              | The specific resource not found                                                    |
+| InvalidHeaderValue         | 400              | The value provided for one of the HTTP headers was not in the correct format.      |
+| InvalidQueryParameterValue | 400              | An invalid value was specified for one of the query parameters in the request URI. |
+| InvalidInput               | 400              | One of the request inputs is not valid.                                            |
+| InternalError              | 500              | The server encountered an internal error. Please retry the request.                |
+
+### Common Query parameters
+**updateMode**
+```go
+type updateMode string
+const fullcontent updateMode = "fullContent"
+const cueTemplate updateMode = "cueTemplate"
+```
+
+**qureyMode**
+```go
+type qureyMode string
+const fullcontent qureyMode = "fullContent"
+const cueTemplate qureyMode = "cueTemplate"
+```
 
 ## ApplicationConfiguration related API
 
 ### Create 
-**URL** : `/APIVersionV1/appconfig/`
+**URL** : `/vela.oam.dev/apps/`
 
 **Method** : `POST`
 
@@ -23,6 +68,7 @@ We will define some common header keys like "x-oam-client-type", "x-oam-username
 ```go
 
 type appConfigValue struct {
+    appName string       `json:"appName"`
     parameter interface{}[] `json:"parameter"` // the parameter list, not sure if they are all string
     definitionName string `json:"definitionName"` // use to find the definition
     definitionType string `json:"definitionType"`
@@ -33,7 +79,7 @@ type appConfigValue struct {
 
 
 ### Update 
-**URL** : `/APIVersionV1/appconfig/${appConfigName}`
+**URL** : `/vela.oam.dev/apps/${appName}`
 
 **Method** : `PUT`
 
@@ -52,22 +98,23 @@ type appConfigValue struct {
 
 ### Get
 
-**URL** : `/APIVersionV1/appconfig/${appconfigName}`
+**URL** : `/vela.oam.dev/apps/${appName}`
 
 **Method** : `Get`
 
-**Query Parameter** : `mode` 
+**Query Parameter** : `appQuerymode` 
 ```go
-type mode string
-const fullcontent mode = "fullContent"
-const parameterOnly mode = "parameterOnly"
-const statusOnly mode = "statusOnly"
+type appQuerymode string
+const fullcontent appQuerymode = "fullContent"
+const parameterOnly appQuerymode = "parameterOnly"
+const statusOnly appQuerymode = "statusOnly"
 ```
 **Body** : None
 
 **Responses Body** : 
 ```go
 type appConfigValue struct {
+    appName string  `json:"appName"` // the app name
     parameterName string[] `json:"parameterName"` // the parameterName list
     definition runtime.RawExtension `json:"definition"` // the entire appConfig definition
     status runtime.RawExtension `json:"status"` // the status only part
@@ -76,7 +123,7 @@ type appConfigValue struct {
 
 ### List
 
-**URL** : `/APIVersionV1/appconfig/`
+**URL** : `/vela.oam.dev/apps/`
 
 **Method** : `Get`
 
@@ -93,7 +140,7 @@ type appConfigNames struct {
 
 ### Delete
 
-**URL** : `/APIVersionV1/appconfig/${appconfigName}`
+**URL** : `/vela.oam.dev/apps/${appName}`
 
 **Method** : `Delete`
 
@@ -106,11 +153,11 @@ type appConfigNames struct {
 ## Definition related API
 
 We will add ${definitionType} in the path to differentiate if it's a workload/trait/scope definition.
-It can be either "workload","trait", or "scope".
+It can be either "workloadDefinition","traitDefinition", or "scopeDefinition".
  
 ### Create 
 
-**URL** : `/APIVersionV1/${definitionType}/`
+**URL** : `/vela.oam.dev/${definitionType}/`
 
 **Method** : `POST`
 
@@ -121,24 +168,25 @@ It can be either "workload","trait", or "scope".
 ```go
 
 type oamDefinition struct {
+	definitionName string `json:"definitionName"`
     definition runtime.RawExtension `json:"definition"` // the real definition data
 }
 ```
 
 ### Update 
 
-**URL** : `/APIVersionV1/${definitionType}/${definitionName}`
+**URL** : `/vela.oam.dev/${definitionType}/${definitionName}`
 
 **Method** : `PUT`
 
-**Query Parameter** : `None`
+**Query Parameter** : `updateMode` 
 
 **Body** :
 
 ```go
 
 type oamDefinition struct {
-    definition runtime.RawExtension `json:"definition"` // the real definition data
+    definition runtime.RawExtension `json:"definition"` // the definition data
 }
 ```
 
@@ -146,15 +194,11 @@ type oamDefinition struct {
 
 ### GET
 
-**URL** : `/APIVersionV1/${definitionType}/${definitionName}`
+**URL** : `/vela.oam.dev/definition/${definitionType}/${definitionName}`
 
 **Method** : `Get`
 
-**Query Parameter** : `mode` 
-```go
-type mode string
-const fullcontent mode = "fullContent"
-const cueTemplate mode = "cueTemplate"
+**Query Parameter** : `qureyMode` 
 ```
 **Body** : None
 
@@ -167,7 +211,7 @@ type definition struct {
 
 ### List
 
-**URL** : `/APIVersionV1/${definitionType}/`
+**URL** : `/vela.oam.dev/${definitionType}/`
 
 **Method** : `Get`
 
@@ -184,7 +228,7 @@ type definitionName struct {
 
 ### Delete
 
-**URL** : `/APIVersionV1/${definitionType}/${definitionName}`
+**URL** : `/vela.oam.dev/${definitionType}/${definitionName}`
 
 **Method** : `Delete`
 
@@ -193,3 +237,63 @@ type definitionName struct {
 **Body** : None
 
 **Responses Body** : None 
+
+
+## Repo related API
+These API operate on definition files stored in a git repo. It could be a git repo on the local file system. 
+
+They all have a `repoURL` query parameter that stores the git repo's URL so that the server is stateless. 
+ 
+### Update 
+
+**URL** : `/vela.oam.dev/category/${definitionType}/$`
+
+**Method** : `PUT`
+
+**Query Parameter** : `repoURL`, `updateMode` 
+
+**Body** :
+
+```go
+
+type oamDefinition struct {
+	definitionName string `json:"definitionName"`
+    definition runtime.RawExtension `json:"definition"` // the definition data
+}
+```
+
+**Responses Body** : None
+
+### GET
+
+**URL** : `/vela.oam.dev/category/${definitionType}/${definitionName}`
+
+**Method** : `Get`
+
+**Query Parameter** : `repoURL`, `qureyMode` 
+
+**Body** : None
+
+**Responses Body** : 
+```go
+type definition struct {
+    definition runtime.RawExtension `json:"definition"` // either the full definition or the cueTempalte
+}
+```
+
+### List
+
+**URL** : `/vela.oam.dev/category/${definitionType}/`
+
+**Method** : `Get`
+
+**Query Parameter** : `None`
+
+**Body** : None
+
+**Responses Body** : 
+```go
+type definitionName struct {
+    definitionNames string[] `json:"definitionNames"` // the definition name list, no next Token
+}
+```
