@@ -55,9 +55,9 @@ const cueTemplate qureyMode = "cueTemplate"
 ```
 
 ## Environment related API
-Environment is a top level resources in the REST API. 
+Environment is a top level resource in the REST API. 
 ### Create 
-**URL** : `/api/env`
+**URL** : `/api/envs`
 
 **Method** : `POST`
 
@@ -68,14 +68,14 @@ Environment is a top level resources in the REST API.
 ```go
 type env struct {
     envName   string       `json:"envName"` 
-    nameSpace string       `json:"nameSpace"`    
+    namespace string       `json:"namespace"`    
 }
 ```
 
 **Responses Body** : None
 
 ### Get
-**URL** : `/api/env/${envName}`
+**URL** : `/api/envs/${envName}`
 
 **Method** : `GET`
 
@@ -84,14 +84,14 @@ type env struct {
 **Body** : 
 ```go
 type env struct {
-    nameSpace string       `json:"nameSpace"`      
+    namespace string       `json:"namespace"`      
 }
 ```
 
 **Responses Body** : `None` 
 
 ### List 
-**URL** : `/api/env`
+**URL** : `/api/envs`
 
 **Method** : `GET`
 
@@ -107,7 +107,7 @@ type env struct {
 ```
 
 ### Delete 
-**URL** : `/api/env/${envName}`
+**URL** : `/api/envs/${envName}`
 
 **Method** : `Delete`
 
@@ -121,7 +121,7 @@ type env struct {
 An app has to have an environment, so it is a sub-resource under an env.
 
 ### Create 
-**URL** : `/api/env/${envName}/apps`
+**URL** : `/api/envs/${envName}/apps`
 
 **Method** : `POST`
 
@@ -146,7 +146,7 @@ type appConfigValue struct {
 
 
 ### Update 
-**URL** : `/api/env/${envName}/apps/${appName}`
+**URL** : `/api/envs/${envName}/apps/${appName}`
 
 **Method** : `PUT`
 
@@ -169,7 +169,7 @@ type appConfigValue struct {
 
 ### Get
 
-**URL** : `/api/env/${envName}/apps/${appName}`
+**URL** : `/api/envs/${envName}/apps/${appName}`
 
 **Method** : `Get`
 
@@ -193,7 +193,7 @@ type appConfigValue struct {
 
 ### List
 
-**URL** : `/api/env/${envName}/apps`
+**URL** : `/api/envs/${envName}/apps`
 
 **Method** : `Get`
 
@@ -210,7 +210,7 @@ type appConfigNames struct {
 
 ### Delete
 
-**URL** : `/api/env/${envName}/apps/${appName}`
+**URL** : `/api/envs/${envName}/apps/${appName}`
 
 **Method** : `Delete`
 
@@ -373,7 +373,7 @@ This is debatable, we are not sure if this is really needed.
 
 ### GET
 
-**URL** : `/api/version/${version}`
+**URL** : `/api/version`
 
 **Method** : `Get`
 
