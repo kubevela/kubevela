@@ -21,6 +21,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+func EnvCommandGroup(parentCmd *cobra.Command, c types.Args, ioStream cmdutil.IOStreams) {
+	parentCmd.AddCommand(NewEnvInitCommand(c, ioStream),
+		NewEnvSwitchCommand(ioStream),
+		NewEnvDeleteCommand(ioStream),
+		NewEnvCommand(ioStream),
+	)
+}
+
 func NewEnvCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{

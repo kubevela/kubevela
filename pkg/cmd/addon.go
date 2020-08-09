@@ -44,6 +44,12 @@ type Plugin struct {
 	ApplesTo   string `json:"applies_to"`
 }
 
+func AddonCommandGroup(parentCmd *cobra.Command, c types.Args, ioStream cmdutil.IOStreams) {
+	parentCmd.AddCommand(NewAddonConfigCommand(ioStream),
+		NewAddonListCommand(c, ioStream),
+	)
+}
+
 func NewAddonConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "addon:config",
