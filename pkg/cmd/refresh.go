@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 
 	"github.com/cloud-native-application/rudrx/api/types"
@@ -36,12 +35,6 @@ func NewRefreshCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 	return cmd
 }
 
-func StatOrCreate(dir string) {
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		os.MkdirAll(dir, 0755)
-	}
-}
-
 func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams) error {
 	dir, _ := system.GetDefinitionDir()
 
@@ -51,7 +44,7 @@ func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.
 		return err
 	}
 	workloadDir := filepath.Join(dir, "workloads")
-	StatOrCreate(workloadDir)
+	system.StatAndCreate(workloadDir)
 	ioStreams.Infof("get %d workload definitions from cluster, syncing to %s...", len(templates), workloadDir)
 	successNum := plugins.SinkTemp2Local(templates, workloadDir)
 	ioStreams.Infof("%d workload definitions successfully synced\n", successNum)
@@ -62,7 +55,7 @@ func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.
 		return err
 	}
 	traitDir := filepath.Join(dir, "traits")
-	StatOrCreate(traitDir)
+	system.StatAndCreate(traitDir)
 	ioStreams.Infof("get %d trait definitions from cluster, syncing to %s...", len(templates), traitDir)
 	successNum = plugins.SinkTemp2Local(templates, traitDir)
 	ioStreams.Infof("%d trait definitions successfully synced\n", successNum)

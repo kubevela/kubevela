@@ -23,6 +23,23 @@ func GetVelaHomeDir() (string, error) {
 	return filepath.Join(home, defaultVelaHome), nil
 }
 
+func GetRepoDir() (string, error) {
+	home, err := GetVelaHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".repo"), nil
+}
+
+func GetRepoConfig() (string, error) {
+	home, err := GetRepoDir()
+	if err != nil {
+		return "", err
+	}
+	StatAndCreate(home)
+	return filepath.Join(home, "config.yaml"), nil
+}
+
 func GetApplicationDir() (string, error) {
 	home, err := GetVelaHomeDir()
 	if err != nil {
@@ -76,9 +93,7 @@ func InitDefaultEnv() error {
 	if err != nil {
 		return err
 	}
-	if err = os.MkdirAll(envDir, 0755); err != nil {
-		return err
-	}
+	StatAndCreate(envDir)
 	data, _ := json.Marshal(&types.EnvMeta{Namespace: types.DefaultEnvName})
 	if err = ioutil.WriteFile(filepath.Join(envDir, types.DefaultEnvName), data, 0644); err != nil {
 		return err
@@ -91,4 +106,10 @@ func InitDefaultEnv() error {
 		return err
 	}
 	return nil
+}
+
+func StatAndCreate(dir string) {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		os.MkdirAll(dir, 0755)
+	}
 }
