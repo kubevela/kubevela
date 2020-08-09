@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cloud-native-application/rudrx/version"
+
 	"github.com/gosuri/uitable"
 
 	"k8s.io/klog"
@@ -36,12 +38,6 @@ type noUsageError struct{ error }
 
 var (
 	scheme = k8sruntime.NewScheme()
-
-	// VelaVersion is the version of cli.
-	VelaVersion = "UNKNOWN"
-
-	// GitRevision is the commit of repo
-	GitRevision = "UNKNOWN"
 )
 
 func init() {
@@ -95,12 +91,15 @@ func newCommand() *cobra.Command {
 		os.Exit(1)
 	}
 
+	// Getting Start
+	cmd.EnvCommandGroup(cmds, commandArgs, ioStream)
+	// Others
+	cmd.AddonCommandGroup(cmds, commandArgs, ioStream)
+	// System
+	cmd.SystemCommandGroup(cmds, commandArgs, ioStream)
+
 	cmds.AddCommand(
 		// Getting Start
-		cmd.NewEnvInitCommand(commandArgs, ioStream),
-		cmd.NewEnvSwitchCommand(ioStream),
-		cmd.NewEnvDeleteCommand(ioStream),
-		cmd.NewEnvCommand(ioStream),
 		NewVersionCommand(),
 
 		// Apps
@@ -109,13 +108,7 @@ func newCommand() *cobra.Command {
 		cmd.NewAppStatusCommand(commandArgs, ioStream),
 		cmd.NewAppShowCommand(commandArgs, ioStream),
 
-		// Others
-		cmd.NewAddonConfigCommand(ioStream),
-		cmd.NewAddonListCommand(commandArgs, ioStream),
-
 		// System
-		cmd.NewAdminInitCommand(commandArgs, ioStream),
-		cmd.NewAdminInfoCommand(VelaVersion, ioStream),
 		cmd.NewRefreshCommand(commandArgs, ioStream),
 		cmd.NewCompletionCommand(),
 
@@ -190,8 +183,8 @@ func NewVersionCommand() *cobra.Command {
 GitRevision: %v
 GolangVersion: %v
 `,
-				VelaVersion,
-				GitRevision,
+				version.VelaVersion,
+				version.GitRevision,
 				runtime.Version())
 		},
 		Annotations: map[string]string{

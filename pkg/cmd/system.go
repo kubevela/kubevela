@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/cloud-native-application/rudrx/pkg/builtin"
 
@@ -42,7 +43,7 @@ var (
 
 type initCmd struct {
 	namespace string
-	out       io.Writer
+	ioStreams cmdutil.IOStreams
 	client    client.Client
 	version   string
 }
@@ -68,7 +69,13 @@ var (
 	}
 )
 
-func NewAdminInfoCommand(version string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func SystemCommandGroup(parentCmd *cobra.Command, c types.Args, ioStream cmdutil.IOStreams) {
+	parentCmd.AddCommand(NewAdminInitCommand(c, ioStream),
+		NewAdminInfoCommand(ioStream),
+	)
+}
+
+func NewAdminInfoCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	i := &infoCmd{out: ioStreams.Out}
 
 	cmd := &cobra.Command{
@@ -76,7 +83,7 @@ func NewAdminInfoCommand(version string, ioStreams cmdutil.IOStreams) *cobra.Com
 		Short: "show vela client and cluster version",
 		Long:  "show vela client and cluster version",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return i.run(version, ioStreams)
+			return i.run(ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeSystem,
@@ -85,22 +92,22 @@ func NewAdminInfoCommand(version string, ioStreams cmdutil.IOStreams) *cobra.Com
 	return cmd
 }
 
-func (i *infoCmd) run(version string, ioStreams cmdutil.IOStreams) error {
+func (i *infoCmd) run(ioStreams cmdutil.IOStreams) error {
 	clusterVersion, err := GetOAMReleaseVersion()
 	if err != nil {
 		ioStreams.Errorf("fail to get cluster version, err: %v \n", err)
 		return err
 	}
-
-	ioStreams.Infof("cluster version: %s \n", clusterVersion)
-	ioStreams.Infof("client  version: %s \n", version)
+	ioStreams.Info("Versions:")
+	ioStreams.Infof("oam-kubernetes-runtime: %s \n", clusterVersion)
+	// TODO(wonderflow): we should print all helm charts installed by vela, including plugins
 
 	return nil
 }
 
 func NewAdminInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 
-	i := &initCmd{out: ioStreams.Out}
+	i := &initCmd{ioStreams: ioStreams}
 
 	cmd := &cobra.Command{
 		Use:   "system:init",
@@ -128,10 +135,6 @@ func NewAdminInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 
 func (i *initCmd) run(ioStreams cmdutil.IOStreams) error {
 
-	if err := cmdutil.GetKubeClient(); err != nil {
-		return fmt.Errorf("could not get kubernetes client: %s", err)
-	}
-
 	if !cmdutil.IsNamespaceExist(i.client, types.DefaultOAMNS) {
 		if err := cmdutil.NewNamespace(i.client, types.DefaultOAMNS); err != nil {
 			return err
@@ -139,7 +142,7 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams) error {
 	}
 
 	if i.IsOamRuntimeExist() {
-		fmt.Println("Successfully initialized.")
+		i.ioStreams.Info("Vela system along with OAM runtime already exist.")
 		return nil
 	}
 
@@ -161,7 +164,17 @@ func (i *initCmd) IsOamRuntimeExist() bool {
 			return false
 		}
 	}
-	return true
+	releases, err := GetHelmRelease()
+	if err != nil {
+		i.ioStreams.Error("get helm release err", err)
+		return false
+	}
+	for _, r := range releases {
+		if strings.Contains(r.Chart.ChartFullPath(), types.DefaultOAMRuntimeName) {
+			return true
+		}
+	}
+	return false
 }
 
 func InstallOamRuntime(ioStreams cmdutil.IOStreams, version string) error {
@@ -291,7 +304,7 @@ func GetHelmRelease() ([]*release.Release, error) {
 	actionConfig := new(action.Configuration)
 	client := action.NewList(actionConfig)
 
-	if err := actionConfig.Init(settings.RESTClientGetter(), "", os.Getenv("HELM_DRIVER"), debug); err != nil {
+	if err := actionConfig.Init(settings.RESTClientGetter(), types.DefaultOAMNS, os.Getenv("HELM_DRIVER"), debug); err != nil {
 		return nil, err
 	}
 	results, err := client.Run()
@@ -313,7 +326,7 @@ func GetOAMReleaseVersion() (string, error) {
 			return result.Chart.AppVersion(), nil
 		}
 	}
-	return "", errors.New("oam-kubernetes-runtime not found in your kubernetes cluster, please use `ruder admin:init` to install.")
+	return "", errors.New("oam-kubernetes-runtime not found in your kubernetes cluster, try `vela system:init` to install.")
 }
 
 func filterRepos(repos []*repo.Entry) []*repo.Entry {
