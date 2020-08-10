@@ -20,8 +20,8 @@ func GetCliBinary() (string, error) {
 	// TODO(zzxwill) Need to check before building from scratch every time
 	cwd, _ := os.Getwd()
 	rudrPath = path.Join(cwd, "..")
-	mainPath := path.Join(rudrPath, "../cmd/rudrx/main.go")
-	cmd := exec.Command("go", "build", "-o", path.Join(rudrPath, "rudr"), mainPath)
+	mainPath := path.Join(rudrPath, "../cmd/vela/main.go")
+	cmd := exec.Command("go", "build", "-o", path.Join(rudrPath, "vela"), mainPath)
 
 	_, err := cmd.Output()
 	return rudrPath, err

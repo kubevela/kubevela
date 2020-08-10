@@ -12,6 +12,7 @@ var (
 )
 
 var _ = ginkgo.Describe("Env", func() {
+	e2e.RefreshContext("refresh")
 	e2e.EnvInitContext("env init", envName)
 	e2e.EnvInitContext("env init another one", envName2)
 	e2e.EnvShowContext("env show", envName)
@@ -19,7 +20,7 @@ var _ = ginkgo.Describe("Env", func() {
 
 	ginkgo.Context("env list", func() {
 		ginkgo.It("should list all envs", func() {
-			output, err := e2e.Exec("rudr env")
+			output, err := e2e.Exec("vela env")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
 			gomega.Expect(output).To(gomega.ContainSubstring("NAMESPACE"))

@@ -14,13 +14,14 @@ var (
 )
 
 var _ = ginkgo.Describe("Trait", func() {
+	e2e.RefreshContext("refresh")
 	e2e.EnvInitContext("env init", envName)
 	e2e.EnvSwitchContext("env switch", envName)
-	e2e.WorkloadRunContext("run", fmt.Sprintf("rudr containerized:run %s -p 80 --image nginx:1.9.4", applicationName))
+	e2e.WorkloadRunContext("run", fmt.Sprintf("vela containerized:run %s -p 80 --image nginx:1.9.4", applicationName))
 
-	//ginkgo.Context("rudr attach trait", func() {
+	//ginkgo.Context("vela attach trait", func() {
 	//	ginkgo.It("should print successful attached information", func() {
-	//		cli := fmt.Sprintf("rudr manualscaler %s --replicaCount 4", applicationName)
+	//		cli := fmt.Sprintf("vela manualscaler %s --replicaCount 4", applicationName)
 	//		output, err := e2e.Exec(cli)
 	//		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 	//		gomega.Expect(output).To(gomega.ContainSubstring("Applying trait for app"))
@@ -28,9 +29,9 @@ var _ = ginkgo.Describe("Trait", func() {
 	//	})
 	//})
 
-	//ginkgo.Context("rudr detach trait", func() {
+	//ginkgo.Context("vela detach trait", func() {
 	//	ginkgo.It("should print successful detached information", func() {
-	//		cli := fmt.Sprintf("rudr ManualScaler %s --detach", applicationName)
+	//		cli := fmt.Sprintf("vela ManualScaler %s --detach", applicationName)
 	//		output, err := e2e.Exec(cli)
 	//		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 	//		gomega.Expect(output).To(gomega.ContainSubstring("Applying trait for app"))

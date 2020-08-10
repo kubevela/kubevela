@@ -8,11 +8,23 @@ import (
 )
 
 var (
+	// Refresh
+	RefreshContext = func(context string) bool {
+		return ginkgo.Context(context, func() {
+			ginkgo.It("Sync commands from your Kubernetes cluster and locally cached them", func() {
+				output, err := Exec("vela refresh")
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(output).To(gomega.ContainSubstring("syncing workload definitions from cluster..."))
+				gomega.Expect(output).To(gomega.ContainSubstring("successfully synced"))
+			})
+		})
+	}
+
 	// Env
 	EnvInitContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print env initiation successful message", func() {
-				cli := fmt.Sprintf("rudr env:init %s --namespace %s", envName, envName)
+				cli := fmt.Sprintf("vela env:init %s --namespace %s", envName, envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				expectedOutput := fmt.Sprintf("Create env succeed, current env is %s", envName)
@@ -24,7 +36,7 @@ var (
 	EnvShowContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should show detailed env message", func() {
-				cli := fmt.Sprintf("rudr env %s", envName)
+				cli := fmt.Sprintf("vela env %s", envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				expectedOutput := fmt.Sprintf("%s\t%s", envName, envName)
@@ -38,7 +50,7 @@ var (
 	EnvSwitchContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should show env switch message", func() {
-				cli := fmt.Sprintf("rudr env:sw %s", envName)
+				cli := fmt.Sprintf("vela env:sw %s", envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				expectedOutput := fmt.Sprintf("Switch env succeed, current env is %s", envName)
@@ -50,7 +62,7 @@ var (
 	EnvDeleteContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should delete all envs", func() {
-				cli := fmt.Sprintf("rudr env:delete %s", envName)
+				cli := fmt.Sprintf("vela env:delete %s", envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				expectedOutput := fmt.Sprintf("%s deleted", envName)
@@ -61,7 +73,7 @@ var (
 	EnvDeleteCurrentUsingContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should delete all envs", func() {
-				cli := fmt.Sprintf("rudr env:delete %s", envName)
+				cli := fmt.Sprintf("vela env:delete %s", envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				expectedOutput := fmt.Sprintf("Error: you can't delete current using env %s", envName)
@@ -83,7 +95,7 @@ var (
 	WorkloadDeleteContext = func(context string, applicationName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print successful deletion information", func() {
-				cli := fmt.Sprintf("rudr app:delete %s", applicationName)
+				cli := fmt.Sprintf("vela app:delete %s", applicationName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("DELETE SUCCEED"))
