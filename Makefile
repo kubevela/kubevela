@@ -14,7 +14,7 @@ all: build
 
 # Run tests
 test: fmt vet
-	go test ./... -coverprofile cover.out
+	go test ./pkg/... -coverprofile cover.out
 
 # Build manager binary
 build: fmt vet
@@ -45,7 +45,7 @@ e2e-setup:
 
 e2e-test:
 	# Run e2e test
-	go test ./pkg/test
+	ginkgo -v -r e2e
 
 e2e-cleanup:
 	# Clean up

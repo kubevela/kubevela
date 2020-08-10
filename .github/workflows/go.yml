@@ -34,14 +34,33 @@ jobs:
         with:
           version: "v0.7.0"
 
-      - name: Run Make
-        run: make
+      # TODO(zzxwill) This step and the follow one need to be removed after rudr admin:init is ready
+      - name: Install OAM runtime and prepare WorkloadDefinitions/TraitDefinitions
+        run: |
+          sudo apt-get install -y apt-transport-https gnupg2
+          curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+          echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee -a /etc/apt/sources.list.d/kubernetes.list
+          sudo apt-get install -y kubectl
 
-      - name: Run Make test
-        run: make test
+          curl https://helm.baltorepo.com/organization/signing.asc | sudo apt-key add -
+          sudo apt-get install apt-transport-https --yes
+          echo "deb https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+          sudo apt-get update
+          sudo apt-get install helm
+          kubectl create namespace oam-system
+          helm repo add crossplane-master https://charts.crossplane.io/master/
+          helm install oam --namespace oam-system crossplane-master/oam-kubernetes-runtime --devel
+
+          kubectl apply -R -f config/samples
 
       - name: Run e2e tests
         run: |
           make e2e-setup
           make e2e-test
           make e2e-cleanup
+
+      - name: Run Make
+        run: make
+
+      - name: Run Make test
+        run: make test

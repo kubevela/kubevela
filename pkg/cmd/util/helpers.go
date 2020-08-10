@@ -126,29 +126,30 @@ func RetrieveApplicationsByName(ctx context.Context, c client.Client, applicatio
 	}
 
 	for _, a := range applicationList.Items {
-		componentName := a.Spec.Components[0].ComponentName
-
-		component, err := GetComponent(ctx, c, componentName, namespace)
-		if err != nil {
-			return applicationMetaList, err
-		}
-
-		var workload corev1alpha2.WorkloadDefinition
-		if err := json.Unmarshal(component.Spec.Workload.Raw, &workload); err == nil {
-			workloadName := workload.TypeMeta.Kind
-
-			traitNames := GetTraitNamesByApplicationConfiguration(a)
-
-			applicationMetaList = append(applicationMetaList, ApplicationMeta{
-				Name:        a.Name,
-				Workload:    workloadName,
-				Traits:      traitNames,
-				Status:      string(a.Status.Conditions[0].Status),
-				CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
-			})
+		for _, com := range a.Spec.Components {
+			componentName := com.ComponentName
+			component, err := GetComponent(ctx, c, componentName, namespace)
+			if err != nil {
+				return applicationMetaList, err
+			}
+			var workload corev1alpha2.WorkloadDefinition
+			if err := json.Unmarshal(component.Spec.Workload.Raw, &workload); err == nil {
+				workloadName := workload.TypeMeta.Kind
+				traitNames := GetTraitNamesByApplicationConfiguration(a)
+				var status = "UNKNOWN"
+				if len(a.Status.Conditions) != 0 {
+					status = string(a.Status.Conditions[0].Status)
+				}
+				applicationMetaList = append(applicationMetaList, ApplicationMeta{
+					Name:        a.Name,
+					Workload:    workloadName,
+					Traits:      traitNames,
+					Status:      status,
+					CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
+				})
+			}
 		}
 	}
-
 	return applicationMetaList, nil
 }
 

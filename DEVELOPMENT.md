@@ -9,6 +9,7 @@ contributing to `RudrX` or build a PoC (Proof of Concept).
 2. Kubernetes version v1.15+ with `~/.kube/config` configured.
 3. OAM Kubernetes Runtime installed.
 4. Kustomize version 3.8+
+5. ginkgo 1.14.0+ (just for [E2E test](https://github.com/cloud-native-application/RudrX/blob/master/DEVELOPMENT.md#e2e-test))
 
 ## Build
 * Clone this project
@@ -64,10 +65,49 @@ workloaddefinition.core.oam.dev/deployments.apps                      deployment
 workloaddefinition.core.oam.dev/statefulsets.apps                     statefulsets.apps
 ```
 
-## Test
+## E2E test
 ```
-$ go test ./pkg/test
-ok  	github.com/cloud-native-application/vela/pkg/test	14.662s
+$ make e2e-test
+Running Suite: Trait Suite
+==========================
+Random Seed: 1596559178
+Will run 5 of 5 specs
+
+Trait env init
+  should print env initiation successful message
+  /Users/zhouzhengxi/Programming/golang/src/github.com/zzxwill/RudrX/e2e/commonContext.go:14
+Create env succeed, current env is default
+•
+------------------------------
+Trait env switch
+  should show env switch message
+  /Users/zhouzhengxi/Programming/golang/src/github.com/zzxwill/RudrX/e2e/commonContext.go:40
+Switch env succeed, current env is default
+•
+------------------------------
+Trait run
+  should print successful creation information
+  /Users/zhouzhengxi/Programming/golang/src/github.com/zzxwill/RudrX/e2e/commonContext.go:76
+Creating AppConfig app-trait-basic
+SUCCEED
+•
+------------------------------
+Trait rudr attach trait
+  should print successful attached information
+  /Users/zhouzhengxi/Programming/golang/src/github.com/zzxwill/RudrX/e2e/trait/trait_test.go:24
+Applying trait for app
+Succeeded!
+•
+------------------------------
+Trait delete
+  should print successful deletion information
+  /Users/zhouzhengxi/Programming/golang/src/github.com/zzxwill/RudrX/e2e/commonContext.go:85
+Deleting AppConfig "app-trait-basic"
+DELETE SUCCEED
+•
+Ran 5 of 5 Specs in 9.717 seconds
+SUCCESS! -- 5 Passed | 0 Failed | 0 Pending | 0 Skipped
+PASS
 ```
 
 ## Make a pull request
