@@ -1,88 +1,65 @@
 package cmd
 
 import (
-	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
-	"net/http"
-	"os"
 	"path/filepath"
-	"strings"
+
+	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+
+	"github.com/cloud-native-application/rudrx/pkg/plugins"
 
 	"github.com/cloud-native-application/rudrx/api/types"
-	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/ghodss/yaml"
 
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var (
-	addonCenterConfigFile = ".vela/addon_config"
-	defaultAddonCenter    = "local"
-)
-
-//Used to store addon center config in file
-type AddonCenterConfig struct {
-	Name    string `json:"name"`
-	IsLocal bool   `json:"isLocal"`
-}
-type PluginFile struct {
-	Name string `json:"name"`
-	Url  string `json:"download_url"`
-	Sha  string `json:"sha"`
-}
-
-type Plugin struct {
-	Name       string `json:"name"`
-	Type       string `json:"type"`
-	Definition string `json:"definition"`
-	Status     string `json:"status"`
-	ApplesTo   string `json:"applies_to"`
-}
-
-func AddonCommandGroup(parentCmd *cobra.Command, c types.Args, ioStream cmdutil.IOStreams) {
-	parentCmd.AddCommand(NewAddonConfigCommand(ioStream),
-		NewAddonListCommand(c, ioStream),
+func AddonCommandGroup(parentCmd *cobra.Command, ioStream cmdutil.IOStreams) {
+	parentCmd.AddCommand(
+		NewAddonConfigCommand(ioStream),
+		NewAddonListCommand(ioStream),
+		NewAddonUpdateCommand(ioStream),
 	)
 }
 
 func NewAddonConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "addon:config",
+		Use:     "addon:config <reponame> <url>",
 		Short:   "Set the addon center, default is local (built-in ones)",
 		Long:    "Set the addon center, default is local (built-in ones)",
-		Example: `vela addon:config <REPOSITORY>`,
-		Run: func(cmd *cobra.Command, args []string) {
+		Example: `vela addon:config myhub https://github.com/oam-dev/catalog/repository`,
+		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
-			switch {
-			case argsLength == 0:
-				ioStreams.Errorf("Please set addon center, `local` or an URL.")
-			case argsLength == 1:
-				addonCenter := args[0]
-				config := AddonCenterConfig{
-					Name:    addonCenter,
-					IsLocal: addonCenter == defaultAddonCenter,
-				}
-				var data []byte
-				var err error
-				var homeDir string
-				if data, err = json.Marshal(config); err != nil {
-					ioStreams.Errorf(fmt.Sprintf("Failed to configure Addon center: %s", addonCenter))
-				}
-				if homeDir, err = os.UserHomeDir(); err != nil {
-					ioStreams.Errorf(fmt.Sprintf("Failed to configure Addon center: %s", addonCenter))
-				}
-				if err = ioutil.WriteFile(filepath.Join(homeDir, addonCenterConfigFile), data, 0644); err != nil {
-					ioStreams.Errorf(fmt.Sprintf("Failed to configure Addon center: %s", addonCenter))
-				}
-				ioStreams.Info(fmt.Sprintf("Successfully configured Addon center: %s", addonCenter))
-			case argsLength > 1:
-				ioStreams.Errorf("Unnecessary arguments are specified, please try again")
+			if argsLength < 2 {
+				return errors.New("please set addon repo with <RepoName> and <URL>")
 			}
+			repos, err := plugins.LoadRepos()
+			if err != nil {
+				return err
+			}
+			config := plugins.RepoConfig{
+				Name:    args[0],
+				Address: ConvertURL(args[1]),
+			}
+			var updated bool
+			for idx, r := range repos {
+				if r.Name == config.Name {
+					repos[idx] = config
+					updated = true
+					break
+				}
+			}
+			if !updated {
+				repos = append(repos, config)
+			}
+			if err = plugins.StoreRepos(repos); err != nil {
+				return err
+			}
+			ioStreams.Info(fmt.Sprintf("Successfully configured Addon repo: %s", args[0]))
+			return nil
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeOthers,
@@ -91,25 +68,39 @@ func NewAddonConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func NewAddonListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	ctx := context.Background()
+func NewAddonUpdateCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "addon:ls",
-		Short:   "List addons",
-		Long:    "List addons of workloads and traits",
-		Example: `vela addon:ls`,
+		Use:     "addon:update <repoName>",
+		Short:   "Update addon repositories, default for all repo",
+		Long:    "Update addon repositories, default for all repo",
+		Example: `vela addon:update myrepo`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, err := GetEnv()
+			repos, err := plugins.LoadRepos()
 			if err != nil {
 				return err
 			}
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
-			if err != nil {
-				return err
+			var specified string
+			if len(args) > 0 {
+				specified = args[0]
 			}
-			err = retrievePlugins(ctx, newClient, ioStreams, env.Namespace)
-			if err != nil {
-				return err
+			find := false
+			if specified != "" {
+				for idx, r := range repos {
+					if r.Name == specified {
+						repos = []plugins.RepoConfig{repos[idx]}
+						find = true
+						break
+					}
+				}
+				if !find {
+					return fmt.Errorf("%s repo not exist", specified)
+				}
+			}
+			for _, d := range repos {
+				err = SyncRemoteAddon(d)
+				if err != nil {
+					return err
+				}
 			}
 			return nil
 		},
@@ -120,129 +111,72 @@ func NewAddonListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	return cmd
 }
 
-func retrievePlugins(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, namespace string) error {
-	var pluginList []Plugin
-	var config AddonCenterConfig
-	var data []byte
-	var err error
-	var homeDir string
-	if homeDir, err = os.UserHomeDir(); err != nil {
-		ioStreams.Errorf("Failed to retrieve addon center configuration, please run `vela addon:config` first")
-	}
-	if data, err = ioutil.ReadFile(filepath.Join(homeDir, addonCenterConfigFile)); err != nil {
-		ioStreams.Errorf("Failed to retrieve addon center configuration, please run `vela addon:config` first")
-	}
-	if err := json.Unmarshal(data, &config); err != nil {
-		ioStreams.Errorf("Failed to retrieve addon center configuration, please run `vela addon:config` first")
-	}
-
-	if config.IsLocal {
-		//TODO(zzxwill) merge `vela traits` and `vela workloads`
-		return nil
-	} else {
-		resp, err := http.Get(config.Name)
-		if err != nil {
-			return err
-		}
-		defer resp.Body.Close()
-		result, _ := ioutil.ReadAll(resp.Body)
-		var manifests []PluginFile
-		var traitManifestPrefix, workloadManifestPrefix = "TraitDefinition", "WorkloadDefinition"
-		err = json.Unmarshal(result, &manifests)
-		if err != nil {
-			return err
-		}
-		var manifestResp *http.Response
-		for _, d := range manifests {
-			var template types.Template
-			var workloadDefinition corev1alpha2.WorkloadDefinition
-			var traitDefinition corev1alpha2.TraitDefinition
-			if manifestResp, err = http.Get(d.Url); err != nil {
+func NewAddonListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "addon:ls <repoName>",
+		Short:   "List addons",
+		Long:    "List addons of workloads and traits",
+		Example: `vela addon:ls`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			var repoName string
+			if len(args) > 0 {
+				repoName = args[0]
+			}
+			dir, err := system.GetRepoDir()
+			if err != nil {
 				return err
 			}
-			defer manifestResp.Body.Close()
-
-			if strings.Contains(strings.ToLower(d.Name), strings.ToLower(workloadManifestPrefix)) {
-				result, err := ioutil.ReadAll(manifestResp.Body)
-				if err != nil {
-					return err
-				}
-				err = yaml.Unmarshal(result, &workloadDefinition)
-				if err != nil {
-					return err
-				}
-				var definitionName string
-				if workloadDefinition.Spec.Extension != nil {
-					template, err = types.ConvertTemplateJson2Object(workloadDefinition.Spec.Extension)
-					if err != nil {
-						return err
-					}
-					definitionName = template.Name
-				} else {
-					definitionName = workloadDefinition.Name
-				}
-
-				if err != nil {
-					return err
-				}
-				//Check whether the definition is applied
-				var status = "uninstalled"
-				if _, err = cmdutil.GetWorkloadDefinitionByName(ctx, c, namespace, workloadDefinition.Name); err == nil {
-					status = "installed"
-				}
-				pluginList = append(pluginList, Plugin{
-					Name:       definitionName,
-					Type:       "workload",
-					Definition: workloadDefinition.Spec.Reference.Name,
-					Status:     status,
-					ApplesTo:   "-",
-				})
-			} else if strings.Contains(strings.ToLower(d.Name), strings.ToLower(traitManifestPrefix)) {
-				result, err := ioutil.ReadAll(manifestResp.Body)
-				if err != nil {
-					return err
-				}
-				err = yaml.Unmarshal(result, &traitDefinition)
-				if err != nil {
-					return err
-				}
-				var definitionName string
-				if traitDefinition.Spec.Extension != nil {
-					template, err = types.ConvertTemplateJson2Object(traitDefinition.Spec.Extension)
-					if err != nil {
-						return err
-					}
-					definitionName = template.Name
-				} else {
-					definitionName = traitDefinition.Name
-				}
-
-				//Check whether the definition is applied
-				var status = "uninstalled"
-				if _, err = cmdutil.GetTraitDefinitionByName(ctx, c, namespace, traitDefinition.Name); err == nil {
-					status = "installed"
-				}
-				pluginList = append(pluginList, Plugin{
-					Name:       definitionName,
-					Type:       "trait",
-					Definition: traitDefinition.Spec.Reference.Name,
-					Status:     status,
-					ApplesTo:   strings.Join(traitDefinition.Spec.AppliesToWorkloads, ","),
-				})
-			} else {
-				ioStreams.Errorf(fmt.Sprintf("Those manifests in addon repository should start with %s or %s",
-					workloadManifestPrefix, traitManifestPrefix))
-				os.Exit(1)
+			if repoName != "" {
+				return ListRepoAddons(filepath.Join(dir, repoName), ioStreams)
 			}
-		}
-
-		table := uitable.New()
-		table.MaxColWidth = 60
-		table.AddRow("NAME", "TYPE", "DEFINITION", "STATUS", "APPLIES-TO")
-		for _, p := range pluginList {
-			table.AddRow(p.Name, p.Type, p.Definition, p.Status, p.ApplesTo)
-		}
-		ioStreams.Info(table.String())
+			dirs, err := ioutil.ReadDir(dir)
+			if err != nil {
+				return err
+			}
+			for _, dd := range dirs {
+				if !dd.IsDir() {
+					continue
+				}
+				if err = ListRepoAddons(filepath.Join(dir, dd.Name()), ioStreams); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeOthers,
+		},
 	}
+	return cmd
+}
+
+func ListRepoAddons(repoDir string, ioStreams cmdutil.IOStreams) error {
+	templates, err := plugins.LoadTempFromLocal(repoDir)
+	if err != nil {
+		return err
+	}
+	table := uitable.New()
+	table.AddRow("NAME", "TYPE", "DEFINITION", "STATUS", "APPLIES-TO")
+
+	var status string
+	//TODO(wonderflow): check status whether install or not
+	status = "uninstalled"
+	for _, p := range templates {
+		table.AddRow(p.Name, p.Type, p.Type, status, p.AppliesTo)
+	}
+	ioStreams.Info(table.String())
 	return nil
+}
+
+func ConvertURL(address string) string {
+	//TODO(wonderflow) convert github address here
+	return address
+}
+
+func SyncRemoteAddon(d plugins.RepoConfig) error {
+	addons, err := plugins.GetReposFromRemote(d)
+	if err != nil {
+		return err
+	}
+	return plugins.SyncRemoteAddons(d, addons)
 }

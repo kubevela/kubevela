@@ -41,14 +41,11 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Cli
 	}
 
 	for _, wd := range workloadDefs.Items {
-		var tmp types.Template
-		tmp, err := HandleTemplate(wd.Spec.Extension, wd.Name, syncDir)
+		tmp, err := HandleDefinition(wd.Name, syncDir, wd.Spec.Reference.Name, wd.Spec.Extension, types.TypeWorkload, nil)
 		if err != nil {
 			fmt.Printf("[WARN]handle template %s: %v\n", wd.Name, err)
 			continue
 		}
-		tmp.Type = types.TypeWorkload
-		tmp.CrdName = wd.Spec.Reference.Name
 		templates = append(templates, tmp)
 	}
 	return templates, nil
@@ -63,18 +60,28 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 	}
 
 	for _, td := range traitDefs.Items {
-		var tmp types.Template
-		tmp, err := HandleTemplate(td.Spec.Extension, td.Name, syncDir)
+		tmp, err := HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads)
 		if err != nil {
 			fmt.Printf("[WARN]handle template %s: %v\n", td.Name, err)
 			continue
 		}
-		tmp.Type = types.TypeTrait
-		tmp.AppliesTo = td.Spec.AppliesToWorkloads
-		tmp.CrdName = td.Spec.Reference.Name
 		templates = append(templates, tmp)
 	}
 	return templates, nil
+}
+
+func HandleDefinition(name, syncDir, crdName string, extention *runtime.RawExtension, tp types.DefinitionType, applyTo []string) (types.Template, error) {
+	var tmp types.Template
+	tmp, err := HandleTemplate(extention, name, syncDir)
+	if err != nil {
+		return types.Template{}, err
+	}
+	tmp.Type = tp
+	if tp == types.TypeTrait {
+		tmp.AppliesTo = applyTo
+	}
+	tmp.CrdName = crdName
+	return tmp, nil
 }
 
 func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Template, error) {

@@ -94,7 +94,7 @@ func newCommand() *cobra.Command {
 	// Getting Start
 	cmd.EnvCommandGroup(cmds, commandArgs, ioStream)
 	// Others
-	cmd.AddonCommandGroup(cmds, commandArgs, ioStream)
+	cmd.AddonCommandGroup(cmds, ioStream)
 	// System
 	cmd.SystemCommandGroup(cmds, commandArgs, ioStream)
 
