@@ -62,10 +62,22 @@ func newCommand() *cobra.Command {
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 
 	cmds := &cobra.Command{
-		Use:          "vela",
-		Short:        "✈️  A Micro App Platform for Kubernetes.",
-		Long:         "✈️  A Micro App Platform for Kubernetes.",
-		Run:          runHelp,
+		DisableFlagParsing: true,
+		Run: func(cmd *cobra.Command, args []string) {
+			allCommands := cmd.Commands()
+			cmd.Printf("✈️  A Micro App Platform for Kubernetes.\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
+			PrintHelpByTag(cmd, allCommands, types.TypeStart)
+			PrintHelpByTag(cmd, allCommands, types.TypeApp)
+			PrintHelpByTag(cmd, allCommands, types.TypeWorkloads)
+			PrintHelpByTag(cmd, allCommands, types.TypeTraits)
+			PrintHelpByTag(cmd, allCommands, types.TypeRelease)
+			PrintHelpByTag(cmd, allCommands, types.TypeOthers)
+			PrintHelpByTag(cmd, allCommands, types.TypeSystem)
+			cmd.Println("Flags:")
+			cmd.Println("  -h, --help   help for vela")
+			cmd.Println()
+			cmd.Println(`Use "vela [command] --help" for more information about a command.`)
+		},
 		SilenceUsage: true,
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			return nil, cobra.ShellCompDirectiveNoFileComp
@@ -131,24 +143,6 @@ func newCommand() *cobra.Command {
 		fmt.Println("Add plugins from traitDefinition err", err)
 		os.Exit(1)
 	}
-
-	cmds.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-		allCommands := cmd.Commands()
-		cmd.Printf("✈️  A Micro App Platform for Kubernetes.\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
-		PrintHelpByTag(cmd, allCommands, types.TypeStart)
-		PrintHelpByTag(cmd, allCommands, types.TypeApp)
-		PrintHelpByTag(cmd, allCommands, types.TypeWorkloads)
-		PrintHelpByTag(cmd, allCommands, types.TypeTraits)
-		PrintHelpByTag(cmd, allCommands, types.TypeRelease)
-		PrintHelpByTag(cmd, allCommands, types.TypeOthers)
-		PrintHelpByTag(cmd, allCommands, types.TypeSystem)
-		cmd.Println("Flags:")
-		cmd.Println("  -h, --help   help for vela")
-		cmd.Println()
-		cmd.Println(`Use "vela [command] --help" for more information about a command.`)
-
-	})
-
 	// this is for mute klog
 	fset := flag.NewFlagSet("logs", flag.ContinueOnError)
 	klog.InitFlags(fset)
