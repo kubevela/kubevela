@@ -63,8 +63,8 @@ func newCommand() *cobra.Command {
 
 	cmds := &cobra.Command{
 		Use:          "vela",
-		Short:        "✈️  A Micro App Plafrom for Kubernetes.",
-		Long:         "✈️  A Micro App Plafrom for Kubernetes.",
+		Short:        "✈️  A Micro App Platform for Kubernetes.",
+		Long:         "✈️  A Micro App Platform for Kubernetes.",
 		Run:          runHelp,
 		SilenceUsage: true,
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -134,7 +134,7 @@ func newCommand() *cobra.Command {
 
 	cmds.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		allCommands := cmd.Commands()
-		cmd.Printf("✈️  A Micro App Plafrom for Kubernetes.\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
+		cmd.Printf("✈️  A Micro App Platform for Kubernetes.\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
 		PrintHelpByTag(cmd, allCommands, types.TypeStart)
 		PrintHelpByTag(cmd, allCommands, types.TypeApp)
 		PrintHelpByTag(cmd, allCommands, types.TypeWorkloads)
