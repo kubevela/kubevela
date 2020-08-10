@@ -10,8 +10,7 @@ import (
 )
 
 var _ = ginkgo.BeforeSuite(func() {
-	_, err := e2e.GetCliBinary()
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	e2e.BeforeSuit()
 })
 
 func TestApplication(t *testing.T) {

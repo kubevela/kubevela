@@ -11,9 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cloud-native-application/rudrx/pkg/utils/system"
-
 	"github.com/cloud-native-application/rudrx/pkg/builtin"
+	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
 	"helm.sh/helm/v3/pkg/release"
 
@@ -113,9 +112,7 @@ func (i *infoCmd) run(ioStreams cmdutil.IOStreams) error {
 }
 
 func NewAdminInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-
 	i := &initCmd{ioStreams: ioStreams}
-
 	cmd := &cobra.Command{
 		Use:   "system:init",
 		Short: "Initialize vela on both client and server",
@@ -141,7 +138,7 @@ func NewAdminInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 }
 
 func (i *initCmd) run(ioStreams cmdutil.IOStreams) error {
-
+	ioStreams.Info("- Install OAM runtime:")
 	if !cmdutil.IsNamespaceExist(i.client, types.DefaultOAMNS) {
 		if err := cmdutil.NewNamespace(i.client, types.DefaultOAMNS); err != nil {
 			return err
@@ -157,15 +154,14 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams) error {
 		return err
 	}
 
+	ioStreams.Info("- Apply builtin capabilities:")
 	if err := GenNativeResourceDefinition(i.client); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (i *initCmd) IsOamRuntimeExist() bool {
-
 	for _, object := range defaultObject {
 		if err := cmdutil.IsCoreCRDExist(i.client, context.Background(), object.(runtime.Object)); err != nil {
 			return false

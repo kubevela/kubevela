@@ -14,7 +14,7 @@ var (
 )
 
 var _ = ginkgo.Describe("Application", func() {
-	e2e.RefreshContext("refresh")
+	//e2e.RefreshContext("refresh")
 	e2e.EnvInitContext("env init", envName)
 	e2e.EnvShowContext("env show", envName)
 	e2e.EnvSwitchContext("env switch", envName)
