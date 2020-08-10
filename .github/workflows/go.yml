@@ -51,12 +51,6 @@ jobs:
           helm repo add crossplane-master https://charts.crossplane.io/master/
           helm install oam --namespace oam-system crossplane-master/oam-kubernetes-runtime --devel
 
-          kubectl delete crd workloaddefinitions.core.oam.dev traitdefinitions.core.oam.dev
-          kubectl apply -f .github/workflows/core.oam.dev_workloaddefinitions.yaml
-          kubectl apply -f .github/workflows/core.oam.dev_traitdefinitions.yaml
-
-          kubectl get crd | grep oam
-
           kubectl apply -R -f config/samples
 
       - name: Run e2e tests

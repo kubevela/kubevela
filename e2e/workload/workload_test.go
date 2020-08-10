@@ -8,8 +8,7 @@ import (
 )
 
 var (
-	//TODO(zzxwill) Need to change env name after [issue#82](https://github.com/cloud-native-application/RudrX/issues/82) is fixed.
-	envName         = "default"
+	envName         = "env-workload"
 	applicationName = "app-testworkloadrun-basic"
 )
 
