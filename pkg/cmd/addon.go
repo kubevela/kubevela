@@ -159,7 +159,7 @@ func NewAddonListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 }
 
 func ListRepoAddons(table *uitable.Table, repoDir string, ioStreams cmdutil.IOStreams) error {
-	templates, err := plugins.LoadTempFromLocal(repoDir)
+	templates, err := plugins.LoadPluginsFromLocal(repoDir)
 	if err != nil {
 		return err
 	}
@@ -167,12 +167,22 @@ func ListRepoAddons(table *uitable.Table, repoDir string, ioStreams cmdutil.IOSt
 		return nil
 	}
 	baseDir := filepath.Base(repoDir)
-	var status string
-	//TODO(wonderflow): check status whether install or not
-	status = "uninstalled"
 	for _, p := range templates {
+		status := CheckInstalled(baseDir, p)
 		table.AddRow(baseDir+"/"+p.Name, p.Type, p.Type, status, p.AppliesTo)
 	}
 	ioStreams.Info(table.String())
 	return nil
+}
+
+func CheckInstalled(repoName string, tmp types.Template) string {
+	var status = "uninstalled"
+	dir, _ := system.GetDefinitionDir()
+	installed, _ := plugins.LoadTempFromLocal(dir)
+	for _, i := range installed {
+		if i.Source != nil && i.Source.RepoName == repoName && i.Name == tmp.Name && i.CrdName == tmp.CrdName {
+			return "installed"
+		}
+	}
+	return status
 }

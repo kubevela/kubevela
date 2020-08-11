@@ -218,11 +218,12 @@ func (g *GithubAddon) SyncRemoteAddons() error {
 	}
 	repoDir := filepath.Join(dir, g.repoName)
 	system.StatAndCreate(repoDir)
-	var tmps []types.Template
+	var success, total int
 	for _, addon := range dirs {
 		if *addon.Type != "file" {
 			continue
 		}
+		total++
 		fileContent, _, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, *addon.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
 		if err != nil {
 			return err
@@ -234,14 +235,13 @@ func (g *GithubAddon) SyncRemoteAddons() error {
 				return fmt.Errorf("decode github content %s err %v", *fileContent.Path, err)
 			}
 		}
-		tmp, err := GetDefinitionFromURL(data, repoDir)
+		err = ioutil.WriteFile(filepath.Join(repoDir, *fileContent.Name), data, 0644)
 		if err != nil {
-			fmt.Printf("get definition of %s err %v\n", *addon.Path, err)
+			fmt.Printf("write definition %s to %s err %v\n", *fileContent.Name, repoDir, err)
 			continue
 		}
-		tmps = append(tmps, tmp)
+		success++
 	}
-	success := SinkTemp2Local(tmps, repoDir)
-	fmt.Printf("successfully sync %d remote addons\n", success)
+	fmt.Printf("successfully sync %d/%d from %s remote addons \n", success, total, g.repoName)
 	return nil
 }

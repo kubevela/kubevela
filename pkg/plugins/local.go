@@ -45,6 +45,37 @@ func SinkTemp2Local(templates []types.Template, dir string) int {
 	return success
 }
 
+func LoadPluginsFromLocal(dir string) ([]types.Template, error) {
+	var tmps []types.Template
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(f.Name(), ".cue") {
+			continue
+		}
+		data, err := ioutil.ReadFile(filepath.Join(dir, f.Name()))
+		if err != nil {
+			fmt.Printf("read file %s err %v\n", f.Name(), err)
+			continue
+		}
+		tmp, err := GetDefinitionFromURL(data, filepath.Join(dir, ".tmp"))
+		if err != nil {
+			fmt.Printf("get definition of %s err %v\n", f.Name(), err)
+			continue
+		}
+		tmps = append(tmps, tmp)
+	}
+	return tmps, nil
+}
+
 func LoadTempFromLocal(dir string) ([]types.Template, error) {
 	var tmps []types.Template
 	files, err := ioutil.ReadDir(dir)

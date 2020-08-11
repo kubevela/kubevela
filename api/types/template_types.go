@@ -27,6 +27,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+type Source struct {
+	RepoName string `json:"repoName"`
+}
+
 // Template defines the content of a plugin
 type Template struct {
 	Name           string         `json:"name"`
@@ -38,6 +42,9 @@ type Template struct {
 
 	//trait only
 	AppliesTo []string `json:"appliesTo,omitempty"`
+
+	// Plugin Source
+	Source *Source `json:"source,omitempty"`
 }
 
 type DefinitionType string
