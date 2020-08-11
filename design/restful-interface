@@ -313,11 +313,13 @@ type definitionName struct {
 ## Repo related API
 These API operate on definition files stored in a git repo. It could be a git repo on the local file system. 
 
+The only valid `categoryName` are `workload`,`trait` and `scope` 
+
 They all have a `repoURL` query parameter that stores the git repo's URL so that the server is stateless. 
  
 ### Update 
 
-**URL** : `/api/category/${definitionType}/${definitionName}`
+**URL** : `/api/category/${categoryName}/${definitionName}`
 
 **Method** : `PUT`
 
@@ -336,7 +338,7 @@ type oamDefinition struct {
 
 ### GET
 
-**URL** : `/api/category/${definitionType}/${definitionName}`
+**URL** : `/api/category/${categoryName}/${definitionName}`
 
 **Method** : `Get`
 
@@ -353,7 +355,7 @@ type definition struct {
 
 ### List
 
-**URL** : `/api/category/${definitionType}`
+**URL** : `/api/category/${categoryName}`
 
 **Method** : `Get`
 
