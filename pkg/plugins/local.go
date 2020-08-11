@@ -50,7 +50,6 @@ func LoadTempFromLocal(dir string) ([]types.Template, error) {
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Println("\"no definition files found, use 'vela refresh' to sync from cluster\"")
 			return nil, nil
 		}
 		return nil, err
@@ -75,9 +74,6 @@ func LoadTempFromLocal(dir string) ([]types.Template, error) {
 			continue
 		}
 		tmps = append(tmps, tmp)
-	}
-	if len(tmps) == 0 {
-		fmt.Println("\"no definition files found, use 'vela refresh' to sync from cluster\"")
 	}
 	return tmps, nil
 }

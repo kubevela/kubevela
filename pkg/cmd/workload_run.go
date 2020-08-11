@@ -12,7 +12,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"gopkg.in/yaml.v3"
+	"github.com/ghodss/yaml"
 
 	"cuelang.org/go/cue"
 

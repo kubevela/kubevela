@@ -1,12 +1,20 @@
 package plugins
 
 import (
-	"encoding/json"
+	"context"
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
+
+	"golang.org/x/oauth2"
+
+	"github.com/google/go-github/v32/github"
 
 	"github.com/cloud-native-application/rudrx/api/types"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
@@ -16,16 +24,89 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+type GithubContent struct {
+	Owner string `json:"owner"`
+	Repo  string `json:"repo"`
+	Path  string `json:"path"`
+	Ref   string `json:"ref"`
+}
+
 //Used to store addon center config in file
 type RepoConfig struct {
 	Name    string `json:"repoName"`
 	Address string `json:"repoAddress"`
+	Token   string `json:"token"`
 }
 
-var (
-	RepoConfigFile = ".vela/addon_config"
-	DefaultRepo    = "local"
-)
+type AddonClient interface {
+	SyncRemoteAddons() error
+}
+
+func NewAddClient(ctx context.Context, name, address, token string) (AddonClient, error) {
+	Type, cfg, err := Parse(address)
+	if err != nil {
+		return nil, err
+	}
+	switch Type {
+	case TypeGithub:
+		return NewGithubAddon(ctx, token, name, cfg)
+	}
+	return nil, errors.New("we only support github as repository now")
+}
+
+const TypeGithub = "github"
+const TypeUnknown = "unknown"
+
+func Parse(addr string) (string, *GithubContent, error) {
+	url, err := url.Parse(addr)
+	if err != nil {
+		return "", nil, err
+	}
+	l := strings.Split(strings.TrimPrefix(url.Path, "/"), "/")
+	switch url.Host {
+	case "github.com":
+		// We support two valid format:
+		// 1. https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
+		// 2. https://github.com/<owner>/<repo>/<path-to-dir>
+		if len(l) < 3 {
+			return "", nil, errors.New("invalid format " + addr)
+		}
+		if l[2] == "tree" {
+			// https://github.com/<owner>/<repo>/tree/<branch>/<path-to-dir>
+			if len(l) < 5 {
+				return "", nil, errors.New("invalid format " + addr)
+			}
+			return TypeGithub, &GithubContent{
+				Owner: l[0],
+				Repo:  l[1],
+				Path:  strings.Join(l[4:], "/"),
+				Ref:   l[3],
+			}, nil
+		} else {
+			// https://github.com/<owner>/<repo>/<path-to-dir>
+			return TypeGithub, &GithubContent{
+				Owner: l[0],
+				Repo:  l[1],
+				Path:  strings.Join(l[2:], "/"),
+				Ref:   "", //use default branch
+			}, nil
+		}
+	case "api.github.com":
+		if len(l) != 5 {
+			return "", nil, errors.New("invalid format " + addr)
+		}
+		//https://api.github.com/repos/<owner>/<repo>/contents/<path-to-dir>
+		return TypeGithub, &GithubContent{
+			Owner: l[1],
+			Repo:  l[2],
+			Path:  l[4],
+			Ref:   url.Query().Get("ref"),
+		}, nil
+	default:
+		//TODO(wonderflow): support raw url and oss format in the future
+	}
+	return TypeUnknown, nil, nil
+}
 
 type RemoteAddon struct {
 	// Name MUST be xxx.yaml
@@ -78,35 +159,9 @@ func StoreRepos(repos []RepoConfig) error {
 	return ioutil.WriteFile(config, data, 0644)
 }
 
-func GetReposFromRemote(r RepoConfig) (RemoteAddons, error) {
-	resp, err := http.Get(r.Address)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	var repos RemoteAddons
-	if err = json.Unmarshal(data, &repos); err != nil {
-		return nil, err
-	}
-	return repos, nil
-}
-
-func GetDefinitionFromURL(address, syncDir string) (types.Template, error) {
-	resp, err := http.Get(address)
-	if err != nil {
-		return types.Template{}, err
-	}
-	defer resp.Body.Close()
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return types.Template{}, err
-	}
+func GetDefinitionFromURL(data []byte, syncDir string) (types.Template, error) {
 	var obj = unstructured.Unstructured{Object: make(map[string]interface{})}
-	err = yaml.Unmarshal(data, &obj.Object)
+	err := yaml.Unmarshal(data, &obj.Object)
 	if err != nil {
 		return types.Template{}, err
 	}
@@ -131,19 +186,58 @@ func GetDefinitionFromURL(address, syncDir string) (types.Template, error) {
 	return types.Template{}, fmt.Errorf("unknown definition Type %s", obj.GetKind())
 }
 
+type GithubAddon struct {
+	client   *github.Client
+	cfg      *GithubContent
+	repoName string
+	ctx      context.Context
+}
+
+var _ AddonClient = &GithubAddon{}
+
+func NewGithubAddon(ctx context.Context, token, repoName string, r *GithubContent) (*GithubAddon, error) {
+	var tc *http.Client
+	if token != "" {
+		ts := oauth2.StaticTokenSource(
+			&oauth2.Token{AccessToken: token},
+		)
+		tc = oauth2.NewClient(ctx, ts)
+	}
+	return &GithubAddon{client: github.NewClient(tc), cfg: r, repoName: repoName, ctx: ctx}, nil
+}
+
 //TODO(wonderflow): currently we only sync by create, we also need to delete which not exist remotely.
-func SyncRemoteAddons(r RepoConfig, addons RemoteAddons) error {
+func (g *GithubAddon) SyncRemoteAddons() error {
+	_, dirs, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, g.cfg.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
+	if err != nil {
+		return err
+	}
 	dir, err := system.GetRepoDir()
 	if err != nil {
 		return err
 	}
-	repoDir := filepath.Join(dir, r.Name)
+	repoDir := filepath.Join(dir, g.repoName)
 	system.StatAndCreate(repoDir)
 	var tmps []types.Template
-	for _, addon := range addons {
-		tmp, err := GetDefinitionFromURL(addon.Url, repoDir)
+	for _, addon := range dirs {
+		if *addon.Type != "file" {
+			continue
+		}
+		fileContent, _, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, *addon.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
 		if err != nil {
 			return err
+		}
+		var data = []byte(*fileContent.Content)
+		if *fileContent.Encoding == "base64" {
+			data, err = base64.StdEncoding.DecodeString(*fileContent.Content)
+			if err != nil {
+				return fmt.Errorf("decode github content %s err %v", *fileContent.Path, err)
+			}
+		}
+		tmp, err := GetDefinitionFromURL(data, repoDir)
+		if err != nil {
+			fmt.Printf("get definition of %s err %v\n", *addon.Path, err)
+			continue
 		}
 		tmps = append(tmps, tmp)
 	}

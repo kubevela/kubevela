@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+
+	"github.com/gosuri/uitable"
 
 	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
@@ -13,7 +16,6 @@ import (
 	"github.com/cloud-native-application/rudrx/api/types"
 
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 )
 
@@ -40,31 +42,33 @@ func NewAddonConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			config := plugins.RepoConfig{
+			config := &plugins.RepoConfig{
 				Name:    args[0],
-				Address: ConvertURL(args[1]),
+				Address: args[1],
+				Token:   cmd.Flag("token").Value.String(),
 			}
 			var updated bool
 			for idx, r := range repos {
 				if r.Name == config.Name {
-					repos[idx] = config
+					repos[idx] = *config
 					updated = true
 					break
 				}
 			}
 			if !updated {
-				repos = append(repos, config)
+				repos = append(repos, *config)
 			}
 			if err = plugins.StoreRepos(repos); err != nil {
 				return err
 			}
-			ioStreams.Info(fmt.Sprintf("Successfully configured Addon repo: %s", args[0]))
+			ioStreams.Info(fmt.Sprintf("Successfully configured Addon repo: %s, please use 'vela addon:update %s' to sync addons", args[0], args[0]))
 			return nil
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeOthers,
 		},
 	}
+	cmd.PersistentFlags().StringP("token", "t", "", "Github Repo token")
 	return cmd
 }
 
@@ -96,8 +100,10 @@ func NewAddonUpdateCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 					return fmt.Errorf("%s repo not exist", specified)
 				}
 			}
+			ctx := context.Background()
 			for _, d := range repos {
-				err = SyncRemoteAddon(d)
+				client, err := plugins.NewAddClient(ctx, d.Name, d.Address, d.Token)
+				err = client.SyncRemoteAddons()
 				if err != nil {
 					return err
 				}
@@ -126,8 +132,10 @@ func NewAddonListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			table := uitable.New()
+			table.AddRow("NAME", "TYPE", "DEFINITION", "STATUS", "APPLIES-TO")
 			if repoName != "" {
-				return ListRepoAddons(filepath.Join(dir, repoName), ioStreams)
+				return ListRepoAddons(table, filepath.Join(dir, repoName), ioStreams)
 			}
 			dirs, err := ioutil.ReadDir(dir)
 			if err != nil {
@@ -137,7 +145,7 @@ func NewAddonListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 				if !dd.IsDir() {
 					continue
 				}
-				if err = ListRepoAddons(filepath.Join(dir, dd.Name()), ioStreams); err != nil {
+				if err = ListRepoAddons(table, filepath.Join(dir, dd.Name()), ioStreams); err != nil {
 					return err
 				}
 			}
@@ -150,33 +158,21 @@ func NewAddonListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func ListRepoAddons(repoDir string, ioStreams cmdutil.IOStreams) error {
+func ListRepoAddons(table *uitable.Table, repoDir string, ioStreams cmdutil.IOStreams) error {
 	templates, err := plugins.LoadTempFromLocal(repoDir)
 	if err != nil {
 		return err
 	}
-	table := uitable.New()
-	table.AddRow("NAME", "TYPE", "DEFINITION", "STATUS", "APPLIES-TO")
-
+	if len(templates) < 1 {
+		return nil
+	}
+	baseDir := filepath.Base(repoDir)
 	var status string
 	//TODO(wonderflow): check status whether install or not
 	status = "uninstalled"
 	for _, p := range templates {
-		table.AddRow(p.Name, p.Type, p.Type, status, p.AppliesTo)
+		table.AddRow(baseDir+"/"+p.Name, p.Type, p.Type, status, p.AppliesTo)
 	}
 	ioStreams.Info(table.String())
 	return nil
-}
-
-func ConvertURL(address string) string {
-	//TODO(wonderflow) convert github address here
-	return address
-}
-
-func SyncRemoteAddon(d plugins.RepoConfig) error {
-	addons, err := plugins.GetReposFromRemote(d)
-	if err != nil {
-		return err
-	}
-	return plugins.SyncRemoteAddons(d, addons)
 }
