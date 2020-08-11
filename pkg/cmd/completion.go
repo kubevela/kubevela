@@ -41,7 +41,7 @@ func NewCompletionCommand() *cobra.Command {
 		Use:   "completion [bash|zsh]",
 		Short: "Output shell completion code for the specified shell (bash or zsh)",
 		Long:  completionDesc,
-		Args:  cobra.NoArgs,
+		Args:  nil,
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeSystem,
 		},
@@ -51,7 +51,7 @@ func NewCompletionCommand() *cobra.Command {
 		Use:                   "bash",
 		Short:                 "generate autocompletions script for bash",
 		Long:                  bashCompDesc,
-		Args:                  cobra.NoArgs,
+		Args:                  nil,
 		DisableFlagsInUseLine: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runCompletionBash(os.Stdout, cmd)
@@ -62,7 +62,7 @@ func NewCompletionCommand() *cobra.Command {
 		Use:                   "zsh",
 		Short:                 "generate autocompletions script for zsh",
 		Long:                  zshCompDesc,
-		Args:                  cobra.NoArgs,
+		Args:                  nil,
 		DisableFlagsInUseLine: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runCompletionZsh(os.Stdout, cmd)
@@ -90,7 +90,6 @@ fi
 `
 		fmt.Fprintf(out, renamedBinaryHook, binary)
 	}
-
 	return err
 }
 
