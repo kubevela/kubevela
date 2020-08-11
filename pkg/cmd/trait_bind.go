@@ -152,7 +152,7 @@ func (o *commandOptions) Complete(cmd *cobra.Command, args []string, ctx context
 			continue
 		}
 		for it, t := range c.Traits {
-			g, v, k := GetGVKFromRawExtension(t.Trait)
+			g, v, k := cmdutil.GetGVKFromRawExtension(t.Trait)
 
 			// TODO(wonderflow): we should get GVK from DefinitionPath instead of assuming template object contains
 			gvk := curObj.GroupVersionKind()
