@@ -152,7 +152,7 @@ func (o *commandOptions) Complete(cmd *cobra.Command, args []string, ctx context
 			continue
 		}
 		for it, t := range c.Traits {
-			g, v, k := GetGVKFromRawExtension(t.Trait)
+			g, v, k := cmdutil.GetGVKFromRawExtension(t.Trait)
 
 			// TODO(wonderflow): we should get GVK from DefinitionPath instead of assuming template object contains
 			gvk := curObj.GroupVersionKind()
@@ -258,17 +258,4 @@ func (o *commandOptions) Run(cmd *cobra.Command, ctx context.Context) error {
 	}
 	o.Info("Succeeded!")
 	return nil
-}
-
-func GetGVKFromRawExtension(extension runtime.RawExtension) (string, string, string) {
-	if extension.Object != nil {
-		gvk := extension.Object.GetObjectKind().GroupVersionKind()
-		return gvk.Group, gvk.Version, gvk.Kind
-	}
-	var data map[string]interface{}
-	// leverage Admission Controller to do the check
-	_ = json.Unmarshal(extension.Raw, &data)
-	obj := unstructured.Unstructured{Object: data}
-	gvk := obj.GroupVersionKind()
-	return gvk.Group, gvk.Version, gvk.Kind
 }

@@ -2,14 +2,11 @@ package plugins
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/ioutil"
-	"path/filepath"
+
+	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 
 	"k8s.io/apimachinery/pkg/labels"
-
-	"github.com/cloud-native-application/rudrx/pkg/cue"
 
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -72,7 +69,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 
 func HandleDefinition(name, syncDir, crdName string, extention *runtime.RawExtension, tp types.DefinitionType, applyTo []string) (types.Template, error) {
 	var tmp types.Template
-	tmp, err := HandleTemplate(extention, name, syncDir)
+	tmp, err := cmdutil.HandleTemplate(extention, name, syncDir)
 	if err != nil {
 		return types.Template{}, err
 	}
@@ -81,26 +78,5 @@ func HandleDefinition(name, syncDir, crdName string, extention *runtime.RawExten
 		tmp.AppliesTo = applyTo
 	}
 	tmp.CrdName = crdName
-	return tmp, nil
-}
-
-func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Template, error) {
-	tmp, err := types.ConvertTemplateJson2Object(in)
-	if err != nil {
-		return types.Template{}, err
-	}
-	if tmp.Template == "" {
-		return types.Template{}, errors.New("template not exist in definition")
-	}
-	filePath := filepath.Join(syncDir, name+".cue")
-	err = ioutil.WriteFile(filePath, []byte(tmp.Template), 0644)
-	if err != nil {
-		return types.Template{}, err
-	}
-	tmp.DefinitionPath = filePath
-	tmp.Parameters, tmp.Name, err = cue.GetParameters(filePath)
-	if err != nil {
-		return types.Template{}, err
-	}
 	return tmp, nil
 }

@@ -54,8 +54,8 @@ func printApplicationList(ctx context.Context, c client.Client, appName string, 
 
 	table.AddRow("NAME", "WORKLOAD", "TRAITS", "STATUS", "CREATED-TIME")
 	for _, a := range applicationMetaList {
-		traitNames := strings.Join(a.Traits, ",")
-		table.AddRow(a.Name, a.Workload, traitNames, a.Status, a.CreatedTime)
+		traitAlias := strings.Join(a.Traits, ",")
+		table.AddRow(a.Name, a.Workload, traitAlias, a.Status, a.CreatedTime)
 	}
 	fmt.Print(table.String())
 }

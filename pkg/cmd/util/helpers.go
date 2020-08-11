@@ -1,13 +1,21 @@
 package util
 
 import (
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/spf13/cobra"
 
 	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/cloud-native-application/rudrx/pkg/cue"
+	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -68,26 +76,20 @@ type ApplicationMeta struct {
 	CreatedTime string   `json:"created,omitempty"`
 }
 
-type ApplicationStatusMeta struct {
-	Status   string                          `json:"status,omitempty"`
-	Workload corev1alpha2.WorkloadDefinition `json:"workload,omitempty"`
-	Traits   []corev1alpha2.TraitDefinition  `json:"trait,omitempty"`
-}
-
 func GetComponent(ctx context.Context, c client.Client, componentName string, namespace string) (corev1alpha2.Component, error) {
 	var component corev1alpha2.Component
 	err := c.Get(ctx, client.ObjectKey{Name: componentName, Namespace: namespace}, &component)
 	return component, err
 }
 
-func GetTraitNamesByApplicationConfiguration(app corev1alpha2.ApplicationConfiguration) []string {
-	var traitNames []string
-
-	traitDefinitionList := ListTraitDefinitionsByApplicationConfiguration(app)
-	for _, t := range traitDefinitionList {
-		traitNames = append(traitNames, t.Name)
+func GetTraitAliasByComponentTraitList(ctx context.Context, c client.Client, componentTraitList []corev1alpha2.ComponentTrait) []string {
+	var traitAlias []string
+	for _, t := range componentTraitList {
+		_, _, kind := GetGVKFromRawExtension(t.Trait)
+		alias := GetTraitAliasByKind(ctx, c, kind)
+		traitAlias = append(traitAlias, alias)
 	}
-	return traitNames
+	return traitAlias
 }
 
 func ListTraitDefinitionsByApplicationConfiguration(app corev1alpha2.ApplicationConfiguration) []corev1alpha2.TraitDefinition {
@@ -119,7 +121,7 @@ func RetrieveApplicationsByName(ctx context.Context, c client.Client, applicatio
 
 		applicationList.Items = append(applicationList.Items, application)
 	} else {
-		err := c.List(ctx, &applicationList)
+		err := c.List(ctx, &applicationList, &client.ListOptions{Namespace: namespace})
 		if err != nil {
 			return applicationMetaList, err
 		}
@@ -135,7 +137,7 @@ func RetrieveApplicationsByName(ctx context.Context, c client.Client, applicatio
 			var workload corev1alpha2.WorkloadDefinition
 			if err := json.Unmarshal(component.Spec.Workload.Raw, &workload); err == nil {
 				workloadName := workload.TypeMeta.Kind
-				traitNames := GetTraitNamesByApplicationConfiguration(a)
+				traitAlias := GetTraitAliasByComponentTraitList(ctx, c, com.Traits)
 				var status = "UNKNOWN"
 				if len(a.Status.Conditions) != 0 {
 					status = string(a.Status.Conditions[0].Status)
@@ -143,7 +145,7 @@ func RetrieveApplicationsByName(ctx context.Context, c client.Client, applicatio
 				applicationMetaList = append(applicationMetaList, ApplicationMeta{
 					Name:        a.Name,
 					Workload:    workloadName,
-					Traits:      traitNames,
+					Traits:      traitAlias,
 					Status:      status,
 					CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
 				})
@@ -153,35 +155,16 @@ func RetrieveApplicationsByName(ctx context.Context, c client.Client, applicatio
 	return applicationMetaList, nil
 }
 
-func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, applicationName string, namespace string) (ApplicationStatusMeta, error) {
-	var applicationStatusMeta ApplicationStatusMeta
-	var appConfig corev1alpha2.ApplicationConfiguration
-	if err := c.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: namespace}, &appConfig); err != nil {
-		return applicationStatusMeta, err
-	}
-
-	component, err := GetComponent(ctx, c, applicationName, namespace)
+func GetTraitAliasByTraitDefinition(traitDefinition corev1alpha2.TraitDefinition) (string, error) {
+	velaApplicationFolder := filepath.Join("~/.vela", "applications")
+	system.StatAndCreate(velaApplicationFolder)
+	d, _ := ioutil.TempDir(velaApplicationFolder, "cue")
+	defer os.RemoveAll(d)
+	template, err := HandleTemplate(traitDefinition.Spec.Extension, traitDefinition.Name, d)
 	if err != nil {
-		return applicationStatusMeta, err
+		return "", nil
 	}
-
-	var workload corev1alpha2.WorkloadDefinition
-	err = json.Unmarshal(component.Spec.Workload.Raw, &workload)
-	if err != nil {
-		return applicationStatusMeta, err
-	}
-
-	traitDefinitionList := ListTraitDefinitionsByApplicationConfiguration(appConfig)
-	applicationStatusMeta = ApplicationStatusMeta{
-		Status:   string(appConfig.Status.Conditions[0].Status),
-		Workload: workload,
-		Traits:   traitDefinitionList,
-	}
-	return applicationStatusMeta, err
-}
-
-func GetTraitAliasByTraitDefinition(traitDefinition corev1alpha2.TraitDefinition) string {
-	return traitDefinition.Annotations["short"]
+	return template.Name, nil
 }
 
 func GetTraitDefinitionByName(ctx context.Context, c client.Client, namespace string, traitName string) (corev1alpha2.TraitDefinition, error) {
@@ -190,13 +173,32 @@ func GetTraitDefinitionByName(ctx context.Context, c client.Client, namespace st
 	return t, err
 }
 
-func GetTraitAliasByName(ctx context.Context, c client.Client, namespace string, traitName string) string {
+func GetTraitAliasByKind(ctx context.Context, c client.Client, traitKind string) string {
 	var traitAlias string
-	t, err := GetTraitDefinitionByName(ctx, c, namespace, traitName)
-	if err == nil {
-		traitAlias = GetTraitAliasByTraitDefinition(t)
+	t, err := GetTraitDefinitionByKind(ctx, c, traitKind)
+	if err != nil {
+		return traitKind
 	}
+
+	if traitAlias, err = GetTraitAliasByTraitDefinition(t); err != nil {
+		return traitKind
+	}
+
 	return traitAlias
+}
+
+func GetTraitDefinitionByKind(ctx context.Context, c client.Client, traitKind string) (corev1alpha2.TraitDefinition, error) {
+	var traitDefinitionList corev1alpha2.TraitDefinitionList
+	var traitDefinition corev1alpha2.TraitDefinition
+	if err := c.List(ctx, &traitDefinitionList); err != nil {
+		return traitDefinition, err
+	}
+	for _, t := range traitDefinitionList.Items {
+		if t.Annotations["oam.appengine.info/kind"] == traitKind {
+			return t, nil
+		}
+	}
+	return traitDefinition, errors.New(fmt.Sprintf("Could not find TraitDefinition by kind %s", traitKind))
 }
 
 func GetTraitDefinitionByAlias(ctx context.Context, c client.Client, traitAlias string) (corev1alpha2.TraitDefinition, error) {
@@ -312,4 +314,38 @@ func PrintFlags(cmd *cobra.Command, subcmds []*cobra.Command) {
 		}
 	}
 	cmd.Println()
+}
+
+func GetGVKFromRawExtension(extension runtime.RawExtension) (string, string, string) {
+	if extension.Object != nil {
+		gvk := extension.Object.GetObjectKind().GroupVersionKind()
+		return gvk.Group, gvk.Version, gvk.Kind
+	}
+	var data map[string]interface{}
+	// leverage Admission Controller to do the check
+	_ = json.Unmarshal(extension.Raw, &data)
+	obj := unstructured.Unstructured{Object: data}
+	gvk := obj.GroupVersionKind()
+	return gvk.Group, gvk.Version, gvk.Kind
+}
+
+func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Template, error) {
+	tmp, err := types.ConvertTemplateJson2Object(in)
+	if err != nil {
+		return types.Template{}, err
+	}
+	if tmp.Template == "" {
+		return types.Template{}, errors.New("template not exist in definition")
+	}
+	filePath := filepath.Join(syncDir, name+".cue")
+	err = ioutil.WriteFile(filePath, []byte(tmp.Template), 0644)
+	if err != nil {
+		return types.Template{}, err
+	}
+	tmp.DefinitionPath = filePath
+	tmp.Parameters, tmp.Name, err = cue.GetParameters(filePath)
+	if err != nil {
+		return types.Template{}, err
+	}
+	return tmp, nil
 }

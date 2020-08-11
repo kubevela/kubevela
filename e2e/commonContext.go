@@ -102,4 +102,30 @@ var (
 			})
 		})
 	}
+
+	// Trait
+	TraitManualScalerAttachContext = func(context string, traitAlias string, applicationName string) bool {
+		return ginkgo.Context(context, func() {
+			ginkgo.It("should print successful attached information", func() {
+				cli := fmt.Sprintf("vela %s %s", traitAlias, applicationName)
+				output, err := Exec(cli)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(output).To(gomega.ContainSubstring("Applying trait for app"))
+				gomega.Expect(output).To(gomega.ContainSubstring("Succeeded"))
+			})
+		})
+	}
+	TraitListContext = func(context string, applicationName string, traitAlias string) bool {
+		return ginkgo.Context("ls", func() {
+			ginkgo.It("should list all applications", func() {
+				output, err := Exec("vela app:ls")
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
+				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
+				if traitAlias != "" {
+					gomega.Expect(output).To(gomega.ContainSubstring(traitAlias))
+				}
+			})
+		})
+	}
 )
