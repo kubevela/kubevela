@@ -9,11 +9,10 @@ import (
 
 	"k8s.io/apimachinery/pkg/labels"
 
-	"github.com/cloud-native-application/rudrx/pkg/cue"
-
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/cloud-native-application/rudrx/pkg/cue"
 
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"sigs.k8s.io/controller-runtime/pkg/client"

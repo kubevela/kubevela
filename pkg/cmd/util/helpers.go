@@ -60,34 +60,10 @@ func CheckErr(err error) {
 	fatal(msg, DefaultErrorExitCode)
 }
 
-type ApplicationMeta struct {
-	Name        string   `json:"name"`
-	Workload    string   `json:"workload,omitempty"`
-	Traits      []string `json:"traits,omitempty"`
-	Status      string   `json:"status,omitempty"`
-	CreatedTime string   `json:"created,omitempty"`
-}
-
-type ApplicationStatusMeta struct {
-	Status   string                          `json:"status,omitempty"`
-	Workload corev1alpha2.WorkloadDefinition `json:"workload,omitempty"`
-	Traits   []corev1alpha2.TraitDefinition  `json:"trait,omitempty"`
-}
-
 func GetComponent(ctx context.Context, c client.Client, componentName string, namespace string) (corev1alpha2.Component, error) {
 	var component corev1alpha2.Component
 	err := c.Get(ctx, client.ObjectKey{Name: componentName, Namespace: namespace}, &component)
 	return component, err
-}
-
-func GetTraitNamesByApplicationConfiguration(app corev1alpha2.ApplicationConfiguration) []string {
-	var traitNames []string
-
-	traitDefinitionList := ListTraitDefinitionsByApplicationConfiguration(app)
-	for _, t := range traitDefinitionList {
-		traitNames = append(traitNames, t.Name)
-	}
-	return traitNames
 }
 
 func ListTraitDefinitionsByApplicationConfiguration(app corev1alpha2.ApplicationConfiguration) []corev1alpha2.TraitDefinition {
@@ -101,102 +77,10 @@ func ListTraitDefinitionsByApplicationConfiguration(app corev1alpha2.Application
 	return traitDefinitionList
 }
 
-/*
-	Get application list by optional filter `applicationName`
-	Application name is equal to Component name as currently vela only supports one component exists in one application
-*/
-func RetrieveApplicationsByName(ctx context.Context, c client.Client, applicationName string, namespace string) ([]ApplicationMeta, error) {
-	var applicationMetaList []ApplicationMeta
-	var applicationList corev1alpha2.ApplicationConfigurationList
-
-	if applicationName != "" {
-		var application corev1alpha2.ApplicationConfiguration
-		err := c.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: namespace}, &application)
-
-		if err != nil {
-			return applicationMetaList, err
-		}
-
-		applicationList.Items = append(applicationList.Items, application)
-	} else {
-		err := c.List(ctx, &applicationList)
-		if err != nil {
-			return applicationMetaList, err
-		}
-	}
-
-	for _, a := range applicationList.Items {
-		for _, com := range a.Spec.Components {
-			componentName := com.ComponentName
-			component, err := GetComponent(ctx, c, componentName, namespace)
-			if err != nil {
-				return applicationMetaList, err
-			}
-			var workload corev1alpha2.WorkloadDefinition
-			if err := json.Unmarshal(component.Spec.Workload.Raw, &workload); err == nil {
-				workloadName := workload.TypeMeta.Kind
-				traitNames := GetTraitNamesByApplicationConfiguration(a)
-				var status = "UNKNOWN"
-				if len(a.Status.Conditions) != 0 {
-					status = string(a.Status.Conditions[0].Status)
-				}
-				applicationMetaList = append(applicationMetaList, ApplicationMeta{
-					Name:        a.Name,
-					Workload:    workloadName,
-					Traits:      traitNames,
-					Status:      status,
-					CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
-				})
-			}
-		}
-	}
-	return applicationMetaList, nil
-}
-
-func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, applicationName string, namespace string) (ApplicationStatusMeta, error) {
-	var applicationStatusMeta ApplicationStatusMeta
-	var appConfig corev1alpha2.ApplicationConfiguration
-	if err := c.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: namespace}, &appConfig); err != nil {
-		return applicationStatusMeta, err
-	}
-
-	component, err := GetComponent(ctx, c, applicationName, namespace)
-	if err != nil {
-		return applicationStatusMeta, err
-	}
-
-	var workload corev1alpha2.WorkloadDefinition
-	err = json.Unmarshal(component.Spec.Workload.Raw, &workload)
-	if err != nil {
-		return applicationStatusMeta, err
-	}
-
-	traitDefinitionList := ListTraitDefinitionsByApplicationConfiguration(appConfig)
-	applicationStatusMeta = ApplicationStatusMeta{
-		Status:   string(appConfig.Status.Conditions[0].Status),
-		Workload: workload,
-		Traits:   traitDefinitionList,
-	}
-	return applicationStatusMeta, err
-}
-
-func GetTraitAliasByTraitDefinition(traitDefinition corev1alpha2.TraitDefinition) string {
-	return traitDefinition.Annotations["short"]
-}
-
 func GetTraitDefinitionByName(ctx context.Context, c client.Client, namespace string, traitName string) (corev1alpha2.TraitDefinition, error) {
 	var t corev1alpha2.TraitDefinition
 	err := c.Get(ctx, client.ObjectKey{Name: traitName, Namespace: namespace}, &t)
 	return t, err
-}
-
-func GetTraitAliasByName(ctx context.Context, c client.Client, namespace string, traitName string) string {
-	var traitAlias string
-	t, err := GetTraitDefinitionByName(ctx, c, namespace, traitName)
-	if err == nil {
-		traitAlias = GetTraitAliasByTraitDefinition(t)
-	}
-	return traitAlias
 }
 
 func GetTraitDefinitionByAlias(ctx context.Context, c client.Client, traitAlias string) (corev1alpha2.TraitDefinition, error) {
