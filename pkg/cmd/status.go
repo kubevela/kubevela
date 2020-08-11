@@ -83,8 +83,12 @@ func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, appli
 		if err != nil {
 			return applicationStatusMeta, err
 		}
+		var status = "UNKNOWN"
+		if len(appConfig.Status.Conditions) != 0 {
+			status = string(appConfig.Status.Conditions[0].Status)
+		}
 		applicationStatusMeta = ApplicationStatusMeta{
-			Status:   string(appConfig.Status.Conditions[0].Status),
+			Status:   status,
 			Workload: component.Spec,
 			Traits:   com.Traits,
 		}
