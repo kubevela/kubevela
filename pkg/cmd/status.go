@@ -75,9 +75,9 @@ func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, appli
 	if err := c.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: namespace}, &appConfig); err != nil {
 		return applicationStatusMeta, err
 	}
-	for i, com := range appConfig.Spec.Components {
+	for _, com := range appConfig.Spec.Components {
 		// Just get the one component from appConfig
-		if com.Name != applicationName {
+		if com.ComponentName != applicationName {
 			continue
 		}
 		component, err := cmdutil.GetComponent(ctx, c, com.ComponentName, namespace)

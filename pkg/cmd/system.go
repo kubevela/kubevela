@@ -2,22 +2,28 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
+
+	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
 	"github.com/cloud-native-application/rudrx/pkg/builtin"
 
 	"helm.sh/helm/v3/pkg/release"
 
 	"github.com/cloud-native-application/rudrx/api/types"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"k8s.io/apimachinery/pkg/runtime"
 
+	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	oamv1 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 
 	"github.com/spf13/cobra"
@@ -30,6 +36,7 @@ import (
 
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 
+	"github.com/cloud-native-application/rudrx/pkg/plugins"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -363,4 +370,66 @@ func NewWorkloadDefinition(name, reference string) *oamv1.WorkloadDefinition {
 			Reference: oamv1.DefinitionReference{Name: reference},
 		},
 	}
+}
+
+func GetTraitAliasByTraitDefinition(traitDefinition oamv1.TraitDefinition) (string, error) {
+	velaApplicationFolder := filepath.Join("~/.vela", "applications")
+	system.StatAndCreate(velaApplicationFolder)
+	d, _ := ioutil.TempDir(velaApplicationFolder, "cue")
+	defer os.RemoveAll(d)
+	template, err := plugins.HandleTemplate(traitDefinition.Spec.Extension, traitDefinition.Name, d)
+	if err != nil {
+		return "", nil
+	}
+	return template.Name, nil
+}
+
+func GetTraitAliasByKind(ctx context.Context, c client.Client, traitKind string) string {
+	var traitAlias string
+	t, err := GetTraitDefinitionByKind(ctx, c, traitKind)
+	if err != nil {
+		return traitKind
+	}
+
+	if traitAlias, err = GetTraitAliasByTraitDefinition(t); err != nil {
+		return traitKind
+	}
+
+	return traitAlias
+}
+func GetTraitDefinitionByKind(ctx context.Context, c client.Client, traitKind string) (oamv1.TraitDefinition, error) {
+	var traitDefinitionList oamv1.TraitDefinitionList
+	var traitDefinition oamv1.TraitDefinition
+	if err := c.List(ctx, &traitDefinitionList); err != nil {
+		return traitDefinition, err
+	}
+	for _, t := range traitDefinitionList.Items {
+		if t.Annotations["oam.appengine.info/kind"] == traitKind {
+			return t, nil
+		}
+	}
+	return traitDefinition, errors.New(fmt.Sprintf("Could not find TraitDefinition by kind %s", traitKind))
+}
+
+func GetTraitAliasByComponentTraitList(ctx context.Context, c client.Client, componentTraitList []corev1alpha2.ComponentTrait) []string {
+	var traitAlias []string
+	for _, t := range componentTraitList {
+		_, _, kind := GetGVKFromRawExtension(t.Trait)
+		alias := GetTraitAliasByKind(ctx, c, kind)
+		traitAlias = append(traitAlias, alias)
+	}
+	return traitAlias
+}
+
+func GetGVKFromRawExtension(extension runtime.RawExtension) (string, string, string) {
+	if extension.Object != nil {
+		gvk := extension.Object.GetObjectKind().GroupVersionKind()
+		return gvk.Group, gvk.Version, gvk.Kind
+	}
+	var data map[string]interface{}
+	// leverage Admission Controller to do the check
+	_ = json.Unmarshal(extension.Raw, &data)
+	obj := unstructured.Unstructured{Object: data}
+	gvk := obj.GroupVersionKind()
+	return gvk.Group, gvk.Version, gvk.Kind
 }
