@@ -66,7 +66,7 @@ func LoadPluginsFromLocal(dir string) ([]types.Template, error) {
 			fmt.Printf("read file %s err %v\n", f.Name(), err)
 			continue
 		}
-		tmp, err := GetDefinitionFromURL(data, filepath.Join(dir, ".tmp"))
+		tmp, err := ParseAndSyncDefinition(data, filepath.Join(dir, ".tmp"))
 		if err != nil {
 			fmt.Printf("get definition of %s err %v\n", f.Name(), err)
 			continue

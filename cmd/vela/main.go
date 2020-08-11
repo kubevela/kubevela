@@ -94,19 +94,15 @@ func newCommand() *cobra.Command {
 		Schema: scheme,
 	}
 
-	if err := system.InitApplicationDir(); err != nil {
-		fmt.Println("InitApplicationDir err", err)
-		os.Exit(1)
-	}
-	if err := system.InitDefinitionDir(); err != nil {
-		fmt.Println("InitDefinitionDir err", err)
+	if err := system.InitDirs(); err != nil {
+		fmt.Println("InitDir err", err)
 		os.Exit(1)
 	}
 
 	// Getting Start
 	cmd.EnvCommandGroup(cmds, commandArgs, ioStream)
 	// Others
-	cmd.AddonCommandGroup(cmds, ioStream)
+	cmd.AddonCommandGroup(cmds, commandArgs, ioStream)
 	// System
 	cmd.SystemCommandGroup(cmds, commandArgs, ioStream)
 

@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
+	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+
 	"k8s.io/apimachinery/pkg/labels"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -91,6 +93,7 @@ func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Templ
 	if tmp.Template == "" {
 		return types.Template{}, errors.New("template not exist in definition")
 	}
+	system.StatAndCreate(syncDir)
 	filePath := filepath.Join(syncDir, name+".cue")
 	err = ioutil.WriteFile(filePath, []byte(tmp.Template), 0644)
 	if err != nil {

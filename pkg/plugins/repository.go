@@ -159,7 +159,7 @@ func StoreRepos(repos []RepoConfig) error {
 	return ioutil.WriteFile(config, data, 0644)
 }
 
-func GetDefinitionFromURL(data []byte, syncDir string) (types.Template, error) {
+func ParseAndSyncDefinition(data []byte, syncDir string) (types.Template, error) {
 	var obj = unstructured.Unstructured{Object: make(map[string]interface{})}
 	err := yaml.Unmarshal(data, &obj.Object)
 	if err != nil {
@@ -235,9 +235,14 @@ func (g *GithubAddon) SyncRemoteAddons() error {
 				return fmt.Errorf("decode github content %s err %v", *fileContent.Path, err)
 			}
 		}
-		err = ioutil.WriteFile(filepath.Join(repoDir, *fileContent.Name), data, 0644)
+		tmp, err := ParseAndSyncDefinition(data, filepath.Join(dir, ".tmp"))
 		if err != nil {
-			fmt.Printf("write definition %s to %s err %v\n", *fileContent.Name, repoDir, err)
+			fmt.Printf("parse definition of %s err %v\n", *fileContent.Name, err)
+			continue
+		}
+		err = ioutil.WriteFile(filepath.Join(repoDir, tmp.CrdName+".yaml"), data, 0644)
+		if err != nil {
+			fmt.Printf("write definition %s to %s err %v\n", tmp.CrdName+".yaml", repoDir, err)
 			continue
 		}
 		success++

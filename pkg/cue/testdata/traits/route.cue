@@ -1,11 +1,19 @@
 #Template: {
-	apiVersion: "apps/v1"
-	kind:       "Route"
+	apiVersion: "networking.k8s.io/v1beta1"
+	kind:       "Ingress"
 	spec: {
-		domain: route.domain
+		rules: [{
+			host: route.domain
+			http: paths: [{
+				backend: {
+					serviceName: route.service
+					servicePort: route.port
+				}}]
+		}]
 	}
 }
-
 route: {
-	domain: string
+	domain:  string
+	port:    *80 | int
+	service: string
 }

@@ -44,7 +44,19 @@ type Template struct {
 	AppliesTo []string `json:"appliesTo,omitempty"`
 
 	// Plugin Source
-	Source *Source `json:"source,omitempty"`
+	Source  *Source       `json:"source,omitempty"`
+	Install *Installation `json:"install,omitempty"`
+}
+
+type Chart struct {
+	Repo    string `json:"repo"`
+	URl     string `json:"url"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+type Installation struct {
+	Helm []Chart `json:"helm"`
 }
 
 type DefinitionType string

@@ -28,7 +28,7 @@ func GetRepoDir() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".repo"), nil
+	return filepath.Join(home, "repositories"), nil
 }
 
 func GetRepoConfig() (string, error) {
@@ -36,7 +36,6 @@ func GetRepoConfig() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	StatAndCreate(home)
 	return filepath.Join(home, "config.yaml"), nil
 }
 
@@ -72,12 +71,33 @@ func GetCurrentEnvPath() (string, error) {
 	return filepath.Join(homedir, "curenv"), nil
 }
 
+func InitDirs() error {
+	if err := InitDefinitionDir(); err != nil {
+		return err
+	}
+	if err := InitApplicationDir(); err != nil {
+		return err
+	}
+	if err := InitRepositoryDir(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func InitRepositoryDir() error {
+	home, err := GetRepoDir()
+	if err != nil {
+		return err
+	}
+	return StatAndCreate(filepath.Join(home, ".tmp"))
+}
+
 func InitDefinitionDir() error {
 	dir, err := GetDefinitionDir()
 	if err != nil {
 		return err
 	}
-	return os.MkdirAll(dir, 0755)
+	return StatAndCreate(dir)
 }
 
 func InitApplicationDir() error {
@@ -85,7 +105,7 @@ func InitApplicationDir() error {
 	if err != nil {
 		return err
 	}
-	return os.MkdirAll(dir, 0755)
+	return StatAndCreate(dir)
 }
 
 func InitDefaultEnv() error {
@@ -108,8 +128,9 @@ func InitDefaultEnv() error {
 	return nil
 }
 
-func StatAndCreate(dir string) {
+func StatAndCreate(dir string) error {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		os.MkdirAll(dir, 0755)
+		return os.MkdirAll(dir, 0755)
 	}
+	return nil
 }

@@ -185,35 +185,35 @@ func (i *initCmd) IsOamRuntimeExist() bool {
 }
 
 func InstallOamRuntime(ioStreams cmdutil.IOStreams, version string) error {
+	return HelmInstall(ioStreams, types.DefaultOAMRepoName, types.DefaultOAMRepoUrl, types.DefaultOAMChartName, version, types.DefaultOAMReleaseName)
+}
 
-	if !IsHelmRepositoryExist(types.DefaultOAMRepoName, types.DefaultOAMRepoUrl) {
-		err := AddHelmRepository(types.DefaultOAMRepoName, types.DefaultOAMRepoUrl,
+func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoUrl, chartName, version, releaseName string) error {
+	if !IsHelmRepositoryExist(repoName, repoUrl) {
+		err := AddHelmRepository(repoName, repoUrl,
 			"", "", "", "", "", false, ioStreams.Out)
 		if err != nil {
 			return err
 		}
 	}
 
-	chartClient, err := NewHelmInstall(version, ioStreams)
+	chartClient, err := NewHelmInstall(version, releaseName, ioStreams)
 	if err != nil {
 		return err
 	}
-
-	chartRequested, err := GetChart(chartClient, types.DefaultOAMChartName)
+	chartRequested, err := GetChart(chartClient, chartName)
 	if err != nil {
 		return err
 	}
-
 	release, err := chartClient.Run(chartRequested, nil)
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("Successfully installed oam-kubernetes-runtime release: ", release.Name)
+	ioStreams.Infof("Successfully installed %s as release name %s\n", chartName, release.Name)
 	return nil
 }
 
-func NewHelmInstall(version string, ioStreams cmdutil.IOStreams) (*action.Install, error) {
+func NewHelmInstall(version, releaseName string, ioStreams cmdutil.IOStreams) (*action.Install, error) {
 	actionConfig := new(action.Configuration)
 
 	if err := actionConfig.Init(
@@ -227,12 +227,8 @@ func NewHelmInstall(version string, ioStreams cmdutil.IOStreams) (*action.Instal
 
 	client := action.NewInstall(actionConfig)
 	client.Namespace = types.DefaultOAMNS
-	client.ReleaseName = types.DefaultOAMReleaseName
-	if len(version) > 0 {
-		client.Version = version
-		return client, nil
-	}
-	client.Version = types.DefaultOAMVersion
+	client.ReleaseName = releaseName
+	client.Version = version
 	return client, nil
 }
 
