@@ -62,6 +62,7 @@ func newCommand() *cobra.Command {
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 
 	cmds := &cobra.Command{
+		Use:                "vela",
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			allCommands := cmd.Commands()
