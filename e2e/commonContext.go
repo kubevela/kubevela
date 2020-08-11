@@ -115,7 +115,9 @@ var (
 			})
 		})
 	}
-	TraitListContext = func(context string, applicationName string, traitAlias string) bool {
+
+	// Application
+	ApplicationListContext = func(context string, applicationName string, traitAlias string) bool {
 		return ginkgo.Context("ls", func() {
 			ginkgo.It("should list all applications", func() {
 				output, err := Exec("vela app:ls")
@@ -125,6 +127,18 @@ var (
 				if traitAlias != "" {
 					gomega.Expect(output).To(gomega.ContainSubstring(traitAlias))
 				}
+			})
+		})
+	}
+
+	ApplicationStatusContext = func(context string, applicationName string) bool {
+		return ginkgo.Context(context, func() {
+			ginkgo.It("should get status for the application", func() {
+				cli := fmt.Sprintf("vela app:status %s", applicationName)
+				output, err := Exec(cli)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
+				gomega.Expect(output).To(gomega.ContainSubstring("Workload"))
 			})
 		})
 	}

@@ -9,11 +9,8 @@ import (
 	"github.com/onsi/gomega"
 )
 
-var rudrPath string
-
 var _ = ginkgo.BeforeSuite(func() {
-	p, err := e2e.GetCliBinary()
-	rudrPath = p
+	_, err := e2e.GetCliBinary()
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 })
 
