@@ -12,7 +12,7 @@ spec:
     name: deployments.apps
   extension:
     template: |
-      #Template: {
+      #CueTemplate: {
       	apiVersion: "apps/v1"
       	kind:       "Deployment"
       	metadata: name: deployment.name

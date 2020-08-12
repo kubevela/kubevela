@@ -90,12 +90,12 @@ func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Templ
 	if err != nil {
 		return types.Template{}, err
 	}
-	if tmp.Template == "" {
+	if tmp.CueTemplate == "" {
 		return types.Template{}, errors.New("template not exist in definition")
 	}
 	system.StatAndCreate(syncDir)
 	filePath := filepath.Join(syncDir, name+".cue")
-	err = ioutil.WriteFile(filePath, []byte(tmp.Template), 0644)
+	err = ioutil.WriteFile(filePath, []byte(tmp.CueTemplate), 0644)
 	if err != nil {
 		return types.Template{}, err
 	}

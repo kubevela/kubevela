@@ -74,7 +74,7 @@ var _ = Describe("DefinitionFiles", func() {
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting trait definitions %v", traitDefs))
 		for i := range traitDefs {
-			traitDefs[i].Template = ""
+			traitDefs[i].CueTemplate = ""
 			traitDefs[i].DefinitionPath = ""
 		}
 		Expect(traitDefs).Should(Equal([]types.Template{route}))
@@ -86,7 +86,7 @@ var _ = Describe("DefinitionFiles", func() {
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting workload definitions  %v", workloadDefs))
 		for i := range workloadDefs {
-			workloadDefs[i].Template = ""
+			workloadDefs[i].CueTemplate = ""
 			workloadDefs[i].DefinitionPath = ""
 		}
 		Expect(workloadDefs).Should(Equal([]types.Template{deployment}))
@@ -96,7 +96,7 @@ var _ = Describe("DefinitionFiles", func() {
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting all definitions %v", alldef))
 		for i := range alldef {
-			alldef[i].Template = ""
+			alldef[i].CueTemplate = ""
 			alldef[i].DefinitionPath = ""
 		}
 		Expect(alldef).Should(Equal([]types.Template{deployment, route}))

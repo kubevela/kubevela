@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
 	"github.com/ghodss/yaml"
 
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
@@ -208,12 +210,15 @@ func NewAddonListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 func InstallAddonPlugin(client client.Client, repoName, addonName string, ioStreams cmdutil.IOStreams) error {
 	dir, _ := system.GetRepoDir()
 	repoDir := filepath.Join(dir, repoName)
-	tp, err := GetTemplate(repoName, addonName)
+	tp, err := GetSyncedPlugin(repoName, addonName)
 	if err != nil {
 		return err
 	}
+	tp.Source = &types.Source{RepoName: repoName}
+	defDir, _ := system.GetDefinitionDir()
 	switch tp.Type {
 	case types.TypeWorkload:
+		defDir = filepath.Join(defDir, "workloads")
 		var wd v1alpha2.WorkloadDefinition
 		workloadData, err := ioutil.ReadFile(filepath.Join(repoDir, tp.CrdName+".yaml"))
 		if err != nil {
@@ -229,8 +234,11 @@ func InstallAddonPlugin(client client.Client, repoName, addonName string, ioStre
 				return err
 			}
 		}
-		return client.Create(context.Background(), &wd)
+		if err = client.Create(context.Background(), &wd); err != nil && !apierrors.IsAlreadyExists(err) {
+			return err
+		}
 	case types.TypeTrait:
+		defDir = filepath.Join(defDir, "traits")
 		var td v1alpha2.TraitDefinition
 		traitdata, err := ioutil.ReadFile(filepath.Join(repoDir, tp.CrdName+".yaml"))
 		if err != nil {
@@ -246,21 +254,30 @@ func InstallAddonPlugin(client client.Client, repoName, addonName string, ioStre
 				return err
 			}
 		}
-		return client.Create(context.Background(), &td)
+		if err = client.Create(context.Background(), &td); err != nil && !apierrors.IsAlreadyExists(err) {
+			return err
+		}
+	case types.TypeScope:
+		//TODO(wonderflow): support install scope here
+	}
+
+	success := plugins.SinkTemp2Local([]types.Template{tp}, defDir)
+	if success == 1 {
+		ioStreams.Infof("Successfully installed plugin %s from %s\n", addonName, repoName)
 	}
 	return nil
 }
 
 func InstallHelmChart(ioStreams cmdutil.IOStreams, charts []types.Chart) error {
 	for _, c := range charts {
-		if err := HelmInstall(ioStreams, c.Repo, c.URl, c.Repo+"/"+c.Name, c.Version, c.Name); err != nil {
+		if err := HelmInstall(ioStreams, c.Repo, c.URl, c.Name, c.Version, c.Name); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func GetTemplate(repoName, addonName string) (types.Template, error) {
+func GetSyncedPlugin(repoName, addonName string) (types.Template, error) {
 	dir, _ := system.GetRepoDir()
 	repoDir := filepath.Join(dir, repoName)
 	templates, err := plugins.LoadPluginsFromLocal(repoDir)
@@ -302,7 +319,6 @@ func CheckInstalled(repoName string, tmp types.Template) string {
 	}
 	installed, _ := plugins.LoadTempFromLocal(dir)
 	for _, i := range installed {
-		//TODO handle source on install
 		if i.Source != nil && i.Source.RepoName == repoName && i.Name == tmp.Name && i.CrdName == tmp.CrdName {
 			return "installed"
 		}

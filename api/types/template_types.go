@@ -35,7 +35,7 @@ type Source struct {
 type Template struct {
 	Name           string         `json:"name"`
 	Type           DefinitionType `json:"type"`
-	Template       string         `json:"template,omitempty"`
+	CueTemplate    string         `json:"template,omitempty"`
 	Parameters     []Parameter    `json:"parameters,omitempty"`
 	DefinitionPath string         `json:"definition"`
 	CrdName        string         `json:"crdName,omitempty"`
@@ -64,6 +64,7 @@ type DefinitionType string
 const (
 	TypeWorkload DefinitionType = "workload"
 	TypeTrait    DefinitionType = "trait"
+	TypeScope    DefinitionType = "scope"
 )
 
 type Parameter struct {
