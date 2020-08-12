@@ -32,3 +32,4 @@ vendor/
 .vscode
 
 pkg/test/vela
+tmp/

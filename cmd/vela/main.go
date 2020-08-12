@@ -51,7 +51,6 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	command := newCommand()
-
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
