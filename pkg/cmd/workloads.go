@@ -21,7 +21,7 @@ func NewWorkloadsCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		Long:                  "List workloads",
 		Example:               `vela workloads`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			dir, _ := system.GetDefinitionDir()
+			dir, _ := system.GetCapabilityDir()
 			workloads, err := plugins.LoadTempFromLocal(filepath.Join(dir, "workloads"))
 			if err != nil {
 				return err
@@ -33,7 +33,7 @@ func NewWorkloadsCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func printWorkloadList(workloadList []types.Template, ioStreams cmdutil.IOStreams) error {
+func printWorkloadList(workloadList []types.Capability, ioStreams cmdutil.IOStreams) error {
 	table := uitable.New()
 	table.MaxColWidth = 60
 	table.AddRow("NAME", "DEFINITION")

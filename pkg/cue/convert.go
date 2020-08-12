@@ -17,57 +17,27 @@ func Eval(templatePath, workloadType string, value map[string]interface{}) (stri
 	r := cue.Runtime{}
 	template, err := r.Compile(templatePath, nil)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("compile %s err %v", templatePath, err)
 	}
 
 	tempValue := template.Value()
 	appValue, err := tempValue.Fill(value, workloadType).Eval().Struct()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("fill value to template err %v", err)
 	}
 
 	final, err := appValue.FieldByName(Template, true)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("get template %s err %v", Template, err)
 	}
 	if err := final.Value.Validate(cue.Concrete(true), cue.Final()); err != nil {
 		return "", err
 	}
 	data, err := json.Marshal(final.Value)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("marshal final value err %v", err)
 	}
-
 	return data, nil
-}
-
-func Parse(templatePath, workloadType string, value map[string]interface{}) error {
-	r := cue.Runtime{}
-	template, err := r.Compile(templatePath, nil)
-	if err != nil {
-		return err
-	}
-
-	tempValue := template.Value()
-	appValue, err := tempValue.Fill(value, workloadType).Eval().Struct()
-	if err != nil {
-		return err
-	}
-
-	final, err := appValue.FieldByName(Template, true)
-	if err != nil {
-		return err
-	}
-	if err := final.Value.Validate(cue.Concrete(true), cue.Final()); err != nil {
-		return err
-	}
-	data, err := json.Marshal(final.Value)
-	if err != nil {
-		return err
-	}
-	println(string(data))
-
-	return nil
 }
 
 func GetParameters(templatePath string) ([]types.Parameter, string, error) {

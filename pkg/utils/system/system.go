@@ -23,20 +23,19 @@ func GetVelaHomeDir() (string, error) {
 	return filepath.Join(home, defaultVelaHome), nil
 }
 
-func GetRepoDir() (string, error) {
+func GetCapCenterDir() (string, error) {
 	home, err := GetVelaHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".repo"), nil
+	return filepath.Join(home, "centers"), nil
 }
 
 func GetRepoConfig() (string, error) {
-	home, err := GetRepoDir()
+	home, err := GetCapCenterDir()
 	if err != nil {
 		return "", err
 	}
-	StatAndCreate(home)
 	return filepath.Join(home, "config.yaml"), nil
 }
 
@@ -48,12 +47,12 @@ func GetApplicationDir() (string, error) {
 	return filepath.Join(home, "applications"), nil
 }
 
-func GetDefinitionDir() (string, error) {
+func GetCapabilityDir() (string, error) {
 	home, err := GetVelaHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, "definitions"), nil
+	return filepath.Join(home, "capabilities"), nil
 }
 
 func GetEnvDir() (string, error) {
@@ -72,12 +71,33 @@ func GetCurrentEnvPath() (string, error) {
 	return filepath.Join(homedir, "curenv"), nil
 }
 
-func InitDefinitionDir() error {
-	dir, err := GetDefinitionDir()
+func InitDirs() error {
+	if err := InitCapabilityDir(); err != nil {
+		return err
+	}
+	if err := InitApplicationDir(); err != nil {
+		return err
+	}
+	if err := InitCapCenterDir(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func InitCapCenterDir() error {
+	home, err := GetCapCenterDir()
 	if err != nil {
 		return err
 	}
-	return os.MkdirAll(dir, 0755)
+	return StatAndCreate(filepath.Join(home, ".tmp"))
+}
+
+func InitCapabilityDir() error {
+	dir, err := GetCapabilityDir()
+	if err != nil {
+		return err
+	}
+	return StatAndCreate(dir)
 }
 
 func InitApplicationDir() error {
@@ -85,7 +105,7 @@ func InitApplicationDir() error {
 	if err != nil {
 		return err
 	}
-	return os.MkdirAll(dir, 0755)
+	return StatAndCreate(dir)
 }
 
 func InitDefaultEnv() error {
@@ -108,8 +128,9 @@ func InitDefaultEnv() error {
 	return nil
 }
 
-func StatAndCreate(dir string) {
+func StatAndCreate(dir string) error {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		os.MkdirAll(dir, 0755)
+		return os.MkdirAll(dir, 0755)
 	}
+	return nil
 }

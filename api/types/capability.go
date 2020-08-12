@@ -27,17 +27,36 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// Template defines the content of a plugin
-type Template struct {
+type Source struct {
+	RepoName string `json:"repoName"`
+}
+
+// Capability defines the content of a capability
+type Capability struct {
 	Name           string         `json:"name"`
 	Type           DefinitionType `json:"type"`
-	Template       string         `json:"template,omitempty"`
+	CueTemplate    string         `json:"template,omitempty"`
 	Parameters     []Parameter    `json:"parameters,omitempty"`
 	DefinitionPath string         `json:"definition"`
 	CrdName        string         `json:"crdName,omitempty"`
 
 	//trait only
 	AppliesTo []string `json:"appliesTo,omitempty"`
+
+	// Plugin Source
+	Source  *Source       `json:"source,omitempty"`
+	Install *Installation `json:"install,omitempty"`
+}
+
+type Chart struct {
+	Repo    string `json:"repo"`
+	URl     string `json:"url"`
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
+type Installation struct {
+	Helm []Chart `json:"helm"`
 }
 
 type DefinitionType string
@@ -45,6 +64,7 @@ type DefinitionType string
 const (
 	TypeWorkload DefinitionType = "workload"
 	TypeTrait    DefinitionType = "trait"
+	TypeScope    DefinitionType = "scope"
 )
 
 type Parameter struct {
@@ -57,9 +77,9 @@ type Parameter struct {
 }
 
 // ConvertTemplateJson2Object convert spec.extension to object
-func ConvertTemplateJson2Object(in *runtime.RawExtension) (Template, error) {
-	var t Template
-	var extension Template
+func ConvertTemplateJson2Object(in *runtime.RawExtension) (Capability, error) {
+	var t Capability
+	var extension Capability
 	if in == nil {
 		return t, fmt.Errorf("extension field is nil")
 	}

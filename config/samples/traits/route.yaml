@@ -1,0 +1,41 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: ingresses.networking.k8s.io
+  annotations:
+    "oam.appengine.info/apiVersion": "networking.k8s.io/v1beta1"
+    "oam.appengine.info/kind": "Ingress"
+spec:
+  revisionEnabled: true
+  appliesToWorkloads:
+    - core.oam.dev/v1alpha2.ContainerizedWorkload
+    - deployments.apps
+  definitionRef:
+    name: ingresses.networking.k8s.io
+  extension:
+    install:
+      helm:
+        - repo: stable
+          name: nginx-ingress
+          version: 1.41.2
+    template: |
+      #Template: {
+      	apiVersion: "networking.k8s.io/v1beta1"
+      	kind:       "Ingress"
+      	spec: {
+      		rules: [{
+      			host: route.domain
+      			http: paths: [{
+      				backend: {
+      					serviceName: route.service
+      					servicePort: route.port
+      				}}]
+      		}]
+      	}
+      }
+      route: {
+      	domain:  string
+      	port:    *80 | int
+      	service: string
+      }
+

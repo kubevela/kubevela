@@ -22,7 +22,7 @@ func init() {
 
 // used in testing
 var (
-	workloadTemplateExample = &types.Template{
+	workloadTemplateExample = &types.Capability{
 
 		Parameters: []types.Parameter{
 			types.Parameter{
@@ -38,7 +38,7 @@ var (
 		},
 	}
 
-	traitTemplateExample = &types.Template{
+	traitTemplateExample = &types.Capability{
 
 		Parameters: []types.Parameter{
 			types.Parameter{

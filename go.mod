@@ -8,6 +8,7 @@ require (
 	github.com/crossplane/oam-kubernetes-runtime v0.0.8
 	github.com/ghodss/yaml v1.0.0
 	github.com/gin-gonic/gin v1.6.3
+	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.8.1
@@ -17,7 +18,7 @@ require (
 	github.com/stretchr/testify v1.6.1
 	go.uber.org/zap v1.10.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
-	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
+	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.2.4
 	k8s.io/api v0.18.6

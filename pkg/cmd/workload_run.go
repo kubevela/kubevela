@@ -12,7 +12,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"gopkg.in/yaml.v3"
+	"github.com/ghodss/yaml"
 
 	"cuelang.org/go/cue"
 
@@ -35,7 +35,7 @@ import (
 const ComponentWorkloadDefLabel = "vela.oam.dev/workloadDef"
 
 type runOptions struct {
-	Template     types.Template
+	Template     types.Capability
 	Env          *types.EnvMeta
 	workloadName string
 	client       client.Client
@@ -47,8 +47,8 @@ func newRunOptions(ioStreams cmdutil.IOStreams) *runOptions {
 	return &runOptions{IOStreams: ioStreams}
 }
 
-func AddWorkloadPlugins(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
-	dir, _ := system.GetDefinitionDir()
+func AddWorkloadCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
+	dir, _ := system.GetCapabilityDir()
 	templates, err := plugins.LoadTempFromLocal(filepath.Join(dir, "workloads"))
 	if err != nil {
 		return err

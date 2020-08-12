@@ -118,7 +118,7 @@ var _ = BeforeSuite(func(done Done) {
 			},
 		},
 	}
-	definitionDir, err = system.GetDefinitionDir()
+	definitionDir, err = system.GetCapabilityDir()
 	Expect(err).Should(BeNil())
 	os.MkdirAll(definitionDir, 0755)
 	Expect(k8sClient.Create(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))

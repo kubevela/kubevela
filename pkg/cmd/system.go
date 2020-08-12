@@ -171,13 +171,17 @@ func (i *initCmd) IsOamRuntimeExist() bool {
 			return false
 		}
 	}
+	return IsHelmReleaseRunning(types.DefaultOAMReleaseName, types.DefaultOAMRuntimeChartName, i.ioStreams)
+}
+
+func IsHelmReleaseRunning(releaseName, chartName string, streams cmdutil.IOStreams) bool {
 	releases, err := GetHelmRelease()
 	if err != nil {
-		i.ioStreams.Error("get helm release err", err)
+		streams.Error("get helm release err", err)
 		return false
 	}
 	for _, r := range releases {
-		if strings.Contains(r.Chart.ChartFullPath(), types.DefaultOAMRuntimeName) {
+		if strings.Contains(r.Chart.ChartFullPath(), chartName) && r.Name == releaseName {
 			return true
 		}
 	}
@@ -185,35 +189,38 @@ func (i *initCmd) IsOamRuntimeExist() bool {
 }
 
 func InstallOamRuntime(ioStreams cmdutil.IOStreams, version string) error {
+	return HelmInstall(ioStreams, types.DefaultOAMRepoName, types.DefaultOAMRepoUrl, types.DefaultOAMRuntimeChartName, version, types.DefaultOAMReleaseName)
+}
 
-	if !IsHelmRepositoryExist(types.DefaultOAMRepoName, types.DefaultOAMRepoUrl) {
-		err := AddHelmRepository(types.DefaultOAMRepoName, types.DefaultOAMRepoUrl,
+func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoUrl, chartName, version, releaseName string) error {
+	if !IsHelmRepositoryExist(repoName, repoUrl) {
+		err := AddHelmRepository(repoName, repoUrl,
 			"", "", "", "", "", false, ioStreams.Out)
 		if err != nil {
 			return err
 		}
 	}
+	if IsHelmReleaseRunning(releaseName, chartName, ioStreams) {
+		return nil
+	}
 
-	chartClient, err := NewHelmInstall(version, ioStreams)
+	chartClient, err := NewHelmInstall(version, releaseName, ioStreams)
 	if err != nil {
 		return err
 	}
-
-	chartRequested, err := GetChart(chartClient, types.DefaultOAMChartName)
+	chartRequested, err := GetChart(chartClient, repoName+"/"+chartName)
 	if err != nil {
 		return err
 	}
-
 	release, err := chartClient.Run(chartRequested, nil)
 	if err != nil {
 		return err
 	}
-
-	fmt.Println("Successfully installed oam-kubernetes-runtime release: ", release.Name)
+	ioStreams.Infof("Successfully installed %s as release name %s\n", chartName, release.Name)
 	return nil
 }
 
-func NewHelmInstall(version string, ioStreams cmdutil.IOStreams) (*action.Install, error) {
+func NewHelmInstall(version, releaseName string, ioStreams cmdutil.IOStreams) (*action.Install, error) {
 	actionConfig := new(action.Configuration)
 
 	if err := actionConfig.Init(
@@ -227,12 +234,8 @@ func NewHelmInstall(version string, ioStreams cmdutil.IOStreams) (*action.Instal
 
 	client := action.NewInstall(actionConfig)
 	client.Namespace = types.DefaultOAMNS
-	client.ReleaseName = types.DefaultOAMReleaseName
-	if len(version) > 0 {
-		client.Version = version
-		return client, nil
-	}
-	client.Version = types.DefaultOAMVersion
+	client.ReleaseName = releaseName
+	client.Version = version
 	return client, nil
 }
 
@@ -329,7 +332,7 @@ func GetOAMReleaseVersion() (string, error) {
 	}
 
 	for _, result := range results {
-		if result.Chart.ChartFullPath() == types.DefaultOAMRuntimeName {
+		if result.Chart.ChartFullPath() == types.DefaultOAMRuntimeChartName {
 			return result.Chart.AppVersion(), nil
 		}
 	}

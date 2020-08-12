@@ -94,19 +94,15 @@ func newCommand() *cobra.Command {
 		Schema: scheme,
 	}
 
-	if err := system.InitApplicationDir(); err != nil {
-		fmt.Println("InitApplicationDir err", err)
-		os.Exit(1)
-	}
-	if err := system.InitDefinitionDir(); err != nil {
-		fmt.Println("InitDefinitionDir err", err)
+	if err := system.InitDirs(); err != nil {
+		fmt.Println("InitDir err", err)
 		os.Exit(1)
 	}
 
 	// Getting Start
 	cmd.EnvCommandGroup(cmds, commandArgs, ioStream)
 	// Others
-	cmd.AddonCommandGroup(cmds, ioStream)
+	cmd.CapabilityCommandGroup(cmds, commandArgs, ioStream)
 	// System
 	cmd.SystemCommandGroup(cmds, commandArgs, ioStream)
 
@@ -129,18 +125,18 @@ func newCommand() *cobra.Command {
 	)
 
 	// Workloads
-	if err = cmd.AddWorkloadPlugins(cmds, commandArgs, ioStream); err != nil {
-		fmt.Println("Add plugins from workloadDefinition err", err)
+	if err = cmd.AddWorkloadCommands(cmds, commandArgs, ioStream); err != nil {
+		fmt.Println("Add workload commands from workloadDefinition err", err)
 		os.Exit(1)
 	}
 
 	// Traits
-	if err = cmd.AddTraitPlugins(cmds, commandArgs, ioStream); err != nil {
-		fmt.Println("Add plugins from traitDefinition err", err)
+	if err = cmd.AddTraitCommands(cmds, commandArgs, ioStream); err != nil {
+		fmt.Println("Add trait commands from traitDefinition err", err)
 		os.Exit(1)
 	}
-	if err = cmd.DetachTraitPlugins(cmds, commandArgs, ioStream); err != nil {
-		fmt.Println("Add plugins from traitDefinition err", err)
+	if err = cmd.AddTraitDetachCommands(cmds, commandArgs, ioStream); err != nil {
+		fmt.Println("Add trait detach commands from traitDefinition err", err)
 		os.Exit(1)
 	}
 	// this is for mute klog

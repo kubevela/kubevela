@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/assert"
-	"gopkg.in/yaml.v3"
 )
 
 func TestApplication(t *testing.T) {
