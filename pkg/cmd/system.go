@@ -11,13 +11,17 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cloud-native-application/rudrx/pkg/builtin"
+	"github.com/cloud-native-application/rudrx/pkg/builtin/traitdefinition"
+
+	"github.com/cloud-native-application/rudrx/pkg/builtin/workloaddefinition"
+
+	"github.com/ghodss/yaml"
+
 	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
 	"helm.sh/helm/v3/pkg/release"
 
 	"github.com/cloud-native-application/rudrx/api/types"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -71,7 +75,13 @@ var (
 	}
 
 	workloadResource = map[string]string{
-		"deployment": builtin.Deployment,
+		"deployments.apps":                    workloaddefinition.Deployment,
+		"containerizedworkloads.core.oam.dev": workloaddefinition.ContainerizedWorkload,
+	}
+
+	traitResource = map[string]string{
+		"manualscalertraits.core.oam.dev":    traitdefinition.ManualScaler,
+		"simplerollouttraits.extend.oam.dev": traitdefinition.SimpleRollout,
 	}
 )
 
@@ -138,7 +148,7 @@ func NewAdminInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 }
 
 func (i *initCmd) run(ioStreams cmdutil.IOStreams) error {
-	ioStreams.Info("- Install OAM runtime:")
+	ioStreams.Info("- Install OAM Kubernetes Runtime:")
 	if !cmdutil.IsNamespaceExist(i.client, types.DefaultOAMNS) {
 		if err := cmdutil.NewNamespace(i.client, types.DefaultOAMNS); err != nil {
 			return err
@@ -372,31 +382,53 @@ func filterRepos(repos []*repo.Entry) []*repo.Entry {
 }
 
 func GenNativeResourceDefinition(c client.Client) error {
-	for name, reference := range workloadResource {
-		workload := NewWorkloadDefinition(name, reference)
-		err := c.Get(context.Background(), client.ObjectKey{Name: name}, workload)
+	var capabilities []string
+	for name, manifest := range workloadResource {
+		workloadDefinition, err := NewWorkloadDefinition(manifest)
+		if err != nil {
+			continue
+		}
+		err = c.Get(context.Background(), client.ObjectKey{Name: name}, &workloadDefinition)
 		if kubeerrors.IsNotFound(err) {
-			if err := c.Create(context.Background(), workload); err != nil {
-				return fmt.Errorf("create workload definition %s hit an issue: %v", reference, err)
+			if err := c.Create(context.Background(), &workloadDefinition); err != nil {
+				return fmt.Errorf("create workload definition %s hit an issue: %v", name, err)
 			}
 		} else if err != nil {
 			return fmt.Errorf("get workload definition hit an issue: %v", err)
 		}
+		capabilities = append(capabilities, name)
 	}
 
-	return nil
+	for name, manifest := range traitResource {
+		traitDefinition, err := NewTraitDefinition(manifest)
+		if err != nil {
+			continue
+		}
+		err = c.Get(context.Background(), client.ObjectKey{Name: name}, &traitDefinition)
+		if kubeerrors.IsNotFound(err) {
+			if err := c.Create(context.Background(), &traitDefinition); err != nil {
+				return fmt.Errorf("create workload definition %s hit an issue: %v", name, err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("get workload definition hit an issue: %v", err)
+		}
+		capabilities = append(capabilities, name)
+	}
 
+	fmt.Printf("Successful applied %d kinds of Workloads and Traits: %s.", len(capabilities), strings.Join(capabilities, ","))
+	return nil
 }
 
-func NewWorkloadDefinition(name, reference string) *oamv1.WorkloadDefinition {
-	return &oamv1.WorkloadDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-		Spec: oamv1.WorkloadDefinitionSpec{
-			Reference: oamv1.DefinitionReference{Name: reference},
-		},
-	}
+func NewWorkloadDefinition(manifest string) (oamv1.WorkloadDefinition, error) {
+	var workloadDefinition oamv1.WorkloadDefinition
+	err := yaml.Unmarshal([]byte(manifest), &workloadDefinition)
+	return workloadDefinition, err
+}
+
+func NewTraitDefinition(manifest string) (oamv1.TraitDefinition, error) {
+	var traitDefinition oamv1.TraitDefinition
+	err := yaml.Unmarshal([]byte(manifest), &traitDefinition)
+	return traitDefinition, err
 }
 
 func GetTraitAliasByTraitDefinition(traitDefinition oamv1.TraitDefinition) (string, error) {

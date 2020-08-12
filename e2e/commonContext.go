@@ -8,6 +8,19 @@ import (
 )
 
 var (
+	// System
+	SystemInitContext = func(context string) bool {
+		return ginkgo.Context(context, func() {
+			ginkgo.It("Install OAM runtime and vela builtin capabilities.", func() {
+				output, err := Exec("vela system:init")
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(output).To(gomega.ContainSubstring("Install OAM Kubernetes Runtime"))
+				gomega.Expect(output).To(gomega.ContainSubstring("Apply builtin capabilities"))
+				gomega.Expect(output).To(gomega.ContainSubstring("Successful applied"))
+			})
+		})
+	}
+
 	// Refresh
 	RefreshContext = func(context string) bool {
 		return ginkgo.Context(context, func() {

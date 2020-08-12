@@ -1,4 +1,4 @@
-package builtin
+package workloaddefinition
 
 var Deployment = `apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
