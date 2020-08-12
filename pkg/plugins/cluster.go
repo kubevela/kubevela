@@ -71,7 +71,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 	return templates, nil
 }
 
-func HandleDefinition(name, syncDir, crdName string, extention *runtime.RawExtension, tp types.DefinitionType, applyTo []string) (types.Capability, error) {
+func HandleDefinition(name, syncDir, crdName string, extention *runtime.RawExtension, tp types.CapType, applyTo []string) (types.Capability, error) {
 	var tmp types.Capability
 	tmp, err := HandleTemplate(extention, name, syncDir)
 	if err != nil {

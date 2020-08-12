@@ -48,8 +48,7 @@ func newRunOptions(ioStreams cmdutil.IOStreams) *runOptions {
 }
 
 func AddWorkloadCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
-	dir, _ := system.GetCapabilityDir()
-	templates, err := plugins.LoadTempFromLocal(filepath.Join(dir, "workloads"))
+	templates, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
 	if err != nil {
 		return err
 	}

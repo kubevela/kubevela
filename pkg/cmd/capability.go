@@ -5,8 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
+
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/apimachinery/pkg/runtime"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
@@ -33,6 +38,7 @@ func CapabilityCommandGroup(parentCmd *cobra.Command, c types.Args, ioStream cmd
 		NewCapListCommand(ioStream),
 		NewCapCenterSyncCommand(ioStream),
 		NewCapAddCommand(c, ioStream),
+		NewCapRemoveCommand(c, ioStream),
 	)
 }
 
@@ -70,7 +76,13 @@ func NewCapCenterConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err = plugins.StoreRepos(repos); err != nil {
 				return err
 			}
-			ioStreams.Info(fmt.Sprintf("Successfully configured capability center: %s, please use 'vela cap:center:sync %s' to sync capabilities", args[0], args[0]))
+			ioStreams.Info(fmt.Sprintf("Successfully configured capability center: %s, start to sync from remote", args[0]))
+			client, err := plugins.NewCenterClient(context.Background(), config.Name, config.Address, config.Token)
+			err = client.SyncCapabilityFromCenter()
+			if err != nil {
+				return err
+			}
+			ioStreams.Info("sync finished")
 			return nil
 		},
 		Annotations: map[string]string{
@@ -103,6 +115,38 @@ func NewCapAddCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 			repoName := ss[0]
 			name := ss[1]
 			return InstallCapability(newClient, repoName, name, ioStreams)
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeOthers,
+		},
+	}
+	cmd.PersistentFlags().StringP("token", "t", "", "Github Repo token")
+	return cmd
+}
+
+func NewCapRemoveCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "cap:remove <name>",
+		Short:   "Remove capability from cluster",
+		Long:    "Remove capability from cluster",
+		Example: `vela cap:remove route`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				return errors.New("you must specify <name> for capability you want to remove")
+			}
+			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			if err != nil {
+				return err
+			}
+			name := args[0]
+			if strings.Contains(name, "/") {
+				l := strings.Split(name, "/")
+				if len(l) > 2 {
+					return fmt.Errorf("invalid format '%s', you can't contain more than one / in name", name)
+				}
+				name = l[1]
+			}
+			return RemoveCapability(newClient, name, ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeOthers,
@@ -151,6 +195,7 @@ func NewCapCenterSyncCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 					return err
 				}
 			}
+			ioStreams.Info("sync finished")
 			return nil
 		},
 		Annotations: map[string]string{
@@ -176,7 +221,7 @@ func NewCapListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 				return err
 			}
 			table := uitable.New()
-			table.AddRow("NAME", "TYPE", "DEFINITION", "STATUS", "APPLIES-TO")
+			table.AddRow("NAME", "CENTER", "TYPE", "DEFINITION", "STATUS", "APPLIES-TO")
 			if repoName != "" {
 				if err = ListCenterCapabilities(table, filepath.Join(dir, repoName), ioStreams); err != nil {
 					return err
@@ -188,7 +233,6 @@ func NewCapListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-
 			for _, dd := range dirs {
 				if !dd.IsDir() {
 					continue
@@ -207,6 +251,53 @@ func NewCapListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
+func RemoveCapability(client client.Client, capabilityName string, ioStreams cmdutil.IOStreams) error {
+	// TODO(wonderflow): make sure no apps is using this capability
+	caps, err := plugins.LoadAllInstalledCapability()
+	if err != nil {
+		return err
+	}
+	for _, w := range caps {
+		if w.Name == capabilityName {
+			return UninstallCap(client, w, ioStreams)
+		}
+	}
+	return errors.New(capabilityName + " not exist")
+}
+
+func UninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.IOStreams) error {
+	// 1. Remove WorkloadDefinition or TraitDefinition
+	ctx := context.Background()
+	var obj runtime.Object
+	switch cap.Type {
+	case types.TypeTrait:
+		obj = &v1alpha2.TraitDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.CrdName, Namespace: types.DefaultOAMNS}}
+	case types.TypeWorkload:
+		obj = &v1alpha2.WorkloadDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.CrdName, Namespace: types.DefaultOAMNS}}
+	}
+	if err := client.Delete(ctx, obj); err != nil {
+		return err
+	}
+
+	if cap.Install != nil && cap.Install.Helm.Name != "" {
+		// 2. Remove Helm chart if there is
+		if err := HelmUninstall(ioStreams, cap.Install.Helm.Name, cap.Name); err != nil {
+			return err
+		}
+	}
+
+	// 3. Remove local capability file
+	capdir, _ := system.GetCapabilityDir()
+	switch cap.Type {
+	case types.TypeTrait:
+		return os.Remove(filepath.Join(capdir, "traits", cap.Name))
+	case types.TypeWorkload:
+		return os.Remove(filepath.Join(capdir, "workloads", cap.Name))
+	}
+	ioStreams.Infof("%s removed successfully", cap.Name)
+	return nil
+}
+
 func InstallCapability(client client.Client, centerName, capabilityName string, ioStreams cmdutil.IOStreams) error {
 	dir, _ := system.GetCapCenterDir()
 	repoDir := filepath.Join(dir, centerName)
@@ -218,7 +309,6 @@ func InstallCapability(client client.Client, centerName, capabilityName string, 
 	defDir, _ := system.GetCapabilityDir()
 	switch tp.Type {
 	case types.TypeWorkload:
-		defDir = filepath.Join(defDir, "workloads")
 		var wd v1alpha2.WorkloadDefinition
 		workloadData, err := ioutil.ReadFile(filepath.Join(repoDir, tp.CrdName+".yaml"))
 		if err != nil {
@@ -230,6 +320,7 @@ func InstallCapability(client client.Client, centerName, capabilityName string, 
 		wd.Namespace = types.DefaultOAMNS
 		ioStreams.Info("Installing workload capability " + wd.Name)
 		if tp.Install != nil {
+			tp.Source.ChartName = tp.Install.Helm.Name
 			if err = InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
 				return err
 			}
@@ -238,7 +329,6 @@ func InstallCapability(client client.Client, centerName, capabilityName string, 
 			return err
 		}
 	case types.TypeTrait:
-		defDir = filepath.Join(defDir, "traits")
 		var td v1alpha2.TraitDefinition
 		traitdata, err := ioutil.ReadFile(filepath.Join(repoDir, tp.CrdName+".yaml"))
 		if err != nil {
@@ -250,6 +340,7 @@ func InstallCapability(client client.Client, centerName, capabilityName string, 
 		td.Namespace = types.DefaultOAMNS
 		ioStreams.Info("Installing trait capability " + td.Name)
 		if tp.Install != nil {
+			tp.Source.ChartName = tp.Install.Helm.Name
 			if err = InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
 				return err
 			}
@@ -268,19 +359,14 @@ func InstallCapability(client client.Client, centerName, capabilityName string, 
 	return nil
 }
 
-func InstallHelmChart(ioStreams cmdutil.IOStreams, charts []types.Chart) error {
-	for _, c := range charts {
-		if err := HelmInstall(ioStreams, c.Repo, c.URl, c.Name, c.Version, c.Name); err != nil {
-			return err
-		}
-	}
-	return nil
+func InstallHelmChart(ioStreams cmdutil.IOStreams, c types.Chart) error {
+	return HelmInstall(ioStreams, c.Repo, c.URl, c.Name, c.Version, c.Name)
 }
 
 func GetSyncedCapabilities(repoName, addonName string) (types.Capability, error) {
 	dir, _ := system.GetCapCenterDir()
 	repoDir := filepath.Join(dir, repoName)
-	templates, err := plugins.LoadCapabilityFromLocal(repoDir)
+	templates, err := plugins.LoadCapabilityFromSyncedCenter(repoDir)
 	if err != nil {
 		return types.Capability{}, err
 	}
@@ -293,7 +379,7 @@ func GetSyncedCapabilities(repoName, addonName string) (types.Capability, error)
 }
 
 func ListCenterCapabilities(table *uitable.Table, repoDir string, ioStreams cmdutil.IOStreams) error {
-	templates, err := plugins.LoadCapabilityFromLocal(repoDir)
+	templates, err := plugins.LoadCapabilityFromSyncedCenter(repoDir)
 	if err != nil {
 		return err
 	}
@@ -301,23 +387,31 @@ func ListCenterCapabilities(table *uitable.Table, repoDir string, ioStreams cmdu
 		return nil
 	}
 	baseDir := filepath.Base(repoDir)
+	workloads := GatherWorkloads(templates)
 	for _, p := range templates {
 		status := CheckInstallStatus(baseDir, p)
-		table.AddRow(baseDir+"/"+p.Name, p.Type, p.Type, status, p.AppliesTo)
+		convertedApplyTo := ConvertApplyTo(p.AppliesTo, workloads)
+		table.AddRow(p.Name, baseDir, p.Type, p.CrdName, status, convertedApplyTo)
 	}
 	return nil
 }
 
+func GatherWorkloads(templates []types.Capability) []types.Capability {
+	workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
+	if err != nil {
+		workloads = make([]types.Capability, 0)
+	}
+	for _, t := range templates {
+		if t.Type == types.TypeWorkload {
+			workloads = append(workloads, t)
+		}
+	}
+	return workloads
+}
+
 func CheckInstallStatus(repoName string, tmp types.Capability) string {
 	var status = "uninstalled"
-	dir, _ := system.GetCapabilityDir()
-	switch tmp.Type {
-	case types.TypeTrait:
-		dir = filepath.Join(dir, "traits")
-	case types.TypeWorkload:
-		dir = filepath.Join(dir, "workloads")
-	}
-	installed, _ := plugins.LoadTempFromLocal(dir)
+	installed, _ := plugins.LoadInstalledCapabilityWithType(tmp.Type)
 	for _, i := range installed {
 		if i.Source != nil && i.Source.RepoName == repoName && i.Name == tmp.Name && i.CrdName == tmp.CrdName {
 			return "installed"

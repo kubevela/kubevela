@@ -156,6 +156,7 @@ func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 		}
 	}
 	cmd.Println(table.String())
+	cmd.Println("    <use 'vela refresh' to sync from cluster or install by `vela cap` >")
 	cmd.Println()
 }
 

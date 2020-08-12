@@ -6,6 +6,7 @@ require (
 	cuelang.org/go v0.2.2
 	github.com/crossplane/crossplane-runtime v0.8.0
 	github.com/crossplane/oam-kubernetes-runtime v0.0.8
+	github.com/gertd/go-pluralize v0.1.7
 	github.com/ghodss/yaml v1.0.0
 	github.com/gin-gonic/gin v1.6.3
 	github.com/google/go-github/v32 v32.1.0
@@ -17,8 +18,8 @@ require (
 	github.com/spf13/cobra v1.0.0
 	github.com/stretchr/testify v1.6.1
 	go.uber.org/zap v1.10.0
-	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
+	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.2.4
 	k8s.io/api v0.18.6
