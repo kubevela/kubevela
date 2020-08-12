@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"path/filepath"
 
 	"github.com/cloud-native-application/rudrx/api/types"
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
@@ -43,10 +42,8 @@ func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.
 	if err != nil {
 		return err
 	}
-	workloadDir := filepath.Join(dir, "workloads")
-	system.StatAndCreate(workloadDir)
-	ioStreams.Infof("get %d workload definitions from cluster, syncing to %s...", len(templates), workloadDir)
-	successNum := plugins.SinkTemp2Local(templates, workloadDir)
+	ioStreams.Infof("get %d workload definitions from cluster, syncing...", len(templates))
+	successNum := plugins.SinkTemp2Local(templates, dir)
 	ioStreams.Infof("%d workload definitions successfully synced\n", successNum)
 
 	ioStreams.Info("syncing trait definitions from cluster...")
@@ -54,10 +51,8 @@ func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.
 	if err != nil {
 		return err
 	}
-	traitDir := filepath.Join(dir, "traits")
-	system.StatAndCreate(traitDir)
-	ioStreams.Infof("get %d trait definitions from cluster, syncing to %s...", len(templates), traitDir)
-	successNum = plugins.SinkTemp2Local(templates, traitDir)
+	ioStreams.Infof("get %d trait definitions from cluster, syncing...", len(templates))
+	successNum = plugins.SinkTemp2Local(templates, dir)
 	ioStreams.Infof("%d trait definitions successfully synced\n", successNum)
 	return nil
 }

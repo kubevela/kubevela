@@ -15,13 +15,15 @@ import (
 func Test_printTraitList(t *testing.T) {
 	traits := []types.Capability{
 		{
-			Name:      "route",
-			CrdName:   "routes.oam.dev",
-			AppliesTo: []string{"deployments.apps", "clonsets.alibaba"},
+			Name:    "route",
+			CrdName: "routes.oam.dev",
+			// This format is currently OAM spec standard
+			AppliesTo: []string{"apps/v1.Deployment", "alibaba/v1.Clonset"},
 		},
 		{
-			Name:      "scaler",
-			CrdName:   "scaler.oam.dev",
+			Name:    "scaler",
+			CrdName: "scaler.oam.dev",
+			// This format is also reasonable, it's align with oam definition name, so we also support here
 			AppliesTo: []string{"deployments.apps"},
 		},
 	}
@@ -85,4 +87,9 @@ func Test_printTraitList(t *testing.T) {
 		printTraitList(c.traits, c.workloads, &nn, iostream)
 		assert.Equal(t, c.ExpectedString, b.String(), cname)
 	}
+}
+
+func TestParse(t *testing.T) {
+	assert.Equal(t, "containerizedworkloads.core.oam.dev", parse("core.oam.dev/v1alpha2.ContainerizedWorkload"))
+	assert.Equal(t, "containerizedworkloads.core.oam.dev", parse("containerizedworkloads.core.oam.dev"))
 }

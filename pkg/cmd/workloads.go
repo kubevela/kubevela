@@ -1,12 +1,9 @@
 package cmd
 
 import (
-	"path/filepath"
-
 	"github.com/cloud-native-application/rudrx/api/types"
 
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
-	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	"github.com/gosuri/uitable"
@@ -21,8 +18,7 @@ func NewWorkloadsCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		Long:                  "List workloads",
 		Example:               `vela workloads`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			dir, _ := system.GetCapabilityDir()
-			workloads, err := plugins.LoadTempFromLocal(filepath.Join(dir, "workloads"))
+			workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
 			if err != nil {
 				return err
 			}

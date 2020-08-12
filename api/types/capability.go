@@ -28,17 +28,18 @@ import (
 )
 
 type Source struct {
-	RepoName string `json:"repoName"`
+	RepoName  string `json:"repoName"`
+	ChartName string `json:"chartName,omitempty"`
 }
 
 // Capability defines the content of a capability
 type Capability struct {
-	Name           string         `json:"name"`
-	Type           DefinitionType `json:"type"`
-	CueTemplate    string         `json:"template,omitempty"`
-	Parameters     []Parameter    `json:"parameters,omitempty"`
-	DefinitionPath string         `json:"definition"`
-	CrdName        string         `json:"crdName,omitempty"`
+	Name           string      `json:"name"`
+	Type           CapType     `json:"type"`
+	CueTemplate    string      `json:"template,omitempty"`
+	Parameters     []Parameter `json:"parameters,omitempty"`
+	DefinitionPath string      `json:"definition"`
+	CrdName        string      `json:"crdName,omitempty"`
 
 	//trait only
 	AppliesTo []string `json:"appliesTo,omitempty"`
@@ -56,15 +57,15 @@ type Chart struct {
 }
 
 type Installation struct {
-	Helm []Chart `json:"helm"`
+	Helm Chart `json:"helm"`
 }
 
-type DefinitionType string
+type CapType string
 
 const (
-	TypeWorkload DefinitionType = "workload"
-	TypeTrait    DefinitionType = "trait"
-	TypeScope    DefinitionType = "scope"
+	TypeWorkload CapType = "workload"
+	TypeTrait    CapType = "trait"
+	TypeScope    CapType = "scope"
 )
 
 type Parameter struct {

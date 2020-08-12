@@ -5,15 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strconv"
 	"strings"
 
 	mycue "github.com/cloud-native-application/rudrx/pkg/cue"
 
 	"cuelang.org/go/cue"
-
-	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -45,8 +42,7 @@ func NewCommandOptions(ioStreams cmdutil.IOStreams) *commandOptions {
 }
 
 func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
-	dir, _ := system.GetCapabilityDir()
-	templates, err := plugins.LoadTempFromLocal(filepath.Join(dir, "traits"))
+	templates, err := plugins.LoadInstalledCapabilityWithType(types.TypeTrait)
 	if err != nil {
 		return err
 	}
@@ -172,8 +168,7 @@ func (o *commandOptions) Complete(cmd *cobra.Command, args []string, ctx context
 }
 
 func AddTraitDetachCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
-	dir, _ := system.GetCapabilityDir()
-	templates, err := plugins.LoadTempFromLocal(filepath.Join(dir, "traits"))
+	templates, err := plugins.LoadInstalledCapabilityWithType(types.TypeTrait)
 	if err != nil {
 		return err
 	}

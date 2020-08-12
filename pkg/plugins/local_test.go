@@ -47,7 +47,7 @@ func TestLocalSink(t *testing.T) {
 	cases := map[string]struct {
 		dir    string
 		tmps   []types.Capability
-		Type   types.DefinitionType
+		Type   types.CapType
 		expDef []types.Capability
 		err    error
 	}{
@@ -91,21 +91,14 @@ func TestLocalSink(t *testing.T) {
 	}
 }
 
-func testInDir(t *testing.T, casename, dir string, tmps, defexp []types.Capability, Type types.DefinitionType, err1 error) {
+func testInDir(t *testing.T, casename, dir string, tmps, defexp []types.Capability, Type types.CapType, err1 error) {
 	err := os.MkdirAll(dir, 0755)
 	assert.NoError(t, err, casename)
 	defer os.RemoveAll(dir)
 	number := SinkTemp2Local(tmps, dir)
 	assert.Equal(t, len(tmps), number)
-	gottmps, err := LoadTempFromLocal(dir)
-	if err1 != nil {
-		assert.Equal(t, err1, err)
-	} else {
-		assert.NoError(t, err, casename)
-	}
-	assert.Equal(t, tmps, gottmps, casename)
 	if Type != "" {
-		gotDef, err := GetDefFromLocal(dir, Type)
+		gotDef, err := loadInstalledCapabilityWithType(dir, Type)
 		assert.NoError(t, err, casename)
 		assert.Equal(t, defexp, gotDef, casename)
 	}
