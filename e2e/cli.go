@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/onsi/gomega"
-
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega/gexec"
 )
@@ -42,10 +40,4 @@ func Exec(cli string) (string, error) {
 	}
 	s := session.Wait(10 * time.Second)
 	return string(s.Out.Contents()) + string(s.Err.Contents()), nil
-}
-
-func BeforeSuit() {
-	_, err := GetCliBinary()
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	Exec("vela refresh")
 }

@@ -157,7 +157,6 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams) error {
 
 	if i.IsOamRuntimeExist() {
 		i.ioStreams.Info("Vela system along with OAM runtime already exist.")
-		return nil
 	}
 
 	if err := InstallOamRuntime(ioStreams, i.version); err != nil {
@@ -255,7 +254,11 @@ func NewHelmInstall(version, releaseName string, ioStreams cmdutil.IOStreams) (*
 
 	client := action.NewInstall(actionConfig)
 	client.ReleaseName = releaseName
-	client.Version = version
+	if len(version) > 0 {
+		client.Version = version
+	} else {
+		client.Version = types.DefaultOAMVersion
+	}
 	return client, nil
 }
 
