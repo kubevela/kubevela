@@ -27,16 +27,15 @@ func newDeleteOptions(ioStreams cmdutil.IOStreams) *deleteOptions {
 
 func newDeleteCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:                   "app:delete [APPLICATION_NAME]",
+		Use:                   "app:delete <APPLICATION_NAME>",
+		Aliases:               []string{"delete"},
 		DisableFlagsInUseLine: true,
 		Short:                 "Delete OAM Applications",
 		Long:                  "Delete OAM Applications",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},
-		Example: `
-  vela delete frontend
-`}
+		Example: "vela delete frontend"}
 }
 
 // NewDeleteCommand init new command
@@ -64,7 +63,7 @@ func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams, args []string) 
 func (o *deleteOptions) Complete(cmd *cobra.Command, args []string) error {
 
 	if len(args) < 1 {
-		return errors.New("must specify name for workload")
+		return errors.New("must specify name for the app")
 	}
 
 	namespace := o.Env.Namespace

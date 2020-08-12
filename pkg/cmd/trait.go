@@ -2,38 +2,33 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"strconv"
-	"strings"
 
-	mycue "github.com/cloud-native-application/rudrx/pkg/cue"
+	"github.com/cloud-native-application/rudrx/pkg/application"
 
 	"cuelang.org/go/cue"
-
-	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
 
 	"github.com/cloud-native-application/rudrx/api/types"
 
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/spf13/cobra"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type commandOptions struct {
 	Template   types.Capability
-	Component  corev1alpha2.Component
-	AppConfig  corev1alpha2.ApplicationConfiguration
 	Client     client.Client
 	TraitAlias string
 	Detach     bool
 	Env        *types.EnvMeta
+
+	workloadName string
+	appName      string
+	staging      bool
+	app          *application.Application
 	cmdutil.IOStreams
 }
 
@@ -56,14 +51,14 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 			DisableFlagsInUseLine: true,
 			Short:                 "Attach " + name + " trait to an app",
 			Long:                  "Attach " + name + " trait to an app",
-			Example:               `vela scale frontend --max=5`,
+			Example:               "vela " + name + " frontend",
 			RunE: func(cmd *cobra.Command, args []string) error {
 				newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 				if err != nil {
 					return err
 				}
 				o.Client = newClient
-				if err := o.Complete(cmd, args, ctx); err != nil {
+				if err := o.AddOrUpdateTrait(cmd, args); err != nil {
 					return err
 				}
 				return o.Run(cmd, ctx)
@@ -76,6 +71,8 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 		for _, v := range tmp.Parameters {
 			types.SetFlagBy(pluginCmd, v)
 		}
+		pluginCmd.Flags().StringP(App, "a", "", "create or add into an existing application group")
+		pluginCmd.Flags().BoolP(Staging, "s", false, "only save changes locally without real update application")
 
 		o.Template = tmp
 		parentCmd.AddCommand(pluginCmd)
@@ -83,35 +80,32 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 	return nil
 }
 
-func (o *commandOptions) Complete(cmd *cobra.Command, args []string, ctx context.Context) error {
-	argsLength := len(args)
-	var appName string
-
-	c := o.Client
-
-	namespace := o.Env.Namespace
-
-	if argsLength < 1 {
+func (o *commandOptions) Prepare(cmd *cobra.Command, args []string) error {
+	if len(args) < 1 {
 		return errors.New("please specify the name of the app")
 	}
+	o.workloadName = args[0]
+	if app := cmd.Flag(App).Value.String(); app != "" {
+		o.appName = app
+	} else {
+		o.appName = o.workloadName
+	}
+	return nil
+}
 
-	// Get AppConfig
-	// TODO(wonderflow): appName is Component Name here, check if it's has appset with a different name
-	appName = args[0]
-	if err := c.Get(ctx, client.ObjectKey{Namespace: o.Env.Namespace, Name: appName}, &o.AppConfig); err != nil {
+func (o *commandOptions) AddOrUpdateTrait(cmd *cobra.Command, args []string) error {
+	if err := o.Prepare(cmd, args); err != nil {
 		return err
 	}
-
-	// Get component
-	var component corev1alpha2.Component
-	if err := c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appName}, &component); err != nil {
+	app, err := application.Load(o.Env.Name, o.appName)
+	if err != nil {
 		return err
 	}
-
-	var traitData = make(map[string]interface{})
-
-	var tp = o.Template.Name
-
+	var traitType = o.Template.Name
+	traitData, err := app.GetTraitsByType(o.workloadName, traitType)
+	if err != nil {
+		return err
+	}
 	for _, v := range o.Template.Parameters {
 		flagSet := cmd.Flag(v.Name)
 		switch v.Type {
@@ -128,43 +122,11 @@ func (o *commandOptions) Complete(cmd *cobra.Command, args []string, ctx context
 			traitData[v.Name] = d
 		}
 	}
-
-	jsondata, err := mycue.Eval(o.Template.DefinitionPath, tp, traitData)
-	if err != nil {
+	if err = app.SetTrait(o.workloadName, traitType, traitData); err != nil {
 		return err
 	}
-	var obj = make(map[string]interface{})
-	if err = json.Unmarshal([]byte(jsondata), &obj); err != nil {
-		return err
-	}
-
-	pvd := fieldpath.Pave(obj)
-	// metadata.name needs to be in lower case.
-	pvd.SetString("metadata.name", strings.ToLower(fmt.Sprintf("%s-%s-trait", appName, o.Template.Name)))
-	curObj := &unstructured.Unstructured{Object: pvd.UnstructuredContent()}
-	var updated bool
-	for ic, c := range o.AppConfig.Spec.Components {
-		if c.ComponentName != appName {
-			continue
-		}
-		for it, t := range c.Traits {
-			g, v, k := GetGVKFromRawExtension(t.Trait)
-
-			// TODO(wonderflow): we should get GVK from DefinitionPath instead of assuming template object contains
-			gvk := curObj.GroupVersionKind()
-			if gvk.Group == g && gvk.Version == v && gvk.Kind == k {
-				updated = true
-				c.Traits[it] = corev1alpha2.ComponentTrait{Trait: runtime.RawExtension{Object: curObj}}
-				break
-			}
-		}
-		if !updated {
-			c.Traits = append(c.Traits, corev1alpha2.ComponentTrait{Trait: runtime.RawExtension{Object: curObj}})
-		}
-		o.AppConfig.Spec.Components[ic] = c
-		break
-	}
-	return nil
+	o.app = app
+	return app.Save(o.Env.Name, o.appName)
 }
 
 func AddTraitDetachCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
@@ -182,14 +144,14 @@ func AddTraitDetachCommands(parentCmd *cobra.Command, c types.Args, ioStreams cm
 			DisableFlagsInUseLine: true,
 			Short:                 "Detach " + name + " trait from an app",
 			Long:                  "Detach " + name + " trait from an app",
-			Example:               `vela scale:detach frontend`,
+			Example:               "vela " + name + ":detach frontend",
 			RunE: func(cmd *cobra.Command, args []string) error {
 				newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 				if err != nil {
 					return err
 				}
 				o.Client = newClient
-				if err := o.DetachTrait(cmd, args, ctx); err != nil {
+				if err := o.DetachTrait(cmd, args); err != nil {
 					return err
 				}
 				return o.Run(cmd, ctx)
@@ -206,48 +168,36 @@ func AddTraitDetachCommands(parentCmd *cobra.Command, c types.Args, ioStreams cm
 	return nil
 }
 
-func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string, ctx context.Context) error {
-	argsLength := len(args)
-	if argsLength < 1 {
-		return errors.New("please specify the name of the app")
-	}
-	c := o.Client
-	namespace := o.Env.Namespace
-
-	var appName = args[0]
-	if err := c.Get(ctx, client.ObjectKey{Namespace: o.Env.Namespace, Name: appName}, &o.AppConfig); err != nil {
+func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string) error {
+	if err := o.Prepare(cmd, args); err != nil {
 		return err
 	}
-
-	apiVersion, kind, err := cmdutil.GetTraitApiVersionKind(ctx, c, namespace, o.TraitAlias)
+	app, err := application.Load(o.Env.Name, o.appName)
 	if err != nil {
 		return err
 	}
-	for i, com := range o.AppConfig.Spec.Components {
-		if com.ComponentName != appName {
-			continue
-		}
-		var traits []corev1alpha2.ComponentTrait
-		for _, tr := range com.Traits {
-			a, k := tr.Trait.Object.GetObjectKind().GroupVersionKind().ToAPIVersionAndKind()
-			if a == apiVersion && k == kind {
-				continue
-			}
-			traits = append(traits, tr)
-		}
-		o.AppConfig.Spec.Components[i].Traits = traits
+	var traitType = o.Template.Name
+	if err = app.RemoveTrait(o.workloadName, traitType); err != nil {
+		return err
 	}
-	return nil
+	return app.Save(o.Env.Name, o.appName)
 }
 
 func (o *commandOptions) Run(cmd *cobra.Command, ctx context.Context) error {
 	if o.Detach {
-		o.Info("Detaching trait from app", o.Component.Name)
+		o.Infof("Detaching %s from app %s\n", o.Template.Name, o.workloadName)
 	} else {
-		o.Info("Applying trait for app", o.Component.Name)
+		o.Infof("Adding %s for app %s \n", o.Template.Name, o.workloadName)
 	}
-	c := o.Client
-	err := c.Update(ctx, &o.AppConfig)
+	staging, err := strconv.ParseBool(cmd.Flag(Staging).Value.String())
+	if err != nil {
+		return err
+	}
+	if staging {
+		o.Info("Staging saved")
+		return nil
+	}
+	err = o.app.Run(ctx, o.Client, o.Env)
 	if err != nil {
 		return err
 	}

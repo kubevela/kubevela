@@ -18,14 +18,15 @@ import (
 func NewAppShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:     "app:show",
+		Use:     "app:show <APPLICATION-NAME>",
+		Aliases: []string{"show"},
 		Short:   "get detail spec of your app",
 		Long:    "get detail spec of your app, including its workload and trait",
 		Example: `vela app:show <APPLICATION-NAME>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength == 0 {
-				ioStreams.Errorf("Hint: please specify an application")
+				ioStreams.Errorf("Hint: please specify the application name")
 				os.Exit(1)
 			}
 			appName := args[0]
@@ -79,7 +80,7 @@ func showApplication(ctx context.Context, c client.Client, cmd *cobra.Command, e
 	}
 	if component.Labels == nil {
 		return fmt.Errorf("Can't get workloadDef, please check component %s label \"%s\" is correct.",
-			componentName, ComponentWorkloadDefLabel)
+			componentName, types.ComponentWorkloadDefLabel)
 	}
 
 	traitDefinitions := cmdutil.ListTraitDefinitionsByApplicationConfiguration(application)

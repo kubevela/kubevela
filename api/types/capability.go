@@ -32,6 +32,11 @@ type Source struct {
 	ChartName string `json:"chartName,omitempty"`
 }
 
+type CrdInfo struct {
+	ApiVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+}
+
 // Capability defines the content of a capability
 type Capability struct {
 	Name           string      `json:"name"`
@@ -47,6 +52,7 @@ type Capability struct {
 	// Plugin Source
 	Source  *Source       `json:"source,omitempty"`
 	Install *Installation `json:"install,omitempty"`
+	CrdInfo *CrdInfo      `json:"crdInfo,omitempty"`
 }
 
 type Chart struct {

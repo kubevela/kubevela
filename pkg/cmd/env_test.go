@@ -37,11 +37,13 @@ func TestENV(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, &types.EnvMeta{
 		Namespace: "default",
+		Name:      "default",
 	}, gotEnv)
 
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	exp := &types.EnvMeta{
 		Namespace: "test1",
+		Name:      "default",
 	}
 	client := test.NewMockClient()
 	// Create env1
@@ -81,6 +83,7 @@ func TestENV(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, &types.EnvMeta{
 		Namespace: "default",
+		Name:      "default",
 	}, gotEnv)
 
 	// delete env

@@ -39,14 +39,6 @@ func GetRepoConfig() (string, error) {
 	return filepath.Join(home, "config.yaml"), nil
 }
 
-func GetApplicationDir() (string, error) {
-	home, err := GetVelaHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, "applications"), nil
-}
-
 func GetCapabilityDir() (string, error) {
 	home, err := GetVelaHomeDir()
 	if err != nil {
@@ -75,9 +67,6 @@ func InitDirs() error {
 	if err := InitCapabilityDir(); err != nil {
 		return err
 	}
-	if err := InitApplicationDir(); err != nil {
-		return err
-	}
 	if err := InitCapCenterDir(); err != nil {
 		return err
 	}
@@ -100,22 +89,22 @@ func InitCapabilityDir() error {
 	return StatAndCreate(dir)
 }
 
-func InitApplicationDir() error {
-	dir, err := GetApplicationDir()
-	if err != nil {
-		return err
-	}
-	return StatAndCreate(dir)
+func GetApplicationDir(envName string) (string, error) {
+	appDir := filepath.Join(GetEnvDirByName(envName), "applications")
+	return appDir, StatAndCreate(appDir)
 }
+
+const EnvConfigName = "config.json"
 
 func InitDefaultEnv() error {
 	envDir, err := GetEnvDir()
 	if err != nil {
 		return err
 	}
-	StatAndCreate(envDir)
-	data, _ := json.Marshal(&types.EnvMeta{Namespace: types.DefaultEnvName})
-	if err = ioutil.WriteFile(filepath.Join(envDir, types.DefaultEnvName), data, 0644); err != nil {
+	defaultEnvDir := filepath.Join(envDir, types.DefaultEnvName)
+	StatAndCreate(defaultEnvDir)
+	data, _ := json.Marshal(&types.EnvMeta{Namespace: types.DefaultAppNamespace, Name: types.DefaultEnvName})
+	if err = ioutil.WriteFile(filepath.Join(defaultEnvDir, EnvConfigName), data, 0644); err != nil {
 		return err
 	}
 	curEnvPath, err := GetCurrentEnvPath()
@@ -133,4 +122,9 @@ func StatAndCreate(dir string) error {
 		return os.MkdirAll(dir, 0755)
 	}
 	return nil
+}
+
+func GetEnvDirByName(name string) string {
+	envdir, _ := GetEnvDir()
+	return filepath.Join(envdir, name)
 }

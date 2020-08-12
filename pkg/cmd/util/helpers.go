@@ -107,9 +107,17 @@ func GetTraitApiVersionKind(ctx context.Context, c client.Client, namespace stri
 	if err != nil {
 		return "", "", err
 	}
-	apiVersion := t.Annotations["oam.appengine.info/apiVersion"]
-	kind := t.Annotations["oam.appengine.info/kind"]
+	apiVersion := t.Annotations[types.AnnApiVersion]
+	kind := t.Annotations[types.AnnKind]
 	return apiVersion, kind, nil
+}
+
+func GetApiVersionKindFromTrait(td corev1alpha2.TraitDefinition) (string, string) {
+	return td.Annotations[types.AnnApiVersion], td.Annotations[types.AnnKind]
+}
+
+func GetApiVersionKindFromWorkload(td corev1alpha2.WorkloadDefinition) (string, string) {
+	return td.Annotations[types.AnnApiVersion], td.Annotations[types.AnnKind]
 }
 
 func GetWorkloadNameAliasKind(ctx context.Context, c client.Client, namespace string, workloadName string) (string, string, string) {

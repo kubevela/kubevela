@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
+	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
+
 	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
 	"k8s.io/apimachinery/pkg/labels"
@@ -47,6 +49,12 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Cli
 			fmt.Printf("[WARN]handle template %s: %v\n", wd.Name, err)
 			continue
 		}
+		if apiVerion, kind := cmdutil.GetApiVersionKindFromWorkload(wd); apiVerion != "" && kind != "" {
+			tmp.CrdInfo = &types.CrdInfo{
+				ApiVersion: apiVerion,
+				Kind:       kind,
+			}
+		}
 		templates = append(templates, tmp)
 	}
 	return templates, nil
@@ -65,6 +73,12 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 		if err != nil {
 			fmt.Printf("[WARN]handle template %s: %v\n", td.Name, err)
 			continue
+		}
+		if apiVerion, kind := cmdutil.GetApiVersionKindFromTrait(td); apiVerion != "" && kind != "" {
+			tmp.CrdInfo = &types.CrdInfo{
+				ApiVersion: apiVerion,
+				Kind:       kind,
+			}
 		}
 		templates = append(templates, tmp)
 	}
