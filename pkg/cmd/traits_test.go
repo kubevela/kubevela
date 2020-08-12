@@ -13,7 +13,7 @@ import (
 )
 
 func Test_printTraitList(t *testing.T) {
-	traits := []types.Template{
+	traits := []types.Capability{
 		{
 			Name:      "route",
 			CrdName:   "routes.oam.dev",
@@ -25,7 +25,7 @@ func Test_printTraitList(t *testing.T) {
 			AppliesTo: []string{"deployments.apps"},
 		},
 	}
-	workloads := []types.Template{
+	workloads := []types.Capability{
 		{
 			Name:    "deployment",
 			CrdName: "deployments.apps",
@@ -54,8 +54,8 @@ func Test_printTraitList(t *testing.T) {
 	tb3.AddRow("route", "routes.oam.dev", "clonset")
 
 	cases := map[string]struct {
-		traits         []types.Template
-		workloads      []types.Template
+		traits         []types.Capability
+		workloads      []types.Capability
 		workloadName   string
 		iostream       cmdutil.IOStreams
 		ExpectedString string

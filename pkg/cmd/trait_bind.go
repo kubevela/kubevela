@@ -30,7 +30,7 @@ import (
 )
 
 type commandOptions struct {
-	Template   types.Template
+	Template   types.Capability
 	Component  corev1alpha2.Component
 	AppConfig  corev1alpha2.ApplicationConfiguration
 	Client     client.Client
@@ -44,8 +44,8 @@ func NewCommandOptions(ioStreams cmdutil.IOStreams) *commandOptions {
 	return &commandOptions{IOStreams: ioStreams}
 }
 
-func AddTraitPlugins(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
-	dir, _ := system.GetDefinitionDir()
+func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
+	dir, _ := system.GetCapabilityDir()
 	templates, err := plugins.LoadTempFromLocal(filepath.Join(dir, "traits"))
 	if err != nil {
 		return err
@@ -171,8 +171,8 @@ func (o *commandOptions) Complete(cmd *cobra.Command, args []string, ctx context
 	return nil
 }
 
-func DetachTraitPlugins(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
-	dir, _ := system.GetDefinitionDir()
+func AddTraitDetachCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
+	dir, _ := system.GetCapabilityDir()
 	templates, err := plugins.LoadTempFromLocal(filepath.Join(dir, "traits"))
 	if err != nil {
 		return err

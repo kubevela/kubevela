@@ -125,4 +125,3 @@ func ValidateHeaders() gin.HandlerFunc {
 		}
 	}
 }
-

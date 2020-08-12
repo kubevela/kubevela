@@ -31,8 +31,8 @@ type Source struct {
 	RepoName string `json:"repoName"`
 }
 
-// Template defines the content of a capability
-type Template struct {
+// Capability defines the content of a capability
+type Capability struct {
 	Name           string         `json:"name"`
 	Type           DefinitionType `json:"type"`
 	CueTemplate    string         `json:"template,omitempty"`
@@ -77,9 +77,9 @@ type Parameter struct {
 }
 
 // ConvertTemplateJson2Object convert spec.extension to object
-func ConvertTemplateJson2Object(in *runtime.RawExtension) (Template, error) {
-	var t Template
-	var extension Template
+func ConvertTemplateJson2Object(in *runtime.RawExtension) (Capability, error) {
+	var t Capability
+	var extension Capability
 	if in == nil {
 		return t, fmt.Errorf("extension field is nil")
 	}

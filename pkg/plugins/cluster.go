@@ -20,7 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func GetTemplatesFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Template, error) {
+func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Capability, error) {
 	workloads, err := GetWorkloadsFromCluster(ctx, namespace, c, syncDir, selector)
 	if err != nil {
 		return nil, err
@@ -33,8 +33,8 @@ func GetTemplatesFromCluster(ctx context.Context, namespace string, c client.Cli
 	return workloads, nil
 }
 
-func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Template, error) {
-	var templates []types.Template
+func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Capability, error) {
+	var templates []types.Capability
 	var workloadDefs corev1alpha2.WorkloadDefinitionList
 	err := c.List(ctx, &workloadDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
 	if err != nil {
@@ -52,8 +52,8 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Cli
 	return templates, nil
 }
 
-func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Template, error) {
-	var templates []types.Template
+func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Capability, error) {
+	var templates []types.Capability
 	var traitDefs corev1alpha2.TraitDefinitionList
 	err := c.List(ctx, &traitDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
 	if err != nil {
@@ -71,11 +71,11 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 	return templates, nil
 }
 
-func HandleDefinition(name, syncDir, crdName string, extention *runtime.RawExtension, tp types.DefinitionType, applyTo []string) (types.Template, error) {
-	var tmp types.Template
+func HandleDefinition(name, syncDir, crdName string, extention *runtime.RawExtension, tp types.DefinitionType, applyTo []string) (types.Capability, error) {
+	var tmp types.Capability
 	tmp, err := HandleTemplate(extention, name, syncDir)
 	if err != nil {
-		return types.Template{}, err
+		return types.Capability{}, err
 	}
 	tmp.Type = tp
 	if tp == types.TypeTrait {
@@ -85,24 +85,24 @@ func HandleDefinition(name, syncDir, crdName string, extention *runtime.RawExten
 	return tmp, nil
 }
 
-func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Template, error) {
+func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Capability, error) {
 	tmp, err := types.ConvertTemplateJson2Object(in)
 	if err != nil {
-		return types.Template{}, err
+		return types.Capability{}, err
 	}
 	if tmp.CueTemplate == "" {
-		return types.Template{}, errors.New("template not exist in definition")
+		return types.Capability{}, errors.New("template not exist in definition")
 	}
 	system.StatAndCreate(syncDir)
 	filePath := filepath.Join(syncDir, name+".cue")
 	err = ioutil.WriteFile(filePath, []byte(tmp.CueTemplate), 0644)
 	if err != nil {
-		return types.Template{}, err
+		return types.Capability{}, err
 	}
 	tmp.DefinitionPath = filePath
 	tmp.Parameters, tmp.Name, err = cue.GetParameters(filePath)
 	if err != nil {
-		return types.Template{}, err
+		return types.Capability{}, err
 	}
 	return tmp, nil
 }

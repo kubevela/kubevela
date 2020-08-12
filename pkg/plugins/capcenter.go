@@ -31,25 +31,25 @@ type GithubContent struct {
 	Ref   string `json:"ref"`
 }
 
-//Used to store addon center config in file
-type RepoConfig struct {
-	Name    string `json:"repoName"`
-	Address string `json:"repoAddress"`
+//CapCenterConfig is used to store cap center config in file
+type CapCenterConfig struct {
+	Name    string `json:"name"`
+	Address string `json:"address"`
 	Token   string `json:"token"`
 }
 
-type AddonClient interface {
-	SyncRemoteAddons() error
+type CenterClient interface {
+	SyncCapabilityFromCenter() error
 }
 
-func NewAddClient(ctx context.Context, name, address, token string) (AddonClient, error) {
+func NewCenterClient(ctx context.Context, name, address, token string) (CenterClient, error) {
 	Type, cfg, err := Parse(address)
 	if err != nil {
 		return nil, err
 	}
 	switch Type {
 	case TypeGithub:
-		return NewGithubAddon(ctx, token, name, cfg)
+		return NewGithubCenter(ctx, token, name, cfg)
 	}
 	return nil, errors.New("we only support github as repository now")
 }
@@ -108,7 +108,7 @@ func Parse(addr string) (string, *GithubContent, error) {
 	return TypeUnknown, nil, nil
 }
 
-type RemoteAddon struct {
+type RemoteCapability struct {
 	// Name MUST be xxx.yaml
 	Name string `json:"name"`
 	Url  string `json:"download_url"`
@@ -117,18 +117,10 @@ type RemoteAddon struct {
 	Type string `json:"type"`
 }
 
-type RemoteAddons []RemoteAddon
-
-type Plugin struct {
-	Name       string `json:"name"`
-	Type       string `json:"type"`
-	Definition string `json:"definition"`
-	Status     string `json:"status"`
-	ApplesTo   string `json:"applies_to"`
-}
+type RemoteCapabilities []RemoteCapability
 
 //TODO(wonderflow): we can make default(built-in) repo configurable, then we should make default inside the answer
-func LoadRepos() ([]RepoConfig, error) {
+func LoadRepos() ([]CapCenterConfig, error) {
 	config, err := system.GetRepoConfig()
 	if err != nil {
 		return nil, err
@@ -136,18 +128,18 @@ func LoadRepos() ([]RepoConfig, error) {
 	data, err := ioutil.ReadFile(config)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []RepoConfig{}, nil
+			return []CapCenterConfig{}, nil
 		}
 		return nil, err
 	}
-	var repos []RepoConfig
+	var repos []CapCenterConfig
 	if err = yaml.Unmarshal(data, &repos); err != nil {
 		return nil, err
 	}
 	return repos, nil
 }
 
-func StoreRepos(repos []RepoConfig) error {
+func StoreRepos(repos []CapCenterConfig) error {
 	config, err := system.GetRepoConfig()
 	if err != nil {
 		return err
@@ -159,43 +151,43 @@ func StoreRepos(repos []RepoConfig) error {
 	return ioutil.WriteFile(config, data, 0644)
 }
 
-func ParseAndSyncDefinition(data []byte, syncDir string) (types.Template, error) {
+func ParseAndSyncCapability(data []byte, syncDir string) (types.Capability, error) {
 	var obj = unstructured.Unstructured{Object: make(map[string]interface{})}
 	err := yaml.Unmarshal(data, &obj.Object)
 	if err != nil {
-		return types.Template{}, err
+		return types.Capability{}, err
 	}
 	switch obj.GetKind() {
 	case "WorkloadDefinition":
 		var rd v1alpha2.WorkloadDefinition
 		err = yaml.Unmarshal(data, &rd)
 		if err != nil {
-			return types.Template{}, err
+			return types.Capability{}, err
 		}
 		return HandleDefinition(rd.Name, syncDir, rd.Spec.Reference.Name, rd.Spec.Extension, types.TypeWorkload, nil)
 	case "TraitDefinition":
 		var td v1alpha2.TraitDefinition
 		err = yaml.Unmarshal(data, &td)
 		if err != nil {
-			return types.Template{}, err
+			return types.Capability{}, err
 		}
 		return HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads)
 	case "ScopeDefinition":
 		//TODO(wonderflow): support scope definition here.
 	}
-	return types.Template{}, fmt.Errorf("unknown definition Type %s", obj.GetKind())
+	return types.Capability{}, fmt.Errorf("unknown definition Type %s", obj.GetKind())
 }
 
-type GithubAddon struct {
-	client   *github.Client
-	cfg      *GithubContent
-	repoName string
-	ctx      context.Context
+type GithubCenter struct {
+	client     *github.Client
+	cfg        *GithubContent
+	centerName string
+	ctx        context.Context
 }
 
-var _ AddonClient = &GithubAddon{}
+var _ CenterClient = &GithubCenter{}
 
-func NewGithubAddon(ctx context.Context, token, repoName string, r *GithubContent) (*GithubAddon, error) {
+func NewGithubCenter(ctx context.Context, token, centerName string, r *GithubContent) (*GithubCenter, error) {
 	var tc *http.Client
 	if token != "" {
 		ts := oauth2.StaticTokenSource(
@@ -203,20 +195,20 @@ func NewGithubAddon(ctx context.Context, token, repoName string, r *GithubConten
 		)
 		tc = oauth2.NewClient(ctx, ts)
 	}
-	return &GithubAddon{client: github.NewClient(tc), cfg: r, repoName: repoName, ctx: ctx}, nil
+	return &GithubCenter{client: github.NewClient(tc), cfg: r, centerName: centerName, ctx: ctx}, nil
 }
 
 //TODO(wonderflow): currently we only sync by create, we also need to delete which not exist remotely.
-func (g *GithubAddon) SyncRemoteAddons() error {
+func (g *GithubCenter) SyncCapabilityFromCenter() error {
 	_, dirs, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, g.cfg.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
 	if err != nil {
 		return err
 	}
-	dir, err := system.GetRepoDir()
+	dir, err := system.GetCapCenterDir()
 	if err != nil {
 		return err
 	}
-	repoDir := filepath.Join(dir, g.repoName)
+	repoDir := filepath.Join(dir, g.centerName)
 	system.StatAndCreate(repoDir)
 	var success, total int
 	for _, addon := range dirs {
@@ -235,7 +227,7 @@ func (g *GithubAddon) SyncRemoteAddons() error {
 				return fmt.Errorf("decode github content %s err %v", *fileContent.Path, err)
 			}
 		}
-		tmp, err := ParseAndSyncDefinition(data, filepath.Join(dir, ".tmp"))
+		tmp, err := ParseAndSyncCapability(data, filepath.Join(dir, ".tmp"))
 		if err != nil {
 			fmt.Printf("parse definition of %s err %v\n", *fileContent.Name, err)
 			continue
@@ -247,6 +239,6 @@ func (g *GithubAddon) SyncRemoteAddons() error {
 		}
 		success++
 	}
-	fmt.Printf("successfully sync %d/%d from %s remote addons \n", success, total, g.repoName)
+	fmt.Printf("successfully sync %d/%d from %s remote center\n", success, total, g.centerName)
 	return nil
 }

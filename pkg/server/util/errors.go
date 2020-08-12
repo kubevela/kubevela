@@ -72,10 +72,10 @@ func ConstructError(ec Code, a ...interface{}) error {
 // - use setErrorAndAbort to abort the rest of the handlers, mostly called in middleware
 func SetErrorAndAbort(c *gin.Context, code Code, msg ...interface{}) {
 	// Calling abort so no handlers and middlewares will be executed.
-	c.AbortWithStatusJSON(code.StatusCode(), gin.H{"error": ConstructError(code, msg...).Error()} )
+	c.AbortWithStatusJSON(code.StatusCode(), gin.H{"error": ConstructError(code, msg...).Error()})
 
 }
 
 func HandleError(c *gin.Context, code Code, msg ...interface{}) {
-	c.JSON(code.StatusCode(), gin.H{"error": ConstructError(code, msg...).Error()} )
+	c.JSON(code.StatusCode(), gin.H{"error": ConstructError(code, msg...).Error()})
 }

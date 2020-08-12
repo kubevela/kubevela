@@ -19,7 +19,7 @@ import (
 
 var _ = Describe("DefinitionFiles", func() {
 
-	route := types.Template{
+	route := types.Capability{
 		Name: "route",
 		Type: types.TypeTrait,
 		Parameters: []types.Parameter{
@@ -32,7 +32,7 @@ var _ = Describe("DefinitionFiles", func() {
 		},
 		CrdName: "routes.test",
 	}
-	deployment := types.Template{
+	deployment := types.Capability{
 		Name:    "deployment",
 		Type:    types.TypeWorkload,
 		CrdName: "deployments.testapps",
@@ -77,7 +77,7 @@ var _ = Describe("DefinitionFiles", func() {
 			traitDefs[i].CueTemplate = ""
 			traitDefs[i].DefinitionPath = ""
 		}
-		Expect(traitDefs).Should(Equal([]types.Template{route}))
+		Expect(traitDefs).Should(Equal([]types.Capability{route}))
 	})
 	// Notice!!  DefinitionPath Object is Cluster Scope object
 	// which means objects created in other DefinitionNamespace will also affect here.
@@ -89,16 +89,16 @@ var _ = Describe("DefinitionFiles", func() {
 			workloadDefs[i].CueTemplate = ""
 			workloadDefs[i].DefinitionPath = ""
 		}
-		Expect(workloadDefs).Should(Equal([]types.Template{deployment}))
+		Expect(workloadDefs).Should(Equal([]types.Capability{deployment}))
 	})
 	It("getall", func() {
-		alldef, err := GetTemplatesFromCluster(context.Background(), DefinitionNamespace, k8sClient, definitionDir, selector)
+		alldef, err := GetCapabilitiesFromCluster(context.Background(), DefinitionNamespace, k8sClient, definitionDir, selector)
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting all definitions %v", alldef))
 		for i := range alldef {
 			alldef[i].CueTemplate = ""
 			alldef[i].DefinitionPath = ""
 		}
-		Expect(alldef).Should(Equal([]types.Template{deployment, route}))
+		Expect(alldef).Should(Equal([]types.Capability{deployment, route}))
 	})
 })

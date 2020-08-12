@@ -23,16 +23,16 @@ func GetVelaHomeDir() (string, error) {
 	return filepath.Join(home, defaultVelaHome), nil
 }
 
-func GetRepoDir() (string, error) {
+func GetCapCenterDir() (string, error) {
 	home, err := GetVelaHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, "repositories"), nil
+	return filepath.Join(home, "centers"), nil
 }
 
 func GetRepoConfig() (string, error) {
-	home, err := GetRepoDir()
+	home, err := GetCapCenterDir()
 	if err != nil {
 		return "", err
 	}
@@ -47,12 +47,12 @@ func GetApplicationDir() (string, error) {
 	return filepath.Join(home, "applications"), nil
 }
 
-func GetDefinitionDir() (string, error) {
+func GetCapabilityDir() (string, error) {
 	home, err := GetVelaHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, "definitions"), nil
+	return filepath.Join(home, "capabilities"), nil
 }
 
 func GetEnvDir() (string, error) {
@@ -72,28 +72,28 @@ func GetCurrentEnvPath() (string, error) {
 }
 
 func InitDirs() error {
-	if err := InitDefinitionDir(); err != nil {
+	if err := InitCapabilityDir(); err != nil {
 		return err
 	}
 	if err := InitApplicationDir(); err != nil {
 		return err
 	}
-	if err := InitRepositoryDir(); err != nil {
+	if err := InitCapCenterDir(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func InitRepositoryDir() error {
-	home, err := GetRepoDir()
+func InitCapCenterDir() error {
+	home, err := GetCapCenterDir()
 	if err != nil {
 		return err
 	}
 	return StatAndCreate(filepath.Join(home, ".tmp"))
 }
 
-func InitDefinitionDir() error {
-	dir, err := GetDefinitionDir()
+func InitCapabilityDir() error {
+	dir, err := GetCapabilityDir()
 	if err != nil {
 		return err
 	}

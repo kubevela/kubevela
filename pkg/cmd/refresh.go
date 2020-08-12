@@ -36,7 +36,7 @@ func NewRefreshCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 }
 
 func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams) error {
-	dir, _ := system.GetDefinitionDir()
+	dir, _ := system.GetCapabilityDir()
 
 	ioStreams.Info("syncing workload definitions from cluster...")
 	templates, err := plugins.GetWorkloadsFromCluster(ctx, types.DefaultOAMNS, c, dir, nil)

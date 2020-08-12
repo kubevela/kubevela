@@ -27,16 +27,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func AddonCommandGroup(parentCmd *cobra.Command, c types.Args, ioStream cmdutil.IOStreams) {
+func CapabilityCommandGroup(parentCmd *cobra.Command, c types.Args, ioStream cmdutil.IOStreams) {
 	parentCmd.AddCommand(
-		NewAddonConfigCommand(ioStream),
-		NewAddonListCommand(ioStream),
-		NewAddonUpdateCommand(ioStream),
-		NewAddonInstallCommand(c, ioStream),
+		NewCapCenterConfigCommand(ioStream),
+		NewCapListCommand(ioStream),
+		NewCapCenterSyncCommand(ioStream),
+		NewCapAddCommand(c, ioStream),
 	)
 }
 
-func NewAddonConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewCapCenterConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "cap:center:config <centerName> <centerUrl>",
 		Short:   "Configure or add the capability center, default is local (built-in capabilities)",
@@ -51,7 +51,7 @@ func NewAddonConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			config := &plugins.RepoConfig{
+			config := &plugins.CapCenterConfig{
 				Name:    args[0],
 				Address: args[1],
 				Token:   cmd.Flag("token").Value.String(),
@@ -70,7 +70,7 @@ func NewAddonConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err = plugins.StoreRepos(repos); err != nil {
 				return err
 			}
-			ioStreams.Info(fmt.Sprintf("Successfully configured capability center: %s, please use 'vela cap:center:sync %s' to sync addons", args[0], args[0]))
+			ioStreams.Info(fmt.Sprintf("Successfully configured capability center: %s, please use 'vela cap:center:sync %s' to sync capabilities", args[0], args[0]))
 			return nil
 		},
 		Annotations: map[string]string{
@@ -81,7 +81,7 @@ func NewAddonConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func NewAddonInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewCapAddCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "cap:add <center>/<name>",
 		Short:   "Add capability into cluster",
@@ -102,7 +102,7 @@ func NewAddonInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 			}
 			repoName := ss[0]
 			name := ss[1]
-			return InstallAddonPlugin(newClient, repoName, name, ioStreams)
+			return InstallCapability(newClient, repoName, name, ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeOthers,
@@ -112,7 +112,7 @@ func NewAddonInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 	return cmd
 }
 
-func NewAddonUpdateCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewCapCenterSyncCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "cap:center:sync [centerName]",
 		Short:   "Sync capabilities from remote center, default to sync all centers",
@@ -134,7 +134,7 @@ func NewAddonUpdateCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			if specified != "" {
 				for idx, r := range repos {
 					if r.Name == specified {
-						repos = []plugins.RepoConfig{repos[idx]}
+						repos = []plugins.CapCenterConfig{repos[idx]}
 						find = true
 						break
 					}
@@ -145,8 +145,8 @@ func NewAddonUpdateCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			}
 			ctx := context.Background()
 			for _, d := range repos {
-				client, err := plugins.NewAddClient(ctx, d.Name, d.Address, d.Token)
-				err = client.SyncRemoteAddons()
+				client, err := plugins.NewCenterClient(ctx, d.Name, d.Address, d.Token)
+				err = client.SyncCapabilityFromCenter()
 				if err != nil {
 					return err
 				}
@@ -160,7 +160,7 @@ func NewAddonUpdateCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func NewAddonListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewCapListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "cap:ls [centerName]",
 		Short:   "List all capabilities in center",
@@ -171,14 +171,14 @@ func NewAddonListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			if len(args) > 0 {
 				repoName = args[0]
 			}
-			dir, err := system.GetRepoDir()
+			dir, err := system.GetCapCenterDir()
 			if err != nil {
 				return err
 			}
 			table := uitable.New()
 			table.AddRow("NAME", "TYPE", "DEFINITION", "STATUS", "APPLIES-TO")
 			if repoName != "" {
-				if err = ListRepoAddons(table, filepath.Join(dir, repoName), ioStreams); err != nil {
+				if err = ListCenterCapabilities(table, filepath.Join(dir, repoName), ioStreams); err != nil {
 					return err
 				}
 				ioStreams.Info(table.String())
@@ -193,7 +193,7 @@ func NewAddonListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 				if !dd.IsDir() {
 					continue
 				}
-				if err = ListRepoAddons(table, filepath.Join(dir, dd.Name()), ioStreams); err != nil {
+				if err = ListCenterCapabilities(table, filepath.Join(dir, dd.Name()), ioStreams); err != nil {
 					return err
 				}
 			}
@@ -207,15 +207,15 @@ func NewAddonListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func InstallAddonPlugin(client client.Client, repoName, addonName string, ioStreams cmdutil.IOStreams) error {
-	dir, _ := system.GetRepoDir()
-	repoDir := filepath.Join(dir, repoName)
-	tp, err := GetSyncedPlugin(repoName, addonName)
+func InstallCapability(client client.Client, centerName, capabilityName string, ioStreams cmdutil.IOStreams) error {
+	dir, _ := system.GetCapCenterDir()
+	repoDir := filepath.Join(dir, centerName)
+	tp, err := GetSyncedCapabilities(centerName, capabilityName)
 	if err != nil {
 		return err
 	}
-	tp.Source = &types.Source{RepoName: repoName}
-	defDir, _ := system.GetDefinitionDir()
+	tp.Source = &types.Source{RepoName: centerName}
+	defDir, _ := system.GetCapabilityDir()
 	switch tp.Type {
 	case types.TypeWorkload:
 		defDir = filepath.Join(defDir, "workloads")
@@ -261,9 +261,9 @@ func InstallAddonPlugin(client client.Client, repoName, addonName string, ioStre
 		//TODO(wonderflow): support install scope here
 	}
 
-	success := plugins.SinkTemp2Local([]types.Template{tp}, defDir)
+	success := plugins.SinkTemp2Local([]types.Capability{tp}, defDir)
 	if success == 1 {
-		ioStreams.Infof("Successfully installed capability %s from %s\n", addonName, repoName)
+		ioStreams.Infof("Successfully installed capability %s from %s\n", capabilityName, centerName)
 	}
 	return nil
 }
@@ -277,23 +277,23 @@ func InstallHelmChart(ioStreams cmdutil.IOStreams, charts []types.Chart) error {
 	return nil
 }
 
-func GetSyncedPlugin(repoName, addonName string) (types.Template, error) {
-	dir, _ := system.GetRepoDir()
+func GetSyncedCapabilities(repoName, addonName string) (types.Capability, error) {
+	dir, _ := system.GetCapCenterDir()
 	repoDir := filepath.Join(dir, repoName)
-	templates, err := plugins.LoadPluginsFromLocal(repoDir)
+	templates, err := plugins.LoadCapabilityFromLocal(repoDir)
 	if err != nil {
-		return types.Template{}, err
+		return types.Capability{}, err
 	}
 	for _, t := range templates {
 		if t.Name == addonName {
 			return t, nil
 		}
 	}
-	return types.Template{}, fmt.Errorf("%s/%s not exist, try vela cap:center:sync %s to sync from remote", repoName, addonName, repoName)
+	return types.Capability{}, fmt.Errorf("%s/%s not exist, try vela cap:center:sync %s to sync from remote", repoName, addonName, repoName)
 }
 
-func ListRepoAddons(table *uitable.Table, repoDir string, ioStreams cmdutil.IOStreams) error {
-	templates, err := plugins.LoadPluginsFromLocal(repoDir)
+func ListCenterCapabilities(table *uitable.Table, repoDir string, ioStreams cmdutil.IOStreams) error {
+	templates, err := plugins.LoadCapabilityFromLocal(repoDir)
 	if err != nil {
 		return err
 	}
@@ -302,15 +302,15 @@ func ListRepoAddons(table *uitable.Table, repoDir string, ioStreams cmdutil.IOSt
 	}
 	baseDir := filepath.Base(repoDir)
 	for _, p := range templates {
-		status := CheckInstalled(baseDir, p)
+		status := CheckInstallStatus(baseDir, p)
 		table.AddRow(baseDir+"/"+p.Name, p.Type, p.Type, status, p.AppliesTo)
 	}
 	return nil
 }
 
-func CheckInstalled(repoName string, tmp types.Template) string {
+func CheckInstallStatus(repoName string, tmp types.Capability) string {
 	var status = "uninstalled"
-	dir, _ := system.GetDefinitionDir()
+	dir, _ := system.GetCapabilityDir()
 	switch tmp.Type {
 	case types.TypeTrait:
 		dir = filepath.Join(dir, "traits")

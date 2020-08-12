@@ -23,7 +23,7 @@ func NewTraitsCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		Long:                  "List traits",
 		Example:               `vela traits`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			dir, _ := system.GetDefinitionDir()
+			dir, _ := system.GetCapabilityDir()
 			templates, err := plugins.LoadTempFromLocal(filepath.Join(dir, "traits"))
 			if err != nil {
 				return err
@@ -41,7 +41,7 @@ func NewTraitsCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func printTraitList(traits, workloads []types.Template, workloadName *string, ioStreams cmdutil.IOStreams) error {
+func printTraitList(traits, workloads []types.Capability, workloadName *string, ioStreams cmdutil.IOStreams) error {
 	table := uitable.New()
 	table.MaxColWidth = 60
 
@@ -71,7 +71,7 @@ func printTraitList(traits, workloads []types.Template, workloadName *string, io
 	return nil
 }
 
-func ConvertApplyTo(applyTo []string, workloads []types.Template) []string {
+func ConvertApplyTo(applyTo []string, workloads []types.Capability) []string {
 	var converted []string
 	for _, v := range applyTo {
 		newName, exist := check(v, workloads)
@@ -83,7 +83,7 @@ func ConvertApplyTo(applyTo []string, workloads []types.Template) []string {
 	return converted
 }
 
-func check(crdname string, workloads []types.Template) (string, bool) {
+func check(crdname string, workloads []types.Capability) (string, bool) {
 	for _, v := range workloads {
 		if crdname == v.CrdName {
 			return v.Name, true

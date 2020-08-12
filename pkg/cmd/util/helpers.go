@@ -118,7 +118,7 @@ func GetWorkloadNameAliasKind(ctx context.Context, c client.Client, namespace st
 	w, err := GetWorkloadDefinitionByName(ctx, c, namespace, workloadName)
 
 	if err == nil { // workloadName is complete name
-		var workloadTemplate types.Template
+		var workloadTemplate types.Capability
 		workloadTemplate, err := types.ConvertTemplateJson2Object(w.Spec.Extension)
 		if err == nil {
 			name, alias = w.Name, workloadTemplate.Name
