@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/pkg/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
@@ -30,9 +31,9 @@ type errorDetail struct {
 }
 
 var errorDetails = map[Code]errorDetail{
-	PathNotSupported:          {"PathNotSupported", http.StatusNotFound, "'%s' against '%s' is not supported"},
-	InvalidArgument:           {"InvalidArgument", http.StatusBadRequest, "%s"},
-	UnsupportedMediaType:      {"UnsupportedMediaType", http.StatusUnsupportedMediaType, "content type should be 'application/json' or 'application/octet-stream'"},
+	PathNotSupported:     {"PathNotSupported", http.StatusNotFound, "'%s' against '%s' is not supported"},
+	InvalidArgument:      {"InvalidArgument", http.StatusBadRequest, "%s"},
+	UnsupportedMediaType: {"UnsupportedMediaType", http.StatusUnsupportedMediaType, "content type should be 'application/json' or 'application/octet-stream'"},
 }
 
 // ID returns the error ID.
@@ -68,3 +69,13 @@ func ConstructError(ec Code, a ...interface{}) error {
 	return errors.New(msg)
 }
 
+// - use setErrorAndAbort to abort the rest of the handlers, mostly called in middleware
+func SetErrorAndAbort(c *gin.Context, code Code, msg ...interface{}) {
+	// Calling abort so no handlers and middlewares will be executed.
+	c.AbortWithStatusJSON(code.StatusCode(), gin.H{"error": ConstructError(code, msg...).Error()} )
+
+}
+
+func HandleError(c *gin.Context, code Code, msg ...interface{}) {
+	c.JSON(code.StatusCode(), gin.H{"error": ConstructError(code, msg...).Error()} )
+}

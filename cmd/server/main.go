@@ -1,4 +1,4 @@
-package server
+package main
 
 import (
 	"context"
@@ -22,7 +22,7 @@ func main() {
 	var logRetainDate int
 	var logCompress, development bool
 
-	flag.StringVar(&logFilePath, "log-file-path", "", "The address the metric endpoint binds to.")
+	flag.StringVar(&logFilePath, "log-file-path", "", "The log file path.")
 	flag.IntVar(&logRetainDate, "log-retain-date", 7, "The number of days of logs history to retain.")
 	flag.BoolVar(&logCompress, "log-compress", true, "Enable compression on the rotated logs.")
 	flag.BoolVar(&development, "development", true, "Development mode.")
@@ -43,14 +43,18 @@ func main() {
 		o.Development = development
 		o.DestWritter = w
 	}))
+
+	//Setup RESTful server
 	server := server.ApiServer{}
 	server.Launch()
-	// handle signal: SIGTERM(15)
+	// handle signal: SIGTERM(15), SIGKILL(9)
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGTERM)
+	signal.Notify(sc, syscall.SIGKILL)
 	select {
 	case <-sc:
-		ctx, _ := context.WithTimeout(context.Background(), time.Minute)
-		go server.Shutdown(ctx)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		server.Shutdown(ctx)
 	}
 }

@@ -51,18 +51,10 @@ const (
 
 const contextLoggerKey = "logger"
 
-// - if the call is made in handler *before* middleware.HandleError then abortWithError
-// - otherwise use setErrorAndAbort to avoid middleware.HandleError being called twice
-func SetErrorAndAbort(c *gin.Context, code Code, msg ...interface{}) {
-	c.Error(ConstructError(code, msg)).SetType(gin.ErrorTypePublic)
-	// Calling abort so no handlers and middlewares will be executed.
-	c.AbortWithStatus(code.StatusCode())
-}
-
 //NoRoute is a handler which is invoked when there is no route matches.
 func NoRoute() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		SetErrorAndAbort(c, PathNotSupported)
+		SetErrorAndAbort(c, PathNotSupported, c.Request.Method, c.Request.URL.Path)
 	}
 }
 
@@ -133,3 +125,4 @@ func ValidateHeaders() gin.HandlerFunc {
 		}
 	}
 }
+

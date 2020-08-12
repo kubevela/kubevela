@@ -11,14 +11,15 @@ import (
 	"github.com/cloud-native-application/rudrx/pkg/server/util"
 )
 
+// setup the gin http server handler
 func setupRoute() http.Handler {
 	// create the router
 	router := gin.New()
 	loggerConfig := gin.LoggerConfig{
 		Output: os.Stdout,
 		Formatter: func(param gin.LogFormatterParams) string {
-			return fmt.Sprintf("%v | %3d | %13v | %15s | %-7s %s\n%s",
-				param.TimeStamp.Format("2020/01/02 - 15:04:05"),
+			return fmt.Sprintf("%v | %3d | %13v | %15s | %-7s %s | %s\n",
+				param.TimeStamp.Format("2006/01/02 - 15:04:05"),
 				param.StatusCode,
 				param.Latency,
 				param.ClientIP,
