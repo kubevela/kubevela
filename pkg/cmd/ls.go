@@ -4,13 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
-
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/gosuri/uitable"
+	"strings"
 
 	"github.com/cloud-native-application/rudrx/api/types"
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -30,7 +29,7 @@ func NewAppsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "List applications",
 		Long:                  "List applications with workloads, traits, status and created time",
-		Example:               `vela ls`,
+		Example:               `vela app:ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			env, err := GetEnv()
 			if err != nil {
@@ -54,21 +53,23 @@ func NewAppsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 
 func printApplicationList(ctx context.Context, c client.Client, appName string, namespace string) {
 	applicationMetaList, err := RetrieveApplicationsByName(ctx, c, appName, namespace)
-
-	table := uitable.New()
-	table.MaxColWidth = 60
-
 	if err != nil {
 		fmt.Printf("listing Trait DefinitionPath hit an issue: %s\n", err)
 		return
 	}
-
-	table.AddRow("NAME", "WORKLOAD", "TRAITS", "STATUS", "CREATED-TIME")
-	for _, a := range applicationMetaList {
-		traitAlias := strings.Join(a.Traits, ",")
-		table.AddRow(a.Name, a.Workload, traitAlias, a.Status, a.CreatedTime)
+	if applicationMetaList == nil {
+		fmt.Printf("No application found in %s namespace.\n", namespace)
+		return
+	} else {
+		table := uitable.New()
+		table.MaxColWidth = 60
+		table.AddRow("NAME", "WORKLOAD", "TRAITS", "STATUS", "CREATED-TIME")
+		for _, a := range applicationMetaList {
+			traitAlias := strings.Join(a.Traits, ",")
+			table.AddRow(a.Name, a.Workload, traitAlias, a.Status, a.CreatedTime)
+		}
+		fmt.Print(table.String())
 	}
-	fmt.Print(table.String())
 }
 
 /*
