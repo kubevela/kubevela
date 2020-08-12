@@ -31,7 +31,7 @@ type Source struct {
 	RepoName string `json:"repoName"`
 }
 
-// Template defines the content of a plugin
+// Template defines the content of a capability
 type Template struct {
 	Name           string         `json:"name"`
 	Type           DefinitionType `json:"type"`

@@ -38,14 +38,14 @@ func AddonCommandGroup(parentCmd *cobra.Command, c types.Args, ioStream cmdutil.
 
 func NewAddonConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "addon:config <reponame> <url>",
-		Short:   "Set the addon center, default is local (built-in ones)",
-		Long:    "Set the addon center, default is local (built-in ones)",
-		Example: `vela addon:config myhub https://github.com/oam-dev/catalog/repository`,
+		Use:     "cap:center:config <centerName> <centerUrl>",
+		Short:   "Configure or add the capability center, default is local (built-in capabilities)",
+		Long:    "Configure or add the capability center, default is local (built-in capabilities)",
+		Example: `vela cap:center:config mycenter https://github.com/oam-dev/catalog/cap-center`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength < 2 {
-				return errors.New("please set addon repo with <RepoName> and <URL>")
+				return errors.New("please set capability center with <centerName> and <centerUrl>")
 			}
 			repos, err := plugins.LoadRepos()
 			if err != nil {
@@ -70,7 +70,7 @@ func NewAddonConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err = plugins.StoreRepos(repos); err != nil {
 				return err
 			}
-			ioStreams.Info(fmt.Sprintf("Successfully configured Addon repo: %s, please use 'vela addon:update %s' to sync addons", args[0], args[0]))
+			ioStreams.Info(fmt.Sprintf("Successfully configured capability center: %s, please use 'vela cap:center:sync %s' to sync addons", args[0], args[0]))
 			return nil
 		},
 		Annotations: map[string]string{
@@ -83,14 +83,14 @@ func NewAddonConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 
 func NewAddonInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "addon:install <reponame>/<name>",
-		Short:   "Install addon plugin into cluster",
-		Long:    "Install addon plugin into cluster",
-		Example: `vela addon:install myhub/route`,
+		Use:     "cap:add <center>/<name>",
+		Short:   "Add capability into cluster",
+		Long:    "Add capability into cluster",
+		Example: `vela cap:add mycenter/route`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength < 1 {
-				return errors.New("you must specify <reponame>/<name> for addon plugin you want to install")
+				return errors.New("you must specify <center>/<name> for capability you want to add")
 			}
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 			if err != nil {
@@ -98,7 +98,7 @@ func NewAddonInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 			}
 			ss := strings.Split(args[0], "/")
 			if len(ss) < 2 {
-				return errors.New("invalid format for " + args[0] + ", please follow format <reponame>/<name>")
+				return errors.New("invalid format for " + args[0] + ", please follow format <center>/<name>")
 			}
 			repoName := ss[0]
 			name := ss[1]
@@ -114,10 +114,10 @@ func NewAddonInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 
 func NewAddonUpdateCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "addon:update <repoName>",
-		Short:   "Update addon repositories, default for all repo",
-		Long:    "Update addon repositories, default for all repo",
-		Example: `vela addon:update myrepo`,
+		Use:     "cap:center:sync [centerName]",
+		Short:   "Sync capabilities from remote center, default to sync all centers",
+		Long:    "Sync capabilities from remote center, default to sync all centers",
+		Example: `vela cap:center:sync mycenter`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			repos, err := plugins.LoadRepos()
 			if err != nil {
@@ -128,7 +128,7 @@ func NewAddonUpdateCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 				specified = args[0]
 			}
 			if len(repos) == 0 {
-				return fmt.Errorf("no addon repo configured")
+				return fmt.Errorf("no capability center configured")
 			}
 			find := false
 			if specified != "" {
@@ -140,7 +140,7 @@ func NewAddonUpdateCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 					}
 				}
 				if !find {
-					return fmt.Errorf("%s repo not exist", specified)
+					return fmt.Errorf("%s center not exist", specified)
 				}
 			}
 			ctx := context.Background()
@@ -162,10 +162,10 @@ func NewAddonUpdateCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 
 func NewAddonListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "addon:ls <repoName>",
-		Short:   "List addons",
-		Long:    "List addons of workloads and traits",
-		Example: `vela addon:ls`,
+		Use:     "cap:ls [centerName]",
+		Short:   "List all capabilities in center",
+		Long:    "List all capabilities in center",
+		Example: `vela cap:ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var repoName string
 			if len(args) > 0 {
@@ -228,7 +228,7 @@ func InstallAddonPlugin(client client.Client, repoName, addonName string, ioStre
 			return err
 		}
 		wd.Namespace = types.DefaultOAMNS
-		ioStreams.Info("Installing workload plugin " + wd.Name)
+		ioStreams.Info("Installing workload capability " + wd.Name)
 		if tp.Install != nil {
 			if err = InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
 				return err
@@ -248,7 +248,7 @@ func InstallAddonPlugin(client client.Client, repoName, addonName string, ioStre
 			return err
 		}
 		td.Namespace = types.DefaultOAMNS
-		ioStreams.Info("Installing trait plugin " + td.Name)
+		ioStreams.Info("Installing trait capability " + td.Name)
 		if tp.Install != nil {
 			if err = InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
 				return err
@@ -263,7 +263,7 @@ func InstallAddonPlugin(client client.Client, repoName, addonName string, ioStre
 
 	success := plugins.SinkTemp2Local([]types.Template{tp}, defDir)
 	if success == 1 {
-		ioStreams.Infof("Successfully installed plugin %s from %s\n", addonName, repoName)
+		ioStreams.Infof("Successfully installed capability %s from %s\n", addonName, repoName)
 	}
 	return nil
 }
@@ -289,7 +289,7 @@ func GetSyncedPlugin(repoName, addonName string) (types.Template, error) {
 			return t, nil
 		}
 	}
-	return types.Template{}, fmt.Errorf("%s/%s not exist, try vela addon:update %s to sync from remote", repoName, addonName, repoName)
+	return types.Template{}, fmt.Errorf("%s/%s not exist, try vela cap:center:sync %s to sync from remote", repoName, addonName, repoName)
 }
 
 func ListRepoAddons(table *uitable.Table, repoDir string, ioStreams cmdutil.IOStreams) error {
