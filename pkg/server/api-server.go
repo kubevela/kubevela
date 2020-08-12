@@ -15,7 +15,7 @@ type ApiServer struct {
 func (s *ApiServer) Launch() {
 	s.server = &http.Server{
 		Addr:         ":8080",
-		Handler:      setupRoute(),
+		Handler:      SetupRoute(),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
