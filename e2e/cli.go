@@ -46,4 +46,6 @@ func BeforeSuit() {
 	_, err := GetCliBinary()
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 	Exec("vela system:init")
+	//Without this line, will hit issue like `<string>: Error: unknown command "scale" for "vela"`
+	Exec("vela system:update")
 }
