@@ -12,7 +12,7 @@ import (
 )
 
 // setup the gin http server handler
-func setupRoute() http.Handler {
+func SetupRoute() http.Handler {
 	// create the router
 	router := gin.New()
 	loggerConfig := gin.LoggerConfig{
