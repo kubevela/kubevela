@@ -1,8 +1,9 @@
 package handler
 
 import (
-	"context"
 	"net/http"
+
+	"github.com/cloud-native-application/rudrx/pkg/server/util"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -33,11 +34,18 @@ func GetApps(c *gin.Context) {
 
 func ListApps(c *gin.Context) {
 	kubeClient := c.MustGet("KubeClient")
-	namespace := c.Param("envName")
-	ctx := context.Background()
+	envName := c.Param("envName")
+	envMeta, err := oam.GetEnvByName(envName)
+	if err != nil {
+		util.HandleError(c, util.StatusInternalServerError, err)
+	}
+	namespace := envMeta.Namespace
+
+	ctx := util.GetContext(c)
 	applicationMetaList, err := oam.RetrieveApplicationsByName(ctx, kubeClient.(client.Client), "", namespace)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, []oam.ApplicationMeta{})
+		util.HandleError(c, util.StatusInternalServerError, err.Error())
+		return
 	}
 	c.JSON(http.StatusOK, applicationMetaList)
 }

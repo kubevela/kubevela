@@ -15,6 +15,7 @@ import (
 
 	"github.com/cloud-native-application/rudrx/api/types"
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	"github.com/cloud-native-application/rudrx/pkg/oam"
 	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
 	"github.com/gosuri/uitable"
@@ -124,7 +125,7 @@ func ListEnvs(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) e
 	table.AddRow("NAME", "CURRENT", "NAMESPACE")
 	if len(args) > 0 {
 		envName := args[0]
-		env, err := getEnvByName(envName)
+		env, err := oam.GetEnvByName(envName)
 		if err != nil {
 			if os.IsNotExist(err) {
 				ioStreams.Info(fmt.Sprintf("env %s not exist", envName))
@@ -236,7 +237,7 @@ func SwitchEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) 
 	if err != nil {
 		return err
 	}
-	envMeta, err := getEnvByName(envname)
+	envMeta, err := oam.GetEnvByName(envname)
 	if err != nil {
 		return err
 	}
