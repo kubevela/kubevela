@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
+
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/gosuri/uitable"
-	"strings"
 
 	"github.com/cloud-native-application/rudrx/api/types"
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
@@ -26,12 +27,13 @@ func NewAppsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "app:ls",
+		Aliases:               []string{"ls"},
 		DisableFlagsInUseLine: true,
 		Short:                 "List applications",
 		Long:                  "List applications with workloads, traits, status and created time",
 		Example:               `vela app:ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, err := GetEnv()
+			env, err := GetEnv(cmd)
 			if err != nil {
 				return err
 			}

@@ -209,7 +209,7 @@ func (g *GithubCenter) SyncCapabilityFromCenter() error {
 		return err
 	}
 	repoDir := filepath.Join(dir, g.centerName)
-	system.StatAndCreate(repoDir)
+	system.CreateIfNotExist(repoDir)
 	var success, total int
 	for _, addon := range dirs {
 		if *addon.Type != "file" {

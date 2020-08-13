@@ -110,7 +110,7 @@ var (
 				cli := fmt.Sprintf("vela %s %s", traitAlias, applicationName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("Applying trait for app"))
+				gomega.Expect(output).To(gomega.ContainSubstring("Adding " + traitAlias + " for app"))
 				gomega.Expect(output).To(gomega.ContainSubstring("Succeeded"))
 			})
 		})

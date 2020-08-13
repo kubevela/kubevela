@@ -1,4 +1,4 @@
-package types
+package application
 
 import (
 	"errors"
@@ -73,7 +73,7 @@ components:
 		WantWorkload    string
 		ExpWorklaod     map[string]interface{}
 		ExpWorkloadType string
-		ExpTraits       map[string]interface{}
+		ExpTraits       map[string]map[string]interface{}
 	}{
 		"normal case backend": {
 			raw:           yaml1,
@@ -84,7 +84,7 @@ components:
 				"image": "back:v1",
 			},
 			ExpWorkloadType: "cloneset",
-			ExpTraits:       map[string]interface{}{},
+			ExpTraits:       map[string]map[string]interface{}{},
 		},
 		"normal case frontend": {
 			raw:           yaml1,
@@ -94,18 +94,18 @@ components:
 			ExpWorklaod: map[string]interface{}{
 				"image": "inanimate/echo-server",
 				"env": map[string]interface{}{
-					"PORT": 8080,
+					"PORT": float64(8080),
 				},
 			},
 			ExpWorkloadType: "deployment",
-			ExpTraits: map[string]interface{}{
-				"autoscaling": map[string]interface{}{
-					"max": 10,
-					"min": 1,
+			ExpTraits: map[string]map[string]interface{}{
+				"autoscaling": {
+					"max": float64(10),
+					"min": float64(1),
 				},
-				"rollout": map[string]interface{}{
+				"rollout": {
 					"strategy": "canary",
-					"step":     5,
+					"step":     float64(5),
 				},
 			},
 		},
@@ -125,26 +125,26 @@ components:
 			raw:           yaml4,
 			ExpName:       "myapp",
 			InValid:       true,
-			InvalidReason: fmt.Errorf("format of scopes in frontend must be string array"),
+			InvalidReason: fmt.Errorf("format of scopes in 'frontend' must be string array"),
 		},
 		"workload not exist": {
 			raw:           yaml5,
 			ExpName:       "myapp",
 			InValid:       true,
-			InvalidReason: fmt.Errorf("you must have only one workload in component frontend"),
+			InvalidReason: fmt.Errorf("you must have only one workload in component 'frontend'"),
 		},
 		"trait must be map": {
 			raw:           yaml6,
 			ExpName:       "myapp",
 			InValid:       true,
-			InvalidReason: fmt.Errorf("trait autoscaling in frontend must be map"),
+			InvalidReason: fmt.Errorf("trait autoscaling in 'frontend' must be map"),
 		},
 	}
 	for caseName, c := range cases {
 		var app Application
 		err := yaml.Unmarshal([]byte(c.raw), &app)
 		assert.NoError(t, err, caseName)
-		err = app.Valid()
+		err = app.Validate()
 		if c.InValid {
 			assert.Equal(t, c.InvalidReason, err)
 			continue
@@ -157,6 +157,6 @@ components:
 		assert.Equal(t, c.ExpWorkloadType, workloadType, caseName)
 		traits, err := app.GetTraits(c.WantWorkload)
 		assert.NoError(t, err, caseName)
-		assert.Equal(t, c.ExpTraits, traits)
+		assert.Equal(t, c.ExpTraits, traits, caseName)
 	}
 }

@@ -13,6 +13,19 @@ import (
 	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 )
 
+func LoadCapabilityByName(name string) (types.Capability, error) {
+	caps, err := LoadAllInstalledCapability()
+	if err != nil {
+		return types.Capability{}, err
+	}
+	for _, c := range caps {
+		if c.Name == name {
+			return c, nil
+		}
+	}
+	return types.Capability{}, fmt.Errorf("%s not found", name)
+}
+
 func LoadAllInstalledCapability() ([]types.Capability, error) {
 	workloads, err := LoadInstalledCapabilityWithType(types.TypeWorkload)
 	if err != nil {
@@ -84,7 +97,7 @@ func SinkTemp2Local(templates []types.Capability, dir string) int {
 	success := 0
 	for _, tmp := range templates {
 		subDir := GetSubDir(dir, tmp.Type)
-		system.StatAndCreate(subDir)
+		system.CreateIfNotExist(subDir)
 		data, err := json.Marshal(tmp)
 		if err != nil {
 			fmt.Printf("sync %s err: %v\n", tmp.Name, err)
