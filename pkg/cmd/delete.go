@@ -27,32 +27,34 @@ func newDeleteOptions(ioStreams cmdutil.IOStreams) *deleteOptions {
 
 func newDeleteCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:                   "app:delete [APPLICATION_NAME]",
+		Use:                   "app:delete <APPLICATION_NAME>",
+		Aliases:               []string{"delete"},
 		DisableFlagsInUseLine: true,
 		Short:                 "Delete OAM Applications",
 		Long:                  "Delete OAM Applications",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},
-		Example: `
-  vela delete frontend
-`}
+		Example: "vela delete frontend"}
 }
 
 // NewDeleteCommand init new command
-func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams, args []string) *cobra.Command {
+func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := newDeleteCommand()
-	cmd.SetArgs(args)
 	cmd.SetOut(ioStreams.Out)
 	o := newDeleteOptions(ioStreams)
 
-	o.Env, _ = GetEnv()
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 		if err != nil {
 			return err
 		}
 		o.client = newClient
+		o.Env, err = GetEnv(cmd)
+		if err != nil {
+			return err
+		}
+
 		if err := o.Complete(cmd, args); err != nil {
 			return err
 		}
@@ -64,7 +66,7 @@ func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams, args []string) 
 func (o *deleteOptions) Complete(cmd *cobra.Command, args []string) error {
 
 	if len(args) < 1 {
-		return errors.New("must specify name for workload")
+		return errors.New("must specify name for the app")
 	}
 
 	namespace := o.Env.Namespace

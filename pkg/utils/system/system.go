@@ -39,14 +39,6 @@ func GetRepoConfig() (string, error) {
 	return filepath.Join(home, "config.yaml"), nil
 }
 
-func GetApplicationDir() (string, error) {
-	home, err := GetVelaHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, "applications"), nil
-}
-
 func GetCapabilityDir() (string, error) {
 	home, err := GetVelaHomeDir()
 	if err != nil {
@@ -75,10 +67,10 @@ func InitDirs() error {
 	if err := InitCapabilityDir(); err != nil {
 		return err
 	}
-	if err := InitApplicationDir(); err != nil {
+	if err := InitCapCenterDir(); err != nil {
 		return err
 	}
-	if err := InitCapCenterDir(); err != nil {
+	if err := InitDefaultEnv(); err != nil {
 		return err
 	}
 	return nil
@@ -89,7 +81,8 @@ func InitCapCenterDir() error {
 	if err != nil {
 		return err
 	}
-	return StatAndCreate(filepath.Join(home, ".tmp"))
+	_, err = CreateIfNotExist(filepath.Join(home, ".tmp"))
+	return err
 }
 
 func InitCapabilityDir() error {
@@ -97,25 +90,33 @@ func InitCapabilityDir() error {
 	if err != nil {
 		return err
 	}
-	return StatAndCreate(dir)
+	_, err = CreateIfNotExist(dir)
+	return err
 }
 
-func InitApplicationDir() error {
-	dir, err := GetApplicationDir()
-	if err != nil {
-		return err
-	}
-	return StatAndCreate(dir)
+func GetApplicationDir(envName string) (string, error) {
+	appDir := filepath.Join(GetEnvDirByName(envName), "applications")
+	_, err := CreateIfNotExist(appDir)
+	return appDir, err
 }
+
+const EnvConfigName = "config.json"
 
 func InitDefaultEnv() error {
 	envDir, err := GetEnvDir()
 	if err != nil {
 		return err
 	}
-	StatAndCreate(envDir)
-	data, _ := json.Marshal(&types.EnvMeta{Namespace: types.DefaultEnvName})
-	if err = ioutil.WriteFile(filepath.Join(envDir, types.DefaultEnvName), data, 0644); err != nil {
+	defaultEnvDir := filepath.Join(envDir, types.DefaultEnvName)
+	exist, err := CreateIfNotExist(defaultEnvDir)
+	if err != nil {
+		return err
+	}
+	if exist {
+		return nil
+	}
+	data, _ := json.Marshal(&types.EnvMeta{Namespace: types.DefaultAppNamespace, Name: types.DefaultEnvName})
+	if err = ioutil.WriteFile(filepath.Join(defaultEnvDir, EnvConfigName), data, 0644); err != nil {
 		return err
 	}
 	curEnvPath, err := GetCurrentEnvPath()
@@ -128,9 +129,18 @@ func InitDefaultEnv() error {
 	return nil
 }
 
-func StatAndCreate(dir string) error {
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return os.MkdirAll(dir, 0755)
+func CreateIfNotExist(dir string) (bool, error) {
+	_, err := os.Stat(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, os.MkdirAll(dir, 0755)
+		}
+		return false, err
 	}
-	return nil
+	return true, nil
+}
+
+func GetEnvDirByName(name string) string {
+	envdir, _ := GetEnvDir()
+	return filepath.Join(envdir, name)
 }

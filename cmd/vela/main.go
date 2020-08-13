@@ -76,13 +76,14 @@ func newCommand() *cobra.Command {
 			cmd.Println("Flags:")
 			cmd.Println("  -h, --help   help for vela")
 			cmd.Println()
-			cmd.Println(`Use "vela [command] --help" for more information about a command.`)
+			cmd.Println(`Want more? Use "vela [command] --help" for more information about a command.`)
 		},
 		SilenceUsage: true,
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		},
 	}
+	cmds.PersistentFlags().StringP("env", "e", "", "specify env name for application")
 	restConf, err := config.GetConfig()
 	if err != nil {
 		fmt.Println("get kubeconfig err", err)
@@ -112,9 +113,10 @@ func newCommand() *cobra.Command {
 
 		// Apps
 		cmd.NewAppsCommand(commandArgs, ioStream),
-		cmd.NewDeleteCommand(commandArgs, ioStream, os.Args[1:]),
+		cmd.NewDeleteCommand(commandArgs, ioStream),
 		cmd.NewAppStatusCommand(commandArgs, ioStream),
 		cmd.NewAppShowCommand(commandArgs, ioStream),
+		cmd.NewRunCommand(commandArgs, ioStream),
 
 		// System
 		cmd.NewRefreshCommand(commandArgs, ioStream),
@@ -156,7 +158,12 @@ func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 		}
 	}
 	cmd.Println(table.String())
-	cmd.Println("    <use 'vela refresh' to sync from cluster or install by `vela cap` >")
+	if tag == types.TypeWorkloads || tag == types.TypeTraits {
+		if len(table.Rows) > 0 {
+			cmd.Println()
+		}
+		cmd.Println("    <use 'vela refresh' to sync from cluster or install by `vela cap` >")
+	}
 	cmd.Println()
 }
 

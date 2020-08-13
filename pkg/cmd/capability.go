@@ -325,6 +325,12 @@ func InstallCapability(client client.Client, centerName, capabilityName string, 
 				return err
 			}
 		}
+		if apiVerion, kind := cmdutil.GetApiVersionKindFromWorkload(wd); apiVerion != "" && kind != "" {
+			tp.CrdInfo = &types.CrdInfo{
+				ApiVersion: apiVerion,
+				Kind:       kind,
+			}
+		}
 		if err = client.Create(context.Background(), &wd); err != nil && !apierrors.IsAlreadyExists(err) {
 			return err
 		}
@@ -343,6 +349,12 @@ func InstallCapability(client client.Client, centerName, capabilityName string, 
 			tp.Source.ChartName = tp.Install.Helm.Name
 			if err = InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
 				return err
+			}
+		}
+		if apiVerion, kind := cmdutil.GetApiVersionKindFromTrait(td); apiVerion != "" && kind != "" {
+			tp.CrdInfo = &types.CrdInfo{
+				ApiVersion: apiVerion,
+				Kind:       kind,
 			}
 		}
 		if err = client.Create(context.Background(), &td); err != nil && !apierrors.IsAlreadyExists(err) {

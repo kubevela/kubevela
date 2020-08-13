@@ -38,7 +38,7 @@ $ vela completion zsh > "${fpath[1]}/_vela"
 
 func NewCompletionCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "completion [bash|zsh]",
+		Use:   "completion < bash | zsh >",
 		Short: "Output shell completion code for the specified shell (bash or zsh)",
 		Long:  completionDesc,
 		Args:  nil,
