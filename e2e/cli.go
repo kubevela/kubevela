@@ -45,6 +45,6 @@ func Exec(cli string) (string, error) {
 func BeforeSuit() {
 	_, err := GetCliBinary()
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	Exec("vela system:init")
+	//Exec("vela system:init")
 	Exec("vela refresh")
 }
