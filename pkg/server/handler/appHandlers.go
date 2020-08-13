@@ -1,9 +1,9 @@
 package handler
 
 import (
-	"github.com/cloud-native-application/rudrx/pkg/server/util"
-
 	"net/http"
+
+	"github.com/cloud-native-application/rudrx/pkg/server/util"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
