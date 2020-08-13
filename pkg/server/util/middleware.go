@@ -5,7 +5,7 @@ import (
 	"mime"
 
 	"github.com/gin-gonic/gin"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 	"go.uber.org/zap/zapcore"
 )
 

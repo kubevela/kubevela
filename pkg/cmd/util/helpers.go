@@ -2,13 +2,17 @@ package util
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
+
+	"github.com/cloud-native-application/rudrx/pkg/plugins"
+	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
 	"github.com/spf13/cobra"
 
 	"github.com/cloud-native-application/rudrx/api/types"
-
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -112,29 +116,35 @@ func GetTraitApiVersionKind(ctx context.Context, c client.Client, namespace stri
 	return apiVersion, kind, nil
 }
 
-func GetWorkloadNameAliasKind(ctx context.Context, c client.Client, namespace string, workloadName string) (string, string, string) {
-	var name, alias, kind string
-
-	w, err := GetWorkloadDefinitionByName(ctx, c, namespace, workloadName)
-
+/*
+GetWorkloadNameKindAlias get Name, Kind, alias of a workloaddefinition, like `containerizedworkloads.core.oam.dev`,
+`ContainerizedWorkload` and `containerized`
+*/
+func GetWorkloadNameKindAlias(ctx context.Context, c client.Client, namespace string, name string) (string, string, string, error) {
+	var definitionName, kind, alias string
+	w, err := GetWorkloadDefinitionByName(ctx, c, namespace, name)
 	if err == nil { // workloadName is complete name
 		var workloadTemplate types.Capability
 		workloadTemplate, err := types.ConvertTemplateJson2Object(w.Spec.Extension)
 		if err == nil {
-			name, alias = w.Name, workloadTemplate.Name
+			definitionName, alias = w.Name, workloadTemplate.Name
 		}
 	} else { // workloadName is alias or kind
-		w, err := GetWorkloadDefinitionByAlias(ctx, c, name)
-		if err == nil {
-			workloadTemplate, err := types.ConvertTemplateJson2Object(w.Spec.Extension)
-			if err == nil {
-				name, alias, kind = w.Name, workloadTemplate.Name, w.Kind
-			}
-
+		w, err := GetWorkloadDefinitionByAlias(ctx, c, definitionName)
+		if err != nil {
+			return "", "", "", err
 		}
+		workloadTemplate, err := types.ConvertTemplateJson2Object(w.Spec.Extension)
+		if err != nil {
+			return "", "", "", err
+		}
+		alias, err = GetWorkloadAliasByWorkloadDefinition(w)
+		if err != nil {
+			return "", "", "", err
+		}
+		definitionName, alias, kind = w.Name, workloadTemplate.Name, w.Kind
 	}
-
-	return name, alias, kind
+	return definitionName, kind, alias, nil
 }
 
 func GetWorkloadDefinitionByName(ctx context.Context, c client.Client, namespace string, name string) (corev1alpha2.WorkloadDefinition, error) {
@@ -152,6 +162,22 @@ func GetWorkloadDefinitionByAlias(ctx context.Context, c client.Client, traitAli
 				workloadDefinition = t
 				break
 			}
+		}
+	}
+
+	return workloadDefinition, nil
+}
+
+func GetWorkloadDefinitionByKind(ctx context.Context, c client.Client, kind string) (corev1alpha2.WorkloadDefinition, error) {
+	var workloadDefinitionList corev1alpha2.WorkloadDefinitionList
+	var workloadDefinition corev1alpha2.WorkloadDefinition
+	if err := c.List(ctx, &workloadDefinitionList); err != nil {
+		return workloadDefinition, err
+	}
+
+	for _, t := range workloadDefinitionList.Items {
+		if strings.EqualFold(t.ObjectMeta.Annotations["oam.appengine.info/kind"], kind) {
+			return t, nil
 		}
 	}
 
@@ -196,4 +222,29 @@ func PrintFlags(cmd *cobra.Command, subcmds []*cobra.Command) {
 		}
 	}
 	cmd.Println()
+}
+
+func GetWorkloadDefinitionAliasByKind(ctx context.Context, c client.Client, kind string) (string, error) {
+	var definition corev1alpha2.WorkloadDefinition
+	var err error
+	var alias string
+	if definition, err = GetWorkloadDefinitionByKind(ctx, c, kind); err != nil {
+		return "", err
+	}
+	if alias, err = GetWorkloadAliasByWorkloadDefinition(definition); err != nil {
+		return "", err
+	}
+	return alias, nil
+}
+
+func GetWorkloadAliasByWorkloadDefinition(definition corev1alpha2.WorkloadDefinition) (string, error) {
+	velaDefinitionFolder := filepath.Join("~/.vela", "definitions")
+	system.StatAndCreate(velaDefinitionFolder)
+	d, _ := ioutil.TempDir(velaDefinitionFolder, "cue")
+	defer os.RemoveAll(d)
+	template, err := plugins.HandleTemplate(definition.Spec.Extension, definition.Name, d)
+	if err != nil {
+		return "", nil
+	}
+	return template.Name, nil
 }

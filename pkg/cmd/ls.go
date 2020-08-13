@@ -2,11 +2,12 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
+
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/gosuri/uitable"
-	"strings"
 
 	"github.com/cloud-native-application/rudrx/api/types"
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
@@ -39,7 +40,7 @@ func NewAppsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printApplicationList(ctx, newClient, "", env.Namespace)
+			printApplicationList(ctx, newClient, ioStreams, "", env.Namespace)
 			return nil
 		},
 		Annotations: map[string]string{
@@ -47,11 +48,10 @@ func NewAppsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 		},
 	}
 
-	cmd.PersistentFlags().StringP("app", "a", "", "Application name")
 	return cmd
 }
 
-func printApplicationList(ctx context.Context, c client.Client, appName string, namespace string) {
+func printApplicationList(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string) {
 	applicationMetaList, err := RetrieveApplicationsByName(ctx, c, appName, namespace)
 	if err != nil {
 		fmt.Printf("listing Trait DefinitionPath hit an issue: %s\n", err)
@@ -68,7 +68,8 @@ func printApplicationList(ctx context.Context, c client.Client, appName string, 
 			traitAlias := strings.Join(a.Traits, ",")
 			table.AddRow(a.Name, a.Workload, traitAlias, a.Status, a.CreatedTime)
 		}
-		fmt.Print(table.String())
+		ioStreams.Info(table.String())
+		os.Exit(1)
 	}
 }
 
@@ -103,22 +104,26 @@ func RetrieveApplicationsByName(ctx context.Context, c client.Client, applicatio
 			if err != nil {
 				return applicationMetaList, err
 			}
-			var workload corev1alpha2.WorkloadDefinition
-			if err := json.Unmarshal(component.Spec.Workload.Raw, &workload); err == nil {
-				workloadName := workload.TypeMeta.Kind
-				traitAlias := GetTraitAliasByComponentTraitList(ctx, c, com.Traits)
-				var status = "UNKNOWN"
-				if len(a.Status.Conditions) != 0 {
-					status = string(a.Status.Conditions[0].Status)
-				}
-				applicationMetaList = append(applicationMetaList, ApplicationMeta{
-					Name:        a.Name,
-					Workload:    workloadName,
-					Traits:      traitAlias,
-					Status:      status,
-					CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
-				})
+			_, _, k := GetGVKFromRawExtension(component.Spec.Workload)
+
+			workloadAlias, err := cmdutil.GetWorkloadDefinitionAliasByKind(ctx, c, k)
+			if err != nil {
+				return applicationMetaList, err
 			}
+
+			traitAlias := GetTraitAliasByComponentTraitList(ctx, c, com.Traits)
+			var status = "UNKNOWN"
+			if len(a.Status.Conditions) != 0 {
+				status = string(a.Status.Conditions[0].Status)
+			}
+			applicationMetaList = append(applicationMetaList, ApplicationMeta{
+				Name:        a.Name,
+				Workload:    workloadAlias,
+				Traits:      traitAlias,
+				Status:      status,
+				CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
+			})
+
 		}
 	}
 	return applicationMetaList, nil
