@@ -97,7 +97,7 @@ func SinkTemp2Local(templates []types.Capability, dir string) int {
 	success := 0
 	for _, tmp := range templates {
 		subDir := GetSubDir(dir, tmp.Type)
-		system.StatAndCreate(subDir)
+		system.CreateIfNotExist(subDir)
 		data, err := json.Marshal(tmp)
 		if err != nil {
 			fmt.Printf("sync %s err: %v\n", tmp.Name, err)

@@ -405,7 +405,7 @@ func NewWorkloadDefinition(name, reference string) *oamv1.WorkloadDefinition {
 
 func GetTraitAliasByTraitDefinition(traitDefinition oamv1.TraitDefinition) (string, error) {
 	velaApplicationFolder := filepath.Join("~/.vela", "applications")
-	system.StatAndCreate(velaApplicationFolder)
+	system.CreateIfNotExist(velaApplicationFolder)
 	d, _ := ioutil.TempDir(velaApplicationFolder, "cue")
 	defer os.RemoveAll(d)
 	template, err := plugins.HandleTemplate(traitDefinition.Spec.Extension, traitDefinition.Name, d)

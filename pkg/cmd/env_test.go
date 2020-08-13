@@ -33,7 +33,7 @@ func TestENV(t *testing.T) {
 	curEnvName, err := GetCurrentEnvName()
 	assert.NoError(t, err)
 	assert.Equal(t, "default", curEnvName)
-	gotEnv, err := GetEnv()
+	gotEnv, err := GetEnv(nil)
 	assert.NoError(t, err)
 	assert.Equal(t, &types.EnvMeta{
 		Namespace: "default",
@@ -54,7 +54,7 @@ func TestENV(t *testing.T) {
 	curEnvName, err = GetCurrentEnvName()
 	assert.NoError(t, err)
 	assert.Equal(t, "env1", curEnvName)
-	gotEnv, err = GetEnv()
+	gotEnv, err = GetEnv(nil)
 	assert.NoError(t, err)
 	assert.Equal(t, exp, gotEnv)
 
@@ -79,7 +79,7 @@ func TestENV(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check switch success
-	gotEnv, err = GetEnv()
+	gotEnv, err = GetEnv(nil)
 	assert.NoError(t, err)
 	assert.Equal(t, &types.EnvMeta{
 		Namespace: "default",

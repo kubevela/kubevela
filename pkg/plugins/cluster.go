@@ -107,7 +107,7 @@ func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Capab
 	if tmp.CueTemplate == "" {
 		return types.Capability{}, errors.New("template not exist in definition")
 	}
-	system.StatAndCreate(syncDir)
+	system.CreateIfNotExist(syncDir)
 	filePath := filepath.Join(syncDir, name+".cue")
 	err = ioutil.WriteFile(filePath, []byte(tmp.CueTemplate), 0644)
 	if err != nil {

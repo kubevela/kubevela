@@ -125,19 +125,19 @@ components:
 			raw:           yaml4,
 			ExpName:       "myapp",
 			InValid:       true,
-			InvalidReason: fmt.Errorf("format of scopes in frontend must be string array"),
+			InvalidReason: fmt.Errorf("format of scopes in 'frontend' must be string array"),
 		},
 		"workload not exist": {
 			raw:           yaml5,
 			ExpName:       "myapp",
 			InValid:       true,
-			InvalidReason: fmt.Errorf("you must have only one workload in component frontend"),
+			InvalidReason: fmt.Errorf("you must have only one workload in component 'frontend'"),
 		},
 		"trait must be map": {
 			raw:           yaml6,
 			ExpName:       "myapp",
 			InValid:       true,
-			InvalidReason: fmt.Errorf("trait autoscaling in frontend must be map"),
+			InvalidReason: fmt.Errorf("trait autoscaling in 'frontend' must be map"),
 		},
 	}
 	for caseName, c := range cases {

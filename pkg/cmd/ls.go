@@ -33,7 +33,7 @@ func NewAppsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 		Long:                  "List applications with workloads, traits, status and created time",
 		Example:               `vela app:ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, err := GetEnv()
+			env, err := GetEnv(cmd)
 			if err != nil {
 				return err
 			}

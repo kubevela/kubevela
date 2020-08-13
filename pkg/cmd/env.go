@@ -208,7 +208,7 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvM
 		return err
 	}
 	subEnvDir := filepath.Join(envdir, envname)
-	system.StatAndCreate(subEnvDir)
+	system.CreateIfNotExist(subEnvDir)
 	if err = ioutil.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
 		return err
 	}
@@ -259,8 +259,16 @@ func GetCurrentEnvName() (string, error) {
 	return string(data), nil
 }
 
-func GetEnv() (*types.EnvMeta, error) {
-	envName, err := GetCurrentEnvName()
+func GetEnv(cmd *cobra.Command) (*types.EnvMeta, error) {
+	var envName string
+	var err error
+	if cmd != nil {
+		envName = cmd.Flag("env").Value.String()
+	}
+	if envName != "" {
+		return getEnvByName(envName)
+	}
+	envName, err = GetCurrentEnvName()
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
@@ -276,6 +284,9 @@ func GetEnv() (*types.EnvMeta, error) {
 func getEnvByName(name string) (*types.EnvMeta, error) {
 	data, err := ioutil.ReadFile(filepath.Join(system.GetEnvDirByName(name), system.EnvConfigName))
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("%s not exist", name)
+		}
 		return nil, err
 	}
 	var meta types.EnvMeta

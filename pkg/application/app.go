@@ -7,7 +7,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
+
+	"cuelang.org/go/cue"
 
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -37,13 +40,9 @@ type Application struct {
 	Scopes     map[string]map[string]interface{} `json:"appScopes"`
 }
 
-func Load(envName, appName string) (*Application, error) {
-	appDir, err := system.GetApplicationDir(envName)
-	if err != nil {
-		return nil, fmt.Errorf("get app dir from env %s err %v", envName, err)
-	}
-	app := &Application{Name: appName}
-	data, err := ioutil.ReadFile(filepath.Join(appDir, appName+".yaml"))
+func LoadFromFile(fileName string) (*Application, error) {
+	var app = &Application{}
+	data, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return app, nil
@@ -54,7 +53,15 @@ func Load(envName, appName string) (*Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	return app, nil
+	return app, app.Validate()
+}
+
+func Load(envName, appName string) (*Application, error) {
+	appDir, err := system.GetApplicationDir(envName)
+	if err != nil {
+		return nil, fmt.Errorf("get app dir from env %s err %v", envName, err)
+	}
+	return LoadFromFile(filepath.Join(appDir, appName+".yaml"))
 }
 
 func (app *Application) Save(envName, appName string) error {
@@ -70,6 +77,9 @@ func (app *Application) Save(envName, appName string) error {
 }
 
 func (app *Application) Validate() error {
+	if app == nil {
+		return errors.New("app is nil")
+	}
 	if app.Name == "" {
 		return errors.New("name is required")
 	}
@@ -80,26 +90,28 @@ func (app *Application) Validate() error {
 		lenth := len(comp)
 		if traits, ok := comp[Traits]; ok {
 			lenth--
-			trs, ok := traits.(map[string]interface{})
-			if !ok {
-				return fmt.Errorf("format of traits in %s must be map", name)
-			}
-			for traitName, tr := range trs {
-				_, ok := tr.(map[string]interface{})
-				if !ok {
-					return fmt.Errorf("trait %s in %s must be map", traitName, name)
+			switch trs := traits.(type) {
+			case map[string]map[string]interface{}:
+			case map[string]interface{}:
+				for traitName, tr := range trs {
+					_, ok := tr.(map[string]interface{})
+					if !ok {
+						return fmt.Errorf("trait %s in '%s' must be map", traitName, name)
+					}
 				}
+			default:
+				return fmt.Errorf("format of traits in '%s' must be nested map instead of %v", name, reflect.TypeOf(traits))
 			}
 		}
 		if scopes, ok := comp[Scopes]; ok {
 			lenth--
 			_, ok := scopes.([]string)
 			if !ok {
-				return fmt.Errorf("format of scopes in %s must be string array", name)
+				return fmt.Errorf("format of scopes in '%s' must be string array", name)
 			}
 		}
 		if lenth != 1 {
-			return fmt.Errorf("you must have only one workload in component %s", name)
+			return fmt.Errorf("you must have only one workload in component '%s'", name)
 		}
 		for workloadType, workload := range comp {
 			if NotWorkload(workloadType) {
@@ -157,12 +169,17 @@ func (app *Application) GetTraits(componentName string) (map[string]map[string]i
 		return make(map[string]map[string]interface{}), nil
 	}
 	// assume it's valid, use Validate() to check
-	trs := t.(map[string]interface{})
-	traits := make(map[string]map[string]interface{})
-	for k, v := range trs {
-		traits[k] = v.(map[string]interface{})
+	switch trs := t.(type) {
+	case map[string]interface{}:
+		traits := make(map[string]map[string]interface{})
+		for k, v := range trs {
+			traits[k] = v.(map[string]interface{})
+		}
+		return traits, nil
+	case map[string]map[string]interface{}:
+		return trs, nil
 	}
-	return traits, nil
+	return nil, fmt.Errorf("invalid traits data format in %s, expect nested map but got %v", componentName, reflect.TypeOf(t))
 }
 
 func (app *Application) GetTraitsByType(componentName, traitType string) (map[string]interface{}, error) {
@@ -186,10 +203,35 @@ func (app *Application) GetWorkloadObject(componentName string) (*unstructured.U
 	return EvalToObject(workloadType, workloadData)
 }
 
+// ConvertDataByType will fix int become float after yaml.unmarshal
+func ConvertDataByType(val interface{}, tp cue.Kind) interface{} {
+	switch tp {
+	case cue.FloatKind:
+		switch rv := val.(type) {
+		case int64:
+			return float64(rv)
+		case int:
+			return float64(rv)
+		}
+	case cue.IntKind:
+		switch rv := val.(type) {
+		case float64:
+			return int64(rv)
+		}
+	}
+	return val
+}
+
 func EvalToObject(capName string, data map[string]interface{}) (*unstructured.Unstructured, error) {
 	cap, err := plugins.LoadCapabilityByName(capName)
 	if err != nil {
 		return nil, err
+	}
+	for _, v := range cap.Parameters {
+		val, ok := data[v.Name]
+		if ok {
+			data[v.Name] = ConvertDataByType(val, v.Type)
+		}
 	}
 	jsondata, err := mycue.Eval(cap.DefinitionPath, capName, data)
 	if err != nil {

@@ -30,7 +30,7 @@ func NewAppShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 				os.Exit(1)
 			}
 			appName := args[0]
-			env, err := GetEnv()
+			env, err := GetEnv(cmd)
 			if err != nil {
 				ioStreams.Errorf("Error: failed to get Env: %s", err)
 				return err
@@ -42,6 +42,9 @@ func NewAppShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			}
 
 			return showApplication(ctx, newClient, cmd, env, appName)
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeApp,
 		},
 	}
 	cmd.SetOut(ioStreams.Out)

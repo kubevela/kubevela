@@ -19,11 +19,10 @@ import (
 )
 
 type commandOptions struct {
-	Template   types.Capability
-	Client     client.Client
-	TraitAlias string
-	Detach     bool
-	Env        *types.EnvMeta
+	Template types.Capability
+	Client   client.Client
+	Detach   bool
+	Env      *types.EnvMeta
 
 	workloadName string
 	appName      string
@@ -43,9 +42,9 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 	}
 	ctx := context.Background()
 	for _, tmp := range templates {
+		tmp := tmp
+
 		var name = tmp.Name
-		o := NewCommandOptions(ioStreams)
-		o.Env, _ = GetEnv()
 		pluginCmd := &cobra.Command{
 			Use:                   name + " <appname> [args]",
 			DisableFlagsInUseLine: true,
@@ -53,11 +52,17 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 			Long:                  "Attach " + name + " trait to an app",
 			Example:               "vela " + name + " frontend",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				o := NewCommandOptions(ioStreams)
+				o.Template = tmp
 				newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 				if err != nil {
 					return err
 				}
 				o.Client = newClient
+				o.Env, err = GetEnv(cmd)
+				if err != nil {
+					return err
+				}
 				if err := o.AddOrUpdateTrait(cmd, args); err != nil {
 					return err
 				}
@@ -67,14 +72,13 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 				types.TagCommandType: types.TypeTraits,
 			},
 		}
-		pluginCmd.SetOut(o.Out)
+		pluginCmd.SetOut(ioStreams.Out)
 		for _, v := range tmp.Parameters {
 			types.SetFlagBy(pluginCmd, v)
 		}
 		pluginCmd.Flags().StringP(App, "a", "", "create or add into an existing application group")
 		pluginCmd.Flags().BoolP(Staging, "s", false, "only save changes locally without real update application")
 
-		o.Template = tmp
 		parentCmd.AddCommand(pluginCmd)
 	}
 	return nil
@@ -126,7 +130,7 @@ func (o *commandOptions) AddOrUpdateTrait(cmd *cobra.Command, args []string) err
 		return err
 	}
 	o.app = app
-	return app.Save(o.Env.Name, o.appName)
+	return o.app.Save(o.Env.Name, o.appName)
 }
 
 func AddTraitDetachCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
@@ -136,9 +140,9 @@ func AddTraitDetachCommands(parentCmd *cobra.Command, c types.Args, ioStreams cm
 	}
 	ctx := context.Background()
 	for _, tmp := range templates {
+		tmp := tmp
+
 		var name = tmp.Name
-		o := NewCommandOptions(ioStreams)
-		o.Env, _ = GetEnv()
 		pluginCmd := &cobra.Command{
 			Use:                   name + ":detach <appname>",
 			DisableFlagsInUseLine: true,
@@ -146,7 +150,12 @@ func AddTraitDetachCommands(parentCmd *cobra.Command, c types.Args, ioStreams cm
 			Long:                  "Detach " + name + " trait from an app",
 			Example:               "vela " + name + ":detach frontend",
 			RunE: func(cmd *cobra.Command, args []string) error {
+				o := NewCommandOptions(ioStreams)
 				newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+				if err != nil {
+					return err
+				}
+				o.Env, err = GetEnv(cmd)
 				if err != nil {
 					return err
 				}
@@ -154,15 +163,18 @@ func AddTraitDetachCommands(parentCmd *cobra.Command, c types.Args, ioStreams cm
 				if err := o.DetachTrait(cmd, args); err != nil {
 					return err
 				}
+				o.Template = tmp
+				o.Detach = true
 				return o.Run(cmd, ctx)
 			},
 			Annotations: map[string]string{
 				types.TagCommandType: types.TypeTraits,
 			},
 		}
-		pluginCmd.SetOut(o.Out)
-		o.TraitAlias = name
-		o.Detach = true
+		pluginCmd.Flags().StringP(App, "a", "", "create or add into an existing application group")
+		pluginCmd.Flags().BoolP(Staging, "s", false, "only save changes locally without real update application")
+
+		pluginCmd.SetOut(ioStreams.Out)
 		parentCmd.AddCommand(pluginCmd)
 	}
 	return nil
@@ -180,7 +192,8 @@ func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string) error {
 	if err = app.RemoveTrait(o.workloadName, traitType); err != nil {
 		return err
 	}
-	return app.Save(o.Env.Name, o.appName)
+	o.app = app
+	return o.app.Save(o.Env.Name, o.appName)
 }
 
 func (o *commandOptions) Run(cmd *cobra.Command, ctx context.Context) error {
@@ -189,7 +202,7 @@ func (o *commandOptions) Run(cmd *cobra.Command, ctx context.Context) error {
 	} else {
 		o.Infof("Adding %s for app %s \n", o.Template.Name, o.workloadName)
 	}
-	staging, err := strconv.ParseBool(cmd.Flag(Staging).Value.String())
+	staging, err := cmd.Flags().GetBool(Staging)
 	if err != nil {
 		return err
 	}

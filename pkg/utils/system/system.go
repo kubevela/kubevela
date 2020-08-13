@@ -70,6 +70,9 @@ func InitDirs() error {
 	if err := InitCapCenterDir(); err != nil {
 		return err
 	}
+	if err := InitDefaultEnv(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -78,7 +81,8 @@ func InitCapCenterDir() error {
 	if err != nil {
 		return err
 	}
-	return StatAndCreate(filepath.Join(home, ".tmp"))
+	_, err = CreateIfNotExist(filepath.Join(home, ".tmp"))
+	return err
 }
 
 func InitCapabilityDir() error {
@@ -86,12 +90,14 @@ func InitCapabilityDir() error {
 	if err != nil {
 		return err
 	}
-	return StatAndCreate(dir)
+	_, err = CreateIfNotExist(dir)
+	return err
 }
 
 func GetApplicationDir(envName string) (string, error) {
 	appDir := filepath.Join(GetEnvDirByName(envName), "applications")
-	return appDir, StatAndCreate(appDir)
+	_, err := CreateIfNotExist(appDir)
+	return appDir, err
 }
 
 const EnvConfigName = "config.json"
@@ -102,7 +108,13 @@ func InitDefaultEnv() error {
 		return err
 	}
 	defaultEnvDir := filepath.Join(envDir, types.DefaultEnvName)
-	StatAndCreate(defaultEnvDir)
+	exist, err := CreateIfNotExist(defaultEnvDir)
+	if err != nil {
+		return err
+	}
+	if exist {
+		return nil
+	}
 	data, _ := json.Marshal(&types.EnvMeta{Namespace: types.DefaultAppNamespace, Name: types.DefaultEnvName})
 	if err = ioutil.WriteFile(filepath.Join(defaultEnvDir, EnvConfigName), data, 0644); err != nil {
 		return err
@@ -117,11 +129,15 @@ func InitDefaultEnv() error {
 	return nil
 }
 
-func StatAndCreate(dir string) error {
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return os.MkdirAll(dir, 0755)
+func CreateIfNotExist(dir string) (bool, error) {
+	_, err := os.Stat(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, os.MkdirAll(dir, 0755)
+		}
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
 func GetEnvDirByName(name string) string {

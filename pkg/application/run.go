@@ -30,7 +30,7 @@ func CreateOrUpdateComponent(ctx context.Context, client client.Client, comp v1a
 	key := ctypes.NamespacedName{Name: comp.Name, Namespace: comp.Namespace}
 	var exist = true
 	if err := client.Get(ctx, key, &getc); err != nil {
-		if !apierrors.IsAlreadyExists(err) {
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
 		exist = false
@@ -38,6 +38,7 @@ func CreateOrUpdateComponent(ctx context.Context, client client.Client, comp v1a
 	if !exist {
 		return client.Create(ctx, &comp)
 	}
+	comp.ResourceVersion = getc.ResourceVersion
 	return client.Update(ctx, &comp)
 }
 
@@ -46,7 +47,7 @@ func CreateOrUpdateAppConfig(ctx context.Context, client client.Client, appConfi
 	key := ctypes.NamespacedName{Name: appConfig.Name, Namespace: appConfig.Namespace}
 	var exist = true
 	if err := client.Get(ctx, key, &geta); err != nil {
-		if !apierrors.IsAlreadyExists(err) {
+		if !apierrors.IsNotFound(err) {
 			return err
 		}
 		exist = false
@@ -54,5 +55,6 @@ func CreateOrUpdateAppConfig(ctx context.Context, client client.Client, appConfi
 	if !exist {
 		return client.Create(ctx, &appConfig)
 	}
+	appConfig.ResourceVersion = geta.ResourceVersion
 	return client.Update(ctx, &appConfig)
 }
