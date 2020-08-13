@@ -5,12 +5,6 @@ import (
 	"github.com/onsi/ginkgo"
 )
 
-var (
-	envName         = "env-system"
-	applicationName = "app-system"
-	traitAlias      = "manualscaler"
-)
-
 var _ = ginkgo.Describe("Application", func() {
 	e2e.SystemInitContext("system init")
 })
