@@ -44,8 +44,8 @@ Available Commands:
     deployment:run <appname> [args]   	Run deployment workloads
 
   Traits:
-    manualscaler <appname> [args]	Attach manualscaler trait to an app
-    manualscaler:detach <appname>	Detach manualscaler trait from an app
+    scale <appname> [args]	Attach manualscaler trait to an app
+    scale:detach <appname>	Detach manualscaler trait from an app
     rollout <appname> [args]     	Attach rollout trait to an app
     rollout:detach <appname>     	Detach rollout trait from an app
     route <appname> [args]       	Attach route trait to an app
@@ -171,4 +171,21 @@ $ source <(vela completion zsh)
 
 To load completions for every new session, execute once:
 $ vela completion zsh > "${fpath[1]}/_vela"
+```
+
+### Clean your environment
+
+```shell script
+$ helm uninstall core-runtime -n oam-system
+release "core-runtime" uninstalled
+```
+
+```shell script
+$ kubectl delete crd workloaddefinitions.core.oam.dev traitdefinitions.core.oam.dev
+customresourcedefinition.apiextensions.k8s.io "workloaddefinitions.core.oam.dev" deleted
+customresourcedefinition.apiextensions.k8s.io "traitdefinitions.core.oam.dev" deleted
+```
+
+```shell script
+$ rm -r ~/.vela
 ```

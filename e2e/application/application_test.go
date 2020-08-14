@@ -10,7 +10,7 @@ import (
 var (
 	envName         = "env-application"
 	applicationName = "app-basic"
-	traitAlias      = "manualscaler"
+	traitAlias      = "scale"
 )
 
 var _ = ginkgo.Describe("Application", func() {

@@ -25,7 +25,7 @@ var (
 	RefreshContext = func(context string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("Sync commands from your Kubernetes cluster and locally cached them", func() {
-				output, err := Exec("vela refresh")
+				output, err := Exec("vela system:update")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("syncing workload definitions from cluster..."))
 				gomega.Expect(output).To(gomega.ContainSubstring("successfully synced"))

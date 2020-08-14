@@ -148,7 +148,7 @@ func NewAdminInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 }
 
 func (i *initCmd) run(ioStreams cmdutil.IOStreams) error {
-	ioStreams.Info("- Install OAM Kubernetes Runtime:")
+	ioStreams.Info("- Installing OAM Kubernetes Runtime:")
 	if !cmdutil.IsNamespaceExist(i.client, types.DefaultOAMNS) {
 		if err := cmdutil.NewNamespace(i.client, types.DefaultOAMNS); err != nil {
 			return err
@@ -163,10 +163,15 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams) error {
 		return err
 	}
 
-	ioStreams.Info("- Apply builtin capabilities:")
+	ioStreams.Info("- Installing builtin capabilities:")
 	if err := GenNativeResourceDefinition(i.client); err != nil {
 		return err
 	}
+	ioStreams.Info()
+	if err := RefreshDefinitions(context.Background(), i.client, ioStreams); err != nil {
+		return err
+	}
+	ioStreams.Info("- Finished.")
 	return nil
 }
 
@@ -194,10 +199,10 @@ func IsHelmReleaseRunning(releaseName, chartName string, streams cmdutil.IOStrea
 }
 
 func InstallOamRuntime(ioStreams cmdutil.IOStreams, version string) error {
-	return HelmInstall(ioStreams, types.DefaultOAMRepoName, types.DefaultOAMRepoUrl, types.DefaultOAMRuntimeChartName, version, types.DefaultOAMReleaseName)
+	return HelmInstall(ioStreams, types.DefaultOAMRepoName, types.DefaultOAMRepoUrl, types.DefaultOAMRuntimeChartName, version, types.DefaultOAMReleaseName, nil)
 }
 
-func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoUrl, chartName, version, releaseName string) error {
+func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoUrl, chartName, version, releaseName string, vals map[string]interface{}) error {
 	if !IsHelmRepositoryExist(repoName, repoUrl) {
 		err := AddHelmRepository(repoName, repoUrl,
 			"", "", "", "", "", false, ioStreams.Out)
@@ -217,7 +222,7 @@ func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoUrl, chartName, vers
 	if err != nil {
 		return err
 	}
-	release, err := chartClient.Run(chartRequested, nil)
+	release, err := chartClient.Run(chartRequested, vals)
 	if err != nil {
 		return err
 	}
@@ -254,6 +259,9 @@ func NewHelmInstall(version, releaseName string, ioStreams cmdutil.IOStreams) (*
 
 	client := action.NewInstall(actionConfig)
 	client.ReleaseName = releaseName
+	// MUST set here, client didn't use namespace from configuration
+	client.Namespace = types.DefaultOAMNS
+
 	if len(version) > 0 {
 		client.Version = version
 	} else {
@@ -405,6 +413,7 @@ func GenNativeResourceDefinition(c client.Client) error {
 	for name, manifest := range traitResource {
 		traitDefinition, err := NewTraitDefinition(manifest)
 		if err != nil {
+			fmt.Printf("creating local definition %s err %v", name, err)
 			continue
 		}
 		err = c.Get(context.Background(), client.ObjectKey{Name: name}, &traitDefinition)
