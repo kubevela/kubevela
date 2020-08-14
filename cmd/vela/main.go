@@ -162,7 +162,7 @@ func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 		if len(table.Rows) > 0 {
 			cmd.Println()
 		}
-		cmd.Println("    Want more? <use 'vela refresh' to sync from cluster or install by `vela cap` >")
+		cmd.Println("    Want more? < install more capabilities by `vela cap` >")
 	}
 	cmd.Println()
 }

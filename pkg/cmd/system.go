@@ -413,6 +413,7 @@ func GenNativeResourceDefinition(c client.Client) error {
 	for name, manifest := range traitResource {
 		traitDefinition, err := NewTraitDefinition(manifest)
 		if err != nil {
+			fmt.Printf("creating local definition %s err %v", name, err)
 			continue
 		}
 		err = c.Get(context.Background(), client.ObjectKey{Name: name}, &traitDefinition)
