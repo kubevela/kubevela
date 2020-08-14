@@ -151,8 +151,7 @@ components:
 		}
 		assert.Equal(t, c.ExpName, app.Name, caseName)
 		assert.Equal(t, c.ExpComponents, app.GetComponents(), caseName)
-		workloadType, workload, err := app.GetWorkload(c.WantWorkload)
-		assert.NoError(t, err, caseName)
+		workloadType, workload := app.GetWorkload(c.WantWorkload)
 		assert.Equal(t, c.ExpWorklaod, workload, caseName)
 		assert.Equal(t, c.ExpWorkloadType, workloadType, caseName)
 		traits, err := app.GetTraits(c.WantWorkload)

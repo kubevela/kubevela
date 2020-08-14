@@ -104,11 +104,10 @@ func (o *runOptions) Complete(cmd *cobra.Command, args []string, ctx context.Con
 	if app.Components == nil {
 		app.Components = make(map[string]map[string]interface{})
 	}
-	tp, workloadData, err := app.GetWorkload(o.workloadName)
-	if err != nil {
+	tp, workloadData := app.GetWorkload(o.workloadName)
+	if tp == "" {
 		// Not exist
 		tp = o.Template.Name
-		workloadData = make(map[string]interface{})
 	}
 
 	for _, v := range o.Template.Parameters {

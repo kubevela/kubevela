@@ -2,10 +2,10 @@
 	apiVersion: "core.oam.dev/v1alpha2"
 	kind:       "ManualScalerTrait"
 	spec: {
-		replicaCount: manualscaler.replica
+		replicaCount: scale.replica
 	}
 }
-manualscaler: {
+scale: {
 	//+short=r
 	replica: *2 | int
 }

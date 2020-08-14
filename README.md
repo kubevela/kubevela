@@ -44,8 +44,8 @@ Available Commands:
     deployment:run <appname> [args]   	Run deployment workloads
 
   Traits:
-    manualscaler <appname> [args]	Attach manualscaler trait to an app
-    manualscaler:detach <appname>	Detach manualscaler trait from an app
+    scale <appname> [args]	Attach manualscaler trait to an app
+    scale:detach <appname>	Detach manualscaler trait from an app
     rollout <appname> [args]     	Attach rollout trait to an app
     rollout:detach <appname>     	Detach rollout trait from an app
     route <appname> [args]       	Attach route trait to an app

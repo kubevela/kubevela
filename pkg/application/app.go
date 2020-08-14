@@ -145,18 +145,18 @@ func (app *Application) GetComponents() []string {
 	return components
 }
 
-func (app *Application) GetWorkload(componentName string) (string, map[string]interface{}, error) {
+func (app *Application) GetWorkload(componentName string) (string, map[string]interface{}) {
 	comp, ok := app.Components[componentName]
 	if !ok {
-		return "", nil, fmt.Errorf("%s not exist", componentName)
+		return "", make(map[string]interface{})
 	}
 	for tp, workload := range comp {
 		if NotWorkload(tp) {
 			continue
 		}
-		return tp, workload.(map[string]interface{}), nil
+		return tp, workload.(map[string]interface{})
 	}
-	return "", nil, fmt.Errorf("workload not exist in %s", componentName)
+	return "", make(map[string]interface{})
 }
 
 func (app *Application) GetTraits(componentName string) (map[string]map[string]interface{}, error) {
@@ -196,9 +196,9 @@ func (app *Application) GetTraitsByType(componentName, traitType string) (map[st
 }
 
 func (app *Application) GetWorkloadObject(componentName string) (*unstructured.Unstructured, error) {
-	workloadType, workloadData, err := app.GetWorkload(componentName)
-	if err != nil {
-		return nil, err
+	workloadType, workloadData := app.GetWorkload(componentName)
+	if workloadType == "" {
+		return nil, errors.New(componentName + " workload not exist")
 	}
 	return EvalToObject(workloadType, workloadData)
 }
