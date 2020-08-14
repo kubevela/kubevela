@@ -56,16 +56,7 @@ func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 		if len(args) != 0 {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		}
-		ctx := context.Background()
-		env, err := GetEnv(cmd)
-		if err != nil {
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		}
-		newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
-		if err != nil {
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		}
-		return compListApplication(ctx, newClient, "", env.Namespace)
+		return compListApplication(cmd, c)
 	}
 	cmd.SetOut(ioStreams.Out)
 	return cmd

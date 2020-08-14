@@ -127,8 +127,17 @@ func RetrieveApplicationsByName(ctx context.Context, c client.Client, applicatio
 }
 
 // Provide dynamic auto-completion for Application names
-func compListApplication(ctx context.Context, c client.Client, appName string, namespace string) ([]string, cobra.ShellCompDirective) {
-	applicationMetaList, err := RetrieveApplicationsByName(ctx, c, appName, namespace)
+func compListApplication(cmd *cobra.Command, c types.Args) ([]string, cobra.ShellCompDirective) {
+	ctx := context.Background()
+	env, err := GetEnv(cmd)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	client, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	applicationMetaList, err := RetrieveApplicationsByName(ctx, client, "", env.Namespace)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveDefault
 	}

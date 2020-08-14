@@ -82,16 +82,7 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 			if len(args) != 0 {
 				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
-			ctx := context.Background()
-			env, err := GetEnv(cmd)
-			if err != nil {
-				return nil, cobra.ShellCompDirectiveNoFileComp
-			}
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
-			if err != nil {
-				return nil, cobra.ShellCompDirectiveNoFileComp
-			}
-			return compListApplication(ctx, newClient, "", env.Namespace)
+			return compListApplication(cmd, c)
 		}
 		parentCmd.AddCommand(pluginCmd)
 	}
@@ -192,16 +183,7 @@ func AddTraitDetachCommands(parentCmd *cobra.Command, c types.Args, ioStreams cm
 			if len(args) != 0 {
 				return nil, cobra.ShellCompDirectiveNoFileComp
 			}
-			ctx := context.Background()
-			env, err := GetEnv(cmd)
-			if err != nil {
-				return nil, cobra.ShellCompDirectiveNoFileComp
-			}
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
-			if err != nil {
-				return nil, cobra.ShellCompDirectiveNoFileComp
-			}
-			return compListApplication(ctx, newClient, "", env.Namespace)
+			return compListApplication(cmd, c)
 		}
 		pluginCmd.SetOut(ioStreams.Out)
 		parentCmd.AddCommand(pluginCmd)
