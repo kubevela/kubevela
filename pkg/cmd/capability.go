@@ -372,7 +372,7 @@ func InstallCapability(client client.Client, centerName, capabilityName string, 
 }
 
 func InstallHelmChart(ioStreams cmdutil.IOStreams, c types.Chart) error {
-	return HelmInstall(ioStreams, c.Repo, c.URl, c.Name, c.Version, c.Name)
+	return HelmInstall(ioStreams, c.Repo, c.URl, c.Name, c.Version, c.Name, nil)
 }
 
 func GetSyncedCapabilities(repoName, addonName string) (types.Capability, error) {

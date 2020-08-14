@@ -10,6 +10,8 @@ metadata:
 spec:
   appliesToWorkloads:
     - core.oam.dev/v1alpha2.ContainerizedWorkload
+	- apps/v1.Deployment
+  workloadRefPath: spec.workloadRef
   definitionRef:
     name: manualscalertraits.core.oam.dev
   extension:
@@ -18,10 +20,10 @@ spec:
       	apiVersion: "core.oam.dev/v1alpha2"
       	kind:       "ManualScalerTrait"
       	spec: {
-      		replicaCount: manualscaler.replica
+      		replicaCount: scale.replica
       	}
       }
-      manualscaler: {
+      scale: {
       	//+short=r
       	replica: *2 | int
       }

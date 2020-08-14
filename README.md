@@ -172,3 +172,20 @@ $ source <(vela completion zsh)
 To load completions for every new session, execute once:
 $ vela completion zsh > "${fpath[1]}/_vela"
 ```
+
+### Clean your environment
+
+```shell script
+$ helm uninstall core-runtime -n oam-system
+release "core-runtime" uninstalled
+```
+
+```shell script
+$ kubectl delete crd workloaddefinitions.core.oam.dev traitdefinitions.core.oam.dev
+customresourcedefinition.apiextensions.k8s.io "workloaddefinitions.core.oam.dev" deleted
+customresourcedefinition.apiextensions.k8s.io "traitdefinitions.core.oam.dev" deleted
+```
+
+```shell script
+$ rm -r ~/.vela
+```
