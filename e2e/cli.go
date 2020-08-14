@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/onsi/gomega"
+
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega/gexec"
 )
@@ -17,7 +19,6 @@ var (
 
 //GetCliBinary is to build rudr binary.
 func GetCliBinary() (string, error) {
-	// TODO(zzxwill) Need to check before building from scratch every time
 	cwd, _ := os.Getwd()
 	rudrPath = path.Join(cwd, "..")
 	mainPath := path.Join(rudrPath, "../cmd/vela/main.go")
@@ -25,7 +26,6 @@ func GetCliBinary() (string, error) {
 
 	_, err := cmd.Output()
 	return rudrPath, err
-
 }
 
 func Exec(cli string) (string, error) {
@@ -40,5 +40,11 @@ func Exec(cli string) (string, error) {
 	}
 	s := session.Wait(10 * time.Second)
 	return string(s.Out.Contents()) + string(s.Err.Contents()), nil
+}
 
+func BeforeSuit() {
+	_, err := GetCliBinary()
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	//Exec("vela system:init")
+	Exec("vela refresh")
 }

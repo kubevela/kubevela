@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/cloud-native-application/rudrx/e2e"
+
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 )
@@ -14,7 +15,7 @@ var _ = ginkgo.BeforeSuite(func() {
 	e2e.BeforeSuit()
 })
 
-func TestEnv(t *testing.T) {
+func TestApplication(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Env Suite")
+	ginkgo.RunSpecs(t, "System Suite")
 }

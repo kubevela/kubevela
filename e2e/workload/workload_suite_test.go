@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/cloud-native-application/rudrx/e2e"
-
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 )
@@ -12,9 +11,7 @@ import (
 var rudrPath string
 
 var _ = ginkgo.BeforeSuite(func() {
-	p, err := e2e.GetCliBinary()
-	rudrPath = p
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	e2e.BeforeSuit()
 })
 
 func TestWorkload(t *testing.T) {
