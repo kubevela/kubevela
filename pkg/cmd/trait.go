@@ -78,7 +78,21 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 		}
 		pluginCmd.Flags().StringP(App, "a", "", "create or add into an existing application group")
 		pluginCmd.Flags().BoolP(Staging, "s", false, "only save changes locally without real update application")
-
+		pluginCmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+			if len(args) != 0 {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			ctx := context.Background()
+			env, err := GetEnv(cmd)
+			if err != nil {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			if err != nil {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			return compListApplication(ctx, newClient, "", env.Namespace)
+		}
 		parentCmd.AddCommand(pluginCmd)
 	}
 	return nil

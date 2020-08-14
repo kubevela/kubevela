@@ -47,6 +47,21 @@ func NewAppShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			types.TagCommandType: types.TypeApp,
 		},
 	}
+	cmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if len(args) != 0 {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		ctx := context.Background()
+		env, err := GetEnv(cmd)
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+		return compListApplication(ctx, newClient, "", env.Namespace)
+	}
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
