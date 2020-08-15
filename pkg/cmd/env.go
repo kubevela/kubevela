@@ -267,7 +267,7 @@ func GetEnv(cmd *cobra.Command) (*types.EnvMeta, error) {
 		envName = cmd.Flag("env").Value.String()
 	}
 	if envName != "" {
-		return getEnvByName(envName)
+		return oam.GetEnvByName(envName)
 	}
 	envName, err = GetCurrentEnvName()
 	if err != nil {
@@ -279,20 +279,5 @@ func GetEnv(cmd *cobra.Command) (*types.EnvMeta, error) {
 		}
 		envName = types.DefaultEnvName
 	}
-	return getEnvByName(envName)
-}
-
-func getEnvByName(name string) (*types.EnvMeta, error) {
-	data, err := ioutil.ReadFile(filepath.Join(system.GetEnvDirByName(name), system.EnvConfigName))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("%s not exist", name)
-		}
-		return nil, err
-	}
-	var meta types.EnvMeta
-	if err = json.Unmarshal(data, &meta); err != nil {
-		return nil, err
-	}
-	return &meta, nil
+	return oam.GetEnvByName(envName)
 }
