@@ -13,3 +13,8 @@ type AppConfig struct {
 	DefinitionType string               `json:"definitionType" binding:"required,max=32"`
 	DefinitionName string               `json:"definitionName" binding:"required,max=64"`
 }
+
+type Response struct {
+	Code int         `json:"code"`
+	Data interface{} `json:"data"`
+}

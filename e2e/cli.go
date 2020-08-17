@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/onsi/gomega"
-
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega/gexec"
 )
@@ -29,12 +27,8 @@ func GetCliBinary() (string, error) {
 }
 
 func Exec(cli string) (string, error) {
-	c := strings.Fields(cli)
-	commandName := path.Join(rudrPath, c[0])
-	command := exec.Command(commandName, c[1:]...)
-
 	var output []byte
-	session, err := gexec.Start(command, ginkgo.GinkgoWriter, ginkgo.GinkgoWriter)
+	session, err := AsyncExec(cli)
 	if err != nil {
 		return string(output), err
 	}
@@ -42,10 +36,10 @@ func Exec(cli string) (string, error) {
 	return string(s.Out.Contents()) + string(s.Err.Contents()), nil
 }
 
-func BeforeSuit() {
-	_, err := GetCliBinary()
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	Exec("vela system:init")
-	//Without this line, will hit issue like `<string>: Error: unknown command "scale" for "vela"`
-	Exec("vela system:update")
+func AsyncExec(cli string) (*gexec.Session, error) {
+	c := strings.Fields(cli)
+	commandName := path.Join(rudrPath, c[0])
+	command := exec.Command(commandName, c[1:]...)
+	session, err := gexec.Start(command, ginkgo.GinkgoWriter, ginkgo.GinkgoWriter)
+	return session, err
 }

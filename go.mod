@@ -19,6 +19,7 @@ require (
 	github.com/stretchr/testify v1.6.1
 	go.uber.org/zap v1.10.0
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
+	google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.2.4

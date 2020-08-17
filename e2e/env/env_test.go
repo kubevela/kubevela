@@ -31,4 +31,5 @@ var _ = ginkgo.Describe("Env", func() {
 
 	e2e.EnvDeleteContext("env delete", envName2)
 	e2e.EnvDeleteCurrentUsingContext("env delete currently using one", envName)
+	// TODO(zzxwill) Delete an env which does not exist
 })
