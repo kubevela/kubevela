@@ -1,25 +1,26 @@
-## vela dashboard
+## vela cap:add
 
-Setup API Server and launch Dashboard
+Add capability into cluster
 
 ### Synopsis
 
-Setup API Server and launch Dashboard
+Add capability into cluster
 
 ```
-vela dashboard [flags]
+vela cap:add <center>/<name> [flags]
 ```
 
 ### Examples
 
 ```
-dashboard
+vela cap:add mycenter/route
 ```
 
 ### Options
 
 ```
-  -h, --help   help for dashboard
+  -h, --help           help for cap:add
+  -t, --token string   Github Repo token
 ```
 
 ### Options inherited from parent commands

@@ -1,25 +1,26 @@
-## vela dashboard
+## vela app:ls
 
-Setup API Server and launch Dashboard
+List applications
 
 ### Synopsis
 
-Setup API Server and launch Dashboard
+List applications with workloads, traits, status and created time
 
 ```
-vela dashboard [flags]
+vela app:ls
 ```
 
 ### Examples
 
 ```
-dashboard
+vela app:ls
 ```
 
 ### Options
 
 ```
-  -h, --help   help for dashboard
+  -a, --app string   Application name
+  -h, --help         help for app:ls
 ```
 
 ### Options inherited from parent commands

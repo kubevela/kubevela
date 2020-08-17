@@ -23,7 +23,7 @@ of vela commands.
 
 ### SEE ALSO
 
-* [vela](vela.md)	 - 
+* [vela](vela.md)	 - ✈️  A Micro App Platform for Kubernetes.
 * [vela completion bash](vela_completion_bash.md)	 - generate autocompletions script for bash
 * [vela completion zsh](vela_completion_zsh.md)	 - generate autocompletions script for zsh
 
