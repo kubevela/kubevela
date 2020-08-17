@@ -6,16 +6,17 @@ import (
 	"time"
 
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type ApiServer struct {
 	server *http.Server
 }
 
-func (s *ApiServer) Launch() {
+func (s *ApiServer) Launch(kubeClient client.Client) {
 	s.server = &http.Server{
 		Addr:         ":8080",
-		Handler:      SetupRoute(),
+		Handler:      setupRoute(kubeClient),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}

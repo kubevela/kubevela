@@ -20,6 +20,7 @@ const (
 	PathNotSupported
 	InvalidArgument
 	UnsupportedMediaType
+	StatusInternalServerError
 	// End marker
 	endMarker
 )
@@ -31,10 +32,10 @@ type errorDetail struct {
 }
 
 var errorDetails = map[Code]errorDetail{
-	PathNotSupported:     {"PathNotSupported", http.StatusNotFound, "'%s' against '%s' is not supported"},
-	InvalidArgument:      {"InvalidArgument", http.StatusBadRequest, "%s"},
-	UnsupportedMediaType: {"UnsupportedMediaType", http.StatusUnsupportedMediaType, "content type should be 'application/json' or 'application/octet-stream'"},
-}
+	PathNotSupported:          {"PathNotSupported", http.StatusNotFound, "'%s' against '%s' is not supported"},
+	InvalidArgument:           {"InvalidArgument", http.StatusBadRequest, "%s"},
+	UnsupportedMediaType:      {"UnsupportedMediaType", http.StatusUnsupportedMediaType, "content type should be 'application/json' or 'application/octet-stream'"},
+	StatusInternalServerError: {"StatusInternalServerError", http.StatusInternalServerError, "%s"}}
 
 // ID returns the error ID.
 func (c Code) ID() string {

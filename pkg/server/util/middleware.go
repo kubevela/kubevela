@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	uuid "github.com/satori/go.uuid"
 	"go.uber.org/zap/zapcore"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Header Keys
@@ -123,5 +124,12 @@ func ValidateHeaders() gin.HandlerFunc {
 				return
 			}
 		}
+	}
+}
+
+func StoreClient(kubeClient client.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Set("KubeClient", kubeClient)
+		c.Next()
 	}
 }

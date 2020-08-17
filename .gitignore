@@ -33,3 +33,9 @@ vendor/
 
 pkg/test/vela
 tmp/
+
+# Dashboard
+dashboard/node_modules/
+dashboard/package-lock.json
+dashboard/src/.umi/
+package-lock.json
