@@ -1,50 +1,54 @@
-import React from "react";
-import { PageContainer } from "@ant-design/pro-layout";
-import { Button, Row, Col, Modal, Select, message } from "antd";
-import './index.less'
+import React from 'react';
+import { PageContainer } from '@ant-design/pro-layout';
+import { Button, Row, Col, Modal, Select, message } from 'antd';
+import './index.less';
+
 const { Option } = Select;
 
 class Trait extends React.Component {
-  constructor(props){
+  constructor(props) {
     super(props);
     this.state = {
       visible: false,
-      selectValue: null
-    }
+      selectValue: null,
+    };
   }
+
   showModal = () => {
     this.setState({
       visible: true,
     });
   };
-  handleOk = e => {
+
+  handleOk = () => {
     const { selectValue } = this.state;
-    if(selectValue){
+    if (selectValue) {
       this.setState({
         visible: false,
       });
       const { pathname, state, history } = this.props.propsObj;
-      history.push({pathname,state})
-    }else{
-      message.warn('please select a application')
+      history.push({ pathname, state });
+    } else {
+      message.warn('please select a application');
     }
   };
-  handleCancel = e => {
-    console.log(e);
+
+  handleCancel = () => {
     this.setState({
       visible: false,
     });
   };
-  onChange = (value)=> {
+
+  onChange = (value) => {
     this.setState({
-      selectValue: value
-    })
+      selectValue: value,
+    });
   };
-  onSearch = (val)=> {
-    console.log('search:', val);
-  };
+
+  onSearch = () => {};
+
   render() {
-    const { btnValue, title, settings, btnIsShow } = this.props.propsObj
+    const { btnValue, title, settings, btnIsShow } = this.props.propsObj;
     return (
       <PageContainer>
         <Row>
@@ -64,22 +68,27 @@ class Trait extends React.Component {
               </Row>
               <p className="title">Conflicts With:</p>
               <p className="title">Configurable Properties:</p>
-              {
-                settings.map((item,index)=>{
-                  return (
-                    <Row key={index}>
-                      <Col span="8">
-                        <p>{item.name}</p>
-                      </Col>
-                      <Col span="16">
-                        <p>{item.value}</p>
-                      </Col>
-                    </Row>
-                  )
-                })
-              }
+              {settings.map((item, index) => {
+                return (
+                  <Row key={index.toString()}>
+                    <Col span="8">
+                      <p>{item.name}</p>
+                    </Col>
+                    <Col span="16">
+                      <p>{item.value}</p>
+                    </Col>
+                  </Row>
+                );
+              })}
             </div>
-            <Button type="primary" className="create-button" onClick={this.showModal} style={{ display: btnIsShow?'block':'none' }}>{btnValue}</Button>
+            <Button
+              type="primary"
+              className="create-button"
+              onClick={this.showModal}
+              style={{ display: btnIsShow ? 'block' : 'none' }}
+            >
+              {btnValue}
+            </Button>
             <Modal
               title="Select a Application"
               visible={this.state.visible}
@@ -91,7 +100,7 @@ class Trait extends React.Component {
                 </Button>,
                 <Button key="submit" type="primary" onClick={this.handleOk}>
                   Next
-                </Button>
+                </Button>,
               ]}
             >
               <Select

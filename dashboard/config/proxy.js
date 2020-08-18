@@ -7,30 +7,29 @@
  */
 export default {
   dev: {
-    "/love/record": {
-      // target: "https://preview.pro.ant.design",
-      target: "https://getman.cn/mock/route/to/demo",
+    '/api': {
+      target: 'http://123.56.222.218:8080/',
       changeOrigin: true,
-      pathRewrite: {
-        "^/love/record": "",
-      },
+      // pathRewrite: {
+      //   "^/api": "",
+      // },
     },
   },
   test: {
-    "/api/": {
-      target: "https://preview.pro.ant.design",
+    '/api/': {
+      target: 'https://preview.pro.ant.design',
       changeOrigin: true,
       pathRewrite: {
-        "^": "",
+        '^': '',
       },
     },
   },
   pre: {
-    "/api/": {
-      target: "your pre url",
+    '/api/': {
+      target: 'your pre url',
       changeOrigin: true,
       pathRewrite: {
-        "^": "",
+        '^': '',
       },
     },
   },

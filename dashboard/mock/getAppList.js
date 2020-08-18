@@ -4,49 +4,27 @@
 
 export default {
   // 支持值为 Object 和 Array
-  "GET /love/record": [{
-    name: "app-foo",
-    time: '2020-08-11 13:20:45',
-    status: 1,
-    workLoad: {
-      name: 'Delopyment'
+  'GET /api/envs/default/apps': [
+    {
+      created: '2020-08-13 14:53:02 +0800 CST',
+      name: 'poc2040',
+      status: 'UNKNOWN',
+      traits: ['manualscaler'],
+      workload: 'ContainerizedWorkload',
     },
-    traits: []
-  },{
-    name: "app-foo1",
-    time: '2020-08-11 13:20:45',
-    status: 1,
-    workLoad: {
-      name: 'Delopyment'
+    {
+      created: '2020-08-13 14:53:02 +0800 CST',
+      name: 'poc2042',
+      status: 'True',
+      traits: ['manualscaler', 'manualscaler1'],
+      workload: 'ContainerizedWorkload',
     },
-    traits: [{
-      name: 'Autoscaling',
-      id:'1'
-    }]
-  },{
-    name: "app-foo2",
-    time: '2020-08-11 13:20:45',
-    status: 2,
-    workLoad: {
-      name: 'Delopyment'
+    {
+      created: '2020-08-13 14:53:02 +0800 CST',
+      name: 'poc2042',
+      status: 'False',
+      traits: ['manualscaler', 'manualscaler1'],
+      workload: 'ContainerizedWorkload',
     },
-    traits: [{
-      name: 'Autoscaling',
-      id:'1'
-    },{
-      name: 'Rollout',
-      id:'2'
-    },]
-  },{
-    name: "app-foo3",
-    time: '2020-08-11 13:20:45',
-    status: 1,
-    workLoad: {
-      name: 'Delopyment'
-    },
-    traits: [{
-      name: 'Autoscaling',
-      id:'1'
-    }]
-  }]
+  ],
 };

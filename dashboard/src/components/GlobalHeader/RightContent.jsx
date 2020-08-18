@@ -1,20 +1,20 @@
-import { Tag } from "antd";
-import React from "react";
-import { connect } from "umi";
-import WorkSpaceDropDown from "./workSpaceDropDown";
-import styles from "./index.less";
+import { Tag } from 'antd';
+import React from 'react';
+import { connect } from 'umi';
+import WorkSpaceDropDown from './WorkSpaceDropDown';
+import styles from './index.less';
 
 const ENVTagColor = {
-  dev: "orange",
-  test: "green",
-  pre: "#87d068",
+  dev: 'orange',
+  test: 'green',
+  pre: '#87d068',
 };
 
 const GlobalHeaderRight = (props) => {
   const { theme, layout } = props;
   let className = styles.right;
 
-  if (theme === "dark" && layout === "top") {
+  if (theme === 'dark' && layout === 'top') {
     className = `${styles.right}  ${styles.dark}`;
   }
 

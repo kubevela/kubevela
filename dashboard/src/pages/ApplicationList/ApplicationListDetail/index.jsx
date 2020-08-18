@@ -1,49 +1,46 @@
-import React from "react";
-import { PageContainer } from "@ant-design/pro-layout";
-import "./index.less";
-import { Link } from "umi";
-import {
-  Button,
-  Row,
-  Col,
-  Tabs,
-  Popconfirm,
-  message
-} from "antd";
+import React from 'react';
+import { PageContainer } from '@ant-design/pro-layout';
+import './index.less';
+import { Button, Row, Col, Tabs, Popconfirm, message } from 'antd';
+
 const { TabPane } = Tabs;
 
 class TableList extends React.Component {
-  constructor(props) {
-    super(props);
-  }
   confirm = (e) => {
-    console.log(e);
-    e.stopPropagation()
+    e.stopPropagation();
     message.success('Click on Yes');
-  }
+  };
+
   cancel = (e) => {
-    console.log(e);
-    e.stopPropagation()
+    e.stopPropagation();
     message.error('Click on No');
-  }
+  };
+
   createTrait = () => {
-    this.props.history.push({pathname:'/ApplicationList/CreateApplication',state:{activeStep:1,TraitType:'Autoscaling'}})
-  }
-  hrefClick = (e)=>{
-    e.stopPropagation()
-  }
-  gotoWorkloadDetail = ()=>{
-    this.props.history.push({pathname:'/Workload/Detail'})
-  }
-  gotoTraitDetail = ()=>{
-    this.props.history.push({pathname:'/Traits/Detail'})
-  }
+    this.props.history.push({
+      pathname: '/ApplicationList/CreateApplication',
+      state: { activeStep: 1, TraitType: 'Autoscaling' },
+    });
+  };
+
+  hrefClick = (e) => {
+    e.stopPropagation();
+  };
+
+  gotoWorkloadDetail = () => {
+    this.props.history.push({ pathname: '/Workload/Detail' });
+  };
+
+  gotoTraitDetail = () => {
+    this.props.history.push({ pathname: '/Traits/Detail' });
+  };
+
   render() {
     return (
       <PageContainer>
         <div className="card-container app-detial">
           <h2>app-foo</h2>
-          <p style={{ marginBottom: "20px" }}>
+          <p style={{ marginBottom: '20px' }}>
             core.oam.dev/v1alpha2, Kind=ApplicationConfiguration
           </p>
           <Tabs>
@@ -58,10 +55,7 @@ class TableList extends React.Component {
                       </Col>
                       <Col span="2">
                         {/* <a href="JavaScript:;">?</a> */}
-                        <p
-                          className="title hasCursor"
-                          onClick={this.hrefClick}
-                        >
+                        <p className="title hasCursor" onClick={this.hrefClick}>
                           ?
                         </p>
                       </Col>
@@ -111,7 +105,7 @@ class TableList extends React.Component {
                     <Button danger>Delete</Button>
                   </Popconfirm>
                 </Col>
-                <Col span="1"></Col>
+                <Col span="1" />
                 <Col span="10">
                   <div className="summaryBox" onClick={this.gotoTraitDetail}>
                     <Row>
@@ -122,7 +116,9 @@ class TableList extends React.Component {
                       <Col span="2">
                         <p
                           className="title hasCursor"
-                          onClick={(e)=>{e.stopPropagation()}}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
                         >
                           ?
                         </p>
@@ -140,7 +136,7 @@ class TableList extends React.Component {
                         <p>100</p>
                       </Col>
                     </Row>
-                    <div style={{ clear: "both", height: "32px" }}>
+                    <div style={{ clear: 'both', height: '32px' }}>
                       <Popconfirm
                         title="Are you sure delete this task?"
                         onConfirm={this.confirm}
@@ -148,7 +144,13 @@ class TableList extends React.Component {
                         okText="Yes"
                         cancelText="No"
                       >
-                        <Button danger className="floatRight" onClick={(e)=>{e.stopPropagation()}}>
+                        <Button
+                          danger
+                          className="floatRight"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                        >
                           Delete
                         </Button>
                       </Popconfirm>
@@ -197,7 +199,7 @@ class TableList extends React.Component {
                   <p
                     className="hasCursor"
                     style={{
-                      fontSize: "30px"
+                      fontSize: '30px',
                     }}
                     onClick={this.createTrait}
                   >
