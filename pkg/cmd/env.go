@@ -25,6 +25,7 @@ func EnvCommandGroup(parentCmd *cobra.Command, c types.Args, ioStream cmdutil.IO
 }
 
 func NewEnvCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
+	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "env",
 		DisableFlagsInUseLine: true,
@@ -32,7 +33,7 @@ func NewEnvCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		Long:                  "List all environments",
 		Example:               `vela env [env-name]`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return ListEnvs(args, ioStreams)
+			return ListEnvs(ctx, args, ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -112,7 +113,7 @@ func NewEnvSwitchCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func ListEnvs(args []string, ioStreams cmdutil.IOStreams) error {
+func ListEnvs(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) error {
 	table := uitable.New()
 	table.MaxColWidth = 60
 	table.AddRow("NAME", "CURRENT", "NAMESPACE")

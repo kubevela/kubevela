@@ -10,7 +10,7 @@ import (
 )
 
 var _ = ginkgo.BeforeSuite(func() {
-	e2e.AsyncExec("vela dashboard")
+	e2e.BeforeSuit()
 })
 
 func TestApplication(t *testing.T) {

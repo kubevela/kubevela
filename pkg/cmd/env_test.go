@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cloud-native-application/rudrx/pkg/oam"
+
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 
 	"github.com/cloud-native-application/rudrx/api/types"
@@ -30,7 +32,7 @@ func TestENV(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check and compare create default env success
-	curEnvName, err := GetCurrentEnvName()
+	curEnvName, err := oam.GetCurrentEnvName()
 	assert.NoError(t, err)
 	assert.Equal(t, "default", curEnvName)
 	gotEnv, err := GetEnv(nil)
@@ -43,7 +45,7 @@ func TestENV(t *testing.T) {
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	exp := &types.EnvMeta{
 		Namespace: "test1",
-		Name:      "default",
+		Name:      "env1",
 	}
 	client := test.NewMockClient()
 	// Create env1
@@ -51,7 +53,7 @@ func TestENV(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check and compare create env success
-	curEnvName, err = GetCurrentEnvName()
+	curEnvName, err = oam.GetCurrentEnvName()
 	assert.NoError(t, err)
 	assert.Equal(t, "env1", curEnvName)
 	gotEnv, err = GetEnv(nil)
@@ -67,7 +69,7 @@ func TestENV(t *testing.T) {
 	b.Reset()
 	err = ListEnvs(ctx, []string{"env1"}, ioStream)
 	assert.NoError(t, err)
-	assert.Equal(t, "NAME\tCURRENT\tNAMESPACE\nenv1\ttest1  \n", b.String())
+	assert.Equal(t, "NAME\tCURRENT\tNAMESPACE\nenv1\t       \ttest1    \n", b.String())
 	ioStream.Out = os.Stdout
 
 	// can not delete current env
