@@ -40,6 +40,7 @@ func ListApps(c *gin.Context) {
 	envMeta, err := oam.GetEnvByName(envName)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
+		return
 	}
 	namespace := envMeta.Namespace
 
