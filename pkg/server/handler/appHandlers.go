@@ -3,6 +3,8 @@ package handler
 import (
 	"net/http"
 
+	"github.com/cloud-native-application/rudrx/pkg/server/apis"
+
 	"github.com/cloud-native-application/rudrx/pkg/server/util"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -47,7 +49,11 @@ func ListApps(c *gin.Context) {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
 	}
-	c.JSON(http.StatusOK, applicationMetaList)
+	resp := apis.Response{
+		Code: http.StatusOK,
+		Data: applicationMetaList,
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 func DeleteApps(c *gin.Context) {

@@ -2,15 +2,9 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 
-	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/cloud-native-application/rudrx/api/types"
@@ -123,49 +117,16 @@ func ListEnvs(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) e
 	table := uitable.New()
 	table.MaxColWidth = 60
 	table.AddRow("NAME", "CURRENT", "NAMESPACE")
+	var envName = ""
 	if len(args) > 0 {
-		envName := args[0]
-		env, err := oam.GetEnvByName(envName)
-		if err != nil {
-			if os.IsNotExist(err) {
-				ioStreams.Info(fmt.Sprintf("env %s not exist", envName))
-				return nil
-			}
-			return err
-		}
-		table.AddRow(envName, env.Namespace)
-		ioStreams.Info(table.String())
-		return nil
+		envName = args[0]
 	}
-	envDir, err := system.GetEnvDir()
+	envList, err := oam.ListEnvs(envName)
 	if err != nil {
 		return err
 	}
-	files, err := ioutil.ReadDir(envDir)
-	if err != nil {
-		return err
-	}
-	curEnv, err := GetCurrentEnvName()
-	if err != nil {
-		curEnv = types.DefaultEnvName
-	}
-	for _, f := range files {
-		if !f.IsDir() {
-			continue
-		}
-		data, err := ioutil.ReadFile(filepath.Join(envDir, f.Name(), system.EnvConfigName))
-		if err != nil {
-			continue
-		}
-		var envMeta types.EnvMeta
-		if err = json.Unmarshal(data, &envMeta); err != nil {
-			continue
-		}
-		if curEnv == f.Name() {
-			table.AddRow(f.Name(), "*", envMeta.Namespace)
-		} else {
-			table.AddRow(f.Name(), "", envMeta.Namespace)
-		}
+	for _, env := range envList {
+		table.AddRow(env.Name, env.Current, env.Namespace)
 	}
 	ioStreams.Info(table.String())
 	return nil
@@ -175,56 +136,25 @@ func DeleteEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) 
 	if len(args) < 1 {
 		return fmt.Errorf("you must specify env name for vela env:delete command")
 	}
-	envname := args[0]
-	curEnv, err := GetCurrentEnvName()
-	if err != nil {
-		return err
+	envName := args[0]
+	msg, err := oam.DeleteEnv(envName)
+	if err == nil {
+		ioStreams.Info(msg)
 	}
-	if envname == curEnv {
-		return fmt.Errorf("you can't delete current using env %s", curEnv)
-	}
-	envdir, err := system.GetEnvDir()
-	if err != nil {
-		return err
-	}
-	if err = os.RemoveAll(filepath.Join(envdir, envname)); err != nil {
-		return err
-	}
-	ioStreams.Info(envname + " deleted")
-	return nil
+	return err
 }
 
 func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvMeta, args []string, ioStreams cmdutil.IOStreams) error {
 	if len(args) < 1 {
 		return fmt.Errorf("you must specify env name for vela env:init command")
 	}
-	envname := args[0]
-	envArgs.Name = envname
-	data, err := json.Marshal(envArgs)
+	envName := args[0]
+	namespace := envArgs.Namespace
+	err, msg := oam.CreateOrUpdateEnv(ctx, c, envName, namespace)
 	if err != nil {
 		return err
 	}
-	envdir, err := system.GetEnvDir()
-	if err != nil {
-		return err
-	}
-	subEnvDir := filepath.Join(envdir, envname)
-	system.CreateIfNotExist(subEnvDir)
-	if err = ioutil.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
-		return err
-	}
-	curEnvPath, err := system.GetCurrentEnvPath()
-	if err != nil {
-		return err
-	}
-	if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envArgs.Namespace}}); err != nil && !apierrors.IsAlreadyExists(err) {
-		return err
-	}
-
-	if err = ioutil.WriteFile(curEnvPath, []byte(envname), 0644); err != nil {
-		return err
-	}
-	ioStreams.Info("Create env succeed, current env is " + envname + " namespace is " + envArgs.Namespace + ", use --namespace=<namespace> to specify namespace with env:init")
+	ioStreams.Info(msg)
 	return nil
 }
 
@@ -232,32 +162,13 @@ func SwitchEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) 
 	if len(args) < 1 {
 		return fmt.Errorf("you must specify env name for vela env command")
 	}
-	envname := args[0]
-	currentEnvPath, err := system.GetCurrentEnvPath()
+	envName := args[0]
+	msg, err := oam.SwitchEnv(envName)
 	if err != nil {
 		return err
 	}
-	envMeta, err := oam.GetEnvByName(envname)
-	if err != nil {
-		return err
-	}
-	if err = ioutil.WriteFile(currentEnvPath, []byte(envname), 0644); err != nil {
-		return err
-	}
-	ioStreams.Info("Switch env succeed, current env is " + envname + ", namespace is " + envMeta.Namespace)
+	ioStreams.Info(msg)
 	return nil
-}
-
-func GetCurrentEnvName() (string, error) {
-	currentEnvPath, err := system.GetCurrentEnvPath()
-	if err != nil {
-		return "", err
-	}
-	data, err := ioutil.ReadFile(currentEnvPath)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
 }
 
 func GetEnv(cmd *cobra.Command) (*types.EnvMeta, error) {
@@ -269,7 +180,7 @@ func GetEnv(cmd *cobra.Command) (*types.EnvMeta, error) {
 	if envName != "" {
 		return oam.GetEnvByName(envName)
 	}
-	envName, err = GetCurrentEnvName()
+	envName, err = oam.GetCurrentEnvName()
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err

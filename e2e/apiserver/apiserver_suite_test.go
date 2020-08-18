@@ -1,13 +1,16 @@
 package e2e
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 )
 
-func TestWorkload(t *testing.T) {
+var restServer http.Handler
+
+func TestApplication(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)
-	ginkgo.RunSpecs(t, "Workload Suite")
+	ginkgo.RunSpecs(t, "ApiServer Suite")
 }

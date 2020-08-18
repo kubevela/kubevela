@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"flag"
 	"io"
 	"os"
 	"os/signal"
@@ -54,11 +55,11 @@ func SetupApiServer(kubeClient client.Client) {
 	var logRetainDate int
 	var logCompress, development bool
 
-	//flag.StringVar(&logFilePath, "log-file-path", "", "The log file path.")
-	//flag.IntVar(&logRetainDate, "log-retain-date", 7, "The number of days of logs history to retain.")
-	//flag.BoolVar(&logCompress, "log-compress", true, "Enable compression on the rotated logs.")
-	//flag.BoolVar(&development, "development", true, "Development mode.")
-	//flag.Parse()
+	flag.StringVar(&logFilePath, "log-file-path", "", "The log file path.")
+	flag.IntVar(&logRetainDate, "log-retain-date", 7, "The number of days of logs history to retain.")
+	flag.BoolVar(&logCompress, "log-compress", true, "Enable compression on the rotated logs.")
+	flag.BoolVar(&development, "development", true, "Development mode.")
+	flag.Parse()
 
 	// setup logging
 	var w io.Writer
