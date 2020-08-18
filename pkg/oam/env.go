@@ -24,7 +24,7 @@ func GetEnvByName(name string) (*types.EnvMeta, error) {
 	data, err := ioutil.ReadFile(filepath.Join(system.GetEnvDirByName(name), system.EnvConfigName))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("%s not exist", name)
+			return nil, fmt.Errorf("env %s not exist", name)
 		}
 		return nil, err
 	}

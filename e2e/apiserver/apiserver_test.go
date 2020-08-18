@@ -29,7 +29,13 @@ var envWorldMeta = types.EnvMeta{
 	Namespace: "env-e2e-world",
 }
 
+var notExistedEnvMeta = types.EnvMeta{
+	Name:      "env-e2e-api-NOT-EXISTED-JUST-FOR-TEST",
+	Namespace: "env-e2e-api-NOT-EXISTED-JUST-FOR-TEST",
+}
+
 var _ = ginkgo.Describe("API Env", func() {
+	//API Env
 	e2e.APIEnvInitContext("post /envs/", envHelloMeta)
 
 	ginkgo.Context("get /envs/:envName", func() {
@@ -92,6 +98,24 @@ var _ = ginkgo.Describe("API Env", func() {
 			err = json.Unmarshal(result, &r)
 			gomega.Expect(http.StatusOK).To(gomega.Equal(r.Code))
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(envWorldMeta.Name + " deleted"))
+		})
+	})
+
+	// API Application
+	ginkgo.Context("get /envs/:envName/apps/", func() {
+		ginkgo.It("should report error for not existed env", func() {
+			envName := notExistedEnvMeta.Name
+			url := fmt.Sprintf("/envs/%s/apps/", envName)
+			resp, err := http.Get(util.URL(url))
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			defer resp.Body.Close()
+			result, err := ioutil.ReadAll(resp.Body)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			var r apis.Response
+			err = json.Unmarshal(result, &r)
+			gomega.Expect(http.StatusInternalServerError).To(gomega.Equal(r.Code))
+			expectedContent := fmt.Sprintf("env %s not exist", envName)
+			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(expectedContent))
 		})
 	})
 })

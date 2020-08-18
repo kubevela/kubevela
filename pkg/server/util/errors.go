@@ -78,5 +78,6 @@ func SetErrorAndAbort(c *gin.Context, code Code, msg ...interface{}) {
 }
 
 func HandleError(c *gin.Context, code Code, msg ...interface{}) {
-	c.JSON(code.StatusCode(), gin.H{"error": ConstructError(code, msg...).Error()})
+	err := ConstructError(code, msg...)
+	AssembleResponse(c, nil, err)
 }
