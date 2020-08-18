@@ -151,10 +151,11 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvM
 	envName := args[0]
 	namespace := envArgs.Namespace
 	err, msg := oam.CreateOrUpdateEnv(ctx, c, envName, namespace)
-	if err == nil {
-		ioStreams.Info(msg)
+	if err != nil {
+		return err
 	}
-	return err
+	ioStreams.Info(msg)
+	return nil
 }
 
 func SwitchEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) error {

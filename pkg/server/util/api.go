@@ -1,12 +1,15 @@
 package util
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/cloud-native-application/rudrx/pkg/server/apis"
 )
+
+var Port = ":8080"
 
 func AssembleResponse(c *gin.Context, data interface{}, err error) {
 	var code = http.StatusOK
@@ -26,5 +29,5 @@ func AssembleResponse(c *gin.Context, data interface{}, err error) {
 }
 
 func URL(url string) string {
-	return "http://127.0.0.1:8080/api" + url
+	return fmt.Sprintf("http://127.0.0.1%s/api%s", Port, url)
 }

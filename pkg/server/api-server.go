@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/cloud-native-application/rudrx/pkg/server/util"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -15,7 +17,7 @@ type ApiServer struct {
 
 func (s *ApiServer) Launch(kubeClient client.Client) {
 	s.server = &http.Server{
-		Addr:         ":8080",
+		Addr:         util.Port,
 		Handler:      setupRoute(kubeClient),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
