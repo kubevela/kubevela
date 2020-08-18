@@ -1,4 +1,4 @@
-# RudrX Dashboard
+# Vela Dashboard
 
 
 ## Environment Prepare

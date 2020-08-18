@@ -33,15 +33,17 @@ func TestENV(t *testing.T) {
 	curEnvName, err := GetCurrentEnvName()
 	assert.NoError(t, err)
 	assert.Equal(t, "default", curEnvName)
-	gotEnv, err := GetEnv()
+	gotEnv, err := GetEnv(nil)
 	assert.NoError(t, err)
 	assert.Equal(t, &types.EnvMeta{
 		Namespace: "default",
+		Name:      "default",
 	}, gotEnv)
 
 	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	exp := &types.EnvMeta{
 		Namespace: "test1",
+		Name:      "default",
 	}
 	client := test.NewMockClient()
 	// Create env1
@@ -52,7 +54,7 @@ func TestENV(t *testing.T) {
 	curEnvName, err = GetCurrentEnvName()
 	assert.NoError(t, err)
 	assert.Equal(t, "env1", curEnvName)
-	gotEnv, err = GetEnv()
+	gotEnv, err = GetEnv(nil)
 	assert.NoError(t, err)
 	assert.Equal(t, exp, gotEnv)
 
@@ -77,10 +79,11 @@ func TestENV(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check switch success
-	gotEnv, err = GetEnv()
+	gotEnv, err = GetEnv(nil)
 	assert.NoError(t, err)
 	assert.Equal(t, &types.EnvMeta{
 		Namespace: "default",
+		Name:      "default",
 	}, gotEnv)
 
 	// delete env

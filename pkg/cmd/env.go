@@ -59,7 +59,7 @@ func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 	var envArgs types.EnvMeta
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:                   "env:init",
+		Use:                   "env:init <envName>",
 		DisableFlagsInUseLine: true,
 		Short:                 "Create environments",
 		Long:                  "Create environment and switch to it",
@@ -149,10 +149,10 @@ func ListEnvs(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) e
 		curEnv = types.DefaultEnvName
 	}
 	for _, f := range files {
-		if f.IsDir() {
+		if !f.IsDir() {
 			continue
 		}
-		data, err := ioutil.ReadFile(filepath.Join(envDir, f.Name()))
+		data, err := ioutil.ReadFile(filepath.Join(envDir, f.Name(), system.EnvConfigName))
 		if err != nil {
 			continue
 		}
@@ -186,7 +186,7 @@ func DeleteEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) 
 	if err != nil {
 		return err
 	}
-	if err = os.Remove(filepath.Join(envdir, envname)); err != nil {
+	if err = os.RemoveAll(filepath.Join(envdir, envname)); err != nil {
 		return err
 	}
 	ioStreams.Info(envname + " deleted")
@@ -198,6 +198,7 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvM
 		return fmt.Errorf("you must specify env name for vela env:init command")
 	}
 	envname := args[0]
+	envArgs.Name = envname
 	data, err := json.Marshal(envArgs)
 	if err != nil {
 		return err
@@ -206,7 +207,9 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvM
 	if err != nil {
 		return err
 	}
-	if err = ioutil.WriteFile(filepath.Join(envdir, envname), data, 0644); err != nil {
+	subEnvDir := filepath.Join(envdir, envname)
+	system.CreateIfNotExist(subEnvDir)
+	if err = ioutil.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
 		return err
 	}
 	curEnvPath, err := system.GetCurrentEnvPath()
@@ -256,8 +259,16 @@ func GetCurrentEnvName() (string, error) {
 	return string(data), nil
 }
 
-func GetEnv() (*types.EnvMeta, error) {
-	envName, err := GetCurrentEnvName()
+func GetEnv(cmd *cobra.Command) (*types.EnvMeta, error) {
+	var envName string
+	var err error
+	if cmd != nil {
+		envName = cmd.Flag("env").Value.String()
+	}
+	if envName != "" {
+		return getEnvByName(envName)
+	}
+	envName, err = GetCurrentEnvName()
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
@@ -271,12 +282,11 @@ func GetEnv() (*types.EnvMeta, error) {
 }
 
 func getEnvByName(name string) (*types.EnvMeta, error) {
-	envdir, err := system.GetEnvDir()
+	data, err := ioutil.ReadFile(filepath.Join(system.GetEnvDirByName(name), system.EnvConfigName))
 	if err != nil {
-		return nil, err
-	}
-	data, err := ioutil.ReadFile(filepath.Join(envdir, name))
-	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("%s not exist", name)
+		}
 		return nil, err
 	}
 	var meta types.EnvMeta
