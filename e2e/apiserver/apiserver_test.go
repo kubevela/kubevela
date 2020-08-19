@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"github.com/cloud-native-application/rudrx/e2e"
 
@@ -19,15 +20,33 @@ import (
 	"github.com/onsi/ginkgo"
 )
 
-var envHelloMeta = types.EnvMeta{
-	Name:      "env-e2e-hello",
-	Namespace: "env-e2e-hello",
-}
+var (
+	envHelloMeta = types.EnvMeta{
+		Name:      "env-e2e-hello",
+		Namespace: "env-e2e-hello",
+	}
 
-var envWorldMeta = types.EnvMeta{
-	Name:      "env-e2e-world",
-	Namespace: "env-e2e-world",
-}
+	envWorldMeta = types.EnvMeta{
+		Name:      "env-e2e-world",
+		Namespace: "env-e2e-world",
+	}
+
+	workloadType = "containerized"
+	workloadName = "app-e2e-api-hello"
+
+	workloadRunBodyWithoutImageFlag = apis.WorkloadRunBody{
+		EnvName:      envHelloMeta.Name,
+		WorkloadName: workloadName,
+		WorkloadType: workloadType,
+		Flags:        []apis.WorkloadFlag{{Name: "port", Value: "80"}},
+	}
+	workloadRunBody = apis.WorkloadRunBody{
+		EnvName:      envHelloMeta.Name,
+		WorkloadName: workloadName,
+		WorkloadType: workloadType,
+		Flags:        []apis.WorkloadFlag{{Name: "image", Value: "nginx:1.9.4"}, {Name: "port", Value: "80"}},
+	}
+)
 
 var notExistedEnvMeta = types.EnvMeta{
 	Name:      "env-e2e-api-NOT-EXISTED-JUST-FOR-TEST",
@@ -116,6 +135,41 @@ var _ = ginkgo.Describe("API Env", func() {
 			gomega.Expect(http.StatusInternalServerError).To(gomega.Equal(r.Code))
 			expectedContent := fmt.Sprintf("env %s not exist", envName)
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(expectedContent))
+		})
+	})
+})
+
+var _ = ginkgo.Describe("API Workload", func() {
+
+	ginkgo.Context("Post /workloads/", func() {
+		ginkgo.It("run workload", func() {
+			data, err := json.Marshal(&workloadRunBody)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			resp, err := http.Post(util.URL("/workloads/"), "application/json", strings.NewReader(string(data)))
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			defer resp.Body.Close()
+			result, err := ioutil.ReadAll(resp.Body)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			var r apis.Response
+			err = json.Unmarshal(result, &r)
+			gomega.Expect(http.StatusOK).Should(gomega.Equal(r.Code))
+			output := fmt.Sprintf("Creating App %s\nSUCCEED", workloadName)
+			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(output))
+		})
+
+		ginkgo.It("run workload without compulsory flag", func() {
+			data, err := json.Marshal(&workloadRunBodyWithoutImageFlag)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			resp, err := http.Post(util.URL("/workloads/"), "application/json", strings.NewReader(string(data)))
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			defer resp.Body.Close()
+			result, err := ioutil.ReadAll(resp.Body)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			var r apis.Response
+			err = json.Unmarshal(result, &r)
+			gomega.Expect(http.StatusInternalServerError).Should(gomega.Equal(r.Code))
+			output := fmt.Sprintf("required flag(s) \"image\" not set")
+			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(output))
 		})
 	})
 })

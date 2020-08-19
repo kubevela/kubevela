@@ -1,6 +1,8 @@
 package apis
 
-import "k8s.io/apimachinery/pkg/runtime"
+import (
+	"k8s.io/apimachinery/pkg/runtime"
+)
 
 type Environment struct {
 	EnvironmentName string `json:"environmentName" binding:"required,min=1,max=32"`
@@ -17,4 +19,16 @@ type AppConfig struct {
 type Response struct {
 	Code int         `json:"code"`
 	Data interface{} `json:"data"`
+}
+type WorkloadFlag struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+type WorkloadRunBody struct {
+	EnvName      string         `json:"env_name"`
+	WorkloadType string         `json:"workload_type"`
+	WorkloadName string         `json:"workload_name"`
+	AppGroup     string         `json:"app_group"`
+	Flags        []WorkloadFlag `json:"flags"`
+	Staging      bool           `json:"staging"`
 }

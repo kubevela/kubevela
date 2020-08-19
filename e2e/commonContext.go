@@ -134,6 +134,7 @@ var (
 			})
 		})
 	}
+
 	WorkloadDeleteContext = func(context string, applicationName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print successful deletion information", func() {
@@ -173,14 +174,29 @@ var (
 		})
 	}
 
-	ApplicationStatusContext = func(context string, applicationName string) bool {
+	ApplicationStatusContext = func(context string, applicationName string, workloadType string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should get status for the application", func() {
 				cli := fmt.Sprintf("vela app:status %s", applicationName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
+				// TODO(zzxwill) need to check workloadType after app:status is refined
+				//gomega.Expect(output).To(gomega.ContainSubstring(workloadType))
 				gomega.Expect(output).To(gomega.ContainSubstring("Workload"))
+			})
+		})
+	}
+
+	ApplicationShowContext = func(context string, applicationName string, workloadType string) bool {
+		return ginkgo.Context(context, func() {
+			ginkgo.It("should show app information", func() {
+				cli := fmt.Sprintf("vela app:show %s", applicationName)
+				output, err := Exec(cli)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				// TODO(zzxwill) need to check workloadType after app:show is refined
+				//gomega.Expect(output).To(gomega.ContainSubstring(workloadType))
+				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
 			})
 		})
 	}
