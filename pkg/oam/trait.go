@@ -3,7 +3,6 @@ package oam
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -80,5 +79,5 @@ func GetTraitDefinitionByKind(ctx context.Context, c client.Client, traitKind st
 			return t, nil
 		}
 	}
-	return traitDefinition, errors.New(fmt.Sprintf("Could not find TraitDefinition by kind %s", traitKind))
+	return traitDefinition, fmt.Errorf("could not find TraitDefinition by kind %s", traitKind)
 }

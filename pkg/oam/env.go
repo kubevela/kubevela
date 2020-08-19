@@ -3,7 +3,6 @@ package oam
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -74,7 +73,7 @@ func ListEnvs(envName string) ([]*types.EnvMeta, error) {
 		env, err := GetEnvByName(envName)
 		if err != nil {
 			if os.IsNotExist(err) {
-				err = errors.New(fmt.Sprintf("env %s not exist", envName))
+				err = fmt.Errorf("env %s not exist", envName)
 			}
 			return envList, err
 		}
