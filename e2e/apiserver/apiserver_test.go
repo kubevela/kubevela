@@ -53,6 +53,9 @@ var notExistedEnvMeta = types.EnvMeta{
 	Namespace: "env-e2e-api-NOT-EXISTED-JUST-FOR-TEST",
 }
 
+var containerizedWorkloadType = "containerized"
+var deploymentWorkloadType = "deployment"
+
 var _ = ginkgo.Describe("API Env", func() {
 	//API Env
 	e2e.APIEnvInitContext("post /envs/", envHelloMeta)
@@ -99,6 +102,7 @@ var _ = ginkgo.Describe("API Env", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(http.StatusOK).To(gomega.Equal(r.Code))
 			//TODO(zzxwill) Need to compare r.Data with envMeta
 		})
@@ -137,11 +141,12 @@ var _ = ginkgo.Describe("API Env", func() {
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(expectedContent))
 		})
 	})
+
 })
 
 var _ = ginkgo.Describe("API Workload", func() {
 
-	ginkgo.Context("Post /workloads/", func() {
+	ginkgo.Context("Workloads", func() {
 		ginkgo.It("run workload", func() {
 			data, err := json.Marshal(&workloadRunBody)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -170,6 +175,23 @@ var _ = ginkgo.Describe("API Workload", func() {
 			gomega.Expect(http.StatusInternalServerError).Should(gomega.Equal(r.Code))
 			output := fmt.Sprintf("required flag(s) \"image\" not set")
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(output))
+		})
+
+		ginkgo.It("should list all WorkloadDefinitions", func() {
+			resp, err := http.Get(util.URL("/workloads/"))
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			defer resp.Body.Close()
+			result, err := ioutil.ReadAll(resp.Body)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			var r apis.Response
+			err = json.Unmarshal(result, &r)
+			gomega.Expect(http.StatusOK).To(gomega.Equal(r.Code))
+			var data = r.Data.([]interface{})
+			for _, i := range data {
+				var workloadDefinition = i.(map[string]interface{})
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect([]string{containerizedWorkloadType, deploymentWorkloadType}).To(gomega.Or(gomega.ContainElement(workloadDefinition["name"])))
+			}
 		})
 	})
 })

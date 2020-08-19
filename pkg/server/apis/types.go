@@ -1,6 +1,7 @@
 package apis
 
 import (
+	"github.com/cloud-native-application/rudrx/api/types"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -20,6 +21,7 @@ type Response struct {
 	Code int         `json:"code"`
 	Data interface{} `json:"data"`
 }
+
 type WorkloadFlag struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
@@ -31,4 +33,10 @@ type WorkloadRunBody struct {
 	AppGroup     string         `json:"app_group"`
 	Flags        []WorkloadFlag `json:"flags"`
 	Staging      bool           `json:"staging"`
+}
+
+type Capability struct {
+	Name       string            `json:"name"`
+	Parameters []types.Parameter `json:"parameters,omitempty"`
+	AppliesTo  []string          `json:"appliesTo,omitempty"`
 }

@@ -57,6 +57,20 @@ func GetWorkload(c *gin.Context) {
 }
 
 func ListWorkload(c *gin.Context) {
+	var workloadDefinitionList []apis.Capability
+	workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
+	if err != nil {
+		util.HandleError(c, util.StatusInternalServerError, err)
+		return
+	}
+	for _, w := range workloads {
+		workloadDefinitionList = append(workloadDefinitionList, apis.Capability{
+			Name:       w.Name,
+			Parameters: w.Parameters,
+			AppliesTo:  w.AppliesTo,
+		})
+	}
+	util.AssembleResponse(c, workloadDefinitionList, err)
 }
 
 func DeleteWorkload(c *gin.Context) {
