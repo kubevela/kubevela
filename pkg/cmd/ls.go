@@ -13,6 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+var appName string
+
 func NewAppsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
@@ -31,7 +33,7 @@ func NewAppsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printApplicationList(ctx, newClient, "", env.Namespace)
+			printApplicationList(ctx, newClient, appName, env.Namespace)
 			return nil
 		},
 		Annotations: map[string]string{
@@ -39,7 +41,7 @@ func NewAppsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 		},
 	}
 
-	cmd.PersistentFlags().StringP("app", "a", "", "Application name")
+	cmd.PersistentFlags().StringVarP(&appName, "app", "a", "", "Application name")
 	return cmd
 }
 
