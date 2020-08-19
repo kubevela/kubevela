@@ -167,7 +167,7 @@ var _ = ginkgo.Describe("API Workload", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
-			gomega.Expect(http.StatusOK).Should(gomega.Equal(r.Code))
+			gomega.Expect(http.StatusInternalServerError).Should(gomega.Equal(r.Code))
 			output := fmt.Sprintf("required flag(s) \"image\" not set")
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(output))
 		})
