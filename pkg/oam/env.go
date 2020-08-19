@@ -140,7 +140,14 @@ func DeleteEnv(envName string) (string, error) {
 	if err != nil {
 		return message, err
 	}
-	if err = os.RemoveAll(filepath.Join(envdir, envName)); err != nil {
+	envPath := filepath.Join(envdir, envName)
+	if _, err := os.Stat(envPath); err != nil {
+		if os.IsNotExist(err) {
+			err = fmt.Errorf("%s does not exist", envName)
+			return message, err
+		}
+	}
+	if err = os.RemoveAll(envPath); err != nil {
 		return message, err
 	}
 	message = envName + " deleted"
