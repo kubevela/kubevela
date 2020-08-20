@@ -7,11 +7,16 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"github.com/cloud-native-application/rudrx/pkg/server/apis"
+
+	"github.com/cloud-native-application/rudrx/api/types"
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
 	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 
+	plur "github.com/gertd/go-pluralize"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -80,4 +85,83 @@ func GetTraitDefinitionByKind(ctx context.Context, c client.Client, traitKind st
 		}
 	}
 	return traitDefinition, fmt.Errorf("could not find TraitDefinition by kind %s", traitKind)
+}
+
+func ListTraitDefinitions(workloadName *string, capabilityAlias string) ([]types.Capability, error) {
+	var traitList []types.Capability
+	traits, err := plugins.GetInstalledCapabilityWithCapAlias(types.TypeTrait, capabilityAlias)
+	if err != nil {
+		return traitList, err
+	}
+	workloads, err := plugins.GetInstalledCapabilityWithCapAlias(types.TypeWorkload, "")
+	if err != nil {
+		return traitList, err
+	}
+	for _, t := range traits {
+		convertedApplyTo := ConvertApplyTo(t.AppliesTo, workloads)
+		if *workloadName != "" {
+			if !In(convertedApplyTo, *workloadName) {
+				continue
+			}
+			convertedApplyTo = []string{*workloadName}
+		}
+		t.AppliesTo = convertedApplyTo
+		traitList = append(traitList, t)
+	}
+	return traitList, nil
+}
+
+func ConvertApplyTo(applyTo []string, workloads []types.Capability) []string {
+	var converted []string
+	for _, v := range applyTo {
+		newName, exist := check(v, workloads)
+		if !exist {
+			continue
+		}
+		converted = append(converted, newName)
+	}
+	return converted
+}
+
+func check(applyto string, workloads []types.Capability) (string, bool) {
+	for _, v := range workloads {
+		if parse(applyto) == v.CrdName {
+			return v.Name, true
+		}
+	}
+	return "", false
+}
+
+func In(l []string, v string) bool {
+	for _, ll := range l {
+		if ll == v {
+			return true
+		}
+	}
+	return false
+}
+
+func parse(applyTo string) string {
+	l := strings.Split(applyTo, "/")
+	if len(l) != 2 {
+		return applyTo
+	}
+	apigroup, versionKind := l[0], l[1]
+	l = strings.Split(versionKind, ".")
+	if len(l) != 2 {
+		return applyTo
+	}
+	return plur.NewClient().Plural(strings.ToLower(l[1])) + "." + apigroup
+}
+
+func SimplifyCapabilityStruct(capabilityList []types.Capability) []apis.TraitMeta {
+	var traitList []apis.TraitMeta
+	for _, c := range capabilityList {
+		traitList = append(traitList, apis.TraitMeta{
+			Name:       c.Name,
+			Definition: c.CrdName,
+			AppliesTo:  c.AppliesTo,
+		})
+	}
+	return traitList
 }

@@ -41,16 +41,21 @@ func LoadAllInstalledCapability() ([]types.Capability, error) {
 
 func LoadInstalledCapabilityWithType(capT types.CapType) ([]types.Capability, error) {
 	dir, _ := system.GetCapabilityDir()
-	return loadInstalledCapabilityWithType(dir, capT)
+	return loadInstalledCapabilityWithType(dir, capT, "")
+}
+
+func GetInstalledCapabilityWithCapAlias(capT types.CapType, capAlias string) ([]types.Capability, error) {
+	dir, _ := system.GetCapabilityDir()
+	return loadInstalledCapabilityWithType(dir, capT, capAlias)
 }
 
 // leave dir as argument for test convenience
-func loadInstalledCapabilityWithType(dir string, capT types.CapType) ([]types.Capability, error) {
+func loadInstalledCapabilityWithType(dir string, capT types.CapType, capAlias string) ([]types.Capability, error) {
 	dir = GetSubDir(dir, capT)
-	return loadInstalledCapability(dir)
+	return loadInstalledCapability(dir, capAlias)
 }
 
-func loadInstalledCapability(dir string) ([]types.Capability, error) {
+func loadInstalledCapability(dir string, capAlias string) ([]types.Capability, error) {
 	var tmps []types.Capability
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
@@ -78,7 +83,13 @@ func loadInstalledCapability(dir string) ([]types.Capability, error) {
 			fmt.Printf("ignore invalid format file: %s\n", f.Name())
 			continue
 		}
-		tmps = append(tmps, tmp)
+		// Get the specified installed capability: a WorkoadDefinition or a TraitDefinition
+		if capAlias != "" && capAlias == f.Name() {
+			tmps = append(tmps, tmp)
+			break
+		} else {
+			tmps = append(tmps, tmp)
+		}
 	}
 	return tmps, nil
 }

@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"errors"
+
 	"github.com/cloud-native-application/rudrx/api/types"
 	"github.com/cloud-native-application/rudrx/pkg/oam"
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
@@ -54,17 +56,30 @@ func UpdateWorkload(c *gin.Context) {
 }
 
 func GetWorkload(c *gin.Context) {
+	var workloadType = c.Param("workloadName")
+	var capabilityList []types.Capability
+	var err error
+
+	if capabilityList, err = plugins.GetInstalledCapabilityWithCapAlias(types.TypeWorkload, workloadType); err != nil {
+		util.HandleError(c, util.StatusInternalServerError, err)
+		return
+	}
+	if len(capabilityList) == 0 {
+		util.HandleError(c, util.StatusInternalServerError, errors.New("could not get the workload details"))
+		return
+	}
+	util.AssembleResponse(c, capabilityList[0], err)
 }
 
 func ListWorkload(c *gin.Context) {
-	var workloadDefinitionList []apis.Capability
+	var workloadDefinitionList []apis.WorkloadMeta
 	workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
 	}
 	for _, w := range workloads {
-		workloadDefinitionList = append(workloadDefinitionList, apis.Capability{
+		workloadDefinitionList = append(workloadDefinitionList, apis.WorkloadMeta{
 			Name:       w.Name,
 			Parameters: w.Parameters,
 			AppliesTo:  w.AppliesTo,
