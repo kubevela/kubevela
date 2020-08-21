@@ -3,16 +3,24 @@
 	kind:       "Deployment"
 	metadata: name: deployment.name
 	spec: {
-		containers: [{
-			image: deployment.image
-			name:  deployment.name
-			env:   deployment.env
-			ports: [{
-				containerPort: deployment.port
-				protocol:      "TCP"
-				name:          "default"
+		selector:
+			matchLabels:
+				app: deployment.name
+		template: {
+			metadata:
+				labels:
+					app: deployment.name
+			spec: containers: [{
+				image: deployment.image
+				name:  deployment.name
+				env:   deployment.env
+				ports: [{
+					containerPort: deployment.port
+					protocol:      "TCP"
+					name:          "default"
+				}]
 			}]
-		}]
+		}
 	}
 }
 

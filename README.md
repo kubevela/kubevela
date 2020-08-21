@@ -16,57 +16,9 @@ mv bin/vela /usr/local/bin
 
 ## Vela commands
 
-#### help
-```shell script
-$ vela -h
-✈️  A Micro App Plafrom for Kubernetes.
+### Click the picture to watch the video
 
-Usage:
-  vela [flags]
-  vela [command]
-
-Available Commands:
-
-  Getting Started:
-    env       	List all environments
-    env:delete	Delete environment
-    env:init  	Create environment and switch to it
-    env:sw    	switch to another environment
-    version   	Prints out build version information
-
-  Applications:
-    app:delete [APPLICATION_NAME]	Delete OAM Applications
-    app:ls                       	List applications with workloads, traits, status and created time
-    app:status                   	get status of an application, including its workload and trait
-
-  Workloads:
-    containerized:run <appname> [args]	Run containerized workloads
-    deployment:run <appname> [args]   	Run deployment workloads
-
-  Traits:
-    manualscaler <appname> [args]	Attach manualscaler trait to an app
-    manualscaler:detach <appname>	Detach manualscaler trait from an app
-    rollout <appname> [args]     	Attach rollout trait to an app
-    rollout:detach <appname>     	Detach rollout trait from an app
-    route <appname> [args]       	Attach route trait to an app
-    route:detach <appname>       	Detach route trait from an app
-
-  Release:
-
-
-  Others:
-    addon:config	Set the addon center, default is local (built-in ones)
-    addon:ls    	List addons of workloads and traits
-
-  System:
-    completion [bash|zsh]	Output shell completion code for the specified shell (bash or zsh...
-    refresh              	Refresh and sync definition files from cluster
-    system:info          	show vela client and cluster version
-    system:init [flags]  	Install OAM runtime and vela builtin capabilities.
-
-Use "vela [command] --help" for more information about a command.
-```
-
+[![POC Video](./resources/vela-help.jpg)](https://oam-budao.oss-cn-beijing.aliyuncs.com/Vela%20First%20PoC.mp4 "POC video")
 
 #### env
 ```
@@ -171,4 +123,21 @@ $ source <(vela completion zsh)
 
 To load completions for every new session, execute once:
 $ vela completion zsh > "${fpath[1]}/_vela"
+```
+
+### Clean your environment
+
+```shell script
+$ helm uninstall core-runtime -n oam-system
+release "core-runtime" uninstalled
+```
+
+```shell script
+$ kubectl delete crd workloaddefinitions.core.oam.dev traitdefinitions.core.oam.dev
+customresourcedefinition.apiextensions.k8s.io "workloaddefinitions.core.oam.dev" deleted
+customresourcedefinition.apiextensions.k8s.io "traitdefinitions.core.oam.dev" deleted
+```
+
+```shell script
+$ rm -r ~/.vela
 ```

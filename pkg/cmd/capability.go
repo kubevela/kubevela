@@ -22,6 +22,7 @@ import (
 	"github.com/gosuri/uitable"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/cloud-native-application/rudrx/pkg/oam"
 	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
@@ -39,6 +40,7 @@ func CapabilityCommandGroup(parentCmd *cobra.Command, c types.Args, ioStream cmd
 		NewCapCenterSyncCommand(ioStream),
 		NewCapAddCommand(c, ioStream),
 		NewCapRemoveCommand(c, ioStream),
+		NewCapCenterListCommand(ioStream),
 	)
 }
 
@@ -251,6 +253,22 @@ func NewCapListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
+func NewCapCenterListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "cap:center:ls",
+		Short:   "List all capability centers",
+		Long:    "List all configured capability centers",
+		Example: `vela cap:center:ls`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return ListCapCenters(args, ioStreams)
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeOthers,
+		},
+	}
+	return cmd
+}
+
 func RemoveCapability(client client.Client, capabilityName string, ioStreams cmdutil.IOStreams) error {
 	// TODO(wonderflow): make sure no apps is using this capability
 	caps, err := plugins.LoadAllInstalledCapability()
@@ -372,7 +390,7 @@ func InstallCapability(client client.Client, centerName, capabilityName string, 
 }
 
 func InstallHelmChart(ioStreams cmdutil.IOStreams, c types.Chart) error {
-	return HelmInstall(ioStreams, c.Repo, c.URl, c.Name, c.Version, c.Name)
+	return HelmInstall(ioStreams, c.Repo, c.URl, c.Name, c.Version, c.Name, nil)
 }
 
 func GetSyncedCapabilities(repoName, addonName string) (types.Capability, error) {
@@ -402,7 +420,7 @@ func ListCenterCapabilities(table *uitable.Table, repoDir string, ioStreams cmdu
 	workloads := GatherWorkloads(templates)
 	for _, p := range templates {
 		status := CheckInstallStatus(baseDir, p)
-		convertedApplyTo := ConvertApplyTo(p.AppliesTo, workloads)
+		convertedApplyTo := oam.ConvertApplyTo(p.AppliesTo, workloads)
 		table.AddRow(p.Name, baseDir, p.Type, p.CrdName, status, convertedApplyTo)
 	}
 	return nil
@@ -430,4 +448,18 @@ func CheckInstallStatus(repoName string, tmp types.Capability) string {
 		}
 	}
 	return status
+}
+
+func ListCapCenters(args []string, ioStreams cmdutil.IOStreams) error {
+	table := uitable.New()
+	table.AddRow("NAME", "ADDRESS")
+	centers, err := plugins.LoadRepos()
+	if err != nil {
+		return err
+	}
+	for _, c := range centers {
+		table.AddRow(c.Name, c.Address)
+	}
+	ioStreams.Info(table.String())
+	return nil
 }

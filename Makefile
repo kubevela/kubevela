@@ -41,11 +41,16 @@ docker-push:
 	docker push ${IMG}
 
 e2e-setup:
-	# install oam-k8s-runtime
+	ginkgo -v -r e2e/setup
+	/tmp/vela dashboard & # Somehow API server service doesn't start during setup in Github environment
 
 e2e-test:
 	# Run e2e test
-	ginkgo -v -r e2e
+	ginkgo -v -r e2e -skipPackage setup,apiserver
+
+e2e-api-test:
+	# Run e2e test
+	ginkgo -v -r e2e/apiserver
 
 e2e-cleanup:
 	# Clean up

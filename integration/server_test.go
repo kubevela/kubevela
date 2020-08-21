@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("example test", func () {
+var _ = Describe("example test", func() {
 
 	It("Test get environment", func() {
 		w := httptest.NewRecorder()

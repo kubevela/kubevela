@@ -76,7 +76,7 @@ func newCommand() *cobra.Command {
 			cmd.Println("Flags:")
 			cmd.Println("  -h, --help   help for vela")
 			cmd.Println()
-			cmd.Println(`Want more? Use "vela [command] --help" for more information about a command.`)
+			cmd.Println(`Use "vela [command] --help" for more information about a command.`)
 		},
 		SilenceUsage: true,
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -124,6 +124,8 @@ func newCommand() *cobra.Command {
 
 		cmd.NewTraitsCommand(ioStream),
 		cmd.NewWorkloadsCommand(ioStream),
+
+		cmd.NewDashboardCommand(commandArgs, ioStream),
 	)
 
 	// Workloads
@@ -162,7 +164,7 @@ func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 		if len(table.Rows) > 0 {
 			cmd.Println()
 		}
-		cmd.Println("    <use 'vela refresh' to sync from cluster or install by `vela cap` >")
+		cmd.Println("    Want more? < install more capabilities by `vela cap` >")
 	}
 	cmd.Println()
 }

@@ -6,13 +6,15 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/cloud-native-application/rudrx/pkg/server/handler"
 	"github.com/cloud-native-application/rudrx/pkg/server/util"
 )
 
 // setup the gin http server handler
-func SetupRoute() http.Handler {
+
+func setupRoute(kubeClient client.Client) http.Handler {
 	// create the router
 	router := gin.New()
 	loggerConfig := gin.LoggerConfig{
@@ -34,7 +36,8 @@ func SetupRoute() http.Handler {
 	router.Use(util.SetContext())
 	router.Use(gin.Recovery())
 	router.Use(util.ValidateHeaders())
-
+	//Store kubernetes client which could be retrieved by handlers
+	router.Use(util.StoreClient(kubeClient))
 	// all requests start with /api
 	api := router.Group(util.RootPath)
 	// env related operation
@@ -44,6 +47,7 @@ func SetupRoute() http.Handler {
 		envs.GET("/:envName", handler.GetEnv)
 		envs.GET("/", handler.ListEnv)
 		envs.DELETE("/:envName", handler.DeleteEnv)
+		envs.PATCH("/:envName", handler.SwitchEnv)
 		// app related operation
 		apps := envs.Group("/:envName/apps")
 		{

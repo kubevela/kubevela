@@ -2,28 +2,24 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 
-	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+	"github.com/cloud-native-application/rudrx/pkg/builtin/traitdefinition"
 
-	"github.com/cloud-native-application/rudrx/pkg/builtin"
+	"github.com/cloud-native-application/rudrx/pkg/builtin/workloaddefinition"
+
+	"github.com/ghodss/yaml"
 
 	"helm.sh/helm/v3/pkg/release"
 
 	"github.com/cloud-native-application/rudrx/api/types"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"k8s.io/apimachinery/pkg/runtime"
 
-	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	oamv1 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 
 	"github.com/spf13/cobra"
@@ -36,7 +32,6 @@ import (
 
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 
-	"github.com/cloud-native-application/rudrx/pkg/plugins"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
@@ -72,7 +67,13 @@ var (
 	}
 
 	workloadResource = map[string]string{
-		"deployment": builtin.Deployment,
+		"deployments.apps":                    workloaddefinition.Deployment,
+		"containerizedworkloads.core.oam.dev": workloaddefinition.ContainerizedWorkload,
+	}
+
+	traitResource = map[string]string{
+		"manualscalertraits.core.oam.dev":    traitdefinition.ManualScaler,
+		"simplerollouttraits.extend.oam.dev": traitdefinition.SimpleRollout,
 	}
 )
 
@@ -113,9 +114,7 @@ func (i *infoCmd) run(ioStreams cmdutil.IOStreams) error {
 }
 
 func NewAdminInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-
 	i := &initCmd{ioStreams: ioStreams}
-
 	cmd := &cobra.Command{
 		Use:   "system:init",
 		Short: "Initialize vela on both client and server",
@@ -141,7 +140,7 @@ func NewAdminInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 }
 
 func (i *initCmd) run(ioStreams cmdutil.IOStreams) error {
-
+	ioStreams.Info("- Installing OAM Kubernetes Runtime:")
 	if !cmdutil.IsNamespaceExist(i.client, types.DefaultOAMNS) {
 		if err := cmdutil.NewNamespace(i.client, types.DefaultOAMNS); err != nil {
 			return err
@@ -150,22 +149,25 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams) error {
 
 	if i.IsOamRuntimeExist() {
 		i.ioStreams.Info("Vela system along with OAM runtime already exist.")
-		return nil
 	}
 
 	if err := InstallOamRuntime(ioStreams, i.version); err != nil {
 		return err
 	}
 
+	ioStreams.Info("- Installing builtin capabilities:")
 	if err := GenNativeResourceDefinition(i.client); err != nil {
 		return err
 	}
-
+	ioStreams.Info()
+	if err := RefreshDefinitions(context.Background(), i.client, ioStreams); err != nil {
+		return err
+	}
+	ioStreams.Info("- Finished.")
 	return nil
 }
 
 func (i *initCmd) IsOamRuntimeExist() bool {
-
 	for _, object := range defaultObject {
 		if err := cmdutil.IsCoreCRDExist(i.client, context.Background(), object.(runtime.Object)); err != nil {
 			return false
@@ -189,10 +191,10 @@ func IsHelmReleaseRunning(releaseName, chartName string, streams cmdutil.IOStrea
 }
 
 func InstallOamRuntime(ioStreams cmdutil.IOStreams, version string) error {
-	return HelmInstall(ioStreams, types.DefaultOAMRepoName, types.DefaultOAMRepoUrl, types.DefaultOAMRuntimeChartName, version, types.DefaultOAMReleaseName)
+	return HelmInstall(ioStreams, types.DefaultOAMRepoName, types.DefaultOAMRepoUrl, types.DefaultOAMRuntimeChartName, version, types.DefaultOAMReleaseName, nil)
 }
 
-func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoUrl, chartName, version, releaseName string) error {
+func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoUrl, chartName, version, releaseName string, vals map[string]interface{}) error {
 	if !IsHelmRepositoryExist(repoName, repoUrl) {
 		err := AddHelmRepository(repoName, repoUrl,
 			"", "", "", "", "", false, ioStreams.Out)
@@ -212,7 +214,7 @@ func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoUrl, chartName, vers
 	if err != nil {
 		return err
 	}
-	release, err := chartClient.Run(chartRequested, nil)
+	release, err := chartClient.Run(chartRequested, vals)
 	if err != nil {
 		return err
 	}
@@ -249,7 +251,14 @@ func NewHelmInstall(version, releaseName string, ioStreams cmdutil.IOStreams) (*
 
 	client := action.NewInstall(actionConfig)
 	client.ReleaseName = releaseName
-	client.Version = version
+	// MUST set here, client didn't use namespace from configuration
+	client.Namespace = types.DefaultOAMNS
+
+	if len(version) > 0 {
+		client.Version = version
+	} else {
+		client.Version = types.DefaultOAMVersion
+	}
 	return client, nil
 }
 
@@ -376,91 +385,52 @@ func filterRepos(repos []*repo.Entry) []*repo.Entry {
 }
 
 func GenNativeResourceDefinition(c client.Client) error {
-	for name, reference := range workloadResource {
-		workload := NewWorkloadDefinition(name, reference)
-		err := c.Get(context.Background(), client.ObjectKey{Name: name}, workload)
+	var capabilities []string
+	for name, manifest := range workloadResource {
+		workloadDefinition, err := NewWorkloadDefinition(manifest)
+		if err != nil {
+			continue
+		}
+		err = c.Get(context.Background(), client.ObjectKey{Name: name}, &workloadDefinition)
 		if kubeerrors.IsNotFound(err) {
-			if err := c.Create(context.Background(), workload); err != nil {
-				return fmt.Errorf("create workload definition %s hit an issue: %v", reference, err)
+			if err := c.Create(context.Background(), &workloadDefinition); err != nil {
+				return fmt.Errorf("create workload definition %s hit an issue: %v", name, err)
 			}
 		} else if err != nil {
 			return fmt.Errorf("get workload definition hit an issue: %v", err)
 		}
+		capabilities = append(capabilities, name)
 	}
 
-	return nil
-
-}
-
-func NewWorkloadDefinition(name, reference string) *oamv1.WorkloadDefinition {
-	return &oamv1.WorkloadDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-		Spec: oamv1.WorkloadDefinitionSpec{
-			Reference: oamv1.DefinitionReference{Name: reference},
-		},
-	}
-}
-
-func GetTraitAliasByTraitDefinition(traitDefinition oamv1.TraitDefinition) (string, error) {
-	velaApplicationFolder := filepath.Join("~/.vela", "applications")
-	system.CreateIfNotExist(velaApplicationFolder)
-	d, _ := ioutil.TempDir(velaApplicationFolder, "cue")
-	defer os.RemoveAll(d)
-	template, err := plugins.HandleTemplate(traitDefinition.Spec.Extension, traitDefinition.Name, d)
-	if err != nil {
-		return "", nil
-	}
-	return template.Name, nil
-}
-
-func GetTraitAliasByKind(ctx context.Context, c client.Client, traitKind string) string {
-	var traitAlias string
-	t, err := GetTraitDefinitionByKind(ctx, c, traitKind)
-	if err != nil {
-		return traitKind
-	}
-
-	if traitAlias, err = GetTraitAliasByTraitDefinition(t); err != nil {
-		return traitKind
-	}
-
-	return traitAlias
-}
-func GetTraitDefinitionByKind(ctx context.Context, c client.Client, traitKind string) (oamv1.TraitDefinition, error) {
-	var traitDefinitionList oamv1.TraitDefinitionList
-	var traitDefinition oamv1.TraitDefinition
-	if err := c.List(ctx, &traitDefinitionList); err != nil {
-		return traitDefinition, err
-	}
-	for _, t := range traitDefinitionList.Items {
-		if t.Annotations["oam.appengine.info/kind"] == traitKind {
-			return t, nil
+	for name, manifest := range traitResource {
+		traitDefinition, err := NewTraitDefinition(manifest)
+		if err != nil {
+			fmt.Printf("creating local definition %s err %v", name, err)
+			continue
 		}
+		err = c.Get(context.Background(), client.ObjectKey{Name: name}, &traitDefinition)
+		if kubeerrors.IsNotFound(err) {
+			if err := c.Create(context.Background(), &traitDefinition); err != nil {
+				return fmt.Errorf("create workload definition %s hit an issue: %v", name, err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("get workload definition hit an issue: %v", err)
+		}
+		capabilities = append(capabilities, name)
 	}
-	return traitDefinition, errors.New(fmt.Sprintf("Could not find TraitDefinition by kind %s", traitKind))
+
+	fmt.Printf("Successful applied %d kinds of Workloads and Traits: %s.", len(capabilities), strings.Join(capabilities, ","))
+	return nil
 }
 
-func GetTraitAliasByComponentTraitList(ctx context.Context, c client.Client, componentTraitList []corev1alpha2.ComponentTrait) []string {
-	var traitAlias []string
-	for _, t := range componentTraitList {
-		_, _, kind := GetGVKFromRawExtension(t.Trait)
-		alias := GetTraitAliasByKind(ctx, c, kind)
-		traitAlias = append(traitAlias, alias)
-	}
-	return traitAlias
+func NewWorkloadDefinition(manifest string) (oamv1.WorkloadDefinition, error) {
+	var workloadDefinition oamv1.WorkloadDefinition
+	err := yaml.Unmarshal([]byte(manifest), &workloadDefinition)
+	return workloadDefinition, err
 }
 
-func GetGVKFromRawExtension(extension runtime.RawExtension) (string, string, string) {
-	if extension.Object != nil {
-		gvk := extension.Object.GetObjectKind().GroupVersionKind()
-		return gvk.Group, gvk.Version, gvk.Kind
-	}
-	var data map[string]interface{}
-	// leverage Admission Controller to do the check
-	_ = json.Unmarshal(extension.Raw, &data)
-	obj := unstructured.Unstructured{Object: data}
-	gvk := obj.GroupVersionKind()
-	return gvk.Group, gvk.Version, gvk.Kind
+func NewTraitDefinition(manifest string) (oamv1.TraitDefinition, error) {
+	var traitDefinition oamv1.TraitDefinition
+	err := yaml.Unmarshal([]byte(manifest), &traitDefinition)
+	return traitDefinition, err
 }

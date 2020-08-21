@@ -15,22 +15,35 @@ spec:
       	kind:       "Deployment"
       	metadata: name: deployment.name
       	spec: {
-      		containers: [{
-      			image: deployment.image
-      			name:  deployment.name
-      			env:   deployment.env
-      			ports: [{
-      				containerPort: deployment.port
-      				protocol:      "TCP"
-      				name:          "default"
+      		selector:
+      			matchLabels:
+      				app: deployment.name
+      		template: {
+      			metadata:
+      				labels:
+      					app: deployment.name
+      			spec: containers: [{
+      				image: deployment.image
+      				name:  deployment.name
+      				env:   deployment.env
+      				ports: [{
+      					containerPort: deployment.port
+      					protocol:      "TCP"
+      					name:          "default"
+      				}]
       			}]
-      		}]
+      		}
       	}
       }
+
       deployment: {
-      	name:  string
+      	name: string
+      	// +usage=specify app image
+      	// +short=i
       	image: string
-      	port:  *8080 | int
+      	// +usage=specify port for container
+      	// +short=p
+      	port: *8080 | int
       	env: [...{
       		name:  string
       		value: string
