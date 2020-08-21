@@ -2,6 +2,7 @@ package apis
 
 import (
 	"github.com/cloud-native-application/rudrx/api/types"
+	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -22,17 +23,19 @@ type Response struct {
 	Data interface{} `json:"data"`
 }
 
-type WorkloadFlag struct {
+type CommonFlag struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
 }
+
 type WorkloadRunBody struct {
-	EnvName      string         `json:"env_name"`
-	WorkloadType string         `json:"workload_type"`
-	WorkloadName string         `json:"workload_name"`
-	AppGroup     string         `json:"app_group"`
-	Flags        []WorkloadFlag `json:"flags"`
-	Staging      bool           `json:"staging"`
+	EnvName      string       `json:"env_name"`
+	WorkloadType string       `json:"workload_type"`
+	WorkloadName string       `json:"workload_name"`
+	AppGroup     string       `json:"app_group,omitempty"`
+	Flags        []CommonFlag `json:"flags"`
+	Staging      bool         `json:"staging,omitempty"`
+	Traits       []TraitBody  `json:"traits,omitempty"`
 }
 
 type WorkloadMeta struct {
@@ -45,4 +48,19 @@ type TraitMeta struct {
 	Name       string   `json:"name"`
 	Definition string   `json:"definition,omitempty"`
 	AppliesTo  []string `json:"applies_to,omitempty"`
+}
+
+//used to present trait which is to be attached and, of which parameters are set
+type TraitBody struct {
+	EnvName      string       `json:"env_name"`
+	Name         string       `json:"name"`
+	Flags        []CommonFlag `json:"flags"`
+	WorkloadName string       `json:"workload_name"`
+	AppGroup     string       `json:"app_group,omitempty"`
+}
+
+type ApplicationStatusMeta struct {
+	Status   string                        `json:"Status,omitempty"`
+	Workload corev1alpha2.ComponentSpec    `json:"Workload,omitempty"`
+	Traits   []corev1alpha2.ComponentTrait `json:"Traits,omitempty"`
 }

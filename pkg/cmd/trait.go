@@ -3,11 +3,10 @@ package cmd
 import (
 	"context"
 	"errors"
-	"strconv"
+
+	"github.com/cloud-native-application/rudrx/pkg/oam"
 
 	"github.com/cloud-native-application/rudrx/pkg/application"
-
-	"cuelang.org/go/cue"
 
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
 
@@ -110,36 +109,8 @@ func (o *commandOptions) AddOrUpdateTrait(cmd *cobra.Command, args []string) err
 	if err := o.Prepare(cmd, args); err != nil {
 		return err
 	}
-	app, err := application.Load(o.Env.Name, o.appName)
-	if err != nil {
-		return err
-	}
-	var traitType = o.Template.Name
-	traitData, err := app.GetTraitsByType(o.workloadName, traitType)
-	if err != nil {
-		return err
-	}
-	for _, v := range o.Template.Parameters {
-		flagSet := cmd.Flag(v.Name)
-		switch v.Type {
-		case cue.IntKind:
-			d, _ := strconv.ParseInt(flagSet.Value.String(), 10, 64)
-			traitData[v.Name] = d
-		case cue.StringKind:
-			traitData[v.Name] = flagSet.Value.String()
-		case cue.BoolKind:
-			d, _ := strconv.ParseBool(flagSet.Value.String())
-			traitData[v.Name] = d
-		case cue.NumberKind, cue.FloatKind:
-			d, _ := strconv.ParseFloat(flagSet.Value.String(), 64)
-			traitData[v.Name] = d
-		}
-	}
-	if err = app.SetTrait(o.workloadName, traitType, traitData); err != nil {
-		return err
-	}
-	o.app = app
-	return o.app.Save(o.Env.Name)
+	_, err := oam.AddOrUpdateTrait(o.Env.Name, o.appName, o.workloadName, cmd.Flags(), o.Template)
+	return err
 }
 
 func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string) error {

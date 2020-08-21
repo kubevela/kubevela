@@ -7,7 +7,14 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	"github.com/gin-gonic/gin"
+
+	"cuelang.org/go/cue"
+	"github.com/cloud-native-application/rudrx/pkg/application"
+	"github.com/spf13/pflag"
 
 	"github.com/cloud-native-application/rudrx/pkg/server/apis"
 
@@ -188,4 +195,72 @@ func SimplifyCapabilityStruct(capabilityList []types.Capability) []apis.TraitMet
 		})
 	}
 	return traitList
+}
+
+//AddOrUpdateTrait attach trait to workload
+func AddOrUpdateTrait(envName string, appName string, workloadName string, flagSet *pflag.FlagSet, template types.Capability) (*application.Application, error) {
+	if appName == "" {
+		appName = workloadName
+	}
+	app, err := application.Load(envName, appName)
+	if err != nil {
+		return app, err
+	}
+	traitAlias := template.Name
+	traitData, err := app.GetTraitsByType(workloadName, traitAlias)
+	if err != nil {
+		return app, err
+	}
+	for _, v := range template.Parameters {
+		flagValue, _ := flagSet.GetString(v.Name)
+		switch v.Type {
+		case cue.IntKind:
+			d, _ := strconv.ParseInt(flagValue, 10, 64)
+			traitData[v.Name] = d
+		case cue.StringKind:
+			traitData[v.Name] = flagValue
+		case cue.BoolKind:
+			d, _ := strconv.ParseBool(flagValue)
+			traitData[v.Name] = d
+		case cue.NumberKind, cue.FloatKind:
+			d, _ := strconv.ParseFloat(flagValue, 64)
+			traitData[v.Name] = d
+		}
+	}
+	if err = app.SetTrait(workloadName, traitAlias, traitData); err != nil {
+		return app, err
+	}
+	return app, app.Save(envName, appName)
+}
+
+func AttachTrait(c *gin.Context, body apis.TraitBody) (string, error) {
+	// Prepare
+	var appObj *application.Application
+	fs := pflag.NewFlagSet("trait", pflag.ContinueOnError)
+	for _, f := range body.Flags {
+		fs.String(f.Name, f.Value, "")
+	}
+
+	traitAlias := body.Name
+	template, err := plugins.GetInstalledCapabilityWithCapAlias(types.TypeTrait, traitAlias)
+	if err != nil {
+		return "", err
+	}
+
+	appObj, err = AddOrUpdateTrait(body.EnvName, body.AppGroup, body.WorkloadName, fs, template)
+
+	if err != nil {
+		return "", err
+	}
+	// Run step
+	env, err := GetEnvByName(body.EnvName)
+	if err != nil {
+		return "", err
+	}
+	kubeClient := c.MustGet("KubeClient")
+	err = appObj.Run(c, kubeClient.(client.Client), env)
+	if err != nil {
+		return "", err
+	}
+	return "Succeeded!", nil
 }

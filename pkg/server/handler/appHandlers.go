@@ -1,17 +1,12 @@
 package handler
 
 import (
-	"net/http"
-
-	"github.com/cloud-native-application/rudrx/pkg/server/apis"
-
 	"github.com/cloud-native-application/rudrx/pkg/server/util"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/cloud-native-application/rudrx/pkg/oam"
 	"github.com/gin-gonic/gin"
-	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 const querymodeKey = "appQuerymode"
@@ -24,14 +19,23 @@ func CreateApps(c *gin.Context) {
 func UpdateApps(c *gin.Context) {
 }
 
-func GetApps(c *gin.Context) {
+func GetApp(c *gin.Context) {
+	kubeClient := c.MustGet("KubeClient")
 	envName := c.Param("envName")
-	appName := c.Param("appName")
-	queryMode, found := c.GetQuery(querymodeKey)
-	if !found {
-		panic("no repoUrl in update")
+	envMeta, err := oam.GetEnvByName(envName)
+	if err != nil {
+		util.HandleError(c, util.StatusInternalServerError, err)
+		return
 	}
-	ctrl.Log.Info("Get an application request for", "envName", envName, "appName", appName, "queryMdoe", queryMode)
+	namespace := envMeta.Namespace
+	appName := c.Param("appName")
+	ctx := util.GetContext(c)
+	applicationStatus, err := oam.RetrieveApplicationStatusByName(ctx, kubeClient.(client.Client), appName, namespace)
+	if err != nil {
+		util.HandleError(c, util.StatusInternalServerError, err)
+		return
+	}
+	util.AssembleResponse(c, applicationStatus, nil)
 }
 
 func ListApps(c *gin.Context) {
@@ -50,11 +54,7 @@ func ListApps(c *gin.Context) {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
 	}
-	resp := apis.Response{
-		Code: http.StatusOK,
-		Data: applicationMetaList,
-	}
-	c.JSON(http.StatusOK, resp)
+	util.AssembleResponse(c, applicationMetaList, nil)
 }
 
 func DeleteApps(c *gin.Context) {

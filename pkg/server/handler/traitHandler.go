@@ -3,12 +3,26 @@ package handler
 import (
 	"github.com/cloud-native-application/rudrx/api/types"
 	"github.com/cloud-native-application/rudrx/pkg/oam"
+	"github.com/cloud-native-application/rudrx/pkg/server/apis"
 	"github.com/cloud-native-application/rudrx/pkg/server/util"
 	"github.com/gin-gonic/gin"
 )
 
 // Trait related handlers
-func CreateTrait(c *gin.Context) {
+func AttachTrait(c *gin.Context) {
+	var body apis.TraitBody
+	body.EnvName = c.Param("envName")
+	body.WorkloadName = c.Param("appName")
+	if err := c.ShouldBindJSON(&body); err != nil {
+		util.HandleError(c, util.InvalidArgument, "the trait attach request body is invalid")
+		return
+	}
+	msg, err := oam.AttachTrait(c, body)
+	if err != nil {
+		util.HandleError(c, util.StatusInternalServerError, err.Error())
+		return
+	}
+	util.AssembleResponse(c, msg, nil)
 }
 
 func UpdateTrait(c *gin.Context) {

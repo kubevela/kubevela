@@ -96,9 +96,12 @@ func loadInstalledCapability(dir string, capAlias string) ([]types.Capability, e
 			continue
 		}
 		// Get the specified installed capability: a WorkoadDefinition or a TraitDefinition
-		if capAlias != "" && capAlias == f.Name() {
-			tmps = append(tmps, tmp)
-			break
+		if capAlias != "" {
+			if capAlias == f.Name() {
+				tmps = append(tmps, tmp)
+				break
+			}
+			continue
 		} else {
 			tmps = append(tmps, tmp)
 		}

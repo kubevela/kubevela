@@ -51,11 +51,18 @@ func setupRoute(kubeClient client.Client) http.Handler {
 		// app related operation
 		apps := envs.Group("/:envName/apps")
 		{
-			apps.POST("/", handler.CreateApps)
-			apps.GET("/:appName", handler.GetApps)
+			//apps.POST("/", handler.CreateApps)
+			apps.GET("/:appName", handler.GetApp)
 			apps.PUT("/:appName", handler.UpdateApps)
 			apps.GET("/", handler.ListApps)
 			apps.DELETE("/:appName", handler.DeleteApps)
+
+			traitOperation := apps.Group("/:appName/" + util.TraitDefinitionPath)
+			{
+				traitOperation.POST("/", handler.AttachTrait)
+				traitOperation.DELETE("/:traitName", handler.DeleteTrait)
+			}
+
 		}
 	}
 	// workload related api
@@ -65,16 +72,12 @@ func setupRoute(kubeClient client.Client) http.Handler {
 		workload.GET("/:workloadName", handler.GetWorkload)
 		workload.PUT("/:workloadName", handler.UpdateWorkload)
 		workload.GET("/", handler.ListWorkload)
-		workload.DELETE("/:workloadName", handler.DeleteWorkload)
 	}
 	// trait related api
 	trait := api.Group(util.TraitDefinitionPath)
 	{
-		trait.POST("/", handler.CreateTrait)
 		trait.GET("/:traitName", handler.GetTrait)
-		trait.PUT("/:traitName", handler.UpdateTrait)
 		trait.GET("/", handler.ListTrait)
-		trait.DELETE("/:traitName", handler.DeleteTrait)
 	}
 	// scope related api
 	scopes := api.Group(util.ScopeDefinitionPath)

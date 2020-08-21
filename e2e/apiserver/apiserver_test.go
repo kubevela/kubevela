@@ -38,13 +38,13 @@ var (
 		EnvName:      envHelloMeta.Name,
 		WorkloadName: workloadName,
 		WorkloadType: workloadType,
-		Flags:        []apis.WorkloadFlag{{Name: "port", Value: "80"}},
+		Flags:        []apis.CommonFlag{{Name: "port", Value: "80"}},
 	}
 	workloadRunBody = apis.WorkloadRunBody{
 		EnvName:      envHelloMeta.Name,
 		WorkloadName: workloadName,
 		WorkloadType: workloadType,
-		Flags:        []apis.WorkloadFlag{{Name: "image", Value: "nginx:1.9.4"}, {Name: "port", Value: "80"}},
+		Flags:        []apis.CommonFlag{{Name: "image", Value: "nginx:1.9.4"}, {Name: "port", Value: "80"}},
 	}
 )
 
