@@ -4,7 +4,7 @@ import Workload from '../../../components/Workload';
 class TableList extends React.PureComponent {
   render() {
     const propsObj = {
-      title: 'Task',
+      title: 'containerized',
       settings: [
         {
           name: 'Deployment Strategy',
@@ -29,7 +29,7 @@ class TableList extends React.PureComponent {
       ],
       pathname: '/ApplicationList/CreateApplication',
       state: {
-        WorkloadType: 'Task',
+        WorkloadType: 'containerized',
       },
       btnValue: 'Create',
       hrefAddress: '#',

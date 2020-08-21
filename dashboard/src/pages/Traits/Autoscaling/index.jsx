@@ -18,7 +18,7 @@ class TableList extends React.PureComponent {
       pathname: '/ApplicationList/CreateApplication',
       state: {
         activeStep: 1,
-        TraitType: 'Autoscaling',
+        TraitType: 'autoscaling',
       },
       btnValue: 'Attach to',
       hrefAddress: '#',

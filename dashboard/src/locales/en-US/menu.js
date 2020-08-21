@@ -13,7 +13,7 @@ export default {
   'menu.Capability.Detail': 'Detail',
   'menu.Workload': 'Workloads',
   'menu.Workload.Deployment': 'Deployment',
-  'menu.Workload.Task': 'Task',
+  'menu.Workload.Containerized': 'Containerized',
   'menu.Workload.Detail': 'Detail',
   'menu.Release': 'Release',
   'menu.admin': 'Admin',

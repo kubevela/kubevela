@@ -1,4 +1,4 @@
-import { Menu, Dropdown, Button } from 'antd';
+import { Menu, Dropdown, Button, message } from 'antd';
 import { DownOutlined } from '@ant-design/icons';
 import React from 'react';
 import { connect } from 'dva';
@@ -15,29 +15,42 @@ export default class WorkSpaceDropDown extends React.Component {
 
   async componentDidMount() {
     const envs = await this.props.dispatch({
-      type: 'applist/getEnvs', // applist对应models层的命名空间namespace
+      type: 'envs/getEnvs', // applist对应models层的命名空间namespace
     });
-    const { name = 'test' } = envs.find((a) => {
-      return a.current === '*';
-    });
-    this.setState({
-      envs,
-      workSpaceName: name,
-    });
-    this.props.dispatch({
-      type: 'globalData/currentEnv',
-      payload: {
-        currentEnv: name,
-      },
-    });
+    if (envs) {
+      const { name = 'test' } = envs.find((a) => {
+        return a.current === '*';
+      });
+      this.setState({
+        envs,
+        workSpaceName: name,
+      });
+      this.props.dispatch({
+        type: 'globalData/currentEnv',
+        payload: {
+          currentEnv: name,
+        },
+      });
+    }
   }
 
-  handleMenuClick = (e) => {
+  handleMenuClick = async (e) => {
+    // 发送切换envs的接口
+    const switchResult = await this.props.dispatch({
+      type: 'envs/switchEnv',
+      payload: {
+        currentEnv: e.key,
+      },
+    });
+    if (switchResult) {
+      message.success(switchResult);
+    }
     this.setState(
       {
         workSpaceName: e.key,
       },
       () => {
+        // 值切换存储
         this.props.dispatch({
           type: 'globalData/currentEnv',
           payload: {

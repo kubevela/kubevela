@@ -1,7 +1,20 @@
 import React from 'react';
+import { connect } from 'dva';
 import Workload from '../../../components/Workload';
 
+@connect(({ loading }) => ({
+  loadingAll: loading.models.applist,
+}))
 class TableList extends React.PureComponent {
+  // async componentDidMount(){
+  //   await this.props.dispatch({
+  //     type:'workload/getWorkloadByName',
+  //     payload: {
+  //       workloadName: 'containerized'
+  //     }
+  //   })
+  // };
+
   render() {
     const propsObj = {
       title: 'Deployment',

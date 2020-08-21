@@ -1,8 +1,13 @@
 import request from '@/utils/request';
-
+/*
+ * 应用列表：/api/envs/default/apps/
+ */
 export async function getapplist({ url }) {
   return request(url);
 }
+/*
+ * 创建应用：/api/envs/default/apps/
+ */
 export async function createApp({ params, url }) {
   return request(url, {
     method: 'POST',
@@ -14,7 +19,4 @@ export async function createApp({ params, url }) {
       'Content-Type': 'application/json',
     },
   });
-}
-export async function getEnvs() {
-  return request('/api/envs/');
 }

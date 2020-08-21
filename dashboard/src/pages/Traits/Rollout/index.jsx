@@ -18,7 +18,7 @@ class TableList extends React.PureComponent {
       pathname: '/ApplicationList/CreateApplication',
       state: {
         activeStep: 1,
-        TraitType: 'Rollout',
+        TraitType: 'rollout',
       },
       btnValue: 'Attach to',
       hrefAddress: '#',

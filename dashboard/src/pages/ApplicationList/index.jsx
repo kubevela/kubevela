@@ -18,18 +18,35 @@ const { Option } = Select;
   currentEnv: globalData.currentEnv,
 }))
 class TableList extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {};
+  }
+
   componentDidMount() {
     const { currentEnv } = this.props;
+    if (currentEnv) {
+      this.props.dispatch({
+        type: 'applist/getList', // applist对应models层的命名空间namespace
+        payload: {
+          url: `/api/envs/${currentEnv}/apps/`,
+        },
+      });
+    }
+  }
+
+  shouldComponentUpdate(nextProps) {
+    if (nextProps.currentEnv === this.props.currentEnv) {
+      return true;
+    }
     this.props.dispatch({
       type: 'applist/getList', // applist对应models层的命名空间namespace
       payload: {
-        url: `/api/envs/${currentEnv}/apps/`,
+        url: `/api/envs/${nextProps.currentEnv}/apps/`,
       },
     });
-  }
-
-  shouldComponentUpdate() {
     return true;
+    // return true;
   }
 
   onFinish = () => {
