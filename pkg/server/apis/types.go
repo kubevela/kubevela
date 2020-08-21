@@ -35,8 +35,14 @@ type WorkloadRunBody struct {
 	Staging      bool           `json:"staging"`
 }
 
-type Capability struct {
+type WorkloadMeta struct {
 	Name       string            `json:"name"`
 	Parameters []types.Parameter `json:"parameters,omitempty"`
 	AppliesTo  []string          `json:"appliesTo,omitempty"`
+}
+
+type TraitMeta struct {
+	Name       string   `json:"name"`
+	Definition string   `json:"definition,omitempty"`
+	AppliesTo  []string `json:"applies_to,omitempty"`
 }

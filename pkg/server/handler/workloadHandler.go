@@ -54,17 +54,26 @@ func UpdateWorkload(c *gin.Context) {
 }
 
 func GetWorkload(c *gin.Context) {
+	var workloadType = c.Param("workloadName")
+	var capability types.Capability
+	var err error
+
+	if capability, err = plugins.GetInstalledCapabilityWithCapAlias(types.TypeWorkload, workloadType); err != nil {
+		util.HandleError(c, util.StatusInternalServerError, err)
+		return
+	}
+	util.AssembleResponse(c, capability, err)
 }
 
 func ListWorkload(c *gin.Context) {
-	var workloadDefinitionList []apis.Capability
+	var workloadDefinitionList []apis.WorkloadMeta
 	workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
 	}
 	for _, w := range workloads {
-		workloadDefinitionList = append(workloadDefinitionList, apis.Capability{
+		workloadDefinitionList = append(workloadDefinitionList, apis.WorkloadMeta{
 			Name:       w.Name,
 			Parameters: w.Parameters,
 			AppliesTo:  w.AppliesTo,

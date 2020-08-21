@@ -22,6 +22,7 @@ import (
 	"github.com/gosuri/uitable"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/cloud-native-application/rudrx/pkg/oam"
 	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
@@ -419,7 +420,7 @@ func ListCenterCapabilities(table *uitable.Table, repoDir string, ioStreams cmdu
 	workloads := GatherWorkloads(templates)
 	for _, p := range templates {
 		status := CheckInstallStatus(baseDir, p)
-		convertedApplyTo := ConvertApplyTo(p.AppliesTo, workloads)
+		convertedApplyTo := oam.ConvertApplyTo(p.AppliesTo, workloads)
 		table.AddRow(p.Name, baseDir, p.Type, p.CrdName, status, convertedApplyTo)
 	}
 	return nil
