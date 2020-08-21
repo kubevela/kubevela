@@ -69,10 +69,10 @@ export default defineConfig({
                   component: './Workload/Deployment',
                 },
                 {
-                  name: 'Task',
+                  name: 'Containerized',
                   icon: 'smile',
-                  path: '/Workload/Task',
-                  component: './Workload/Task',
+                  path: '/Workload/Containerized',
+                  component: './Workload/Containerized',
                 },
                 {
                   name: 'Detail',
