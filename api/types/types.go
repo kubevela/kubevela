@@ -22,8 +22,9 @@ const (
 )
 
 type EnvMeta struct {
-	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
+	Current   string `json:"current,omitempty"`
+	Namespace string `json:"namespace"`
 }
 
 const (

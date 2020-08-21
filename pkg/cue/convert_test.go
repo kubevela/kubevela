@@ -27,7 +27,7 @@ func TestEval(t *testing.T) {
 		},
 	})
 	assert.NoError(t, err)
-	assert.Equal(t, `{"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"myapp"},"spec":{"containers":[{"name":"myapp","env":[{"name":"MYDB","value":"true"}],"image":"nginx:v1","ports":[{"name":"default","containerPort":8080,"protocol":"TCP"}]}]}}`,
+	assert.Equal(t, `{"apiVersion":"apps/v1","kind":"Deployment","metadata":{"name":"myapp"},"spec":{"selector":{"matchLabels":{"app":"myapp"}},"template":{"metadata":{"labels":{"app":"myapp"}},"spec":{"containers":[{"name":"myapp","env":[{"name":"MYDB","value":"true"}],"image":"nginx:v1","ports":[{"name":"default","containerPort":8080,"protocol":"TCP"}]}]}}}}`,
 		data)
 }
 
