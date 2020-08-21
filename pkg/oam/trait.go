@@ -87,16 +87,40 @@ func GetTraitDefinitionByKind(ctx context.Context, c client.Client, traitKind st
 	return traitDefinition, fmt.Errorf("could not find TraitDefinition by kind %s", traitKind)
 }
 
-func ListTraitDefinitions(workloadName *string, capabilityAlias string) ([]types.Capability, error) {
+func ListTraitDefinitions(workloadName *string) ([]types.Capability, error) {
 	var traitList []types.Capability
-	traits, err := plugins.GetInstalledCapabilityWithCapAlias(types.TypeTrait, capabilityAlias)
+	traits, err := plugins.LoadInstalledCapabilityWithType(types.TypeTrait)
 	if err != nil {
 		return traitList, err
 	}
-	workloads, err := plugins.GetInstalledCapabilityWithCapAlias(types.TypeWorkload, "")
+	workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
 	if err != nil {
 		return traitList, err
 	}
+	traitList = assembleDefinitionList(traits, workloads, workloadName)
+	return traitList, nil
+}
+
+func GetTraitDefinition(workloadName *string, capabilityAlias string) (types.Capability, error) {
+	var traitDef types.Capability
+	traitCap, err := plugins.GetInstalledCapabilityWithCapAlias(types.TypeTrait, capabilityAlias)
+	if err != nil {
+		return traitDef, err
+	}
+	workloadsCap, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
+	if err != nil {
+		return traitDef, err
+	}
+	traitList := assembleDefinitionList([]types.Capability{traitCap}, workloadsCap, workloadName)
+	if len(traitList) != 1 {
+		return traitDef, fmt.Errorf("could not get installed capability by %s", capabilityAlias)
+	}
+	traitDef = traitList[0]
+	return traitDef, nil
+}
+
+func assembleDefinitionList(traits []types.Capability, workloads []types.Capability, workloadName *string) []types.Capability {
+	var traitList []types.Capability
 	for _, t := range traits {
 		convertedApplyTo := ConvertApplyTo(t.AppliesTo, workloads)
 		if *workloadName != "" {
@@ -108,7 +132,7 @@ func ListTraitDefinitions(workloadName *string, capabilityAlias string) ([]types
 		t.AppliesTo = convertedApplyTo
 		traitList = append(traitList, t)
 	}
-	return traitList, nil
+	return traitList
 }
 
 func ConvertApplyTo(applyTo []string, workloads []types.Capability) []string {
@@ -125,7 +149,7 @@ func ConvertApplyTo(applyTo []string, workloads []types.Capability) []string {
 
 func check(applyto string, workloads []types.Capability) (string, bool) {
 	for _, v := range workloads {
-		if parse(applyto) == v.CrdName {
+		if Parse(applyto) == v.CrdName {
 			return v.Name, true
 		}
 	}
@@ -141,7 +165,7 @@ func In(l []string, v string) bool {
 	return false
 }
 
-func parse(applyTo string) string {
+func Parse(applyTo string) string {
 	l := strings.Split(applyTo, "/")
 	if len(l) != 2 {
 		return applyTo

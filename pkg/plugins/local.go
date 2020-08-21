@@ -41,18 +41,30 @@ func LoadAllInstalledCapability() ([]types.Capability, error) {
 
 func LoadInstalledCapabilityWithType(capT types.CapType) ([]types.Capability, error) {
 	dir, _ := system.GetCapabilityDir()
-	return loadInstalledCapabilityWithType(dir, capT, "")
+	return loadInstalledCapabilityWithType(dir, capT)
 }
 
-func GetInstalledCapabilityWithCapAlias(capT types.CapType, capAlias string) ([]types.Capability, error) {
+func GetInstalledCapabilityWithCapAlias(capT types.CapType, capAlias string) (types.Capability, error) {
 	dir, _ := system.GetCapabilityDir()
-	return loadInstalledCapabilityWithType(dir, capT, capAlias)
+	return loadInstalledCapabilityWithCapAlias(dir, capT, capAlias)
 }
 
 // leave dir as argument for test convenience
-func loadInstalledCapabilityWithType(dir string, capT types.CapType, capAlias string) ([]types.Capability, error) {
+func loadInstalledCapabilityWithType(dir string, capT types.CapType) ([]types.Capability, error) {
 	dir = GetSubDir(dir, capT)
-	return loadInstalledCapability(dir, capAlias)
+	return loadInstalledCapability(dir, "")
+}
+
+func loadInstalledCapabilityWithCapAlias(dir string, capT types.CapType, capAlias string) (types.Capability, error) {
+	var cap types.Capability
+	dir = GetSubDir(dir, capT)
+	capList, err := loadInstalledCapability(dir, capAlias)
+	if err != nil {
+		return cap, err
+	} else if len(capList) != 1 {
+		return cap, fmt.Errorf("could not get installed capability by %s", capAlias)
+	}
+	return capList[0], nil
 }
 
 func loadInstalledCapability(dir string, capAlias string) ([]types.Capability, error) {
