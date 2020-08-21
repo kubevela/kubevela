@@ -1,7 +1,7 @@
 const globalModel = {
   namespace: 'globalData',
   state: {
-    currentEnv: 'test',
+    currentEnv: '',
   },
   effects: {
     *currentEnv({ payload }, { put }) {

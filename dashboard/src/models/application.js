@@ -1,4 +1,4 @@
-import { getapplist, createApp, getEnvs } from '@/services/getAppList';
+import { getapplist, createApp } from '@/services/application';
 
 const TestModel = {
   namespace: 'applist',
@@ -20,10 +20,6 @@ const TestModel = {
       // 如果 method = Get，data 类型 =  list/json 否则，data 类型 =  string，存储的是操作成功的信息
       // 非get请求，将结果返回，在调用页面进行async await 来进行操作结果提示
       const res = yield call(createApp, payload);
-      return res;
-    },
-    *getEnvs({ payload }, { call }) {
-      const res = yield call(getEnvs, payload);
       return res;
     },
   },

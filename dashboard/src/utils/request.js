@@ -3,7 +3,7 @@
  * 更详细的 api 文档: https://github.com/umijs/umi-request
  */
 import { extend } from 'umi-request';
-import { notification, message } from 'antd';
+import { message } from 'antd';
 
 const codeMessage = {
   200: '服务器成功返回请求的数据。',
@@ -28,26 +28,18 @@ const codeMessage = {
 
 const errorHandler = async (error) => {
   const { response } = error;
-  const { error: errorMessage } = await error.response.clone().json();
   if (response && response.status) {
     const errorText = codeMessage[response.status] || response.statusText;
-    const { status } = response;
-    // const { status, url } = response;
-    // notification.error({
-    //   message: `请求错误 ${status}: ${url}`,
-    //   description: errorMessage || errorText,
-    // });
-    message.error(`请求错误 ${status} ${errorMessage || errorText}`);
+    const { status, url } = response;
+    message.error(`请求错误 ${status}:${url} ${errorText}`);
   } else if (!response) {
-    notification.error({
-      description: '您的网络发生异常，无法连接服务器',
-      message: '网络异常',
-    });
+    message.error('网络异常: 您的网络发生异常，无法连接服务器');
   }
+
   // throw error; // 如果throw. 错误将继续抛出.
   // 如果return, 则将值作为返回. 'return;' 相当于return undefined, 在处理结果时判断response是否有值即可.
   // return {some: 'data'};
-  return response;
+  // return response;
 };
 
 /**
@@ -68,12 +60,19 @@ const request = extend({
  *     否则，data 类型 =  string，存储的是操作成功的信息
  */
 request.interceptors.response.use(async (response) => {
+  if (response.status !== 200 && response.status !== 500) {
+    errorHandler({ response });
+    return;
+  }
   const data = await response.clone().json();
   if (data && data.error) {
     message.error(`请求错误${response.status} ：${data.error}`);
     return;
+    // eslint-disable-next-line no-else-return
+  } else if (data && data.code === 500) {
+    message.error(`请求错误${response.status} ：${data.data}`);
+    return;
   }
-  // console.log(data)
   // eslint-disable-next-line consistent-return
   return data.data;
   // return response;

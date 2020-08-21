@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { Fragment } from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
 import './index.less';
-import { Button, Row, Col, Form, Input, Select, Steps } from 'antd';
+import { Button, Row, Col, Form, Input, Select, Steps, message } from 'antd';
 import { connect } from 'dva';
 import { Link } from 'umi';
+import _ from 'lodash';
+import CreateTraitItem from '../createTrait/index.jsx';
 
 const { Option } = Select;
 const { Step } = Steps;
@@ -17,41 +19,92 @@ const layout = {
   },
 };
 
-@connect(() => ({}))
+@connect(({ loading, globalData }) => ({
+  loadingAll: loading.models.workload,
+  currentEnv: globalData.currentEnv,
+}))
 class TableList extends React.Component {
   formRefStep1 = React.createRef();
 
-  formRefStep2 = React.createRef();
+  formRefStep2All = React.createRef();
 
   constructor(props) {
     super(props);
     this.state = {
       current: 0,
       isShowMore: false,
-      traitNum: [1],
+      traitNum: [
+        {
+          refname: null,
+          initialData: {},
+        },
+      ],
+      traitList: [],
+      availableTraitList: [],
+      workloadList: [],
+      workloadSettings: [],
       step1InitialValues: {
-        WorkloadType: 'Deployment',
+        workload_type: '',
       },
-      step2InitialValues: {
-        TraitType0: 'Autoscaling',
-      },
+      step1Settings: [],
     };
   }
 
   UNSAFE_componentWillMount() {
-    if (this.props.location.state) {
-      const WorkloadType = this.props.location.state.WorkloadType || 'Deployment';
-      const TraitType = this.props.location.state.TraitType || 'Autoscaling';
-      const activeStep = this.props.location.state.activeStep || 0;
-      const tempState1 = { ...this.state.step1InitialValues, WorkloadType };
-      const tempState2 = { ...this.state.step2InitialValues, TraitType0: TraitType };
-      this.setState(() => ({
-        current: activeStep,
-        step1InitialValues: tempState1,
-        step2InitialValues: tempState2,
-      }));
-    }
+    const activeStep = _.get(this.props, 'location.state.activeStep', 0);
+    this.setState(() => ({
+      current: activeStep,
+    }));
   }
+
+  componentDidMount() {
+    this.getInitalData();
+  }
+
+  getInitalData = async () => {
+    const res = await this.props.dispatch({
+      type: 'workload/getWorkload',
+    });
+    const traits = await this.props.dispatch({
+      type: 'trait/getTraits',
+    });
+    this.setState({
+      traitList: traits,
+    });
+    // 如果直接跳转到第二步，需要设置值
+    const traitType = _.get(this.props, 'location.state.TraitType', '');
+    if (traitType) {
+      // let availableTraitList = traits.filter((item)=>{
+      //   return item.name === traitType
+      // })
+      this.setState({
+        availableTraitList: traits,
+        traitNum: [
+          {
+            refname: null,
+            initialData: { name: traitType },
+          },
+        ],
+      });
+    }
+
+    if (Array.isArray(res) && res.length) {
+      this.setState(
+        () => ({
+          workloadList: res,
+        }),
+        () => {
+          if (this.state.current === 0) {
+            const WorkloadType = _.get(this.props, 'location.state.WorkloadType', '');
+            this.formRefStep1.current.setFieldsValue({
+              workload_type: WorkloadType || this.state.workloadList[0].name,
+            });
+            this.workloadTypeChange(this.state.workloadList[0].name);
+          }
+        },
+      );
+    }
+  };
 
   onFinishStep1 = (values) => {
     this.setState({
@@ -61,11 +114,17 @@ class TableList extends React.Component {
     });
   };
 
-  onFinishStep2 = (values) => {
-    this.setState({
-      current: 2,
-      step2InitialValues: values,
+  onFinishStep2 = () => {
+    const newTraitNum = this.state.traitNum.map((item) => {
+      // eslint-disable-next-line no-param-reassign
+      item.initialData = item.refname.getSelectValue();
+      return item;
     });
+    // 进行trait数据整理，便于第三步展示
+    this.setState(() => ({
+      traitNum: newTraitNum,
+      current: 2,
+    }));
   };
 
   gotoStep2 = () => {
@@ -90,22 +149,103 @@ class TableList extends React.Component {
   addMore = (e) => {
     e.preventDefault();
     this.setState((prev) => ({
-      traitNum: prev.traitNum.concat([1]),
+      traitNum: prev.traitNum.concat([
+        {
+          refname: null,
+          initialData: {},
+        },
+      ]),
     }));
   };
 
-  createApp = async () => {
-    await this.props.dispatch({
-      type: 'applist/createApp', // applist对应models层的命名空间namespace
+  createApp = () => {};
+
+  createWorkload = async () => {
+    await this.formRefStep1.current.validateFields();
+    const currentData = this.formRefStep1.current.getFieldsValue();
+    const submitObj = {
+      env_name: this.props.currentEnv,
+      workload_type: currentData.workload_type,
+      workload_name: currentData.workload_name,
+      flags: [],
+    };
+    Object.keys(currentData).forEach((key) => {
+      if (key !== 'workload_name' && key !== 'workload_type' && currentData[key]) {
+        submitObj.flags.push({
+          name: key,
+          value: currentData[key].toString(),
+        });
+      }
+    });
+    const res = await this.props.dispatch({
+      type: 'workload/createWorkload',
       payload: {
-        a: 1,
-        b: 3,
+        params: submitObj,
       },
+    });
+    if (res) {
+      message.success(res);
+    }
+    this.setState({
+      current: 1,
+      step1InitialValues: currentData,
+      step1Settings: submitObj.flags,
+    });
+    this.getAcceptTrait(currentData.workload_type);
+  };
+
+  workloadTypeChange = (value) => {
+    const content = this.formRefStep1.current.getFieldsValue();
+    this.formRefStep1.current.resetFields();
+    const initialObj = {
+      workload_type: content.workload_type,
+      workload_name: content.workload_name,
+    };
+    this.formRefStep1.current.setFieldsValue(initialObj);
+    const currentWorkloadSetting = this.state.workloadList.filter((item) => {
+      return item.name === value;
+    });
+    if (currentWorkloadSetting.length) {
+      this.setState(
+        {
+          workloadSettings: currentWorkloadSetting[0].parameters,
+        },
+        () => {
+          this.state.workloadSettings.forEach((item) => {
+            if (item.default) {
+              initialObj[item.name] = item.default;
+            }
+          });
+          this.formRefStep1.current.setFieldsValue(initialObj);
+        },
+      );
+    }
+    this.setState({
+      traitNum: [
+        {
+          refname: null,
+          initialData: {},
+        },
+      ],
     });
   };
 
+  getAcceptTrait = (workloadType) => {
+    const res = this.state.traitList.filter((item) => {
+      if (item.appliesTo.indexOf(workloadType) !== -1) {
+        return true;
+      }
+      return false;
+    });
+    this.setState(() => ({
+      availableTraitList: res,
+    }));
+  };
+
   render() {
-    const { current, step1InitialValues, step2InitialValues, traitNum } = this.state;
+    const { current, step1InitialValues, traitNum, workloadSettings } = this.state;
+    let { workloadList } = this.state;
+    workloadList = Array.isArray(workloadList) ? workloadList : [];
     let currentDetail;
     if (current === 0) {
       currentDetail = (
@@ -122,7 +262,7 @@ class TableList extends React.Component {
             >
               <div style={{ padding: '16px 48px 0px 16px' }}>
                 <Form.Item
-                  name="WorkloadName"
+                  name="workload_name"
                   label="Name"
                   rules={[
                     {
@@ -134,7 +274,7 @@ class TableList extends React.Component {
                   <Input />
                 </Form.Item>
                 <Form.Item
-                  name="WorkloadType"
+                  name="workload_type"
                   label="Workload Type"
                   rules={[
                     {
@@ -143,33 +283,52 @@ class TableList extends React.Component {
                     },
                   ]}
                 >
-                  <Select placeholder="Select a Workload Type" allowClear>
-                    <Option value="Deployment">Deployment</Option>
-                    <Option value="Task">Task</Option>
+                  <Select
+                    placeholder="Select a Workload Type"
+                    allowClear
+                    onChange={this.workloadTypeChange}
+                  >
+                    {workloadList.length ? (
+                      workloadList.map((item) => {
+                        return (
+                          <Option value={item.name} key={item.name}>
+                            {item.name}
+                          </Option>
+                        );
+                      })
+                    ) : (
+                      <></>
+                    )}
                   </Select>
                 </Form.Item>
                 <Form.Item label="Settings" />
               </div>
               <div className="relativeBox">
                 <p className="hasMore">?</p>
-                <Form.Item name="setting1" label="Deployment Strategy">
-                  <Input />
-                </Form.Item>
-                <Form.Item name="setting2" label="Rolling Update Strategy">
-                  <Input />
-                </Form.Item>
-                <Form.Item name="setting3" label="Min Ready Seconds">
-                  <Input />
-                </Form.Item>
-                <Form.Item name="setting4" label="Revision History Limit">
-                  <Input />
-                </Form.Item>
-                <Form.Item name="setting5" label="Replicas">
-                  <Input />
-                </Form.Item>
+                {Array.isArray(workloadSettings) && workloadSettings.length ? (
+                  workloadSettings.map((item) => {
+                    return (
+                      <Form.Item
+                        name={item.name}
+                        label={item.name}
+                        key={item.name}
+                        rules={[
+                          {
+                            required: item.required,
+                            message: `Please input ${item.name}!`,
+                          },
+                        ]}
+                      >
+                        <Input />
+                      </Form.Item>
+                    );
+                  })
+                ) : (
+                  <></>
+                )}
               </div>
               <div className="buttonBox">
-                <Button type="primary" className="floatRight" htmlType="submit">
+                <Button type="primary" className="floatRightGap" onClick={this.createWorkload}>
                   Next
                 </Button>
                 <Link to="/ApplicationList">
@@ -183,101 +342,78 @@ class TableList extends React.Component {
     } else if (current === 1) {
       currentDetail = (
         <div>
-          <div className="minBox">
+          <div className="minBox" style={{ width: '60%' }}>
             <div style={{ padding: '0px 48px 0px 16px', width: '60%' }}>
               <p style={{ fontSize: '18px', lineHeight: '32px' }}>
-                Name:<span>{step1InitialValues.WorkloadName}</span>
+                Name:<span>{step1InitialValues.workload_name}</span>
               </p>
             </div>
-            <Form
-              initialValues={step2InitialValues}
-              labelAlign="left"
-              {...layout}
-              ref={this.formRefStep2}
-              name="control-ref"
-              onFinish={this.onFinishStep2}
-              style={{ width: '60%' }}
-            >
-              <div style={{ border: '1px solid #eee', padding: '16px 48px 16px 16px' }}>
-                <p className="title">{step1InitialValues.WorkloadType}</p>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>apps/v1</span>
-                  <span
-                    style={{
-                      color: '#1890ff',
-                      cursor: 'pointer',
-                      display: this.state.isShowMore ? 'none' : 'black',
-                    }}
-                    onClick={this.changeShowMore}
-                  >
-                    more...
-                  </span>
-                </div>
-                {this.state.isShowMore ? (
-                  <div>
-                    <p className="title" style={{ marginTop: '16px' }}>
-                      Settings:
-                    </p>
-                    <Row>
-                      <Col span="8">
-                        <p>Deployment Strategy</p>
-                        <p>Rolling Update Strategy</p>
-                        <p>Min Ready Seconds</p>
-                        <p>Revision History Limit</p>
-                        <p>Replicas</p>
-                      </Col>
-                      <Col span="16">
-                        <p>{step1InitialValues.setting1}</p>
-                        <p>{step1InitialValues.setting2}</p>
-                        <p>{step1InitialValues.setting3}</p>
-                        <p>{step1InitialValues.setting4}</p>
-                        <p>{step1InitialValues.setting5}</p>
-                      </Col>
-                    </Row>
-                  </div>
-                ) : (
-                  ''
-                )}
+            <div style={{ border: '1px solid #eee', padding: '16px 48px 16px 16px' }}>
+              <p className="title">{step1InitialValues.workload_type}</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>apps/v1</span>
+                <span
+                  style={{
+                    color: '#1890ff',
+                    cursor: 'pointer',
+                    display: this.state.isShowMore ? 'none' : 'black',
+                  }}
+                  onClick={this.changeShowMore}
+                >
+                  more...
+                </span>
               </div>
+              {this.state.isShowMore ? (
+                <div>
+                  <p className="title" style={{ marginTop: '16px' }}>
+                    Settings:
+                  </p>
+                  <Row>
+                    {this.state.step1Settings.map((item) => {
+                      return (
+                        <Fragment key={item.name}>
+                          <Col span="8">
+                            <p>{item.name}:</p>
+                          </Col>
+                          <Col span="16">
+                            <p>{item.value}</p>
+                          </Col>
+                        </Fragment>
+                      );
+                    })}
+                  </Row>
+                </div>
+              ) : (
+                ''
+              )}
+            </div>
+            <div ref={this.formRefStep2All}>
               {traitNum.map((item, index) => {
                 return (
-                  <div
-                    style={{ border: '1px solid #eee', margin: '16px 0px 8px' }}
+                  <CreateTraitItem
+                    onRef={(ref) => {
+                      // eslint-disable-next-line no-param-reassign
+                      item.refname = ref;
+                    }}
                     key={index.toString()}
-                  >
-                    <div style={{ padding: '16px 48px 0px 16px' }}>
-                      <Form.Item name={`TraitType${index}`} label="Trait">
-                        <Select placeholder="Select a Trait" allowClear>
-                          <Option value="Autoscaling">Autoscaling</Option>
-                          <Option value="Rollout">Rollout</Option>
-                        </Select>
-                      </Form.Item>
-                      <Form.Item label="Properties" />
-                    </div>
-                    <div className="relativeBox">
-                      <p className="hasMore">?</p>
-                      <Form.Item name={`setting1${index}`} label="Min Instances">
-                        <Input />
-                      </Form.Item>
-                      <Form.Item name={`setting2${index}`} label="Max Instances">
-                        <Input />
-                      </Form.Item>
-                    </div>
-                  </div>
+                    availableTraitList={this.state.availableTraitList}
+                    index={index}
+                    initialValues={item.initialData}
+                  />
                 );
               })}
-              <button style={{ marginTop: '16px' }} onClick={this.addMore} type="button">
-                Add More...
-              </button>
-              <div className="buttonBox">
-                <Button type="primary" className="floatRight" htmlType="submit">
-                  Next
-                </Button>
-                <Button className="floatRightGap" onClick={this.gotoStep1}>
-                  Back
-                </Button>
-              </div>
-            </Form>
+            </div>
+            <button style={{ marginTop: '16px' }} onClick={this.addMore} type="button">
+              Add More...
+            </button>
+            <div className="buttonBox">
+              <Button type="primary" className="floatRight" onClick={this.onFinishStep2}>
+                Next
+              </Button>
+              <Button className="floatRightGap" onClick={this.gotoStep1}>
+                Back
+              </Button>
+            </div>
           </div>
         </div>
       );
@@ -286,57 +422,62 @@ class TableList extends React.Component {
         <div>
           <div className="minBox">
             <p>
-              Name:<span>{step1InitialValues.WorkloadName}</span>
+              Name:<span>{step1InitialValues.workload_name}</span>
             </p>
             <Row>
               <Col span="11">
                 <div className="summaryBox1">
                   <Row>
                     <Col span="22">
-                      <p className="title">{step1InitialValues.WorkloadType}</p>
+                      <p className="title">{step1InitialValues.workload_type}</p>
                       <p>apps/v1</p>
                     </Col>
                   </Row>
                   <p className="title hasMargin">Settings:</p>
                   <Row>
-                    <Col span="8">
-                      <p>Deployment Strategy</p>
-                      <p>Rolling Update Strategy</p>
-                      <p>Min Ready Seconds</p>
-                      <p>Revision History Limit</p>
-                      <p>Replicas</p>
-                    </Col>
-                    <Col span="16">
-                      <p>{step1InitialValues.setting1}</p>
-                      <p>{step1InitialValues.setting2}</p>
-                      <p>{step1InitialValues.setting3}</p>
-                      <p>{step1InitialValues.setting4}</p>
-                      <p>{step1InitialValues.setting5}</p>
-                    </Col>
+                    {this.state.step1Settings.map((item) => {
+                      return (
+                        <Fragment key={item.name}>
+                          <Col span="8">
+                            <p>{item.name}:</p>
+                          </Col>
+                          <Col span="16">
+                            <p>{item.value}</p>
+                          </Col>
+                        </Fragment>
+                      );
+                    })}
                   </Row>
                 </div>
               </Col>
               <Col span="1" />
               <Col span="10">
-                {traitNum.map((item, index) => {
+                {traitNum.map(({ initialData }, index) => {
                   return (
                     <div className="summaryBox" key={index.toString()}>
                       <Row>
                         <Col span="22">
-                          <p className="title">{step2InitialValues[`TraitType${index}`]}</p>
+                          <p className="title">{initialData.name}</p>
                           <p>core.oam.dev/v1alpha2</p>
                         </Col>
                       </Row>
                       <p className="title hasMargin">Properties:</p>
                       <Row>
-                        <Col span="8">
-                          <p>Min Instances</p>
-                          <p>Max Instances</p>
-                        </Col>
-                        <Col span="16">
-                          <p>{step2InitialValues[`setting1${index}`]}</p>
-                          <p>{step2InitialValues[`setting2${index}`]}</p>
-                        </Col>
+                        {Object.keys(initialData).map((currentKey) => {
+                          if (currentKey !== 'name') {
+                            return (
+                              <Fragment key={currentKey}>
+                                <Col span="8">
+                                  <p>{currentKey}:</p>
+                                </Col>
+                                <Col span="16">
+                                  <p>{initialData[currentKey]}</p>
+                                </Col>
+                              </Fragment>
+                            );
+                          }
+                          return <Fragment key={currentKey} />;
+                        })}
                       </Row>
                     </div>
                   );
