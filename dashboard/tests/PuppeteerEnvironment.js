@@ -1,6 +1,6 @@
 // eslint-disable-next-line
-const NodeEnvironment = require("jest-environment-node");
-const getBrowser = require("./getBrowser");
+const NodeEnvironment = require('jest-environment-node');
+const getBrowser = require('./getBrowser');
 
 class PuppeteerEnvironment extends NodeEnvironment {
   // Jest is not available here, so we have to reverse engineer
@@ -10,7 +10,7 @@ class PuppeteerEnvironment extends NodeEnvironment {
       // eslint-disable-next-line no-underscore-dangle
       this.global.jasmine.DEFAULT_TIMEOUT_INTERVAL = timeout;
     } else {
-      this.global[Symbol.for("TEST_TIMEOUT_SYMBOL")] = timeout;
+      this.global[Symbol.for('TEST_TIMEOUT_SYMBOL')] = timeout;
     }
   }
 

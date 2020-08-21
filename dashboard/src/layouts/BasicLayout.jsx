@@ -3,11 +3,10 @@
  * You can view component api by:
  * https://github.com/ant-design/ant-design-pro-layout
  */
-import ProLayout from "@ant-design/pro-layout";
-import React from "react";
-import { Link, useIntl, connect, history } from "umi";
-import { Result, Button } from "antd";
-import RightContent from "@/components/GlobalHeader/RightContent";
+import ProLayout from '@ant-design/pro-layout';
+import React from 'react';
+import { Link, useIntl, connect, history } from 'umi';
+import RightContent from '@/components/GlobalHeader/RightContent';
 
 const menuDataRender = (menuList) =>
   menuList.map((item) => {
@@ -19,20 +18,13 @@ const menuDataRender = (menuList) =>
   });
 
 const BasicLayout = (props) => {
-  const {
-    dispatch,
-    children,
-    settings,
-    location = {
-      pathname: "/",
-    },
-  } = props;
+  const { settings } = props;
 
   const { formatMessage } = useIntl();
   return (
     <ProLayout
       formatMessage={formatMessage}
-      onMenuHeaderClick={() => history.push("/")}
+      onMenuHeaderClick={() => history.push('/')}
       menuItemRender={(menuItemProps, defaultDom) => {
         if (menuItemProps.isUrl || !menuItemProps.path) {
           return defaultDom;
@@ -42,9 +34,9 @@ const BasicLayout = (props) => {
       }}
       breadcrumbRender={(routers = []) => [
         {
-          path: "/",
+          path: '/',
           breadcrumbName: formatMessage({
-            id: "menu.home",
+            id: 'menu.home',
           }),
         },
         ...routers,
@@ -52,7 +44,7 @@ const BasicLayout = (props) => {
       itemRender={(route, params, routes, paths) => {
         const first = routes.indexOf(route) === 0;
         return first ? (
-          <Link to={paths.join("/")}>{route.breadcrumbName}</Link>
+          <Link to={paths.join('/')}>{route.breadcrumbName}</Link>
         ) : (
           <span>{route.breadcrumbName}</span>
         );
@@ -61,11 +53,10 @@ const BasicLayout = (props) => {
       rightContentRender={() => <RightContent />}
       {...props}
       {...settings}
-    >
-    </ProLayout>
+    />
   );
 };
 
-export default connect(({ global, settings }) => ({
+export default connect(({ settings }) => ({
   settings,
 }))(BasicLayout);

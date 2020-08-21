@@ -1,30 +1,31 @@
-import React from "react";
-import Trait from '../../../components/Trait'
+import React from 'react';
+import Trait from '../../../components/Trait';
 
-class TableList extends React.Component {
+class TableList extends React.PureComponent {
   render() {
-    let propsObj = {
+    const propsObj = {
       title: 'Autoscaling',
-      settings: [{
-        name: 'Max Instance',
-        value: 'description,schema'
-      },{
-        name: 'Min Instance',
-        value: 'description,schema'
-      }],
-      pathname:'/ApplicationList/CreateApplication',
-      state:{ 
+      settings: [
+        {
+          name: 'Max Instance',
+          value: 'description,schema',
+        },
+        {
+          name: 'Min Instance',
+          value: 'description,schema',
+        },
+      ],
+      pathname: '/ApplicationList/CreateApplication',
+      state: {
         activeStep: 1,
-        TraitType: 'Autoscaling'
+        TraitType: 'Autoscaling',
       },
       btnValue: 'Attach to',
       hrefAddress: '#',
       btnIsShow: true,
-      history: this.props.history
-    }
-    return (
-      <Trait propsObj={propsObj}/>
-    );
+      history: this.props.history,
+    };
+    return <Trait propsObj={propsObj} />;
   }
 }
 
