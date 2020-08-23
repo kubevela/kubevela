@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strconv"
+
 	"github.com/cloud-native-application/rudrx/api/types"
 	"github.com/cloud-native-application/rudrx/pkg/oam"
 	"github.com/cloud-native-application/rudrx/pkg/server/apis"
@@ -23,9 +25,6 @@ func AttachTrait(c *gin.Context) {
 		return
 	}
 	util.AssembleResponse(c, msg, nil)
-}
-
-func UpdateTrait(c *gin.Context) {
 }
 
 func GetTrait(c *gin.Context) {
@@ -52,5 +51,22 @@ func ListTrait(c *gin.Context) {
 	util.AssembleResponse(c, traitList, err)
 }
 
-func DeleteTrait(c *gin.Context) {
+func DetachTrait(c *gin.Context) {
+	envName := c.Param("envName")
+	traitType := c.Param("traitName")
+	workloadName := c.Param("appName")
+	var staging = false
+	var err error
+	if stagingStr := c.Param("staging"); stagingStr != "" {
+		if staging, err = strconv.ParseBool(stagingStr); err != nil {
+			util.HandleError(c, util.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	msg, err := oam.DetachTrait(c, envName, traitType, workloadName, "", staging)
+	if err != nil {
+		util.HandleError(c, util.StatusInternalServerError, err.Error())
+		return
+	}
+	util.AssembleResponse(c, msg, nil)
 }

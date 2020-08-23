@@ -57,6 +57,7 @@ type TraitBody struct {
 	Flags        []CommonFlag `json:"flags"`
 	WorkloadName string       `json:"workload_name"`
 	AppGroup     string       `json:"app_group,omitempty"`
+	Staging      string       `json:"staging,omitempty"`
 }
 
 type ApplicationStatusMeta struct {

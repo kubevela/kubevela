@@ -57,12 +57,11 @@ func setupRoute(kubeClient client.Client) http.Handler {
 			apps.GET("/", handler.ListApps)
 			apps.DELETE("/:appName", handler.DeleteApps)
 
-			traitOperation := apps.Group("/:appName/" + util.TraitDefinitionPath)
+			traitWorkload := apps.Group("/:appName/" + util.TraitDefinitionPath)
 			{
-				traitOperation.POST("/", handler.AttachTrait)
-				traitOperation.DELETE("/:traitName", handler.DeleteTrait)
+				traitWorkload.POST("/", handler.AttachTrait)
+				traitWorkload.DELETE("/:traitName", handler.DetachTrait)
 			}
-
 		}
 	}
 	// workload related api

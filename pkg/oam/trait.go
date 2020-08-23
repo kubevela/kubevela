@@ -240,7 +240,10 @@ func AttachTrait(c *gin.Context, body apis.TraitBody) (string, error) {
 	for _, f := range body.Flags {
 		fs.String(f.Name, f.Value, "")
 	}
-
+	staging, err := strconv.ParseBool(body.Staging)
+	if err != nil {
+		return "", err
+	}
 	traitAlias := body.Name
 	template, err := plugins.GetInstalledCapabilityWithCapAlias(types.TypeTrait, traitAlias)
 	if err != nil {
@@ -258,9 +261,50 @@ func AttachTrait(c *gin.Context, body apis.TraitBody) (string, error) {
 		return "", err
 	}
 	kubeClient := c.MustGet("KubeClient")
-	err = appObj.Run(c, kubeClient.(client.Client), env)
+	return TraitOperationRun(c, kubeClient.(client.Client), env, appObj, staging)
+}
+
+func TraitOperationRun(ctx context.Context, c client.Client, env *types.EnvMeta, appObj *application.Application, staging bool) (string, error) {
+	if staging {
+		return "Staging saved", nil
+	}
+	err := appObj.Run(ctx, c, env)
 	if err != nil {
 		return "", err
 	}
 	return "Succeeded!", nil
+}
+
+func PrepareDetachTrait(envName string, traitType string, workloadName string, appName string) (*application.Application, error) {
+	var appObj *application.Application
+	var err error
+	if appName == "" {
+		appName = workloadName
+	}
+	if appObj, err = application.Load(envName, appName); err != nil {
+		return appObj, err
+	}
+
+	if err = appObj.RemoveTrait(workloadName, traitType); err != nil {
+		return appObj, err
+	}
+	return appObj, appObj.Save(envName, appName)
+}
+
+func DetachTrait(c *gin.Context, envName string, traitType string, workloadName string, appName string, staging bool) (string, error) {
+	var appObj *application.Application
+	var err error
+	if appName == "" {
+		appName = workloadName
+	}
+	if appObj, err = PrepareDetachTrait(envName, traitType, workloadName, appName); err != nil {
+		return "", err
+	}
+	// Run
+	env, err := GetEnvByName(envName)
+	if err != nil {
+		return "", err
+	}
+	kubeClient := c.MustGet("KubeClient")
+	return TraitOperationRun(c, kubeClient.(client.Client), env, appObj, staging)
 }
