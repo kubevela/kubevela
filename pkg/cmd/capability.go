@@ -13,10 +13,6 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-
-	"github.com/ghodss/yaml"
-
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 
 	"github.com/gosuri/uitable"
@@ -79,35 +75,14 @@ func NewCapCenterConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			if argsLength < 2 {
 				return errors.New("please set capability center with <centerName> and <centerUrl>")
 			}
-			repos, err := plugins.LoadRepos()
-			if err != nil {
+			capName := args[0]
+			capUrl := args[1]
+			token := cmd.Flag("token").Value.String()
+			if err := oam.AddCapabilityCenter(capName, capUrl, token); err != nil {
 				return err
 			}
-			config := &plugins.CapCenterConfig{
-				Name:    args[0],
-				Address: args[1],
-				Token:   cmd.Flag("token").Value.String(),
-			}
-			var updated bool
-			for idx, r := range repos {
-				if r.Name == config.Name {
-					repos[idx] = *config
-					updated = true
-					break
-				}
-			}
-			if !updated {
-				repos = append(repos, *config)
-			}
-			if err = plugins.StoreRepos(repos); err != nil {
-				return err
-			}
-			ioStreams.Info(fmt.Sprintf("Successfully configured capability center: %s, start to sync from remote", args[0]))
-			client, err := plugins.NewCenterClient(context.Background(), config.Name, config.Address, config.Token)
-			if err != nil {
-				return err
-			}
-			if err := client.SyncCapabilityFromCenter(); err != nil {
+			ioStreams.Infof("Successfully configured capability center: %s, start to sync from remote", capName)
+			if err := oam.SyncCapabilityFromCenter(capName, capUrl, token); err != nil {
 				return err
 			}
 			ioStreams.Info("sync finished")
@@ -128,6 +103,7 @@ func NewCapAddCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		Long:    "Add capability into cluster",
 		Example: `vela cap add mycenter/route`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			var err error
 			argsLength := len(args)
 			if argsLength < 1 {
 				return errors.New("you must specify <center>/<name> for capability you want to add")
@@ -136,13 +112,12 @@ func NewCapAddCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			ss := strings.Split(args[0], "/")
-			if len(ss) < 2 {
-				return errors.New("invalid format for " + args[0] + ", please follow format <center>/<name>")
+			var msg string
+			if msg, err = oam.AddCapabilityIntoCluster(args[0], newClient); err != nil {
+				return err
 			}
-			repoName := ss[0]
-			name := ss[1]
-			return InstallCapability(newClient, repoName, name, ioStreams)
+			ioStreams.Info(msg)
+			return nil
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeOthers,
@@ -191,37 +166,12 @@ func NewCapCenterSyncCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		Long:    "Sync capabilities from remote center, default to sync all centers",
 		Example: `vela cap center sync mycenter`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			repos, err := plugins.LoadRepos()
-			if err != nil {
-				return err
-			}
 			var specified string
 			if len(args) > 0 {
 				specified = args[0]
 			}
-			if len(repos) == 0 {
-				return fmt.Errorf("no capability center configured")
-			}
-			find := false
-			if specified != "" {
-				for idx, r := range repos {
-					if r.Name == specified {
-						repos = []plugins.CapCenterConfig{repos[idx]}
-						find = true
-						break
-					}
-				}
-				if !find {
-					return fmt.Errorf("%s center not exist", specified)
-				}
-			}
-			ctx := context.Background()
-			for _, d := range repos {
-				client, err := plugins.NewCenterClient(ctx, d.Name, d.Address, d.Token)
-				err = client.SyncCapabilityFromCenter()
-				if err != nil {
-					return err
-				}
+			if err := oam.SyncCapabilityCenter(specified); err != nil {
+				return err
 			}
 			ioStreams.Info("sync finished")
 			return nil
@@ -325,7 +275,7 @@ func UninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 
 	if cap.Install != nil && cap.Install.Helm.Name != "" {
 		// 2. Remove Helm chart if there is
-		if err := HelmUninstall(ioStreams, cap.Install.Helm.Name, cap.Name); err != nil {
+		if err := oam.HelmUninstall(ioStreams, cap.Install.Helm.Name, cap.Name); err != nil {
 			return err
 		}
 	}
@@ -340,98 +290,6 @@ func UninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 	}
 	ioStreams.Infof("%s removed successfully", cap.Name)
 	return nil
-}
-
-func InstallCapability(client client.Client, centerName, capabilityName string, ioStreams cmdutil.IOStreams) error {
-	dir, _ := system.GetCapCenterDir()
-	repoDir := filepath.Join(dir, centerName)
-	tp, err := GetSyncedCapabilities(centerName, capabilityName)
-	if err != nil {
-		return err
-	}
-	tp.Source = &types.Source{RepoName: centerName}
-	defDir, _ := system.GetCapabilityDir()
-	switch tp.Type {
-	case types.TypeWorkload:
-		var wd v1alpha2.WorkloadDefinition
-		workloadData, err := ioutil.ReadFile(filepath.Join(repoDir, tp.CrdName+".yaml"))
-		if err != nil {
-			return nil
-		}
-		if err = yaml.Unmarshal(workloadData, &wd); err != nil {
-			return err
-		}
-		wd.Namespace = types.DefaultOAMNS
-		ioStreams.Info("Installing workload capability " + wd.Name)
-		if tp.Install != nil {
-			tp.Source.ChartName = tp.Install.Helm.Name
-			if err = InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
-				return err
-			}
-		}
-		if apiVerion, kind := cmdutil.GetApiVersionKindFromWorkload(wd); apiVerion != "" && kind != "" {
-			tp.CrdInfo = &types.CrdInfo{
-				ApiVersion: apiVerion,
-				Kind:       kind,
-			}
-		}
-		if err = client.Create(context.Background(), &wd); err != nil && !apierrors.IsAlreadyExists(err) {
-			return err
-		}
-	case types.TypeTrait:
-		var td v1alpha2.TraitDefinition
-		traitdata, err := ioutil.ReadFile(filepath.Join(repoDir, tp.CrdName+".yaml"))
-		if err != nil {
-			return nil
-		}
-		if err = yaml.Unmarshal(traitdata, &td); err != nil {
-			return err
-		}
-		td.Namespace = types.DefaultOAMNS
-		ioStreams.Info("Installing trait capability " + td.Name)
-		if tp.Install != nil {
-			tp.Source.ChartName = tp.Install.Helm.Name
-			if err = InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
-				return err
-			}
-		}
-		if apiVerion, kind := cmdutil.GetApiVersionKindFromTrait(td); apiVerion != "" && kind != "" {
-			tp.CrdInfo = &types.CrdInfo{
-				ApiVersion: apiVerion,
-				Kind:       kind,
-			}
-		}
-		if err = client.Create(context.Background(), &td); err != nil && !apierrors.IsAlreadyExists(err) {
-			return err
-		}
-	case types.TypeScope:
-		//TODO(wonderflow): support install scope here
-	}
-
-	success := plugins.SinkTemp2Local([]types.Capability{tp}, defDir)
-	if success == 1 {
-		ioStreams.Infof("Successfully installed capability %s from %s\n", capabilityName, centerName)
-	}
-	return nil
-}
-
-func InstallHelmChart(ioStreams cmdutil.IOStreams, c types.Chart) error {
-	return HelmInstall(ioStreams, c.Repo, c.URl, c.Name, c.Version, c.Name, nil)
-}
-
-func GetSyncedCapabilities(repoName, addonName string) (types.Capability, error) {
-	dir, _ := system.GetCapCenterDir()
-	repoDir := filepath.Join(dir, repoName)
-	templates, err := plugins.LoadCapabilityFromSyncedCenter(repoDir)
-	if err != nil {
-		return types.Capability{}, err
-	}
-	for _, t := range templates {
-		if t.Name == addonName {
-			return t, nil
-		}
-	}
-	return types.Capability{}, fmt.Errorf("%s/%s not exist, try vela cap center sync %s to sync from remote", repoName, addonName, repoName)
 }
 
 func ListCenterCapabilities(table *uitable.Table, repoDir string, ioStreams cmdutil.IOStreams) error {
@@ -479,12 +337,12 @@ func CheckInstallStatus(repoName string, tmp types.Capability) string {
 func ListCapCenters(args []string, ioStreams cmdutil.IOStreams) error {
 	table := uitable.New()
 	table.AddRow("NAME", "ADDRESS")
-	centers, err := plugins.LoadRepos()
+	capabilityCenterList, err := oam.ListCapabilityCenters()
 	if err != nil {
 		return err
 	}
-	for _, c := range centers {
-		table.AddRow(c.Name, c.Address)
+	for _, c := range capabilityCenterList {
+		table.AddRow(c.Name, c.Url)
 	}
 	ioStreams.Info(table.String())
 	return nil

@@ -89,11 +89,17 @@ func setupRoute(kubeClient client.Client) http.Handler {
 	}
 
 	// scope related api
-	repo := api.Group(util.RepoPath)
+
+	capCenters := api.Group(util.CapabilityCenterPath)
 	{
-		repo.GET("/:categoryName/:definitionName", handler.GetDefinition)
-		repo.PUT("/:categoryName/:definitionName", handler.UpdateDefinition)
-		repo.GET("/:categoryName", handler.ListDefinition)
+		capCenters.PUT("/", handler.AddCapabilityCenter)
+		capCenters.GET("/", handler.ListCapabilityCenters)
+
+		caps := capCenters.Group("/:capabilityCenterName" + util.CapabilityPath)
+		{
+			caps.PUT("/", handler.SyncCapabilityCenter)
+			caps.POST("/", handler.InstallCapabilityIntoCluster)
+		}
 	}
 	// version
 	api.GET(util.VersionPath, handler.GetVersion)

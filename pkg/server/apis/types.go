@@ -65,3 +65,13 @@ type ApplicationStatusMeta struct {
 	Workload corev1alpha2.ComponentSpec    `json:"Workload,omitempty"`
 	Traits   []corev1alpha2.ComponentTrait `json:"Traits,omitempty"`
 }
+
+type CapabilityMeta struct {
+	CapabilityCenterName string `json:"capability_center_name"`
+	CapabilityName       string `json:"capability_name"`
+}
+
+type CapabilityCenterMeta struct {
+	Name string `json:"name"`
+	Url  string `json:"url"`
+}

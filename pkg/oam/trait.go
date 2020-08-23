@@ -230,7 +230,7 @@ func AddOrUpdateTrait(envName string, appName string, workloadName string, flagS
 	if err = app.SetTrait(workloadName, traitAlias, traitData); err != nil {
 		return app, err
 	}
-	return app, app.Save(envName, appName)
+	return app, app.Save(envName)
 }
 
 func AttachTrait(c *gin.Context, body apis.TraitBody) (string, error) {
@@ -288,7 +288,7 @@ func PrepareDetachTrait(envName string, traitType string, workloadName string, a
 	if err = appObj.RemoveTrait(workloadName, traitType); err != nil {
 		return appObj, err
 	}
-	return appObj, appObj.Save(envName, appName)
+	return appObj, appObj.Save(envName)
 }
 
 func DetachTrait(c *gin.Context, envName string, traitType string, workloadName string, appName string, staging bool) (string, error) {
