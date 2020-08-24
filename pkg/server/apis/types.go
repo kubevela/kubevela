@@ -67,8 +67,8 @@ type ApplicationStatusMeta struct {
 }
 
 type CapabilityMeta struct {
-	CapabilityCenterName string `json:"capability_center_name"`
 	CapabilityName       string `json:"capability_name"`
+	CapabilityCenterName string `json:"capability_center_name,omitempty"`
 }
 
 type CapabilityCenterMeta struct {

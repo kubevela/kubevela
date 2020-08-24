@@ -88,8 +88,7 @@ func setupRoute(kubeClient client.Client) http.Handler {
 		scopes.DELETE("/:scopeName", handler.DeleteScope)
 	}
 
-	// scope related api
-
+	// capability center related api
 	capCenters := api.Group(util.CapabilityCenterPath)
 	{
 		capCenters.PUT("/", handler.AddCapabilityCenter)
@@ -98,9 +97,18 @@ func setupRoute(kubeClient client.Client) http.Handler {
 		caps := capCenters.Group("/:capabilityCenterName" + util.CapabilityPath)
 		{
 			caps.PUT("/", handler.SyncCapabilityCenter)
-			caps.POST("/", handler.InstallCapabilityIntoCluster)
+			caps.PUT("/:capabilityName", handler.AddCapabilityIntoCluster)
 		}
 	}
+
+	// capability related api
+	caps := api.Group(util.CapabilityPath)
+	{
+		caps.DELETE("/:capabilityName", handler.RemoveCapabilityFromCluster)
+		caps.DELETE("/", handler.RemoveCapabilityFromCluster)
+		caps.GET("/", handler.ListCapabilities)
+	}
+
 	// version
 	api.GET(util.VersionPath, handler.GetVersion)
 	// default

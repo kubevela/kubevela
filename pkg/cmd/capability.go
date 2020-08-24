@@ -1,27 +1,14 @@
 package cmd
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"strings"
-
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"k8s.io/apimachinery/pkg/runtime"
-
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 
 	"github.com/gosuri/uitable"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/cloud-native-application/rudrx/pkg/oam"
-	"github.com/cloud-native-application/rudrx/pkg/utils/system"
-
-	"github.com/cloud-native-application/rudrx/pkg/plugins"
 
 	"github.com/cloud-native-application/rudrx/api/types"
 
@@ -112,11 +99,9 @@ func NewCapAddCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			var msg string
-			if msg, err = oam.AddCapabilityIntoCluster(args[0], newClient); err != nil {
+			if _, err = oam.AddCapabilityIntoCluster(newClient, args[0]); err != nil {
 				return err
 			}
-			ioStreams.Info(msg)
 			return nil
 		},
 		Annotations: map[string]string{
@@ -149,7 +134,7 @@ func NewCapRemoveCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 				}
 				name = l[1]
 			}
-			return RemoveCapability(newClient, name, ioStreams)
+			return oam.RemoveCapability(newClient, name, ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeOthers,
@@ -194,30 +179,15 @@ func NewCapListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			if len(args) > 0 {
 				repoName = args[0]
 			}
-			dir, err := system.GetCapCenterDir()
+			capabilityList, err := oam.ListCapabilities(repoName)
 			if err != nil {
 				return err
 			}
 			table := uitable.New()
 			table.AddRow("NAME", "CENTER", "TYPE", "DEFINITION", "STATUS", "APPLIES-TO")
-			if repoName != "" {
-				if err = ListCenterCapabilities(table, filepath.Join(dir, repoName), ioStreams); err != nil {
-					return err
-				}
-				ioStreams.Info(table.String())
-				return nil
-			}
-			dirs, err := ioutil.ReadDir(dir)
-			if err != nil {
-				return err
-			}
-			for _, dd := range dirs {
-				if !dd.IsDir() {
-					continue
-				}
-				if err = ListCenterCapabilities(table, filepath.Join(dir, dd.Name()), ioStreams); err != nil {
-					return err
-				}
+
+			for _, c := range capabilityList {
+				table.AddRow(c.Name, c.Center, c.Type, c.CrdName, c.Status, c.AppliesTo)
 			}
 			ioStreams.Info(table.String())
 			return nil
@@ -243,95 +213,6 @@ func NewCapCenterListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		},
 	}
 	return cmd
-}
-
-func RemoveCapability(client client.Client, capabilityName string, ioStreams cmdutil.IOStreams) error {
-	// TODO(wonderflow): make sure no apps is using this capability
-	caps, err := plugins.LoadAllInstalledCapability()
-	if err != nil {
-		return err
-	}
-	for _, w := range caps {
-		if w.Name == capabilityName {
-			return UninstallCap(client, w, ioStreams)
-		}
-	}
-	return errors.New(capabilityName + " not exist")
-}
-
-func UninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.IOStreams) error {
-	// 1. Remove WorkloadDefinition or TraitDefinition
-	ctx := context.Background()
-	var obj runtime.Object
-	switch cap.Type {
-	case types.TypeTrait:
-		obj = &v1alpha2.TraitDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.CrdName, Namespace: types.DefaultOAMNS}}
-	case types.TypeWorkload:
-		obj = &v1alpha2.WorkloadDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.CrdName, Namespace: types.DefaultOAMNS}}
-	}
-	if err := client.Delete(ctx, obj); err != nil {
-		return err
-	}
-
-	if cap.Install != nil && cap.Install.Helm.Name != "" {
-		// 2. Remove Helm chart if there is
-		if err := oam.HelmUninstall(ioStreams, cap.Install.Helm.Name, cap.Name); err != nil {
-			return err
-		}
-	}
-
-	// 3. Remove local capability file
-	capdir, _ := system.GetCapabilityDir()
-	switch cap.Type {
-	case types.TypeTrait:
-		return os.Remove(filepath.Join(capdir, "traits", cap.Name))
-	case types.TypeWorkload:
-		return os.Remove(filepath.Join(capdir, "workloads", cap.Name))
-	}
-	ioStreams.Infof("%s removed successfully", cap.Name)
-	return nil
-}
-
-func ListCenterCapabilities(table *uitable.Table, repoDir string, ioStreams cmdutil.IOStreams) error {
-	templates, err := plugins.LoadCapabilityFromSyncedCenter(repoDir)
-	if err != nil {
-		return err
-	}
-	if len(templates) < 1 {
-		return nil
-	}
-	baseDir := filepath.Base(repoDir)
-	workloads := GatherWorkloads(templates)
-	for _, p := range templates {
-		status := CheckInstallStatus(baseDir, p)
-		convertedApplyTo := oam.ConvertApplyTo(p.AppliesTo, workloads)
-		table.AddRow(p.Name, baseDir, p.Type, p.CrdName, status, convertedApplyTo)
-	}
-	return nil
-}
-
-func GatherWorkloads(templates []types.Capability) []types.Capability {
-	workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
-	if err != nil {
-		workloads = make([]types.Capability, 0)
-	}
-	for _, t := range templates {
-		if t.Type == types.TypeWorkload {
-			workloads = append(workloads, t)
-		}
-	}
-	return workloads
-}
-
-func CheckInstallStatus(repoName string, tmp types.Capability) string {
-	var status = "uninstalled"
-	installed, _ := plugins.LoadInstalledCapabilityWithType(tmp.Type)
-	for _, i := range installed {
-		if i.Source != nil && i.Source.RepoName == repoName && i.Name == tmp.Name && i.CrdName == tmp.CrdName {
-			return "installed"
-		}
-	}
-	return status
 }
 
 func ListCapCenters(args []string, ioStreams cmdutil.IOStreams) error {

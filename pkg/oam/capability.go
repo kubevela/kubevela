@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -16,8 +17,10 @@ import (
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
 	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"gopkg.in/yaml.v2"
+	"github.com/ghodss/yaml"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -56,18 +59,18 @@ func SyncCapabilityFromCenter(capName, capUrl, capToken string) error {
 	return client.SyncCapabilityFromCenter()
 }
 
-func AddCapabilityIntoCluster(capability string, c client.Client) (string, error) {
+func AddCapabilityIntoCluster(c client.Client, capability string) (string, error) {
 	ss := strings.Split(capability, "/")
 	if len(ss) < 2 {
 		return "", errors.New("invalid format for " + capability + ", please follow format <center>/<name>")
 	}
 	repoName := ss[0]
 	name := ss[1]
-	var ioStreams cmdutil.IOStreams
+	ioStreams := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	if err := InstallCapability(c, repoName, name, ioStreams); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Successfully installed capability %s from %s\n", repoName, name), nil
+	return fmt.Sprintf("Successfully installed capability %s from %s", name, repoName), nil
 }
 
 func InstallCapability(client client.Client, centerName, capabilityName string, ioStreams cmdutil.IOStreams) error {
@@ -207,4 +210,130 @@ func SyncCapabilityCenter(capabilityCenterName string) error {
 		}
 	}
 	return nil
+}
+
+func RemoveCapabilityFromCluster(client client.Client, capabilityName string) (string, error) {
+	ioStreams := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+	if err := RemoveCapability(client, capabilityName, ioStreams); err != nil {
+		return "", err
+	}
+	msg := fmt.Sprintf("%s removed successfully", capabilityName)
+	return msg, nil
+}
+
+func RemoveCapability(client client.Client, capabilityName string, ioStreams cmdutil.IOStreams) error {
+	// TODO(wonderflow): make sure no apps is using this capability
+	caps, err := plugins.LoadAllInstalledCapability()
+	if err != nil {
+		return err
+	}
+	for _, w := range caps {
+		if w.Name == capabilityName {
+			return UninstallCap(client, w, ioStreams)
+		}
+	}
+	return errors.New(capabilityName + " not exist")
+}
+
+func UninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.IOStreams) error {
+	// 1. Remove WorkloadDefinition or TraitDefinition
+	ctx := context.Background()
+	var obj runtime.Object
+	switch cap.Type {
+	case types.TypeTrait:
+		obj = &v1alpha2.TraitDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.CrdName, Namespace: types.DefaultOAMNS}}
+	case types.TypeWorkload:
+		obj = &v1alpha2.WorkloadDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.CrdName, Namespace: types.DefaultOAMNS}}
+	}
+	if err := client.Delete(ctx, obj); err != nil {
+		return err
+	}
+
+	if cap.Install != nil && cap.Install.Helm.Name != "" {
+		// 2. Remove Helm chart if there is
+		if err := HelmUninstall(ioStreams, cap.Install.Helm.Name, cap.Name); err != nil {
+			return err
+		}
+	}
+
+	// 3. Remove local capability file
+	capdir, _ := system.GetCapabilityDir()
+	switch cap.Type {
+	case types.TypeTrait:
+		return os.Remove(filepath.Join(capdir, "traits", cap.Name))
+	case types.TypeWorkload:
+		return os.Remove(filepath.Join(capdir, "workloads", cap.Name))
+	}
+	ioStreams.Infof("%s removed successfully", cap.Name)
+	return nil
+}
+
+func ListCapabilities(capabilityCenterName string) ([]types.Capability, error) {
+	var capabilityList []types.Capability
+	dir, err := system.GetCapCenterDir()
+	if err != nil {
+		return capabilityList, err
+	}
+	if capabilityCenterName != "" {
+		return ListCenterCapabilities(filepath.Join(dir, capabilityCenterName))
+	}
+	dirs, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return capabilityList, err
+	}
+	for _, dd := range dirs {
+		if !dd.IsDir() {
+			continue
+		}
+		caps, err := ListCenterCapabilities(filepath.Join(dir, dd.Name()))
+		if err != nil {
+			return capabilityList, err
+		}
+		capabilityList = append(capabilityList, caps...)
+	}
+	return capabilityList, nil
+}
+
+func ListCenterCapabilities(repoDir string) ([]types.Capability, error) {
+	templates, err := plugins.LoadCapabilityFromSyncedCenter(repoDir)
+	if err != nil {
+		return templates, err
+	}
+	if len(templates) < 1 {
+		return templates, nil
+	}
+	baseDir := filepath.Base(repoDir)
+	workloads := GatherWorkloads(templates)
+	for i, p := range templates {
+		status := CheckInstallStatus(baseDir, p)
+		convertedApplyTo := ConvertApplyTo(p.AppliesTo, workloads)
+		templates[i].Center = baseDir
+		templates[i].Status = status
+		templates[i].AppliesTo = convertedApplyTo
+	}
+	return templates, nil
+}
+
+func GatherWorkloads(templates []types.Capability) []types.Capability {
+	workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
+	if err != nil {
+		workloads = make([]types.Capability, 0)
+	}
+	for _, t := range templates {
+		if t.Type == types.TypeWorkload {
+			workloads = append(workloads, t)
+		}
+	}
+	return workloads
+}
+
+func CheckInstallStatus(repoName string, tmp types.Capability) string {
+	var status = "uninstalled"
+	installed, _ := plugins.LoadInstalledCapabilityWithType(tmp.Type)
+	for _, i := range installed {
+		if i.Source != nil && i.Source.RepoName == repoName && i.Name == tmp.Name && i.CrdName == tmp.CrdName {
+			return "installed"
+		}
+	}
+	return status
 }
