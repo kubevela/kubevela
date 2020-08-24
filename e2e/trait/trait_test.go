@@ -34,16 +34,16 @@ var _ = ginkgo.Describe("Trait", func() {
 		})
 	})
 
-	ginkgo.Context("vela detach trait", func() {
-		ginkgo.It("should print successful detached information", func() {
-			cli := fmt.Sprintf("vela %s:detach %s", traitAlias, applicationName)
-			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			expectedSubStr := fmt.Sprintf("Detaching %s from app %s", traitAlias, applicationName)
-			gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr))
-			gomega.Expect(output).To(gomega.ContainSubstring("Succeeded!"))
-		})
-	})
+	//ginkgo.Context("vela detach trait", func() {
+	//	ginkgo.It("should print successful detached information", func() {
+	//		cli := fmt.Sprintf("vela %s --detach %s", traitAlias, applicationName)
+	//		output, err := e2e.Exec(cli)
+	//		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	//		expectedSubStr := fmt.Sprintf("Detaching %s from app %s", traitAlias, applicationName)
+	//		gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr))
+	//		gomega.Expect(output).To(gomega.ContainSubstring("Succeeded!"))
+	//	})
+	//})
 
 	e2e.WorkloadDeleteContext("delete", applicationName)
 })

@@ -26,7 +26,7 @@ var (
 var _ = ginkgo.Describe("CapabilityCenter", func() {
 	ginkgo.Context("capability center", func() {
 		ginkgo.It("add a capability center", func() {
-			cli := fmt.Sprintf("vela cap:center:config %s %s", capabilityCenterBasic.Name, capabilityCenterBasic.Url)
+			cli := fmt.Sprintf("vela cap center config %s %s", capabilityCenterBasic.Name, capabilityCenterBasic.Url)
 			output, err := e2e.Exec(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			expectedOutput1 := fmt.Sprintf("Successfully configured capability center: %s, start to sync from remote", capabilityCenterBasic.Name)
@@ -35,7 +35,7 @@ var _ = ginkgo.Describe("CapabilityCenter", func() {
 		})
 
 		ginkgo.It("list capability centers", func() {
-			cli := "vela cap:center:ls"
+			cli := "vela cap center ls"
 			output, err := e2e.Exec(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
@@ -49,7 +49,7 @@ var _ = ginkgo.Describe("CapabilityCenter", func() {
 var _ = ginkgo.Describe("Capability", func() {
 	ginkgo.Context("capability", func() {
 		ginkgo.It("install a capability to cluster", func() {
-			cli := fmt.Sprintf("vela cap:add %s/%s", capabilityCenterBasic.Name, capabilityBasic.Name)
+			cli := fmt.Sprintf("vela cap add %s/%s", capabilityCenterBasic.Name, capabilityBasic.Name)
 			output, err := e2e.Exec(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			expectedSubStr1 := fmt.Sprintf("Installing %s capability", capabilityBasic.Type)
@@ -59,7 +59,7 @@ var _ = ginkgo.Describe("Capability", func() {
 		})
 
 		ginkgo.It("list all capabilities", func() {
-			cli := fmt.Sprintf("vela cap:ls %s", capabilityCenterBasic.Name)
+			cli := fmt.Sprintf("vela cap ls %s", capabilityCenterBasic.Name)
 			output, err := e2e.Exec(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
