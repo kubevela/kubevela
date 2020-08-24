@@ -25,14 +25,8 @@ func CreateWorkload(c *gin.Context) {
 		fs.String(f.Name, f.Value, "")
 	}
 	evnName := body.EnvName
-	var template types.Capability
 
-	template, err := plugins.LoadCapabilityByName(body.WorkloadType)
-	if err != nil {
-		util.HandleError(c, util.StatusInternalServerError, err.Error())
-		return
-	}
-	appObj, err := oam.BaseComplete(evnName, body.WorkloadName, body.AppGroup, fs, template)
+	appObj, err := oam.BaseComplete(evnName, body.WorkloadName, body.AppGroup, fs, body.WorkloadType)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return

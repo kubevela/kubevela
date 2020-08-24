@@ -22,45 +22,45 @@ mv bin/vela /usr/local/bin
 
 #### env
 ```
-$ vela env:init test --namespace test
+$ vela env init test --namespace test
 Create env succeed, current env is test
 
 $ vela env test
 NAME	NAMESPACE
 test	test
 
-$ vela env
+$ vela env ls
 NAME   	NAMESPACE
 default	default
 test   	test
 
-$ vela env:sw default
+$ vela env sw default
 Switch env succeed, current env is default
 
-$ vela env:delete test
+$ vela env delete test
 test deleted
 
-$ vela env:delete default
+$ vela env delete default
 Error: you can't delete current using default
 ```
 
 #### workload run
 ```shell script
-$ vela containerized:run app123 -p 80 --image nginx:1.9.4
+$ vela comp run app123 -p 80 --image nginx:1.9.4
 Creating AppConfig app123
 SUCCEED
 ```
 
 #### app
 ```
-$ vela app:ls
+$ vela app ls
 NAME       	WORKLOAD             	TRAITS                     	STATUS	CREATED-TIME
 app123     	ContainerizedWorkload	app123-manualscaler-trait  	False 	2020-08-05 20:19:03 +0800 CST
 poc08032042	ContainerizedWorkload	                           	True  	2020-08-03 20:43:02 +0800 CST
 poc1039    	ContainerizedWorkload	poc1039-manualscaler-trait 	False 	2020-08-02 10:39:54 +0800 CST
 
 
-$ vela app:status app123
+$ vela app status app123
 status: "False"
 trait:
 - apiVersion: core.oam.dev/v1alpha2
@@ -82,7 +82,7 @@ workload:
       name: ""
 
 
-$ vela app:delete app123
+$ vela app delete app123
 Deleting AppConfig "app123"
 DELETE SUCCEED
 ```

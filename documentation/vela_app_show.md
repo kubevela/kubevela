@@ -1,4 +1,4 @@
-## vela app:show
+## vela app show
 
 get detail spec of your app
 
@@ -7,19 +7,19 @@ get detail spec of your app
 get detail spec of your app, including its workload and trait
 
 ```
-vela app:show <APPLICATION-NAME> [flags]
+vela app show <APPLICATION-NAME> [flags]
 ```
 
 ### Examples
 
 ```
-vela app:show <APPLICATION-NAME>
+vela app show <APPLICATION-NAME>
 ```
 
 ### Options
 
 ```
-  -h, --help   help for app:show
+  -h, --help   help for app show
 ```
 
 ### Options inherited from parent commands

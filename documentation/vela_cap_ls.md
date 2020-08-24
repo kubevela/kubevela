@@ -1,4 +1,4 @@
-## vela cap:ls
+## vela cap ls
 
 List all capabilities in center
 
@@ -7,19 +7,19 @@ List all capabilities in center
 List all capabilities in center
 
 ```
-vela cap:ls [centerName] [flags]
+vela cap ls [centerName] [flags]
 ```
 
 ### Examples
 
 ```
-vela cap:ls
+vela cap ls
 ```
 
 ### Options
 
 ```
-  -h, --help   help for cap:ls
+  -h, --help   help for cap ls
 ```
 
 ### Options inherited from parent commands

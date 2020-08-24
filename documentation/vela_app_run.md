@@ -1,4 +1,4 @@
-## vela app:run
+## vela app run
 
 Run a bundle of OAM Applications
 
@@ -7,7 +7,7 @@ Run a bundle of OAM Applications
 Run a bundle of OAM Applications
 
 ```
-vela app:run <APPLICATION_BUNDLE_NAME> [args]
+vela app run <APPLICATION_BUNDLE_NAME> [args]
 ```
 
 ### Examples
@@ -20,7 +20,7 @@ vela run myAppBundle
 
 ```
   -f, --file string   launch application from provided appfile
-  -h, --help          help for app:run
+  -h, --help          help for app run
 ```
 
 ### Options inherited from parent commands

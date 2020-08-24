@@ -1,4 +1,4 @@
-## vela env:delete
+## vela env delete
 
 Delete environment
 
@@ -7,19 +7,19 @@ Delete environment
 Delete environment
 
 ```
-vela env:delete
+vela env delete
 ```
 
 ### Examples
 
 ```
-vela env:delete test
+vela env delete test
 ```
 
 ### Options
 
 ```
-  -h, --help   help for env:delete
+  -h, --help   help for env delete
 ```
 
 ### Options inherited from parent commands

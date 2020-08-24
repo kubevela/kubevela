@@ -1,4 +1,4 @@
-## vela cap:add
+## vela cap add
 
 Add capability into cluster
 
@@ -7,19 +7,19 @@ Add capability into cluster
 Add capability into cluster
 
 ```
-vela cap:add <center>/<name> [flags]
+vela cap add <center>/<name> [flags]
 ```
 
 ### Examples
 
 ```
-vela cap:add mycenter/route
+vela cap add mycenter/route
 ```
 
 ### Options
 
 ```
-  -h, --help           help for cap:add
+  -h, --help           help for cap add
   -t, --token string   Github Repo token
 ```
 

@@ -77,17 +77,24 @@ var (
 	}
 )
 
-func SystemCommandGroup(parentCmd *cobra.Command, c types.Args, ioStream cmdutil.IOStreams) {
-	parentCmd.AddCommand(NewAdminInitCommand(c, ioStream),
-		NewAdminInfoCommand(ioStream),
-	)
+func SystemCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "system",
+		Short: "system management utilities",
+		Long:  "system management utilities",
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeSystem,
+		},
+	}
+	cmd.AddCommand(NewAdminInitCommand(c, ioStream), NewAdminInfoCommand(ioStream), NewRefreshCommand(c, ioStream))
+	return cmd
 }
 
 func NewAdminInfoCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	i := &infoCmd{out: ioStreams.Out}
 
 	cmd := &cobra.Command{
-		Use:   "system:info",
+		Use:   "info",
 		Short: "show vela client and cluster version",
 		Long:  "show vela client and cluster version",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -116,7 +123,7 @@ func (i *infoCmd) run(ioStreams cmdutil.IOStreams) error {
 func NewAdminInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	i := &initCmd{ioStreams: ioStreams}
 	cmd := &cobra.Command{
-		Use:   "system:init",
+		Use:   "init",
 		Short: "Initialize vela on both client and server",
 		Long:  "Install OAM runtime and vela builtin capabilities.",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -373,7 +380,7 @@ func GetOAMReleaseVersion() (string, error) {
 			return result.Chart.AppVersion(), nil
 		}
 	}
-	return "", errors.New("oam-kubernetes-runtime not found in your kubernetes cluster, try `vela system:init` to install.")
+	return "", errors.New("oam-kubernetes-runtime not found in your kubernetes cluster, try `vela system init` to install.")
 }
 
 func filterRepos(repos []*repo.Entry) []*repo.Entry {

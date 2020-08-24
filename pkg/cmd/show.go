@@ -18,11 +18,10 @@ import (
 func NewAppShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:     "app:show <APPLICATION-NAME>",
-		Aliases: []string{"show"},
+		Use:     "show <APPLICATION-NAME>",
 		Short:   "get detail spec of your app",
 		Long:    "get detail spec of your app, including its workload and trait",
-		Example: `vela app:show <APPLICATION-NAME>`,
+		Example: `vela app show <APPLICATION-NAME>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength == 0 {

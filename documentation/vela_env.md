@@ -7,13 +7,13 @@ List environments
 List all environments
 
 ```
-vela env
+vela env ls
 ```
 
 ### Examples
 
 ```
-vela env [env-name]
+vela env ls [env-name]
 ```
 
 ### Options

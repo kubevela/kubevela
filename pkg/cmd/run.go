@@ -26,15 +26,14 @@ type appRunOptions struct {
 func NewRunCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	o := &appRunOptions{IOStreams: ioStreams}
 	cmd := &cobra.Command{
-		Use:                   "app:run <APPLICATION_BUNDLE_NAME> [args]",
-		Aliases:               []string{"run"},
+		Use:                   "run <APPLICATION_BUNDLE_NAME> [args]",
 		DisableFlagsInUseLine: true,
 		Short:                 "Run a bundle of OAM Applications",
 		Long:                  "Run a bundle of OAM Applications",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},
-		Example: "vela run myAppBundle",
+		Example: "vela app run myAppBundle",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 			o.client = newClient

@@ -33,23 +33,47 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func CapabilityCommandGroup(parentCmd *cobra.Command, c types.Args, ioStream cmdutil.IOStreams) {
-	parentCmd.AddCommand(
-		NewCapCenterConfigCommand(ioStream),
+func CapabilityCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "cap <command>",
+		Short: "Capability Management",
+		Long:  "Capability Management with config, list, add, remove capabilities",
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeOthers,
+		},
+	}
+	cmd.AddCommand(
+		NewCenterCommand(c, ioStream),
 		NewCapListCommand(ioStream),
-		NewCapCenterSyncCommand(ioStream),
 		NewCapAddCommand(c, ioStream),
 		NewCapRemoveCommand(c, ioStream),
+	)
+	return cmd
+}
+
+func NewCenterCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "center <command>",
+		Short: "Manage Capability Center",
+		Long:  "Manage Capability Center with config, sync, list",
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeOthers,
+		},
+	}
+	cmd.AddCommand(
+		NewCapCenterConfigCommand(ioStream),
+		NewCapCenterSyncCommand(ioStream),
 		NewCapCenterListCommand(ioStream),
 	)
+	return cmd
 }
 
 func NewCapCenterConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "cap:center:config <centerName> <centerUrl>",
+		Use:     "config <centerName> <centerUrl>",
 		Short:   "Configure or add the capability center, default is local (built-in capabilities)",
 		Long:    "Configure or add the capability center, default is local (built-in capabilities)",
-		Example: `vela cap:center:config mycenter https://github.com/oam-dev/catalog/cap-center`,
+		Example: `vela cap center config mycenter https://github.com/oam-dev/catalog/cap-center`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength < 2 {
@@ -99,10 +123,10 @@ func NewCapCenterConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 
 func NewCapAddCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "cap:add <center>/<name>",
+		Use:     "add <center>/<name>",
 		Short:   "Add capability into cluster",
 		Long:    "Add capability into cluster",
-		Example: `vela cap:add mycenter/route`,
+		Example: `vela cap add mycenter/route`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength < 1 {
@@ -130,10 +154,10 @@ func NewCapAddCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 
 func NewCapRemoveCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "cap:remove <name>",
+		Use:     "remove <name>",
 		Short:   "Remove capability from cluster",
 		Long:    "Remove capability from cluster",
-		Example: `vela cap:remove route`,
+		Example: `vela cap remove route`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return errors.New("you must specify <name> for capability you want to remove")
@@ -162,10 +186,10 @@ func NewCapRemoveCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 
 func NewCapCenterSyncCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "cap:center:sync [centerName]",
+		Use:     "sync [centerName]",
 		Short:   "Sync capabilities from remote center, default to sync all centers",
 		Long:    "Sync capabilities from remote center, default to sync all centers",
-		Example: `vela cap:center:sync mycenter`,
+		Example: `vela cap center sync mycenter`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			repos, err := plugins.LoadRepos()
 			if err != nil {
@@ -211,10 +235,10 @@ func NewCapCenterSyncCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 
 func NewCapListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "cap:ls [centerName]",
+		Use:     "ls [centerName]",
 		Short:   "List all capabilities in center",
 		Long:    "List all capabilities in center",
-		Example: `vela cap:ls`,
+		Example: `vela cap ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var repoName string
 			if len(args) > 0 {
@@ -257,10 +281,10 @@ func NewCapListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 
 func NewCapCenterListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "cap:center:ls",
+		Use:     "ls",
 		Short:   "List all capability centers",
 		Long:    "List all configured capability centers",
-		Example: `vela cap:center:ls`,
+		Example: `vela cap center ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return ListCapCenters(args, ioStreams)
 		},
@@ -407,7 +431,7 @@ func GetSyncedCapabilities(repoName, addonName string) (types.Capability, error)
 			return t, nil
 		}
 	}
-	return types.Capability{}, fmt.Errorf("%s/%s not exist, try vela cap:center:sync %s to sync from remote", repoName, addonName, repoName)
+	return types.Capability{}, fmt.Errorf("%s/%s not exist, try vela cap center sync %s to sync from remote", repoName, addonName, repoName)
 }
 
 func ListCenterCapabilities(table *uitable.Table, repoDir string, ioStreams cmdutil.IOStreams) error {

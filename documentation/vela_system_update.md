@@ -1,4 +1,4 @@
-## vela system:update
+## vela system update
 
 Sync definition from cluster
 
@@ -7,19 +7,19 @@ Sync definition from cluster
 Refresh and sync definition files from cluster
 
 ```
-vela system:update
+vela system update
 ```
 
 ### Examples
 
 ```
-vela system:update
+vela system update
 ```
 
 ### Options
 
 ```
-  -h, --help   help for system:update
+  -h, --help   help for system update
 ```
 
 ### Options inherited from parent commands

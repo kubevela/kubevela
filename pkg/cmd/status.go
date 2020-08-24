@@ -24,11 +24,10 @@ type ApplicationStatusMeta struct {
 func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:     "app:status <APPLICATION-NAME>",
-		Aliases: []string{"status"},
+		Use:     "status <APPLICATION-NAME>",
 		Short:   "get status of an application",
 		Long:    "get status of an application, including its workload and trait",
-		Example: `vela app:status <APPLICATION-NAME>`,
+		Example: `vela status <APPLICATION-NAME>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength == 0 {

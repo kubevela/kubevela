@@ -1,4 +1,4 @@
-## vela cap:center:config
+## vela cap center config
 
 Configure or add the capability center, default is local (built-in capabilities)
 
@@ -7,19 +7,19 @@ Configure or add the capability center, default is local (built-in capabilities)
 Configure or add the capability center, default is local (built-in capabilities)
 
 ```
-vela cap:center:config <centerName> <centerUrl> [flags]
+vela cap center config <centerName> <centerUrl> [flags]
 ```
 
 ### Examples
 
 ```
-vela cap:center:config mycenter https://github.com/oam-dev/catalog/cap-center
+vela cap center config mycenter https://github.com/oam-dev/catalog/cap-center
 ```
 
 ### Options
 
 ```
-  -h, --help           help for cap:center:config
+  -h, --help           help for cap center config
   -t, --token string   Github Repo token
 ```
 

@@ -100,26 +100,24 @@ func newCommand() *cobra.Command {
 		os.Exit(1)
 	}
 
-	// Getting Start
-	cmd.EnvCommandGroup(cmds, commandArgs, ioStream)
-	// Others
-	cmd.CapabilityCommandGroup(cmds, commandArgs, ioStream)
-	// System
-	cmd.SystemCommandGroup(cmds, commandArgs, ioStream)
-
 	cmds.AddCommand(
+		// Getting Start
+		cmd.NewEnvCommand(commandArgs, ioStream),
+
 		// Getting Start
 		NewVersionCommand(),
 
 		// Apps
 		cmd.NewAppsCommand(commandArgs, ioStream),
-		cmd.NewDeleteCommand(commandArgs, ioStream),
-		cmd.NewAppStatusCommand(commandArgs, ioStream),
-		cmd.NewAppShowCommand(commandArgs, ioStream),
-		cmd.NewRunCommand(commandArgs, ioStream),
+
+		// Workloads
+		cmd.AddCompCommands(commandArgs, ioStream),
+
+		// Capability Systems
+		cmd.CapabilityCommandGroup(commandArgs, ioStream),
 
 		// System
-		cmd.NewRefreshCommand(commandArgs, ioStream),
+		cmd.SystemCommandGroup(commandArgs, ioStream),
 		cmd.NewCompletionCommand(),
 
 		cmd.NewTraitsCommand(ioStream),
@@ -128,21 +126,12 @@ func newCommand() *cobra.Command {
 		cmd.NewDashboardCommand(commandArgs, ioStream),
 	)
 
-	// Workloads
-	if err = cmd.AddWorkloadCommands(cmds, commandArgs, ioStream); err != nil {
-		fmt.Println("Add workload commands from workloadDefinition err", err)
-		os.Exit(1)
-	}
-
 	// Traits
 	if err = cmd.AddTraitCommands(cmds, commandArgs, ioStream); err != nil {
 		fmt.Println("Add trait commands from traitDefinition err", err)
 		os.Exit(1)
 	}
-	if err = cmd.AddTraitDetachCommands(cmds, commandArgs, ioStream); err != nil {
-		fmt.Println("Add trait detach commands from traitDefinition err", err)
-		os.Exit(1)
-	}
+
 	// this is for mute klog
 	fset := flag.NewFlagSet("logs", flag.ContinueOnError)
 	klog.InitFlags(fset)
