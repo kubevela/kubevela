@@ -80,8 +80,10 @@ func NewCapCenterConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			}
 			ioStreams.Info(fmt.Sprintf("Successfully configured capability center: %s, start to sync from remote", args[0]))
 			client, err := plugins.NewCenterClient(context.Background(), config.Name, config.Address, config.Token)
-			err = client.SyncCapabilityFromCenter()
 			if err != nil {
+				return err
+			}
+			if err := client.SyncCapabilityFromCenter(); err != nil {
 				return err
 			}
 			ioStreams.Info("sync finished")
