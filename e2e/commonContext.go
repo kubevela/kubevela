@@ -20,7 +20,7 @@ var (
 	SystemInitContext = func(context string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("Install OAM runtime and vela builtin capabilities.", func() {
-				output, err := Exec("vela system:init")
+				output, err := Exec("vela system init")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("- Installing OAM Kubernetes Runtime"))
 				gomega.Expect(output).To(gomega.ContainSubstring("- Installing builtin capabilities"))
@@ -32,7 +32,7 @@ var (
 	SystemUpdateContext = func(context string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("Synchronize workload/trait definitions from cluster", func() {
-				output, err := Exec("vela system:update")
+				output, err := Exec("vela system update")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("workload definitions successfully synced"))
 				gomega.Expect(output).To(gomega.ContainSubstring("trait definitions successfully synced"))
@@ -44,7 +44,7 @@ var (
 	RefreshContext = func(context string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("Sync commands from your Kubernetes cluster and locally cached them", func() {
-				output, err := Exec("vela system:update")
+				output, err := Exec("vela system update")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("syncing workload definitions from cluster..."))
 				gomega.Expect(output).To(gomega.ContainSubstring("successfully synced"))
@@ -67,7 +67,7 @@ var (
 	EnvInitContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print env initiation successful message", func() {
-				cli := fmt.Sprintf("vela env:init %s --namespace %s", envName, envName)
+				cli := fmt.Sprintf("vela env init %s --namespace %s", envName, envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				expectedOutput := fmt.Sprintf("Create env succeed, current env is %s", envName)
@@ -79,7 +79,7 @@ var (
 	EnvShowContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should show detailed env message", func() {
-				cli := fmt.Sprintf("vela env %s", envName)
+				cli := fmt.Sprintf("vela env ls %s", envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
@@ -92,7 +92,7 @@ var (
 	EnvSwitchContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should show env switch message", func() {
-				cli := fmt.Sprintf("vela env:sw %s", envName)
+				cli := fmt.Sprintf("vela env sw %s", envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				expectedOutput := fmt.Sprintf("Switch env succeed, current env is %s", envName)
@@ -104,7 +104,7 @@ var (
 	EnvDeleteContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should delete an env", func() {
-				cli := fmt.Sprintf("vela env:delete %s", envName)
+				cli := fmt.Sprintf("vela env delete %s", envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				expectedOutput := fmt.Sprintf("%s deleted", envName)
@@ -115,7 +115,7 @@ var (
 	EnvDeleteCurrentUsingContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should delete all envs", func() {
-				cli := fmt.Sprintf("vela env:delete %s", envName)
+				cli := fmt.Sprintf("vela env delete %s", envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				expectedOutput := fmt.Sprintf("Error: you can't delete current using env %s", envName)
@@ -138,7 +138,7 @@ var (
 	WorkloadDeleteContext = func(context string, applicationName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print successful deletion information", func() {
-				cli := fmt.Sprintf("vela app:delete %s", applicationName)
+				cli := fmt.Sprintf("vela app delete %s", applicationName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("DELETE SUCCEED"))
@@ -163,7 +163,7 @@ var (
 	ApplicationListContext = func(context string, applicationName string, traitAlias string) bool {
 		return ginkgo.Context("ls", func() {
 			ginkgo.It("should list all applications", func() {
-				output, err := Exec("vela app:ls")
+				output, err := Exec("vela app ls")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
 				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
@@ -177,11 +177,11 @@ var (
 	ApplicationStatusContext = func(context string, applicationName string, workloadType string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should get status for the application", func() {
-				cli := fmt.Sprintf("vela app:status %s", applicationName)
+				cli := fmt.Sprintf("vela app status %s", applicationName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
-				// TODO(zzxwill) need to check workloadType after app:status is refined
+				// TODO(zzxwill) need to check workloadType after app status is refined
 				//gomega.Expect(output).To(gomega.ContainSubstring(workloadType))
 				gomega.Expect(output).To(gomega.ContainSubstring("Workload"))
 			})
@@ -191,10 +191,10 @@ var (
 	ApplicationShowContext = func(context string, applicationName string, workloadType string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should show app information", func() {
-				cli := fmt.Sprintf("vela app:show %s", applicationName)
+				cli := fmt.Sprintf("vela app show %s", applicationName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				// TODO(zzxwill) need to check workloadType after app:show is refined
+				// TODO(zzxwill) need to check workloadType after app show is refined
 				//gomega.Expect(output).To(gomega.ContainSubstring(workloadType))
 				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
 			})

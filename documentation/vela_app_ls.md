@@ -1,4 +1,4 @@
-## vela app:ls
+## vela app ls
 
 List applications
 
@@ -7,20 +7,20 @@ List applications
 List applications with workloads, traits, status and created time
 
 ```
-vela app:ls
+vela app ls
 ```
 
 ### Examples
 
 ```
-vela app:ls
+vela app ls
 ```
 
 ### Options
 
 ```
   -a, --app string   Application name
-  -h, --help         help for app:ls
+  -h, --help         help for app ls
 ```
 
 ### Options inherited from parent commands

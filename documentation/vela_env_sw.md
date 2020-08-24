@@ -1,4 +1,4 @@
-## vela env:sw
+## vela env sw
 
 Switch environments
 
@@ -7,19 +7,19 @@ Switch environments
 switch to another environment
 
 ```
-vela env:sw
+vela env sw
 ```
 
 ### Examples
 
 ```
-vela env:sw test
+vela env sw test
 ```
 
 ### Options
 
 ```
-  -h, --help   help for env:sw
+  -h, --help   help for env sw
 ```
 
 ### Options inherited from parent commands

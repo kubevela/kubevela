@@ -64,7 +64,7 @@ func Load(envName, appName string) (*Application, error) {
 	return LoadFromFile(filepath.Join(appDir, appName+".yaml"))
 }
 
-func (app *Application) Save(envName, appName string) error {
+func (app *Application) Save(envName string) error {
 	appDir, err := system.GetApplicationDir(envName)
 	if err != nil {
 		return fmt.Errorf("get app dir from env %s err %v", envName, err)
@@ -73,7 +73,7 @@ func (app *Application) Save(envName, appName string) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filepath.Join(appDir, appName+".yaml"), out, 0644)
+	return ioutil.WriteFile(filepath.Join(appDir, app.Name+".yaml"), out, 0644)
 }
 
 func (app *Application) Validate() error {

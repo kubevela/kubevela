@@ -1,4 +1,4 @@
-## vela cap:center:sync
+## vela cap center sync
 
 Sync capabilities from remote center, default to sync all centers
 
@@ -7,19 +7,19 @@ Sync capabilities from remote center, default to sync all centers
 Sync capabilities from remote center, default to sync all centers
 
 ```
-vela cap:center:sync [centerName] [flags]
+vela cap center sync [centerName] [flags]
 ```
 
 ### Examples
 
 ```
-vela cap:center:sync mycenter
+vela cap center sync mycenter
 ```
 
 ### Options
 
 ```
-  -h, --help   help for cap:center:sync
+  -h, --help   help for cap center sync
 ```
 
 ### Options inherited from parent commands

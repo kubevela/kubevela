@@ -1,4 +1,4 @@
-## vela env:init
+## vela env init
 
 Create environments
 
@@ -7,19 +7,19 @@ Create environments
 Create environment and switch to it
 
 ```
-vela env:init <envName>
+vela env init <envName>
 ```
 
 ### Examples
 
 ```
-vela env:init test --namespace test
+vela env init test --namespace test
 ```
 
 ### Options
 
 ```
-  -h, --help               help for env:init
+  -h, --help               help for env init
       --namespace string   specify K8s namespace for env (default "default")
 ```
 

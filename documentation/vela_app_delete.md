@@ -1,4 +1,4 @@
-## vela app:delete
+## vela app delete
 
 Delete OAM Applications
 
@@ -7,7 +7,7 @@ Delete OAM Applications
 Delete OAM Applications
 
 ```
-vela app:delete <APPLICATION_NAME>
+vela app delete <APPLICATION_NAME>
 ```
 
 ### Examples
@@ -19,7 +19,7 @@ vela delete frontend
 ### Options
 
 ```
-  -h, --help   help for app:delete
+  -h, --help   help for app delete
 ```
 
 ### Options inherited from parent commands

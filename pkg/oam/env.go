@@ -63,7 +63,7 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, nam
 	if err = ioutil.WriteFile(curEnvPath, []byte(envName), 0644); err != nil {
 		return err, message
 	}
-	message = fmt.Sprintf("Create env succeed, current env is " + envName + " namespace is " + envArgs.Namespace + ", use --namespace=<namespace> to specify namespace with env:init")
+	message = fmt.Sprintf("Create env succeed, current env is " + envName + " namespace is " + envArgs.Namespace + ", use --namespace=<namespace> to specify namespace with env init")
 	return nil, message
 }
 

@@ -20,7 +20,7 @@ var _ = ginkgo.Describe("Env", func() {
 
 	ginkgo.Context("env list", func() {
 		ginkgo.It("should list all envs", func() {
-			output, err := e2e.Exec("vela env")
+			output, err := e2e.Exec("vela env ls")
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
 			gomega.Expect(output).To(gomega.ContainSubstring("NAMESPACE"))

@@ -19,31 +19,30 @@ vela [flags]
 
 ### SEE ALSO
 
-* [vela app:delete](vela_app_delete.md)	 - Delete OAM Applications
-* [vela app:ls](vela_app_ls.md)	 - List applications
-* [vela app:run](vela_app_run.md)	 - Run a bundle of OAM Applications
-* [vela app:show](vela_app_show.md)	 - get detail spec of your app
-* [vela app:status](vela_app_status.md)	 - get status of an application
-* [vela cap:add](vela_cap_add.md)	 - Add capability into cluster
-* [vela cap:center:config](vela_cap_center_config.md)	 - Configure or add the capability center, default is local (built-in capabilities)
-* [vela cap:center:sync](vela_cap_center_sync.md)	 - Sync capabilities from remote center, default to sync all centers
-* [vela cap:ls](vela_cap_ls.md)	 - List all capabilities in center
-* [vela cap:remove](vela_cap_remove.md)	 - Remove capability from cluster
+* [vela app delete](vela_app_delete.md)	 - Delete OAM Applications
+* [vela app ls](vela_app_ls.md)	 - List applications
+* [vela app run](vela_app_run.md)	 - Run a bundle of OAM Applications
+* [vela app show](vela_app_show.md)	 - get detail spec of your app
+* [vela app status](vela_app_status.md)	 - get status of an application
+* [vela cap add](vela_cap_add.md)	 - Add capability into cluster
+* [vela cap center config](vela_cap_center_config.md)	 - Configure or add the capability center, default is local (built-in capabilities)
+* [vela cap center sync](vela_cap_center_sync.md)	 - Sync capabilities from remote center, default to sync all centers
+* [vela cap ls](vela_cap_ls.md)	 - List all capabilities in center
+* [vela cap remove](vela_cap_remove.md)	 - Remove capability from cluster
 * [vela completion](vela_completion.md)	 - Output shell completion code for the specified shell (bash or zsh)
-* [vela containerized:run](vela_containerized_run.md)	 - Run containerized workloads
+* [vela comp run](vela_comp_run.md)	 - Run containerized workloads
 * [vela dashboard](vela_dashboard.md)	 - Setup API Server and launch Dashboard
-* [vela deployment:run](vela_deployment_run.md)	 - Run deployment workloads
 * [vela env](vela_env.md)	 - List environments
-* [vela env:delete](vela_env_delete.md)	 - Delete environment
-* [vela env:init](vela_env_init.md)	 - Create environments
-* [vela env:sw](vela_env_sw.md)	 - Switch environments
+* [vela env delete](vela_env_delete.md)	 - Delete environment
+* [vela env init](vela_env_init.md)	 - Create environments
+* [vela env sw](vela_env_sw.md)	 - Switch environments
 * [vela rollout](vela_rollout.md)	 - Attach rollout trait to an app
 * [vela rollout:detach](vela_rollout_detach.md)	 - Detach rollout trait from an app
 * [vela scale](vela_scale.md)	 - Attach scale trait to an app
 * [vela scale:detach](vela_scale_detach.md)	 - Detach scale trait from an app
 * [vela system:info](vela_system_info.md)	 - show vela client and cluster version
-* [vela system:init](vela_system_init.md)	 - Initialize vela on both client and server
-* [vela system:update](vela_system_update.md)	 - Sync definition from cluster
+* [vela system init](vela_system_init.md)	 - Initialize vela on both client and server
+* [vela system update](vela_system_update.md)	 - Sync definition from cluster
 * [vela traits](vela_traits.md)	 - List traits
 * [vela version](vela_version.md)	 - Prints out build version information
 * [vela workloads](vela_workloads.md)	 - List workloads

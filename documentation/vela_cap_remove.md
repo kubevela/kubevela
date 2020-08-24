@@ -1,4 +1,4 @@
-## vela cap:remove
+## vela cap remove
 
 Remove capability from cluster
 
@@ -7,19 +7,19 @@ Remove capability from cluster
 Remove capability from cluster
 
 ```
-vela cap:remove <name> [flags]
+vela cap remove <name> [flags]
 ```
 
 ### Examples
 
 ```
-vela cap:remove route
+vela cap remove route
 ```
 
 ### Options
 
 ```
-  -h, --help           help for cap:remove
+  -h, --help           help for cap remove
   -t, --token string   Github Repo token
 ```
 

@@ -63,8 +63,16 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 				if err != nil {
 					return err
 				}
-				if err := o.AddOrUpdateTrait(cmd, args); err != nil {
-					return err
+				detach, _ := cmd.Flags().GetBool(TraitDetach)
+				if detach {
+					if err := o.DetachTrait(cmd, args); err != nil {
+						return err
+					}
+					o.Detach = true
+				} else {
+					if err := o.AddOrUpdateTrait(cmd, args); err != nil {
+						return err
+					}
 				}
 				return o.Run(cmd, ctx)
 			},
@@ -74,10 +82,11 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 		}
 		pluginCmd.SetOut(ioStreams.Out)
 		for _, v := range tmp.Parameters {
-			types.SetFlagBy(pluginCmd, v)
+			types.SetFlagBy(pluginCmd.Flags(), v)
 		}
 		pluginCmd.Flags().StringP(App, "a", "", "create or add into an existing application group")
 		pluginCmd.Flags().BoolP(Staging, "s", false, "only save changes locally without real update application")
+		pluginCmd.Flags().BoolP(TraitDetach, "", false, "detach trait from component")
 
 		parentCmd.AddCommand(pluginCmd)
 	}
@@ -130,54 +139,7 @@ func (o *commandOptions) AddOrUpdateTrait(cmd *cobra.Command, args []string) err
 		return err
 	}
 	o.app = app
-	return o.app.Save(o.Env.Name, o.appName)
-}
-
-func AddTraitDetachCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
-	templates, err := plugins.LoadInstalledCapabilityWithType(types.TypeTrait)
-	if err != nil {
-		return err
-	}
-	ctx := context.Background()
-	for _, tmp := range templates {
-		tmp := tmp
-
-		var name = tmp.Name
-		pluginCmd := &cobra.Command{
-			Use:                   name + ":detach <appname>",
-			DisableFlagsInUseLine: true,
-			Short:                 "Detach " + name + " trait from an app",
-			Long:                  "Detach " + name + " trait from an app",
-			Example:               "vela " + name + ":detach frontend",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				o := NewCommandOptions(ioStreams)
-				newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
-				if err != nil {
-					return err
-				}
-				o.Env, err = GetEnv(cmd)
-				if err != nil {
-					return err
-				}
-				o.Client = newClient
-				if err := o.DetachTrait(cmd, args); err != nil {
-					return err
-				}
-				o.Template = tmp
-				o.Detach = true
-				return o.Run(cmd, ctx)
-			},
-			Annotations: map[string]string{
-				types.TagCommandType: types.TypeTraits,
-			},
-		}
-		pluginCmd.Flags().StringP(App, "a", "", "create or add into an existing application group")
-		pluginCmd.Flags().BoolP(Staging, "s", false, "only save changes locally without real update application")
-
-		pluginCmd.SetOut(ioStreams.Out)
-		parentCmd.AddCommand(pluginCmd)
-	}
-	return nil
+	return o.app.Save(o.Env.Name)
 }
 
 func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string) error {
@@ -193,7 +155,7 @@ func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	o.app = app
-	return o.app.Save(o.Env.Name, o.appName)
+	return o.app.Save(o.Env.Name)
 }
 
 func (o *commandOptions) Run(cmd *cobra.Command, ctx context.Context) error {

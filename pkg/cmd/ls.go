@@ -16,14 +16,33 @@ import (
 var appName string
 
 func NewAppsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                   "app",
+		DisableFlagsInUseLine: true,
+		Short:                 "Manage applications",
+		Long:                  "Manage applications with ls, show, delete, run",
+		Example:               `vela app <command>`,
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeApp,
+		},
+	}
+
+	cmd.AddCommand(NewAppsListCommand(c, ioStreams),
+		NewDeleteCommand(c, ioStreams),
+		NewAppStatusCommand(c, ioStreams),
+		NewAppShowCommand(c, ioStreams),
+		NewRunCommand(c, ioStreams))
+	return cmd
+}
+
+func NewAppsListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:                   "app:ls",
-		Aliases:               []string{"ls"},
+		Use:                   "ls",
 		DisableFlagsInUseLine: true,
 		Short:                 "List applications",
 		Long:                  "List applications with workloads, traits, status and created time",
-		Example:               `vela app:ls`,
+		Example:               `vela app ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			env, err := GetEnv(cmd)
 			if err != nil {
@@ -33,22 +52,21 @@ func NewAppsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printApplicationList(ctx, newClient, appName, env.Namespace)
+			printApplicationList(ctx, newClient, appName, env.Namespace, ioStreams)
 			return nil
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},
 	}
-
-	cmd.PersistentFlags().StringVarP(&appName, "app", "a", "", "Application name")
+	cmd.Flags().StringVarP(&appName, "app", "a", "", "Application name")
 	return cmd
 }
 
-func printApplicationList(ctx context.Context, c client.Client, appName string, namespace string) {
+func printApplicationList(ctx context.Context, c client.Client, appName string, namespace string, ioStreams cmdutil.IOStreams) {
 	applicationMetaList, err := oam.RetrieveApplicationsByName(ctx, c, appName, namespace)
 	if err != nil {
-		fmt.Printf("listing Trait DefinitionPath hit an issue: %s\n", err)
+		ioStreams.Infof("listing Trait DefinitionPath hit an issue: %s\n", err)
 		return
 	}
 	if applicationMetaList == nil {
@@ -62,6 +80,6 @@ func printApplicationList(ctx context.Context, c client.Client, appName string, 
 			traitAlias := strings.Join(a.Traits, ",")
 			table.AddRow(a.Name, a.Workload, traitAlias, a.Status, a.CreatedTime)
 		}
-		fmt.Print(table.String())
+		ioStreams.Info(table.String())
 	}
 }

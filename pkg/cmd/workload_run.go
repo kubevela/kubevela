@@ -5,17 +5,21 @@ import (
 	"errors"
 
 	"github.com/cloud-native-application/rudrx/pkg/oam"
+	"github.com/cloud-native-application/rudrx/pkg/plugins"
 
 	"github.com/cloud-native-application/rudrx/api/types"
 	"github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	"github.com/cloud-native-application/rudrx/pkg/plugins"
 
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const Staging = "staging"
-const App = "app"
+const (
+	Staging      = "staging"
+	App          = "app"
+	WorkloadType = "type"
+	TraitDetach  = "detach"
+)
 
 type runOptions oam.RunOptions
 
@@ -23,69 +27,113 @@ func newRunOptions(ioStreams util.IOStreams) *runOptions {
 	return &runOptions{IOStreams: ioStreams}
 }
 
-func AddWorkloadCommands(parentCmd *cobra.Command, c types.Args, ioStreams util.IOStreams) error {
-	templates, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
+func AddCompCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
+	compCommands := &cobra.Command{
+		Use:                   "comp <commands>",
+		DisableFlagsInUseLine: true,
+		Short:                 "Manage Components",
+		Long:                  "Manage Components",
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeWorkloads,
+		},
+	}
+
+	compCommands.AddCommand(NewCompRunCommands(c, ioStreams))
+	return compCommands
+}
+
+func NewCompRunCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
+	runCmd := &cobra.Command{
+		Use:                   "run [args]",
+		DisableFlagsInUseLine: true,
+		// Dynamic flag parse in compeletion
+		DisableFlagParsing: true,
+		Short:              "Init and Run workloads",
+		Long:               "Init and Run workloads",
+		Example:            "vela comp run -t <workload-type>",
+		RunE: func(cmd *cobra.Command, args []string) error {
+
+			o := newRunOptions(ioStreams)
+			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			if err != nil {
+				return err
+			}
+			o.KubeClient = newClient
+			o.Env, err = GetEnv(cmd)
+			if err != nil {
+				return err
+			}
+			if err := o.Complete(cmd, args, context.TODO()); err != nil {
+				return err
+			}
+			return o.Run(cmd)
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeWorkloads,
+		},
+	}
+	runCmd.SetOut(ioStreams.Out)
+
+	runCmd.Flags().StringP(App, "a", "", "create or add into an existing application group")
+	runCmd.Flags().BoolP(Staging, "s", false, "only save changes locally without real update application")
+	runCmd.Flags().StringP(WorkloadType, "t", "", "specify workload type for application")
+
+	return runCmd
+}
+
+func GetWorkloadNameFromArgs(args []string) (string, error) {
+	argsLength := len(args)
+	if argsLength < 1 {
+		return "", errors.New("must specify name for workload")
+	}
+	return args[0], nil
+
+}
+
+func (o *runOptions) Complete(cmd *cobra.Command, args []string, ctx context.Context) error {
+
+	flags := cmd.Flags()
+	flags.ParseErrorsWhitelist.UnknownFlags = true
+
+	// First parse, figure out which workloadType it is.
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+
+	workloadName, err := GetWorkloadNameFromArgs(flags.Args())
 	if err != nil {
 		return err
 	}
 
-	for _, tmp := range templates {
-		tmp := tmp
-
-		var name = tmp.Name
-
-		pluginCmd := &cobra.Command{
-			Use:                   name + ":run <appname> [args]",
-			DisableFlagsInUseLine: true,
-			Short:                 "Run " + name + " workloads",
-			Long:                  "Run " + name + " workloads",
-			Example:               "vela " + name + ":run frontend",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				o := newRunOptions(ioStreams)
-				o.WorkloadType = name
-				newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
-				if err != nil {
-					return err
-				}
-				o.KubeClient = newClient
-				o.Env, err = GetEnv(cmd)
-				if err != nil {
-					return err
-				}
-				o.Template = tmp
-				if err := o.Complete(cmd, args, context.TODO()); err != nil {
-					return err
-				}
-				return o.Run(cmd)
-			},
-			Annotations: map[string]string{
-				types.TagCommandType: types.TypeWorkloads,
-			},
-		}
-		pluginCmd.SetOut(ioStreams.Out)
-		for _, v := range tmp.Parameters {
-			types.SetFlagBy(pluginCmd, v)
-		}
-		pluginCmd.Flags().StringP(App, "a", "", "create or add into an existing application group")
-		pluginCmd.Flags().BoolP(Staging, "s", false, "only save changes locally without real update application")
-
-		parentCmd.AddCommand(pluginCmd)
+	appGroup, err := flags.GetString(App)
+	if err != nil {
+		return err
 	}
-	return nil
-}
-
-func (o *runOptions) Complete(cmd *cobra.Command, args []string, ctx context.Context) error {
-	argsLength := len(args)
-	if argsLength < 1 {
-		return errors.New("must specify name for workload")
+	workloadType, err := flags.GetString(WorkloadType)
+	if err != nil {
+		return err
 	}
-	workloadName := args[0]
-	template := o.Template
-	appGroup := cmd.Flag(App).Value.String()
-
 	envName := o.Env.Name
+
+	// Dynamic load flags
+	template, err := plugins.LoadCapabilityByName(workloadType)
+	if err != nil {
+		return err
+	}
+	for _, v := range template.Parameters {
+		types.SetFlagBy(flags, v)
+	}
+	// Second parse, parse parameters of this workload.
+	if err = flags.Parse(args); err != nil {
+		return err
+	}
+
 	var flagSet = cmd.Flags()
-	app, err := oam.BaseComplete(envName, workloadName, appGroup, flagSet, template)
+	app, err := oam.BaseComplete(envName, workloadName, appGroup, flagSet, workloadType)
+	if err != nil {
+		return err
+	}
+
 	o.App = app
 	return err
 }

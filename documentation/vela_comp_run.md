@@ -1,29 +1,29 @@
-## vela deployment:run
+## vela comp run
 
-Run deployment workloads
+Run containerized workloads
 
 ### Synopsis
 
-Run deployment workloads
+Run containerized workloads
 
 ```
-vela deployment:run <appname> [args]
+vela comp run -t <workloadType> <appname> [args]
 ```
 
 ### Examples
 
 ```
-vela deployment:run frontend
+vela comp run -t containerized frontend
 ```
 
 ### Options
 
 ```
   -a, --app string     create or add into an existing application group
-  -h, --help           help for deployment:run
-      --image string   
+  -h, --help           help for comp run
+  -i, --image string   specify app image
       --name string    
-      --port int        (default 8080)
+  -p, --port int       specify port for container (default 6379)
   -s, --staging        only save changes locally without real update application
 ```
 

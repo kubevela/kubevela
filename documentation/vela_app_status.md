@@ -1,4 +1,4 @@
-## vela app:status
+## vela app status
 
 get status of an application
 
@@ -7,19 +7,19 @@ get status of an application
 get status of an application, including its workload and trait
 
 ```
-vela app:status <APPLICATION-NAME> [flags]
+vela app status <APPLICATION-NAME> [flags]
 ```
 
 ### Examples
 
 ```
-vela app:status <APPLICATION-NAME>
+vela app status <APPLICATION-NAME>
 ```
 
 ### Options
 
 ```
-  -h, --help   help for app:status
+  -h, --help   help for app status
 ```
 
 ### Options inherited from parent commands
