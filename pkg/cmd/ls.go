@@ -13,8 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var appName string
-
 func NewAppsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "app",
@@ -30,7 +28,7 @@ func NewAppsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd.AddCommand(NewAppsListCommand(c, ioStreams),
 		NewDeleteCommand(c, ioStreams),
 		NewAppStatusCommand(c, ioStreams),
-		NewAppShowCommand(c, ioStreams),
+		NewAppShowCommand(ioStreams),
 		NewRunCommand(c, ioStreams))
 	return cmd
 }
@@ -52,6 +50,10 @@ func NewAppsListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 			if err != nil {
 				return err
 			}
+			appName, err := cmd.Flags().GetString(App)
+			if err != nil {
+				return err
+			}
 			printApplicationList(ctx, newClient, appName, env.Namespace, ioStreams)
 			return nil
 		},
@@ -59,7 +61,7 @@ func NewAppsListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 			types.TagCommandType: types.TypeApp,
 		},
 	}
-	cmd.Flags().StringVarP(&appName, "app", "a", "", "Application name")
+	cmd.Flags().StringP(App, "a", "", "Application name")
 	return cmd
 }
 
@@ -74,7 +76,6 @@ func printApplicationList(ctx context.Context, c client.Client, appName string, 
 		return
 	} else {
 		table := uitable.New()
-		table.MaxColWidth = 60
 		table.AddRow("NAME", "WORKLOAD", "TRAITS", "STATUS", "CREATED-TIME")
 		for _, a := range applicationMetaList {
 			traitAlias := strings.Join(a.Traits, ",")
