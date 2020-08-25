@@ -1,26 +1,24 @@
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/cloud-native-application/rudrx/pkg/application"
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/ghodss/yaml"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func NewAppShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	ctx := context.Background()
+func NewAppShowCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "show <APPLICATION-NAME>",
-		Short:   "get detail spec of your app",
-		Long:    "get detail spec of your app, including its workload and trait",
+		Short:   "get details of your app",
+		Long:    "get details of your app, including its workload and trait",
 		Example: `vela app show <APPLICATION-NAME>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
@@ -35,12 +33,7 @@ func NewAppShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 				return err
 			}
 
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
-			if err != nil {
-				return err
-			}
-
-			return showApplication(ctx, newClient, cmd, env, appName)
+			return showApplication(cmd, env, appName)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
@@ -57,48 +50,125 @@ type Unkown struct {
 	Status            interface{} `json:"status"`
 }
 
-func showApplication(ctx context.Context, c client.Client, cmd *cobra.Command, env *types.EnvMeta, appName string) error {
-	var (
-		application corev1alpha2.ApplicationConfiguration
-	)
-	namespace := env.Namespace
+func showApplication(cmd *cobra.Command, env *types.EnvMeta, appName string) error {
 
-	if err := c.Get(ctx, client.ObjectKey{Name: appName, Namespace: namespace}, &application); err != nil {
-		return fmt.Errorf("Fetch application with Err: %s", err)
-	}
-
-	if len(application.Spec.Components) == 0 {
-		cmd.Println("About:")
-		cmd.Printf("  Appset: %s", appName)
-		cmd.Printf("  ENV: %s", namespace)
-		return nil
-	}
-
-	// current only support one component
-	componentName := application.Spec.Components[0].ComponentName
-	component, err := cmdutil.GetComponent(ctx, c, componentName, namespace)
+	app, err := application.Load(env.Name, appName)
 	if err != nil {
-		return fmt.Errorf("Fetch component %s with Err: %s", componentName, err)
-	}
-	if component.Labels == nil {
-		return fmt.Errorf("Can't get workloadDef, please check component %s label \"%s\" is correct.",
-			componentName, types.ComponentWorkloadDefLabel)
+		return err
 	}
 
-	traitDefinitions := cmdutil.ListTraitDefinitionsByApplicationConfiguration(application)
-	componentOut, _ := yaml.JSONToYAML(component.Spec.Workload.Raw)
+	cmd.Printf("About:\n\n")
+	table := uitable.New()
+	table.AddRow("  Name:", appName)
+	table.AddRow("  Created at:", app.CreateTime.String())
+	table.AddRow("  Updated at:", app.UpdateTime.String())
+	cmd.Printf("%s\n\n", table.String())
 
-	cmd.Println("About:")
-	cmd.Printf("  Appset: %s\n", appName)
-	cmd.Printf("  ENV: %s\n", namespace)
-	cmd.Printf("%s", string(componentOut))
+	cmd.Println()
+	cmd.Printf("Environment:\n\n")
+	cmd.Printf("  Namespace:\t%s\n", env.Namespace)
+	cmd.Println()
 
-	if len(traitDefinitions) != 0 {
-		cmd.Println("Traits:")
+	table = uitable.New()
+	cmd.Printf("Components:\n\n")
 
-		traitOut, _ := yaml.Marshal(application.Spec.Components[0].Traits)
-		cmd.Println(string(traitOut))
+	table.AddRow("  Name", "Type", "Traits")
+
+	for compName := range app.Components {
+		wtype, _ := app.GetWorkload(compName)
+		var outPutTraits []string
+		traits, _ := app.GetTraits(compName)
+		for k := range traits {
+			outPutTraits = append(outPutTraits, k)
+		}
+		table.AddRow("  "+compName, wtype, strings.Join(outPutTraits, ","))
+	}
+	cmd.Println(table.String())
+	cmd.Println()
+	return nil
+}
+
+func NewCompShowCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "show <COMPONENT-NAME>",
+		Short:   "get component detail",
+		Long:    "get component detail, including arguments of workload and trait",
+		Example: `vela comp show <COMPONENT-NAME>`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			argsLength := len(args)
+			if argsLength == 0 {
+				ioStreams.Errorf("Hint: please specify the application name")
+				os.Exit(1)
+			}
+			compName := args[0]
+			env, err := GetEnv(cmd)
+			if err != nil {
+				ioStreams.Errorf("Error: failed to get Env: %s", err)
+				return err
+			}
+
+			appName, err := cmd.Flags().GetString(App)
+			if err != nil {
+				return err
+			}
+
+			return showComponent(cmd, env, compName, appName)
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeApp,
+		},
+	}
+	cmd.SetOut(ioStreams.Out)
+	return cmd
+}
+
+func showComponent(cmd *cobra.Command, env *types.EnvMeta, compName, appName string) error {
+	var app *application.Application
+	var err error
+	if appName != "" {
+		app, err = application.Load(env.Name, appName)
+	} else {
+		app, err = application.MatchAppByComp(env.Name, compName)
+	}
+	if err != nil {
+		return err
 	}
 
+	for cname := range app.Components {
+		if cname != compName {
+			continue
+		}
+		cmd.Printf("About:\n\n")
+		wtype, data := app.GetWorkload(compName)
+		table := uitable.New()
+		table.AddRow("  Name:", compName)
+		table.AddRow("  WorkloadType:", wtype)
+		table.AddRow("  Application:", app.Name)
+		cmd.Printf("%s\n\n", table.String())
+		cmd.Printf("Environment:\n\n")
+		cmd.Printf("  Namespace:\t%s\n\n", env.Namespace)
+		cmd.Printf("Arguments:\n\n")
+		table = uitable.New()
+		for k, v := range data {
+			table.AddRow(fmt.Sprintf("  %s:", k), v)
+		}
+		cmd.Printf("%s\n\n", table.String())
+		traits, err := app.GetTraits(compName)
+		if err != nil || len(traits) == 0 {
+			continue
+		}
+		cmd.Println()
+		cmd.Printf("Traits:\n\n")
+		for k, v := range traits {
+			cmd.Printf("    Type:\t%s\n", k)
+			cmd.Printf("    Arguments:\n\n")
+			table = uitable.New()
+			for kk, vv := range v {
+				table.AddRow(fmt.Sprintf("  %s:", kk), vv)
+			}
+			cmd.Printf("%s\n\n", table.String())
+		}
+		cmd.Println()
+	}
 	return nil
 }
