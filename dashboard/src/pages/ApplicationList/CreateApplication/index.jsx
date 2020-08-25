@@ -37,12 +37,14 @@ class TableList extends React.Component {
         {
           refname: null,
           initialData: {},
+          uniq: new Date().valueOf(),
         },
       ],
       traitList: [],
       availableTraitList: [],
       workloadList: [],
       workloadSettings: [],
+      step1SubmitObj: {},
       step1InitialValues: {
         workload_type: '',
       },
@@ -83,6 +85,7 @@ class TableList extends React.Component {
           {
             refname: null,
             initialData: { name: traitType },
+            uniq: new Date().valueOf(),
           },
         ],
       });
@@ -153,12 +156,53 @@ class TableList extends React.Component {
         {
           refname: null,
           initialData: {},
+          uniq: new Date().valueOf(),
         },
       ]),
     }));
   };
 
-  createApp = () => {};
+  createApp = async () => {
+    const { step1SubmitObj, traitNum } = this.state;
+    const submitObj = _.cloneDeep(step1SubmitObj);
+    // 处理数据为提交的格式
+    if (traitNum.length) {
+      const { env_name: envName, workload_name: workloadName } = step1SubmitObj;
+      const step2SubmitObj = [];
+      traitNum.forEach(({ initialData }) => {
+        if (initialData.name) {
+          const initialObj = {
+            name: initialData.name,
+            env_name: envName,
+            workload_name: workloadName,
+            flags: [],
+          };
+          Object.keys(initialData).forEach((key) => {
+            if (key !== 'name' && initialData[key]) {
+              initialObj.flags.push({
+                name: key,
+                value: initialData[key].toString(),
+              });
+            }
+          });
+          step2SubmitObj.push(initialObj);
+        }
+      });
+      submitObj.traits = step2SubmitObj;
+    }
+    const res = await this.props.dispatch({
+      type: 'workload/createWorkload',
+      payload: {
+        params: submitObj,
+      },
+    });
+    if (res) {
+      message.success(res);
+      this.props.history.push({
+        pathname: '/ApplicationList',
+      });
+    }
+  };
 
   createWorkload = async () => {
     await this.formRefStep1.current.validateFields();
@@ -177,19 +221,11 @@ class TableList extends React.Component {
         });
       }
     });
-    const res = await this.props.dispatch({
-      type: 'workload/createWorkload',
-      payload: {
-        params: submitObj,
-      },
-    });
-    if (res) {
-      message.success(res);
-    }
     this.setState({
       current: 1,
       step1InitialValues: currentData,
       step1Settings: submitObj.flags,
+      step1SubmitObj: submitObj,
     });
     this.getAcceptTrait(currentData.workload_type);
   };
@@ -225,6 +261,7 @@ class TableList extends React.Component {
         {
           refname: null,
           initialData: {},
+          uniq: new Date().valueOf(),
         },
       ],
     });
@@ -239,6 +276,19 @@ class TableList extends React.Component {
     });
     this.setState(() => ({
       availableTraitList: res,
+    }));
+  };
+
+  deleteTraitItem = (uniq) => {
+    // 删除的时候不要依据数组的index删除,要一个唯一性的值
+    this.state.traitNum = this.state.traitNum.filter((item) => {
+      return item.uniq !== uniq;
+    });
+    // this.setState(()=>({
+    //   traitNum: this.state.traitNum
+    // }));
+    this.setState((prev) => ({
+      traitNum: prev.traitNum,
     }));
   };
 
@@ -388,17 +438,18 @@ class TableList extends React.Component {
               )}
             </div>
             <div ref={this.formRefStep2All}>
-              {traitNum.map((item, index) => {
+              {traitNum.map((item) => {
                 return (
                   <CreateTraitItem
                     onRef={(ref) => {
                       // eslint-disable-next-line no-param-reassign
                       item.refname = ref;
                     }}
-                    key={index.toString()}
+                    key={item.uniq.toString()}
                     availableTraitList={this.state.availableTraitList}
-                    index={index}
+                    uniq={item.uniq}
                     initialValues={item.initialData}
+                    deleteTraitItem={this.deleteTraitItem}
                   />
                 );
               })}
@@ -453,34 +504,37 @@ class TableList extends React.Component {
               <Col span="1" />
               <Col span="10">
                 {traitNum.map(({ initialData }, index) => {
-                  return (
-                    <div className="summaryBox" key={index.toString()}>
-                      <Row>
-                        <Col span="22">
-                          <p className="title">{initialData.name}</p>
-                          <p>core.oam.dev/v1alpha2</p>
-                        </Col>
-                      </Row>
-                      <p className="title hasMargin">Properties:</p>
-                      <Row>
-                        {Object.keys(initialData).map((currentKey) => {
-                          if (currentKey !== 'name') {
-                            return (
-                              <Fragment key={currentKey}>
-                                <Col span="8">
-                                  <p>{currentKey}:</p>
-                                </Col>
-                                <Col span="16">
-                                  <p>{initialData[currentKey]}</p>
-                                </Col>
-                              </Fragment>
-                            );
-                          }
-                          return <Fragment key={currentKey} />;
-                        })}
-                      </Row>
-                    </div>
-                  );
+                  if (initialData.name) {
+                    return (
+                      <div className="summaryBox" key={index.toString()}>
+                        <Row>
+                          <Col span="22">
+                            <p className="title">{initialData.name}</p>
+                            <p>core.oam.dev/v1alpha2</p>
+                          </Col>
+                        </Row>
+                        <p className="title hasMargin">Properties:</p>
+                        <Row>
+                          {Object.keys(initialData).map((currentKey) => {
+                            if (currentKey !== 'name') {
+                              return (
+                                <Fragment key={currentKey}>
+                                  <Col span="8">
+                                    <p>{currentKey}:</p>
+                                  </Col>
+                                  <Col span="16">
+                                    <p>{initialData[currentKey]}</p>
+                                  </Col>
+                                </Fragment>
+                              );
+                            }
+                            return <Fragment key={currentKey} />;
+                          })}
+                        </Row>
+                      </div>
+                    );
+                  }
+                  return <Fragment key={index.toString()} />;
                 })}
               </Col>
             </Row>
@@ -494,8 +548,8 @@ class TableList extends React.Component {
             <Button
               type="primary"
               className="floatRight"
-              onClick={(event) => {
-                this.createApp(event);
+              onClick={() => {
+                this.createApp();
               }}
             >
               Confirm
