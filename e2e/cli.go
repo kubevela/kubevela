@@ -38,7 +38,7 @@ func AsyncExec(cli string) (*gexec.Session, error) {
 }
 
 func BeforeSuit() {
-	Exec("vela system:init")
+	Exec("vela system init")
 	//Without this line, will hit issue like `<string>: Error: unknown command "scale" for "vela"`
 	Exec("vela system update")
 	AsyncExec("vela dashboard &")
