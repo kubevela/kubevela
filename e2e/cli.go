@@ -7,23 +7,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/onsi/gomega"
-
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega/gexec"
 )
 
-var (
-	rudrPath = "/tmp"
-)
+var rudrPath = GetCliBinary()
 
 //GetCliBinary is to build rudr binary.
-func GetCliBinary() (string, error) {
+func GetCliBinary() string {
 	cwd, _ := os.Getwd()
-	mainPath := path.Join(cwd, "../../cmd/vela/main.go")
-	cmd := exec.Command("go", "build", "-o", path.Join(rudrPath, "vela"), mainPath)
-	_, err := cmd.Output()
-	return rudrPath, err
+	return path.Join(cwd, "../..", "./bin")
 }
 
 func Exec(cli string) (string, error) {
@@ -45,9 +38,7 @@ func AsyncExec(cli string) (*gexec.Session, error) {
 }
 
 func BeforeSuit() {
-	_, err := GetCliBinary()
-	gomega.Expect(err).NotTo(gomega.HaveOccurred())
-	Exec("vela system init")
+	Exec("vela system:init")
 	//Without this line, will hit issue like `<string>: Error: unknown command "scale" for "vela"`
 	Exec("vela system update")
 	AsyncExec("vela dashboard &")
