@@ -23,7 +23,7 @@ var (
 	}
 )
 
-var _ = ginkgo.Describe("CapabilityCenter", func() {
+var _ = ginkgo.Describe("Capability", func() {
 	ginkgo.Context("capability center", func() {
 		ginkgo.It("add a capability center", func() {
 			cli := fmt.Sprintf("vela cap center config %s %s", capabilityCenterBasic.Name, capabilityCenterBasic.Url)
@@ -44,9 +44,7 @@ var _ = ginkgo.Describe("CapabilityCenter", func() {
 			gomega.Expect(output).To(gomega.ContainSubstring(capabilityCenterBasic.Url))
 		})
 	})
-})
 
-var _ = ginkgo.Describe("Capability", func() {
 	ginkgo.Context("capability", func() {
 		ginkgo.It("install a capability to cluster", func() {
 			cli := fmt.Sprintf("vela cap add %s/%s", capabilityCenterBasic.Name, capabilityBasic.Name)
