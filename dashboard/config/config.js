@@ -1,9 +1,9 @@
 // https://umijs.org/config/
-import { defineConfig } from 'umi';
+import {defineConfig} from 'umi';
 import defaultSettings from './defaultSettings';
 import proxy from './proxy';
 
-const { REACT_APP_ENV } = process.env;
+const {REACT_APP_ENV} = process.env;
 export default defineConfig({
   hash: true,
   antd: {},
@@ -120,6 +120,19 @@ export default defineConfig({
               icon: 'table',
               path: '/Capability',
               component: './Capability',
+            },
+            {
+              path: '/System',
+              name: 'System',
+              icon: 'table',
+              routes: [
+                {
+                  name: 'Env',
+                  icon: 'table',
+                  path: '/System/Env',
+                  component: './System/Env',
+                }
+              ]
             },
             {
               name: 'Capability.Detail',

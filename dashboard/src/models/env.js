@@ -1,4 +1,4 @@
-import { getEnvs, switchEnv } from '@/services/env';
+import {getEnvs, switchEnv, initialEnvs} from '@/services/env';
 
 const TestModel = {
   namespace: 'envs',
@@ -6,14 +6,18 @@ const TestModel = {
     // initailState: '8880'
   },
   effects: {
-    *getEnvs({ payload }, { call }) {
+    * getEnvs({payload}, {call}) {
       const res = yield call(getEnvs, payload);
       return res;
     },
-    *switchEnv({ payload }, { call }) {
+    * switchEnv({payload}, {call}) {
       const res = yield call(switchEnv, payload);
       return res;
     },
+    * initialEnvs({payload}, {call}) {
+      const res = yield call(initialEnvs, payload)
+      return res;
+    }
   },
   reducers: {},
 };

@@ -11,6 +11,8 @@ export default {
   'menu.ApplicationList.CreateApplication': 'CreateApplication',
   'menu.Capability': 'Capability',
   'menu.Capability.Detail': 'Detail',
+  'menu.System': 'System',
+  'menu.System.Env': 'Env',
   'menu.Workload': 'Workloads',
   'menu.Workload.Deployment': 'Deployment',
   'menu.Workload.Containerized': 'Containerized',
