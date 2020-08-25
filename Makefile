@@ -43,7 +43,7 @@ docker-push:
 e2e-setup:
 	ginkgo version
 	ginkgo -v -r e2e/setup
-	/tmp/vela dashboard & # Somehow API server service doesn't start during setup in Github environment
+	bin/vela dashboard &
 
 e2e-test:
 	# Run e2e test
