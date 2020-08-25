@@ -282,7 +282,7 @@ class TableList extends React.Component {
                   {Traits.length ? (
                     Traits.map((item, index) => {
                       const traitItem = _.get(item, 'trait', {});
-                      const spec = _.get(traitItem, 'spec', {});
+                      // const spec = _.get(traitItem, 'spec', {});
                       const annotations = _.get(traitItem, 'metadata.annotations', {});
                       // const traitPorts =  _.get(Workload, 'spec.containers[0].ports[0]',{});
                       return (
@@ -324,7 +324,7 @@ class TableList extends React.Component {
                           <p className="title">Properties:</p>
                           <p>#可编辑</p>
                           <Row>
-                            {Object.keys(spec).map((currentKey) => {
+                            {/* {Object.keys(spec).map((currentKey) => {
                               return (
                                 <Fragment key={currentKey}>
                                   <Col span="8">
@@ -335,7 +335,7 @@ class TableList extends React.Component {
                                   </Col>
                                 </Fragment>
                               );
-                            })}
+                            })} */}
                           </Row>
                           <div style={{ clear: 'both', height: '32px' }}>
                             <Popconfirm
