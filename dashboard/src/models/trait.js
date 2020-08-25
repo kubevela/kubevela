@@ -1,4 +1,4 @@
-import { getTraitByName, getTraits } from '@/services/trait.js';
+import { getTraitByName, getTraits, attachOneTraits, deleteOneTrait } from '@/services/trait.js';
 
 const TestModel = {
   namespace: 'trait',
@@ -12,6 +12,14 @@ const TestModel = {
     },
     *getTraits({ payload }, { call }) {
       const res = yield call(getTraits, payload);
+      return res;
+    },
+    *attachOneTraits({ payload }, { call }) {
+      const res = yield call(attachOneTraits, payload);
+      return res;
+    },
+    *deleteOneTrait({ payload }, { call }) {
+      const res = yield call(deleteOneTrait, payload);
       return res;
     },
   },
