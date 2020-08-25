@@ -1,9 +1,9 @@
-import { Menu, Dropdown, Button, message } from 'antd';
-import { DownOutlined } from '@ant-design/icons';
+import {Menu, Dropdown, Button, message} from 'antd';
+import {DownOutlined} from '@ant-design/icons';
 import React from 'react';
-import { connect } from 'dva';
+import {connect} from 'dva';
 
-@connect(() => ({}))
+@connect((env) => ({envs: env.envs}))
 export default class WorkSpaceDropDown extends React.Component {
   constructor(props) {
     super(props);
@@ -18,7 +18,7 @@ export default class WorkSpaceDropDown extends React.Component {
       type: 'envs/getEnvs', // applist对应models层的命名空间namespace
     });
     if (envs) {
-      const { name = 'test' } = envs.find((a) => {
+      const {name = 'test'} = envs.find((a) => {
         return a.current === '*';
       });
       this.setState({
@@ -62,21 +62,22 @@ export default class WorkSpaceDropDown extends React.Component {
   };
 
   render() {
+    const {envs} = this.props;
     const menu = (
       <Menu onClick={this.handleMenuClick}>
         {/* <Menu.Item key="default">default</Menu.Item>
         <Menu.Item key="am-system">oam-system</Menu.Item>
         <Menu.Item key="linkerd">linkerd</Menu.Item>
         <Menu.Item key="rio-system">rio-system</Menu.Item> */}
-        {this.state.envs.map((item) => {
+        {envs.envs && envs.envs.map((item) => {
           return <Menu.Item key={item.name}>{item.name}</Menu.Item>;
         })}
       </Menu>
     );
     return (
       <Dropdown overlay={menu}>
-        <Button style={{ marginTop: '10px' }}>
-          {this.state.workSpaceName} <DownOutlined />
+        <Button style={{marginTop: '10px'}}>
+          {this.state.workSpaceName} <DownOutlined/>
         </Button>
       </Dropdown>
     );
