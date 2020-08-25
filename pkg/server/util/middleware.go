@@ -46,7 +46,8 @@ const (
 	WorkloadDefinitionPath = "/workloads"
 	ScopeDefinitionPath    = "/scopes"
 	TraitDefinitionPath    = "/traits"
-	RepoPath               = "/category"
+	CapabilityPath         = "/capabilities"
+	CapabilityCenterPath   = "/capability-centers"
 	VersionPath            = "/version"
 )
 
