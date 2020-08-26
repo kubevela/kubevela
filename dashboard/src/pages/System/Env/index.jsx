@@ -22,9 +22,6 @@ const TableList = props => {
   const [visible, setVisible] = useState(
     false
   );
-  const [envs, setEnvs] = useState(
-    []
-  );
   const [env, setEnv] = useState(
     []
   );
@@ -36,12 +33,12 @@ const TableList = props => {
   const handleOk = async () => {
     setVisible(false)
     const fieldsValue = await form.validateFields();
-    setEnvs(await dispatch({
+    await dispatch({
       type: 'envs/initialEnvs',
       payload: {
         params: fieldsValue
       },
-    }))
+    })
     form.resetFields();
   };
 
@@ -53,12 +50,12 @@ const TableList = props => {
 
 
   const deleteEnv = async (record) => {
-    setEnvs(await dispatch({
+    await dispatch({
       type: 'envs/deleteEnv',
       payload: {
         envName: record.name
       },
-    }))
+    })
   }
 
   const showDeleteConfirm = (record) => {
@@ -85,9 +82,9 @@ const TableList = props => {
   }
 
   const getInitialData = async () => {
-    setEnvs(await dispatch({
+    await dispatch({
       type: 'envs/getEnvs',
-    }))
+    })
   }
   useEffect(() => {
     getInitialData();
