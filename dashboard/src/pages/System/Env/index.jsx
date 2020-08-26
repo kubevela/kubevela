@@ -174,7 +174,7 @@ const TableList = props => {
                 required: true, message: 'Please input Evn!'
               },
               {
-                pattern: new RegExp('^[0-9a-zA-Z_]{1,}$', 'g'),
+                pattern: new RegExp('^[0-9a-zA-Z_]{1,32}$', 'g'),
                 message: 'Should be combination of numbers,alphabets,underline'
               }
             ]}
@@ -189,7 +189,7 @@ const TableList = props => {
                 required: true, message: 'Please specify a Namespace!'
               },
               {
-                pattern: new RegExp('^[0-9a-zA-Z_]{1,63}$', 'g'),
+                pattern: new RegExp('^[0-9a-zA-Z_]{1,32}$', 'g'),
                 message: 'The maximum length is 63, should be combination of numbers,alphabets,underline'
               }
             ]}

@@ -1,0 +1,93 @@
+.ant-pro-global-header-layout-side{
+  padding-right: 0;
+}
+.ant-dropdown-menu-item, .ant-dropdown-menu-submenu-title {
+  clear: both;
+  margin: 0;
+  padding: 5px 20px;
+  color: deepskyblue;
+  font-weight: normal;
+  font-size: 14px;
+  line-height: 22px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.3s;
+  border-top: 1px solid #dee4e6;
+}
+
+.ant-dropdown-menu-item:nth-child(1) {
+  border-top: 1px solid #ffffff;
+}
+
+.ant-dropdown-menu-item-active {
+  background: #38485c !important;
+}
+
+.ant-dropdown-menu-item-active .box1 {
+  color: white;
+}
+
+.ant-dropdown-menu-item-active .box2 {
+  color: white;
+}
+
+.box {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+}
+
+.box1 {
+  font-size: 16px;
+  color: #5095d4;
+}
+
+.box2 {
+  font-size: 12px;
+  color: #8d959b;
+}
+
+.ant-dropdown-trigger{
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.drop-box{
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: left;
+  height: 100%;
+  background: rgb(0, 21, 41);
+  padding: 0 20px;
+}
+
+.btn-box{
+  display: flex;
+  flex-direction: column;
+  align-items: space-between;
+  overflow: hidden;
+  margin-right: 20px;
+  min-width: 120px;
+}
+
+.btn-top{
+  display: flex;
+  height: 20px;
+  line-height: 20px;
+  font-size: 20px;
+  color: white;
+}
+
+.btn-bottom{
+  display: flex;
+  height: 20px;
+  line-height: 20px;
+  font-size: 15px;
+  color: #8d959b;
+}
+
+

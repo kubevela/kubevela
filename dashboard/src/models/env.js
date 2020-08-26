@@ -31,6 +31,10 @@ const TestModel = {
     * deleteEnv({payload}, {call, put},) {
       yield call(deleteEnv, payload)
       const res = yield call(getEnvs);
+      yield put({
+        type: 'onGetEnvsSuccess',
+        payload: res,
+      });
       return res;
     }
   },
