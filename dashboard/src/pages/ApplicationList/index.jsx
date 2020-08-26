@@ -71,6 +71,7 @@ class TableList extends React.Component {
 
   render() {
     let { loadingAll, returnObj } = this.props;
+    const { currentEnv } = this.props;
     loadingAll = loadingAll || false;
     returnObj = returnObj || [];
     const colorObj = {
@@ -118,7 +119,12 @@ class TableList extends React.Component {
                 const { traits = [] } = item;
                 return (
                   <Col span={6} onClick={this.gotoDetail} key={index.toString()}>
-                    <Link to="/ApplicationList/ApplicationListDetail">
+                    <Link
+                      to={{
+                        pathname: '/ApplicationList/ApplicationListDetail',
+                        state: { appName: item.name, envName: currentEnv },
+                      }}
+                    >
                       <Card
                         title={item.name}
                         bordered={false}

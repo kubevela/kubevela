@@ -3,7 +3,7 @@ export default {
   'menu.more-blocks': 'More Blocks',
   'menu.home': 'Home',
   'menu.Traits': 'Traits',
-  'menu.Traits.Autoscaling': 'Autoscaling',
+  'menu.Traits.Scale': 'Scale',
   'menu.Traits.Rollout': 'Rollout',
   'menu.Traits.Detail': 'Detail',
   'menu.ApplicationList': 'Applications',

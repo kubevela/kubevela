@@ -4,7 +4,7 @@ import Trait from '../../../components/Trait';
 class TableList extends React.PureComponent {
   render() {
     const propsObj = {
-      title: 'Autoscaling',
+      title: 'Scale',
       settings: [
         {
           name: 'Max Instance',
@@ -18,7 +18,7 @@ class TableList extends React.PureComponent {
       pathname: '/ApplicationList/CreateApplication',
       state: {
         activeStep: 1,
-        TraitType: 'autoscaling',
+        TraitType: 'scale',
       },
       btnValue: 'Attach to',
       hrefAddress: '#',

@@ -9,7 +9,7 @@ import (
 	"github.com/cloud-native-application/rudrx/pkg/server/apis"
 )
 
-var Port = ":8080"
+var Port = ":8081"
 
 func AssembleResponse(c *gin.Context, data interface{}, err error) {
 	var code = http.StatusOK

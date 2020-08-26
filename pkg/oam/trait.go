@@ -7,7 +7,14 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	"github.com/gin-gonic/gin"
+
+	"cuelang.org/go/cue"
+	"github.com/cloud-native-application/rudrx/pkg/application"
+	"github.com/spf13/pflag"
 
 	"github.com/cloud-native-application/rudrx/pkg/server/apis"
 
@@ -188,4 +195,116 @@ func SimplifyCapabilityStruct(capabilityList []types.Capability) []apis.TraitMet
 		})
 	}
 	return traitList
+}
+
+//AddOrUpdateTrait attach trait to workload
+func AddOrUpdateTrait(envName string, appName string, workloadName string, flagSet *pflag.FlagSet, template types.Capability) (*application.Application, error) {
+	if appName == "" {
+		appName = workloadName
+	}
+	app, err := application.Load(envName, appName)
+	if err != nil {
+		return app, err
+	}
+	traitAlias := template.Name
+	traitData, err := app.GetTraitsByType(workloadName, traitAlias)
+	if err != nil {
+		return app, err
+	}
+	for _, v := range template.Parameters {
+		flagValue, _ := flagSet.GetString(v.Name)
+		switch v.Type {
+		case cue.IntKind:
+			d, _ := strconv.ParseInt(flagValue, 10, 64)
+			traitData[v.Name] = d
+		case cue.StringKind:
+			traitData[v.Name] = flagValue
+		case cue.BoolKind:
+			d, _ := strconv.ParseBool(flagValue)
+			traitData[v.Name] = d
+		case cue.NumberKind, cue.FloatKind:
+			d, _ := strconv.ParseFloat(flagValue, 64)
+			traitData[v.Name] = d
+		}
+	}
+	if err = app.SetTrait(workloadName, traitAlias, traitData); err != nil {
+		return app, err
+	}
+	return app, app.Save(envName)
+}
+
+func AttachTrait(c *gin.Context, body apis.TraitBody) (string, error) {
+	// Prepare
+	var appObj *application.Application
+	fs := pflag.NewFlagSet("trait", pflag.ContinueOnError)
+	for _, f := range body.Flags {
+		fs.String(f.Name, f.Value, "")
+	}
+	staging, err := strconv.ParseBool(body.Staging)
+	if err != nil {
+		return "", err
+	}
+	traitAlias := body.Name
+	template, err := plugins.GetInstalledCapabilityWithCapAlias(types.TypeTrait, traitAlias)
+	if err != nil {
+		return "", err
+	}
+
+	appObj, err = AddOrUpdateTrait(body.EnvName, body.AppGroup, body.WorkloadName, fs, template)
+
+	if err != nil {
+		return "", err
+	}
+	// Run step
+	env, err := GetEnvByName(body.EnvName)
+	if err != nil {
+		return "", err
+	}
+	kubeClient := c.MustGet("KubeClient")
+	return TraitOperationRun(c, kubeClient.(client.Client), env, appObj, staging)
+}
+
+func TraitOperationRun(ctx context.Context, c client.Client, env *types.EnvMeta, appObj *application.Application, staging bool) (string, error) {
+	if staging {
+		return "Staging saved", nil
+	}
+	err := appObj.Run(ctx, c, env)
+	if err != nil {
+		return "", err
+	}
+	return "Succeeded!", nil
+}
+
+func PrepareDetachTrait(envName string, traitType string, workloadName string, appName string) (*application.Application, error) {
+	var appObj *application.Application
+	var err error
+	if appName == "" {
+		appName = workloadName
+	}
+	if appObj, err = application.Load(envName, appName); err != nil {
+		return appObj, err
+	}
+
+	if err = appObj.RemoveTrait(workloadName, traitType); err != nil {
+		return appObj, err
+	}
+	return appObj, appObj.Save(envName)
+}
+
+func DetachTrait(c *gin.Context, envName string, traitType string, workloadName string, appName string, staging bool) (string, error) {
+	var appObj *application.Application
+	var err error
+	if appName == "" {
+		appName = workloadName
+	}
+	if appObj, err = PrepareDetachTrait(envName, traitType, workloadName, appName); err != nil {
+		return "", err
+	}
+	// Run
+	env, err := GetEnvByName(envName)
+	if err != nil {
+		return "", err
+	}
+	kubeClient := c.MustGet("KubeClient")
+	return TraitOperationRun(c, kubeClient.(client.Client), env, appObj, staging)
 }

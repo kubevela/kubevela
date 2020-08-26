@@ -37,8 +37,9 @@ func AddCompCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 			types.TagCommandType: types.TypeWorkloads,
 		},
 	}
+	compCommands.PersistentFlags().StringP(App, "a", "", "specify application name for component")
 
-	compCommands.AddCommand(NewCompRunCommands(c, ioStreams))
+	compCommands.AddCommand(NewCompRunCommands(c, ioStreams), NewCompShowCommand(ioStreams))
 	return compCommands
 }
 
@@ -74,7 +75,6 @@ func NewCompRunCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 	}
 	runCmd.SetOut(ioStreams.Out)
 
-	runCmd.Flags().StringP(App, "a", "", "create or add into an existing application group")
 	runCmd.Flags().BoolP(Staging, "s", false, "only save changes locally without real update application")
 	runCmd.Flags().StringP(WorkloadType, "t", "", "specify workload type for application")
 
@@ -91,8 +91,8 @@ func GetWorkloadNameFromArgs(args []string) (string, error) {
 }
 
 func (o *runOptions) Complete(cmd *cobra.Command, args []string, ctx context.Context) error {
-
 	flags := cmd.Flags()
+	flags.AddFlagSet(cmd.PersistentFlags())
 	flags.ParseErrorsWhitelist.UnknownFlags = true
 
 	// First parse, figure out which workloadType it is.

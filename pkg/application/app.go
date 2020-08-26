@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
+	"time"
 
 	"cuelang.org/go/cue"
 
@@ -38,6 +40,8 @@ type Application struct {
 	Components map[string]map[string]interface{} `json:"components"`
 	Secrets    map[string]map[string]interface{} `json:"secrets"`
 	Scopes     map[string]map[string]interface{} `json:"appScopes"`
+	CreateTime time.Time                         `json:"createTime,omitempty"`
+	UpdateTime time.Time                         `json:"updateTime,omitempty"`
 }
 
 func LoadFromFile(fileName string) (*Application, error) {
@@ -64,11 +68,56 @@ func Load(envName, appName string) (*Application, error) {
 	return LoadFromFile(filepath.Join(appDir, appName+".yaml"))
 }
 
+func List(envName string) ([]*Application, error) {
+	appDir, err := system.GetApplicationDir(envName)
+	if err != nil {
+		return nil, fmt.Errorf("get app dir from env %s err %v", envName, err)
+	}
+	files, err := ioutil.ReadDir(appDir)
+	if err != nil {
+		return nil, fmt.Errorf("list apps from %s err %v", appDir, err)
+	}
+	var apps []*Application
+	for _, f := range files {
+		if f.IsDir() {
+			continue
+		}
+		if !strings.HasSuffix(f.Name(), ".yaml") {
+			continue
+		}
+		app, err := LoadFromFile(filepath.Join(appDir, f.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("load application err %v", err)
+		}
+		apps = append(apps, app)
+	}
+	return apps, nil
+}
+
+func MatchAppByComp(envName, compName string) (*Application, error) {
+	apps, err := List(envName)
+	if err != nil {
+		return nil, err
+	}
+	for _, subapp := range apps {
+		for _, v := range subapp.GetComponents() {
+			if v == compName {
+				return subapp, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("no app found contains %s in env %s", compName, envName)
+}
+
 func (app *Application) Save(envName string) error {
 	appDir, err := system.GetApplicationDir(envName)
 	if err != nil {
 		return fmt.Errorf("get app dir from env %s err %v", envName, err)
 	}
+	if app.CreateTime.IsZero() {
+		app.CreateTime = time.Now()
+	}
+	app.UpdateTime = time.Now()
 	out, err := yaml.Marshal(app)
 	if err != nil {
 		return err

@@ -3,11 +3,10 @@ package cmd
 import (
 	"context"
 	"errors"
-	"strconv"
+
+	"github.com/cloud-native-application/rudrx/pkg/oam"
 
 	"github.com/cloud-native-application/rudrx/pkg/application"
-
-	"cuelang.org/go/cue"
 
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
 
@@ -28,6 +27,7 @@ type commandOptions struct {
 	appName      string
 	staging      bool
 	app          *application.Application
+	traitType    string
 	cmdutil.IOStreams
 }
 
@@ -107,60 +107,34 @@ func (o *commandOptions) Prepare(cmd *cobra.Command, args []string) error {
 }
 
 func (o *commandOptions) AddOrUpdateTrait(cmd *cobra.Command, args []string) error {
-	if err := o.Prepare(cmd, args); err != nil {
+	var err error
+	if err = o.Prepare(cmd, args); err != nil {
 		return err
 	}
-	app, err := application.Load(o.Env.Name, o.appName)
-	if err != nil {
+	if o.app, err = oam.AddOrUpdateTrait(o.Env.Name, o.appName, o.workloadName, cmd.Flags(), o.Template); err != nil {
 		return err
 	}
-	var traitType = o.Template.Name
-	traitData, err := app.GetTraitsByType(o.workloadName, traitType)
-	if err != nil {
-		return err
-	}
-	for _, v := range o.Template.Parameters {
-		flagSet := cmd.Flag(v.Name)
-		switch v.Type {
-		case cue.IntKind:
-			d, _ := strconv.ParseInt(flagSet.Value.String(), 10, 64)
-			traitData[v.Name] = d
-		case cue.StringKind:
-			traitData[v.Name] = flagSet.Value.String()
-		case cue.BoolKind:
-			d, _ := strconv.ParseBool(flagSet.Value.String())
-			traitData[v.Name] = d
-		case cue.NumberKind, cue.FloatKind:
-			d, _ := strconv.ParseFloat(flagSet.Value.String(), 64)
-			traitData[v.Name] = d
-		}
-	}
-	if err = app.SetTrait(o.workloadName, traitType, traitData); err != nil {
-		return err
-	}
-	o.app = app
-	return o.app.Save(o.Env.Name)
+	return nil
 }
 
 func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string) error {
-	if err := o.Prepare(cmd, args); err != nil {
+	var err error
+	if err = o.Prepare(cmd, args); err != nil {
 		return err
 	}
-	app, err := application.Load(o.Env.Name, o.appName)
-	if err != nil {
+	if o.app, err = oam.PrepareDetachTrait(o.Env.Name, o.traitType, o.appName, o.workloadName); err != nil {
 		return err
 	}
 	var traitType = o.Template.Name
-	if err = app.RemoveTrait(o.workloadName, traitType); err != nil {
+	if err = o.app.RemoveTrait(o.workloadName, traitType); err != nil {
 		return err
 	}
-	o.app = app
 	return o.app.Save(o.Env.Name)
 }
 
 func (o *commandOptions) Run(cmd *cobra.Command, ctx context.Context) error {
 	if o.Detach {
-		o.Infof("Detaching %s from app %s\n", o.Template.Name, o.workloadName)
+		o.Infof("Detaching %s from app %s\n", o.traitType, o.workloadName)
 	} else {
 		o.Infof("Adding %s for app %s \n", o.Template.Name, o.workloadName)
 	}
@@ -168,14 +142,10 @@ func (o *commandOptions) Run(cmd *cobra.Command, ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if staging {
-		o.Info("Staging saved")
-		return nil
-	}
-	err = o.app.Run(ctx, o.Client, o.Env)
+	msg, err := oam.TraitOperationRun(ctx, o.Client, o.Env, o.app, staging)
 	if err != nil {
 		return err
 	}
-	o.Info("Succeeded!")
+	o.Info(msg)
 	return nil
 }
