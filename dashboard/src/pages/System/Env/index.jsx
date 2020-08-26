@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {PageContainer} from '@ant-design/pro-layout';
-import {Button, Table, Space, Modal, Form, Input} from 'antd';
+import {Button, Table, Space, Modal, Form, Input, Tooltip} from 'antd';
 import {ExclamationCircleOutlined} from '@ant-design/icons';
 import './index.less';
 import {connect} from "dva";
@@ -17,7 +17,7 @@ const layout = {
 };
 
 const TableList = props => {
-  const {dispatch, getEnvs} = props;
+  const {dispatch} = props;
   const [form] = Form.useForm();
   const [visible, setVisible] = useState(
     false
@@ -33,17 +33,15 @@ const TableList = props => {
     setVisible(true)
   };
 
-  const handleOk = async (values) => {
+  const handleOk = async () => {
     setVisible(false)
-    // fieldsValue为通过验证的数据，现在可进行提交
     const fieldsValue = await form.validateFields();
-    const envs = await dispatch({
+    setEnvs(await dispatch({
       type: 'envs/initialEnvs',
       payload: {
         params: fieldsValue
       },
-    });
-    setEnvs(envs)
+    }))
     form.resetFields();
   };
 
@@ -53,8 +51,17 @@ const TableList = props => {
     form.resetFields();
   };
 
+
+  const deleteEnv = async (record) => {
+    setEnvs(await dispatch({
+      type: 'envs/deleteEnv',
+      payload: {
+        envName: record.name
+      },
+    }))
+  }
+
   const showDeleteConfirm = (record) => {
-    // const self = this;
     confirm({
       title: `Are you sure delete env ${record.name}?`,
       icon: <ExclamationCircleOutlined/>,
@@ -63,19 +70,9 @@ const TableList = props => {
       okType: 'danger',
       cancelText: 'No',
       onOk() {
-        deleteEnv(record)
+        deleteEnv(record);
       }
     });
-  }
-
-  const deleteEnv = async (record) => {
-    const envs = await dispatch({
-      type: 'envs/deleteEnv',
-      payload: {
-        envName: record.name
-      },
-    });
-    setEnvs(envs)
   }
 
   const specifyNamespace = (record) => {
@@ -87,14 +84,13 @@ const TableList = props => {
     setVisible(true)
   }
 
-  const getInitalData = async () => {
-    const envs = await dispatch({
+  const getInitialData = async () => {
+    setEnvs(await dispatch({
       type: 'envs/getEnvs',
-    });
-    setEnvs(envs)
+    }))
   }
   useEffect(() => {
-    getInitalData();
+    getInitialData();
   }, [])
 
 
@@ -102,12 +98,35 @@ const TableList = props => {
     {
       title: 'Env',
       dataIndex: 'name',
-      key: 'name'
+      key: 'name',
+      render: (text => {
+        if (text.length > 20) {
+          return <Tooltip title={text}>{text.substr(0, 20)}...</Tooltip>
+        }
+        return text
+      })
     },
     {
       title: 'Namespace',
       dataIndex: 'namespace',
       key: 'namespace',
+      render: (text => {
+        if (text.length > 20) {
+          return <Tooltip title={text}>{text.substr(0, 20)}...</Tooltip>
+        }
+        return text
+      })
+    },
+    {
+      title: 'Current',
+      dataIndex: 'current',
+      align: 'center',
+      key: 'current',
+      render: (text) => {
+        return (
+          text === '*' ? 'active' : ''
+        )
+      }
     },
     {
       title: 'Operations',
@@ -117,7 +136,7 @@ const TableList = props => {
         return (
           <Space>
             <Button onClick={() => specifyNamespace(record)}>specify namespace</Button>
-            <Button onClick={() => showDeleteConfirm(record)}>remove</Button>
+            <Button disabled={record.current} onClick={() => showDeleteConfirm(record)}>remove</Button>
           </Space>
         );
       },
@@ -154,7 +173,10 @@ const TableList = props => {
               {
                 required: true, message: 'Please input Evn!'
               },
-              {pattern: new RegExp('^[0-9a-zA-Z_]{1,}$', 'g'), message: '只允许包含数字、字母、下划线'}
+              {
+                pattern: new RegExp('^[0-9a-zA-Z_]{1,}$', 'g'),
+                message: 'Should be combination of numbers,alphabets,underline'
+              }
             ]}
           >
             <Input disabled={!!(env && env.name)}/>
@@ -166,7 +188,10 @@ const TableList = props => {
               {
                 required: true, message: 'Please specify a Namespace!'
               },
-              {pattern: new RegExp('^[0-9a-zA-Z_]{1,}$', 'g'), message: '只允许包含数字、字母、下划线'}
+              {
+                pattern: new RegExp('^[0-9a-zA-Z_]{1,63}$', 'g'),
+                message: 'The maximum length is 63, should be combination of numbers,alphabets,underline'
+              }
             ]}
           >
             <Input/>
