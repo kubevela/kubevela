@@ -1,4 +1,4 @@
-import {Menu, Dropdown, Button, message, Row, Col,Divider} from 'antd';
+import {Menu, Dropdown, Button, message, Row, Col, Divider} from 'antd';
 import {DownOutlined} from '@ant-design/icons';
 import React from 'react';
 import {connect} from 'dva';
@@ -59,6 +59,9 @@ export default class WorkSpaceDropDown extends React.Component {
         });
       },
     );
+    await this.props.dispatch({
+      type: 'envs/getEnvs', // applist对应models层的命名空间namespace
+    });
   };
 
   render() {

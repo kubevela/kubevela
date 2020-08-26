@@ -17,7 +17,7 @@ const layout = {
 };
 
 const TableList = props => {
-  const {dispatch} = props;
+  const {dispatch, getEnvs} = props;
   const [form] = Form.useForm();
   const [visible, setVisible] = useState(
     false
@@ -200,7 +200,7 @@ const TableList = props => {
       </Modal>
       <Table
         rowKey={(record) => record.name}
-        columns={columns} dataSource={envs}/>
+        columns={columns} dataSource={getEnvs && getEnvs.envs}/>
     </PageContainer>
   );
 }
