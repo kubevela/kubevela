@@ -134,13 +134,13 @@ const TableList = props => {
       </div>
       <Modal
         getContainer={false}
-        title={env ? "Update Env" : "Create Env"}
+        title={env && env.name ? "Update Env" : "Create Env"}
         visible={visible}
         onOk={handleOk}
         onCancel={handleCancel}
         footer={[
           <Button key="submit" type="primary" onClick={handleOk}>
-            {env ? "Update" : "Create"}
+            {env && env.name ? "Update" : "Create"}
           </Button>,
         ]}
       >
