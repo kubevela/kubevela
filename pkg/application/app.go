@@ -68,6 +68,14 @@ func Load(envName, appName string) (*Application, error) {
 	return LoadFromFile(filepath.Join(appDir, appName+".yaml"))
 }
 
+func Delete(envName, appName string) error {
+	appDir, err := system.GetApplicationDir(envName)
+	if err != nil {
+		return fmt.Errorf("get app dir from env %s err %v", envName, err)
+	}
+	return os.Remove(filepath.Join(appDir, appName+".yaml"))
+}
+
 func List(envName string) ([]*Application, error) {
 	appDir, err := system.GetApplicationDir(envName)
 	if err != nil {

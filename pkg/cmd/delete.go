@@ -4,19 +4,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+
+	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+
+	"github.com/cloud-native-application/rudrx/pkg/application"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/cloud-native-application/rudrx/api/types"
 
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type deleteOptions struct {
-	Component corev1alpha2.Component
-	AppConfig corev1alpha2.ApplicationConfiguration
-	client    client.Client
+	appName string
+	client  client.Client
 	cmdutil.IOStreams
 	Env *types.EnvMeta
 }
@@ -53,39 +58,43 @@ func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		if err != nil {
 			return err
 		}
-
-		if err := o.Complete(cmd, args); err != nil {
-			return err
+		if len(args) < 1 {
+			return errors.New("must specify name for the app")
 		}
+		o.appName = args[0]
+
 		return o.Delete()
 	}
 	return cmd
 }
 
-func (o *deleteOptions) Complete(cmd *cobra.Command, args []string) error {
-
-	if len(args) < 1 {
-		return errors.New("must specify name for the app")
-	}
-
-	namespace := o.Env.Namespace
-
-	o.Component.Name = args[0]
-	o.Component.Namespace = namespace
-	o.AppConfig.Name = args[0]
-	o.AppConfig.Namespace = namespace
-	return nil
-}
-
 func (o *deleteOptions) Delete() error {
-	o.Infof("Deleting AppConfig \"%s\"\n", o.AppConfig.Name)
-	err := o.client.Delete(context.Background(), &o.AppConfig)
+	o.Infof("Deleting AppConfig \"%s\"\n", o.appName)
+	if err := application.Delete(o.Env.Name, o.appName); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	ctx := context.Background()
+	var appConfig corev1alpha2.ApplicationConfiguration
+	err := o.client.Get(ctx, client.ObjectKey{Name: o.appName, Namespace: o.Env.Namespace}, &appConfig)
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			o.Info("Already deleted")
+			return nil
+		}
 		return fmt.Errorf("delete appconfig err %s", err)
 	}
-	err = o.client.Delete(context.Background(), &o.Component)
-	if err != nil {
-		return fmt.Errorf("delete component err: %s", err)
+	for _, comp := range appConfig.Status.Workloads {
+		var c corev1alpha2.Component
+		c.Name = comp.ComponentName
+		c.Namespace = o.Env.Namespace
+		err = o.client.Delete(context.Background(), &c)
+		if err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete component err: %s", err)
+		}
+	}
+	err = o.client.Delete(context.Background(), &appConfig)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete appconfig err %s", err)
 	}
 	o.Info("DELETE SUCCEED")
 	return nil
