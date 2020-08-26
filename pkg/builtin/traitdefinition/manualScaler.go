@@ -4,8 +4,8 @@ var ManualScaler = `apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata: 
   annotations: 
-    oam.appengine.info/apiVersion: core.oam.dev/v1alpha2
-    oam.appengine.info/kind: ManualScalerTrait
+    definition.oam.dev/apiVersion: core.oam.dev/v1alpha2
+    definition.oam.dev/kind: ManualScalerTrait
   name: manualscalertraits.core.oam.dev
 spec: 
   appliesToWorkloads: 

@@ -39,7 +39,12 @@ func AddCompCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 	}
 	compCommands.PersistentFlags().StringP(App, "a", "", "specify application name for component")
 
-	compCommands.AddCommand(NewCompRunCommands(c, ioStreams), NewCompShowCommand(ioStreams))
+	compCommands.AddCommand(
+		NewCompListCommand(c, ioStreams),
+		NewCompRunCommands(c, ioStreams),
+		NewCompShowCommand(ioStreams),
+		NewCompDeleteCommand(c, ioStreams),
+	)
 	return compCommands
 }
 

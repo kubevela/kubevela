@@ -163,7 +163,7 @@ var (
 	ApplicationListContext = func(context string, applicationName string, traitAlias string) bool {
 		return ginkgo.Context("ls", func() {
 			ginkgo.It("should list all applications", func() {
-				output, err := Exec("vela app ls")
+				output, err := Exec("vela comp ls")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
 				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
