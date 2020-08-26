@@ -16,11 +16,11 @@
 }
 
 .ant-dropdown-menu-item:nth-child(1) {
-  border-top: 1px solid #ffffff;
+  border-top: 1px solid #fff;
 }
 
 .ant-dropdown-menu-item-active {
-  background: #38485c !important;
+  background: rgb(0, 21, 41) !important;
 }
 
 .ant-dropdown-menu-item-active .box1 {
@@ -86,8 +86,12 @@
   display: flex;
   height: 20px;
   line-height: 20px;
-  font-size: 15px;
+  font-size: 12px;
   color: #8d959b;
+}
+.btn-outlined{
+  fontSize: 15px;
+  color: #fff
 }
 
 

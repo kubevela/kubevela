@@ -2,7 +2,7 @@ import {Menu, Dropdown, message} from 'antd';
 import {DownOutlined} from '@ant-design/icons';
 import React from 'react';
 import {connect} from 'dva';
-import './menu.css'
+import './WorkSpaceDropDown.css'
 
 @connect((env) => ({envs: env.envs}))
 export default class WorkSpaceDropDown extends React.Component {
