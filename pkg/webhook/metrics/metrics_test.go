@@ -52,12 +52,12 @@ var _ = Describe("Metrics Admission controller Test", func() {
 
 	It("Test not fill in enabled field", func() {
 		trait := traitBase
-		trait.Spec.ScrapeService.Enabled = &falseVar
+		trait.Spec.ScrapeService.Enabled = pointer.BoolPtr(false)
 		want := trait
 		want.Spec.ScrapeService.Format = SupportedFormat
 		want.Spec.ScrapeService.Scheme = SupportedScheme
 		want.Spec.ScrapeService.Path = DefaultMetricsPath
-		want.Spec.ScrapeService.Enabled = &falseVar
+		want.Spec.ScrapeService.Enabled = pointer.BoolPtr(false)
 		Default(&trait)
 		Expect(trait).Should(BeEquivalentTo(want))
 	})
