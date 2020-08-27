@@ -14,8 +14,9 @@ import (
 
 func NewLogsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{}
-	cmd.Use = "logs <APP-NAME>"
-	cmd.Short = "tail pods logs of an application"
+	cmd.Use = "logs <appname>"
+	cmd.Short = "Tail pods logs of an application"
+	cmd.Long = "Tail pods logs of an application"
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
 		if len(args) < 1 {
 			ioStreams.Errorf("please specify the application name")
@@ -40,6 +41,9 @@ func NewLogsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			return err
 		}
 		return nil
+	}
+	cmd.Annotations = map[string]string{
+		types.TagCommandType: types.TypeApp,
 	}
 	return cmd
 }
