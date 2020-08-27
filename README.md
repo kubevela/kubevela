@@ -16,25 +16,81 @@ mv bin/vela /usr/local/bin
 
 ## Vela commands
 
-### Click the picture to watch the video
+```shell script
+$ vela
+✈️  A Micro App Platform for Kubernetes.
 
-[![POC Video](./resources/vela-help.jpg)](https://oam-budao.oss-cn-beijing.aliyuncs.com/Vela%20First%20PoC.mp4 "POC video")
+Usage:
+  vela [flags]
+  vela [command]
+
+Available Commands:
+
+  Getting Started:
+
+    env             	Manage application environments
+      delete        	  Delete environment
+      init <envName>	  Create environment and switch to it
+      ls            	  List all environments
+      switch        	  switch to another environment
+    version         	Prints out build version information
+
+  Applications:
+
+    app                                   	Manage applications with ls, show, delete, run
+      delete <APPLICATION_NAME>           	  Delete Applications
+      ls                                  	  List applications with workloads, traits, status and created time
+      run <APPLICATION_BUNDLE_NAME> [args]	  Run a bundle of OAM Applications
+      show <APPLICATION-NAME>             	  get details of your app, including its workload and trait
+      status <APPLICATION-NAME>           	  get status of an application, including its workload and trait
+    comp                                  	Manage Components
+      delete <ComponentName>              	  Delete Component From Application
+      ls                                  	  List applications with workloads, traits, status and created time
+      run [args]                          	  Init and Run workloads
+      show <COMPONENT-NAME>               	  get component detail, including arguments of workload and trait
+
+  Traits:
+
+    rollout <appname> [args]	Attach rollout trait to an app
+    route <appname> [args]  	Attach route trait to an app
+    scale <appname> [args]  	Attach scale trait to an app
+
+    Want more? < install more capabilities by `vela cap` >
+
+  Others:
+
+    cap                  	Capability Management with config, list, add, remove capabilities
+      add <center>/<name>	  Add capability into cluster
+      center <command>   	  Manage Capability Center with config, sync, list
+      ls [centerName]    	  List all capabilities in center
+      remove <name>      	  Remove capability from cluster
+
+  System:
+
+    completion < bash | zsh >	Output shell completion code for the specified shell (bash or zsh...
+      bash                   	  Generate the autocompletion script for Vela for the bash shell....
+      zsh                    	  Generate the autocompletion script for Vela for the zsh shell.
+
+                             	T...
+    dashboard                	Setup API Server and launch Dashboard
+    system                   	system management utilities
+      info                   	  show vela client and cluster version
+      init                   	  Install OAM runtime and vela builtin capabilities.
+      update                 	  Refresh and sync definition files from cluster
+```
 
 #### env
+
 ```
 $ vela env init test --namespace test
 Create env succeed, current env is test
 
-$ vela env test
-NAME	NAMESPACE
-test	test
-
 $ vela env ls
-NAME   	NAMESPACE
-default	default
-test   	test
+NAME           	CURRENT	NAMESPACE
+default             	default
+test    	 	*       test
 
-$ vela env sw default
+$ vela env switch default
 Switch env succeed, current env is default
 
 $ vela env delete test
@@ -46,7 +102,7 @@ Error: you can't delete current using default
 
 #### workload run
 ```shell script
-$ vela comp run app123 -p 80 --image nginx:1.9.4
+$ vela comp run -t deployment app123 -p 80 --image nginx:1.9.4
 Creating AppConfig app123
 SUCCEED
 ```
@@ -54,33 +110,16 @@ SUCCEED
 #### app
 ```
 $ vela app ls
-NAME       	WORKLOAD             	TRAITS                     	STATUS	CREATED-TIME
-app123     	ContainerizedWorkload	app123-manualscaler-trait  	False 	2020-08-05 20:19:03 +0800 CST
-poc08032042	ContainerizedWorkload	                           	True  	2020-08-03 20:43:02 +0800 CST
-poc1039    	ContainerizedWorkload	poc1039-manualscaler-trait 	False 	2020-08-02 10:39:54 +0800 CST
+app123
+poc08032042
+poc1039
 
-
-$ vela app status app123
-status: "False"
-trait:
-- apiVersion: core.oam.dev/v1alpha2
-  kind: ManualScalerTrait
-  metadata:
-    creationTimestamp: null
-    name: app123-manualscaler-trait
-  spec:
-    definitionRef:
-      name: ""
-workload:
-  apiVersion: core.oam.dev/v1alpha2
-  kind: ContainerizedWorkload
-  metadata:
-    creationTimestamp: null
-    name: app123
-  spec:
-    definitionRef:
-      name: ""
-
+$ vela comp ls
+NAME 	APP  	WORKLOAD  	TRAITS     	STATUS  	CREATED-TIME
+ccc  	ccc  	deployment	           	Deployed	2020-08-27 10:56:41 +0800 CST
+com1 	com1 	          	           	Deployed	2020-08-26 16:45:50 +0800 CST
+com2 	com1 	          	           	Deployed	2020-08-26 16:45:50 +0800 CST
+myapp	myapp	          	route,scale	Deployed	2020-08-19 15:11:17 +0800 CST
 
 $ vela app delete app123
 Deleting AppConfig "app123"

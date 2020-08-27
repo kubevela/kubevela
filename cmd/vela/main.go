@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/cloud-native-application/rudrx/version"
@@ -68,9 +67,8 @@ func newCommand() *cobra.Command {
 			cmd.Printf("✈️  A Micro App Platform for Kubernetes.\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
 			PrintHelpByTag(cmd, allCommands, types.TypeStart)
 			PrintHelpByTag(cmd, allCommands, types.TypeApp)
-			PrintHelpByTag(cmd, allCommands, types.TypeWorkloads)
 			PrintHelpByTag(cmd, allCommands, types.TypeTraits)
-			PrintHelpByTag(cmd, allCommands, types.TypeRelease)
+			//PrintHelpByTag(cmd, allCommands, types.TypeRelease)
 			PrintHelpByTag(cmd, allCommands, types.TypeOthers)
 			PrintHelpByTag(cmd, allCommands, types.TypeSystem)
 			cmd.Println("Flags:")
@@ -140,16 +138,18 @@ func newCommand() *cobra.Command {
 }
 
 func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
-	cmd.Printf("  %s:\n", tag)
+	cmd.Printf("  %s:\n\n", tag)
 	table := uitable.New()
 	for _, c := range all {
-		useline := strings.TrimPrefix(c.UseLine(), "vela ")
 		if val, ok := c.Annotations[types.TagCommandType]; ok && val == tag {
-			table.AddRow("    "+useline, c.Long)
+			table.AddRow("    "+c.Use, c.Long)
+			for _, subcmd := range c.Commands() {
+				table.AddRow("      "+subcmd.Use, "  "+subcmd.Long)
+			}
 		}
 	}
 	cmd.Println(table.String())
-	if tag == types.TypeWorkloads || tag == types.TypeTraits {
+	if tag == types.TypeTraits {
 		if len(table.Rows) > 0 {
 			cmd.Println()
 		}
