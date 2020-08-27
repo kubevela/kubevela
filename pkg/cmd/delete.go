@@ -77,8 +77,9 @@ func (o *deleteOptions) DeleteApp() error {
 		}
 		return fmt.Errorf("delete appconfig err %s", err)
 	}
-	for _, comp := range appConfig.Status.Workloads {
+	for _, comp := range appConfig.Spec.Components {
 		var c corev1alpha2.Component
+		//TODO(wonderflow): what if we use componentRevision here?
 		c.Name = comp.ComponentName
 		c.Namespace = o.Env.Namespace
 		err = o.client.Delete(ctx, &c)
@@ -90,6 +91,15 @@ func (o *deleteOptions) DeleteApp() error {
 	if err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete appconfig err %s", err)
 	}
+
+	var healthscope corev1alpha2.HealthScope
+	healthscope.Name = application.FormatDefaultHealthScopeName(o.appName)
+	healthscope.Namespace = o.Env.Namespace
+	err = o.client.Delete(ctx, &healthscope)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return fmt.Errorf("delete health scope %s err %v", healthscope.Name, err)
+	}
+
 	o.Info("DELETE SUCCEED")
 	return nil
 }

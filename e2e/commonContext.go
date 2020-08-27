@@ -177,13 +177,11 @@ var (
 	ApplicationStatusContext = func(context string, applicationName string, workloadType string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should get status for the application", func() {
-				cli := fmt.Sprintf("vela app status %s", applicationName)
+				cli := fmt.Sprintf("vela comp status %s", applicationName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
 				// TODO(zzxwill) need to check workloadType after app status is refined
-				//gomega.Expect(output).To(gomega.ContainSubstring(workloadType))
-				gomega.Expect(output).To(gomega.ContainSubstring("Workload"))
 			})
 		})
 	}

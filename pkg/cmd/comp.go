@@ -43,6 +43,7 @@ func AddCompCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 		NewCompListCommand(c, ioStreams),
 		NewCompRunCommands(c, ioStreams),
 		NewCompShowCommand(ioStreams),
+		NewCompStatusCommand(c, ioStreams),
 		NewCompDeleteCommand(c, ioStreams),
 	)
 	return compCommands
@@ -132,9 +133,7 @@ func (o *runOptions) Complete(cmd *cobra.Command, args []string, ctx context.Con
 	if err = flags.Parse(args); err != nil {
 		return err
 	}
-
-	var flagSet = cmd.Flags()
-	app, err := oam.BaseComplete(envName, workloadName, appGroup, flagSet, workloadType)
+	app, err := oam.BaseComplete(envName, workloadName, appGroup, flags, workloadType)
 	if err != nil {
 		return err
 	}

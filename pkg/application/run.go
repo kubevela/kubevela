@@ -3,6 +3,8 @@ package application
 import (
 	"context"
 
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
@@ -13,7 +15,7 @@ import (
 )
 
 func (app *Application) Run(ctx context.Context, client client.Client, env *types.EnvMeta) error {
-	components, appconfig, err := app.OAM(env)
+	components, appconfig, scopes, err := app.OAM(env)
 	if err != nil {
 		return err
 	}
@@ -21,6 +23,9 @@ func (app *Application) Run(ctx context.Context, client client.Client, env *type
 		if err = CreateOrUpdateComponent(ctx, client, cmp); err != nil {
 			return err
 		}
+	}
+	if err = CreateScopes(ctx, client, scopes); err != nil {
+		return err
 	}
 	return CreateOrUpdateAppConfig(ctx, client, appconfig)
 }
@@ -57,4 +62,21 @@ func CreateOrUpdateAppConfig(ctx context.Context, client client.Client, appConfi
 	}
 	appConfig.ResourceVersion = geta.ResourceVersion
 	return client.Update(ctx, &appConfig)
+}
+
+func CreateScopes(ctx context.Context, client client.Client, scopes []oam.Object) error {
+	for _, obj := range scopes {
+		key := ctypes.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
+		err := client.Get(ctx, key, obj)
+		if err == nil {
+			return nil
+		}
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+		if err = client.Create(ctx, obj); err != nil {
+			return err
+		}
+	}
+	return nil
 }

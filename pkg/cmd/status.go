@@ -3,18 +3,20 @@ package cmd
 import (
 	"context"
 	"os"
+	"time"
+
+	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+
+	"github.com/cloud-native-application/rudrx/pkg/application"
 
 	"github.com/cloud-native-application/rudrx/api/types"
 
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	"github.com/cloud-native-application/rudrx/pkg/oam"
-
-	"github.com/ghodss/yaml"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewCompStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:     "status <APPLICATION-NAME>",
@@ -27,18 +29,18 @@ func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 				ioStreams.Errorf("Hint: please specify an application")
 				os.Exit(1)
 			}
-			appName := args[0]
+			compName := args[0]
 			env, err := GetEnv(cmd)
 			if err != nil {
 				ioStreams.Errorf("Error: failed to get Env: %s", err)
 				return err
 			}
-			namespace := env.Namespace
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 			if err != nil {
 				return err
 			}
-			return printApplicationStatus(ctx, newClient, ioStreams, appName, namespace)
+			appName, _ := cmd.Flags().GetString(App)
+			return printComponentStatus(ctx, newClient, ioStreams, compName, appName, env)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
@@ -48,15 +50,33 @@ func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	return cmd
 }
 
-func printApplicationStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, namespace string) error {
-	application, err := oam.RetrieveApplicationStatusByName(ctx, c, appName, namespace)
+func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, compName, appName string, env *types.EnvMeta) error {
+	ioStreams.Infof("Showing status of Component %s deployed in Environment %s\n", compName, env.Name)
+	var app *application.Application
+	var err error
+	if appName != "" {
+		app, err = application.Load(env.Name, appName)
+	} else {
+		app, err = application.MatchAppByComp(env.Name, compName)
+	}
 	if err != nil {
 		return err
 	}
-	out, err := yaml.Marshal(application)
-	if err != nil {
+
+	var health v1alpha2.HealthScope
+	if err = c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: application.FormatDefaultHealthScopeName(app.Name)}, &health); err != nil {
 		return err
 	}
-	ioStreams.Info(string(out))
+	ioStreams.Info("Component Status:")
+	//TODO(wonderflow): add more information from health scope
+	ioStreams.Infof("\n   %s \n\n", health.Status.Health)
+
+	var appConfig v1alpha2.ApplicationConfiguration
+	if err = c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: app.Name}, &appConfig); err != nil {
+		return err
+	}
+	ioStreams.Infof("Last Deployment:\n\n")
+	ioStreams.Infof("\tCreated at:\t%v\n", appConfig.CreationTimestamp)
+	ioStreams.Infof("\tUpdated at:\t%v\n", app.UpdateTime.Format(time.RFC3339))
 	return nil
 }
