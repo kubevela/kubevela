@@ -25,12 +25,12 @@ var (
 	workloadTemplateExample = &types.Capability{
 
 		Parameters: []types.Parameter{
-			types.Parameter{
+			{
 				Name:     "image",
 				Short:    "i",
 				Required: true,
 			},
-			types.Parameter{
+			{
 				Name:     "port",
 				Short:    "p",
 				Required: false,
@@ -41,7 +41,7 @@ var (
 	traitTemplateExample = &types.Capability{
 
 		Parameters: []types.Parameter{
-			types.Parameter{
+			{
 				Name:     "replicaCount",
 				Short:    "i",
 				Required: true,
@@ -67,11 +67,11 @@ var (
 				Name: "containerizedworkloads.core.oam.dev",
 			},
 			ChildResourceKinds: []corev1alpha2.ChildResourceKind{
-				corev1alpha2.ChildResourceKind{
+				{
 					APIVersion: "apps/v1",
 					Kind:       "Deployment",
 				},
-				corev1alpha2.ChildResourceKind{
+				{
 					APIVersion: "v1",
 					Kind:       "Service",
 				},
@@ -93,7 +93,7 @@ var (
 		},
 		Spec: corev1alpha2.ApplicationConfigurationSpec{
 			Components: []corev1alpha2.ApplicationConfigurationComponent{
-				corev1alpha2.ApplicationConfigurationComponent{
+				{
 					ComponentName: "app2060",
 				},
 			},

@@ -306,7 +306,6 @@ func (r *MetricsTraitReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-
 // Setup adds a controller that reconciles MetricsTrait.
 func Setup(mgr ctrl.Manager) error {
 	reconciler := MetricsTraitReconciler{

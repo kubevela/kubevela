@@ -1,0 +1,153 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.5
+  creationTimestamp: null
+  name: metricstraits.standard.oam.dev
+spec:
+  group: standard.oam.dev
+  names:
+    categories:
+    - oam
+    kind: MetricsTrait
+    listKind: MetricsTraitList
+    plural: metricstraits
+    singular: metricstrait
+  scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      description: MetricsTrait is the Schema for the metricstraits API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: MetricsTraitSpec defines the desired state of MetricsTrait
+          properties:
+            scrapeService:
+              description: An endpoint to be monitored by a ServiceMonitor.
+              properties:
+                enabled:
+                  description: The default is true
+                  type: boolean
+                format:
+                  description: The format of the metrics data, The default and only
+                    supported format is "prometheus" for now
+                  type: string
+                path:
+                  description: HTTP path to scrape for metrics. default is /metrics
+                  type: string
+                port:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  description: Number or name of the port to access on the pods targeted
+                    by the service. When this field has value implies that we need
+                    to create a service for the workload Mutually exclusive with port.
+                  x-kubernetes-int-or-string: true
+                scheme:
+                  description: Scheme at which metrics should be scraped The default
+                    and only supported scheme is "http"
+                  type: string
+                selector:
+                  additionalProperties:
+                    type: string
+                  description: Route service traffic to pods with label keys and values
+                    matching this The default is the labels in the workload Mutually
+                    exclusive with port.
+                  type: object
+              type: object
+            workloadRef:
+              description: WorkloadReference to the workload whose metrics needs to
+                be exposed
+              properties:
+                apiVersion:
+                  description: APIVersion of the referenced object.
+                  type: string
+                kind:
+                  description: Kind of the referenced object.
+                  type: string
+                name:
+                  description: Name of the referenced object.
+                  type: string
+                uid:
+                  description: UID of the referenced object.
+                  type: string
+              required:
+              - apiVersion
+              - kind
+              - name
+              type: object
+          required:
+          - scrapeService
+          type: object
+        status:
+          description: MetricsTraitStatus defines the observed state of MetricsTrait
+          properties:
+            conditions:
+              description: Conditions of the resource.
+              items:
+                description: A Condition that may apply to a resource.
+                properties:
+                  lastTransitionTime:
+                    description: LastTransitionTime is the last time this condition
+                      transitioned from one status to another.
+                    format: date-time
+                    type: string
+                  message:
+                    description: A Message containing details about this condition's
+                      last transition from one status to another, if any.
+                    type: string
+                  reason:
+                    description: A Reason for this condition's last transition from
+                      one status to another.
+                    type: string
+                  status:
+                    description: Status of this condition; is it currently True, False,
+                      or Unknown?
+                    type: string
+                  type:
+                    description: Type of this condition. At most one of each condition
+                      type may apply to a resource at any point in time.
+                    type: string
+                required:
+                - lastTransitionTime
+                - reason
+                - status
+                - type
+                type: object
+              type: array
+            serviceMonitorName:
+              description: ServiceMonitorNames managed by this trait
+              items:
+                type: string
+              type: array
+          type: object
+      required:
+      - spec
+      type: object
+  version: v1alpha1
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

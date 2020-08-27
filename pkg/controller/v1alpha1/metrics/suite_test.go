@@ -36,7 +36,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	standardv1alpha1 "github.com/oam-dev/catalog/traits/metricstrait/api/v1alpha1"
+	standardv1alpha1 "github.com/cloud-native-application/rudrx/api/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -67,8 +67,7 @@ var _ = BeforeSuite(func(done Done) {
 	By("Bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("..", "config", "crd", "bases"),
-			filepath.Join("..", "hack/crds"), // this has all the required CRDs, a bit hacky
+			filepath.Join("../../../..", "hack/crds"), // this has all the required CRDs, a bit hacky
 		},
 	}
 	var err error
@@ -107,6 +106,7 @@ var _ = BeforeSuite(func(done Done) {
 	controllerDone = make(chan struct{}, 1)
 	// +kubebuilder:scaffold:builder
 	go func() {
+		defer GinkgoRecover()
 		Expect(mgr.Start(controllerDone)).ToNot(HaveOccurred())
 	}()
 

@@ -34,7 +34,7 @@ var _ = Describe("Metrics Admission controller Test", func() {
 		want.Spec.ScrapeService.Format = SupportedFormat
 		want.Spec.ScrapeService.Scheme = SupportedScheme
 		want.Spec.ScrapeService.Path = DefaultMetricsPath
-		want.Spec.ScrapeService.Enabled = pointer.BoolPtr(false)
+		want.Spec.ScrapeService.Enabled = pointer.BoolPtr(true)
 		Default(&trait)
 		Expect(trait).Should(BeEquivalentTo(want))
 	})
