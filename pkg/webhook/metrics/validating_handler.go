@@ -22,9 +22,7 @@ import (
 	"net/http"
 
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
-	apimachineryvalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	apivalidation "k8s.io/kubernetes/pkg/apis/core/validation"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -77,8 +75,10 @@ func (h *MetricsTraitValidatingHandler) Handle(ctx context.Context, req admissio
 // ValidateCreate validates the metricsTrait on creation
 func ValidateCreate(r *v1alpha1.MetricsTrait) field.ErrorList {
 	validatelog.Info("validate create", "name", r.Name)
-	allErrs := apivalidation.ValidateObjectMeta(&r.ObjectMeta, true, apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
-	fldPath := field.NewPath("metadata")
+	/*allErrs := apivalidation.ValidateObjectMeta(&r.ObjectMeta, true, apimachineryvalidation.NameIsDNSSubdomain,
+	field.NewPath("metadata"))*/
+	var allErrs field.ErrorList
+	fldPath := field.NewPath("spec")
 	if r.Spec.ScrapeService.Format != SupportedFormat {
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("ScrapeService.Format"), r.Spec.ScrapeService.Format,
 			fmt.Sprintf("the data format `%s` is not supported", r.Spec.ScrapeService.Format)))

@@ -22,7 +22,7 @@ build: fmt vet
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: fmt vet
-	go run ./cmd/server/main.go
+	go run ./cmd/core/main.go
 
 # Run go fmt against code
 fmt:

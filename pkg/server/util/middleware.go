@@ -62,7 +62,8 @@ func NoRoute() gin.HandlerFunc {
 
 //generateRequestID :Get request id
 func generateRequestID() string {
-	return uuid.NewV4().String()
+	id, _ := uuid.NewV4()
+	return id.String()
 }
 
 // SetRequestID ...

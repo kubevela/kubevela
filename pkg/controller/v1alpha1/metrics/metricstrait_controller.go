@@ -305,3 +305,15 @@ func (r *MetricsTraitReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&monitoring.ServiceMonitor{}).
 		Complete(r)
 }
+
+
+// Setup adds a controller that reconciles MetricsTrait.
+func Setup(mgr ctrl.Manager) error {
+	reconciler := MetricsTraitReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("MetricsTrait"),
+		record: event.NewAPIRecorder(mgr.GetEventRecorderFor("MetricsTrait")),
+		Scheme: mgr.GetScheme(),
+	}
+	return reconciler.SetupWithManager(mgr)
+}
