@@ -1,10 +1,6 @@
 package handler
 
 import (
-	"net/http"
-
-	"github.com/cloud-native-application/rudrx/api/types"
-
 	"github.com/cloud-native-application/rudrx/pkg/oam"
 
 	"github.com/gin-gonic/gin"
@@ -17,30 +13,35 @@ import (
 
 // ENV related handlers
 func CreateEnv(c *gin.Context) {
-	var envConfig types.EnvMeta
-	if err := c.ShouldBindJSON(&envConfig); err != nil {
+	var environment apis.Environment
+	if err := c.ShouldBindJSON(&environment); err != nil {
 		util.HandleError(c, util.InvalidArgument, "the create environment request body is invalid")
 		return
 	}
-	ctrl.Log.Info("Get a create environment request", "env", envConfig)
-	name := envConfig.Name
-	namespace := envConfig.Namespace
+	ctrl.Log.Info("Get a create environment request", "env", environment)
+	name := environment.EnvironmentName
+	namespace := environment.Namespace
 	if namespace == "" {
 		namespace = "default"
 	}
 	ctx := util.GetContext(c)
 	kubeClient := c.MustGet("KubeClient")
-	err, message := oam.CreateOrUpdateEnv(ctx, kubeClient.(client.Client), name, namespace)
+	err, message := oam.CreateEnv(ctx, kubeClient.(client.Client), name, namespace)
+	util.AssembleResponse(c, message, err)
+}
 
-	var code = http.StatusOK
-	if err != nil {
-		code = http.StatusInternalServerError
-		message = err.Error()
+func UpdateEnv(c *gin.Context) {
+	envName := c.Param("envName")
+	ctrl.Log.Info("Put a update environment request", "envName", envName)
+	var environmentBody apis.EnvironmentBody
+	if err := c.ShouldBindJSON(&environmentBody); err != nil {
+		util.HandleError(c, util.InvalidArgument, "the update environment request body is invalid")
+		return
 	}
-	c.JSON(code, apis.Response{
-		Code: code,
-		Data: message,
-	})
+	ctx := util.GetContext(c)
+	kubeClient := c.MustGet("KubeClient")
+	err, message := oam.UpdateEnv(ctx, kubeClient.(client.Client), envName, environmentBody.Namespace)
+	util.AssembleResponse(c, message, err)
 }
 
 func GetEnv(c *gin.Context) {
@@ -48,14 +49,15 @@ func GetEnv(c *gin.Context) {
 	ctrl.Log.Info("Get a get environment request", "envName", envName)
 	envList, err := oam.ListEnvs(envName)
 
-	var code = http.StatusOK
-	if err != nil {
-		code = http.StatusInternalServerError
+	environmentList := make([]apis.Environment, 0)
+	for _, envMeta := range envList {
+		environmentList = append(environmentList, apis.Environment{
+			EnvironmentName: envMeta.Name,
+			Namespace:       envMeta.Namespace,
+			Current:         envMeta.Current,
+		})
 	}
-	c.JSON(code, apis.Response{
-		Code: code,
-		Data: envList,
-	})
+	util.AssembleResponse(c, environmentList, err)
 }
 
 func ListEnv(c *gin.Context) {
