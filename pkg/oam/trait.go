@@ -240,18 +240,20 @@ func AttachTrait(c *gin.Context, body apis.TraitBody) (string, error) {
 	for _, f := range body.Flags {
 		fs.String(f.Name, f.Value, "")
 	}
-	staging, err := strconv.ParseBool(body.Staging)
-	if err != nil {
-		return "", err
+	var staging = false
+	var err error
+	if body.Staging != "" {
+		staging, err = strconv.ParseBool(body.Staging)
+		if err != nil {
+			return "", err
+		}
 	}
 	traitAlias := body.Name
 	template, err := plugins.GetInstalledCapabilityWithCapAlias(types.TypeTrait, traitAlias)
 	if err != nil {
 		return "", err
 	}
-
 	appObj, err = AddOrUpdateTrait(body.EnvName, body.AppGroup, body.WorkloadName, fs, template)
-
 	if err != nil {
 		return "", err
 	}

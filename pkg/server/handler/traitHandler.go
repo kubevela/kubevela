@@ -8,6 +8,7 @@ import (
 	"github.com/cloud-native-application/rudrx/pkg/server/apis"
 	"github.com/cloud-native-application/rudrx/pkg/server/util"
 	"github.com/gin-gonic/gin"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 // Trait related handlers
@@ -19,6 +20,7 @@ func AttachTrait(c *gin.Context) {
 		util.HandleError(c, util.InvalidArgument, "the trait attach request body is invalid")
 		return
 	}
+	ctrl.Log.Info("request parameters body:", "body", body)
 	msg, err := oam.AttachTrait(c, body)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
