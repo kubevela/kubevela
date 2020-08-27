@@ -29,12 +29,12 @@ func newRunOptions(ioStreams util.IOStreams) *runOptions {
 
 func AddCompCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 	compCommands := &cobra.Command{
-		Use:                   "comp <commands>",
+		Use:                   "comp",
 		DisableFlagsInUseLine: true,
 		Short:                 "Manage Components",
 		Long:                  "Manage Components",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeWorkloads,
+			types.TagCommandType: types.TypeApp,
 		},
 	}
 	compCommands.PersistentFlags().StringP(App, "a", "", "specify application name for component")
@@ -75,7 +75,7 @@ func NewCompRunCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 			return o.Run(cmd)
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeWorkloads,
+			types.TagCommandType: types.TypeApp,
 		},
 	}
 	runCmd.SetOut(ioStreams.Out)

@@ -18,7 +18,7 @@ import (
 
 func CapabilityCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "cap <command>",
+		Use:   "cap",
 		Short: "Capability Management",
 		Long:  "Capability Management with config, list, add, remove capabilities",
 		Annotations: map[string]string{

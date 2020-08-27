@@ -36,11 +36,10 @@ type EnvMeta struct {
 const (
 	TagCommandType = "commandType"
 
-	TypeStart     = "Getting Started"
-	TypeApp       = "Applications"
-	TypeWorkloads = "Workloads"
-	TypeTraits    = "Traits"
-	TypeRelease   = "Release"
-	TypeOthers    = "Others"
-	TypeSystem    = "System"
+	TypeStart   = "Getting Started"
+	TypeApp     = "Applications"
+	TypeTraits  = "Traits"
+	TypeRelease = "Release"
+	TypeOthers  = "Others"
+	TypeSystem  = "System"
 )
