@@ -1,10 +1,10 @@
-import {Menu, Dropdown, message} from 'antd';
-import {DownOutlined} from '@ant-design/icons';
+import { Menu, Dropdown, message } from 'antd';
+import { DownOutlined } from '@ant-design/icons';
 import React from 'react';
-import {connect} from 'dva';
+import { connect } from 'dva';
 import './WorkSpaceDropDown.css'
 
-@connect((env) => ({envs: env.envs}))
+@connect((env) => ({ envs: env.envs }))
 export default class WorkSpaceDropDown extends React.Component {
   constructor(props) {
     super(props);
@@ -20,7 +20,7 @@ export default class WorkSpaceDropDown extends React.Component {
       type: 'envs/getEnvs',
     });
     if (envs) {
-      const {name, namespace} = envs.find((env) => {
+      const { name, namespace } = envs.find((env) => {
         return env.current === '*';
       });
       this.setState({
@@ -69,27 +69,27 @@ export default class WorkSpaceDropDown extends React.Component {
   };
 
   render() {
-    const {envs} = this.props;
+    const { envs } = this.props;
     const menu = (
-      <Menu onClick={this.handleMenuClick}>
-        {envs.envs && envs.envs.map((item) => {
-          return <Menu.Item key={item.name} title={item.namespace}>
+      <Menu onClick={ this.handleMenuClick }>
+        { envs.envs && envs.envs.map((item) => {
+          return <Menu.Item key={ item.name } title={ item.namespace }>
             <div className='box'>
-              <div className="box1">{item.name}</div>
-              <div className="box2">{item.namespace}</div>
+              <div className="box1">{ item.name }</div>
+              <div className="box2">{ item.namespace }</div>
             </div>
           </Menu.Item>;
-        })}
+        }) }
       </Menu>
     );
     return (
-      <Dropdown overlay={menu}>
+      <Dropdown overlay={ menu }>
         <div className='drop-box'>
           <div className='btn-box'>
-            <div className="btn-top">{this.state.workSpaceName}</div>
-            <div className="btn-bottom">{this.state.namespace}</div>
+            <div className="btn-top">{ this.state.workSpaceName }</div>
+            <div className="btn-bottom">{ this.state.namespace }</div>
           </div>
-          <DownOutlined style={{fontSize: '15px', color: '#ffffff'}}/>
+          <DownOutlined style={ { fontSize: '15px', color: '#ffffff' } }/>
         </div>
       </Dropdown>
     );

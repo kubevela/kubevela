@@ -4,6 +4,7 @@ import {Button, Table, Space, Modal, Form, Input, Tooltip} from 'antd';
 import {ExclamationCircleOutlined} from '@ant-design/icons';
 import './index.less';
 import {connect} from "dva";
+import * as _ from 'lodash'
 
 const {confirm} = Modal;
 
@@ -17,7 +18,8 @@ const layout = {
 };
 
 const TableList = props => {
-  const {dispatch, getEnvs} = props;
+  const {dispatch} = props;
+  const tableEnvs = _.get(props, 'getEnvs.envs', [])
   const [form] = Form.useForm();
   const [visible, setVisible] = useState(
     false
@@ -39,6 +41,7 @@ const TableList = props => {
         params: fieldsValue
       },
     })
+    setEnv(null);
     form.resetFields();
   };
 
@@ -197,7 +200,8 @@ const TableList = props => {
       </Modal>
       <Table
         rowKey={(record) => record.name}
-        columns={columns} dataSource={getEnvs && getEnvs.envs}/>
+        columns={columns}
+        dataSource={tableEnvs}/>
     </PageContainer>
   );
 }

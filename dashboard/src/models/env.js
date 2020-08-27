@@ -1,13 +1,12 @@
-import {getEnvs, switchEnv, initialEnvs, deleteEnv} from '@/services/env';
+import { getEnvs, switchEnv, initialEnvs, deleteEnv } from '@/services/env';
 
 const TestModel = {
   namespace: 'envs',
   state: {
     envs: undefined
-    // initailState: '8880'
   },
   effects: {
-    * getEnvs({payload}, {call, put}) {
+    *getEnvs({ payload }, { call, put }) {
       const res = yield call(getEnvs, payload);
       yield put({
         type: 'onGetEnvsSuccess',
@@ -15,11 +14,11 @@ const TestModel = {
       });
       return res;
     },
-    * switchEnv({payload}, {call}) {
+    *switchEnv({ payload }, { call }) {
       const res = yield call(switchEnv, payload);
       return res;
     },
-    * initialEnvs({payload}, {call, put}) {
+    *initialEnvs({ payload }, { call, put }) {
       yield call(initialEnvs, payload)
       const res = yield call(getEnvs, payload);
       yield put({
@@ -28,7 +27,7 @@ const TestModel = {
       });
       return res;
     },
-    * deleteEnv({payload}, {call, put},) {
+    *deleteEnv({ payload }, { call, put },) {
       yield call(deleteEnv, payload)
       const res = yield call(getEnvs);
       yield put({
@@ -39,7 +38,7 @@ const TestModel = {
     }
   },
   reducers: {
-    onGetEnvsSuccess(state, {payload}) {
+    onGetEnvsSuccess(state, { payload }) {
       return {
         ...state,
         envs: payload,
