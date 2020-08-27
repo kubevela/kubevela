@@ -2,7 +2,8 @@ package oam
 
 import (
 	"context"
-	"encoding/json"
+
+	"github.com/cloud-native-application/rudrx/api/types"
 
 	"github.com/cloud-native-application/rudrx/pkg/server/apis"
 
@@ -11,64 +12,68 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type ApplicationMeta struct {
-	Name        string   `json:"name"`
-	Workload    string   `json:"workload,omitempty"`
-	Traits      []string `json:"traits,omitempty"`
-	Status      string   `json:"status,omitempty"`
-	CreatedTime string   `json:"created,omitempty"`
+type ComponentMeta struct {
+	Name        string                                `json:"name"`
+	App         string                                `json:"app"`
+	Workload    string                                `json:"workload,omitempty"`
+	Traits      []string                              `json:"traits,omitempty"`
+	Status      string                                `json:"status,omitempty"`
+	CreatedTime string                                `json:"created,omitempty"`
+	AppConfig   corev1alpha2.ApplicationConfiguration `json:"-"`
+	Component   corev1alpha2.Component                `json:"-"`
+}
+
+type Option struct {
+	// Optional filter, if specified, only components in such app will be listed
+	AppName string
+
+	Namespace string
 }
 
 /*
-	Get application list by optional filter `applicationName`
-	Application name is equal to Component name as currently vela only supports one component exists in one application
+	Get component list
 */
-func RetrieveApplicationsByName(ctx context.Context, c client.Client, applicationName string, namespace string) ([]ApplicationMeta, error) {
-	var applicationMetaList []ApplicationMeta
+func ListComponents(ctx context.Context, c client.Client, opt Option) ([]ComponentMeta, error) {
+	var componentMetaList []ComponentMeta
 	var applicationList corev1alpha2.ApplicationConfigurationList
 
-	if applicationName != "" {
+	if opt.AppName != "" {
 		var application corev1alpha2.ApplicationConfiguration
-		err := c.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: namespace}, &application)
-
-		if err != nil {
-			return applicationMetaList, err
+		if err := c.Get(ctx, client.ObjectKey{Name: opt.AppName, Namespace: opt.Namespace}, &application); err != nil {
+			return nil, err
 		}
-
 		applicationList.Items = append(applicationList.Items, application)
 	} else {
-		err := c.List(ctx, &applicationList, &client.ListOptions{Namespace: namespace})
+		err := c.List(ctx, &applicationList, &client.ListOptions{Namespace: opt.Namespace})
 		if err != nil {
-			return applicationMetaList, err
+			return nil, err
 		}
 	}
 
 	for _, a := range applicationList.Items {
 		for _, com := range a.Spec.Components {
-			componentName := com.ComponentName
-			component, err := cmdutil.GetComponent(ctx, c, componentName, namespace)
+			component, err := cmdutil.GetComponent(ctx, c, com.ComponentName, opt.Namespace)
 			if err != nil {
-				return applicationMetaList, err
+				return componentMetaList, err
 			}
-			var workload corev1alpha2.WorkloadDefinition
-			if err := json.Unmarshal(component.Spec.Workload.Raw, &workload); err == nil {
-				workloadName := workload.TypeMeta.Kind
-				traitAlias := GetTraitAliasByComponentTraitList(ctx, c, com.Traits)
-				var status = "UNKNOWN"
-				if len(a.Status.Conditions) != 0 {
-					status = string(a.Status.Conditions[0].Status)
-				}
-				applicationMetaList = append(applicationMetaList, ApplicationMeta{
-					Name:        a.Name,
-					Workload:    workloadName,
-					Traits:      traitAlias,
-					Status:      status,
-					CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
-				})
+			traitAlias := GetTraitAliasByComponentTraitList(com.Traits)
+			var workload string
+			if component.Annotations != nil {
+				workload = component.Annotations[types.AnnWorkloadDef]
 			}
+			componentMetaList = append(componentMetaList, ComponentMeta{
+				Name:        com.ComponentName,
+				App:         a.Name,
+				Workload:    workload,
+				Status:      types.StatusDeployed,
+				Traits:      traitAlias,
+				CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
+				Component:   component,
+				AppConfig:   a,
+			})
 		}
 	}
-	return applicationMetaList, nil
+	return componentMetaList, nil
 }
 
 func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, applicationName string, namespace string) (apis.ApplicationStatusMeta, error) {

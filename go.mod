@@ -9,6 +9,7 @@ require (
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/ghodss/yaml v1.0.0
 	github.com/gin-gonic/gin v1.6.3
+	github.com/google/go-cmp v0.5.2
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
 	github.com/onsi/ginkgo v1.11.0

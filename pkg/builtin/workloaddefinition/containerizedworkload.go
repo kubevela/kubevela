@@ -5,8 +5,8 @@ kind: WorkloadDefinition
 metadata:
   name: containerizedworkloads.core.oam.dev
   annotations:
-    oam.appengine.info/apiVersion: "core.oam.dev/v1alpha2"
-    oam.appengine.info/kind: "ContainerizedWorkload"
+    definition.oam.dev/apiVersion: "core.oam.dev/v1alpha2"
+    definition.oam.dev/kind: "ContainerizedWorkload"
 spec:
   definitionRef:
     name: containerizedworkloads.core.oam.dev

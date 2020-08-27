@@ -3,8 +3,8 @@ kind: WorkloadDefinition
 metadata:
   name: deployments.apps
   annotations:
-    oam.appengine.info/apiVersion: "apps/v1"
-    oam.appengine.info/kind: "Deployment"
+    definition.oam.dev/apiVersion: "apps/v1"
+    definition.oam.dev/kind: "Deployment"
 spec:
   definitionRef:
     name: deployments.apps

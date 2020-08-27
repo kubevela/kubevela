@@ -49,7 +49,7 @@ func ListApps(c *gin.Context) {
 	namespace := envMeta.Namespace
 
 	ctx := util.GetContext(c)
-	applicationMetaList, err := oam.RetrieveApplicationsByName(ctx, kubeClient.(client.Client), "", namespace)
+	applicationMetaList, err := oam.ListComponents(ctx, kubeClient.(client.Client), oam.Option{Namespace: namespace})
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return

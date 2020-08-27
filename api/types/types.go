@@ -13,12 +13,18 @@ const (
 )
 
 const (
-	AnnApiVersion = "oam.appengine.info/apiVersion"
-	AnnKind       = "oam.appengine.info/kind"
+	AnnApiVersion = "definition.oam.dev/apiVersion"
+	AnnKind       = "definition.oam.dev/kind"
 
-	// ComponentWorkloadDefLabel indicate which workloaddefinition generate from
-	ComponentWorkloadDefLabel = "vela.oam.dev/workloadDef"
-	TraitDefLabel             = "vela.oam.dev/traitDef"
+	// Indicate which workloadDefinition generate from
+	AnnWorkloadDef = "workload.oam.dev/name"
+	// Indicate which traitDefinition generate from
+	AnnTraitDef = "trait.oam.dev/name"
+)
+
+const (
+	StatusDeployed = "Deployed"
+	StatusStaging  = "Staging"
 )
 
 type EnvMeta struct {

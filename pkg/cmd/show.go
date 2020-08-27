@@ -154,17 +154,17 @@ func showComponent(cmd *cobra.Command, env *types.EnvMeta, compName, appName str
 		}
 		cmd.Printf("%s\n\n", table.String())
 		traits, err := app.GetTraits(compName)
-		if err != nil || len(traits) == 0 {
+		if err != nil {
+			cmd.PrintErr(err)
 			continue
 		}
 		cmd.Println()
 		cmd.Printf("Traits:\n\n")
 		for k, v := range traits {
-			cmd.Printf("    Type:\t%s\n", k)
-			cmd.Printf("    Arguments:\n\n")
+			cmd.Printf("  %s:\n", k)
 			table = uitable.New()
 			for kk, vv := range v {
-				table.AddRow(fmt.Sprintf("  %s:", kk), vv)
+				table.AddRow(fmt.Sprintf("    %s:", kk), vv)
 			}
 			cmd.Printf("%s\n\n", table.String())
 		}

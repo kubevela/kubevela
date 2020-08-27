@@ -3,8 +3,8 @@ kind: TraitDefinition
 metadata:
   name: manualscalertraits.core.oam.dev
   annotations:
-    oam.appengine.info/apiVersion: "core.oam.dev/v1alpha2"
-    oam.appengine.info/kind: "ManualScalerTrait"
+    definition.oam.dev/apiVersion: "core.oam.dev/v1alpha2"
+    definition.oam.dev/kind: "ManualScalerTrait"
 spec:
   appliesToWorkloads:
     - core.oam.dev/v1alpha2.ContainerizedWorkload

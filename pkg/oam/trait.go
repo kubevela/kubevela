@@ -42,12 +42,25 @@ func GetGVKFromRawExtension(extension runtime.RawExtension) (string, string, str
 	return gvk.Group, gvk.Version, gvk.Kind
 }
 
-func GetTraitAliasByComponentTraitList(ctx context.Context, c client.Client, componentTraitList []corev1alpha2.ComponentTrait) []string {
+func GetTraitDefNameFromRaw(extension runtime.RawExtension) string {
+	if extension.Raw == nil {
+		extension.Raw, _ = extension.MarshalJSON()
+	}
+	var data map[string]interface{}
+	// leverage Admission Controller to do the check
+	_ = json.Unmarshal(extension.Raw, &data)
+	obj := unstructured.Unstructured{Object: data}
+	ann := obj.GetAnnotations()
+	if ann == nil {
+		return obj.GetKind()
+	}
+	return ann[types.AnnTraitDef]
+}
+
+func GetTraitAliasByComponentTraitList(componentTraitList []corev1alpha2.ComponentTrait) []string {
 	var traitAlias []string
 	for _, t := range componentTraitList {
-		_, _, kind := GetGVKFromRawExtension(t.Trait)
-		alias := GetTraitAliasByKind(ctx, c, kind)
-		traitAlias = append(traitAlias, alias)
+		traitAlias = append(traitAlias, GetTraitDefNameFromRaw(t.Trait))
 	}
 	return traitAlias
 }
@@ -87,7 +100,7 @@ func GetTraitDefinitionByKind(ctx context.Context, c client.Client, traitKind st
 		return traitDefinition, err
 	}
 	for _, t := range traitDefinitionList.Items {
-		if t.Annotations["oam.appengine.info/kind"] == traitKind {
+		if t.Annotations[types.AnnKind] == traitKind {
 			return t, nil
 		}
 	}
