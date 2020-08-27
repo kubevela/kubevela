@@ -36,6 +36,11 @@ func NewTestIOStreams() (IOStreams, *bytes.Buffer, *bytes.Buffer, *bytes.Buffer)
 	}, in, out, errOut
 }
 
+//Infonln compared to Info(), won't print new line
+func (i *IOStreams) Infonln(a ...interface{}) {
+	i.Out.Write([]byte(fmt.Sprint(a...)))
+}
+
 func (i *IOStreams) Info(a ...interface{}) {
 	i.Out.Write([]byte(fmt.Sprintln(a...)))
 }

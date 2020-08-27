@@ -122,6 +122,8 @@ func newCommand() *cobra.Command {
 		cmd.NewWorkloadsCommand(ioStream),
 
 		cmd.NewDashboardCommand(commandArgs, ioStream),
+
+		cmd.NewLogsCommand(commandArgs, ioStream),
 	)
 
 	// Traits
