@@ -154,7 +154,7 @@ var (
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("Adding " + traitAlias + " for app"))
-				gomega.Expect(output).To(gomega.ContainSubstring("Succeeded"))
+				gomega.Expect(output).To(gomega.ContainSubstring("Succeeded!"))
 			})
 		})
 	}

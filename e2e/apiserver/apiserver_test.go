@@ -38,13 +38,13 @@ var (
 		EnvName:      envHelloMeta.Name,
 		WorkloadName: workloadName,
 		WorkloadType: workloadType,
-		Flags:        []apis.WorkloadFlag{{Name: "port", Value: "80"}},
+		Flags:        []apis.CommonFlag{{Name: "port", Value: "80"}},
 	}
 	workloadRunBody = apis.WorkloadRunBody{
 		EnvName:      envHelloMeta.Name,
 		WorkloadName: workloadName,
 		WorkloadType: workloadType,
-		Flags:        []apis.WorkloadFlag{{Name: "image", Value: "nginx:1.9.4"}, {Name: "port", Value: "80"}},
+		Flags:        []apis.CommonFlag{{Name: "image", Value: "nginx:1.9.4"}, {Name: "port", Value: "80"}},
 	}
 )
 
@@ -56,7 +56,7 @@ var notExistedEnvMeta = types.EnvMeta{
 var containerizedWorkloadType = "containerized"
 var deploymentWorkloadType = "deployment"
 
-var _ = ginkgo.Describe("API Env", func() {
+var _ = ginkgo.Describe("API", func() {
 	//API Env
 	e2e.APIEnvInitContext("post /envs/", envHelloMeta)
 
@@ -141,10 +141,6 @@ var _ = ginkgo.Describe("API Env", func() {
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(expectedContent))
 		})
 	})
-
-})
-
-var _ = ginkgo.Describe("API Workload", func() {
 
 	ginkgo.Context("Workloads", func() {
 		ginkgo.It("run workload", func() {

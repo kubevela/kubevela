@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/cloud-native-application/rudrx/pkg/server/apis"
+
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -67,4 +69,32 @@ func RetrieveApplicationsByName(ctx context.Context, c client.Client, applicatio
 		}
 	}
 	return applicationMetaList, nil
+}
+
+func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, applicationName string, namespace string) (apis.ApplicationStatusMeta, error) {
+	var applicationStatusMeta apis.ApplicationStatusMeta
+	var appConfig corev1alpha2.ApplicationConfiguration
+	if err := c.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: namespace}, &appConfig); err != nil {
+		return applicationStatusMeta, err
+	}
+	for _, com := range appConfig.Spec.Components {
+		// Just get the one component from appConfig
+		if com.ComponentName != applicationName {
+			continue
+		}
+		component, err := cmdutil.GetComponent(ctx, c, com.ComponentName, namespace)
+		if err != nil {
+			return applicationStatusMeta, err
+		}
+		var status = "UNKNOWN"
+		if len(appConfig.Status.Conditions) != 0 {
+			status = string(appConfig.Status.Conditions[0].Status)
+		}
+		applicationStatusMeta = apis.ApplicationStatusMeta{
+			Status:   status,
+			Workload: component.Spec,
+			Traits:   com.Traits,
+		}
+	}
+	return applicationStatusMeta, nil
 }

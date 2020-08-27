@@ -1,10 +1,17 @@
-import React from 'react';
+import React, { Fragment } from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
 import { Button, Row, Col, Modal, Select, message } from 'antd';
 import './index.less';
+import { connect } from 'dva';
+import _ from 'lodash';
 
 const { Option } = Select;
 
+@connect(({ loading, applist, globalData }) => ({
+  loadingAll: loading.models.applist,
+  currentEnv: globalData.currentEnv,
+  returnObj: applist.returnObj,
+}))
 class Trait extends React.Component {
   constructor(props) {
     super(props);
@@ -13,6 +20,21 @@ class Trait extends React.Component {
       selectValue: null,
     };
   }
+
+  componentDidMount() {
+    this.getInitialData();
+  }
+
+  getInitialData = async () => {
+    if (this.props.currentEnv) {
+      await this.props.dispatch({
+        type: 'applist/getList',
+        payload: {
+          url: `/api/envs/${this.props.currentEnv}/apps/`,
+        },
+      });
+    }
+  };
 
   showModal = () => {
     this.setState({
@@ -26,8 +48,11 @@ class Trait extends React.Component {
       this.setState({
         visible: false,
       });
-      const { pathname, state, history } = this.props.propsObj;
-      history.push({ pathname, state });
+      const { history } = this.props.propsObj;
+      history.push({
+        pathname: '/ApplicationList/ApplicationListDetail',
+        state: { appName: selectValue, envName: this.props.currentEnv },
+      });
     } else {
       message.warn('please select a application');
     }
@@ -49,6 +74,7 @@ class Trait extends React.Component {
 
   render() {
     const { btnValue, title, settings, btnIsShow } = this.props.propsObj;
+    const appList = _.get(this.props, 'returnObj', []);
     return (
       <PageContainer>
         <Row>
@@ -116,9 +142,17 @@ class Trait extends React.Component {
                   option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
                 }
               >
-                <Option value="1">Application1</Option>
-                <Option value="2">Application2</Option>
-                <Option value="3">Application3</Option>
+                {appList.length ? (
+                  appList.map((item) => {
+                    return (
+                      <Option key={item.name} value={item.name}>
+                        {item.name}
+                      </Option>
+                    );
+                  })
+                ) : (
+                  <Fragment />
+                )}
               </Select>
             </Modal>
           </Col>

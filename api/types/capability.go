@@ -45,6 +45,8 @@ type Capability struct {
 	Parameters     []Parameter `json:"parameters,omitempty"`
 	DefinitionPath string      `json:"definition"`
 	CrdName        string      `json:"crdName,omitempty"`
+	Center         string      `json:"center,omitempty"`
+	Status         string      `json:"status,omitempty"`
 
 	//trait only
 	AppliesTo []string `json:"appliesTo,omitempty"`

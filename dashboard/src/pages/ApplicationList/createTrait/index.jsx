@@ -1,4 +1,4 @@
-import { Form, Input, Select } from 'antd';
+import { Form, Input, Select, Button, Popconfirm } from 'antd';
 import { connect } from 'dva';
 import React from 'react';
 import _ from 'lodash';
@@ -62,6 +62,10 @@ export default class CreateTraitItem extends React.PureComponent {
     }
   };
 
+  confirm = () => {
+    this.props.deleteTraitItem(this.props.uniq);
+  };
+
   render() {
     const { availableTraitList } = this.props;
     return (
@@ -100,6 +104,24 @@ export default class CreateTraitItem extends React.PureComponent {
             ) : (
               <></>
             )}
+          </div>
+          <div style={{ padding: '0px 48px 16px 0px', clear: 'both', height: '52px' }}>
+            <Popconfirm
+              title="Are you sure delete this trait?"
+              onConfirm={this.confirm}
+              okText="Yes"
+              cancelText="No"
+            >
+              <Button
+                danger
+                style={{ float: 'right' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+              >
+                Delete
+              </Button>
+            </Popconfirm>
           </div>
         </div>
       </Form>

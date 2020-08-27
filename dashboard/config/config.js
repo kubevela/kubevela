@@ -89,10 +89,10 @@ export default defineConfig({
               icon: 'table',
               routes: [
                 {
-                  name: 'Autoscaling',
+                  name: 'Scale',
                   icon: 'table',
-                  path: '/Traits/Autoscaling',
-                  component: './Traits/Autoscaling',
+                  path: '/Traits/Scale',
+                  component: './Traits/Scale',
                 },
                 {
                   name: 'Rollout',

@@ -178,7 +178,7 @@ class TableList extends React.Component {
     return (
       <PageContainer>
         <div className="card-container trait-detail">
-          <h2>Autoscaling</h2>
+          <h2>Scale</h2>
           <p style={{ marginBottom: '20px' }}>
             <i>apps/v1,Name=app-foo-comp-v02wqwd</i>
           </p>
