@@ -33,6 +33,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -50,7 +51,6 @@ var (
 	serviceMonitorAPIVersion = monitoring.SchemeGroupVersion.String()
 	serviceKind              = reflect.TypeOf(corev1.Service{}).Name()
 	serviceAPIVersion        = corev1.SchemeGroupVersion.String()
-	trueVar                  = true
 )
 
 var (
@@ -273,8 +273,8 @@ func constructServiceMonitor(metricsTrait *v1alpha1.MetricsTrait,
 					Kind:               metricsTrait.GetObjectKind().GroupVersionKind().Kind,
 					UID:                metricsTrait.GetUID(),
 					Name:               metricsTrait.GetName(),
-					Controller:         &trueVar,
-					BlockOwnerDeletion: &trueVar,
+					Controller:         pointer.BoolPtr(true),
+					BlockOwnerDeletion: pointer.BoolPtr(true),
 				},
 			},
 		},
@@ -311,7 +311,6 @@ func Setup(mgr ctrl.Manager) error {
 	reconciler := MetricsTraitReconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("MetricsTrait"),
-		record: event.NewAPIRecorder(mgr.GetEventRecorderFor("MetricsTrait")),
 		Scheme: mgr.GetScheme(),
 	}
 	return reconciler.SetupWithManager(mgr)

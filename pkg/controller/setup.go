@@ -19,13 +19,14 @@ package controller
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/cloud-native-application/rudrx/pkg/controller/v1alpha1/containerized"
 	"github.com/cloud-native-application/rudrx/pkg/controller/v1alpha1/metrics"
 )
 
 // Setup workload controllers.
 func Setup(mgr ctrl.Manager) error {
 	for _, setup := range []func(ctrl.Manager) error{
-		metrics.Setup,
+		metrics.Setup, containerized.Setup,
 	} {
 		if err := setup(mgr); err != nil {
 			return err
