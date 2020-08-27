@@ -44,5 +44,8 @@ jobs:
           make e2e-api-test
           make e2e-cleanup
 
+      - name: install Kubebuilder
+        uses: RyanSiu1995/kubebuilder-action@v1
+
       - name: Run Make test
         run: make test

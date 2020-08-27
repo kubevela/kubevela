@@ -31,6 +31,7 @@ vendor/
 .vscode
 
 pkg/test/vela
+config/crd/bases
 tmp/
 
 # Dashboard
