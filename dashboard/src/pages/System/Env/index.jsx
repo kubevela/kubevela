@@ -1,30 +1,12 @@
-import React from 'react';
-import {PageContainer} from '@ant-design/pro-layout';
-import {Button, Table, Space, Modal, Form, Input} from 'antd';
-import {ExclamationCircleOutlined} from '@ant-design/icons';
-import {Link} from 'umi';
+import React, { useEffect, useState } from 'react';
+import { PageContainer } from '@ant-design/pro-layout';
+import { Button, Table, Space, Modal, Form, Input, Tooltip } from 'antd';
+import { ExclamationCircleOutlined } from '@ant-design/icons';
 import './index.less';
-import {connect} from "dva";
+import { connect } from 'dva';
+import * as _ from 'lodash';
 
-const {confirm} = Modal;
-
-function showDeleteConfirm(record) {
-  confirm({
-    title: `Are you sure delete env ${record.name}?`,
-    icon: <ExclamationCircleOutlined/>,
-    width: 500,
-    okText: 'Yes',
-    okType: 'danger',
-    cancelText: 'No',
-    onOk() {
-      console.log('OK');
-    }
-  });
-}
-
-function specifyNamespace(record) {
-
-}
+const { confirm } = Modal;
 
 const layout = {
   labelCol: {
@@ -35,141 +17,188 @@ const layout = {
   },
 };
 
-const columns = [
-  {
-    title: 'Env',
-    dataIndex: 'name',
-    key: 'name'
-  },
-  {
-    title: 'Namespace',
-    dataIndex: 'namespace',
-    key: 'namespace',
-  },
-  {
-    title: 'Operations',
-    dataIndex: 'Operations',
-    key: 'Operations',
-    render: (text, record) => {
-      return (
-        <Space>
-          <Button onClick={() => specifyNamespace(record)}>specify namespace</Button>
-          <Button onClick={() => showDeleteConfirm(record)}>remove</Button>
-        </Space>
-      );
-    },
-  },
-];
+const TableList = (props) => {
+  const { dispatch } = props;
+  const tableEnvs = _.get(props, 'getEnvs.envs', []);
+  const [form] = Form.useForm();
+  const [visible, setVisible] = useState(false);
+  const [env, setEnv] = useState([]);
 
-@connect(() => ({}))
-class TableList extends React.PureComponent {
-  formRef = React.createRef();
+  const showModal = () => {
+    setVisible(true);
+  };
 
-  constructor(props) {
-    super(props);
-    this.state = {
-      visible: false,
-      envs: []
-    };
-  }
+  const handleOk = async () => {
+    const fieldsValue = await form.validateFields();
+    await dispatch({
+      type: 'envs/initialEnvs',
+      payload: {
+        params: fieldsValue,
+      },
+    });
+    setEnv(null);
+    form.resetFields();
+    setVisible(false);
+  };
 
-  showModal = () => {
-    this.setState({
-      visible: true,
+  const handleCancel = () => {
+    setEnv(null);
+    setVisible(false);
+    form.resetFields();
+  };
+
+  const deleteEnv = async (record) => {
+    await dispatch({
+      type: 'envs/deleteEnv',
+      payload: {
+        envName: record.name,
+      },
     });
   };
 
-  handleOk = async (values) => {
-    await this.formRef.current.validateFields();
-    this.setState({
-      visible: false,
-    });
-    // const fieldsValue = await this.formRef.current.validateFields();
-    // fieldsValue为通过验证的数据，现在可进行提交
-    // console.log(fieldsValue)
-  };
-
-  handleTest = async () => {
-    await this.formRef.current.validateFields();
-    this.setState({
-      visible: false,
+  const showDeleteConfirm = (record) => {
+    confirm({
+      title: `Are you sure delete env ${record.name}?`,
+      icon: <ExclamationCircleOutlined />,
+      width: 500,
+      okText: 'Yes',
+      okType: 'danger',
+      cancelText: 'No',
+      onOk() {
+        deleteEnv(record);
+      },
     });
   };
 
-  handleCancel = () => {
-    this.setState({
-      visible: false,
+  const specifyNamespace = (record) => {
+    form.setFieldsValue({
+      name: record.name,
+      namespace: record.namespace,
     });
+    setEnv(record);
+    setVisible(true);
   };
 
-  getInitalData = async () => {
-    const envs = await this.props.dispatch({
+  const getInitialData = async () => {
+    await dispatch({
       type: 'envs/getEnvs',
     });
-    this.setState({
-      envs
-    });
-  }
+  };
+  useEffect(() => {
+    getInitialData();
+  }, []);
 
-  componentDidMount() {
-    this.getInitalData();
-  }
-
-  render() {
-    return (
-      <PageContainer>
-        <div style={{marginBottom: '16px'}}>
+  const columns = [
+    {
+      title: 'Env',
+      dataIndex: 'name',
+      key: 'name',
+      render: (text) => {
+        if (text.length > 20) {
+          return <Tooltip title={text}>{text.substr(0, 20)}...</Tooltip>;
+        }
+        return text;
+      },
+    },
+    {
+      title: 'Namespace',
+      dataIndex: 'namespace',
+      key: 'namespace',
+      render: (text) => {
+        if (text.length > 20) {
+          return <Tooltip title={text}>{text.substr(0, 20)}...</Tooltip>;
+        }
+        return text;
+      },
+    },
+    {
+      title: 'Current',
+      dataIndex: 'current',
+      align: 'center',
+      key: 'current',
+      render: (text) => {
+        return text === '*' ? 'active' : '';
+      },
+    },
+    {
+      title: 'Operations',
+      dataIndex: 'Operations',
+      key: 'Operations',
+      render: (text, record) => {
+        return (
           <Space>
-            <Button type="primary" onClick={this.showModal}>
-              Create
+            <Button onClick={() => specifyNamespace(record)}>update</Button>
+            <Button disabled={record.current} onClick={() => showDeleteConfirm(record)}>
+              remove
             </Button>
           </Space>
-        </div>
-        <Modal
-          title="Create Env"
-          visible={this.state.visible}
-          onOk={this.handleOk}
-          onCancel={this.handleCancel}
-          footer={[
-            <Button key="test" onClick={this.handleTest}>
-              Test
-            </Button>,
-            <Button key="submit" type="primary" onClick={this.handleOk}>
-              Create
-            </Button>,
-          ]}
-        >
-          <Form {...layout} ref={this.formRef} name="control-ref" labelAlign="left">
-            <Form.Item
-              name="name"
-              label="Env"
-              rules={[
-                {
-                  required: true, message: 'Please input Evn!'
-                },
-              ]}
-            >
-              <Input/>
-            </Form.Item>
-            <Form.Item
-              name="namespace"
-              label="Namespace"
-              rules={[
-                {
-                  required: true, message: 'Please specify a Namespace!'
-                },
-              ]}
-            >
-              <Input/>
-            </Form.Item>
-          </Form>
-        </Modal>
-        <Table
-          rowKey={(record) => record.name}
-          columns={columns} dataSource={this.state.envs}/>
-      </PageContainer>
-    );
-  }
-}
-
-export default TableList;
+        );
+      },
+    },
+  ];
+  return (
+    <PageContainer>
+      <div style={{ marginBottom: '16px' }}>
+        <Space>
+          <Button type="primary" onClick={showModal}>
+            Create
+          </Button>
+        </Space>
+      </div>
+      <Modal
+        getContainer={false}
+        title={env && env.name ? 'Update Env' : 'Create Env'}
+        visible={visible}
+        onOk={handleOk}
+        onCancel={handleCancel}
+        footer={[
+          <Button key="submit" type="primary" onClick={handleOk}>
+            {env && env.name ? 'Update' : 'Create'}
+          </Button>,
+        ]}
+      >
+        <Form {...layout} form={form} name="control-ref" labelAlign="left">
+          <Form.Item
+            name="name"
+            label="Env"
+            rules={[
+              {
+                required: true,
+                message: 'Please input Evn!',
+              },
+              {
+                pattern: new RegExp('^[0-9a-zA-Z_]{1,32}$', 'g'),
+                message: 'Should be combination of numbers,alphabets,underline',
+              },
+            ]}
+          >
+            <Input disabled={!!(env && env.name)} />
+          </Form.Item>
+          <Form.Item
+            name="namespace"
+            label="Namespace"
+            rules={[
+              {
+                required: true,
+                message: 'Please specify a Namespace!',
+              },
+              {
+                pattern: new RegExp('^[0-9a-zA-Z_]{1,32}$', 'g'),
+                message:
+                  'The maximum length is 63, should be combination of numbers,alphabets,underline',
+              },
+            ]}
+          >
+            <Input />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Table rowKey={(record) => record.name} columns={columns} dataSource={tableEnvs} />
+    </PageContainer>
+  );
+};
+export default connect((env) => {
+  return {
+    getEnvs: env.envs,
+  };
+})(TableList);
