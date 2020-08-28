@@ -15,6 +15,8 @@ require (
 	github.com/google/go-cmp v0.5.2
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
+	github.com/oam-dev/catalog/traits/metricstrait v0.0.0-20200826071236-d96c1d64e221
+	github.com/oam-dev/trait-injector v0.0.0-20200331033130-0a27b176ffc4
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.8.1
 	github.com/pkg/errors v0.9.1
