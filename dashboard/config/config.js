@@ -122,6 +122,19 @@ export default defineConfig({
               component: './Capability',
             },
             {
+              path: '/System',
+              name: 'System',
+              icon: 'table',
+              routes: [
+                {
+                  name: 'Env',
+                  icon: 'table',
+                  path: '/System/Env',
+                  component: './System/Env',
+                },
+              ],
+            },
+            {
               name: 'Capability.Detail',
               hideInMenu: true,
               path: '/Capability/Detail',
