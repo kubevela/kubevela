@@ -139,6 +139,10 @@ class TableList extends React.Component {
     };
   }
 
+  // componentDidMount(){
+  //   console.log(this.props.location.state)
+  // }
+
   onFinishStep1 = () => {
     this.setState(() => ({
       hasShowEdit: false,

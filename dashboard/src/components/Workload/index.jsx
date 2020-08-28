@@ -11,6 +11,7 @@ export default class Workload extends React.PureComponent {
       btnValue,
       pathname,
       title,
+      crdInfo,
       state,
       settings,
       hrefAddress,
@@ -25,7 +26,9 @@ export default class Workload extends React.PureComponent {
               <Row>
                 <Col span="22">
                   <p className="title">{title}</p>
-                  <p>apps/v1</p>
+                  <p>
+                    {crdInfo.apiVersion},kind={crdInfo.kind}
+                  </p>
                 </Col>
               </Row>
               <p className="title">Configurable Settings:</p>
@@ -36,7 +39,10 @@ export default class Workload extends React.PureComponent {
                       <p>{item.name}</p>
                     </Col>
                     <Col span="16">
-                      <p>{item.value}</p>
+                      {
+                        // eslint-disable-next-line consistent-return
+                      }
+                      <p>{item.default || item.usage}</p>
                     </Col>
                   </Row>
                 );

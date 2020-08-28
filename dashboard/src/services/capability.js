@@ -8,7 +8,7 @@ export async function getCapabilityCenterlist() {
 /*
  * Put /capability-centers/ (添加 Capability Center)
  */
-export async function createCapability({ params }) {
+export async function createCapabilityCenter({ params }) {
   return request('/api/capability-centers/', {
     method: 'put',
     // body:JSON.stringify(params),
@@ -29,6 +29,14 @@ export async function syncCapability({ capabilityCenterName }) {
     headers: {
       'Content-Type': 'application/json',
     },
+  });
+}
+/*
+ * Delete /api/capabilities/:capabilityName (删除一个 capability)
+ */
+export async function deleteCapability({ capabilityName }) {
+  return request(`/api/capabilities/${capabilityName}`, {
+    method: 'delete',
   });
 }
 /*

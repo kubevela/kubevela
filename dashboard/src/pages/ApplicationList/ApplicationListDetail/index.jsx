@@ -1,7 +1,7 @@
 import React, { Fragment } from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
 import './index.less';
-import { Button, Row, Col, Tabs, Popconfirm, message, Tooltip, Modal } from 'antd';
+import { Button, Row, Col, Tabs, Popconfirm, message, Tooltip, Modal, Spin } from 'antd';
 import { connect } from 'dva';
 import _ from 'lodash';
 import CreateTraitItem from '../../../components/AttachOneTrait/index.jsx';
@@ -27,12 +27,13 @@ class TableList extends React.Component {
   }
 
   componentDidMount() {
-    this.getInitialData();
+    this.getInitialData(1);
   }
 
-  getInitialData = async () => {
+  getInitialData = async (times) => {
     const appName = _.get(this.props, 'location.state.appName', '');
     const envName = _.get(this.props, 'location.state.envName', '');
+    const traitType = _.get(this.props, 'location.state.traitType', '');
     if (appName && envName) {
       this.setState({
         envName,
@@ -61,6 +62,14 @@ class TableList extends React.Component {
         this.getAcceptTrait('containerized');
       } else if (workloadType && workloadType === 'Deployment') {
         this.getAcceptTrait('deployment');
+      }
+      // 如果traitType存在，是从特定trait跳转来新增单个trait的
+      if (traitType && times === 1) {
+        // this.createTrait(traitType)
+        await this.setState({
+          visible: true,
+        });
+        this.child.setDefaultValue(traitType);
       }
     }
   };
@@ -100,13 +109,8 @@ class TableList extends React.Component {
   deleteTrait = async (e, item) => {
     e.stopPropagation();
     const { appName, envName } = this.state;
-    const kind = _.get(item, 'trait.kind', '');
-    let traitName = '';
-    if (kind && kind === 'SimpleRolloutTrait') {
-      traitName = 'rollout';
-    } else if (kind && kind === 'ManualScalerTrait') {
-      traitName = 'scale';
-    }
+    const traitNameObj = _.get(item, 'trait.metadata.annotations', '');
+    const traitName = traitNameObj['vela.oam.dev/traitDef'];
     if (traitName && appName && envName) {
       const res = await this.props.dispatch({
         type: 'trait/deleteOneTrait',
@@ -118,7 +122,7 @@ class TableList extends React.Component {
       });
       if (res) {
         message.success(res);
-        this.getInitialData();
+        this.getInitialData(2);
       }
     }
   };
@@ -128,7 +132,7 @@ class TableList extends React.Component {
   };
 
   createTrait = async () => {
-    this.setState({
+    await this.setState({
       visible: true,
     });
   };
@@ -163,7 +167,7 @@ class TableList extends React.Component {
             visible: false,
           });
           message.success(res);
-          this.getInitialData();
+          this.getInitialData(2);
         }
       }
     } else {
@@ -181,52 +185,77 @@ class TableList extends React.Component {
     e.stopPropagation();
   };
 
-  gotoWorkloadDetail = () => {
-    this.props.history.push({ pathname: '/Workload/Detail' });
+  gotoWorkloadDetail = (e, kind) => {
+    e.stopPropagation();
+    this.props.history.push({ pathname: '/Workload/Detail', state: { kind } });
   };
 
-  gotoTraitDetail = () => {
-    this.props.history.push({ pathname: '/Traits/Detail' });
+  gotoTraitDetail = (e, annotations) => {
+    e.stopPropagation();
+    const traitName = annotations['vela.oam.dev/traitDef'];
+    this.props.history.push({ pathname: '/Traits/Detail', state: { traitName } });
   };
 
   render() {
     const status = _.get(this.state.appDetailData, 'Status', '');
     const Workload = _.get(this.state.appDetailData, 'Workload.workload', {});
     const Traits = _.get(this.state.appDetailData, 'Traits', []);
-    const containers = _.get(Workload, 'spec.containers[0]', {});
-    const ports = _.get(Workload, 'spec.containers[0].ports[0]', {});
+    let containers = {};
+    if (Workload.kind === 'ContainerizedWorkload') {
+      containers = _.get(Workload, 'spec.containers[0]', {});
+    } else if (Workload.kind === 'Deployment') {
+      containers = _.get(Workload, 'spec.template.spec.containers[0]', {});
+    }
+    let { loadingAll } = this.props;
+    loadingAll = loadingAll || false;
     return (
       <PageContainer>
-        <div className="card-container app-detial">
-          <h2>{_.get(Workload, 'metadata.name')}</h2>
-          <p style={{ marginBottom: '20px' }}>
-            {Workload.apiVersion}, Kind={Workload.kind}
-          </p>
-          <Tabs>
-            <TabPane tab="Summary" key="1">
-              <Row>
-                <Col span="11">
-                  <div className="summaryBox1" onClick={this.gotoWorkloadDetail}>
-                    <Row>
-                      <Col span="22">
-                        <p className="title">{Workload.kind}</p>
-                        <p>{Workload.apiVersion}</p>
-                      </Col>
-                      <Col span="2">
-                        {/* <a href="JavaScript:;">?</a> */}
-                        <p className="title hasCursor" onClick={this.hrefClick}>
-                          ?
-                        </p>
-                      </Col>
-                    </Row>
-                    <p className="title">
-                      Name:<span>{_.get(Workload, 'metadata.name')}</span>
-                    </p>
-                    <p className="title">Settings:</p>
-                    <p>#可编辑</p>
-                    <Row>
-                      {Object.keys(containers).map((currentKey) => {
-                        if (currentKey !== 'ports') {
+        <Spin spinning={loadingAll}>
+          <div className="card-container app-detial">
+            <h2>{_.get(Workload, 'metadata.name')}</h2>
+            <p style={{ marginBottom: '20px' }}>
+              {Workload.apiVersion}, Kind={Workload.kind}
+            </p>
+            <Tabs>
+              <TabPane tab="Summary" key="1">
+                <Row>
+                  <Col span="11">
+                    <div
+                      className="summaryBox1"
+                      onClick={(e) => this.gotoWorkloadDetail(e, Workload.kind)}
+                    >
+                      {/* <div className="summaryBox1"> */}
+                      <Row>
+                        <Col span="22">
+                          <p className="title">{Workload.kind}</p>
+                          <p>{Workload.apiVersion}</p>
+                        </Col>
+                        <Col span="2">
+                          {/* <a href="JavaScript:;">?</a> */}
+                          <p className="title hasCursor" onClick={this.hrefClick}>
+                            ?
+                          </p>
+                        </Col>
+                      </Row>
+                      <p className="title">
+                        Name:<span>{_.get(Workload, 'metadata.name')}</span>
+                      </p>
+                      <p className="title">Settings:</p>
+                      <p>#可编辑</p>
+                      <Row>
+                        {Object.keys(containers).map((currentKey) => {
+                          if (currentKey === 'ports') {
+                            return (
+                              <Fragment key={currentKey}>
+                                <Col span="8">
+                                  <p>port</p>
+                                </Col>
+                                <Col span="16">
+                                  <p>{_.get(containers[currentKey], '[0].containerPort', '')}</p>
+                                </Col>
+                              </Fragment>
+                            );
+                          }
                           return (
                             <Fragment key={currentKey}>
                               <Col span="8">
@@ -237,174 +266,212 @@ class TableList extends React.Component {
                               </Col>
                             </Fragment>
                           );
+                        })}
+                      </Row>
+                    </div>
+                    <div className="summaryBox2">
+                      <p className="title">Status:</p>
+                      <p>{status}</p>
+                      {/* <Row>
+                        <Col span="8">
+                          <p>Available Replicas</p>
+                          <p>Ready Replicas</p>
+                        </Col>
+                        <Col span="16">
+                          <p>1</p>
+                          <p>1</p>
+                        </Col>
+                      </Row> */}
+                    </div>
+                    <Popconfirm
+                      title="Are you sure delete this app?"
+                      onConfirm={(e) => this.deleteApp(e)}
+                      onCancel={this.cancel}
+                      okText="Yes"
+                      cancelText="No"
+                    >
+                      <Button danger>Delete</Button>
+                    </Popconfirm>
+                  </Col>
+                  <Col span="1" />
+                  <Col span="10">
+                    {Traits.length ? (
+                      Traits.map((item, index) => {
+                        const traitItem = _.get(item, 'trait', {});
+                        const annotations = _.get(traitItem, 'metadata.annotations', {});
+                        let traitType = 1;
+                        const spec = _.get(traitItem, 'spec', {});
+                        if (traitItem.kind === 'Ingress') {
+                          traitType = 2;
                         }
-                        return Object.keys(ports).map((currentKey1) => {
-                          return (
-                            <Fragment key={currentKey1}>
-                              <Col span="8">
-                                <p>{currentKey1}</p>
+                        return (
+                          <div
+                            className="summaryBox"
+                            onClick={(e) => this.gotoTraitDetail(e, annotations)}
+                            key={index.toString()}
+                          >
+                            <Row>
+                              <Col span="22">
+                                <p className="title">{traitItem.kind}</p>
+                                <p>{traitItem.apiVersion}</p>
                               </Col>
-                              <Col span="16">
-                                <p>{ports[currentKey1]}</p>
+                              <Col span="2">
+                                <p
+                                  className="title hasCursor"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                  }}
+                                >
+                                  ?
+                                </p>
                               </Col>
-                            </Fragment>
-                          );
-                        });
-                      })}
-                    </Row>
-                  </div>
-                  <div className="summaryBox2">
-                    <p className="title">Status:</p>
-                    <p>{status}</p>
-                    {/* <Row>
-                      <Col span="8">
-                        <p>Available Replicas</p>
-                        <p>Ready Replicas</p>
-                      </Col>
-                      <Col span="16">
-                        <p>1</p>
-                        <p>1</p>
-                      </Col>
-                    </Row> */}
-                  </div>
-                  <Popconfirm
-                    title="Are you sure delete this app?"
-                    onConfirm={(e) => this.deleteApp(e)}
-                    onCancel={this.cancel}
-                    okText="Yes"
-                    cancelText="No"
-                  >
-                    <Button danger>Delete</Button>
-                  </Popconfirm>
-                </Col>
-                <Col span="1" />
-                <Col span="10">
-                  {Traits.length ? (
-                    Traits.map((item, index) => {
-                      const traitItem = _.get(item, 'trait', {});
-                      // const spec = _.get(traitItem, 'spec', {});
-                      const annotations = _.get(traitItem, 'metadata.annotations', {});
-                      // const traitPorts =  _.get(Workload, 'spec.containers[0].ports[0]',{});
-                      return (
-                        <div
-                          className="summaryBox"
-                          onClick={this.gotoTraitDetail}
-                          key={index.toString()}
-                        >
-                          <Row>
-                            <Col span="22">
-                              <p className="title">{traitItem.kind}</p>
-                              <p>{traitItem.apiVersion}</p>
-                            </Col>
-                            <Col span="2">
-                              <p
-                                className="title hasCursor"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                }}
-                              >
-                                ?
-                              </p>
-                            </Col>
-                          </Row>
-                          <Row>
-                            {Object.keys(annotations).map((currentKey3) => {
-                              return (
-                                <Fragment key={currentKey3}>
+                            </Row>
+                            <Row>
+                              {Object.keys(annotations).map((currentKey3) => {
+                                return (
+                                  <Fragment key={currentKey3}>
+                                    <Col span="8">
+                                      <p>{currentKey3}:</p>
+                                    </Col>
+                                    <Col span="8">
+                                      <p>{annotations[currentKey3]}</p>
+                                    </Col>
+                                  </Fragment>
+                                );
+                              })}
+                            </Row>
+                            <p className="title">Properties:</p>
+                            <p>#可编辑</p>
+                            <Row>
+                              {traitType === 2 ? (
+                                <Fragment>
                                   <Col span="8">
-                                    <p>{currentKey3}:</p>
-                                  </Col>
-                                  <Col span="8">
-                                    <p>{annotations[currentKey3]}</p>
-                                  </Col>
-                                </Fragment>
-                              );
-                            })}
-                          </Row>
-                          <p className="title">Properties:</p>
-                          <p>#可编辑</p>
-                          <Row>
-                            {/* {Object.keys(spec).map((currentKey) => {
-                              return (
-                                <Fragment key={currentKey}>
-                                  <Col span="8">
-                                    <p>{currentKey}</p>
+                                    <p>domain</p>
                                   </Col>
                                   <Col span="16">
-                                    <p>{spec[currentKey]}</p>
+                                    <p>{_.get(spec, 'rules[0].host', '')}</p>
+                                  </Col>
+                                  <Col span="8">
+                                    <p>service</p>
+                                  </Col>
+                                  <Col span="16">
+                                    <p>
+                                      {_.get(
+                                        spec,
+                                        'rules[0].http.paths[0].backend.serviceName',
+                                        '',
+                                      )}
+                                    </p>
+                                  </Col>
+                                  <Col span="8">
+                                    <p>port</p>
+                                  </Col>
+                                  <Col span="16">
+                                    <p>
+                                      {_.get(
+                                        spec,
+                                        'rules[0].http.paths[0].backend.servicePort',
+                                        '',
+                                      )}
+                                    </p>
                                   </Col>
                                 </Fragment>
-                              );
-                            })} */}
-                          </Row>
-                          <div style={{ clear: 'both', height: '32px' }}>
-                            <Popconfirm
-                              title="Are you sure delete this trait?"
-                              onConfirm={(e) => this.deleteTrait(e, item)}
-                              onCancel={this.cancel}
-                              okText="Yes"
-                              cancelText="No"
-                            >
-                              <Button
-                                danger
-                                className="floatRight"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                }}
+                              ) : (
+                                Object.keys(spec).map((currentKey) => {
+                                  return (
+                                    <Fragment key={currentKey}>
+                                      <Col span="8">
+                                        <p>{currentKey}</p>
+                                      </Col>
+                                      <Col span="16">
+                                        <p>{spec[currentKey]}</p>
+                                      </Col>
+                                    </Fragment>
+                                  );
+                                })
+                              )}
+                              {/* {Object.keys(spec).map((currentKey) => {
+                                return (
+                                  <Fragment key={currentKey}>
+                                    <Col span="8">
+                                      <p>{currentKey}</p>
+                                    </Col>
+                                    <Col span="16">
+                                      <p>{spec[currentKey]}</p>
+                                    </Col>
+                                  </Fragment>
+                                );
+                              })} */}
+                            </Row>
+                            <div style={{ clear: 'both', height: '32px' }}>
+                              <Popconfirm
+                                title="Are you sure delete this trait?"
+                                onConfirm={(e) => this.deleteTrait(e, item)}
+                                onCancel={this.cancel}
+                                okText="Yes"
+                                cancelText="No"
                               >
-                                Delete
-                              </Button>
-                            </Popconfirm>
+                                <Button
+                                  danger
+                                  className="floatRight"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                  }}
+                                >
+                                  Delete
+                                </Button>
+                              </Popconfirm>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <Fragment />
-                  )}
-                  <Tooltip placement="top" title="Attach Trait">
-                    <p
-                      className="hasCursor"
-                      style={{
-                        fontSize: '30px',
-                        display: 'inline-flex',
-                      }}
-                      onClick={this.createTrait}
-                    >
-                      +
-                    </p>
-                  </Tooltip>
-                </Col>
-              </Row>
-            </TabPane>
-            <TabPane tab="Topology" key="2">
-              {/* <p>Topology</p> */}
-              <Topology />
-            </TabPane>
-          </Tabs>
-        </div>
-        <Modal
-          title="attach a trait"
-          visible={this.state.visible}
-          onOk={this.handleOk}
-          onCancel={this.handleCancel}
-          footer={[
-            <Button key="back" onClick={this.handleCancel}>
-              Cancel
-            </Button>,
-            <Button key="submit" type="primary" onClick={this.handleOk}>
-              Confirm
-            </Button>,
-          ]}
-        >
-          <CreateTraitItem
-            onRef={(ref) => {
-              this.child = ref;
-            }}
-            availableTraitList={this.state.availableTraitList}
-            initialValues={{}}
-          />
-        </Modal>
+                        );
+                      })
+                    ) : (
+                      <Fragment />
+                    )}
+                    <Tooltip placement="top" title="Attach Trait">
+                      <p
+                        className="hasCursor"
+                        style={{
+                          fontSize: '30px',
+                          display: 'inline-flex',
+                        }}
+                        onClick={this.createTrait}
+                      >
+                        +
+                      </p>
+                    </Tooltip>
+                  </Col>
+                </Row>
+              </TabPane>
+              <TabPane tab="Topology" key="2">
+                {/* <p>Topology</p> */}
+                <Topology />
+              </TabPane>
+            </Tabs>
+          </div>
+          <Modal
+            title="attach a trait"
+            visible={this.state.visible}
+            onOk={this.handleOk}
+            onCancel={this.handleCancel}
+            footer={[
+              <Button key="back" onClick={this.handleCancel}>
+                Cancel
+              </Button>,
+              <Button key="submit" type="primary" onClick={this.handleOk}>
+                Confirm
+              </Button>,
+            ]}
+          >
+            <CreateTraitItem
+              onRef={(ref) => {
+                this.child = ref;
+              }}
+              availableTraitList={this.state.availableTraitList}
+              initialValues={{}}
+            />
+          </Modal>
+        </Spin>
       </PageContainer>
     );
   }

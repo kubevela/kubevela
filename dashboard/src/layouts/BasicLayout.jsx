@@ -8,14 +8,15 @@ import React from 'react';
 import { Link, useIntl, connect, history } from 'umi';
 import RightContent from '@/components/GlobalHeader/RightContent';
 
-const menuDataRender = (menuList) =>
-  menuList.map((item) => {
+const menuDataRender = (menuList) => {
+  return menuList.map((item) => {
     const localItem = {
       ...item,
       children: item.children ? menuDataRender(item.children) : undefined,
     };
     return localItem;
   });
+};
 
 const BasicLayout = (props) => {
   const { settings } = props;

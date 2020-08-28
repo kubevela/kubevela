@@ -51,7 +51,11 @@ class Trait extends React.Component {
       const { history } = this.props.propsObj;
       history.push({
         pathname: '/ApplicationList/ApplicationListDetail',
-        state: { appName: selectValue, envName: this.props.currentEnv },
+        state: {
+          appName: selectValue,
+          envName: this.props.currentEnv,
+          traitType: this.props.propsObj.title,
+        },
       });
     } else {
       message.warn('please select a application');
@@ -73,7 +77,7 @@ class Trait extends React.Component {
   onSearch = () => {};
 
   render() {
-    const { btnValue, title, settings, btnIsShow } = this.props.propsObj;
+    const { btnValue, title, settings, btnIsShow, crdInfo, appliesTo } = this.props.propsObj;
     const appList = _.get(this.props, 'returnObj', []);
     return (
       <PageContainer>
@@ -83,16 +87,17 @@ class Trait extends React.Component {
               <Row>
                 <Col span="22">
                   <p className="title">{title}</p>
-                  <p>core.oam.dev/v1alpha2</p>
+                  <p>
+                    {crdInfo.apiVersion},kind={crdInfo.kind}
+                  </p>
                 </Col>
               </Row>
               <Row>
                 <Col span="22">
                   <p className="title">Applies To</p>
-                  <p>*.apps/v1</p>
+                  <p>{Array.isArray(appliesTo) ? appliesTo.join(', ') : appliesTo}</p>
                 </Col>
               </Row>
-              <p className="title">Conflicts With:</p>
               <p className="title">Configurable Properties:</p>
               {settings.map((item, index) => {
                 return (
@@ -101,7 +106,7 @@ class Trait extends React.Component {
                       <p>{item.name}</p>
                     </Col>
                     <Col span="16">
-                      <p>{item.value}</p>
+                      <p>{item.default || item.usage}</p>
                     </Col>
                   </Row>
                 );

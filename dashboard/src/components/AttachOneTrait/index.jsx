@@ -35,6 +35,11 @@ export default class CreateTraitItem extends React.PureComponent {
     return this.formRefStep2.current.getFieldsValue();
   };
 
+  setDefaultValue = (traitType) => {
+    this.formRefStep2.current.setFieldsValue({ name: traitType });
+    this.traitSelectChange(traitType);
+  };
+
   traitSelectChange = async (value, isType = 1) => {
     const res = await this.props.dispatch({
       type: 'trait/getTraitByName',
@@ -47,7 +52,7 @@ export default class CreateTraitItem extends React.PureComponent {
     });
     if (isType === 2) {
       this.formRefStep2.current.setFieldsValue(this.props.initialValues);
-    } else {
+    } else if (isType) {
       // 进行默认值填写
       const parameters = _.get(res, 'parameters', []);
       if (parameters.length) {

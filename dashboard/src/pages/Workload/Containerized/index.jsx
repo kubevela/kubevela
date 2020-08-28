@@ -1,41 +1,59 @@
-import React from 'react';
+import React, { Fragment } from 'react';
+import { connect } from 'dva';
+import { Spin } from 'antd';
 import Workload from '../../../components/Workload';
 
+@connect(({ loading }) => ({
+  loadingAll: loading.models.workload,
+}))
 class TableList extends React.PureComponent {
-  render() {
-    const propsObj = {
-      title: 'containerized',
-      settings: [
-        {
-          name: 'Deployment Strategy',
-          value: 'RollingUpdate',
-        },
-        {
-          name: 'Rolling Update Strategy',
-          value: 'Max Surge 25%, Max Unavaiable 25%',
-        },
-        {
-          name: 'Min Ready Seconds',
-          value: 0,
-        },
-        {
-          name: 'Revision History Limit',
-          value: 10,
-        },
-        {
-          name: 'Replicas',
-          value: 0,
-        },
-      ],
-      pathname: '/ApplicationList/CreateApplication',
-      state: {
-        WorkloadType: 'containerized',
-      },
-      btnValue: 'Create',
-      hrefAddress: '#',
-      btnIsShow: true,
+  constructor(props) {
+    super(props);
+    this.state = {
+      propsObj: {},
     };
-    return <Workload propsObj={propsObj} />;
+  }
+
+  componentDidMount() {
+    this.getInitialData();
+  }
+
+  getInitialData = async () => {
+    const res = await this.props.dispatch({
+      type: 'workload/getWorkloadByName',
+      payload: {
+        workloadName: 'containerized',
+      },
+    });
+    if (res) {
+      let propsObj = {};
+      propsObj = {
+        title: res.name,
+        settings: res.parameters,
+        pathname: '/ApplicationList/CreateApplication',
+        state: {
+          WorkloadType: res.name,
+        },
+        crdInfo: res.crdInfo,
+        btnValue: 'Create',
+        hrefAddress: '#',
+        btnIsShow: true,
+      };
+      this.setState({
+        propsObj,
+      });
+    }
+  };
+
+  render() {
+    let { loadingAll } = this.props;
+    loadingAll = loadingAll || false;
+    const { propsObj } = this.state;
+    return (
+      <Spin spinning={loadingAll}>
+        {propsObj.title ? <Workload propsObj={propsObj} /> : <Fragment />}
+      </Spin>
+    );
   }
 }
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
 import { SearchOutlined, BranchesOutlined, ApartmentOutlined } from '@ant-design/icons';
-import { Button, Card, Row, Col, Form, Select, DatePicker, Spin } from 'antd';
+import { Button, Card, Row, Col, Form, Select, DatePicker, Spin, Empty } from 'antd';
 import { connect } from 'dva';
 import moment from 'moment';
 import './index.less';
@@ -161,7 +161,9 @@ class TableList extends React.Component {
                 );
               })
             ) : (
-              <div style={{ paddingLeft: '8px' }}>暂无数据</div>
+              <div style={{ width: '100%', height: '80%' }}>
+                <Empty />
+              </div>
             )}
           </Row>
         </Spin>
