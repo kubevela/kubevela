@@ -189,51 +189,55 @@ func GetOAMReleaseVersion() (string, error) {
 
 func GenNativeResourceDefinition(c client.Client) error {
 	var capabilities []string
+	ctx := context.Background()
 	for name, manifest := range workloadResource {
-		workloadDefinition, err := NewWorkloadDefinition(manifest)
-		if err != nil {
-			continue
-		}
-		err = c.Get(context.Background(), client.ObjectKey{Name: name}, &workloadDefinition)
-		if kubeerrors.IsNotFound(err) {
-			if err := c.Create(context.Background(), &workloadDefinition); err != nil {
+		wd := NewWorkloadDefinition(manifest)
+		capabilities = append(capabilities, name)
+		nwd := &oamv1.WorkloadDefinition{}
+		err := c.Get(ctx, client.ObjectKey{Name: name}, nwd)
+		if err != nil && kubeerrors.IsNotFound(err) {
+			if err := c.Create(context.Background(), &wd); err != nil {
 				return fmt.Errorf("create workload definition %s hit an issue: %v", name, err)
 			}
-		} else if err != nil {
-			return fmt.Errorf("get workload definition hit an issue: %v", err)
+			continue
 		}
-		capabilities = append(capabilities, name)
+		wd.ResourceVersion = nwd.ResourceVersion
+		if err := c.Update(ctx, &wd); err != nil {
+			return fmt.Errorf("update workload definition %s err %v", wd.Name, err)
+		}
 	}
 
 	for name, manifest := range traitResource {
-		traitDefinition, err := NewTraitDefinition(manifest)
-		if err != nil {
-			fmt.Printf("creating local definition %s err %v", name, err)
+		td := NewTraitDefinition(manifest)
+		capabilities = append(capabilities, name)
+		ntd := &oamv1.TraitDefinition{}
+		err := c.Get(context.Background(), client.ObjectKey{Name: name}, ntd)
+		if err != nil && kubeerrors.IsNotFound(err) {
+			if err := c.Create(context.Background(), &td); err != nil {
+				return fmt.Errorf("create trait definition %s hit an issue: %v", name, err)
+			}
 			continue
 		}
-		err = c.Get(context.Background(), client.ObjectKey{Name: name}, &traitDefinition)
-		if kubeerrors.IsNotFound(err) {
-			if err := c.Create(context.Background(), &traitDefinition); err != nil {
-				return fmt.Errorf("create workload definition %s hit an issue: %v", name, err)
-			}
-		} else if err != nil {
-			return fmt.Errorf("get workload definition hit an issue: %v", err)
+		td.ResourceVersion = ntd.ResourceVersion
+		if err := c.Update(ctx, &td); err != nil {
+			return fmt.Errorf("update trait definition %s err %v", td.Name, err)
 		}
-		capabilities = append(capabilities, name)
 	}
 
 	fmt.Printf("Successful applied %d kinds of Workloads and Traits: %s.", len(capabilities), strings.Join(capabilities, ","))
 	return nil
 }
 
-func NewWorkloadDefinition(manifest string) (oamv1.WorkloadDefinition, error) {
+func NewWorkloadDefinition(manifest string) oamv1.WorkloadDefinition {
 	var workloadDefinition oamv1.WorkloadDefinition
-	err := yaml.Unmarshal([]byte(manifest), &workloadDefinition)
-	return workloadDefinition, err
+	// We have tests to make sure built-in resource can always unmarshal succeed
+	_ = yaml.Unmarshal([]byte(manifest), &workloadDefinition)
+	return workloadDefinition
 }
 
-func NewTraitDefinition(manifest string) (oamv1.TraitDefinition, error) {
+func NewTraitDefinition(manifest string) oamv1.TraitDefinition {
 	var traitDefinition oamv1.TraitDefinition
-	err := yaml.Unmarshal([]byte(manifest), &traitDefinition)
-	return traitDefinition, err
+	// We have tests to make sure built-in resource can always unmarshal succeed
+	_ = yaml.Unmarshal([]byte(manifest), &traitDefinition)
+	return traitDefinition
 }

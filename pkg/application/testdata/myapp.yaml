@@ -20,11 +20,15 @@ components:
             container_port: 8080
     scopes:
       - public-scope
+      - myapp-default-health
 secrets:
   secret-foo:
     key1: 'pass-word'
-appScopes:
-  public-scope:
-    networkPolicy: public
-  private-scope:
-    networkPolicy: private
+globalScopes:
+  network:
+    public-scope:
+      networkPolicy: public
+    private-scope:
+      networkPolicy: private
+  health:
+    myapp-default-health: {}

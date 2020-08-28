@@ -116,7 +116,7 @@ func mergeStagingComponents(deployed []oam.ComponentMeta, env *types.EnvMeta, io
 	}
 	var all []oam.ComponentMeta
 	for _, app := range apps {
-		comps, appConfig, err := app.OAM(env)
+		comps, appConfig, _, err := app.OAM(env)
 		if err != nil {
 			ioStreams.Errorf("convert app %s err %v\n", app.Name, err)
 			continue

@@ -12,6 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
+
+	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+
 	"cuelang.org/go/cue"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,7 +43,7 @@ type Application struct {
 	// key of map is component name
 	Components map[string]map[string]interface{} `json:"components"`
 	Secrets    map[string]map[string]interface{} `json:"secrets"`
-	Scopes     map[string]map[string]interface{} `json:"appScopes"`
+	Scopes     map[string]map[string]interface{} `json:"globalScopes"`
 	CreateTime time.Time                         `json:"createTime,omitempty"`
 	UpdateTime time.Time                         `json:"updateTime,omitempty"`
 }
@@ -166,6 +170,7 @@ func (app *Application) Validate() error {
 			if !ok {
 				return fmt.Errorf("format of scopes in '%s' must be string array", name)
 			}
+			//TODO(wonderflow) check scope exist
 		}
 		if lenth != 1 {
 			return fmt.Errorf("you must have only one workload in component '%s'", name)
@@ -340,17 +345,25 @@ func (app *Application) GetComponentTraits(componentName string) ([]v1alpha2.Com
 	return traits, nil
 }
 
+func FormatDefaultHealthScopeName(appName string) string {
+	return appName + "-default-health"
+}
+
 //TODO(wonderflow) add scope support here
-func (app *Application) OAM(env *types.EnvMeta) ([]v1alpha2.Component, v1alpha2.ApplicationConfiguration, error) {
+func (app *Application) OAM(env *types.EnvMeta) ([]v1alpha2.Component, v1alpha2.ApplicationConfiguration, []oam.Object, error) {
 	var appConfig v1alpha2.ApplicationConfiguration
 	if err := app.Validate(); err != nil {
-		return nil, appConfig, err
+		return nil, appConfig, nil, err
 	}
 	appConfig.Name = app.Name
 	appConfig.Namespace = env.Namespace
 
-	var components []v1alpha2.Component
+	var health v1alpha2.HealthScope
+	health.Name = FormatDefaultHealthScopeName(app.Name)
+	health.Namespace = env.Namespace
+	health.Spec.WorkloadReferences = make([]v1alpha1.TypedReference, 0)
 
+	var components []v1alpha2.Component
 	for name := range app.Components {
 		// fulfill component
 		var component v1alpha2.Component
@@ -358,7 +371,7 @@ func (app *Application) OAM(env *types.EnvMeta) ([]v1alpha2.Component, v1alpha2.
 		component.Namespace = env.Namespace
 		obj, workloadType, err := app.GetWorkloadObject(name)
 		if err != nil {
-			return nil, v1alpha2.ApplicationConfiguration{}, err
+			return nil, v1alpha2.ApplicationConfiguration{}, nil, err
 		}
 		anns := component.Annotations
 		if anns == nil {
@@ -372,13 +385,22 @@ func (app *Application) OAM(env *types.EnvMeta) ([]v1alpha2.Component, v1alpha2.
 
 		var appConfigComp v1alpha2.ApplicationConfigurationComponent
 		appConfigComp.ComponentName = name
+
+		//TODO(wonderflow): Temporarily we add health scope here, should change to use scope framework
+		appConfigComp.Scopes = append(appConfigComp.Scopes, v1alpha2.ComponentScope{ScopeReference: v1alpha1.TypedReference{
+			APIVersion: v1alpha2.SchemeGroupVersion.String(),
+			Kind:       v1alpha2.HealthScopeKind,
+			Name:       health.Name,
+		}})
+
 		//TODO(wonderflow): handle component data input/output here
 		compTraits, err := app.GetComponentTraits(name)
 		if err != nil {
-			return nil, v1alpha2.ApplicationConfiguration{}, err
+			return nil, v1alpha2.ApplicationConfiguration{}, nil, err
 		}
 		appConfigComp.Traits = compTraits
 		appConfig.Spec.Components = append(appConfig.Spec.Components, appConfigComp)
 	}
-	return components, appConfig, nil
+
+	return components, appConfig, []oam.Object{&health}, nil
 }

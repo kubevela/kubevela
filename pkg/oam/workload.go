@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
 
@@ -65,23 +66,44 @@ func BaseComplete(envName string, workloadName string, appGroup string, flagSet 
 	}
 
 	for _, v := range template.Parameters {
-		flagValue, _ := flagSet.GetString(v.Name)
 		// Cli can check required flag before make a request to backend, but API itself could not, so validate flags here
-		if v.Required && v.Name != "name" && flagValue == "" {
-			return app, fmt.Errorf("required flag(s) \"%s\" not set", v.Name)
+		flag := flagSet.Lookup(v.Name)
+		if v.Name == "name" {
+			continue
+		}
+		if flag == nil || flag.Value.String() == "" {
+			if v.Required {
+				return nil, fmt.Errorf("required flag(s) \"%s\" not set", v.Name)
+			}
+			continue
 		}
 		switch v.Type {
 		case cue.IntKind:
-			d, _ := strconv.ParseInt(flagValue, 10, 64)
-			workloadData[v.Name] = d
+			workloadData[v.Name], err = flagSet.GetInt64(v.Name)
 		case cue.StringKind:
-			workloadData[v.Name] = flagValue
+			workloadData[v.Name], err = flagSet.GetString(v.Name)
 		case cue.BoolKind:
-			d, _ := strconv.ParseBool(flagValue)
-			workloadData[v.Name] = d
+			workloadData[v.Name], err = flagSet.GetBool(v.Name)
 		case cue.NumberKind, cue.FloatKind:
-			d, _ := strconv.ParseFloat(flagValue, 64)
-			workloadData[v.Name] = d
+			workloadData[v.Name], err = flagSet.GetFloat64(v.Name)
+		}
+		if err != nil {
+			if strings.Contains(err.Error(), "of flag of type string") {
+				data, _ := flagSet.GetString(v.Name)
+				switch v.Type {
+				case cue.IntKind:
+					workloadData[v.Name], err = strconv.ParseInt(data, 10, 64)
+				case cue.BoolKind:
+					workloadData[v.Name], err = strconv.ParseBool(data)
+				case cue.NumberKind, cue.FloatKind:
+					workloadData[v.Name], err = strconv.ParseFloat(data, 64)
+				}
+				if err != nil {
+					return nil, fmt.Errorf("get flag(s) \"%s\" err %v", v.Name, err)
+				}
+				continue
+			}
+			return nil, fmt.Errorf("get flag(s) \"%s\" err %v", v.Name, err)
 		}
 	}
 	if err = app.SetWorkload(workloadName, tp, workloadData); err != nil {
