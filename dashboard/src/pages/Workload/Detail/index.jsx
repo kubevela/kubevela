@@ -126,7 +126,7 @@ const demoText = `H4sIAAAAAAAA/6xUwW7bOhD8lYc9U4lsWfazgB4C5Na0DZK0lyKHNbmyWVMkQ6
   rio.cattle.io/mesh	true
   Controlled By	cool-aryabhata-v0fnxq6`;
 
-class TableList extends React.Component {
+class TableList extends React.PureComponent {
   formRefStep1 = React.createRef();
 
   formRefStep2 = React.createRef();
@@ -138,6 +138,10 @@ class TableList extends React.Component {
       hasShowEdit2: false,
     };
   }
+
+  // componentDidMount(){
+  //   console.log(this.props.location.state)
+  // }
 
   onFinishStep1 = () => {
     this.setState({
