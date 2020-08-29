@@ -43,7 +43,7 @@ const (
 	DefaultMetricsPath = "/metrics"
 )
 
-// CloneSetCreateUpdateHandler handles CloneSet
+// MetricsTraitMutatingHandler handles MetricsTrait
 type MetricsTraitMutatingHandler struct {
 	Client client.Client
 

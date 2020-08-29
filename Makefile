@@ -60,7 +60,7 @@ e2e-cleanup:
 # Image URL to use all building/pushing image targets
 IMG ?= vela-core:latest
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
-CRD_OPTIONS ?= "crd:trivialVersions=true"
+CRD_OPTIONS ?= "crd:trivialVersions=false"
 
 # Run tests
 core-test: generate fmt vet manifests
@@ -94,7 +94,6 @@ manifests: controller-gen
 # Generate code
 generate: controller-gen
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
-
 
 # find or download controller-gen
 # download controller-gen if necessary

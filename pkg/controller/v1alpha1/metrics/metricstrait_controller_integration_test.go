@@ -15,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/pointer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/cloud-native-application/rudrx/api/v1alpha1"
@@ -64,7 +65,7 @@ var _ = Describe("Metrics Trait Integration Test", func() {
 					TargetPort: targetPort,
 					Path:       metricsPath,
 					Scheme:     scheme,
-					Enabled:    &trueVar,
+					Enabled:    pointer.BoolPtr(true),
 				},
 				WorkloadReference: runtimev1alpha1.TypedReference{
 					APIVersion: deploymentAPIVersion,

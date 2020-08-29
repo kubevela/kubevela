@@ -3,10 +3,9 @@ package metrics_test
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"k8s.io/utils/pointer"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/pointer"
 
 	"github.com/cloud-native-application/rudrx/api/v1alpha1"
 	. "github.com/cloud-native-application/rudrx/pkg/webhook/metrics"
@@ -75,5 +74,6 @@ var _ = Describe("Metrics Admission controller Test", func() {
 		trait := traitBase
 		Expect(ValidateCreate(&trait).ToAggregate()).To(HaveOccurred())
 		Expect(ValidateUpdate(&trait, nil).ToAggregate()).To(HaveOccurred())
+		Expect(len(ValidateCreate(&trait))).Should(Equal(2))
 	})
 })
