@@ -74,5 +74,6 @@ var _ = Describe("Metrics Admission controller Test", func() {
 		trait := traitBase
 		Expect(ValidateCreate(&trait).ToAggregate()).To(HaveOccurred())
 		Expect(ValidateUpdate(&trait, nil).ToAggregate()).To(HaveOccurred())
+		Expect(len(ValidateCreate(&trait))).Should(Equal(2))
 	})
 })

@@ -25,15 +25,14 @@ import (
 
 // ContainerizedSpec defines the desired state of Containerized
 type ContainerizedSpec struct {
-	// Replicas is the desired number of replicas of the given Template.
-	// These are replicas in the sense that they are instantiations of the
-	// same Template.
+	// Replicas is the desired number of replicas of the given podSpec.
+	// These are replicas in the sense that they are instantiations of the same podSpec.
 	// If unspecified, defaults to 1.
 	Replicas *int32 `json:"replicas"`
 
 	// PodSpec describes the pods that will be created,
 	// we omit the meta part as it will be exactly the same as the containerized
-	PodSpec v1.PodSpec `json:"template"`
+	PodSpec v1.PodSpec `json:"podSpec"`
 }
 
 // ContainerizedStatus defines the observed state of Containerized

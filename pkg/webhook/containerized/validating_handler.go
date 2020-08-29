@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package metrics
+package containerized
 
 import (
 	"context"
@@ -32,8 +32,8 @@ import (
 	"github.com/cloud-native-application/rudrx/api/v1alpha1"
 )
 
-// MetricsTraitValidatingHandler handles MetricsTrait
-type MetricsTraitValidatingHandler struct {
+// ContainerizedValidatingHandler handles Containerized
+type ContainerizedValidatingHandler struct {
 	Client client.Client
 
 	// Decoder decodes objects
@@ -41,13 +41,13 @@ type MetricsTraitValidatingHandler struct {
 }
 
 // log is for logging in this package.
-var validatelog = logf.Log.WithName("metricstrait-validate")
+var validatelog = logf.Log.WithName("Containerized-validate")
 
-var _ admission.Handler = &MetricsTraitValidatingHandler{}
+var _ admission.Handler = &ContainerizedValidatingHandler{}
 
 // Handle handles admission requests.
-func (h *MetricsTraitValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	obj := &v1alpha1.MetricsTrait{}
+func (h *ContainerizedValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	obj := &v1alpha1.Containerized{}
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
@@ -60,7 +60,7 @@ func (h *MetricsTraitValidatingHandler) Handle(ctx context.Context, req admissio
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
 	case admissionv1beta1.Update:
-		oldObj := &v1alpha1.MetricsTrait{}
+		oldObj := &v1alpha1.Containerized{}
 		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldObj); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
@@ -68,52 +68,58 @@ func (h *MetricsTraitValidatingHandler) Handle(ctx context.Context, req admissio
 		if allErrs := ValidateUpdate(obj, oldObj); len(allErrs) > 0 {
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
+	case admissionv1beta1.Delete:
+		if allErrs := ValidateDelete(obj); len(allErrs) > 0 {
+			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
+		}
 	}
 
 	return admission.ValidationResponse(true, "")
 }
 
-// ValidateCreate validates the metricsTrait on creation
-func ValidateCreate(r *v1alpha1.MetricsTrait) field.ErrorList {
+// ValidateCreate validates the Containerized on creation
+func ValidateCreate(r *v1alpha1.Containerized) field.ErrorList {
 	validatelog.Info("validate create", "name", r.Name)
 	allErrs := apimachineryvalidation.ValidateObjectMeta(&r.ObjectMeta, false,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
+
 	fldPath := field.NewPath("spec")
-	if r.Spec.ScrapeService.Format != SupportedFormat {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("ScrapeService.Format"), r.Spec.ScrapeService.Format,
-			fmt.Sprintf("the data format `%s` is not supported", r.Spec.ScrapeService.Format)))
-	}
-	if r.Spec.ScrapeService.Scheme != SupportedScheme {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("ScrapeService.Format"), r.Spec.ScrapeService.Scheme,
-			fmt.Sprintf("the scheme `%s` is not supported", r.Spec.ScrapeService.Scheme)))
+	allErrs = append(allErrs, apimachineryvalidation.ValidateNonnegativeField(int64(*r.Spec.Replicas),
+		fldPath.Child("Replicas"))...)
+
+	fldPath = fldPath.Child("podSpec")
+	spec := r.Spec.PodSpec
+	if len(spec.Containers) == 0 {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("Containers"), spec.Containers,
+			fmt.Sprintf("You need at least one container")))
 	}
 	return allErrs
 }
 
-// ValidateUpdate validates the metricsTrait on update
-func ValidateUpdate(r *v1alpha1.MetricsTrait, _ *v1alpha1.MetricsTrait) field.ErrorList {
+// ValidateUpdate validates the Containerized on update
+func ValidateUpdate(r *v1alpha1.Containerized, _ *v1alpha1.Containerized) field.ErrorList {
 	validatelog.Info("validate update", "name", r.Name)
 	return ValidateCreate(r)
 }
 
-// ValidateDelete validates the metricsTrait on delete
-func ValidateDelete(r *v1alpha1.MetricsTrait) field.ErrorList {
+// ValidateDelete validates the Containerized on delete
+func ValidateDelete(r *v1alpha1.Containerized) field.ErrorList {
 	validatelog.Info("validate delete", "name", r.Name)
 	return nil
 }
 
-var _ inject.Client = &MetricsTraitValidatingHandler{}
+var _ inject.Client = &ContainerizedValidatingHandler{}
 
-// InjectClient injects the client into the MetricsTraitValidatingHandler
-func (h *MetricsTraitValidatingHandler) InjectClient(c client.Client) error {
+// InjectClient injects the client into the ContainerizedValidatingHandler
+func (h *ContainerizedValidatingHandler) InjectClient(c client.Client) error {
 	h.Client = c
 	return nil
 }
 
-var _ admission.DecoderInjector = &MetricsTraitValidatingHandler{}
+var _ admission.DecoderInjector = &ContainerizedValidatingHandler{}
 
-// InjectDecoder injects the decoder into the MetricsTraitValidatingHandler
-func (h *MetricsTraitValidatingHandler) InjectDecoder(d *admission.Decoder) error {
+// InjectDecoder injects the decoder into the ContainerizedValidatingHandler
+func (h *ContainerizedValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 	h.Decoder = d
 	return nil
 }
