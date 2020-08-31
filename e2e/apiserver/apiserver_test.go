@@ -189,5 +189,19 @@ var _ = ginkgo.Describe("API", func() {
 				gomega.Expect([]string{containerizedWorkloadType, deploymentWorkloadType}).To(gomega.Or(gomega.ContainElement(workloadDefinition["name"])))
 			}
 		})
+
+		ginkgo.It("should delete an application", func() {
+			req, err := http.NewRequest("DELETE", util.URL("/envs/"+envHelloMeta.Name+"/apps/"+workloadRunBody.WorkloadName), nil)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			resp, err := http.DefaultClient.Do(req)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			defer resp.Body.Close()
+			result, err := ioutil.ReadAll(resp.Body)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			var r apis.Response
+			err = json.Unmarshal(result, &r)
+			gomega.Expect(http.StatusOK).To(gomega.Equal(r.Code))
+			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring("delete apps succeed"))
+		})
 	})
 })
