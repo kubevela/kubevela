@@ -58,4 +58,20 @@ func ListApps(c *gin.Context) {
 }
 
 func DeleteApps(c *gin.Context) {
+	kubeClient := c.MustGet("KubeClient")
+	envName := c.Param("envName")
+	envMeta, err := oam.GetEnvByName(envName)
+	if err != nil {
+		util.HandleError(c, util.StatusInternalServerError, err)
+		return
+	}
+	appName := c.Param("appName")
+
+	o := oam.DeleteOptions{
+		Client:  kubeClient.(client.Client),
+		Env:     envMeta,
+		AppName: appName,
+	}
+	err, message := o.DeleteApp()
+	util.AssembleResponse(c, message, err)
 }
