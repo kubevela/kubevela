@@ -23,7 +23,7 @@ func NewAppShowCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength == 0 {
-				ioStreams.Errorf("Hint: please specify the application name")
+				ioStreams.Errorf("Hint: please specify the application name\n")
 				os.Exit(1)
 			}
 			appName := args[0]
@@ -97,7 +97,7 @@ func NewCompShowCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength == 0 {
-				ioStreams.Errorf("Hint: please specify the application name")
+				ioStreams.Errorf("Hint: please specify the application name\n")
 				os.Exit(1)
 			}
 			compName := args[0]
