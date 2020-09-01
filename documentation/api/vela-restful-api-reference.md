@@ -189,7 +189,14 @@ sample response
 }
 ```
 ### DELETE /api/envs/:envName/apps/:appName (app delete)
-
+- example
+sample response
+```json
+{
+    "code": 200,
+    "data": "delete apps succeed <appName> from <envName>"
+}
+```
 
 ## Workloads
 ### POST /api/workloads/ (workload create)
