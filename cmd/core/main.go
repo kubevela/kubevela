@@ -13,7 +13,7 @@ import (
 	oamv1alpha2 "github.com/crossplane/oam-kubernetes-runtime/pkg/controller/v1alpha2"
 	oamwebhook "github.com/crossplane/oam-kubernetes-runtime/pkg/webhook/v1alpha2"
 	injectorv1alpha1 "github.com/oam-dev/trait-injector/api/v1alpha1"
-	"github.com/oam-dev/trait-injector/controllers"
+	injectorcontroller "github.com/oam-dev/trait-injector/controllers"
 	"github.com/oam-dev/trait-injector/pkg/injector"
 	"github.com/oam-dev/trait-injector/pkg/plugin"
 	"go.uber.org/zap/zapcore"
@@ -108,21 +108,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	// register all service injectors
-	plugin.RegisterTargetInjectors(injector.Defaults()...)
+	if useWebhook {
+		// register all service injectors
+		plugin.RegisterTargetInjectors(injector.Defaults()...)
 
-	tiWebhook := &controllers.ServiceBindingReconciler{
-		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("ServiceBinding"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("servicebinding"),
+		tiWebhook := &injectorcontroller.ServiceBindingReconciler{
+			Client:   mgr.GetClient(),
+			Log:      ctrl.Log.WithName("controllers").WithName("ServiceBinding"),
+			Scheme:   mgr.GetScheme(),
+			Recorder: mgr.GetEventRecorderFor("servicebinding"),
+		}
+		if err = (tiWebhook).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "ServiceBinding")
+			os.Exit(1)
+		}
+		// +kubebuilder:scaffold:builder
+		go tiWebhook.ServeAdmission()
 	}
-	if err = (tiWebhook).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ServiceBinding")
-		os.Exit(1)
-	}
-	// +kubebuilder:scaffold:builder
-	go tiWebhook.ServeAdmission()
 
 	setupLog.Info("starting the vela controller manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {

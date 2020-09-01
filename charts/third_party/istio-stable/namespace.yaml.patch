@@ -1,0 +1,10 @@
+1a2,10
+> # PATCH #1: Creating the istio-system namespace.
+> apiVersion: v1
+> kind: Namespace
+> metadata:
+>   name: istio-system
+>   labels:
+>     istio-injection: disabled
+> # PATCH #1 ends.
+> ---

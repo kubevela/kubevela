@@ -1,0 +1,94 @@
+{{- if .Values.useWebhook -}}
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: mutating-webhook-configuration
+webhooks:
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: webhook-service
+        namespace: system
+        path: /mutate-standard-oam-dev-v1alpha1-metricstrait
+    failurePolicy: Fail
+    name: mmetricstrait.kb.io
+    rules:
+      - apiGroups:
+          - standard.oam.dev
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - metricstraits
+
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: validating-webhook-configuration
+webhooks:
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: webhook-service
+        namespace: system
+        path: /validate-standard-oam-dev-v1alpha1-metricstrait
+    failurePolicy: Fail
+    name: vmetricstrait.kb.io
+    rules:
+      - apiGroups:
+          - standard.oam.dev
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resources:
+          - metricstraits
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "kubevela.name" . }}-webhook
+  labels:
+    {{- include "kubevela.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.webhookService.type }}
+  ports:
+    - port: 443
+      targetPort: {{ .Values.webhookService.port }}
+      protocol: TCP
+      name: https
+  selector:
+    {{ include "kubevela.selectorLabels" . | nindent 6 }}
+
+---
+# The following manifests contain a self-signed issuer CR and a certificate CR.
+# More document can be found at https://docs.cert-manager.io
+apiVersion: cert-manager.io/v1alpha2
+kind: Issuer
+metadata:
+  name: {{ .Values.certificate.issuerName | quote  }}
+spec:
+  selfSigned: {}
+
+---
+apiVersion: cert-manager.io/v1alpha2
+kind: Certificate
+metadata:
+  name: {{ .Values.certificate.certificateName }}
+spec:
+  dnsNames:
+    - {{ include "kubevela.fullname" . }}.{{ .Release.Namespace }}.svc
+    - {{ include "kubevela.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: {{ .Values.certificate.issuerName  | default "selfsigned-issuer" | quote  }}
+  secretName: {{ .Values.certificate.secretName | quote }}
+---
+{{- end -}}
