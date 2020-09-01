@@ -314,6 +314,39 @@ func ListCenterCapabilities(repoDir string) ([]types.Capability, error) {
 	return templates, nil
 }
 
+func RemoveCapabilityCenter(centerName string) (string, error) {
+	var message string
+	var err error
+	dir, _ := system.GetCapCenterDir()
+	repoDir := filepath.Join(dir, centerName)
+	// 1.remove capability center dir
+	if _, err := os.Stat(repoDir); err != nil {
+		if os.IsNotExist(err) {
+			err = fmt.Errorf("%s capability center has not successfully synced", centerName)
+			return message, err
+		}
+	}
+	if err = os.RemoveAll(repoDir); err != nil {
+		return message, err
+	}
+	// 2.remove center from capability center config
+	repos, err := plugins.LoadRepos()
+	if err != nil {
+		return message, err
+	}
+	for idx, r := range repos {
+		if r.Name == centerName {
+			repos = append(repos[:idx], repos[idx+1:]...)
+			break
+		}
+	}
+	if err = plugins.StoreRepos(repos); err != nil {
+		return message, err
+	}
+	message = fmt.Sprintf("%s capability center removed successfully", centerName)
+	return message, err
+}
+
 func GatherWorkloads(templates []types.Capability) []types.Capability {
 	workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
 	if err != nil {
