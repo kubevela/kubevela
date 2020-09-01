@@ -93,6 +93,7 @@ func setupRoute(kubeClient client.Client) http.Handler {
 	{
 		capCenters.PUT("/", handler.AddCapabilityCenter)
 		capCenters.GET("/", handler.ListCapabilityCenters)
+		capCenters.DELETE("/:capabilityCenterName", handler.DeleteCapabilityCenter)
 
 		caps := capCenters.Group("/:capabilityCenterName" + util.CapabilityPath)
 		{
