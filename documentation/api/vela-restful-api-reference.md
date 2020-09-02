@@ -32,14 +32,14 @@ the successful message.
 
 sample request:
 ```json
-{"name":"ccc","namespace":"ccc"}
+{"envName":"ccc","namespace":"ccc"}
 ```
 
 sample response:
 ```json
 {
 "code": 200,
-"data": "Create env succeed, current env is ccc namespace is ccc, use --namespace=<namespace> to specify namespace with env:init"
+"data": "Create env succeed"
 }
 ```
 
@@ -54,26 +54,26 @@ sample response:
 {
 	"code": 200,
 	"data": [{
-		"name": "ccc",
+		"envName": "ccc",
 		"current": "*",
 		"namespace": "ccc"
 	}, {
-		"name": "default",
+		"envName": "default",
 		"namespace": "default"
 	}, {
-		"name": "env-application",
+		"envName": "env-application",
 		"namespace": "env-application"
 	}, {
-		"name": "env-hello",
+		"envName": "env-hello",
 		"namespace": "env-hello"
 	}, {
-		"name": "env-poc",
+		"envName": "env-poc",
 		"namespace": "env-poc"
 	}, {
-		"name": "env-trait",
+		"envName": "env-trait",
 		"namespace": "env-trait"
 	}, {
-		"name": "env-workload",
+		"envName": "env-workload",
 		"namespace": "env-workload"
 	}]
 }
@@ -83,7 +83,7 @@ sample response:
 - example
 sample response
 ```json
-{"code":200,"data":[{"name":"ccc","namespace":"ccc"}]}
+{"code":200,"data":[{"envName":"ccc","namespace":"ccc"}]}
 ```
 
 ### DELETE /api/envs/:envName (env delete)
@@ -107,11 +107,34 @@ sample response
 - example
 sample response
 ```json
-{"code":200,"data":"Switch env succeed, current env is default, namespace is default"}
+{"code":200,"data":"Switch env succeed"}
 ```
 
 ```json
 {"code":500,"data":"abcd not exist"}
+```
+
+### PUT /api/envs/:envName (env update)
+- example
+
+sample request:
+```json
+{"namespace":"ccc"}
+```
+
+sample response:
+```json
+{
+"code": 200,
+"data": "Update env succeed"
+}
+```
+
+```json
+{
+"code":500,
+"data":"env <envName> does not exist"
+}
 ```
 
 ## Application

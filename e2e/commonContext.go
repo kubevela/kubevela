@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cloud-native-application/rudrx/api/types"
 	"github.com/cloud-native-application/rudrx/pkg/server/apis"
 	"github.com/cloud-native-application/rudrx/pkg/server/util"
 
@@ -200,7 +199,7 @@ var (
 	}
 
 	// APIServer
-	APIEnvInitContext = func(context string, envMeta types.EnvMeta) bool {
+	APIEnvInitContext = func(context string, envMeta apis.Environment) bool {
 		return ginkgo.Context("Post /envs/", func() {
 			ginkgo.It("should create an env", func() {
 				data, err := json.Marshal(&envMeta)
@@ -213,7 +212,7 @@ var (
 				var r apis.Response
 				err = json.Unmarshal(result, &r)
 				gomega.Expect(http.StatusOK).Should(gomega.Equal(r.Code))
-				output := fmt.Sprintf("Create env succeed, current env is " + envMeta.Name + " namespace is " + envMeta.Namespace)
+				output := fmt.Sprintf("Create env succeed")
 				gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(output))
 			})
 		})

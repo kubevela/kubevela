@@ -7,9 +7,9 @@ import (
 )
 
 type Environment struct {
-	EnvironmentName string `json:"environmentName" binding:"required,min=1,max=32"`
-	Namespace       string `json:"namespace" binding:"required,min=1,max=32"`
-	Current         string `json:"current,omitempty"`
+	EnvName   string `json:"envName" binding:"required,min=1,max=32"`
+	Namespace string `json:"namespace" binding:"required,min=1,max=32"`
+	Current   string `json:"current,omitempty"`
 }
 
 type EnvironmentBody struct {

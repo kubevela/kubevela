@@ -19,7 +19,7 @@ func CreateEnv(c *gin.Context) {
 		return
 	}
 	ctrl.Log.Info("Get a create environment request", "env", environment)
-	name := environment.EnvironmentName
+	name := environment.EnvName
 	namespace := environment.Namespace
 	if namespace == "" {
 		namespace = "default"
@@ -52,9 +52,9 @@ func GetEnv(c *gin.Context) {
 	environmentList := make([]apis.Environment, 0)
 	for _, envMeta := range envList {
 		environmentList = append(environmentList, apis.Environment{
-			EnvironmentName: envMeta.Name,
-			Namespace:       envMeta.Namespace,
-			Current:         envMeta.Current,
+			EnvName:   envMeta.Name,
+			Namespace: envMeta.Namespace,
+			Current:   envMeta.Current,
 		})
 	}
 	util.AssembleResponse(c, environmentList, err)

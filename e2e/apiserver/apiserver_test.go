@@ -9,8 +9,6 @@ import (
 
 	"github.com/cloud-native-application/rudrx/e2e"
 
-	"github.com/cloud-native-application/rudrx/api/types"
-
 	"github.com/cloud-native-application/rudrx/pkg/server/util"
 
 	"github.com/cloud-native-application/rudrx/pkg/server/apis"
@@ -21,35 +19,39 @@ import (
 )
 
 var (
-	envHelloMeta = types.EnvMeta{
-		Name:      "env-e2e-hello",
+	envHelloMeta = apis.Environment{
+		EnvName:   "env-e2e-hello",
 		Namespace: "env-e2e-hello",
 	}
 
-	envWorldMeta = types.EnvMeta{
-		Name:      "env-e2e-world",
+	envWorldMeta = apis.Environment{
+		EnvName:   "env-e2e-world",
 		Namespace: "env-e2e-world",
+	}
+
+	envWorldMetaUpdate = apis.EnvironmentBody{
+		Namespace: "env-e2e-world-modified",
 	}
 
 	workloadType = "containerized"
 	workloadName = "app-e2e-api-hello"
 
 	workloadRunBodyWithoutImageFlag = apis.WorkloadRunBody{
-		EnvName:      envHelloMeta.Name,
+		EnvName:      envHelloMeta.EnvName,
 		WorkloadName: workloadName,
 		WorkloadType: workloadType,
 		Flags:        []apis.CommonFlag{{Name: "port", Value: "80"}},
 	}
 	workloadRunBody = apis.WorkloadRunBody{
-		EnvName:      envHelloMeta.Name,
+		EnvName:      envHelloMeta.EnvName,
 		WorkloadName: workloadName,
 		WorkloadType: workloadType,
 		Flags:        []apis.CommonFlag{{Name: "image", Value: "nginx:1.9.4"}, {Name: "port", Value: "80"}},
 	}
 )
 
-var notExistedEnvMeta = types.EnvMeta{
-	Name:      "env-e2e-api-NOT-EXISTED-JUST-FOR-TEST",
+var notExistedEnvMeta = apis.Environment{
+	EnvName:   "env-e2e-api-NOT-EXISTED-JUST-FOR-TEST",
 	Namespace: "env-e2e-api-NOT-EXISTED-JUST-FOR-TEST",
 }
 
@@ -62,7 +64,7 @@ var _ = ginkgo.Describe("API", func() {
 
 	ginkgo.Context("get /envs/:envName", func() {
 		ginkgo.It("should get an env", func() {
-			resp, err := http.Get(util.URL("/envs/" + envHelloMeta.Name))
+			resp, err := http.Get(util.URL("/envs/" + envHelloMeta.EnvName))
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			defer resp.Body.Close()
 			result, err := ioutil.ReadAll(resp.Body)
@@ -78,7 +80,7 @@ var _ = ginkgo.Describe("API", func() {
 
 	ginkgo.Context("switch /envs/:envName", func() {
 		ginkgo.It("should switch an env", func() {
-			req, err := http.NewRequest("PATCH", util.URL("/envs/"+envHelloMeta.Name), nil)
+			req, err := http.NewRequest("PATCH", util.URL("/envs/"+envHelloMeta.EnvName), nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			resp, err := http.DefaultClient.Do(req)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -88,7 +90,7 @@ var _ = ginkgo.Describe("API", func() {
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
 			gomega.Expect(http.StatusOK).To(gomega.Equal(r.Code))
-			content := fmt.Sprintf("Switch env succeed, current env is " + envHelloMeta.Name)
+			content := fmt.Sprintf("Switch env succeed, current env is " + envHelloMeta.EnvName)
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(content))
 		})
 	})
@@ -108,9 +110,10 @@ var _ = ginkgo.Describe("API", func() {
 		})
 	})
 
-	ginkgo.Context("delete /envs/:envName", func() {
-		ginkgo.It("should delete an env", func() {
-			req, err := http.NewRequest("DELETE", util.URL("/envs/"+envWorldMeta.Name), nil)
+	ginkgo.Context("put /envs/:envName", func() {
+		ginkgo.It("should update an env", func() {
+			data, err := json.Marshal(&envWorldMetaUpdate)
+			req, err := http.NewRequest("PUT", util.URL("/envs/"+envWorldMeta.EnvName), strings.NewReader(string(data)))
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			resp, err := http.DefaultClient.Do(req)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -120,14 +123,30 @@ var _ = ginkgo.Describe("API", func() {
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
 			gomega.Expect(http.StatusOK).To(gomega.Equal(r.Code))
-			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(envWorldMeta.Name + " deleted"))
+			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring("Update env succeed"))
+		})
+	})
+
+	ginkgo.Context("delete /envs/:envName", func() {
+		ginkgo.It("should delete an env", func() {
+			req, err := http.NewRequest("DELETE", util.URL("/envs/"+envWorldMeta.EnvName), nil)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			resp, err := http.DefaultClient.Do(req)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			defer resp.Body.Close()
+			result, err := ioutil.ReadAll(resp.Body)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			var r apis.Response
+			err = json.Unmarshal(result, &r)
+			gomega.Expect(http.StatusOK).To(gomega.Equal(r.Code))
+			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(envWorldMeta.EnvName + " deleted"))
 		})
 	})
 
 	// API Application
 	ginkgo.Context("get /envs/:envName/apps/", func() {
 		ginkgo.It("should report error for not existed env", func() {
-			envName := notExistedEnvMeta.Name
+			envName := notExistedEnvMeta.EnvName
 			url := fmt.Sprintf("/envs/%s/apps/", envName)
 			resp, err := http.Get(util.URL(url))
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -191,7 +210,7 @@ var _ = ginkgo.Describe("API", func() {
 		})
 
 		ginkgo.It("should delete an application", func() {
-			req, err := http.NewRequest("DELETE", util.URL("/envs/"+envHelloMeta.Name+"/apps/"+workloadRunBody.WorkloadName), nil)
+			req, err := http.NewRequest("DELETE", util.URL("/envs/"+envHelloMeta.EnvName+"/apps/"+workloadRunBody.WorkloadName), nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			resp, err := http.DefaultClient.Do(req)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
