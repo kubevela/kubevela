@@ -65,5 +65,13 @@ var _ = ginkgo.Describe("Capability", func() {
 			gomega.Expect(output).To(gomega.ContainSubstring(capabilityBasic.Name))
 			gomega.Expect(output).To(gomega.ContainSubstring("installed"))
 		})
+
+		ginkgo.It("delete a capability center", func() {
+			cli := fmt.Sprintf("vela cap center remove %s", capabilityCenterBasic.Name)
+			output, err := e2e.Exec(cli)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			expectedOutput := fmt.Sprintf("%s capability center removed successfully", capabilityCenterBasic.Name)
+			gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
+		})
 	})
 })
