@@ -7,6 +7,7 @@ import (
 	"github.com/cloud-native-application/rudrx/pkg/application"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"os"
+	"sort"
 
 	"github.com/cloud-native-application/rudrx/pkg/server/apis"
 
@@ -24,6 +25,18 @@ type ComponentMeta struct {
 	CreatedTime string                                `json:"created,omitempty"`
 	AppConfig   corev1alpha2.ApplicationConfiguration `json:"-"`
 	Component   corev1alpha2.Component                `json:"-"`
+}
+
+type componentMetaList []ComponentMeta
+
+func (comps componentMetaList) Len() int {
+	return len(comps)
+}
+func (comps componentMetaList) Swap(i, j int) {
+	comps[i], comps[j] = comps[j], comps[i]
+}
+func (comps componentMetaList) Less(i, j int) bool {
+	return comps[i].CreatedTime > comps[j].CreatedTime
 }
 
 type Option struct {
@@ -44,7 +57,7 @@ type DeleteOptions struct {
 	Get component list
 */
 func ListComponents(ctx context.Context, c client.Client, opt Option) ([]ComponentMeta, error) {
-	var componentMetaList []ComponentMeta
+	var componentMetaList componentMetaList
 	var applicationList corev1alpha2.ApplicationConfigurationList
 
 	if opt.AppName != "" {
@@ -83,6 +96,7 @@ func ListComponents(ctx context.Context, c client.Client, opt Option) ([]Compone
 			})
 		}
 	}
+	sort.Stable(componentMetaList)
 	return componentMetaList, nil
 }
 
