@@ -1,7 +1,8 @@
 import React, { Fragment } from 'react';
 import { Spin } from 'antd';
 import { connect } from 'dva';
-import Trait from '../../../components/Trait';
+import _ from 'lodash';
+import Trait from '../../components/Trait';
 
 @connect(({ loading }) => ({
   loadingAll: loading.models.trait,
@@ -10,19 +11,38 @@ class TableList extends React.PureComponent {
   constructor(props) {
     super(props);
     this.state = {
+      traitType: '',
       propsObj: {},
     };
   }
 
   componentDidMount() {
-    this.getInitialData();
+    const traitType = _.get(this.props, 'match.params.traitType', '');
+    if (traitType) {
+      this.getInitialData(traitType);
+    }
   }
 
-  getInitialData = async () => {
+  // 组件更新时被调用
+  UNSAFE_componentWillReceiveProps(nextProps) {
+    const traitType = _.get(nextProps, 'match.params.traitType', '');
+    const prevTraitType = this.state.traitType;
+    // 这里不能直接调用会造成页面死循环，要判断前一个值是否相同
+    if (traitType && traitType !== prevTraitType) {
+      this.getInitialData(traitType);
+      this.setState({
+        traitType,
+      });
+    }
+  }
+
+  getInitialData = async (traitType) => {
+    // eslint-disable-next-line no-param-reassign
+    traitType = traitType.toLowerCase();
     const res = await this.props.dispatch({
       type: 'trait/getTraitByName',
       payload: {
-        traitName: 'scale',
+        traitName: traitType,
       },
     });
     if (res) {

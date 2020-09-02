@@ -120,6 +120,7 @@ class TableList extends React.PureComponent {
       this.setState(() => ({
         capabilityList: newList1,
       }));
+      window.location.reload();
     }
   };
 

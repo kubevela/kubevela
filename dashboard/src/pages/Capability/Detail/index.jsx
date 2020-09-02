@@ -69,7 +69,8 @@ class TableList extends React.PureComponent {
     });
     if (res) {
       message.success(res);
-      this.getInitialData();
+      // this.getInitialData();
+      window.location.reload();
     }
   };
 
@@ -86,7 +87,8 @@ class TableList extends React.PureComponent {
       });
       if (res) {
         message.success(res);
-        this.getInitialData();
+        // this.getInitialData();
+        window.location.reload();
       }
     }
   };
@@ -102,7 +104,8 @@ class TableList extends React.PureComponent {
       });
       if (res) {
         message.success(res);
-        this.getInitialData();
+        // this.getInitialData();
+        window.location.reload();
       }
     }
   };

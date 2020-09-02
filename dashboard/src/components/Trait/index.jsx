@@ -87,9 +87,15 @@ class Trait extends React.Component {
               <Row>
                 <Col span="22">
                   <p className="title">{title}</p>
-                  <p>
-                    {crdInfo.apiVersion},kind={crdInfo.kind}
-                  </p>
+                  {crdInfo ? (
+                    <p>
+                      {crdInfo.apiVersion}
+                      <span>,kind=</span>
+                      {crdInfo.kind}
+                    </p>
+                  ) : (
+                    <p />
+                  )}
                 </Col>
               </Row>
               <Row>

@@ -1,7 +1,8 @@
 import React, { Fragment } from 'react';
 import { connect } from 'dva';
 import { Spin } from 'antd';
-import Workload from '../../../components/Workload';
+import _ from 'lodash';
+import Workload from '../../components/Workload';
 
 @connect(({ loading }) => ({
   loadingAll: loading.models.workload,
@@ -11,18 +12,37 @@ class TableList extends React.PureComponent {
     super(props);
     this.state = {
       propsObj: {},
+      workloadType: '',
     };
   }
 
   componentDidMount() {
-    this.getInitialData();
+    const workloadType = _.get(this.props, 'match.params.WorkloadType', '');
+    if (workloadType) {
+      this.getInitialData(workloadType);
+    }
   }
 
-  getInitialData = async () => {
+  // 组件更新时被调用
+  UNSAFE_componentWillReceiveProps(nextProps) {
+    const workloadType = _.get(nextProps, 'match.params.WorkloadType', '');
+    const prevWorkloadType = this.state.workloadType;
+    // 这里不能直接调用会造成页面死循环，要判断前一个值是否相同
+    if (workloadType && workloadType !== prevWorkloadType) {
+      this.getInitialData(workloadType);
+      this.setState({
+        workloadType,
+      });
+    }
+  }
+
+  getInitialData = async (workloadType) => {
+    // eslint-disable-next-line no-param-reassign
+    workloadType = workloadType.toLowerCase();
     const res = await this.props.dispatch({
       type: 'workload/getWorkloadByName',
       payload: {
-        workloadName: 'containerized',
+        workloadName: workloadType,
       },
     });
     if (res) {
