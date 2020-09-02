@@ -45,10 +45,11 @@ func main() {
 	var logRetainDate int
 	var certDir string
 	var webhookPort int
-	var useWebhook bool
+	var useWebhook, useTraitInjector bool
 	var controllerArgs oamcontroller.Args
 
 	flag.BoolVar(&useWebhook, "use-webhook", false, "Enable Admission Webhook")
+	flag.BoolVar(&useTraitInjector, "use-trait-injector", false, "Enable TraitInjector")
 	flag.StringVar(&certDir, "webhook-cert-dir", "/k8s-webhook-server/serving-certs", "Admission webhook cert/key dir.")
 	flag.IntVar(&webhookPort, "webhook-port", 9443, "admission webhook listen address")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
@@ -108,7 +109,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if useWebhook {
+	if useTraitInjector {
 		// register all service injectors
 		plugin.RegisterTargetInjectors(injector.Defaults()...)
 
@@ -122,7 +123,7 @@ func main() {
 			setupLog.Error(err, "unable to create controller", "controller", "ServiceBinding")
 			os.Exit(1)
 		}
-		// +kubebuilder:scaffold:builder
+		// this has hard coded requirement "./ssl/service-injector.pem", "./ssl/service-injector.key"
 		go tiWebhook.ServeAdmission()
 	}
 

@@ -61,7 +61,7 @@ var _ = BeforeSuite(func(done Done) {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 	serviceMonitorNS = corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: serviceMonitorNSName,
+			Name: ServiceMonitorNSName,
 		},
 	}
 	By("Bootstrapping test environment")

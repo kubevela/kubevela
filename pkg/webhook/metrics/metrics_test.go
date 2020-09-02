@@ -17,7 +17,8 @@ var _ = Describe("Metrics Admission controller Test", func() {
 	BeforeEach(func() {
 		traitBase = v1alpha1.MetricsTrait{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "mutate-hook",
+				Name:      "mutate-hook",
+				Namespace: "default",
 			},
 			Spec: v1alpha1.MetricsTraitSpec{
 				ScrapeService: v1alpha1.ScapeServiceEndPoint{

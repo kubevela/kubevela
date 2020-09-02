@@ -1,0 +1,28 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: Component
+metadata:
+  name: metrics-application
+spec:
+  workload:
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: metrics-app
+      labels:
+        app: metrics-app
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: metrics-app
+      template:
+        metadata:
+          labels:
+            app: metrics-app
+        spec:
+          containers:
+            - image: christianhxc/gorandom:1.0
+              name: metrics-provider
+              ports:
+                - name: http
+                  containerPort: 8080

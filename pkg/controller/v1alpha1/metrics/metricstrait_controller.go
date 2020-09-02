@@ -60,9 +60,9 @@ var (
 		"k8s-app":    "oam",
 		"controller": "metricsTrait",
 	}
-	// serviceMonitorNSName is the name of the namespace in which the serviceMonitor resides
+	// ServiceMonitorNSName is the name of the namespace in which the serviceMonitor resides
 	// it must be the same that the prometheus operator is listening to
-	serviceMonitorNSName = "oam-monitoring"
+	ServiceMonitorNSName = "monitoring"
 )
 
 // MetricsTraitReconciler reconciles a MetricsTrait object
@@ -265,7 +265,7 @@ func constructServiceMonitor(metricsTrait *v1alpha1.MetricsTrait,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      metricsTrait.Name,
-			Namespace: serviceMonitorNSName,
+			Namespace: ServiceMonitorNSName,
 			Labels:    oamServiceLabel,
 			OwnerReferences: []metav1.OwnerReference{
 				{

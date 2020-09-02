@@ -150,12 +150,12 @@ var _ = Describe("Metrics Trait Integration Test", func() {
 		Eventually(
 			func() error {
 				return k8sClient.Get(ctx,
-					types.NamespacedName{Namespace: serviceMonitorNSName, Name: metricsTrait.GetName()},
+					types.NamespacedName{Namespace: ServiceMonitorNSName, Name: metricsTrait.GetName()},
 					&serviceMonitor)
 			},
 			time.Second*5, time.Millisecond*50).Should(BeNil())
 		logf.Log.Info("[TEST] Get the created serviceMonitor", "service end ports", serviceMonitor.Spec.Endpoints)
-		Expect(serviceMonitor.GetNamespace()).Should(Equal(serviceMonitorNSName))
+		Expect(serviceMonitor.GetNamespace()).Should(Equal(ServiceMonitorNSName))
 		Expect(serviceMonitor.Spec.Selector.MatchLabels).Should(Equal(oamServiceLabel))
 		Expect(serviceMonitor.Spec.Selector.MatchExpressions).Should(BeNil())
 		Expect(serviceMonitor.Spec.NamespaceSelector.MatchNames).Should(Equal([]string{metricsTrait.Namespace}))
@@ -199,7 +199,7 @@ var _ = Describe("Metrics Trait Integration Test", func() {
 		Eventually(
 			func() error {
 				return k8sClient.Get(ctx,
-					types.NamespacedName{Namespace: serviceMonitorNSName, Name: metricsTrait.GetName()},
+					types.NamespacedName{Namespace: ServiceMonitorNSName, Name: metricsTrait.GetName()},
 					&serviceMonitor)
 			},
 			time.Second*5, time.Millisecond*50).Should(BeNil())

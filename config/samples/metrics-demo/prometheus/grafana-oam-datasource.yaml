@@ -1,0 +1,7 @@
+grafana:
+  additionalDataSources:
+    - name: Prometheus-OAM
+      type: prometheus
+      url: http://prometheus-oam:4848/
+      access: proxy
+      isDefault: false

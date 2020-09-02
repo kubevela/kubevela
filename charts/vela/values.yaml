@@ -3,7 +3,7 @@
 # Declare variables to be passed into your templates.
 
 replicaCount: 1
-useWebhook: false
+useWebhook: true
 image:
   repository: vela-core
   tag: latest
@@ -56,7 +56,7 @@ resources:
     cpu: 500m
     memory: 1Gi
   requests:
-    cpu: 500m
+    cpu: 50m
     memory: 20Mi
 
 webhookService:

@@ -80,7 +80,7 @@ func (h *ContainerizedValidatingHandler) Handle(ctx context.Context, req admissi
 // ValidateCreate validates the Containerized on creation
 func ValidateCreate(r *v1alpha1.Containerized) field.ErrorList {
 	validatelog.Info("validate create", "name", r.Name)
-	allErrs := apimachineryvalidation.ValidateObjectMeta(&r.ObjectMeta, false,
+	allErrs := apimachineryvalidation.ValidateObjectMeta(&r.ObjectMeta, true,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
 
 	fldPath := field.NewPath("spec")

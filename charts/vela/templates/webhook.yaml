@@ -3,13 +3,16 @@
 apiVersion: admissionregistration.k8s.io/v1beta1
 kind: MutatingWebhookConfiguration
 metadata:
+  creationTimestamp: null
   name: mutating-webhook-configuration
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ .Values.certificate.certificateName }}
 webhooks:
   - clientConfig:
       caBundle: Cg==
       service:
-        name: webhook-service
-        namespace: system
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
         path: /mutate-standard-oam-dev-v1alpha1-metricstrait
     failurePolicy: Fail
     name: mmetricstrait.kb.io
@@ -23,18 +26,39 @@ webhooks:
           - UPDATE
         resources:
           - metricstraits
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /mutate-standard-oam-dev-v1alpha1-containerized
+    failurePolicy: Fail
+    name: mcontainerized.kb.io
+    rules:
+      - apiGroups:
+          - standard.oam.dev
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - Containerized
 
 ---
 apiVersion: admissionregistration.k8s.io/v1beta1
 kind: ValidatingWebhookConfiguration
 metadata:
+  creationTimestamp: null
   name: validating-webhook-configuration
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ .Values.certificate.certificateName }}
 webhooks:
   - clientConfig:
       caBundle: Cg==
       service:
-        name: webhook-service
-        namespace: system
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
         path: /validate-standard-oam-dev-v1alpha1-metricstrait
     failurePolicy: Fail
     name: vmetricstrait.kb.io
@@ -49,6 +73,25 @@ webhooks:
           - DELETE
         resources:
           - metricstraits
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /validate-standard-oam-dev-v1alpha1-containerized
+    failurePolicy: Fail
+    name: vcontainerized.kb.io
+    rules:
+      - apiGroups:
+          - standard.oam.dev
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resources:
+          - Containerized
 
 ---
 apiVersion: v1
@@ -84,8 +127,8 @@ metadata:
   name: {{ .Values.certificate.certificateName }}
 spec:
   dnsNames:
-    - {{ include "kubevela.fullname" . }}.{{ .Release.Namespace }}.svc
-    - {{ include "kubevela.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+    - {{ template "kubevela.name" . }}-webhook.{{ .Release.Namespace }}.svc
+    - {{ template "kubevela.name" . }}-webhook.{{ .Release.Namespace }}.svc.cluster.local
   issuerRef:
     kind: Issuer
     name: {{ .Values.certificate.issuerName  | default "selfsigned-issuer" | quote  }}
