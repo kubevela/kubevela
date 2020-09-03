@@ -54,6 +54,12 @@ func AddCapabilityIntoCluster(c *gin.Context) {
 	util.AssembleResponse(c, msg, nil)
 }
 
+func DeleteCapabilityCenter(c *gin.Context) {
+	capabilityCenterName := c.Param("capabilityCenterName")
+	msg, err := oam.RemoveCapabilityCenter(capabilityCenterName)
+	util.AssembleResponse(c, msg, err)
+}
+
 func RemoveCapabilityFromCluster(c *gin.Context) {
 	capabilityCenterName := c.Param("capabilityName")
 	kubeClient := c.MustGet("KubeClient")
