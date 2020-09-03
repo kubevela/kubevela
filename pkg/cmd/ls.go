@@ -25,7 +25,7 @@ func NewAppListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		DisableFlagsInUseLine: true,
 		Short:                 "List applications",
 		Long:                  "List applications with workloads, traits, status and created time",
-		Example:               `vela comp ls`,
+		Example:               `vela app ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			env, err := GetEnv(cmd)
 			if err != nil {
