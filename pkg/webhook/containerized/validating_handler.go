@@ -51,6 +51,8 @@ func (h *ContainerizedValidatingHandler) Handle(ctx context.Context, req admissi
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
+		validatelog.Error(err, "decoder failed", "req operation", req.AdmissionRequest.Operation, "req",
+			req.AdmissionRequest)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
@@ -66,10 +68,6 @@ func (h *ContainerizedValidatingHandler) Handle(ctx context.Context, req admissi
 		}
 
 		if allErrs := ValidateUpdate(obj, oldObj); len(allErrs) > 0 {
-			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
-		}
-	case admissionv1beta1.Delete:
-		if allErrs := ValidateDelete(obj); len(allErrs) > 0 {
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
 	}

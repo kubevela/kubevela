@@ -51,6 +51,8 @@ func (h *MetricsTraitValidatingHandler) Handle(ctx context.Context, req admissio
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
+		validatelog.Error(err, "decoder failed", "req operation", req.AdmissionRequest.Operation, "req",
+			req.AdmissionRequest)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 

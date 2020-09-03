@@ -5,8 +5,8 @@
 replicaCount: 1
 useWebhook: true
 image:
-  repository: vela-core
-  tag: latest
+  repository: oamdev/vela-core
+  tag: 0.1
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
