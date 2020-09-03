@@ -67,7 +67,8 @@ var _ = BeforeSuite(func(done Done) {
 	By("Bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("../../../..", "hack/crds"), // this has all the required CRDs, a bit hacky
+			filepath.Join("../../../..", "charts/third_party/prometheus"), // this has all the required CRDs,
+			filepath.Join("../../../..", "charts/vela-core/crds"),         // this has all the required CRDs,
 		},
 	}
 	var err error

@@ -1,0 +1,19 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: deployments.apps
+spec:
+  definitionRef:
+    name: deployments.apps
+---
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: services
+spec:
+  appliesToWorkloads:
+    - containerizedworkloads.core.oam.dev
+    - deployments.apps
+    - statefulsets.apps
+  definitionRef:
+    name: services

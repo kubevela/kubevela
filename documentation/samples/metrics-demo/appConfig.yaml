@@ -16,6 +16,13 @@ spec:
                 path: "/metrics"
                 scheme:  "http"
                 enabled: true
+        - trait:
+            apiVersion: core.oam.dev/v1alpha2
+            kind: ManualScalerTrait
+            metadata:
+              name:  example-appconfig-trait
+            spec:
+              replicaCount: 3
     - componentName: metrics-application
       traits:
         - trait:

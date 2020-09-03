@@ -7,19 +7,16 @@ This example show case how one can use a metricsTrait to add prometheus monitori
 ```shell script
 kubectl apply -f charts/third_party/cert-manager
 kubectl apply -f charts/third_party/prometheus
+## install OAM Prometheus instance
+kubectl apply  -f config/oam/prometheus-oam.yaml
 make docker-build
 kubectl create ns vela-system
-helm install kube --namespace vela-system charts/vela/
-```
-
-## Install OAM Prometheus
-```shell script
-kubectl apply  -f config/oam/prometheus-oam.yaml
+helm install kube --namespace vela-system charts/vela-core/
 ```
 
 ## Run ApplicationConfiguration
 ```shell script
-kubectl apply -f config/samples/application/
+kubectl apply -f documentation/samples/metrics-demo/
 workloaddefinition.core.oam.dev/deployments.apps created
 traitdefinition.core.oam.dev/services created
 traitdefinition.core.oam.dev/metricstraits.standard.oam.dev created
