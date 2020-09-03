@@ -57,6 +57,7 @@ func (h *MetricsTraitValidatingHandler) Handle(ctx context.Context, req admissio
 	switch req.AdmissionRequest.Operation {
 	case admissionv1beta1.Create:
 		if allErrs := ValidateCreate(obj); len(allErrs) > 0 {
+			validatelog.Info("create failed", "name", obj.Name, "err", allErrs.ToAggregate().Error())
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
 	case admissionv1beta1.Update:
@@ -66,6 +67,7 @@ func (h *MetricsTraitValidatingHandler) Handle(ctx context.Context, req admissio
 		}
 
 		if allErrs := ValidateUpdate(obj, oldObj); len(allErrs) > 0 {
+			validatelog.Info("update failed", "name", obj.Name, "err", allErrs.ToAggregate().Error())
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
 	}
@@ -76,7 +78,7 @@ func (h *MetricsTraitValidatingHandler) Handle(ctx context.Context, req admissio
 // ValidateCreate validates the metricsTrait on creation
 func ValidateCreate(r *v1alpha1.MetricsTrait) field.ErrorList {
 	validatelog.Info("validate create", "name", r.Name)
-	allErrs := apimachineryvalidation.ValidateObjectMeta(&r.ObjectMeta, false,
+	allErrs := apimachineryvalidation.ValidateObjectMeta(&r.ObjectMeta, true,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
 	fldPath := field.NewPath("spec")
 	if r.Spec.ScrapeService.Format != SupportedFormat {

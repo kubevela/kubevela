@@ -60,7 +60,7 @@ e2e-cleanup:
 # Image URL to use all building/pushing image targets
 IMG ?= vela-core:latest
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
-CRD_OPTIONS ?= "crd:trivialVersions=false"
+CRD_OPTIONS ?= "crd:crdVersions=v1"
 
 # Run tests
 core-test: generate fmt vet manifests
@@ -89,7 +89,7 @@ core-deploy: manifests
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=charts/vela/crds
 
 # Generate code
 generate: controller-gen

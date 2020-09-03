@@ -80,6 +80,8 @@ spec:
                   - name
                   type: object
                 type: array
+            required:
+            - workloadRefs
             type: object
           status:
             description: A HealthScopeStatus represents the observed state of a HealthScope.

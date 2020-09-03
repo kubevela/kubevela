@@ -61,13 +61,14 @@ var _ = BeforeSuite(func(done Done) {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 	serviceMonitorNS = corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: serviceMonitorNSName,
+			Name: ServiceMonitorNSName,
 		},
 	}
 	By("Bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("../../../..", "hack/crds"), // this has all the required CRDs, a bit hacky
+			filepath.Join("../../../..", "charts/third_party/prometheus"), // this has all the required CRDs,
+			filepath.Join("../../../..", "charts/vela-core/crds"),         // this has all the required CRDs,
 		},
 	}
 	var err error

@@ -1,0 +1,28 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: Component
+metadata:
+  name: autoscale-application
+spec:
+  workload:
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: sample-app
+      labels:
+        app: sample-app
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: sample-app
+      template:
+        metadata:
+          labels:
+            app: sample-app
+        spec:
+          containers:
+            - image: luxas/autoscale-demo:v0.1.2
+              name: metrics-provider
+              ports:
+                - name: http
+                  containerPort: 8080

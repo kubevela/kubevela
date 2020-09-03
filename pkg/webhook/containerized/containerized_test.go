@@ -41,6 +41,7 @@ var _ = Describe("Containerized", func() {
 
 	It("Test validate valid trait", func() {
 		cw := baseCase
+		cw.ObjectMeta.Namespace = "default"
 		cw.Spec.Replicas = pointer.Int32Ptr(5)
 		cw.Spec.PodSpec.Containers = []v1.Container{
 			{
@@ -58,6 +59,12 @@ var _ = Describe("Containerized", func() {
 		cw.Spec.Replicas = pointer.Int32Ptr(-5)
 		Expect(ValidateCreate(&cw).ToAggregate()).To(HaveOccurred())
 		Expect(ValidateUpdate(&cw, nil).ToAggregate()).To(HaveOccurred())
+		Expect(len(ValidateCreate(&cw))).Should(Equal(3))
+		// add namespace
+		cw.ObjectMeta.Namespace = "default"
 		Expect(len(ValidateCreate(&cw))).Should(Equal(2))
+		// get valid replica
+		cw.Spec.Replicas = pointer.Int32Ptr(5)
+		Expect(len(ValidateCreate(&cw))).Should(Equal(1))
 	})
 })

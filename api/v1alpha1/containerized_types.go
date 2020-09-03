@@ -78,4 +78,3 @@ func (in *Containerized) SetConditions(c ...cpv1alpha1.Condition) {
 func (in *Containerized) GetCondition(c cpv1alpha1.ConditionType) cpv1alpha1.Condition {
 	return in.Status.GetCondition(c)
 }
-

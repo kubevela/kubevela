@@ -97,9 +97,9 @@ func (r *ContainerizedReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderDeployment)))
 	}
-	// merge patch
+	// server side apply
 	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(workload.GetUID())}
-	if err := r.Patch(ctx, deploy, client.Merge, applyOpts...); err != nil {
+	if err := r.Patch(ctx, deploy, client.Apply, applyOpts...); err != nil {
 		log.Error(err, "Failed to apply to a deployment")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 		return util.ReconcileWaitResult,
@@ -117,8 +117,8 @@ func (r *ContainerizedReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderService)))
 	}
-	// merge apply the service
-	if err := r.Patch(ctx, service, client.Merge, applyOpts...); err != nil {
+	// server side apply the service
+	if err := r.Patch(ctx, service, client.Apply, applyOpts...); err != nil {
 		log.Error(err, "Failed to apply a service")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 		return util.ReconcileWaitResult,
@@ -180,6 +180,15 @@ func (r *ContainerizedReconciler) renderDeployment(ctx context.Context,
 			},
 		},
 	}
+	// k8s server-side patch complains if the protocol is not set
+	for i := 0; i < len(deploy.Spec.Template.Spec.Containers); i++ {
+		for j := 0; j < len(deploy.Spec.Template.Spec.Containers[i].Ports); j++ {
+			if len(deploy.Spec.Template.Spec.Containers[i].Ports[j].Protocol) == 0 {
+				deploy.Spec.Template.Spec.Containers[i].Ports[j].Protocol = corev1.ProtocolTCP
+			}
+		}
+	}
+
 	// pass through label and annotation from the workload to the deployment
 	util.PassLabelAndAnnotation(workload, deploy)
 	// pass through label and annotation from the workload to the pod template too

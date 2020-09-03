@@ -42,7 +42,9 @@ import (
 
 const (
 	errApplyServiceMonitor = "failed to apply the service monitor"
+	errLocatingWorkload    = "failed to locate the workload"
 	errLocatingService     = "failed to locate any the services"
+	errCreatingService     = "failed to create the services"
 	servicePort            = 4848
 )
 
@@ -60,9 +62,9 @@ var (
 		"k8s-app":    "oam",
 		"controller": "metricsTrait",
 	}
-	// serviceMonitorNSName is the name of the namespace in which the serviceMonitor resides
+	// ServiceMonitorNSName is the name of the namespace in which the serviceMonitor resides
 	// it must be the same that the prometheus operator is listening to
-	serviceMonitorNSName = "oam-monitoring"
+	ServiceMonitorNSName = "monitoring"
 )
 
 // MetricsTraitReconciler reconciles a MetricsTrait object
@@ -113,10 +115,10 @@ func (r *MetricsTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 	if err != nil {
 		mLog.Error(err, "Error while fetching the workload", "workload reference",
 			metricsTrait.GetWorkloadReference())
-		r.record.Event(eventObj, event.Warning(errLocatingService, err))
+		r.record.Event(eventObj, event.Warning(errLocatingWorkload, err))
 		return oamutil.ReconcileWaitResult,
 			oamutil.PatchCondition(ctx, r, &metricsTrait,
-				cpv1alpha1.ReconcileError(errors.Wrap(err, errLocatingService)))
+				cpv1alpha1.ReconcileError(errors.Wrap(err, errLocatingWorkload)))
 	}
 	// try to see if the workload already has services as child resources
 	serviceLabel, err := r.fetchServicesLabel(ctx, mLog, workload, metricsTrait.Spec.ScrapeService.TargetPort)
@@ -130,10 +132,10 @@ func (r *MetricsTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 		// no service with the targetPort found, we will create a service that talks to the targetPort
 		serviceLabel, err = r.createService(ctx, mLog, workload, &metricsTrait)
 		if err != nil {
-			r.record.Event(eventObj, event.Warning(errLocatingService, err))
+			r.record.Event(eventObj, event.Warning(errCreatingService, err))
 			return oamutil.ReconcileWaitResult,
 				oamutil.PatchCondition(ctx, r, &metricsTrait,
-					cpv1alpha1.ReconcileError(errors.Wrap(err, errLocatingService)))
+					cpv1alpha1.ReconcileError(errors.Wrap(err, errCreatingService)))
 		}
 	}
 	// construct the serviceMonitor that hooks the service to the prometheus server
@@ -265,7 +267,7 @@ func constructServiceMonitor(metricsTrait *v1alpha1.MetricsTrait,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      metricsTrait.Name,
-			Namespace: serviceMonitorNSName,
+			Namespace: ServiceMonitorNSName,
 			Labels:    oamServiceLabel,
 			OwnerReferences: []metav1.OwnerReference{
 				{
