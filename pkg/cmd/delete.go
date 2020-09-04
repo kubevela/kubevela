@@ -66,11 +66,18 @@ func NewCompDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},
-		Example: "vela comp delete frontend",
+		Example: "vela comp delete frontend -a frontend",
 	}
 	cmd.SetOut(ioStreams.Out)
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		appName, err := cmd.Flags().GetString(App)
+		if err != nil {
+			return err
+		}
+		if appName == "" {
+			return errors.New("must specify name of application, please add flag -a")
+		}
 		newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 		if err != nil {
 			return err
@@ -85,10 +92,6 @@ func NewCompDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 			return errors.New("must specify name for the app")
 		}
 		o.CompName = args[0]
-		appName, err := cmd.Flags().GetString(App)
-		if err != nil {
-			return err
-		}
 		o.AppName = appName
 
 		ioStreams.Infof("Deleting Component '%s' from Application '%s'\n", o.CompName, o.AppName)
