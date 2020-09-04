@@ -97,7 +97,7 @@ func GetWorkloadNameFromArgs(args []string) (string, error) {
 		}
 		errMsg := "can not find workload, check workloads by `vela workloads` and choose a suitable one."
 		if workloadList != "" {
-			errMsg = fmt.Sprintf("must specify name for workload ,please choose from %s.",workloadList)
+			errMsg = fmt.Sprintf("must specify name for component, please choose from %s.",workloadList)
 		}
 		return "", errors.New(errMsg)
 	}
