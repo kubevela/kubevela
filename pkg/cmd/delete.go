@@ -82,14 +82,18 @@ func NewCompDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 			return err
 		}
 		if len(args) < 1 {
-			return errors.New("must specify name for the app")
+			return errors.New("must specify name for the component")
 		}
 		o.CompName = args[0]
 		appName, err := cmd.Flags().GetString(App)
 		if err != nil {
 			return err
 		}
-		o.AppName = appName
+		if appName != ""{
+			o.AppName = appName
+		}else {
+			o.AppName = o.CompName
+		}
 
 		ioStreams.Infof("Deleting Component '%s' from Application '%s'\n", o.CompName, o.AppName)
 		err, message := o.DeleteComponent()
