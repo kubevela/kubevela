@@ -20,7 +20,7 @@ spec:
             apiVersion: core.oam.dev/v1alpha2
             kind: ManualScalerTrait
             metadata:
-              name:  example-appconfig-trait
+              name:  autoscale-scalar
             spec:
               replicaCount: 3
     - componentName: metrics-application
