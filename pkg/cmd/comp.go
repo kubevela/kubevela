@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/cloud-native-application/rudrx/pkg/oam"
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
@@ -90,7 +91,15 @@ func NewCompRunCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 func GetWorkloadNameFromArgs(args []string) (string, error) {
 	argsLength := len(args)
 	if argsLength < 1 {
-		return "", errors.New("must specify name for workload")
+		workloadList,err := InstalledWorkloads()
+		if err != nil {
+			return "",err
+		}
+		errMsg := "can not find workload, check workloads by `vela workloads` and choose a suitable one."
+		if workloadList != "" {
+			errMsg = fmt.Sprintf("must specify name for workload ,please choose from %s.",workloadList)
+		}
+		return "", errors.New(errMsg)
 	}
 	return args[0], nil
 
