@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"github.com/cloud-native-application/rudrx/pkg/oam"
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
 
@@ -91,13 +90,17 @@ func NewCompRunCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 func GetWorkloadNameFromArgs(args []string) (string, error) {
 	argsLength := len(args)
 	if argsLength < 1 {
-		workloadList,err := InstalledWorkloads()
+		workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
 		if err != nil {
-			return "",err
+			return "", err
+		}
+		var workloadList []string
+		for _, w := range workloads {
+			workloadList = append(workloadList, w.Name)
 		}
 		errMsg := "can not find workload, check workloads by `vela workloads` and choose a suitable one."
-		if workloadList != "" {
-			errMsg = fmt.Sprintf("must specify name for component, please choose from %s.",workloadList)
+		if workloadList != nil {
+			errMsg = fmt.Sprintf("must specify workload, please choose from %v.", workloadList)
 		}
 		return "", errors.New(errMsg)
 	}
