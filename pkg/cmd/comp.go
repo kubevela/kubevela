@@ -54,7 +54,7 @@ func NewCompRunCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 		Use:                   "run [args]",
 		DisableFlagsInUseLine: true,
 		// Dynamic flag parse in compeletion
-		DisableFlagParsing: true,
+		DisableFlagParsing: false,
 		Short:              "Init and Run workloads",
 		Long:               "Init and Run workloads",
 		Example:            "vela comp run -t <workload-type>",
