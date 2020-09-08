@@ -11,7 +11,7 @@ import (
 
 var _ = ginkgo.BeforeSuite(func() {
 	e2e.BeforeSuit()
-})
+}, 30)
 
 func TestApplication(t *testing.T) {
 	gomega.RegisterFailHandler(ginkgo.Fail)

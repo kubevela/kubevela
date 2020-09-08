@@ -1,0 +1,21 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: Component
+metadata:
+  name: metrics-application
+spec:
+  workload:
+    apiVersion: standard.oam.dev/v1alpha1
+    kind: Containerized
+    metadata:
+      name: metrics-app
+      labels:
+        app: metrics-app
+    spec:
+      replicas: 2
+      podSpec:
+        containers:
+          - image: christianhxc/gorandom:1.0
+            name: metrics-provider
+            ports:
+              - name: http
+                containerPort: 8080

@@ -1,93 +1,107 @@
 package cmd
 
 import (
-	"context"
 	"errors"
-	"fmt"
-
 	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/cloud-native-application/rudrx/pkg/oam"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type deleteOptions struct {
-	Component corev1alpha2.Component
-	AppConfig corev1alpha2.ApplicationConfiguration
-	client    client.Client
-	cmdutil.IOStreams
-	Env *types.EnvMeta
-}
-
-func newDeleteOptions(ioStreams cmdutil.IOStreams) *deleteOptions {
-	return &deleteOptions{IOStreams: ioStreams}
-}
-
-func newDeleteCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:                   "app:delete <APPLICATION_NAME>",
-		Aliases:               []string{"delete"},
+// NewDeleteCommand Delete App
+func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                   "delete <APPLICATION_NAME>",
 		DisableFlagsInUseLine: true,
-		Short:                 "Delete OAM Applications",
-		Long:                  "Delete OAM Applications",
+		Short:                 "Delete Applications",
+		Long:                  "Delete Applications",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},
-		Example: "vela delete frontend"}
-}
-
-// NewDeleteCommand init new command
-func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	cmd := newDeleteCommand()
+		Example: "vela app delete frontend",
+	}
 	cmd.SetOut(ioStreams.Out)
-	o := newDeleteOptions(ioStreams)
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 		if err != nil {
 			return err
 		}
-		o.client = newClient
+		o := &oam.DeleteOptions{}
+		o.Client = newClient
 		o.Env, err = GetEnv(cmd)
 		if err != nil {
 			return err
 		}
+		if len(args) < 1 {
+			return errors.New("must specify name for the app")
+		}
+		o.AppName = args[0]
 
-		if err := o.Complete(cmd, args); err != nil {
+		ioStreams.Infof("Deleting Application \"%s\"\n", o.AppName)
+		err, _ = o.DeleteApp()
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				ioStreams.Info("Already deleted")
+				return nil
+			}
 			return err
 		}
-		return o.Delete()
+		ioStreams.Info("DELETE SUCCEED")
+		return nil
 	}
 	return cmd
 }
 
-func (o *deleteOptions) Complete(cmd *cobra.Command, args []string) error {
-
-	if len(args) < 1 {
-		return errors.New("must specify name for the app")
+// NewCompDeleteCommand delete component
+func NewCompDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:                   "delete <ComponentName>",
+		DisableFlagsInUseLine: true,
+		Short:                 "Delete Component From Application",
+		Long:                  "Delete Component From Application",
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeApp,
+		},
+		Example: "vela comp delete frontend",
 	}
+	cmd.SetOut(ioStreams.Out)
 
-	namespace := o.Env.Namespace
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+		if err != nil {
+			return err
+		}
+		o := &oam.DeleteOptions{}
+		o.Client = newClient
+		o.Env, err = GetEnv(cmd)
+		if err != nil {
+			return err
+		}
+		if len(args) < 1 {
+			return errors.New("must specify name for the component")
+		}
+		o.CompName = args[0]
+		appName, err := cmd.Flags().GetString(App)
+		if err != nil {
+			return err
+		}
+		if appName != ""{
+			o.AppName = appName
+		}else {
+			o.AppName = o.CompName
+		}
 
-	o.Component.Name = args[0]
-	o.Component.Namespace = namespace
-	o.AppConfig.Name = args[0]
-	o.AppConfig.Namespace = namespace
-	return nil
-}
-
-func (o *deleteOptions) Delete() error {
-	o.Infof("Deleting AppConfig \"%s\"\n", o.AppConfig.Name)
-	err := o.client.Delete(context.Background(), &o.AppConfig)
-	if err != nil {
-		return fmt.Errorf("delete appconfig err %s", err)
+		ioStreams.Infof("Deleting Component '%s' from Application '%s'\n", o.CompName, o.AppName)
+		err, message := o.DeleteComponent()
+		if err != nil {
+			return err
+		}
+		ioStreams.Info(message)
+		return nil
 	}
-	err = o.client.Delete(context.Background(), &o.Component)
-	if err != nil {
-		return fmt.Errorf("delete component err: %s", err)
-	}
-	o.Info("DELETE SUCCEED")
-	return nil
+	return cmd
 }

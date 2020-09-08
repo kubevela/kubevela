@@ -3,11 +3,10 @@ package cmd
 import (
 	"context"
 	"errors"
-	"strconv"
+
+	"github.com/cloud-native-application/rudrx/pkg/oam"
 
 	"github.com/cloud-native-application/rudrx/pkg/application"
-
-	"cuelang.org/go/cue"
 
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
 
@@ -28,6 +27,7 @@ type commandOptions struct {
 	appName      string
 	staging      bool
 	app          *application.Application
+	traitType    string
 	cmdutil.IOStreams
 }
 
@@ -63,8 +63,16 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 				if err != nil {
 					return err
 				}
-				if err := o.AddOrUpdateTrait(cmd, args); err != nil {
-					return err
+				detach, _ := cmd.Flags().GetBool(TraitDetach)
+				if detach {
+					if err := o.DetachTrait(cmd, args); err != nil {
+						return err
+					}
+					o.Detach = true
+				} else {
+					if err := o.AddOrUpdateTrait(cmd, args); err != nil {
+						return err
+					}
 				}
 				return o.Run(cmd, ctx)
 			},
@@ -74,10 +82,11 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 		}
 		pluginCmd.SetOut(ioStreams.Out)
 		for _, v := range tmp.Parameters {
-			types.SetFlagBy(pluginCmd, v)
+			types.SetFlagBy(pluginCmd.Flags(), v)
 		}
 		pluginCmd.Flags().StringP(App, "a", "", "create or add into an existing application group")
 		pluginCmd.Flags().BoolP(Staging, "s", false, "only save changes locally without real update application")
+		pluginCmd.Flags().BoolP(TraitDetach, "", false, "detach trait from component")
 
 		parentCmd.AddCommand(pluginCmd)
 	}
@@ -98,107 +107,34 @@ func (o *commandOptions) Prepare(cmd *cobra.Command, args []string) error {
 }
 
 func (o *commandOptions) AddOrUpdateTrait(cmd *cobra.Command, args []string) error {
-	if err := o.Prepare(cmd, args); err != nil {
+	var err error
+	if err = o.Prepare(cmd, args); err != nil {
 		return err
 	}
-	app, err := application.Load(o.Env.Name, o.appName)
-	if err != nil {
+	if o.app, err = oam.AddOrUpdateTrait(o.Env.Name, o.appName, o.workloadName, cmd.Flags(), o.Template); err != nil {
 		return err
-	}
-	var traitType = o.Template.Name
-	traitData, err := app.GetTraitsByType(o.workloadName, traitType)
-	if err != nil {
-		return err
-	}
-	for _, v := range o.Template.Parameters {
-		flagSet := cmd.Flag(v.Name)
-		switch v.Type {
-		case cue.IntKind:
-			d, _ := strconv.ParseInt(flagSet.Value.String(), 10, 64)
-			traitData[v.Name] = d
-		case cue.StringKind:
-			traitData[v.Name] = flagSet.Value.String()
-		case cue.BoolKind:
-			d, _ := strconv.ParseBool(flagSet.Value.String())
-			traitData[v.Name] = d
-		case cue.NumberKind, cue.FloatKind:
-			d, _ := strconv.ParseFloat(flagSet.Value.String(), 64)
-			traitData[v.Name] = d
-		}
-	}
-	if err = app.SetTrait(o.workloadName, traitType, traitData); err != nil {
-		return err
-	}
-	o.app = app
-	return o.app.Save(o.Env.Name, o.appName)
-}
-
-func AddTraitDetachCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
-	templates, err := plugins.LoadInstalledCapabilityWithType(types.TypeTrait)
-	if err != nil {
-		return err
-	}
-	ctx := context.Background()
-	for _, tmp := range templates {
-		tmp := tmp
-
-		var name = tmp.Name
-		pluginCmd := &cobra.Command{
-			Use:                   name + ":detach <appname>",
-			DisableFlagsInUseLine: true,
-			Short:                 "Detach " + name + " trait from an app",
-			Long:                  "Detach " + name + " trait from an app",
-			Example:               "vela " + name + ":detach frontend",
-			RunE: func(cmd *cobra.Command, args []string) error {
-				o := NewCommandOptions(ioStreams)
-				newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
-				if err != nil {
-					return err
-				}
-				o.Env, err = GetEnv(cmd)
-				if err != nil {
-					return err
-				}
-				o.Client = newClient
-				if err := o.DetachTrait(cmd, args); err != nil {
-					return err
-				}
-				o.Template = tmp
-				o.Detach = true
-				return o.Run(cmd, ctx)
-			},
-			Annotations: map[string]string{
-				types.TagCommandType: types.TypeTraits,
-			},
-		}
-		pluginCmd.Flags().StringP(App, "a", "", "create or add into an existing application group")
-		pluginCmd.Flags().BoolP(Staging, "s", false, "only save changes locally without real update application")
-
-		pluginCmd.SetOut(ioStreams.Out)
-		parentCmd.AddCommand(pluginCmd)
 	}
 	return nil
 }
 
 func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string) error {
-	if err := o.Prepare(cmd, args); err != nil {
+	var err error
+	if err = o.Prepare(cmd, args); err != nil {
 		return err
 	}
-	app, err := application.Load(o.Env.Name, o.appName)
-	if err != nil {
+	if o.app, err = oam.PrepareDetachTrait(o.Env.Name, o.traitType, o.appName, o.workloadName); err != nil {
 		return err
 	}
 	var traitType = o.Template.Name
-	if err = app.RemoveTrait(o.workloadName, traitType); err != nil {
+	if err = o.app.RemoveTrait(o.workloadName, traitType); err != nil {
 		return err
 	}
-	o.app = app
-	return o.app.Save(o.Env.Name, o.appName)
+	return o.app.Save(o.Env.Name)
 }
 
 func (o *commandOptions) Run(cmd *cobra.Command, ctx context.Context) error {
 	if o.Detach {
-		o.Infof("Detaching %s from app %s\n", o.Template.Name, o.workloadName)
+		o.Infof("Detaching %s from app %s\n", o.traitType, o.workloadName)
 	} else {
 		o.Infof("Adding %s for app %s \n", o.Template.Name, o.workloadName)
 	}
@@ -206,14 +142,10 @@ func (o *commandOptions) Run(cmd *cobra.Command, ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if staging {
-		o.Info("Staging saved")
-		return nil
-	}
-	err = o.app.Run(ctx, o.Client, o.Env)
+	msg, err := oam.TraitOperationRun(ctx, o.Client, o.Env, o.app, staging)
 	if err != nil {
 		return err
 	}
-	o.Info("Succeeded!")
+	o.Info(msg)
 	return nil
 }

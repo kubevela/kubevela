@@ -25,14 +25,8 @@ func CreateWorkload(c *gin.Context) {
 		fs.String(f.Name, f.Value, "")
 	}
 	evnName := body.EnvName
-	var template types.Capability
 
-	template, err := plugins.LoadCapabilityByName(body.WorkloadType)
-	if err != nil {
-		util.HandleError(c, util.StatusInternalServerError, err.Error())
-		return
-	}
-	appObj, err := oam.BaseComplete(evnName, body.WorkloadName, body.AppGroup, fs, template)
+	appObj, err := oam.BaseComplete(evnName, body.WorkloadName, body.AppGroup, fs, body.WorkloadType)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
@@ -47,7 +41,18 @@ func CreateWorkload(c *gin.Context) {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
 	}
-	util.AssembleResponse(c, msg, err)
+	if len(body.Traits) == 0 {
+		util.AssembleResponse(c, msg, err)
+	} else {
+		for _, t := range body.Traits {
+			msg, err = oam.AttachTrait(c, t)
+			if err != nil {
+				util.HandleError(c, util.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+		util.AssembleResponse(c, msg, err)
+	}
 }
 
 func UpdateWorkload(c *gin.Context) {
@@ -80,7 +85,4 @@ func ListWorkload(c *gin.Context) {
 		})
 	}
 	util.AssembleResponse(c, workloadDefinitionList, err)
-}
-
-func DeleteWorkload(c *gin.Context) {
 }

@@ -1,0 +1,33 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: ApplicationConfiguration
+metadata:
+  name: sample-application-with-metrics
+spec:
+  components:
+    - componentName: autoscale-application
+      traits:
+        - trait:
+            apiVersion: standard.oam.dev/v1alpha1
+            kind: MetricsTrait
+            spec:
+              scrapeService:
+                format: "prometheus"
+                port: 8080
+                path: "/metrics"
+                scheme:  "http"
+                enabled: true
+        - trait:
+            apiVersion: core.oam.dev/v1alpha2
+            kind: ManualScalerTrait
+            metadata:
+              name:  autoscale-scalar
+            spec:
+              replicaCount: 3
+    - componentName: metrics-application
+      traits:
+        - trait:
+            apiVersion: standard.oam.dev/v1alpha1
+            kind: MetricsTrait
+            spec:
+              scrapeService:
+                port: 8080

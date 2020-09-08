@@ -46,7 +46,8 @@ const (
 	WorkloadDefinitionPath = "/workloads"
 	ScopeDefinitionPath    = "/scopes"
 	TraitDefinitionPath    = "/traits"
-	RepoPath               = "/category"
+	CapabilityPath         = "/capabilities"
+	CapabilityCenterPath   = "/capability-centers"
 	VersionPath            = "/version"
 )
 
@@ -61,7 +62,8 @@ func NoRoute() gin.HandlerFunc {
 
 //generateRequestID :Get request id
 func generateRequestID() string {
-	return uuid.NewV4().String()
+	id, _ := uuid.NewV4()
+	return id.String()
 }
 
 // SetRequestID ...

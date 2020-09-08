@@ -20,7 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"cuelang.org/go/cue"
 
@@ -45,6 +45,8 @@ type Capability struct {
 	Parameters     []Parameter `json:"parameters,omitempty"`
 	DefinitionPath string      `json:"definition"`
 	CrdName        string      `json:"crdName,omitempty"`
+	Center         string      `json:"center,omitempty"`
+	Status         string      `json:"status,omitempty"`
 
 	//trait only
 	AppliesTo []string `json:"appliesTo,omitempty"`
@@ -100,7 +102,7 @@ func ConvertTemplateJson2Object(in *runtime.RawExtension) (Capability, error) {
 	return t, err
 }
 
-func SetFlagBy(cmd *cobra.Command, v Parameter) {
+func SetFlagBy(flags *pflag.FlagSet, v Parameter) {
 	switch v.Type {
 	case cue.IntKind:
 		var vv int64
@@ -114,11 +116,11 @@ func SetFlagBy(cmd *cobra.Command, v Parameter) {
 		case float64:
 			vv = int64(val)
 		}
-		cmd.Flags().Int64P(v.Name, v.Short, vv, v.Usage)
+		flags.Int64P(v.Name, v.Short, vv, v.Usage)
 	case cue.StringKind:
-		cmd.Flags().StringP(v.Name, v.Short, v.Default.(string), v.Usage)
+		flags.StringP(v.Name, v.Short, v.Default.(string), v.Usage)
 	case cue.BoolKind:
-		cmd.Flags().BoolP(v.Name, v.Short, v.Default.(bool), v.Usage)
+		flags.BoolP(v.Name, v.Short, v.Default.(bool), v.Usage)
 	case cue.NumberKind, cue.FloatKind:
 		var vv float64
 		switch val := v.Default.(type) {
@@ -131,9 +133,6 @@ func SetFlagBy(cmd *cobra.Command, v Parameter) {
 		case float64:
 			vv = val
 		}
-		cmd.Flags().Float64P(v.Name, v.Short, vv, v.Usage)
-	}
-	if v.Required && v.Name != "name" {
-		cmd.MarkFlagRequired(v.Name)
+		flags.Float64P(v.Name, v.Short, vv, v.Usage)
 	}
 }

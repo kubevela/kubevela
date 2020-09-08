@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"os"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/cloud-native-application/rudrx/version"
@@ -68,9 +67,8 @@ func newCommand() *cobra.Command {
 			cmd.Printf("✈️  A Micro App Platform for Kubernetes.\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
 			PrintHelpByTag(cmd, allCommands, types.TypeStart)
 			PrintHelpByTag(cmd, allCommands, types.TypeApp)
-			PrintHelpByTag(cmd, allCommands, types.TypeWorkloads)
 			PrintHelpByTag(cmd, allCommands, types.TypeTraits)
-			PrintHelpByTag(cmd, allCommands, types.TypeRelease)
+			//PrintHelpByTag(cmd, allCommands, types.TypeRelease)
 			PrintHelpByTag(cmd, allCommands, types.TypeOthers)
 			PrintHelpByTag(cmd, allCommands, types.TypeSystem)
 			cmd.Println("Flags:")
@@ -100,49 +98,40 @@ func newCommand() *cobra.Command {
 		os.Exit(1)
 	}
 
-	// Getting Start
-	cmd.EnvCommandGroup(cmds, commandArgs, ioStream)
-	// Others
-	cmd.CapabilityCommandGroup(cmds, commandArgs, ioStream)
-	// System
-	cmd.SystemCommandGroup(cmds, commandArgs, ioStream)
-
 	cmds.AddCommand(
+		// Getting Start
+		cmd.NewEnvCommand(commandArgs, ioStream),
+
 		// Getting Start
 		NewVersionCommand(),
 
 		// Apps
 		cmd.NewAppsCommand(commandArgs, ioStream),
-		cmd.NewDeleteCommand(commandArgs, ioStream),
-		cmd.NewAppStatusCommand(commandArgs, ioStream),
-		cmd.NewAppShowCommand(commandArgs, ioStream),
-		cmd.NewRunCommand(commandArgs, ioStream),
+
+		// Workloads
+		cmd.AddCompCommands(commandArgs, ioStream),
+
+		// Capability Systems
+		cmd.CapabilityCommandGroup(commandArgs, ioStream),
 
 		// System
-		cmd.NewRefreshCommand(commandArgs, ioStream),
+		cmd.SystemCommandGroup(commandArgs, ioStream),
 		cmd.NewCompletionCommand(),
 
 		cmd.NewTraitsCommand(ioStream),
 		cmd.NewWorkloadsCommand(ioStream),
 
 		cmd.NewDashboardCommand(commandArgs, ioStream),
-	)
 
-	// Workloads
-	if err = cmd.AddWorkloadCommands(cmds, commandArgs, ioStream); err != nil {
-		fmt.Println("Add workload commands from workloadDefinition err", err)
-		os.Exit(1)
-	}
+		cmd.NewLogsCommand(commandArgs, ioStream),
+	)
 
 	// Traits
 	if err = cmd.AddTraitCommands(cmds, commandArgs, ioStream); err != nil {
 		fmt.Println("Add trait commands from traitDefinition err", err)
 		os.Exit(1)
 	}
-	if err = cmd.AddTraitDetachCommands(cmds, commandArgs, ioStream); err != nil {
-		fmt.Println("Add trait detach commands from traitDefinition err", err)
-		os.Exit(1)
-	}
+
 	// this is for mute klog
 	fset := flag.NewFlagSet("logs", flag.ContinueOnError)
 	klog.InitFlags(fset)
@@ -151,16 +140,18 @@ func newCommand() *cobra.Command {
 }
 
 func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
-	cmd.Printf("  %s:\n", tag)
+	cmd.Printf("  %s:\n\n", tag)
 	table := uitable.New()
 	for _, c := range all {
-		useline := strings.TrimPrefix(c.UseLine(), "vela ")
 		if val, ok := c.Annotations[types.TagCommandType]; ok && val == tag {
-			table.AddRow("    "+useline, c.Long)
+			table.AddRow("    "+c.Use, c.Long)
+			for _, subcmd := range c.Commands() {
+				table.AddRow("      "+subcmd.Use, "  "+subcmd.Long)
+			}
 		}
 	}
 	cmd.Println(table.String())
-	if tag == types.TypeWorkloads || tag == types.TypeTraits {
+	if tag == types.TypeTraits {
 		if len(table.Rows) > 0 {
 			cmd.Println()
 		}

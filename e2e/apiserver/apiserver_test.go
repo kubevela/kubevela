@@ -38,13 +38,13 @@ var (
 		EnvName:      envHelloMeta.Name,
 		WorkloadName: workloadName,
 		WorkloadType: workloadType,
-		Flags:        []apis.WorkloadFlag{{Name: "port", Value: "80"}},
+		Flags:        []apis.CommonFlag{{Name: "port", Value: "80"}},
 	}
 	workloadRunBody = apis.WorkloadRunBody{
 		EnvName:      envHelloMeta.Name,
 		WorkloadName: workloadName,
 		WorkloadType: workloadType,
-		Flags:        []apis.WorkloadFlag{{Name: "image", Value: "nginx:1.9.4"}, {Name: "port", Value: "80"}},
+		Flags:        []apis.CommonFlag{{Name: "image", Value: "nginx:1.9.4"}, {Name: "port", Value: "80"}},
 	}
 )
 
@@ -56,7 +56,7 @@ var notExistedEnvMeta = types.EnvMeta{
 var containerizedWorkloadType = "containerized"
 var deploymentWorkloadType = "deployment"
 
-var _ = ginkgo.Describe("API Env", func() {
+var _ = ginkgo.Describe("API", func() {
 	//API Env
 	e2e.APIEnvInitContext("post /envs/", envHelloMeta)
 
@@ -142,10 +142,6 @@ var _ = ginkgo.Describe("API Env", func() {
 		})
 	})
 
-})
-
-var _ = ginkgo.Describe("API Workload", func() {
-
 	ginkgo.Context("Workloads", func() {
 		ginkgo.It("run workload", func() {
 			data, err := json.Marshal(&workloadRunBody)
@@ -157,7 +153,7 @@ var _ = ginkgo.Describe("API Workload", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
-			gomega.Expect(http.StatusOK).Should(gomega.Equal(r.Code))
+			gomega.Expect(http.StatusOK).Should(gomega.Equal(r.Code), string(result))
 			output := fmt.Sprintf("Creating App %s\nSUCCEED", workloadName)
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(output))
 		})
@@ -192,6 +188,20 @@ var _ = ginkgo.Describe("API Workload", func() {
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect([]string{containerizedWorkloadType, deploymentWorkloadType}).To(gomega.Or(gomega.ContainElement(workloadDefinition["name"])))
 			}
+		})
+
+		ginkgo.It("should delete an application", func() {
+			req, err := http.NewRequest("DELETE", util.URL("/envs/"+envHelloMeta.Name+"/apps/"+workloadRunBody.WorkloadName), nil)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			resp, err := http.DefaultClient.Do(req)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			defer resp.Body.Close()
+			result, err := ioutil.ReadAll(resp.Body)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			var r apis.Response
+			err = json.Unmarshal(result, &r)
+			gomega.Expect(http.StatusOK).To(gomega.Equal(r.Code))
+			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring("delete apps succeed"))
 		})
 	})
 })

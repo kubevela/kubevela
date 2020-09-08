@@ -51,11 +51,17 @@ func setupRoute(kubeClient client.Client) http.Handler {
 		// app related operation
 		apps := envs.Group("/:envName/apps")
 		{
-			apps.POST("/", handler.CreateApps)
-			apps.GET("/:appName", handler.GetApps)
+			//apps.POST("/", handler.CreateApps)
+			apps.GET("/:appName", handler.GetApp)
 			apps.PUT("/:appName", handler.UpdateApps)
 			apps.GET("/", handler.ListApps)
 			apps.DELETE("/:appName", handler.DeleteApps)
+
+			traitWorkload := apps.Group("/:appName/" + util.TraitDefinitionPath)
+			{
+				traitWorkload.POST("/", handler.AttachTrait)
+				traitWorkload.DELETE("/:traitName", handler.DetachTrait)
+			}
 		}
 	}
 	// workload related api
@@ -65,16 +71,12 @@ func setupRoute(kubeClient client.Client) http.Handler {
 		workload.GET("/:workloadName", handler.GetWorkload)
 		workload.PUT("/:workloadName", handler.UpdateWorkload)
 		workload.GET("/", handler.ListWorkload)
-		workload.DELETE("/:workloadName", handler.DeleteWorkload)
 	}
 	// trait related api
 	trait := api.Group(util.TraitDefinitionPath)
 	{
-		trait.POST("/", handler.CreateTrait)
 		trait.GET("/:traitName", handler.GetTrait)
-		trait.PUT("/:traitName", handler.UpdateTrait)
 		trait.GET("/", handler.ListTrait)
-		trait.DELETE("/:traitName", handler.DeleteTrait)
 	}
 	// scope related api
 	scopes := api.Group(util.ScopeDefinitionPath)
@@ -86,13 +88,28 @@ func setupRoute(kubeClient client.Client) http.Handler {
 		scopes.DELETE("/:scopeName", handler.DeleteScope)
 	}
 
-	// scope related api
-	repo := api.Group(util.RepoPath)
+	// capability center related api
+	capCenters := api.Group(util.CapabilityCenterPath)
 	{
-		repo.GET("/:categoryName/:definitionName", handler.GetDefinition)
-		repo.PUT("/:categoryName/:definitionName", handler.UpdateDefinition)
-		repo.GET("/:categoryName", handler.ListDefinition)
+		capCenters.PUT("/", handler.AddCapabilityCenter)
+		capCenters.GET("/", handler.ListCapabilityCenters)
+		capCenters.DELETE("/:capabilityCenterName", handler.DeleteCapabilityCenter)
+
+		caps := capCenters.Group("/:capabilityCenterName" + util.CapabilityPath)
+		{
+			caps.PUT("/", handler.SyncCapabilityCenter)
+			caps.PUT("/:capabilityName", handler.AddCapabilityIntoCluster)
+		}
 	}
+
+	// capability related api
+	caps := api.Group(util.CapabilityPath)
+	{
+		caps.DELETE("/:capabilityName", handler.RemoveCapabilityFromCluster)
+		caps.DELETE("/", handler.RemoveCapabilityFromCluster)
+		caps.GET("/", handler.ListCapabilities)
+	}
+
 	// version
 	api.GET(util.VersionPath, handler.GetVersion)
 	// default

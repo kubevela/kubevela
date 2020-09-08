@@ -63,11 +63,11 @@ func TestENV(t *testing.T) {
 	// List all env
 	var b bytes.Buffer
 	ioStream.Out = &b
-	err = ListEnvs(ctx, []string{}, ioStream)
+	err = ListEnvs([]string{}, ioStream)
 	assert.NoError(t, err)
 	assert.Equal(t, "NAME   \tCURRENT\tNAMESPACE\ndefault\t       \tdefault  \nenv1   \t*      \ttest1    \n", b.String())
 	b.Reset()
-	err = ListEnvs(ctx, []string{"env1"}, ioStream)
+	err = ListEnvs([]string{"env1"}, ioStream)
 	assert.NoError(t, err)
 	assert.Equal(t, "NAME\tCURRENT\tNAMESPACE\nenv1\t       \ttest1    \n", b.String())
 	ioStream.Out = os.Stdout

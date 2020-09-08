@@ -14,11 +14,11 @@ import (
 func NewRefreshCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:                   "system:update",
+		Use:                   "update",
 		DisableFlagsInUseLine: true,
 		Short:                 "Sync definition from cluster",
 		Long:                  "Refresh and sync definition files from cluster",
-		Example:               `vela system:update`,
+		Example:               `vela system update`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 			if err != nil {
