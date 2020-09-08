@@ -1,9 +1,8 @@
+import React, { Fragment } from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
 import { Button, Row, Col } from 'antd';
 import { Link } from 'umi';
 import './index.less';
-
-import React from 'react';
 
 export default class Workload extends React.PureComponent {
   render() {
@@ -26,13 +25,22 @@ export default class Workload extends React.PureComponent {
               <Row>
                 <Col span="22">
                   <p className="title">{title}</p>
-                  <p>
-                    {crdInfo.apiVersion},kind={crdInfo.kind}
-                  </p>
+                  {crdInfo ? (
+                    <p>
+                      {crdInfo.apiVersion}
+                      <span>,kind=</span>
+                      {crdInfo.kind}
+                    </p>
+                  ) : (
+                    <p />
+                  )}
                 </Col>
               </Row>
               <p className="title">Configurable Settings:</p>
               {settings.map((item, index) => {
+                if (item.name === 'name') {
+                  return <Fragment key={index.toString()} />;
+                }
                 return (
                   <Row key={index.toString()}>
                     <Col span="8">

@@ -10,7 +10,6 @@ export default class WorkSpaceDropDown extends React.Component {
     super(props);
     this.state = {
       workSpaceName: '',
-      envs: [],
       namespace: '',
     };
   }
@@ -24,9 +23,8 @@ export default class WorkSpaceDropDown extends React.Component {
         return env.current === '*';
       });
       this.setState({
-        envs: envs,
         workSpaceName: name,
-        namespace: namespace,
+        namespace,
       });
       this.props.dispatch({
         type: 'globalData/currentEnv',
