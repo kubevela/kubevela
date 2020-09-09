@@ -9,7 +9,7 @@ import (
 	"github.com/cloud-native-application/rudrx/pkg/server/apis"
 )
 
-var Port = ":8081"
+var DefaultDashboardPort = ":38081"
 
 func AssembleResponse(c *gin.Context, data interface{}, err error) {
 	var code = http.StatusOK
@@ -29,5 +29,5 @@ func AssembleResponse(c *gin.Context, data interface{}, err error) {
 }
 
 func URL(url string) string {
-	return fmt.Sprintf("http://127.0.0.1%s/api%s", Port, url)
+	return fmt.Sprintf("http://127.0.0.1%s/api%s", DefaultDashboardPort, url)
 }

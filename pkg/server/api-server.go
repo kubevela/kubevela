@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cloud-native-application/rudrx/pkg/server/util"
-
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -15,22 +13,21 @@ type ApiServer struct {
 	server *http.Server
 }
 
-func (s *ApiServer) Launch(kubeClient client.Client) {
+func (s *ApiServer) Launch(kubeClient client.Client, port, staticPath string, errChan chan<- error) {
 	s.server = &http.Server{
-		Addr:         util.Port,
-		Handler:      setupRoute(kubeClient),
+		Addr:         port,
+		Handler:      setupRoute(kubeClient, staticPath),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
 	s.server.SetKeepAlivesEnabled(true)
 
-	go (func() error {
+	go func() {
 		err := s.server.ListenAndServe()
 		if err != nil && err != http.ErrServerClosed {
-			ctrl.Log.Error(err, "failed to start the server")
+			errChan <- err
 		}
-		return err
-	})()
+	}()
 }
 
 func (s *ApiServer) Shutdown(ctx context.Context) error {

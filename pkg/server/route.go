@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/gin-contrib/static"
+
 	"github.com/gin-gonic/gin"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -14,7 +16,10 @@ import (
 
 // setup the gin http server handler
 
-func setupRoute(kubeClient client.Client) http.Handler {
+func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
+
+	gin.SetMode(gin.ReleaseMode)
+
 	// create the router
 	router := gin.New()
 	loggerConfig := gin.LoggerConfig{
@@ -31,6 +36,8 @@ func setupRoute(kubeClient client.Client) http.Handler {
 			)
 		},
 	}
+	router.Use(static.Serve("/", static.LocalFile(staticPath, false)))
+
 	router.Use(gin.LoggerWithConfig(loggerConfig))
 	router.Use(util.SetRequestID())
 	router.Use(util.SetContext())
