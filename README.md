@@ -1,9 +1,6 @@
-# Vela
+# KubeVela
 
-Vela is a command-line tool to use OAM based micro-app engine.
-
-## Develop
-Check out [DEVELOPMENT.md](./DEVELOPMENT.md) to see how to develop with RudrX
+The Open Application Platform based on Kubernetes and OAM.
 
 ## Install `vela` binary
 
@@ -180,3 +177,7 @@ customresourcedefinition.apiextensions.k8s.io "traitdefinitions.core.oam.dev" de
 ```shell script
 $ rm -r ~/.vela
 ```
+
+## CONTRIBUTING
+Check out [CONTRIBUTING.md](./CONTRIBUTING.md) to see how to develop with KubeVela.
+
