@@ -70,6 +70,53 @@ type Options struct {
 	frontendSource string
 }
 
+func (o *Options) GetStaticPath() error {
+	if o.frontendSource == "" {
+		return nil
+	}
+	var err error
+	o.staticPath, err = system.GetDefaultFrontendDir()
+	if err != nil {
+		return fmt.Errorf("get fontend dir err %v", err)
+	}
+	_ = os.RemoveAll(o.staticPath)
+	err = os.MkdirAll(o.staticPath, 0755)
+	if err != nil {
+		return fmt.Errorf("create fontend dir err %v", err)
+	}
+	data, err := base64.StdEncoding.DecodeString(o.frontendSource)
+	if err != nil {
+		return fmt.Errorf("decode frontendSource err %v", err)
+	}
+	tgzpath := filepath.Join(o.staticPath, "frontend.tgz")
+	err = ioutil.WriteFile(tgzpath, data, 0644)
+	if err != nil {
+		return fmt.Errorf("write frontend.tgz to static path err %v", err)
+	}
+	defer os.Remove(tgzpath)
+	tgz := archiver.NewTarGz()
+	defer tgz.Close()
+	if err = tgz.Unarchive(tgzpath, o.staticPath); err != nil {
+		return fmt.Errorf("write static files to fontend dir err %v", err)
+	}
+	files, err := ioutil.ReadDir(o.staticPath)
+	if err != nil {
+		return fmt.Errorf("read static file %s err %v", o.staticPath, err)
+	}
+	var name string
+	for _, fi := range files {
+		if fi.IsDir() {
+			name = fi.Name()
+			break
+		}
+	}
+	if name == "" {
+		return fmt.Errorf("no static dir found in %s", o.staticPath)
+	}
+	o.staticPath = filepath.Join(o.staticPath, name)
+	return nil
+}
+
 func SetupAPIServer(kubeClient client.Client, cmd *cobra.Command, o Options) error {
 
 	// setup logging
@@ -90,38 +137,9 @@ func SetupAPIServer(kubeClient client.Client, cmd *cobra.Command, o Options) err
 
 	var err error
 	if o.staticPath == "" {
-		o.staticPath, err = system.GetDefaultFrontendDir()
-		if err != nil {
-			return fmt.Errorf("get fontend dir err %v", err)
+		if err = o.GetStaticPath(); err != nil {
+			cmd.Printf("Get static file error %v, will only serve as Restful API", err)
 		}
-		_ = os.RemoveAll(o.staticPath)
-		err = os.MkdirAll(o.staticPath, 0755)
-		if err != nil {
-			return fmt.Errorf("create fontend dir err %v", err)
-		}
-		data, err := base64.StdEncoding.DecodeString(o.frontendSource)
-		if err != nil {
-			return fmt.Errorf("decode frontendSource err %v", err)
-		}
-		tgzpath := filepath.Join(o.staticPath, "frontend.tgz")
-		err = ioutil.WriteFile(tgzpath, data, 0644)
-		if err != nil {
-			return fmt.Errorf("write frontend.tgz to static path err %v", err)
-		}
-		defer os.Remove(tgzpath)
-		tgz := archiver.NewTarGz()
-		defer tgz.Close()
-		files, err := ioutil.ReadDir(o.staticPath)
-		if err != nil {
-			return fmt.Errorf("read static file %s err %v", o.staticPath, err)
-		}
-		if len(files) < 1 {
-			return fmt.Errorf("no files in dir %s", o.staticPath)
-		}
-		if err = tgz.Unarchive(tgzpath, o.staticPath); err != nil {
-			return fmt.Errorf("write static files to fontend dir err %v", err)
-		}
-		o.staticPath = filepath.Join(o.staticPath, files[0].Name())
 	}
 
 	if !strings.HasPrefix(o.port, ":") {
@@ -132,6 +150,7 @@ func SetupAPIServer(kubeClient client.Client, cmd *cobra.Command, o Options) err
 	server := server.APIServer{}
 
 	errCh := make(chan error, 1)
+	cmd.Printf("Serving at %v\nstatic dir is %v", o.port, o.staticPath)
 
 	server.Launch(kubeClient, o.port, o.staticPath, errCh)
 	select {
@@ -139,8 +158,10 @@ func SetupAPIServer(kubeClient client.Client, cmd *cobra.Command, o Options) err
 		return err
 	case <-time.After(time.Second):
 		var url = "http://127.0.0.1" + o.port
-		if err := OpenBrowser(url); err != nil {
-			cmd.Printf("Invoke browser err %v\nPlease Visit %s to see dashboard", err, url)
+		if o.staticPath != "" {
+			if err := OpenBrowser(url); err != nil {
+				cmd.Printf("Invoke browser err %v\nPlease Visit %s to see dashboard", err, url)
+			}
 		}
 	}
 

@@ -34,7 +34,7 @@ pkg/test/vela
 config/crd/bases
 tmp/
 
-cmd/vela/fake/
+cmd/vela/fake/source.go
 
 # Dashboard
 dashboard/node_modules/
