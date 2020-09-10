@@ -1,4 +1,4 @@
-name: Go
+name: E2E
 
 on:
   push:
@@ -20,6 +20,10 @@ jobs:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
 
+      - name: Get dependencies
+        run: |
+          go get -v -t -d ./...
+
       - name: Install ginkgo
         run:  |
           sudo apt-get update
@@ -30,5 +34,12 @@ jobs:
         with:
           version: "v0.7.0"
 
-      - name: Run Make test
-        run: make test
+      - name: Run Make
+        run: make
+
+      - name: Run e2e tests
+        run: |
+          make e2e-setup
+          make e2e-test
+          make e2e-api-test
+          make e2e-cleanup

@@ -65,11 +65,13 @@ var _ = BeforeSuite(func(done Done) {
 		},
 	}
 	By("Bootstrapping test environment")
+	useExistCluster := true
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("../../../..", "charts/third_party/prometheus"), // this has all the required CRDs,
 			filepath.Join("../../../..", "charts/vela-core/crds"),         // this has all the required CRDs,
 		},
+		UseExistingCluster: &useExistCluster,
 	}
 	var err error
 	cfg, err = testEnv.Start()
