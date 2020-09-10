@@ -38,4 +38,3 @@ func printWorkloadList(workloadList []types.Capability, ioStreams cmdutil.IOStre
 	ioStreams.Info(table.String())
 	return nil
 }
-

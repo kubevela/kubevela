@@ -89,9 +89,9 @@ func NewCompDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 		if err != nil {
 			return err
 		}
-		if appName != ""{
+		if appName != "" {
 			o.AppName = appName
-		}else {
+		} else {
 			o.AppName = o.CompName
 		}
 

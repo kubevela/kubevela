@@ -46,6 +46,7 @@ github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 h1:w+iIsaOQNcT7O
 github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78/go.mod h1:LmzpDX56iTiv29bbRTIsUNlaFfuhWRQBWjQdVyAevI8=
 github.com/Azure/go-autorest v10.8.1+incompatible h1:u0jVQf+a6k6x8A+sT60l6EY9XZu+kHdnZVPAYqpVRo0=
 github.com/Azure/go-autorest v10.8.1+incompatible/go.mod h1:r+4oMnoxhatjLLJ6zxSWATqVooLgysK6ZNox3g/xq24=
+github.com/Azure/go-autorest v11.2.8+incompatible h1:Q2feRPMlcfVcqz3pF87PJzkm5lZrL+x6BDtzhODzNJM=
 github.com/Azure/go-autorest v11.2.8+incompatible/go.mod h1:r+4oMnoxhatjLLJ6zxSWATqVooLgysK6ZNox3g/xq24=
 github.com/Azure/go-autorest v12.2.0+incompatible h1:2Fxszbg492oAJrcvJlgyVaTqnQYRkxmEK6VPCLLVpBI=
 github.com/Azure/go-autorest v12.2.0+incompatible/go.mod h1:r+4oMnoxhatjLLJ6zxSWATqVooLgysK6ZNox3g/xq24=
@@ -237,7 +238,6 @@ github.com/coreos/pkg v0.0.0-20160727233714-3ac0863d7acf/go.mod h1:E3G3o1h8I7cfc
 github.com/coreos/pkg v0.0.0-20180108230652-97fdf19511ea/go.mod h1:E3G3o1h8I7cfcXa63jLwjI0eiQQMgzzUDFVpN/nH/eA=
 github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f h1:lBNOc5arjvs8E5mO2tbpBpLoyyu8B6e44T7hJy6potg=
 github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f/go.mod h1:E3G3o1h8I7cfcXa63jLwjI0eiQQMgzzUDFVpN/nH/eA=
-github.com/coreos/prometheus-operator v0.40.0/go.mod h1:QOoL5cVI3b1OHgpw8s+pH+Ok4AFRp2HOUvBpqs7UWcg=
 github.com/coreos/prometheus-operator v0.41.1 h1:MEhY9syliPlQg+VlFRUfNodUEVXRXJ2n1pFG0aBp+mI=
 github.com/coreos/prometheus-operator v0.41.1/go.mod h1:LhLfEBydppl7nvfEA1jIqlF3xJ9myHCnzrU+HHDxRd4=
 github.com/cpuguy83/go-md2man v1.0.10 h1:BSKMNlYxDvnunlTymqtgONjNnaRV1sTpcovwwjF22jk=
@@ -251,9 +251,10 @@ github.com/crossplane/crossplane-runtime v0.8.0/go.mod h1:gNY/21MLBaz5KNP7hmfXbB
 github.com/crossplane/crossplane-runtime v0.9.0 h1:K6/tLhXKzhsEUUddTvEWWnQLLrawWyw1ptNK7NBDpDU=
 github.com/crossplane/crossplane-runtime v0.9.0/go.mod h1:gNY/21MLBaz5KNP7hmfXbBXp8reYRbwY5B/97Kp4tgM=
 github.com/crossplane/crossplane-tools v0.0.0-20200219001116-bb8b2ce46330/go.mod h1:C735A9X0x0lR8iGVOOxb49Mt70Ua4EM2b7PGaRPBLd4=
-github.com/crossplane/oam-kubernetes-runtime v0.0.7/go.mod h1:f5xqmo0B2WtaOTZh8jhP+0f0XuzqhJG2xRtxfMZR3jA=
 github.com/crossplane/oam-kubernetes-runtime v0.0.9 h1:cZMT7p1jZ6MsJqAuzVIZwvOxVdD+PGEQgCYHHuwR7Pc=
 github.com/crossplane/oam-kubernetes-runtime v0.0.9/go.mod h1:f5xqmo0B2WtaOTZh8jhP+0f0XuzqhJG2xRtxfMZR3jA=
+github.com/crossplane/oam-kubernetes-runtime v0.1.1-0.20200909070723-78b84f2c4799 h1:424LLFb7C8Qvy3wFZZ7HzmawlCeF32PNRTXXK5rKOk0=
+github.com/crossplane/oam-kubernetes-runtime v0.1.1-0.20200909070723-78b84f2c4799/go.mod h1:UZ4eXkl/e4lKrAhK81Pz1sR90wqeuE9PgdwVXr8kDgI=
 github.com/cyphar/filepath-securejoin v0.2.2 h1:jCwT2GTP+PY5nBz3c/YL5PAIbusElVrPujOBSCj8xRg=
 github.com/cyphar/filepath-securejoin v0.2.2/go.mod h1:FpkQEhXnPnOthhzymB7CGsFk2G9VLXONKD9G7QGMM+4=
 github.com/dave/jennifer v1.2.0/go.mod h1:fIb+770HOpJ2fmN9EPPKOqm1vMGhB+TwXKMZhrIygKg=
@@ -874,7 +875,6 @@ github.com/nats-io/nkeys v0.1.0/go.mod h1:xpnFELMwJABBLVhffcfd1MZx6VsNRFpEugbxzi
 github.com/nats-io/nkeys v0.1.3/go.mod h1:xpnFELMwJABBLVhffcfd1MZx6VsNRFpEugbxziKVo7w=
 github.com/nats-io/nuid v1.0.1/go.mod h1:19wcPz3Ph3q0Jbyiqsd0kePYG7A95tJPxeL+1OSON2c=
 github.com/ncw/swift v1.0.47/go.mod h1:23YIA4yWVnGwv2dQlN4bB7egfYX6YLn0Yo/S6zZO/ZM=
-github.com/oam-dev/catalog/traits/metricstrait v0.0.0-20200826071236-d96c1d64e221/go.mod h1:mpYuuccw79F/yddIODjdDCzUyvXNnuksPWVx/z5vZBw=
 github.com/oam-dev/stern v1.13.0-alpha h1:EVjM8Qvh6LssB6t4RZrjf9DtCq1cz+/cy6OF7fpy9wk=
 github.com/oam-dev/stern v1.13.0-alpha/go.mod h1:AOkvfFUv0Arz7GBi0jz7S0Jsu4K/kdvSjNsnRt1+BIg=
 github.com/oam-dev/trait-injector v0.0.0-20200331033130-0a27b176ffc4 h1:fc41JCTc9w140pE/WPtpmL3uiCjC3DEfzbtvHT6h6xY=

@@ -177,6 +177,18 @@ var (
 	ApplicationStatusContext = func(context string, applicationName string, workloadType string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should get status for the application", func() {
+				cli := fmt.Sprintf("vela app status %s", applicationName)
+				output, err := Exec(cli)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
+				// TODO(roywang) add more assertion to check health status
+			})
+		})
+	}
+
+	ApplicationCompStatusContext = func(context string, applicationName string, workloadType string) bool {
+		return ginkgo.Context(context, func() {
+			ginkgo.It("should get status for the component", func() {
 				cli := fmt.Sprintf("vela comp status %s", applicationName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
