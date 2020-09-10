@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/cloud-native-application/rudrx/cmd/vela/fake"
+
 	"github.com/cloud-native-application/rudrx/version"
 
 	"github.com/gosuri/uitable"
@@ -65,7 +67,6 @@ func newCommand() *cobra.Command {
 			PrintHelpByTag(cmd, allCommands, types.TypeStart)
 			PrintHelpByTag(cmd, allCommands, types.TypeApp)
 			PrintHelpByTag(cmd, allCommands, types.TypeTraits)
-			//PrintHelpByTag(cmd, allCommands, types.TypeRelease)
 			PrintHelpByTag(cmd, allCommands, types.TypeOthers)
 			PrintHelpByTag(cmd, allCommands, types.TypeSystem)
 			cmd.Println("Flags:")
@@ -118,7 +119,7 @@ func newCommand() *cobra.Command {
 		cmd.NewTraitsCommand(ioStream),
 		cmd.NewWorkloadsCommand(ioStream),
 
-		cmd.NewDashboardCommand(commandArgs, ioStream),
+		cmd.NewDashboardCommand(commandArgs, ioStream, fake.FrontendSource),
 
 		cmd.NewLogsCommand(commandArgs, ioStream),
 	)

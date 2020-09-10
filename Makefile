@@ -2,6 +2,12 @@
 VELA_VERSION ?= 0.1.0
 # Repo info
 GIT_COMMIT ?= git-$(shell git rev-parse --short HEAD)
+VELA_VERSION_VAR := github.com/cloud-native-application/rudrx/version.VelaVersion
+VELA_GITVERSION_VAR := github.com/cloud-native-application/rudrx/version.GitRevision
+LDFLAGS ?= "-X $(VELA_VERSION_VAR)=$(VELA_VERSION) -X $(VELA_GITVERSION_VAR)=$(GIT_COMMIT)"
+
+GOX      = go run github.com/mitchellh/gox
+TARGETS  := darwin/amd64 linux/amd64 windows/amd64
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -18,7 +24,13 @@ test: fmt vet lint
 
 # Build manager binary
 build: fmt vet lint
-	go build -ldflags "-X github.com/cloud-native-application/rudrx/version.VelaVersion=${VELA_VERSION} -X github.com/cloud-native-application/rudrx/version.GitRevision=${GIT_COMMIT}" -o bin/vela cmd/vela/main.go
+	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
+
+release: fmt vet lint
+# TODO: build vela core chart into vela binary
+	cd dashboard && npm run build && cd ./..
+	go run hack/frontend/source.go
+	GO111MODULE=on CGO_ENABLED=0 $(GOX) -ldflags $(LDFLAGS) -parallel=3 -output="bin/vela-{{.OS}}-{{.Arch}}" -osarch='$(TARGETS)' cmd/vela/main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: fmt vet

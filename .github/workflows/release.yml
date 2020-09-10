@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+    branches:
+      - master
+  push:
+    # Sequence of patterns matched against refs/tags
+    tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go 1.13
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.13
+        id: go
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+        with:
+          ref: 'master'
+      - name: Use Node.js 10.x
+        uses: actions/setup-node@v1
+        with:
+          node-version: 10.x
+      - run: npm install
+        working-directory: ./dashboard
+      - name: Run Make Realse
+        run: make release
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+      - name: Upload Linux
+        uses: actions/upload-release-asset@v1.0.2
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./bin/vela-linux-amd64
+          asset_name: vela-${{ github.event.release.tag_name }}-linux-amd64
+          asset_content_type: binary/octet-stream
+      - name: Upload MacOS
+        uses: actions/upload-release-asset@v1.0.2
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./bin/vela-darwin-amd64
+          asset_name: vela-${{ github.event.release.tag_name }}-darwin-amd64
+          asset_content_type: binary/octet-stream
+      - name: Upload Windows
+        uses: actions/upload-release-asset@v1.0.2
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./bin/vela--windows-amd64
+          asset_name: vela-${{ github.event.release.tag_name }}-windows-amd64
+          asset_content_type: binary/octet-stream
