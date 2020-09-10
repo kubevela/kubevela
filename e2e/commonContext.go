@@ -198,7 +198,7 @@ var (
 			})
 		})
 	}
-  
+
 	// APIEnvInitContext used for test api env
 	APIEnvInitContext = func(context string, envMeta apis.Environment) bool {
 		return ginkgo.Context("Post /envs/", func() {
@@ -214,8 +214,7 @@ var (
 				err = json.Unmarshal(result, &r)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(http.StatusOK).Should(gomega.Equal(r.Code))
-				output := fmt.Sprintf("Create env succeed")
-				gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(output))
+				gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring("Create env succeed"))
 			})
 		})
 	}

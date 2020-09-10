@@ -26,7 +26,7 @@ func CreateEnv(c *gin.Context) {
 	}
 	ctx := util.GetContext(c)
 	kubeClient := c.MustGet("KubeClient")
-	err, message := oam.CreateEnv(ctx, kubeClient.(client.Client), name, namespace)
+	message, err := oam.CreateEnv(ctx, kubeClient.(client.Client), name, namespace)
 	util.AssembleResponse(c, message, err)
 }
 
@@ -40,7 +40,7 @@ func UpdateEnv(c *gin.Context) {
 	}
 	ctx := util.GetContext(c)
 	kubeClient := c.MustGet("KubeClient")
-	err, message := oam.UpdateEnv(ctx, kubeClient.(client.Client), envName, environmentBody.Namespace)
+	message, err := oam.UpdateEnv(ctx, kubeClient.(client.Client), envName, environmentBody.Namespace)
 	util.AssembleResponse(c, message, err)
 }
 
