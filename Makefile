@@ -26,11 +26,18 @@ test: fmt vet lint
 build: fmt vet lint
 	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
 
-release: fmt vet lint
-# TODO: build vela core chart into vela binary
+npm-build:
 	cd dashboard && npm run build && cd ./..
+
+npm-install:
+	cd dashboard && npm install && cd ./..
+
+generate-source:
 	go run hack/frontend/source.go
-	GO111MODULE=on CGO_ENABLED=0 $(GOX) -ldflags $(LDFLAGS) -parallel=3 -output="bin/vela-{{.OS}}-{{.Arch}}" -osarch='$(TARGETS)' cmd/vela/main.go
+
+cross-build:
+# TODO: build vela core chart into vela binary
+	GO111MODULE=on CGO_ENABLED=0 $(GOX) -ldflags $(LDFLAGS) -parallel=3 -output="bin/vela-{{.OS}}-{{.Arch}}" -osarch='$(TARGETS)' ./cmd/vela/
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: fmt vet

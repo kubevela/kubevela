@@ -5,15 +5,14 @@ on:
     types: [published]
     branches:
       - master
-  push:
-    # Sequence of patterns matched against refs/tags
-    tags:
-      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
 
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    env:
+      VELA_VERSION: ${{ github.event.release.tag_name }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Set up Go 1.13
         uses: actions/setup-go@v1
@@ -22,16 +21,18 @@ jobs:
         id: go
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
-        with:
-          ref: 'master'
       - name: Use Node.js 10.x
         uses: actions/setup-node@v1
         with:
           node-version: 10.x
-      - run: npm install
-        working-directory: ./dashboard
-      - name: Run Make Realse
-        run: make release
+      - name: Run npm install
+        run: make npm-install
+      - name: Run npm build
+        run: make npm-build
+      - name: Run generate-source
+        run: make generate-source
+      - name: Run cross-build
+        run: make cross-build
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -56,6 +57,6 @@ jobs:
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./bin/vela--windows-amd64
-          asset_name: vela-${{ github.event.release.tag_name }}-windows-amd64
+          asset_path: ./bin/vela-windows-amd64.exe
+          asset_name: vela-${{ github.event.release.tag_name }}-windows-amd64.exe
           asset_content_type: binary/octet-stream
