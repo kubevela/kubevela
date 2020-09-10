@@ -88,7 +88,10 @@ else
     complete -o default -o nospace -F __start_vela %[1]s
 fi
 `
-		fmt.Fprintf(out, renamedBinaryHook, binary)
+		_, err = fmt.Fprintf(out, renamedBinaryHook, binary)
+		if err != nil {
+			return err
+		}
 	}
 	return err
 }
@@ -225,15 +228,20 @@ __vela_convert_bash_to_zsh() {
 	-e 's/FUNCNAME/funcstack/g' \
 	<<'BASH_COMPLETION_EOF'
 `
-	out.Write([]byte(zshInitialization))
+	_, err := out.Write([]byte(zshInitialization))
+	if err != nil {
+		return err
+	}
 
-	runCompletionBash(out, cmd)
+	if err = runCompletionBash(out, cmd); err != nil {
+		return err
+	}
 
 	zshTail := `
 BASH_COMPLETION_EOF
 }
 __vela_bash_source <(__vela_convert_bash_to_zsh)
 `
-	out.Write([]byte(zshTail))
-	return nil
+	_, err = out.Write([]byte(zshTail))
+	return err
 }

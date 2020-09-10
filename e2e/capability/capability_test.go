@@ -15,7 +15,7 @@ import (
 var (
 	capabilityCenterBasic = apis.CapabilityCenterMeta{
 		Name: "capability-center-e2e-basic",
-		Url:  "https://github.com/wonderflow/catalog/tree/repos/repos",
+		URL:  "https://github.com/wonderflow/catalog/tree/repos/repos",
 	}
 	capabilityBasic = types.Capability{
 		Name: "manualscaler",
@@ -26,7 +26,7 @@ var (
 var _ = ginkgo.Describe("Capability", func() {
 	ginkgo.Context("capability center", func() {
 		ginkgo.It("add a capability center", func() {
-			cli := fmt.Sprintf("vela cap center config %s %s", capabilityCenterBasic.Name, capabilityCenterBasic.Url)
+			cli := fmt.Sprintf("vela cap center config %s %s", capabilityCenterBasic.Name, capabilityCenterBasic.URL)
 			output, err := e2e.Exec(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			expectedOutput1 := fmt.Sprintf("Successfully configured capability center: %s, start to sync from remote", capabilityCenterBasic.Name)
@@ -41,7 +41,7 @@ var _ = ginkgo.Describe("Capability", func() {
 			gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
 			gomega.Expect(output).To(gomega.ContainSubstring("ADDRESS"))
 			gomega.Expect(output).To(gomega.ContainSubstring(capabilityCenterBasic.Name))
-			gomega.Expect(output).To(gomega.ContainSubstring(capabilityCenterBasic.Url))
+			gomega.Expect(output).To(gomega.ContainSubstring(capabilityCenterBasic.URL))
 		})
 	})
 

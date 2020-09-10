@@ -18,12 +18,12 @@ func Register(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
 	// MetricsTrait
 	server.Register("/validate-standard-oam-dev-v1alpha1-metricstrait",
-		&webhook.Admission{Handler: &metrics.MetricsTraitValidatingHandler{}})
+		&webhook.Admission{Handler: &metrics.ValidatingHandler{}})
 	server.Register("/mutate-standard-oam-dev-v1alpha1-metricstrait",
-		&webhook.Admission{Handler: &metrics.MetricsTraitMutatingHandler{}})
+		&webhook.Admission{Handler: &metrics.MutatingHandler{}})
 	// Containerized
 	server.Register("/validate-standard-oam-dev-v1alpha1-containerized",
-		&webhook.Admission{Handler: &containerized.ContainerizedValidatingHandler{}})
+		&webhook.Admission{Handler: &containerized.ValidatingHandler{}})
 	server.Register("/mutate-standard-oam-dev-v1alpha1-containerized",
-		&webhook.Admission{Handler: &containerized.ContainerizedMutatingHandler{}})
+		&webhook.Admission{Handler: &containerized.MutatingHandler{}})
 }

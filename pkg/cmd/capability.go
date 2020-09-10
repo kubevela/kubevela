@@ -54,23 +54,23 @@ func NewCenterCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 
 func NewCapCenterConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "config <centerName> <centerUrl>",
+		Use:     "config <centerName> <centerURL>",
 		Short:   "Configure or add the capability center, default is local (built-in capabilities)",
 		Long:    "Configure or add the capability center, default is local (built-in capabilities)",
 		Example: `vela cap center config mycenter https://github.com/oam-dev/catalog/cap-center`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength < 2 {
-				return errors.New("please set capability center with <centerName> and <centerUrl>")
+				return errors.New("please set capability center with <centerName> and <centerURL>")
 			}
 			capName := args[0]
-			capUrl := args[1]
+			capURL := args[1]
 			token := cmd.Flag("token").Value.String()
-			if err := oam.AddCapabilityCenter(capName, capUrl, token); err != nil {
+			if err := oam.AddCapabilityCenter(capName, capURL, token); err != nil {
 				return err
 			}
 			ioStreams.Infof("Successfully configured capability center: %s, start to sync from remote", capName)
-			if err := oam.SyncCapabilityFromCenter(capName, capUrl, token); err != nil {
+			if err := oam.SyncCapabilityFromCenter(capName, capURL, token); err != nil {
 				return err
 			}
 			ioStreams.Info("sync finished")
@@ -240,7 +240,7 @@ func ListCapCenters(args []string, ioStreams cmdutil.IOStreams) error {
 		return err
 	}
 	for _, c := range capabilityCenterList {
-		table.AddRow(c.Name, c.Url)
+		table.AddRow(c.Name, c.URL)
 	}
 	ioStreams.Info(table.String())
 	return nil

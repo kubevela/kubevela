@@ -24,14 +24,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func AddCapabilityCenter(capName, capUrl, capToken string) error {
+func AddCapabilityCenter(capName, capURL, capToken string) error {
 	repos, err := plugins.LoadRepos()
 	if err != nil {
 		return err
 	}
 	config := &plugins.CapCenterConfig{
 		Name:    capName,
-		Address: capUrl,
+		Address: capURL,
 		Token:   capToken,
 	}
 	var updated bool
@@ -48,11 +48,11 @@ func AddCapabilityCenter(capName, capUrl, capToken string) error {
 	if err = plugins.StoreRepos(repos); err != nil {
 		return err
 	}
-	return SyncCapabilityFromCenter(capName, capUrl, capToken)
+	return SyncCapabilityFromCenter(capName, capURL, capToken)
 }
 
-func SyncCapabilityFromCenter(capName, capUrl, capToken string) error {
-	client, err := plugins.NewCenterClient(context.Background(), capName, capUrl, capToken)
+func SyncCapabilityFromCenter(capName, capURL, capToken string) error {
+	client, err := plugins.NewCenterClient(context.Background(), capName, capURL, capToken)
 	if err != nil {
 		return err
 	}
@@ -100,9 +100,9 @@ func InstallCapability(client client.Client, centerName, capabilityName string, 
 				return err
 			}
 		}
-		if apiVerion, kind := cmdutil.GetApiVersionKindFromWorkload(wd); apiVerion != "" && kind != "" {
+		if apiVerion, kind := cmdutil.GetAPIVersionKindFromWorkload(wd); apiVerion != "" && kind != "" {
 			tp.CrdInfo = &types.CrdInfo{
-				ApiVersion: apiVerion,
+				APIVersion: apiVerion,
 				Kind:       kind,
 			}
 		}
@@ -126,9 +126,9 @@ func InstallCapability(client client.Client, centerName, capabilityName string, 
 				return err
 			}
 		}
-		if apiVerion, kind := cmdutil.GetApiVersionKindFromTrait(td); apiVerion != "" && kind != "" {
+		if apiVerion, kind := cmdutil.GetAPIVersionKindFromTrait(td); apiVerion != "" && kind != "" {
 			tp.CrdInfo = &types.CrdInfo{
-				ApiVersion: apiVerion,
+				APIVersion: apiVerion,
 				Kind:       kind,
 			}
 		}
@@ -162,7 +162,7 @@ func GetSyncedCapabilities(repoName, addonName string) (types.Capability, error)
 }
 
 func InstallHelmChart(ioStreams cmdutil.IOStreams, c types.Chart) error {
-	return HelmInstall(ioStreams, c.Repo, c.URl, c.Name, c.Version, c.Name, nil)
+	return HelmInstall(ioStreams, c.Repo, c.URL, c.Name, c.Version, c.Name, nil)
 }
 
 func ListCapabilityCenters() ([]apis.CapabilityCenterMeta, error) {
@@ -174,7 +174,7 @@ func ListCapabilityCenters() ([]apis.CapabilityCenterMeta, error) {
 	for _, c := range centers {
 		capabilityCenterList = append(capabilityCenterList, apis.CapabilityCenterMeta{
 			Name: c.Name,
-			Url:  c.Address,
+			URL:  c.Address,
 		})
 	}
 	return capabilityCenterList, nil
@@ -204,6 +204,9 @@ func SyncCapabilityCenter(capabilityCenterName string) error {
 	ctx := context.Background()
 	for _, d := range repos {
 		client, err := plugins.NewCenterClient(ctx, d.Name, d.Address, d.Token)
+		if err != nil {
+			return err
+		}
 		err = client.SyncCapabilityFromCenter()
 		if err != nil {
 			return err

@@ -67,8 +67,8 @@ var (
 	ServiceMonitorNSName = "monitoring"
 )
 
-// MetricsTraitReconciler reconciles a MetricsTrait object
-type MetricsTraitReconciler struct {
+// Reconciler reconciles a MetricsTrait object
+type Reconciler struct {
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
@@ -83,7 +83,7 @@ type MetricsTraitReconciler struct {
 // +kubebuilder:rbac:groups=core.oam.dev,resources=*/status,verbs=get;
 // +kubebuilder:rbac:groups="",resources=events,verbs=get;list;create;update;patch
 
-func (r *MetricsTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	mLog := r.Log.WithValues("metricstrait", req.NamespacedName)
 	mLog.Info("Reconcile metricstrait trait")
@@ -158,7 +158,7 @@ func (r *MetricsTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 }
 
 // fetch the label of the service that is associated with the workload
-func (r *MetricsTraitReconciler) fetchServicesLabel(ctx context.Context, mLog logr.Logger,
+func (r *Reconciler) fetchServicesLabel(ctx context.Context, mLog logr.Logger,
 	workload *unstructured.Unstructured, targetPort intstr.IntOrString) (map[string]string, error) {
 	// Fetch the child resources list from the corresponding workload
 	resources, err := oamutil.FetchWorkloadChildResources(ctx, mLog, r, workload)
@@ -185,7 +185,7 @@ func (r *MetricsTraitReconciler) fetchServicesLabel(ctx context.Context, mLog lo
 }
 
 // create a service that targets the exposed workload pod
-func (r *MetricsTraitReconciler) createService(ctx context.Context, mLog logr.Logger, workload *unstructured.Unstructured,
+func (r *Reconciler) createService(ctx context.Context, mLog logr.Logger, workload *unstructured.Unstructured,
 	metricsTrait *v1alpha1.MetricsTrait) (map[string]string, error) {
 	oamService := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
@@ -226,7 +226,7 @@ func (r *MetricsTraitReconciler) createService(ctx context.Context, mLog logr.Lo
 }
 
 // remove all service monitors that are no longer used
-func (r *MetricsTraitReconciler) gcOrphanServiceMonitor(ctx context.Context, mLog logr.Logger,
+func (r *Reconciler) gcOrphanServiceMonitor(ctx context.Context, mLog logr.Logger,
 	metricsTrait *v1alpha1.MetricsTrait) {
 	var gcCandidates []string
 	copy(metricsTrait.Status.ServiceMonitorNames, gcCandidates)
@@ -299,7 +299,7 @@ func constructServiceMonitor(metricsTrait *v1alpha1.MetricsTrait,
 	}
 }
 
-func (r *MetricsTraitReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("MetricsTrait")).
 		WithAnnotations("controller", "metricsTrait")
 	return ctrl.NewControllerManagedBy(mgr).
@@ -310,7 +310,7 @@ func (r *MetricsTraitReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Setup adds a controller that reconciles MetricsTrait.
 func Setup(mgr ctrl.Manager) error {
-	reconciler := MetricsTraitReconciler{
+	reconciler := Reconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("MetricsTrait"),
 		Scheme: mgr.GetScheme(),

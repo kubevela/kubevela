@@ -57,8 +57,8 @@ const (
 	labelNameKey = "component.oam.dev/name"
 )
 
-// ContainerizedReconciler reconciles a Containerized object
-type ContainerizedReconciler struct {
+// Reconciler reconciles a Containerized object
+type Reconciler struct {
 	client.Client
 	log    logr.Logger
 	record event.Recorder
@@ -69,7 +69,7 @@ type ContainerizedReconciler struct {
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=containerizeds/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=services,verbs=get;list;watch;create;update;patch;delete
-func (r *ContainerizedReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
 	ctx := context.Background()
 	log := r.log.WithValues("containerized", req.NamespacedName)
@@ -151,7 +151,7 @@ func (r *ContainerizedReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 }
 
 // create a corresponding deployment
-func (r *ContainerizedReconciler) renderDeployment(ctx context.Context,
+func (r *Reconciler) renderDeployment(ctx context.Context,
 	workload *v1alpha1.Containerized) (*appsv1.Deployment, error) {
 	// generate the deployment
 	deploy := &appsv1.Deployment{
@@ -205,7 +205,7 @@ func (r *ContainerizedReconciler) renderDeployment(ctx context.Context,
 }
 
 // create a service for the deployment
-func (r *ContainerizedReconciler) renderService(ctx context.Context,
+func (r *Reconciler) renderService(ctx context.Context,
 	workload *v1alpha1.Containerized) (*corev1.Service, error) {
 	// create a service for the workload
 	service := &corev1.Service{
@@ -250,7 +250,7 @@ func (r *ContainerizedReconciler) renderService(ctx context.Context,
 	return service, nil
 }
 
-func (r *ContainerizedReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("Containerized")).
 		WithAnnotations("controller", "Containerized")
 	return ctrl.NewControllerManagedBy(mgr).
@@ -262,7 +262,7 @@ func (r *ContainerizedReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Setup adds a controller that reconciles MetricsTrait.
 func Setup(mgr ctrl.Manager) error {
-	reconciler := ContainerizedReconciler{
+	reconciler := Reconciler{
 		Client: mgr.GetClient(),
 		log:    ctrl.Log.WithName("Containerized"),
 		Scheme: mgr.GetScheme(),

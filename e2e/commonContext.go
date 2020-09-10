@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	// System
+	// SystemInitContext used for test system init
 	SystemInitContext = func(context string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("Install OAM runtime and vela builtin capabilities.", func() {
@@ -40,7 +40,7 @@ var (
 		})
 	}
 
-	// Refresh
+	// RefreshContext used for test vela system update
 	RefreshContext = func(context string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("Sync commands from your Kubernetes cluster and locally cached them", func() {
@@ -52,18 +52,7 @@ var (
 		})
 	}
 
-	//Dashboard
-	DashboardContext = func(context string) bool {
-		return ginkgo.Context(context, func() {
-			ginkgo.It("Run APIServer and Dashboard", func() {
-				Exec("vela dashboard &")
-				// gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				// TODO(zzxwill) Need to check output
-			})
-		})
-	}
-
-	// Env
+	// EnvInitContext used for test Env
 	EnvInitContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print env initiation successful message", func() {
@@ -124,7 +113,7 @@ var (
 		})
 	}
 
-	//Workload
+	//WorkloadRunContext used for test vela comp run
 	WorkloadRunContext = func(context string, cli string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print successful creation information", func() {
@@ -146,7 +135,7 @@ var (
 		})
 	}
 
-	// Trait
+	// TraitManualScalerAttachContext used for test trait attach success
 	TraitManualScalerAttachContext = func(context string, traitAlias string, applicationName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print successful attached information", func() {
@@ -159,8 +148,8 @@ var (
 		})
 	}
 
-	// Application
-	ApplicationListContext = func(context string, applicationName string, traitAlias string) bool {
+	// ComponentListContext used for test vela comp ls
+	ComponentListContext = func(context string, applicationName string, traitAlias string) bool {
 		return ginkgo.Context("ls", func() {
 			ginkgo.It("should list all applications", func() {
 				output, err := Exec("vela comp ls")
@@ -211,7 +200,7 @@ var (
 		})
 	}
 
-	// APIServer
+	// APIEnvInitContext used for test api env
 	APIEnvInitContext = func(context string, envMeta types.EnvMeta) bool {
 		return ginkgo.Context("Post /envs/", func() {
 			ginkgo.It("should create an env", func() {
@@ -224,6 +213,7 @@ var (
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				var r apis.Response
 				err = json.Unmarshal(result, &r)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(http.StatusOK).Should(gomega.Equal(r.Code))
 				output := fmt.Sprintf("Create env succeed, current env is " + envMeta.Name + " namespace is " + envMeta.Namespace)
 				gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(output))

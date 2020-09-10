@@ -162,7 +162,7 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams) error {
 
 func (i *initCmd) IsOamRuntimeExist() bool {
 	for _, object := range defaultObject {
-		if err := cmdutil.IsCoreCRDExist(i.client, context.Background(), object.(runtime.Object)); err != nil {
+		if err := cmdutil.IsCoreCRDExist(context.Background(), i.client, object.(runtime.Object)); err != nil {
 			return false
 		}
 	}
@@ -170,7 +170,7 @@ func (i *initCmd) IsOamRuntimeExist() bool {
 }
 
 func InstallOamRuntime(ioStreams cmdutil.IOStreams, version string) error {
-	return oam.HelmInstall(ioStreams, types.DefaultOAMRepoName, types.DefaultOAMRepoUrl, types.DefaultOAMRuntimeChartName, version, types.DefaultOAMReleaseName, nil)
+	return oam.HelmInstall(ioStreams, types.DefaultOAMRepoName, types.DefaultOAMRepoURL, types.DefaultOAMRuntimeChartName, version, types.DefaultOAMReleaseName, nil)
 }
 
 func GetOAMReleaseVersion() (string, error) {
@@ -184,7 +184,7 @@ func GetOAMReleaseVersion() (string, error) {
 			return result.Chart.AppVersion(), nil
 		}
 	}
-	return "", errors.New("oam-kubernetes-runtime not found in your kubernetes cluster, try `vela system init` to install.")
+	return "", errors.New("oam-kubernetes-runtime not found in your kubernetes cluster, try `vela system init` to install")
 }
 
 func GenNativeResourceDefinition(c client.Client) error {

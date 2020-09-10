@@ -151,7 +151,7 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvM
 	}
 	envName := args[0]
 	namespace := envArgs.Namespace
-	err, msg := oam.CreateOrUpdateEnv(ctx, c, envName, namespace)
+	msg, err := oam.CreateOrUpdateEnv(ctx, c, envName, namespace)
 	if err != nil {
 		return err
 	}

@@ -23,6 +23,14 @@ func GetVelaHomeDir() (string, error) {
 	return filepath.Join(home, defaultVelaHome), nil
 }
 
+func GetDefaultFrontendDir() (string, error) {
+	home, err := GetVelaHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, "frontend"), nil
+}
+
 func GetCapCenterDir() (string, error) {
 	home, err := GetVelaHomeDir()
 	if err != nil {

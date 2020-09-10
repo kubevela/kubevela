@@ -120,7 +120,7 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	definitionDir, err = system.GetCapabilityDir()
 	Expect(err).Should(BeNil())
-	os.MkdirAll(definitionDir, 0755)
+	Expect(os.MkdirAll(definitionDir, 0755)).Should(BeNil())
 	Expect(k8sClient.Create(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: DefinitionNamespace}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -148,9 +148,9 @@ var _ = BeforeSuite(func(done Done) {
 var DefinitionNamespace = "testdef"
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
-	k8sClient.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: DefinitionNamespace}})
-	k8sClient.Delete(context.Background(), &td)
-	k8sClient.Delete(context.Background(), &wd)
+	_ = k8sClient.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: DefinitionNamespace}})
+	_ = k8sClient.Delete(context.Background(), &td)
+	_ = k8sClient.Delete(context.Background(), &wd)
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })

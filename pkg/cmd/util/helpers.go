@@ -89,7 +89,7 @@ func GetTraitDefinitionByAlias(ctx context.Context, c client.Client, traitAlias 
 	err := c.List(ctx, &traitDefinitionList)
 	if err == nil {
 		for _, t := range traitDefinitionList.Items {
-			template, err := types.ConvertTemplateJson2Object(t.Spec.Extension)
+			template, err := types.ConvertTemplateJSON2Object(t.Spec.Extension)
 			if err == nil && strings.EqualFold(template.Name, traitAlias) {
 				traitDefinition = t
 				break
@@ -101,23 +101,23 @@ func GetTraitDefinitionByAlias(ctx context.Context, c client.Client, traitAlias 
 
 // GetTraitNameAndAlias return the name and alias of a TraitDefinition by a string which might be
 // the trait name, the trait alias, or invalid name
-func GetTraitApiVersionKind(ctx context.Context, c client.Client, namespace string, name string) (string, string, error) {
+func GetTraitAPIVersionKind(ctx context.Context, c client.Client, namespace string, name string) (string, string, error) {
 
 	t, err := GetTraitDefinitionByName(ctx, c, namespace, name)
 	if err != nil {
 		return "", "", err
 	}
-	apiVersion := t.Annotations[types.AnnApiVersion]
+	apiVersion := t.Annotations[types.AnnAPIVersion]
 	kind := t.Annotations[types.AnnKind]
 	return apiVersion, kind, nil
 }
 
-func GetApiVersionKindFromTrait(td corev1alpha2.TraitDefinition) (string, string) {
-	return td.Annotations[types.AnnApiVersion], td.Annotations[types.AnnKind]
+func GetAPIVersionKindFromTrait(td corev1alpha2.TraitDefinition) (string, string) {
+	return td.Annotations[types.AnnAPIVersion], td.Annotations[types.AnnKind]
 }
 
-func GetApiVersionKindFromWorkload(td corev1alpha2.WorkloadDefinition) (string, string) {
-	return td.Annotations[types.AnnApiVersion], td.Annotations[types.AnnKind]
+func GetAPIVersionKindFromWorkload(td corev1alpha2.WorkloadDefinition) (string, string) {
+	return td.Annotations[types.AnnAPIVersion], td.Annotations[types.AnnKind]
 }
 
 func GetWorkloadNameAliasKind(ctx context.Context, c client.Client, namespace string, workloadName string) (string, string, string) {
@@ -127,14 +127,14 @@ func GetWorkloadNameAliasKind(ctx context.Context, c client.Client, namespace st
 
 	if err == nil { // workloadName is complete name
 		var workloadTemplate types.Capability
-		workloadTemplate, err := types.ConvertTemplateJson2Object(w.Spec.Extension)
+		workloadTemplate, err := types.ConvertTemplateJSON2Object(w.Spec.Extension)
 		if err == nil {
 			name, alias = w.Name, workloadTemplate.Name
 		}
 	} else { // workloadName is alias or kind
 		w, err := GetWorkloadDefinitionByAlias(ctx, c, name)
 		if err == nil {
-			workloadTemplate, err := types.ConvertTemplateJson2Object(w.Spec.Extension)
+			workloadTemplate, err := types.ConvertTemplateJSON2Object(w.Spec.Extension)
 			if err == nil {
 				name, alias, kind = w.Name, workloadTemplate.Name, w.Kind
 			}
@@ -166,41 +166,11 @@ func GetWorkloadDefinitionByAlias(ctx context.Context, c client.Client, traitAli
 	return workloadDefinition, nil
 }
 
-func PrintUsageIntroduce(cmd *cobra.Command, introduce string) {
-	cmd.Println(introduce)
-	cmd.Println()
-}
-
-func PrintUsage(cmd *cobra.Command, subcmds []*cobra.Command) {
-	printUsage := func(cmd *cobra.Command) {
-		useline := cmd.UseLine()
-		if !strings.HasPrefix(useline, "vela ") {
-			useline = "vela " + useline
-		}
-		cmd.Printf("  %s\t\t%s\n", useline, cmd.Long)
-	}
-	cmd.Println("Usage:")
-	for _, sub := range subcmds {
-		printUsage(sub)
-	}
-	cmd.Println()
-}
-func PrintExample(cmd *cobra.Command, subcmds []*cobra.Command) {
-	printExample := func(cmd *cobra.Command) {
-		cmd.Printf("  %s\n", cmd.Example)
-	}
-	cmd.Println("Examples:")
-	for _, sub := range subcmds {
-		printExample(sub)
-	}
-	cmd.Println()
-}
-
 func PrintFlags(cmd *cobra.Command, subcmds []*cobra.Command) {
 	cmd.Println("Flags:")
 	for _, sub := range subcmds {
 		if sub.HasLocalFlags() {
-			fmt.Printf(sub.LocalFlags().FlagUsages())
+			cmd.Println(sub.LocalFlags().FlagUsages())
 		}
 	}
 	cmd.Println()

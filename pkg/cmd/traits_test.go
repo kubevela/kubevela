@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/gosuri/uitable"
 
 	"github.com/cloud-native-application/rudrx/api/types"
@@ -85,7 +87,6 @@ func Test_printTraitList(t *testing.T) {
 		b := bytes.Buffer{}
 		iostream := cmdutil.IOStreams{Out: &b}
 		nn := c.workloadName
-		printTraitList(&nn, iostream)
-		// assert.Equal(t, c.ExpectedString, b.String(), cname)
+		assert.NoError(t, printTraitList(&nn, iostream))
 	}
 }
