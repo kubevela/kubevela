@@ -13,11 +13,11 @@ endif
 all: build
 
 # Run tests
-test: fmt vet
+test: fmt vet lint
 	go test ./pkg/... -coverprofile cover.out
 
 # Build manager binary
-build: fmt vet
+build: fmt vet lint
 	go build -ldflags "-X github.com/cloud-native-application/rudrx/version.VelaVersion=${VELA_VERSION} -X github.com/cloud-native-application/rudrx/version.GitRevision=${GIT_COMMIT}" -o bin/vela cmd/vela/main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
@@ -31,6 +31,9 @@ fmt:
 # Run go vet against code
 vet:
 	go vet ./...
+
+lint: golangci-lint
+	$(GOLANGCILINT) run
 
 # Build the docker image
 docker-build: test
@@ -110,4 +113,21 @@ ifeq (, $(shell which controller-gen))
 CONTROLLER_GEN=$(GOBIN)/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)
+endif
+
+GOLANGCILINT_VERSION ?= 1.29.0
+
+golangci-lint:
+ifeq (, $(shell which golangci-lint))
+	@{ \
+	set -e ;\
+	GOLANGCILINT_TMP_DIR=$$(mktemp -d) ;\
+	cd $$GOLANGCILINT_TMP_DIR ;\
+	curl -fsSL https://github.com/golangci/golangci-lint/releases/download/v$(GOLANGCILINT_VERSION)/golangci-lint-$(GOLANGCILINT_VERSION)-$(HOSTOS)-$(HOSTARCH).tar.gz | tar -xz --strip-components=1 -C $(GOLANGCILINT_TMP_DIR) ;\
+	mv $$GOLANGCILINT_TMP_DIR/golangci-lint $(GOBIN)/golangci-lint
+	rm -rf $$GOLANGCILINT_TMP_DIR ;\
+	}
+GOLANGCILINT=$(GOBIN)/golangci-lint
+else
+GOLANGCILINT=$(shell which golangci-lint)
 endif
