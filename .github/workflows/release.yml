@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+    branches:
+      - master
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go 1.13
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.13
+        id: go
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+        with:
+          ref: 'master'
+      - name: Use Node.js 10.x
+        uses: actions/setup-node@v1
+        with:
+          node-version: 10.x
+      - run: npm install
+        working-directory: ./dashboard
+      - name: Run Make Realse
+        run: make release
+
+  publish:
+    needs: [build]
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2.3.2
+      - name: Publish
+        env:
+          BintrayUser: ${{ secrets.bintrayUsername }}
+          BintrayApiKey: ${{ secrets.bintrayApiKey }}
+          VcsTag: ${{ github.event.release.tag_name }}
+        run: ./gradlew bintrayUpload
+      #- name: Publish (GitHub Packages)
+      #  env:
+      #    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #  run: ./gradlew publish
+      - name: Zip files
+        working-directory: ./build/libs
+        run: zip JavaBotBlockAPI-${{ github.event.release.tag_name }}.zip *.jar
+      - name: Upload to release
+        uses: AButler/upload-release-assets@v2.0
+        with:
+          files: 'build/libs/JavaBotBlockAPI-${{ github.event.release.tag_name }}.zip;build/libs/*.jar'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+  sendMessage:
+    needs: [publish]
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Discord notification
+        uses: rjstone/discord-webhook-notify@v1
+        with:
+          webhookUrl: ${{ secrets.DISCORD_WEBHOOK }}
+          severity: info
+          avatarUrl: 'https://docs.botblock.org/JavaBotBlockAPI/assets/img/jbba.png'
+          username: 'New release'
+          text: '${{ github.event.release.name }}'
+          description: '[**Release Information**](${{ github.event.release.html_url }})'
+          details: '${{ github.event.release.body }}'
+          footer: 'Version ${{github.event.release.tag_name}}'

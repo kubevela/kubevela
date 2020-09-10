@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -14,8 +15,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mholt/archiver/v3"
+
 	"github.com/cloud-native-application/rudrx/api/types"
-	"github.com/cloud-native-application/rudrx/pkg/cmd/dashboard"
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	"github.com/cloud-native-application/rudrx/pkg/server"
 	"github.com/cloud-native-application/rudrx/pkg/server/util"
@@ -29,8 +31,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
-func NewDashboardCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewDashboardCommand(c types.Args, ioStreams cmdutil.IOStreams, frontendSource string) *cobra.Command {
 	var o Options
+	o.frontendSource = frontendSource
 	cmd := &cobra.Command{
 		Use:     "dashboard",
 		Short:   "Setup API Server and launch Dashboard",
@@ -58,12 +61,13 @@ func NewDashboardCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 }
 
 type Options struct {
-	logFilePath   string
-	logRetainDate int
-	logCompress   bool
-	development   bool
-	staticPath    string
-	port          string
+	logFilePath    string
+	logRetainDate  int
+	logCompress    bool
+	development    bool
+	staticPath     string
+	port           string
+	frontendSource string
 }
 
 func SetupAPIServer(kubeClient client.Client, cmd *cobra.Command, o Options) error {
@@ -95,9 +99,29 @@ func SetupAPIServer(kubeClient client.Client, cmd *cobra.Command, o Options) err
 		if err != nil {
 			return fmt.Errorf("create fontend dir err %v", err)
 		}
-		if err = ioutil.WriteFile(filepath.Join(o.staticPath, "index.html"), []byte(dashboard.IndexHTML), 0644); err != nil {
-			return fmt.Errorf("write index.html to fontend dir err %v", err)
+		data, err := base64.StdEncoding.DecodeString(o.frontendSource)
+		if err != nil {
+			return fmt.Errorf("decode frontendSource err %v", err)
 		}
+		tgzpath := filepath.Join(o.staticPath, "frontend.tgz")
+		err = ioutil.WriteFile(tgzpath, data, 0644)
+		if err != nil {
+			return fmt.Errorf("write frontend.tgz to static path err %v", err)
+		}
+		defer os.Remove(tgzpath)
+		tgz := archiver.NewTarGz()
+		defer tgz.Close()
+		files, err := ioutil.ReadDir(o.staticPath)
+		if err != nil {
+			return fmt.Errorf("read static file %s err %v", o.staticPath, err)
+		}
+		if len(files) < 1 {
+			return fmt.Errorf("no files in dir %s", o.staticPath)
+		}
+		if err = tgz.Unarchive(tgzpath, o.staticPath); err != nil {
+			return fmt.Errorf("write static files to fontend dir err %v", err)
+		}
+		o.staticPath = filepath.Join(o.staticPath, files[0].Name())
 	}
 
 	if !strings.HasPrefix(o.port, ":") {
