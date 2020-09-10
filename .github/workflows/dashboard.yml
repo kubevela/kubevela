@@ -4,12 +4,12 @@ on:
   push:
     branches: [ master ]
   pull_request:
-
+defaults:
+  run:
+    working-directory: ./dashboard
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      working-directory: ./dashboard
     strategy:
       matrix:
         node-version: [10.x]
