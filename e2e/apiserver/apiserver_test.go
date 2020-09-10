@@ -71,6 +71,7 @@ var _ = ginkgo.Describe("API", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(http.StatusOK).To(gomega.Equal(r.Code))
 			//TODO(zzxwill) Need to compare r.Data with envMeta
 		})
@@ -89,6 +90,7 @@ var _ = ginkgo.Describe("API", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(http.StatusOK).To(gomega.Equal(r.Code))
 			content := fmt.Sprintf("Switch env succeed, current env is " + envHelloMeta.EnvName)
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(content))
@@ -138,6 +140,7 @@ var _ = ginkgo.Describe("API", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(http.StatusOK).To(gomega.Equal(r.Code))
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(envWorldMeta.EnvName + " deleted"))
 		})
@@ -155,6 +158,7 @@ var _ = ginkgo.Describe("API", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(http.StatusInternalServerError).To(gomega.Equal(r.Code))
 			expectedContent := fmt.Sprintf("env %s not exist", envName)
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(expectedContent))
@@ -172,6 +176,7 @@ var _ = ginkgo.Describe("API", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(http.StatusOK).Should(gomega.Equal(r.Code), string(result))
 			output := fmt.Sprintf("Creating App %s\nSUCCEED", workloadName)
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(output))
@@ -187,8 +192,9 @@ var _ = ginkgo.Describe("API", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(http.StatusInternalServerError).Should(gomega.Equal(r.Code))
-			output := fmt.Sprintf("required flag(s) \"image\" not set")
+			output := "required flag(s) \"image\" not set"
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(output))
 		})
 
@@ -219,6 +225,7 @@ var _ = ginkgo.Describe("API", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(http.StatusOK).To(gomega.Equal(r.Code))
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring("delete apps succeed"))
 		})

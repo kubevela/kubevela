@@ -62,7 +62,7 @@ class TableList extends React.Component {
   };
 
   getHeight = (num) => {
-    return `${num * 52}px`;
+    return `${num * 55}px`;
   };
 
   getFormatDate = (time) => {
@@ -75,14 +75,14 @@ class TableList extends React.Component {
     loadingAll = loadingAll || false;
     returnObj = returnObj || [];
     const colorObj = {
-      True: 'first1',
-      False: 'first2',
+      Deployed: 'first1',
+      Staging: 'first2',
       UNKNOWN: 'first3',
     };
     return (
       <PageContainer>
         <Spin spinning={loadingAll}>
-          <div>
+          <div className="applist">
             <Form name="horizontal_login" layout="inline" onFinish={this.onFinish}>
               <Form.Item name="createTime">
                 <DatePicker placeholder="createTime" />
@@ -138,7 +138,11 @@ class TableList extends React.Component {
                             ) : (
                               ''
                             )}
-                            <div className={['hasPadding', colorObj[item.status]].join(' ')}>
+                            <div
+                              className={['hasPadding', colorObj[item.status] || 'first3'].join(
+                                ' ',
+                              )}
+                            >
                               <ApartmentOutlined style={{ marginRight: '10px' }} />
                               {item.workload}
                             </div>

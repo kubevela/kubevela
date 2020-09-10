@@ -61,13 +61,14 @@ var _ = BeforeSuite(func(done Done) {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 	serviceMonitorNS = corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: serviceMonitorNSName,
+			Name: ServiceMonitorNSName,
 		},
 	}
 	By("Bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("../../../..", "hack/crds"), // this has all the required CRDs, a bit hacky
+			filepath.Join("../../../..", "charts/third_party/prometheus"), // this has all the required CRDs,
+			filepath.Join("../../../..", "charts/vela-core/crds"),         // this has all the required CRDs,
 		},
 	}
 	var err error
@@ -97,7 +98,7 @@ var _ = BeforeSuite(func(done Done) {
 		LeaderElectionID:   "9f6dad5a.oam.dev",
 	})
 	Expect(err).ToNot(HaveOccurred())
-	r := MetricsTraitReconciler{
+	r := Reconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("MetricsTrait"),
 		Scheme: mgr.GetScheme(),

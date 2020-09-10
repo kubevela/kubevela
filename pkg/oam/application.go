@@ -3,15 +3,16 @@ package oam
 import (
 	"context"
 	"fmt"
+	"os"
+	"sort"
+
 	"github.com/cloud-native-application/rudrx/api/types"
 	"github.com/cloud-native-application/rudrx/pkg/application"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"os"
-
+	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	"github.com/cloud-native-application/rudrx/pkg/server/apis"
 
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -24,6 +25,18 @@ type ComponentMeta struct {
 	CreatedTime string                                `json:"created,omitempty"`
 	AppConfig   corev1alpha2.ApplicationConfiguration `json:"-"`
 	Component   corev1alpha2.Component                `json:"-"`
+}
+
+type componentMetaList []ComponentMeta
+
+func (comps componentMetaList) Len() int {
+	return len(comps)
+}
+func (comps componentMetaList) Swap(i, j int) {
+	comps[i], comps[j] = comps[j], comps[i]
+}
+func (comps componentMetaList) Less(i, j int) bool {
+	return comps[i].CreatedTime > comps[j].CreatedTime
 }
 
 type Option struct {
@@ -44,7 +57,7 @@ type DeleteOptions struct {
 	Get component list
 */
 func ListComponents(ctx context.Context, c client.Client, opt Option) ([]ComponentMeta, error) {
-	var componentMetaList []ComponentMeta
+	var componentMetaList componentMetaList
 	var applicationList corev1alpha2.ApplicationConfigurationList
 
 	if opt.AppName != "" {
@@ -83,6 +96,7 @@ func ListComponents(ctx context.Context, c client.Client, opt Option) ([]Compone
 			})
 		}
 	}
+	sort.Stable(componentMetaList)
 	return componentMetaList, nil
 }
 
@@ -114,18 +128,18 @@ func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, appli
 	return applicationStatusMeta, nil
 }
 
-func (o *DeleteOptions) DeleteApp() (error, string) {
+func (o *DeleteOptions) DeleteApp() (string, error) {
 	if err := application.Delete(o.Env.Name, o.AppName); err != nil && !os.IsNotExist(err) {
-		return err, ""
+		return "", err
 	}
 	ctx := context.Background()
 	var appConfig corev1alpha2.ApplicationConfiguration
 	err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Env.Namespace}, &appConfig)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return err, ""
+			return "", err
 		}
-		return fmt.Errorf("delete appconfig err %s", err), ""
+		return "", fmt.Errorf("delete appconfig err %s", err)
 	}
 	for _, comp := range appConfig.Spec.Components {
 		var c corev1alpha2.Component
@@ -134,12 +148,12 @@ func (o *DeleteOptions) DeleteApp() (error, string) {
 		c.Namespace = o.Env.Namespace
 		err = o.Client.Delete(ctx, &c)
 		if err != nil && !apierrors.IsNotFound(err) {
-			return fmt.Errorf("delete component err: %s", err), ""
+			return "", fmt.Errorf("delete component err: %s", err)
 		}
 	}
 	err = o.Client.Delete(ctx, &appConfig)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return fmt.Errorf("delete appconfig err %s", err), ""
+		return "", fmt.Errorf("delete appconfig err %s", err)
 	}
 
 	var healthscope corev1alpha2.HealthScope
@@ -147,13 +161,13 @@ func (o *DeleteOptions) DeleteApp() (error, string) {
 	healthscope.Namespace = o.Env.Namespace
 	err = o.Client.Delete(ctx, &healthscope)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return fmt.Errorf("delete health scope %s err %v", healthscope.Name, err), ""
+		return "", fmt.Errorf("delete health scope %s err %v", healthscope.Name, err)
 	}
 
-	return nil, fmt.Sprintf("delete apps succeed %s from %s", o.AppName, o.Env.Name)
+	return fmt.Sprintf("delete apps succeed %s from %s", o.AppName, o.Env.Name), nil
 }
 
-func (o *DeleteOptions) DeleteComponent() (error, string) {
+func (o *DeleteOptions) DeleteComponent() (string, error) {
 	var app *application.Application
 	var err error
 	if o.AppName != "" {
@@ -162,7 +176,7 @@ func (o *DeleteOptions) DeleteComponent() (error, string) {
 		app, err = application.MatchAppByComp(o.Env.Name, o.CompName)
 	}
 	if err != nil {
-		return err, ""
+		return "", err
 	}
 
 	if len(app.GetComponents()) <= 1 {
@@ -171,16 +185,16 @@ func (o *DeleteOptions) DeleteComponent() (error, string) {
 
 	// Remove component from local appfile
 	if err := app.RemoveComponent(o.CompName); err != nil {
-		return err, ""
+		return "", err
 	}
 	if err := app.Save(o.Env.Name); err != nil {
-		return err, ""
+		return "", err
 	}
 
 	// Remove component from appConfig in k8s cluster
 	ctx := context.Background()
 	if err := app.Run(ctx, o.Client, o.Env); err != nil {
-		return err, ""
+		return "", err
 	}
 
 	// Remove component in k8s cluster
@@ -189,8 +203,8 @@ func (o *DeleteOptions) DeleteComponent() (error, string) {
 	c.Namespace = o.Env.Namespace
 	err = o.Client.Delete(context.Background(), &c)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return fmt.Errorf("delete component err: %s", err), ""
+		return "", fmt.Errorf("delete component err: %s", err)
 	}
 
-	return nil, fmt.Sprintf("delete component succeed %s from %s", o.CompName, o.AppName)
+	return fmt.Sprintf("delete component succeed %s from %s", o.CompName, o.AppName), nil
 }

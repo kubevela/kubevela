@@ -31,9 +31,9 @@ var (
 	settings = cli.New()
 )
 
-func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoUrl, chartName, version, releaseName string, vals map[string]interface{}) error {
-	if !IsHelmRepositoryExist(repoName, repoUrl) {
-		err := AddHelmRepository(repoName, repoUrl,
+func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, version, releaseName string, vals map[string]interface{}) error {
+	if !IsHelmRepositoryExist(repoName, repoURL) {
+		err := AddHelmRepository(repoName, repoURL,
 			"", "", "", "", "", false, ioStreams.Out)
 		if err != nil {
 			return err
@@ -112,23 +112,15 @@ func IsHelmRepositoryExist(name, url string) bool {
 func GetHelmRepositoryList() []*repo.Entry {
 	f, err := repo.LoadFile(settings.RepositoryConfig)
 	if err == nil && len(f.Repositories) > 0 {
-		return filterRepos(f.Repositories)
+		return f.Repositories
 	}
 	return nil
 }
 func debug(format string, v ...interface{}) {
 	if settings.Debug {
 		format = fmt.Sprintf("[debug] %s\n", format)
-		log.Output(2, fmt.Sprintf(format, v...))
+		_ = log.Output(2, fmt.Sprintf(format, v...))
 	}
-}
-
-func filterRepos(repos []*repo.Entry) []*repo.Entry {
-	filteredRepos := make([]*repo.Entry, 0)
-	for _, repo := range repos {
-		filteredRepos = append(filteredRepos, repo)
-	}
-	return filteredRepos
 }
 
 func AddHelmRepository(name, url, username, password, certFile, keyFile, caFile string, insecureSkipTLSverify bool, out io.Writer) error {

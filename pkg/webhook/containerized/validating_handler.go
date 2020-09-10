@@ -18,7 +18,6 @@ package containerized
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
@@ -32,8 +31,8 @@ import (
 	"github.com/cloud-native-application/rudrx/api/v1alpha1"
 )
 
-// ContainerizedValidatingHandler handles Containerized
-type ContainerizedValidatingHandler struct {
+// ValidatingHandler handles Containerized
+type ValidatingHandler struct {
 	Client client.Client
 
 	// Decoder decodes objects
@@ -43,14 +42,16 @@ type ContainerizedValidatingHandler struct {
 // log is for logging in this package.
 var validatelog = logf.Log.WithName("Containerized-validate")
 
-var _ admission.Handler = &ContainerizedValidatingHandler{}
+var _ admission.Handler = &ValidatingHandler{}
 
 // Handle handles admission requests.
-func (h *ContainerizedValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	obj := &v1alpha1.Containerized{}
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
+		validatelog.Error(err, "decoder failed", "req operation", req.AdmissionRequest.Operation, "req",
+			req.AdmissionRequest)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
@@ -68,10 +69,6 @@ func (h *ContainerizedValidatingHandler) Handle(ctx context.Context, req admissi
 		if allErrs := ValidateUpdate(obj, oldObj); len(allErrs) > 0 {
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
-	case admissionv1beta1.Delete:
-		if allErrs := ValidateDelete(obj); len(allErrs) > 0 {
-			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
-		}
 	}
 
 	return admission.ValidationResponse(true, "")
@@ -80,7 +77,7 @@ func (h *ContainerizedValidatingHandler) Handle(ctx context.Context, req admissi
 // ValidateCreate validates the Containerized on creation
 func ValidateCreate(r *v1alpha1.Containerized) field.ErrorList {
 	validatelog.Info("validate create", "name", r.Name)
-	allErrs := apimachineryvalidation.ValidateObjectMeta(&r.ObjectMeta, false,
+	allErrs := apimachineryvalidation.ValidateObjectMeta(&r.ObjectMeta, true,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
 
 	fldPath := field.NewPath("spec")
@@ -91,7 +88,7 @@ func ValidateCreate(r *v1alpha1.Containerized) field.ErrorList {
 	spec := r.Spec.PodSpec
 	if len(spec.Containers) == 0 {
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("Containers"), spec.Containers,
-			fmt.Sprintf("You need at least one container")))
+			"You need at least one container"))
 	}
 	return allErrs
 }
@@ -108,18 +105,18 @@ func ValidateDelete(r *v1alpha1.Containerized) field.ErrorList {
 	return nil
 }
 
-var _ inject.Client = &ContainerizedValidatingHandler{}
+var _ inject.Client = &ValidatingHandler{}
 
-// InjectClient injects the client into the ContainerizedValidatingHandler
-func (h *ContainerizedValidatingHandler) InjectClient(c client.Client) error {
+// InjectClient injects the client into the ValidatingHandler
+func (h *ValidatingHandler) InjectClient(c client.Client) error {
 	h.Client = c
 	return nil
 }
 
-var _ admission.DecoderInjector = &ContainerizedValidatingHandler{}
+var _ admission.DecoderInjector = &ValidatingHandler{}
 
-// InjectDecoder injects the decoder into the ContainerizedValidatingHandler
-func (h *ContainerizedValidatingHandler) InjectDecoder(d *admission.Decoder) error {
+// InjectDecoder injects the decoder into the ValidatingHandler
+func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 	h.Decoder = d
 	return nil
 }

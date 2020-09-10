@@ -49,20 +49,22 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, nam
 	}
 	data, err := json.Marshal(envArgs)
 	if err != nil {
-		return err, message
+		return message, err
 	}
 	envdir, err := system.GetEnvDir()
 	if err != nil {
-		return err, message
+		return message, err
 	}
 	subEnvDir := filepath.Join(envdir, envName)
-	system.CreateIfNotExist(subEnvDir)
+	if _, err = system.CreateIfNotExist(subEnvDir); err != nil {
+		return message, err
+	}
 	if err = ioutil.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
-		return err, message
+		return message, err
 	}
 	curEnvPath, err := system.GetCurrentEnvPath()
 	if err != nil {
-		return err, message
+		return message, err
 	}
 	if err = ioutil.WriteFile(curEnvPath, []byte(envName), 0644); err != nil {
 		return err, message
@@ -88,7 +90,7 @@ func CreateEnv(ctx context.Context, c client.Client, envName string, namespace s
 		return errors.New(message), message
 	}
 	if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envArgs.Namespace}}); err != nil && !apierrors.IsAlreadyExists(err) {
-		return err, message
+		return message, err
 	}
 	envdir, err := system.GetEnvDir()
 	if err != nil {

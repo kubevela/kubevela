@@ -15,9 +15,6 @@ const (
 	// ContextKey is used as key to set/get context.
 	ContextKey = "context"
 
-	// HeaderRequestID is used as key to set/get request id.
-	HeaderRequestID = "x-fc-request-id"
-
 	// ContentTypeJSON : json
 	ContentTypeJSON = "application/json"
 
@@ -31,11 +28,18 @@ const (
 
 	HeaderContentLength = "content-Length"
 
-	// ServiceLogFields shared key service log fields
-	ServiceLogFields = "ServiceLogFields"
-
 	// HeaderClientIP is the real IP of the remote client
 	HeaderClientIP = "clientIP"
+)
+
+type ContextKeyType string
+
+const (
+	// ServiceLogFields shared key service log fields
+	ServiceLogFields ContextKeyType = "ServiceLogFields"
+
+	// HeaderRequestID is used as key to set/get request id.
+	HeaderRequestID ContextKeyType = "x-fc-request-id"
 )
 
 const (
@@ -50,8 +54,6 @@ const (
 	CapabilityCenterPath   = "/capability-centers"
 	VersionPath            = "/version"
 )
-
-const contextLoggerKey = "logger"
 
 //NoRoute is a handler which is invoked when there is no route matches.
 func NoRoute() gin.HandlerFunc {
@@ -73,13 +75,13 @@ func SetRequestID() gin.HandlerFunc {
 		traceID := ""
 		if traceID = c.Request.Header.Get(HeaderTraceID); traceID != "" {
 			requestID = traceID
-		} else if requestID = c.Request.Header.Get(HeaderRequestID); requestID != "" {
+		} else if requestID = c.Request.Header.Get(string(HeaderRequestID)); requestID != "" {
 			traceID = requestID
 		} else {
 			requestID = generateRequestID()
 			traceID = requestID
 		}
-		c.Set(HeaderRequestID, requestID)
+		c.Set(string(HeaderRequestID), requestID)
 		c.Set(HeaderClientIP, c.ClientIP())
 		c.Set(HeaderTraceID, traceID)
 	}
@@ -89,7 +91,7 @@ func SetRequestID() gin.HandlerFunc {
 // Before get request
 func SetContext() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		reqID := c.MustGet(HeaderRequestID).(string)
+		reqID := c.MustGet(string(HeaderRequestID)).(string)
 		ctx, cancel := context.WithCancel(c.Request.Context())
 		fields := make(map[string]zapcore.Field)
 		mctx := context.WithValue(ctx, ServiceLogFields, fields)

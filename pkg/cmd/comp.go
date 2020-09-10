@@ -1,14 +1,13 @@
 package cmd
 
 import (
-	"context"
 	"errors"
-
-	"github.com/cloud-native-application/rudrx/pkg/oam"
-	"github.com/cloud-native-application/rudrx/pkg/plugins"
+	"fmt"
 
 	"github.com/cloud-native-application/rudrx/api/types"
 	"github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	"github.com/cloud-native-application/rudrx/pkg/oam"
+	"github.com/cloud-native-application/rudrx/pkg/plugins"
 
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -60,6 +59,13 @@ func NewCompRunCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 		Example:            "vela comp run -t <workload-type>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 
+			if args[0] == "-h" {
+				err := cmd.Help()
+				if err != nil {
+					return err
+				}
+				return nil
+			}
 			o := newRunOptions(ioStreams)
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 			if err != nil {
@@ -70,7 +76,7 @@ func NewCompRunCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := o.Complete(cmd, args, context.TODO()); err != nil {
+			if err := o.Complete(cmd, args); err != nil {
 				return err
 			}
 			return o.Run(cmd)
@@ -90,13 +96,13 @@ func NewCompRunCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 func GetWorkloadNameFromArgs(args []string) (string, error) {
 	argsLength := len(args)
 	if argsLength < 1 {
-		return "", errors.New("must specify name for workload")
+		return "", errors.New("must specify name for component")
 	}
 	return args[0], nil
 
 }
 
-func (o *runOptions) Complete(cmd *cobra.Command, args []string, ctx context.Context) error {
+func (o *runOptions) Complete(cmd *cobra.Command, args []string) error {
 	flags := cmd.Flags()
 	flags.AddFlagSet(cmd.PersistentFlags())
 	flags.ParseErrorsWhitelist.UnknownFlags = true
@@ -118,6 +124,21 @@ func (o *runOptions) Complete(cmd *cobra.Command, args []string, ctx context.Con
 	workloadType, err := flags.GetString(WorkloadType)
 	if err != nil {
 		return err
+	}
+	if workloadType == "" {
+		workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
+		if err != nil {
+			return err
+		}
+		var workloadList []string
+		for _, w := range workloads {
+			workloadList = append(workloadList, w.Name)
+		}
+		errMsg := "can not find workload, check workloads by `vela workloads` and choose a suitable one."
+		if workloadList != nil {
+			errMsg = fmt.Sprintf("must specify type of workload, please use `-t` and choose from %v.", workloadList)
+		}
+		return errors.New(errMsg)
 	}
 	envName := o.Env.Name
 

@@ -57,8 +57,8 @@ const (
 	labelNameKey = "component.oam.dev/name"
 )
 
-// ContainerizedReconciler reconciles a Containerized object
-type ContainerizedReconciler struct {
+// Reconciler reconciles a Containerized object
+type Reconciler struct {
 	client.Client
 	log    logr.Logger
 	record event.Recorder
@@ -69,7 +69,7 @@ type ContainerizedReconciler struct {
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=containerizeds/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=services,verbs=get;list;watch;create;update;patch;delete
-func (r *ContainerizedReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
 	ctx := context.Background()
 	log := r.log.WithValues("containerized", req.NamespacedName)
@@ -97,9 +97,9 @@ func (r *ContainerizedReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderDeployment)))
 	}
-	// merge patch
+	// server side apply
 	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(workload.GetUID())}
-	if err := r.Patch(ctx, deploy, client.Merge, applyOpts...); err != nil {
+	if err := r.Patch(ctx, deploy, client.Apply, applyOpts...); err != nil {
 		log.Error(err, "Failed to apply to a deployment")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 		return util.ReconcileWaitResult,
@@ -117,8 +117,8 @@ func (r *ContainerizedReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderService)))
 	}
-	// merge apply the service
-	if err := r.Patch(ctx, service, client.Merge, applyOpts...); err != nil {
+	// server side apply the service
+	if err := r.Patch(ctx, service, client.Apply, applyOpts...); err != nil {
 		log.Error(err, "Failed to apply a service")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 		return util.ReconcileWaitResult,
@@ -151,7 +151,7 @@ func (r *ContainerizedReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 }
 
 // create a corresponding deployment
-func (r *ContainerizedReconciler) renderDeployment(ctx context.Context,
+func (r *Reconciler) renderDeployment(ctx context.Context,
 	workload *v1alpha1.Containerized) (*appsv1.Deployment, error) {
 	// generate the deployment
 	deploy := &appsv1.Deployment{
@@ -180,6 +180,15 @@ func (r *ContainerizedReconciler) renderDeployment(ctx context.Context,
 			},
 		},
 	}
+	// k8s server-side patch complains if the protocol is not set
+	for i := 0; i < len(deploy.Spec.Template.Spec.Containers); i++ {
+		for j := 0; j < len(deploy.Spec.Template.Spec.Containers[i].Ports); j++ {
+			if len(deploy.Spec.Template.Spec.Containers[i].Ports[j].Protocol) == 0 {
+				deploy.Spec.Template.Spec.Containers[i].Ports[j].Protocol = corev1.ProtocolTCP
+			}
+		}
+	}
+
 	// pass through label and annotation from the workload to the deployment
 	util.PassLabelAndAnnotation(workload, deploy)
 	// pass through label and annotation from the workload to the pod template too
@@ -196,7 +205,7 @@ func (r *ContainerizedReconciler) renderDeployment(ctx context.Context,
 }
 
 // create a service for the deployment
-func (r *ContainerizedReconciler) renderService(ctx context.Context,
+func (r *Reconciler) renderService(ctx context.Context,
 	workload *v1alpha1.Containerized) (*corev1.Service, error) {
 	// create a service for the workload
 	service := &corev1.Service{
@@ -241,7 +250,7 @@ func (r *ContainerizedReconciler) renderService(ctx context.Context,
 	return service, nil
 }
 
-func (r *ContainerizedReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("Containerized")).
 		WithAnnotations("controller", "Containerized")
 	return ctrl.NewControllerManagedBy(mgr).
@@ -253,7 +262,7 @@ func (r *ContainerizedReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Setup adds a controller that reconciles MetricsTrait.
 func Setup(mgr ctrl.Manager) error {
-	reconciler := ContainerizedReconciler{
+	reconciler := Reconciler{
 		Client: mgr.GetClient(),
 		log:    ctrl.Log.WithName("Containerized"),
 		Scheme: mgr.GetScheme(),

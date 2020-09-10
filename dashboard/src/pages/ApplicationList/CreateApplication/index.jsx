@@ -165,9 +165,14 @@ class TableList extends React.Component {
   createApp = async () => {
     const { step1SubmitObj, traitNum } = this.state;
     const submitObj = _.cloneDeep(step1SubmitObj);
+    const { workload_name: workloadName } = step1SubmitObj;
+    submitObj.flags.push({
+      name: 'name',
+      value: workloadName.toString(),
+    });
     // 处理数据为提交的格式
     if (traitNum.length) {
-      const { env_name: envName, workload_name: workloadName } = step1SubmitObj;
+      const { env_name: envName } = step1SubmitObj;
       const step2SubmitObj = [];
       traitNum.forEach(({ initialData }) => {
         if (initialData.name) {
@@ -357,6 +362,9 @@ class TableList extends React.Component {
                 <p className="hasMore">?</p>
                 {Array.isArray(workloadSettings) && workloadSettings.length ? (
                   workloadSettings.map((item) => {
+                    if (item.name === 'name') {
+                      return <Fragment key={item.name} />;
+                    }
                     return (
                       <Form.Item
                         name={item.name}

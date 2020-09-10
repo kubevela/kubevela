@@ -38,21 +38,21 @@ func NewTestIOStreams() (IOStreams, *bytes.Buffer, *bytes.Buffer, *bytes.Buffer)
 
 //Infonln compared to Info(), won't print new line
 func (i *IOStreams) Infonln(a ...interface{}) {
-	i.Out.Write([]byte(fmt.Sprint(a...)))
+	_, _ = i.Out.Write([]byte(fmt.Sprint(a...)))
 }
 
 func (i *IOStreams) Info(a ...interface{}) {
-	i.Out.Write([]byte(fmt.Sprintln(a...)))
+	_, _ = i.Out.Write([]byte(fmt.Sprintln(a...)))
 }
 
 func (i *IOStreams) Infof(format string, a ...interface{}) {
-	i.Out.Write([]byte(fmt.Sprintf(format, a...)))
+	_, _ = i.Out.Write([]byte(fmt.Sprintf(format, a...)))
 }
 
 func (i *IOStreams) Errorf(format string, a ...interface{}) {
-	i.ErrOut.Write([]byte(fmt.Sprintf(format, a...)))
+	_, _ = i.ErrOut.Write([]byte(fmt.Sprintf(format, a...)))
 }
 
 func (i *IOStreams) Error(a ...interface{}) {
-	i.ErrOut.Write([]byte(fmt.Sprintln(a...)))
+	_, _ = i.ErrOut.Write([]byte(fmt.Sprintln(a...)))
 }

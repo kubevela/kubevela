@@ -42,7 +42,9 @@ import (
 
 const (
 	errApplyServiceMonitor = "failed to apply the service monitor"
+	errLocatingWorkload    = "failed to locate the workload"
 	errLocatingService     = "failed to locate any the services"
+	errCreatingService     = "failed to create the services"
 	servicePort            = 4848
 )
 
@@ -60,13 +62,13 @@ var (
 		"k8s-app":    "oam",
 		"controller": "metricsTrait",
 	}
-	// serviceMonitorNSName is the name of the namespace in which the serviceMonitor resides
+	// ServiceMonitorNSName is the name of the namespace in which the serviceMonitor resides
 	// it must be the same that the prometheus operator is listening to
-	serviceMonitorNSName = "oam-monitoring"
+	ServiceMonitorNSName = "monitoring"
 )
 
-// MetricsTraitReconciler reconciles a MetricsTrait object
-type MetricsTraitReconciler struct {
+// Reconciler reconciles a MetricsTrait object
+type Reconciler struct {
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
@@ -81,7 +83,7 @@ type MetricsTraitReconciler struct {
 // +kubebuilder:rbac:groups=core.oam.dev,resources=*/status,verbs=get;
 // +kubebuilder:rbac:groups="",resources=events,verbs=get;list;create;update;patch
 
-func (r *MetricsTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	mLog := r.Log.WithValues("metricstrait", req.NamespacedName)
 	mLog.Info("Reconcile metricstrait trait")
@@ -113,10 +115,10 @@ func (r *MetricsTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 	if err != nil {
 		mLog.Error(err, "Error while fetching the workload", "workload reference",
 			metricsTrait.GetWorkloadReference())
-		r.record.Event(eventObj, event.Warning(errLocatingService, err))
+		r.record.Event(eventObj, event.Warning(errLocatingWorkload, err))
 		return oamutil.ReconcileWaitResult,
 			oamutil.PatchCondition(ctx, r, &metricsTrait,
-				cpv1alpha1.ReconcileError(errors.Wrap(err, errLocatingService)))
+				cpv1alpha1.ReconcileError(errors.Wrap(err, errLocatingWorkload)))
 	}
 	// try to see if the workload already has services as child resources
 	serviceLabel, err := r.fetchServicesLabel(ctx, mLog, workload, metricsTrait.Spec.ScrapeService.TargetPort)
@@ -130,10 +132,10 @@ func (r *MetricsTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 		// no service with the targetPort found, we will create a service that talks to the targetPort
 		serviceLabel, err = r.createService(ctx, mLog, workload, &metricsTrait)
 		if err != nil {
-			r.record.Event(eventObj, event.Warning(errLocatingService, err))
+			r.record.Event(eventObj, event.Warning(errCreatingService, err))
 			return oamutil.ReconcileWaitResult,
 				oamutil.PatchCondition(ctx, r, &metricsTrait,
-					cpv1alpha1.ReconcileError(errors.Wrap(err, errLocatingService)))
+					cpv1alpha1.ReconcileError(errors.Wrap(err, errCreatingService)))
 		}
 	}
 	// construct the serviceMonitor that hooks the service to the prometheus server
@@ -156,7 +158,7 @@ func (r *MetricsTraitReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 }
 
 // fetch the label of the service that is associated with the workload
-func (r *MetricsTraitReconciler) fetchServicesLabel(ctx context.Context, mLog logr.Logger,
+func (r *Reconciler) fetchServicesLabel(ctx context.Context, mLog logr.Logger,
 	workload *unstructured.Unstructured, targetPort intstr.IntOrString) (map[string]string, error) {
 	// Fetch the child resources list from the corresponding workload
 	resources, err := oamutil.FetchWorkloadChildResources(ctx, mLog, r, workload)
@@ -183,7 +185,7 @@ func (r *MetricsTraitReconciler) fetchServicesLabel(ctx context.Context, mLog lo
 }
 
 // create a service that targets the exposed workload pod
-func (r *MetricsTraitReconciler) createService(ctx context.Context, mLog logr.Logger, workload *unstructured.Unstructured,
+func (r *Reconciler) createService(ctx context.Context, mLog logr.Logger, workload *unstructured.Unstructured,
 	metricsTrait *v1alpha1.MetricsTrait) (map[string]string, error) {
 	oamService := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
@@ -224,7 +226,7 @@ func (r *MetricsTraitReconciler) createService(ctx context.Context, mLog logr.Lo
 }
 
 // remove all service monitors that are no longer used
-func (r *MetricsTraitReconciler) gcOrphanServiceMonitor(ctx context.Context, mLog logr.Logger,
+func (r *Reconciler) gcOrphanServiceMonitor(ctx context.Context, mLog logr.Logger,
 	metricsTrait *v1alpha1.MetricsTrait) {
 	var gcCandidates []string
 	copy(metricsTrait.Status.ServiceMonitorNames, gcCandidates)
@@ -265,7 +267,7 @@ func constructServiceMonitor(metricsTrait *v1alpha1.MetricsTrait,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      metricsTrait.Name,
-			Namespace: serviceMonitorNSName,
+			Namespace: ServiceMonitorNSName,
 			Labels:    oamServiceLabel,
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -297,7 +299,7 @@ func constructServiceMonitor(metricsTrait *v1alpha1.MetricsTrait,
 	}
 }
 
-func (r *MetricsTraitReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("MetricsTrait")).
 		WithAnnotations("controller", "metricsTrait")
 	return ctrl.NewControllerManagedBy(mgr).
@@ -308,7 +310,7 @@ func (r *MetricsTraitReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Setup adds a controller that reconciles MetricsTrait.
 func Setup(mgr ctrl.Manager) error {
-	reconciler := MetricsTraitReconciler{
+	reconciler := Reconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("MetricsTrait"),
 		Scheme: mgr.GetScheme(),

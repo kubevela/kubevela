@@ -321,7 +321,7 @@ func EvalToObject(capName string, data map[string]interface{}) (*unstructured.Un
 	}
 	u := &unstructured.Unstructured{Object: obj}
 	if cap.CrdInfo != nil {
-		u.SetAPIVersion(cap.CrdInfo.ApiVersion)
+		u.SetAPIVersion(cap.CrdInfo.APIVersion)
 		u.SetKind(cap.CrdInfo.Kind)
 	}
 	return u, nil

@@ -24,6 +24,24 @@ webhooks:
     - UPDATE
     resources:
     - metricstraits
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: webhook-service
+      namespace: system
+      path: /mutate-standard-oam-dev-v1alpha1-containerized
+  failurePolicy: Fail
+  name: mcontainerized.kb.io
+  rules:
+  - apiGroups:
+    - standard.oam.dev
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - Containerized
 
 ---
 apiVersion: admissionregistration.k8s.io/v1beta1
@@ -51,3 +69,22 @@ webhooks:
     - DELETE
     resources:
     - metricstraits
+- clientConfig:
+    caBundle: Cg==
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-standard-oam-dev-v1alpha1-containerized
+  failurePolicy: Fail
+  name: vcontainerized.kb.io
+  rules:
+  - apiGroups:
+    - standard.oam.dev
+    apiVersions:
+    - v1alpha1
+    operations:
+    - CREATE
+    - UPDATE
+    - DELETE
+    resources:
+    - Containerized

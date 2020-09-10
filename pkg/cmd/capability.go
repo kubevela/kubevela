@@ -47,29 +47,30 @@ func NewCenterCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 		NewCapCenterConfigCommand(ioStream),
 		NewCapCenterSyncCommand(ioStream),
 		NewCapCenterListCommand(ioStream),
+		NewCapCenterRemoveCommand(ioStream),
 	)
 	return cmd
 }
 
 func NewCapCenterConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "config <centerName> <centerUrl>",
+		Use:     "config <centerName> <centerURL>",
 		Short:   "Configure or add the capability center, default is local (built-in capabilities)",
 		Long:    "Configure or add the capability center, default is local (built-in capabilities)",
 		Example: `vela cap center config mycenter https://github.com/oam-dev/catalog/cap-center`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength < 2 {
-				return errors.New("please set capability center with <centerName> and <centerUrl>")
+				return errors.New("please set capability center with <centerName> and <centerURL>")
 			}
 			capName := args[0]
-			capUrl := args[1]
+			capURL := args[1]
 			token := cmd.Flag("token").Value.String()
-			if err := oam.AddCapabilityCenter(capName, capUrl, token); err != nil {
+			if err := oam.AddCapabilityCenter(capName, capURL, token); err != nil {
 				return err
 			}
 			ioStreams.Infof("Successfully configured capability center: %s, start to sync from remote", capName)
-			if err := oam.SyncCapabilityFromCenter(capName, capUrl, token); err != nil {
+			if err := oam.SyncCapabilityFromCenter(capName, capURL, token); err != nil {
 				return err
 			}
 			ioStreams.Info("sync finished")
@@ -215,6 +216,22 @@ func NewCapCenterListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
+func NewCapCenterRemoveCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "remove <centerName>",
+		Short:   "Remove specified capability center",
+		Long:    "Remove specified capability center",
+		Example: "vela cap center remove mycenter",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return RemoveCapCenter(args, ioStreams)
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeOthers,
+		},
+	}
+	return cmd
+}
+
 func ListCapCenters(args []string, ioStreams cmdutil.IOStreams) error {
 	table := uitable.New()
 	table.AddRow("NAME", "ADDRESS")
@@ -223,8 +240,20 @@ func ListCapCenters(args []string, ioStreams cmdutil.IOStreams) error {
 		return err
 	}
 	for _, c := range capabilityCenterList {
-		table.AddRow(c.Name, c.Url)
+		table.AddRow(c.Name, c.URL)
 	}
 	ioStreams.Info(table.String())
 	return nil
+}
+
+func RemoveCapCenter(args []string, ioStreams cmdutil.IOStreams) error {
+	if len(args) < 1 {
+		return errors.New("you must specify <name> for capability center you want to remove")
+	}
+	centerName := args[0]
+	msg, err := oam.RemoveCapabilityCenter(centerName)
+	if err == nil {
+		ioStreams.Info(msg)
+	}
+	return err
 }

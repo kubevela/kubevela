@@ -33,7 +33,7 @@ type Source struct {
 }
 
 type CrdInfo struct {
-	ApiVersion string `json:"apiVersion"`
+	APIVersion string `json:"apiVersion"`
 	Kind       string `json:"kind"`
 }
 
@@ -59,7 +59,7 @@ type Capability struct {
 
 type Chart struct {
 	Repo    string `json:"repo"`
-	URl     string `json:"url"`
+	URL     string `json:"url"`
 	Name    string `json:"name"`
 	Version string `json:"version"`
 }
@@ -85,8 +85,8 @@ type Parameter struct {
 	Type     cue.Kind    `json:"type,omitempty"`
 }
 
-// ConvertTemplateJson2Object convert spec.extension to object
-func ConvertTemplateJson2Object(in *runtime.RawExtension) (Capability, error) {
+// ConvertTemplateJSON2Object convert spec.extension to object
+func ConvertTemplateJSON2Object(in *runtime.RawExtension) (Capability, error) {
 	var t Capability
 	var extension Capability
 	if in == nil {

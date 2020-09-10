@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"github.com/cloud-native-application/rudrx/api/types"
-
 	"github.com/cloud-native-application/rudrx/pkg/plugins"
 
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"

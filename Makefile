@@ -13,11 +13,11 @@ endif
 all: build
 
 # Run tests
-test: fmt vet
+test: fmt vet lint
 	go test ./pkg/... -coverprofile cover.out
 
 # Build manager binary
-build: fmt vet
+build: fmt vet lint
 	go build -ldflags "-X github.com/cloud-native-application/rudrx/version.VelaVersion=${VELA_VERSION} -X github.com/cloud-native-application/rudrx/version.GitRevision=${GIT_COMMIT}" -o bin/vela cmd/vela/main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
@@ -31,6 +31,9 @@ fmt:
 # Run go vet against code
 vet:
 	go vet ./...
+
+lint: golangci
+	$(GOLANGCILINT) run -E golint,goimports  ./...
 
 # Build the docker image
 docker-build: test
@@ -60,7 +63,7 @@ e2e-cleanup:
 # Image URL to use all building/pushing image targets
 IMG ?= vela-core:latest
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
-CRD_OPTIONS ?= "crd:trivialVersions=false"
+CRD_OPTIONS ?= "crd:crdVersions=v1"
 
 # Run tests
 core-test: generate fmt vet manifests
@@ -89,7 +92,7 @@ core-deploy: manifests
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=charts/vela/crds
 
 # Generate code
 generate: controller-gen
@@ -110,4 +113,24 @@ ifeq (, $(shell which controller-gen))
 CONTROLLER_GEN=$(GOBIN)/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)
+endif
+
+GOLANGCILINT_VERSION ?= v1.29.0
+HOSTOS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+HOSTARCH := $(shell uname -m)
+ifeq ($(HOSTARCH),x86_64)
+HOSTARCH := amd64
+endif
+
+golangci:
+ifeq (, $(shell which golangci-lint))
+	@{ \
+	set -e ;\
+	echo 'installing golangci-lint-$(GOLANGCILINT_VERSION)' ;\
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOBIN) $(GOLANGCILINT_VERSION) ;\
+	echo 'Install succeed' ;\
+	}
+GOLANGCILINT=$(GOBIN)/golangci-lint
+else
+GOLANGCILINT=$(shell which golangci-lint)
 endif

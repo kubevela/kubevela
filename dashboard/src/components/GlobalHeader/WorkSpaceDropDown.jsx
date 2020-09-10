@@ -10,7 +10,6 @@ export default class WorkSpaceDropDown extends React.Component {
     super(props);
     this.state = {
       workSpaceName: '',
-      envs: [],
       namespace: '',
     };
   }

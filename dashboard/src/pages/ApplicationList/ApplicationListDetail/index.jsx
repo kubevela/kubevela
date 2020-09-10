@@ -110,7 +110,7 @@ class TableList extends React.Component {
     e.stopPropagation();
     const { appName, envName } = this.state;
     const traitNameObj = _.get(item, 'trait.metadata.annotations', '');
-    const traitName = traitNameObj['vela.oam.dev/traitDef'];
+    const traitName = traitNameObj['vela.oam.dev/traitDef'] || traitNameObj['trait.oam.dev/name'];
     if (traitName && appName && envName) {
       const res = await this.props.dispatch({
         type: 'trait/deleteOneTrait',
@@ -185,15 +185,28 @@ class TableList extends React.Component {
     e.stopPropagation();
   };
 
-  gotoWorkloadDetail = (e, kind) => {
+  gotoWorkloadDetail = (e) => {
     e.stopPropagation();
-    this.props.history.push({ pathname: '/Workload/Detail', state: { kind } });
+    const appName = _.get(this.props, 'location.state.appName', '');
+    const envName = _.get(this.props, 'location.state.envName', '');
+    if (appName && envName) {
+      this.props.history.push({
+        pathname: '/ApplicationList/WorkloadDetail',
+        state: { appName, envName },
+      });
+    }
   };
 
-  gotoTraitDetail = (e, annotations) => {
+  gotoTraitDetail = (e, traitItem) => {
     e.stopPropagation();
-    const traitName = annotations['vela.oam.dev/traitDef'];
-    this.props.history.push({ pathname: '/Traits/Detail', state: { traitName } });
+    const appName = _.get(this.props, 'location.state.appName', '');
+    const envName = _.get(this.props, 'location.state.envName', '');
+    if (appName && envName) {
+      this.props.history.push({
+        pathname: '/ApplicationList/TraitDetail',
+        state: { traitItem, appName, envName },
+      });
+    }
   };
 
   render() {
@@ -201,11 +214,12 @@ class TableList extends React.Component {
     const Workload = _.get(this.state.appDetailData, 'Workload.workload', {});
     const Traits = _.get(this.state.appDetailData, 'Traits', []);
     let containers = {};
-    if (Workload.kind === 'ContainerizedWorkload') {
-      containers = _.get(Workload, 'spec.containers[0]', {});
-    } else if (Workload.kind === 'Deployment') {
-      containers = _.get(Workload, 'spec.template.spec.containers[0]', {});
-    }
+    // if (Workload.kind === 'ContainerizedWorkload') {
+    //   containers = _.get(Workload, 'spec.containers[0]', {});
+    // } else if (Workload.kind === 'Deployment') {
+    //   containers = _.get(Workload, 'spec.template.spec.containers[0]', {});
+    // }
+    containers = _.get(Workload, 'spec.containers[0]', {});
     let { loadingAll } = this.props;
     loadingAll = loadingAll || false;
     return (
@@ -220,10 +234,7 @@ class TableList extends React.Component {
               <TabPane tab="Summary" key="1">
                 <Row>
                   <Col span="11">
-                    <div
-                      className="summaryBox1"
-                      onClick={(e) => this.gotoWorkloadDetail(e, Workload.kind)}
-                    >
+                    <div className="summaryBox1" onClick={(e) => this.gotoWorkloadDetail(e)}>
                       {/* <div className="summaryBox1"> */}
                       <Row>
                         <Col span="22">
@@ -241,7 +252,6 @@ class TableList extends React.Component {
                         Name:<span>{_.get(Workload, 'metadata.name')}</span>
                       </p>
                       <p className="title">Settings:</p>
-                      <p>#可编辑</p>
                       <Row>
                         {Object.keys(containers).map((currentKey) => {
                           if (currentKey === 'ports') {
@@ -255,6 +265,9 @@ class TableList extends React.Component {
                                 </Col>
                               </Fragment>
                             );
+                            // eslint-disable-next-line no-else-return
+                          } else if (currentKey === 'name') {
+                            return <Fragment key={currentKey} />;
                           }
                           return (
                             <Fragment key={currentKey}>
@@ -307,7 +320,7 @@ class TableList extends React.Component {
                         return (
                           <div
                             className="summaryBox"
-                            onClick={(e) => this.gotoTraitDetail(e, annotations)}
+                            onClick={(e) => this.gotoTraitDetail(e, traitItem)}
                             key={index.toString()}
                           >
                             <Row>
@@ -341,7 +354,6 @@ class TableList extends React.Component {
                               })}
                             </Row>
                             <p className="title">Properties:</p>
-                            <p>#可编辑</p>
                             <Row>
                               {traitType === 2 ? (
                                 <Fragment>

@@ -28,7 +28,7 @@ import (
 
 func init() {
 	klog.InitFlags(flag.CommandLine)
-	flag.Set("logtostderr", "true")
+	_ = flag.Set("logtostderr", "true")
 }
 
 // KlogWriter serves as a bridge between the standard log package and the glog package.

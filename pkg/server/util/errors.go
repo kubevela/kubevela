@@ -16,13 +16,10 @@ type Code int
 // Be careful, below constants must be added to the errorDetails map.
 // All code should be defined between StartMarker and EndMarker
 const (
-	startMarker Code = iota
-	PathNotSupported
+	PathNotSupported Code = iota
 	InvalidArgument
 	UnsupportedMediaType
 	StatusInternalServerError
-	// End marker
-	endMarker
 )
 
 type errorDetail struct {
@@ -61,7 +58,7 @@ func ConstructError(ec Code, a ...interface{}) error {
 		a != nil && (c != len(a) || a[0] == nil) {
 		ctrl.Log.Error(fmt.Errorf("Args '%v' do not match placeholders in the msg '%s'", a, ec.Message()),
 			"Invalid error message argument")
-	} else if a == nil || len(a) == 0 || a[0] == nil {
+	} else if len(a) == 0 || a[0] == nil {
 		msg = ec.Message()
 	} else {
 		msg = fmt.Sprintf(ec.Message(), a...)

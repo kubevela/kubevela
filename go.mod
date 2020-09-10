@@ -7,19 +7,21 @@ require (
 	github.com/Azure/go-autorest v12.2.0+incompatible // Don't remove. https://github.com/kubernetes/client-go/issues/628
 	github.com/coreos/prometheus-operator v0.41.1
 	github.com/crossplane/crossplane-runtime v0.9.0
-	github.com/crossplane/oam-kubernetes-runtime v0.0.9
+	github.com/crossplane/oam-kubernetes-runtime v0.1.1-0.20200909070723-78b84f2c4799
+	github.com/fatih/color v1.9.0
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/ghodss/yaml v1.0.0
+	github.com/gin-contrib/static v0.0.0-20200815103939-31fb0c56a3d1
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-logr/logr v0.1.0
 	github.com/google/go-cmp v0.5.2
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
-	github.com/oam-dev/catalog/traits/metricstrait v0.0.0-20200826071236-d96c1d64e221
 	github.com/oam-dev/trait-injector v0.0.0-20200331033130-0a27b176ffc4
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.8.1
 	github.com/pkg/errors v0.9.1
+	github.com/rs/xid v1.2.1 // indirect
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5

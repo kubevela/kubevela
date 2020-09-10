@@ -212,7 +212,14 @@ sample response
 }
 ```
 ### DELETE /api/envs/:envName/apps/:appName (app delete)
-
+- example
+sample response
+```json
+{
+    "code": 200,
+    "data": "delete apps succeed <appName> from <envName>"
+}
+```
 
 ## Workloads
 ### POST /api/workloads/ (workload create)
@@ -493,6 +500,15 @@ sample response
 sample request
 ```json
 {"Name":"c1","Address":"https://github.com/wonderflow/catalog/tree/repos/repos"}
+```
+### DELETE /capability-centers/:capabilityCenterName/ (Capability Center delete)
+- example
+sample response
+```json
+{
+"code": 200,
+"data": "mycenter capability center removed successfully"
+}
 ```
 
 ### PUT /capability-centers/:capabilityCenterName/capabilities/  (Capability Center sync)

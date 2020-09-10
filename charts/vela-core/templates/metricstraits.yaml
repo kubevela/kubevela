@@ -1,0 +1,41 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: metricstraits.standard.oam.dev
+spec:
+  appliesToWorkloads:
+    - containerizedworkloads.core.oam.dev
+    - clonesetworkloads.apps.kruise.io
+    - deployments.apps
+    - statefulsets.apps
+  definitionRef:
+    name: metricstraits.standard.oam.dev
+  workloadRefPath: spec.workloadRef
+  extension:
+    template: |
+      #Template: {
+      	apiVersion: "standard.oam.dev/v1alpha1"
+      	kind:       "MetricsTrait"
+      	metadata:
+          name: metricstraits.name
+      	spec: {
+      		containers: [{
+              image: containerized.image
+              name:  containerized.name
+              ports: [{
+                  containerPort: containerized.port
+                  protocol:      "TCP"
+                  name:          "default"
+              }]
+      		}]
+      	}
+      }
+      containerized: {
+      	name: string
+      	// +usage=specify app image
+      	// +short=i
+      	image: string
+      	// +usage=specify port for container
+      	// +short=p
+      	port: *6379 | int
+      }

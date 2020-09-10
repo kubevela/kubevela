@@ -49,9 +49,9 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Cli
 			fmt.Printf("[WARN]handle template %s: %v\n", wd.Name, err)
 			continue
 		}
-		if apiVerion, kind := cmdutil.GetApiVersionKindFromWorkload(wd); apiVerion != "" && kind != "" {
+		if apiVerion, kind := cmdutil.GetAPIVersionKindFromWorkload(wd); apiVerion != "" && kind != "" {
 			tmp.CrdInfo = &types.CrdInfo{
-				ApiVersion: apiVerion,
+				APIVersion: apiVerion,
 				Kind:       kind,
 			}
 		}
@@ -74,9 +74,9 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 			fmt.Printf("[WARN]handle template %s: %v\n", td.Name, err)
 			continue
 		}
-		if apiVerion, kind := cmdutil.GetApiVersionKindFromTrait(td); apiVerion != "" && kind != "" {
+		if apiVerion, kind := cmdutil.GetAPIVersionKindFromTrait(td); apiVerion != "" && kind != "" {
 			tmp.CrdInfo = &types.CrdInfo{
-				ApiVersion: apiVerion,
+				APIVersion: apiVerion,
 				Kind:       kind,
 			}
 		}
@@ -100,14 +100,14 @@ func HandleDefinition(name, syncDir, crdName string, extention *runtime.RawExten
 }
 
 func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Capability, error) {
-	tmp, err := types.ConvertTemplateJson2Object(in)
+	tmp, err := types.ConvertTemplateJSON2Object(in)
 	if err != nil {
 		return types.Capability{}, err
 	}
 	if tmp.CueTemplate == "" {
 		return types.Capability{}, errors.New("template not exist in definition")
 	}
-	system.CreateIfNotExist(syncDir)
+	_, _ = system.CreateIfNotExist(syncDir)
 	filePath := filepath.Join(syncDir, name+".cue")
 	err = ioutil.WriteFile(filePath, []byte(tmp.CueTemplate), 0644)
 	if err != nil {

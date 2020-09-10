@@ -5,7 +5,7 @@ const (
 	DefaultOAMReleaseName      = "core-runtime"
 	DefaultOAMRuntimeChartName = "oam-kubernetes-runtime"
 	DefaultOAMRepoName         = "crossplane-master"
-	DefaultOAMRepoUrl          = "https://charts.crossplane.io/master"
+	DefaultOAMRepoURL          = "https://charts.crossplane.io/master"
 	DefaultOAMVersion          = ">0.0.0-0"
 
 	DefaultEnvName      = "default"
@@ -13,7 +13,7 @@ const (
 )
 
 const (
-	AnnApiVersion = "definition.oam.dev/apiVersion"
+	AnnAPIVersion = "definition.oam.dev/apiVersion"
 	AnnKind       = "definition.oam.dev/kind"
 
 	// Indicate which workloadDefinition generate from
