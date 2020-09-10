@@ -102,15 +102,16 @@ func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOSt
 	tbl.AddRow(
 		white.Sprint("NAMESPCAE"),
 		white.Sprint("NAME"),
-		white.Sprint("HEALTH"),
 		white.Sprint("INFO"))
 
-	tbl.AddRow(namespace, fmt.Sprintf("%s/%s",
-		"Application",
-		color.New(color.Bold, color.FgGreen).Sprint(appName)))
+	tbl.AddRow(
+		namespace,
+		fmt.Sprintf("%s/%s",
+			"Application",
+			appName))
 
 	components := app.GetComponents()
-	// get workloads health condition
+	// get a map coantaining all workloads health condition
 	wlConditionsMap, err := getWorkloadHealthConditions(ctx, c, app, namespace)
 	if err != nil {
 		return err
@@ -125,61 +126,17 @@ func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOSt
 			cPrefix = firstElemPrefix
 		}
 
+		wlHealthCondition := wlConditionsMap[compName]
+		wlHealthStatus := wlHealthCondition.HealthStatus
+		healthColor := getHealthStatusColor(wlHealthStatus)
+
 		// print component info
-		tbl.AddRow(namespace,
+		tbl.AddRow("",
 			fmt.Sprintf("%s%s/%s",
 				gray.Sprint(printPrefix(cPrefix)),
 				"Component",
-				color.New(color.Bold, color.FgBlue).Sprint(compName)))
-		traits, err := app.GetTraits(compName)
-		if err != nil {
-			return err
-		}
-		traitsNames := make([]string, 0, len(traits))
-
-		// print component's workload info
-		var wPrefix string
-		if len(traits) > 0 {
-			wPrefix = firstElemPrefix
-		} else {
-			wPrefix = lastElemPrefix
-		}
-		workloadType, _ := app.GetWorkload(compName)
-		wlHealthStatus := wlConditionsMap[compName].HealthStatus
-
-		healthColor := getHealthStatusColor(wlHealthStatus)
-
-		tbl.AddRow(namespace,
-			fmt.Sprintf("%s%s%s/%s",
-				indent,
-				gray.Sprint(printPrefix(wPrefix)),
-				"Workload",
-				color.New(color.Bold).Sprint(workloadType)),
-			healthColor.Sprint(wlHealthStatus),
-			wlConditionsMap[compName].Diagnosis)
-
-		// print component's traits info
-		traitsInfo := getTraitsInfo(traits)
-		for k := range traits {
-			traitsNames = append(traitsNames, k)
-		}
-		for tIndex, tName := range traitsNames {
-			var tPrefix string
-			switch tIndex {
-			case len(traitsNames) - 1:
-				tPrefix = lastElemPrefix
-			default:
-				tPrefix = firstElemPrefix
-			}
-			tbl.AddRow(namespace,
-				fmt.Sprintf("%s%s%s/%s",
-					indent,
-					gray.Sprint(printPrefix(tPrefix)),
-					"Trait",
-					color.New(color.Bold).Sprint(tName)),
-				"",
-				traitsInfo[tName])
-		}
+				compName),
+			healthColor.Sprintf("%s %s", wlHealthStatus, wlHealthCondition.Diagnosis))
 	}
 	ioStreams.Info(tbl)
 	return nil
@@ -266,32 +223,62 @@ func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmduti
 		return err
 	}
 
+	ioStreams.Infof(white.Sprint("Component Status:\n"))
 	var wlhc *v1alpha2.WorkloadHealthCondition
 	for _, v := range health.Status.WorkloadHealthConditions {
 		if v.ComponentName == compName {
 			wlhc = v
 		}
 	}
-	ioStreams.Info(white.Sprint("Component Status:\n"))
+	var (
+		healthColor  *color.Color
+		healthStatus HealthStatus
+		healthInfo   string
+		workloadType string
+	)
 	if wlhc == nil {
-		ioStreams.Infof("\tHealth Status: Cannot get health status from HealthScope:%s \n\n", health.Name)
+		workloadType = ""
+		healthStatus = StatusNotFound
+		healthInfo = fmt.Sprintf("%s %s", healthStatus, "Cannot get health status")
 	} else {
-		ioStreams.Infof("\tWorkload: %s/%s \n", wlhc.TargetWorkload.Kind, wlhc.TargetWorkload.Name)
-
-		healthColor := getHealthStatusColor(wlhc.HealthStatus)
-		ioStreams.Infof("\tHealth Status: %s \n", healthColor.Sprint(wlhc.HealthStatus))
-		ioStreams.Infof("\tDiagnosis Info: %s \n", wlhc.Diagnosis)
-		if wlhc.HealthStatus == StatusUnknown {
-			ioStreams.Infof("\tWorkload Status: %s \n", wlhc.WorkloadStatus)
-		}
+		workloadType = wlhc.TargetWorkload.Kind
+		healthStatus = wlhc.HealthStatus
+		healthInfo = fmt.Sprintf("%s %s", healthStatus, wlhc.Diagnosis)
 	}
+	healthColor = getHealthStatusColor(healthStatus)
+
+	ioStreams.Infof("\tName: %s  %s(type) %s \n", compName, workloadType, healthColor.Sprint(healthInfo))
+
 	traits, err := app.GetTraits(compName)
 	if err != nil {
 		return err
 	}
-	traitsInfo := getTraitsInfo(traits)
-	for tName, tInfo := range traitsInfo {
-		ioStreams.Infof("\tTrait/%s : %s \n", tName, tInfo)
+	if len(traits) > 0 {
+		// print tree structure of Traits
+		tbl := uitable.New()
+		tbl.Separator = "  "
+		traitNames := []string{}
+		for k := range traits {
+			traitNames = append(traitNames, k)
+		}
+		for tIndex, tName := range traitNames {
+			var tPrefix string
+			switch tIndex {
+			case len(traitNames) - 1:
+				tPrefix = lastElemPrefix
+			default:
+				tPrefix = firstElemPrefix
+			}
+			tbl.AddRow(
+				"\t",
+				fmt.Sprintf("%s%s%s/%s",
+					indent,
+					gray.Sprint(printPrefix(tPrefix)),
+					"Trait",
+					tName))
+		}
+		ioStreams.Info("\tTraits")
+		ioStreams.Info(tbl)
 	}
 
 	var appConfig v1alpha2.ApplicationConfiguration
@@ -334,20 +321,4 @@ func getHealthStatusColor(s HealthStatus) *color.Color {
 		c = red
 	}
 	return c
-}
-
-// map traitName <=> traitInfo
-func getTraitsInfo(traits map[string]map[string]interface{}) map[string]string {
-	r := map[string]string{}
-	for tName, tInfo := range traits {
-		var tmp []string
-		for field, value := range tInfo {
-			if field == "name" {
-				continue
-			}
-			tmp = append(tmp, fmt.Sprintf("%s=%v", field, value))
-		}
-		r[tName] = strings.Join(tmp, "; ")
-	}
-	return r
 }
