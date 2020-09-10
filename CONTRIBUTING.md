@@ -1,4 +1,4 @@
-# Development
+# CONTRIBUTING
 
 This doc explains how to set up a development environment, so you can get started
 contributing to `RudrX` or build a PoC (Proof of Concept). 
