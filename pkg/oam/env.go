@@ -3,6 +3,7 @@ package oam
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -34,11 +35,18 @@ func GetEnvByName(name string) (*types.EnvMeta, error) {
 	return &meta, nil
 }
 
+//Create or update env.
+//If it does not exist, create it and switch to the new env.
+//If it exists, update it and switch to the new env.
 func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, namespace string) (string, error) {
 	var message = ""
-	var envArgs types.EnvMeta
-	envArgs.Name = envName
-	envArgs.Namespace = namespace
+	var envArgs = types.EnvMeta{
+		Name:      envName,
+		Namespace: namespace,
+	}
+	if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envArgs.Namespace}}); err != nil && !apierrors.IsAlreadyExists(err) {
+		return message, err
+	}
 	data, err := json.Marshal(envArgs)
 	if err != nil {
 		return message, err
@@ -58,15 +66,72 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, nam
 	if err != nil {
 		return message, err
 	}
-	if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envArgs.Namespace}}); err != nil && !apierrors.IsAlreadyExists(err) {
-		return message, err
-	}
-
 	if err = ioutil.WriteFile(curEnvPath, []byte(envName), 0644); err != nil {
 		return message, err
 	}
 	message = fmt.Sprintf("Create env succeed, current env is " + envName + " namespace is " + envArgs.Namespace + ", use --namespace=<namespace> to specify namespace with env init")
 	return message, nil
+}
+
+//Create env. If env already exists, return error
+func CreateEnv(ctx context.Context, c client.Client, envName string, namespace string) (string, error) {
+	var message = ""
+	var envArgs = types.EnvMeta{
+		Name:      envName,
+		Namespace: namespace,
+	}
+	data, err := json.Marshal(envArgs)
+	if err != nil {
+		return message, err
+	}
+	_, err = GetEnvByName(envName)
+	if err == nil {
+		message = fmt.Sprintf("Env %s already exist", envName)
+		return message, errors.New(message)
+	}
+	if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envArgs.Namespace}}); err != nil && !apierrors.IsAlreadyExists(err) {
+		return message, err
+	}
+	envdir, err := system.GetEnvDir()
+	if err != nil {
+		return message, err
+	}
+	subEnvDir := filepath.Join(envdir, envName)
+	if _, err := system.CreateIfNotExist(subEnvDir); err != nil {
+		return "", nil
+	}
+	if err = ioutil.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
+		return message, err
+	}
+	message = "Create env succeed"
+	return message, err
+}
+
+//Update Env, if env does not exist, return error
+func UpdateEnv(ctx context.Context, c client.Client, envName string, namespace string) (string, error) {
+	var message = ""
+	envMeta, err := GetEnvByName(envName)
+	if err != nil {
+		return err.Error(), err
+	}
+	if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envMeta.Namespace}}); err != nil && !apierrors.IsAlreadyExists(err) {
+		return message, err
+	}
+	envMeta.Namespace = namespace
+	data, err := json.Marshal(envMeta)
+	if err != nil {
+		return message, err
+	}
+	envdir, err := system.GetEnvDir()
+	if err != nil {
+		return message, err
+	}
+	subEnvDir := filepath.Join(envdir, envName)
+	if err = ioutil.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
+		return message, err
+	}
+	message = "Update env succeed"
+	return message, err
 }
 
 func ListEnvs(envName string) ([]*types.EnvMeta, error) {

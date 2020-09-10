@@ -51,6 +51,7 @@ func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
 	envs := api.Group(util.EnvironmentPath)
 	{
 		envs.POST("/", handler.CreateEnv)
+		envs.PUT("/:envName", handler.UpdateEnv)
 		envs.GET("/:envName", handler.GetEnv)
 		envs.GET("/", handler.ListEnv)
 		envs.DELETE("/:envName", handler.DeleteEnv)

@@ -46,3 +46,18 @@ export async function switchEnv({ currentEnv }) {
     method: 'Patch',
   });
 }
+
+/*
+ * 修改 env：Put /api/envs/:envName
+ */
+export async function updateEnv({ envName, namespace }) {
+  return request(`/api/envs/${envName}`, {
+    method: 'put',
+    data: {
+      namespace,
+    },
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+}
