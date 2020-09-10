@@ -1,17 +1,16 @@
 name: Release
 
 on:
-  release:
-    types: [published]
-    branches:
-      - master
+  push:
+    tags:
+      - "v*"
 
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
     env:
-      VELA_VERSION: ${{ github.event.release.tag_name }}
+      VELA_VERSION: ${{ github.ref }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Set up Go 1.13
@@ -44,19 +43,19 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./bin/vela-linux-amd64
-          asset_name: vela-${{ github.event.release.tag_name }}-linux-amd64
+          asset_name: vela-${{ github.ref }}-linux-amd64
           asset_content_type: binary/octet-stream
       - name: Upload MacOS
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./bin/vela-darwin-amd64
-          asset_name: vela-${{ github.event.release.tag_name }}-darwin-amd64
+          asset_name: vela-${{ github.ref }}-darwin-amd64
           asset_content_type: binary/octet-stream
       - name: Upload Windows
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./bin/vela-windows-amd64.exe
-          asset_name: vela-${{ github.event.release.tag_name }}-windows-amd64.exe
+          asset_name: vela-${{ github.ref }}-windows-amd64.exe
           asset_content_type: binary/octet-stream
