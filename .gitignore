@@ -36,6 +36,8 @@ tmp/
 
 # Dashboard
 dashboard/node_modules/
+.eslintcache
+dashboard/dist/
 dashboard/package-lock.json
 dashboard/src/.umi/
 package-lock.json
