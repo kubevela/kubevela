@@ -5,7 +5,7 @@ import proxy from './proxy';
 
 const { REACT_APP_ENV } = process.env;
 export default defineConfig({
-  publicPath: 'https://simplemvc-cdn.oss-cn-shanghai.aliyuncs.com/oam/dist/',
+  publicPath: '/',
   history: { type: 'hash' },
   hash: false,
   antd: {},
