@@ -58,6 +58,6 @@ func NewNamespace(c client.Client, namespace string) error {
 	return nil
 }
 
-func IsCoreCRDExist(c client.Client, cxt context.Context, object runtime.Object) error {
+func IsCoreCRDExist(cxt context.Context, c client.Client, object runtime.Object) error {
 	return c.List(cxt, object, &client.ListOptions{})
 }

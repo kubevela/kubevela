@@ -30,11 +30,6 @@ import (
 	"github.com/cloud-native-application/rudrx/pkg/utils/logs"
 )
 
-// noUsageError suppresses usage printing when it occurs
-// (since cobra doesn't provide a good way to avoid printing
-// out usage in only certain situations).
-type noUsageError struct{ error }
-
 var (
 	scheme = k8sruntime.NewScheme()
 )
@@ -53,7 +48,9 @@ func main() {
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
-	command.Execute()
+	if err := command.Execute(); err != nil {
+		os.Exit(1)
+	}
 }
 
 func newCommand() *cobra.Command {
@@ -135,7 +132,7 @@ func newCommand() *cobra.Command {
 	// this is for mute klog
 	fset := flag.NewFlagSet("logs", flag.ContinueOnError)
 	klog.InitFlags(fset)
-	fset.Set("v", "-1")
+	_ = fset.Set("v", "-1")
 	return cmds
 }
 
@@ -158,10 +155,6 @@ func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 		cmd.Println("    Want more? < install more capabilities by `vela cap` >")
 	}
 	cmd.Println()
-}
-
-func runHelp(cmd *cobra.Command, args []string) {
-	cmd.Help()
 }
 
 func NewVersionCommand() *cobra.Command {

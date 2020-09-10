@@ -32,8 +32,8 @@ import (
 	"github.com/cloud-native-application/rudrx/api/v1alpha1"
 )
 
-// MetricsTraitValidatingHandler handles MetricsTrait
-type MetricsTraitValidatingHandler struct {
+// ValidatingHandler handles MetricsTrait
+type ValidatingHandler struct {
 	Client client.Client
 
 	// Decoder decodes objects
@@ -43,10 +43,10 @@ type MetricsTraitValidatingHandler struct {
 // log is for logging in this package.
 var validatelog = logf.Log.WithName("metricstrait-validate")
 
-var _ admission.Handler = &MetricsTraitValidatingHandler{}
+var _ admission.Handler = &ValidatingHandler{}
 
 // Handle handles admission requests.
-func (h *MetricsTraitValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	obj := &v1alpha1.MetricsTrait{}
 
 	err := h.Decoder.Decode(req, obj)
@@ -106,18 +106,18 @@ func ValidateDelete(r *v1alpha1.MetricsTrait) field.ErrorList {
 	return nil
 }
 
-var _ inject.Client = &MetricsTraitValidatingHandler{}
+var _ inject.Client = &ValidatingHandler{}
 
-// InjectClient injects the client into the MetricsTraitValidatingHandler
-func (h *MetricsTraitValidatingHandler) InjectClient(c client.Client) error {
+// InjectClient injects the client into the ValidatingHandler
+func (h *ValidatingHandler) InjectClient(c client.Client) error {
 	h.Client = c
 	return nil
 }
 
-var _ admission.DecoderInjector = &MetricsTraitValidatingHandler{}
+var _ admission.DecoderInjector = &ValidatingHandler{}
 
-// InjectDecoder injects the decoder into the MetricsTraitValidatingHandler
-func (h *MetricsTraitValidatingHandler) InjectDecoder(d *admission.Decoder) error {
+// InjectDecoder injects the decoder into the ValidatingHandler
+func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 	h.Decoder = d
 	return nil
 }

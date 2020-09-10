@@ -98,7 +98,7 @@ var _ = BeforeSuite(func(done Done) {
 		LeaderElectionID:   "9f6dad5a.oam.dev",
 	})
 	Expect(err).ToNot(HaveOccurred())
-	r := MetricsTraitReconciler{
+	r := Reconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("MetricsTrait"),
 		Scheme: mgr.GetScheme(),

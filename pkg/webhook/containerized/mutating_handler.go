@@ -32,8 +32,8 @@ import (
 	util "github.com/cloud-native-application/rudrx/pkg/utils"
 )
 
-// ContainerizedMutatingHandler handles Containerized workload
-type ContainerizedMutatingHandler struct {
+// MutatingHandler handles Containerized workload
+type MutatingHandler struct {
 	Client client.Client
 
 	// Decoder decodes objects
@@ -43,10 +43,10 @@ type ContainerizedMutatingHandler struct {
 // log is for logging in this package.
 var mutatelog = logf.Log.WithName("Containerized-mutate")
 
-var _ admission.Handler = &ContainerizedMutatingHandler{}
+var _ admission.Handler = &MutatingHandler{}
 
 // Handle handles admission requests.
-func (h *ContainerizedMutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	obj := &v1alpha1.Containerized{}
 
 	err := h.Decoder.Decode(req, obj)
@@ -75,18 +75,18 @@ func Default(obj *v1alpha1.Containerized) {
 	}
 }
 
-var _ inject.Client = &ContainerizedMutatingHandler{}
+var _ inject.Client = &MutatingHandler{}
 
-// InjectClient injects the client into the ContainerizedMutatingHandler
-func (h *ContainerizedMutatingHandler) InjectClient(c client.Client) error {
+// InjectClient injects the client into the MutatingHandler
+func (h *MutatingHandler) InjectClient(c client.Client) error {
 	h.Client = c
 	return nil
 }
 
-var _ admission.DecoderInjector = &ContainerizedMutatingHandler{}
+var _ admission.DecoderInjector = &MutatingHandler{}
 
-// InjectDecoder injects the decoder into the ContainerizedMutatingHandler
-func (h *ContainerizedMutatingHandler) InjectDecoder(d *admission.Decoder) error {
+// InjectDecoder injects the decoder into the MutatingHandler
+func (h *MutatingHandler) InjectDecoder(d *admission.Decoder) error {
 	h.Decoder = d
 	return nil
 }

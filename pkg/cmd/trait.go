@@ -25,14 +25,9 @@ type commandOptions struct {
 
 	workloadName string
 	appName      string
-	staging      bool
 	app          *application.Application
 	traitType    string
 	cmdutil.IOStreams
-}
-
-func NewCommandOptions(ioStreams cmdutil.IOStreams) *commandOptions {
-	return &commandOptions{IOStreams: ioStreams}
 }
 
 func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
@@ -52,7 +47,7 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 			Long:                  "Attach " + name + " trait to an app",
 			Example:               "vela " + name + " frontend",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				o := NewCommandOptions(ioStreams)
+				o := &commandOptions{IOStreams: ioStreams}
 				o.Template = tmp
 				newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 				if err != nil {
@@ -74,7 +69,7 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 						return err
 					}
 				}
-				return o.Run(cmd, ctx)
+				return o.Run(ctx, cmd)
 			},
 			Annotations: map[string]string{
 				types.TagCommandType: types.TypeTraits,
@@ -132,7 +127,7 @@ func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string) error {
 	return o.app.Save(o.Env.Name)
 }
 
-func (o *commandOptions) Run(cmd *cobra.Command, ctx context.Context) error {
+func (o *commandOptions) Run(ctx context.Context, cmd *cobra.Command) error {
 	if o.Detach {
 		o.Infof("Detaching %s from app %s\n", o.traitType, o.workloadName)
 	} else {

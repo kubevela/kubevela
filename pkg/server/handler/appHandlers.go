@@ -9,13 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const querymodeKey = "appQuerymode"
-
-// Apps related handlers
-func CreateApps(c *gin.Context) {
-
-}
-
 func UpdateApps(c *gin.Context) {
 }
 
@@ -72,6 +65,6 @@ func DeleteApps(c *gin.Context) {
 		Env:     envMeta,
 		AppName: appName,
 	}
-	err, message := o.DeleteApp()
+	message, err := o.DeleteApp()
 	util.AssembleResponse(c, message, err)
 }

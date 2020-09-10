@@ -1,12 +1,16 @@
 package dashboard
 
 var (
-	//TODO: we should setup static file generation pipeline and inject this variable in building
+	// TODO: we should setup static file generation pipeline and inject this variable in building
+
+	// FrontendCSS is used for injection by compilation, so that we can change by release
 	FrontendCSS = "https://simplemvc-cdn.oss-cn-shanghai.aliyuncs.com/oam/dist/umi.126737de.css"
-	FrontendJS  = "https://simplemvc-cdn.oss-cn-shanghai.aliyuncs.com/oam/dist/umi.06bf354b.js"
+	// FrontendJS is used for inject by compilation, so that we can change by release
+	FrontendJS = "https://simplemvc-cdn.oss-cn-shanghai.aliyuncs.com/oam/dist/umi.06bf354b.js"
 )
 
-var IndexHtml = `<!DOCTYPE html>
+// IndexHTML is fixed file for frontend
+var IndexHTML = `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />

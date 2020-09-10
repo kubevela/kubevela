@@ -32,8 +32,8 @@ fmt:
 vet:
 	go vet ./...
 
-lint: golangci-lint
-	$(GOLANGCILINT) run
+lint: golangci
+	$(GOLANGCILINT) run -E golint,goimports  ./...
 
 # Build the docker image
 docker-build: test
@@ -115,17 +115,20 @@ else
 CONTROLLER_GEN=$(shell which controller-gen)
 endif
 
-GOLANGCILINT_VERSION ?= 1.29.0
+GOLANGCILINT_VERSION ?= v1.29.0
+HOSTOS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
+HOSTARCH := $(shell uname -m)
+ifeq ($(HOSTARCH),x86_64)
+HOSTARCH := amd64
+endif
 
-golangci-lint:
+golangci:
 ifeq (, $(shell which golangci-lint))
 	@{ \
 	set -e ;\
-	GOLANGCILINT_TMP_DIR=$$(mktemp -d) ;\
-	cd $$GOLANGCILINT_TMP_DIR ;\
-	curl -fsSL https://github.com/golangci/golangci-lint/releases/download/v$(GOLANGCILINT_VERSION)/golangci-lint-$(GOLANGCILINT_VERSION)-$(HOSTOS)-$(HOSTARCH).tar.gz | tar -xz --strip-components=1 -C $(GOLANGCILINT_TMP_DIR) ;\
-	mv $$GOLANGCILINT_TMP_DIR/golangci-lint $(GOBIN)/golangci-lint
-	rm -rf $$GOLANGCILINT_TMP_DIR ;\
+	echo 'installing golangci-lint-$(GOLANGCILINT_VERSION)' ;\
+	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOBIN) $(GOLANGCILINT_VERSION) ;\
+	echo 'Install succeed' ;\
 	}
 GOLANGCILINT=$(GOBIN)/golangci-lint
 else

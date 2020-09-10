@@ -2,12 +2,13 @@ package cmd
 
 import (
 	"errors"
-	"github.com/cloud-native-application/rudrx/api/types"
-	"github.com/cloud-native-application/rudrx/pkg/oam"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
+	"github.com/cloud-native-application/rudrx/api/types"
 	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	"github.com/cloud-native-application/rudrx/pkg/oam"
+
 	"github.com/spf13/cobra"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -42,7 +43,7 @@ func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		o.AppName = args[0]
 
 		ioStreams.Infof("Deleting Application \"%s\"\n", o.AppName)
-		err, _ = o.DeleteApp()
+		_, err = o.DeleteApp()
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				ioStreams.Info("Already deleted")
@@ -96,7 +97,7 @@ func NewCompDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 		}
 
 		ioStreams.Infof("Deleting Component '%s' from Application '%s'\n", o.CompName, o.AppName)
-		err, message := o.DeleteComponent()
+		message, err := o.DeleteComponent()
 		if err != nil {
 			return err
 		}

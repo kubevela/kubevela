@@ -73,5 +73,5 @@ type CapabilityMeta struct {
 
 type CapabilityCenterMeta struct {
 	Name string `json:"name"`
-	Url  string `json:"url"`
+	URL  string `json:"url"`
 }

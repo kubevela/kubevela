@@ -9,11 +9,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type ApiServer struct {
+type APIServer struct {
 	server *http.Server
 }
 
-func (s *ApiServer) Launch(kubeClient client.Client, port, staticPath string, errChan chan<- error) {
+func (s *APIServer) Launch(kubeClient client.Client, port, staticPath string, errChan chan<- error) {
 	s.server = &http.Server{
 		Addr:         port,
 		Handler:      setupRoute(kubeClient, staticPath),
@@ -30,7 +30,7 @@ func (s *ApiServer) Launch(kubeClient client.Client, port, staticPath string, er
 	}()
 }
 
-func (s *ApiServer) Shutdown(ctx context.Context) error {
+func (s *APIServer) Shutdown(ctx context.Context) error {
 	ctrl.Log.Info("sever shutting down")
 	return s.server.Shutdown(ctx)
 }

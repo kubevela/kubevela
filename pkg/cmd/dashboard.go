@@ -41,7 +41,7 @@ func NewDashboardCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 			if err != nil {
 				return err
 			}
-			return SetupApiServer(newClient, cmd, o)
+			return SetupAPIServer(newClient, cmd, o)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeSystem,
@@ -66,7 +66,7 @@ type Options struct {
 	port          string
 }
 
-func SetupApiServer(kubeClient client.Client, cmd *cobra.Command, o Options) error {
+func SetupAPIServer(kubeClient client.Client, cmd *cobra.Command, o Options) error {
 
 	// setup logging
 	var w io.Writer
@@ -95,7 +95,7 @@ func SetupApiServer(kubeClient client.Client, cmd *cobra.Command, o Options) err
 		if err != nil {
 			return fmt.Errorf("create fontend dir err %v", err)
 		}
-		if err = ioutil.WriteFile(filepath.Join(o.staticPath, "index.html"), []byte(dashboard.IndexHtml), 0644); err != nil {
+		if err = ioutil.WriteFile(filepath.Join(o.staticPath, "index.html"), []byte(dashboard.IndexHTML), 0644); err != nil {
 			return fmt.Errorf("write index.html to fontend dir err %v", err)
 		}
 	}
@@ -105,7 +105,7 @@ func SetupApiServer(kubeClient client.Client, cmd *cobra.Command, o Options) err
 	}
 
 	//Setup RESTful server
-	server := server.ApiServer{}
+	server := server.APIServer{}
 
 	errCh := make(chan error, 1)
 
@@ -120,17 +120,14 @@ func SetupApiServer(kubeClient client.Client, cmd *cobra.Command, o Options) err
 		}
 	}
 
-	// handle signal: SIGTERM(15), SIGKILL(9)
+	// handle signal: SIGTERM(15)
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGTERM)
-	signal.Notify(sc, syscall.SIGKILL)
-	select {
-	case <-sc:
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-		defer cancel()
-		server.Shutdown(ctx)
-	}
-	return nil
+
+	<-sc
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	return server.Shutdown(ctx)
 }
 
 func OpenBrowser(url string) error {

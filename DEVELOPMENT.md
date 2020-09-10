@@ -10,6 +10,7 @@ contributing to `RudrX` or build a PoC (Proof of Concept).
 3. OAM Kubernetes Runtime installed.
 4. Kustomize version 3.8+
 5. ginkgo 1.14.0+ (just for [E2E test](https://github.com/cloud-native-application/RudrX/blob/master/DEVELOPMENT.md#e2e-test))
+6. golangci-lint 1.31.0+, it will install automatically if you run `make`, you can [install it manually](https://golangci-lint.run/usage/install/#local-installation) if the installation is too slow.
 
 ## Build
 * Clone this project

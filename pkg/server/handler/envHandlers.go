@@ -30,7 +30,7 @@ func CreateEnv(c *gin.Context) {
 	}
 	ctx := util.GetContext(c)
 	kubeClient := c.MustGet("KubeClient")
-	err, message := oam.CreateOrUpdateEnv(ctx, kubeClient.(client.Client), name, namespace)
+	message, err := oam.CreateOrUpdateEnv(ctx, kubeClient.(client.Client), name, namespace)
 
 	var code = http.StatusOK
 	if err != nil {

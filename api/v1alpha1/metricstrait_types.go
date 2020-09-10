@@ -95,12 +95,12 @@ func init() {
 
 var _ oam.Trait = &MetricsTrait{}
 
-func (in *MetricsTrait) SetConditions(c ...runtimev1alpha1.Condition) {
-	in.Status.SetConditions(c...)
+func (tr *MetricsTrait) SetConditions(c ...runtimev1alpha1.Condition) {
+	tr.Status.SetConditions(c...)
 }
 
-func (in *MetricsTrait) GetCondition(c runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
-	return in.Status.GetCondition(c)
+func (tr *MetricsTrait) GetCondition(c runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+	return tr.Status.GetCondition(c)
 }
 
 // GetWorkloadReference of this ManualScalerTrait.

@@ -1,14 +1,13 @@
 package cmd
 
 import (
-	"context"
 	"errors"
 	"fmt"
-	"github.com/cloud-native-application/rudrx/pkg/oam"
-	"github.com/cloud-native-application/rudrx/pkg/plugins"
 
 	"github.com/cloud-native-application/rudrx/api/types"
 	"github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	"github.com/cloud-native-application/rudrx/pkg/oam"
+	"github.com/cloud-native-application/rudrx/pkg/plugins"
 
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -77,7 +76,7 @@ func NewCompRunCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := o.Complete(cmd, args, context.TODO()); err != nil {
+			if err := o.Complete(cmd, args); err != nil {
 				return err
 			}
 			return o.Run(cmd)
@@ -103,7 +102,7 @@ func GetWorkloadNameFromArgs(args []string) (string, error) {
 
 }
 
-func (o *runOptions) Complete(cmd *cobra.Command, args []string, ctx context.Context) error {
+func (o *runOptions) Complete(cmd *cobra.Command, args []string) error {
 	flags := cmd.Flags()
 	flags.AddFlagSet(cmd.PersistentFlags())
 	flags.ParseErrorsWhitelist.UnknownFlags = true

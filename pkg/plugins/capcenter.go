@@ -82,15 +82,14 @@ func Parse(addr string) (string, *GithubContent, error) {
 				Path:  strings.Join(l[4:], "/"),
 				Ref:   l[3],
 			}, nil
-		} else {
-			// https://github.com/<owner>/<repo>/<path-to-dir>
-			return TypeGithub, &GithubContent{
-				Owner: l[0],
-				Repo:  l[1],
-				Path:  strings.Join(l[2:], "/"),
-				Ref:   "", //use default branch
-			}, nil
 		}
+		// https://github.com/<owner>/<repo>/<path-to-dir>
+		return TypeGithub, &GithubContent{
+			Owner: l[0],
+			Repo:  l[1],
+			Path:  strings.Join(l[2:], "/"),
+			Ref:   "", //use default branch
+		}, nil
 	case "api.github.com":
 		if len(l) != 5 {
 			return "", nil, errors.New("invalid format " + addr)
@@ -111,7 +110,7 @@ func Parse(addr string) (string, *GithubContent, error) {
 type RemoteCapability struct {
 	// Name MUST be xxx.yaml
 	Name string `json:"name"`
-	Url  string `json:"download_url"`
+	URL  string `json:"download_url"`
 	Sha  string `json:"sha"`
 	// Type MUST be file
 	Type string `json:"type"`
@@ -209,7 +208,7 @@ func (g *GithubCenter) SyncCapabilityFromCenter() error {
 		return err
 	}
 	repoDir := filepath.Join(dir, g.centerName)
-	system.CreateIfNotExist(repoDir)
+	_, _ = system.CreateIfNotExist(repoDir)
 	var success, total int
 	for _, addon := range dirs {
 		if *addon.Type != "file" {

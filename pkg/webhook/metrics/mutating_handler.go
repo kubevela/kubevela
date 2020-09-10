@@ -43,8 +43,8 @@ const (
 	DefaultMetricsPath = "/metrics"
 )
 
-// MetricsTraitMutatingHandler handles MetricsTrait
-type MetricsTraitMutatingHandler struct {
+// MutatingHandler handles MetricsTrait
+type MutatingHandler struct {
 	Client client.Client
 
 	// Decoder decodes objects
@@ -54,10 +54,10 @@ type MetricsTraitMutatingHandler struct {
 // log is for logging in this package.
 var mutatelog = logf.Log.WithName("metricstrait-mutate")
 
-var _ admission.Handler = &MetricsTraitMutatingHandler{}
+var _ admission.Handler = &MutatingHandler{}
 
 // Handle handles admission requests.
-func (h *MetricsTraitMutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	obj := &v1alpha1.MetricsTrait{}
 
 	err := h.Decoder.Decode(req, obj)
@@ -98,18 +98,18 @@ func Default(obj *v1alpha1.MetricsTrait) {
 	}
 }
 
-var _ inject.Client = &MetricsTraitMutatingHandler{}
+var _ inject.Client = &MutatingHandler{}
 
-// InjectClient injects the client into the MetricsTraitMutatingHandler
-func (h *MetricsTraitMutatingHandler) InjectClient(c client.Client) error {
+// InjectClient injects the client into the MutatingHandler
+func (h *MutatingHandler) InjectClient(c client.Client) error {
 	h.Client = c
 	return nil
 }
 
-var _ admission.DecoderInjector = &MetricsTraitMutatingHandler{}
+var _ admission.DecoderInjector = &MutatingHandler{}
 
-// InjectDecoder injects the decoder into the MetricsTraitMutatingHandler
-func (h *MetricsTraitMutatingHandler) InjectDecoder(d *admission.Decoder) error {
+// InjectDecoder injects the decoder into the MutatingHandler
+func (h *MutatingHandler) InjectDecoder(d *admission.Decoder) error {
 	h.Decoder = d
 	return nil
 }
