@@ -1,27 +1,25 @@
-## vela comp run
+## vela comp status
 
-Init and Run workloads
+get status of a component
 
 ### Synopsis
 
-Init and Run workloads
+get status of a component, including its workload and health status
 
 ```
-vela comp run [args]
+vela comp status <COMPONENT-NAME> [flags]
 ```
 
 ### Examples
 
 ```
-vela comp run -t <workload-type>
+vela comp status <COMPONENT-NAME>
 ```
 
 ### Options
 
 ```
-  -h, --help          help for run
-  -s, --staging       only save changes locally without real update application
-  -t, --type string   specify workload type for application
+  -h, --help   help for status
 ```
 
 ### Options inherited from parent commands

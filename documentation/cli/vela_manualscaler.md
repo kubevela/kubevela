@@ -1,19 +1,19 @@
-## vela scale
+## vela manualscaler
 
-Attach scale trait to an app
+Attach manualscaler trait to an app
 
 ### Synopsis
 
-Attach scale trait to an app
+Attach manualscaler trait to an app
 
 ```
-vela scale <appname> [args]
+vela manualscaler <appname> [args]
 ```
 
 ### Examples
 
 ```
-vela scale frontend
+vela manualscaler frontend
 ```
 
 ### Options
@@ -21,7 +21,7 @@ vela scale frontend
 ```
   -a, --app string    create or add into an existing application group
       --detach        detach trait from component
-  -h, --help          help for scale
+  -h, --help          help for manualscaler
   -r, --replica int    (default 2)
   -s, --staging       only save changes locally without real update application
 ```

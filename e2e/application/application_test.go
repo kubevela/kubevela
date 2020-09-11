@@ -18,7 +18,7 @@ var (
 var _ = ginkgo.Describe("Application", func() {
 	e2e.EnvInitContext("env init", envName)
 	e2e.EnvShowContext("env show", envName)
-	e2e.EnvSwitchContext("env switch", envName)
+	e2e.EnvSetContext("env set", envName)
 	e2e.WorkloadRunContext("run", fmt.Sprintf("vela comp run -t %s %s -p 80 --image nginx:1.9.4",
 		workloadType, applicationName))
 	e2e.ComponentListContext("comp ls", applicationName, "")

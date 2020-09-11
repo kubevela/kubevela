@@ -129,6 +129,7 @@ func newCommand() *cobra.Command {
 	fset := flag.NewFlagSet("logs", flag.ContinueOnError)
 	klog.InitFlags(fset)
 	_ = fset.Set("v", "-1")
+
 	return cmds
 }
 

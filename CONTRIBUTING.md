@@ -80,10 +80,10 @@ Trait env init
 Create env succeed, current env is default
 •
 ------------------------------
-Trait env switch
-  should show env switch message
+Trait env set
+  should show env set message
   kubevela/e2e/commonContext.go:40
-Switch env succeed, current env is default
+Set env succeed, current env is default
 •
 ------------------------------
 Trait run

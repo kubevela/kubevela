@@ -70,9 +70,9 @@ func DeleteEnv(c *gin.Context) {
 	util.AssembleResponse(c, msg, err)
 }
 
-func SwitchEnv(c *gin.Context) {
+func SetEnv(c *gin.Context) {
 	envName := c.Param("envName")
-	ctrl.Log.Info("Patch a switch environment request", "envName", envName)
-	msg, err := oam.SwitchEnv(envName)
+	ctrl.Log.Info("Patch a set environment request", "envName", envName)
+	msg, err := oam.SetEnv(envName)
 	util.AssembleResponse(c, msg, err)
 }

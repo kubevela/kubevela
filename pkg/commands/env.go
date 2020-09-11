@@ -26,7 +26,7 @@ func NewEnvCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 		},
 	}
 	cmd.SetOut(ioStream.Out)
-	cmd.AddCommand(NewEnvListCommand(ioStream), NewEnvInitCommand(c, ioStream), NewEnvSwitchCommand(ioStream), NewEnvDeleteCommand(ioStream))
+	cmd.AddCommand(NewEnvListCommand(ioStream), NewEnvInitCommand(c, ioStream), NewEnvSetCommand(ioStream), NewEnvDeleteCommand(ioStream))
 	return cmd
 }
 
@@ -56,7 +56,7 @@ func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		Use:                   "init <envName>",
 		DisableFlagsInUseLine: true,
 		Short:                 "Create environments",
-		Long:                  "Create environment and switch to it",
+		Long:                  "Create environment and set the currently using environment",
 		Example:               `vela env init test --namespace test`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
@@ -93,17 +93,17 @@ func NewEnvDeleteCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func NewEnvSwitchCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewEnvSetCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:                   "switch",
+		Use:                   "set",
 		Aliases:               []string{"sw"},
 		DisableFlagsInUseLine: true,
-		Short:                 "Switch environments",
-		Long:                  "switch to another environment",
-		Example:               `vela env switch test`,
+		Short:                 "Set an environment",
+		Long:                  "Set an environment as the current using one",
+		Example:               `vela env set test`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return SwitchEnv(ctx, args, ioStreams)
+			return SetEnv(ctx, args, ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -158,12 +158,12 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvM
 	return nil
 }
 
-func SwitchEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) error {
+func SetEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) error {
 	if len(args) < 1 {
 		return fmt.Errorf("you must specify env name for vela env command")
 	}
 	envName := args[0]
-	msg, err := oam.SwitchEnv(envName)
+	msg, err := oam.SetEnv(envName)
 	if err != nil {
 		return err
 	}

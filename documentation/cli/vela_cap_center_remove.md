@@ -1,25 +1,25 @@
-## vela cap center sync
+## vela cap center remove
 
-Sync capabilities from remote center, default to sync all centers
+Remove specified capability center
 
 ### Synopsis
 
-Sync capabilities from remote center, default to sync all centers
+Remove specified capability center
 
 ```
-vela cap center sync [centerName] [flags]
+vela cap center remove <centerName> [flags]
 ```
 
 ### Examples
 
 ```
-vela cap center sync mycenter
+vela cap center remove mycenter
 ```
 
 ### Options
 
 ```
-  -h, --help   help for sync
+  -h, --help   help for remove
 ```
 
 ### Options inherited from parent commands

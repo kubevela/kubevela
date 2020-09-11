@@ -48,8 +48,8 @@ NAME           	CURRENT	NAMESPACE
 default             	default
 test    	 	*       test
 
-$ vela env switch default
-Switch env succeed, current env is default
+$ vela env set default
+Set env succeed, current env is default
 
 $ vela env delete test
 test deleted

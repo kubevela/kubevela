@@ -76,11 +76,11 @@ func TestENV(t *testing.T) {
 	err = DeleteEnv(ctx, []string{"env1"}, ioStream)
 	assert.Error(t, err)
 
-	// switch to default env
-	err = SwitchEnv(ctx, []string{"default"}, ioStream)
+	// set as default env
+	err = SetEnv(ctx, []string{"default"}, ioStream)
 	assert.NoError(t, err)
 
-	// check switch success
+	// check env set success
 	gotEnv, err = GetEnv(nil)
 	assert.NoError(t, err)
 	assert.Equal(t, &types.EnvMeta{
@@ -92,11 +92,11 @@ func TestENV(t *testing.T) {
 	err = DeleteEnv(ctx, []string{"env1"}, ioStream)
 	assert.NoError(t, err)
 
-	// can not switch to non-exist env
-	err = SwitchEnv(ctx, []string{"env1"}, ioStream)
+	// can not set as a non-exist env
+	err = SetEnv(ctx, []string{"env1"}, ioStream)
 	assert.Error(t, err)
 
-	// switch success
-	err = SwitchEnv(ctx, []string{"default"}, ioStream)
+	// set success
+	err = SetEnv(ctx, []string{"default"}, ioStream)
 	assert.NoError(t, err)
 }

@@ -103,11 +103,11 @@ sample response
 }
 ```
 
-### PATCH /api/envs/:envName (env switch)
+### PATCH /api/envs/:envName (env set)
 - example
 sample response
 ```json
-{"code":200,"data":"Switch env succeed"}
+{"code":200,"data":"Set env succeed"}
 ```
 
 ```json
