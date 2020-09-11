@@ -6,16 +6,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cloud-native-application/rudrx/pkg/plugins"
+	"github.com/oam-dev/kubevela/pkg/plugins"
 
 	"github.com/spf13/pflag"
 
-	"github.com/cloud-native-application/rudrx/api/types"
-	"github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/cmd/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"cuelang.org/go/cue"
-	"github.com/cloud-native-application/rudrx/pkg/application"
+	"github.com/oam-dev/kubevela/pkg/application"
 )
 
 type RunOptions struct {

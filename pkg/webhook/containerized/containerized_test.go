@@ -7,8 +7,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
-	"github.com/cloud-native-application/rudrx/api/v1alpha1"
-	. "github.com/cloud-native-application/rudrx/pkg/webhook/containerized"
+	"github.com/oam-dev/kubevela/api/v1alpha1"
+	. "github.com/oam-dev/kubevela/pkg/webhook/containerized"
 )
 
 var _ = Describe("Containerized", func() {

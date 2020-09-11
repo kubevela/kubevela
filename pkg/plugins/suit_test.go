@@ -10,7 +10,7 @@ import (
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/ghodss/yaml"
 
-	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"

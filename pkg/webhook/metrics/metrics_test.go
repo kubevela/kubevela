@@ -7,8 +7,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 
-	"github.com/cloud-native-application/rudrx/api/v1alpha1"
-	. "github.com/cloud-native-application/rudrx/pkg/webhook/metrics"
+	"github.com/oam-dev/kubevela/api/v1alpha1"
+	. "github.com/oam-dev/kubevela/pkg/webhook/metrics"
 )
 
 var _ = Describe("Metrics Admission controller Test", func() {

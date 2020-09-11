@@ -6,15 +6,15 @@ import (
 	"io"
 	"strings"
 
-	"github.com/cloud-native-application/rudrx/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam"
 
-	"github.com/cloud-native-application/rudrx/pkg/builtin/traitdefinition"
+	"github.com/oam-dev/kubevela/pkg/builtin/traitdefinition"
 
-	"github.com/cloud-native-application/rudrx/pkg/builtin/workloaddefinition"
+	"github.com/oam-dev/kubevela/pkg/builtin/workloaddefinition"
 
 	"github.com/ghodss/yaml"
 
-	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/oam-dev/kubevela/api/types"
 
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -26,7 +26,7 @@ import (
 	"github.com/pkg/errors"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
 )
 
 type initCmd struct {

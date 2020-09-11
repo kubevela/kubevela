@@ -8,28 +8,28 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/cloud-native-application/rudrx/cmd/vela/fake"
+	"github.com/oam-dev/kubevela/cmd/vela/fake"
 
-	"github.com/cloud-native-application/rudrx/version"
+	"github.com/oam-dev/kubevela/version"
 
 	"github.com/gosuri/uitable"
 
 	"k8s.io/klog"
 
-	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/oam-dev/kubevela/api/types"
 
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
 	"github.com/spf13/cobra"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
-	"github.com/cloud-native-application/rudrx/pkg/cmd"
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	"github.com/cloud-native-application/rudrx/pkg/utils/logs"
+	"github.com/oam-dev/kubevela/pkg/cmd"
+	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
+	"github.com/oam-dev/kubevela/pkg/utils/logs"
 )
 
 var (

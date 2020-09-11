@@ -2,8 +2,8 @@
 VELA_VERSION ?= 0.1.0
 # Repo info
 GIT_COMMIT ?= git-$(shell git rev-parse --short HEAD)
-VELA_VERSION_VAR := github.com/cloud-native-application/rudrx/version.VelaVersion
-VELA_GITVERSION_VAR := github.com/cloud-native-application/rudrx/version.GitRevision
+VELA_VERSION_VAR := github.com/oam-dev/kubevela/version.VelaVersion
+VELA_GITVERSION_VAR := github.com/oam-dev/kubevela/version.GitRevision
 LDFLAGS ?= "-X $(VELA_VERSION_VAR)=$(VELA_VERSION) -X $(VELA_GITVERSION_VAR)=$(GIT_COMMIT)"
 
 GOX      = go run github.com/mitchellh/gox

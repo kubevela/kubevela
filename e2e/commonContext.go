@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cloud-native-application/rudrx/pkg/server/apis"
-	"github.com/cloud-native-application/rudrx/pkg/server/util"
+	"github.com/oam-dev/kubevela/pkg/server/apis"
+	"github.com/oam-dev/kubevela/pkg/server/util"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"

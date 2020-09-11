@@ -1,7 +1,7 @@
 # CONTRIBUTING
 
 This doc explains how to set up a development environment, so you can get started
-contributing to `RudrX` or build a PoC (Proof of Concept). 
+contributing to `kubevela` or build a PoC (Proof of Concept). 
 
 ## Prerequisites
 
@@ -9,14 +9,14 @@ contributing to `RudrX` or build a PoC (Proof of Concept).
 2. Kubernetes version v1.15+ with `~/.kube/config` configured.
 3. OAM Kubernetes Runtime installed.
 4. Kustomize version 3.8+
-5. ginkgo 1.14.0+ (just for [E2E test](https://github.com/cloud-native-application/RudrX/blob/master/DEVELOPMENT.md#e2e-test))
+5. ginkgo 1.14.0+ (just for [E2E test](https://github.com/oam-dev/kubevela/blob/master/DEVELOPMENT.md#e2e-test))
 6. golangci-lint 1.31.0+, it will install automatically if you run `make`, you can [install it manually](https://golangci-lint.run/usage/install/#local-installation) if the installation is too slow.
 
 ## Build
 * Clone this project
 
 ```shell script
-git clone git@github.com:cloud-native-application/RudrX.git
+git clone git@github.com:oam-dev/kubevela.git
 ```
 
 * Install Template CRD into your cluster
@@ -76,33 +76,33 @@ Will run 5 of 5 specs
 
 Trait env init
   should print env initiation successful message
-  /Users/zhouzhengxi/Programming/golang/src/github.com/zzxwill/RudrX/e2e/commonContext.go:14
+  kubevela/e2e/commonContext.go:14
 Create env succeed, current env is default
 •
 ------------------------------
 Trait env switch
   should show env switch message
-  /Users/zhouzhengxi/Programming/golang/src/github.com/zzxwill/RudrX/e2e/commonContext.go:40
+  kubevela/e2e/commonContext.go:40
 Switch env succeed, current env is default
 •
 ------------------------------
 Trait run
   should print successful creation information
-  /Users/zhouzhengxi/Programming/golang/src/github.com/zzxwill/RudrX/e2e/commonContext.go:76
+  kubevela/e2e/commonContext.go:76
 Creating AppConfig app-trait-basic
 SUCCEED
 •
 ------------------------------
 Trait rudr attach trait
   should print successful attached information
-  /Users/zhouzhengxi/Programming/golang/src/github.com/zzxwill/RudrX/e2e/trait/trait_test.go:24
+  kubevela/e2e/trait/trait_test.go:24
 Applying trait for app
 Succeeded!
 •
 ------------------------------
 Trait delete
   should print successful deletion information
-  /Users/zhouzhengxi/Programming/golang/src/github.com/zzxwill/RudrX/e2e/commonContext.go:85
+  kubevela/e2e/commonContext.go:85
 Deleting AppConfig "app-trait-basic"
 DELETE SUCCEED
 •

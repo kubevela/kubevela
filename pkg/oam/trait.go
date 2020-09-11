@@ -13,14 +13,14 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"cuelang.org/go/cue"
-	"github.com/cloud-native-application/rudrx/pkg/application"
+	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/spf13/pflag"
 
-	"github.com/cloud-native-application/rudrx/pkg/server/apis"
+	"github.com/oam-dev/kubevela/pkg/server/apis"
 
-	"github.com/cloud-native-application/rudrx/api/types"
-	"github.com/cloud-native-application/rudrx/pkg/plugins"
-	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/plugins"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 
 	plur "github.com/gertd/go-pluralize"

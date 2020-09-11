@@ -6,13 +6,13 @@ import (
 
 	gocmp "github.com/google/go-cmp/cmp"
 
-	"github.com/cloud-native-application/rudrx/pkg/application"
+	"github.com/oam-dev/kubevela/pkg/application"
 
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 
-	"github.com/cloud-native-application/rudrx/api/types"
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	"github.com/cloud-native-application/rudrx/pkg/oam"
+	"github.com/oam-dev/kubevela/api/types"
+	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"

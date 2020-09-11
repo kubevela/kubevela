@@ -10,8 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/cloud-native-application/rudrx/pkg/server/handler"
-	"github.com/cloud-native-application/rudrx/pkg/server/util"
+	"github.com/oam-dev/kubevela/pkg/server/handler"
+	"github.com/oam-dev/kubevela/pkg/server/util"
 )
 
 // setup the gin http server handler

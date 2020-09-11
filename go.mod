@@ -1,4 +1,4 @@
-module github.com/cloud-native-application/rudrx
+module github.com/oam-dev/kubevela
 
 go 1.13
 

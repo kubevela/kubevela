@@ -17,11 +17,11 @@ import (
 
 	"github.com/mholt/archiver/v3"
 
-	"github.com/cloud-native-application/rudrx/api/types"
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	"github.com/cloud-native-application/rudrx/pkg/server"
-	"github.com/cloud-native-application/rudrx/pkg/server/util"
-	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+	"github.com/oam-dev/kubevela/api/types"
+	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
+	"github.com/oam-dev/kubevela/pkg/server"
+	"github.com/oam-dev/kubevela/pkg/server/util"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/zap/zapcore"

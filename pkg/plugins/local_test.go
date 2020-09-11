@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/oam-dev/kubevela/api/types"
 
 	"github.com/stretchr/testify/assert"
 )

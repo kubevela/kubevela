@@ -1,7 +1,7 @@
 package apis
 
 import (
-	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/oam-dev/kubevela/api/types"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"k8s.io/apimachinery/pkg/runtime"
 )

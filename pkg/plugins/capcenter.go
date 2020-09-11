@@ -16,10 +16,10 @@ import (
 
 	"github.com/google/go-github/v32/github"
 
-	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/oam-dev/kubevela/api/types"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 
-	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/ghodss/yaml"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )

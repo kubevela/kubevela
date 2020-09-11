@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/cloud-native-application/rudrx/pkg/server/apis"
+	"github.com/oam-dev/kubevela/pkg/server/apis"
 )
 
 var DefaultDashboardPort = ":38081"

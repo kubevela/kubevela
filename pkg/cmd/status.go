@@ -11,11 +11,11 @@ import (
 	"github.com/fatih/color"
 	"github.com/gosuri/uitable"
 
-	"github.com/cloud-native-application/rudrx/pkg/application"
+	"github.com/oam-dev/kubevela/pkg/application"
 
-	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/oam-dev/kubevela/api/types"
 
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )

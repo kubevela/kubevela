@@ -5,10 +5,9 @@ The Open Application Platform based on Kubernetes and OAM.
 ## Install `vela` binary
 
 ```shell script
-git clone git@github.com:cloud-native-application/RudrX.git
-cd RudrX
-make
-mv bin/vela /usr/local/bin
+curl https://github.com/oam-dev/kubevela/releases/download/v0.0.1.2/vela-refs.tags.v0.0.1.2-darwin-amd64
+chmod a+x vela-refs.tags.v0.0.1.2-darwin-amd64
+mv vela-refs.tags.v0.0.1.2-darwin-amd64 /usr/local/bin/vela
 ```
 
 ## Vela commands

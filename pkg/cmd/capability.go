@@ -8,11 +8,11 @@ import (
 	"github.com/gosuri/uitable"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/cloud-native-application/rudrx/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam"
 
-	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/oam-dev/kubevela/api/types"
 
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
 	"github.com/spf13/cobra"
 )
 

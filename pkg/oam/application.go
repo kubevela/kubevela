@@ -6,10 +6,10 @@ import (
 	"os"
 	"sort"
 
-	"github.com/cloud-native-application/rudrx/api/types"
-	"github.com/cloud-native-application/rudrx/pkg/application"
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	"github.com/cloud-native-application/rudrx/pkg/server/apis"
+	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/application"
+	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
+	"github.com/oam-dev/kubevela/pkg/server/apis"
 
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"

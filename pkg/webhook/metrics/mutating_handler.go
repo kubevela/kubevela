@@ -28,8 +28,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/cloud-native-application/rudrx/api/v1alpha1"
-	util "github.com/cloud-native-application/rudrx/pkg/utils"
+	"github.com/oam-dev/kubevela/api/v1alpha1"
+	util "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 const (

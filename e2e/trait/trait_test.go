@@ -5,7 +5,7 @@ import (
 
 	"github.com/onsi/gomega"
 
-	"github.com/cloud-native-application/rudrx/e2e"
+	"github.com/oam-dev/kubevela/e2e"
 	"github.com/onsi/ginkgo"
 )
 

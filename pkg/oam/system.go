@@ -18,10 +18,10 @@ import (
 
 	"helm.sh/helm/v3/pkg/repo"
 
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
 	"github.com/pkg/errors"
 
-	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/oam-dev/kubevela/api/types"
 	"helm.sh/helm/v3/pkg/kube"
 
 	"helm.sh/helm/v3/pkg/action"

@@ -20,16 +20,16 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 
-	mycue "github.com/cloud-native-application/rudrx/pkg/cue"
+	mycue "github.com/oam-dev/kubevela/pkg/cue"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/cloud-native-application/rudrx/pkg/plugins"
+	"github.com/oam-dev/kubevela/pkg/plugins"
 
-	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/oam-dev/kubevela/api/types"
 
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 
-	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/ghodss/yaml"
 )
 

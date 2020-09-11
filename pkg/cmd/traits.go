@@ -3,9 +3,9 @@ package cmd
 import (
 	"strings"
 
-	"github.com/cloud-native-application/rudrx/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam"
 
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 )
