@@ -4,8 +4,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"github.com/cloud-native-application/rudrx/pkg/webhook/containerized"
-	"github.com/cloud-native-application/rudrx/pkg/webhook/metrics"
+	"github.com/oam-dev/kubevela/pkg/webhook/containerized"
+	"github.com/oam-dev/kubevela/pkg/webhook/metrics"
 )
 
 // +kubebuilder:webhook:verbs=create;update;delete,path=/validate-standard-oam-dev-v1alpha1-metricstrait,mutating=false,failurePolicy=fail,groups=standard.oam.dev,resources=metricstraits,versions=v1alpha1,name=vmetricstrait.kb.io

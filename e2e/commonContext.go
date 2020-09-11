@@ -7,19 +7,19 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cloud-native-application/rudrx/pkg/server/apis"
-	"github.com/cloud-native-application/rudrx/pkg/server/util"
+	"github.com/oam-dev/kubevela/pkg/server/apis"
+	"github.com/oam-dev/kubevela/pkg/server/util"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 )
 
 var (
-	// SystemInitContext used for test system init
+	// SystemInitContext used for test install
 	SystemInitContext = func(context string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("Install OAM runtime and vela builtin capabilities.", func() {
-				output, err := Exec("vela system init")
+				output, err := Exec("vela install")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("- Installing OAM Kubernetes Runtime"))
 				gomega.Expect(output).To(gomega.ContainSubstring("- Installing builtin capabilities"))

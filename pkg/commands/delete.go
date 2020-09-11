@@ -1,11 +1,11 @@
-package cmd
+package commands
 
 import (
 	"errors"
 
-	"github.com/cloud-native-application/rudrx/api/types"
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	"github.com/cloud-native-application/rudrx/pkg/oam"
+	"github.com/oam-dev/kubevela/api/types"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"

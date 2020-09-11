@@ -8,33 +8,29 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/cloud-native-application/rudrx/cmd/vela/fake"
-
-	"github.com/cloud-native-application/rudrx/version"
-
-	"github.com/gosuri/uitable"
-
-	"k8s.io/klog"
-
-	"github.com/cloud-native-application/rudrx/api/types"
-
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
-
-	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/cmd/vela/fake"
+	"github.com/oam-dev/kubevela/pkg/commands"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
+	"github.com/oam-dev/kubevela/version"
 
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
+	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-
-	"github.com/cloud-native-application/rudrx/pkg/cmd"
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	"github.com/cloud-native-application/rudrx/pkg/utils/logs"
+	"k8s.io/klog"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 var (
 	scheme = k8sruntime.NewScheme()
 )
+
+// chartTGZSource is a base64-encoded, gzipped tarball of the default Helm chart.
+// Its value is initialized at build time.
+var chartTGZSource string
 
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
@@ -47,8 +43,6 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	command := newCommand()
-	logs.InitLogs()
-	defer logs.FlushLogs()
 
 	if err := command.Execute(); err != nil {
 		os.Exit(1)
@@ -98,34 +92,35 @@ func newCommand() *cobra.Command {
 
 	cmds.AddCommand(
 		// Getting Start
-		cmd.NewEnvCommand(commandArgs, ioStream),
+		commands.NewInstallCommand(commandArgs, chartTGZSource, ioStream),
+		commands.NewEnvCommand(commandArgs, ioStream),
 
 		// Getting Start
 		NewVersionCommand(),
 
 		// Apps
-		cmd.NewAppsCommand(commandArgs, ioStream),
+		commands.NewAppsCommand(commandArgs, ioStream),
 
 		// Workloads
-		cmd.AddCompCommands(commandArgs, ioStream),
+		commands.AddCompCommands(commandArgs, ioStream),
 
 		// Capability Systems
-		cmd.CapabilityCommandGroup(commandArgs, ioStream),
+		commands.CapabilityCommandGroup(commandArgs, ioStream),
 
 		// System
-		cmd.SystemCommandGroup(commandArgs, ioStream),
-		cmd.NewCompletionCommand(),
+		commands.SystemCommandGroup(commandArgs, ioStream),
+		commands.NewCompletionCommand(),
 
-		cmd.NewTraitsCommand(ioStream),
-		cmd.NewWorkloadsCommand(ioStream),
+		commands.NewTraitsCommand(ioStream),
+		commands.NewWorkloadsCommand(ioStream),
 
-		cmd.NewDashboardCommand(commandArgs, ioStream, fake.FrontendSource),
+		commands.NewDashboardCommand(commandArgs, ioStream, fake.FrontendSource),
 
-		cmd.NewLogsCommand(commandArgs, ioStream),
+		commands.NewLogsCommand(commandArgs, ioStream),
 	)
 
 	// Traits
-	if err = cmd.AddTraitCommands(cmds, commandArgs, ioStream); err != nil {
+	if err = commands.AddTraitCommands(cmds, commandArgs, ioStream); err != nil {
 		fmt.Println("Add trait commands from traitDefinition err", err)
 		os.Exit(1)
 	}

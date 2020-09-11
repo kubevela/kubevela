@@ -3,7 +3,7 @@ package e2e
 import (
 	"testing"
 
-	"github.com/cloud-native-application/rudrx/e2e"
+	"github.com/oam-dev/kubevela/e2e"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"

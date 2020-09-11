@@ -9,7 +9,7 @@ import (
 
 	"cuelang.org/go/cue"
 
-	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/oam-dev/kubevela/api/types"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

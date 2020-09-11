@@ -1,15 +1,21 @@
-package containerized_test
+package containerized
 
 import (
+	"testing"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
-	"github.com/cloud-native-application/rudrx/api/v1alpha1"
-	. "github.com/cloud-native-application/rudrx/pkg/webhook/containerized"
+	"github.com/oam-dev/kubevela/api/v1alpha1"
 )
+
+func TestContainerized(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Containerized Suite")
+}
 
 var _ = Describe("Containerized", func() {
 	var baseCase v1alpha1.Containerized
@@ -27,7 +33,7 @@ var _ = Describe("Containerized", func() {
 		cw := baseCase
 		want := baseCase
 		want.Spec.Replicas = pointer.Int32Ptr(1)
-		Default(&cw)
+		DefaultContainerized(&cw)
 		Expect(cw).Should(BeEquivalentTo(want))
 	})
 
@@ -35,7 +41,7 @@ var _ = Describe("Containerized", func() {
 		cw := baseCase
 		cw.Spec.Replicas = pointer.Int32Ptr(10)
 		want := cw
-		Default(&cw)
+		DefaultContainerized(&cw)
 		Expect(cw).Should(BeEquivalentTo(want))
 	})
 

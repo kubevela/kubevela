@@ -1,14 +1,13 @@
-package cmd
+package commands
 
 import (
 	"context"
 	"errors"
 
-	"github.com/cloud-native-application/rudrx/pkg/application"
+	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/application"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 
-	"github.com/cloud-native-application/rudrx/api/types"
-
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )

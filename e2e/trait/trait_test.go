@@ -3,10 +3,10 @@ package e2e
 import (
 	"fmt"
 
+	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 
-	"github.com/cloud-native-application/rudrx/e2e"
-	"github.com/onsi/ginkgo"
+	"github.com/oam-dev/kubevela/e2e"
 )
 
 var (

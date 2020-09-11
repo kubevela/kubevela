@@ -28,8 +28,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/cloud-native-application/rudrx/api/v1alpha1"
-	util "github.com/cloud-native-application/rudrx/pkg/utils"
+	"github.com/oam-dev/kubevela/api/v1alpha1"
+	util "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 const (
@@ -64,7 +64,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	Default(obj)
+	DefaultMetrics(obj)
 
 	marshalled, err := json.Marshal(obj)
 	if err != nil {
@@ -77,8 +77,8 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	return resp
 }
 
-// Default sets all the default value for the metricsTrait
-func Default(obj *v1alpha1.MetricsTrait) {
+// DefaultMetrics sets all the default value for the metricsTrait
+func DefaultMetrics(obj *v1alpha1.MetricsTrait) {
 	mutatelog.Info("default", "name", obj.Name)
 	if len(obj.Spec.ScrapeService.Format) == 0 {
 		mutatelog.Info("default format as prometheus")

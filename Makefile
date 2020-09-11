@@ -2,9 +2,9 @@
 VELA_VERSION ?= 0.1.0
 # Repo info
 GIT_COMMIT ?= git-$(shell git rev-parse --short HEAD)
-VELA_VERSION_VAR := github.com/cloud-native-application/rudrx/version.VelaVersion
-VELA_GITVERSION_VAR := github.com/cloud-native-application/rudrx/version.GitRevision
-LDFLAGS ?= "-X $(VELA_VERSION_VAR)=$(VELA_VERSION) -X $(VELA_GITVERSION_VAR)=$(GIT_COMMIT)"
+VELA_VERSION_VAR := github.com/oam-dev/kubevela/version.VelaVersion
+VELA_GITVERSION_VAR := github.com/oam-dev/kubevela/version.GitRevision
+LDFLAGS ?= "-X $(VELA_VERSION_VAR)=$(VELA_VERSION) -X $(VELA_GITVERSION_VAR)=$(GIT_COMMIT) -X main.chartTGZSource=$$(cat -) -s -w"
 
 GOX      = go run github.com/mitchellh/gox
 TARGETS  := darwin/amd64 linux/amd64 windows/amd64
@@ -24,7 +24,7 @@ test: fmt vet lint
 
 # Build manager binary
 build: fmt vet lint
-	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
+	go run hack/chart/generate.go | go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
 
 npm-build:
 	cd dashboard && npm run build && cd ./..
@@ -36,8 +36,7 @@ generate-source:
 	go run hack/frontend/source.go
 
 cross-build:
-# TODO: build vela core chart into vela binary
-	GO111MODULE=on CGO_ENABLED=0 $(GOX) -ldflags $(LDFLAGS) -parallel=3 -output="bin/vela-{{.OS}}-{{.Arch}}" -osarch='$(TARGETS)' ./cmd/vela/
+	go run hack/chart/generate.go | GO111MODULE=on CGO_ENABLED=0 $(GOX) -ldflags $(LDFLAGS) -parallel=3 -output="bin/vela-{{.OS}}-{{.Arch}}" -osarch='$(TARGETS)' ./cmd/vela/
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: fmt vet

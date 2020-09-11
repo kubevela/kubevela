@@ -4,43 +4,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
-	"github.com/gin-gonic/gin"
-
 	"cuelang.org/go/cue"
-	"github.com/cloud-native-application/rudrx/pkg/application"
-	"github.com/spf13/pflag"
-
-	"github.com/cloud-native-application/rudrx/pkg/server/apis"
-
-	"github.com/cloud-native-application/rudrx/api/types"
-	"github.com/cloud-native-application/rudrx/pkg/plugins"
-	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-
 	plur "github.com/gertd/go-pluralize"
+	"github.com/gin-gonic/gin"
+	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-)
 
-func GetGVKFromRawExtension(extension runtime.RawExtension) (string, string, string) {
-	if extension.Object != nil {
-		gvk := extension.Object.GetObjectKind().GroupVersionKind()
-		return gvk.Group, gvk.Version, gvk.Kind
-	}
-	var data map[string]interface{}
-	// leverage Admission Controller to do the check
-	_ = json.Unmarshal(extension.Raw, &data)
-	obj := unstructured.Unstructured{Object: data}
-	gvk := obj.GroupVersionKind()
-	return gvk.Group, gvk.Version, gvk.Kind
-}
+	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/application"
+	"github.com/oam-dev/kubevela/pkg/plugins"
+	"github.com/oam-dev/kubevela/pkg/server/apis"
+)
 
 func GetTraitDefNameFromRaw(extension runtime.RawExtension) string {
 	if extension.Raw == nil {
@@ -63,48 +43,6 @@ func GetTraitAliasByComponentTraitList(componentTraitList []corev1alpha2.Compone
 		traitAlias = append(traitAlias, GetTraitDefNameFromRaw(t.Trait))
 	}
 	return traitAlias
-}
-
-func GetTraitAliasByKind(ctx context.Context, c client.Client, traitKind string) string {
-	var traitAlias string
-	t, err := GetTraitDefinitionByKind(ctx, c, traitKind)
-	if err != nil {
-		return traitKind
-	}
-
-	if traitAlias, err = GetTraitAliasByTraitDefinition(t); err != nil {
-		return traitKind
-	}
-
-	return traitAlias
-}
-func GetTraitAliasByTraitDefinition(traitDefinition corev1alpha2.TraitDefinition) (string, error) {
-	velaApplicationFolder := filepath.Join("~/.vela", "applications")
-	if _, err := system.CreateIfNotExist(velaApplicationFolder); err != nil {
-		return "", nil
-	}
-
-	d, _ := ioutil.TempDir(velaApplicationFolder, "cue")
-	defer os.RemoveAll(d)
-	template, err := plugins.HandleTemplate(traitDefinition.Spec.Extension, traitDefinition.Name, d)
-	if err != nil {
-		return "", nil
-	}
-	return template.Name, nil
-}
-
-func GetTraitDefinitionByKind(ctx context.Context, c client.Client, traitKind string) (corev1alpha2.TraitDefinition, error) {
-	var traitDefinitionList corev1alpha2.TraitDefinitionList
-	var traitDefinition corev1alpha2.TraitDefinition
-	if err := c.List(ctx, &traitDefinitionList); err != nil {
-		return traitDefinition, err
-	}
-	for _, t := range traitDefinitionList.Items {
-		if t.Annotations[types.AnnKind] == traitKind {
-			return t, nil
-		}
-	}
-	return traitDefinition, fmt.Errorf("could not find TraitDefinition by kind %s", traitKind)
 }
 
 func ListTraitDefinitions(workloadName *string) ([]types.Capability, error) {

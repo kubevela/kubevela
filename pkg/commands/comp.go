@@ -1,13 +1,13 @@
-package cmd
+package commands
 
 import (
 	"errors"
 	"fmt"
 
-	"github.com/cloud-native-application/rudrx/api/types"
-	"github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	"github.com/cloud-native-application/rudrx/pkg/oam"
-	"github.com/cloud-native-application/rudrx/pkg/plugins"
+	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/plugins"
 
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"

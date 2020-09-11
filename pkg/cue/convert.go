@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/oam-dev/kubevela/api/types"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/pkg/encoding/json"

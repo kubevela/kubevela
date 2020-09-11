@@ -1,9 +1,10 @@
 package handler
 
 import (
-	"github.com/cloud-native-application/rudrx/pkg/oam"
-	"github.com/cloud-native-application/rudrx/pkg/plugins"
-	"github.com/cloud-native-application/rudrx/pkg/server/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/plugins"
+	"github.com/oam-dev/kubevela/pkg/server/util"
+
 	"github.com/gin-gonic/gin"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )

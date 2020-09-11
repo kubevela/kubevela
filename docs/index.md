@@ -11,9 +11,9 @@ way to integrate any Workloads and Traits.
 
 ## Get Started
 
-Check out [Get Started](https://github.com/cloud-native-application/RudrX) to try KubeVela.
+Check out [Get Started](https://github.com/oam-dev/kubevela) to try KubeVela.
 
-Explore [Cli docs](https://github.com/cloud-native-application/RudrX/tree/master/documentation/cli) to get a quick glance
+Explore [Cli docs](https://github.com/oam-dev/kubevela/tree/master/documentation/cli) to get a quick glance
 of the power of KubeVela.
 
 ## Community
@@ -22,4 +22,4 @@ of the power of KubeVela.
 
 ## Support or Contact
 
-Having trouble with KubeVela? File an [issue](https://github.com/cloud-native-application/RudrX/issues), or contact us directly [Twitter](https://twitter.com/oam_dev) or [Gitter](https://gitter.im/oam-dev/)
+Having trouble with KubeVela? File an [issue](https://github.com/oam-dev/kubevela/issues), or contact us directly [Twitter](https://twitter.com/oam_dev) or [Gitter](https://gitter.im/oam-dev/)

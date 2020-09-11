@@ -7,15 +7,12 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cloud-native-application/rudrx/e2e"
-
-	"github.com/cloud-native-application/rudrx/pkg/server/util"
-
-	"github.com/cloud-native-application/rudrx/pkg/server/apis"
-
-	"github.com/onsi/gomega"
+	"github.com/oam-dev/kubevela/e2e"
+	"github.com/oam-dev/kubevela/pkg/server/apis"
+	"github.com/oam-dev/kubevela/pkg/server/util"
 
 	"github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
 )
 
 var (

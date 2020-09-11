@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"context"
@@ -6,34 +6,29 @@ import (
 	"io"
 	"strings"
 
-	"github.com/cloud-native-application/rudrx/pkg/oam"
-
-	"github.com/cloud-native-application/rudrx/pkg/builtin/traitdefinition"
-
-	"github.com/cloud-native-application/rudrx/pkg/builtin/workloaddefinition"
-
-	"github.com/ghodss/yaml"
-
-	"github.com/cloud-native-application/rudrx/api/types"
-
-	"k8s.io/apimachinery/pkg/runtime"
-
 	oamv1 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-
+	"github.com/ghodss/yaml"
+	"github.com/openservicemesh/osm/pkg/cli"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	"helm.sh/helm/v3/pkg/chart"
+	"helm.sh/helm/v3/pkg/chart/loader"
+	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/pkg/errors"
-	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
-
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/builtin/traitdefinition"
+	"github.com/oam-dev/kubevela/pkg/builtin/workloaddefinition"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 type initCmd struct {
 	namespace string
 	ioStreams cmdutil.IOStreams
 	client    client.Client
-	version   string
+	chartPath string
 }
 
 type infoCmd struct {
@@ -72,7 +67,7 @@ func SystemCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command
 			types.TagCommandType: types.TypeSystem,
 		},
 	}
-	cmd.AddCommand(NewAdminInitCommand(c, ioStream), NewAdminInfoCommand(ioStream), NewRefreshCommand(c, ioStream))
+	cmd.AddCommand(NewAdminInfoCommand(ioStream), NewRefreshCommand(c, ioStream))
 	return cmd
 }
 
@@ -81,8 +76,8 @@ func NewAdminInfoCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "info",
-		Short: "show vela client and cluster version",
-		Long:  "show vela client and cluster version",
+		Short: "show vela client and cluster chartPath",
+		Long:  "show vela client and cluster chartPath",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return i.run(ioStreams)
 		},
@@ -96,7 +91,7 @@ func NewAdminInfoCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 func (i *infoCmd) run(ioStreams cmdutil.IOStreams) error {
 	clusterVersion, err := GetOAMReleaseVersion()
 	if err != nil {
-		ioStreams.Errorf("fail to get cluster version, err: %v \n", err)
+		ioStreams.Errorf("fail to get cluster chartPath, err: %v \n", err)
 		return err
 	}
 	ioStreams.Info("Versions:")
@@ -106,10 +101,10 @@ func (i *infoCmd) run(ioStreams cmdutil.IOStreams) error {
 	return nil
 }
 
-func NewAdminInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewInstallCommand(c types.Args, chartSource string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	i := &initCmd{ioStreams: ioStreams}
 	cmd := &cobra.Command{
-		Use:   "init",
+		Use:   "install",
 		Short: "Initialize vela on both client and server",
 		Long:  "Install OAM runtime and vela builtin capabilities.",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -119,21 +114,21 @@ func NewAdminInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 			}
 			i.client = newClient
 			i.namespace = types.DefaultOAMNS
-			return i.run(ioStreams)
+			return i.run(ioStreams, chartSource)
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeSystem,
+			types.TagCommandType: types.TypeStart,
 		},
 	}
 
 	flag := cmd.Flags()
-	flag.StringVarP(&i.version, "version", "v", "", "Override chart version")
+	flag.StringVarP(&i.chartPath, "vela-chart-path", "p", "", "path to vela core chart to override default chart")
 
 	return cmd
 }
 
-func (i *initCmd) run(ioStreams cmdutil.IOStreams) error {
-	ioStreams.Info("- Installing OAM Kubernetes Runtime:")
+func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
+	ioStreams.Info("- Installing Vela Core Chart:")
 	if !cmdutil.IsNamespaceExist(i.client, types.DefaultOAMNS) {
 		if err := cmdutil.NewNamespace(i.client, types.DefaultOAMNS); err != nil {
 			return err
@@ -142,10 +137,10 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams) error {
 
 	if i.IsOamRuntimeExist() {
 		i.ioStreams.Info("Vela system along with OAM runtime already exist.")
-	}
-
-	if err := InstallOamRuntime(ioStreams, i.version); err != nil {
-		return err
+	} else {
+		if err := InstallOamRuntime(i.chartPath, chartSource); err != nil {
+			return err
+		}
 	}
 
 	ioStreams.Info("- Installing builtin capabilities:")
@@ -169,8 +164,26 @@ func (i *initCmd) IsOamRuntimeExist() bool {
 	return oam.IsHelmReleaseRunning(types.DefaultOAMReleaseName, types.DefaultOAMRuntimeChartName, i.ioStreams)
 }
 
-func InstallOamRuntime(ioStreams cmdutil.IOStreams, version string) error {
-	return oam.HelmInstall(ioStreams, types.DefaultOAMRepoName, types.DefaultOAMRepoURL, types.DefaultOAMRuntimeChartName, version, types.DefaultOAMReleaseName, nil)
+func InstallOamRuntime(chartPath, chartSource string) error {
+	var err error
+	var chartRequested *chart.Chart
+	if chartPath != "" {
+		chartRequested, err = loader.Load(chartPath)
+	} else {
+		chartRequested, err = cli.LoadChart(chartSource)
+	}
+	if err != nil {
+		return fmt.Errorf("error loading chart for installation: %s", err)
+	}
+	installClient, err := oam.NewHelmInstall("", types.DefaultOAMReleaseName)
+	if err != nil {
+		return fmt.Errorf("error create helm install client: %s", err)
+	}
+	//TODO(wonderflow) values here could give more arguments in command line
+	if _, err = installClient.Run(chartRequested, nil); err != nil {
+		return err
+	}
+	return nil
 }
 
 func GetOAMReleaseVersion() (string, error) {
@@ -184,7 +197,7 @@ func GetOAMReleaseVersion() (string, error) {
 			return result.Chart.AppVersion(), nil
 		}
 	}
-	return "", errors.New("oam-kubernetes-runtime not found in your kubernetes cluster, try `vela system init` to install")
+	return "", errors.New("oam-kubernetes-runtime not found in your kubernetes cluster, try `vela install` to install")
 }
 
 func GenNativeResourceDefinition(c client.Client) error {

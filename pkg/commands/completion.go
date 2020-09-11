@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/oam-dev/kubevela/api/types"
 	"github.com/spf13/cobra"
 )
 

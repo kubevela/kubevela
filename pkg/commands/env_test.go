@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"bytes"
@@ -7,15 +7,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cloud-native-application/rudrx/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 
-	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/oam-dev/kubevela/api/types"
 
-	"github.com/cloud-native-application/rudrx/pkg/utils/system"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/stretchr/testify/assert"
 )
 

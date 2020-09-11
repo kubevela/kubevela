@@ -7,18 +7,14 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-
-	"github.com/cloud-native-application/rudrx/pkg/utils/system"
-
-	"k8s.io/apimachinery/pkg/labels"
-
-	"k8s.io/apimachinery/pkg/runtime"
-
-	"github.com/cloud-native-application/rudrx/api/types"
-	"github.com/cloud-native-application/rudrx/pkg/cue"
+	"github.com/oam-dev/kubevela/api/types"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

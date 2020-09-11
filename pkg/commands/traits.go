@@ -1,12 +1,12 @@
-package cmd
+package commands
 
 import (
 	"strings"
 
-	"github.com/cloud-native-application/rudrx/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam"
 
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
 	"github.com/gosuri/uitable"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/spf13/cobra"
 )
 

@@ -23,9 +23,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	velacore "github.com/cloud-native-application/rudrx/api/v1alpha1"
-	velacontroller "github.com/cloud-native-application/rudrx/pkg/controller"
-	velawebhook "github.com/cloud-native-application/rudrx/pkg/webhook"
+	velacore "github.com/oam-dev/kubevela/api/v1alpha1"
+	velacontroller "github.com/oam-dev/kubevela/pkg/controller"
+	velawebhook "github.com/oam-dev/kubevela/pkg/webhook"
 )
 
 var scheme = runtime.NewScheme()

@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"bytes"
@@ -8,8 +8,8 @@ import (
 
 	"github.com/gosuri/uitable"
 
-	"github.com/cloud-native-application/rudrx/api/types"
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	"github.com/oam-dev/kubevela/api/types"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
 func Test_printTraitList(t *testing.T) {

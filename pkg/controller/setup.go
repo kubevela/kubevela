@@ -19,8 +19,8 @@ package controller
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/cloud-native-application/rudrx/pkg/controller/v1alpha1/containerized"
-	"github.com/cloud-native-application/rudrx/pkg/controller/v1alpha1/metrics"
+	"github.com/oam-dev/kubevela/pkg/controller/v1alpha1/containerized"
+	"github.com/oam-dev/kubevela/pkg/controller/v1alpha1/metrics"
 )
 
 // Setup workload controllers.

@@ -1,15 +1,15 @@
 package handler
 
 import (
-	"github.com/cloud-native-application/rudrx/api/types"
-	"github.com/cloud-native-application/rudrx/pkg/oam"
-	"github.com/cloud-native-application/rudrx/pkg/plugins"
+	"github.com/gin-gonic/gin"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/cloud-native-application/rudrx/pkg/server/apis"
-	"github.com/cloud-native-application/rudrx/pkg/server/util"
-	"github.com/gin-gonic/gin"
+	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/plugins"
+	"github.com/oam-dev/kubevela/pkg/server/apis"
+	"github.com/oam-dev/kubevela/pkg/server/util"
 )
 
 // Workload related handlers

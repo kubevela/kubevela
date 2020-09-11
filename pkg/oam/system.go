@@ -7,24 +7,18 @@ import (
 	"os"
 	"strings"
 
+	"github.com/pkg/errors"
+	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
-
-	"helm.sh/helm/v3/pkg/release"
-
-	"helm.sh/helm/v3/pkg/getter"
-
 	"helm.sh/helm/v3/pkg/cli"
-
+	"helm.sh/helm/v3/pkg/getter"
+	"helm.sh/helm/v3/pkg/kube"
+	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/repo"
 
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-	"github.com/pkg/errors"
-
-	"github.com/cloud-native-application/rudrx/api/types"
-	"helm.sh/helm/v3/pkg/kube"
-
-	"helm.sh/helm/v3/pkg/action"
+	"github.com/oam-dev/kubevela/api/types"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
 var (
@@ -43,7 +37,7 @@ func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, vers
 		return nil
 	}
 
-	chartClient, err := NewHelmInstall(version, releaseName, ioStreams)
+	chartClient, err := NewHelmInstall(version, releaseName)
 	if err != nil {
 		return err
 	}
@@ -75,7 +69,7 @@ func HelmUninstall(ioStreams cmdutil.IOStreams, chartName, releaseName string) e
 	return nil
 }
 
-func NewHelmInstall(version, releaseName string, ioStreams cmdutil.IOStreams) (*action.Install, error) {
+func NewHelmInstall(version, releaseName string) (*action.Install, error) {
 	actionConfig := new(action.Configuration)
 	if err := actionConfig.Init(
 		kube.GetConfig(cmdutil.GetKubeConfig(), "", types.DefaultOAMNS),

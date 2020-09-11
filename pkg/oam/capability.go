@@ -9,19 +9,18 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cloud-native-application/rudrx/pkg/server/apis"
-
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
-
-	"github.com/cloud-native-application/rudrx/api/types"
-	"github.com/cloud-native-application/rudrx/pkg/plugins"
-	"github.com/cloud-native-application/rudrx/pkg/utils/system"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/ghodss/yaml"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/api/types"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/plugins"
+	"github.com/oam-dev/kubevela/pkg/server/apis"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
 func AddCapabilityCenter(capName, capURL, capToken string) error {

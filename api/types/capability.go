@@ -20,10 +20,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/spf13/pflag"
-
 	"cuelang.org/go/cue"
-
+	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 

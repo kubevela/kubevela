@@ -41,7 +41,7 @@ vela [flags]
 * [vela scale](vela_scale.md)	 - Attach scale trait to an app
 * [vela scale:detach](vela_scale_detach.md)	 - Detach scale trait from an app
 * [vela system:info](vela_system_info.md)	 - show vela client and cluster version
-* [vela system init](vela_system_init.md)	 - Initialize vela on both client and server
+* [vela install](vela_system_init.md)	 - Initialize vela on both client and server
 * [vela system update](vela_system_update.md)	 - Sync definition from cluster
 * [vela traits](vela_traits.md)	 - List traits
 * [vela version](vela_version.md)	 - Prints out build version information

@@ -28,8 +28,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/cloud-native-application/rudrx/api/v1alpha1"
-	util "github.com/cloud-native-application/rudrx/pkg/utils"
+	"github.com/oam-dev/kubevela/api/v1alpha1"
+	util "github.com/oam-dev/kubevela/pkg/utils"
 )
 
 // MutatingHandler handles Containerized workload
@@ -53,7 +53,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	Default(obj)
+	DefaultContainerized(obj)
 
 	marshalled, err := json.Marshal(obj)
 	if err != nil {
@@ -67,7 +67,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 }
 
 // Default sets all the default value for the Containerized
-func Default(obj *v1alpha1.Containerized) {
+func DefaultContainerized(obj *v1alpha1.Containerized) {
 	mutatelog.Info("default", "name", obj.Name)
 	if obj.Spec.Replicas == nil {
 		mutatelog.Info("default replicas as 1")

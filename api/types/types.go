@@ -2,10 +2,8 @@ package types
 
 const (
 	DefaultOAMNS               = "oam-system"
-	DefaultOAMReleaseName      = "core-runtime"
-	DefaultOAMRuntimeChartName = "oam-kubernetes-runtime"
-	DefaultOAMRepoName         = "crossplane-master"
-	DefaultOAMRepoURL          = "https://charts.crossplane.io/master"
+	DefaultOAMReleaseName      = "vela-core"
+	DefaultOAMRuntimeChartName = "vela-core"
 	DefaultOAMVersion          = ">0.0.0-0"
 
 	DefaultEnvName      = "default"

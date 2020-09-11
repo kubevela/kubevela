@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cloud-native-application/rudrx/api/types"
+	"github.com/oam-dev/kubevela/api/types"
 )
 
 const defaultVelaHome = ".vela"

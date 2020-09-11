@@ -1,8 +1,9 @@
-package cmd
+package commands
 
 import (
-	"github.com/cloud-native-application/rudrx/api/types"
-	cmdutil "github.com/cloud-native-application/rudrx/pkg/cmd/util"
+	"github.com/oam-dev/kubevela/api/types"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+
 	"github.com/spf13/cobra"
 )
 
