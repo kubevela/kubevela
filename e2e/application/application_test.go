@@ -10,7 +10,7 @@ import (
 
 var (
 	envName         = "env-application"
-	workloadType    = "containerized"
+	workloadType    = "webservice"
 	applicationName = "app-basic"
 	traitAlias      = "scale"
 )

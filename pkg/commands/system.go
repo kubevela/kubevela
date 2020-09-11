@@ -19,7 +19,6 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/builtin/traitdefinition"
-	"github.com/oam-dev/kubevela/pkg/builtin/workloaddefinition"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -47,10 +46,7 @@ var (
 		&oamv1.ScopeDefinition{},
 	}
 
-	workloadResource = map[string]string{
-		"deployments.apps":                    workloaddefinition.Deployment,
-		"containerizedworkloads.core.oam.dev": workloaddefinition.ContainerizedWorkload,
-	}
+	workloadResource = map[string]string{}
 
 	traitResource = map[string]string{
 		"manualscalertraits.core.oam.dev":    traitdefinition.ManualScaler,

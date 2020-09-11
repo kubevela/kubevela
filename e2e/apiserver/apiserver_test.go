@@ -30,7 +30,7 @@ var (
 		Namespace: "env-e2e-world-modified",
 	}
 
-	workloadType = "containerized"
+	workloadType = "webservice"
 	workloadName = "app-e2e-api-hello"
 
 	workloadRunBodyWithoutImageFlag = apis.WorkloadRunBody{
@@ -52,8 +52,9 @@ var notExistedEnvMeta = apis.Environment{
 	Namespace: "env-e2e-api-NOT-EXISTED-JUST-FOR-TEST",
 }
 
-var containerizedWorkloadType = "containerized"
-var deploymentWorkloadType = "deployment"
+var containerizedWorkloadType = "webservice"
+var backendWorkloadType = "backend"
+var taskWorkloadType = "task"
 
 var _ = ginkgo.Describe("API", func() {
 	//API Env
@@ -209,7 +210,7 @@ var _ = ginkgo.Describe("API", func() {
 			for _, i := range data {
 				var workloadDefinition = i.(map[string]interface{})
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect([]string{containerizedWorkloadType, deploymentWorkloadType}).To(gomega.Or(gomega.ContainElement(workloadDefinition["name"])))
+				gomega.Expect([]string{containerizedWorkloadType, backendWorkloadType, taskWorkloadType}).To(gomega.Or(gomega.ContainElement(workloadDefinition["name"])))
 			}
 		})
 
