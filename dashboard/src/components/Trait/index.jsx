@@ -1,11 +1,21 @@
 import React, { Fragment } from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
-import { Button, Row, Col, Modal, Select, message } from 'antd';
+import { Button, Row, Col, Modal, Select, message, Breadcrumb, Form, Input } from 'antd';
 import './index.less';
 import { connect } from 'dva';
+import { Link } from 'umi';
 import _ from 'lodash';
 
 const { Option } = Select;
+
+const layout = {
+  labelCol: {
+    span: 8,
+  },
+  wrapperCol: {
+    span: 16,
+  },
+};
 
 @connect(({ loading, applist, globalData }) => ({
   loadingAll: loading.models.applist,
@@ -13,6 +23,8 @@ const { Option } = Select;
   returnObj: applist.returnObj,
 }))
 class Trait extends React.Component {
+  formRefStep2 = React.createRef();
+
   constructor(props) {
     super(props);
     this.state = {
@@ -37,29 +49,79 @@ class Trait extends React.Component {
   };
 
   showModal = () => {
-    this.setState({
-      visible: true,
-    });
+    this.setState(
+      {
+        visible: true,
+      },
+      () => {
+        if (this.formRefStep2.current) {
+          this.formRefStep2.current.resetFields();
+        }
+      },
+    );
   };
 
-  handleOk = () => {
-    const { selectValue } = this.state;
-    if (selectValue) {
-      this.setState({
-        visible: false,
+  handleOk = async () => {
+    await this.formRefStep2.current.validateFields();
+    const { title } = this.props.propsObj;
+    if (title) {
+      const submitObj = {
+        name: title,
+        flags: [],
+      };
+      const submitData = this.formRefStep2.current.getFieldValue();
+      Object.keys(submitData).forEach((currentKey) => {
+        if (currentKey !== 'name' && currentKey !== 'appName' && submitData[currentKey]) {
+          submitObj.flags.push({
+            name: currentKey,
+            value: submitData[currentKey].toString(),
+          });
+        }
       });
-      const { history } = this.props.propsObj;
-      history.push({
-        pathname: '/ApplicationList/ApplicationListDetail',
-        state: {
-          appName: selectValue,
-          envName: this.props.currentEnv,
-          traitType: this.props.propsObj.title,
-        },
-      });
-    } else {
-      message.warn('please select a application');
+      const { currentEnv: envName } = this.props;
+      const { appName } = submitData;
+      if (envName && appName) {
+        const res = await this.props.dispatch({
+          type: 'trait/attachOneTraits',
+          payload: {
+            envName,
+            appName,
+            params: submitObj,
+          },
+        });
+        if (res) {
+          this.setState({
+            visible: false,
+          });
+          message.success(res);
+          const { history } = this.props.propsObj;
+          history.push({
+            pathname: '/ApplicationList/ApplicationListDetail',
+            state: {
+              appName,
+              envName,
+            },
+          });
+        }
+      }
     }
+    // const { selectValue } = this.state;
+    // if (selectValue) {
+    //   this.setState({
+    //     visible: false,
+    //   });
+    //   const { history } = this.props.propsObj;
+    //   history.push({
+    //     pathname: '/ApplicationList/ApplicationListDetail',
+    //     state: {
+    //       appName: selectValue,
+    //       envName: this.props.currentEnv,
+    //       traitType: this.props.propsObj.title,
+    //     },
+    //   });
+    // } else {
+    //   message.warn('please select a application');
+    // }
   };
 
   handleCancel = () => {
@@ -77,98 +139,156 @@ class Trait extends React.Component {
   onSearch = () => {};
 
   render() {
-    const { btnValue, title, settings, btnIsShow, crdInfo, appliesTo } = this.props.propsObj;
+    const { btnValue, title, settings = [], btnIsShow, crdInfo, appliesTo } = this.props.propsObj;
+    const initialObj = {};
+    if (settings.length) {
+      settings.forEach((item) => {
+        if (item.default) {
+          initialObj[item.name] = item.default;
+        }
+      });
+    }
     const appList = _.get(this.props, 'returnObj', []);
     return (
-      <PageContainer>
-        <Row>
-          <Col span="11">
-            <div className="deployment">
-              <Row>
-                <Col span="22">
-                  <p className="title">{title}</p>
-                  {crdInfo ? (
-                    <p>
-                      {crdInfo.apiVersion}
-                      <span>,kind=</span>
-                      {crdInfo.kind}
-                    </p>
-                  ) : (
-                    <p />
-                  )}
-                </Col>
-              </Row>
-              <Row>
-                <Col span="22">
-                  <p className="title">Applies To</p>
-                  <p>{Array.isArray(appliesTo) ? appliesTo.join(', ') : appliesTo}</p>
-                </Col>
-              </Row>
-              <p className="title">Configurable Properties:</p>
-              {settings.map((item, index) => {
-                return (
-                  <Row key={index.toString()}>
-                    <Col span="8">
-                      <p>{item.name}</p>
-                    </Col>
-                    <Col span="16">
-                      <p>{item.default || item.usage}</p>
-                    </Col>
-                  </Row>
-                );
-              })}
-            </div>
-            <Button
-              type="primary"
-              className="create-button"
-              onClick={this.showModal}
-              style={{ display: btnIsShow ? 'block' : 'none' }}
-            >
-              {btnValue}
-            </Button>
-            <Modal
-              title="Select a Application"
-              visible={this.state.visible}
-              onOk={this.handleOk}
-              onCancel={this.handleCancel}
-              footer={[
-                <Button key="back" onClick={this.handleCancel}>
-                  Cancel
-                </Button>,
-                <Button key="submit" type="primary" onClick={this.handleOk}>
-                  Next
-                </Button>,
-              ]}
-            >
-              <Select
-                showSearch
-                allowClear
-                value={this.state.selectValue}
-                style={{ width: '100%' }}
-                placeholder="Select a Application"
-                optionFilterProp="children"
-                onChange={this.onChange}
-                onSearch={this.onSearch}
-                filterOption={(input, option) =>
-                  option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
-                }
+      <div>
+        <div className="breadCrumb">
+          <Breadcrumb>
+            <Breadcrumb.Item>
+              <Link to="/ApplicationList">Home</Link>
+            </Breadcrumb.Item>
+            <Breadcrumb.Item>Traits</Breadcrumb.Item>
+            <Breadcrumb.Item>{title}</Breadcrumb.Item>
+          </Breadcrumb>
+        </div>
+        <PageContainer>
+          <Row>
+            <Col span="11">
+              <div className="deployment">
+                <Row>
+                  <Col span="22">
+                    <p className="title">{title}</p>
+                    {crdInfo ? (
+                      <p>
+                        {crdInfo.apiVersion}
+                        <span>,kind=</span>
+                        {crdInfo.kind}
+                      </p>
+                    ) : (
+                      <p />
+                    )}
+                  </Col>
+                </Row>
+                <Row>
+                  <Col span="22">
+                    <p className="title">Applies To:</p>
+                    <p>{Array.isArray(appliesTo) ? appliesTo.join(', ') : appliesTo}</p>
+                  </Col>
+                </Row>
+                <p className="title">Configurable Properties:</p>
+                {settings.map((item, index) => {
+                  return (
+                    <Row key={index.toString()}>
+                      <Col span="8">
+                        <p>{item.name}</p>
+                      </Col>
+                      <Col span="16">
+                        <p>{item.default || item.usage}</p>
+                      </Col>
+                    </Row>
+                  );
+                })}
+              </div>
+              <Button
+                type="primary"
+                className="create-button"
+                onClick={this.showModal}
+                style={{ display: btnIsShow ? 'block' : 'none' }}
               >
-                {appList.length ? (
-                  appList.map((item) => {
-                    return (
-                      <Option key={item.name} value={item.name}>
-                        {item.name}
-                      </Option>
-                    );
-                  })
-                ) : (
-                  <Fragment />
-                )}
-              </Select>
-            </Modal>
-          </Col>
-        </Row>
-      </PageContainer>
+                {btnValue}
+              </Button>
+              <Modal
+                title="Attach Trait"
+                visible={this.state.visible}
+                onOk={this.handleOk}
+                onCancel={this.handleCancel}
+                footer={[
+                  <Button key="back" onClick={this.handleCancel}>
+                    Cancel
+                  </Button>,
+                  <Button key="submit" type="primary" onClick={this.handleOk}>
+                    Submit
+                  </Button>,
+                ]}
+              >
+                <Form
+                  labelAlign="left"
+                  {...layout}
+                  ref={this.formRefStep2}
+                  name="control-ref"
+                  className="traitItem"
+                  initialValues={initialObj}
+                >
+                  <Form.Item
+                    label="Target"
+                    name="appName"
+                    rules={[{ required: true, message: 'Please Select a Application!' }]}
+                  >
+                    <Select
+                      showSearch
+                      allowClear
+                      value={this.state.selectValue}
+                      style={{ width: '100%' }}
+                      placeholder="Select a Application"
+                      optionFilterProp="children"
+                      onChange={this.onChange}
+                      onSearch={this.onSearch}
+                      filterOption={(input, option) =>
+                        option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
+                      }
+                    >
+                      {appList.length ? (
+                        appList.map((item) => {
+                          return (
+                            <Option key={item.name} value={item.name}>
+                              {item.name}
+                            </Option>
+                          );
+                        })
+                      ) : (
+                        <Fragment />
+                      )}
+                    </Select>
+                  </Form.Item>
+                  <div className="relativeBox">
+                    <Form.Item label="Properties" />
+                    {settings ? (
+                      settings.map((item) => {
+                        return (
+                          <Form.Item
+                            name={item.name}
+                            label={item.name}
+                            key={item.name}
+                            rules={[
+                              {
+                                required: item.required || false,
+                                message: `Please input ${item.name} !`,
+                              },
+                            ]}
+                          >
+                            <Input />
+                          </Form.Item>
+                        );
+                      })
+                    ) : (
+                      <></>
+                    )}
+                  </div>
+                </Form>
+              </Modal>
+            </Col>
+          </Row>
+        </PageContainer>
+      </div>
     );
   }
 }

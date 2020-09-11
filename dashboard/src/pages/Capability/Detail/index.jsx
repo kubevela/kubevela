@@ -1,8 +1,9 @@
 import React, { Fragment } from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
-import { Space, Button, Row, Col, message, Spin } from 'antd';
+import { Space, Button, Row, Col, message, Spin, Breadcrumb } from 'antd';
 // import { Space, Modal, Button, Row, Col, message, Spin } from 'antd';
 // import { ExclamationCircleOutlined } from '@ant-design/icons';
+import { Link } from 'umi';
 import './index.less';
 import { connect } from 'dva';
 import _ from 'lodash';
@@ -161,82 +162,109 @@ class TableList extends React.PureComponent {
     let { loadingAll } = this.props;
     loadingAll = loadingAll || false;
     return (
-      <PageContainer>
-        <Spin spinning={loadingAll}>
-          <div style={{ marginBottom: '16px' }}>
-            <Space>
-              <Button type="primary" onClick={this.syncAllSignle}>
-                Install all
-              </Button>
-              <Button type="default" onClick={this.showDeleteConfirm}>
-                Remove
-              </Button>
-            </Space>
-          </div>
-          <div>
-            <h3>Workloads</h3>
-            <Row>
-              {workloadList.length ? (
-                workloadList.map((item) => {
-                  return (
-                    <Col span="4" key={item.name}>
-                      <div className="itemBox" onClick={this.gotoOtherPage}>
-                        <img
-                          src="https://ss0.bdstatic.com/70cFvHSh_Q1YnxGkpoWK1HF6hhy/it/u=1109866916,1852667152&fm=26&gp=0.jpg"
-                          alt="workload"
-                        />
-                        <p>{item.name}</p>
-                        {item.status === 'installed' ? (
-                          <Button onClick={(e) => this.uninstallSignle(e, item.name)}>
-                            uninstall
-                          </Button>
-                        ) : (
-                          <Button onClick={(e) => this.installSignle(e, item.name)}>install</Button>
-                        )}
-                      </div>
-                    </Col>
-                  );
-                })
-              ) : (
-                <Fragment>
-                  <div>暂无可用的workload</div>
-                </Fragment>
-              )}
-            </Row>
-          </div>
-          <div>
-            <h3>Traits</h3>
-            <Row>
-              {traitList.length ? (
-                traitList.map((item) => {
-                  return (
-                    <Col span="4" key={item.name}>
-                      <div className="itemBox" onClick={this.gotoOtherPage}>
-                        <img
-                          src="https://ss0.bdstatic.com/70cFvHSh_Q1YnxGkpoWK1HF6hhy/it/u=1109866916,1852667152&fm=26&gp=0.jpg"
-                          alt="workload"
-                        />
-                        <p>{item.name}</p>
-                        {item.status === 'installed' ? (
-                          <Button onClick={(e) => this.uninstallSignle(e, item.name)}>
-                            uninstall
-                          </Button>
-                        ) : (
-                          <Button onClick={(e) => this.installSignle(e, item.name)}>install</Button>
-                        )}
-                      </div>
-                    </Col>
-                  );
-                })
-              ) : (
-                <Fragment>
-                  <div>暂无可用的trait</div>
-                </Fragment>
-              )}
-            </Row>
-          </div>
-        </Spin>
-      </PageContainer>
+      <div>
+        <div className="breadCrumb">
+          <Breadcrumb>
+            <Breadcrumb.Item>
+              <Link to="/ApplicationList">Home</Link>
+            </Breadcrumb.Item>
+            <Breadcrumb.Item>
+              <Link to="/Capability">Capability</Link>
+            </Breadcrumb.Item>
+            <Breadcrumb.Item>Detail</Breadcrumb.Item>
+          </Breadcrumb>
+        </div>
+        <PageContainer>
+          <Spin spinning={loadingAll}>
+            <div style={{ marginBottom: '16px' }}>
+              <Space>
+                <Button type="primary" onClick={this.syncAllSignle}>
+                  Install all
+                </Button>
+                <Button type="default" onClick={this.showDeleteConfirm}>
+                  Remove
+                </Button>
+              </Space>
+            </div>
+            <div>
+              <h3>Workloads</h3>
+              <Row>
+                {workloadList.length ? (
+                  workloadList.map((item) => {
+                    return (
+                      <Col span="4" key={item.name}>
+                        <div className="itemBox" onClick={this.gotoOtherPage}>
+                          {/* <img
+                            src="https://ss0.bdstatic.com/70cFvHSh_Q1YnxGkpoWK1HF6hhy/it/u=1109866916,1852667152&fm=26&gp=0.jpg"
+                            alt="workload"
+                          /> */}
+                          <div className="title">{item.name.substr(0, 3).toUpperCase()}</div>
+                          <p>{item.name}</p>
+                          {item.status === 'installed' ? (
+                            <Button onClick={(e) => this.uninstallSignle(e, item.name)}>
+                              uninstall
+                            </Button>
+                          ) : (
+                            <Button
+                              onClick={(e) => this.installSignle(e, item.name)}
+                              type="primary"
+                              ghost
+                            >
+                              install
+                            </Button>
+                          )}
+                        </div>
+                      </Col>
+                    );
+                  })
+                ) : (
+                  <Fragment>
+                    <div>暂无可用的workload</div>
+                  </Fragment>
+                )}
+              </Row>
+            </div>
+            <div>
+              <h3>Traits</h3>
+              <Row>
+                {traitList.length ? (
+                  traitList.map((item) => {
+                    return (
+                      <Col span="4" key={item.name}>
+                        <div className="itemBox" onClick={this.gotoOtherPage}>
+                          {/* <img
+                            src="https://ss0.bdstatic.com/70cFvHSh_Q1YnxGkpoWK1HF6hhy/it/u=1109866916,1852667152&fm=26&gp=0.jpg"
+                            alt="workload"
+                          /> */}
+                          <div className="title">{item.name.substr(0, 3).toUpperCase()}</div>
+                          <p>{item.name}</p>
+                          {item.status === 'installed' ? (
+                            <Button onClick={(e) => this.uninstallSignle(e, item.name)}>
+                              uninstall
+                            </Button>
+                          ) : (
+                            <Button
+                              onClick={(e) => this.installSignle(e, item.name)}
+                              type="primary"
+                              ghost
+                            >
+                              install
+                            </Button>
+                          )}
+                        </div>
+                      </Col>
+                    );
+                  })
+                ) : (
+                  <Fragment>
+                    <div>暂无可用的trait</div>
+                  </Fragment>
+                )}
+              </Row>
+            </div>
+          </Spin>
+        </PageContainer>
+      </div>
     );
   }
 }

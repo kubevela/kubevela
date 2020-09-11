@@ -1,7 +1,7 @@
 import React from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
-import { Button, Table, Space, Modal, Form, Input, message, Spin } from 'antd';
-// import { ExclamationCircleOutlined } from '@ant-design/icons';
+import { Button, Table, Space, Modal, Form, Input, message, Spin, Breadcrumb } from 'antd';
+import { CopyOutlined } from '@ant-design/icons';
 import { Link } from 'umi';
 import './index.less';
 import { connect } from 'dva';
@@ -124,6 +124,17 @@ class TableList extends React.PureComponent {
     }
   };
 
+  copyURL = (text) => {
+    const oInput = document.createElement('input');
+    oInput.value = text;
+    document.body.appendChild(oInput);
+    oInput.select();
+    document.execCommand('Copy');
+    oInput.className = 'oInput';
+    oInput.style.display = 'none';
+    message.success('copy success');
+  };
+
   showDeleteConfirm = () => {
     message.info('正在开发中...');
     // if (record) {
@@ -173,106 +184,124 @@ class TableList extends React.PureComponent {
     loadingList = loadingList || false;
     capabilityList = Array.isArray(capabilityList) ? capabilityList : [];
     return (
-      <PageContainer>
-        <Spin spinning={loadingList}>
-          <div style={{ marginBottom: '16px' }}>
-            <Space>
-              <Button type="primary" onClick={this.showModal}>
-                Create
-              </Button>
-              {/* <Button type="default">Sync All</Button> */}
-            </Space>
-          </div>
-          <Modal
-            title="Create Capability Center"
-            visible={this.state.visible}
-            onOk={this.handleOk}
-            onCancel={this.handleCancel}
-            footer={[
-              // <Button key="test" onClick={this.handleTest}>
-              //   Test
-              // </Button>,
-              <Button key="submit" type="primary" onClick={this.handleOk}>
-                Create
-              </Button>,
-            ]}
-          >
-            <Form {...layout} ref={this.formRef} name="control-ref" labelAlign="left">
-              <Form.Item
-                name="Name"
-                label="Name"
-                rules={[
-                  {
-                    required: true,
-                    message: 'Please input name!',
-                  },
-                ]}
-              >
-                <Input />
-              </Form.Item>
-              <Form.Item
-                name="Address"
-                label="URL"
-                rules={[
-                  // { pattern: '/^((https|http|ftp|rtsp|mms){0,1}(:\/\/){0,1})\.(([A-Za-z0-9-~]+)\.)+([A-Za-z0-9-~\/])+$/',
-                  //   message: 'please input correct URL'
-                  // },
-                  {
-                    required: true,
-                    message: 'Please input URL!',
-                  },
-                ]}
-              >
-                <Input />
-              </Form.Item>
-            </Form>
-          </Modal>
-          <Table dataSource={capabilityList} pagination={false} rowKey={(record) => record.name}>
-            <Column
-              title="Name"
-              dataIndex="name"
-              key="name"
-              render={(text, record) => {
-                return (
-                  <Link to={{ pathname: '/Capability/Detail', state: { name: record.name } }}>
-                    {text}
-                  </Link>
-                );
-              }}
-            />
-            <Column
-              title="URL"
-              dataIndex="url"
-              key="url"
-              render={(text) => {
-                return (
-                  <a href={text} target="_blank" rel="noreferrer">
-                    {text}
-                  </a>
-                );
-              }}
-            />
-            <Column
-              title="Operations"
-              dataIndex="name"
-              key="name"
-              render={(text, record, index) => {
-                return (
-                  <Space>
-                    <Button
-                      loading={record.btnSyncLoading}
-                      onClick={() => this.syncSignle(text, index)}
-                    >
-                      sync
-                    </Button>
-                    <Button onClick={() => this.showDeleteConfirm(text)}>remove</Button>
-                  </Space>
-                );
-              }}
-            />
-          </Table>
-        </Spin>
-      </PageContainer>
+      <div>
+        <div className="breadCrumb">
+          <Breadcrumb>
+            <Breadcrumb.Item>
+              <Link to="/ApplicationList">Home</Link>
+            </Breadcrumb.Item>
+            <Breadcrumb.Item>Capability</Breadcrumb.Item>
+          </Breadcrumb>
+        </div>
+        <PageContainer>
+          <Spin spinning={loadingList}>
+            <div style={{ marginBottom: '16px' }}>
+              <Space>
+                <Button type="primary" onClick={this.showModal}>
+                  Create
+                </Button>
+                {/* <Button type="default">Sync All</Button> */}
+              </Space>
+            </div>
+            <Modal
+              title="Create Capability Center"
+              visible={this.state.visible}
+              onOk={this.handleOk}
+              onCancel={this.handleCancel}
+              footer={[
+                // <Button key="test" onClick={this.handleTest}>
+                //   Test
+                // </Button>,
+                <Button key="submit" type="primary" onClick={this.handleOk}>
+                  Create
+                </Button>,
+              ]}
+            >
+              <Form {...layout} ref={this.formRef} name="control-ref" labelAlign="left">
+                <Form.Item
+                  name="Name"
+                  label="Name"
+                  rules={[
+                    {
+                      required: true,
+                      message: 'Please input name!',
+                    },
+                  ]}
+                >
+                  <Input />
+                </Form.Item>
+                <Form.Item
+                  name="Address"
+                  label="URL"
+                  rules={[
+                    // { pattern: '/^((https|http|ftp|rtsp|mms){0,1}(:\/\/){0,1})\.(([A-Za-z0-9-~]+)\.)+([A-Za-z0-9-~\/])+$/',
+                    //   message: 'please input correct URL'
+                    // },
+                    {
+                      required: true,
+                      message: 'Please input URL!',
+                    },
+                  ]}
+                >
+                  <Input />
+                </Form.Item>
+              </Form>
+            </Modal>
+            <Table dataSource={capabilityList} pagination={false} rowKey={(record) => record.name}>
+              <Column
+                title="Name"
+                dataIndex="name"
+                key="name"
+                render={(text, record) => {
+                  return (
+                    <Link to={{ pathname: '/Capability/Detail', state: { name: record.name } }}>
+                      {text}
+                    </Link>
+                  );
+                }}
+              />
+              <Column
+                title="URL"
+                dataIndex="url"
+                key="url"
+                width="60%"
+                render={(text) => {
+                  return (
+                    <div className="hoverItem">
+                      <a href={text} target="_blank" rel="noreferrer">
+                        {text}
+                      </a>
+                      <div className="copyIcon" onClick={() => this.copyURL(text)}>
+                        <CopyOutlined />
+                      </div>
+                    </div>
+                  );
+                }}
+              />
+              <Column
+                title="Operations"
+                dataIndex="name"
+                key="name"
+                render={(text, record, index) => {
+                  return (
+                    <Space>
+                      <Button
+                        loading={record.btnSyncLoading}
+                        onClick={() => this.syncSignle(text, index)}
+                        type="primary"
+                        ghost
+                      >
+                        sync
+                      </Button>
+                      <Button onClick={() => this.showDeleteConfirm(text)}>remove</Button>
+                    </Space>
+                  );
+                }}
+              />
+            </Table>
+          </Spin>
+        </PageContainer>
+      </div>
     );
   }
 }

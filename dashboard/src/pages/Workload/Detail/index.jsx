@@ -1,8 +1,10 @@
 import React, { Fragment } from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
 import './index.less';
-import { Form, Input, Button, Row, Col, Tabs, Table, Spin } from 'antd';
+import { Form, Input, Button, Row, Col, Tabs, Table, Spin, Breadcrumb } from 'antd';
+import { CheckCircleOutlined } from '@ant-design/icons';
 import { connect } from 'dva';
+import { Link } from 'umi';
 import _ from 'lodash';
 
 const { TabPane } = Tabs;
@@ -27,7 +29,12 @@ const columns = [
     title: 'Name',
     dataIndex: 'name',
     key: 'name',
-    render: (text) => <a>{text}</a>,
+    render: (text) => (
+      <div>
+        <CheckCircleOutlined style={{ fontSize: '20px', color: '#4CAF51' }} />
+        <a style={{ marginLeft: '6px' }}>{text}</a>
+      </div>
+    ),
   },
   {
     title: 'Ready',
@@ -217,315 +224,343 @@ class TableList extends React.PureComponent {
     containers = _.get(Workload, 'spec.containers[0]', {});
     let { loadingAll } = this.props;
     loadingAll = loadingAll || false;
+    const appName = _.get(this.props, 'location.state.appName', '');
+    const envName = _.get(this.props, 'location.state.envName', '');
     return (
-      <PageContainer>
-        <Spin spinning={loadingAll}>
-          <div className="card-container workload-detail">
-            <h2>{Workload.kind}</h2>
-            <p style={{ marginBottom: '20px' }}>
-              <i>
-                {Workload.apiVersion},Name={_.get(Workload, 'metadata.name', '')}
-              </i>
-            </p>
-            <Tabs>
-              <TabPane tab="Summary" key="1">
-                <div>
-                  <Row>
-                    <Col span="12">
-                      <div className="hasBorder">
-                        <div
-                          className="hasPadding"
-                          style={{ display: !hasShowEdit ? 'block' : 'none' }}
-                        >
-                          <p className="title">Configuration</p>
-                          <Row>
-                            {Object.keys(containers).map((currentKey) => {
-                              if (currentKey === 'ports') {
+      <div>
+        <div className="breadCrumb">
+          <Breadcrumb>
+            <Breadcrumb.Item>
+              <Link to="/ApplicationList">Home</Link>
+            </Breadcrumb.Item>
+            <Breadcrumb.Item>
+              <Link to="/ApplicationList">Applications</Link>
+            </Breadcrumb.Item>
+            <Breadcrumb.Item>
+              <Link
+                to={{
+                  pathname: '/ApplicationList/ApplicationListDetail',
+                  state: { appName, envName },
+                }}
+              >
+                ApplicationListDetail
+              </Link>
+            </Breadcrumb.Item>
+            <Breadcrumb.Item>WorkloadDetail</Breadcrumb.Item>
+          </Breadcrumb>
+        </div>
+        <PageContainer>
+          <Spin spinning={loadingAll}>
+            <div className="card-container workload-detail">
+              <h2>{Workload.kind}</h2>
+              <p style={{ marginBottom: '20px' }}>
+                <i>
+                  {Workload.apiVersion},Name={_.get(Workload, 'metadata.name', '')}
+                </i>
+              </p>
+              <Tabs>
+                <TabPane tab="Summary" key="1">
+                  <div>
+                    <Row>
+                      <Col span="12">
+                        <div className="hasBorder">
+                          <div
+                            className="hasPadding"
+                            style={{ display: !hasShowEdit ? 'block' : 'none' }}
+                          >
+                            <p className="title">Configuration</p>
+                            <Row>
+                              {Object.keys(containers).map((currentKey) => {
+                                if (currentKey === 'ports') {
+                                  return (
+                                    <Fragment key={currentKey}>
+                                      <Col span="8">
+                                        <p>port</p>
+                                      </Col>
+                                      <Col span="16">
+                                        <p>
+                                          {_.get(containers[currentKey], '[0].containerPort', '')}
+                                        </p>
+                                      </Col>
+                                    </Fragment>
+                                  );
+                                  // eslint-disable-next-line no-else-return
+                                } else if (currentKey === 'name') {
+                                  return <Fragment key={currentKey} />;
+                                }
                                 return (
                                   <Fragment key={currentKey}>
                                     <Col span="8">
-                                      <p>port</p>
+                                      <p>{currentKey}</p>
                                     </Col>
                                     <Col span="16">
-                                      <p>
-                                        {_.get(containers[currentKey], '[0].containerPort', '')}
-                                      </p>
+                                      <p>{containers[currentKey]}</p>
                                     </Col>
                                   </Fragment>
                                 );
-                                // eslint-disable-next-line no-else-return
-                              } else if (currentKey === 'name') {
-                                return <Fragment key={currentKey} />;
-                              }
-                              return (
-                                <Fragment key={currentKey}>
-                                  <Col span="8">
-                                    <p>{currentKey}</p>
-                                  </Col>
-                                  <Col span="16">
-                                    <p>{containers[currentKey]}</p>
-                                  </Col>
-                                </Fragment>
-                              );
-                            })}
-                          </Row>
-                          {/* <Row>
-                            <Col span="10">
-                              <div style={{ color: 'black' }}>
-                                <p>Deployment Strategy</p>
-                                <p>Rolling Update Strategy</p>
-                                <p>Selectors</p>
-                                <p>Min Ready Seconds</p>
-                                <p>Revision History Limit</p>
-                                <p>Replicas</p>
-                              </div>
-                            </Col>
-                            <Col>
-                              <p>RollingUpdate</p>
-                              <p>Max Surge 25%, Max Unavailable 25%</p>
-                              <p>
-                                <Tag color="orange">aryabhataapp:cool</Tag>
-                                <Tag color="orange">version:v0</Tag>
-                              </p>
-                              <p>0</p>
-                              <p>10</p>
-                              <p>1</p>
-                            </Col>
-                          </Row> */}
-                        </div>
-                        <div
-                          className="hasPadding"
-                          style={{ display: hasShowEdit ? 'block' : 'none' }}
-                        >
-                          <p className="title">Deployment Editor</p>
-                          <Form
-                            labelAlign="left"
-                            {...layout}
-                            ef={this.formRefStep1}
-                            name="control-ref"
-                            onFinish={this.onFinishStep1}
-                          >
-                            <div className="relativeBox">
-                              <Form.Item name="Replicas" label="Replicas">
-                                <Input type="number" />
-                              </Form.Item>
-                            </div>
-                            <div style={{ marginBottom: '16px' }}>
-                              <Button type="primary" htmlType="submit">
-                                Submit
-                              </Button>
-                              <Button style={{ marginLeft: '16px' }} onClick={this.changeShowEdit}>
-                                Cancle
-                              </Button>
-                            </div>
-                          </Form>
-                        </div>
-                        <div style={{ display: !hasShowEdit ? 'block' : 'none' }}>
+                              })}
+                            </Row>
+                            {/* <Row>
+                              <Col span="10">
+                                <div style={{ color: 'black' }}>
+                                  <p>Deployment Strategy</p>
+                                  <p>Rolling Update Strategy</p>
+                                  <p>Selectors</p>
+                                  <p>Min Ready Seconds</p>
+                                  <p>Revision History Limit</p>
+                                  <p>Replicas</p>
+                                </div>
+                              </Col>
+                              <Col>
+                                <p>RollingUpdate</p>
+                                <p>Max Surge 25%, Max Unavailable 25%</p>
+                                <p>
+                                  <Tag color="orange">aryabhataapp:cool</Tag>
+                                  <Tag color="orange">version:v0</Tag>
+                                </p>
+                                <p>0</p>
+                                <p>10</p>
+                                <p>1</p>
+                              </Col>
+                            </Row> */}
+                          </div>
                           <div
-                            style={{ width: '100%', borderTop: '1px solid #eee', height: '0px' }}
-                          />
-                          <div>
-                            <Button
-                              className="textAlignLeft"
-                              type="link"
-                              block
-                              onClick={this.changeShowEdit}
+                            className="hasPadding"
+                            style={{ display: hasShowEdit ? 'block' : 'none' }}
+                          >
+                            <p className="title">Deployment Editor</p>
+                            <Form
+                              labelAlign="left"
+                              {...layout}
+                              ef={this.formRefStep1}
+                              name="control-ref"
+                              onFinish={this.onFinishStep1}
                             >
-                              Edit
-                            </Button>
+                              <div className="relativeBox">
+                                <Form.Item name="Replicas" label="Replicas">
+                                  <Input type="number" />
+                                </Form.Item>
+                              </div>
+                              <div style={{ marginBottom: '16px' }}>
+                                <Button type="primary" htmlType="submit">
+                                  Submit
+                                </Button>
+                                <Button
+                                  style={{ marginLeft: '16px' }}
+                                  onClick={this.changeShowEdit}
+                                >
+                                  Cancle
+                                </Button>
+                              </div>
+                            </Form>
+                          </div>
+                          <div style={{ display: !hasShowEdit ? 'block' : 'none' }}>
+                            <div
+                              style={{ width: '100%', borderTop: '1px solid #eee', height: '0px' }}
+                            />
+                            <div>
+                              <Button
+                                className="textAlignLeft"
+                                type="link"
+                                block
+                                onClick={this.changeShowEdit}
+                              >
+                                Edit
+                              </Button>
+                            </div>
                           </div>
                         </div>
+                      </Col>
+                      <Col span="1" />
+                      <Col span="10">
+                        <div className="hasBorder">
+                          <div className="hasPadding">
+                            <p className="title">Status</p>
+                            <p>{status}</p>
+                            {/* <Row>
+                              <Col span="10">
+                                <div style={{ color: 'black' }}>
+                                  <p>Avaliable Replicas</p>
+                                  <p>Ready Replicas</p>
+                                  <p>Total Replicas</p>
+                                  <p>Unavaliable Replicas</p>
+                                  <p>Updated Replicas</p>
+                                </div>
+                              </Col>
+                              <Col>
+                                <p>0</p>
+                                <p>0</p>
+                                <p>1</p>
+                                <p>1</p>
+                                <p>1</p>
+                              </Col>
+                            </Row> */}
+                          </div>
+                        </div>
+                      </Col>
+                    </Row>
+                    <p className="title hasBG">Pods</p>
+                    <Table columns={columns} dataSource={data} pagination={false} />
+                    <p className="title hasBG">Conditions</p>
+                    <Table columns={columns1} dataSource={data1} pagination={false} />
+                    <p className="title hasBG">Pod Template</p>
+                    <div className="hasBorder">
+                      <div
+                        className="hasPadding"
+                        style={{ display: !hasShowEdit2 ? 'block' : 'none' }}
+                      >
+                        <p className="title">Container cool-aryabhata-v0fnxq6</p>
+                        <Row>
+                          <Col span="2">
+                            <div style={{ color: 'black' }}>
+                              <p>Image</p>
+                              <p>Args</p>
+                            </div>
+                          </Col>
+                          <Col>
+                            <p>secret</p>
+                            <p>[&apos;-h&apos;]</p>
+                          </Col>
+                        </Row>
                       </div>
-                    </Col>
-                    <Col span="1" />
-                    <Col span="10">
-                      <div className="hasBorder">
-                        <div className="hasPadding">
-                          <p className="title">Status</p>
-                          <p>{status}</p>
-                          {/* <Row>
-                            <Col span="10">
-                              <div style={{ color: 'black' }}>
-                                <p>Avaliable Replicas</p>
-                                <p>Ready Replicas</p>
-                                <p>Total Replicas</p>
-                                <p>Unavaliable Replicas</p>
-                                <p>Updated Replicas</p>
-                              </div>
-                            </Col>
-                            <Col>
-                              <p>0</p>
-                              <p>0</p>
-                              <p>1</p>
-                              <p>1</p>
-                              <p>1</p>
-                            </Col>
-                          </Row> */}
+                      <div
+                        className="hasPadding"
+                        style={{ display: hasShowEdit2 ? 'block' : 'none' }}
+                      >
+                        <p className="title">Deployment Editor</p>
+                        <Form
+                          style={{ width: '50%' }}
+                          {...layout1}
+                          labelAlign="left"
+                          ef={this.formRefStep2}
+                          name="control-ref"
+                          onFinish={this.onFinishStep2}
+                        >
+                          <div className="relativeBox">
+                            <Form.Item name="Image" label="Image">
+                              <Input />
+                            </Form.Item>
+                          </div>
+                          <div style={{ marginBottom: '16px' }}>
+                            <Button type="primary" htmlType="submit">
+                              Submit
+                            </Button>
+                            <Button style={{ marginLeft: '16px' }} onClick={this.changeShowEdit2}>
+                              Cancle
+                            </Button>
+                          </div>
+                        </Form>
+                      </div>
+                      <div style={{ display: !hasShowEdit2 ? 'block' : 'none' }}>
+                        <div
+                          style={{ width: '100%', borderTop: '1px solid #eee', height: '0px' }}
+                        />
+                        <div>
+                          <Button
+                            className="textAlignLeft"
+                            type="link"
+                            block
+                            onClick={this.changeShowEdit2}
+                          >
+                            Edit
+                          </Button>
                         </div>
                       </div>
-                    </Col>
-                  </Row>
-                  <p className="title" style={{ marginTop: '16px' }}>
-                    Pods
-                  </p>
-                  <Table columns={columns} dataSource={data} />
-                  <p className="title">Conditions</p>
-                  <Table columns={columns1} dataSource={data1} />
-                  <p className="title">Pod Template</p>
+                    </div>
+                  </div>
+                </TabPane>
+                <TabPane tab="Metadata" key="2">
                   <div className="hasBorder">
-                    <div
-                      className="hasPadding"
-                      style={{ display: !hasShowEdit2 ? 'block' : 'none' }}
-                    >
-                      <p className="title">Container cool-aryabhata-v0fnxq6</p>
-                      <Row>
-                        <Col span="2">
+                    <div className="hasPadding">
+                      <p className="title">Metadata</p>
+                      {Object.keys(metadata).map((currentKey6) => {
+                        return (
+                          <Row key={currentKey6}>
+                            <Col span="4">
+                              <p>{currentKey6}</p>
+                            </Col>
+                            <Col>
+                              <p>{metadata[currentKey6]}</p>
+                            </Col>
+                          </Row>
+                        );
+                      })}
+                      {/* <Row>
+                        <Col span="4">
                           <div style={{ color: 'black' }}>
-                            <p>Image</p>
-                            <p>Args</p>
+                            <p>Age</p>
+                            <p>Labels</p>
                           </div>
                         </Col>
                         <Col>
-                          <p>secret</p>
-                          <p>[&apos;-h&apos;]</p>
+                          <p>2d</p>
+                          <p>
+                            <Tag color="orange">aryabhataapp:cool</Tag>
+                            <Tag color="orange">version:v0</Tag>
+                          </p>
                         </Col>
                       </Row>
-                    </div>
-                    <div
-                      className="hasPadding"
-                      style={{ display: hasShowEdit2 ? 'block' : 'none' }}
-                    >
-                      <p className="title">Deployment Editor</p>
-                      <Form
-                        style={{ width: '50%' }}
-                        {...layout1}
-                        labelAlign="left"
-                        ef={this.formRefStep2}
-                        name="control-ref"
-                        onFinish={this.onFinishStep2}
-                      >
-                        <div className="relativeBox">
-                          <Form.Item name="Image" label="Image">
-                            <Input />
-                          </Form.Item>
-                        </div>
-                        <div style={{ marginBottom: '16px' }}>
-                          <Button type="primary" htmlType="submit">
-                            Submit
-                          </Button>
-                          <Button style={{ marginLeft: '16px' }} onClick={this.changeShowEdit2}>
-                            Cancle
-                          </Button>
-                        </div>
-                      </Form>
-                    </div>
-                    <div style={{ display: !hasShowEdit2 ? 'block' : 'none' }}>
-                      <div style={{ width: '100%', borderTop: '1px solid #eee', height: '0px' }} />
-                      <div>
-                        <Button
-                          className="textAlignLeft"
-                          type="link"
-                          block
-                          onClick={this.changeShowEdit2}
-                        >
-                          Edit
-                        </Button>
-                      </div>
+                      <Row>
+                        <Col span="4">
+                          <div style={{ color: 'black' }}>
+                            <p>Annotations</p>
+                          </div>
+                        </Col>
+                        <Col span="20">
+                          <Row>
+                            <Col span="8">
+                              <div style={{ color: 'black' }}>
+                                <p>deployment.kubernetes.io/revision</p>
+                              </div>
+                            </Col>
+                            <Col>
+                              <p>1</p>
+                            </Col>
+                          </Row>
+                          <Row>
+                            <Col span="8">
+                              <div style={{ color: 'black' }}>
+                                <p>objectset.rio.cattle.io/applied</p>
+                              </div>
+                            </Col>
+                            <Col span="16">{finallyText}</Col>
+                          </Row>
+                          <Row>
+                            <Col span="8">
+                              <div style={{ color: 'black' }}>
+                                <p>objectset.rio.cattle.io/id</p>
+                              </div>
+                            </Col>
+                            <Col span="16">
+                              <p>service</p>
+                            </Col>
+                          </Row>
+                        </Col>
+                      </Row>
+                      <Row>
+                        <Col span="4">
+                          <div style={{ color: 'black' }}>
+                            <p>Controlled By</p>
+                          </div>
+                        </Col>
+                        <Col>
+                          <p>cool-aryabhata-v0fnxq6</p>
+                        </Col>
+                      </Row> */}
                     </div>
                   </div>
-                </div>
-              </TabPane>
-              <TabPane tab="Metadata" key="2">
-                <div className="hasBorder">
-                  <div className="hasPadding">
-                    <p className="title">Metadata</p>
-                    {Object.keys(metadata).map((currentKey6) => {
-                      return (
-                        <Row key={currentKey6}>
-                          <Col span="4">
-                            <p>{currentKey6}</p>
-                          </Col>
-                          <Col>
-                            <p>{metadata[currentKey6]}</p>
-                          </Col>
-                        </Row>
-                      );
-                    })}
-                    {/* <Row>
-                      <Col span="4">
-                        <div style={{ color: 'black' }}>
-                          <p>Age</p>
-                          <p>Labels</p>
-                        </div>
-                      </Col>
-                      <Col>
-                        <p>2d</p>
-                        <p>
-                          <Tag color="orange">aryabhataapp:cool</Tag>
-                          <Tag color="orange">version:v0</Tag>
-                        </p>
-                      </Col>
-                    </Row>
-                    <Row>
-                      <Col span="4">
-                        <div style={{ color: 'black' }}>
-                          <p>Annotations</p>
-                        </div>
-                      </Col>
-                      <Col span="20">
-                        <Row>
-                          <Col span="8">
-                            <div style={{ color: 'black' }}>
-                              <p>deployment.kubernetes.io/revision</p>
-                            </div>
-                          </Col>
-                          <Col>
-                            <p>1</p>
-                          </Col>
-                        </Row>
-                        <Row>
-                          <Col span="8">
-                            <div style={{ color: 'black' }}>
-                              <p>objectset.rio.cattle.io/applied</p>
-                            </div>
-                          </Col>
-                          <Col span="16">{finallyText}</Col>
-                        </Row>
-                        <Row>
-                          <Col span="8">
-                            <div style={{ color: 'black' }}>
-                              <p>objectset.rio.cattle.io/id</p>
-                            </div>
-                          </Col>
-                          <Col span="16">
-                            <p>service</p>
-                          </Col>
-                        </Row>
-                      </Col>
-                    </Row>
-                    <Row>
-                      <Col span="4">
-                        <div style={{ color: 'black' }}>
-                          <p>Controlled By</p>
-                        </div>
-                      </Col>
-                      <Col>
-                        <p>cool-aryabhata-v0fnxq6</p>
-                      </Col>
-                    </Row> */}
-                  </div>
-                </div>
-              </TabPane>
-              <TabPane tab="Resource Viewer" key="3">
-                <p>Resource Viewer</p>
-              </TabPane>
-              <TabPane tab="YAML" key="4">
-                <p>YAML</p>
-              </TabPane>
-            </Tabs>
-          </div>
-        </Spin>
-      </PageContainer>
+                </TabPane>
+                <TabPane tab="Resource Viewer" key="3">
+                  <p>Resource Viewer</p>
+                </TabPane>
+                <TabPane tab="YAML" key="4">
+                  <p>YAML</p>
+                </TabPane>
+              </Tabs>
+            </div>
+          </Spin>
+        </PageContainer>
+      </div>
     );
   }
 }
