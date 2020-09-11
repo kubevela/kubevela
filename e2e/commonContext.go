@@ -77,13 +77,13 @@ var (
 		})
 	}
 
-	EnvSwitchContext = func(context string, envName string) bool {
+	EnvSetContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
-			ginkgo.It("should show env switch message", func() {
+			ginkgo.It("should show env set message", func() {
 				cli := fmt.Sprintf("vela env sw %s", envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				expectedOutput := fmt.Sprintf("Switch env succeed, current env is %s", envName)
+				expectedOutput := fmt.Sprintf("Set env succeed, current env is %s", envName)
 				gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
 			})
 		})

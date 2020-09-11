@@ -34,8 +34,8 @@ func GetEnvByName(name string) (*types.EnvMeta, error) {
 }
 
 //Create or update env.
-//If it does not exist, create it and switch to the new env.
-//If it exists, update it and switch to the new env.
+//If it does not exist, create it and set to the new env.
+//If it exists, update it and set to the new env.
 func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, namespace string) (string, error) {
 	var message = ""
 	var envArgs = types.EnvMeta{
@@ -218,7 +218,7 @@ func DeleteEnv(envName string) (string, error) {
 	return message, err
 }
 
-func SwitchEnv(envName string) (string, error) {
+func SetEnv(envName string) (string, error) {
 	var msg string
 	currentEnvPath, err := system.GetCurrentEnvPath()
 	if err != nil {
@@ -231,6 +231,6 @@ func SwitchEnv(envName string) (string, error) {
 	if err = ioutil.WriteFile(currentEnvPath, []byte(envName), 0644); err != nil {
 		return msg, err
 	}
-	msg = fmt.Sprintf("Switch env succeed, current env is " + envName + ", namespace is " + envMeta.Namespace)
+	msg = fmt.Sprintf("Set env succeed, current env is " + envName + ", namespace is " + envMeta.Namespace)
 	return msg, nil
 }

@@ -17,7 +17,7 @@ var _ = ginkgo.Describe("Env", func() {
 	e2e.EnvInitContext("env init", envName)
 	e2e.EnvInitContext("env init another one", envName2)
 	e2e.EnvShowContext("env show", envName)
-	e2e.EnvSwitchContext("env sw", envName)
+	e2e.EnvSetContext("env sw", envName)
 
 	ginkgo.Context("env list", func() {
 		ginkgo.It("should list all envs", func() {

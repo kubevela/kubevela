@@ -1,19 +1,19 @@
-## vela version
+## vela logs
 
-Prints out build version information
+Tail pods logs of an application
 
 ### Synopsis
 
-Prints out build version information
+Tail pods logs of an application
 
 ```
-vela version [flags]
+vela logs <appname> [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for version
+  -h, --help   help for logs
 ```
 
 ### Options inherited from parent commands

@@ -1,27 +1,25 @@
-## vela comp run
+## vela comp show
 
-Init and Run workloads
+get component detail
 
 ### Synopsis
 
-Init and Run workloads
+get component detail, including arguments of workload and trait
 
 ```
-vela comp run [args]
+vela comp show <COMPONENT-NAME> [flags]
 ```
 
 ### Examples
 
 ```
-vela comp run -t <workload-type>
+vela comp show <COMPONENT-NAME>
 ```
 
 ### Options
 
 ```
-  -h, --help          help for run
-  -s, --staging       only save changes locally without real update application
-  -t, --type string   specify workload type for application
+  -h, --help   help for show
 ```
 
 ### Options inherited from parent commands

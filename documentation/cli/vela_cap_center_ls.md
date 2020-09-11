@@ -1,25 +1,25 @@
-## vela cap center sync
+## vela cap center ls
 
-Sync capabilities from remote center, default to sync all centers
+List all capability centers
 
 ### Synopsis
 
-Sync capabilities from remote center, default to sync all centers
+List all configured capability centers
 
 ```
-vela cap center sync [centerName] [flags]
+vela cap center ls [flags]
 ```
 
 ### Examples
 
 ```
-vela cap center sync mycenter
+vela cap center ls
 ```
 
 ### Options
 
 ```
-  -h, --help   help for sync
+  -h, --help   help for ls
 ```
 
 ### Options inherited from parent commands

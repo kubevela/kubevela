@@ -17,7 +17,7 @@ var (
 var _ = ginkgo.Describe("Workload", func() {
 	e2e.RefreshContext("refresh")
 	e2e.EnvInitContext("env init", envName)
-	e2e.EnvSwitchContext("env switch", envName)
+	e2e.EnvSetContext("env set", envName)
 	e2e.WorkloadRunContext("run", fmt.Sprintf("vela comp run -t containerized %s -p 80 --image nginx:1.9.4", applicationName))
 
 	ginkgo.Context("run without enough flags", func() {
