@@ -13,7 +13,7 @@ import (
 
 var rudrPath = GetCliBinary()
 
-//GetCliBinary is to build rudr binary.
+//GetCliBinary is to build kubevela binary.
 func GetCliBinary() string {
 	cwd, _ := os.Getwd()
 	return path.Join(cwd, "../..", "./bin")
@@ -38,7 +38,7 @@ func AsyncExec(cli string) (*gexec.Session, error) {
 }
 
 func BeforeSuit() {
-	_, _ = Exec("vela system init")
+	_, _ = Exec("vela install")
 	//Without this line, will hit issue like `<string>: Error: unknown command "scale" for "vela"`
 	_, _ = Exec("vela system update")
 }

@@ -1,21 +1,19 @@
-package cmd
+package commands
 
 import (
 	"context"
 	"strings"
 
-	gocmp "github.com/google/go-cmp/cmp"
-
-	"github.com/oam-dev/kubevela/pkg/application"
-
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-
-	"github.com/oam-dev/kubevela/api/types"
-	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/application"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 func NewAppListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {

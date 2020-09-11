@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"errors"
@@ -6,14 +6,12 @@ import (
 	"strings"
 
 	"github.com/gosuri/uitable"
+	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	"github.com/oam-dev/kubevela/api/types"
-
-	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
-	"github.com/spf13/cobra"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 func CapabilityCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {

@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"context"
@@ -15,14 +15,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mholt/archiver/v3"
-
 	"github.com/oam-dev/kubevela/api/types"
-	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/server"
 	"github.com/oam-dev/kubevela/pkg/server/util"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 
+	"github.com/mholt/archiver/v3"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"

@@ -1,10 +1,10 @@
-package cmd
+package commands
 
 import (
 	"errors"
 
 	"github.com/oam-dev/kubevela/api/types"
-	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"github.com/spf13/cobra"

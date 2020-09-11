@@ -1,11 +1,11 @@
-package cmd
+package commands
 
 import (
 	"errors"
 	"fmt"
 
 	"github.com/oam-dev/kubevela/api/types"
-	"github.com/oam-dev/kubevela/pkg/cmd/util"
+	"github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 

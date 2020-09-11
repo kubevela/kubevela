@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"github.com/gosuri/uitable"
 
 	"github.com/oam-dev/kubevela/api/types"
-	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
 func Test_printTraitList(t *testing.T) {

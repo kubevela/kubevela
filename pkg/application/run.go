@@ -3,15 +3,13 @@ package application
 import (
 	"context"
 
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
-
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-
-	"github.com/oam-dev/kubevela/api/types"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/api/types"
 )
 
 func (app *Application) Run(ctx context.Context, client client.Client, env *types.EnvMeta) error {

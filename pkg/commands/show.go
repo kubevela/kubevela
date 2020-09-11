@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/application"
-	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"

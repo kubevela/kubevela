@@ -1,15 +1,15 @@
 package handler
 
 import (
-	"github.com/oam-dev/kubevela/api/types"
-	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/plugins"
+	"github.com/gin-gonic/gin"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/server/util"
-	"github.com/gin-gonic/gin"
 )
 
 // Workload related handlers

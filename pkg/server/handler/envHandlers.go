@@ -1,12 +1,11 @@
 package handler
 
 import (
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	"github.com/gin-gonic/gin"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/server/util"
 )

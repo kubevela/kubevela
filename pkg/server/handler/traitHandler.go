@@ -3,12 +3,13 @@ package handler
 import (
 	"strconv"
 
+	"github.com/gin-gonic/gin"
+	ctrl "sigs.k8s.io/controller-runtime"
+
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/server/util"
-	"github.com/gin-gonic/gin"
-	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 // Trait related handlers

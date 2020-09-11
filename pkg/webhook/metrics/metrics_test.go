@@ -1,6 +1,8 @@
-package metrics_test
+package metrics
 
 import (
+	"testing"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -8,8 +10,12 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/api/v1alpha1"
-	. "github.com/oam-dev/kubevela/pkg/webhook/metrics"
 )
+
+func TestMetrics(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Metrics Suite")
+}
 
 var _ = Describe("Metrics Admission controller Test", func() {
 	var traitBase v1alpha1.MetricsTrait
@@ -35,7 +41,7 @@ var _ = Describe("Metrics Admission controller Test", func() {
 		want.Spec.ScrapeService.Scheme = SupportedScheme
 		want.Spec.ScrapeService.Path = DefaultMetricsPath
 		want.Spec.ScrapeService.Enabled = pointer.BoolPtr(true)
-		Default(&trait)
+		DefaultMetrics(&trait)
 		Expect(trait).Should(BeEquivalentTo(want))
 	})
 
@@ -46,7 +52,7 @@ var _ = Describe("Metrics Admission controller Test", func() {
 		want.Spec.ScrapeService.Format = SupportedFormat
 		want.Spec.ScrapeService.Scheme = SupportedScheme
 		want.Spec.ScrapeService.Enabled = pointer.BoolPtr(true)
-		Default(&trait)
+		DefaultMetrics(&trait)
 		Expect(trait).Should(BeEquivalentTo(want))
 	})
 
@@ -58,7 +64,7 @@ var _ = Describe("Metrics Admission controller Test", func() {
 		want.Spec.ScrapeService.Scheme = SupportedScheme
 		want.Spec.ScrapeService.Path = DefaultMetricsPath
 		want.Spec.ScrapeService.Enabled = pointer.BoolPtr(false)
-		Default(&trait)
+		DefaultMetrics(&trait)
 		Expect(trait).Should(BeEquivalentTo(want))
 	})
 

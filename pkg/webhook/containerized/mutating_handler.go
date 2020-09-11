@@ -53,7 +53,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	Default(obj)
+	DefaultContainerized(obj)
 
 	marshalled, err := json.Marshal(obj)
 	if err != nil {
@@ -67,7 +67,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 }
 
 // Default sets all the default value for the Containerized
-func Default(obj *v1alpha1.Containerized) {
+func DefaultContainerized(obj *v1alpha1.Containerized) {
 	mutatelog.Info("default", "name", obj.Name)
 	if obj.Spec.Replicas == nil {
 		mutatelog.Info("default replicas as 1")

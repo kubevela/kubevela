@@ -1,9 +1,10 @@
 package apis
 
 import (
-	"github.com/oam-dev/kubevela/api/types"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/api/types"
 )
 
 type Environment struct {

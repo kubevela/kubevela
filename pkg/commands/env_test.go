@@ -1,4 +1,4 @@
-package cmd
+package commands
 
 import (
 	"bytes"
@@ -15,7 +15,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 
-	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/stretchr/testify/assert"
 )
 

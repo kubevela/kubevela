@@ -1,18 +1,15 @@
-package cmd
+package commands
 
 import (
 	"context"
 	"errors"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
-
+	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/application"
-
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 
-	"github.com/oam-dev/kubevela/api/types"
-
-	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )

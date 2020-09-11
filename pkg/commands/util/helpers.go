@@ -1,21 +1,18 @@
 package util
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
-
 	"github.com/oam-dev/kubevela/api/types"
 
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"context"
-	"encoding/json"
-
+	"github.com/spf13/cobra"
 	"k8s.io/klog"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (

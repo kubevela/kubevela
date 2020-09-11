@@ -5,8 +5,8 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/gin-gonic/gin"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 func UpdateApps(c *gin.Context) {

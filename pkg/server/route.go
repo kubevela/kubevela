@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/gin-contrib/static"
-
 	"github.com/gin-gonic/gin"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 

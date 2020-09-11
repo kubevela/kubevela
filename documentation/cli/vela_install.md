@@ -1,4 +1,4 @@
-## vela system init
+## vela install
 
 Initialize vela on both client and server
 
@@ -7,13 +7,13 @@ Initialize vela on both client and server
 Install OAM runtime and vela builtin capabilities.
 
 ```
-vela system init [flags]
+vela install [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help             help for system init
+  -h, --help             help for install
   -v, --version string   Override chart version
 ```
 

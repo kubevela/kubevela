@@ -12,25 +12,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
-
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-
 	"cuelang.org/go/cue"
-
+	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
+	"github.com/ghodss/yaml"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	mycue "github.com/oam-dev/kubevela/pkg/cue"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	"github.com/oam-dev/kubevela/pkg/plugins"
-
 	"github.com/oam-dev/kubevela/api/types"
-
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-
+	mycue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
-	"github.com/ghodss/yaml"
 )
 
 const (

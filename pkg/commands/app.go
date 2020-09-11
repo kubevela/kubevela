@@ -1,8 +1,9 @@
-package cmd
+package commands
 
 import (
 	"github.com/oam-dev/kubevela/api/types"
-	cmdutil "github.com/oam-dev/kubevela/pkg/cmd/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+
 	"github.com/spf13/cobra"
 )
 

@@ -6,16 +6,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/application"
+	"github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 
-	"github.com/spf13/pflag"
-
-	"github.com/oam-dev/kubevela/api/types"
-	"github.com/oam-dev/kubevela/pkg/cmd/util"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	"cuelang.org/go/cue"
-	"github.com/oam-dev/kubevela/pkg/application"
+	"github.com/spf13/pflag"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type RunOptions struct {

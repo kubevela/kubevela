@@ -6,5 +6,5 @@ import (
 
 var _ = ginkgo.Describe("Application", func() {
 	// TODO(zzxwill) Need to find out why it failed in Github workflow.
-	//e2e.SystemInitContext("system init")
+	//e2e.SystemInitContext("install")
 })

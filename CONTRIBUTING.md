@@ -93,7 +93,7 @@ Creating AppConfig app-trait-basic
 SUCCEED
 •
 ------------------------------
-Trait rudr attach trait
+Trait kubevela attach trait
   should print successful attached information
   kubevela/e2e/trait/trait_test.go:24
 Applying trait for app
