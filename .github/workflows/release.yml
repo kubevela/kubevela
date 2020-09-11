@@ -38,24 +38,27 @@ jobs:
         with:
           tag_name: ${{ github.ref }}
           release_name: Release ${{ github.ref }}
+      - name: Get the version
+        id: get_version
+        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
       - name: Upload Linux
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./bin/vela-linux-amd64
-          asset_name: vela-${{ github.ref }}-linux-amd64
+          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-linux-amd64
           asset_content_type: binary/octet-stream
       - name: Upload MacOS
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./bin/vela-darwin-amd64
-          asset_name: vela-${{ github.ref }}-darwin-amd64
+          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-darwin-amd64
           asset_content_type: binary/octet-stream
       - name: Upload Windows
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./bin/vela-windows-amd64.exe
-          asset_name: vela-${{ github.ref }}-windows-amd64.exe
+          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-windows-amd64.exe
           asset_content_type: binary/octet-stream

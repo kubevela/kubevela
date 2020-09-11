@@ -2,21 +2,42 @@
 
 The Open Application Platform based on Kubernetes and OAM.
 
-## Get `vela` binary
-
-```shell script
-curl https://github.com/oam-dev/kubevela/releases/download/v0.0.1.2/vela-refs.tags.v0.0.1.2-darwin-amd64
-chmod a+x vela-refs.tags.v0.0.1.2-darwin-amd64
-mv vela-refs.tags.v0.0.1.2-darwin-amd64 /usr/local/bin/vela
-```
-
 ## Install
 
-```shell script
-vela install
+### Prerequisites
+- Kubernetes cluster running Kubernetes v1.15.0 or greater
+- kubectl current context is configured for the target cluster install
+  - ```kubectl config current-context```
+
+### Get the Vela CLI
+
+Download the `vela` binary from the [Releases page](https://github.com/oam-dev/kubevela/releases). Change file mod and add it to `$PATH` to get started.
+
+For exmaple:
+```shell
+chmod a+x vela-v0.0.2-darwin-amd64
+sudo mv ./vela-v0.0.2-darwin-amd64 /usr/local/bin/vela
 ```
 
-#### env
+### Install Vela Core
+
+```shell script
+$ vela install
+- Installing Vela Core:
+- Installing builtin capabilities:
+Successful applied 4 kinds of Workloads and Traits: deployments.apps,containerizedworkloads.core.oam.dev,manualscalertraits.core.oam.dev,simplerollouttraits.extend.oam.dev.
+syncing workload definitions from cluster...
+[WARN]handle template task: #Template.metadata.name: reference "task" not found
+get 5 workload definitions from cluster, syncing...5 workload definitions successfully synced
+syncing trait definitions from cluster...
+[WARN]handle template metricstraits.standard.oam.dev: #Template.metadata.name: reference "metricstraits" not found
+get 2 trait definitions from cluster, syncing...2 trait definitions successfully synced
+- Finished.
+```
+
+## Demos
+
+#### Create ENV
 
 ```
 $ vela env init test --namespace test
