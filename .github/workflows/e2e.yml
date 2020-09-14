@@ -40,6 +40,9 @@ jobs:
       - name: Run Make
         run: make
 
+      - name: Run Make Manager
+        run: make manager
+
       - name: Run e2e tests
         run: |
           make e2e-setup

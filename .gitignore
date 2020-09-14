@@ -35,6 +35,7 @@ config/crd/bases
 tmp/
 
 cmd/vela/fake/source.go
+charts/vela-core/crds/_.yaml
 
 # Dashboard
 dashboard/node_modules/
