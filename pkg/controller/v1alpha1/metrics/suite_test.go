@@ -65,7 +65,7 @@ var _ = BeforeSuite(func(done Done) {
 		},
 	}
 	By("Bootstrapping test environment")
-	useExistCluster := true
+	useExistCluster := false
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("../../../..", "charts/third_party/prometheus"), // this has all the required CRDs,

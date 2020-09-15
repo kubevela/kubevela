@@ -2,6 +2,10 @@ apiVersion: core.oam.dev/v1alpha2
 kind: ScopeDefinition
 metadata:
   name: healthscopes.core.oam.dev
+  annotations:
+    definition.oam.dev/apiVersion: core.oam.dev/v1alpha2
+    definition.oam.dev/kind: HealthScope
+  namespace: default
 spec:
   workloadRefsPath: spec.workloadRefs
   allowComponentOverlap: true
