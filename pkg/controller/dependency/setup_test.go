@@ -19,7 +19,7 @@ import (
 
 var (
 	scheme         *runtime.Scheme
-	helmErr        = fmt.Errorf("err")
+	errHelm        = fmt.Errorf("err")
 	velaConfigBase = v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   VelaConfigName,
@@ -67,7 +67,7 @@ func TestFailedInstall(t *testing.T) {
 	helmInstallFunc = failedHelmInstall
 	velaConfig := velaConfigBase.DeepCopy()
 	client := fake.NewFakeClientWithScheme(scheme, velaConfig)
-	if err := Install(client); errors.Cause(err) != helmErr {
+	if err := Install(client); errors.Cause(err) != errHelm {
 		t.Errorf("failed to get install dependency error: %v", err)
 	}
 }
@@ -93,7 +93,7 @@ func TestNoNeedToInstall(t *testing.T) {
 }
 
 func failedHelmInstall(ioStreams cmdutil.IOStreams, c types.Chart) error {
-	return helmErr
+	return errHelm
 }
 
 func successHelmInstall(ioStreams cmdutil.IOStreams, c types.Chart) error {
