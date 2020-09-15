@@ -30,5 +30,8 @@ jobs:
         with:
           version: "v0.7.0"
 
+      - name: install Kubebuilder
+        uses: RyanSiu1995/kubebuilder-action@v1
+
       - name: Run Make test
         run: make test
