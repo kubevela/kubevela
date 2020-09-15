@@ -2,6 +2,7 @@ apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
   name: containerizeds.standard.oam.dev
+  namespace: default
   annotations:
     definition.oam.dev/apiVersion: "core.oam.dev/v1alpha2"
     definition.oam.dev/kind: "ContainerizedWorkload"
