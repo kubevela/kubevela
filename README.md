@@ -2,6 +2,8 @@
 
 The Open Application Platform based on Kubernetes and OAM.
 
+:rotating_light: **Warning: The project is still under heavy development, its UI/UX is also for demo purpose, please don't look inside unless you know what you are doing** Please contact @wonderflow if you are interested in its full story or becoming one of the boostrap contributors/maintainers. :rotating_light:
+
 ## Install
 
 ### Prerequisites
