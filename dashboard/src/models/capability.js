@@ -10,9 +10,7 @@ import {
 
 const TestModel = {
   namespace: 'capability',
-  state: {
-    // initailState: '8880'
-  },
+  state: {},
   effects: {
     *getCapabilityCenterlist({ payload }, { call }) {
       const res = yield call(getCapabilityCenterlist, payload);

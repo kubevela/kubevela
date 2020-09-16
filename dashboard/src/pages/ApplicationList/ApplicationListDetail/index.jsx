@@ -1,11 +1,22 @@
 import React, { Fragment } from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
 import './index.less';
-import { Button, Row, Col, Tabs, Popconfirm, message, Tooltip, Modal, Spin } from 'antd';
+import {
+  Button,
+  Row,
+  Col,
+  Tabs,
+  Popconfirm,
+  message,
+  Tooltip,
+  Modal,
+  Spin,
+  Breadcrumb,
+} from 'antd';
 import { connect } from 'dva';
 import _ from 'lodash';
+import { Link } from 'umi';
 import CreateTraitItem from '../../../components/AttachOneTrait/index.jsx';
-import Topology from './Topology.jsx';
 
 const { TabPane } = Tabs;
 
@@ -54,18 +65,18 @@ class TableList extends React.Component {
       const traits = await this.props.dispatch({
         type: 'trait/getTraits',
       });
-      this.setState({
-        traitList: traits,
-      });
+      if (traits) {
+        this.setState({
+          traitList: traits,
+        });
+      }
       const workloadType = _.get(res, 'Workload.workload.kind', '');
       if (workloadType && workloadType === 'ContainerizedWorkload') {
         this.getAcceptTrait('containerized');
       } else if (workloadType && workloadType === 'Deployment') {
         this.getAcceptTrait('deployment');
       }
-      // 如果traitType存在，是从特定trait跳转来新增单个trait的
       if (traitType && times === 1) {
-        // this.createTrait(traitType)
         await this.setState({
           visible: true,
         });
@@ -88,7 +99,7 @@ class TableList extends React.Component {
 
   deleteApp = async (e) => {
     e.stopPropagation();
-    const { currentEnv: envName } = this.props;
+    const { envName } = this.state;
     const { appDetailData } = this.state;
     const appName = _.get(appDetailData, 'Workload.workload.metadata.name', '');
     if (appName && envName) {
@@ -138,6 +149,7 @@ class TableList extends React.Component {
   };
 
   handleOk = async () => {
+    await this.child.validateFields();
     const submitData = this.child.getSelectValue();
     if (submitData.name) {
       const submitObj = {
@@ -187,26 +199,10 @@ class TableList extends React.Component {
 
   gotoWorkloadDetail = (e) => {
     e.stopPropagation();
-    const appName = _.get(this.props, 'location.state.appName', '');
-    const envName = _.get(this.props, 'location.state.envName', '');
-    if (appName && envName) {
-      this.props.history.push({
-        pathname: '/ApplicationList/WorkloadDetail',
-        state: { appName, envName },
-      });
-    }
   };
 
-  gotoTraitDetail = (e, traitItem) => {
+  gotoTraitDetail = (e) => {
     e.stopPropagation();
-    const appName = _.get(this.props, 'location.state.appName', '');
-    const envName = _.get(this.props, 'location.state.envName', '');
-    if (appName && envName) {
-      this.props.history.push({
-        pathname: '/ApplicationList/TraitDetail',
-        state: { traitItem, appName, envName },
-      });
-    }
   };
 
   render() {
@@ -214,277 +210,277 @@ class TableList extends React.Component {
     const Workload = _.get(this.state.appDetailData, 'Workload.workload', {});
     const Traits = _.get(this.state.appDetailData, 'Traits', []);
     let containers = {};
-    // if (Workload.kind === 'ContainerizedWorkload') {
-    //   containers = _.get(Workload, 'spec.containers[0]', {});
-    // } else if (Workload.kind === 'Deployment') {
-    //   containers = _.get(Workload, 'spec.template.spec.containers[0]', {});
-    // }
     containers = _.get(Workload, 'spec.containers[0]', {});
     let { loadingAll } = this.props;
     loadingAll = loadingAll || false;
+    const colorObj = {
+      Deployed: '#4CAF51',
+      Staging: '#F44337',
+      UNKNOWN: '#1890ff',
+    };
     return (
-      <PageContainer>
-        <Spin spinning={loadingAll}>
-          <div className="card-container app-detial">
-            <h2>{_.get(Workload, 'metadata.name')}</h2>
-            <p style={{ marginBottom: '20px' }}>
-              {Workload.apiVersion}, Kind={Workload.kind}
-            </p>
-            <Tabs>
-              <TabPane tab="Summary" key="1">
-                <Row>
-                  <Col span="11">
-                    <div className="summaryBox1" onClick={(e) => this.gotoWorkloadDetail(e)}>
-                      {/* <div className="summaryBox1"> */}
-                      <Row>
-                        <Col span="22">
-                          <p className="title">{Workload.kind}</p>
-                          <p>{Workload.apiVersion}</p>
-                        </Col>
-                        <Col span="2">
-                          {/* <a href="JavaScript:;">?</a> */}
-                          <p className="title hasCursor" onClick={this.hrefClick}>
-                            ?
-                          </p>
-                        </Col>
-                      </Row>
-                      <p className="title">
-                        Name:<span>{_.get(Workload, 'metadata.name')}</span>
-                      </p>
-                      <p className="title">Settings:</p>
-                      <Row>
-                        {Object.keys(containers).map((currentKey) => {
-                          if (currentKey === 'ports') {
-                            return (
-                              <Fragment key={currentKey}>
-                                <Col span="8">
-                                  <p>port</p>
-                                </Col>
-                                <Col span="16">
-                                  <p>{_.get(containers[currentKey], '[0].containerPort', '')}</p>
-                                </Col>
-                              </Fragment>
-                            );
-                            // eslint-disable-next-line no-else-return
-                          } else if (currentKey === 'name') {
-                            return <Fragment key={currentKey} />;
-                          }
-                          return (
-                            <Fragment key={currentKey}>
-                              <Col span="8">
-                                <p>{currentKey}</p>
-                              </Col>
-                              <Col span="16">
-                                <p>{containers[currentKey]}</p>
-                              </Col>
-                            </Fragment>
-                          );
-                        })}
-                      </Row>
-                    </div>
-                    <div className="summaryBox2">
-                      <p className="title">Status:</p>
-                      <p>{status}</p>
-                      {/* <Row>
-                        <Col span="8">
-                          <p>Available Replicas</p>
-                          <p>Ready Replicas</p>
-                        </Col>
-                        <Col span="16">
-                          <p>1</p>
-                          <p>1</p>
-                        </Col>
-                      </Row> */}
-                    </div>
-                    <Popconfirm
-                      title="Are you sure delete this app?"
-                      onConfirm={(e) => this.deleteApp(e)}
-                      onCancel={this.cancel}
-                      okText="Yes"
-                      cancelText="No"
-                    >
-                      <Button danger>Delete</Button>
-                    </Popconfirm>
-                  </Col>
-                  <Col span="1" />
-                  <Col span="10">
-                    {Traits.length ? (
-                      Traits.map((item, index) => {
-                        const traitItem = _.get(item, 'trait', {});
-                        const annotations = _.get(traitItem, 'metadata.annotations', {});
-                        let traitType = 1;
-                        const spec = _.get(traitItem, 'spec', {});
-                        if (traitItem.kind === 'Ingress') {
-                          traitType = 2;
-                        }
-                        return (
-                          <div
-                            className="summaryBox"
-                            onClick={(e) => this.gotoTraitDetail(e, traitItem)}
-                            key={index.toString()}
-                          >
-                            <Row>
-                              <Col span="22">
-                                <p className="title">{traitItem.kind}</p>
-                                <p>{traitItem.apiVersion}</p>
-                              </Col>
-                              <Col span="2">
-                                <p
-                                  className="title hasCursor"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                  }}
-                                >
-                                  ?
-                                </p>
-                              </Col>
-                            </Row>
-                            <Row>
-                              {Object.keys(annotations).map((currentKey3) => {
-                                return (
-                                  <Fragment key={currentKey3}>
-                                    <Col span="8">
-                                      <p>{currentKey3}:</p>
-                                    </Col>
-                                    <Col span="8">
-                                      <p>{annotations[currentKey3]}</p>
-                                    </Col>
-                                  </Fragment>
-                                );
-                              })}
-                            </Row>
-                            <p className="title">Properties:</p>
-                            <Row>
-                              {traitType === 2 ? (
-                                <Fragment>
-                                  <Col span="8">
-                                    <p>domain</p>
-                                  </Col>
-                                  <Col span="16">
-                                    <p>{_.get(spec, 'rules[0].host', '')}</p>
-                                  </Col>
-                                  <Col span="8">
-                                    <p>service</p>
-                                  </Col>
-                                  <Col span="16">
-                                    <p>
-                                      {_.get(
-                                        spec,
-                                        'rules[0].http.paths[0].backend.serviceName',
-                                        '',
-                                      )}
-                                    </p>
-                                  </Col>
+      <div>
+        <div className="breadCrumb">
+          <Breadcrumb>
+            <Breadcrumb.Item>
+              <Link to="/ApplicationList">Home</Link>
+            </Breadcrumb.Item>
+            <Breadcrumb.Item>
+              <Link to="/ApplicationList">Applications</Link>
+            </Breadcrumb.Item>
+            <Breadcrumb.Item>ApplicationListDetail</Breadcrumb.Item>
+          </Breadcrumb>
+        </div>
+        <PageContainer>
+          <Spin spinning={loadingAll}>
+            <div className="card-container app-detial">
+              <h2>{_.get(Workload, 'metadata.name')}</h2>
+              <p style={{ marginBottom: '20px' }}>
+                {Workload.apiVersion}, Kind={Workload.kind}
+              </p>
+              <Tabs>
+                <TabPane tab="Summary" key="1">
+                  <Row>
+                    <Col span="11">
+                      <div
+                        className="summaryBox1"
+                        onClick={(e) => this.gotoWorkloadDetail(e)}
+                        style={{ background: colorObj[status] || '#1890ff' }}
+                      >
+                        <Row>
+                          <Col span="22">
+                            <p className="title">{Workload.kind}</p>
+                            <p>{Workload.apiVersion}</p>
+                          </Col>
+                          <Col span="2">
+                            <p className="title hasCursor" onClick={this.hrefClick}>
+                              ?
+                            </p>
+                          </Col>
+                        </Row>
+                        <p className="title">
+                          Name:<span>{_.get(Workload, 'metadata.name')}</span>
+                        </p>
+                        <p className="title">Settings:</p>
+                        <Row>
+                          {Object.keys(containers).map((currentKey) => {
+                            if (currentKey === 'ports') {
+                              return (
+                                <Fragment key={currentKey}>
                                   <Col span="8">
                                     <p>port</p>
                                   </Col>
                                   <Col span="16">
-                                    <p>
-                                      {_.get(
-                                        spec,
-                                        'rules[0].http.paths[0].backend.servicePort',
-                                        '',
-                                      )}
-                                    </p>
+                                    <p>{_.get(containers[currentKey], '[0].containerPort', '')}</p>
                                   </Col>
                                 </Fragment>
-                              ) : (
-                                Object.keys(spec).map((currentKey) => {
+                              );
+                              // eslint-disable-next-line no-else-return
+                            } else if (currentKey === 'name') {
+                              return <Fragment key={currentKey} />;
+                              // eslint-disable-next-line no-else-return
+                            } else if (currentKey === 'env') {
+                              return (
+                                <Fragment key={currentKey}>
+                                  <Col span="8">
+                                    <p>env</p>
+                                  </Col>
+                                  <Col span="16">
+                                    <p>{_.get(containers[currentKey], '[0].value', '')}</p>
+                                  </Col>
+                                </Fragment>
+                              );
+                            }
+                            return (
+                              <Fragment key={currentKey}>
+                                <Col span="8">
+                                  <p>{currentKey}</p>
+                                </Col>
+                                <Col span="16">
+                                  <p>{containers[currentKey]}</p>
+                                </Col>
+                              </Fragment>
+                            );
+                          })}
+                        </Row>
+                      </div>
+                      <Popconfirm
+                        title="Are you sure delete this app?"
+                        onConfirm={(e) => this.deleteApp(e)}
+                        onCancel={this.cancel}
+                        okText="Yes"
+                        cancelText="No"
+                      >
+                        <Button danger>Delete</Button>
+                      </Popconfirm>
+                    </Col>
+                    <Col span="1" />
+                    <Col span="10">
+                      {Traits.length ? (
+                        Traits.map((item, index) => {
+                          const traitItem = _.get(item, 'trait', {});
+                          const annotations = _.get(traitItem, 'metadata.annotations', {});
+                          let traitType = 1;
+                          const spec = _.get(traitItem, 'spec', {});
+                          if (traitItem.kind === 'Ingress') {
+                            traitType = 2;
+                          }
+                          return (
+                            <div
+                              className="summaryBox"
+                              onClick={(e) => this.gotoTraitDetail(e, traitItem)}
+                              key={index.toString()}
+                            >
+                              <Row>
+                                <Col span="22">
+                                  <p className="title">{traitItem.kind}</p>
+                                  <p>{traitItem.apiVersion}</p>
+                                </Col>
+                                <Col span="2">
+                                  <p
+                                    className="title hasCursor"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                    }}
+                                  >
+                                    ?
+                                  </p>
+                                </Col>
+                              </Row>
+                              <Row>
+                                {Object.keys(annotations).map((currentKey3) => {
                                   return (
-                                    <Fragment key={currentKey}>
+                                    <Fragment key={currentKey3}>
                                       <Col span="8">
-                                        <p>{currentKey}</p>
+                                        <p>{currentKey3}:</p>
                                       </Col>
-                                      <Col span="16">
-                                        <p>{spec[currentKey]}</p>
+                                      <Col span="8">
+                                        <p>{annotations[currentKey3]}</p>
                                       </Col>
                                     </Fragment>
                                   );
-                                })
-                              )}
-                              {/* {Object.keys(spec).map((currentKey) => {
-                                return (
-                                  <Fragment key={currentKey}>
+                                })}
+                              </Row>
+                              <p className="title">Properties:</p>
+                              <Row>
+                                {traitType === 2 ? (
+                                  <Fragment>
                                     <Col span="8">
-                                      <p>{currentKey}</p>
+                                      <p>domain</p>
                                     </Col>
                                     <Col span="16">
-                                      <p>{spec[currentKey]}</p>
+                                      <p>{_.get(spec, 'rules[0].host', '')}</p>
+                                    </Col>
+                                    <Col span="8">
+                                      <p>service</p>
+                                    </Col>
+                                    <Col span="16">
+                                      <p>
+                                        {_.get(
+                                          spec,
+                                          'rules[0].http.paths[0].backend.serviceName',
+                                          '',
+                                        )}
+                                      </p>
+                                    </Col>
+                                    <Col span="8">
+                                      <p>port</p>
+                                    </Col>
+                                    <Col span="16">
+                                      <p>
+                                        {_.get(
+                                          spec,
+                                          'rules[0].http.paths[0].backend.servicePort',
+                                          '',
+                                        )}
+                                      </p>
                                     </Col>
                                   </Fragment>
-                                );
-                              })} */}
-                            </Row>
-                            <div style={{ clear: 'both', height: '32px' }}>
-                              <Popconfirm
-                                title="Are you sure delete this trait?"
-                                onConfirm={(e) => this.deleteTrait(e, item)}
-                                onCancel={this.cancel}
-                                okText="Yes"
-                                cancelText="No"
-                              >
-                                <Button
-                                  danger
-                                  className="floatRight"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                  }}
+                                ) : (
+                                  Object.keys(spec).map((currentKey) => {
+                                    return (
+                                      <Fragment key={currentKey}>
+                                        <Col span="8">
+                                          <p>{currentKey}</p>
+                                        </Col>
+                                        <Col span="16">
+                                          <p>{spec[currentKey]}</p>
+                                        </Col>
+                                      </Fragment>
+                                    );
+                                  })
+                                )}
+                              </Row>
+                              <div style={{ clear: 'both', height: '32px' }}>
+                                <Popconfirm
+                                  title="Are you sure delete this trait?"
+                                  onConfirm={(e) => this.deleteTrait(e, item)}
+                                  onCancel={this.cancel}
+                                  okText="Yes"
+                                  cancelText="No"
                                 >
-                                  Delete
-                                </Button>
-                              </Popconfirm>
+                                  <Button
+                                    danger
+                                    className="floatRight"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                    }}
+                                  >
+                                    Delete
+                                  </Button>
+                                </Popconfirm>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <Fragment />
-                    )}
-                    <Tooltip placement="top" title="Attach Trait">
-                      <p
-                        className="hasCursor"
-                        style={{
-                          fontSize: '30px',
-                          display: 'inline-flex',
-                        }}
-                        onClick={this.createTrait}
-                      >
-                        +
-                      </p>
-                    </Tooltip>
-                  </Col>
-                </Row>
-              </TabPane>
-              <TabPane tab="Topology" key="2">
-                {/* <p>Topology</p> */}
-                <Topology />
-              </TabPane>
-            </Tabs>
-          </div>
-          <Modal
-            title="attach a trait"
-            visible={this.state.visible}
-            onOk={this.handleOk}
-            onCancel={this.handleCancel}
-            footer={[
-              <Button key="back" onClick={this.handleCancel}>
-                Cancel
-              </Button>,
-              <Button key="submit" type="primary" onClick={this.handleOk}>
-                Confirm
-              </Button>,
-            ]}
-          >
-            <CreateTraitItem
-              onRef={(ref) => {
-                this.child = ref;
-              }}
-              availableTraitList={this.state.availableTraitList}
-              initialValues={{}}
-            />
-          </Modal>
-        </Spin>
-      </PageContainer>
+                          );
+                        })
+                      ) : (
+                        <Fragment />
+                      )}
+                      <Tooltip placement="top" title="Attach Trait">
+                        <p
+                          className="hasCursor"
+                          style={{
+                            fontSize: '30px',
+                            display: 'inline-flex',
+                          }}
+                          onClick={this.createTrait}
+                        >
+                          +
+                        </p>
+                      </Tooltip>
+                    </Col>
+                  </Row>
+                </TabPane>
+                <TabPane tab="Topology" key="2">
+                  <p>Topology</p>
+                </TabPane>
+              </Tabs>
+            </div>
+            <Modal
+              title="Attach a Trait"
+              visible={this.state.visible}
+              onOk={this.handleOk}
+              onCancel={this.handleCancel}
+              footer={[
+                <Button key="back" onClick={this.handleCancel}>
+                  Cancel
+                </Button>,
+                <Button key="submit" type="primary" onClick={this.handleOk}>
+                  Confirm
+                </Button>,
+              ]}
+            >
+              <CreateTraitItem
+                onRef={(ref) => {
+                  this.child = ref;
+                }}
+                availableTraitList={this.state.availableTraitList}
+                initialValues={{}}
+              />
+            </Modal>
+          </Spin>
+        </PageContainer>
+      </div>
     );
   }
 }

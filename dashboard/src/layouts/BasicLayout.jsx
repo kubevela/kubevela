@@ -4,7 +4,7 @@
  * https://github.com/ant-design/ant-design-pro-layout
  */
 import ProLayout from '@ant-design/pro-layout';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useIntl, connect, history } from 'umi';
 import RightContent from '@/components/GlobalHeader/RightContent';
 import {
@@ -16,15 +16,6 @@ import {
 } from '@ant-design/icons';
 import _ from 'lodash';
 
-// const menuDataRender = (menuList) => {
-//   return menuList.map((item) => {
-//     const localItem = {
-//       ...item,
-//       children: item.children ? menuDataRender(item.children) : undefined,
-//     };
-//     return localItem;
-//   });
-// };
 const AddIcon = (menuData) => {
   return menuData.map((item) => {
     const name = _.get(item, 'name', '');
@@ -52,18 +43,37 @@ const AddIcon = (menuData) => {
 
 const BasicLayout = (props) => {
   const { settings, dispatch, menus } = props;
+  const [currentSelectKeys, setCurrentSelectedKeys] = useState('');
+  const getCurrentSelectKeys = () => {
+    const pathnameCur = props.history.location.pathname;
+    if (pathnameCur) {
+      if (pathnameCur.includes('Application')) {
+        setCurrentSelectedKeys(['applist']);
+      } else if (pathnameCur.includes('Capability')) {
+        setCurrentSelectedKeys(['Capability']);
+      } else if (pathnameCur.includes('System/Env')) {
+        setCurrentSelectedKeys(['Env']);
+      } else if (pathnameCur.includes('Workload')) {
+        const arr = pathnameCur.split('/');
+        const key = arr[arr.length - 1];
+        setCurrentSelectedKeys([key]);
+      } else if (pathnameCur.includes('Traits')) {
+        const arr = pathnameCur.split('/');
+        const key = arr[arr.length - 1];
+        setCurrentSelectedKeys([key]);
+      }
+    }
+  };
   useEffect(() => {
     if (dispatch) {
-      // dispatch({
-      //     type: 'user/fetchCurrent',
-      // });
-      // dispatch({
-      //     type: 'settings/getSetting',
-      // });
       dispatch({
         type: 'menus/getMenuData',
       });
     }
+    props.history.listen((route) => {
+      getCurrentSelectKeys(route.pathname);
+    });
+    // setCurrentSelectedKeys('applist')
   }, []);
 
   const { formatMessage } = useIntl();
@@ -75,9 +85,19 @@ const BasicLayout = (props) => {
         if (menuItemProps.isUrl || !menuItemProps.path) {
           return defaultDom;
         }
-
-        return <Link to={menuItemProps.path}>{defaultDom}</Link>;
+        // return <Link to={menuItemProps.path}>{defaultDom}</Link>;
+        return (
+          <div
+            onClick={() => {
+              setCurrentSelectedKeys([menuItemProps.key]);
+              history.push(menuItemProps.path);
+            }}
+          >
+            {defaultDom}
+          </div>
+        );
       }}
+      selectedKeys={currentSelectKeys}
       breadcrumbRender={(routers = []) => [
         {
           path: '/',

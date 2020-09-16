@@ -11,7 +11,6 @@ export async function getapplist({ url }) {
 export async function createApp({ params, url }) {
   return request(url, {
     method: 'POST',
-    // body:JSON.stringify(params),
     data: {
       ...params,
     },

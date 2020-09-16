@@ -2,9 +2,7 @@ import { getTraitByName, getTraits, attachOneTraits, deleteOneTrait } from '@/se
 
 const TestModel = {
   namespace: 'trait',
-  state: {
-    // initailState: '8880'
-  },
+  state: {},
   effects: {
     *getTraitByName({ payload }, { call }) {
       const res = yield call(getTraitByName, payload);

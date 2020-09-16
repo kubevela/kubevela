@@ -43,8 +43,6 @@ const Topology = () => {
     ],
   };
 
-  // const width = document.getElementById('container').scrollWidth;
-  // const height = document.getElementById('container').scrollHeight || 500;
   const width = 1000;
   const height = 400;
 

@@ -2,9 +2,7 @@ import { createWorkload, getWorkload, getWorkloadByName } from '@/services/workl
 
 const TestModel = {
   namespace: 'workload',
-  state: {
-    // initailState: '8880'
-  },
+  state: {},
   effects: {
     *createWorkload({ payload }, { call }) {
       const res = yield call(createWorkload, payload);
