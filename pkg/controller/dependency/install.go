@@ -52,15 +52,16 @@ func init() {
 func Install(client client.Client) error {
 	log := ctrl.Log.WithName("vela dependency manager")
 	// Fetch the vela configuration
+	velaConfigNN := k8stypes.NamespacedName{Name: VelaConfigName, Namespace: types.DefaultAppNamespace}
 	velaConfig := v1.ConfigMap{}
-	if err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: VelaConfigName}, &velaConfig); err != nil {
+	if err := client.Get(context.TODO(), velaConfigNN, &velaConfig); err != nil {
 		return err
 	}
 	for crd, chart := range velaConfig.Data {
 		log.Info("check on dependency", "crd resource", crd)
 		if err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: crd}, &crdv1.CustomResourceDefinition{}); err != nil {
 			if apierrors.IsNotFound(err) {
-				if instErr := installHelmChart([]byte(chart), log); instErr != nil {
+				if instErr := installHelmChart(client, []byte(chart), log); instErr != nil {
 					return errors.Wrap(instErr, "failed to install helm chart")
 				}
 			} else {
@@ -73,7 +74,7 @@ func Install(client client.Client) error {
 	return nil
 }
 
-func installHelmChart(chart []byte, log logr.Logger) error {
+func installHelmChart(client client.Client, chart []byte, log logr.Logger) error {
 	ioStreams := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	var helmChart types.Chart
 	err := json.Unmarshal(chart, &helmChart)
@@ -81,6 +82,10 @@ func installHelmChart(chart []byte, log logr.Logger) error {
 		return errors.Wrap(err, "failed to unmarshal the helm chart data")
 	}
 	log.Info("install helm char", "chart name", helmChart.Name)
+	// create the namespace
+	if helmChart.Namespace != types.DefaultAppNamespace {
+		cmdutil.NewNamespace(client, helmChart.Namespace)
+	}
 	if err = helmInstallFunc(ioStreams, helmChart); err != nil {
 		return err
 	}

@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vela-config
+  namespace: default
+data:
+  certificates.cert-manager.io: |
+    {
+      "repo": "jetstack",
+      "urL": "https://charts.jetstack.io",
+      "name": "cert-manager",
+      "namespace": "cert-manager",
+      "version": "1.0.0"
+    }
+  ingresses.networking.k8s.io: |
+    {
+      "repo": "stable",
+      "urL": "https://kubernetes-charts.storage.googleapis.com/",
+      "name": "nginx-ingress",
+      "version": "1.41.2"
+    }

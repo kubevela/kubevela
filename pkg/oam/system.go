@@ -25,7 +25,8 @@ var (
 	settings = cli.New()
 )
 
-func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, version, releaseName string, vals map[string]interface{}) error {
+func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, version, namespace, releaseName string,
+	vals map[string]interface{}) error {
 	if !IsHelmRepositoryExist(repoName, repoURL) {
 		err := AddHelmRepository(repoName, repoURL,
 			"", "", "", "", "", false, ioStreams.Out)
@@ -37,7 +38,7 @@ func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, vers
 		return nil
 	}
 
-	chartClient, err := NewHelmInstall(version, releaseName)
+	chartClient, err := NewHelmInstall(version, namespace, releaseName)
 	if err != nil {
 		return err
 	}
@@ -69,11 +70,14 @@ func HelmUninstall(ioStreams cmdutil.IOStreams, chartName, releaseName string) e
 	return nil
 }
 
-func NewHelmInstall(version, releaseName string) (*action.Install, error) {
+func NewHelmInstall(version, namespace, releaseName string) (*action.Install, error) {
 	actionConfig := new(action.Configuration)
+	if len(namespace) == 0 {
+		namespace = types.DefaultOAMNS
+	}
 	if err := actionConfig.Init(
 		kube.GetConfig(cmdutil.GetKubeConfig(), "", types.DefaultOAMNS),
-		types.DefaultOAMNS,
+		namespace,
 		os.Getenv("HELM_DRIVER"),
 		debug,
 	); err != nil {
@@ -83,7 +87,7 @@ func NewHelmInstall(version, releaseName string) (*action.Install, error) {
 	client := action.NewInstall(actionConfig)
 	client.ReleaseName = releaseName
 	// MUST set here, client didn't use namespace from configuration
-	client.Namespace = types.DefaultOAMNS
+	client.Namespace = namespace
 
 	if len(version) > 0 {
 		client.Version = version

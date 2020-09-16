@@ -161,7 +161,7 @@ func GetSyncedCapabilities(repoName, addonName string) (types.Capability, error)
 }
 
 func InstallHelmChart(ioStreams cmdutil.IOStreams, c types.Chart) error {
-	return HelmInstall(ioStreams, c.Repo, c.URL, c.Name, c.Version, c.Name, nil)
+	return HelmInstall(ioStreams, c.Repo, c.URL, c.Name, c.Version, c.Namespace, c.Name, nil)
 }
 
 func ListCapabilityCenters() ([]apis.CapabilityCenterMeta, error) {

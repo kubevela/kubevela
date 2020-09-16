@@ -22,8 +22,9 @@ var (
 	errHelm        = fmt.Errorf("err")
 	velaConfigBase = v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   VelaConfigName,
-			Labels: map[string]string{"vela": "dependency"},
+			Name:      VelaConfigName,
+			Namespace: types.DefaultAppNamespace,
+			Labels:    map[string]string{"vela": "dependency"},
 		},
 		Data: map[string]string{
 			"certificates.cert-manager.io": `{

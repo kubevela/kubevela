@@ -18,13 +18,16 @@ import (
 	"github.com/oam-dev/trait-injector/pkg/plugin"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
+	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	velacore "github.com/oam-dev/kubevela/api/v1alpha1"
 	velacontroller "github.com/oam-dev/kubevela/pkg/controller"
+	"github.com/oam-dev/kubevela/pkg/controller/dependency"
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook"
 )
 
@@ -32,6 +35,7 @@ var scheme = runtime.NewScheme()
 
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
+	_ = crdv1.AddToScheme(scheme)
 	_ = oamcore.AddToScheme(scheme)
 	_ = monitoring.AddToScheme(scheme)
 	_ = velacore.AddToScheme(scheme)
@@ -90,6 +94,17 @@ func main() {
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to create a controller manager")
+		os.Exit(1)
+	}
+
+	k8sClient, err := client.New(ctrl.GetConfigOrDie(), client.Options{Scheme: scheme})
+	if err != nil {
+		setupLog.Error(err, "unable to create a kubernetes client")
+		os.Exit(1)
+	}
+
+	if err = dependency.Install(k8sClient); err != nil {
+		setupLog.Error(err, "unable to install the dependency")
 		os.Exit(1)
 	}
 
