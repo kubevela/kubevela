@@ -7,7 +7,6 @@ import './index.less';
 import { connect } from 'dva';
 import _ from 'lodash';
 
-// const { confirm } = Modal;
 const { Column } = Table;
 
 const layout = {
@@ -85,13 +84,6 @@ class TableList extends React.PureComponent {
     }
   };
 
-  // handleTest = async () => {
-  //   await this.formRef.current.validateFields();
-  //   this.setState({
-  //     visible: false,
-  //   });
-  // };
-
   handleCancel = () => {
     this.setState({
       visible: false,
@@ -113,7 +105,6 @@ class TableList extends React.PureComponent {
       });
       if (res) {
         message.success(res);
-        // this.getInitialData();
       }
       const newList1 = _.cloneDeep(this.state.capabilityList);
       newList1[index].btnSyncLoading = false;
@@ -137,45 +128,6 @@ class TableList extends React.PureComponent {
 
   showDeleteConfirm = () => {
     message.info('正在开发中...');
-    // if (record) {
-    //   // eslint-disable-next-line
-    //   const _this = this;
-    //   confirm({
-    //     title: `Are you sure delete ${record}?`,
-    //     icon: <ExclamationCircleOutlined />,
-    //     width: 500,
-    //     content: (
-    //       <div>
-    //         <p>您本次移除 {record}，将会删除的应用列表：</p>
-    //         <Space>
-    //           <span>abc</span>
-    //           <span>abc</span>
-    //           <span>abc</span>
-    //           <span>abc</span>
-    //         </Space>
-    //         <p>确认后，移除{record}，并且删除相应的应用？</p>
-    //       </div>
-    //     ),
-    //     okText: 'Yes',
-    //     okType: 'danger',
-    //     cancelText: 'No',
-    //     async onOk() {
-    //       const res = await _this.props.dispatch({
-    //         type: 'capability/deleteCapability',
-    //         payload: {
-    //           capabilityName: record,
-    //         },
-    //       });
-    //       if (res) {
-    //         message.success(res);
-    //         _this.getInitialData();
-    //       }
-    //     },
-    //     onCancel() {
-    //       // console.log('Cancel');
-    //     },
-    //   });
-    // }
   };
 
   render() {
@@ -200,7 +152,6 @@ class TableList extends React.PureComponent {
                 <Button type="primary" onClick={this.showModal}>
                   Create
                 </Button>
-                {/* <Button type="default">Sync All</Button> */}
               </Space>
             </div>
             <Modal
@@ -209,9 +160,6 @@ class TableList extends React.PureComponent {
               onOk={this.handleOk}
               onCancel={this.handleCancel}
               footer={[
-                // <Button key="test" onClick={this.handleTest}>
-                //   Test
-                // </Button>,
                 <Button key="submit" type="primary" onClick={this.handleOk}>
                   Create
                 </Button>,
@@ -226,6 +174,11 @@ class TableList extends React.PureComponent {
                       required: true,
                       message: 'Please input name!',
                     },
+                    {
+                      pattern: new RegExp('^[0-9a-zA-Z_]{1,60}$', 'g'),
+                      message:
+                        'The maximum length is 60,should be combination of numbers,alphabets,underline!',
+                    },
                   ]}
                 >
                   <Input />
@@ -234,9 +187,7 @@ class TableList extends React.PureComponent {
                   name="Address"
                   label="URL"
                   rules={[
-                    // { pattern: '/^((https|http|ftp|rtsp|mms){0,1}(:\/\/){0,1})\.(([A-Za-z0-9-~]+)\.)+([A-Za-z0-9-~\/])+$/',
-                    //   message: 'please input correct URL'
-                    // },
+                    { pattern: /^[^\s]*$/, message: 'Spaces are not allowed!' },
                     {
                       required: true,
                       message: 'Please input URL!',

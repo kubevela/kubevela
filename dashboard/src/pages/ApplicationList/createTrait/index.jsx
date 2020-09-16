@@ -102,10 +102,9 @@ export default class CreateTraitItem extends React.PureComponent {
             <Form.Item label="Properties" />
           </div>
           <div className="relativeBox">
-            {/* <p className="hasMore">?</p> */}
             {this.state.parameters ? (
               this.state.parameters.map((item) => {
-                return (
+                return item.type === 4 ? (
                   <Form.Item
                     name={item.name}
                     label={item.name}
@@ -115,6 +114,22 @@ export default class CreateTraitItem extends React.PureComponent {
                         required: item.required || false,
                         message: `Please input ${item.name} !`,
                       },
+                      { pattern: /^[0-9]*$/, message: `${item.name} only use digits(0-9).` },
+                    ]}
+                  >
+                    <Input />
+                  </Form.Item>
+                ) : (
+                  <Form.Item
+                    name={item.name}
+                    label={item.name}
+                    key={item.name}
+                    rules={[
+                      {
+                        required: item.required || false,
+                        message: `Please input ${item.name} !`,
+                      },
+                      { pattern: /^[^\s]*$/, message: 'Spaces are not allowed!' },
                     ]}
                   >
                     <Input />

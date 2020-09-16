@@ -127,13 +127,6 @@ const data1 = [
     LastTransition: '2d',
   },
 ];
-// const demoText = `H4sIAAAAAAAA/6xUwW7bOhD8lYc9U4lsWfazgB4C5Na0DZK0lyKHNbmyWVMkQ66UGob/vSBdt3GCxEXRmwjujmZnZrmFtbYKGrgkb9ymI8sgAL3+QiFqZ6EB9D6eDyMQ0BGjQkZotmCxI2hAOmcKDBtcrJCxGMrWfn+Ygsj30aNMRYpa7E0CloGQtbN3uqPI2HlobG+MAIMLMjEBo/cvcEGAW3wjyZH4LGh3JpHZ0Jl25yuMK2hgPkPV1lRJbKfjWVlNpqps69mkrNu2qv5X5UzV9ULVIOC4P1IYtHxzlOGXFEMJOwForeM8Rib8GjOdZD3Avz6Ae7QUiuWwhuYZtWEk/nuvrXp3+4cgpzw53f3SsePKjrLaHHpKSuTGG2opkJUUofm6Pc7O84FAHPL2e6ZTrPssZDWq5+O6GhVqPquLybyaF9gqKsbVTMpyXFZ1m8yVznJwxlCAJrEUsDBOrj8lopdkiDOvFk2k3f1OQPQkk4mRDEl2IX13yHJ1dSqQx6nYCWDqvEGmDPFkU/4+8/86qUbbNQWVw2lTFKABsrgwpN52+olQSWDUlsLe7VPm6Q6XlPdABspPS1imTihWcC8gUHR9yNHZQqCHniLnb+l7aKAuu/zsdC5soIHp5IPOZDLqdW/MtTNapqsL84ibCLt7cVi5Cyldb/njCYLYs+tS4e1R251bkz1EaK/Rz4IrbdfxEKEkDAdkWm4Sa9749LMbZ4y2y89epTgICEfnZrvb9yH3MZ9+BAAA//+bxjCThQUAAA
-//   objectset.rio.cattle.io/id	service
-//   objectset.rio.cattle.io/owner-gvk	rio.cattle.io/v1, Kind=Service
-//   objectset.rio.cattle.io/owner-name	cool-aryabhata-v0fnxq6
-//   objectset.rio.cattle.io/owner-namespace	default
-//   rio.cattle.io/mesh	true
-//   Controlled By	cool-aryabhata-v0fnxq6`;
 
 @connect(({ loading, globalData }) => ({
   loadingAll: loading.models.applist,
@@ -211,16 +204,6 @@ class TableList extends React.Component {
 
   render() {
     const { hasShowEdit, hasShowEdit2 } = this.state;
-    // let finallyText;
-    // if (demoText && demoText.length > 50) {
-    //   finallyText = (
-    //     <Tooltip placement="topRight" title={demoText}>
-    //       <Button>{`${demoText.substring(0, 50)}......`}</Button>
-    //     </Tooltip>
-    //   );
-    // } else {
-    //   finallyText = <p>{demoText}</p>;
-    // }
     const status = _.get(this.state.appDetailData, 'Status', '');
     const { traitItem, appName } = this.state;
     const metadata = _.get(traitItem, 'metadata', '');
@@ -231,7 +214,6 @@ class TableList extends React.Component {
     if (traitItem.kind === 'Ingress') {
       traitType = 2;
     }
-    // const appName = _.get(this.props, 'location.state.appName', '');
     const envName = _.get(this.props, 'location.state.envName', '');
     return (
       <div>
@@ -315,42 +297,7 @@ class TableList extends React.Component {
                                 );
                               })
                             )}
-                            {/* {Object.keys(spec).map((currentKey) => {
-                              return (
-                                <Fragment key={currentKey}>
-                                  <Col span="8">
-                                    <p>{currentKey}</p>
-                                  </Col>
-                                  <Col span="16">
-                                    <p>{spec[currentKey]}</p>
-                                  </Col>
-                                </Fragment>
-                              );
-                            })} */}
                           </Row>
-                          {/* <Row>
-                            <Col span="10">
-                              <div style={{ color: 'black' }}>
-                                <p>Deployment Strategy</p>
-                                <p>Rolling Update Strategy</p>
-                                <p>Selectors</p>
-                                <p>Min Ready Seconds</p>
-                                <p>Revision History Limit</p>
-                                <p>Replicas</p>
-                              </div>
-                            </Col>
-                            <Col>
-                              <p>RollingUpdate</p>
-                              <p>Max Surge 25%, Max Unavailable 25%</p>
-                              <p>
-                                <Tag color="orange">aryabhataapp:cool</Tag>
-                                <Tag color="orange">version:v0</Tag>
-                              </p>
-                              <p>0</p>
-                              <p>10</p>
-                              <p>1</p>
-                            </Col>
-                          </Row> */}
                         </div>
                         <div
                           className="hasPadding"
@@ -402,24 +349,6 @@ class TableList extends React.Component {
                         <div className="hasPadding">
                           <p className="title">Status</p>
                           <p>{status}</p>
-                          {/* <Row>
-                            <Col span="10">
-                              <div style={{ color: 'black' }}>
-                                <p>Avaliable Replicas</p>
-                                <p>Ready Replicas</p>
-                                <p>Total Replicas</p>
-                                <p>Unavaliable Replicas</p>
-                                <p>Updated Replicas</p>
-                              </div>
-                            </Col>
-                            <Col>
-                              <p>0</p>
-                              <p>0</p>
-                              <p>1</p>
-                              <p>1</p>
-                              <p>1</p>
-                            </Col>
-                          </Row> */}
                         </div>
                       </div>
                     </Col>
@@ -535,53 +464,6 @@ class TableList extends React.Component {
                         </Row>
                       );
                     })}
-                    {/* <Row>
-                      <Col span="4">
-                        <div style={{ color: 'black' }}>
-                          <p>Annotations</p>
-                        </div>
-                      </Col>
-                      <Col span="20">
-                        <Row>
-                          <Col span="8">
-                            <div style={{ color: 'black' }}>
-                              <p>deployment.kubernetes.io/revision</p>
-                            </div>
-                          </Col>
-                          <Col>
-                            <p>1</p>
-                          </Col>
-                        </Row>
-                        <Row>
-                          <Col span="8">
-                            <div style={{ color: 'black' }}>
-                              <p>objectset.rio.cattle.io/applied</p>
-                            </div>
-                          </Col>
-                          <Col span="16">{finallyText}</Col>
-                        </Row>
-                        <Row>
-                          <Col span="8">
-                            <div style={{ color: 'black' }}>
-                              <p>objectset.rio.cattle.io/id</p>
-                            </div>
-                          </Col>
-                          <Col span="16">
-                            <p>service</p>
-                          </Col>
-                        </Row>
-                      </Col>
-                    </Row>
-                    <Row>
-                      <Col span="4">
-                        <div style={{ color: 'black' }}>
-                          <p>Controlled By</p>
-                        </div>
-                      </Col>
-                      <Col>
-                        <p>cool-aryabhata-v0fnxq6</p>
-                      </Col>
-                    </Row> */}
                   </div>
                 </div>
               </TabPane>

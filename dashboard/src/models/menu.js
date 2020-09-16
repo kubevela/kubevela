@@ -1,36 +1,31 @@
-import { capabilityList } from '@/services/capability.js';
+import { getTraits } from '@/services/trait.js';
+import { getWorkload } from '@/services/workload.js';
 
-function getMenuList(response) {
+function getMenuList(workload, trait) {
   let workloadList = [];
   let traitList = [];
-  // eslint-disable-next-line no-param-reassign
-  response = response.filter((item) => {
-    return item.status === 'installed';
-  });
-  response.forEach((item) => {
-    if (item.type === 'workload') {
-      workloadList.push(item.name);
-    } else if (item.type === 'trait') {
-      traitList.push(item.name);
-    }
-  });
-  // 在此之前要对workloadList和traitList进行一次去重操作
-  workloadList = workloadList.map((item) => {
-    // eslint-disable-next-line no-param-reassign
-    item = item.charAt(0).toUpperCase() + item.slice(1);
-    return {
-      name: item,
-      path: `/Workload/${item}`,
-    };
-  });
-  traitList = traitList.map((item) => {
-    // eslint-disable-next-line no-param-reassign
-    item = item.charAt(0).toUpperCase() + item.slice(1);
-    return {
-      name: item,
-      path: `/Traits/${item}`,
-    };
-  });
+  if (workload) {
+    workloadList = workload.map((item) => {
+      let name1 = item.name;
+      name1 = name1.charAt(0).toUpperCase() + name1.slice(1);
+      return {
+        name: name1,
+        path: `/Workload/${name1}`,
+        key: name1,
+      };
+    });
+  }
+  if (trait) {
+    traitList = trait.map((item) => {
+      let name1 = item.name;
+      name1 = name1.charAt(0).toUpperCase() + name1.slice(1);
+      return {
+        name: name1,
+        path: `/Traits/${name1}`,
+        key: name1,
+      };
+    });
+  }
   // 只是动态生成侧边栏(name,path,icon)，路由还是config.js里面配置的路由
   const menuList = [
     {
@@ -41,6 +36,7 @@ function getMenuList(response) {
       name: 'ApplicationList',
       icon: 'Table',
       path: `/ApplicationList`,
+      key: 'applist',
     },
     {
       name: 'ApplicationList.ApplicationListDetail',
@@ -76,13 +72,10 @@ function getMenuList(response) {
         },
       ],
     },
-    // {
-    //   name: 'Release',
-    //   path: '/Release',
-    // },
     {
       name: 'Capability',
       path: '/Capability',
+      key: 'Capability',
     },
     {
       path: '/System',
@@ -91,6 +84,7 @@ function getMenuList(response) {
         {
           name: 'Env',
           path: '/System/Env',
+          key: 'Env',
         },
       ],
     },
@@ -110,8 +104,9 @@ const TestModel = {
   },
   effects: {
     *getMenuData({ payload }, { call, put }) {
-      let response = yield call(capabilityList, payload);
-      response = getMenuList(response);
+      const workloadList = yield call(getWorkload, payload);
+      const traitList = yield call(getTraits, payload);
+      const response = getMenuList(workloadList, traitList);
       yield put({
         type: 'saveMenuData',
         payload: response,

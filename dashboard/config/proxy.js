@@ -8,11 +8,8 @@
 export default {
   dev: {
     '/api': {
-      target: 'http://123.56.222.218:8081/',
+      target: 'http://30.11.171.17:38081/',
       changeOrigin: true,
-      // pathRewrite: {
-      //   "^/api": "",
-      // },
     },
   },
   test: {

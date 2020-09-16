@@ -12,9 +12,7 @@ export default defineConfig({
     hmr: true,
   },
   locale: {
-    // default zh-CN
     default: 'en-US',
-    // default true, when it is true, will use `navigator.language` overwrite default
     antd: false,
     baseNavigator: false,
   },
@@ -36,13 +34,11 @@ export default defineConfig({
           routes: [
             {
               path: '/',
-              // redirect: `/${envname}/ApplicationList`,
               redirect: `/ApplicationList`,
             },
             {
               name: 'ApplicationList',
               icon: 'table',
-              // path: `/${envname}/ApplicationList`,
               path: `/ApplicationList`,
               component: './ApplicationList',
             },
@@ -77,25 +73,6 @@ export default defineConfig({
               icon: 'table',
               path: '/Workload',
               routes: [
-                // {
-                //   name: 'Deployment',
-                //   icon: 'table',
-                //   path: '/Workload/Deployment',
-                //   component: './Workload/Deployment',
-                // },
-                // {
-                //   name: 'Containerized',
-                //   icon: 'smile',
-                //   path: '/Workload/Containerized',
-                //   component: './Workload/Containerized',
-                // },
-                // {
-                //   name: 'Detail',
-                //   icon: 'smile',
-                //   path: '/Workload/Detail',
-                //   component: './Workload/Detail',
-                //   hideInMenu: true,
-                // },
                 {
                   name: 'WorkloadItem',
                   icon: 'smile',
@@ -109,25 +86,6 @@ export default defineConfig({
               name: 'Traits',
               icon: 'table',
               routes: [
-                // {
-                //   name: 'Scale',
-                //   icon: 'table',
-                //   path: '/Traits/Scale',
-                //   component: './Traits/Scale',
-                // },
-                // {
-                //   name: 'Rollout',
-                //   icon: 'smile',
-                //   path: '/Traits/Rollout',
-                //   component: './Traits/Rollout',
-                // },
-                // {
-                //   name: 'Detail',
-                //   icon: 'smile',
-                //   path: '/Traits/Detail',
-                //   component: './Traits/Detail',
-                //   hideInMenu: true,
-                // },
                 {
                   name: 'TraitItem',
                   icon: 'smile',
@@ -136,12 +94,6 @@ export default defineConfig({
                 },
               ],
             },
-            // {
-            //   name: 'Release',
-            //   icon: 'table',
-            //   path: '/Release',
-            //   component: './Release',
-            // },
             {
               name: 'Capability',
               icon: 'table',
@@ -183,8 +135,13 @@ export default defineConfig({
   ],
   // Theme for antd: https://ant.design/docs/react/customize-theme-cn
   theme: {
-    // ...darkTheme,
+    // 主题配置
     'primary-color': defaultSettings.primaryColor,
+    'link-color': defaultSettings.linkColor,
+    'link-hover-color': defaultSettings.linkHoverColor,
+    'disabled-bg': defaultSettings.disabledBg,
+    'disabled-color': defaultSettings.disabledColor,
+    'btn-disable-color': defaultSettings.btnDisableColor,
   },
   // @ts-ignore
   title: false,

@@ -105,23 +105,6 @@ class Trait extends React.Component {
         }
       }
     }
-    // const { selectValue } = this.state;
-    // if (selectValue) {
-    //   this.setState({
-    //     visible: false,
-    //   });
-    //   const { history } = this.props.propsObj;
-    //   history.push({
-    //     pathname: '/ApplicationList/ApplicationListDetail',
-    //     state: {
-    //       appName: selectValue,
-    //       envName: this.props.currentEnv,
-    //       traitType: this.props.propsObj.title,
-    //     },
-    //   });
-    // } else {
-    //   message.warn('please select a application');
-    // }
   };
 
   handleCancel = () => {
@@ -263,7 +246,7 @@ class Trait extends React.Component {
                     <Form.Item label="Properties" />
                     {settings ? (
                       settings.map((item) => {
-                        return (
+                        return item.type === 4 ? (
                           <Form.Item
                             name={item.name}
                             label={item.name}
@@ -273,6 +256,25 @@ class Trait extends React.Component {
                                 required: item.required || false,
                                 message: `Please input ${item.name} !`,
                               },
+                              {
+                                pattern: /^[0-9]*$/,
+                                message: `${item.name} only use digits(0-9).`,
+                              },
+                            ]}
+                          >
+                            <Input />
+                          </Form.Item>
+                        ) : (
+                          <Form.Item
+                            name={item.name}
+                            label={item.name}
+                            key={item.name}
+                            rules={[
+                              {
+                                required: item.required || false,
+                                message: `Please input ${item.name} !`,
+                              },
+                              { pattern: /^[^\s]*$/, message: 'Spaces are not allowed!' },
                             ]}
                           >
                             <Input />

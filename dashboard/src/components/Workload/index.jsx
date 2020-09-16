@@ -6,16 +6,7 @@ import './index.less';
 
 export default class Workload extends React.PureComponent {
   render() {
-    const {
-      btnValue,
-      pathname,
-      title,
-      crdInfo,
-      state,
-      settings,
-      hrefAddress,
-      btnIsShow,
-    } = this.props.propsObj;
+    const { btnValue, pathname, title, crdInfo, state, settings, btnIsShow } = this.props.propsObj;
     return (
       <div>
         <div className="breadCrumb">
@@ -31,7 +22,6 @@ export default class Workload extends React.PureComponent {
           <Row>
             <Col span="11">
               <div className="deployment">
-                <a href={hrefAddress}>?</a>
                 <Row>
                   <Col span="22">
                     <p className="title">{title}</p>

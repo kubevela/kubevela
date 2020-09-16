@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
-import { Button, Table, Space, Modal, Form, Input, Tooltip, Breadcrumb } from 'antd';
+import { Button, Table, Space, Modal, Form, Input, Tooltip } from 'antd';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
-import { Link } from 'umi';
 import './index.less';
 import { connect } from 'dva';
 import * as _ from 'lodash';
@@ -31,12 +30,22 @@ const TableList = (props) => {
 
   const handleOk = async () => {
     const fieldsValue = await form.validateFields();
-    await dispatch({
-      type: 'envs/initialEnvs',
-      payload: {
-        params: fieldsValue,
-      },
-    });
+    if (env && env.envName) {
+      await dispatch({
+        type: 'envs/updateEnv',
+        payload: {
+          namespace: fieldsValue.namespace,
+          envName: fieldsValue.envName,
+        },
+      });
+    } else {
+      await dispatch({
+        type: 'envs/initialEnvs',
+        payload: {
+          params: fieldsValue,
+        },
+      });
+    }
     setEnv(null);
     form.resetFields();
     setVisible(false);
@@ -52,14 +61,14 @@ const TableList = (props) => {
     await dispatch({
       type: 'envs/deleteEnv',
       payload: {
-        envName: record.name,
+        envName: record.envName,
       },
     });
   };
 
   const showDeleteConfirm = (record) => {
     confirm({
-      title: `Are you sure delete env ${record.name}?`,
+      title: `Are you sure delete env ${record.envName}?`,
       icon: <ExclamationCircleOutlined />,
       width: 500,
       okText: 'Yes',
@@ -73,7 +82,7 @@ const TableList = (props) => {
 
   const specifyNamespace = (record) => {
     form.setFieldsValue({
-      name: record.name,
+      envName: record.envName,
       namespace: record.namespace,
     });
     setEnv(record);
@@ -92,10 +101,10 @@ const TableList = (props) => {
   const columns = [
     {
       title: 'Env',
-      dataIndex: 'name',
-      key: 'name',
+      dataIndex: 'envName',
+      key: 'envName',
       render: (text) => {
-        if (text.length > 20) {
+        if (text && text.length > 20) {
           return <Tooltip title={text}>{text.substr(0, 20)}...</Tooltip>;
         }
         return text;
@@ -106,7 +115,7 @@ const TableList = (props) => {
       dataIndex: 'namespace',
       key: 'namespace',
       render: (text) => {
-        if (text.length > 20) {
+        if (text && text.length > 20) {
           return <Tooltip title={text}>{text.substr(0, 20)}...</Tooltip>;
         }
         return text;
@@ -138,75 +147,65 @@ const TableList = (props) => {
     },
   ];
   return (
-    <div>
-      <div className="breadCrumb">
-        <Breadcrumb>
-          <Breadcrumb.Item>
-            <Link to="/ApplicationList">Home</Link>
-          </Breadcrumb.Item>
-          <Breadcrumb.Item>System</Breadcrumb.Item>
-          <Breadcrumb.Item>Env</Breadcrumb.Item>
-        </Breadcrumb>
+    <PageContainer>
+      <div style={{ marginBottom: '16px' }}>
+        <Space>
+          <Button type="primary" onClick={showModal}>
+            Create
+          </Button>
+        </Space>
       </div>
-      <PageContainer>
-        <div style={{ marginBottom: '16px' }}>
-          <Space>
-            <Button type="primary" onClick={showModal}>
-              Create
-            </Button>
-          </Space>
-        </div>
-        <Modal
-          getContainer={false}
-          title={env && env.name ? 'Update Env' : 'Create Env'}
-          visible={visible}
-          onOk={handleOk}
-          onCancel={handleCancel}
-          footer={[
-            <Button key="submit" type="primary" onClick={handleOk}>
-              {env && env.name ? 'Update' : 'Create'}
-            </Button>,
-          ]}
-        >
-          <Form {...layout} form={form} name="control-ref" labelAlign="left">
-            <Form.Item
-              name="name"
-              label="Env"
-              rules={[
-                {
-                  required: true,
-                  message: 'Please input Evn!',
-                },
-                {
-                  pattern: new RegExp('^[0-9a-zA-Z_]{1,32}$', 'g'),
-                  message: 'Should be combination of numbers,alphabets,underline',
-                },
-              ]}
-            >
-              <Input disabled={!!(env && env.name)} />
-            </Form.Item>
-            <Form.Item
-              name="namespace"
-              label="Namespace"
-              rules={[
-                {
-                  required: true,
-                  message: 'Please specify a Namespace!',
-                },
-                {
-                  pattern: new RegExp('^[0-9a-zA-Z_]{1,32}$', 'g'),
-                  message:
-                    'The maximum length is 63, should be combination of numbers,alphabets,underline',
-                },
-              ]}
-            >
-              <Input />
-            </Form.Item>
-          </Form>
-        </Modal>
-        <Table rowKey={(record) => record.name} columns={columns} dataSource={tableEnvs} />
-      </PageContainer>
-    </div>
+      <Modal
+        getContainer={false}
+        title={env && env.envName ? 'Update Env' : 'Create Env'}
+        visible={visible}
+        onOk={handleOk}
+        onCancel={handleCancel}
+        footer={[
+          <Button key="submit" type="primary" onClick={handleOk}>
+            {env && env.envName ? 'Update' : 'Create'}
+          </Button>,
+        ]}
+      >
+        <Form {...layout} form={form} name="control-ref" labelAlign="left">
+          <Form.Item
+            name="envName"
+            label="Env"
+            rules={[
+              {
+                required: true,
+                message: 'Please input Evn!',
+              },
+              {
+                pattern: new RegExp('^[0-9a-zA-Z_]{1,32}$', 'g'),
+                message:
+                  'The maximum length is 63,should be combination of numbers,alphabets,underline!',
+              },
+            ]}
+          >
+            <Input disabled={!!(env && env.envName)} />
+          </Form.Item>
+          <Form.Item
+            name="namespace"
+            label="Namespace"
+            rules={[
+              {
+                required: true,
+                message: 'Please specify a Namespace!',
+              },
+              {
+                pattern: new RegExp('^[0-9a-zA-Z_]{1,32}$', 'g'),
+                message:
+                  'The maximum length is 63,should be combination of numbers,alphabets,underline!',
+              },
+            ]}
+          >
+            <Input />
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Table rowKey={(record) => record.envName} columns={columns} dataSource={tableEnvs} />
+    </PageContainer>
   );
 };
 export default connect((env) => {

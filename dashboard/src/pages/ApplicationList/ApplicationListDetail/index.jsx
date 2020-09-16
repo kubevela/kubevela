@@ -17,7 +17,6 @@ import { connect } from 'dva';
 import _ from 'lodash';
 import { Link } from 'umi';
 import CreateTraitItem from '../../../components/AttachOneTrait/index.jsx';
-// import Topology from './Topology.jsx';
 
 const { TabPane } = Tabs;
 
@@ -66,18 +65,18 @@ class TableList extends React.Component {
       const traits = await this.props.dispatch({
         type: 'trait/getTraits',
       });
-      this.setState({
-        traitList: traits,
-      });
+      if (traits) {
+        this.setState({
+          traitList: traits,
+        });
+      }
       const workloadType = _.get(res, 'Workload.workload.kind', '');
       if (workloadType && workloadType === 'ContainerizedWorkload') {
         this.getAcceptTrait('containerized');
       } else if (workloadType && workloadType === 'Deployment') {
         this.getAcceptTrait('deployment');
       }
-      // 如果traitType存在，是从特定trait跳转来新增单个trait的
       if (traitType && times === 1) {
-        // this.createTrait(traitType)
         await this.setState({
           visible: true,
         });
@@ -100,7 +99,7 @@ class TableList extends React.Component {
 
   deleteApp = async (e) => {
     e.stopPropagation();
-    const { currentEnv: envName } = this.props;
+    const { envName } = this.state;
     const { appDetailData } = this.state;
     const appName = _.get(appDetailData, 'Workload.workload.metadata.name', '');
     if (appName && envName) {
@@ -200,27 +199,8 @@ class TableList extends React.Component {
 
   gotoWorkloadDetail = (e) => {
     e.stopPropagation();
-    // const appName = _.get(this.props, 'location.state.appName', '');
-    // const envName = _.get(this.props, 'location.state.envName', '');
-    // if (appName && envName) {
-    //   this.props.history.push({
-    //     pathname: '/ApplicationList/WorkloadDetail',
-    //     state: { appName, envName },
-    //   });
-    // }
   };
 
-  // gotoTraitDetail = (e, traitItem) => {
-  //   e.stopPropagation();
-  //   const appName = _.get(this.props, 'location.state.appName', '');
-  //   const envName = _.get(this.props, 'location.state.envName', '');
-  //   if (appName && envName) {
-  //     this.props.history.push({
-  //       pathname: '/ApplicationList/TraitDetail',
-  //       state: { traitItem, appName, envName },
-  //     });
-  //   }
-  // };
   gotoTraitDetail = (e) => {
     e.stopPropagation();
   };
@@ -230,11 +210,6 @@ class TableList extends React.Component {
     const Workload = _.get(this.state.appDetailData, 'Workload.workload', {});
     const Traits = _.get(this.state.appDetailData, 'Traits', []);
     let containers = {};
-    // if (Workload.kind === 'ContainerizedWorkload') {
-    //   containers = _.get(Workload, 'spec.containers[0]', {});
-    // } else if (Workload.kind === 'Deployment') {
-    //   containers = _.get(Workload, 'spec.template.spec.containers[0]', {});
-    // }
     containers = _.get(Workload, 'spec.containers[0]', {});
     let { loadingAll } = this.props;
     loadingAll = loadingAll || false;
@@ -272,14 +247,12 @@ class TableList extends React.Component {
                         onClick={(e) => this.gotoWorkloadDetail(e)}
                         style={{ background: colorObj[status] || '#1890ff' }}
                       >
-                        {/* <div className="summaryBox1"> */}
                         <Row>
                           <Col span="22">
                             <p className="title">{Workload.kind}</p>
                             <p>{Workload.apiVersion}</p>
                           </Col>
                           <Col span="2">
-                            {/* <a href="JavaScript:;">?</a> */}
                             <p className="title hasCursor" onClick={this.hrefClick}>
                               ?
                             </p>
@@ -305,6 +278,18 @@ class TableList extends React.Component {
                               // eslint-disable-next-line no-else-return
                             } else if (currentKey === 'name') {
                               return <Fragment key={currentKey} />;
+                              // eslint-disable-next-line no-else-return
+                            } else if (currentKey === 'env') {
+                              return (
+                                <Fragment key={currentKey}>
+                                  <Col span="8">
+                                    <p>env</p>
+                                  </Col>
+                                  <Col span="16">
+                                    <p>{_.get(containers[currentKey], '[0].value', '')}</p>
+                                  </Col>
+                                </Fragment>
+                              );
                             }
                             return (
                               <Fragment key={currentKey}>
@@ -425,18 +410,6 @@ class TableList extends React.Component {
                                     );
                                   })
                                 )}
-                                {/* {Object.keys(spec).map((currentKey) => {
-                                  return (
-                                    <Fragment key={currentKey}>
-                                      <Col span="8">
-                                        <p>{currentKey}</p>
-                                      </Col>
-                                      <Col span="16">
-                                        <p>{spec[currentKey]}</p>
-                                      </Col>
-                                    </Fragment>
-                                  );
-                                })} */}
                               </Row>
                               <div style={{ clear: 'both', height: '32px' }}>
                                 <Popconfirm
@@ -480,7 +453,6 @@ class TableList extends React.Component {
                 </TabPane>
                 <TabPane tab="Topology" key="2">
                   <p>Topology</p>
-                  {/* <Topology /> */}
                 </TabPane>
               </Tabs>
             </div>
