@@ -2,17 +2,15 @@ import { getapplist, createApp, getAppDetail, deleteApp } from '@/services/appli
 
 const TestModel = {
   namespace: 'applist',
-  state: {
-    // initailState: '8880'
-  },
+  state: {},
   effects: {
     *getList({ payload }, { call, put }) {
       const res = yield call(getapplist, payload);
       // getlist是引入services层那个js文件的getlist方法，payload是后台要求传递的参数，res就是后台返过来的数据
       yield put({
-        type: 'addList', // 这就是reducer的addNum方法，put用来触发reducer中的方法，payload是传过去的参数。同时也能触发同等级effects中的方法
+        type: 'addList',
         payload: {
-          returnObj: res, // 把后台返回的数据赋值给num,假如哪个reducer中的方法是由这里effects去触发的，哪个num名必须是这里的名字num，如果reducer中的方法不是这触发，那名字可以随意取
+          returnObj: res,
         },
       });
     },

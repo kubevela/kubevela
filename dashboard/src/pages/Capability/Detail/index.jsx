@@ -1,14 +1,10 @@
 import React, { Fragment } from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
 import { Space, Button, Row, Col, message, Spin, Breadcrumb } from 'antd';
-// import { Space, Modal, Button, Row, Col, message, Spin } from 'antd';
-// import { ExclamationCircleOutlined } from '@ant-design/icons';
 import { Link } from 'umi';
 import './index.less';
 import { connect } from 'dva';
 import _ from 'lodash';
-
-// const { confirm } = Modal;
 
 @connect(({ loading, globalData }) => ({
   loadingAll: loading.models.capability,
@@ -54,8 +50,7 @@ class TableList extends React.PureComponent {
   };
 
   gotoOtherPage = () => {
-    // window.location.href = 'https://github.com/oam-dev/catalog/blob/master/workloads/cloneset/README.md';
-    window.open('https://github.com/oam-dev/catalog/blob/master/workloads/cloneset/README.md');
+    // window.open('https://github.com/oam-dev/catalog/blob/master/workloads/cloneset/README.md');
   };
 
   installSignle = async (e, name) => {
@@ -70,25 +65,21 @@ class TableList extends React.PureComponent {
     });
     if (res) {
       message.success(res);
-      // this.getInitialData();
       window.location.reload();
     }
   };
 
   uninstallSignle = async (e, name) => {
     e.stopPropagation();
-    // const capabilityCenterName = _.get(this.props, 'location.state.name', '');
     if (name) {
       const res = await this.props.dispatch({
         type: 'capability/deleteOneCapability',
         payload: {
-          // capabilityCenterName,
           capabilityName: name,
         },
       });
       if (res) {
         message.success(res);
-        // this.getInitialData();
         window.location.reload();
       }
     }
@@ -105,7 +96,6 @@ class TableList extends React.PureComponent {
       });
       if (res) {
         message.success(res);
-        // this.getInitialData();
         window.location.reload();
       }
     }
@@ -113,48 +103,6 @@ class TableList extends React.PureComponent {
 
   showDeleteConfirm = () => {
     message.info('正在开发中...');
-    // // eslint-disable-next-line
-    // const _this = this;
-    // const capabilityCenterName = _.get(this.props, 'location.state.name', '');
-    // if (capabilityCenterName) {
-    //   confirm({
-    //     title: `Are you sure delete ${capabilityCenterName}?`,
-    //     icon: <ExclamationCircleOutlined />,
-    //     width: 500,
-    //     content: (
-    //       <div>
-    //         <p style={{ margin: '0px' }}>您本次移除 {capabilityCenterName}，将会删除的应用列表：</p>
-    //         <Space>
-    //           <span>abc</span>
-    //           <span>abc</span>
-    //           <span>abc</span>
-    //           <span>abc</span>
-    //         </Space>
-    //         <p style={{ margin: '0px' }}>
-    //           确认后，移除 {capabilityCenterName}，并且删除相应的应用？
-    //         </p>
-    //       </div>
-    //     ),
-    //     okText: 'Yes',
-    //     okType: 'danger',
-    //     cancelText: 'No',
-    //     async onOk() {
-    //       const res = await _this.props.dispatch({
-    //         type: 'capability/deleteCapability',
-    //         payload: {
-    //           capabilityName: capabilityCenterName,
-    //         },
-    //       });
-    //       if (res) {
-    //         message.success(res);
-    //         _this.props.history.push({ pathname: '/Capability' });
-    //       }
-    //     },
-    //     onCancel() {
-    //       // console.log('Cancel');
-    //     },
-    //   });
-    // }
   };
 
   render() {
@@ -194,10 +142,6 @@ class TableList extends React.PureComponent {
                     return (
                       <Col span="4" key={item.name}>
                         <div className="itemBox" onClick={this.gotoOtherPage}>
-                          {/* <img
-                            src="https://ss0.bdstatic.com/70cFvHSh_Q1YnxGkpoWK1HF6hhy/it/u=1109866916,1852667152&fm=26&gp=0.jpg"
-                            alt="workload"
-                          /> */}
                           <div className="title">{item.name.substr(0, 3).toUpperCase()}</div>
                           <p>{item.name}</p>
                           {item.status === 'installed' ? (
@@ -232,10 +176,6 @@ class TableList extends React.PureComponent {
                     return (
                       <Col span="4" key={item.name}>
                         <div className="itemBox" onClick={this.gotoOtherPage}>
-                          {/* <img
-                            src="https://ss0.bdstatic.com/70cFvHSh_Q1YnxGkpoWK1HF6hhy/it/u=1109866916,1852667152&fm=26&gp=0.jpg"
-                            alt="workload"
-                          /> */}
                           <div className="title">{item.name.substr(0, 3).toUpperCase()}</div>
                           <p>{item.name}</p>
                           {item.status === 'installed' ? (

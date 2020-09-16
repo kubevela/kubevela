@@ -73,12 +73,8 @@ class TableList extends React.Component {
     this.setState({
       traitList: traits,
     });
-    // 如果直接跳转到第二步，需要设置值
     const traitType = _.get(this.props, 'location.state.TraitType', '');
     if (traitType) {
-      // let availableTraitList = traits.filter((item)=>{
-      //   return item.name === traitType
-      // })
       this.setState({
         availableTraitList: traits,
         traitNum: [
@@ -168,7 +164,11 @@ class TableList extends React.Component {
   };
 
   createApp = async () => {
-    const { step1SubmitObj, traitNum } = this.state;
+    const { traitNum } = this.state;
+    const { step1SubmitObj } = this.state;
+    if (step1SubmitObj.env_name !== this.props.currentEnv) {
+      step1SubmitObj.env_name = this.props.currentEnv;
+    }
     const submitObj = _.cloneDeep(step1SubmitObj);
     const { workload_name: workloadName } = step1SubmitObj;
     submitObj.flags.push({
@@ -294,9 +294,6 @@ class TableList extends React.Component {
     this.state.traitNum = this.state.traitNum.filter((item) => {
       return item.uniq !== uniq;
     });
-    // this.setState(()=>({
-    //   traitNum: this.state.traitNum
-    // }));
     this.setState((prev) => ({
       traitNum: prev.traitNum,
     }));
@@ -325,6 +322,11 @@ class TableList extends React.Component {
                   name="workload_name"
                   label="Name"
                   rules={[
+                    {
+                      pattern: /^[a-z0-9-_]+$/,
+                      message:
+                        'Names can only use digits(0-9),lowercase letters(a-z),and dashes(-),Underline.',
+                    },
                     {
                       required: true,
                       message: 'Please input name!',
@@ -373,7 +375,7 @@ class TableList extends React.Component {
                     if (item.name === 'name') {
                       return <Fragment key={item.name} />;
                     }
-                    return (
+                    return item.type === 4 ? (
                       <Form.Item
                         name={item.name}
                         label={item.name}
@@ -383,6 +385,22 @@ class TableList extends React.Component {
                             required: item.required,
                             message: `Please input ${item.name}!`,
                           },
+                          { pattern: /^[0-9]*$/, message: `${item.name} only use digits(0-9).` },
+                        ]}
+                      >
+                        <Input />
+                      </Form.Item>
+                    ) : (
+                      <Form.Item
+                        name={item.name}
+                        label={item.name}
+                        key={item.name}
+                        rules={[
+                          {
+                            required: item.required,
+                            message: `Please input ${item.name}!`,
+                          },
+                          { pattern: /^[^\s]*$/, message: 'Spaces are not allowed!' },
                         ]}
                       >
                         <Input />
@@ -556,11 +574,6 @@ class TableList extends React.Component {
             </Row>
           </div>
           <div className="buttonBox">
-            {/* <Link to="/ApplicationList">
-              <Button type="primary" className="floatRight">
-                Confirm
-              </Button>
-            </Link> */}
             <Button
               type="primary"
               className="floatRight"

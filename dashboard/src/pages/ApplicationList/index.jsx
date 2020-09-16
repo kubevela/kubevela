@@ -9,9 +9,6 @@ import { Link } from 'umi';
 
 @connect(({ loading, applist, globalData }) => ({
   loadingAll: loading.models.applist,
-  // 当applist这个models有数据请求行为的时候，loading为true，没有请求的时候为false
-  // loadingList: loading.effects['applist/getList'],
-  // 当applist的effects中的getList有异步请求行为时为true，没有请求行为时为false
   returnObj: applist.returnObj,
   currentEnv: globalData.currentEnv,
 }))
@@ -25,7 +22,7 @@ class TableList extends React.Component {
     const { currentEnv } = this.props;
     if (currentEnv) {
       this.props.dispatch({
-        type: 'applist/getList', // applist对应models层的命名空间namespace
+        type: 'applist/getList',
         payload: {
           url: `/api/envs/${currentEnv}/apps/`,
         },
@@ -38,26 +35,21 @@ class TableList extends React.Component {
       return true;
     }
     this.props.dispatch({
-      type: 'applist/getList', // applist对应models层的命名空间namespace
+      type: 'applist/getList',
       payload: {
         url: `/api/envs/${nextProps.currentEnv}/apps/`,
       },
     });
     return true;
-    // return true;
   }
 
-  onFinish = () => {
-    // const data = moment(values.createTime).format('YYYY-MM-DD')
-  };
+  onFinish = () => {};
 
   handleChange = () => {};
 
   handleAdd = () => {};
 
-  onSelect = () => {
-    // console.log("selected", selectedKeys, info);
-  };
+  onSelect = () => {};
 
   getHeight = (num) => {
     return `${num * 43}px`;
@@ -91,26 +83,6 @@ class TableList extends React.Component {
           <Spin spinning={loadingAll}>
             <div className="applist">
               <Form name="horizontal_login" layout="inline" onFinish={this.onFinish}>
-                {/* <Form.Item name="createTime">
-                  <DatePicker placeholder="createTime" />
-                </Form.Item>
-                <Form.Item name="status">
-                  <Select
-                    placeholder="status"
-                    style={{ width: 120 }}
-                    onChange={this.handleChange}
-                    allowClear
-                  >
-                    <Option value="True">True</Option>
-                    <Option value="False">False</Option>
-                    <Option value="UNKNOWN">UNKNOWN</Option>
-                  </Select>
-                </Form.Item>
-                <Form.Item>
-                  <Button icon={<SearchOutlined />} htmlType="submit">
-                    Search
-                  </Button>
-                </Form.Item> */}
                 <Form.Item>
                   <Link to="/ApplicationList/CreateApplication">
                     <Button onClick={this.handleAdd} type="primary" style={{ marginBottom: 16 }}>

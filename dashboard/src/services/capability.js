@@ -11,7 +11,6 @@ export async function getCapabilityCenterlist() {
 export async function createCapabilityCenter({ params }) {
   return request('/api/capability-centers/', {
     method: 'put',
-    // body:JSON.stringify(params),
     data: {
       ...params,
     },

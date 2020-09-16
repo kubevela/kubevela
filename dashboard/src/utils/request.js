@@ -35,11 +35,6 @@ const errorHandler = async (error) => {
   } else if (!response) {
     message.error('网络异常: 您的网络发生异常，无法连接服务器');
   }
-
-  // throw error; // 如果throw. 错误将继续抛出.
-  // 如果return, 则将值作为返回. 'return;' 相当于return undefined, 在处理结果时判断response是否有值即可.
-  // return {some: 'data'};
-  // return response;
 };
 
 /**
@@ -47,9 +42,7 @@ const errorHandler = async (error) => {
  */
 const request = extend({
   errorHandler, // 默认错误处理
-  credentials: 'include', // 默认请求是否带上cookie,
-  // prefix: '/api/v1',
-  // timeout: 1000,
+  credentials: 'include', // 默认请求是否带上cookie
 });
 
 /*
@@ -75,6 +68,5 @@ request.interceptors.response.use(async (response) => {
   }
   // eslint-disable-next-line consistent-return
   return data.data;
-  // return response;
 });
 export default request;
