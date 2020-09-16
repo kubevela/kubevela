@@ -3,8 +3,6 @@ on:
   push:
     branches:
       - master
-  pull_request:
-    branches: [master]
 jobs:
   update:
     runs-on: ubuntu-latest
@@ -14,7 +12,7 @@ jobs:
         uses: elgohr/Publish-Docker-Github-Action@2.21
         with:
           name: oam-dev/kubevela/vela-core
-          username: $GITHUB_ACTOR
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           registry: docker.pkg.github.com
           tags: "latest"
