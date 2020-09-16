@@ -37,34 +37,27 @@ get 2 trait definitions from cluster, syncing...2 trait definitions successfully
 
 ## Demos
 
-#### Create ENV
+#### Check workloads
 
 ```
-$ vela env init test --namespace test
-Create env succeed, current env is test
-
-$ vela env ls
-NAME           	CURRENT	NAMESPACE
-default             	default
-test    	 	*       test
-
-$ vela env set default
-Set env succeed, current env is default
-
-$ vela env delete test
-test deleted
-
-$ vela env delete default
-Error: you can't delete current using default
+$ vela workloads
+  NAME         	DEFINITION
+  backend      	containerizeds.standard.oam.dev
+  task         	jobs
+  webservice   	containerizeds.standard.oam.dev
 ```
 
 #### workload run
 ```shell script
-$ vela comp run -t deployment app123 -p 80 --image nginx:1.9.4
+$ vela comp run -t webservice app123 -p 80 --image nginx:1.9.4
 Creating AppConfig app123
 SUCCEED
 
 $ vela comp status app123
+
+$ vela comp ls
+NAME 	APP  	WORKLOAD  	TRAITS     	STATUS  	CREATED-TIME
+app123  app123  deployment	           	Deployed	2020-08-27 10:56:41 +0800 CST
 ```
 
 #### app
@@ -72,15 +65,6 @@ $ vela comp status app123
 ```
 $ vela app ls
 app123
-poc08032042
-poc1039
-
-$ vela comp ls
-NAME 	APP  	WORKLOAD  	TRAITS     	STATUS  	CREATED-TIME
-ccc  	ccc  	deployment	           	Deployed	2020-08-27 10:56:41 +0800 CST
-com1 	com1 	          	           	Deployed	2020-08-26 16:45:50 +0800 CST
-com2 	com1 	          	           	Deployed	2020-08-26 16:45:50 +0800 CST
-myapp	myapp	          	route,scale	Deployed	2020-08-19 15:11:17 +0800 CST
 
 $ vela app delete app123
 Deleting AppConfig "app123"
