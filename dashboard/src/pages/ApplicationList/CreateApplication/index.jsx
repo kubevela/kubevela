@@ -1,7 +1,7 @@
 import React, { Fragment } from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
 import './index.less';
-import { Button, Row, Col, Form, Input, Select, Steps, message } from 'antd';
+import { Button, Row, Col, Form, Input, Select, Steps, message, Breadcrumb } from 'antd';
 import { connect } from 'dva';
 import { Link } from 'umi';
 import _ from 'lodash';
@@ -117,7 +117,12 @@ class TableList extends React.Component {
     });
   };
 
-  onFinishStep2 = () => {
+  onFinishStep2 = async () => {
+    const asyncValidateArray = [];
+    this.state.traitNum.forEach((item) => {
+      asyncValidateArray.push(item.refname.validateFields());
+    });
+    await Promise.all(asyncValidateArray);
     const newTraitNum = this.state.traitNum.map((item) => {
       // eslint-disable-next-line no-param-reassign
       item.initialData = item.refname.getSelectValue();
@@ -356,8 +361,11 @@ class TableList extends React.Component {
                     )}
                   </Select>
                 </Form.Item>
-                <Form.Item label="Settings" />
               </div>
+              <Form.Item
+                label="Settings"
+                style={{ background: 'rgba(0, 0, 0, 0.04)', paddingLeft: '16px' }}
+              />
               <div className="relativeBox">
                 <p className="hasMore">?</p>
                 {Array.isArray(workloadSettings) && workloadSettings.length ? (
@@ -570,16 +578,29 @@ class TableList extends React.Component {
       );
     }
     return (
-      <PageContainer>
-        <div className="create-container create-app">
-          <Steps current={current}>
-            <Step title="Step 1" description="Choose Workload" />
-            <Step title="Step 2" description="Attach Trait" />
-            <Step title="Step 3" description="Review and confirm" />
-          </Steps>
-          {currentDetail}
+      <div>
+        <div className="breadCrumb">
+          <Breadcrumb>
+            <Breadcrumb.Item>
+              <Link to="/ApplicationList">Home</Link>
+            </Breadcrumb.Item>
+            <Breadcrumb.Item>
+              <Link to="/ApplicationList">Applications</Link>
+            </Breadcrumb.Item>
+            <Breadcrumb.Item>CreateApplication</Breadcrumb.Item>
+          </Breadcrumb>
         </div>
-      </PageContainer>
+        <PageContainer>
+          <div className="create-container create-app">
+            <Steps current={current}>
+              <Step title="Step 1" description="Choose Workload" />
+              <Step title="Step 2" description="Attach Trait" />
+              <Step title="Step 3" description="Review and confirm" />
+            </Steps>
+            {currentDetail}
+          </div>
+        </PageContainer>
+      </div>
     );
   }
 }

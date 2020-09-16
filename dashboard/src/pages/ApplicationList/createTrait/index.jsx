@@ -35,29 +35,35 @@ export default class CreateTraitItem extends React.PureComponent {
     return this.formRefStep2.current.getFieldsValue();
   };
 
+  validateFields = () => {
+    return this.formRefStep2.current.validateFields();
+  };
+
   traitSelectChange = async (value, isType = 1) => {
-    const res = await this.props.dispatch({
-      type: 'trait/getTraitByName',
-      payload: {
-        traitName: value,
-      },
-    });
-    this.setState({
-      parameters: res.parameters,
-    });
-    if (isType === 2) {
-      this.formRefStep2.current.setFieldsValue(this.props.initialValues);
-    } else {
-      // 进行默认值填写
-      const parameters = _.get(res, 'parameters', []);
-      if (parameters.length) {
-        const initialObj = {};
-        parameters.forEach((item) => {
-          if (item.default) {
-            initialObj[item.name] = item.default;
-          }
-        });
-        this.formRefStep2.current.setFieldsValue(initialObj);
+    if (value) {
+      const res = await this.props.dispatch({
+        type: 'trait/getTraitByName',
+        payload: {
+          traitName: value,
+        },
+      });
+      this.setState({
+        parameters: res.parameters,
+      });
+      if (isType === 2) {
+        this.formRefStep2.current.setFieldsValue(this.props.initialValues);
+      } else {
+        // 进行默认值填写
+        const parameters = _.get(res, 'parameters', []);
+        if (parameters.length) {
+          const initialObj = {};
+          parameters.forEach((item) => {
+            if (item.default) {
+              initialObj[item.name] = item.default;
+            }
+          });
+          this.formRefStep2.current.setFieldsValue(initialObj);
+        }
       }
     }
   };
@@ -78,8 +84,12 @@ export default class CreateTraitItem extends React.PureComponent {
       >
         <div style={{ border: '1px solid #eee', margin: '16px 0px 8px' }}>
           <div style={{ padding: '16px 48px 0px 16px' }}>
-            <Form.Item name="name" label="Trait">
-              <Select placeholder="Select a Trait" allowClear onChange={this.traitSelectChange}>
+            <Form.Item
+              name="name"
+              label="Trait"
+              rules={[{ required: true, message: 'Please Select a Trait!' }]}
+            >
+              <Select placeholder="Select a Trait" onChange={this.traitSelectChange}>
                 {availableTraitList.map((item) => {
                   return (
                     <Option value={item.name} key={item.name}>
@@ -96,7 +106,17 @@ export default class CreateTraitItem extends React.PureComponent {
             {this.state.parameters ? (
               this.state.parameters.map((item) => {
                 return (
-                  <Form.Item name={item.name} label={item.name} key={item.name}>
+                  <Form.Item
+                    name={item.name}
+                    label={item.name}
+                    key={item.name}
+                    rules={[
+                      {
+                        required: item.required || false,
+                        message: `Please input ${item.name} !`,
+                      },
+                    ]}
+                  >
                     <Input />
                   </Form.Item>
                 );

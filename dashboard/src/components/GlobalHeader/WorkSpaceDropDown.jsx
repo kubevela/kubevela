@@ -19,20 +19,22 @@ export default class WorkSpaceDropDown extends React.Component {
       type: 'envs/getEnvs',
     });
     if (envs) {
-      const { envName, namespace } = envs.find((env) => {
+      const result = envs.find((env) => {
         return env.current === '*';
       });
-      this.setState({
-        envs: envs,
-        workSpaceName: envName,
-        namespace: namespace,
-      });
-      this.props.dispatch({
-        type: 'globalData/currentEnv',
-        payload: {
-          currentEnv: envName,
-        },
-      });
+      if (result) {
+        const { name, namespace } = result;
+        this.setState({
+          workSpaceName: name,
+          namespace,
+        });
+        this.props.dispatch({
+          type: 'globalData/currentEnv',
+          payload: {
+            currentEnv: name,
+          },
+        });
+      }
     }
   }
 
@@ -74,9 +76,9 @@ export default class WorkSpaceDropDown extends React.Component {
         {envs.envs &&
           envs.envs.map((item) => {
             return (
-              <Menu.Item key={item.envName} title={item.namespace}>
+              <Menu.Item key={item.name} title={item.namespace}>
                 <div className="box">
-                  <div className="box1">{item.envName}</div>
+                  <div className="box1">{item.name}</div>
                   <div className="box2">{item.namespace}</div>
                 </div>
               </Menu.Item>

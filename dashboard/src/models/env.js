@@ -1,4 +1,4 @@
-import { getEnvs, switchEnv, initialEnvs, deleteEnv, updateEnv } from '@/services/env';
+import { getEnvs, switchEnv, initialEnvs, deleteEnv } from '@/services/env';
 
 const TestModel = {
   namespace: 'envs',
@@ -29,15 +29,6 @@ const TestModel = {
     },
     *deleteEnv({ payload }, { call, put }) {
       yield call(deleteEnv, payload);
-      const res = yield call(getEnvs);
-      yield put({
-        type: 'onGetEnvsSuccess',
-        payload: res,
-      });
-      return res;
-    },
-    *updateEnv({ payload }, { call, put }) {
-      yield call(updateEnv, payload);
       const res = yield call(getEnvs);
       yield put({
         type: 'onGetEnvsSuccess',
