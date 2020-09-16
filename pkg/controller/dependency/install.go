@@ -84,7 +84,11 @@ func installHelmChart(client client.Client, chart []byte, log logr.Logger) error
 	log.Info("install helm char", "chart name", helmChart.Name)
 	// create the namespace
 	if helmChart.Namespace != types.DefaultAppNamespace {
-		cmdutil.NewNamespace(client, helmChart.Namespace)
+		if len(helmChart.Namespace) > 0 && !cmdutil.IsNamespaceExist(client, helmChart.Namespace) {
+			if err = cmdutil.NewNamespace(client, helmChart.Namespace); err != nil {
+				return errors.Wrap(err, "failed to create the namespace")
+			}
+		}
 	}
 	if err = helmInstallFunc(ioStreams, helmChart); err != nil {
 		return err
