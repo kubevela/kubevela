@@ -171,7 +171,7 @@ func InstallOamRuntime(chartPath, chartSource string) error {
 	if err != nil {
 		return fmt.Errorf("error loading chart for installation: %s", err)
 	}
-	installClient, err := oam.NewHelmInstall("", types.DefaultOAMReleaseName)
+	installClient, err := oam.NewHelmInstall("", "", types.DefaultOAMReleaseName)
 	if err != nil {
 		return fmt.Errorf("error create helm install client: %s", err)
 	}

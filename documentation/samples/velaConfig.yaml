@@ -12,3 +12,10 @@ data:
       "namespace": "cert-manager",
       "version": "1.0.0"
     }
+  ingresses.networking.k8s.io: |
+    {
+      "repo": "stable",
+      "urL": "https://kubernetes-charts.storage.googleapis.com/",
+      "name": "nginx-ingress",
+      "version": "1.41.2"
+    }

@@ -56,10 +56,11 @@ type Capability struct {
 }
 
 type Chart struct {
-	Repo    string `json:"repo"`
-	URL     string `json:"url"`
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	Repo      string `json:"repo"`
+	URL       string `json:"url"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace,omitempty"`
+	Version   string `json:"version"`
 }
 
 type Installation struct {
