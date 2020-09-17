@@ -58,8 +58,7 @@ func NewCompRunCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 		Long:               "Init and Run workloads",
 		Example:            "vela comp run -t <workload-type>",
 		RunE: func(cmd *cobra.Command, args []string) error {
-
-			if args[0] == "-h" {
+			if len(args) == 0 || args[0] == "-h" {
 				err := cmd.Help()
 				if err != nil {
 					return err
