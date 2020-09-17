@@ -6,8 +6,8 @@ replicaCount: 1
 useWebhook: true
 image:
   repository: oamdev/vela-core
-  tag: 0.3
-  pullPolicy: IfNotPresent
+  tag: latest
+  pullPolicy: Always
 
 imagePullSecrets: []
 nameOverride: ""
