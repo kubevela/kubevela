@@ -139,6 +139,42 @@ func SinkTemp2Local(templates []types.Capability, dir string) int {
 	return success
 }
 
+// RemoveLegacyTemps will remove capability definitions under `dir` but not included in `retainedTemps`.
+func RemoveLegacyTemps(retainedTemps []types.Capability, dir string) int {
+	success := 0
+	retainedFiles := []string{}
+	subDirs := []string{}
+	for _, tmp := range retainedTemps {
+		subDir := GetSubDir(dir, tmp.Type)
+		subDirs = append(subDirs, subDir)
+		tmpFilePath := filepath.Join(subDir, tmp.Name)
+		retainedFiles = append(retainedFiles, tmpFilePath)
+	}
+
+	for _, subDir := range subDirs {
+		if err := filepath.Walk(subDir, func(path string, info os.FileInfo, err error) error {
+			if info.IsDir() {
+				// omit subDir
+				return nil
+			}
+			for _, retainedFile := range retainedFiles {
+				if retainedFile == path {
+					return nil
+				}
+			}
+			if err := os.Remove(path); err != nil {
+				fmt.Printf("remove legacy %s err: %v\n", path, err)
+				return err
+			}
+			success++
+			return nil
+		}); err != nil {
+			continue
+		}
+	}
+	return success
+}
+
 func LoadCapabilityFromSyncedCenter(dir string) ([]types.Capability, error) {
 	var tmps []types.Capability
 	files, err := ioutil.ReadDir(dir)
