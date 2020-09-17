@@ -5,6 +5,7 @@
 *.so
 *.dylib
 bin
+_bin
 e2e/vela
 
 # Test binary, build with `go test -c`
