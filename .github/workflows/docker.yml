@@ -1,0 +1,25 @@
+name: Publish to Registry
+on:
+  push:
+    branches:
+      - master
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+      - name: Publish to Github Docker Package Registry
+        uses: elgohr/Publish-Docker-Github-Action@2.21
+        with:
+          name: oam-dev/kubevela/vela-core
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: docker.pkg.github.com
+          tags: "latest"
+      - name: Publish to Docker Hub Registry
+        uses: elgohr/Publish-Docker-Github-Action@2.21
+        with:
+          name: oamdev/vela-core
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          tags: "latest"

@@ -62,3 +62,18 @@ jobs:
           asset_path: ./bin/vela-windows-amd64.exe
           asset_name: vela-${{ steps.get_version.outputs.VERSION }}-windows-amd64.exe
           asset_content_type: binary/octet-stream
+      - name: Publish to Github Docker Package Registry
+        uses: elgohr/Publish-Docker-Github-Action@2.21
+        with:
+          name: oam-dev/kubevela/vela-core
+          username: $GITHUB_ACTOR
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: docker.pkg.github.com
+          tags: "${{ steps.get_version.outputs.VERSION }}"
+      - name: Publish to Docker Hub Registry
+        uses: elgohr/Publish-Docker-Github-Action@2.21
+        with:
+          name: oamdev/vela-core
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          tags: "${{ steps.get_version.outputs.VERSION }}"
