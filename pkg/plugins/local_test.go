@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLocalSink(t *testing.T) {
-	deployment := types.Capability{
+var (
+	deployment = types.Capability{
 		Name: "deployment",
 		Type: types.TypeWorkload,
 		Parameters: []types.Parameter{
@@ -21,7 +21,7 @@ func TestLocalSink(t *testing.T) {
 			},
 		},
 	}
-	statefulset := types.Capability{
+	statefulset = types.Capability{
 		Name: "statefulset",
 		Type: types.TypeWorkload,
 		Parameters: []types.Parameter{
@@ -32,7 +32,7 @@ func TestLocalSink(t *testing.T) {
 			},
 		},
 	}
-	route := types.Capability{
+	route = types.Capability{
 		Name: "route",
 		Type: types.TypeTrait,
 		Parameters: []types.Parameter{
@@ -43,6 +43,9 @@ func TestLocalSink(t *testing.T) {
 			},
 		},
 	}
+)
+
+func TestLocalSink(t *testing.T) {
 
 	cases := map[string]struct {
 		dir    string
@@ -102,4 +105,44 @@ func testInDir(t *testing.T, casename, dir string, tmps, defexp []types.Capabili
 		assert.NoError(t, err, casename)
 		assert.Equal(t, defexp, gotDef, casename)
 	}
+}
+
+func TestRemoveLegacyTemps(t *testing.T) {
+
+	cases := []struct {
+		caseName string
+		newTemps []types.Capability
+		rmNum    int
+	}{
+		{
+			caseName: "remove all",
+			newTemps: []types.Capability{},
+			rmNum:    3,
+		},
+		{
+			caseName: "nothing removed",
+			newTemps: []types.Capability{deployment, statefulset, route},
+			rmNum:    0,
+		},
+		{
+			caseName: "remove part of existings",
+			newTemps: []types.Capability{statefulset, route},
+			rmNum:    1,
+		},
+	}
+	for _, c := range cases {
+		runInDirRemoveLegacyTemps(t, c.caseName, c.newTemps, c.rmNum)
+	}
+}
+
+func runInDirRemoveLegacyTemps(t *testing.T, caseName string, newTemps []types.Capability, rmNum int) {
+	dir := "vela-test-rm-temps"
+	err := os.MkdirAll(dir, 0755)
+	assert.NoError(t, err, caseName)
+	defer os.RemoveAll(dir)
+	existingTemps := []types.Capability{deployment, statefulset, route}
+	number := SinkTemp2Local(existingTemps, dir)
+	assert.Equal(t, 3, number)
+	resultRemoveNum := RemoveLegacyTemps(newTemps, dir)
+	assert.Equal(t, rmNum, resultRemoveNum, caseName)
 }
