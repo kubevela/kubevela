@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	cuelang.org/go v0.2.2
+	github.com/AlecAivazis/survey/v2 v2.1.1
 	github.com/Azure/go-autorest v12.2.0+incompatible // Don't remove. https://github.com/kubernetes/client-go/issues/628
 	github.com/coreos/prometheus-operator v0.41.1
 	github.com/crossplane/crossplane-runtime v0.9.0
