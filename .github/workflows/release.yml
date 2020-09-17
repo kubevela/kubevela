@@ -32,7 +32,7 @@ jobs:
         run: make generate-source
       - name: Run cross-build
         run: make cross-build
-      - name: Run cross-build
+      - name: Run compress binary
         run: make compress
       - name: Create Release
         id: create_release
