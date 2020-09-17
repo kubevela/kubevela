@@ -1,0 +1,11 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: deploymenturis.testapps
+  labels:
+    usecase: forplugintest
+spec:
+  definitionRef:
+    name: deploymenturis.testapps
+  extension:
+    templateURI: "https://raw.githubusercontent.com/oam-dev/kubevela/master/pkg/plugins/testdata/deployment.cue"

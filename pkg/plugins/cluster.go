@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"path/filepath"
 
 	"github.com/oam-dev/kubevela/api/types"
@@ -100,12 +101,28 @@ func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Capab
 	if err != nil {
 		return types.Capability{}, err
 	}
-	if tmp.CueTemplate == "" {
-		return types.Capability{}, errors.New("template not exist in definition")
+
+	var cueTemplate string
+	if tmp.CueTemplateURI != "" {
+		res, err := http.Get(tmp.CueTemplateURI)
+		if err != nil {
+			return types.Capability{}, err
+		}
+		defer res.Body.Close()
+		b, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			return types.Capability{}, err
+		}
+		cueTemplate = fmt.Sprintf("%s", b)
+	} else {
+		if tmp.CueTemplate == "" {
+			return types.Capability{}, errors.New("template not exist in definition")
+		}
+		cueTemplate = tmp.CueTemplate
 	}
 	_, _ = system.CreateIfNotExist(syncDir)
 	filePath := filepath.Join(syncDir, name+".cue")
-	err = ioutil.WriteFile(filePath, []byte(tmp.CueTemplate), 0644)
+	err = ioutil.WriteFile(filePath, []byte(cueTemplate), 0644)
 	if err != nil {
 		return types.Capability{}, err
 	}
