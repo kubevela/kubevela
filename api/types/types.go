@@ -27,8 +27,13 @@ const (
 
 type EnvMeta struct {
 	Name      string `json:"name"`
-	Current   string `json:"current,omitempty"`
 	Namespace string `json:"namespace"`
+	Email     string `json:"email,omitempty"`
+	Domain    string `json:"domain,omitempty"`
+
+	// Below are not arguments, should be auto-generated
+	Issuer  string `json:"issuer"`
+	Current string `json:"current,omitempty"`
 }
 
 const (

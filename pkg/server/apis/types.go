@@ -10,6 +10,8 @@ import (
 type Environment struct {
 	EnvName   string `json:"envName" binding:"required,min=1,max=32"`
 	Namespace string `json:"namespace" binding:"required,min=1,max=32"`
+	Email     string `json:"email"`
+	Domain    string `json:"domain"`
 	Current   string `json:"current,omitempty"`
 }
 

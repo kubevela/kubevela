@@ -148,12 +148,47 @@ func SimplifyCapabilityStruct(capabilityList []types.Capability) []apis.TraitMet
 	return traitList
 }
 
+func ValidateAndMutateForCore(traitType, workloadName string, flags *pflag.FlagSet, env *types.EnvMeta) error {
+	switch traitType {
+	case "route":
+		domain, _ := flags.GetString("domain")
+		if domain == "" {
+			if env.Domain == "" {
+				return fmt.Errorf("--domain is required if not set in env")
+			}
+			if strings.HasPrefix(env.Domain, "https://") {
+				env.Domain = strings.TrimPrefix(env.Domain, "https://")
+			}
+			if strings.HasPrefix(env.Domain, "http://") {
+				env.Domain = strings.TrimPrefix(env.Domain, "http://")
+			}
+			if err := flags.Set("domain", workloadName+"."+env.Domain); err != nil {
+				return fmt.Errorf("set flag for vela-core trait('route') err %v, please make sure your template is right", err)
+			}
+		}
+		issuer, _ := flags.GetString("issuer")
+		if issuer == "" {
+			if env.Issuer == "" {
+				return fmt.Errorf("--issuer is required, you can also set email in env and let it generate automatically")
+			}
+			if err := flags.Set("issuer", env.Issuer); err != nil {
+				return fmt.Errorf("set flag for vela-core trait('route') err %v, please make sure your template is right", err)
+			}
+		}
+	}
+	return nil
+}
+
 //AddOrUpdateTrait attach trait to workload
-func AddOrUpdateTrait(envName string, appName string, workloadName string, flagSet *pflag.FlagSet, template types.Capability) (*application.Application, error) {
+func AddOrUpdateTrait(env *types.EnvMeta, appName string, workloadName string, flagSet *pflag.FlagSet, template types.Capability) (*application.Application, error) {
+	err := ValidateAndMutateForCore(template.Name, workloadName, flagSet, env)
+	if err != nil {
+		return nil, err
+	}
 	if appName == "" {
 		appName = workloadName
 	}
-	app, err := application.Load(envName, appName)
+	app, err := application.Load(env.Name, appName)
 	if err != nil {
 		return app, err
 	}
@@ -181,7 +216,7 @@ func AddOrUpdateTrait(envName string, appName string, workloadName string, flagS
 	if err = app.SetTrait(workloadName, traitAlias, traitData); err != nil {
 		return app, err
 	}
-	return app, app.Save(envName)
+	return app, app.Save(env.Name)
 }
 
 func AttachTrait(c *gin.Context, body apis.TraitBody) (string, error) {
@@ -204,12 +239,13 @@ func AttachTrait(c *gin.Context, body apis.TraitBody) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	appObj, err = AddOrUpdateTrait(body.EnvName, body.AppGroup, body.WorkloadName, fs, template)
+	// Run step
+	env, err := GetEnvByName(body.EnvName)
 	if err != nil {
 		return "", err
 	}
-	// Run step
-	env, err := GetEnvByName(body.EnvName)
+
+	appObj, err = AddOrUpdateTrait(env, body.AppGroup, body.WorkloadName, fs, template)
 	if err != nil {
 		return "", err
 	}

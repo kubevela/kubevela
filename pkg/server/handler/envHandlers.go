@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/oam-dev/kubevela/api/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -23,9 +24,16 @@ func CreateEnv(c *gin.Context) {
 	if namespace == "" {
 		namespace = "default"
 	}
+
 	ctx := util.GetContext(c)
 	kubeClient := c.MustGet("KubeClient")
-	message, err := oam.CreateEnv(ctx, kubeClient.(client.Client), name, namespace)
+	message, err := oam.CreateEnv(ctx, kubeClient.(client.Client), name, &types.EnvMeta{
+		Name:      name,
+		Current:   environment.Current,
+		Namespace: namespace,
+		Email:     environment.Email,
+		Domain:    environment.Domain,
+	})
 	util.AssembleResponse(c, message, err)
 }
 
