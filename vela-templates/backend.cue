@@ -1,13 +1,16 @@
 #Template: {
-	apiVersion: "core.oam.dev/v1alpha2"
-	kind:       "ContainerizedWorkload"
+	apiVersion: "standard.oam.dev/v1alpha1"
+	kind:       "Containerized"
 	metadata:
 		name: backend.name
 	spec: {
-		containers: [{
-			image: backend.image
-			name:  backend.name
-		}]
+		replicas: 1
+		podSpec: {
+			containers: [{
+				image: backend.image
+				name:  backend.name
+			}]
+		}
 	}
 }
 
@@ -16,7 +19,4 @@ backend: {
 	// +usage=specify app image
 	// +short=i
 	image: string
-	// +usage=specify port for container
-	// +short=p
-	port: *6379 | int
 }
