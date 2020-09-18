@@ -8,6 +8,7 @@ LDFLAGS ?= "-X $(VELA_VERSION_VAR)=$(VELA_VERSION) -X $(VELA_GITVERSION_VAR)=$(G
 
 GOX      = go run github.com/mitchellh/gox
 TARGETS  := darwin/amd64 linux/amd64 windows/amd64
+DIST_DIRS       := find * -type d -exec
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -36,7 +37,17 @@ generate-source:
 	go run hack/frontend/source.go
 
 cross-build:
-	go run hack/chart/generate.go | GO111MODULE=on CGO_ENABLED=0 $(GOX) -ldflags $(LDFLAGS) -parallel=3 -output="bin/vela-{{.OS}}-{{.Arch}}" -osarch='$(TARGETS)' ./cmd/vela/
+	go run hack/chart/generate.go | GO111MODULE=on CGO_ENABLED=0 $(GOX) -ldflags $(LDFLAGS) -parallel=3 -output="_bin/{{.OS}}-{{.Arch}}/vela" -osarch='$(TARGETS)' ./cmd/vela/
+
+compress:
+	( \
+		cd _bin && \
+		$(DIST_DIRS) cp ../LICENSE {} \; && \
+		$(DIST_DIRS) cp ../README.md {} \; && \
+		$(DIST_DIRS) tar -zcf vela-{}.tar.gz {} \; && \
+		$(DIST_DIRS) zip -r vela-{}.zip {} \; && \
+		sha256sum vela-* > sha256sums.txt \
+	)
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 run: fmt vet
@@ -51,7 +62,7 @@ vet:
 	go vet ./...
 
 lint: golangci
-	$(GOLANGCILINT) run -E golint,goimports  ./...
+	$(GOLANGCILINT) run --timeout 10m -E golint,goimports  ./...
 
 # Build the docker image
 docker-build: test
@@ -88,7 +99,7 @@ core-test: generate fmt vet manifests
 	go test ./pkg/... -coverprofile cover.out
 
 # Build manager binary
-manager: generate fmt vet
+manager: generate fmt vet lint manifests
 	go build -o bin/manager ./cmd/core/main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
@@ -110,7 +121,7 @@ core-deploy: manifests
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=charts/vela/crds
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=charts/vela-core/crds
 
 # Generate code
 generate: controller-gen

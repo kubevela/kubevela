@@ -1,42 +1,33 @@
 apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata:
-  name: ingresses.networking.k8s.io
+  name: routes.standard.oam.dev
   annotations:
-    "definition.oam.dev/apiVersion": "networking.k8s.io/v1beta1"
-    "definition.oam.dev/kind": "Ingress"
+    definition.oam.dev/apiVersion: standard.oam.dev/v1alpha1
+    definition.oam.dev/kind: Route
 spec:
-  revisionEnabled: true
   appliesToWorkloads:
     - core.oam.dev/v1alpha2.ContainerizedWorkload
+    - standard.oam.dev/v1alpha1.Containerized
     - deployments.apps
+  workloadRefPath: spec.workloadRef
   definitionRef:
-    name: ingresses.networking.k8s.io
+    name: routes.standard.oam.dev
   extension:
-    install:
-      helm:
-        repo: stable
-        name: nginx-ingress
-        url: https://kubernetes-charts.storage.googleapis.com/
-        version: 1.41.2
     template: |
       #Template: {
-      	apiVersion: "networking.k8s.io/v1beta1"
-      	kind:       "Ingress"
+      	apiVersion: "standard.oam.dev/v1alpha1"
+      	kind:       "Route"
       	spec: {
-      		rules: [{
-      			host: route.domain
-      			http: paths: [{
-      				backend: {
-      					serviceName: route.service
-      					servicePort: route.port
-      				}}]
-      		}]
+      		host: route.domain
+      		path: route.path
+      		backend: {
+      			port: route.port
+      		}
       	}
       }
       route: {
-      	domain:  string
-      	port:    *80 | int
-      	service: string
+      	domain: string
+      	path:   *"" | string
+      	port:   *443 | int
       }
-

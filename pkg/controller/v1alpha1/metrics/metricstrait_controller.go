@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/oam-dev/kubevela/pkg/controller/common"
+
 	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
@@ -42,17 +44,12 @@ import (
 
 const (
 	errApplyServiceMonitor = "failed to apply the service monitor"
-	errLocatingWorkload    = "failed to locate the workload"
-	errLocatingService     = "failed to locate any the services"
-	errCreatingService     = "failed to create the services"
 	servicePort            = 4848
 )
 
 var (
 	serviceMonitorKind       = reflect.TypeOf(monitoring.ServiceMonitor{}).Name()
 	serviceMonitorAPIVersion = monitoring.SchemeGroupVersion.String()
-	serviceKind              = reflect.TypeOf(corev1.Service{}).Name()
-	serviceAPIVersion        = corev1.SchemeGroupVersion.String()
 )
 
 var (
@@ -115,27 +112,27 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		mLog.Error(err, "Error while fetching the workload", "workload reference",
 			metricsTrait.GetWorkloadReference())
-		r.record.Event(eventObj, event.Warning(errLocatingWorkload, err))
+		r.record.Event(eventObj, event.Warning(common.ErrLocatingWorkload, err))
 		return oamutil.ReconcileWaitResult,
 			oamutil.PatchCondition(ctx, r, &metricsTrait,
-				cpv1alpha1.ReconcileError(errors.Wrap(err, errLocatingWorkload)))
+				cpv1alpha1.ReconcileError(errors.Wrap(err, common.ErrLocatingWorkload)))
 	}
 	// try to see if the workload already has services as child resources
 	serviceLabel, err := r.fetchServicesLabel(ctx, mLog, workload, metricsTrait.Spec.ScrapeService.TargetPort)
 	if err != nil && !apierrors.IsNotFound(err) {
-		r.record.Event(eventObj, event.Warning(errLocatingService, err))
+		r.record.Event(eventObj, event.Warning(common.ErrLocatingService, err))
 		return oamutil.ReconcileWaitResult,
 			oamutil.PatchCondition(ctx, r, &metricsTrait,
-				cpv1alpha1.ReconcileError(errors.Wrap(err, errLocatingService)))
+				cpv1alpha1.ReconcileError(errors.Wrap(err, common.ErrLocatingService)))
 	} else if serviceLabel == nil {
 		// TODO: use podMonitor instead?
 		// no service with the targetPort found, we will create a service that talks to the targetPort
 		serviceLabel, err = r.createService(ctx, mLog, workload, &metricsTrait)
 		if err != nil {
-			r.record.Event(eventObj, event.Warning(errCreatingService, err))
+			r.record.Event(eventObj, event.Warning(common.ErrCreatingService, err))
 			return oamutil.ReconcileWaitResult,
 				oamutil.PatchCondition(ctx, r, &metricsTrait,
-					cpv1alpha1.ReconcileError(errors.Wrap(err, errCreatingService)))
+					cpv1alpha1.ReconcileError(errors.Wrap(err, common.ErrCreatingService)))
 		}
 	}
 	// construct the serviceMonitor that hooks the service to the prometheus server
@@ -171,7 +168,7 @@ func (r *Reconciler) fetchServicesLabel(ctx context.Context, mLog logr.Logger,
 	}
 	// find the service that has the port
 	for _, childRes := range resources {
-		if childRes.GetAPIVersion() == serviceAPIVersion && childRes.GetKind() == serviceKind {
+		if childRes.GetAPIVersion() == common.ServiceAPIVersion && childRes.GetKind() == common.ServiceKind {
 			ports, _, _ := unstructured.NestedSlice(childRes.Object, "spec", "ports")
 			for _, port := range ports {
 				servicePort, _ := port.(corev1.ServicePort)
@@ -189,8 +186,8 @@ func (r *Reconciler) createService(ctx context.Context, mLog logr.Logger, worklo
 	metricsTrait *v1alpha1.MetricsTrait) (map[string]string, error) {
 	oamService := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       serviceKind,
-			APIVersion: serviceAPIVersion,
+			Kind:       common.ServiceKind,
+			APIVersion: common.ServiceAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "oam-" + workload.GetName(),

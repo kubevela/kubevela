@@ -43,7 +43,7 @@ func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		o.AppName = args[0]
 
 		ioStreams.Infof("Deleting Application \"%s\"\n", o.AppName)
-		_, err = o.DeleteApp()
+		info, err := o.DeleteApp()
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				ioStreams.Info("Already deleted")
@@ -51,7 +51,7 @@ func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 			}
 			return err
 		}
-		ioStreams.Info("DELETE SUCCEED")
+		ioStreams.Info(info)
 		return nil
 	}
 	return cmd

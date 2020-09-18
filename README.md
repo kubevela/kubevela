@@ -13,29 +13,19 @@ The Open Application Platform based on Kubernetes and OAM.
 
 ### Get the Vela CLI
 
-Download the `vela` binary from the [Releases page](https://github.com/oam-dev/kubevela/releases). Change file mod and add it to `$PATH` to get started.
+Download the `vela` binary from the [Releases page](https://github.com/oam-dev/kubevela/releases). Unpack the `vela` binary and add it to `$PATH` to get started.
 
-For exmaple:
 ```shell
-chmod a+x vela-v0.0.2-darwin-amd64
-sudo mv ./vela-v0.0.2-darwin-amd64 /usr/local/bin/vela
+sudo mv ./vela /usr/local/bin/vela
 ```
 
 ### Install Vela Core
 
 ```shell script
 $ vela install
-- Installing Vela Core:
-- Installing builtin capabilities:
-Successful applied 4 kinds of Workloads and Traits: deployments.apps,containerizedworkloads.core.oam.dev,manualscalertraits.core.oam.dev,simplerollouttraits.extend.oam.dev.
-syncing workload definitions from cluster...
-[WARN]handle template task: #Template.metadata.name: reference "task" not found
-get 5 workload definitions from cluster, syncing...5 workload definitions successfully synced
-syncing trait definitions from cluster...
-[WARN]handle template metricstraits.standard.oam.dev: #Template.metadata.name: reference "metricstraits" not found
-get 2 trait definitions from cluster, syncing...2 trait definitions successfully synced
-- Finished.
 ```
+
+This command will install vela core controller into your K8s cluster, along with built-in workloads and traits.
 
 ## Demos
 

@@ -32,6 +32,8 @@ jobs:
         run: make generate-source
       - name: Run cross-build
         run: make cross-build
+      - name: Run compress binary
+        run: make compress
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -41,24 +43,67 @@ jobs:
       - name: Get the version
         id: get_version
         run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
-      - name: Upload Linux
+      - name: Upload Linux tar.gz
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./bin/vela-linux-amd64
-          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-linux-amd64
+          asset_path: ./_bin/vela-linux-amd64.tar.gz
+          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz
           asset_content_type: binary/octet-stream
-      - name: Upload MacOS
+      - name: Upload Linux zip
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./bin/vela-darwin-amd64
-          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-darwin-amd64
+          asset_path: ./_bin/vela-linux-amd64.zip
+          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-linux-amd64.zip
           asset_content_type: binary/octet-stream
-      - name: Upload Windows
+      - name: Upload MacOS tar.gz
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./bin/vela-windows-amd64.exe
-          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-windows-amd64.exe
+          asset_path: ./_bin/vela-darwin-amd64.tar.gz
+          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-darwin-amd64.tar.gz
           asset_content_type: binary/octet-stream
+      - name: Upload MacOS zip
+        uses: actions/upload-release-asset@v1.0.2
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./_bin/vela-darwin-amd64.zip
+          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-darwin-amd64.zip
+          asset_content_type: binary/octet-stream
+      - name: Upload Windows tar.gz
+        uses: actions/upload-release-asset@v1.0.2
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./_bin/vela-windows-amd64.tar.gz
+          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-windows-amd64.tar.gz
+          asset_content_type: binary/octet-stream
+      - name: Upload Windows zip
+        uses: actions/upload-release-asset@v1.0.2
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./_bin/vela-windows-amd64.zip
+          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-windows-amd64.zip
+          asset_content_type: binary/octet-stream
+      - name: Upload Checksums
+        uses: actions/upload-release-asset@v1.0.2
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./_bin/sha256sums.txt
+          asset_name: sha256sums.txt
+          asset_content_type: text/plain
+      - name: Publish to Github Docker Package Registry
+        uses: elgohr/Publish-Docker-Github-Action@2.21
+        with:
+          name: oam-dev/kubevela/vela-core
+          username: $GITHUB_ACTOR
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: docker.pkg.github.com
+          tags: "${{ steps.get_version.outputs.VERSION }}"
+      - name: Publish to Docker Hub Registry
+        uses: elgohr/Publish-Docker-Github-Action@2.21
+        with:
+          name: oamdev/vela-core
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          tags: "${{ steps.get_version.outputs.VERSION }}"

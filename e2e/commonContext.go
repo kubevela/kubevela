@@ -129,7 +129,7 @@ var (
 				cli := fmt.Sprintf("vela app delete %s", applicationName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("DELETE SUCCEED"))
+				gomega.Expect(output).To(gomega.ContainSubstring("delete apps succeed"))
 			})
 		})
 	}

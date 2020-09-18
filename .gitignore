@@ -5,6 +5,7 @@
 *.so
 *.dylib
 bin
+_bin
 e2e/vela
 
 # Test binary, build with `go test -c`
@@ -35,6 +36,7 @@ config/crd/bases
 tmp/
 
 cmd/vela/fake/source.go
+charts/vela-core/crds/_.yaml
 
 # Dashboard
 dashboard/node_modules/
