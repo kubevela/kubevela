@@ -44,7 +44,7 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 			Long:                  "Attach " + name + " trait to an app",
 			Example:               "vela " + name + " frontend",
 			RunE: func(cmd *cobra.Command, args []string) error {
-				o := &commandOptions{IOStreams: ioStreams}
+				o := &commandOptions{IOStreams: ioStreams, traitType: name}
 				o.Template = tmp
 				newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 				if err != nil {
@@ -103,7 +103,9 @@ func (o *commandOptions) AddOrUpdateTrait(cmd *cobra.Command, args []string) err
 	if err = o.Prepare(cmd, args); err != nil {
 		return err
 	}
-	if o.app, err = oam.AddOrUpdateTrait(o.Env.Name, o.appName, o.workloadName, cmd.Flags(), o.Template); err != nil {
+	flags := cmd.Flags()
+
+	if o.app, err = oam.AddOrUpdateTrait(o.Env, o.appName, o.workloadName, flags, o.Template); err != nil {
 		return err
 	}
 	return nil
@@ -138,6 +140,7 @@ func (o *commandOptions) Run(ctx context.Context, cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
+
 	o.Info(msg)
 	return nil
 }

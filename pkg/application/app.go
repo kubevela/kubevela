@@ -320,7 +320,7 @@ func EvalToObject(capName string, data map[string]interface{}) (*unstructured.Un
 	return u, nil
 }
 
-func (app *Application) GetComponentTraits(componentName string) ([]v1alpha2.ComponentTrait, error) {
+func (app *Application) GetComponentTraits(componentName string, env *types.EnvMeta) ([]v1alpha2.ComponentTrait, error) {
 	var traits []v1alpha2.ComponentTrait
 	rawTraits, err := app.GetTraits(componentName)
 	if err != nil {
@@ -336,6 +336,14 @@ func (app *Application) GetComponentTraits(componentName string) ([]v1alpha2.Com
 		traits = append(traits, v1alpha2.ComponentTrait{Trait: runtime.RawExtension{Object: obj}})
 	}
 	return traits, nil
+}
+
+func (app *Application) VelaCoreInjection(obj *unstructured.Unstructured, env *types.EnvMeta, traitType string) {
+	switch traitType {
+	case "route":
+
+	}
+
 }
 
 func FormatDefaultHealthScopeName(appName string) string {
@@ -387,7 +395,7 @@ func (app *Application) OAM(env *types.EnvMeta) ([]v1alpha2.Component, v1alpha2.
 		}})
 
 		//TODO(wonderflow): handle component data input/output here
-		compTraits, err := app.GetComponentTraits(name)
+		compTraits, err := app.GetComponentTraits(name, env)
 		if err != nil {
 			return nil, v1alpha2.ApplicationConfiguration{}, nil, err
 		}

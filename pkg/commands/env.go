@@ -57,7 +57,7 @@ func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		DisableFlagsInUseLine: true,
 		Short:                 "Create environments",
 		Long:                  "Create environment and set the currently using environment",
-		Example:               `vela env init test --namespace test`,
+		Example:               `vela env init test --namespace test --email my@email.com`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 			if err != nil {
@@ -71,6 +71,8 @@ func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 	}
 	cmd.SetOut(ioStreams.Out)
 	cmd.Flags().StringVar(&envArgs.Namespace, "namespace", "default", "specify K8s namespace for env")
+	cmd.Flags().StringVar(&envArgs.Email, "email", "", "specify email for production TLS Certificate notification")
+	cmd.Flags().StringVar(&envArgs.Domain, "domain", "", "specify domain your applications")
 	return cmd
 }
 
@@ -94,7 +96,6 @@ func NewEnvDeleteCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 }
 
 func NewEnvSetCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
-	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "set",
 		Aliases:               []string{"sw"},
@@ -103,7 +104,7 @@ func NewEnvSetCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		Long:                  "Set an environment as the current using one",
 		Example:               `vela env set test`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return SetEnv(ctx, args, ioStreams)
+			return SetEnv(args, ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -149,8 +150,8 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvM
 		return fmt.Errorf("you must specify env name for vela env init command")
 	}
 	envName := args[0]
-	namespace := envArgs.Namespace
-	msg, err := oam.CreateOrUpdateEnv(ctx, c, envName, namespace)
+	envArgs.Name = envName
+	msg, err := oam.CreateOrUpdateEnv(ctx, c, envName, envArgs)
 	if err != nil {
 		return err
 	}
@@ -158,7 +159,7 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvM
 	return nil
 }
 
-func SetEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) error {
+func SetEnv(args []string, ioStreams cmdutil.IOStreams) error {
 	if len(args) < 1 {
 		return fmt.Errorf("you must specify env name for vela env command")
 	}

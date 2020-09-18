@@ -9,6 +9,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/jetstack/cert-manager/pkg/apis/acme/v1alpha2"
+	certmanager "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1alpha2"
+	v1 "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,15 +39,40 @@ func GetEnvByName(name string) (*types.EnvMeta, error) {
 //Create or update env.
 //If it does not exist, create it and set to the new env.
 //If it exists, update it and set to the new env.
-func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, namespace string) (string, error) {
+func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, envArgs *types.EnvMeta) (string, error) {
 	var message = ""
-	var envArgs = types.EnvMeta{
-		Name:      envName,
-		Namespace: namespace,
-	}
+	// Create Namespace
 	if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envArgs.Namespace}}); err != nil && !apierrors.IsAlreadyExists(err) {
 		return message, err
 	}
+
+	// Create Issuer For SSL
+	if envArgs.Email != "" {
+		issuerName := "oam-env-" + envArgs.Name
+		if err := c.Create(ctx, &certmanager.Issuer{
+			ObjectMeta: metav1.ObjectMeta{Name: issuerName, Namespace: envArgs.Namespace},
+			Spec: certmanager.IssuerSpec{
+				IssuerConfig: certmanager.IssuerConfig{
+					ACME: &v1alpha2.ACMEIssuer{
+						Email:  envArgs.Email,
+						Server: "https://acme-v02.api.letsencrypt.org/directory",
+						PrivateKey: v1.SecretKeySelector{
+							LocalObjectReference: v1.LocalObjectReference{Name: "oam-env-" + envArgs.Name + ".key"},
+						},
+						Solvers: []v1alpha2.ACMEChallengeSolver{{
+							HTTP01: &v1alpha2.ACMEChallengeSolverHTTP01{
+								Ingress: &v1alpha2.ACMEChallengeSolverHTTP01Ingress{Class: GetStringPointer("nginx")},
+							},
+						}},
+					},
+				},
+			},
+		}); err != nil && !apierrors.IsAlreadyExists(err) {
+			return message, err
+		}
+		envArgs.Issuer = issuerName
+	}
+
 	data, err := json.Marshal(envArgs)
 	if err != nil {
 		return message, err
@@ -67,42 +95,22 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, nam
 	if err = ioutil.WriteFile(curEnvPath, []byte(envName), 0644); err != nil {
 		return message, err
 	}
-	message = fmt.Sprintf("Create env succeed, current env is " + envName + " namespace is " + envArgs.Namespace + ", use --namespace=<namespace> to specify namespace with env init")
+	message = fmt.Sprintf("ENV %s CREATED, Namespace: %s, Email: %s.", envName, envArgs.Namespace, envArgs.Email)
 	return message, nil
 }
 
-//Create env. If env already exists, return error
-func CreateEnv(ctx context.Context, c client.Client, envName string, namespace string) (string, error) {
-	var message = ""
-	var envArgs = types.EnvMeta{
-		Name:      envName,
-		Namespace: namespace,
-	}
-	data, err := json.Marshal(envArgs)
-	if err != nil {
-		return message, err
-	}
-	_, err = GetEnvByName(envName)
+func GetStringPointer(v string) *string {
+	return &v
+}
+
+// CreateEnv will only create. If env already exists, return error
+func CreateEnv(ctx context.Context, c client.Client, envName string, envArgs *types.EnvMeta) (string, error) {
+	_, err := GetEnvByName(envName)
 	if err == nil {
-		message = fmt.Sprintf("Env %s already exist", envName)
+		message := fmt.Sprintf("Env %s already exist", envName)
 		return message, errors.New(message)
 	}
-	if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envArgs.Namespace}}); err != nil && !apierrors.IsAlreadyExists(err) {
-		return message, err
-	}
-	envdir, err := system.GetEnvDir()
-	if err != nil {
-		return message, err
-	}
-	subEnvDir := filepath.Join(envdir, envName)
-	if _, err := system.CreateIfNotExist(subEnvDir); err != nil {
-		return "", nil
-	}
-	if err = ioutil.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
-		return message, err
-	}
-	message = "Create env succeed"
-	return message, err
+	return CreateOrUpdateEnv(ctx, c, envName, envArgs)
 }
 
 //Update Env, if env does not exist, return error

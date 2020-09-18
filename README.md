@@ -29,38 +29,54 @@ This command will install vela core controller into your K8s cluster, along with
 
 ## Demos
 
-#### Check workloads
-
-```
-$ vela workloads
-  NAME         	DEFINITION
-  backend      	containerizeds.standard.oam.dev
-  task         	jobs
-  webservice   	containerizeds.standard.oam.dev
-```
-
-#### workload run
+* Create ENV
+ 
 ```shell script
-$ vela comp run -t webservice app123 -p 80 --image nginx:1.9.4
-Creating AppConfig app123
+vela env init myenv --namespace myenv --email my@email.com --domain kubevela.io 
+```
+
+* Create Component 
+
+For example, use the following command to create and run an application.
+
+```shell script
+$ vela comp run mycomp -t webservice --image crccheck/hello-world --port 8000
+Creating AppConfig appcomp
 SUCCEED
-
-$ vela comp status app123
-
-$ vela comp ls
-NAME 	APP  	WORKLOAD  	TRAITS     	STATUS  	CREATED-TIME
-app123  app123  deployment	           	Deployed	2020-08-27 10:56:41 +0800 CST
 ```
 
-#### app
+* Add Trait
+
+```shell script
+$ vela route mycomp
+Adding route for app abc
+Succeeded!
+```
+
+* Check Status
 
 ```
+$ vela comp status abc
+Showing status of Component abc deployed in Environment t2
+Component Status:
+	Name: abc  Containerized(type) UNKNOWN APIVersion standard.oam.dev/v1alpha1 Kind Containerized workload is unknown for HealthScope
+	Traits
+	    └─Trait/route
+
+Last Deployment:
+	Created at: 2020-09-18 18:47:09 +0800 CST
+	Updated at: 2020-09-18T18:47:16+08:00
+```
+
+* Delete App
+
+```shell script
 $ vela app ls
-app123
+abc
 
-$ vela app delete app123
-Deleting AppConfig "app123"
-DELETE SUCCEED
+$ vela app delete abc
+Deleting Application "abc"
+delete apps succeed abc from t2
 ```
 
 #### Auto-Completion

@@ -17,6 +17,7 @@ import (
 
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
 	"github.com/gosuri/uitable"
+	certmanager "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1alpha2"
 	"github.com/spf13/cobra"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -34,7 +35,7 @@ var chartTGZSource string
 
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
-
+	_ = certmanager.AddToScheme(scheme)
 	_ = core.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
