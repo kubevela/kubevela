@@ -38,26 +38,28 @@ func NewRefreshCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams) error {
 	dir, _ := system.GetCapabilityDir()
 
+	syncedTemplates := []types.Capability{}
 	ioStreams.Info("syncing workload definitions from cluster...")
 	templates, err := plugins.GetWorkloadsFromCluster(ctx, types.DefaultOAMNS, c, dir, nil)
 	if err != nil {
 		return err
 	}
+	syncedTemplates = append(syncedTemplates, templates...)
 	ioStreams.Infof("get %d workload definitions from cluster, syncing...", len(templates))
 	successNum := plugins.SinkTemp2Local(templates, dir)
-	legacyNum := plugins.RemoveLegacyTemps(templates, dir)
 	ioStreams.Infof("%d workload definitions successfully synced\n", successNum)
-	ioStreams.Infof("%d legacy workload definitions successfully removed\n", legacyNum)
 
 	ioStreams.Info("syncing trait definitions from cluster...")
 	templates, err = plugins.GetTraitsFromCluster(ctx, types.DefaultOAMNS, c, dir, nil)
 	if err != nil {
 		return err
 	}
+	syncedTemplates = append(syncedTemplates, templates...)
 	ioStreams.Infof("get %d trait definitions from cluster, syncing...", len(templates))
 	successNum = plugins.SinkTemp2Local(templates, dir)
-	legacyNum = plugins.RemoveLegacyTemps(templates, dir)
 	ioStreams.Infof("%d trait definitions successfully synced\n", successNum)
-	ioStreams.Infof("%d legacy trait definitions successfully removed\n", legacyNum)
+
+	legacyNum := plugins.RemoveLegacyTemps(syncedTemplates, dir)
+	ioStreams.Infof("%d legacy capability definitions successfully removed\n", legacyNum)
 	return nil
 }

@@ -143,18 +143,17 @@ func SinkTemp2Local(templates []types.Capability, dir string) int {
 func RemoveLegacyTemps(retainedTemps []types.Capability, dir string) int {
 	success := 0
 	retainedFiles := []string{}
-	subDirs := []string{}
+	subDirs := []string{GetSubDir(dir, types.TypeWorkload), GetSubDir(dir, types.TypeTrait)}
 	for _, tmp := range retainedTemps {
 		subDir := GetSubDir(dir, tmp.Type)
-		subDirs = append(subDirs, subDir)
 		tmpFilePath := filepath.Join(subDir, tmp.Name)
 		retainedFiles = append(retainedFiles, tmpFilePath)
 	}
 
 	for _, subDir := range subDirs {
 		if err := filepath.Walk(subDir, func(path string, info os.FileInfo, err error) error {
-			if info.IsDir() {
-				// omit subDir
+			if info == nil || info.IsDir() {
+				// omit subDir or subDir not exist
 				return nil
 			}
 			for _, retainedFile := range retainedFiles {
