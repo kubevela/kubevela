@@ -37,7 +37,7 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 var definitionDir string
 var td v1alpha2.TraitDefinition
-var wd v1alpha2.WorkloadDefinition
+var wd, websvcWD v1alpha2.WorkloadDefinition
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -137,6 +137,14 @@ var _ = BeforeSuite(func(done Done) {
 	wd.Namespace = DefinitionNamespace
 	logf.Log.Info("Creating workload definition", "data", wd)
 	Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+	websvcWorkloadData, err := ioutil.ReadFile("testdata/websvcWorkloadDef.yaml")
+	Expect(err).Should(BeNil())
+
+	Expect(yaml.Unmarshal(websvcWorkloadData, &websvcWD)).Should(BeNil())
+	websvcWD.Namespace = DefinitionNamespace
+	logf.Log.Info("Creating workload definition whose CUE template from remote", "data", &websvcWD)
+	Expect(k8sClient.Create(ctx, &websvcWD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	close(done)
 }, 60)
