@@ -1,7 +1,7 @@
 import React, { Fragment } from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
 import './index.less';
-import { Form, Input, Button, Row, Col, Tabs, Table, Breadcrumb } from 'antd';
+import { Form, Input, Button, Row, Col, Tabs, Table, Breadcrumb, Space } from 'antd';
 import { CheckCircleOutlined } from '@ant-design/icons';
 import _ from 'lodash';
 import { connect } from 'dva';
@@ -60,6 +60,17 @@ const columns = [
     title: 'Age',
     dataIndex: 'Age',
     key: 'Age',
+  },
+  {
+    title: 'Action',
+    dataIndex: 'name',
+    key: 'name',
+    render: () => (
+      <Space>
+        <Button>logs</Button>
+        <Button>exec</Button>
+      </Space>
+    ),
   },
 ];
 
@@ -144,6 +155,7 @@ class TableList extends React.Component {
       hasShowEdit2: false,
       traitItem: {},
       appName: '',
+      envName: '',
       appDetailData: {},
     };
   }
@@ -153,16 +165,27 @@ class TableList extends React.Component {
   }
 
   async getInitialData() {
-    const traitItem = _.get(this.props, 'location.state.traitItem', {});
+    let traitItem = '';
+    let appName = '';
+    let envName = '';
+    if (this.props.location.state) {
+      traitItem = _.get(this.props, 'location.state.traitItem', '');
+      appName = _.get(this.props, 'location.state.appName', '');
+      envName = _.get(this.props, 'location.state.envName', '');
+      sessionStorage.setItem('traitItem', traitItem);
+      sessionStorage.setItem('appName', appName);
+      sessionStorage.setItem('envName', envName);
+    } else {
+      traitItem = sessionStorage.getItem('traitItem');
+      appName = sessionStorage.getItem('appName');
+      envName = sessionStorage.getItem('envName');
+    }
     this.setState({
       traitItem,
+      appName,
+      envName,
     });
-    const appName = _.get(this.props, 'location.state.appName', '');
-    const envName = _.get(this.props, 'location.state.envName', '');
     if (appName && envName) {
-      this.setState({
-        appName,
-      });
       const res = await this.props.dispatch({
         type: 'applist/getAppDetail',
         payload: {
@@ -203,7 +226,7 @@ class TableList extends React.Component {
   };
 
   render() {
-    const { hasShowEdit, hasShowEdit2 } = this.state;
+    const { hasShowEdit, hasShowEdit2, envName } = this.state;
     const status = _.get(this.state.appDetailData, 'Status', '');
     const { traitItem, appName } = this.state;
     const metadata = _.get(traitItem, 'metadata', '');
@@ -214,7 +237,6 @@ class TableList extends React.Component {
     if (traitItem.kind === 'Ingress') {
       traitType = 2;
     }
-    const envName = _.get(this.props, 'location.state.envName', '');
     return (
       <div>
         <div className="breadCrumb">

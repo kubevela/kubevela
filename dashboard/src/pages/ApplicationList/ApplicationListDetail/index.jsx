@@ -38,18 +38,26 @@ class TableList extends React.Component {
   }
 
   componentDidMount() {
-    this.getInitialData(1);
+    this.getInitialData();
   }
 
-  getInitialData = async (times) => {
-    const appName = _.get(this.props, 'location.state.appName', '');
-    const envName = _.get(this.props, 'location.state.envName', '');
-    const traitType = _.get(this.props, 'location.state.traitType', '');
+  getInitialData = async () => {
+    let appName = '';
+    let envName = '';
+    if (this.props.location.state) {
+      appName = _.get(this.props, 'location.state.appName', '');
+      envName = _.get(this.props, 'location.state.envName', '');
+      sessionStorage.setItem('appName', appName);
+      sessionStorage.setItem('envName', envName);
+    } else {
+      appName = sessionStorage.getItem('appName');
+      envName = sessionStorage.getItem('envName');
+    }
+    this.setState({
+      appName,
+      envName,
+    });
     if (appName && envName) {
-      this.setState({
-        envName,
-        appName,
-      });
       const res = await this.props.dispatch({
         type: 'applist/getAppDetail',
         payload: {
@@ -75,12 +83,6 @@ class TableList extends React.Component {
         this.getAcceptTrait('containerized');
       } else if (workloadType && workloadType === 'Deployment') {
         this.getAcceptTrait('deployment');
-      }
-      if (traitType && times === 1) {
-        await this.setState({
-          visible: true,
-        });
-        this.child.setDefaultValue(traitType);
       }
     }
   };

@@ -1,13 +1,14 @@
 import React from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
 import { Button, Table, Space, Modal, Form, Input, message, Spin, Breadcrumb } from 'antd';
-import { CopyOutlined } from '@ant-design/icons';
+import { CopyOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import { Link } from 'umi';
 import './index.less';
 import { connect } from 'dva';
 import _ from 'lodash';
 
 const { Column } = Table;
+const { confirm } = Modal;
 
 const layout = {
   labelCol: {
@@ -31,6 +32,7 @@ class TableList extends React.PureComponent {
     this.state = {
       visible: false,
       capabilityList: [],
+      isCreateLoading: false,
     };
   }
 
@@ -55,14 +57,19 @@ class TableList extends React.PureComponent {
     }
   };
 
-  showModal = () => {
-    this.setState({
+  showModal = async () => {
+    await this.setState({
       visible: true,
+      isCreateLoading: false,
     });
+    this.formRef.current.resetFields();
   };
 
   handleOk = async () => {
     const submitData = await this.formRef.current.validateFields();
+    this.setState({
+      isCreateLoading: true,
+    });
     const res = await this.props.dispatch({
       type: 'capability/createCapabilityCenter',
       payload: {
@@ -111,7 +118,9 @@ class TableList extends React.PureComponent {
       this.setState(() => ({
         capabilityList: newList1,
       }));
-      window.location.reload();
+      await this.props.dispatch({
+        type: 'menus/getMenuData',
+      });
     }
   };
 
@@ -126,8 +135,40 @@ class TableList extends React.PureComponent {
     message.success('copy success');
   };
 
-  showDeleteConfirm = () => {
-    message.info('正在开发中...');
+  showDeleteConfirm = (record) => {
+    if (record) {
+      // eslint-disable-next-line
+      const _this = this;
+      confirm({
+        title: `Are you sure delete ${record}?`,
+        icon: <ExclamationCircleOutlined />,
+        width: 500,
+        content: (
+          <div>
+            <p>您本次移除 {record}，将会删除的应用列表：</p>
+            <p>确认后，移除{record}，并且删除相应的应用？</p>
+          </div>
+        ),
+        okText: 'Yes',
+        okType: 'danger',
+        cancelText: 'No',
+        async onOk() {
+          const res = await _this.props.dispatch({
+            type: 'capability/deleteCapability',
+            payload: {
+              capabilityCenterName: record,
+            },
+          });
+          if (res) {
+            message.success(res);
+            _this.getInitialData();
+          }
+        },
+        onCancel() {
+          // console.log('Cancel');
+        },
+      });
+    }
   };
 
   render() {
@@ -135,6 +176,7 @@ class TableList extends React.PureComponent {
     let { loadingList } = this.props;
     loadingList = loadingList || false;
     capabilityList = Array.isArray(capabilityList) ? capabilityList : [];
+    const { isCreateLoading } = this.state;
     return (
       <div>
         <div className="breadCrumb">
@@ -160,7 +202,12 @@ class TableList extends React.PureComponent {
               onOk={this.handleOk}
               onCancel={this.handleCancel}
               footer={[
-                <Button key="submit" type="primary" onClick={this.handleOk}>
+                <Button
+                  loading={isCreateLoading}
+                  key="submit"
+                  type="primary"
+                  onClick={this.handleOk}
+                >
                   Create
                 </Button>,
               ]}
