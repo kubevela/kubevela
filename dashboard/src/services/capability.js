@@ -31,10 +31,10 @@ export async function syncCapability({ capabilityCenterName }) {
   });
 }
 /*
- * Delete /api/capabilities/:capabilityName (删除一个 capability)
+ * DELETE /capability-centers/:capabilityCenterName/ (Capability Center delete) (删除一个 capabilityCenter)
  */
-export async function deleteCapability({ capabilityName }) {
-  return request(`/api/capabilities/${capabilityName}`, {
+export async function deleteCapability({ capabilityCenterName }) {
+  return request(`/api/capability-centers/${capabilityCenterName}`, {
     method: 'delete',
   });
 }

@@ -1,10 +1,13 @@
 import React, { Fragment } from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
-import { Space, Button, Row, Col, message, Spin, Breadcrumb } from 'antd';
+import { Space, Button, Row, Col, message, Spin, Breadcrumb, Modal } from 'antd';
 import { Link } from 'umi';
+import { ExclamationCircleOutlined } from '@ant-design/icons';
 import './index.less';
 import { connect } from 'dva';
 import _ from 'lodash';
+
+const { confirm } = Modal;
 
 @connect(({ loading, globalData }) => ({
   loadingAll: loading.models.capability,
@@ -16,6 +19,7 @@ class TableList extends React.PureComponent {
     this.state = {
       workloadList: [],
       traitList: [],
+      capabilityCenterName: '',
     };
   }
 
@@ -31,7 +35,16 @@ class TableList extends React.PureComponent {
       const workloadList = [];
       const traitList = [];
       if (Array.isArray(res)) {
-        const capabilityCenterName = _.get(this.props, 'location.state.name', '');
+        let capabilityCenterName = '';
+        if (this.props.location.state) {
+          capabilityCenterName = _.get(this.props, 'location.state.name', '');
+          sessionStorage.setItem('capabilityCenterName', capabilityCenterName);
+        } else {
+          capabilityCenterName = sessionStorage.getItem('capabilityCenterName');
+        }
+        this.setState({
+          capabilityCenterName,
+        });
         res.forEach((item) => {
           if (item.center === capabilityCenterName) {
             if (item.type === 'workload') {
@@ -55,7 +68,7 @@ class TableList extends React.PureComponent {
 
   installSignle = async (e, name) => {
     e.stopPropagation();
-    const capabilityCenterName = _.get(this.props, 'location.state.name', '');
+    const { capabilityCenterName } = this.state;
     const res = await this.props.dispatch({
       type: 'capability/syncOneCapability',
       payload: {
@@ -65,7 +78,10 @@ class TableList extends React.PureComponent {
     });
     if (res) {
       message.success(res);
-      window.location.reload();
+      this.getInitialData();
+      await this.props.dispatch({
+        type: 'menus/getMenuData',
+      });
     }
   };
 
@@ -80,13 +96,16 @@ class TableList extends React.PureComponent {
       });
       if (res) {
         message.success(res);
-        window.location.reload();
+        this.getInitialData();
+        await this.props.dispatch({
+          type: 'menus/getMenuData',
+        });
       }
     }
   };
 
   syncAllSignle = async () => {
-    const capabilityCenterName = _.get(this.props, 'location.state.name', '');
+    const { capabilityCenterName } = this.state;
     if (capabilityCenterName) {
       const res = await this.props.dispatch({
         type: 'capability/syncCapability',
@@ -96,13 +115,51 @@ class TableList extends React.PureComponent {
       });
       if (res) {
         message.success(res);
-        window.location.reload();
+        this.getInitialData();
+        await this.props.dispatch({
+          type: 'menus/getMenuData',
+        });
       }
     }
   };
 
   showDeleteConfirm = () => {
-    message.info('正在开发中...');
+    // eslint-disable-next-line
+    const _this = this;
+    const { capabilityCenterName } = this.state;
+    if (capabilityCenterName) {
+      confirm({
+        title: `Are you sure delete ${capabilityCenterName}?`,
+        icon: <ExclamationCircleOutlined />,
+        width: 500,
+        content: (
+          <div>
+            <p style={{ margin: '0px' }}>您本次移除 {capabilityCenterName}，将会删除的应用列表：</p>
+            <p style={{ margin: '0px' }}>
+              确认后，移除 {capabilityCenterName}，并且删除相应的应用？
+            </p>
+          </div>
+        ),
+        okText: 'Yes',
+        okType: 'danger',
+        cancelText: 'No',
+        async onOk() {
+          const res = await _this.props.dispatch({
+            type: 'capability/deleteCapability',
+            payload: {
+              capabilityCenterName,
+            },
+          });
+          if (res) {
+            message.success(res);
+            _this.props.history.push({ pathname: '/Capability' });
+          }
+        },
+        onCancel() {
+          // console.log('Cancel');
+        },
+      });
+    }
   };
 
   render() {

@@ -49,6 +49,8 @@ class TableList extends React.Component {
         workload_type: '',
       },
       step1Settings: [],
+      appName: '',
+      envName: '',
     };
   }
 
@@ -57,6 +59,21 @@ class TableList extends React.Component {
   }
 
   getInitalData = async () => {
+    let appName = '';
+    let envName = '';
+    if (this.props.location.state) {
+      appName = _.get(this.props, 'location.state.appName', '');
+      envName = _.get(this.props, 'location.state.envName', '');
+      sessionStorage.setItem('appName', appName);
+      sessionStorage.setItem('envName', envName);
+    } else {
+      appName = sessionStorage.getItem('appName');
+      envName = sessionStorage.getItem('envName');
+    }
+    this.setState({
+      appName,
+      envName,
+    });
     const res = await this.props.dispatch({
       type: 'workload/getWorkload',
     });
@@ -193,8 +210,10 @@ class TableList extends React.Component {
     });
     if (res) {
       message.success(res);
+      const { appName, envName } = this.state;
       this.props.history.push({
-        pathname: '/ApplicationList',
+        pathname: `/ApplicationList/${appName}/Components`,
+        state: { appName, envName },
       });
     }
   };
@@ -285,6 +304,7 @@ class TableList extends React.Component {
   };
 
   render() {
+    const { appName, envName } = this.state;
     const { current, step1InitialValues, traitNum, workloadSettings } = this.state;
     let { workloadList } = this.state;
     workloadList = Array.isArray(workloadList) ? workloadList : [];
@@ -400,7 +420,12 @@ class TableList extends React.Component {
                 <Button type="primary" className="floatRightGap" onClick={this.createWorkload}>
                   Next
                 </Button>
-                <Link to="/ApplicationList">
+                <Link
+                  to={{
+                    pathname: `/ApplicationList/${appName}/Components`,
+                    state: { appName, envName },
+                  }}
+                >
                   <Button className="floatRightGap">Cancle</Button>
                 </Link>
               </div>
@@ -585,7 +610,18 @@ class TableList extends React.Component {
             <Breadcrumb.Item>
               <Link to="/ApplicationList">Applications</Link>
             </Breadcrumb.Item>
-            <Breadcrumb.Item>CreateApplication</Breadcrumb.Item>
+            <Breadcrumb.Item>
+              <Link
+                to={{
+                  pathname: `/ApplicationList/${appName}/Components`,
+                  state: { appName, envName },
+                }}
+              >
+                {' '}
+                {appName}
+              </Link>
+            </Breadcrumb.Item>
+            <Breadcrumb.Item>createComponent</Breadcrumb.Item>
           </Breadcrumb>
         </div>
         <PageContainer>

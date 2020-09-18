@@ -69,6 +69,18 @@ export default defineConfig({
               component: './ApplicationList/CreateApplication',
             },
             {
+              name: 'ApplicationList.Components',
+              hideInMenu: true,
+              path: '/ApplicationList/:appName/Components',
+              component: './ApplicationList/Components',
+            },
+            {
+              name: 'ApplicationList.Components.createComponent',
+              hideInMenu: true,
+              path: '/ApplicationList/:appName/createComponent',
+              component: './ApplicationList/CreateComponent',
+            },
+            {
               name: 'Workload',
               icon: 'table',
               path: '/Workload',

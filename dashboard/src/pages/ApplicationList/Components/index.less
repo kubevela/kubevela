@@ -1,0 +1,35 @@
+.appComponent {
+  display: flex;
+  height: calc(100% - 46px);
+  .left {
+    width: 200px;
+    background: #fff;
+    .ant-menu-item-group-title {
+      color: #000;
+      font-weight: 500;
+      font-size: 18px;
+      border-top: 1px solid #efefef;
+      border-bottom: 1px solid #efefef;
+    }
+    .ant-menu-item-group-list .ant-menu-item,
+    .ant-menu-item-group-list .ant-menu-submenu-title {
+      padding-left: 16px !important;
+      color: #000;
+      font-size: 16px;
+    }
+    .addComp {
+      padding: 8px 16px;
+      color: blue;
+      font-size: 16px;
+      text-decoration: underline;
+      background-color: #fff;
+      border-top: 1px solid #efefef;
+      border-bottom: 1px solid #efefef;
+      cursor: pointer;
+    }
+  }
+  .right {
+    flex: 1;
+    // clear: both;
+  }
+}
