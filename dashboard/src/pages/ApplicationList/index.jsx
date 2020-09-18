@@ -1,11 +1,20 @@
 import React from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
 import { BranchesOutlined, ApartmentOutlined } from '@ant-design/icons';
-import { Button, Card, Row, Col, Form, Spin, Empty, Breadcrumb } from 'antd';
+import { Button, Card, Row, Col, Form, Spin, Empty, Breadcrumb, Modal, Input } from 'antd';
 import { connect } from 'dva';
 import moment from 'moment';
 import './index.less';
 import { Link } from 'umi';
+
+const layout = {
+  labelCol: {
+    span: 6,
+  },
+  wrapperCol: {
+    span: 18,
+  },
+};
 
 @connect(({ loading, applist, globalData }) => ({
   loadingAll: loading.models.applist,
@@ -13,9 +22,13 @@ import { Link } from 'umi';
   currentEnv: globalData.currentEnv,
 }))
 class TableList extends React.Component {
+  formRef = React.createRef();
+
   constructor(props) {
     super(props);
-    this.state = {};
+    this.state = {
+      visible: false,
+    };
   }
 
   componentDidMount() {
@@ -42,6 +55,23 @@ class TableList extends React.Component {
     });
     return true;
   }
+
+  showModal = () => {
+    this.setState({
+      visible: true,
+    });
+  };
+
+  handleOk = async () => {
+    await this.formRef.current.validateFields();
+    // const submitData = await this.formRef.current.validateFields();
+  };
+
+  handleCancel = () => {
+    this.setState({
+      visible: false,
+    });
+  };
 
   onFinish = () => {};
 
@@ -153,6 +183,40 @@ class TableList extends React.Component {
               )}
             </Row>
           </Spin>
+          <Modal
+            title="Create Application"
+            visible={this.state.visible}
+            onOk={this.handleOk}
+            onCancel={this.handleCancel}
+            footer={[
+              <Button key="submit" type="primary" onClick={this.handleOk}>
+                Create
+              </Button>,
+            ]}
+          >
+            <Form {...layout} ref={this.formRef} name="control-ref" labelAlign="left">
+              <Form.Item
+                name="name"
+                label="Name"
+                rules={[
+                  {
+                    required: true,
+                    message: 'Please input application name!',
+                  },
+                  {
+                    pattern: /^[a-z0-9-_]+$/,
+                    message:
+                      'Name can only use digits(0-9),lowercase letters(a-z),and dashes(-),Underline.',
+                  },
+                ]}
+              >
+                <Input />
+              </Form.Item>
+              <Form.Item name="description" label="Description">
+                <Input.TextArea />
+              </Form.Item>
+            </Form>
+          </Modal>
         </PageContainer>
       </div>
     );

@@ -1,7 +1,7 @@
 import React, { Fragment } from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
 import './index.less';
-import { Form, Input, Button, Row, Col, Tabs, Table, Spin, Breadcrumb } from 'antd';
+import { Form, Input, Button, Row, Col, Tabs, Table, Spin, Breadcrumb, Space } from 'antd';
 import { CheckCircleOutlined } from '@ant-design/icons';
 import { connect } from 'dva';
 import { Link } from 'umi';
@@ -60,6 +60,17 @@ const columns = [
     title: 'Age',
     dataIndex: 'Age',
     key: 'Age',
+  },
+  {
+    title: 'Action',
+    dataIndex: 'name',
+    key: 'name',
+    render: () => (
+      <Space>
+        <Button>logs</Button>
+        <Button>exec</Button>
+      </Space>
+    ),
   },
 ];
 
@@ -143,6 +154,8 @@ class TableList extends React.PureComponent {
       hasShowEdit: false,
       hasShowEdit2: false,
       appDetailData: {},
+      appName: '',
+      envName: '',
     };
   }
 
@@ -151,8 +164,21 @@ class TableList extends React.PureComponent {
   }
 
   async getInitialData() {
-    const appName = _.get(this.props, 'location.state.appName', '');
-    const envName = _.get(this.props, 'location.state.envName', '');
+    let appName = '';
+    let envName = '';
+    if (this.props.location.state) {
+      appName = _.get(this.props, 'location.state.appName', '');
+      envName = _.get(this.props, 'location.state.envName', '');
+      sessionStorage.setItem('appName', appName);
+      sessionStorage.setItem('envName', envName);
+    } else {
+      appName = sessionStorage.getItem('appName');
+      envName = sessionStorage.getItem('envName');
+    }
+    this.setState({
+      appName,
+      envName,
+    });
     if (appName && envName) {
       const res = await this.props.dispatch({
         type: 'applist/getAppDetail',
@@ -194,7 +220,7 @@ class TableList extends React.PureComponent {
   };
 
   render() {
-    const { hasShowEdit, hasShowEdit2 } = this.state;
+    const { hasShowEdit, hasShowEdit2, appName, envName } = this.state;
     const status = _.get(this.state.appDetailData, 'Status', '');
     const Workload = _.get(this.state.appDetailData, 'Workload.workload', {});
     const metadata = _.get(Workload, 'metadata', {});
@@ -202,8 +228,6 @@ class TableList extends React.PureComponent {
     containers = _.get(Workload, 'spec.containers[0]', {});
     let { loadingAll } = this.props;
     loadingAll = loadingAll || false;
-    const appName = _.get(this.props, 'location.state.appName', '');
-    const envName = _.get(this.props, 'location.state.envName', '');
     return (
       <div>
         <div className="breadCrumb">

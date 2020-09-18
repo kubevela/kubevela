@@ -4,7 +4,7 @@
  * https://github.com/ant-design/ant-design-pro-layout
  */
 import ProLayout from '@ant-design/pro-layout';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link, useIntl, connect, history } from 'umi';
 import RightContent from '@/components/GlobalHeader/RightContent';
 import {
@@ -44,6 +44,7 @@ const AddIcon = (menuData) => {
 const BasicLayout = (props) => {
   const { settings, dispatch, menus } = props;
   const [currentSelectKeys, setCurrentSelectedKeys] = useState('');
+  const timerRef = useRef();
   const getCurrentSelectKeys = () => {
     const pathnameCur = props.history.location.pathname;
     if (pathnameCur) {
@@ -70,9 +71,14 @@ const BasicLayout = (props) => {
         type: 'menus/getMenuData',
       });
     }
-    props.history.listen((route) => {
+    timerRef.current = props.history.listen((route) => {
       getCurrentSelectKeys(route.pathname);
     });
+    return () => {
+      if (timerRef.current) {
+        timerRef.current = null;
+      }
+    };
     // setCurrentSelectedKeys('applist')
   }, []);
 
