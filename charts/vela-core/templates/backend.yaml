@@ -11,8 +11,6 @@ spec:
   childResourceKinds:
     - apiVersion: apps/v1
       kind: Deployment
-    - apiVersion: v1
-      kind: Service
   extension:
     template: |
       #Template: {
@@ -21,16 +19,19 @@ spec:
       	metadata:
       		name: backend.name
       	spec: {
-      		containers: [{
-      			image: backend.image
-      			name:  backend.name
-      		}]
+      		replicas: 1
+      		podSpec: {
+      			containers: [{
+      				image: backend.image
+      				name:  backend.name
+      			}]
+      		}
       	}
       }
-
       backend: {
       	name: string
       	// +usage=specify app image
       	// +short=i
       	image: string
       }
+
