@@ -6,8 +6,11 @@ import (
 	"os"
 	"strconv"
 
-	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	velacore "github.com/oam-dev/kubevela/api/v1alpha1"
+	velacontroller "github.com/oam-dev/kubevela/pkg/controller"
+	"github.com/oam-dev/kubevela/pkg/controller/dependency"
+	velawebhook "github.com/oam-dev/kubevela/pkg/webhook"
+
 	oamcore "github.com/crossplane/oam-kubernetes-runtime/apis/core"
 	oamcontroller "github.com/crossplane/oam-kubernetes-runtime/pkg/controller"
 	oamv1alpha2 "github.com/crossplane/oam-kubernetes-runtime/pkg/controller/v1alpha2"
@@ -16,6 +19,10 @@ import (
 	injectorcontroller "github.com/oam-dev/trait-injector/controllers"
 	"github.com/oam-dev/trait-injector/pkg/injector"
 	"github.com/oam-dev/trait-injector/pkg/plugin"
+
+	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	certmanager "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1alpha2"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -24,11 +31,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	velacore "github.com/oam-dev/kubevela/api/v1alpha1"
-	velacontroller "github.com/oam-dev/kubevela/pkg/controller"
-	"github.com/oam-dev/kubevela/pkg/controller/dependency"
-	velawebhook "github.com/oam-dev/kubevela/pkg/webhook"
 )
 
 var scheme = runtime.NewScheme()
@@ -40,6 +42,8 @@ func init() {
 	_ = monitoring.AddToScheme(scheme)
 	_ = velacore.AddToScheme(scheme)
 	_ = injectorv1alpha1.AddToScheme(scheme)
+	_ = certmanager.AddToScheme(scheme)
+
 	// +kubebuilder:scaffold:scheme
 }
 

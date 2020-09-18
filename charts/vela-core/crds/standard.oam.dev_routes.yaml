@@ -1,0 +1,245 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.5
+  creationTimestamp: null
+  name: routes.standard.oam.dev
+spec:
+  group: standard.oam.dev
+  names:
+    categories:
+    - oam
+    kind: Route
+    listKind: RouteList
+    plural: routes
+    singular: route
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Route is the Schema for the routes API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: RouteSpec defines the desired state of Route
+            properties:
+              backend:
+                description: Backend indicate how to connect backend service If it's
+                  nil, will auto discovery
+                properties:
+                  port:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: Port points to backend service port.
+                    x-kubernetes-int-or-string: true
+                  protocol:
+                    description: Protocol means backend-protocol, HTTP, HTTPS, GRPC,
+                      GRPCS, AJP and FCGI, By default uses HTTP
+                    type: string
+                  readTimeout:
+                    description: ReadTimeout used for setting read timeout duration
+                      for backend service, the unit is second.
+                    type: integer
+                  selectLabels:
+                    additionalProperties:
+                      type: string
+                    description: SelectLabels for backend service.
+                    type: object
+                  sendTimeout:
+                    description: SendTimeout used for setting send timeout duration
+                      for backend service, the unit is second.
+                    type: integer
+                type: object
+              customHeaders:
+                additionalProperties:
+                  type: string
+                description: CustomHeaders pass a custom list of headers to the backend
+                  service.
+                type: object
+              defaultBackend:
+                description: DefaultBackend uses serviceName
+                properties:
+                  resource:
+                    description: Resource is an ObjectRef to another Kubernetes resource
+                      in the namespace of the Ingress object. If resource is specified,
+                      serviceName and servicePort must not be specified.
+                    properties:
+                      apiGroup:
+                        description: APIGroup is the group for the resource being
+                          referenced. If APIGroup is not specified, the specified
+                          Kind must be in the core API group. For any other third-party
+                          types, APIGroup is required.
+                        type: string
+                      kind:
+                        description: Kind is the type of resource being referenced
+                        type: string
+                      name:
+                        description: Name is the name of resource being referenced
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    type: object
+                  serviceName:
+                    description: Specifies the name of the referenced service.
+                    type: string
+                  servicePort:
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    description: Specifies the port of the referenced service.
+                    x-kubernetes-int-or-string: true
+                type: object
+              host:
+                description: Host is the host of the route
+                type: string
+              path:
+                description: Path is location Path, default for "/"
+                type: string
+              rewriteTarget:
+                description: RewriteTarget will rewrite request from Path to RewriteTarget
+                  path.
+                type: string
+              tls:
+                description: TLS indicate route trait will create SSL secret using
+                  cert-manager with specified issuer If this is nil, route trait will
+                  use a selfsigned issuer
+                properties:
+                  issuerName:
+                    type: string
+                  type:
+                    description: Type indicate the issuer is ClusterIssuer or NamespaceIssuer
+                    type: string
+                type: object
+              workloadRef:
+                description: WorkloadReference to the workload whose metrics needs
+                  to be exposed
+                properties:
+                  apiVersion:
+                    description: APIVersion of the referenced object.
+                    type: string
+                  kind:
+                    description: Kind of the referenced object.
+                    type: string
+                  name:
+                    description: Name of the referenced object.
+                    type: string
+                  uid:
+                    description: UID of the referenced object.
+                    type: string
+                required:
+                - apiVersion
+                - kind
+                - name
+                type: object
+            required:
+            - host
+            type: object
+          status:
+            description: RouteStatus defines the observed state of Route
+            properties:
+              conditions:
+                description: Conditions of the resource.
+                items:
+                  description: A Condition that may apply to a resource.
+                  properties:
+                    lastTransitionTime:
+                      description: LastTransitionTime is the last time this condition
+                        transitioned from one status to another.
+                      format: date-time
+                      type: string
+                    message:
+                      description: A Message containing details about this condition's
+                        last transition from one status to another, if any.
+                      type: string
+                    reason:
+                      description: A Reason for this condition's last transition from
+                        one status to another.
+                      type: string
+                    status:
+                      description: Status of this condition; is it currently True,
+                        False, or Unknown?
+                      type: string
+                    type:
+                      description: Type of this condition. At most one of each condition
+                        type may apply to a resource at any point in time.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              ingress:
+                description: A TypedReference refers to an object by Name, Kind, and
+                  APIVersion. It is commonly used to reference cluster-scoped objects
+                  or objects where the namespace is already known.
+                properties:
+                  apiVersion:
+                    description: APIVersion of the referenced object.
+                    type: string
+                  kind:
+                    description: Kind of the referenced object.
+                    type: string
+                  name:
+                    description: Name of the referenced object.
+                    type: string
+                  uid:
+                    description: UID of the referenced object.
+                    type: string
+                required:
+                - apiVersion
+                - kind
+                - name
+                type: object
+              service:
+                description: A TypedReference refers to an object by Name, Kind, and
+                  APIVersion. It is commonly used to reference cluster-scoped objects
+                  or objects where the namespace is already known.
+                properties:
+                  apiVersion:
+                    description: APIVersion of the referenced object.
+                    type: string
+                  kind:
+                    description: Kind of the referenced object.
+                    type: string
+                  name:
+                    description: Name of the referenced object.
+                    type: string
+                  uid:
+                    description: UID of the referenced object.
+                    type: string
+                required:
+                - apiVersion
+                - kind
+                - name
+                type: object
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
