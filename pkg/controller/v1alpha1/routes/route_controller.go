@@ -201,7 +201,7 @@ func (r *Reconciler) createService(ctx context.Context, mLog logr.Logger, worklo
 			},
 		},
 		Spec: corev1.ServiceSpec{
-			Type: corev1.ServiceTypeLoadBalancer,
+			Type: corev1.ServiceTypeClusterIP,
 		},
 	}
 	// assign selector

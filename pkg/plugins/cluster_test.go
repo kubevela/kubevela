@@ -64,6 +64,37 @@ var _ = Describe("DefinitionFiles", func() {
 			},
 		},
 	}
+
+	websvc := types.Capability{
+		Name:           "webservice",
+		Type:           types.TypeWorkload,
+		CueTemplateURI: "https://raw.githubusercontent.com/oam-dev/kubevela/master/vela-templates/web-service.cue",
+		Parameters: []types.Parameter{
+			{
+				Name:     "name",
+				Required: true,
+				Default:  "",
+				Type:     cue.StringKind,
+			},
+			{
+				Name:     "image",
+				Type:     cue.StringKind,
+				Default:  "",
+				Short:    "i",
+				Required: true,
+				Usage:    "specify app image",
+			},
+			{
+				Name:    "port",
+				Type:    cue.IntKind,
+				Short:   "p",
+				Default: int64(6379),
+				Usage:   "specify port for container",
+			},
+		},
+		CrdName: "webservice.testapps",
+	}
+
 	req, _ := labels.NewRequirement("usecase", selection.Equals, []string{"forplugintest"})
 	selector := labels.NewSelector().Add(*req)
 
@@ -89,7 +120,7 @@ var _ = Describe("DefinitionFiles", func() {
 			workloadDefs[i].CueTemplate = ""
 			workloadDefs[i].DefinitionPath = ""
 		}
-		Expect(workloadDefs).Should(Equal([]types.Capability{deployment}))
+		Expect(workloadDefs).Should(Equal([]types.Capability{deployment, websvc}))
 	})
 	It("getall", func() {
 		alldef, err := GetCapabilitiesFromCluster(context.Background(), DefinitionNamespace, k8sClient, definitionDir, selector)
@@ -99,6 +130,6 @@ var _ = Describe("DefinitionFiles", func() {
 			alldef[i].CueTemplate = ""
 			alldef[i].DefinitionPath = ""
 		}
-		Expect(alldef).Should(Equal([]types.Capability{deployment, route}))
+		Expect(alldef).Should(Equal([]types.Capability{deployment, websvc, route}))
 	})
 })

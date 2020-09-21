@@ -40,6 +40,7 @@ type Capability struct {
 	Name           string      `json:"name"`
 	Type           CapType     `json:"type"`
 	CueTemplate    string      `json:"template,omitempty"`
+	CueTemplateURI string      `json:"templateURI,omitempty"`
 	Parameters     []Parameter `json:"parameters,omitempty"`
 	DefinitionPath string      `json:"definition"`
 	CrdName        string      `json:"crdName,omitempty"`

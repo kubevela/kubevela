@@ -4,13 +4,17 @@
 	spec: {
 		host: route.domain
 		path: route.path
+		tls: {
+			issuerName: route.issuer
+		}
 		backend: {
 			port: route.port
 		}
 	}
 }
 route: {
-	domain: string
+	domain: *"" | string
 	path:   *"" | string
 	port:   *443 | int
+	issuer: *"" | string
 }

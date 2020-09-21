@@ -58,7 +58,7 @@ var (
 				cli := fmt.Sprintf("vela env init %s --namespace %s", envName, envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				expectedOutput := fmt.Sprintf("Create env succeed, current env is %s", envName)
+				expectedOutput := fmt.Sprintf("ENV %s CREATED,", envName)
 				gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
 			})
 		})
@@ -214,7 +214,7 @@ var (
 				err = json.Unmarshal(result, &r)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(http.StatusOK).Should(gomega.Equal(r.Code))
-				gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring("Create env succeed"))
+				gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring("CREATED"))
 			})
 		})
 	}

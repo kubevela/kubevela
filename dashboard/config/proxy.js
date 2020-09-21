@@ -8,7 +8,7 @@
 export default {
   dev: {
     '/api': {
-      target: 'http://30.11.171.17:38081/',
+      target: 'http://30.11.171.29:38081/',
       changeOrigin: true,
     },
   },

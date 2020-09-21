@@ -77,7 +77,7 @@ func TestENV(t *testing.T) {
 	assert.Error(t, err)
 
 	// set as default env
-	err = SetEnv(ctx, []string{"default"}, ioStream)
+	err = SetEnv([]string{"default"}, ioStream)
 	assert.NoError(t, err)
 
 	// check env set success
@@ -93,10 +93,10 @@ func TestENV(t *testing.T) {
 	assert.NoError(t, err)
 
 	// can not set as a non-exist env
-	err = SetEnv(ctx, []string{"env1"}, ioStream)
+	err = SetEnv([]string{"env1"}, ioStream)
 	assert.Error(t, err)
 
 	// set success
-	err = SetEnv(ctx, []string{"default"}, ioStream)
+	err = SetEnv([]string{"default"}, ioStream)
 	assert.NoError(t, err)
 }
