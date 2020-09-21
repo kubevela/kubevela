@@ -87,8 +87,7 @@ func NewAdminInfoCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 func (i *infoCmd) run(ioStreams cmdutil.IOStreams) error {
 	clusterVersion, err := GetOAMReleaseVersion()
 	if err != nil {
-		ioStreams.Errorf("fail to get cluster chartPath, err: %v \n", err)
-		return err
+		return fmt.Errorf("fail to get cluster chartPath: %s", err)
 	}
 	ioStreams.Info("Versions:")
 	ioStreams.Infof("oam-kubernetes-runtime: %s \n", clusterVersion)
