@@ -46,7 +46,9 @@ var (
 				output, err := Exec("vela system update")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("syncing workload definitions from cluster..."))
-				gomega.Expect(output).To(gomega.ContainSubstring("successfully synced"))
+				gomega.Expect(output).To(gomega.ContainSubstring("sync"))
+				gomega.Expect(output).To(gomega.ContainSubstring("successfully"))
+				gomega.Expect(output).To(gomega.ContainSubstring("remove"))
 			})
 		})
 	}
