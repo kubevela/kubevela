@@ -45,9 +45,9 @@ func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.
 		return err
 	}
 	syncedTemplates = append(syncedTemplates, templates...)
-	ioStreams.Infof("get %d workload definitions from cluster, syncing...", len(templates))
+	ioStreams.Infof("get %d workload definition(s) from cluster, syncing...", len(templates))
 	successNum := plugins.SinkTemp2Local(templates, dir)
-	ioStreams.Infof("%d workload definitions successfully synced\n", successNum)
+	ioStreams.Infof("sync %d workload definition(s) successfully\n", successNum)
 
 	ioStreams.Info("syncing trait definitions from cluster...")
 	templates, err = plugins.GetTraitsFromCluster(ctx, types.DefaultOAMNS, c, dir, nil)
@@ -55,11 +55,11 @@ func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.
 		return err
 	}
 	syncedTemplates = append(syncedTemplates, templates...)
-	ioStreams.Infof("get %d trait definitions from cluster, syncing...", len(templates))
+	ioStreams.Infof("get %d trait definition(s) from cluster, syncing...", len(templates))
 	successNum = plugins.SinkTemp2Local(templates, dir)
-	ioStreams.Infof("%d trait definitions successfully synced\n", successNum)
+	ioStreams.Infof("sync %d trait definition(s) successfully\n", successNum)
 
 	legacyNum := plugins.RemoveLegacyTemps(syncedTemplates, dir)
-	ioStreams.Infof("%d legacy capability definitions successfully removed\n", legacyNum)
+	ioStreams.Infof("remove %d legacy capability definition(s) successfully\n", legacyNum)
 	return nil
 }

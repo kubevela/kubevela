@@ -108,7 +108,6 @@ func testInDir(t *testing.T, casename, dir string, tmps, defexp []types.Capabili
 }
 
 func TestRemoveLegacyTemps(t *testing.T) {
-	dir := "vela-test-rm-temps"
 
 	cases := []struct {
 		caseName string
@@ -131,17 +130,19 @@ func TestRemoveLegacyTemps(t *testing.T) {
 			rmNum:    1,
 		},
 	}
-
 	for _, c := range cases {
-		func(t *testing.T) {
-			err := os.MkdirAll(dir, 0755)
-			assert.NoError(t, err, c.caseName)
-			defer os.RemoveAll(dir)
-			existingTemps := []types.Capability{deployment, statefulset, route}
-			number := SinkTemp2Local(existingTemps, dir)
-			assert.Equal(t, 3, number)
-			rmNum := RemoveLegacyTemps(c.newTemps, dir)
-			assert.Equal(t, c.rmNum, rmNum, c.caseName)
-		}(t)
+		runInDirRemoveLegacyTemps(t, c.caseName, c.newTemps, c.rmNum)
 	}
+}
+
+func runInDirRemoveLegacyTemps(t *testing.T, caseName string, newTemps []types.Capability, rmNum int) {
+	dir := "vela-test-rm-temps"
+	err := os.MkdirAll(dir, 0755)
+	assert.NoError(t, err, caseName)
+	defer os.RemoveAll(dir)
+	existingTemps := []types.Capability{deployment, statefulset, route}
+	number := SinkTemp2Local(existingTemps, dir)
+	assert.Equal(t, 3, number)
+	resultRemoveNum := RemoveLegacyTemps(newTemps, dir)
+	assert.Equal(t, rmNum, resultRemoveNum, caseName)
 }
