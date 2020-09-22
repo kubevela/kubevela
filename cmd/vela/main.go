@@ -98,6 +98,7 @@ func newCommand() *cobra.Command {
 
 		// Getting Start
 		NewVersionCommand(),
+		commands.NewInitCommand(commandArgs, ioStream),
 
 		// Apps
 		commands.NewAppsCommand(commandArgs, ioStream),

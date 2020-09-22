@@ -60,6 +60,7 @@ func NewCompListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "ls",
+		Aliases:               []string{"list"},
 		DisableFlagsInUseLine: true,
 		Short:                 "List applications",
 		Long:                  "List applications with workloads, traits, status and created time",

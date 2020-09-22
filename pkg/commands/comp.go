@@ -116,7 +116,7 @@ func (o *runOptions) Complete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	appGroup, err := flags.GetString(App)
+	appName, err := flags.GetString(App)
 	if err != nil {
 		return err
 	}
@@ -153,7 +153,7 @@ func (o *runOptions) Complete(cmd *cobra.Command, args []string) error {
 	if err = flags.Parse(args); err != nil {
 		return err
 	}
-	app, err := oam.BaseComplete(envName, workloadName, appGroup, flags, workloadType)
+	app, err := oam.BaseComplete(envName, workloadName, appName, flags, workloadType)
 	if err != nil {
 		return err
 	}
