@@ -108,5 +108,5 @@ func fixOpenAPIV3SchemaValidationIssue(chartPath string) string {
 	if err != nil {
 		return chartPath
 	}
-	return newDir
+	return filepath.Join(newDir, "charts", "vela-core")
 }
