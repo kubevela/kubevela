@@ -15,7 +15,11 @@ import (
 func main() {
 	// Path relative to the Makefile where this is invoked.
 	chartPath := filepath.Join("charts", "vela-core")
-	tempChartPath := fixOpenAPIV3SchemaValidationIssue(chartPath)
+	tempChartPath, err := fixOpenAPIV3SchemaValidationIssue(chartPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "fixing OpenAPIV3SchemaValidation issue hit an error:", err)
+		os.Exit(1)
+	}
 	source, err := cli.GetChartSource(tempChartPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error getting chart source:", err)
@@ -28,11 +32,11 @@ func main() {
 
 // fixOpenAPIV3SchemaValidationIssue temporarily corrects spec.validation.openAPIV3Schema issue, and it would be removed
 // after this issue was fixed https://github.com/oam-dev/kubevela/issues/284.
-func fixOpenAPIV3SchemaValidationIssue(chartPath string) string {
+func fixOpenAPIV3SchemaValidationIssue(chartPath string) (string, error) {
 	newDir, err := ioutil.TempDir(".", "charts")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "failed to crate temporary directory:", err)
-		return chartPath
+		return "", err
 	}
 
 	err = filepath.Walk(chartPath, func(path string, info os.FileInfo, err error) error {
@@ -106,7 +110,7 @@ func fixOpenAPIV3SchemaValidationIssue(chartPath string) string {
 		return nil
 	})
 	if err != nil {
-		return chartPath
+		return "", err
 	}
-	return filepath.Join(newDir, "charts", "vela-core")
+	return filepath.Join(newDir, "charts", "vela-core"), nil
 }
