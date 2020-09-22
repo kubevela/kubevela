@@ -80,14 +80,14 @@ func ListComponents(ctx context.Context, c client.Client, opt Option) ([]Compone
 				return componentMetaList, err
 			}
 			traitAlias := GetTraitAliasByComponentTraitList(com.Traits)
-			var workload string
-			if component.Annotations != nil {
-				workload = component.Annotations[types.AnnWorkloadDef]
+			var workloadType string
+			if component.Labels != nil {
+				workloadType = component.Labels[types.WorkloadTypeLabel]
 			}
 			componentMetaList = append(componentMetaList, ComponentMeta{
 				Name:        com.ComponentName,
 				App:         a.Name,
-				Workload:    workload,
+				Workload:    workloadType,
 				Status:      types.StatusDeployed,
 				Traits:      traitAlias,
 				CreatedTime: a.ObjectMeta.CreationTimestamp.String(),

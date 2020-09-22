@@ -64,6 +64,7 @@ func NewCompListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 		Short:                 "List applications",
 		Long:                  "List applications with workloads, traits, status and created time",
 		Example:               `vela comp ls`,
+		Aliases:               []string{"list"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			env, err := GetEnv(cmd)
 			if err != nil {
@@ -130,7 +131,7 @@ func mergeStagingComponents(deployed []oam.ComponentMeta, env *types.EnvMeta, io
 				all = append(all, oam.ComponentMeta{
 					Name:        c.Name,
 					App:         app.Name,
-					Workload:    c.Annotations[types.AnnWorkloadDef],
+					Workload:    c.Labels[types.WorkloadTypeLabel],
 					Traits:      traits,
 					Status:      types.StatusStaging,
 					CreatedTime: app.CreateTime.String(),

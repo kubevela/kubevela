@@ -14,10 +14,10 @@ const (
 	AnnAPIVersion = "definition.oam.dev/apiVersion"
 	AnnKind       = "definition.oam.dev/kind"
 
-	// Indicate which workloadDefinition generate from
-	AnnWorkloadDef = "workload.oam.dev/name"
 	// Indicate which traitDefinition generate from
 	AnnTraitDef = "trait.oam.dev/name"
+	// WorkloadTypeLabel indicates the type of the workloadDefinition
+	WorkloadTypeLabel = "workload.oam.dev/type"
 )
 
 const (

@@ -205,11 +205,11 @@ func (app *Application) GetWorkload(componentName string) (string, map[string]in
 	if !ok {
 		return "", make(map[string]interface{})
 	}
-	for tp, workload := range comp {
-		if NotWorkload(tp) {
+	for workloadType, workload := range comp {
+		if NotWorkload(workloadType) {
 			continue
 		}
-		return tp, workload.(map[string]interface{})
+		return workloadType, workload.(map[string]interface{})
 	}
 	return "", make(map[string]interface{})
 }
@@ -374,14 +374,17 @@ func (app *Application) OAM(env *types.EnvMeta) ([]v1alpha2.Component, v1alpha2.
 		if err != nil {
 			return nil, v1alpha2.ApplicationConfiguration{}, nil, err
 		}
-		anns := component.Annotations
-		if anns == nil {
-			anns = map[string]string{types.AnnWorkloadDef: workloadType}
+		labels := component.Labels
+		if labels == nil {
+			labels = map[string]string{types.WorkloadTypeLabel: workloadType}
 		} else {
-			anns[types.AnnWorkloadDef] = workloadType
+			labels[types.WorkloadTypeLabel] = workloadType
 		}
-		component.Annotations = anns
+		component.Labels = labels
+		// Set labels for Workload to mark the type of the WorkloadDefinition
+		obj.SetLabels(labels)
 		component.Spec.Workload.Object = obj
+
 		components = append(components, component)
 
 		var appConfigComp v1alpha2.ApplicationConfigurationComponent
