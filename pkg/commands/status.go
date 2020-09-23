@@ -4,13 +4,17 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
+	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/fatih/color"
+	"github.com/ghodss/yaml"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/api/types"
@@ -22,8 +26,8 @@ import (
 type HealthStatus = v1alpha2.HealthStatus
 
 const (
-	// StatusNotFound means there's no health check info returned from the scope.
-	StatusNotFound HealthStatus = "NOT DIAGNOSED"
+	// StatusNotDiagnosed means there's no health check info returned from the scope.
+	StatusNotDiagnosed HealthStatus = "NOT DIAGNOSED"
 )
 
 const (
@@ -54,6 +58,10 @@ var (
 	green  = color.New(color.FgGreen)
 	yellow = color.New(color.FgYellow)
 	white  = color.New(color.Bold, color.FgWhite)
+)
+
+var (
+	kindHealthScope = reflect.TypeOf(v1alpha2.HealthScope{}).Name()
 )
 
 func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
@@ -161,7 +169,7 @@ func getWorkloadHealthConditions(ctx context.Context, c client.Client, app *appl
 		}
 		if r[compName] == nil {
 			r[compName] = &WorkloadHealthCondition{
-				HealthStatus: StatusNotFound,
+				HealthStatus: StatusNotDiagnosed,
 			}
 		}
 	}
@@ -216,33 +224,79 @@ func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmduti
 		return err
 	}
 
-	var health v1alpha2.HealthScope
-	if err = c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: application.FormatDefaultHealthScopeName(app.Name)}, &health); err != nil {
+	var appConfig v1alpha2.ApplicationConfiguration
+	if err = c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: app.Name}, &appConfig); err != nil {
 		return err
 	}
 
-	ioStreams.Infof(white.Sprint("Component Status:\n"))
-	var wlhc *v1alpha2.WorkloadHealthCondition
-	for _, v := range health.Status.WorkloadHealthConditions {
+	var wlStatus v1alpha2.WorkloadStatus // very important
+	for _, v := range appConfig.Status.Workloads {
 		if v.ComponentName == compName {
-			wlhc = v
+			wlStatus = v
+			break
 		}
 	}
+	if wlStatus.ComponentName == "" {
+		//TODO(roywang) cannot get workload instance
+		//TODO(roywang) if appConfig reconcile condition is false, then output err msg
+		ioStreams.Infof("\nComponent is not created yet.")
+		return nil
+	}
+
 	var (
 		healthColor  *color.Color
 		healthStatus HealthStatus
 		healthInfo   string
 		workloadType string
 	)
-	if wlhc == nil {
-		workloadType = ""
-		healthStatus = StatusNotFound
-		healthInfo = fmt.Sprintf("%s %s", healthStatus, "Cannot get health status")
-	} else {
-		workloadType = wlhc.TargetWorkload.Kind
-		healthStatus = wlhc.HealthStatus
-		healthInfo = fmt.Sprintf("%s %s", healthStatus, wlhc.Diagnosis)
+
+	workloadType = wlStatus.Reference.Kind
+
+	// check whether referenced a HealthScope
+	var healthScopeName string
+	for _, v := range wlStatus.Scopes {
+		if v.Reference.Kind == kindHealthScope {
+			healthScopeName = v.Reference.Name
+		}
 	}
+
+	if len(healthScopeName) == 0 {
+		// no health scope referenced
+		healthStatus = StatusNotDiagnosed
+		statusInfo, err := getWorkloadStatus(ctx, c, env.Namespace, wlStatus.Reference)
+		if err != nil {
+			return err
+		}
+		// format output
+		statusInfo = strings.ReplaceAll(statusInfo, "\n", "\n\t")
+		healthInfo = fmt.Sprintf("%s \n\n\tWARN: The component is not in any HealthScope.  \n%s", healthStatus, statusInfo)
+	} else {
+		var healthScope v1alpha2.HealthScope
+		if err = c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: healthScopeName}, &healthScope); err != nil {
+			return err
+		}
+		var wlhc *v1alpha2.WorkloadHealthCondition
+		for _, v := range healthScope.Status.WorkloadHealthConditions {
+			if v.ComponentName == compName {
+				wlhc = v
+			}
+		}
+		healthStatus = wlhc.HealthStatus
+		if healthStatus == StatusUnknown {
+			healthStatus = StatusNotDiagnosed
+			statusInfo, err := getWorkloadStatus(ctx, c, env.Namespace, wlStatus.Reference)
+			if err != nil {
+				return err
+			}
+			// format output
+			statusInfo = strings.ReplaceAll(statusInfo, "\n", "\n\t")
+			healthInfo = fmt.Sprintf("%s \n\n\tWARN: The component type is unknown to HealthScope. \n\t%s", healthStatus, statusInfo)
+		} else {
+			healthInfo = fmt.Sprintf("%s %s", healthStatus, wlhc.Diagnosis)
+		}
+	}
+
+	ioStreams.Infof(white.Sprint("Component Status:\n"))
 	healthColor = getHealthStatusColor(healthStatus)
 
 	ioStreams.Infof("\tName: %s  %s(type) %s \n", compName, workloadType, healthColor.Sprint(healthInfo))
@@ -279,10 +333,6 @@ func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmduti
 		ioStreams.Info(tbl)
 	}
 
-	var appConfig v1alpha2.ApplicationConfiguration
-	if err = c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: app.Name}, &appConfig); err != nil {
-		return err
-	}
 	ioStreams.Infof(white.Sprint("\nLast Deployment:\n"))
 	ioStreams.Infof("\tCreated at: %v\n", appConfig.CreationTimestamp)
 	ioStreams.Infof("\tUpdated at: %v\n", app.UpdateTime.Format(time.RFC3339))
@@ -313,10 +363,28 @@ func getHealthStatusColor(s HealthStatus) *color.Color {
 		c = red
 	case StatusUnknown:
 		c = yellow
-	case StatusNotFound:
+	case StatusNotDiagnosed:
 		c = yellow
 	default:
 		c = red
 	}
 	return c
+}
+
+func getWorkloadStatus(ctx context.Context, c client.Client, ns string, wlRef runtimev1alpha1.TypedReference) (string, error) {
+	wlUnstruct := unstructured.Unstructured{}
+	wlUnstruct.SetGroupVersionKind(wlRef.GroupVersionKind())
+	if err := c.Get(ctx, client.ObjectKey{Namespace: ns, Name: wlRef.Name},
+		&wlUnstruct); err != nil {
+		return "", err
+	}
+	statusData, foundStatus, _ := unstructured.NestedMap(wlUnstruct.Object, "status")
+	if foundStatus {
+		statusYaml, err := yaml.Marshal(statusData)
+		if err != nil {
+			return "", err
+		}
+		return string(statusYaml), nil
+	}
+	return red.Sprintf("Error: Cannot get status info. \nPlease check the controller of workload: %s.", wlRef.GroupVersionKind().String()), nil
 }
