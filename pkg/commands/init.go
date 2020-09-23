@@ -95,7 +95,6 @@ func (o *appInitOptions) CheckEnv() error {
 		o.Env.Namespace = "default"
 	}
 	o.Infof("Environment: %s, namespace: %s\n\n", o.Env.Name, o.Env.Namespace)
-	var updated bool
 	if o.Env.Domain == "" {
 		prompt := &survey.Input{
 			Message: "Do you want to setup a domain for web service: ",
@@ -104,7 +103,6 @@ func (o *appInitOptions) CheckEnv() error {
 		if err != nil {
 			return fmt.Errorf("read app name err %v", err)
 		}
-		updated = true
 	}
 	if o.Env.Email == "" {
 		prompt := &survey.Input{
@@ -114,12 +112,9 @@ func (o *appInitOptions) CheckEnv() error {
 		if err != nil {
 			return fmt.Errorf("read app name err %v", err)
 		}
-		updated = true
 	}
-	if updated {
-		if _, err := oam.CreateOrUpdateEnv(context.Background(), o.client, o.Env.Name, o.Env); err != nil {
-			return err
-		}
+	if _, err := oam.CreateOrUpdateEnv(context.Background(), o.client, o.Env.Name, o.Env); err != nil {
+		return err
 	}
 	return nil
 }
