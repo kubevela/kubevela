@@ -17,10 +17,10 @@ import (
 )
 
 type ComponentMeta struct {
-	// Name string `json:"name"`
-	App string `json:"app"`
-	// Workload    string                                `json:"workload,omitempty"`
-	// Traits      []string                              `json:"traits,omitempty"`
+	Name        string                                `json:"name"`
+	App         string                                `json:"app"`
+	Workload    string                                `json:"workload,omitempty"`
+	Traits      []string                              `json:"traits,omitempty"`
 	Status      string                                `json:"status,omitempty"`
 	CreatedTime string                                `json:"created,omitempty"`
 	AppConfig   corev1alpha2.ApplicationConfiguration `json:"-"`

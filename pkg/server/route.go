@@ -74,7 +74,7 @@ func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
 				components.GET("/:compName", handler.GetComponent)
 				components.PUT("/:compName", handler.GetComponent)
 				components.GET("/", handler.GetApp)
-				components.DELETE("/:compName", handler.GetComponent)
+				components.DELETE("/:compName", handler.DeleteComponent)
 
 				traitWorkload := components.Group("/:compName/" + util.TraitDefinitionPath)
 				{
@@ -82,9 +82,7 @@ func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
 					traitWorkload.DELETE("/:traitName", handler.DetachTrait)
 				}
 			}
-
 		}
-
 	}
 	// workload related api
 	workload := api.Group(util.WorkloadDefinitionPath)

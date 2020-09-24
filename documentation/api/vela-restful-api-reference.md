@@ -335,6 +335,16 @@ sample response
 ### GET /api/envs/:envName/apps/:appName/components/ (component list)
 Same as `GET /api/envs/:envName/apps/:appName (app description)`.
 
+### DELETE /api/envs/:envName/apps/:appName/components/:compName (component delete)
+- example
+sample response
+```
+{
+"code": 200,
+"data": "delete apps succeed a1 from default"
+}
+```
+
 
 ## Workloads
 ### POST /api/workloads/ (workload create, component create)

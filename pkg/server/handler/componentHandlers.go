@@ -26,3 +26,23 @@ func GetComponent(c *gin.Context) {
 	}
 	util.AssembleResponse(c, componentMeta, nil)
 }
+
+func DeleteComponent(c *gin.Context) {
+	kubeClient := c.MustGet("KubeClient")
+	envName := c.Param("envName")
+	envMeta, err := oam.GetEnvByName(envName)
+	if err != nil {
+		util.HandleError(c, util.StatusInternalServerError, err)
+		return
+	}
+	appName := c.Param("appName")
+	componentName := c.Param("compName")
+
+	o := oam.DeleteOptions{
+		Client:   kubeClient.(client.Client),
+		Env:      envMeta,
+		AppName:  appName,
+		CompName: componentName}
+	message, err := o.DeleteComponent()
+	util.AssembleResponse(c, message, err)
+}
