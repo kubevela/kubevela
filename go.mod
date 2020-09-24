@@ -5,7 +5,6 @@ go 1.13
 require (
 	cuelang.org/go v0.2.2
 	github.com/AlecAivazis/survey/v2 v2.1.1
-	github.com/Azure/go-autorest v12.2.0+incompatible // Don't remove. https://github.com/kubernetes/client-go/issues/628
 	github.com/coreos/prometheus-operator v0.41.1
 	github.com/crossplane/crossplane-runtime v0.9.0
 	github.com/crossplane/oam-kubernetes-runtime v0.1.1-0.20200909070723-78b84f2c4799
@@ -48,6 +47,7 @@ require (
 )
 
 replace (
+	github.com/Azure/go-autorest => github.com/Azure/go-autorest v12.2.0+incompatible // https://github.com/kubernetes/client-go/issues/628
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.0-alpha
 	// clint-go had a buggy release, https://github.com/kubernetes/client-go/issues/749
 	k8s.io/client-go => k8s.io/client-go v0.18.6
