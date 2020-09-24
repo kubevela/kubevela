@@ -68,10 +68,16 @@ type TraitBody struct {
 	Staging      string       `json:"staging,omitempty"`
 }
 
-type ApplicationStatusMeta struct {
-	Status   string                        `json:"status,omitempty"`
-	Workload corev1alpha2.ComponentSpec    `json:"workload,omitempty"`
-	Traits   []corev1alpha2.ComponentTrait `json:"traits,omitempty"`
+type ComponentMeta struct {
+	Name     string                        `json:"name"`
+	Status   string                        `json:"Status,omitempty"`
+	Workload runtime.RawExtension          `json:"workload,omitempty"`
+	Traits   []corev1alpha2.ComponentTrait `json:"Traits,omitempty"`
+}
+
+type ApplicationMeta struct {
+	Status     string          `json:"Status,omitempty"`
+	Components []ComponentMeta `json:"Components,omitempty"`
 }
 
 type CapabilityMeta struct {

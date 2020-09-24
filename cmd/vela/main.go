@@ -12,33 +12,19 @@ import (
 	"github.com/oam-dev/kubevela/cmd/vela/fake"
 	"github.com/oam-dev/kubevela/pkg/commands"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/oam-dev/kubevela/version"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
 	"github.com/gosuri/uitable"
-	certmanager "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1alpha2"
 	"github.com/spf13/cobra"
-	k8sruntime "k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
-)
-
-var (
-	scheme = k8sruntime.NewScheme()
 )
 
 // chartTGZSource is a base64-encoded, gzipped tarball of the default Helm chart.
 // Its value is initialized at build time.
 var chartTGZSource string
-
-func init() {
-	_ = clientgoscheme.AddToScheme(scheme)
-	_ = certmanager.AddToScheme(scheme)
-	_ = core.AddToScheme(scheme)
-	// +kubebuilder:scaffold:scheme
-}
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
@@ -83,7 +69,7 @@ func newCommand() *cobra.Command {
 
 	commandArgs := types.Args{
 		Config: restConf,
-		Schema: scheme,
+		Schema: oam.Scheme,
 	}
 
 	if err := system.InitDirs(); err != nil {

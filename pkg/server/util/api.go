@@ -11,6 +11,8 @@ import (
 
 var DefaultDashboardPort = ":38081"
 
+const DefaultAPIServerPort = ":8081"
+
 func AssembleResponse(c *gin.Context, data interface{}, err error) {
 	var code = http.StatusOK
 	if err != nil {

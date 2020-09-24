@@ -5,11 +5,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gosuri/uitable"
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-
-	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

@@ -17,10 +17,10 @@ import (
 )
 
 type ComponentMeta struct {
-	Name        string                                `json:"name"`
-	App         string                                `json:"app"`
-	Workload    string                                `json:"workload,omitempty"`
-	Traits      []string                              `json:"traits,omitempty"`
+	// Name string `json:"name"`
+	App string `json:"app"`
+	// Workload    string                                `json:"workload,omitempty"`
+	// Traits      []string                              `json:"traits,omitempty"`
 	Status      string                                `json:"status,omitempty"`
 	CreatedTime string                                `json:"created,omitempty"`
 	AppConfig   corev1alpha2.ApplicationConfiguration `json:"-"`
@@ -79,17 +79,17 @@ func ListComponents(ctx context.Context, c client.Client, opt Option) ([]Compone
 			if err != nil {
 				return componentMetaList, err
 			}
-			traitAlias := GetTraitAliasByComponentTraitList(com.Traits)
-			var workload string
-			if component.Annotations != nil {
-				workload = component.Annotations[types.AnnWorkloadDef]
-			}
+			//traitAlias := GetTraitAliasByComponentTraitList(com.Traits)
+			//var workload string
+			//if component.Annotations != nil {
+			//	workload = component.Annotations[types.AnnWorkloadDef]
+			//}
 			componentMetaList = append(componentMetaList, ComponentMeta{
-				Name:        com.ComponentName,
-				App:         a.Name,
-				Workload:    workload,
-				Status:      types.StatusDeployed,
-				Traits:      traitAlias,
+				// Name: com.ComponentName,
+				App: a.Name,
+				//Workload:    workload,
+				Status: types.StatusDeployed,
+				//Traits:      traitAlias,
 				CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
 				Component:   component,
 				AppConfig:   a,
@@ -100,32 +100,36 @@ func ListComponents(ctx context.Context, c client.Client, opt Option) ([]Compone
 	return componentMetaList, nil
 }
 
-func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, applicationName string, namespace string) (apis.ApplicationStatusMeta, error) {
-	var applicationStatusMeta apis.ApplicationStatusMeta
+func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, applicationName string, namespace string) (apis.ApplicationMeta, error) {
+	var applicationMeta apis.ApplicationMeta
 	var appConfig corev1alpha2.ApplicationConfiguration
 	if err := c.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: namespace}, &appConfig); err != nil {
-		return applicationStatusMeta, err
+		return applicationMeta, err
 	}
+
+	var status = "Unknown"
+	if len(appConfig.Status.Conditions) != 0 {
+		status = string(appConfig.Status.Conditions[0].Status)
+	}
+	applicationMeta.Status = status
+
 	for _, com := range appConfig.Spec.Components {
-		// Just get the one component from appConfig
-		if com.ComponentName != applicationName {
-			continue
-		}
-		component, err := cmdutil.GetComponent(ctx, c, com.ComponentName, namespace)
+		componentName := com.ComponentName
+		component, err := cmdutil.GetComponent(ctx, c, componentName, namespace)
 		if err != nil {
-			return applicationStatusMeta, err
+			return applicationMeta, err
 		}
-		var status = "UNKNOWN"
-		if len(appConfig.Status.Conditions) != 0 {
-			status = string(appConfig.Status.Conditions[0].Status)
-		}
-		applicationStatusMeta = apis.ApplicationStatusMeta{
+
+		applicationMeta.Components = append(applicationMeta.Components, apis.ComponentMeta{
+			Name:     componentName,
 			Status:   status,
-			Workload: component.Spec,
+			Workload: component.Spec.Workload,
 			Traits:   com.Traits,
-		}
+		})
+		applicationMeta.Status = status
+
 	}
-	return applicationStatusMeta, nil
+	return applicationMeta, nil
 }
 
 func (o *DeleteOptions) DeleteApp() (string, error) {
