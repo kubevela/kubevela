@@ -68,12 +68,6 @@ func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
 			apps.GET("/", handler.ListApps)
 			apps.DELETE("/:appName", handler.DeleteApps)
 
-			traitWorkload := apps.Group("/:appName/" + util.TraitDefinitionPath)
-			{
-				traitWorkload.POST("/", handler.AttachTrait)
-				traitWorkload.DELETE("/:traitName", handler.DetachTrait)
-			}
-
 			// component related operation
 			components := apps.Group("/:appName/components")
 			{

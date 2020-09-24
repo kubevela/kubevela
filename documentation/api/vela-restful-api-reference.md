@@ -514,7 +514,7 @@ sample response
 ```
 
 ## Trait
-### POST /envs/:envName/apps/:appName/traits/ (attach a trait) 
+### POST /envs/:envName/apps/:appName/components/:compName/traits/ (attach a trait)
 - example
 sample request
 ```json
@@ -587,7 +587,7 @@ sample response
 }
 ```
 
-### DELETE /envs/:envName/apps/:appName/traits/:traitName (detach a trait) 
+### DELETE /envs/:envName/apps/:appName/components/:compName/traits/:traitName (detach a trait)
 - example
 sample response
 ```json

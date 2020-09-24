@@ -180,20 +180,20 @@ func ValidateAndMutateForCore(traitType, workloadName string, flags *pflag.FlagS
 }
 
 //AddOrUpdateTrait attach trait to workload
-func AddOrUpdateTrait(env *types.EnvMeta, appName string, workloadName string, flagSet *pflag.FlagSet, template types.Capability) (*application.Application, error) {
-	err := ValidateAndMutateForCore(template.Name, workloadName, flagSet, env)
+func AddOrUpdateTrait(env *types.EnvMeta, appName string, componentName string, flagSet *pflag.FlagSet, template types.Capability) (*application.Application, error) {
+	err := ValidateAndMutateForCore(template.Name, componentName, flagSet, env)
 	if err != nil {
 		return nil, err
 	}
 	if appName == "" {
-		appName = workloadName
+		appName = componentName
 	}
 	app, err := application.Load(env.Name, appName)
 	if err != nil {
 		return app, err
 	}
 	traitAlias := template.Name
-	traitData, err := app.GetTraitsByType(workloadName, traitAlias)
+	traitData, err := app.GetTraitsByType(componentName, traitAlias)
 	if err != nil {
 		return app, err
 	}
@@ -213,7 +213,7 @@ func AddOrUpdateTrait(env *types.EnvMeta, appName string, workloadName string, f
 			traitData[v.Name] = d
 		}
 	}
-	if err = app.SetTrait(workloadName, traitAlias, traitData); err != nil {
+	if err = app.SetTrait(componentName, traitAlias, traitData); err != nil {
 		return app, err
 	}
 	return app, app.Save(env.Name)
@@ -264,29 +264,29 @@ func TraitOperationRun(ctx context.Context, c client.Client, env *types.EnvMeta,
 	return "Succeeded!", nil
 }
 
-func PrepareDetachTrait(envName string, traitType string, workloadName string, appName string) (*application.Application, error) {
+func PrepareDetachTrait(envName string, traitType string, componentName string, appName string) (*application.Application, error) {
 	var appObj *application.Application
 	var err error
 	if appName == "" {
-		appName = workloadName
+		appName = componentName
 	}
 	if appObj, err = application.Load(envName, appName); err != nil {
 		return appObj, err
 	}
 
-	if err = appObj.RemoveTrait(workloadName, traitType); err != nil {
+	if err = appObj.RemoveTrait(componentName, traitType); err != nil {
 		return appObj, err
 	}
 	return appObj, appObj.Save(envName)
 }
 
-func DetachTrait(c *gin.Context, envName string, traitType string, workloadName string, appName string, staging bool) (string, error) {
+func DetachTrait(c *gin.Context, envName string, traitType string, componentName string, appName string, staging bool) (string, error) {
 	var appObj *application.Application
 	var err error
 	if appName == "" {
-		appName = workloadName
+		appName = componentName
 	}
-	if appObj, err = PrepareDetachTrait(envName, traitType, workloadName, appName); err != nil {
+	if appObj, err = PrepareDetachTrait(envName, traitType, componentName, appName); err != nil {
 		return "", err
 	}
 	// Run
