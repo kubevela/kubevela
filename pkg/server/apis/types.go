@@ -37,10 +37,10 @@ type CommonFlag struct {
 }
 
 type WorkloadRunBody struct {
-	EnvName      string       `json:"env_name"`
-	WorkloadType string       `json:"workload_type"`
-	WorkloadName string       `json:"workload_name"`
-	AppGroup     string       `json:"app_group,omitempty"`
+	EnvName      string       `json:"envName"`
+	WorkloadType string       `json:"workloadType"`
+	WorkloadName string       `json:"workloadName"`
+	AppName      string       `json:"appName,omitempty"`
 	Flags        []CommonFlag `json:"flags"`
 	Staging      bool         `json:"staging,omitempty"`
 	Traits       []TraitBody  `json:"traits,omitempty"`
@@ -55,28 +55,28 @@ type WorkloadMeta struct {
 type TraitMeta struct {
 	Name       string   `json:"name"`
 	Definition string   `json:"definition,omitempty"`
-	AppliesTo  []string `json:"applies_to,omitempty"`
+	AppliesTo  []string `json:"appliesTo,omitempty"`
 }
 
 //used to present trait which is to be attached and, of which parameters are set
 type TraitBody struct {
-	EnvName      string       `json:"env_name"`
+	EnvName      string       `json:"envName"`
 	Name         string       `json:"name"`
 	Flags        []CommonFlag `json:"flags"`
-	WorkloadName string       `json:"workload_name"`
-	AppGroup     string       `json:"app_group,omitempty"`
+	WorkloadName string       `json:"workloadName"`
+	AppName      string       `json:"appName,omitempty"`
 	Staging      string       `json:"staging,omitempty"`
 }
 
 type ApplicationStatusMeta struct {
-	Status   string                        `json:"Status,omitempty"`
-	Workload corev1alpha2.ComponentSpec    `json:"Workload,omitempty"`
-	Traits   []corev1alpha2.ComponentTrait `json:"Traits,omitempty"`
+	Status   string                        `json:"status,omitempty"`
+	Workload corev1alpha2.ComponentSpec    `json:"workload,omitempty"`
+	Traits   []corev1alpha2.ComponentTrait `json:"traits,omitempty"`
 }
 
 type CapabilityMeta struct {
-	CapabilityName       string `json:"capability_name"`
-	CapabilityCenterName string `json:"capability_center_name,omitempty"`
+	CapabilityName       string `json:"capabilityName"`
+	CapabilityCenterName string `json:"capabilityCenterName,omitempty"`
 }
 
 type CapabilityCenterMeta struct {

@@ -108,7 +108,7 @@ func Parse(addr string) (string, *GithubContent, error) {
 type RemoteCapability struct {
 	// Name MUST be xxx.yaml
 	Name string `json:"name"`
-	URL  string `json:"download_url"`
+	URL  string `json:"downloadUrl"`
 	Sha  string `json:"sha"`
 	// Type MUST be file
 	Type string `json:"type"`

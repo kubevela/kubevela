@@ -26,7 +26,7 @@ func CreateWorkload(c *gin.Context) {
 	}
 	evnName := body.EnvName
 
-	appObj, err := oam.BaseComplete(evnName, body.WorkloadName, body.AppGroup, fs, body.WorkloadType)
+	appObj, err := oam.BaseComplete(evnName, body.WorkloadName, body.AppName, fs, body.WorkloadType)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
