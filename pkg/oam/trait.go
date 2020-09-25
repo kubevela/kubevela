@@ -245,7 +245,7 @@ func AttachTrait(c *gin.Context, body apis.TraitBody) (string, error) {
 		return "", err
 	}
 
-	appObj, err = AddOrUpdateTrait(env, body.AppGroup, body.WorkloadName, fs, template)
+	appObj, err = AddOrUpdateTrait(env, body.AppName, body.WorkloadName, fs, template)
 	if err != nil {
 		return "", err
 	}
