@@ -1,22 +1,23 @@
-#Template: {
+data: {
 	apiVersion: "standard.oam.dev/v1alpha1"
 	kind:       "Containerized"
 	metadata:
-		name: backend.name
+		name: parameter.name
 	spec: {
 		replicas: 1
 		podSpec: {
 			containers: [{
-				image: backend.image
-				name:  backend.name
+				image: parameter.image
+				name:  parameter.name
 			}]
 		}
 	}
 }
 
-backend: {
+#backend: {
 	name: string
 	// +usage=specify app image
 	// +short=i
 	image: string
 }
+parameter: #backend

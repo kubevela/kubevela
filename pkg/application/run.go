@@ -31,14 +31,10 @@ func (app *Application) Run(ctx context.Context, client client.Client, env *type
 func CreateOrUpdateComponent(ctx context.Context, client client.Client, comp v1alpha2.Component) error {
 	var getc v1alpha2.Component
 	key := ctypes.NamespacedName{Name: comp.Name, Namespace: comp.Namespace}
-	var exist = true
 	if err := client.Get(ctx, key, &getc); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return err
 		}
-		exist = false
-	}
-	if !exist {
 		return client.Create(ctx, &comp)
 	}
 	comp.ResourceVersion = getc.ResourceVersion

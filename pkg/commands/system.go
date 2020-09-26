@@ -4,21 +4,17 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
 	oamv1 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/ghodss/yaml"
 	"github.com/openservicemesh/osm/pkg/cli"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
-	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/api/types"
-	"github.com/oam-dev/kubevela/pkg/builtin/traitdefinition"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -44,13 +40,6 @@ var (
 		&oamv1.HealthScope{},
 		&oamv1.ManualScalerTrait{},
 		&oamv1.ScopeDefinition{},
-	}
-
-	workloadResource = map[string]string{}
-
-	traitResource = map[string]string{
-		"manualscalertraits.core.oam.dev":    traitdefinition.ManualScaler,
-		"simplerollouttraits.extend.oam.dev": traitdefinition.SimpleRollout,
 	}
 )
 
@@ -138,10 +127,6 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 		}
 	}
 
-	ioStreams.Info("- Installing builtin capabilities:")
-	if err := GenNativeResourceDefinition(i.client); err != nil {
-		return err
-	}
 	ioStreams.Info()
 	if err := RefreshDefinitions(context.Background(), i.client, ioStreams); err != nil {
 		return err
@@ -193,59 +178,4 @@ func GetOAMReleaseVersion() (string, error) {
 		}
 	}
 	return "", errors.New("oam-kubernetes-runtime not found in your kubernetes cluster, try `vela install` to install")
-}
-
-func GenNativeResourceDefinition(c client.Client) error {
-	var capabilities []string
-	ctx := context.Background()
-	for name, manifest := range workloadResource {
-		wd := NewWorkloadDefinition(manifest)
-		capabilities = append(capabilities, name)
-		nwd := &oamv1.WorkloadDefinition{}
-		err := c.Get(ctx, client.ObjectKey{Name: name}, nwd)
-		if err != nil && kubeerrors.IsNotFound(err) {
-			if err := c.Create(context.Background(), &wd); err != nil {
-				return fmt.Errorf("create workload definition %s hit an issue: %v", name, err)
-			}
-			continue
-		}
-		wd.ResourceVersion = nwd.ResourceVersion
-		if err := c.Update(ctx, &wd); err != nil {
-			return fmt.Errorf("update workload definition %s err %v", wd.Name, err)
-		}
-	}
-
-	for name, manifest := range traitResource {
-		td := NewTraitDefinition(manifest)
-		capabilities = append(capabilities, name)
-		ntd := &oamv1.TraitDefinition{}
-		err := c.Get(context.Background(), client.ObjectKey{Name: name}, ntd)
-		if err != nil && kubeerrors.IsNotFound(err) {
-			if err := c.Create(context.Background(), &td); err != nil {
-				return fmt.Errorf("create trait definition %s hit an issue: %v", name, err)
-			}
-			continue
-		}
-		td.ResourceVersion = ntd.ResourceVersion
-		if err := c.Update(ctx, &td); err != nil {
-			return fmt.Errorf("update trait definition %s err %v", td.Name, err)
-		}
-	}
-
-	fmt.Printf("Successful applied %d kinds of Workloads and Traits: %s.", len(capabilities), strings.Join(capabilities, ","))
-	return nil
-}
-
-func NewWorkloadDefinition(manifest string) oamv1.WorkloadDefinition {
-	var workloadDefinition oamv1.WorkloadDefinition
-	// We have tests to make sure built-in resource can always unmarshal succeed
-	_ = yaml.Unmarshal([]byte(manifest), &workloadDefinition)
-	return workloadDefinition
-}
-
-func NewTraitDefinition(manifest string) oamv1.TraitDefinition {
-	var traitDefinition oamv1.TraitDefinition
-	// We have tests to make sure built-in resource can always unmarshal succeed
-	_ = yaml.Unmarshal([]byte(manifest), &traitDefinition)
-	return traitDefinition
 }

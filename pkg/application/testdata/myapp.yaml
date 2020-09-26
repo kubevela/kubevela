@@ -6,8 +6,9 @@ components:
       env:
         - PORT: "8080"
     traits:
-      manualscaler:
+      scale:
         replica: 2
+        maxUnavailbe: 1
       rollout:
         strategy: canary
         step: 5

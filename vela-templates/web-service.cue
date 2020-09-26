@@ -1,16 +1,16 @@
-#Template: {
+data: {
 	apiVersion: "standard.oam.dev/v1alpha1"
 	kind:       "Containerized"
 	metadata:
-		name: webservice.name
+		name: parameter.name
 	spec: {
 		replicas: 1
 		podSpec: {
 			containers: [{
-				image: webservice.image
-				name:  webservice.name
+				image: parameter.image
+				name:  parameter.name
 				ports: [{
-					containerPort: webservice.port
+					containerPort: parameter.port
 					protocol:      "TCP"
 					name:          "default"
 				}]
@@ -18,7 +18,7 @@
 		}
 	}
 }
-webservice: {
+#webservice: {
 	name: string
 	// +usage=specify app image
 	// +short=i
@@ -27,3 +27,4 @@ webservice: {
 	// +short=p
 	port: *6379 | int
 }
+parameter: #webservice

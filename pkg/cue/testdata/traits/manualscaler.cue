@@ -1,11 +1,12 @@
-#Template: {
+data: {
 	apiVersion: "core.oam.dev/v1alpha2"
 	kind:       "ManualScalerTrait"
 	spec: {
-		replicaCount: scale.replica
+		replicaCount: parameter.replica
 	}
 }
-scale: {
+#scale: {
 	//+short=r
 	replica: *2 | int
 }
+parameter: #scale

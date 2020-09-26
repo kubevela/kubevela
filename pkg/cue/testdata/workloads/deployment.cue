@@ -1,30 +1,4 @@
-#Template: {
-	apiVersion: "apps/v1"
-	kind:       "Deployment"
-	metadata: name: deployment.name
-	spec: {
-		selector:
-			matchLabels:
-				app: deployment.name
-		template: {
-			metadata:
-				labels:
-					app: deployment.name
-			spec: containers: [{
-				image: deployment.image
-				name:  deployment.name
-				env:   deployment.env
-				ports: [{
-					containerPort: deployment.port
-					protocol:      "TCP"
-					name:          "default"
-				}]
-			}]
-		}
-	}
-}
-
-deployment: {
+#deployment: {
 	name: string
 	// +usage=specify app image
 	// +short=i
@@ -37,3 +11,29 @@ deployment: {
 		value: string
 	}]
 }
+data: {
+	apiVersion: "apps/v1"
+	kind:       "Deployment"
+	metadata: name: parameter.name
+	spec: {
+		selector:
+			matchLabels:
+				app: parameter.name
+		template: {
+			metadata:
+				labels:
+					app: parameter.name
+			spec: containers: [{
+				image: parameter.image
+				name:  parameter.name
+				env:   parameter.env
+				ports: [{
+					containerPort: parameter.port
+					protocol:      "TCP"
+					name:          "default"
+				}]
+			}]
+		}
+	}
+}
+parameter: #deployment

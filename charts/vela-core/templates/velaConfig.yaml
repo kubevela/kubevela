@@ -11,4 +11,12 @@ data:
       "name": "cert-manager",
       "namespace": "cert-manager",
       "version": "1.0.0"
+    },
+  servicemonitors.monitoring.coreos.com: |
+    {
+      "repo": "jetstack",
+      "urL": "https://charts.jetstack.io",
+      "name": "cert-manager",
+      "namespace": "cert-manager",
+      "version": "1.0.0"
     }

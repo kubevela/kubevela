@@ -9,25 +9,24 @@ spec:
     name: deployments.testapps
   extension:
     template: |
-      #Template: {
+      data: {
       	apiVersion: "apps/v1"
       	kind:       "Deployment"
-      	metadata: name: deployment.name
+      	metadata: name: parameter.name
       	spec: {
       		containers: [{
-      			image: deployment.image
-      			name:  deployment.name
-      			env:   deployment.env
+      			image: parameter.image
+      			name:  parameter.name
+      			env:   parameter.env
       			ports: [{
-      				containerPort: deployment.port
+      				containerPort: parameter.port
       				protocol:      "TCP"
       				name:          "default"
       			}]
       		}]
       	}
       }
-
-      deployment: {
+      #deployment: {
       	name: string
       	// +usage=specify app image
       	// +short=i
@@ -40,3 +39,4 @@ spec:
       		value: string
       	}]
       }
+      parameter: #deployment

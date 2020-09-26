@@ -1,7 +1,6 @@
 package application
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -267,7 +266,7 @@ func (app *Application) GetWorkloadObject(componentName string) (*unstructured.U
 	if workloadType == "" {
 		return nil, workloadType, errors.New(componentName + " workload not exist")
 	}
-	obj, err := EvalToObject(workloadType, workloadData)
+	obj, err := InstantiateTemplateToCR(workloadType, workloadData)
 	if err != nil {
 		return nil, "", err
 	}
@@ -293,7 +292,8 @@ func ConvertDataByType(val interface{}, tp cue.Kind) interface{} {
 	return val
 }
 
-func EvalToObject(capName string, data map[string]interface{}) (*unstructured.Unstructured, error) {
+// instantiate the template with the given value to generate the CR
+func InstantiateTemplateToCR(capName string, data map[string]interface{}) (*unstructured.Unstructured, error) {
 	cap, err := plugins.LoadCapabilityByName(capName)
 	if err != nil {
 		return nil, err
@@ -304,20 +304,15 @@ func EvalToObject(capName string, data map[string]interface{}) (*unstructured.Un
 			data[v.Name] = ConvertDataByType(val, v.Type)
 		}
 	}
-	jsondata, err := mycue.Eval(cap.DefinitionPath, capName, data)
+	cr, err := mycue.Eval(cap.DefinitionPath, data)
 	if err != nil {
 		return nil, err
 	}
-	var obj = make(map[string]interface{})
-	if err = json.Unmarshal([]byte(jsondata), &obj); err != nil {
-		return nil, err
-	}
-	u := &unstructured.Unstructured{Object: obj}
 	if cap.CrdInfo != nil {
-		u.SetAPIVersion(cap.CrdInfo.APIVersion)
-		u.SetKind(cap.CrdInfo.Kind)
+		cr.SetAPIVersion(cap.CrdInfo.APIVersion)
+		cr.SetKind(cap.CrdInfo.Kind)
 	}
-	return u, nil
+	return cr, nil
 }
 
 func (app *Application) GetComponentTraits(componentName string, env *types.EnvMeta) ([]v1alpha2.ComponentTrait, error) {
@@ -327,7 +322,7 @@ func (app *Application) GetComponentTraits(componentName string, env *types.EnvM
 		return nil, err
 	}
 	for traitType, traitData := range rawTraits {
-		obj, err := EvalToObject(traitType, traitData)
+		obj, err := InstantiateTemplateToCR(traitType, traitData)
 		if err != nil {
 			return nil, err
 		}

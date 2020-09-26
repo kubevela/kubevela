@@ -19,19 +19,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Capability, error) {
-	workloads, err := GetWorkloadsFromCluster(ctx, namespace, c, syncDir, selector)
-	if err != nil {
-		return nil, err
-	}
-	traits, err := GetTraitsFromCluster(ctx, namespace, c, syncDir, selector)
-	if err != nil {
-		return nil, err
-	}
-	workloads = append(workloads, traits...)
-	return workloads, nil
-}
-
 func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Capability, error) {
 	var templates []types.Capability
 	var workloadDefs corev1alpha2.WorkloadDefinitionList
@@ -43,8 +30,10 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Cli
 	for _, wd := range workloadDefs.Items {
 		tmp, err := HandleDefinition(wd.Name, syncDir, wd.Spec.Reference.Name, wd.Spec.Extension, types.TypeWorkload, nil)
 		if err != nil {
-			fmt.Printf("[WARN]handle template %s: %v\n", wd.Name, err)
+			fmt.Printf("[WARN] hanlde workload template `%s` failed with error: %v\n", wd.Name, err)
 			continue
+		} else {
+			fmt.Printf("imported workload `%s`\n", wd.Name)
 		}
 		if apiVerion, kind := cmdutil.GetAPIVersionKindFromWorkload(wd); apiVerion != "" && kind != "" {
 			tmp.CrdInfo = &types.CrdInfo{
@@ -68,8 +57,10 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 	for _, td := range traitDefs.Items {
 		tmp, err := HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads)
 		if err != nil {
-			fmt.Printf("[WARN]handle template %s: %v\n", td.Name, err)
+			fmt.Printf("[WARN] hanlde trait template `%s` failed with error: %v\n", td.Name, err)
 			continue
+		} else {
+			fmt.Printf("imported trait `%s`\n", td.Name)
 		}
 		if apiVerion, kind := cmdutil.GetAPIVersionKindFromTrait(td); apiVerion != "" && kind != "" {
 			tmp.CrdInfo = &types.CrdInfo{

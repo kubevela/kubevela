@@ -1,7 +1,7 @@
-#Template: {
+Template: {
 }
 
-deployment: {
+#deployment: {
 	name: string
 	// +usage=specify app image
 	// +short=i

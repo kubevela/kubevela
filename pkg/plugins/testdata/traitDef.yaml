@@ -9,14 +9,14 @@ spec:
     name: routes.test
   extension:
     template: |
-      #Template: {
+      data: {
       	apiVersion: "apps/v1"
       	kind:       "Route"
       	spec: {
-      		domain: route.domain
+      		domain: parameter.domain
       	}
       }
-
-      route: {
+      #route: {
       	domain: string
       }
+      parameter: #route
