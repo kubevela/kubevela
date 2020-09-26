@@ -4,12 +4,16 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"cuelang.org/go/cue"
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
+	"github.com/kyokomi/emoji"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"k8s.io/apimachinery/pkg/util/duration"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/api/types"
@@ -29,6 +33,26 @@ type appInitOptions struct {
 	workloadName string
 	workloadType string
 }
+
+type CompStatus int
+
+const (
+	compStatusInitializing CompStatus = iota
+	compStatusInitFail
+	compStatusInitialized
+	compStatusDeploying
+	compStatusDeployFail
+	compStatusDeployed
+	compStatusHealthChecking
+	compStatusHealthCheckDone
+	compStatusUnknown
+)
+
+var (
+	emojiSucceed = emoji.Sprint(":check_mark_button:")
+	emojiFail    = emoji.Sprint(":cross_mark:")
+	emojiTimeout = emoji.Sprint(":heavy_exclamation_mark:")
+)
 
 // NewInitCommand init application
 func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
@@ -70,8 +94,68 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			o.IOStreams.Info("App Deployed Succeed")
-			//TODO(wonderflow) Wait for app running, and print trait info such as route, domain
+
+			tInit := time.Now()
+			sInit := spinner.New(spinner.CharSets[14], 100*time.Millisecond,
+				spinner.WithColor("green"),
+				spinner.WithFinalMSG(""),
+				spinner.WithHiddenCursor(true),
+				spinner.WithSuffix(color.New(color.Bold, color.FgGreen).Sprintf(" %s", "Initializing ...")))
+			sInit.Start()
+		TrackInitLoop:
+			for {
+				time.Sleep(2 * time.Second)
+				if time.Since(tInit) > initTimeout {
+					ioStreams.Info(red.Sprintf("\n%sInitialization Timeout After %s!", emojiTimeout, duration.HumanDuration(time.Since(tInit))))
+					ioStreams.Info(red.Sprint("Please make sure oam-core-controller is installed."))
+					sInit.Stop()
+					return nil
+				}
+				initStatus, failMsg, err := trackInitializeStatus(context.Background(), o.client, o.workloadName, o.appName, o.Env)
+				if err != nil {
+					return err
+				}
+				switch initStatus {
+				case compStatusInitializing:
+					continue
+				case compStatusInitialized:
+					ioStreams.Info(green.Sprintf("\n%sInitialization Succeed!", emojiSucceed))
+					sInit.Stop()
+					break TrackInitLoop
+				case compStatusInitFail:
+					ioStreams.Info(red.Sprintf("\n%sInitialization Failed!", emojiFail))
+					ioStreams.Info(red.Sprintf("Reason: %s", failMsg))
+					sInit.Stop()
+					return nil
+				}
+			}
+
+			sDeploy := spinner.New(spinner.CharSets[14], 100*time.Millisecond,
+				spinner.WithColor("green"),
+				spinner.WithHiddenCursor(true),
+				spinner.WithSuffix(color.New(color.Bold, color.FgGreen).Sprintf(" %s", "Deploying ...")))
+			sDeploy.Start()
+		TrackDeployLoop:
+			for {
+				time.Sleep(2 * time.Second)
+				deployStatus, failMsg, err := trackDeployStatus(context.Background(), o.client, o.workloadName, o.appName, o.Env)
+				if err != nil {
+					return err
+				}
+				switch deployStatus {
+				case compStatusDeploying:
+					continue
+				case compStatusDeployed:
+					ioStreams.Info(green.Sprintf("\n%sDeployment Succeed!", emojiSucceed))
+					sDeploy.Stop()
+					break TrackDeployLoop
+				case compStatusDeployFail:
+					ioStreams.Info(red.Sprintf("\n%sDeployment Failed!", emojiFail))
+					ioStreams.Info(red.Sprintf("Reason: %s", failMsg))
+					sDeploy.Stop()
+					return nil
+				}
+			}
 			return printComponentStatus(context.Background(), o.client, o.IOStreams, o.workloadName, o.appName, o.Env)
 		},
 	}

@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/server/util"
@@ -190,9 +191,9 @@ var (
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should get status for the component", func() {
 				cli := fmt.Sprintf("vela comp status %s", applicationName)
-				output, err := Exec(cli)
+				output, err := LongTimeExec(cli, 120*time.Second)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
+				gomega.Expect(output).To(gomega.ContainSubstring("Checking health status"))
 				// TODO(zzxwill) need to check workloadType after app status is refined
 			})
 		})

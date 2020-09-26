@@ -30,6 +30,16 @@ func Exec(cli string) (string, error) {
 	return string(s.Out.Contents()) + string(s.Err.Contents()), nil
 }
 
+func LongTimeExec(cli string, timeout time.Duration) (string, error) {
+	var output []byte
+	session, err := AsyncExec(cli)
+	if err != nil {
+		return string(output), err
+	}
+	s := session.Wait(timeout)
+	return string(s.Out.Contents()) + string(s.Err.Contents()), nil
+}
+
 func AsyncExec(cli string) (*gexec.Session, error) {
 	c := strings.Fields(cli)
 	commandName := path.Join(rudrPath, c[0])
