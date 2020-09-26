@@ -57,11 +57,21 @@ var (
 	EnvInitContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print env initiation successful message", func() {
-				cli := fmt.Sprintf("vela env init %s --namespace %s", envName, envName)
+				cli := fmt.Sprintf("vela env init %s", envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				expectedOutput := fmt.Sprintf("ENV %s CREATED,", envName)
 				gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
+			})
+		})
+	}
+
+	DeleteEnvFunc = func(context string, envName string) bool {
+		return ginkgo.Context(context, func() {
+			ginkgo.It("should print env initiation successful message", func() {
+				cli := fmt.Sprintf("vela env delete %s", envName)
+				_, err := Exec(cli)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			})
 		})
 	}

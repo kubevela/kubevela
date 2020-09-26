@@ -29,7 +29,6 @@ func (app *Application) SetTrait(componentName, traitType string, traitData map[
 	if traitData == nil {
 		traitData = make(map[string]interface{})
 	}
-	traitData["name"] = strings.ToLower(traitType)
 	if app.Components == nil {
 		app.Components = make(map[string]map[string]interface{})
 	}

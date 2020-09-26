@@ -1,43 +1,55 @@
 package cue
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/oam-dev/kubevela/api/types"
-
 	"cuelang.org/go/cue"
-	"cuelang.org/go/pkg/encoding/json"
+	cueJson "cuelang.org/go/pkg/encoding/json"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/oam-dev/kubevela/api/types"
 )
 
-const Template = "#Template"
+// DataFieldName is the name of the struct contains the CR data
+const DataFieldName = "data"
 
-func Eval(templatePath, workloadType string, value map[string]interface{}) (string, error) {
+// para struct contains the parameter
+const specValue = "parameter"
+
+// Eval evaluates the spec with the parameter values
+func Eval(templatePath string, value map[string]interface{}) (*unstructured.Unstructured, error) {
 	r := cue.Runtime{}
 	template, err := r.Compile(templatePath, nil)
 	if err != nil {
-		return "", fmt.Errorf("compile %s err %v", templatePath, err)
+		return nil, fmt.Errorf("compile %s err %v", templatePath, err)
 	}
-
+	// fill in the parameter values and evaluate
 	tempValue := template.Value()
-	appValue, err := tempValue.Fill(value, workloadType).Eval().Struct()
+	appValue, err := tempValue.Fill(value, specValue).Eval().Struct()
 	if err != nil {
-		return "", fmt.Errorf("fill value to template err %v", err)
+		return nil, fmt.Errorf("fill value to template err %v", err)
 	}
-
-	final, err := appValue.FieldByName(Template, true)
+	// fetch the spec struct content
+	final, err := appValue.FieldByName(DataFieldName, true)
 	if err != nil {
-		return "", fmt.Errorf("get template %s err %v", Template, err)
+		return nil, fmt.Errorf("get template %s err %v", DataFieldName, err)
 	}
 	if err := final.Value.Validate(cue.Concrete(true), cue.Final()); err != nil {
-		return "", err
+		return nil, err
 	}
-	data, err := json.Marshal(final.Value)
+	data, err := cueJson.Marshal(final.Value)
 	if err != nil {
-		return "", fmt.Errorf("marshal final value err %v", err)
+		return nil, fmt.Errorf("marshal final value err %v", err)
 	}
-	return data, nil
+	// need to unmarshal it to a map to get rid of the outer spec name
+	obj := make(map[string]interface{})
+	if err = json.Unmarshal([]byte(data), &obj); err != nil {
+		return nil, err
+	}
+	return &unstructured.Unstructured{Object: obj}, nil
 }
 
 func GetParameters(templatePath string) ([]types.Parameter, string, error) {
@@ -50,11 +62,12 @@ func GetParameters(templatePath string) ([]types.Parameter, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	var info cue.FieldInfo
+	// find the parameter definition
+	var paraDef cue.FieldInfo
 	var found bool
 	for i := 0; i < tempStruct.Len(); i++ {
-		info = tempStruct.Field(i)
-		if info.IsDefinition {
+		paraDef = tempStruct.Field(i)
+		if !paraDef.IsDefinition || paraDef.IsHidden {
 			continue
 		}
 		found = true
@@ -63,20 +76,22 @@ func GetParameters(templatePath string) ([]types.Parameter, string, error) {
 	if !found {
 		return nil, "", errors.New("arguments not exist")
 	}
-	str, err := info.Value.Struct()
+	arguments, err := paraDef.Value.Struct()
 	if err != nil {
 		return nil, "", fmt.Errorf("arguments not defined as struct %v", err)
 	}
-	var workloadType = info.Name
+	// workloadType is the name of the parameter definition
+	var workloadType = strings.TrimPrefix(paraDef.Name, "#")
+	// parse each fields in the parameter fields
 	var params []types.Parameter
-	for i := 0; i < str.Len(); i++ {
-		fi := str.Field(i)
+	for i := 0; i < arguments.Len(); i++ {
+		fi := arguments.Field(i)
 		if fi.IsDefinition {
 			continue
 		}
 		var param = types.Parameter{
 			Name:     fi.Name,
-			Required: true,
+			Required: !fi.IsOptional,
 		}
 		val := fi.Value
 		param.Type = fi.Value.IncompleteKind()
@@ -88,14 +103,7 @@ func GetParameters(templatePath string) ([]types.Parameter, string, error) {
 		if param.Default == nil {
 			param.Default = getDefaultByKind(param.Type)
 		}
-
-		short, usage := RetrieveComments(val)
-		if short != "" {
-			param.Short = short
-		}
-		if usage != "" {
-			param.Usage = usage
-		}
+		param.Short, param.Usage = RetrieveComments(val)
 		params = append(params, param)
 	}
 	return params, workloadType, nil

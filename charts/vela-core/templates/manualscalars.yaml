@@ -12,17 +12,18 @@ spec:
     - apps/v1.Deployment
   definitionRef:
     name: manualscalertraits.core.oam.dev
+  workloadRefPath: spec.workloadRef
   extension:
     template: |-
-      #Template: {
+      data: {
       	apiVersion: "core.oam.dev/v1alpha2"
       	kind:       "ManualScalerTrait"
       	spec: {
-      		replicaCount: scale.replica
+      		replicaCount: parameter.replica
       	}
       }
-      scale: {
+      #scale: {
       	//+short=r
       	replica: *2 | int
       }
-  workloadRefPath: spec.workloadRef
+      parameter: #scale

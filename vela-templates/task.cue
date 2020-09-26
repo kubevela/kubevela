@@ -1,24 +1,24 @@
-#Template: {
+data: {
 	apiVersion: "v1"
 	kind:       "Job"
-	metadata: name: task.name
+	metadata: name: parameter.name
 	spec: {
-		parallelism: task.count
-		completions: task.count
+		parallelism: parameter.count
+		completions: parameter.count
 		template:
 			spec:
 				containers: [{
-					image: task.image
-					name:  task.name
+					image: parameter.image
+					name:  parameter.name
 					ports: [{
-						containerPort: task.port
+						containerPort: parameter.port
 						protocol:      "TCP"
 						name:          "default"
 					}]
 				}]
 	}
 }
-task: {
+#task: {
 	// +usage=specify number of tasks to run in parallel
 	// +short=c
 	count: *1 | int
@@ -30,3 +30,4 @@ task: {
 	// +short=p
 	port: *6379 | int
 }
+parameter: #task

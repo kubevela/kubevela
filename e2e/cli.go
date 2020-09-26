@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
 )
 
@@ -38,7 +39,8 @@ func AsyncExec(cli string) (*gexec.Session, error) {
 }
 
 func BeforeSuit() {
-	_, _ = Exec("vela install")
+	_, err := Exec("vela install")
+	gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 	//Without this line, will hit issue like `<string>: Error: unknown command "scale" for "vela"`
 	_, _ = Exec("vela system update")
 }

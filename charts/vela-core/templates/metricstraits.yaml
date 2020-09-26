@@ -15,3 +15,25 @@ spec:
   definitionRef:
     name: metricstraits.standard.oam.dev
   workloadRefPath: spec.workloadRef
+  extension:
+    template: |-
+      #metrics: {
+        // +usage=format of the metrics, default as prometheus
+        // +short=f
+        format:  *"prometheus" | string
+        path:    *"/metrics" | string
+        scheme:  *"http" | string
+        enabled: *true | bool
+        port:    *8080 | >=1024 & uint16
+        // +usage= the label selector for the pods, default is the workload labels
+        selector?: [string]: string
+      }
+      spec: {
+        apiVersion: "standard.oam.dev/v1alpha1"
+          kind:       "MetricsTrait"
+          spec: {
+            scrapeService: parameter
+          }
+      }
+      parameter: #metrics
+

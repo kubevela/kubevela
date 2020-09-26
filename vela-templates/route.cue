@@ -1,20 +1,21 @@
-#Template: {
+data: {
 	apiVersion: "standard.oam.dev/v1alpha1"
 	kind:       "Route"
 	spec: {
-		host: route.domain
-		path: route.path
+		host: parameter.domain
+		path: parameter.path
 		tls: {
-			issuerName: route.issuer
+			issuerName: parameter.issuer
 		}
 		backend: {
-			port: route.port
+			port: parameter.port
 		}
 	}
 }
-route: {
+#route: {
 	domain: *"" | string
 	path:   *"" | string
 	port:   *443 | int
 	issuer: *"" | string
 }
+parameter: #route
