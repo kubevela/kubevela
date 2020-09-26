@@ -19,6 +19,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Capability, error) {
+	workloads, err := GetWorkloadsFromCluster(ctx, namespace, c, syncDir, selector)
+	if err != nil {
+		return nil, err
+	}
+	traits, err := GetTraitsFromCluster(ctx, namespace, c, syncDir, selector)
+	if err != nil {
+		return nil, err
+	}
+	workloads = append(workloads, traits...)
+	return workloads, nil
+}
+
 func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Capability, error) {
 	var templates []types.Capability
 	var workloadDefs corev1alpha2.WorkloadDefinitionList
