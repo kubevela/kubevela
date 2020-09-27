@@ -141,9 +141,8 @@ func DeleteEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) 
 		msg, err := oam.DeleteEnv(envName)
 		if err != nil {
 			return err
-		} else {
-			ioStreams.Info(msg)
 		}
+		ioStreams.Info(msg)
 	}
 	return nil
 }
