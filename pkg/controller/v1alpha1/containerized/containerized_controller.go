@@ -117,17 +117,19 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderService)))
 	}
-	// server side apply the service
-	if err := r.Patch(ctx, service, client.Apply, applyOpts...); err != nil {
-		log.Error(err, "Failed to apply a service")
-		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyService)))
+	// Determine whether it is necessary to create a service.
+	if len(service.Spec.Ports) > 0 {
+		// server side apply the service
+		if err := r.Patch(ctx, service, client.Apply, applyOpts...); err != nil {
+			log.Error(err, "Failed to apply a service")
+			r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
+			return util.ReconcileWaitResult,
+				util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyService)))
+		}
+		r.record.Event(eventObj, event.Normal("Service created",
+			fmt.Sprintf("Workload `%s` successfully server side patched a service `%s`",
+				workload.Name, service.Name)))
 	}
-	r.record.Event(eventObj, event.Normal("Service created",
-		fmt.Sprintf("Workload `%s` successfully server side patched a service `%s`",
-			workload.Name, service.Name)))
-
 	// record the new deployment, new service
 	workload.Status.Resources = []cpv1alpha1.TypedReference{
 		{
