@@ -213,6 +213,9 @@ func (r *Reconciler) renderDeployment(ctx context.Context,
 // check whether the container port is specified
 func (r *Reconciler) checkContainerPortsSpecified(ctx context.Context,
 	workload *v1alpha1.Containerized) bool {
+	if workload == nil {
+		return false
+	}
 	for _, container := range workload.Spec.PodSpec.Containers {
 		if len(container.Ports) > 0 {
 			return true
