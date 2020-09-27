@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
-	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	plur "github.com/gertd/go-pluralize"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/pflag"
@@ -35,14 +34,6 @@ func GetTraitDefNameFromRaw(extension runtime.RawExtension) string {
 		return obj.GetKind()
 	}
 	return ann[types.AnnTraitDef]
-}
-
-func GetTraitAliasByComponentTraitList(componentTraitList []corev1alpha2.ComponentTrait) []string {
-	var traitAlias []string
-	for _, t := range componentTraitList {
-		traitAlias = append(traitAlias, GetTraitDefNameFromRaw(t.Trait))
-	}
-	return traitAlias
 }
 
 func ListTraitDefinitions(workloadName *string) ([]types.Capability, error) {
@@ -245,7 +236,7 @@ func AttachTrait(c *gin.Context, body apis.TraitBody) (string, error) {
 		return "", err
 	}
 
-	appObj, err = AddOrUpdateTrait(env, body.AppName, body.WorkloadName, fs, template)
+	appObj, err = AddOrUpdateTrait(env, body.AppName, body.ComponentName, fs, template)
 	if err != nil {
 		return "", err
 	}

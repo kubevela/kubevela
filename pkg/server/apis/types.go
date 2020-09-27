@@ -60,24 +60,24 @@ type TraitMeta struct {
 
 //used to present trait which is to be attached and, of which parameters are set
 type TraitBody struct {
-	EnvName      string       `json:"envName"`
-	Name         string       `json:"name"`
-	Flags        []CommonFlag `json:"flags"`
-	WorkloadName string       `json:"workloadName"`
-	AppName      string       `json:"appName,omitempty"`
-	Staging      string       `json:"staging,omitempty"`
+	EnvName       string       `json:"envName"`
+	Name          string       `json:"name"`
+	Flags         []CommonFlag `json:"flags"`
+	ComponentName string       `json:"componentName"`
+	AppName       string       `json:"appName,omitempty"`
+	Staging       string       `json:"staging,omitempty"`
 }
 
 type ComponentMeta struct {
 	Name     string                        `json:"name"`
-	Status   string                        `json:"Status,omitempty"`
+	Status   string                        `json:"status,omitempty"`
 	Workload runtime.RawExtension          `json:"workload,omitempty"`
-	Traits   []corev1alpha2.ComponentTrait `json:"Traits,omitempty"`
+	Traits   []corev1alpha2.ComponentTrait `json:"traits,omitempty"`
 }
 
 type ApplicationMeta struct {
-	Status     string          `json:"Status,omitempty"`
-	Components []ComponentMeta `json:"Components,omitempty"`
+	Status     string          `json:"status,omitempty"`
+	Components []ComponentMeta `json:"components,omitempty"`
 }
 
 type CapabilityMeta struct {

@@ -16,7 +16,7 @@ import (
 func AttachTrait(c *gin.Context) {
 	var body apis.TraitBody
 	body.EnvName = c.Param("envName")
-	body.AppGroup = c.Param("appName")
+	body.AppName = c.Param("appName")
 	body.ComponentName = c.Param("compName")
 
 	if err := c.ShouldBindJSON(&body); err != nil {
