@@ -69,7 +69,7 @@ func Run(ctx context.Context, config *stern.Config, ioStreams cmdutil.IOStreams)
 			case str := <-logC:
 				ioStreams.Infonln(str)
 			case <-ctx.Done():
-				break
+				return
 			}
 		}
 	}()
