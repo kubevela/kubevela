@@ -137,12 +137,15 @@ func DeleteEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) 
 	if len(args) < 1 {
 		return fmt.Errorf("you must specify env name for vela env delete command")
 	}
-	envName := args[0]
-	msg, err := oam.DeleteEnv(envName)
-	if err == nil {
-		ioStreams.Info(msg)
+	for _, envName := range args {
+		msg, err := oam.DeleteEnv(envName)
+		if err != nil {
+			return err
+		} else {
+			ioStreams.Info(msg)
+		}
 	}
-	return err
+	return nil
 }
 
 func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvMeta, args []string, ioStreams cmdutil.IOStreams) error {
