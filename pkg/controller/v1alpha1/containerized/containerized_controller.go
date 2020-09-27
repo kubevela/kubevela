@@ -109,16 +109,27 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		fmt.Sprintf("Workload `%s` successfully patched a deployment `%s`",
 			workload.Name, deploy.Name)))
 
-	// create a service for the workload
-	service, err := r.renderService(ctx, &workload)
-	if err != nil {
-		log.Error(err, "Failed to render a service")
-		r.record.Event(eventObj, event.Warning(errRenderService, err))
-		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderService)))
+	// record the new deployment
+	workload.Status.Resources = []cpv1alpha1.TypedReference{
+		{
+			APIVersion: deploy.GetObjectKind().GroupVersionKind().GroupVersion().String(),
+			Kind:       deploy.GetObjectKind().GroupVersionKind().Kind,
+			Name:       deploy.GetName(),
+			UID:        deploy.UID,
+		},
 	}
-	// Determine whether it is necessary to create a service.
-	if len(service.Spec.Ports) > 0 {
+
+	// Determine whether it is necessary to create a service.if container.
+	setPorts := r.checkContainerPortsSpecified(ctx, &workload)
+	if !setPorts {
+		// create a service for the workload
+		service, err := r.renderService(ctx, &workload)
+		if err != nil {
+			log.Error(err, "Failed to render a service")
+			r.record.Event(eventObj, event.Warning(errRenderService, err))
+			return util.ReconcileWaitResult,
+				util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderService)))
+		}
 		// server side apply the service
 		if err := r.Patch(ctx, service, client.Apply, applyOpts...); err != nil {
 			log.Error(err, "Failed to apply a service")
@@ -129,21 +140,14 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		r.record.Event(eventObj, event.Normal("Service created",
 			fmt.Sprintf("Workload `%s` successfully server side patched a service `%s`",
 				workload.Name, service.Name)))
-	}
-	// record the new deployment, new service
-	workload.Status.Resources = []cpv1alpha1.TypedReference{
-		{
-			APIVersion: deploy.GetObjectKind().GroupVersionKind().GroupVersion().String(),
-			Kind:       deploy.GetObjectKind().GroupVersionKind().Kind,
-			Name:       deploy.GetName(),
-			UID:        deploy.UID,
-		},
-		{
+
+		// record the new service
+		workload.Status.Resources = append(workload.Status.Resources, cpv1alpha1.TypedReference{
 			APIVersion: service.GetObjectKind().GroupVersionKind().GroupVersion().String(),
 			Kind:       service.GetObjectKind().GroupVersionKind().Kind,
 			Name:       service.GetName(),
 			UID:        service.UID,
-		},
+		})
 	}
 
 	if err := r.Status().Update(ctx, &workload); err != nil {
@@ -204,6 +208,17 @@ func (r *Reconciler) renderDeployment(ctx context.Context,
 	}
 
 	return deploy, nil
+}
+
+// check whether the container port is specified
+func (r *Reconciler) checkContainerPortsSpecified(ctx context.Context,
+	workload *v1alpha1.Containerized) bool {
+	for _, container := range workload.Spec.PodSpec.Containers {
+		if len(container.Ports) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // create a service for the deployment
