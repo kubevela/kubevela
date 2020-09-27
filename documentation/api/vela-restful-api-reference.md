@@ -171,44 +171,93 @@ sample response
 sample response
 ```json
 {
-	"code": 200,
-	"data": {
-		"Status": "UNKNOWN",
-		"Workload": {
-			"workload": {
-				"apiVersion": "core.oam.dev/v1alpha2",
-				"kind": "ContainerizedWorkload",
-				"metadata": {
-					"name": "poc5"
-				},
-				"spec": {
-					"containers": [{
-						"image": "nginx:1.9.4",
-						"name": "poc5",
-						"ports": [{
-							"containerPort": 80,
-							"name": "default",
-							"protocol": "TCP"
-						}]
-					}]
-				}
-			}
-		},
-		"Traits": [{
-			"trait": {
-				"apiVersion": "core.oam.dev/v1alpha2",
-				"kind": "ManualScalerTrait",
-				"metadata": {
-					"annotations": {
-						"vela.oam.dev/traitDef": "scale"
-					}
-				},
-				"spec": {
-					"replicaCount": 2
-				}
-			}
-		}]
-	}
+    "code": 200,
+    "data": {
+        "Status": "True",
+        "Components": [
+            {
+                "name": "web-comp",
+                "Status": "True",
+                "workload": {
+                    "apiVersion": "standard.oam.dev/v1alpha1",
+                    "kind": "Containerized",
+                    "metadata": {
+                        "name": "web-comp"
+                    },
+                    "spec": {
+                        "podSpec": {
+                            "containers": [
+                                {
+                                    "image": "nginx:1.9.4",
+                                    "name": "web-comp",
+                                    "ports": [
+                                        {
+                                            "containerPort": 80,
+                                            "name": "default",
+                                            "protocol": "TCP"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        "replicas": 1
+                    }
+                },
+                "Traits": [
+                    {
+                        "trait": {
+                            "apiVersion": "standard.oam.dev/v1alpha1",
+                            "kind": "Route",
+                            "metadata": {
+                                "annotations": {
+                                    "trait.oam.dev/name": "route"
+                                }
+                            },
+                            "spec": {
+                                "backend": {
+                                    "port": 0
+                                },
+                                "host": "web-comp.poc.oam.dev",
+                                "path": "",
+                                "tls": {
+                                    "issuerName": "oam-env-default"
+                                }
+                            }
+                        }
+                    }
+                ]
+            },
+            {
+                "name": "comp1",
+                "Status": "True",
+                "workload": {
+                    "apiVersion": "standard.oam.dev/v1alpha1",
+                    "kind": "Containerized",
+                    "metadata": {
+                        "name": "comp1"
+                    },
+                    "spec": {
+                        "podSpec": {
+                            "containers": [
+                                {
+                                    "image": "nginx:1.9.4",
+                                    "name": "comp1",
+                                    "ports": [
+                                        {
+                                            "containerPort": 6379,
+                                            "name": "default",
+                                            "protocol": "TCP"
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        "replicas": 1
+                    }
+                }
+            }
+        ]
+    }
 }
 ```
 ### DELETE /api/envs/:envName/apps/:appName (app delete)
@@ -221,8 +270,84 @@ sample response
 }
 ```
 
+## Components
+### GET /api/envs/:envName/apps/:appName/components/:compName (component details)
+- example
+sample response
+```json
+{
+    "code": 200,
+    "data": {
+        "name": "web-comp",
+        "Status": "True",
+        "workload": {
+            "apiVersion": "standard.oam.dev/v1alpha1",
+            "kind": "Containerized",
+            "metadata": {
+                "name": "web-comp"
+            },
+            "spec": {
+                "podSpec": {
+                    "containers": [
+                        {
+                            "image": "nginx:1.9.4",
+                            "name": "web-comp",
+                            "ports": [
+                                {
+                                    "containerPort": 80,
+                                    "name": "default",
+                                    "protocol": "TCP"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "replicas": 1
+            }
+        },
+        "Traits": [
+            {
+                "trait": {
+                    "apiVersion": "standard.oam.dev/v1alpha1",
+                    "kind": "Route",
+                    "metadata": {
+                        "annotations": {
+                            "trait.oam.dev/name": "route"
+                        }
+                    },
+                    "spec": {
+                        "backend": {
+                            "port": 0
+                        },
+                        "host": "web-comp.poc.oam.dev",
+                        "path": "",
+                        "tls": {
+                            "issuerName": "oam-env-default"
+                        }
+                    }
+                }
+            }
+        ]
+    }
+}
+```
+
+### GET /api/envs/:envName/apps/:appName/components/ (component list)
+Same as `GET /api/envs/:envName/apps/:appName (app description)`.
+
+### DELETE /api/envs/:envName/apps/:appName/components/:compName (component delete)
+- example
+sample response
+```
+{
+"code": 200,
+"data": "delete apps succeed a1 from default"
+}
+```
+
+
 ## Workloads
-### POST /api/workloads/ (workload create)
+### POST /api/workloads/ (workload create, component create)
 - parameters
 ```go
 type WorkloadRunBody struct {
@@ -399,7 +524,7 @@ sample response
 ```
 
 ## Trait
-### POST /envs/:envName/apps/:appName/traits/ (attach a trait) 
+### POST /envs/:envName/apps/:appName/components/:compName/traits/ (attach a trait)
 - example
 sample request
 ```json
@@ -472,7 +597,7 @@ sample response
 }
 ```
 
-### DELETE /envs/:envName/apps/:appName/traits/:traitName (detach a trait) 
+### DELETE /envs/:envName/apps/:appName/components/:compName/traits/:traitName (detach a trait)
 - example
 sample response
 ```json

@@ -16,7 +16,9 @@ import (
 func AttachTrait(c *gin.Context) {
 	var body apis.TraitBody
 	body.EnvName = c.Param("envName")
-	body.WorkloadName = c.Param("appName")
+	body.AppName = c.Param("appName")
+	body.ComponentName = c.Param("compName")
+
 	if err := c.ShouldBindJSON(&body); err != nil {
 		util.HandleError(c, util.InvalidArgument, "the trait attach request body is invalid")
 		return
@@ -57,7 +59,9 @@ func ListTrait(c *gin.Context) {
 func DetachTrait(c *gin.Context) {
 	envName := c.Param("envName")
 	traitType := c.Param("traitName")
-	workloadName := c.Param("appName")
+	componentName := c.Param("compName")
+	applicationName := c.Param("appName")
+
 	var staging = false
 	var err error
 	if stagingStr := c.Param("staging"); stagingStr != "" {
@@ -66,7 +70,7 @@ func DetachTrait(c *gin.Context) {
 			return
 		}
 	}
-	msg, err := oam.DetachTrait(c, envName, traitType, workloadName, "", staging)
+	msg, err := oam.DetachTrait(c, envName, traitType, componentName, applicationName, staging)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return

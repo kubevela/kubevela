@@ -16,9 +16,10 @@ import (
 // setup the gin http server handler
 
 func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
-
-	gin.SetMode(gin.ReleaseMode)
-
+	// if deploying static Dashboard, set the mode to `release`, or to `debug`
+	if staticPath != "" {
+		gin.SetMode(gin.ReleaseMode)
+	}
 	// create the router
 	router := gin.New()
 	loggerConfig := gin.LoggerConfig{
@@ -35,7 +36,10 @@ func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
 			)
 		},
 	}
-	router.Use(static.Serve("/", static.LocalFile(staticPath, false)))
+
+	if staticPath != "" {
+		router.Use(static.Serve("/", static.LocalFile(staticPath, false)))
+	}
 
 	router.Use(gin.LoggerWithConfig(loggerConfig))
 	router.Use(util.SetRequestID())
@@ -64,10 +68,19 @@ func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
 			apps.GET("/", handler.ListApps)
 			apps.DELETE("/:appName", handler.DeleteApps)
 
-			traitWorkload := apps.Group("/:appName/" + util.TraitDefinitionPath)
+			// component related operation
+			components := apps.Group("/:appName/components")
 			{
-				traitWorkload.POST("/", handler.AttachTrait)
-				traitWorkload.DELETE("/:traitName", handler.DetachTrait)
+				components.GET("/:compName", handler.GetComponent)
+				components.PUT("/:compName", handler.GetComponent)
+				components.GET("/", handler.GetApp)
+				components.DELETE("/:compName", handler.DeleteComponent)
+
+				traitWorkload := components.Group("/:compName/" + util.TraitDefinitionPath)
+				{
+					traitWorkload.POST("/", handler.AttachTrait)
+					traitWorkload.DELETE("/:traitName", handler.DetachTrait)
+				}
 			}
 		}
 	}

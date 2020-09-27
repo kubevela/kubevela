@@ -150,7 +150,7 @@ $ vela route mycomp --app myapp
 It will create route trait for this component.
 
 ```shell script
-$ kubeclt get routes.standard.oam.dev -n myenv
+$ kubectl get routes.standard.oam.dev -n myenv
 NAME                     AGE
 mycomp-trait-5b576c4fc   18s
 ```

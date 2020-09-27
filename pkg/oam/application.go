@@ -22,7 +22,7 @@ type ComponentMeta struct {
 	Workload    string                                `json:"workload,omitempty"`
 	Traits      []string                              `json:"traits,omitempty"`
 	Status      string                                `json:"status,omitempty"`
-	CreatedTime string                                `json:"created,omitempty"`
+	CreatedTime string                                `json:"createdTime,omitempty"`
 	AppConfig   corev1alpha2.ApplicationConfiguration `json:"-"`
 	Component   corev1alpha2.Component                `json:"-"`
 }
@@ -61,11 +61,11 @@ func ListComponents(ctx context.Context, c client.Client, opt Option) ([]Compone
 	var applicationList corev1alpha2.ApplicationConfigurationList
 
 	if opt.AppName != "" {
-		var application corev1alpha2.ApplicationConfiguration
-		if err := c.Get(ctx, client.ObjectKey{Name: opt.AppName, Namespace: opt.Namespace}, &application); err != nil {
+		var appConfig corev1alpha2.ApplicationConfiguration
+		if err := c.Get(ctx, client.ObjectKey{Name: opt.AppName, Namespace: opt.Namespace}, &appConfig); err != nil {
 			return nil, err
 		}
-		applicationList.Items = append(applicationList.Items, application)
+		applicationList.Items = append(applicationList.Items, appConfig)
 	} else {
 		err := c.List(ctx, &applicationList, &client.ListOptions{Namespace: opt.Namespace})
 		if err != nil {
@@ -79,17 +79,9 @@ func ListComponents(ctx context.Context, c client.Client, opt Option) ([]Compone
 			if err != nil {
 				return componentMetaList, err
 			}
-			traitAlias := GetTraitAliasByComponentTraitList(com.Traits)
-			var workload string
-			if component.Annotations != nil {
-				workload = component.Annotations[types.AnnWorkloadDef]
-			}
 			componentMetaList = append(componentMetaList, ComponentMeta{
-				Name:        com.ComponentName,
 				App:         a.Name,
-				Workload:    workload,
 				Status:      types.StatusDeployed,
-				Traits:      traitAlias,
 				CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
 				Component:   component,
 				AppConfig:   a,
@@ -100,32 +92,36 @@ func ListComponents(ctx context.Context, c client.Client, opt Option) ([]Compone
 	return componentMetaList, nil
 }
 
-func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, applicationName string, namespace string) (apis.ApplicationStatusMeta, error) {
-	var applicationStatusMeta apis.ApplicationStatusMeta
+func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, applicationName string, namespace string) (apis.ApplicationMeta, error) {
+	var applicationMeta apis.ApplicationMeta
 	var appConfig corev1alpha2.ApplicationConfiguration
 	if err := c.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: namespace}, &appConfig); err != nil {
-		return applicationStatusMeta, err
+		return applicationMeta, err
 	}
+
+	var status = "Unknown"
+	if len(appConfig.Status.Conditions) != 0 {
+		status = string(appConfig.Status.Conditions[0].Status)
+	}
+	applicationMeta.Status = status
+
 	for _, com := range appConfig.Spec.Components {
-		// Just get the one component from appConfig
-		if com.ComponentName != applicationName {
-			continue
-		}
-		component, err := cmdutil.GetComponent(ctx, c, com.ComponentName, namespace)
+		componentName := com.ComponentName
+		component, err := cmdutil.GetComponent(ctx, c, componentName, namespace)
 		if err != nil {
-			return applicationStatusMeta, err
+			return applicationMeta, err
 		}
-		var status = "UNKNOWN"
-		if len(appConfig.Status.Conditions) != 0 {
-			status = string(appConfig.Status.Conditions[0].Status)
-		}
-		applicationStatusMeta = apis.ApplicationStatusMeta{
+
+		applicationMeta.Components = append(applicationMeta.Components, apis.ComponentMeta{
+			Name:     componentName,
 			Status:   status,
-			Workload: component.Spec,
+			Workload: component.Spec.Workload,
 			Traits:   com.Traits,
-		}
+		})
+		applicationMeta.Status = status
+
 	}
-	return applicationStatusMeta, nil
+	return applicationMeta, nil
 }
 
 func (o *DeleteOptions) DeleteApp() (string, error) {
@@ -155,12 +151,12 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 	if err != nil && !apierrors.IsNotFound(err) {
 		return "", fmt.Errorf("delete appconfig err %s", err)
 	}
-	var healthscope corev1alpha2.HealthScope
-	healthscope.Name = application.FormatDefaultHealthScopeName(o.AppName)
-	healthscope.Namespace = o.Env.Namespace
-	err = o.Client.Delete(ctx, &healthscope)
+	var healthScope corev1alpha2.HealthScope
+	healthScope.Name = application.FormatDefaultHealthScopeName(o.AppName)
+	healthScope.Namespace = o.Env.Namespace
+	err = o.Client.Delete(ctx, &healthScope)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return "", fmt.Errorf("delete health scope %s err %v", healthscope.Name, err)
+		return "", fmt.Errorf("delete health scope %s err %v", healthScope.Name, err)
 	}
 
 	return fmt.Sprintf("delete apps succeed %s from %s", o.AppName, o.Env.Name), nil
