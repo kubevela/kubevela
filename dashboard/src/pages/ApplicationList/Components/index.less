@@ -1,6 +1,12 @@
+.ant-spin-nested-loading {
+  height: 100%;
+}
+.ant-spin-container {
+  height: 100%;
+}
 .appComponent {
   display: flex;
-  height: calc(100% - 46px);
+  height: 100%;
   .left {
     width: 200px;
     background: #fff;
@@ -24,12 +30,19 @@
       text-decoration: underline;
       background-color: #fff;
       border-top: 1px solid #efefef;
+      border-right: 1px solid #efefef;
       border-bottom: 1px solid #efefef;
       cursor: pointer;
     }
   }
   .right {
+    position: relative;
     flex: 1;
-    // clear: both;
+    .btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 8;
+    }
   }
 }

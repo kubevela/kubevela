@@ -15,12 +15,13 @@ class TableList extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      appDetailData: {},
+      compDetailData: {},
       visible: false,
       traitList: [],
       availableTraitList: [],
       envName: '',
       appName: '',
+      compName: '',
     };
   }
 
@@ -29,98 +30,118 @@ class TableList extends React.Component {
   }
 
   UNSAFE_componentWillReceiveProps(nextProps) {
-    if (this.props.appName !== nextProps.appName) {
-      this.getInitialData(nextProps.appName);
+    if (this.props.compName !== nextProps.compName) {
+      this.getInitialData(nextProps.compName);
     }
   }
 
-  getInitialData = async (nextAppName) => {
-    let appName = _.get(this.props, 'appName', '');
+  getInitialData = async (nextCompName) => {
+    const appName = _.get(this.props, 'appName', '');
     const envName = _.get(this.props, 'envName', '');
-    appName = nextAppName || appName;
-    if (appName && envName) {
+    let compName = _.get(this.props, 'compName', '');
+    compName = nextCompName || compName;
+    if (appName && envName && compName) {
       this.setState({
         envName,
         appName,
+        compName,
       });
       const res = await this.props.dispatch({
-        type: 'applist/getAppDetail',
+        type: 'components/getComponentDetail',
         payload: {
           envName,
           appName,
+          compName,
         },
       });
       if (res) {
         this.setState({
-          appDetailData: res,
+          compDetailData: res,
         });
-      }
-      const traits = await this.props.dispatch({
-        type: 'trait/getTraits',
-      });
-      if (traits) {
-        this.setState({
-          traitList: traits,
+        const traits = await this.props.dispatch({
+          type: 'trait/getTraits',
         });
-      }
-      const workloadType = _.get(res, 'Workload.workload.kind', '');
-      if (workloadType && workloadType === 'ContainerizedWorkload') {
-        this.getAcceptTrait('containerized');
-      } else if (workloadType && workloadType === 'Deployment') {
-        this.getAcceptTrait('deployment');
+        if (traits) {
+          this.setState({
+            traitList: traits,
+          });
+        }
+        const workloadType = _.get(res, 'workload.kind', '');
+        if (workloadType) {
+          this.getAcceptTrait(workloadType.toLowerCase());
+        }
+        // if (workloadType && workloadType === '') {
+        //   this.getAcceptTrait('containerized');
+        // } else if (workloadType && workloadType === 'Deployment') {
+        //   this.getAcceptTrait('deployment');
+        // }
       }
     }
   };
 
-  getAcceptTrait = (workloadType) => {
-    const res = this.state.traitList.filter((item) => {
-      if (item.appliesTo.indexOf(workloadType) !== -1) {
-        return true;
-      }
-      return false;
-    });
+  // getAcceptTrait = (workloadType) => {
+  //   const res = this.state.traitList.filter((item) => {
+  //     if (item.appliesTo) {
+  //       if(item.appliesTo==='*'){
+  //         return true;
+  //       }
+  //       if (item.appliesTo.indexOf(workloadType) !== -1) {
+  //         return true;
+  //       }
+  //       return false;
+  //     }
+  //     return false;
+  //   });
+  //   this.setState(() => ({
+  //     availableTraitList: res,
+  //   }));
+  // };
+
+  getAcceptTrait = () => {
+    const res = this.state.traitList;
     this.setState(() => ({
       availableTraitList: res,
     }));
   };
 
-  deleteApp = async (e) => {
+  deleteComp = async (e) => {
     e.stopPropagation();
-    const { envName } = this.state;
-    const { appDetailData } = this.state;
-    const appName = _.get(appDetailData, 'Workload.workload.metadata.name', '');
-    if (appName && envName) {
+    const { envName, appName, compName } = this.state;
+    if (appName && envName && compName) {
       const res = await this.props.dispatch({
-        type: 'applist/deleteApp',
+        type: 'components/deleteComponent',
         payload: {
           appName,
           envName,
+          compName,
         },
       });
       if (res) {
         message.success(res);
-        this.props.history.push({ pathname: '/ApplicationList' });
+        // 删除当前component成功后，刷新当前页面
+        this.props.getInitCompList();
       }
     }
   };
 
   deleteTrait = async (e, item) => {
     e.stopPropagation();
-    const { appName, envName } = this.state;
+    const { appName, envName, compName } = this.state;
     const traitNameObj = _.get(item, 'trait.metadata.annotations', '');
     const traitName = traitNameObj['vela.oam.dev/traitDef'] || traitNameObj['trait.oam.dev/name'];
-    if (traitName && appName && envName) {
+    if (traitName && appName && envName && compName) {
       const res = await this.props.dispatch({
         type: 'trait/deleteOneTrait',
         payload: {
           envName,
           appName,
           traitName,
+          compName,
         },
       });
       if (res) {
         message.success(res);
-        this.getInitialData(2);
+        this.getInitialData(compName);
       }
     }
   };
@@ -151,13 +172,14 @@ class TableList extends React.Component {
           });
         }
       });
-      const { envName, appName } = this.state;
-      if (envName && appName) {
+      const { envName, appName, compName } = this.state;
+      if (envName && appName && compName) {
         const res = await this.props.dispatch({
           type: 'trait/attachOneTraits',
           payload: {
             envName,
             appName,
+            compName,
             params: submitObj,
           },
         });
@@ -166,7 +188,7 @@ class TableList extends React.Component {
             visible: false,
           });
           message.success(res);
-          this.getInitialData(2);
+          this.getInitialData(compName);
         }
       }
     } else {
@@ -193,11 +215,16 @@ class TableList extends React.Component {
   };
 
   render() {
-    const status = _.get(this.state.appDetailData, 'Status', '');
-    const Workload = _.get(this.state.appDetailData, 'Workload.workload', {});
-    const Traits = _.get(this.state.appDetailData, 'Traits', []);
+    const { compDetailData } = this.state;
+    const status = _.get(compDetailData, 'status', '');
+    const Workload = _.get(compDetailData, 'workload', {});
+    const Traits = _.get(compDetailData, 'traits', []);
     let containers = {};
-    containers = _.get(Workload, 'spec.containers[0]', {});
+    if (_.get(Workload, 'kind', '') === 'Job') {
+      containers = _.get(Workload, 'spec.template.spec.containers[0]', {});
+    } else {
+      containers = _.get(Workload, 'spec.podSpec.containers[0]', {});
+    }
     let { loadingAll } = this.props;
     loadingAll = loadingAll || false;
     const colorObj = {
@@ -238,6 +265,21 @@ class TableList extends React.Component {
                       </p>
                       <p className="title">Settings:</p>
                       <Row>
+                        {_.get(Workload, 'kind', '') === 'Job' ? (
+                          <Fragment>
+                            <Col span="8">
+                              <p>count</p>
+                            </Col>
+                            <Col span="16">
+                              <p>
+                                {_.get(Workload, 'spec.completions', '') ||
+                                  _.get(Workload, 'spec.parallelism', '')}
+                              </p>
+                            </Col>
+                          </Fragment>
+                        ) : (
+                          <Fragment />
+                        )}
                         {Object.keys(containers).map((currentKey) => {
                           if (currentKey === 'ports') {
                             return (
@@ -280,8 +322,8 @@ class TableList extends React.Component {
                       </Row>
                     </div>
                     <Popconfirm
-                      title="Are you sure delete this app?"
-                      onConfirm={(e) => this.deleteApp(e)}
+                      title="Are you sure delete this component?"
+                      onConfirm={(e) => this.deleteComp(e)}
                       onCancel={this.cancel}
                       okText="Yes"
                       cancelText="No"
@@ -295,11 +337,7 @@ class TableList extends React.Component {
                       Traits.map((item, index) => {
                         const traitItem = _.get(item, 'trait', {});
                         const annotations = _.get(traitItem, 'metadata.annotations', {});
-                        let traitType = 1;
                         const spec = _.get(traitItem, 'spec', {});
-                        if (traitItem.kind === 'Ingress') {
-                          traitType = 2;
-                        }
                         return (
                           <div
                             className="summaryBox"
@@ -338,53 +376,33 @@ class TableList extends React.Component {
                             </Row>
                             <p className="title">Properties:</p>
                             <Row>
-                              {traitType === 2 ? (
-                                <Fragment>
-                                  <Col span="8">
-                                    <p>domain</p>
-                                  </Col>
-                                  <Col span="16">
-                                    <p>{_.get(spec, 'rules[0].host', '')}</p>
-                                  </Col>
-                                  <Col span="8">
-                                    <p>service</p>
-                                  </Col>
-                                  <Col span="16">
-                                    <p>
-                                      {_.get(
-                                        spec,
-                                        'rules[0].http.paths[0].backend.serviceName',
-                                        '',
-                                      )}
-                                    </p>
-                                  </Col>
-                                  <Col span="8">
-                                    <p>port</p>
-                                  </Col>
-                                  <Col span="16">
-                                    <p>
-                                      {_.get(
-                                        spec,
-                                        'rules[0].http.paths[0].backend.servicePort',
-                                        '',
-                                      )}
-                                    </p>
-                                  </Col>
-                                </Fragment>
-                              ) : (
-                                Object.keys(spec).map((currentKey) => {
-                                  return (
-                                    <Fragment key={currentKey}>
-                                      <Col span="8">
-                                        <p>{currentKey}</p>
-                                      </Col>
-                                      <Col span="16">
-                                        <p>{spec[currentKey]}</p>
-                                      </Col>
-                                    </Fragment>
-                                  );
-                                })
-                              )}
+                              {Object.keys(spec).map((currentKey) => {
+                                if (spec[currentKey].constructor === Object) {
+                                  const backend = _.get(spec, `${currentKey}`, {});
+                                  return Object.keys(backend).map((currentKey1) => {
+                                    return (
+                                      <Fragment key={currentKey1}>
+                                        <Col span="8">
+                                          <p>{currentKey1}</p>
+                                        </Col>
+                                        <Col span="16">
+                                          <p>{backend[currentKey1]}</p>
+                                        </Col>
+                                      </Fragment>
+                                    );
+                                  });
+                                }
+                                return (
+                                  <Fragment key={currentKey}>
+                                    <Col span="8">
+                                      <p>{currentKey}</p>
+                                    </Col>
+                                    <Col span="16">
+                                      <p>{spec[currentKey]}</p>
+                                    </Col>
+                                  </Fragment>
+                                );
+                              })}
                             </Row>
                             <div style={{ clear: 'both', height: '32px' }}>
                               <Popconfirm

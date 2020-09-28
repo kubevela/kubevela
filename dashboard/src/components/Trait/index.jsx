@@ -30,11 +30,25 @@ class Trait extends React.Component {
     this.state = {
       visible: false,
       selectValue: null,
+      compList: [],
     };
   }
 
   componentDidMount() {
     this.getInitialData();
+  }
+
+  shouldComponentUpdate(nextProps) {
+    if (nextProps.currentEnv === this.props.currentEnv) {
+      return true;
+    }
+    this.props.dispatch({
+      type: 'applist/getList',
+      payload: {
+        url: `/api/envs/${nextProps.currentEnv}/apps/`,
+      },
+    });
+    return true;
   }
 
   getInitialData = async () => {
@@ -71,7 +85,12 @@ class Trait extends React.Component {
       };
       const submitData = this.formRefStep2.current.getFieldValue();
       Object.keys(submitData).forEach((currentKey) => {
-        if (currentKey !== 'name' && currentKey !== 'appName' && submitData[currentKey]) {
+        if (
+          currentKey !== 'name' &&
+          currentKey !== 'appName' &&
+          currentKey !== 'compName' &&
+          submitData[currentKey]
+        ) {
           submitObj.flags.push({
             name: currentKey,
             value: submitData[currentKey].toString(),
@@ -79,13 +98,14 @@ class Trait extends React.Component {
         }
       });
       const { currentEnv: envName } = this.props;
-      const { appName } = submitData;
-      if (envName && appName) {
+      const { appName, compName } = submitData;
+      if (envName && appName && compName) {
         const res = await this.props.dispatch({
           type: 'trait/attachOneTraits',
           payload: {
             envName,
             appName,
+            compName,
             params: submitObj,
           },
         });
@@ -96,11 +116,8 @@ class Trait extends React.Component {
           message.success(res);
           const { history } = this.props.propsObj;
           history.push({
-            pathname: '/ApplicationList/ApplicationListDetail',
-            state: {
-              appName,
-              envName,
-            },
+            pathname: `/ApplicationList/${appName}/Components`,
+            state: { appName, envName },
           });
         }
       }
@@ -113,10 +130,30 @@ class Trait extends React.Component {
     });
   };
 
-  onChange = (value) => {
+  onChange = async (value) => {
     this.setState({
       selectValue: value,
+      compList: [],
     });
+    const res = await this.props.dispatch({
+      type: 'applist/getAppDetail',
+      payload: {
+        envName: this.props.currentEnv,
+        appName: value,
+      },
+    });
+    if (res) {
+      const compData = _.get(res, 'components', []);
+      const compList = [];
+      compData.forEach((item) => {
+        compList.push({
+          compName: item.name,
+        });
+      });
+      this.setState({
+        compList,
+      });
+    }
   };
 
   onSearch = () => {};
@@ -131,7 +168,11 @@ class Trait extends React.Component {
         }
       });
     }
-    const appList = _.get(this.props, 'returnObj', []);
+    let appList = _.get(this.props, 'returnObj', []);
+    if (!appList) {
+      appList = [];
+    }
+    const { compList = [] } = this.state;
     return (
       <div>
         <div className="breadCrumb">
@@ -212,13 +253,12 @@ class Trait extends React.Component {
                   initialValues={initialObj}
                 >
                   <Form.Item
-                    label="Target"
+                    label="App"
                     name="appName"
                     rules={[{ required: true, message: 'Please Select a Application!' }]}
                   >
                     <Select
                       showSearch
-                      allowClear
                       value={this.state.selectValue}
                       style={{ width: '100%' }}
                       placeholder="Select a Application"
@@ -230,10 +270,34 @@ class Trait extends React.Component {
                       }
                     >
                       {appList.length ? (
-                        appList.map((item) => {
+                        appList.map((item, index) => {
                           return (
-                            <Option key={item.name} value={item.name}>
-                              {item.name}
+                            <Option key={index.toString()} value={item.app}>
+                              {item.app}
+                            </Option>
+                          );
+                        })
+                      ) : (
+                        <Fragment />
+                      )}
+                    </Select>
+                  </Form.Item>
+                  <Form.Item
+                    label="Component"
+                    name="compName"
+                    rules={[{ required: true, message: 'Please Select a Component!' }]}
+                  >
+                    <Select
+                      allowClear
+                      // value={this.state.selectValue}
+                      style={{ width: '100%' }}
+                      placeholder="Select a Component"
+                    >
+                      {compList.length ? (
+                        compList.map((item) => {
+                          return (
+                            <Option key={item.compName} value={item.compName}>
+                              {item.compName}
                             </Option>
                           );
                         })

@@ -1,7 +1,6 @@
 import React from 'react';
 import { PageContainer } from '@ant-design/pro-layout';
-import { BranchesOutlined, ApartmentOutlined } from '@ant-design/icons';
-import { Button, Card, Row, Col, Form, Spin, Empty, Breadcrumb, Modal, Input } from 'antd';
+import { Button, Form, Spin, Breadcrumb, Modal, Input, Table, Space, message } from 'antd';
 import { connect } from 'dva';
 import moment from 'moment';
 import './index.less';
@@ -24,6 +23,63 @@ const layout = {
 class TableList extends React.Component {
   formRef = React.createRef();
 
+  columns = [
+    {
+      title: 'Name',
+      dataIndex: 'app',
+      key: 'app',
+      render: (text, record) => {
+        return (
+          <Link
+            to={{
+              pathname: `/ApplicationList/${record.app}/Components`,
+              state: { appName: record.app, envName: this.props.currentEnv },
+            }}
+          >
+            {text}
+          </Link>
+        );
+      },
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (text) => {
+        return text;
+      },
+    },
+    {
+      title: 'Components',
+      dataIndex: 'components',
+      key: 'components',
+      render: (text) => {
+        return text;
+      },
+    },
+    {
+      title: 'Created At',
+      dataIndex: 'createdTime',
+      key: 'createdTime',
+      render: (text) => {
+        return this.getFormatDate(text);
+      },
+    },
+    {
+      title: 'Actions',
+      dataIndex: 'Actions',
+      key: 'Actions',
+      render: (text, record) => {
+        return (
+          <Space>
+            <Button onClick={() => this.goToDetail(record)}>Details</Button>
+            <Button onClick={() => this.deleteApp(record)}>Delete</Button>
+          </Space>
+        );
+      },
+    },
+  ];
+
   constructor(props) {
     super(props);
     this.state = {
@@ -32,15 +88,7 @@ class TableList extends React.Component {
   }
 
   componentDidMount() {
-    const { currentEnv } = this.props;
-    if (currentEnv) {
-      this.props.dispatch({
-        type: 'applist/getList',
-        payload: {
-          url: `/api/envs/${currentEnv}/apps/`,
-        },
-      });
-    }
+    this.getInitData();
   }
 
   shouldComponentUpdate(nextProps) {
@@ -56,6 +104,43 @@ class TableList extends React.Component {
     return true;
   }
 
+  getInitData = () => {
+    const { currentEnv } = this.props;
+    if (currentEnv) {
+      this.props.dispatch({
+        type: 'applist/getList',
+        payload: {
+          url: `/api/envs/${currentEnv}/apps/`,
+        },
+      });
+    }
+  };
+
+  goToDetail = (record) => {
+    this.props.history.push({
+      pathname: `/ApplicationList/${record.app}/Components`,
+      state: { appName: record.app, envName: this.props.currentEnv },
+    });
+  };
+
+  deleteApp = async (record) => {
+    const appName = record.app;
+    const envName = this.props.currentEnv;
+    if (appName && envName) {
+      const res = await this.props.dispatch({
+        type: 'applist/deleteApp',
+        payload: {
+          appName,
+          envName,
+        },
+      });
+      if (res) {
+        message.success(res);
+        this.getInitData();
+      }
+    }
+  };
+
   showModal = () => {
     this.setState({
       visible: true,
@@ -63,8 +148,11 @@ class TableList extends React.Component {
   };
 
   handleOk = async () => {
-    await this.formRef.current.validateFields();
-    // const submitData = await this.formRef.current.validateFields();
+    const submitData = await this.formRef.current.validateFields();
+    this.props.history.push({
+      pathname: `/ApplicationList/${submitData.appName}/createComponent`,
+      state: { ...submitData, isCreate: true },
+    });
   };
 
   handleCancel = () => {
@@ -91,14 +179,8 @@ class TableList extends React.Component {
 
   render() {
     let { loadingAll, returnObj } = this.props;
-    const { currentEnv } = this.props;
-    loadingAll = loadingAll || false;
     returnObj = returnObj || [];
-    const colorObj = {
-      Deployed: 'first1',
-      Staging: 'first2',
-      UNKNOWN: 'first3',
-    };
+    loadingAll = loadingAll || false;
     return (
       <div>
         <div className="breadCrumb">
@@ -114,74 +196,17 @@ class TableList extends React.Component {
             <div className="applist">
               <Form name="horizontal_login" layout="inline" onFinish={this.onFinish}>
                 <Form.Item>
-                  <Link to="/ApplicationList/CreateApplication">
-                    <Button onClick={this.handleAdd} type="primary" style={{ marginBottom: 16 }}>
-                      create
-                    </Button>
-                  </Link>
+                  <Button onClick={this.showModal} type="primary" style={{ marginBottom: 16 }}>
+                    create
+                  </Button>
                 </Form.Item>
               </Form>
             </div>
-            <Row gutter={16}>
-              {Array.isArray(returnObj) && returnObj.length ? (
-                returnObj.map((item, index) => {
-                  const { traits = [] } = item;
-                  return (
-                    <Col span={6} onClick={this.gotoDetail} key={index.toString()}>
-                      <Link
-                        to={{
-                          pathname: '/ApplicationList/ApplicationListDetail',
-                          state: { appName: item.name, envName: currentEnv },
-                        }}
-                      >
-                        <Card
-                          title={item.name}
-                          bordered={false}
-                          extra={this.getFormatDate(item.created)}
-                        >
-                          <div className="cardContent">
-                            <div
-                              className="box2"
-                              style={{ height: this.getHeight(traits.length) }}
-                            />
-                            <div className="box1">
-                              {traits.length ? (
-                                <div className="box3" style={{ width: '30px' }} />
-                              ) : (
-                                ''
-                              )}
-                              <div
-                                className={['hasPadding', colorObj[item.status] || 'first3'].join(
-                                  ' ',
-                                )}
-                              >
-                                <ApartmentOutlined style={{ marginRight: '4px' }} />
-                                {item.workload}
-                              </div>
-                            </div>
-                            {traits.map((item1, index1) => {
-                              return (
-                                <div className="box1" key={index1.toString()}>
-                                  <div className="box3" style={{ width: '50px' }} />
-                                  <div className="other hasPadding">
-                                    <BranchesOutlined style={{ marginRight: '4px' }} />
-                                    {item1}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </Card>
-                      </Link>
-                    </Col>
-                  );
-                })
-              ) : (
-                <div style={{ width: '100%', height: '80%' }}>
-                  <Empty />
-                </div>
-              )}
-            </Row>
+            <Table
+              rowKey={(record) => record.app + Math.random(1, 100)}
+              columns={this.columns}
+              dataSource={returnObj}
+            />
           </Spin>
           <Modal
             title="Create Application"
@@ -196,7 +221,7 @@ class TableList extends React.Component {
           >
             <Form {...layout} ref={this.formRef} name="control-ref" labelAlign="left">
               <Form.Item
-                name="name"
+                name="appName"
                 label="Name"
                 rules={[
                   {

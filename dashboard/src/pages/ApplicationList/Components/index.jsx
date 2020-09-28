@@ -1,13 +1,14 @@
 import React from 'react';
 import { Link } from 'umi';
-import { Breadcrumb, Button, Menu, Spin } from 'antd';
+import { Breadcrumb, Button, Menu, Spin, Popconfirm, message } from 'antd';
 import { connect } from 'dva';
 import _ from 'lodash';
 import './index.less';
 import ComponentDetail from '../ComponentDetail/index.jsx';
 
-@connect(({ loading }) => ({
+@connect(({ loading, globalData }) => ({
   loadingAll: loading.models.applist,
+  currentEnv: globalData.currentEnv,
 }))
 class TableList extends React.PureComponent {
   constructor(props) {
@@ -15,59 +16,94 @@ class TableList extends React.PureComponent {
     this.state = {
       envName: '',
       componentName: '',
-      defaultSelectedKeys: 'a1',
+      defaultSelectedKeys: '',
+      appName: '',
+      compList: [],
     };
   }
 
-  UNSAFE_componentWillMount() {
+  componentDidMount() {
+    this.getInitData();
+  }
+
+  getInitData = async () => {
     let appName = '';
-    let envName = '';
+    let description = '';
+    let envName = this.props.currentEnv;
     if (this.props.location.state) {
       appName = _.get(this.props, 'location.state.appName', '');
-      envName = _.get(this.props, 'location.state.envName', '');
+      description = _.get(this.props, 'location.state.description', '');
+      envName = _.get(this.props, 'location.state.envName', this.props.currentEnv);
       sessionStorage.setItem('appName', appName);
+      sessionStorage.setItem('description', description);
       sessionStorage.setItem('envName', envName);
     } else {
       appName = sessionStorage.getItem('appName');
+      description = sessionStorage.getItem('description');
       envName = sessionStorage.getItem('envName');
     }
     this.setState({
+      appName,
       envName,
-      componentName: appName,
     });
-    if (appName === 'test33') {
-      this.setState({
-        defaultSelectedKeys: 'a1',
+    const res = await this.props.dispatch({
+      type: 'applist/getAppDetail',
+      payload: {
+        envName,
+        appName,
+      },
+    });
+    if (res) {
+      const compData = _.get(res, 'components', []);
+      const compList = [];
+      compData.forEach((item) => {
+        compList.push({
+          compName: item.name,
+        });
       });
-    } else if (appName === 'test01') {
       this.setState({
-        defaultSelectedKeys: 'c2',
+        compList,
       });
-    } else {
-      this.setState({
-        defaultSelectedKeys: 'c3',
-      });
-    }
-  }
-
-  changeComponent = ({ key }) => {
-    if (key === 'a1') {
-      this.setState({
-        componentName: 'test33',
-      });
-    } else if (key === 'c2') {
-      this.setState({
-        componentName: 'test01',
-      });
-    } else {
-      this.setState({
-        componentName: 'testoo',
-      });
+      if (compList.length) {
+        this.changeComponent({
+          key: compList[0].compName,
+        });
+      }
     }
   };
 
+  changeComponent = ({ key }) => {
+    this.setState({
+      componentName: key,
+      defaultSelectedKeys: key,
+    });
+  };
+
+  deleteApp = async (e) => {
+    e.stopPropagation();
+    const { envName } = this.state;
+    const { appName } = this.state;
+    if (appName && envName) {
+      const res = await this.props.dispatch({
+        type: 'applist/deleteApp',
+        payload: {
+          appName,
+          envName,
+        },
+      });
+      if (res) {
+        message.success(res);
+        this.props.history.push({ pathname: '/ApplicationList' });
+      }
+    }
+  };
+
+  cancel = (e) => {
+    e.stopPropagation();
+  };
+
   render() {
-    const { envName, componentName, defaultSelectedKeys } = this.state;
+    const { envName, componentName, defaultSelectedKeys, appName, compList } = this.state;
     const { loadingAll } = this.props;
     return (
       <div style={{ height: '100%' }}>
@@ -79,7 +115,7 @@ class TableList extends React.PureComponent {
             <Breadcrumb.Item>
               <Link to="/ApplicationList">Applications</Link>
             </Breadcrumb.Item>
-            <Breadcrumb.Item>appname</Breadcrumb.Item>
+            <Breadcrumb.Item>{appName}</Breadcrumb.Item>
             <Breadcrumb.Item>Components</Breadcrumb.Item>
             <Breadcrumb.Item>{componentName}</Breadcrumb.Item>
           </Breadcrumb>
@@ -91,31 +127,49 @@ class TableList extends React.PureComponent {
                 mode="inline"
                 onClick={this.changeComponent}
                 defaultSelectedKeys={[defaultSelectedKeys]}
+                selectedKeys={defaultSelectedKeys}
               >
                 <Menu.ItemGroup key="g1" title="Components">
-                  <Menu.Item key="a1">a1(containerized)</Menu.Item>
-                  <Menu.Item key="c2">c2(deploy)</Menu.Item>
-                  <Menu.Item key="c3">c3(webserver)</Menu.Item>
+                  {compList.map((item) => {
+                    return <Menu.Item key={item.compName}>{item.compName}</Menu.Item>;
+                  })}
                 </Menu.ItemGroup>
               </Menu>
               <div className="addComp">
                 <Link
                   to={{
-                    // pathname: '/ApplicationList/CreateApplication',
-                    pathname: `/ApplicationList/${componentName}/createComponent`,
-                    state: { appName: componentName, envName },
+                    pathname: `/ApplicationList/${appName}/createComponent`,
+                    state: { appName, envName, isCreate: false },
                   }}
                 >
                   add a new comp
                 </Link>
               </div>
             </div>
-            <div className="right">
-              <div style={{ margin: '10px', float: 'right' }}>
-                <Button type="primary">Delete App</Button>
+            {defaultSelectedKeys ? (
+              <div className="right">
+                <div className="btn">
+                  <Popconfirm
+                    title="Are you sure delete this app?"
+                    placement="bottom"
+                    onConfirm={(e) => this.deleteApp(e)}
+                    onCancel={this.cancel}
+                    okText="Yes"
+                    cancelText="No"
+                  >
+                    <Button type="primary">Delete App</Button>
+                  </Popconfirm>
+                </div>
+                <ComponentDetail
+                  appName={appName}
+                  compName={componentName}
+                  envName={envName}
+                  getInitCompList={this.getInitData}
+                />
               </div>
-              <ComponentDetail appName={componentName} envName={envName} />
-            </div>
+            ) : (
+              <div style={{ width: '100%', height: '100%', background: '#FFFFFF' }} />
+            )}
           </div>
         </Spin>
       </div>

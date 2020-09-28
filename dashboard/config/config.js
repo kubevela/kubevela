@@ -43,12 +43,6 @@ export default defineConfig({
               component: './ApplicationList',
             },
             {
-              name: 'ApplicationList.ApplicationListDetail',
-              hideInMenu: true,
-              path: '/ApplicationList/ApplicationListDetail',
-              component: './ApplicationList/ApplicationListDetail',
-            },
-            {
               name: 'ApplicationList.WorkloadDetail',
               icon: 'smile',
               path: '/ApplicationList/WorkloadDetail',
@@ -61,12 +55,6 @@ export default defineConfig({
               path: '/ApplicationList/TraitDetail',
               component: './Traits/Detail',
               hideInMenu: true,
-            },
-            {
-              name: 'ApplicationList.CreateApplication',
-              hideInMenu: true,
-              path: '/ApplicationList/CreateApplication',
-              component: './ApplicationList/CreateApplication',
             },
             {
               name: 'ApplicationList.Components',
