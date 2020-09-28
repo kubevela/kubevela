@@ -3,6 +3,7 @@ package e2e
 import (
 	"fmt"
 
+	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/e2e"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 
@@ -15,12 +16,16 @@ var (
 		Name: "capability-center-e2e-basic",
 		URL:  "https://github.com/oam-dev/kubevela/tree/master/pkg/plugins/testdata",
 	}
-	/*
-		capabilityBasic = types.Capability{
-			Name: "manualscaler",
-			Type: types.TypeTrait,
-		}
-	*/
+
+	scaleCapability = types.Capability{
+		Name: "scale",
+		Type: types.TypeTrait,
+	}
+
+	routeCapability = types.Capability{
+		Name: "route",
+		Type: types.TypeTrait,
+	}
 )
 
 var _ = ginkgo.Describe("Capability", func() {
@@ -46,28 +51,27 @@ var _ = ginkgo.Describe("Capability", func() {
 	})
 
 	ginkgo.Context("capability", func() {
-		// TODO: revert after the PR is merged
-		/*
-			ginkgo.It("install a capability to cluster", func() {
-				cli := fmt.Sprintf("vela cap add %s/%s", capabilityCenterBasic.Name, capabilityBasic.Name)
-				output, err := e2e.Exec(cli)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				expectedSubStr1 := fmt.Sprintf("Installing %s capability", capabilityBasic.Type)
-				expectedSubStr2 := fmt.Sprintf("Successfully installed capability %s from %s", capabilityBasic.Name, capabilityCenterBasic.Name)
-				gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr1))
-				gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr2))
-			})
+		ginkgo.It("install a capability to cluster", func() {
+			cli := fmt.Sprintf("vela cap add %s/%s", capabilityCenterBasic.Name, scaleCapability.Name)
+			output, err := e2e.Exec(cli)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			expectedSubStr1 := fmt.Sprintf("Installing %s capability", scaleCapability.Type)
+			expectedSubStr2 := fmt.Sprintf("Successfully installed capability %s from %s", scaleCapability.Name, capabilityCenterBasic.Name)
+			gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr1))
+			gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr2))
+		})
 
-			ginkgo.It("list all capabilities", func() {
-				cli := fmt.Sprintf("vela cap ls %s", capabilityCenterBasic.Name)
-				output, err := e2e.Exec(cli)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
-				gomega.Expect(output).To(gomega.ContainSubstring("CENTER"))
-				gomega.Expect(output).To(gomega.ContainSubstring(capabilityBasic.Name))
-				gomega.Expect(output).To(gomega.ContainSubstring("installed"))
-			})
-		*/
+		ginkgo.It("list all capabilities", func() {
+			cli := fmt.Sprintf("vela cap ls %s", capabilityCenterBasic.Name)
+			output, err := e2e.Exec(cli)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
+			gomega.Expect(output).To(gomega.ContainSubstring("CENTER"))
+			gomega.Expect(output).To(gomega.ContainSubstring(scaleCapability.Name))
+			gomega.Expect(output).To(gomega.ContainSubstring(routeCapability.Name))
+			gomega.Expect(output).To(gomega.ContainSubstring("installed"))
+		})
+
 		ginkgo.It("delete a capability center", func() {
 			cli := fmt.Sprintf("vela cap center remove %s", capabilityCenterBasic.Name)
 			output, err := e2e.Exec(cli)
