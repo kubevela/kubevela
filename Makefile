@@ -76,6 +76,8 @@ e2e-setup:
 	ginkgo version
 	ginkgo -v -r e2e/setup
 	bin/vela dashboard &
+	bin/vela install &
+	bin/manager &
 
 e2e-test:
 	# Run e2e test
