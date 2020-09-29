@@ -386,7 +386,11 @@ class TableList extends React.Component {
               </div>
               <Form.Item
                 label="Settings"
-                style={{ background: 'rgba(0, 0, 0, 0.04)', paddingLeft: '16px' }}
+                style={{
+                  background: 'rgba(0, 0, 0, 0.04)',
+                  paddingLeft: '16px',
+                  marginLeft: '-10px',
+                }}
               />
               <div className="relativeBox">
                 <p className="hasMore">?</p>

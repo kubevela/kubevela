@@ -26,14 +26,14 @@ class TableList extends React.Component {
   columns = [
     {
       title: 'Name',
-      dataIndex: 'app',
-      key: 'app',
+      dataIndex: 'name',
+      key: 'name',
       render: (text, record) => {
         return (
           <Link
             to={{
-              pathname: `/ApplicationList/${record.app}/Components`,
-              state: { appName: record.app, envName: this.props.currentEnv },
+              pathname: `/ApplicationList/${record.name}/Components`,
+              state: { appName: record.name, envName: this.props.currentEnv },
             }}
           >
             {text}
@@ -50,15 +50,7 @@ class TableList extends React.Component {
       },
     },
     {
-      title: 'Components',
-      dataIndex: 'components',
-      key: 'components',
-      render: (text) => {
-        return text;
-      },
-    },
-    {
-      title: 'Created At',
+      title: 'Created Time',
       dataIndex: 'createdTime',
       key: 'createdTime',
       render: (text) => {
@@ -118,13 +110,13 @@ class TableList extends React.Component {
 
   goToDetail = (record) => {
     this.props.history.push({
-      pathname: `/ApplicationList/${record.app}/Components`,
-      state: { appName: record.app, envName: this.props.currentEnv },
+      pathname: `/ApplicationList/${record.name}/Components`,
+      state: { appName: record.name, envName: this.props.currentEnv },
     });
   };
 
   deleteApp = async (record) => {
-    const appName = record.app;
+    const appName = record.name;
     const envName = this.props.currentEnv;
     if (appName && envName) {
       const res = await this.props.dispatch({
@@ -203,7 +195,7 @@ class TableList extends React.Component {
               </Form>
             </div>
             <Table
-              rowKey={(record) => record.app + Math.random(1, 100)}
+              rowKey={(record) => record.name + Math.random(1, 100)}
               columns={this.columns}
               dataSource={returnObj}
             />

@@ -99,7 +99,7 @@ export default class CreateTraitItem extends React.PureComponent {
                 })}
               </Select>
             </Form.Item>
-            <Form.Item label="Properties" />
+            <Form.Item label="Properties" style={{ marginLeft: '-10px' }} />
           </div>
           <div className="relativeBox">
             {this.state.parameters ? (
