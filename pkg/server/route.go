@@ -57,6 +57,8 @@ func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
 		envs.PUT("/:envName", handler.UpdateEnv)
 		envs.GET("/:envName", handler.GetEnv)
 		envs.GET("/", handler.ListEnv)
+		// Allow levaing out `/` to make API more friendly
+		envs.GET("", handler.ListEnv)
 		envs.DELETE("/:envName", handler.DeleteEnv)
 		envs.PATCH("/:envName", handler.SetEnv)
 		// app related operation
@@ -66,6 +68,7 @@ func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
 			apps.GET("/:appName", handler.GetApp)
 			apps.PUT("/:appName", handler.UpdateApps)
 			apps.GET("/", handler.ListApps)
+			apps.GET("", handler.ListApps)
 			apps.DELETE("/:appName", handler.DeleteApps)
 
 			// component related operation
@@ -74,6 +77,7 @@ func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
 				components.GET("/:compName", handler.GetComponent)
 				components.PUT("/:compName", handler.GetComponent)
 				components.GET("/", handler.GetApp)
+				components.GET("", handler.GetApp)
 				components.DELETE("/:compName", handler.DeleteComponent)
 
 				traitWorkload := components.Group("/:compName/" + util.TraitDefinitionPath)
@@ -91,12 +95,14 @@ func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
 		workload.GET("/:workloadName", handler.GetWorkload)
 		workload.PUT("/:workloadName", handler.UpdateWorkload)
 		workload.GET("/", handler.ListWorkload)
+		workload.GET("", handler.ListWorkload)
 	}
 	// trait related api
 	trait := api.Group(util.TraitDefinitionPath)
 	{
 		trait.GET("/:traitName", handler.GetTrait)
 		trait.GET("/", handler.ListTrait)
+		trait.GET("", handler.ListTrait)
 	}
 	// scope related api
 	scopes := api.Group(util.ScopeDefinitionPath)
@@ -105,6 +111,7 @@ func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
 		scopes.GET("/:scopeName", handler.GetScope)
 		scopes.PUT("/:scopeName", handler.UpdateScope)
 		scopes.GET("/", handler.ListScope)
+		scopes.GET("", handler.ListScope)
 		scopes.DELETE("/:scopeName", handler.DeleteScope)
 	}
 
@@ -113,6 +120,7 @@ func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
 	{
 		capCenters.PUT("/", handler.AddCapabilityCenter)
 		capCenters.GET("/", handler.ListCapabilityCenters)
+		capCenters.GET("", handler.ListCapabilityCenters)
 		capCenters.DELETE("/:capabilityCenterName", handler.DeleteCapabilityCenter)
 
 		caps := capCenters.Group("/:capabilityCenterName" + util.CapabilityPath)
@@ -128,6 +136,7 @@ func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
 		caps.DELETE("/:capabilityName", handler.RemoveCapabilityFromCluster)
 		caps.DELETE("/", handler.RemoveCapabilityFromCluster)
 		caps.GET("/", handler.ListCapabilities)
+		caps.GET("", handler.ListCapabilities)
 	}
 
 	// version

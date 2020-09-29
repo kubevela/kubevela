@@ -14,6 +14,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/server/apis"
 )
 
 func NewAppListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
@@ -101,19 +102,19 @@ func printComponentList(ctx context.Context, c client.Client, appName string, en
 	table := uitable.New()
 	table.AddRow("NAME", "APP", "WORKLOAD", "TRAITS", "STATUS", "CREATED-TIME")
 	for _, a := range all {
-		traitAlias := strings.Join(a.Traits, ",")
-		table.AddRow(a.Name, a.App, a.Workload, traitAlias, a.Status, a.CreatedTime)
+		traitAlias := strings.Join(a.TraitNames, ",")
+		table.AddRow(a.Name, a.App, a.WorkloadName, traitAlias, a.Status, a.CreatedTime)
 	}
 	ioStreams.Info(table.String())
 }
 
-func mergeStagingComponents(deployed []oam.ComponentMeta, env *types.EnvMeta, ioStreams cmdutil.IOStreams) []oam.ComponentMeta {
+func mergeStagingComponents(deployed []apis.ComponentMeta, env *types.EnvMeta, ioStreams cmdutil.IOStreams) []apis.ComponentMeta {
 	apps, err := application.List(env.Name)
 	if err != nil {
 		ioStreams.Error("list application err", err)
 		return deployed
 	}
-	var all []oam.ComponentMeta
+	var all []apis.ComponentMeta
 	for _, app := range apps {
 		comps, appConfig, _, err := app.OAM(env)
 		if err != nil {
@@ -128,13 +129,13 @@ func mergeStagingComponents(deployed []oam.ComponentMeta, env *types.EnvMeta, io
 			}
 			compMeta, exist := GetCompMeta(deployed, app.Name, c.Name)
 			if !exist {
-				all = append(all, oam.ComponentMeta{
-					Name:        c.Name,
-					App:         app.Name,
-					Workload:    c.Annotations[types.AnnWorkloadDef],
-					Traits:      traits,
-					Status:      types.StatusStaging,
-					CreatedTime: app.CreateTime.String(),
+				all = append(all, apis.ComponentMeta{
+					Name:         c.Name,
+					App:          app.Name,
+					WorkloadName: c.Annotations[types.AnnWorkloadDef],
+					TraitNames:   traits,
+					Status:       types.StatusStaging,
+					CreatedTime:  app.CreateTime.String(),
 				})
 				continue
 			}
@@ -159,11 +160,11 @@ func mergeStagingComponents(deployed []oam.ComponentMeta, env *types.EnvMeta, io
 	return all
 }
 
-func GetCompMeta(deployed []oam.ComponentMeta, appName, compName string) (oam.ComponentMeta, bool) {
+func GetCompMeta(deployed []apis.ComponentMeta, appName, compName string) (apis.ComponentMeta, bool) {
 	for _, v := range deployed {
 		if v.Name == compName && v.App == appName {
 			return v, true
 		}
 	}
-	return oam.ComponentMeta{}, false
+	return apis.ComponentMeta{}, false
 }

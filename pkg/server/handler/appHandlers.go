@@ -23,12 +23,12 @@ func GetApp(c *gin.Context) {
 	namespace := envMeta.Namespace
 	appName := c.Param("appName")
 	ctx := util.GetContext(c)
-	applicationStatus, err := oam.RetrieveApplicationStatusByName(ctx, kubeClient.(client.Client), appName, namespace)
+	applicationMeta, err := oam.RetrieveApplicationStatusByName(ctx, kubeClient.(client.Client), appName, namespace)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
 	}
-	util.AssembleResponse(c, applicationStatus, nil)
+	util.AssembleResponse(c, applicationMeta, nil)
 }
 
 func ListApps(c *gin.Context) {
@@ -42,7 +42,7 @@ func ListApps(c *gin.Context) {
 	namespace := envMeta.Namespace
 
 	ctx := util.GetContext(c)
-	applicationMetaList, err := oam.ListComponents(ctx, kubeClient.(client.Client), oam.Option{Namespace: namespace})
+	applicationMetaList, err := oam.ListApplications(ctx, kubeClient.(client.Client), oam.Option{Namespace: namespace})
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return

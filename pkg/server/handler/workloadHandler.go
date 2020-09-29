@@ -45,6 +45,8 @@ func CreateWorkload(c *gin.Context) {
 		util.AssembleResponse(c, msg, err)
 	} else {
 		for _, t := range body.Traits {
+			t.AppName = body.AppName
+			t.ComponentName = body.WorkloadName
 			msg, err = oam.AttachTrait(c, t)
 			if err != nil {
 				util.HandleError(c, util.StatusInternalServerError, err.Error())

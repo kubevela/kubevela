@@ -68,16 +68,33 @@ type TraitBody struct {
 	Staging       string       `json:"staging,omitempty"`
 }
 
+//type ComponentMeta struct {
+//	Name     string                        `json:"name"`
+//	Status   string                        `json:"status,omitempty"`
+//	Workload runtime.RawExtension          `json:"workload,omitempty"`
+//	Traits   []corev1alpha2.ComponentTrait `json:"traits,omitempty"`
+//}
+
 type ComponentMeta struct {
-	Name     string                        `json:"name"`
-	Status   string                        `json:"status,omitempty"`
-	Workload runtime.RawExtension          `json:"workload,omitempty"`
-	Traits   []corev1alpha2.ComponentTrait `json:"traits,omitempty"`
+	Name     string               `json:"name"`
+	Status   string               `json:"status,omitempty"`
+	Workload runtime.RawExtension `json:"workload,omitempty"`
+	//WorkloadName for `vela comp ls`
+	WorkloadName string                        `json:"workloadName,omitempty"`
+	Traits       []corev1alpha2.ComponentTrait `json:"traits,omitempty"`
+	//TraitNames for `vela comp ls`
+	TraitNames  []string                              `json:"traitsNames,omitempty"`
+	App         string                                `json:"app"`
+	CreatedTime string                                `json:"createdTime,omitempty"`
+	AppConfig   corev1alpha2.ApplicationConfiguration `json:"-"`
+	Component   corev1alpha2.Component                `json:"-"`
 }
 
 type ApplicationMeta struct {
-	Status     string          `json:"status,omitempty"`
-	Components []ComponentMeta `json:"components,omitempty"`
+	Name        string          `json:"name"`
+	Status      string          `json:"status,omitempty"`
+	Components  []ComponentMeta `json:"components,omitempty"`
+	CreatedTime string          `json:"createdTime,omitempty"`
 }
 
 type CapabilityMeta struct {
