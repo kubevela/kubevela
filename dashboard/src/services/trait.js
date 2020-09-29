@@ -12,10 +12,10 @@ export async function getTraits() {
   return request('/api/traits/');
 }
 /*
- * POST /api/envs/:envName/apps/:appName/traits/ (attach 单个 trait)
+ * POST /api/envs/:envName/apps/:appName/components/:compName/traits/ (attach a trait)
  */
-export async function attachOneTraits({ envName, appName, params }) {
-  return request(`/api/envs/${envName}/apps/${appName}/traits/`, {
+export async function attachOneTraits({ envName, appName, compName, params }) {
+  return request(`/api/envs/${envName}/apps/${appName}/components/${compName}/traits/`, {
     method: 'post',
     data: {
       ...params,
@@ -26,10 +26,13 @@ export async function attachOneTraits({ envName, appName, params }) {
   });
 }
 /*
- * DELETE /api/envs/:envName/apps/:appName/traits/:traitName (detach 单个 trait)
+ * DELETE /api/envs/:envName/apps/:appName/components/:compName/traits/:traitName (detach a trait)
  */
-export async function deleteOneTrait({ envName, appName, traitName }) {
-  return request(`/api/envs/${envName}/apps/${appName}/traits/${traitName}`, {
-    method: 'delete',
-  });
+export async function deleteOneTrait({ envName, appName, compName, traitName }) {
+  return request(
+    `/api/envs/${envName}/apps/${appName}/components/${compName}/traits/${traitName}`,
+    {
+      method: 'delete',
+    },
+  );
 }

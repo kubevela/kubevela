@@ -46,11 +46,12 @@ class TableList extends React.Component {
       workloadSettings: [],
       step1SubmitObj: {},
       step1InitialValues: {
-        workload_type: '',
+        workloadType: '',
       },
       step1Settings: [],
       appName: '',
       envName: '',
+      isCreate: '',
     };
   }
 
@@ -61,18 +62,23 @@ class TableList extends React.Component {
   getInitalData = async () => {
     let appName = '';
     let envName = '';
+    let isCreate = '';
     if (this.props.location.state) {
       appName = _.get(this.props, 'location.state.appName', '');
       envName = _.get(this.props, 'location.state.envName', '');
+      isCreate = _.get(this.props, 'location.state.isCreate', false);
       sessionStorage.setItem('appName', appName);
       sessionStorage.setItem('envName', envName);
+      sessionStorage.setItem('isCreate', isCreate);
     } else {
       appName = sessionStorage.getItem('appName');
       envName = sessionStorage.getItem('envName');
+      isCreate = sessionStorage.getItem('isCreate');
     }
     this.setState({
       appName,
       envName,
+      isCreate,
     });
     const res = await this.props.dispatch({
       type: 'workload/getWorkload',
@@ -98,9 +104,9 @@ class TableList extends React.Component {
               WorkloadType = sessionStorage.getItem('WorkloadType');
             }
             this.formRefStep1.current.setFieldsValue({
-              workload_type: WorkloadType || this.state.workloadList[0].name,
+              workloadType: WorkloadType || this.state.workloadList[0].name,
             });
-            this.workloadTypeChange(this.state.workloadList[0].name);
+            this.workloadTypeChange(WorkloadType || this.state.workloadList[0].name);
           }
         },
       );
@@ -166,27 +172,31 @@ class TableList extends React.Component {
   };
 
   createApp = async () => {
-    const { traitNum } = this.state;
+    const { traitNum, isCreate } = this.state;
     const { step1SubmitObj } = this.state;
-    if (step1SubmitObj.env_name !== this.props.currentEnv) {
-      step1SubmitObj.env_name = this.props.currentEnv;
+    if (isCreate === true || isCreate === 'true') {
+      step1SubmitObj.envName = this.props.currentEnv;
+    } else {
+      step1SubmitObj.envName = this.state.envName;
     }
+    step1SubmitObj.appName = this.state.appName;
     const submitObj = _.cloneDeep(step1SubmitObj);
-    const { workload_name: workloadName } = step1SubmitObj;
+    const { workloadName, appName } = step1SubmitObj;
     submitObj.flags.push({
       name: 'name',
       value: workloadName.toString(),
     });
     // 处理数据为提交的格式
     if (traitNum.length) {
-      const { env_name: envName } = step1SubmitObj;
+      const { envName } = step1SubmitObj;
       const step2SubmitObj = [];
       traitNum.forEach(({ initialData }) => {
         if (initialData.name) {
           const initialObj = {
             name: initialData.name,
-            env_name: envName,
-            workload_name: workloadName,
+            envName,
+            workloadName,
+            appName,
             flags: [],
           };
           Object.keys(initialData).forEach((key) => {
@@ -210,10 +220,9 @@ class TableList extends React.Component {
     });
     if (res) {
       message.success(res);
-      const { appName, envName } = this.state;
       this.props.history.push({
         pathname: `/ApplicationList/${appName}/Components`,
-        state: { appName, envName },
+        state: { appName, envName: step1SubmitObj.envName },
       });
     }
   };
@@ -222,13 +231,13 @@ class TableList extends React.Component {
     await this.formRefStep1.current.validateFields();
     const currentData = this.formRefStep1.current.getFieldsValue();
     const submitObj = {
-      env_name: this.props.currentEnv,
-      workload_type: currentData.workload_type,
-      workload_name: currentData.workload_name,
+      envName: this.props.currentEnv,
+      workloadType: currentData.workloadType,
+      workloadName: currentData.workloadName,
       flags: [],
     };
     Object.keys(currentData).forEach((key) => {
-      if (key !== 'workload_name' && key !== 'workload_type' && currentData[key]) {
+      if (key !== 'workloadName' && key !== 'workloadType' && currentData[key]) {
         submitObj.flags.push({
           name: key,
           value: currentData[key].toString(),
@@ -241,15 +250,15 @@ class TableList extends React.Component {
       step1Settings: submitObj.flags,
       step1SubmitObj: submitObj,
     });
-    this.getAcceptTrait(currentData.workload_type);
+    this.getAcceptTrait(currentData.workloadType);
   };
 
   workloadTypeChange = (value) => {
     const content = this.formRefStep1.current.getFieldsValue();
     this.formRefStep1.current.resetFields();
     const initialObj = {
-      workload_type: content.workload_type,
-      workload_name: content.workload_name,
+      workloadType: content.workloadType,
+      workloadName: content.workloadName,
     };
     this.formRefStep1.current.setFieldsValue(initialObj);
     const currentWorkloadSetting = this.state.workloadList.filter((item) => {
@@ -283,8 +292,14 @@ class TableList extends React.Component {
 
   getAcceptTrait = (workloadType) => {
     const res = this.state.traitList.filter((item) => {
-      if (item.appliesTo.indexOf(workloadType) !== -1) {
-        return true;
+      if (item.appliesTo) {
+        if (item.appliesTo === '*') {
+          return true;
+        }
+        if (item.appliesTo.indexOf(workloadType) !== -1) {
+          return true;
+        }
+        return false;
       }
       return false;
     });
@@ -305,7 +320,7 @@ class TableList extends React.Component {
 
   render() {
     const { appName, envName } = this.state;
-    const { current, step1InitialValues, traitNum, workloadSettings } = this.state;
+    const { current, step1InitialValues, traitNum, workloadSettings, isCreate } = this.state;
     let { workloadList } = this.state;
     workloadList = Array.isArray(workloadList) ? workloadList : [];
     let currentDetail;
@@ -324,7 +339,7 @@ class TableList extends React.Component {
             >
               <div style={{ padding: '16px 48px 0px 16px' }}>
                 <Form.Item
-                  name="workload_name"
+                  name="workloadName"
                   label="Name"
                   rules={[
                     {
@@ -341,7 +356,7 @@ class TableList extends React.Component {
                   <Input />
                 </Form.Item>
                 <Form.Item
-                  name="workload_type"
+                  name="workloadType"
                   label="Workload Type"
                   rules={[
                     {
@@ -420,14 +435,24 @@ class TableList extends React.Component {
                 <Button type="primary" className="floatRightGap" onClick={this.createWorkload}>
                   Next
                 </Button>
-                <Link
-                  to={{
-                    pathname: `/ApplicationList/${appName}/Components`,
-                    state: { appName, envName },
-                  }}
-                >
-                  <Button className="floatRightGap">Cancle</Button>
-                </Link>
+                {isCreate === true || isCreate === 'true' ? (
+                  <Link
+                    to={{
+                      pathname: `/ApplicationList`,
+                    }}
+                  >
+                    <Button className="floatRightGap">Cancle</Button>
+                  </Link>
+                ) : (
+                  <Link
+                    to={{
+                      pathname: `/ApplicationList/${appName}/Components`,
+                      state: { appName, envName },
+                    }}
+                  >
+                    <Button className="floatRightGap">Cancle</Button>
+                  </Link>
+                )}
               </div>
             </Form>
           </div>
@@ -439,11 +464,11 @@ class TableList extends React.Component {
           <div className="minBox" style={{ width: '60%' }}>
             <div style={{ padding: '0px 48px 0px 16px', width: '60%' }}>
               <p style={{ fontSize: '18px', lineHeight: '32px' }}>
-                Name:<span>{step1InitialValues.workload_name}</span>
+                Name:<span>{step1InitialValues.workloadName}</span>
               </p>
             </div>
             <div style={{ border: '1px solid #eee', padding: '16px 48px 16px 16px' }}>
-              <p className="title">{step1InitialValues.workload_type}</p>
+              <p className="title">{step1InitialValues.workloadType}</p>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>apps/v1</span>
                 <span
@@ -517,14 +542,14 @@ class TableList extends React.Component {
         <div>
           <div className="minBox">
             <p>
-              Name:<span>{step1InitialValues.workload_name}</span>
+              Name:<span>{step1InitialValues.workloadName}</span>
             </p>
             <Row>
               <Col span="11">
                 <div className="summaryBox1">
                   <Row>
                     <Col span="22">
-                      <p className="title">{step1InitialValues.workload_type}</p>
+                      <p className="title">{step1InitialValues.workloadType}</p>
                       <p>apps/v1</p>
                     </Col>
                   </Row>
@@ -611,15 +636,18 @@ class TableList extends React.Component {
               <Link to="/ApplicationList">Applications</Link>
             </Breadcrumb.Item>
             <Breadcrumb.Item>
-              <Link
-                to={{
-                  pathname: `/ApplicationList/${appName}/Components`,
-                  state: { appName, envName },
-                }}
-              >
-                {' '}
-                {appName}
-              </Link>
+              {isCreate === true || isCreate === 'true' ? (
+                <span>{appName}</span>
+              ) : (
+                <Link
+                  to={{
+                    pathname: `/ApplicationList/${appName}/Components`,
+                    state: { appName, envName },
+                  }}
+                >
+                  {appName}
+                </Link>
+              )}
             </Breadcrumb.Item>
             <Breadcrumb.Item>createComponent</Breadcrumb.Item>
           </Breadcrumb>

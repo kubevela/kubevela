@@ -58,6 +58,7 @@ class TableList extends React.PureComponent {
         btnValue: 'Create',
         hrefAddress: '#',
         btnIsShow: true,
+        history: this.props.history,
       };
       this.setState({
         propsObj,
