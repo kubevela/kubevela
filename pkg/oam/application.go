@@ -16,18 +16,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type ComponentMeta struct {
-	Name        string                                `json:"name"`
-	App         string                                `json:"app"`
-	Workload    string                                `json:"workload,omitempty"`
-	Traits      []string                              `json:"traits,omitempty"`
-	Status      string                                `json:"status,omitempty"`
-	CreatedTime string                                `json:"createdTime,omitempty"`
-	AppConfig   corev1alpha2.ApplicationConfiguration `json:"-"`
-	Component   corev1alpha2.Component                `json:"-"`
-}
-
-type componentMetaList []ComponentMeta
+type componentMetaList []apis.ComponentMeta
+type ApplicationMetaList []apis.ApplicationMeta
 
 func (comps componentMetaList) Len() int {
 	return len(comps)
@@ -37,6 +27,16 @@ func (comps componentMetaList) Swap(i, j int) {
 }
 func (comps componentMetaList) Less(i, j int) bool {
 	return comps[i].CreatedTime > comps[j].CreatedTime
+}
+
+func (a ApplicationMetaList) Len() int {
+	return len(a)
+}
+func (a ApplicationMetaList) Swap(i, j int) {
+	a[i], a[j] = a[j], a[i]
+}
+func (a ApplicationMetaList) Less(i, j int) bool {
+	return a[i].CreatedTime > a[j].CreatedTime
 }
 
 type Option struct {
@@ -53,34 +53,61 @@ type DeleteOptions struct {
 	Env      *types.EnvMeta
 }
 
-/*
-	Get component list
-*/
-func ListComponents(ctx context.Context, c client.Client, opt Option) ([]ComponentMeta, error) {
-	var componentMetaList componentMetaList
-	var applicationList corev1alpha2.ApplicationConfigurationList
+// ListApplications lists all applications
+func ListApplications(ctx context.Context, c client.Client, opt Option) ([]apis.ApplicationMeta, error) {
+	var applicationMetaList ApplicationMetaList
+	appConfigList, err := ListApplicationConfigurations(ctx, c, opt)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, a := range appConfigList.Items {
+		applicationMeta, err := RetrieveApplicationStatusByName(ctx, c, a.Name, a.Namespace)
+		if err != nil {
+			return applicationMetaList, nil
+		}
+		applicationMeta.Components = nil
+		applicationMetaList = append(applicationMetaList, applicationMeta)
+	}
+	sort.Stable(applicationMetaList)
+	return applicationMetaList, nil
+}
+
+// ListApplicationConfigurations lists all OAM ApplicationConfiguration
+func ListApplicationConfigurations(ctx context.Context, c client.Client, opt Option) (corev1alpha2.ApplicationConfigurationList, error) {
+	var appConfigList corev1alpha2.ApplicationConfigurationList
 
 	if opt.AppName != "" {
 		var appConfig corev1alpha2.ApplicationConfiguration
 		if err := c.Get(ctx, client.ObjectKey{Name: opt.AppName, Namespace: opt.Namespace}, &appConfig); err != nil {
-			return nil, err
+			return appConfigList, err
 		}
-		applicationList.Items = append(applicationList.Items, appConfig)
+		appConfigList.Items = append(appConfigList.Items, appConfig)
 	} else {
-		err := c.List(ctx, &applicationList, &client.ListOptions{Namespace: opt.Namespace})
+		err := c.List(ctx, &appConfigList, &client.ListOptions{Namespace: opt.Namespace})
 		if err != nil {
-			return nil, err
+			return appConfigList, err
 		}
 	}
+	return appConfigList, nil
+}
 
-	for _, a := range applicationList.Items {
+func ListComponents(ctx context.Context, c client.Client, opt Option) ([]apis.ComponentMeta, error) {
+	var componentMetaList componentMetaList
+	var appConfigList corev1alpha2.ApplicationConfigurationList
+	var err error
+	if appConfigList, err = ListApplicationConfigurations(ctx, c, opt); err != nil {
+		return nil, err
+	}
+
+	for _, a := range appConfigList.Items {
 		for _, com := range a.Spec.Components {
 			component, err := cmdutil.GetComponent(ctx, c, com.ComponentName, opt.Namespace)
 			if err != nil {
 				return componentMetaList, err
 			}
-			componentMetaList = append(componentMetaList, ComponentMeta{
-				App:         a.Name,
+			componentMetaList = append(componentMetaList, apis.ComponentMeta{
+				Name:        com.ComponentName,
 				Status:      types.StatusDeployed,
 				CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
 				Component:   component,
@@ -103,7 +130,9 @@ func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, appli
 	if len(appConfig.Status.Conditions) != 0 {
 		status = string(appConfig.Status.Conditions[0].Status)
 	}
+	applicationMeta.Name = appConfig.Name
 	applicationMeta.Status = status
+	applicationMeta.CreatedTime = appConfig.CreationTimestamp.String()
 
 	for _, com := range appConfig.Spec.Components {
 		componentName := com.ComponentName

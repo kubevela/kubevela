@@ -45,8 +45,8 @@ func LoadIfExist(envName string, workloadName string, appGroup string) (*applica
 	return app, nil
 }
 
-func BaseComplete(envName string, workloadName string, appGroup string, flagSet *pflag.FlagSet, workloadType string) (*application.Application, error) {
-	app, err := LoadIfExist(envName, workloadName, appGroup)
+func BaseComplete(envName string, workloadName string, appName string, flagSet *pflag.FlagSet, workloadType string) (*application.Application, error) {
+	app, err := LoadIfExist(envName, workloadName, appName)
 	if err != nil {
 		return nil, err
 	}
