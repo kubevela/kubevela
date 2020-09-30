@@ -1,5 +1,5 @@
 data: {
-	apiVersion: "v1"
+	apiVersion: "batch/v1"
 	kind:       "Job"
 	metadata: name: parameter.name
 	spec: {
@@ -7,27 +7,37 @@ data: {
 		completions: parameter.count
 		template:
 			spec:
-				containers: [{
-					image: parameter.image
-					name:  parameter.name
-					ports: [{
-						containerPort: parameter.port
-						protocol:      "TCP"
-						name:          "default"
+				containers: [
+					for _, c in parameter.containers {
+						image: c.image
+						name:  c.name
 					}]
-				}]
 	}
 }
 #task: {
+	name: string
 	// +usage=specify number of tasks to run in parallel
 	// +short=c
 	count: *1 | int
-	name:  string
-	// +usage=specify app image
-	// +short=i
-	image: string
-	// +usage=specify port for container
-	// +short=p
-	port: *6379 | int
+	containers: [ ...{
+		name: string
+		// +usage=specify app image
+		// +short=i
+		image: string
+	}]
 }
 parameter: #task
+// below is a sample value
+parameter: {
+	name: "container-component"
+	containers: [
+		{
+			name:  "c1"
+			image: "image1"
+		},
+		{
+			name:  "c2"
+			image: "image2"
+		},
+	]
+}

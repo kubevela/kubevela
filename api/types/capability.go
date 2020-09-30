@@ -83,6 +83,7 @@ type Parameter struct {
 	Default  interface{} `json:"default,omitempty"`
 	Usage    string      `json:"usage,omitempty"`
 	Type     cue.Kind    `json:"type,omitempty"`
+	Children []Parameter `json:"type,omitempty"`
 }
 
 // ConvertTemplateJSON2Object convert spec.extension to object

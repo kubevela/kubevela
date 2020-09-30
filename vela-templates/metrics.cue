@@ -16,4 +16,14 @@ data: {
 	// +usage= the label selector for the pods, default is the workload labels
 	selector?: [string]: string
 }
+
 parameter: #metrics
+// below is a sample value
+parameter: {
+	path: "/newport"
+	port: 13622
+	selector: {
+		"app/type":    "OAM"
+		"app/version": "v2"
+	}
+}

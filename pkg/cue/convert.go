@@ -83,18 +83,40 @@ func GetParameters(templatePath string) ([]types.Parameter, string, error) {
 	// workloadType is the name of the parameter definition
 	var workloadType = strings.TrimPrefix(paraDef.Name, "#")
 	// parse each fields in the parameter fields
+	params := parseStructArguments(arguments)
+	return params, workloadType, nil
+}
+
+func parseStructArguments(cueStruct *cue.Struct) []types.Parameter {
 	var params []types.Parameter
-	for i := 0; i < arguments.Len(); i++ {
-		fi := arguments.Field(i)
-		if fi.IsDefinition {
-			continue
+	fi := cueStruct.Fields()
+	for fi.Next() {
+		if !fi.IsDefinition() {
+			params = append(params, constructParam(fi))
 		}
-		var param = types.Parameter{
-			Name:     fi.Name,
-			Required: !fi.IsOptional,
+	}
+	return params
+}
+
+func constructParam(fi *cue.Iterator) types.Parameter {
+	var param = types.Parameter{
+		Name:     fi.Label(),
+		Required: !fi.IsOptional(),
+	}
+	val := fi.Value()
+	param.Short, param.Usage = RetrieveComments(val)
+	param.Type = val.IncompleteKind()
+	switch param.Type {
+	case cue.StructKind:
+		inner, _ := val.Struct()
+		param.Children = parseStructArguments(inner)
+	case cue.ListKind:
+		element, _ := val.Elem()
+		iter, _ := element.Fields()
+		for iter.Next() {
+			param.Children = append(param.Children, constructParam(iter))
 		}
-		val := fi.Value
-		param.Type = fi.Value.IncompleteKind()
+	default:
 		if def, ok := val.Default(); ok && def.IsConcrete() {
 			param.Required = false
 			param.Type = def.Kind()
@@ -103,10 +125,8 @@ func GetParameters(templatePath string) ([]types.Parameter, string, error) {
 		if param.Default == nil {
 			param.Default = getDefaultByKind(param.Type)
 		}
-		param.Short, param.Usage = RetrieveComments(val)
-		params = append(params, param)
 	}
-	return params, workloadType, nil
+	return param
 }
 
 func getDefaultByKind(k cue.Kind) interface{} {

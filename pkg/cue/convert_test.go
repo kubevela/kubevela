@@ -54,7 +54,7 @@ func TestEvalDeployment(t *testing.T) {
 	assert.Equal(t, envName, "MYDB")
 }
 
-func TestGetParameter(t *testing.T) {
+func TestGetSimpleParameter(t *testing.T) {
 	params, workloadType, err := GetParameters("testdata/workloads/metrics.cue")
 	assert.NoError(t, err)
 	assert.Equal(t, "metrics", workloadType)
@@ -88,4 +88,17 @@ func TestGetParameter(t *testing.T) {
 		{Name: "enable", Default: false, Type: cue.BoolKind},
 		{Name: "fval", Default: 64.3, Type: cue.FloatKind},
 		{Name: "nval", Default: float64(0), Required: true, Type: cue.NumberKind}}, params)
+}
+
+func TestGetCompositeParameter(t *testing.T) {
+	params, workloadType, err := GetParameters("testdata/traits/route.cue")
+	assert.NoError(t, err)
+	assert.Equal(t, "route", workloadType)
+	assert.Equal(t, params, []types.Parameter{
+		{Name: "format", Required: false, Default: "prometheus", Usage: "format of the metrics, " +
+			"default as prometheus", Short: "f", Type: cue.StringKind},
+		{Name: "enabled", Required: false, Default: true, Type: cue.BoolKind},
+		{Name: "port", Required: false, Default: int64(8080), Type: cue.IntKind},
+		{Name: "selector", Required: false, Usage: "the label selector for the pods, default is the workload labels", Type: cue.StructKind},
+	})
 }

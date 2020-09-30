@@ -19,3 +19,8 @@ data: {
 	issuer: *"" | string
 }
 parameter: #route
+// below is a sample value
+parameter: {
+	domain: "oam.dev"
+	path:   "/example"
+}

@@ -2,29 +2,64 @@ data: {
 	apiVersion: "standard.oam.dev/v1alpha1"
 	kind:       "Containerized"
 	metadata:
-		name: parameter.name
+		name: parameter.componentName
 	spec: {
-		replicas: 1
+		replicas: parameter.replicas
 		podSpec: {
-			containers: [{
-				image: parameter.image
-				name:  parameter.name
-				ports: [{
-					containerPort: parameter.port
-					protocol:      "TCP"
-					name:          "default"
+			containers: [
+				for _, c in parameter.containers {
+					image: c.image
+					name:  c.name
+					ports: [ for _, p in c.ports {
+						name:          p.name
+						containerPort: p.containerPort
+						protocol:      p.protocol
+					}]
 				}]
-			}]
 		}
 	}
 }
 #webservice: {
-	name: string
-	// +usage=specify app image
-	// +short=i
-	image: string
-	// +usage=specify port for container
-	// +short=p
-	port: *6379 | int
+	componentName: string
+	replicas:      *1 | int
+	containers: [ ...{
+		name: string
+		// +usage=specify app image
+		// +short=i
+		image: string
+		ports: [ ... {
+			name:          *"default" | string
+			containerPort: int16
+			protocol:      *"TCP" | string
+		}]
+	}]
 }
 parameter: #webservice
+// below is a sample value
+parameter: {
+	componentName: "container-component"
+	containers: [
+		{
+			name:  "c1"
+			image: "image1"
+			ports: [
+				{
+					name:          "port1"
+					containerPort: 4848
+					protocol:      "UDP"
+				},
+				{
+					name:          "port2"
+					containerPort: 13622
+				}]
+		},
+		{
+			name:  "c2"
+			image: "image2"
+			ports: [
+				{
+					containerPort: 8080
+				}]
+		},
+	]
+}

@@ -2,19 +2,24 @@ data: {
 	apiVersion: "networking.k8s.io/v1beta1"
 	kind:       "Ingress"
 	spec: {
-		rules: [{
-			host: parameter.domain
-			http: paths: [{
+		rules: [ for _, r in parameter.rules {
+			host: r.domain
+			http: [ for _, p in r.paths {
 				backend: {
-					serviceName: parameter.service
-					servicePort: parameter.port
-				}}]
+					serviceName: p.service
+					servicePort: p.port
+				}
+			}]
 		}]
 	}
 }
 #route: {
-	domain:  string
-	port:    *80 | int
-	service: string
+	rules: [ ...{
+		domain: string
+		paths: [ ... {
+			service: string
+			port:    int16
+		}]
+	}]
 }
 parameter: #route
