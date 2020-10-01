@@ -119,7 +119,7 @@ components:
 			raw:           yaml3,
 			ExpName:       "",
 			InValid:       true,
-			InvalidReason: errors.New("name is required"),
+			InvalidReason: errors.New("please provide an existed App name"),
 		},
 		"scopes not array": {
 			raw:           yaml4,
