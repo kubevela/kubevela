@@ -2,7 +2,33 @@
 
 The Open Application Platform based on Kubernetes and OAM.
 
-:rotating_light: **Warning: The project is still under heavy development, its UI/UX is also for demo purpose, please don't look inside unless you know what you are doing** Please contact @wonderflow if you are interested in its full story or becoming one of the boostrap contributors/maintainers. :rotating_light:
+:rotating_light: **Warning: The project is still under heavy development with lots of sharp edges, please don't look inside unless you know what you are doing.** Feel free to contact the maintainers in slack channel [cncf#kubevela](https://cloud-native.slack.com/archives/C01BLQ3HTJA) if you are interested in its full story or becoming a vela developer. :rotating_light:
+
+## Purpose and goal
+
+- For developers and operators
+  - KubeVela, as an out-of-box Cloud Native Application Management Platform, provides numerous workloads and operation tooling for application defining, deployment, scaling, traffic, rollout, routing, monitoring, logging, alerting, CI/CD and so on.
+- For platform builders
+  - KubeVela, as a highly extensible PaaS/Serverless Core, provides pluggable capabilities, an elegant way to integrate any workloads and operational capabilities (i.e. traits).
+
+The KubeVela project is fully initialized by the community since day 0 with [bootstrapping contributors from 8+ different organizations](https://github.com/oam-dev/kubevela/graphs/contributors).
+
+## Architecture
+
+For now, KubeVela project has only two components:
+
+- User interface layer
+  - including:
+    - `cli`, `dashboard`, `appfile` (WIP)
+      - they are all client side tools to provide developer facing abstractions by leveraging [CUElang](https://github.com/cuelang/cue).
+- Vela core
+  - including:
+    - [OAM Kubernetes runtime](https://github.com/crossplane/oam-kubernetes-runtime) to provide application level primitives such as `component` and `application` etc.
+    - [Built-in workload and trait controllers](https://github.com/oam-dev/kubevela/tree/master/pkg/controller/v1alpha1) to implement core capabilities such as `webservice`, `route` and `rollout` etc.
+       - This part heavily leverages existing community projects instead of re-inventing the wheels.
+    - Capability center to register and manage any user provided workloads and traits (WIP).
+
+The other component we will add in the future is "Infrastructure Layer" by Crossplane to enable KubeVela works smoothly across multiple clouds.
 
 ## Install
 
@@ -13,7 +39,7 @@ The Open Application Platform based on Kubernetes and OAM.
 
 ### Get the Vela CLI
 
-Download the `vela` binary from the [Releases page](https://github.com/oam-dev/kubevela/releases). Unpack the `vela` binary and add it to `$PATH` to get started.
+Download the `vela` binary from the [releases page](https://github.com/oam-dev/kubevela/releases). Unpack the `vela` binary and add it to `$PATH` to get started.
 
 ```shell
 sudo mv ./vela /usr/local/bin/vela
@@ -21,159 +47,154 @@ sudo mv ./vela /usr/local/bin/vela
 
 ### Install Vela Core
 
-```shell script
+```console
 $ vela install
 ```
 This command will install vela core controller into your K8s cluster, along with built-in workloads and traits.
 
-## Demos
+## Walk through
 
-After `vela install` you will have workloads and traits locally, and available to use by vela cli.
+> Note: this is not a getting started guide. Just to let KubeVela developers have some sense of the project.
 
-```shell script
+After `vela install` you will see available workloads and traits.
+
+```console
 $ vela workloads
 NAME         	DEFINITION
 backend      	containerizeds.standard.oam.dev
-containerized	containerizedworkloads.core.oam.dev
-task         	jobs
+task         	jobs.batch.k8s.io
 webservice   	containerizeds.standard.oam.dev
 ```
 
-```shell script
+```console
 $ vela traits
 NAME        	DEFINITION                        	APPLIES TO
-route       	routes.standard.oam.dev           	webservice
-            	                                  	backend            	                                  
-scale       	manualscalertraits.core.oam.dev   	webservice
-            	                                  	backend
+route       	routes.standard.oam.dev           	webservice,backend            	                                  
+scale       	manualscalertraits.core.oam.dev   	webservice,backend
 ```
 
-### Create ENV
+### Create environment
 
-Before working with your application, you should create an env for it.
+Before working with your application, you should prepare an deploy environment for it (e.g. test, staging, prod etc).
 
-```shell script
-$ vela env init myenv --namespace myenv --email my@email.com --domain kubevela.io
-ENV myenv CREATED, Namespace: myenv, Email: my@email.com.
+```console
+$ vela env init demo --namespace demo --email my@email.com --domain kubevela.io
+ENVIROMENT demo CREATED, Namespace: demo, Email: my@email.com.
 ```
 
-It will create a namespace called myenv 
+Vela will create a Kubernetes namespace called `demo` , with namespace level issuer for certificate generation using the email you provided.
 
-```shell script
-$ kubectl get ns
-NAME        STATUS   AGE
-myenv       Active   40s
-```
+You could check the environment metadata in your local:
 
-A namespace level issuer for certificate generation with email.
-```shell script
-$ kubectl get issuers.cert-manager.io -n myenv
-  NAME            READY   AGE
-  oam-env-myenv   True    40s
-```
-
-A env metadata in your local:
-
-```shell script
-$ cat ~/.vela/envs/myenv/config.json
-  {"name":"myenv","namespace":"myenv","email":"my@email.com","domain":"kubevela.io","issuer":"oam-env-myenv"}
+```console
+$ cat ~/.vela/envs/demo/config.json
+  {"name":"demo","namespace":"demo","email":"my@email.com","domain":"kubevela.io","issuer":"oam-env-demo"}
 ```
 
 
-### Create Component 
+### Create simple component 
 
-Then let's create application, we will use our env created by default.
+Then let's create application, we will use the `demo` environment.
 
-```shell script
+```console
 $ vela comp run mycomp -t webservice --image crccheck/hello-world --port 8000 --app myapp
 Creating AppConfig appcomp
 SUCCEED
 ```
 
-It will create component named `mycomp`.
+### Create micro-services application
 
-```shell script
-$ kubectl get components -n myenv
-  NAME     WORKLOAD-KIND   AGE
-  mycomp   Containerized   10s
-```
+Vela supports micro-services application by default thanks to Open Application Model.
 
-And an AppConfig named myapp.
-
-```shell script
-$ kubectl get appconfig -n myenv
-  NAME    AGE
-  myapp   24s
-```
-
-Vela Core will work for AppConfig and create K8s deployment and service.
-
-```shell script
-$ kubectl get deployment -n myenv
-  NAME     READY   UP-TO-DATE   AVAILABLE   AGE
-  mycomp   1/1     1            1           38s
-``` 
-
-```shell script
-$ kubectl get svc -n myenv
- NAME     TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
- mycomp   ClusterIP   172.21.4.228   <none>        8080/TCP   49s
-```
-
-### Multiple Component
-
-Creating a new component in the same application is easy, just use the `--app` flag.
-
-```shell script
+```console
 $ vela comp run db -t backend --image crccheck/hello-world --app myapp
 Creating App myapp
 SUCCEED
 ```
 
-```shell script
+```console
 $ vela comp ls
 NAME  	APP  	WORKLOAD  	TRAITS	STATUS 	  CREATED-TIME
 db    	myapp	backend   	      	Deployed	2020-09-18 22:42:04 +0800 CST
 mycomp	myapp	webservice	      	Deployed	2020-09-18 22:42:04 +0800 CST
 ```
 
-Now we can see the application deployed, let's add route trait for visiting.
+#### Under the hood
 
-### Add Trait
+In Kubernetes, vela creates an OAM application configuration named `myapp` to manage all related components.
 
-```shell script
+```console
+$ kubectl get appconfig -n demo
+  NAME    AGE
+  myapp   24s
+```
+
+```console
+$ kubectl get components -n demo
+  NAME     AGE
+  mycomp   24s
+  db       10s
+```
+
+Vela Core is responsible for managing the underlying Kubernetes resources linked with the components and application configuration above.
+
+```console
+$ kubectl get deployment -n demo
+  NAME     READY   UP-TO-DATE   AVAILABLE   AGE
+  mycomp   1/1     1            1           38s
+  db       1/1     1            1           20s
+``` 
+
+```console
+$ kubectl get svc -n demo
+ NAME     TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+ mycomp   ClusterIP   172.21.4.228   <none>        8080/TCP   49s
+```
+
+### Manage operational configurations of the application
+
+Vela leverages OAM trait system to manage operational configurations such as `scale`, `route`, `canary`, `autocale`etc in application centric approach.
+
+Let's take `route` as example.
+
+### `route`
+
+```console
 $ vela route mycomp --app myapp
  Adding route for app mycomp
  Succeeded!
 ```
 
-It will create route trait for this component.
+For now you have to check the public address manually (this will be fixed soon so `vela route` will return visiting URL as result):
 
-```shell script
-$ kubectl get routes.standard.oam.dev -n myenv
-NAME                     AGE
-mycomp-trait-5b576c4fc   18s
-```
-
-Controller of route trait which is part of vela core will create an ingress for it.
-
-```shell script
-$ kubectl get ingress -n myenv
+```console
+$ kubectl get ingress -n demo
 NAME                        HOSTS                ADDRESS         PORTS     AGE
 mycomp-trait-5b576c4fc      mycomp.kubevela.io   123.57.10.233   80, 443   73s
 ```
 
-Please configure your domain pointing to the public address.
+And after you configure the `kubevela.io` domain pointing to the public address above.
 
-Then you will be able to visit it by `https://mycomp.kubevela.io`, `mTLS` is automatically enabled.
+Your application will be reached by `https://mycomp.kubevela.io` with `mTLS` automatically enabled.
+
+### Under the hood
+
+Vela will manage the underlying Kubernetes resource which implements the `route` trait.
+
+```console
+$ kubectl get routes.standard.oam.dev -n demo
+NAME                     AGE
+mycomp-trait-5b576c4fc   18s
+```
+
+`routes.standard.oam.dev` is a CRD controller which will manage ingress, domain, certificate etc for your application.
+
+### Check status
 
 
-### Check Status
+Check the application:
 
-
-App level:
-
-```shell script
+```console
 $ vela app show myapp
   About:
   
@@ -184,7 +205,7 @@ $ vela app show myapp
   
   Environment:
   
-    Namespace:	myenv
+    Namespace:	demo
   
   Components:
   
@@ -193,9 +214,9 @@ $ vela app show myapp
     mycomp	webservice	route
 ```
 
-Component Level:
+Check specific component:
 
-```shell script
+```console
 $ vela comp show mycomp
  About:
  
@@ -205,7 +226,7 @@ $ vela comp show mycomp
  
  Environment:
  
-   Namespace:	myenv
+   Namespace:	demo
  
  Arguments:
  
@@ -218,13 +239,13 @@ $ vela comp show mycomp
  
    route:
      domain:	mycomp.kubevela.io
-     issuer:	oam-env-myenv
+     issuer:	oam-env-demo
      name:  	route
 ```
 
 ```
 $ vela comp status mycomp
-  Showing status of Component mycomp deployed in Environment myenv
+  Showing status of Component mycomp deployed in Environment demo
   Component Status:
   	Name: mycomp  Containerized(type) UNKNOWN APIVersion standard.oam.dev/v1alpha1 Kind Containerized workload is unknown for HealthScope
   	Traits
@@ -235,50 +256,50 @@ $ vela comp status mycomp
   	Updated at: 2020-09-18T22:51:11+08:00
 ```
 
-### Delete App or Component
+### Delete application or component
 
-```shell script
+```console
 $ vela app ls
 myapp
 ```
 
-```shell script
+```console
 $ vela comp ls
 NAME  	APP  	WORKLOAD  	TRAITS	STATUS 	CREATED-TIME
 db    	myapp	backend   	      	Deployed	2020-09-18 22:42:04 +0800 CST
 mycomp	myapp	webservice	route 	Deployed	2020-09-18 22:42:04 +0800 CST
 ```
 
-```shell script
+```console
 $ vela comp delete db
 Deleting Component 'db' from Application 'db'
 ```
 
-```shell script
+```console
 $ vela comp ls
 NAME  	APP  	WORKLOAD  	TRAITS	STATUS 	CREATED-TIME
 mycomp	myapp	webservice	route 	Deployed	2020-09-18 22:42:04 +0800 CST
 ```
 
-```shell script
+```console
 $ vela app delete myapp
 Deleting Application "myapp"
-delete apps succeed myapp from myenv
+delete apps succeed myapp from demo
 ```
 
 ## Dashboard
 
-We also prepared a dashboard for you, but it's still in heavily development.
+Vela has a simple client side dashboard for you to interact with (note it's still under development). The functionality is equivalent to the vela cli.
 
-```shell script
+```console
 $ vela dashboard
 ```
 
-#### Auto-Completion
+#### Auto-completion
 
 ##### bash
 
-```shell script
+```console
 To load completions in your current shell session:
 $ source <(vela completion bash)
 
@@ -291,7 +312,7 @@ MacOS:
 
 ##### zsh
 
-```shell script
+```console
 To load completions in your current shell session:
 $ source <(vela completion zsh)
 
@@ -301,21 +322,21 @@ $ vela completion zsh > "${fpath[1]}/_vela"
 
 ### Clean your environment
 
-```shell script
+```console
 $ helm uninstall vela-core -n oam-system
 release "vela-core" uninstalled
 ```
 
-```shell script
+```console
 $ kubectl delete crd workloaddefinitions.core.oam.dev traitdefinitions.core.oam.dev
 customresourcedefinition.apiextensions.k8s.io "workloaddefinitions.core.oam.dev" deleted
 customresourcedefinition.apiextensions.k8s.io "traitdefinitions.core.oam.dev" deleted
 ```
 
-```shell script
+```console
 $ rm -r ~/.vela
 ```
 
-## CONTRIBUTING
+## Contributing
 Check out [CONTRIBUTING.md](./CONTRIBUTING.md) to see how to develop with KubeVela.
 
