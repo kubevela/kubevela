@@ -45,7 +45,7 @@ func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.
 		return err
 	}
 	syncedTemplates = append(syncedTemplates, templates...)
-	ioStreams.Infof("get %d workload definition(s) from cluster, syncing...", len(templates))
+	ioStreams.Infof("get %d workload definition(s) from cluster, syncing...\n", len(templates))
 	successNum := plugins.SinkTemp2Local(templates, dir)
 	ioStreams.Infof("sync %d workload definition(s) successfully\n", successNum)
 
@@ -55,7 +55,7 @@ func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.
 		return err
 	}
 	syncedTemplates = append(syncedTemplates, templates...)
-	ioStreams.Infof("get %d trait definition(s) from cluster, syncing...", len(templates))
+	ioStreams.Infof("get %d trait definition(s) from cluster, syncing...\n", len(templates))
 	successNum = plugins.SinkTemp2Local(templates, dir)
 	ioStreams.Infof("sync %d trait definition(s) successfully\n", successNum)
 

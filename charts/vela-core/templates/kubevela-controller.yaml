@@ -18,7 +18,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: manager-rolebinding
+  name: {{ include "kubevela.fullname" . }}:manager-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -33,7 +33,7 @@ subjects:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: leader-election-role
+  name: {{ include "kubevela.fullname" . }}:leader-election-role
 rules:
   - apiGroups:
       - ""
@@ -66,11 +66,11 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: leader-election-rolebinding
+  name: {{ include "kubevela.fullname" . }}:leader-election-rolebinding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: leader-election-role
+  name: {{ include "kubevela.fullname" . }}:leader-election-role
 subjects:
   - kind: ServiceAccount
     name: {{ include "kubevela.serviceAccountName" . }}
@@ -80,6 +80,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: {{ include "kubevela.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
   {{- include "kubevela.labels" . | nindent 4 }}
 spec:

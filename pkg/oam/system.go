@@ -76,7 +76,7 @@ func NewHelmInstall(version, namespace, releaseName string) (*action.Install, er
 		namespace = types.DefaultOAMNS
 	}
 	if err := actionConfig.Init(
-		kube.GetConfig(cmdutil.GetKubeConfig(), "", types.DefaultOAMNS),
+		cmdutil.NewRestConfigGetter(namespace),
 		namespace,
 		os.Getenv("HELM_DRIVER"),
 		debug,

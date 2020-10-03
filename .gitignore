@@ -46,6 +46,3 @@ dashboard/package-lock.json
 dashboard/src/.umi/
 package-lock.json
 dashboard/src/.umi-production/
-
-# build
-charts/vela

@@ -52,7 +52,7 @@ func init() {
 func Install(client client.Client) error {
 	log := ctrl.Log.WithName("vela dependency manager")
 	// Fetch the vela configuration
-	velaConfigNN := k8stypes.NamespacedName{Name: VelaConfigName, Namespace: types.DefaultAppNamespace}
+	velaConfigNN := k8stypes.NamespacedName{Name: VelaConfigName, Namespace: types.DefaultOAMNS}
 	velaConfig := v1.ConfigMap{}
 	if err := client.Get(context.TODO(), velaConfigNN, &velaConfig); err != nil {
 		return err

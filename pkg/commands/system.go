@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"io"
 
-	oamv1 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/openservicemesh/osm/pkg/cli"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/api/types"
@@ -29,19 +27,6 @@ type initCmd struct {
 type infoCmd struct {
 	out io.Writer
 }
-
-var (
-	defaultObject = []interface{}{
-		&oamv1.WorkloadDefinition{},
-		&oamv1.ApplicationConfiguration{},
-		&oamv1.Component{},
-		&oamv1.TraitDefinition{},
-		&oamv1.ContainerizedWorkload{},
-		&oamv1.HealthScope{},
-		&oamv1.ManualScalerTrait{},
-		&oamv1.ScopeDefinition{},
-	}
-)
 
 func SystemCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
@@ -85,7 +70,7 @@ func (i *infoCmd) run(ioStreams cmdutil.IOStreams) error {
 	return nil
 }
 
-func NewInstallCommand(c types.Args, chartSource string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	i := &initCmd{ioStreams: ioStreams}
 	cmd := &cobra.Command{
 		Use:   "install",
@@ -98,7 +83,7 @@ func NewInstallCommand(c types.Args, chartSource string, ioStreams cmdutil.IOStr
 			}
 			i.client = newClient
 			i.namespace = types.DefaultOAMNS
-			return i.run(ioStreams, chartSource)
+			return i.run(ioStreams, chartContent)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -117,52 +102,52 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 		if err := cmdutil.NewNamespace(i.client, types.DefaultOAMNS); err != nil {
 			return err
 		}
+		ioStreams.Info("created namespace", types.DefaultOAMNS)
 	}
 
-	if i.IsOamRuntimeExist() {
+	if oam.IsHelmReleaseRunning(types.DefaultOAMReleaseName, types.DefaultOAMRuntimeChartName, i.ioStreams) {
 		i.ioStreams.Info("Vela system along with OAM runtime already exist.")
 	} else {
-		if err := InstallOamRuntime(i.chartPath, chartSource); err != nil {
+		if err := InstallOamRuntime(i.chartPath, chartSource, ioStreams); err != nil {
 			return err
 		}
 	}
 
-	ioStreams.Info()
 	if err := RefreshDefinitions(context.Background(), i.client, ioStreams); err != nil {
 		return err
 	}
-	ioStreams.Info("- Finished.")
+	ioStreams.Info("- Finished successfully.")
 	return nil
 }
 
-func (i *initCmd) IsOamRuntimeExist() bool {
-	for _, object := range defaultObject {
-		if err := cmdutil.IsCoreCRDExist(context.Background(), i.client, object.(runtime.Object)); err != nil {
-			return false
-		}
-	}
-	return oam.IsHelmReleaseRunning(types.DefaultOAMReleaseName, types.DefaultOAMRuntimeChartName, i.ioStreams)
-}
-
-func InstallOamRuntime(chartPath, chartSource string) error {
+func InstallOamRuntime(chartPath, chartSource string, ioStreams cmdutil.IOStreams) error {
 	var err error
 	var chartRequested *chart.Chart
 	if chartPath != "" {
+		ioStreams.Infof("Use customized chart at: %s", chartPath)
 		chartRequested, err = loader.Load(chartPath)
 	} else {
 		chartRequested, err = cli.LoadChart(chartSource)
+		ioStreams.Infof("install chart %s, version %s, desc : %s, contains %d file\n",
+			chartRequested.Metadata.Name, chartRequested.Metadata.Version, chartRequested.Metadata.Description,
+			len(chartRequested.Raw))
 	}
 	if err != nil {
 		return fmt.Errorf("error loading chart for installation: %s", err)
 	}
-	installClient, err := oam.NewHelmInstall("", "", types.DefaultOAMReleaseName)
+	installClient, err := oam.NewHelmInstall("", types.DefaultOAMNS, types.DefaultOAMReleaseName)
 	if err != nil {
 		return fmt.Errorf("error create helm install client: %s", err)
 	}
 	//TODO(wonderflow) values here could give more arguments in command line
-	if _, err = installClient.Run(chartRequested, nil); err != nil {
+	release, err := installClient.Run(chartRequested, nil)
+	if err != nil {
+		ioStreams.Errorf("Failed to install the chart with error: %+v\n", err)
 		return err
 	}
+	ioStreams.Infof("Successfully installed the chart, status: %s, last deployed time = %s\n",
+		release.Info.Status,
+		release.Info.LastDeployed.String())
 	return nil
 }
 

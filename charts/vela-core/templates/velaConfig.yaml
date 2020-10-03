@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: vela-config
-  namespace: default
+  namespace: {{ .Release.Namespace }}
 data:
   certificates.cert-manager.io: |
     {
@@ -11,12 +11,12 @@ data:
       "name": "cert-manager",
       "namespace": "cert-manager",
       "version": "1.0.0"
-    },
+    }
   servicemonitors.monitoring.coreos.com: |
     {
-      "repo": "jetstack",
-      "urL": "https://charts.jetstack.io",
-      "name": "cert-manager",
-      "namespace": "cert-manager",
-      "version": "1.0.0"
+      "repo": "prometheus-community",
+      "urL": "https://prometheus-community.github.io/helm-charts",
+      "name": "kube-prometheus-stack",
+      "namespace": "monitoring",
+      "version": "9.4.4"
     }
