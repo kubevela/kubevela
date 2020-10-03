@@ -23,7 +23,7 @@ var (
 	velaConfigBase = v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      VelaConfigName,
-			Namespace: types.DefaultAppNamespace,
+			Namespace: types.DefaultOAMNS,
 			Labels:    map[string]string{"vela": "dependency"},
 		},
 		Data: map[string]string{
