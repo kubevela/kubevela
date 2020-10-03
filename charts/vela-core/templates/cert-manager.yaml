@@ -1,5 +1,4 @@
 ---
----
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -24,7 +23,6 @@ kind: ServiceAccount
 metadata:
   name: cert-manager
   namespace: "cert-manager"
-  annotations:
   labels:
     app: cert-manager
     app.kubernetes.io/name: cert-manager

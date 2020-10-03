@@ -1,8 +1,8 @@
 package types
 
 const (
-	DefaultOAMNS               = "oam-system"
-	DefaultOAMReleaseName      = "vela-core"
+	DefaultOAMNS               = "vela-system"
+	DefaultOAMReleaseName      = "kube"
 	DefaultOAMRuntimeChartName = "vela-core"
 	DefaultOAMVersion          = ">0.0.0-0"
 
