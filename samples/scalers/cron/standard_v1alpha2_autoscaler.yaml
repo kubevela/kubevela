@@ -1,0 +1,22 @@
+apiVersion: standard.oam.dev/v1alpha1
+kind: Autoscaler
+metadata:
+  name: example-scaler
+spec:
+  minReplicas: 2                      # optional, Defaults: 1
+  maxReplicas: 6                      # optional, cannot be less that minReplicas
+  triggers:
+    - name: weekend-cron
+      enabled: true
+      type: cron                      # cron scaler. 表明 scaler 是 KEDA
+      condition:
+        startAt: "10:14"              # required. "HHMM"
+        duration: 2h                 # required. 持续时长；start hour + duration < 24
+        days: ["Monday", "Saturday"]  # optional. In which days the condition will take effect
+        replicas: 5                   # optional.
+        timezone: Asia/Shanghai       # optional. time zone
+  targetWorkload:   # workloadRef                   # set by users or be auto-patched by outsiders, like OAM
+    name: "php-apache"
+    apiVersion: "extensions/v1beta1"  # optional
+    kind: "Deployment"                # optional
+

@@ -1,0 +1,127 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.5
+  creationTimestamp: null
+  name: autoscalers.standard.oam.dev
+spec:
+  group: standard.oam.dev
+  names:
+    kind: Autoscaler
+    listKind: AutoscalerList
+    plural: autoscalers
+    singular: autoscaler
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: Autoscaler is the Schema for the autoscalers API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AutoscalerSpec defines the desired state of Autoscaler
+            properties:
+              maxReplicas:
+                description: MinReplicas is the maximal replicas
+                format: int32
+                type: integer
+              minReplicas:
+                description: MinReplicas is the minimal replicas
+                format: int32
+                type: integer
+              targetWorkload:
+                description: TargetWorkload specify the workload which is about to
+                  be scaled
+                properties:
+                  apiVersion:
+                    type: string
+                  kind:
+                    type: string
+                  name:
+                    type: string
+                required:
+                - name
+                type: object
+              triggers:
+                description: Triggers lists all triggers
+                items:
+                  description: Trigger defines the trigger of Autoscaler
+                  properties:
+                    condition:
+                      description: Condition set the condition when to trigger scaling
+                      properties:
+                        days:
+                          description: Days means in which days the condition will
+                            take effect
+                          items:
+                            type: string
+                          type: array
+                        duration:
+                          description: Duration means how long the target scaling
+                            will keep, after the time of duration, the scaling will
+                            stop
+                          type: string
+                        replicas:
+                          description: Replicas is the expected replicas
+                          type: integer
+                        startAt:
+                          description: StartAt is the time when the scaler starts,
+                            in format `"HHMM"` for example, "08:00"
+                          type: string
+                        target:
+                          description: Target is the threshold value to the metric
+                          format: int32
+                          type: integer
+                        timezone:
+                          description: Timezone defines the time zone, default to
+                            the timezone of the Kubernetes cluster
+                          type: string
+                      type: object
+                    enabled:
+                      description: Enabled marks whether the trigger immediately.
+                        Defaults to `true`
+                      type: boolean
+                    name:
+                      description: Name is the trigger name, if not set, it will be
+                        automatically generated and make it globally unique
+                      type: string
+                    type:
+                      description: Type allows value in [cpu/memory/storage/ephemeral-storage、cron、pps、qps/rps、custom]
+                      type: string
+                  required:
+                  - condition
+                  - type
+                  type: object
+                type: array
+            required:
+            - triggers
+            type: object
+          status:
+            description: AutoscalerStatus defines the observed state of Autoscaler
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
