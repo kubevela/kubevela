@@ -6,22 +6,22 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.5
   creationTimestamp: null
-  name: containerizeds.standard.oam.dev
+  name: podspecworkloads.standard.oam.dev
 spec:
   group: standard.oam.dev
   names:
     categories:
     - oam
-    kind: Containerized
-    listKind: ContainerizedList
-    plural: containerizeds
-    singular: containerized
+    kind: PodSpecWorkload
+    listKind: PodSpecWorkloadList
+    plural: podspecworkloads
+    singular: podspecworkload
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Containerized is the Schema for the containerizeds API
+        description: PodSpecWorkload is the Schema for the PodSpec API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -36,11 +36,11 @@ spec:
           metadata:
             type: object
           spec:
-            description: ContainerizedSpec defines the desired state of Containerized
+            description: PodSpecWorkloadSpec defines the desired state of PodSpecWorkload
             properties:
               podSpec:
                 description: PodSpec describes the pods that will be created, we omit
-                  the meta part as it will be exactly the same as the containerized
+                  the meta part as it will be exactly the same as the PodSpecWorkload
                 properties:
                   activeDeadlineSeconds:
                     description: Optional duration in seconds the pod may be active
@@ -3503,6 +3503,7 @@ spec:
                                   can be referred to by services.
                                 type: string
                               protocol:
+                                default: TCP
                                 description: Protocol for port. Must be UDP, TCP,
                                   or SCTP. Defaults to "TCP".
                                 type: string
@@ -5694,7 +5695,7 @@ spec:
             - replicas
             type: object
           status:
-            description: ContainerizedStatus defines the observed state of Containerized
+            description: PodSpecWorkloadStatus defines the observed state of PodSpecWorkload
             properties:
               conditions:
                 description: Conditions of the resource.

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package containerized
+package podspecworkload
 
 import (
 	"path/filepath"
@@ -55,7 +55,9 @@ var _ = BeforeSuite(func(done Done) {
 	By("bootstrapping test environment")
 	useExistCluster := true
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:  []string{filepath.Join("..", "config", "crd", "bases")},
+		CRDDirectoryPaths: []string{
+			filepath.Join("../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
+			filepath.Join("..", "config", "crd", "bases")},
 		UseExistingCluster: &useExistCluster,
 	}
 

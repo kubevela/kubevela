@@ -180,7 +180,7 @@ sample response
                 "Status": "True",
                 "workload": {
                     "apiVersion": "standard.oam.dev/v1alpha1",
-                    "kind": "Containerized",
+                    "kind": "PodSpecWorkload",
                     "metadata": {
                         "name": "web-comp"
                     },
@@ -232,7 +232,7 @@ sample response
                 "Status": "True",
                 "workload": {
                     "apiVersion": "standard.oam.dev/v1alpha1",
-                    "kind": "Containerized",
+                    "kind": "PodSpecWorkload",
                     "metadata": {
                         "name": "comp1"
                     },
@@ -282,7 +282,7 @@ sample response
         "Status": "True",
         "workload": {
             "apiVersion": "standard.oam.dev/v1alpha1",
-            "kind": "Containerized",
+            "kind": "PodSpecWorkload",
             "metadata": {
                 "name": "web-comp"
             },
@@ -377,7 +377,7 @@ sample request
 ```json
 {
   "env_name": "default",
-  "workload_type": "containerized",
+  "workload_type": "podspecworkload",
   "workload_name": "poc2",
   "flags": [
     {
@@ -403,7 +403,7 @@ Please also specify `traits` values if need to attach a trait to several traits 
 ```json
 {
   "env_name": "default",
-  "workload_type": "containerized",
+  "workload_type": "podspecworkload",
   "workload_name": "poc5",
   "app_group": "",
   "flags": [
@@ -440,9 +440,9 @@ sample response
 {
 	"code": 200,
 	"data": {
-		"name": "containerized",
+		"name": "podspecworkload",
 		"type": "workload",
-		"template": "#Template: {\n\tapiVersion: \"core.oam.dev/v1alpha2\"\n\tkind:       \"ContainerizedWorkload\"\n\tmetadata: name: containerized.name\n\tspec: {\n\t\tcontainers: [{\n\t\t\timage: containerized.image\n\t\t\tname:  containerized.name\n\t\t\tports: [{\n\t\t\t\tcontainerPort: containerized.port\n\t\t\t\tprotocol:      \"TCP\"\n\t\t\t\tname:          \"default\"\n\t\t\t}]\n\t\t}]\n\t}\n}\ncontainerized: {\n\tname: string\n\t// +usage=specify app image\n\t// +short=i\n\timage: string\n\t// +usage=specify port for container\n\t// +short=p\n\tport: *6379 | int\n}\n",
+		"template": "#Template: {\n\tapiVersion: \"core.oam.dev/v1alpha2\"\n\tkind:       \"PodSpecWorkload\"\n\tmetadata: name: podspecworkload.name\n\tspec: {\n\t\tcontainers: [{\n\t\t\timage: containerized.image\n\t\t\tname:  containerized.name\n\t\t\tports: [{\n\t\t\t\tcontainerPort: containerized.port\n\t\t\t\tprotocol:      \"TCP\"\n\t\t\t\tname:          \"default\"\n\t\t\t}]\n\t\t}]\n\t}\n}\ncontainerized: {\n\tname: string\n\t// +usage=specify app image\n\t// +short=i\n\timage: string\n\t// +usage=specify port for container\n\t// +short=p\n\tport: *6379 | int\n}\n",
 		"parameters": [{
 			"name": "name",
 			"required": true,
@@ -479,7 +479,7 @@ sample response
 {
 	"code": 200,
 	"data": [{
-		"name": "containerized",
+		"name": "podspecworkload",
 		"parameters": [{
 			"name": "name",
 			"required": true,
@@ -563,7 +563,7 @@ sample response
 		}],
 		"definition": "/Users/zhouzhengxi/.vela/capabilities/manualscalertraits.core.oam.dev.cue",
 		"crdName": "manualscalertraits.core.oam.dev",
-		"appliesTo": ["containerized"],
+		"appliesTo": ["containerizedworkload"],
 		"crdInfo": {
 			"apiVersion": "core.oam.dev/v1alpha2",
 			"kind": "ManualScalerTrait"
@@ -584,15 +584,15 @@ sample response
 	"data": [{
 		"name": "manualscaler",
 		"definition": "manualscalertraits.core.oam.dev",
-		"applies_to": ["containerized"]
+		"applies_to": ["podspecworkload"]
 	}, {
 		"name": "rollout",
 		"definition": "simplerollouttraits.extend.oam.dev",
-		"applies_to": ["containerized", "deployment"]
+		"applies_to": ["podspecworkload", "deployment"]
 	}, {
 		"name": "scale",
 		"definition": "manualscalertraits.core.oam.dev",
-		"applies_to": ["containerized", "deployment"]
+		"applies_to": ["podspecworkload", "deployment"]
 	}]
 }
 ```
@@ -661,7 +661,7 @@ sample response
 - example
 sample response
 ```json
-{"code":200,"data":"containerized removed successfully"}
+{"code":200,"data":"podspecworkload removed successfully"}
 ```
 
 ### GET /api/capabilities/ (capability list)
@@ -671,9 +671,9 @@ sample response
 {
 	"code": 200,
 	"data": [{
-		"name": "containerized",
+		"name": "podspecworkload",
 		"type": "workload",
-		"template": "#Template: {\n\tapiVersion: \"core.oam.dev/v1alpha2\"\n\tkind:       \"ContainerizedWorkload\"\n\tmetadata: name: containerized.name\n\tspec: {\n\t\tcontainers: [{\n\t\t\timage: containerized.image\n\t\t\tname:  containerized.name\n\t\t\tports: [{\n\t\t\t\tcontainerPort: containerized.port\n\t\t\t\tprotocol:      \"TCP\"\n\t\t\t\tname:          \"default\"\n\t\t\t}]\n\t\t}]\n\t}\n}\ncontainerized: {\n\tname: string\n\t// +usage=specify app image\n\t// +short=i\n\timage: string\n\t// +usage=specify port for container\n\t// +short=p\n\tport: *6379 | int\n}\n",
+		"template": "#Template: {\n\tapiVersion: \"core.oam.dev/v1alpha2\"\n\tkind:       \"ContainerizedWorkload\"\n\tmetadata: name: podspecworkload.name\n\tspec: {\n\t\tcontainers: [{\n\t\t\timage: containerized.image\n\t\t\tname:  containerized.name\n\t\t\tports: [{\n\t\t\t\tcontainerPort: containerized.port\n\t\t\t\tprotocol:      \"TCP\"\n\t\t\t\tname:          \"default\"\n\t\t\t}]\n\t\t}]\n\t}\n}\ncontainerized: {\n\tname: string\n\t// +usage=specify app image\n\t// +short=i\n\timage: string\n\t// +usage=specify port for container\n\t// +short=p\n\tport: *6379 | int\n}\n",
 		"parameters": [{
 			"name": "name",
 			"required": true,
@@ -717,7 +717,7 @@ sample response
 		"definition": "/Users/zhouzhengxi/.vela/centers/poc/.tmp/simplerollouttraits.extend.oam.dev.cue",
 		"crdName": "simplerollouttraits.extend.oam.dev",
 		"center": "poc",
-		"appliesTo": ["containerized", "deployment"],
+		"appliesTo": ["podspecworkload", "deployment"],
 		"status": "uninstalled"
 	}]
 }

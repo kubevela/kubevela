@@ -29,9 +29,9 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-standard-oam-dev-v1alpha1-containerized
+      path: /mutate-standard-oam-dev-v1alpha1-podspecworkload
   failurePolicy: Fail
-  name: mcontainerized.kb.io
+  name: mpodspecworkload.kb.io
   rules:
   - apiGroups:
     - standard.oam.dev
@@ -41,7 +41,7 @@ webhooks:
     - CREATE
     - UPDATE
     resources:
-    - Containerized
+    - PodSpecWorkload
 
 ---
 apiVersion: admissionregistration.k8s.io/v1beta1
@@ -74,9 +74,9 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-standard-oam-dev-v1alpha1-containerized
+      path: /validate-standard-oam-dev-v1alpha1-podspecworkload
   failurePolicy: Fail
-  name: vcontainerized.kb.io
+  name: vpodspecworkload.kb.io
   rules:
   - apiGroups:
     - standard.oam.dev
@@ -87,4 +87,4 @@ webhooks:
     - UPDATE
     - DELETE
     resources:
-    - Containerized
+    - PodSpecWorkload

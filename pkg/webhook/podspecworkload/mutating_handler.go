@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package containerized
+package podspecworkload
 
 import (
 	"context"
@@ -32,7 +32,7 @@ import (
 	util "github.com/oam-dev/kubevela/pkg/utils"
 )
 
-// MutatingHandler handles Containerized workload
+// MutatingHandler handles PodSpec workload
 type MutatingHandler struct {
 	Client client.Client
 
@@ -41,19 +41,19 @@ type MutatingHandler struct {
 }
 
 // log is for logging in this package.
-var mutatelog = logf.Log.WithName("Containerized-mutate")
+var mutatelog = logf.Log.WithName("PodSpecWorkload-mutate")
 
 var _ admission.Handler = &MutatingHandler{}
 
 // Handle handles admission requests.
 func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	obj := &v1alpha1.Containerized{}
+	obj := &v1alpha1.PodSpecWorkload{}
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	DefaultContainerized(obj)
+	DefaultPodSpecWorkload(obj)
 
 	marshalled, err := json.Marshal(obj)
 	if err != nil {
@@ -61,13 +61,13 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	}
 	resp := admission.PatchResponseFromRaw(req.AdmissionRequest.Object.Raw, marshalled)
 	if len(resp.Patches) > 0 {
-		klog.V(5).Infof("Admit Containerized %s/%s patches: %v", obj.Namespace, obj.Name, util.DumpJSON(resp.Patches))
+		klog.V(5).Infof("Admit PodSpecWorkload %s/%s patches: %v", obj.Namespace, obj.Name, util.DumpJSON(resp.Patches))
 	}
 	return resp
 }
 
-// Default sets all the default value for the Containerized
-func DefaultContainerized(obj *v1alpha1.Containerized) {
+// Default sets all the default value for the PodSpecWorkload
+func DefaultPodSpecWorkload(obj *v1alpha1.PodSpecWorkload) {
 	mutatelog.Info("default", "name", obj.Name)
 	if obj.Spec.Replicas == nil {
 		mutatelog.Info("default replicas as 1")

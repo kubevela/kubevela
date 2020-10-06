@@ -69,7 +69,7 @@ Succeeded!
 $ vela comp status abc
 Showing status of Component abc deployed in Environment t2
 Component Status:
-	Name: abc  Containerized(type) UNKNOWN APIVersion standard.oam.dev/v1alpha1 Kind Containerized workload is unknown for HealthScope
+	Name: abc  PodSpecWorkload(type) UNKNOWN APIVersion standard.oam.dev/v1alpha1 Kind PodSpecWorkload workload is unknown for HealthScope
 	Traits
 	    └─Trait/route
 

@@ -4,10 +4,10 @@ metadata:
   name: webservice
   annotations:
     definition.oam.dev/apiVersion: "standard.oam.dev/v1alpha1"
-    definition.oam.dev/kind: "Containerized"
+    definition.oam.dev/kind: "PodSpecWorkload"
 spec:
   definitionRef:
-    name: containerizeds.standard.oam.dev
+    name: podspecworkloads.standard.oam.dev
   childResourceKinds:
     - apiVersion: apps/v1
       kind: Deployment
@@ -17,7 +17,7 @@ spec:
     template: |
       data: {
         apiVersion: "standard.oam.dev/v1alpha1"
-        kind:       "Containerized"
+        kind:       "PodSpecWorkload"
         metadata:
           name: parameter.name
         spec: {

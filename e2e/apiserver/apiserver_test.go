@@ -52,7 +52,7 @@ var notExistedEnvMeta = apis.Environment{
 	Namespace: "env-e2e-api-NOT-EXISTED-JUST-FOR-TEST",
 }
 
-var containerizedWorkloadType = "webservice"
+var webserviceWorkloadType = "webservice"
 var backendWorkloadType = "backend"
 var taskWorkloadType = "task"
 
@@ -210,7 +210,7 @@ var _ = ginkgo.Describe("API", func() {
 			for _, i := range data {
 				var workloadDefinition = i.(map[string]interface{})
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect([]string{containerizedWorkloadType, backendWorkloadType, taskWorkloadType}).To(gomega.Or(gomega.ContainElement(workloadDefinition["name"])))
+				gomega.Expect([]string{webserviceWorkloadType, backendWorkloadType, taskWorkloadType}).To(gomega.Or(gomega.ContainElement(workloadDefinition["name"])))
 			}
 		})
 

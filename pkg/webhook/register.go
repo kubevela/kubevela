@@ -4,14 +4,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"github.com/oam-dev/kubevela/pkg/webhook/containerized"
 	"github.com/oam-dev/kubevela/pkg/webhook/metrics"
+	"github.com/oam-dev/kubevela/pkg/webhook/podspecworkload"
 )
 
 // +kubebuilder:webhook:verbs=create;update;delete,path=/validate-standard-oam-dev-v1alpha1-metricstrait,mutating=false,failurePolicy=fail,groups=standard.oam.dev,resources=metricstraits,versions=v1alpha1,name=vmetricstrait.kb.io
 // +kubebuilder:webhook:path=/mutate-standard-oam-dev-v1alpha1-metricstrait,mutating=true,failurePolicy=fail,groups=standard.oam.dev,resources=metricstraits,verbs=create;update,versions=v1alpha1,name=mmetricstrait.kb.io
-// +kubebuilder:webhook:verbs=create;update;delete,path=/validate-standard-oam-dev-v1alpha1-containerized,mutating=false,failurePolicy=fail,groups=standard.oam.dev,resources=Containerized,versions=v1alpha1,name=vcontainerized.kb.io
-// +kubebuilder:webhook:path=/mutate-standard-oam-dev-v1alpha1-containerized,mutating=true,failurePolicy=fail,groups=standard.oam.dev,resources=Containerized,verbs=create;update,versions=v1alpha1,name=mcontainerized.kb.io
+// +kubebuilder:webhook:verbs=create;update;delete,path=/validate-standard-oam-dev-v1alpha1-podspecworkload,mutating=false,failurePolicy=fail,groups=standard.oam.dev,resources=PodSpecWorkload,versions=v1alpha1,name=vpodspecworkload.kb.io
+// +kubebuilder:webhook:path=/mutate-standard-oam-dev-v1alpha1-podspecworkload,mutating=true,failurePolicy=fail,groups=standard.oam.dev,resources=PodSpecWorkload,verbs=create;update,versions=v1alpha1,name=mpodspecworkload.kb.io
 
 // Register will register all the services to the webhook server
 func Register(mgr manager.Manager) {
@@ -21,9 +21,9 @@ func Register(mgr manager.Manager) {
 		&webhook.Admission{Handler: &metrics.ValidatingHandler{}})
 	server.Register("/mutate-standard-oam-dev-v1alpha1-metricstrait",
 		&webhook.Admission{Handler: &metrics.MutatingHandler{}})
-	// Containerized
-	server.Register("/validate-standard-oam-dev-v1alpha1-containerized",
-		&webhook.Admission{Handler: &containerized.ValidatingHandler{}})
-	server.Register("/mutate-standard-oam-dev-v1alpha1-containerized",
-		&webhook.Admission{Handler: &containerized.MutatingHandler{}})
+	// PodSpecWorkload
+	server.Register("/validate-standard-oam-dev-v1alpha1-podspecworkload",
+		&webhook.Admission{Handler: &podspecworkload.ValidatingHandler{}})
+	server.Register("/mutate-standard-oam-dev-v1alpha1-podspecworkload",
+		&webhook.Admission{Handler: &podspecworkload.MutatingHandler{}})
 }

@@ -3,13 +3,18 @@
 This example show case how one can use a metricsTrait to add prometheus monitoring capability to any workload that
  emits metrics data. 
  
-The containerized CRD does not work with Kubernetes 1.18 yet, the CRD generator is not compatible 
-
 ## Install Vela core
 ```shell script
 make docker-build
 kubectl create ns vela-system
 helm install kube --namespace vela-system charts/vela-core/
+```
+
+## Install OAM Prometheus
+```shell script
+kubectl apply -f documentation/samples/metrics-demo/prometheus
+prometheus.monitoring.coreos.com/oam created
+service/prometheus-oam created
 ```
 
 ## Run ApplicationConfiguration
@@ -30,7 +35,7 @@ Then access the prometheus dashboard via http://localhost:4848
 
 ## Verify that the metrics showing up on grafana
 ```shell script
-kubectl --namespace oam-monitoring port-forward service/monitoring-grafana 3000:80
+kubectl --namespace monitoring port-forward service/kube-prometheus-stack-grafana  3000:80
 ```
 Then access the grafana dashboard via http://localhost:3000.  You shall set the data source URL as `http://prometheus-oam:4848`
 

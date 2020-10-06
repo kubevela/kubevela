@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package containerized
+package podspecworkload
 
 import (
 	"context"
@@ -31,7 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/api/v1alpha1"
 )
 
-// ValidatingHandler handles Containerized
+// ValidatingHandler handles PodSpecWorkload
 type ValidatingHandler struct {
 	Client client.Client
 
@@ -40,13 +40,13 @@ type ValidatingHandler struct {
 }
 
 // log is for logging in this package.
-var validatelog = logf.Log.WithName("Containerized-validate")
+var validatelog = logf.Log.WithName("PodSpecWorkload-validate")
 
 var _ admission.Handler = &ValidatingHandler{}
 
 // Handle handles admission requests.
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	obj := &v1alpha1.Containerized{}
+	obj := &v1alpha1.PodSpecWorkload{}
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
@@ -61,7 +61,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
 	case admissionv1beta1.Update:
-		oldObj := &v1alpha1.Containerized{}
+		oldObj := &v1alpha1.PodSpecWorkload{}
 		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldObj); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
@@ -74,8 +74,8 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	return admission.ValidationResponse(true, "")
 }
 
-// ValidateCreate validates the Containerized on creation
-func ValidateCreate(r *v1alpha1.Containerized) field.ErrorList {
+// ValidateCreate validates the PodSpecWorkload on creation
+func ValidateCreate(r *v1alpha1.PodSpecWorkload) field.ErrorList {
 	validatelog.Info("validate create", "name", r.Name)
 	allErrs := apimachineryvalidation.ValidateObjectMeta(&r.ObjectMeta, true,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
@@ -93,14 +93,14 @@ func ValidateCreate(r *v1alpha1.Containerized) field.ErrorList {
 	return allErrs
 }
 
-// ValidateUpdate validates the Containerized on update
-func ValidateUpdate(r *v1alpha1.Containerized, _ *v1alpha1.Containerized) field.ErrorList {
+// ValidateUpdate validates the PodSpecWorkload on update
+func ValidateUpdate(r *v1alpha1.PodSpecWorkload, _ *v1alpha1.PodSpecWorkload) field.ErrorList {
 	validatelog.Info("validate update", "name", r.Name)
 	return ValidateCreate(r)
 }
 
-// ValidateDelete validates the Containerized on delete
-func ValidateDelete(r *v1alpha1.Containerized) field.ErrorList {
+// ValidateDelete validates the PodSpecWorkload on delete
+func ValidateDelete(r *v1alpha1.PodSpecWorkload) field.ErrorList {
 	validatelog.Info("validate delete", "name", r.Name)
 	return nil
 }

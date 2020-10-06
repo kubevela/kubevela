@@ -61,9 +61,9 @@ After `vela install` you will see available workloads and traits.
 ```console
 $ vela workloads
 NAME         	DEFINITION
-backend      	containerizeds.standard.oam.dev
+backend      	podspecworkloads.standard.oam.dev
 task         	jobs.batch.k8s.io
-webservice   	containerizeds.standard.oam.dev
+webservice   	podspecworkloads.standard.oam.dev
 ```
 
 ```console
@@ -247,7 +247,7 @@ $ vela comp show mycomp
 $ vela comp status mycomp
   Showing status of Component mycomp deployed in Environment demo
   Component Status:
-  	Name: mycomp  Containerized(type) UNKNOWN APIVersion standard.oam.dev/v1alpha1 Kind Containerized workload is unknown for HealthScope
+  	Name: mycomp  PodSpecWorkload(type) UNKNOWN APIVersion standard.oam.dev/v1alpha1 Kind PodSpecWorkload workload is unknown for HealthScope
   	Traits
   	    └─Trait/route
   
