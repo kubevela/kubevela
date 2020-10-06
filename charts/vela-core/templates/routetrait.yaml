@@ -8,7 +8,7 @@ metadata:
 spec:
   appliesToWorkloads:
     - core.oam.dev/v1alpha2.ContainerizedWorkload
-    - standard.oam.dev/v1alpha1.Containerized
+    - standard.oam.dev/v1alpha1.PodSpecWorkload
     - deployments.apps
   workloadRefPath: spec.workloadRef
   definitionRef:

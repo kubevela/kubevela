@@ -1,4 +1,4 @@
-package containerized
+package podspecworkload
 
 import (
 	"testing"
@@ -12,20 +12,20 @@ import (
 	"github.com/oam-dev/kubevela/api/v1alpha1"
 )
 
-func TestContainerized(t *testing.T) {
+func TestPodSpecWorkload(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Containerized Suite")
+	RunSpecs(t, "PodSpecWorkload Suite")
 }
 
-var _ = Describe("Containerized", func() {
-	var baseCase v1alpha1.Containerized
+var _ = Describe("Test PodSpecWorkload", func() {
+	var baseCase v1alpha1.PodSpecWorkload
 
 	BeforeEach(func() {
-		baseCase = v1alpha1.Containerized{
+		baseCase = v1alpha1.PodSpecWorkload{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "mutate-hook",
 			},
-			Spec: v1alpha1.ContainerizedSpec{},
+			Spec: v1alpha1.PodSpecWorkloadSpec{},
 		}
 	})
 
@@ -33,7 +33,7 @@ var _ = Describe("Containerized", func() {
 		cw := baseCase
 		want := baseCase
 		want.Spec.Replicas = pointer.Int32Ptr(1)
-		DefaultContainerized(&cw)
+		DefaultPodSpecWorkload(&cw)
 		Expect(cw).Should(BeEquivalentTo(want))
 	})
 
@@ -41,7 +41,7 @@ var _ = Describe("Containerized", func() {
 		cw := baseCase
 		cw.Spec.Replicas = pointer.Int32Ptr(10)
 		want := cw
-		DefaultContainerized(&cw)
+		DefaultPodSpecWorkload(&cw)
 		Expect(cw).Should(BeEquivalentTo(want))
 	})
 

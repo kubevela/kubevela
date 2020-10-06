@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package containerized
+package podspecworkload
 
 import (
 	"context"
@@ -57,7 +57,7 @@ const (
 	labelNameKey = "component.oam.dev/name"
 )
 
-// Reconciler reconciles a Containerized object
+// Reconciler reconciles a PodSpecWorkload object
 type Reconciler struct {
 	client.Client
 	log    logr.Logger
@@ -65,20 +65,20 @@ type Reconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=standard.oam.dev,resources=containerizeds,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=standard.oam.dev,resources=containerizeds/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=standard.oam.dev,resources=podspecworkloads,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=standard.oam.dev,resources=podspecworkloads/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=services,verbs=get;list;watch;create;update;patch;delete
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
 	ctx := context.Background()
-	log := r.log.WithValues("containerized", req.NamespacedName)
-	log.Info("Reconcile containerized workload")
+	log := r.log.WithValues("podspecworkload", req.NamespacedName)
+	log.Info("Reconcile podspecworkload workload")
 
-	var workload v1alpha1.Containerized
+	var workload v1alpha1.PodSpecWorkload
 	if err := r.Get(ctx, req.NamespacedName, &workload); err != nil {
 		if apierrors.IsNotFound(err) {
-			log.Info("Containerized workload is deleted")
+			log.Info("Podspec workload is deleted")
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
@@ -158,7 +158,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 // create a corresponding deployment
 func (r *Reconciler) renderDeployment(ctx context.Context,
-	workload *v1alpha1.Containerized) (*appsv1.Deployment, error) {
+	workload *v1alpha1.PodSpecWorkload) (*appsv1.Deployment, error) {
 	// generate the deployment
 	deploy := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -212,7 +212,7 @@ func (r *Reconciler) renderDeployment(ctx context.Context,
 
 // check whether the container port is specified
 func (r *Reconciler) checkContainerPortsSpecified(ctx context.Context,
-	workload *v1alpha1.Containerized) bool {
+	workload *v1alpha1.PodSpecWorkload) bool {
 	if workload == nil {
 		return false
 	}
@@ -226,7 +226,7 @@ func (r *Reconciler) checkContainerPortsSpecified(ctx context.Context,
 
 // create a service for the deployment
 func (r *Reconciler) renderService(ctx context.Context,
-	workload *v1alpha1.Containerized) (*corev1.Service, error) {
+	workload *v1alpha1.PodSpecWorkload) (*corev1.Service, error) {
 	// create a service for the workload
 	service := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
@@ -271,10 +271,10 @@ func (r *Reconciler) renderService(ctx context.Context,
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("Containerized")).
-		WithAnnotations("controller", "Containerized")
+	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("PodSpecWorkload")).
+		WithAnnotations("controller", "PodSpecWorkload")
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.Containerized{}).
+		For(&v1alpha1.PodSpecWorkload{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.Service{}).
 		Complete(r)
@@ -284,7 +284,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 func Setup(mgr ctrl.Manager) error {
 	reconciler := Reconciler{
 		Client: mgr.GetClient(),
-		log:    ctrl.Log.WithName("Containerized"),
+		log:    ctrl.Log.WithName("PodSpecWorkload"),
 		Scheme: mgr.GetScheme(),
 	}
 	return reconciler.SetupWithManager(mgr)

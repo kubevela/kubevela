@@ -57,7 +57,7 @@ func fixOpenAPIV3SchemaValidationIssue(chartPath string) (string, error) {
 			}
 			defer targetFile.Close()
 
-			if strings.Contains(path, filepath.Join(chartPath, "crds")) && info.Name() == "standard.oam.dev_containerizeds.yaml" {
+			if strings.Contains(path, filepath.Join(chartPath, "crds")) && info.Name() == "standard.oam.dev_podspecworkloads" {
 				f, err := os.OpenFile(path, os.O_RDONLY, os.ModePerm)
 				if err != nil {
 					fmt.Fprintln(os.Stderr, "failed to open file", path)

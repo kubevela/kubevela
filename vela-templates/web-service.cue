@@ -1,6 +1,6 @@
 data: {
 	apiVersion: "standard.oam.dev/v1alpha1"
-	kind:       "Containerized"
+	kind:       "PodSpecWorkload"
 	metadata:
 		name: parameter.name
 	spec: {

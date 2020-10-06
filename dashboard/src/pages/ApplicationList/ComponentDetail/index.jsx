@@ -70,11 +70,6 @@ class TableList extends React.Component {
         if (workloadType) {
           this.getAcceptTrait(workloadType.toLowerCase());
         }
-        // if (workloadType && workloadType === '') {
-        //   this.getAcceptTrait('containerized');
-        // } else if (workloadType && workloadType === 'Deployment') {
-        //   this.getAcceptTrait('deployment');
-        // }
       }
     }
   };

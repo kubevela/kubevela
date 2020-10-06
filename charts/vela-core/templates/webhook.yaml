@@ -31,7 +31,7 @@ webhooks:
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
-        path: /mutate-standard-oam-dev-v1alpha1-containerized
+        path: /mutate-standard-oam-dev-v1alpha1-podspecworkload
     failurePolicy: Fail
     name: mcontainerized.kb.io
     rules:
@@ -43,7 +43,7 @@ webhooks:
           - CREATE
           - UPDATE
         resources:
-          - Containerized
+          - podspecworkloads
 
 ---
 apiVersion: admissionregistration.k8s.io/v1beta1
@@ -78,7 +78,7 @@ webhooks:
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
-        path: /validate-standard-oam-dev-v1alpha1-containerized
+        path: /validate-standard-oam-dev-v1alpha1-podspecworkload
     failurePolicy: Fail
     name: vcontainerized.kb.io
     rules:
@@ -91,7 +91,7 @@ webhooks:
           - UPDATE
           - DELETE
         resources:
-          - Containerized
+          - podspecworkloads
 
 ---
 apiVersion: v1

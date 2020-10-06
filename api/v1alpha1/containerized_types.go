@@ -23,20 +23,20 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// ContainerizedSpec defines the desired state of Containerized
-type ContainerizedSpec struct {
+// PodSpecWorkloadSpec defines the desired state of PodSpecWorkload
+type PodSpecWorkloadSpec struct {
 	// Replicas is the desired number of replicas of the given podSpec.
 	// These are replicas in the sense that they are instantiations of the same podSpec.
 	// If unspecified, defaults to 1.
 	Replicas *int32 `json:"replicas"`
 
 	// PodSpec describes the pods that will be created,
-	// we omit the meta part as it will be exactly the same as the containerized
+	// we omit the meta part as it will be exactly the same as the PodSpecWorkload
 	PodSpec v1.PodSpec `json:"podSpec"`
 }
 
-// ContainerizedStatus defines the observed state of Containerized
-type ContainerizedStatus struct {
+// PodSpecWorkloadStatus defines the observed state of PodSpecWorkload
+type PodSpecWorkloadStatus struct {
 	cpv1alpha1.ConditionedStatus `json:",inline"`
 
 	// Resources managed by this workload.
@@ -45,36 +45,36 @@ type ContainerizedStatus struct {
 
 // +kubebuilder:object:root=true
 
-// Containerized is the Schema for the containerizeds API
+// PodSpecWorkload is the Schema for the PodSpec API
 // +kubebuilder:resource:categories={oam}
 // +kubebuilder:subresource:status
-type Containerized struct {
+type PodSpecWorkload struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ContainerizedSpec   `json:"spec,omitempty"`
-	Status ContainerizedStatus `json:"status,omitempty"`
+	Spec   PodSpecWorkloadSpec   `json:"spec,omitempty"`
+	Status PodSpecWorkloadStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// ContainerizedList contains a list of Containerized
-type ContainerizedList struct {
+// PodSpecWorkloadList contains a list of PodSpecWorkload
+type PodSpecWorkloadList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Containerized `json:"items"`
+	Items           []PodSpecWorkload `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&Containerized{}, &ContainerizedList{})
+	SchemeBuilder.Register(&PodSpecWorkload{}, &PodSpecWorkloadList{})
 }
 
-var _ oam.Workload = &Containerized{}
+var _ oam.Workload = &PodSpecWorkload{}
 
-func (in *Containerized) SetConditions(c ...cpv1alpha1.Condition) {
+func (in *PodSpecWorkload) SetConditions(c ...cpv1alpha1.Condition) {
 	in.Status.SetConditions(c...)
 }
 
-func (in *Containerized) GetCondition(c cpv1alpha1.ConditionType) cpv1alpha1.Condition {
+func (in *PodSpecWorkload) GetCondition(c cpv1alpha1.ConditionType) cpv1alpha1.Condition {
 	return in.Status.GetCondition(c)
 }
