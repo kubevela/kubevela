@@ -124,7 +124,7 @@ var (
 		})
 	}
 
-	//WorkloadRunContext used for test vela comp run
+	//WorkloadRunContext used for test vela comp deploy
 	WorkloadRunContext = func(context string, cli string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print successful creation information", func() {

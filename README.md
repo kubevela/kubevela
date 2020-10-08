@@ -97,7 +97,7 @@ $ cat ~/.vela/envs/demo/config.json
 Then let's create application, we will use the `demo` environment.
 
 ```console
-$ vela comp run mycomp -t webservice --image crccheck/hello-world --port 8000 --app myapp
+$ vela comp deploy mycomp -t webservice --image crccheck/hello-world --port 8000 --app myapp
 Creating AppConfig appcomp
 SUCCEED
 ```
@@ -107,7 +107,7 @@ SUCCEED
 Vela supports micro-services application by default thanks to Open Application Model.
 
 ```console
-$ vela comp run db -t backend --image crccheck/hello-world --app myapp
+$ vela comp deploy db -t backend --image crccheck/hello-world --app myapp
 Creating App myapp
 SUCCEED
 ```
