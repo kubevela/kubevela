@@ -11,7 +11,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/server/util"
 )
 
-// ENV related handlers
+// environment related handlers
 func CreateEnv(c *gin.Context) {
 	var environment apis.Environment
 	if err := c.ShouldBindJSON(&environment); err != nil {

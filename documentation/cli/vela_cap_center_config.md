@@ -26,7 +26,7 @@ vela cap center config mycenter https://github.com/oam-dev/catalog/cap-center
 ### Options inherited from parent commands
 
 ```
-  -e, --env string   specify env name for application
+  -e, --env string   specify environment name for application
 ```
 
 ### SEE ALSO

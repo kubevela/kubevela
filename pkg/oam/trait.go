@@ -145,7 +145,7 @@ func ValidateAndMutateForCore(traitType, workloadName string, flags *pflag.FlagS
 		domain, _ := flags.GetString("domain")
 		if domain == "" {
 			if env.Domain == "" {
-				return fmt.Errorf("--domain is required if not set in env")
+				return fmt.Errorf("--domain is required if not contain in environment")
 			}
 			if strings.HasPrefix(env.Domain, "https://") {
 				env.Domain = strings.TrimPrefix(env.Domain, "https://")
@@ -160,7 +160,7 @@ func ValidateAndMutateForCore(traitType, workloadName string, flags *pflag.FlagS
 		issuer, _ := flags.GetString("issuer")
 		if issuer == "" {
 			if env.Issuer == "" {
-				return fmt.Errorf("--issuer is required, you can also set email in env and let it generate automatically")
+				return fmt.Errorf("--issuer is required, you can also set email in environment and let it generate automatically")
 			}
 			if err := flags.Set("issuer", env.Issuer); err != nil {
 				return fmt.Errorf("set flag for vela-core trait('route') err %v, please make sure your template is right", err)

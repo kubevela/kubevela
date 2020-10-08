@@ -61,7 +61,7 @@ var _ = ginkgo.Describe("API", func() {
 	e2e.APIEnvInitContext("post /envs/", envHelloMeta)
 
 	ginkgo.Context("get /envs/:envName", func() {
-		ginkgo.It("should get an env", func() {
+		ginkgo.It("should get an environment", func() {
 			resp, err := http.Get(util.URL("/envs/" + envHelloMeta.EnvName))
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			defer resp.Body.Close()
@@ -78,7 +78,7 @@ var _ = ginkgo.Describe("API", func() {
 	e2e.APIEnvInitContext("post /envs/", envWorldMeta)
 
 	ginkgo.Context("set /envs/:envName", func() {
-		ginkgo.It("should set an env as the currently using one", func() {
+		ginkgo.It("should set an environment as the currently using one", func() {
 			req, err := http.NewRequest("PATCH", util.URL("/envs/"+envHelloMeta.EnvName), nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			resp, err := http.DefaultClient.Do(req)
@@ -90,7 +90,7 @@ var _ = ginkgo.Describe("API", func() {
 			err = json.Unmarshal(result, &r)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(http.StatusOK).To(gomega.Equal(r.Code))
-			content := fmt.Sprintf("Set env succeed, current env is " + envHelloMeta.EnvName)
+			content := fmt.Sprintf("Set environment succeed, current environment is " + envHelloMeta.EnvName)
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(content))
 		})
 	})

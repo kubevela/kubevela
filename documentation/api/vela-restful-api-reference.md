@@ -107,7 +107,7 @@ sample response
 - example
 sample response
 ```json
-{"code":200,"data":"Set env succeed"}
+{"code":200,"data":"Set environment succeed"}
 ```
 
 ```json

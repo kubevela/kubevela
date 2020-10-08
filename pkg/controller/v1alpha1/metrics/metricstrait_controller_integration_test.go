@@ -112,7 +112,7 @@ var _ = Describe("Metrics Trait Integration Test", func() {
 	})
 
 	AfterEach(func() {
-		// Control-runtime test ENV has a bug that can't delete resources like deployment/namespaces
+		// Control-runtime test environment has a bug that can't delete resources like deployment/namespaces
 		// We have to use different names to segregate between tests
 		logf.Log.Info("[TEST] Clean up resources after an integration test")
 	})

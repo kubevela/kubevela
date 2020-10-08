@@ -28,7 +28,7 @@ vela comp deploy -t <workload-type>
 
 ```
   -a, --app string   specify application name for component
-  -e, --env string   specify env name for application
+  -e, --env string   specify environment name for application
 ```
 
 ### SEE ALSO

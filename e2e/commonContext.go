@@ -56,11 +56,11 @@ var (
 	// EnvInitContext used for test Env
 	EnvInitContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
-			ginkgo.It("should print env initiation successful message", func() {
+			ginkgo.It("should print environment initiation successful message", func() {
 				cli := fmt.Sprintf("vela env init %s", envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				expectedOutput := fmt.Sprintf("ENV %s CREATED,", envName)
+				expectedOutput := fmt.Sprintf("environment %s created,", envName)
 				gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
 			})
 		})
@@ -68,7 +68,7 @@ var (
 
 	DeleteEnvFunc = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
-			ginkgo.It("should print env initiation successful message", func() {
+			ginkgo.It("should print environment initiation successful message", func() {
 				cli := fmt.Sprintf("vela env delete %s", envName)
 				_, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -78,7 +78,7 @@ var (
 
 	EnvShowContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
-			ginkgo.It("should show detailed env message", func() {
+			ginkgo.It("should show detailed environment message", func() {
 				cli := fmt.Sprintf("vela env ls %s", envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -91,11 +91,11 @@ var (
 
 	EnvSetContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
-			ginkgo.It("should show env set message", func() {
+			ginkgo.It("should show environment set message", func() {
 				cli := fmt.Sprintf("vela env sw %s", envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				expectedOutput := fmt.Sprintf("Set env succeed, current env is %s", envName)
+				expectedOutput := fmt.Sprintf("Set environment succeed, current environment is %s", envName)
 				gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
 			})
 		})
@@ -103,7 +103,7 @@ var (
 
 	EnvDeleteContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
-			ginkgo.It("should delete an env", func() {
+			ginkgo.It("should delete an environment", func() {
 				cli := fmt.Sprintf("vela env delete %s", envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -118,7 +118,7 @@ var (
 				cli := fmt.Sprintf("vela env delete %s", envName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				expectedOutput := fmt.Sprintf("Error: you can't delete current using env %s", envName)
+				expectedOutput := fmt.Sprintf("Error: you can't delete current using environment %s", envName)
 				gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
 			})
 		})
@@ -226,7 +226,7 @@ var (
 				err = json.Unmarshal(result, &r)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(http.StatusOK).Should(gomega.Equal(r.Code))
-				gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring("CREATED"))
+				gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring("created"))
 			})
 		})
 	}

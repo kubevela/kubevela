@@ -95,7 +95,7 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 	if err = ioutil.WriteFile(curEnvPath, []byte(envName), 0644); err != nil {
 		return message, err
 	}
-	message = fmt.Sprintf("ENV %s CREATED, Namespace: %s, Email: %s.", envName, envArgs.Namespace, envArgs.Email)
+	message = fmt.Sprintf("environment %s created, Namespace: %s, Email: %s.", envName, envArgs.Namespace, envArgs.Email)
 	return message, nil
 }
 
@@ -205,7 +205,7 @@ func DeleteEnv(envName string) (string, error) {
 		return message, err
 	}
 	if envName == curEnv {
-		err = fmt.Errorf("you can't delete current using env %s", curEnv)
+		err = fmt.Errorf("you can't delete current using environment %s", curEnv)
 		return message, err
 	}
 	envdir, err := system.GetEnvDir()
@@ -239,6 +239,6 @@ func SetEnv(envName string) (string, error) {
 	if err = ioutil.WriteFile(currentEnvPath, []byte(envName), 0644); err != nil {
 		return msg, err
 	}
-	msg = fmt.Sprintf("Set env succeed, current env is " + envName + ", namespace is " + envMeta.Namespace)
+	msg = fmt.Sprintf("Set environment succeed, current environment is " + envName + ", namespace is " + envMeta.Namespace)
 	return msg, nil
 }

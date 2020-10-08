@@ -60,7 +60,7 @@ func newCommand() *cobra.Command {
 			return nil, cobra.ShellCompDirectiveNoFileComp
 		},
 	}
-	cmds.PersistentFlags().StringP("env", "e", "", "specify env name for application")
+	cmds.PersistentFlags().StringP("env", "e", "", "specify environment name for application")
 	restConf, err := config.GetConfig()
 	if err != nil {
 		fmt.Println("get kubeconfig err", err)

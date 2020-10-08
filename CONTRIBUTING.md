@@ -39,7 +39,7 @@ vela install
 
 ## Use
 
-* Create ENV
+* Create environment
  
 ```shell script
 vela env init myenv --namespace myenv --email my@email.com --domain kubevela.io 
