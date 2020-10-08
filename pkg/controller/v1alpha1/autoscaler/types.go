@@ -1,4 +1,4 @@
-package controllers
+package autoscalers
 
 import "github.com/oam-dev/kubevela/api/v1alpha1"
 

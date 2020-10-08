@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -29,7 +31,7 @@ type Protocol string
 type TriggerType string
 
 // +kubebuilder:object:root=true
-
+// +kubebuilder:resource:categories={oam}
 // Autoscaler is the Schema for the autoscalers API
 type Autoscaler struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -37,6 +39,22 @@ type Autoscaler struct {
 
 	Spec   AutoscalerSpec   `json:"spec"`
 	Status AutoscalerStatus `json:"status,omitempty"`
+}
+
+func (as *Autoscaler) SetConditions(c ...v1alpha1.Condition) {
+	as.Status.SetConditions(c...)
+}
+
+func (as *Autoscaler) GetCondition(conditionType v1alpha1.ConditionType) v1alpha1.Condition {
+	return as.Status.GetCondition(conditionType)
+}
+
+func (as *Autoscaler) GetWorkloadReference() v1alpha1.TypedReference {
+	return as.Spec.WorkloadReference
+}
+
+func (as *Autoscaler) SetWorkloadReference(reference v1alpha1.TypedReference) {
+	as.Spec.WorkloadReference = reference
 }
 
 type DefaultCondition struct {
@@ -100,6 +118,9 @@ type AutoscalerSpec struct {
 
 	// TargetWorkload specify the workload which is about to be scaled
 	TargetWorkload TargetWorkload `json:"targetWorkload,omitempty"`
+
+	// WorkloadReference specifies the workload which is about to be scaled
+	WorkloadReference runtimev1alpha1.TypedReference `json:"workloadRef,omitempty"`
 }
 
 // TargetWorkload holds the a reference to the scale target Object
@@ -113,8 +134,7 @@ type TargetWorkload struct {
 
 // AutoscalerStatus defines the observed state of Autoscaler
 type AutoscalerStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	runtimev1alpha1.ConditionedStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true

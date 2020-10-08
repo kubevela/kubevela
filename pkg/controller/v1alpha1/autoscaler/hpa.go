@@ -1,4 +1,4 @@
-package controllers
+package autoscalers
 
 import (
 	"reflect"

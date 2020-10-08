@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controllers
+package autoscalers
 
 import (
 	"context"
@@ -23,7 +23,11 @@ import (
 	"reflect"
 	"time"
 
+	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	oamutil "github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
+
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/pkg/errors"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -36,6 +40,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/oam-dev/kubevela/api/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"k8s.io/apimachinery/pkg/runtime"
 	restclient "k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -80,12 +85,32 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 	}
 	log.Info("retrieved trait Autoscaler", "APIVersion", scaler.APIVersion, "Kind", scaler.Kind)
 
-	// find ApplicationConfiguration to record the event
-	// comment it as I don't want Autoscaler to know it's in OAM context
-	//eventObj, err := util.LocateParentAppConfig(ctx, r.Client, &scaler)
-	//if err != nil {
-	//	log.Error(err, "failed to locate ApplicationConfiguration", "AutoScaler", scaler.Name)
-	//}
+	// Fetch the deployment instance to which the trait refers to
+	workload, err := oamutil.FetchWorkload(r.ctx, r, log, &scaler)
+	if err != nil {
+		log.Error(err, "Error while fetching the workload", "workload reference",
+			scaler.GetWorkloadReference())
+		r.record.Event(&scaler, event.Warning(common.ErrLocatingWorkload, err))
+		return oamutil.ReconcileWaitResult,
+			oamutil.PatchCondition(r.ctx, r, &scaler,
+				cpv1alpha1.ReconcileError(errors.Wrap(err, common.ErrLocatingWorkload)))
+	}
+
+	childResources, err := oamutil.FetchWorkloadChildResources(r.ctx, log, r, workload)
+	if err != nil {
+		log.Info("fail to fetch workload child resource", "name", workload.GetName(), "err", err)
+	} else {
+		for _, c := range childResources {
+			log.Info("PoC", "ChildResource", c)
+			if c.GetKind() == "Deployment" {
+				scaler.Spec.TargetWorkload = v1alpha1.TargetWorkload{
+					APIVersion: c.GetAPIVersion(),
+					Kind:       c.GetKind(),
+					Name:       c.GetName(),
+				}
+			}
+		}
+	}
 
 	namespace := req.NamespacedName.Namespace
 
@@ -126,4 +151,14 @@ func (r *AutoscalerReconciler) buildConfig() error {
 	}
 	r.config = config
 	return nil
+}
+
+// Setup adds a controller that reconciles MetricsTrait.
+func Setup(mgr ctrl.Manager) error {
+	r := AutoscalerReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("Autoscaler"),
+		Scheme: mgr.GetScheme(),
+	}
+	return r.SetupWithManager(mgr)
 }

@@ -1,0 +1,17 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: Component
+metadata:
+  name: component-scaler
+spec:
+  workload:
+    apiVersion: standard.oam.dev/v1alpha1
+    kind: Containerized
+    spec:
+      replicas: 1
+      podSpec:
+        containers:
+          - name: nginx-scaler
+            image: nginx:1.9.4
+            ports:
+              - containerPort: 80
+                name: nginx

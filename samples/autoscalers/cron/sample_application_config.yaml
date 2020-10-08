@@ -1,0 +1,26 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: ApplicationConfiguration
+metadata:
+  name: appconfig-scaler
+spec:
+  components:
+    - componentName: component-scaler
+      traits:
+        - trait:
+            apiVersion: standard.oam.dev/v1alpha1
+            kind: Autoscaler
+            metadata:
+              name: trait-scaler
+            spec:
+              minReplicas: 3                      # optional, Defaults: 1
+              maxReplicas: 6                      # optional, cannot be less that minReplicas
+              triggers:
+                - name: weekend-cron
+                  enabled: true
+                  type: cron                      # cron scaler. 表明 scaler 是 KEDA
+                  condition:
+                    startAt: "20:14"              # required. "HHMM"
+                    duration: 2h                 # required. 持续时长；start hour + duration < 24
+                    days: ["Thursday", "Saturday"]  # optional. In which days the condition will take effect
+                    replicas: 5                   # optional.
+                    timezone: Asia/Shanghai       # optional. time zone
