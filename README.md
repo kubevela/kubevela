@@ -323,12 +323,12 @@ $ vela completion zsh > "${fpath[1]}/_vela"
 ### Clean your environment
 
 ```console
-$ helm uninstall vela-core -n oam-system
-release "vela-core" uninstalled
+$ helm uninstall kubevela -n vela-system
+release "kubevela" uninstalled
 ```
 
 ```console
-$ kubectl delete crd workloaddefinitions.core.oam.dev traitdefinitions.core.oam.dev
+$ kubectl delete crd workloaddefinitions.core.oam.dev traitdefinitions.core.oam.dev  scopedefinitions.core.oam.dev
 customresourcedefinition.apiextensions.k8s.io "workloaddefinitions.core.oam.dev" deleted
 customresourcedefinition.apiextensions.k8s.io "traitdefinitions.core.oam.dev" deleted
 ```
