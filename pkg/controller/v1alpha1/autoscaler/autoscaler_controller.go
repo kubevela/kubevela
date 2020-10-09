@@ -19,11 +19,18 @@ package autoscalers
 import (
 	"context"
 	"flag"
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"time"
 
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
+
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 	oamutil "github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
@@ -83,7 +90,15 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		}
 		return ReconcileWaitResult, client.IgnoreNotFound(err)
 	}
-	log.Info("retrieved trait Autoscaler", "APIVersion", scaler.APIVersion, "Kind", scaler.Kind)
+	log.Info("Retrieved trait Autoscaler", "APIVersion", scaler.APIVersion, "Kind", scaler.Kind)
+
+	// find the resource object to record the event to, default is the parent appConfig.
+	eventObj, err := util.LocateParentAppConfig(r.ctx, r.Client, &scaler)
+	if eventObj == nil {
+		// fallback to workload itself
+		log.Error(err, "Failed to find the parent resource", "Autoscaler", scaler.Name)
+		eventObj = &scaler
+	}
 
 	// Fetch the deployment instance to which the trait refers to
 	workload, err := oamutil.FetchWorkload(r.ctx, r, log, &scaler)
@@ -96,25 +111,66 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 				cpv1alpha1.ReconcileError(errors.Wrap(err, common.ErrLocatingWorkload)))
 	}
 
-	childResources, err := oamutil.FetchWorkloadChildResources(r.ctx, log, r, workload)
+	ownerReference := metav1.OwnerReference{
+		APIVersion:         scaler.APIVersion,
+		Kind:               scaler.Kind,
+		UID:                scaler.GetUID(),
+		Name:               scaler.Name,
+		Controller:         pointer.BoolPtr(true),
+		BlockOwnerDeletion: pointer.BoolPtr(true),
+	}
+
+	// Reference the logic of ManualScalerTrait in OAM Kubernetes Runtime
+	// Fetch the child resources list from the corresponding workload
+	resources, err := util.FetchWorkloadChildResources(r.ctx, log, r, workload)
 	if err != nil {
-		log.Info("fail to fetch workload child resource", "name", workload.GetName(), "err", err)
+		log.Error(err, "Error while fetching the workload child resources", "workload", workload.UnstructuredContent())
+		r.record.Event(eventObj, event.Warning(util.ErrFetchChildResources, err))
+		return util.ReconcileWaitResult, util.PatchCondition(r.ctx, r, &scaler,
+			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrFetchChildResources)))
+	}
+	// if there is no child resource, set the workload as target workload
+	if len(resources) == 0 {
+		scaler.Spec.TargetWorkload = v1alpha1.TargetWorkload{
+			APIVersion: workload.GetAPIVersion(),
+			Kind:       workload.GetKind(),
+			Name:       workload.GetName(),
+		}
+		meta.AddOwnerReference(workload, ownerReference)
+		if err := r.Update(r.ctx, workload.DeepCopyObject()); err != nil {
+			log.Error(err, "failed to set workload's ownerReference", "workload", workload)
+		}
 	} else {
-		for _, c := range childResources {
-			log.Info("PoC", "ChildResource", c)
-			if c.GetKind() == "Deployment" {
-				scaler.Spec.TargetWorkload = v1alpha1.TargetWorkload{
-					APIVersion: c.GetAPIVersion(),
-					Kind:       c.GetKind(),
-					Name:       c.GetName(),
+		targetWorkloadSetFlag := false
+		for _, res := range resources {
+			resPatch := client.MergeFrom(res.DeepCopyObject())
+			refs := res.GetOwnerReferences()
+			for i, r := range refs {
+				if *r.Controller {
+					refs[i].Controller = pointer.BoolPtr(false)
 				}
+			}
+			refs = append(refs, ownerReference)
+			res.SetOwnerReferences(refs)
+			if err := r.Patch(r.ctx, res, resPatch, client.FieldOwner(scaler.GetUID())); err != nil {
+				log.Error(err, "Failed to set ownerReference for child resource")
+				return util.ReconcileWaitResult,
+					util.PatchCondition(r.ctx, r, &scaler, cpv1alpha1.ReconcileError(errors.Wrap(err, "Failed to set ownerReference for child resource")))
+			}
+			if !targetWorkloadSetFlag && (res.GetKind() == "Deployment" || res.GetKind() == "StatefulSet") {
+				scaler.Spec.TargetWorkload = v1alpha1.TargetWorkload{
+					APIVersion: res.GetAPIVersion(),
+					Kind:       res.GetKind(),
+					Name:       res.GetName(),
+				}
+				targetWorkloadSetFlag = true
 			}
 		}
 	}
 
 	namespace := req.NamespacedName.Namespace
 
-	// TODO(zzxwill) compare two scalers and adjust the target replicas @炎寻
+	// TODO(zzxwill) compare two scalers and adjust the target replicas
 
 	if err := r.scaleByHPA(scaler, namespace, log); err != nil {
 		return ReconcileWaitResult, err

@@ -10,6 +10,8 @@ metadata:
 spec:
   group: standard.oam.dev
   names:
+    categories:
+    - oam
     kind: Autoscaler
     listKind: AutoscalerList
     plural: autoscalers
@@ -108,11 +110,66 @@ spec:
                   - type
                   type: object
                 type: array
+              workloadRef:
+                description: WorkloadReference specifies the workload which is about
+                  to be scaled
+                properties:
+                  apiVersion:
+                    description: APIVersion of the referenced object.
+                    type: string
+                  kind:
+                    description: Kind of the referenced object.
+                    type: string
+                  name:
+                    description: Name of the referenced object.
+                    type: string
+                  uid:
+                    description: UID of the referenced object.
+                    type: string
+                required:
+                - apiVersion
+                - kind
+                - name
+                type: object
             required:
             - triggers
             type: object
           status:
             description: AutoscalerStatus defines the observed state of Autoscaler
+            properties:
+              conditions:
+                description: Conditions of the resource.
+                items:
+                  description: A Condition that may apply to a resource.
+                  properties:
+                    lastTransitionTime:
+                      description: LastTransitionTime is the last time this condition
+                        transitioned from one status to another.
+                      format: date-time
+                      type: string
+                    message:
+                      description: A Message containing details about this condition's
+                        last transition from one status to another, if any.
+                      type: string
+                    reason:
+                      description: A Reason for this condition's last transition from
+                        one status to another.
+                      type: string
+                    status:
+                      description: Status of this condition; is it currently True,
+                        False, or Unknown?
+                      type: string
+                    type:
+                      description: Type of this condition. At most one of each condition
+                        type may apply to a resource at any point in time.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
             type: object
         required:
         - spec

@@ -1,0 +1,26 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: ApplicationConfiguration
+metadata:
+  name: appconfig-scaler
+spec:
+  components:
+    - componentName: component-scaler
+      traits:
+        - trait:
+            apiVersion: standard.oam.dev/v1alpha1
+            kind: Autoscaler
+            metadata:
+              name: trait-scaler
+            spec:
+              minReplicas: 3
+              maxReplicas: 6
+              triggers:
+                - name: weekend-cron
+                  enabled: true
+                  type: cron
+                  condition:
+                    startAt: "00:01"
+                    duration: 2h
+                    days: ["Friday", "Saturday"]
+                    replicas: 5
+                    timezone: Asia/Shanghai

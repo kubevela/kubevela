@@ -7,6 +7,7 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/utils/pointer"
 
 	kedav1alpha1 "github.com/kedacore/keda/api/v1alpha1"
 
@@ -17,7 +18,6 @@ import (
 	kedatype "github.com/kedacore/keda/pkg/generated/clientset/versioned/typed/keda/v1alpha1"
 	"github.com/oam-dev/kubevela/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
 )
 
 func (r *AutoscalerReconciler) scaleByKEDA(scaler v1alpha1.Autoscaler, namespace string, log logr.Logger) error {
@@ -133,7 +133,9 @@ func (r *AutoscalerReconciler) scaleByKEDA(scaler v1alpha1.Autoscaler, namespace
 		return nil
 	}
 	scaleTarget := kedav1alpha1.ScaleTarget{
-		Name: targetWorkload.Name,
+		APIVersion: targetWorkload.APIVersion,
+		Kind:       targetWorkload.Kind,
+		Name:       targetWorkload.Name,
 	}
 
 	scaleObj := kedav1alpha1.ScaledObject{
