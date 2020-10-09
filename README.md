@@ -1,34 +1,27 @@
 # KubeVela
 
-The Open Application Platform based on Kubernetes and OAM.
+The Open Application Platform based on Kubernetes and Open Application Model (OAM).
 
-:rotating_light: **Warning: The project is still under heavy development with lots of sharp edges, please don't look inside unless you know what you are doing.** Feel free to contact the maintainers in slack channel [cncf#kubevela](https://cloud-native.slack.com/archives/C01BLQ3HTJA) if you are interested in its full story or becoming a vela developer. :rotating_light:
+## Project Status
 
-## Purpose and goal
+:rotating_light: **Warning: this project is still a work in progress with lots of rough edges, please don't look inside unless you know what you are doing.**
+
+KubeVela project is initialized and maintained by the cloud native community since day 0 with [bootstrapping contributors from 8+ different organizations](https://github.com/oam-dev/kubevela/graphs/contributors). We intend for KubeVela to have a open governance since the very beginning and donate the project to neutral foundation as soon as it's released. 
+
+## Purpose and Goal
 
 - For developers and operators
   - KubeVela, as an out-of-box Cloud Native Application Management Platform, provides numerous workloads and operation tooling for application defining, deployment, scaling, traffic, rollout, routing, monitoring, logging, alerting, CI/CD and so on.
 - For platform builders
   - KubeVela, as a highly extensible PaaS/Serverless Core, provides pluggable capabilities, an elegant way to integrate any workloads and operational capabilities (i.e. traits).
 
-The KubeVela project is fully initialized by the community since day 0 with [bootstrapping contributors from 8+ different organizations](https://github.com/oam-dev/kubevela/graphs/contributors).
+## Design and Architecture
 
-## Architecture
+Read more about [KubeVela's high level design and architecture](DESIGN.md).
 
-For now, KubeVela project has only two components:
+## Demo Instructions
 
-- User interface layer
-  - including:
-    - `cli`, `dashboard`, `appfile` (WIP)
-      - they are all client side tools to provide developer facing abstractions by leveraging [CUElang](https://github.com/cuelang/cue).
-- Vela core
-  - including:
-    - [OAM Kubernetes runtime](https://github.com/crossplane/oam-kubernetes-runtime) to provide application level primitives such as `component` and `application` etc.
-    - [Built-in workload and trait controllers](https://github.com/oam-dev/kubevela/tree/master/pkg/controller/v1alpha1) to implement core capabilities such as `webservice`, `route` and `rollout` etc.
-       - This part heavily leverages existing community projects instead of re-inventing the wheels.
-    - Capability center to register and manage any user provided workloads and traits (WIP).
-
-The other component we will add in the future is "Infrastructure Layer" by Crossplane to enable KubeVela works smoothly across multiple clouds.
+See the demo instructions below get a sense of what we've accomplished and are working on.
 
 ## Install
 
@@ -52,9 +45,7 @@ $ vela install
 ```
 This command will install vela core controller into your K8s cluster, along with built-in workloads and traits.
 
-## Walk through
-
-> Note: this is not a getting started guide. Just to let KubeVela developers have some sense of the project.
+## Using KubeVela
 
 After `vela install` you will see available workloads and traits.
 
@@ -339,4 +330,7 @@ $ rm -r ~/.vela
 
 ## Contributing
 Check out [CONTRIBUTING.md](./CONTRIBUTING.md) to see how to develop with KubeVela.
+
+## Code of Conduct
+This project has adopted the [CNCF Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md). See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for further details.
 
