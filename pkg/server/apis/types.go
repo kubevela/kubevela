@@ -53,9 +53,9 @@ type WorkloadMeta struct {
 }
 
 type TraitMeta struct {
-	Name       string   `json:"name"`
-	Definition string   `json:"definition,omitempty"`
-	AppliesTo  []string `json:"appliesTo,omitempty"`
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	AppliesTo   []string `json:"appliesTo,omitempty"`
 }
 
 //used to present trait which is to be attached and, of which parameters are set
@@ -67,13 +67,6 @@ type TraitBody struct {
 	AppName       string       `json:"appName,omitempty"`
 	Staging       string       `json:"staging,omitempty"`
 }
-
-//type ComponentMeta struct {
-//	Name     string                        `json:"name"`
-//	Status   string                        `json:"status,omitempty"`
-//	Workload runtime.RawExtension          `json:"workload,omitempty"`
-//	Traits   []corev1alpha2.ComponentTrait `json:"traits,omitempty"`
-//}
 
 type ComponentMeta struct {
 	Name     string               `json:"name"`

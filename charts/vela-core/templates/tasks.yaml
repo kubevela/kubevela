@@ -5,6 +5,7 @@ metadata:
   annotations:
     definition.oam.dev/apiVersion: "v1"
     definition.oam.dev/kind: "Job"
+    definition.oam.dev/description: "One-time off task or job"
 spec:
   definitionRef:
     name: jobs

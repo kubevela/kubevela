@@ -19,6 +19,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const DescriptionUndefined = "description not defined"
+
 func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Capability, error) {
 	workloads, err := GetWorkloadsFromCluster(ctx, namespace, c, syncDir, selector)
 	if err != nil {
@@ -41,7 +43,7 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Cli
 	}
 
 	for _, wd := range workloadDefs.Items {
-		tmp, err := HandleDefinition(wd.Name, syncDir, wd.Spec.Reference.Name, wd.Spec.Extension, types.TypeWorkload, nil)
+		tmp, err := HandleDefinition(wd.Name, syncDir, wd.Spec.Reference.Name, wd.Annotations, wd.Spec.Extension, types.TypeWorkload, nil)
 		if err != nil {
 			fmt.Printf("[WARN] hanlde workload template `%s` failed with error: %v\n", wd.Name, err)
 			continue
@@ -68,7 +70,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 	}
 
 	for _, td := range traitDefs.Items {
-		tmp, err := HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads)
+		tmp, err := HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Annotations, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads)
 		if err != nil {
 			fmt.Printf("[WARN] hanlde trait template `%s` failed with error: %v\n", td.Name, err)
 			continue
@@ -86,7 +88,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 	return templates, nil
 }
 
-func HandleDefinition(name, syncDir, crdName string, extention *runtime.RawExtension, tp types.CapType, applyTo []string) (types.Capability, error) {
+func HandleDefinition(name, syncDir, crdName string, annotation map[string]string, extention *runtime.RawExtension, tp types.CapType, applyTo []string) (types.Capability, error) {
 	var tmp types.Capability
 	tmp, err := HandleTemplate(extention, name, syncDir)
 	if err != nil {
@@ -97,7 +99,19 @@ func HandleDefinition(name, syncDir, crdName string, extention *runtime.RawExten
 		tmp.AppliesTo = applyTo
 	}
 	tmp.CrdName = crdName
+	tmp.Description = GetDescription(annotation)
 	return tmp, nil
+}
+
+func GetDescription(annotation map[string]string) string {
+	if annotation == nil {
+		return DescriptionUndefined
+	}
+	desc, ok := annotation[types.AnnDescription]
+	if !ok {
+		return DescriptionUndefined
+	}
+	return desc
 }
 
 func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Capability, error) {

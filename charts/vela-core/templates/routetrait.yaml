@@ -5,6 +5,7 @@ metadata:
   annotations:
     definition.oam.dev/apiVersion: standard.oam.dev/v1alpha1
     definition.oam.dev/kind: Route
+    definition.oam.dev/description: "Add a route for workload"
 spec:
   appliesToWorkloads:
     - core.oam.dev/v1alpha2.ContainerizedWorkload

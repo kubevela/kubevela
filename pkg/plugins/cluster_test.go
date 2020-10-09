@@ -28,13 +28,15 @@ var _ = Describe("DefinitionFiles", func() {
 				Type:     cue.StringKind,
 			},
 		},
-		CrdName: "routes.test",
+		Description: "description not defined",
+		CrdName:     "routes.test",
 	}
 
 	deployment := types.Capability{
-		Name:    "deployment",
-		Type:    types.TypeWorkload,
-		CrdName: "deployments.testapps",
+		Name:        "deployment",
+		Type:        types.TypeWorkload,
+		CrdName:     "deployments.testapps",
+		Description: "description not defined",
 		Parameters: []types.Parameter{
 			{
 				Name:     "name",
@@ -68,6 +70,7 @@ var _ = Describe("DefinitionFiles", func() {
 		Name:           "webservice",
 		Type:           types.TypeWorkload,
 		CueTemplateURI: "https://raw.githubusercontent.com/oam-dev/kubevela/master/vela-templates/web-service.cue",
+		Description:    "description not defined",
 		Parameters: []types.Parameter{
 			{
 				Name:     "name",

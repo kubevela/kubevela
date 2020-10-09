@@ -36,10 +36,10 @@ func printTraitList(workloadName *string, ioStreams cmdutil.IOStreams) error {
 	if err != nil {
 		return err
 	}
-	table.AddRow("NAME", "DEFINITION", "APPLIES TO")
+	table.AddRow("NAME", "DESCRIPTION", "APPLIES TO")
 	simplifiedTraits := oam.SimplifyCapabilityStruct(traitDefinitionList)
 	for _, t := range simplifiedTraits {
-		table.AddRow(t.Name, t.Definition, strings.Join(t.AppliesTo, "\n"))
+		table.AddRow(t.Name, t.Description, strings.Join(t.AppliesTo, "\n"))
 	}
 	ioStreams.Info(table.String())
 	return nil

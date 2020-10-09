@@ -11,8 +11,9 @@ const (
 )
 
 const (
-	AnnAPIVersion = "definition.oam.dev/apiVersion"
-	AnnKind       = "definition.oam.dev/kind"
+	AnnAPIVersion  = "definition.oam.dev/apiVersion"
+	AnnKind        = "definition.oam.dev/kind"
+	AnnDescription = "definition.oam.dev/description"
 
 	// Indicate which workloadDefinition generate from
 	AnnWorkloadDef = "workload.oam.dev/name"

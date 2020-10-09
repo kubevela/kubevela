@@ -4,6 +4,7 @@ metadata:
   annotations:
     definition.oam.dev/apiVersion: core.oam.dev/v1alpha2
     definition.oam.dev/kind: ManualScalerTrait
+    definition.oam.dev/description: "Scale replica for workload"
   name: manualscalertraits.core.oam.dev
   namespace: default
 spec:
