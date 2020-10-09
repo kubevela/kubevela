@@ -39,8 +39,10 @@ cmd/vela/fake/source.go
 cmd/vela/fake/chart_source.go
 charts/vela-core/crds/_.yaml
 
+testapp/.vela/
+
 # Dashboard
-dashboard/node_modules/
+node_modules/
 .eslintcache
 dashboard/dist/
 dashboard/package-lock.json

@@ -1,0 +1,9 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: webservice
+spec:
+  definitionRef:
+    name: containerizeds.standard.oam.dev
+  extension:
+    template: |

@@ -1,0 +1,9 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: scale
+spec:
+  definitionRef:
+    name: scales.standard.oam.dev
+  extension:
+    template: |
