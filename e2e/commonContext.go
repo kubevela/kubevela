@@ -1,14 +1,19 @@
 package e2e
 
 import (
+	ctx "context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/Netflix/go-expect"
+	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/server/util"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
@@ -186,13 +191,24 @@ var (
 		})
 	}
 
-	ApplicationCompStatusContext = func(context string, applicationName string, workloadType string) bool {
+	ApplicationCompStatusContext = func(context string, applicationName, workloadType, envName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should get status for the component", func() {
-				cli := fmt.Sprintf("vela comp status %s", applicationName)
-				output, err := Exec(cli)
+				ginkgo.By("init new k8s client")
+				k8sclient, err := newK8sClient()
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
+
+				ginkgo.By("check AppConfig reconciled ready")
+				gomega.Eventually(func() int {
+					appConfig := &corev1alpha2.ApplicationConfiguration{}
+					_ = k8sclient.Get(ctx.Background(), client.ObjectKey{Name: applicationName, Namespace: "default"}, appConfig)
+					return len(appConfig.Status.Workloads)
+				}, 120*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))
+
+				cli := fmt.Sprintf("vela comp status %s", applicationName)
+				output, err := LongTimeExec(cli, 120*time.Second)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(output).To(gomega.ContainSubstring("Checking health status"))
 				// TODO(zzxwill) need to check workloadType after app status is refined
 			})
 		})
@@ -211,6 +227,56 @@ var (
 		})
 	}
 
+	ApplicationInitIntercativeCliContext = func(context string, appName string, workloadType string) bool {
+		return ginkgo.Context(context, func() {
+			ginkgo.It("should init app through interactive questions", func() {
+				cli := "vela init"
+				output, err := InteractiveExec(cli, func(c *expect.Console) {
+					data := []struct {
+						q, a string
+					}{
+						{
+							q: "Do you want to setup a domain for web service: ",
+							a: "testdomain",
+						},
+						{
+							q: "Provide an email for production certification: ",
+							a: "test@mail",
+						},
+						{
+							q: "What would you like to name your application: ",
+							a: appName,
+						},
+						{
+							q: "webservice",
+							a: workloadType,
+						},
+						{
+							q: "What would you name this webservice: ",
+							a: "mysvc",
+						},
+						{
+							q: "specify app image ",
+							a: "nginx:latest",
+						},
+						{
+							q: "specify port for container ",
+							a: "8080",
+						},
+					}
+					for _, qa := range data {
+						_, err := c.ExpectString(qa.q)
+						gomega.Expect(err).NotTo(gomega.HaveOccurred())
+						_, err = c.SendLine(qa.a)
+						gomega.Expect(err).NotTo(gomega.HaveOccurred())
+					}
+					_, _ = c.ExpectEOF()
+				})
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(output).To(gomega.ContainSubstring("Initializing"))
+			})
+		})
+	}
 	// APIEnvInitContext used for test api env
 	APIEnvInitContext = func(context string, envMeta apis.Environment) bool {
 		return ginkgo.Context("Post /envs/", func() {

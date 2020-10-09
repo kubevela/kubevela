@@ -13,6 +13,7 @@ var (
 	workloadType    = "webservice"
 	applicationName = "app-basic"
 	traitAlias      = "scale"
+	appNameForInit  = "initmyapp"
 )
 
 var _ = ginkgo.Describe("Application", func() {
@@ -26,6 +27,8 @@ var _ = ginkgo.Describe("Application", func() {
 	e2e.TraitManualScalerAttachContext("vela attach scale trait", traitAlias, applicationName)
 	e2e.ApplicationShowContext("app show", applicationName, workloadType)
 	e2e.ApplicationStatusContext("app status", applicationName, workloadType)
-	e2e.ApplicationCompStatusContext("comp status", applicationName, workloadType)
+	e2e.ApplicationCompStatusContext("comp status", applicationName, workloadType, envName)
+	e2e.ApplicationInitIntercativeCliContext("init", appNameForInit, workloadType)
 	e2e.WorkloadDeleteContext("delete", applicationName)
+	e2e.WorkloadDeleteContext("delete", appNameForInit)
 })

@@ -70,7 +70,24 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			o.IOStreams.Info("App Deployed Succeed")
+
+			ctx := context.Background()
+			initStatus, err := printTrackingInitStatus(ctx, o.client, o.IOStreams, o.workloadName, o.appName, o.Env)
+			if err != nil {
+				return err
+			}
+			if initStatus != compStatusInitialized {
+				return nil
+			}
+
+			deployStatus, err := printTrackingDeployStatus(ctx, o.client, o.IOStreams, o.workloadName, o.appName, o.Env)
+			if err != nil {
+				return err
+			}
+			if deployStatus != compStatusDeployed {
+				return nil
+			}
+
 			//TODO(wonderflow) Wait for app running, and print trait info such as route, domain
 			return printComponentStatus(context.Background(), o.client, o.IOStreams, o.workloadName, o.appName, o.Env)
 		},

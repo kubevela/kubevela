@@ -5,9 +5,11 @@ go 1.13
 require (
 	cuelang.org/go v0.2.2
 	github.com/AlecAivazis/survey/v2 v2.1.1
+	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
+	github.com/briandowns/spinner v1.11.1
 	github.com/coreos/prometheus-operator v0.41.1
 	github.com/crossplane/crossplane-runtime v0.9.0
-	github.com/crossplane/oam-kubernetes-runtime v0.1.1-0.20200909070723-78b84f2c4799
+	github.com/crossplane/oam-kubernetes-runtime v0.2.1
 	github.com/fatih/color v1.9.0
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/ghodss/yaml v1.0.0
@@ -17,7 +19,9 @@ require (
 	github.com/google/go-cmp v0.5.2
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
+	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/jetstack/cert-manager v0.14.3
+	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mholt/archiver/v3 v3.3.0
 	github.com/oam-dev/trait-injector v0.0.0-20200331033130-0a27b176ffc4
 	github.com/onsi/ginkgo v1.13.0
