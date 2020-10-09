@@ -10,7 +10,7 @@ import ComponentDetail from '../ComponentDetail/index.jsx';
   loadingAll: loading.models.applist,
   currentEnv: globalData.currentEnv,
 }))
-class TableList extends React.PureComponent {
+class TableList extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
@@ -26,7 +26,15 @@ class TableList extends React.PureComponent {
     this.getInitData();
   }
 
-  getInitData = async () => {
+  // shouldComponentUpdate(nextProps) {
+  //   if (nextProps.currentEnv === this.props.currentEnv) {
+  //     return true;
+  //   }
+  //   this.getInitData(nextProps.currentEnv);
+  //   return true;
+  // }
+
+  getInitData = async (changeEnvName) => {
     let appName = '';
     let description = '';
     let envName = this.props.currentEnv;
@@ -49,7 +57,7 @@ class TableList extends React.PureComponent {
     const res = await this.props.dispatch({
       type: 'applist/getAppDetail',
       payload: {
-        envName,
+        envName: changeEnvName || envName,
         appName,
       },
     });
@@ -165,6 +173,8 @@ class TableList extends React.PureComponent {
                   compName={componentName}
                   envName={envName}
                   getInitCompList={this.getInitData}
+                  compList={compList}
+                  history={this.props.history}
                 />
               </div>
             ) : (

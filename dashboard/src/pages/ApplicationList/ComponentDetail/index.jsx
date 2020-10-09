@@ -22,6 +22,7 @@ class TableList extends React.Component {
       envName: '',
       appName: '',
       compName: '',
+      compList: [],
     };
   }
 
@@ -38,8 +39,12 @@ class TableList extends React.Component {
   getInitialData = async (nextCompName) => {
     const appName = _.get(this.props, 'appName', '');
     const envName = _.get(this.props, 'envName', '');
+    const compList = _.get(this.props, 'compList', []);
     let compName = _.get(this.props, 'compName', '');
     compName = nextCompName || compName;
+    this.setState({
+      compList,
+    });
     if (appName && envName && compName) {
       this.setState({
         envName,
@@ -62,14 +67,34 @@ class TableList extends React.Component {
           type: 'trait/getTraits',
         });
         if (traits) {
+          const checkedTrait = [];
+          if (res.traits) {
+            res.traits.forEach((item) => {
+              const traitNameObj = _.get(item, 'trait.metadata.annotations', '');
+              const traitName =
+                traitNameObj['vela.oam.dev/traitDef'] || traitNameObj['trait.oam.dev/name'];
+              checkedTrait.push(traitName);
+            });
+          }
+          const newTraits = traits.filter((item) => {
+            if (checkedTrait.includes(item.name)) {
+              return false;
+            }
+            return true;
+          });
           this.setState({
-            traitList: traits,
+            traitList: newTraits,
           });
         }
         const workloadType = _.get(res, 'workload.kind', '');
         if (workloadType) {
           this.getAcceptTrait(workloadType.toLowerCase());
         }
+        // if (workloadType && workloadType === '') {
+        //   this.getAcceptTrait('containerized');
+        // } else if (workloadType && workloadType === 'Deployment') {
+        //   this.getAcceptTrait('deployment');
+        // }
       }
     }
   };
@@ -101,7 +126,7 @@ class TableList extends React.Component {
 
   deleteComp = async (e) => {
     e.stopPropagation();
-    const { envName, appName, compName } = this.state;
+    const { envName, appName, compName, compList } = this.state;
     if (appName && envName && compName) {
       const res = await this.props.dispatch({
         type: 'components/deleteComponent',
@@ -113,8 +138,15 @@ class TableList extends React.Component {
       });
       if (res) {
         message.success(res);
-        // 删除当前component成功后，刷新当前页面
-        this.props.getInitCompList();
+        if (compList.length === 1) {
+          // 只有一个组件时会同时删除应用
+          this.props.history.push({
+            pathname: `/ApplicationList`,
+          });
+        } else {
+          // 删除当前component成功后，刷新当前页面
+          this.props.getInitCompList(compList.length);
+        }
       }
     }
   };
@@ -146,9 +178,16 @@ class TableList extends React.Component {
   };
 
   createTrait = async () => {
-    await this.setState({
-      visible: true,
-    });
+    await this.setState(
+      {
+        visible: true,
+      },
+      () => {
+        if (this.child) {
+          this.child.resetFields();
+        }
+      },
+    );
   };
 
   handleOk = async () => {
@@ -317,7 +356,16 @@ class TableList extends React.Component {
                       </Row>
                     </div>
                     <Popconfirm
-                      title="Are you sure delete this component?"
+                      title={
+                        this.state.compList.length === 1 ? (
+                          <div>
+                            <p>There is only one component in the current application,</p>
+                            <p>Do you want to delete the entire application?</p>
+                          </div>
+                        ) : (
+                          'Are you sure delete this component?'
+                        )
+                      }
                       onConfirm={(e) => this.deleteComp(e)}
                       onCancel={this.cancel}
                       okText="Yes"
