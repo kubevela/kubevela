@@ -26,7 +26,7 @@ vela traits
 ### Options inherited from parent commands
 
 ```
-  -e, --env string   specify env name for application
+  -e, --env string   specify environment name for application
 ```
 
 ### SEE ALSO

@@ -1,4 +1,4 @@
-## vela comp run
+## vela comp deploy
 
 Init and Run workloads
 
@@ -7,13 +7,13 @@ Init and Run workloads
 Init and Run workloads
 
 ```
-vela comp run [args]
+vela comp deploy [args]
 ```
 
 ### Examples
 
 ```
-vela comp run -t <workload-type>
+vela comp deploy -t <workload-type>
 ```
 
 ### Options
@@ -28,7 +28,7 @@ vela comp run -t <workload-type>
 
 ```
   -a, --app string   specify application name for component
-  -e, --env string   specify env name for application
+  -e, --env string   specify environment name for application
 ```
 
 ### SEE ALSO

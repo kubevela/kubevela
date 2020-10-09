@@ -16,7 +16,7 @@ Manage Components
 ### Options inherited from parent commands
 
 ```
-  -e, --env string   specify env name for application
+  -e, --env string   specify environment name for application
 ```
 
 ### SEE ALSO
@@ -24,7 +24,7 @@ Manage Components
 * [vela](vela.md)	 - 
 * [vela comp delete](vela_comp_delete.md)	 - Delete Component From Application
 * [vela comp ls](vela_comp_ls.md)	 - List applications
-* [vela comp run](vela_comp_run.md)	 - Init and Run workloads
+* [vela comp deploy](vela_comp_run.md)	 - Init and Run workloads
 * [vela comp show](vela_comp_show.md)	 - get component detail
 * [vela comp status](vela_comp_status.md)	 - get status of a component
 

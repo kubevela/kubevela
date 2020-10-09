@@ -40,7 +40,7 @@ func AddCompCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 
 	compCommands.AddCommand(
 		NewCompListCommand(c, ioStreams),
-		NewCompRunCommands(c, ioStreams),
+		NewCompDeployCommands(c, ioStreams),
 		NewCompShowCommand(ioStreams),
 		NewCompStatusCommand(c, ioStreams),
 		NewCompDeleteCommand(c, ioStreams),
@@ -48,15 +48,15 @@ func AddCompCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 	return compCommands
 }
 
-func NewCompRunCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
+func NewCompDeployCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 	runCmd := &cobra.Command{
-		Use:                   "run [args]",
+		Use:                   "deploy [args]",
 		DisableFlagsInUseLine: true,
 		// Dynamic flag parse in compeletion
 		DisableFlagParsing: true,
 		Short:              "Init and Run workloads",
 		Long:               "Init and Run workloads",
-		Example:            "vela comp run -t <workload-type>",
+		Example:            "vela comp deploy -t <workload-type>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 || args[0] == "-h" {
 				err := cmd.Help()

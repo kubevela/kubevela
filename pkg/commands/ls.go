@@ -95,7 +95,7 @@ func printComponentList(ctx context.Context, c client.Client, appName string, en
 		Namespace: env.Namespace,
 	})
 	if err != nil {
-		ioStreams.Infof("listing Trait DefinitionPath hit an issue: %s\n", err)
+		ioStreams.Infof("listing Components: %s\n", err)
 		return
 	}
 	all := mergeStagingComponents(deployedComponentList, env, ioStreams)

@@ -39,7 +39,7 @@ vela install
 
 ## Use
 
-* Create ENV
+* Create environment
  
 ```shell script
 vela env init myenv --namespace myenv --email my@email.com --domain kubevela.io 
@@ -50,7 +50,7 @@ vela env init myenv --namespace myenv --email my@email.com --domain kubevela.io
 For example, use the following command to create and run an application.
 
 ```shell script
-$ vela comp run mycomp -t webservice --image crccheck/hello-world --port 8000
+$ vela comp deploy mycomp -t webservice --image crccheck/hello-world --port 8000
 Creating AppConfig appcomp
 SUCCEED
 ```

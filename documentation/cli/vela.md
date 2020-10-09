@@ -13,7 +13,7 @@ vela [flags]
 ### Options
 
 ```
-  -e, --env string   specify env name for application
+  -e, --env string   specify environment name for application
   -h, --help         help for vela
 ```
 

@@ -121,7 +121,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	// Determine whether it is necessary to create a service.if container.
 	setPorts := r.checkContainerPortsSpecified(ctx, &workload)
-	if !setPorts {
+	if setPorts {
 		// create a service for the workload
 		service, err := r.renderService(ctx, &workload)
 		if err != nil {

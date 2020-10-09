@@ -20,13 +20,13 @@ vela env init test --namespace test
 
 ```
   -h, --help               help for init
-      --namespace string   specify K8s namespace for env (default "default")
+      --namespace string   specify K8s namespace for environment (default "default")
 ```
 
 ### Options inherited from parent commands
 
 ```
-  -e, --env string   specify env name for application
+  -e, --env string   specify environment name for application
 ```
 
 ### SEE ALSO

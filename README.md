@@ -97,7 +97,7 @@ $ cat ~/.vela/envs/demo/config.json
 Then let's create application, we will use the `demo` environment.
 
 ```console
-$ vela comp run mycomp -t webservice --image crccheck/hello-world --port 8000 --app myapp
+$ vela comp deploy mycomp -t webservice --image crccheck/hello-world --port 8000 --app myapp
 Creating AppConfig appcomp
 SUCCEED
 ```
@@ -107,7 +107,7 @@ SUCCEED
 Vela supports micro-services application by default thanks to Open Application Model.
 
 ```console
-$ vela comp run db -t backend --image crccheck/hello-world --app myapp
+$ vela comp deploy db -t backend --image crccheck/hello-world --app myapp
 Creating App myapp
 SUCCEED
 ```
@@ -323,12 +323,12 @@ $ vela completion zsh > "${fpath[1]}/_vela"
 ### Clean your environment
 
 ```console
-$ helm uninstall vela-core -n oam-system
-release "vela-core" uninstalled
+$ helm uninstall kubevela -n vela-system
+release "kubevela" uninstalled
 ```
 
 ```console
-$ kubectl delete crd workloaddefinitions.core.oam.dev traitdefinitions.core.oam.dev
+$ kubectl delete crd workloaddefinitions.core.oam.dev traitdefinitions.core.oam.dev  scopedefinitions.core.oam.dev
 customresourcedefinition.apiextensions.k8s.io "workloaddefinitions.core.oam.dev" deleted
 customresourcedefinition.apiextensions.k8s.io "traitdefinitions.core.oam.dev" deleted
 ```

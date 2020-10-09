@@ -116,7 +116,7 @@ func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string) error {
 	if err = o.Prepare(cmd, args); err != nil {
 		return err
 	}
-	if o.app, err = oam.PrepareDetachTrait(o.Env.Name, o.traitType, o.appName, o.workloadName); err != nil {
+	if o.app, err = oam.PrepareDetachTrait(o.Env.Name, o.traitType, o.workloadName, o.appName); err != nil {
 		return err
 	}
 	var traitType = o.Template.Name

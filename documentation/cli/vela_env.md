@@ -1,4 +1,4 @@
-## vela env
+## vela environment
 
 Manage application environments
 
@@ -9,13 +9,13 @@ Manage application environments
 ### Options
 
 ```
-  -h, --help   help for env
+  -h, --help   help for environment
 ```
 
 ### Options inherited from parent commands
 
 ```
-  -e, --env string   specify env name for application
+  -e, --env string   specify environment name for application
 ```
 
 ### SEE ALSO
