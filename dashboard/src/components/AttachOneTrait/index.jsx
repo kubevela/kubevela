@@ -35,6 +35,10 @@ export default class CreateTraitItem extends React.PureComponent {
     return this.formRefStep2.current.getFieldsValue();
   };
 
+  resetFields = () => {
+    return this.formRefStep2.current.resetFields();
+  };
+
   validateFields = () => {
     return this.formRefStep2.current.validateFields();
   };

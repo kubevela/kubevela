@@ -21,7 +21,7 @@ export default {
   'menu.Workload': 'Workloads',
   'menu.Workload.WorkloadItem': 'WorkloadItem',
   'menu.Workload.Deployment': 'Deployment',
-  'menu.Workload.PodSpecWorkload': 'PodSpecWorkload',
+  'menu.Workload.Containerized': 'Containerized',
   'menu.Workload.Detail': 'Detail',
   'menu.Release': 'Release',
   'menu.admin': 'Admin',

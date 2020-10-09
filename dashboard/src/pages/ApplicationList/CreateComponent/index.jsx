@@ -153,8 +153,9 @@ class TableList extends React.Component {
   };
 
   changeShowMore = () => {
+    const isMore = this.state.isShowMore;
     this.setState({
-      isShowMore: true,
+      isShowMore: !isMore,
     });
   };
 
@@ -479,11 +480,11 @@ class TableList extends React.Component {
                   style={{
                     color: '#1890ff',
                     cursor: 'pointer',
-                    display: this.state.isShowMore ? 'none' : 'black',
+                    // display: this.state.isShowMore ? 'none' : 'black',
                   }}
                   onClick={this.changeShowMore}
                 >
-                  more...
+                  {this.state.isShowMore ? 'close...' : 'more...'}
                 </span>
               </div>
               {this.state.isShowMore ? (

@@ -207,8 +207,8 @@ export default class Workload extends React.Component {
                   {appList.length ? (
                     appList.map((item, index) => {
                       return (
-                        <Option key={index.toString()} value={item.app}>
-                          {item.app}
+                        <Option key={index.toString()} value={item.name}>
+                          {item.name}
                         </Option>
                       );
                     })
