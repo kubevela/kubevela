@@ -17,6 +17,9 @@ metadata:
     definition.oam.dev/kind: MetricsTrait
 spec:
   appliesToWorkloads:
+    - webservice
+    - backend
+    - task
     - containerizedworkloads.core.oam.dev
     - clonesetworkloads.apps.kruise.io
     - deployments.apps

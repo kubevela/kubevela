@@ -10,6 +10,7 @@ spec:
     - core.oam.dev/v1alpha2.ContainerizedWorkload
     - standard.oam.dev/v1alpha1.PodSpecWorkload
     - deployments.apps
+    - webservice
   workloadRefPath: spec.workloadRef
   definitionRef:
     name: routes.standard.oam.dev
