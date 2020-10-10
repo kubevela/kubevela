@@ -6,7 +6,7 @@ This document is the detailed design and architecture of the KubeVela being buil
 
 ## Overview
 
-KubeVela is a simple, complete, but highly extensible cloud native application platform based on Kubernetes. KubeVela intends to bring application-centric experience to its end users and democratize building cloud native application platforms for platform engineers.
+KubeVela is a simple, complete, but highly extensible cloud native application platform based on Kubernetes and Open Application Model (OAM). KubeVela intends to bring application-centric experience to its end users and democratize building cloud native application platforms for platform engineers.
 
 ## User Stories
 
@@ -130,7 +130,7 @@ $ vela comp deploy frontend -t webservice --image oamdev/testapp:v1 --port 80 --
 
 The `-t webservice --image oamdev/testapp:v1 --port 80` arguments are not hard coded, they are schema defined by in-line CUE template of `WebService` workload definition.
 
-The `appfile` is a complex version of command line tool, for example:
+The `appfile` is essentially a YAML version of command line tool so we can support more complex and serious scenarios by simply running `$ vela up hello-world.yaml`:
 
 ```yaml
 version: "1.0-alpha.1"
@@ -138,8 +138,8 @@ version: "1.0-alpha.1"
 name: helloworld
 
 services:
-  webservice: # workload type
-    name: express-server
+  express-server:
+    type: webservice # workload type
     build:
       image: oamdev/testapp:v1
       docker:
@@ -151,17 +151,20 @@ services:
     env:
       - FOO=bar
 
-  scale: # scaling trait
-    replica: 2
-    auto:
-      range: "1-10"
-      cpu: 80
-      qps: 1000
+    scale: # scaling trait
+      replica: 2
+      auto:
+        range: "1-10"
+        cpu: 80
+        qps: 1000
 
-  canary: # canary trait
-    step: 5
-    headers:
-      - "foo:bar.*"
+    canary: # canary trait
+      step: 5
+      headers:
+        - "foo:bar.*"
+
+  redis:
+    image: oamdev/redis
 
 secrets:
   my-secret: /local-path/my-secret # load local file into k8s secret
@@ -173,7 +176,7 @@ We will skip the example of dashboard, but similarly, the schema of GUI forms ar
 
 ## Architecture
 
-![alt](resources/kubevela-arch.png)
+![alt](resources/arch.png)
 
 From highest level, KubeVela is composed by only two components:
 
@@ -183,5 +186,6 @@ Including: `cli`, `dashboard`, `appfile`, they are all client side tools to prov
 Including:
   - [OAM Kubernetes runtime](https://github.com/crossplane/oam-kubernetes-runtime) to provide application level building blocks such as `Component` and `Application` etc.
   - [Built-in workload and trait controllers](https://github.com/oam-dev/kubevela/tree/master/pkg/controller/v1alpha1) to implement core capabilities such as `webservice`, `route` and `rollout` etc.
-  - Capability Center: manage features of KubeVela following Capability Oriented Architecture. Every feature of KubeVela is a "addon", and it is registered by Kubernetes API resource (including CRD) leveraging OAM definition objects.
-  - CRD Registry: register controllers of Kubernetes add-ons and discover them by CRD. This will enable automatically install controllers/operators when CRD is missing in the cluster.
+  - Capability Management: manage features of KubeVela following Capability Oriented Architecture. 
+    - Every feature of KubeVela is a "addon", and it is registered by Kubernetes API resource (including CRD) leveraging OAM definition objects.
+    - CRD Registry: register controllers of Kubernetes add-ons and discover them by CRD. This will enable automatically install controllers/operators when CRD is missing in the cluster.
