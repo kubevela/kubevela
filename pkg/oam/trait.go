@@ -91,14 +91,16 @@ func ConvertApplyTo(applyTo []string, workloads []types.Capability) []string {
 		if !exist {
 			continue
 		}
-		converted = append(converted, newName)
+		if !In(converted, newName) {
+			converted = append(converted, newName)
+		}
 	}
 	return converted
 }
 
 func check(applyto string, workloads []types.Capability) (string, bool) {
 	for _, v := range workloads {
-		if Parse(applyto) == v.CrdName {
+		if Parse(applyto) == v.CrdName || Parse(applyto) == v.Name {
 			return v.Name, true
 		}
 	}
