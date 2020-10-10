@@ -164,15 +164,20 @@ func (r *AutoscalerReconciler) scaleByKEDA(scaler v1alpha1.Autoscaler, namespace
 			Triggers:        kedaTriggers,
 		},
 	}
-	if obj, err := kedaClient.ScaledObjects(namespace).Create(r.ctx, &scaleObj, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
-		log.Error(err, "failed to create KEDA ScaledObj", "ScaledObject", obj)
-		return err
+
+	obj, err := kedaClient.ScaledObjects(namespace).Get(r.ctx, scalerName, metav1.GetOptions{})
+	if err != nil {
+		log.Info("KEDA ScaledObj doesn't exist", "ScaledObjectName", scalerName)
+		if _, err := kedaClient.ScaledObjects(namespace).Create(r.ctx, &scaleObj, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
+			log.Error(err, "failed to create KEDA ScaledObj", "ScaledObject", scaleObj)
+			return err
+		}
+	} else {
+		obj.Spec = scaleObj.Spec
+		if _, err := kedaClient.ScaledObjects(namespace).Update(r.ctx, obj, metav1.UpdateOptions{}); err != nil {
+			log.Error(err, "failed to update KEDA ScaledObj", "ScaledObject", scaleObj)
+			return err
+		}
 	}
-
-	//if obj, err := kedaClient.ScaledObjects(namespace).Update(r.ctx, &scaleObj, metav1.UpdateOptions{}); err != nil {
-	//	log.Error(err, "failed to create KEDA ScaledObj", "ScaledObject", obj)
-	//	return err
-	//}
-
 	return nil
 }

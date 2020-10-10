@@ -24,8 +24,6 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
@@ -129,42 +127,40 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		return util.ReconcileWaitResult, util.PatchCondition(r.ctx, r, &scaler,
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrFetchChildResources)))
 	}
-	// if there is no child resource, set the workload as target workload
-	if len(resources) == 0 {
+	resources = append(resources, workload)
+
+	targetWorkloadSetFlag := false
+	for _, res := range resources {
+		resPatch := client.MergeFrom(res.DeepCopyObject())
+		refs := res.GetOwnerReferences()
+		for i, r := range refs {
+			if *r.Controller {
+				refs[i].Controller = pointer.BoolPtr(false)
+			}
+		}
+		refs = append(refs, ownerReference)
+		res.SetOwnerReferences(refs)
+		if err := r.Patch(r.ctx, res, resPatch, client.FieldOwner(scaler.GetUID())); err != nil {
+			log.Error(err, "Failed to set ownerReference for child resource")
+			return util.ReconcileWaitResult,
+				util.PatchCondition(r.ctx, r, &scaler, cpv1alpha1.ReconcileError(
+					errors.Wrap(err, "Failed to set ownerReference for child resource")))
+		}
+		if !targetWorkloadSetFlag && (res.GetKind() == "Deployment" || res.GetKind() == "StatefulSet") {
+			scaler.Spec.TargetWorkload = v1alpha1.TargetWorkload{
+				APIVersion: res.GetAPIVersion(),
+				Kind:       res.GetKind(),
+				Name:       res.GetName(),
+			}
+			targetWorkloadSetFlag = true
+		}
+	}
+	// if there is no child resource or no child resource kind is deployment or statefuset, set the workload as target workload
+	if len(resources) == 0 && !targetWorkloadSetFlag {
 		scaler.Spec.TargetWorkload = v1alpha1.TargetWorkload{
 			APIVersion: workload.GetAPIVersion(),
 			Kind:       workload.GetKind(),
 			Name:       workload.GetName(),
-		}
-		meta.AddOwnerReference(workload, ownerReference)
-		if err := r.Update(r.ctx, workload.DeepCopyObject()); err != nil {
-			log.Error(err, "failed to set workload's ownerReference", "workload", workload)
-		}
-	} else {
-		targetWorkloadSetFlag := false
-		for _, res := range resources {
-			resPatch := client.MergeFrom(res.DeepCopyObject())
-			refs := res.GetOwnerReferences()
-			for i, r := range refs {
-				if *r.Controller {
-					refs[i].Controller = pointer.BoolPtr(false)
-				}
-			}
-			refs = append(refs, ownerReference)
-			res.SetOwnerReferences(refs)
-			if err := r.Patch(r.ctx, res, resPatch, client.FieldOwner(scaler.GetUID())); err != nil {
-				log.Error(err, "Failed to set ownerReference for child resource")
-				return util.ReconcileWaitResult,
-					util.PatchCondition(r.ctx, r, &scaler, cpv1alpha1.ReconcileError(errors.Wrap(err, "Failed to set ownerReference for child resource")))
-			}
-			if !targetWorkloadSetFlag && (res.GetKind() == "Deployment" || res.GetKind() == "StatefulSet") {
-				scaler.Spec.TargetWorkload = v1alpha1.TargetWorkload{
-					APIVersion: res.GetAPIVersion(),
-					Kind:       res.GetKind(),
-					Name:       res.GetName(),
-				}
-				targetWorkloadSetFlag = true
-			}
 		}
 	}
 
