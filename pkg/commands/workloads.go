@@ -31,9 +31,9 @@ func NewWorkloadsCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 func printWorkloadList(workloadList []types.Capability, ioStreams cmdutil.IOStreams) error {
 	table := uitable.New()
 	table.MaxColWidth = 60
-	table.AddRow("NAME", "DEFINITION")
+	table.AddRow("NAME", "DESCRIPTION")
 	for _, r := range workloadList {
-		table.AddRow(r.Name, r.CrdName)
+		table.AddRow(r.Name, r.Description)
 	}
 	ioStreams.Info(table.String())
 	return nil

@@ -46,6 +46,7 @@ type Capability struct {
 	CrdName        string      `json:"crdName,omitempty"`
 	Center         string      `json:"center,omitempty"`
 	Status         string      `json:"status,omitempty"`
+	Description    string      `json:"description,omitempty"`
 
 	//trait only
 	AppliesTo []string `json:"appliesTo,omitempty"`

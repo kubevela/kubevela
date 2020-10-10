@@ -5,6 +5,7 @@ metadata:
   annotations:
     definition.oam.dev/apiVersion: "standard.oam.dev/v1alpha1"
     definition.oam.dev/kind: "PodSpecWorkload"
+    definition.oam.dev/description: "Long running service with ports exposed"
 spec:
   definitionRef:
     name: podspecworkloads.standard.oam.dev

@@ -133,9 +133,9 @@ func SimplifyCapabilityStruct(capabilityList []types.Capability) []apis.TraitMet
 	var traitList []apis.TraitMeta
 	for _, c := range capabilityList {
 		traitList = append(traitList, apis.TraitMeta{
-			Name:       c.Name,
-			Definition: c.CrdName,
-			AppliesTo:  c.AppliesTo,
+			Name:        c.Name,
+			Description: c.Description,
+			AppliesTo:   c.AppliesTo,
 		})
 	}
 	return traitList

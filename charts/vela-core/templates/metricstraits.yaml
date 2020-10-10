@@ -15,6 +15,7 @@ metadata:
   annotations:
     definition.oam.dev/apiVersion: standard.oam.dev/v1alpha1
     definition.oam.dev/kind: MetricsTrait
+    definition.oam.dev/description: "Add metric monitoring for workload"
 spec:
   appliesToWorkloads:
     - webservice
