@@ -91,7 +91,9 @@ func ConvertApplyTo(applyTo []string, workloads []types.Capability) []string {
 		if !exist {
 			continue
 		}
-		converted = append(converted, newName)
+		if !In(converted, newName) {
+			converted = append(converted, newName)
+		}
 	}
 	return converted
 }
