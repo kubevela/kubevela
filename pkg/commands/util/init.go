@@ -51,9 +51,8 @@ func DoesNamespaceExist(c client.Client, namespace string) (bool, error) {
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return false, nil
-		} else {
-			return false, err
 		}
+		return false, err
 	}
 	return true, nil
 }
@@ -73,9 +72,8 @@ func DoesCRDExist(cxt context.Context, c client.Client, object runtime.Object) (
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return false, nil
-		} else {
-			return false, err
 		}
+		return false, err
 	}
 	return true, nil
 }
