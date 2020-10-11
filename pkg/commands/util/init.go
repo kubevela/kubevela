@@ -7,6 +7,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -43,10 +44,18 @@ func GetKubeConfig() string {
 	return filepath.Join(HomeDir(), ".kube", "config")
 }
 
-func IsNamespaceExist(c client.Client, namespace string) bool {
+// DoesNamespaceExist check namespace exist
+func DoesNamespaceExist(c client.Client, namespace string) (bool, error) {
 	var ns corev1.Namespace
 	err := c.Get(context.Background(), types.NamespacedName{Name: namespace}, &ns)
-	return err == nil
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return false, nil
+		} else {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 func NewNamespace(c client.Client, namespace string) error {
@@ -58,6 +67,15 @@ func NewNamespace(c client.Client, namespace string) error {
 	return nil
 }
 
-func IsCoreCRDExist(cxt context.Context, c client.Client, object runtime.Object) error {
-	return c.List(cxt, object, &client.ListOptions{})
+// DoesCoreCRDExist check CRD exist
+func DoesCRDExist(cxt context.Context, c client.Client, object runtime.Object) (bool, error) {
+	err := c.List(cxt, object, &client.ListOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return false, nil
+		} else {
+			return false, err
+		}
+	}
+	return true, nil
 }
