@@ -118,7 +118,6 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}
 
-	// Reference the logic of ManualScalerTrait in OAM Kubernetes Runtime
 	// Fetch the child resources list from the corresponding workload
 	resources, err := util.FetchWorkloadChildResources(r.ctx, log, r, workload)
 	if err != nil {
