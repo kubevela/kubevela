@@ -7,9 +7,9 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -67,8 +67,8 @@ func NewNamespace(c client.Client, namespace string) error {
 }
 
 // DoesCoreCRDExist check CRD exist
-func DoesCRDExist(cxt context.Context, c client.Client, object runtime.Object) (bool, error) {
-	err := c.List(cxt, object, &client.ListOptions{})
+func DoesCRDExist(cxt context.Context, c client.Client, crdName string) (bool, error) {
+	err := c.Get(cxt, types.NamespacedName{Name:crdName}, &apiextensions.CustomResourceDefinition{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return false, nil
