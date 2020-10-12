@@ -14,18 +14,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
-var (
-	scheme *runtime.Scheme
-)
-
-func init() {
-	scheme = runtime.NewScheme()
+func initScheme() *runtime.Scheme {
+	scheme := runtime.NewScheme()
 	_ = apiextensions.AddToScheme(scheme)
 	_ = corev1.AddToScheme(scheme)
 	_ = crdv1.AddToScheme(scheme)
+	return scheme
 }
 
 func TestDoesNamespaceExist(t *testing.T) {
+	scheme := initScheme()
 	fakeClient := fake.NewFakeClientWithScheme(scheme)
 	//test exist namespace
 	mockNamespaceName := "test-ns"
@@ -47,6 +45,7 @@ func TestDoesNamespaceExist(t *testing.T) {
 }
 
 func TestDoesCRDExist(t *testing.T) {
+	scheme := initScheme()
 	fakeClient := fake.NewFakeClientWithScheme(scheme)
 	//test crd exist
 	mockCRD := &apiextensions.CustomResourceDefinition{
