@@ -87,7 +87,7 @@ func installHelmChart(client client.Client, chart []byte, log logr.Logger) error
 		if len(helmChart.Namespace) > 0 {
 			exist, err := cmdutil.DoesNamespaceExist(client, helmChart.Namespace)
 			if err != nil {
-				return nil
+				return err
 			}
 			if !exist {
 				if err = cmdutil.NewNamespace(client, helmChart.Namespace); err != nil {
