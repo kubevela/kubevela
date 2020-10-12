@@ -98,7 +98,11 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 
 func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 	ioStreams.Info("- Installing Vela Core Chart:")
-	if !cmdutil.IsNamespaceExist(i.client, types.DefaultOAMNS) {
+	exist, err := cmdutil.DoesNamespaceExist(i.client, types.DefaultOAMNS)
+	if err != nil {
+		return err
+	}
+	if !exist {
 		if err := cmdutil.NewNamespace(i.client, types.DefaultOAMNS); err != nil {
 			return err
 		}
