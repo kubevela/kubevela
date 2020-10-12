@@ -32,15 +32,17 @@ the successful message.
 
 sample request:
 ```json
-{"envName":"ccc","namespace":"ccc"}
+{
+  "envName": "e2",
+  "namespace": "e2",
+  "email": "e@gmail.com",
+  "domain": "d.com"
+}
 ```
 
 sample response:
 ```json
-{
-"code": 200,
-"data": "Create env succeed"
-}
+{"code":200,"data":"environment e2 created, Namespace: e2, Email: e@gmail.com."}
 ```
 
 ### GET /api/envs/ (env list)
