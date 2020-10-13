@@ -114,7 +114,7 @@ spec:
 ---
 # The following manifests contain a self-signed issuer CR and a certificate CR.
 # More document can be found at https://docs.cert-manager.io
-apiVersion: cert-manager.io/v1alpha2
+apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
   name: {{ .Values.certificate.issuerName | quote  }}
@@ -122,7 +122,7 @@ spec:
   selfSigned: {}
 
 ---
-apiVersion: cert-manager.io/v1alpha2
+apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: {{ .Values.certificate.certificateName }}

@@ -2,12 +2,15 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/oam-dev/kubevela/hack/utils"
 
 	"github.com/openservicemesh/osm/pkg/cli"
 )
@@ -25,9 +28,18 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error getting chart source:", err)
 		os.Exit(1)
 	}
-	fmt.Print(source)
+	PrintToFile(source)
 	// Delete the temporary Chart path
 	os.RemoveAll(tempDir)
+}
+
+func PrintToFile(data string) {
+	var buffer bytes.Buffer
+	buffer.WriteString(`package fake
+var ChartSource = "`)
+	utils.FprintZipData(&buffer, []byte(data))
+	buffer.WriteString(`"`)
+	_ = ioutil.WriteFile("cmd/vela/fake/chart_source.go", buffer.Bytes(), 0644)
 }
 
 // fixOpenAPIV3SchemaValidationIssue temporarily corrects spec.validation.openAPIV3Schema issue, and it would be removed

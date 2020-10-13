@@ -22,10 +22,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
-// chartTGZSource is a base64-encoded, gzipped tarball of the default Helm chart.
-// Its value is initialized at build time.
-var chartTGZSource string
-
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
@@ -79,7 +75,7 @@ func newCommand() *cobra.Command {
 
 	cmds.AddCommand(
 		// Getting Start
-		commands.NewInstallCommand(commandArgs, chartTGZSource, ioStream),
+		commands.NewInstallCommand(commandArgs, fake.ChartSource, ioStream),
 		commands.NewEnvCommand(commandArgs, ioStream),
 
 		// Getting Start

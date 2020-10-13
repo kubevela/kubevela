@@ -68,7 +68,7 @@ func NewNamespace(c client.Client, namespace string) error {
 
 // DoesCoreCRDExist check CRD exist
 func DoesCRDExist(cxt context.Context, c client.Client, crdName string) (bool, error) {
-	err := c.Get(cxt, types.NamespacedName{Name:crdName}, &apiextensions.CustomResourceDefinition{})
+	err := c.Get(cxt, types.NamespacedName{Name: crdName}, &apiextensions.CustomResourceDefinition{})
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return false, nil
