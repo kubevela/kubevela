@@ -111,6 +111,7 @@ spec:
             - "--use-webhook=true"
             - "--webhook-port={{ .Values.webhookService.port }}"
             - "--webhook-cert-dir={{ .Values.certificate.mountPath }}"
+            - "--health-addr=:{{ .Values.healthCheck.port }}"
           {{ end }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
@@ -121,6 +122,21 @@ spec:
             - containerPort: {{ .Values.webhookService.port }}
               name: webhook-server
               protocol: TCP
+            - containerPort: {{ .Values.healthCheck.port }}
+              name: healthz
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: healthz
+            initialDelaySeconds: 90
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 90
+            periodSeconds: 5
           volumeMounts:
             - mountPath: {{ .Values.certificate.mountPath }}
               name: tls-cert-vol

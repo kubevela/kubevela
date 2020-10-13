@@ -1,10 +1,14 @@
 package main
 
 import (
+	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
+	"time"
 
 	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
@@ -24,6 +28,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	velacore "github.com/oam-dev/kubevela/api/v1alpha1"
@@ -32,7 +37,16 @@ import (
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook"
 )
 
-var scheme = runtime.NewScheme()
+const (
+	kubevelaName = "kubevela"
+)
+
+var (
+	setupLog           = ctrl.Log.WithName(kubevelaName)
+	scheme             = runtime.NewScheme()
+	waitSecretTimeout  = 90 * time.Second
+	waitSecretInterval = 2 * time.Second
+)
 
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
@@ -54,6 +68,7 @@ func main() {
 	var webhookPort int
 	var useWebhook, useTraitInjector bool
 	var controllerArgs oamcontroller.Args
+	var healthAddr string
 
 	flag.BoolVar(&useWebhook, "use-webhook", false, "Enable Admission Webhook")
 	flag.BoolVar(&useTraitInjector, "use-trait-injector", false, "Enable TraitInjector")
@@ -67,6 +82,7 @@ func main() {
 	flag.BoolVar(&logCompress, "log-compress", true, "Enable compression on the rotated logs.")
 	flag.IntVar(&controllerArgs.RevisionLimit, "revision-limit", 50,
 		"RevisionLimit is the maximum number of revisions that will be maintained. The default value is 50.")
+	flag.StringVar(&healthAddr, "health-addr", ":9440", "The address the health endpoint binds to.")
 	flag.Parse()
 
 	// setup logging
@@ -86,7 +102,6 @@ func main() {
 		o.DestWritter = w
 	}))
 
-	setupLog := ctrl.Log.WithName("vela-runtime")
 	// install dependency charts first
 	k8sClient, err := client.New(ctrl.GetConfigOrDie(), client.Options{Scheme: scheme})
 	if err != nil {
@@ -99,15 +114,21 @@ func main() {
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: metricsAddr,
-		LeaderElection:     enableLeaderElection,
-		LeaderElectionID:   "vela-runtime",
-		Port:               webhookPort,
-		CertDir:            certDir,
+		Scheme:                 scheme,
+		MetricsBindAddress:     metricsAddr,
+		LeaderElection:         enableLeaderElection,
+		LeaderElectionID:       kubevelaName,
+		Port:                   webhookPort,
+		CertDir:                certDir,
+		HealthProbeBindAddress: healthAddr,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to create a controller manager")
+		os.Exit(1)
+	}
+
+	if err := registerHealthChecks(mgr); err != nil {
+		setupLog.Error(err, "unable to register ready/health checks")
 		os.Exit(1)
 	}
 
@@ -115,6 +136,10 @@ func main() {
 		setupLog.Info("vela webhook enabled, will serving at :" + strconv.Itoa(webhookPort))
 		oamwebhook.Add(mgr)
 		velawebhook.Register(mgr)
+		if err := waitWebhookSecretVolume(certDir, waitSecretTimeout, waitSecretInterval); err != nil {
+			setupLog.Error(err, "unable to get webhook secret")
+			os.Exit(1)
+		}
 	}
 
 	if err = oamv1alpha2.Setup(mgr, controllerArgs, logging.NewLogrLogger(setupLog)); err != nil {
@@ -149,5 +174,53 @@ func main() {
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
+	}
+}
+
+// registerHealthChecks is used to create readiness&liveness probes
+func registerHealthChecks(mgr ctrl.Manager) error {
+	setupLog.Info("creating readiness/health check")
+	if err := mgr.AddReadyzCheck("ping", healthz.Ping); err != nil {
+		return err
+	}
+
+	if err := mgr.AddHealthzCheck("ping", healthz.Ping); err != nil {
+		return err
+	}
+	return nil
+}
+
+// waitWebhookSecretVolume waits for webhook secret ready to avoid mgr running crash
+func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) error {
+	start := time.Now()
+	for {
+		time.Sleep(interval)
+		if time.Since(start) > timeout {
+			return fmt.Errorf("getting webhook secret timeout after %s", timeout.String())
+		}
+		setupLog.Info(fmt.Sprintf("waiting webhook secret, time consumed: %d/%d seconds ...",
+			int64(time.Since(start).Seconds()), int64(timeout.Seconds())))
+		if _, err := os.Stat(certDir); !os.IsNotExist(err) {
+			f, _ := os.Open(certDir)
+			defer f.Close()
+			// check if dir is empty
+			if _, err := f.Readdir(1); err == io.EOF {
+				continue
+			}
+			// check if secret files are empty
+			err := filepath.Walk(certDir, func(path string, info os.FileInfo, err error) error {
+				fmt.Println(info.Name(), info.Size())
+				// even Cert dir is created, cert files are still empty for a while
+				if info.Size() == 0 {
+					return errors.New("secret is not ready")
+				}
+				return nil
+			})
+			if err == nil {
+				setupLog.Info(fmt.Sprintf("webhook secret is ready (time consumed: %d seconds)",
+					int64(time.Since(start).Seconds())))
+				return nil
+			}
+		}
 	}
 }
