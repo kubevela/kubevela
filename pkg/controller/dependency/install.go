@@ -55,6 +55,9 @@ func Install(client client.Client) error {
 	velaConfigNN := k8stypes.NamespacedName{Name: VelaConfigName, Namespace: types.DefaultOAMNS}
 	velaConfig := v1.ConfigMap{}
 	if err := client.Get(context.TODO(), velaConfigNN, &velaConfig); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
 		return err
 	}
 	for crd, chart := range velaConfig.Data {
