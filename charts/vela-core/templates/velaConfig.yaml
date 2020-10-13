@@ -10,7 +10,7 @@ data:
       "urL": "https://charts.jetstack.io",
       "name": "cert-manager",
       "namespace": "cert-manager",
-      "version": "1.0.0"
+      "version": "1.0.3"
     }
   servicemonitors.monitoring.coreos.com: |
     {

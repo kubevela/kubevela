@@ -34,7 +34,7 @@ func Exec(cli string) (string, error) {
 	if err != nil {
 		return string(output), err
 	}
-	s := session.Wait(10 * time.Second)
+	s := session.Wait(30 * time.Second)
 	return string(s.Out.Contents()) + string(s.Err.Contents()), nil
 }
 
