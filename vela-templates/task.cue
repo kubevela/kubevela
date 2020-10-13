@@ -1,4 +1,4 @@
-data: {
+output: {
 	apiVersion: "v1"
 	kind:       "Job"
 	metadata: name: parameter.name

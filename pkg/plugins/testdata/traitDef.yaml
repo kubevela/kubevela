@@ -9,7 +9,7 @@ spec:
     name: routes.test
   extension:
     template: |
-      data: {
+      output: {
       	apiVersion: "apps/v1"
       	kind:       "Route"
       	spec: {

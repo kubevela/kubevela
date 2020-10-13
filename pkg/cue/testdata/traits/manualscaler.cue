@@ -1,4 +1,4 @@
-data: {
+output: {
 	apiVersion: "core.oam.dev/v1alpha2"
 	kind:       "ManualScalerTrait"
 	spec: {

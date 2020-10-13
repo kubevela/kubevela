@@ -9,7 +9,7 @@ spec:
     name: deployments.testapps
   extension:
     template: |
-      data: {
+      output: {
       	apiVersion: "apps/v1"
       	kind:       "Deployment"
       	metadata: name: parameter.name

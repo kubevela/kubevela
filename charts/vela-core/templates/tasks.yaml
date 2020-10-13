@@ -14,7 +14,7 @@ spec:
     - monitor
     - logging
     template: |
-      data: {
+      output: {
         apiVersion: "v1"
         kind:       "Job"
         metadata: name: parameter.name
