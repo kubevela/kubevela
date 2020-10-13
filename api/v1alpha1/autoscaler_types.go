@@ -116,10 +116,10 @@ type AutoscalerSpec struct {
 	// Triggers lists all triggers
 	Triggers []Trigger `json:"triggers"`
 
-	// TargetWorkload specify the workload which is about to be scaled
+	// TargetWorkload specify the workload or child workload which is about to be scaled
 	TargetWorkload TargetWorkload `json:"targetWorkload,omitempty"`
 
-	// WorkloadReference specifies the workload which is about to be scaled
+	// WorkloadReference marks the owner of the workload
 	WorkloadReference runtimev1alpha1.TypedReference `json:"workloadRef,omitempty"`
 }
 

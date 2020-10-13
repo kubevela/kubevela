@@ -164,13 +164,6 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 	}
 
 	namespace := req.NamespacedName.Namespace
-
-	// TODO(zzxwill) compare two scalers and adjust the target replicas
-
-	if err := r.scaleByHPA(scaler, namespace, log); err != nil {
-		return ReconcileWaitResult, err
-	}
-
 	if err := r.scaleByKEDA(scaler, namespace, log); err != nil {
 		return ReconcileWaitResult, err
 	}

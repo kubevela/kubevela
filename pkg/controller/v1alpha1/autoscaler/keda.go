@@ -5,6 +5,9 @@ import (
 	"strconv"
 	"time"
 
+	autoscalingv2beta2 "k8s.io/api/autoscaling/v2beta2"
+	apicorev1 "k8s.io/api/core/v1"
+
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/utils/pointer"
@@ -34,13 +37,11 @@ func (r *AutoscalerReconciler) scaleByKEDA(scaler v1alpha1.Autoscaler, namespace
 	scalerName := scaler.Name
 	targetWorkload := scaler.Spec.TargetWorkload
 
-	// kedaScalerFlag marks whether KEDA Scaler should be applied
-	var kedaScalerFlag = false
+	var resourceMetric *autoscalingv2beta2.ResourceMetricSource
 
 	var kedaTriggers []kedav1alpha1.ScaleTriggers
 	for _, t := range triggers {
 		if t.Type == CronType {
-			kedaScalerFlag = true
 			if targetWorkload.Name == "" {
 				err := errors.New(SpecWarningTargetWorkloadNotSet)
 				log.Error(err, "")
@@ -126,16 +127,30 @@ func (r *AutoscalerReconciler) scaleByKEDA(scaler v1alpha1.Autoscaler, namespace
 				}
 				kedaTriggers = append(kedaTriggers, kedaTrigger)
 			}
+		} else if t.Type == CPUType || t.Type == MemoryType || t.Type == StorageType || t.Type == EphemeralStorageType {
+			resourceMetric = &autoscalingv2beta2.ResourceMetricSource{
+				Name: apicorev1.ResourceName(string(t.Type)),
+				Target: autoscalingv2beta2.MetricTarget{
+					// Currently only CPU `Utilization` is supported
+					Type:               CPUUtilization,
+					AverageUtilization: t.Condition.Target,
+				},
+			}
 		}
 	}
 
-	if !kedaScalerFlag {
-		return nil
-	}
 	scaleTarget := kedav1alpha1.ScaleTarget{
 		APIVersion: targetWorkload.APIVersion,
 		Kind:       targetWorkload.Kind,
 		Name:       targetWorkload.Name,
+	}
+
+	var resourceMetrics []*autoscalingv2beta2.ResourceMetricSource
+	resourceMetrics = append(resourceMetrics, resourceMetric)
+	advanced := &kedav1alpha1.AdvancedConfig{
+		HorizontalPodAutoscalerConfig: &kedav1alpha1.HorizontalPodAutoscalerConfig{
+			ResourceMetrics: resourceMetrics,
+		},
 	}
 
 	scaleObj := kedav1alpha1.ScaledObject{
@@ -161,6 +176,7 @@ func (r *AutoscalerReconciler) scaleByKEDA(scaler v1alpha1.Autoscaler, namespace
 			ScaleTargetRef:  &scaleTarget,
 			MinReplicaCount: minReplicas,
 			MaxReplicaCount: maxReplicas,
+			Advanced:        advanced,
 			Triggers:        kedaTriggers,
 		},
 	}
