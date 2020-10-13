@@ -101,16 +101,29 @@ spec:
                                 to match a value.
                               properties:
                                 fieldPath:
+                                  description: FieldPath specifies got value from
+                                    workload/trait object
                                   type: string
                                 op:
                                   description: ConditionOperator specifies the operator
                                     to match a value.
                                   type: string
                                 value:
+                                  description: Value specifies an expected value This
+                                    is mutually exclusive with ValueFrom
                                   type: string
+                                valueFrom:
+                                  description: ValueFrom specifies expected value
+                                    from AppConfig This is mutually exclusive with
+                                    Value
+                                  properties:
+                                    fieldPath:
+                                      type: string
+                                  required:
+                                  - fieldPath
+                                  type: object
                               required:
                               - op
-                              - value
                               type: object
                             type: array
                           fieldPath:
@@ -233,16 +246,29 @@ spec:
                                       requirement to match a value.
                                     properties:
                                       fieldPath:
+                                        description: FieldPath specifies got value
+                                          from workload/trait object
                                         type: string
                                       op:
                                         description: ConditionOperator specifies the
                                           operator to match a value.
                                         type: string
                                       value:
+                                        description: Value specifies an expected value
+                                          This is mutually exclusive with ValueFrom
                                         type: string
+                                      valueFrom:
+                                        description: ValueFrom specifies expected
+                                          value from AppConfig This is mutually exclusive
+                                          with Value
+                                        properties:
+                                          fieldPath:
+                                            type: string
+                                        required:
+                                        - fieldPath
+                                        type: object
                                     required:
                                     - op
-                                    - value
                                     type: object
                                   type: array
                                 fieldPath:
@@ -338,6 +364,8 @@ spec:
                           - kind
                           - name
                           type: object
+                        reason:
+                          type: string
                         to:
                           description: DependencyToObject represents the object that
                             dependency data goes to.
@@ -365,10 +393,47 @@ spec:
                           type: object
                       required:
                       - from
+                      - reason
                       - to
                       type: object
                     type: array
                 type: object
+              historyWorkloads:
+                description: HistoryWorkloads will record history but still working
+                  revision workloads.
+                items:
+                  description: HistoryWorkload contain the old component revision
+                    that are still running
+                  properties:
+                    revision:
+                      description: component revision of this workload
+                      type: string
+                    workloadRef:
+                      description: Reference to running workload.
+                      properties:
+                        apiVersion:
+                          description: APIVersion of the referenced object.
+                          type: string
+                        kind:
+                          description: Kind of the referenced object.
+                          type: string
+                        name:
+                          description: Name of the referenced object.
+                          type: string
+                        uid:
+                          description: UID of the referenced object.
+                          type: string
+                      required:
+                      - apiVersion
+                      - kind
+                      - name
+                      type: object
+                  type: object
+                type: array
+              observedGeneration:
+                description: The generation observed by the appConfig controller.
+                format: int64
+                type: integer
               status:
                 description: Status is a place holder for a customized controller
                   to fill if it needs a single place to summarize the status of the
@@ -483,7 +548,7 @@ spec:
                   type: object
                 type: array
             required:
-            - dependency
+            - historyWorkloads
             type: object
         type: object
     served: true
