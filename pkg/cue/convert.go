@@ -13,8 +13,8 @@ import (
 	"github.com/oam-dev/kubevela/api/types"
 )
 
-// DataFieldName is the name of the struct contains the CR data
-const DataFieldName = "data"
+// OutputFieldName is the name of the struct contains the CR data
+const OutputFieldName = "output"
 
 // para struct contains the parameter
 const specValue = "parameter"
@@ -33,9 +33,9 @@ func Eval(templatePath string, value map[string]interface{}) (*unstructured.Unst
 		return nil, fmt.Errorf("fill value to template err %v", err)
 	}
 	// fetch the spec struct content
-	final, err := appValue.FieldByName(DataFieldName, true)
+	final, err := appValue.FieldByName(OutputFieldName, true)
 	if err != nil {
-		return nil, fmt.Errorf("get template %s err %v", DataFieldName, err)
+		return nil, fmt.Errorf("get template %s err %v", OutputFieldName, err)
 	}
 	if err := final.Value.Validate(cue.Concrete(true), cue.Final()); err != nil {
 		return nil, err

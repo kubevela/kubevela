@@ -1,4 +1,4 @@
-data: {
+output: {
 	apiVersion: "extend.oam.dev/v1alpha2"
 	kind:       "SimpleRolloutTrait"
 	spec: {

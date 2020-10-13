@@ -17,7 +17,7 @@ spec:
     name: routes.standard.oam.dev
   extension:
     template: |
-      data: {
+      output: {
         apiVersion: "standard.oam.dev/v1alpha1"
         kind:       "Route"
         spec: {

@@ -1,4 +1,4 @@
-data: {
+output: {
 	apiVersion: "standard.oam.dev/v1alpha1"
 	kind:       "PodSpecWorkload"
 	metadata:
