@@ -10,7 +10,7 @@ metadata:
 apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata:
-  name: metricstraits.standard.oam.dev
+  name: metric
   namespace: default
   annotations:
     definition.oam.dev/apiVersion: standard.oam.dev/v1alpha1

@@ -327,7 +327,7 @@ func (app *Application) GetComponentTraits(componentName string, env *types.EnvM
 			return nil, err
 		}
 		//TODO(wonderflow): handle trait data input/output here
-		obj.SetAnnotations(map[string]string{types.AnnTraitDef: traitType})
+		obj.SetLabels(map[string]string{oam.TraitTypeLabel: traitType})
 		traits = append(traits, v1alpha2.ComponentTrait{Trait: runtime.RawExtension{Object: obj}})
 	}
 	return traits, nil
@@ -369,13 +369,13 @@ func (app *Application) OAM(env *types.EnvMeta) ([]v1alpha2.Component, v1alpha2.
 		if err != nil {
 			return nil, v1alpha2.ApplicationConfiguration{}, nil, err
 		}
-		anns := component.Annotations
-		if anns == nil {
-			anns = map[string]string{types.AnnWorkloadDef: workloadType}
+		labels := obj.GetLabels()
+		if labels == nil {
+			labels = map[string]string{oam.WorkloadTypeLabel: workloadType}
 		} else {
-			anns[types.AnnWorkloadDef] = workloadType
+			labels[oam.WorkloadTypeLabel] = workloadType
 		}
-		component.Annotations = anns
+		obj.SetLabels(labels)
 		component.Spec.Workload.Object = obj
 		components = append(components, component)
 

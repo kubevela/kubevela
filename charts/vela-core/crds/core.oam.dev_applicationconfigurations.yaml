@@ -547,8 +547,6 @@ spec:
                       type: object
                   type: object
                 type: array
-            required:
-            - historyWorkloads
             type: object
         type: object
     served: true

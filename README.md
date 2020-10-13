@@ -150,6 +150,8 @@ Let's take `route` as example.
 
 ### `route`
 
+If you want to use `route`, please make sure you have [nginx-ingress controller[https://kubernetes.github.io/ingress-nginx/deploy/] in your cluster.
+
 ```console
 $ vela route mycomp --app myapp
  Adding route for app mycomp

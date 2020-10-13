@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	runtimeoam "github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
@@ -132,7 +133,7 @@ func mergeStagingComponents(deployed []apis.ComponentMeta, env *types.EnvMeta, i
 				all = append(all, apis.ComponentMeta{
 					Name:         c.Name,
 					App:          app.Name,
-					WorkloadName: c.Annotations[types.AnnWorkloadDef],
+					WorkloadName: c.Labels[runtimeoam.WorkloadTypeLabel],
 					TraitNames:   traits,
 					Status:       types.StatusStaging,
 					CreatedTime:  app.CreateTime.String(),

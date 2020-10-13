@@ -19,7 +19,6 @@ package v1alpha1
 import (
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
-	"k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -34,21 +33,33 @@ type RouteSpec struct {
 	// Host is the host of the route
 	Host string `json:"host"`
 
-	// Path is location Path, default for "/"
-	Path string `json:"path,omitempty"`
-
 	// TLS indicate route trait will create SSL secret using cert-manager with specified issuer
 	// If this is nil, route trait will use a selfsigned issuer
 	TLS *TLS `json:"tls,omitempty"`
 
-	// DefaultBackend uses serviceName
-	DefaultBackend *v1beta1.IngressBackend `json:"defaultBackend,omitempty"`
+	// Rules contain multiple rules of route
+	Rules []Rule `json:"rules,omitempty"`
+
+	// Provider indicate which ingress controller implementation the route trait will use, by default it's nginx-ingress
+	Provider string `json:"provider,omitempty"`
+}
+
+// Rule defines to route rule
+type Rule struct {
+	// Name will become the suffix of underlying ingress created by this rule, if not, will use index as suffix.
+	Name string `json:"name,omitempty"`
+
+	// Path is location Path, default for "/"
+	Path string `json:"path,omitempty"`
 
 	// RewriteTarget will rewrite request from Path to RewriteTarget path.
 	RewriteTarget string `json:"rewriteTarget,omitempty"`
 
 	// CustomHeaders pass a custom list of headers to the backend service.
 	CustomHeaders map[string]string `json:"customHeaders,omitempty"`
+
+	// DefaultBackend will become the ingress default backend if the backend is not available
+	DefaultBackend *runtimev1alpha1.TypedReference `json:"defaultBackend,omitempty"`
 
 	// Backend indicate how to connect backend service
 	// If it's nil, will auto discovery
@@ -58,7 +69,8 @@ type RouteSpec struct {
 type TLS struct {
 	IssuerName string `json:"issuerName,omitempty"`
 
-	// Type indicate the issuer is ClusterIssuer or NamespaceIssuer
+	// Type indicate the issuer is ClusterIssuer or Issuer(namespace issuer), by default, it's Issuer
+	// +kubebuilder:default:=Issuer
 	Type IssuerType `json:"type,omitempty"`
 }
 
@@ -69,27 +81,30 @@ const (
 	NamespaceIssuer IssuerType = "Issuer"
 )
 
-// Route will automatically discover podTemplate for Port and SelectLabels if they are not set.
-// If Port and SelectLabels are already set, discovery won't work.
-// If Port is not set, the first port discovered will be set.
-// If SelectLabels are not set, all selectorLabels discovered will be set.
+// Route will automatically discover podSpec and label for BackendService.
+// If BackendService is already set, discovery won't work.
+// If BackendService is not set, the discovery mechanism will work.
 type Backend struct {
-	// Protocol means backend-protocol, HTTP, HTTPS, GRPC, GRPCS, AJP and FCGI, By default uses HTTP
-	Protocol string `json:"protocol,omitempty"`
 	// ReadTimeout used for setting read timeout duration for backend service, the unit is second.
 	ReadTimeout int `json:"readTimeout,omitempty"`
 	// SendTimeout used for setting send timeout duration for backend service, the unit is second.
 	SendTimeout int `json:"sendTimeout,omitempty"`
-	// Port points to backend service port.
-	Port intstr.IntOrString `json:"port,omitempty"`
-	// SelectLabels for backend service.
-	SelectLabels map[string]string `json:"selectLabels,omitempty"`
+	// BackendService specifies the backend K8s service and port, it's optional
+	BackendService *BackendServiceRef `json:"backendService,omitempty"`
+}
+
+// BackendServiceRef specifies the backend K8s service and port, if specified, the two fields are all required
+type BackendServiceRef struct {
+	// Port allow you direct specify backend service port.
+	Port intstr.IntOrString `json:"port"`
+	// ServiceName allow you direct specify K8s service for backend service.
+	ServiceName string `json:"serviceName"`
 }
 
 // RouteStatus defines the observed state of Route
 type RouteStatus struct {
-	Ingress                           *runtimev1alpha1.TypedReference `json:"ingress,omitempty"`
-	Service                           *runtimev1alpha1.TypedReference `json:"service,omitempty"`
+	Ingresses                         []runtimev1alpha1.TypedReference `json:"ingresses,omitempty"`
+	Service                           *runtimev1alpha1.TypedReference  `json:"service,omitempty"`
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
 }
 

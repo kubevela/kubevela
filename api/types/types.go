@@ -15,10 +15,7 @@ const (
 	AnnKind        = "definition.oam.dev/kind"
 	AnnDescription = "definition.oam.dev/description"
 
-	// Indicate which workloadDefinition generate from
-	AnnWorkloadDef = "workload.oam.dev/name"
-	// Indicate which traitDefinition generate from
-	AnnTraitDef = "trait.oam.dev/name"
+	LabelPodSpecable = "workload.oam.dev/podspecable"
 )
 
 const (
