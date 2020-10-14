@@ -89,7 +89,6 @@ webhooks:
         operations:
           - CREATE
           - UPDATE
-          - DELETE
         resources:
           - podspecworkloads
 

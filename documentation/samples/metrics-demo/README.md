@@ -9,13 +9,7 @@ make docker-build
 kubectl create ns vela-system
 helm install kube --namespace vela-system charts/vela-core/
 ```
-
-## Install OAM Prometheus
-```shell script
-kubectl apply -f documentation/samples/metrics-demo/prometheus
-prometheus.monitoring.coreos.com/oam created
-service/prometheus-oam created
-```
+OAM will automatically install a prometheus stack in the `monitoring` namespace if it does not detect a prometheus CRDs in the cluster 
 
 ## Run ApplicationConfiguration
 ```shell script

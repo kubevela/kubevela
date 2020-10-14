@@ -1,0 +1,58 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: ApplicationConfiguration
+metadata:
+  name: sample-application-rollout
+spec:
+  components:
+    - componentName: rollout-demo-app
+      traits:
+        - trait:
+            apiVersion: extensions/v1beta1
+            kind: Ingress
+            metadata:
+              name: rollout-demo-app
+            spec:
+              rules:
+                - http:
+                    paths:
+                      - backend:
+                          serviceName: rollout-demo-app
+                          servicePort: 80
+        - trait:
+            apiVersion: flagger.app/v1beta1
+            kind: Canary
+            metadata:
+              name: rollout-demo-app
+              # annotations:
+                # oam.canary.extension.switch: "true"
+                # oam.canary.distinguish.labels: "pod-template-hash"
+            spec:
+              provider: nginx
+              # ingress reference
+              ingressRef:
+                apiVersion: extensions/v1beta1
+                kind: Ingress
+                name: rollout-demo-app
+              progressDeadlineSeconds: 60
+              service:
+                name: rollout-demo-app
+                # ClusterIP port number
+                port: 80
+                # container port number or name
+                targetPort: 8080
+              analysis:
+                # schedule interval (default 60s)
+                interval: 30s
+                # max number of failed metric checks before rollback
+                threshold: 10
+                # max traffic percentage routed to canary
+                # percentage (0-100)
+                maxWeight: 50
+                # canary increment step
+                # percentage (0-100)
+                stepWeight: 10
+                # promotion increment step (default 100)
+                # percentage (0-100)
+                stepWeightPromotion: 100
+                # max replicas scale up to canary
+                maxReplicas: 4
