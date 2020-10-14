@@ -47,8 +47,8 @@ spec:
                 format: int32
                 type: integer
               targetWorkload:
-                description: TargetWorkload specify the workload which is about to
-                  be scaled
+                description: TargetWorkload specify the workload or child workload
+                  which is about to be scaled
                 properties:
                   apiVersion:
                     type: string
@@ -111,8 +111,7 @@ spec:
                   type: object
                 type: array
               workloadRef:
-                description: WorkloadReference specifies the workload which is about
-                  to be scaled
+                description: WorkloadReference marks the owner of the workload
                 properties:
                   apiVersion:
                     description: APIVersion of the referenced object.

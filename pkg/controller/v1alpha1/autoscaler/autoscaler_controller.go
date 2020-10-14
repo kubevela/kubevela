@@ -24,6 +24,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 
@@ -114,7 +116,7 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		Kind:               scaler.Kind,
 		UID:                scaler.GetUID(),
 		Name:               scaler.Name,
-		Controller:         pointer.BoolPtr(true),
+		Controller:         pointer.BoolPtr(false),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}
 
@@ -131,14 +133,7 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 	targetWorkloadSetFlag := false
 	for _, res := range resources {
 		resPatch := client.MergeFrom(res.DeepCopyObject())
-		refs := res.GetOwnerReferences()
-		for i, r := range refs {
-			if *r.Controller {
-				refs[i].Controller = pointer.BoolPtr(false)
-			}
-		}
-		refs = append(refs, ownerReference)
-		res.SetOwnerReferences(refs)
+		meta.AddOwnerReference(res, ownerReference)
 		if err := r.Patch(r.ctx, res, resPatch, client.FieldOwner(scaler.GetUID())); err != nil {
 			log.Error(err, "Failed to set ownerReference for child resource")
 			return util.ReconcileWaitResult,
@@ -154,6 +149,7 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 			targetWorkloadSetFlag = true
 		}
 	}
+
 	// if there is no child resource or no child resource kind is deployment or statefuset, set the workload as target workload
 	if len(resources) == 0 && !targetWorkloadSetFlag {
 		scaler.Spec.TargetWorkload = v1alpha1.TargetWorkload{

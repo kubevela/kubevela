@@ -7,7 +7,7 @@ spec:
     apiVersion: standard.oam.dev/v1alpha1
     kind: PodSpecWorkload
     spec:
-      replicas: 1 # deployment  &int32
+      # replicas: 1
       podSpec:
         containers:
           - name: nginx-scaler
