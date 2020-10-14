@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/strvals"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/api/types"
@@ -22,6 +23,13 @@ type initCmd struct {
 	ioStreams cmdutil.IOStreams
 	client    client.Client
 	chartPath string
+	chartArgs chartArgs
+}
+
+type chartArgs struct {
+	imageRepo       string
+	imageTag        string
+	imagePullPolicy string
 }
 
 type infoCmd struct {
@@ -92,6 +100,9 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 
 	flag := cmd.Flags()
 	flag.StringVarP(&i.chartPath, "vela-chart-path", "p", "", "path to vela core chart to override default chart")
+	flag.StringVarP(&i.chartArgs.imagePullPolicy, "image-pull-policy", "", "Always", "vela core image pull policy, this will align to chart value image.pullPolicy")
+	flag.StringVarP(&i.chartArgs.imageRepo, "image-repo", "", "oamdev/vela-core", "vela core image repo, this will align to chart value image.repo")
+	flag.StringVarP(&i.chartArgs.imageTag, "image-tag", "", "latest", "vela core image repo, this will align to chart value image.tag")
 
 	return cmd
 }
@@ -112,7 +123,12 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 	if oam.IsHelmReleaseRunning(types.DefaultOAMReleaseName, types.DefaultOAMRuntimeChartName, i.ioStreams) {
 		i.ioStreams.Info("Vela system along with OAM runtime already exist.")
 	} else {
-		if err := InstallOamRuntime(i.chartPath, chartSource, ioStreams); err != nil {
+		vals, err := i.resolveValues()
+		if err != nil {
+			i.ioStreams.Errorf("resolve values for vela-core chart err %v, will install with default values", err)
+			vals = make(map[string]interface{})
+		}
+		if err := InstallOamRuntime(i.chartPath, chartSource, vals, ioStreams); err != nil {
 			return err
 		}
 	}
@@ -124,7 +140,24 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 	return nil
 }
 
-func InstallOamRuntime(chartPath, chartSource string, ioStreams cmdutil.IOStreams) error {
+func (i *initCmd) resolveValues() (map[string]interface{}, error) {
+	finalValues := map[string]interface{}{}
+	valuesConfig := []string{
+		//TODO(wonderflow) values here could give more arguments in command line
+		fmt.Sprintf("image.repository=%s", i.chartArgs.imageRepo),
+		fmt.Sprintf("image.tag=%s", i.chartArgs.imageTag),
+		fmt.Sprintf("image.pullPolicy=%s", i.chartArgs.imagePullPolicy),
+	}
+	for _, val := range valuesConfig {
+		// parses Helm strvals line and merges into a map for the final overrides for values.yaml
+		if err := strvals.ParseInto(val, finalValues); err != nil {
+			return nil, err
+		}
+	}
+	return finalValues, nil
+}
+
+func InstallOamRuntime(chartPath, chartSource string, vals map[string]interface{}, ioStreams cmdutil.IOStreams) error {
 	var err error
 	var chartRequested *chart.Chart
 	if chartPath != "" {
@@ -143,8 +176,7 @@ func InstallOamRuntime(chartPath, chartSource string, ioStreams cmdutil.IOStream
 	if err != nil {
 		return fmt.Errorf("error create helm install client: %s", err)
 	}
-	//TODO(wonderflow) values here could give more arguments in command line
-	release, err := installClient.Run(chartRequested, nil)
+	release, err := installClient.Run(chartRequested, vals)
 	if err != nil {
 		ioStreams.Errorf("Failed to install the chart with error: %+v\n", err)
 		return err

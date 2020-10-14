@@ -76,6 +76,7 @@ docker-push:
 	docker push ${IMG}
 
 e2e-setup:
+	bin/vela install --image-pull-policy IfNotPresent --image-repo vela-core-test --image-tag $(GIT_COMMIT)
 	ginkgo version
 	ginkgo -v -r e2e/setup
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
@@ -92,6 +93,10 @@ e2e-api-test:
 e2e-cleanup:
 	# Clean up
 
+# load docker image to the kind cluster
+kind-load:
+	docker build -t vela-core-test:$(GIT_COMMIT) .
+	kind load docker-image vela-core-test:$(GIT_COMMIT) || { echo >&2 "kind not installed or error loading image: $(IMAGE)"; exit 1; }
 
 # Image URL to use all building/pushing image targets
 IMG ?= vela-core:latest
