@@ -112,16 +112,11 @@ core-run: generate fmt vet manifests
 
 # Install CRDs into a cluster
 core-install: manifests
-	kustomize build config/crd | kubectl apply -f -
+	kubectl apply -f charts/vela-core/crds/
 
 # Uninstall CRDs from a cluster
 core-uninstall: manifests
-	kustomize build config/crd | kubectl delete -f -
-
-# Deploy controller in the configured Kubernetes cluster in ~/.kube/config
-core-deploy: manifests
-	cd config/manager && kustomize edit set image controller=${IMG}
-	kustomize build config/default | kubectl apply -f -
+	kubectl delete -f charts/vela-core/crds/
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen
