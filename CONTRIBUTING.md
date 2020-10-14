@@ -11,6 +11,7 @@ contributing to `kubevela` or build a PoC (Proof of Concept).
 4. golangci-lint 1.31.0+, it will install automatically if you run `make`, you can [install it manually](https://golangci-lint.run/usage/install/#local-installation) if the installation is too slow.
 
 ## Build
+
 * Clone this project
 
 ```shell script
@@ -31,11 +32,30 @@ after build, make will create `vela` binary to `bin/`, Set this path to PATH.
 export PATH=$PATH:/your/path/to/project/kubevela/bin
 ```
 
-* Install Vela Core
+Then you can use `vela` command directly.
+
+* Build Vela Core
 
 ```shell script
-vela install
+make manager
 ```
+
+* Run Vela Core
+
+Firstly make sure your cluster has CRDs.
+
+```shell script
+make core-install
+```
+
+Run locally:
+
+```shell script
+make core-run
+```
+
+This command will run controller locally, it will use your local KubeConfig which means you need to have a k8s cluster
+locally. If you don't have a one, we suggest that you could setup up a cluster with [kind](https://kind.sigs.k8s.io/).
 
 ## Use
 
@@ -98,6 +118,15 @@ make test
 ```
 
 ### E2E test
+
+** Before e2e test start, make sure you have vela-core running.**
+
+```shell script
+make core-run
+```
+
+Start to test.
+
 ```
 make e2e-test
 ```
