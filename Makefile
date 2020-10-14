@@ -78,7 +78,7 @@ docker-push:
 e2e-setup:
 	ginkgo version
 	ginkgo -v -r e2e/setup
-	# kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
+	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
 	bin/vela dashboard &
 
 e2e-test:

@@ -75,7 +75,7 @@ func InteractiveExec(cli string, consoleFn func(*expect.Console)) (string, error
 	command.Stdin = console.Tty()
 
 	session, err := gexec.Start(command, console.Tty(), console.Tty())
-	s := session.Wait(30 * time.Second)
+	s := session.Wait(90 * time.Second)
 	console.Tty().Close()
 	<-doneC
 	if err != nil {
