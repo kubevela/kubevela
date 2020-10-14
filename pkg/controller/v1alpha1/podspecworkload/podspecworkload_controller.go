@@ -70,7 +70,6 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=services,verbs=get;list;watch;create;update;patch;delete
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	_ = context.Background()
 	ctx := context.Background()
 	log := r.log.WithValues("podspecworkload", req.NamespacedName)
 	log.Info("Reconcile podspecworkload workload")
@@ -280,7 +279,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// Setup adds a controller that reconciles MetricsTrait.
+// Setup adds a controller that reconciles PodSpecWorkload.
 func Setup(mgr ctrl.Manager) error {
 	reconciler := Reconciler{
 		Client: mgr.GetClient(),
