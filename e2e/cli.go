@@ -85,8 +85,6 @@ func InteractiveExec(cli string, consoleFn func(*expect.Console)) (string, error
 }
 
 func BeforeSuit() {
-	_, err := Exec("vela install")
-	gomega.Expect(err).ShouldNot(gomega.HaveOccurred())
 	//Without this line, will hit issue like `<string>: Error: unknown command "scale" for "vela"`
 	_, _ = Exec("vela system update")
 }

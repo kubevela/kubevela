@@ -34,6 +34,9 @@ jobs:
         with:
           version: "v0.7.0"
 
+      - name: Load Image to kind cluster
+        run: make kind-load
+
       - name: install Kubebuilder
         uses: RyanSiu1995/kubebuilder-action@v1
 
