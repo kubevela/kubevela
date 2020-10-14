@@ -5,13 +5,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/plugins"
 )
 
-type TemplateManager interface {
+type Manager interface {
 	IsTrait(key string) bool
 	IsWorkload(key string) bool
 	LoadTemplate(key string) string
 }
 
-func Load() (TemplateManager, error) {
+func Load() (Manager, error) {
 	caps, err := plugins.LoadAllInstalledCapability()
 	if err != nil {
 		return nil, err

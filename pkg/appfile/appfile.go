@@ -67,7 +67,7 @@ func (s Service) GetBuild() *Build {
 
 // RenderService render all capabilities of a service to CUE values of a Component.
 // It outputs a Component which will be marshaled as standalone Component and also returned AppConfig Component section.
-func (s Service) RenderService(ctx *Context, tm template.TemplateManager, cfg *bytes.Buffer) (
+func (s Service) RenderService(ctx *Context, tm template.Manager, cfg *bytes.Buffer) (
 	*v1alpha2.ApplicationConfigurationComponent, error) {
 
 	// sort out configs by workload/trait
@@ -254,18 +254,18 @@ func evalTraits(raw string, ctxValues, userValues interface{}) ([]*unstructured.
 		return nil, err
 	}
 
-	outputField, err := appValue.FieldByName("output", true)
+	_, err = appValue.FieldByName("output", true)
 	if err != nil {
-		outputField, err = appValue.FieldByName("outputs", true)
+		outputField, err := appValue.FieldByName("outputs", true)
 		if err != nil {
 			return nil, errors.New("both output and outputs fields not found")
 		}
 		return renderAllOutputs(outputField)
 	}
+
 	u, err := renderOneOutput(appValue)
 	if err != nil {
 		return nil, err
 	}
 	return []*unstructured.Unstructured{u}, nil
-
 }

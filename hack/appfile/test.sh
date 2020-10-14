@@ -5,13 +5,15 @@ set -e
 echo "building binary"
 echo "========"
 go build -o bin/vela ./cmd/vela/
+export PATH=bin/:$PATH
 
 echo "vela up"
 echo "========"
-cd testapp
-../bin/vela up
-cd ..
+cd examples/testapp
+vela up
 
 echo "cat deploy yaml"
 echo "========"
-cat testapp/.vela/deploy.yaml
+cat .vela/deploy.yaml
+
+cd ../..

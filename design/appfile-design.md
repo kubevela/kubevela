@@ -69,7 +69,7 @@ It will build container image, render deployment manifests in yaml, and apply th
 
 ### Extensible Design
 
-The Appfile could be extended with more configurations by adding more capabilities to the OAM system. The config fields in Appfile are strongly correlated to the [capabilities system of OAM](https://github.com/oam-dev/kubevela/blob/master/DESIGN.md#capability-register-and-discovery) – they are registered in the capabilities system and exposed in a simplified format via a [CUE template](https://cuelang.org/).
+The Appfile could be extended with more configurations by adding more capabilities to the OAM system. The config fields in Appfile are strongly correlated to the [capabilities system of OAM](https://github.com/oam-dev/kubevela/blob/master/DESIGN.md#capability-register-and-discovery) – Config fields are registered in the capabilities system and exposed via a [CUE template](https://cuelang.org/).
 
 Here is an example of a capability definition that platform builders register:
 
@@ -274,7 +274,7 @@ Here is the takeout:
 
 ### `vela up`
 
-The vela-cli will have an `up` command to provide seamless workflow experience. Provide an `vela.yml` Appfile in the same directory that you will run `vela up` and it is good to go. There is an example under `./testapp` .
+The vela-cli will have an `up` command to provide seamless workflow experience. Provide an `vela.yml` Appfile in the same directory that you will run `vela up` and it is good to go. There is an example under `examples/testapp/` .
 
 ## Examples
 
