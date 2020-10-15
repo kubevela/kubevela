@@ -20,7 +20,6 @@ require (
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
-	github.com/jetstack/cert-manager v0.14.3
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mholt/archiver/v3 v3.3.0
 	github.com/oam-dev/trait-injector v0.0.0-20200331033130-0a27b176ffc4
@@ -33,13 +32,14 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.6.1
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
+	github.com/wonderflow/cert-manager-api v1.0.3
 	go.uber.org/zap v1.13.0
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.2.4
 	k8s.io/api v0.18.6
-	k8s.io/apiextensions-apiserver v0.18.2
+	k8s.io/apiextensions-apiserver v0.18.6
 	k8s.io/apimachinery v0.18.6
 	k8s.io/cli-runtime v0.18.6
 	k8s.io/client-go v12.0.0+incompatible

@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
-	certmanager "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1alpha2"
+	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
