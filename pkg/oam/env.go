@@ -9,9 +9,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/jetstack/cert-manager/pkg/apis/acme/v1alpha2"
-	certmanager "github.com/jetstack/cert-manager/pkg/apis/certmanager/v1alpha2"
-	v1 "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
+	acmev1 "github.com/wonderflow/cert-manager-api/pkg/apis/acme/v1"
+	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
+	v1 "github.com/wonderflow/cert-manager-api/pkg/apis/meta/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,15 +53,15 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 			ObjectMeta: metav1.ObjectMeta{Name: issuerName, Namespace: envArgs.Namespace},
 			Spec: certmanager.IssuerSpec{
 				IssuerConfig: certmanager.IssuerConfig{
-					ACME: &v1alpha2.ACMEIssuer{
+					ACME: &acmev1.ACMEIssuer{
 						Email:  envArgs.Email,
 						Server: "https://acme-v02.api.letsencrypt.org/directory",
 						PrivateKey: v1.SecretKeySelector{
 							LocalObjectReference: v1.LocalObjectReference{Name: "oam-env-" + envArgs.Name + ".key"},
 						},
-						Solvers: []v1alpha2.ACMEChallengeSolver{{
-							HTTP01: &v1alpha2.ACMEChallengeSolverHTTP01{
-								Ingress: &v1alpha2.ACMEChallengeSolverHTTP01Ingress{Class: GetStringPointer("nginx")},
+						Solvers: []acmev1.ACMEChallengeSolver{{
+							HTTP01: &acmev1.ACMEChallengeSolverHTTP01{
+								Ingress: &acmev1.ACMEChallengeSolverHTTP01Ingress{Class: GetStringPointer("nginx")},
 							},
 						}},
 					},
