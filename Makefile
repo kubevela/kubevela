@@ -115,13 +115,15 @@ manager: generate fmt vet lint manifests
 core-run: generate fmt vet manifests
 	go run ./cmd/core/main.go
 
-# Install CRDs into a cluster
+# Install CRDs and Definitions of Vela Core into a cluster, this is for develop convenient.
 core-install: manifests
 	kubectl apply -f charts/vela-core/crds/
+	kubectl apply -f charts/vela-core/templates/definitions/
 
-# Uninstall CRDs from a cluster
+# Uninstall CRDs and Definitions of Vela Core from a cluster, this is for develop convenient.
 core-uninstall: manifests
 	kubectl delete -f charts/vela-core/crds/
+	kubectl delete -f charts/vela-core/templates/definitions/
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen
