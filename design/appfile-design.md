@@ -9,8 +9,8 @@
 - [Intro](#intro)
 - [Goals](#goals)
 - [Proposal](#proposal)
-  - [Templating](#templating)
   - [Registration via Definition/Capability](#registration-via-definitioncapability)
+  - [Templating](#templating)
   - [CLI/UI interoperability](#cliui-interoperability)
   - [vela up](#vela-up)
 - [Examples](#examples)
@@ -267,10 +267,10 @@ parameter: #webservice
 ```
 
 Here is the takeout:
-- The name of the parameter will be added as a flag, i.e. "--cmd"
+- The name of the parameter will be added as a flag, i.e. `--cmd`
 - "enabled" indicates whether this parameter should be exposed
-- "usage" is used in the help info
-- "short" is the short flag, i.e. "-c"
+- "usage" is shown in help info
+- "short" is the short flag, i.e. `-c`
 
 ### `vela up`
 

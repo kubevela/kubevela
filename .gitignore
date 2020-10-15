@@ -31,9 +31,15 @@ vendor/
 # Vscode files
 .vscode
 
+pkg/test/vela
+config/crd/bases
 tmp/
 
-examples/testapp/.vela/
+cmd/vela/fake/source.go
+cmd/vela/fake/chart_source.go
+charts/vela-core/crds/_.yaml
+
+.vela/
 
 # Dashboard
 node_modules/
