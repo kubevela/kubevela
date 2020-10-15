@@ -82,11 +82,11 @@ Events:
    Normal  Synced  1s     flagger  Promotion completed! Scaling down rollout-demo-app.default
 ```
 
-## Verify that the prdeployment is upgraded, but the primary is not yet
+## Verify that the primary deployment is upgraded too
 ```shell script
 kubectl get deploy rollout-demo-app -o=jsonpath="{.spec.template.spec.containers[0].image}"
 luxas/autoscale-demo:v0.1.1
 
 kubectl get deploy rollout-demo-app-primary -o=jsonpath="{.spec.template.spec.containers[0].image}"
-luxas/autoscale-demo:v0.1.0
+luxas/autoscale-demo:v0.1.1
 ```
