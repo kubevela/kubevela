@@ -21,7 +21,7 @@ all: build
 
 # Run tests
 test: fmt vet lint
-	go test ./pkg/... ./cmd/... -coverprofile cover.out
+	./hack/unit_test.sh
 
 # Build manager binary
 build: fmt vet lint
