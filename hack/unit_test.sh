@@ -11,4 +11,4 @@ for d in $(go list ./pkg/... ./cmd/...); do
   fi
 done
 
-bash <(curl -s https://codecov.io/bash)
+bash <(curl -s https://codecov.io/bash) -t $CODECOV_TOKEN
