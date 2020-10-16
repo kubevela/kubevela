@@ -10,6 +10,3 @@ for d in $(go list ./pkg/... ./cmd/...); do
     rm profile.out
   fi
 done
-
-bash <(curl -s https://codecov.io/bash) -t $CODECOV_TOKEN
-
