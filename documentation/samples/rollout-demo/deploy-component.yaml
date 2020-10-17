@@ -23,7 +23,7 @@ spec:
             # pod-template-hash: 7564juhy8m6n785i
         spec:
           containers:
-            - image: luxas/autoscale-demo:v0.1.1
+            - image: openshift/deployment-example:v1
               name: metrics-provider
               ports:
                 - name: http

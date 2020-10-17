@@ -73,7 +73,7 @@ var (
 
 	DeleteEnvFunc = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
-			ginkgo.It("should print environment initiation successful message", func() {
+			ginkgo.It("should print env does not exist message", func() {
 				cli := fmt.Sprintf("vela env delete %s", envName)
 				_, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
