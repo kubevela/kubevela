@@ -1,7 +1,6 @@
 package appfile
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,21 +8,13 @@ import (
 	"cuelang.org/go/cue"
 	cueJson "cuelang.org/go/pkg/encoding/json"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/ghodss/yaml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
 )
-
-type Context struct {
-	Data      map[string]interface{}
-	Namespace string
-	IO        cmdutil.IOStreams
-}
 
 type Service map[string]interface{}
 
@@ -46,18 +37,22 @@ func (s Service) GetBuild() *Build {
 
 // RenderService render all capabilities of a service to CUE values of a Component.
 // It outputs a Component which will be marshaled as standalone Component and also returned AppConfig Component section.
-func (s Service) RenderService(ctx *Context, tm template.Manager, cfg *bytes.Buffer) (
-	*v1alpha2.ApplicationConfigurationComponent, error) {
+func (s Service) RenderService(tm template.Manager, name, ns, image string) (
+	*v1alpha2.ApplicationConfigurationComponent, *v1alpha2.Component, error) {
 
 	// sort out configs by workload/trait
 	workloadKeys := map[string]interface{}{}
 	traitKeys := map[string]interface{}{}
+
+	wtype := "webservice"
 
 outerLoop:
 	for k, v := range s {
 		switch k {
 		case "build": // skip
 			continue outerLoop
+		case "type":
+			wtype = v.(string)
 		}
 
 		if tm.IsTrait(k) {
@@ -69,29 +64,29 @@ outerLoop:
 
 	// render component
 	component := &v1alpha2.Component{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: v1alpha2.ComponentGroupVersionKind.GroupVersion().String(),
-			Kind:       v1alpha2.ComponentKind,
-		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ctx.Data["name"].(string),
-			Namespace: ctx.Namespace,
+			Name:      name,
+			Namespace: ns,
 		},
 	}
 
 	// only render webservice workload for now.
-	u, err := evalComponent(tm.LoadTemplate("webservice"), ctx.Data, intifyValues(workloadKeys))
+	ctxData := map[string]string{
+		"name":  name,
+		"image": image,
+	}
+	u, err := evalComponent(tm.LoadTemplate(wtype), ctxData, intifyValues(workloadKeys))
 	if err != nil {
-		return nil, fmt.Errorf("eval component failed: %w", err)
+		return nil, nil, fmt.Errorf("eval component failed: %w", err)
 	}
 	component.Spec.Workload.Object = u
 
 	// render traits
 	traits := []v1alpha2.ComponentTrait{}
 	for k, v := range traitKeys {
-		ts, err := evalTraits(tm.LoadTemplate(k), ctx.Data, intifyValues(v))
+		ts, err := evalTraits(tm.LoadTemplate(k), ctxData, intifyValues(v))
 		if err != nil {
-			return nil, fmt.Errorf("eval traits failed: %w", err)
+			return nil, nil, fmt.Errorf("eval traits failed: %w", err)
 		}
 		for _, t := range ts {
 			traits = append(traits, v1alpha2.ComponentTrait{
@@ -102,19 +97,11 @@ outerLoop:
 		}
 	}
 
-	// write component yaml
-	b, err := yaml.Marshal(component)
-	if err != nil {
-		return nil, err
-	}
-	cfg.Write(b)
-	cfg.WriteString("\n---\n")
-
 	acComp := &v1alpha2.ApplicationConfigurationComponent{
 		ComponentName: component.Name,
 		Traits:        traits,
 	}
-	return acComp, nil
+	return acComp, component, nil
 }
 
 func (af *AppFile) GetServices() map[string]Service {

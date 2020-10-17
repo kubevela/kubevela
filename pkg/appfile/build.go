@@ -2,6 +2,8 @@ package appfile
 
 import (
 	"os/exec"
+
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
 type Build struct {
@@ -20,28 +22,28 @@ type Push struct {
 	Registry string `json:"registry,omitempty"`
 }
 
-func (b *Build) BuildImage(ctx *Context) error {
+func (b *Build) BuildImage(io cmdutil.IOStreams) error {
 	cmd := exec.Command("docker", "build", "-t", b.Image, "-f", b.Docker.File, b.Docker.Context)
 	out, err := cmd.CombinedOutput()
-	ctx.IO.Infof("%s\n", out)
+	io.Infof("%s\n", out)
 	if err != nil {
 		return err
 	}
-	return b.pushImage(ctx)
+	return b.pushImage(io)
 }
 
-func (b *Build) pushImage(ctx *Context) error {
-	ctx.IO.Infof("pushing image (%s)...\n", b.Image)
+func (b *Build) pushImage(io cmdutil.IOStreams) error {
+	io.Infof("pushing image (%s)...\n", b.Image)
 
 	switch {
 	case b.Push.Local == "kind":
 		cmd := exec.Command("kind", "load", "docker-image", b.Image)
 		out, err := cmd.CombinedOutput()
-		ctx.IO.Infof("%s\n", out)
+		io.Infof("%s\n", out)
 		return err
 	}
 	cmd := exec.Command("docker", "push", b.Image)
 	out, err := cmd.CombinedOutput()
-	ctx.IO.Infof("%s\n", out)
+	io.Infof("%s\n", out)
 	return err
 }

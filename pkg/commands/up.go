@@ -3,6 +3,7 @@ package commands
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -19,7 +20,6 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
@@ -66,57 +66,43 @@ type appfileOptions struct {
 }
 
 func (o *appfileOptions) Run() error {
-	o.IO.Info("Loading templates ...")
-	tm, err := template.Load()
-	if err != nil {
-		return err
-	}
-
 	o.IO.Info("Parsing vela.yaml ...")
-	appf, err := appfile.Load()
+	app, err := appfile.Load()
 	if err != nil {
 		return err
 	}
 
-	appConfig := &v1alpha2.ApplicationConfiguration{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: v1alpha2.ApplicationConfigurationGroupVersionKind.GroupVersion().String(),
-			Kind:       v1alpha2.ApplicationConfigurationKind,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      appf.Name,
-			Namespace: o.Env.Namespace,
-		},
+	comps, appConfig, err := app.BuildOAM(o.Env.Namespace, o.IO)
+	if err != nil {
+		return err
 	}
 
 	var cfg bytes.Buffer
-	for sname, svc := range appf.GetServices() {
-		build := svc.GetBuild()
-		ctx := &appfile.Context{
-			Data:      map[string]interface{}{"name": sname, "image": build.Image},
-			IO:        o.IO,
-			Namespace: o.Env.Name,
-		}
 
-		o.IO.Infof("\nBuilding service (%s)...\n", sname)
-		if err := build.BuildImage(ctx); err != nil {
-			return err
-		}
-
-		o.IO.Infof("\nRendering component configs for service (%s)...\n", sname)
-		c, err := svc.RenderService(ctx, tm, &cfg)
-		if err != nil {
-			return err
-		}
-		appConfig.Spec.Components = append(appConfig.Spec.Components, *c)
+	appConfig.TypeMeta = metav1.TypeMeta{
+		APIVersion: v1alpha2.ApplicationConfigurationGroupVersionKind.GroupVersion().String(),
+		Kind:       v1alpha2.ApplicationConfigurationKind,
 	}
-
 	b, err := yaml.Marshal(appConfig)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal AppConfig failed: %w", err)
 	}
 	cfg.Write(b)
 	cfg.WriteByte('\n')
+
+	for _, comp := range comps {
+		cfg.WriteString("---\n")
+		comp.TypeMeta = metav1.TypeMeta{
+			APIVersion: v1alpha2.ComponentGroupVersionKind.GroupVersion().String(),
+			Kind:       v1alpha2.ComponentKind,
+		}
+		b, err := yaml.Marshal(comp)
+		if err != nil {
+			return fmt.Errorf("marshal Component (%s) failed: %w", comp.Name, err)
+		}
+		cfg.Write(b)
+		cfg.WriteByte('\n')
+	}
 
 	deployFilePath := ".vela/deploy.yaml"
 	o.IO.Infof("writing deploy config to (%s)\n", deployFilePath)
