@@ -278,6 +278,27 @@ The vela-cli will have an `up` command to provide seamless workflow experience. 
 
 ## Examples
 
+## Multiple Services
+
+```yaml
+services:
+  frontend:
+    build:
+      image: oamdev/frontend:v1
+      docker:
+        file: ./frontend/Dockerfile
+        context: ./frontend
+    cmd: ["node", "server.js"]
+
+  backend:
+    build:
+      image: oamdev/backend:v1
+      docker:
+        file: ./backend/Dockerfile
+        context: ./backend
+    cmd: ["node", "server.js"]
+```
+
 ### Multiple Outputs in TraitDefinition
 
 ```yaml
