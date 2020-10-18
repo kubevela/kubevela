@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/openservicemesh/osm/pkg/cli"
 	"github.com/pkg/errors"
@@ -11,11 +12,21 @@ import (
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/strvals"
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/api/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
+)
+
+type VelaRuntimeStatus int
+
+const (
+	NotFound VelaRuntimeStatus = iota
+	Pending
+	Ready
+	Error
 )
 
 type initCmd struct {
@@ -24,6 +35,7 @@ type initCmd struct {
 	client    client.Client
 	chartPath string
 	chartArgs chartArgs
+	waitReady bool
 }
 
 type chartArgs struct {
@@ -103,6 +115,7 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 	flag.StringVarP(&i.chartArgs.imagePullPolicy, "image-pull-policy", "", "Always", "vela core image pull policy, this will align to chart value image.pullPolicy")
 	flag.StringVarP(&i.chartArgs.imageRepo, "image-repo", "", "oamdev/vela-core", "vela core image repo, this will align to chart value image.repo")
 	flag.StringVarP(&i.chartArgs.imageTag, "image-tag", "", "latest", "vela core image repo, this will align to chart value image.tag")
+	flag.BoolVarP(&i.waitReady, "wait", "w", false, "wait until vela-core is ready to serve")
 
 	return cmd
 }
@@ -137,6 +150,13 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 		return err
 	}
 	ioStreams.Info("- Finished successfully.")
+
+	if i.waitReady {
+		_, err := PrintTrackVelaRuntimeStatus(context.Background(), i.client, ioStreams)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -199,4 +219,71 @@ func GetOAMReleaseVersion() (string, error) {
 		}
 	}
 	return "", errors.New("oam-kubernetes-runtime not found in your kubernetes cluster, try `vela install` to install")
+}
+
+func PrintTrackVelaRuntimeStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams) (bool, error) {
+	trackTimeout := 5 * time.Minute
+	trackInterval := 2 * time.Second
+
+	ioStreams.Info("\nIt may take 1-2 minutes before KubeVela runtime is ready.")
+	start := time.Now()
+	spiner := newTrackingSpinner("Waiting KubeVela runtime ready to serve ...")
+	spiner.Start()
+	defer spiner.Stop()
+
+	for {
+		timeConsumed := int(time.Since(start).Seconds())
+		applySpinnerNewSuffix(spiner, fmt.Sprintf("Waiting KubeVela runtime ready to serve (timeout %d/%d seconds) ...",
+			timeConsumed, int(trackTimeout.Seconds())))
+
+		sts, podName, err := getVelaRuntimeStatus(ctx, c)
+		if err != nil {
+			return false, err
+		}
+		if sts == Ready {
+			ioStreams.Info(fmt.Sprintf("\n%s %s", emojiSucceed, "KubeVela runtime is ready to serve!"))
+			return true, nil
+		}
+		// status except Ready results in re-check until timeout
+		if time.Since(start) > trackTimeout {
+			ioStreams.Info(fmt.Sprintf("\n%s %s", emojiFail, "KubeVela runtime starts timeout!"))
+			if len(podName) != 0 {
+				ioStreams.Info(fmt.Sprintf("\n%s %s%s", emojiLightBulb,
+					"Please use this command for more detail: ",
+					white.Sprintf("kubectl logs -f %s -n vela-system", podName)))
+			}
+			return false, nil
+		}
+		time.Sleep(trackInterval)
+	}
+}
+
+func getVelaRuntimeStatus(ctx context.Context, c client.Client) (VelaRuntimeStatus, string, error) {
+	podList := &corev1.PodList{}
+	opts := []client.ListOption{
+		client.InNamespace(types.DefaultOAMNS),
+		client.MatchingLabels{
+			"app.kubernetes.io/name":     types.DefaultOAMRuntimeChartName,
+			"app.kubernetes.io/instance": types.DefaultOAMReleaseName,
+		},
+	}
+	if err := c.List(ctx, podList, opts...); err != nil {
+		return Error, "", err
+	}
+	if len(podList.Items) == 0 {
+		return NotFound, "", nil
+	}
+	runtimePod := podList.Items[0]
+	podName := runtimePod.GetName()
+	if runtimePod.Status.Phase == corev1.PodRunning {
+		// since readiness & liveness probes are set for vela container
+		// so check each condition is ready
+		for _, c := range runtimePod.Status.Conditions {
+			if c.Status != corev1.ConditionTrue {
+				return Pending, podName, nil
+			}
+		}
+		return Ready, podName, nil
+	}
+	return Pending, podName, nil
 }

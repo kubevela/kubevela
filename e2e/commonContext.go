@@ -24,11 +24,12 @@ var (
 	SystemInitContext = func(context string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("Install OAM runtime and vela builtin capabilities.", func() {
-				output, err := Exec("vela install")
+				output, err := LongTimeExec("vela install --wait", 180*time.Second)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("- Installing OAM Kubernetes Runtime"))
 				gomega.Expect(output).To(gomega.ContainSubstring("- Installing builtin capabilities"))
 				gomega.Expect(output).To(gomega.ContainSubstring("Successful applied"))
+				gomega.Expect(output).To(gomega.ContainSubstring("Waiting KubeVela runtime ready to serve"))
 			})
 		})
 	}

@@ -17,6 +17,7 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/server"
 	"github.com/oam-dev/kubevela/pkg/server/util"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
@@ -42,6 +43,13 @@ func NewDashboardCommand(c types.Args, ioStreams cmdutil.IOStreams, frontendSour
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 			if err != nil {
 				return err
+			}
+			runtimeReady, err := CheckVelaRuntimeInstalledAndReady(ioStreams, newClient)
+			if err != nil {
+				return err
+			}
+			if !runtimeReady {
+				return nil
 			}
 			return SetupAPIServer(newClient, cmd, o)
 		},
@@ -187,4 +195,17 @@ func OpenBrowser(url string) error {
 		err = fmt.Errorf("unsupported platform")
 	}
 	return err
+}
+
+func CheckVelaRuntimeInstalledAndReady(ioStreams cmdutil.IOStreams, c client.Client) (bool, error) {
+	if !oam.IsHelmReleaseRunning(types.DefaultOAMReleaseName, types.DefaultOAMRuntimeChartName, ioStreams) {
+		ioStreams.Info(fmt.Sprintf("\n%s %s", emojiFail, "KubeVela runtime is not installed yet."))
+		ioStreams.Info(fmt.Sprintf("\n%s %s%s or %s",
+			emojiLightBulb,
+			"Please use this command to install: ",
+			white.Sprint("vela install -w"),
+			white.Sprint("vela install --help")))
+		return false, nil
+	}
+	return PrintTrackVelaRuntimeStatus(context.Background(), c, ioStreams)
 }

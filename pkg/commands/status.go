@@ -91,9 +91,10 @@ var (
 )
 
 var (
-	emojiSucceed = emoji.Sprint(":check_mark_button:")
-	emojiFail    = emoji.Sprint(":cross_mark:")
-	emojiTimeout = emoji.Sprint(":heavy_exclamation_mark:")
+	emojiSucceed   = emoji.Sprint(":check_mark_button:")
+	emojiFail      = emoji.Sprint(":cross_mark:")
+	emojiTimeout   = emoji.Sprint(":heavy_exclamation_mark:")
+	emojiLightBulb = emoji.Sprint(":light_bulb:")
 )
 
 const (
@@ -592,6 +593,11 @@ func newTrackingSpinner(suffix string) *spinner.Spinner {
 		spinner.WithColor("green"),
 		spinner.WithHiddenCursor(true),
 		spinner.WithSuffix(suffixColor.Sprintf(" %s", suffix)))
+}
+
+func applySpinnerNewSuffix(s *spinner.Spinner, suffix string) {
+	suffixColor := color.New(color.Bold, color.FgGreen)
+	s.Suffix = suffixColor.Sprintf(" %s", suffix)
 }
 
 func printPrefix(p string) string {
