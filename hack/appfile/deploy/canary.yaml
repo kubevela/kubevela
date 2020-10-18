@@ -1,0 +1,17 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: canary
+spec:
+  definitionRef:
+    name: canary.standard.oam.dev
+  extension:
+    template: |
+      #canary: {
+        replica: int
+        headers: [...string]
+      }
+      
+      parameter: #canary
+      
+      

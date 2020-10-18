@@ -77,10 +77,9 @@ func newCommand() *cobra.Command {
 		// Getting Start
 		commands.NewInstallCommand(commandArgs, fake.ChartSource, ioStream),
 		commands.NewEnvCommand(commandArgs, ioStream),
-
-		// Getting Start
 		NewVersionCommand(),
 		commands.NewInitCommand(commandArgs, ioStream),
+		commands.NewUpCommand(commandArgs, ioStream),
 
 		// Apps
 		commands.NewAppsCommand(commandArgs, ioStream),
@@ -101,6 +100,8 @@ func newCommand() *cobra.Command {
 		commands.NewDashboardCommand(commandArgs, ioStream, fake.FrontendSource),
 
 		commands.NewLogsCommand(commandArgs, ioStream),
+
+		commands.NewTemplateCommand(commandArgs, ioStream),
 	)
 
 	// Traits

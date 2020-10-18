@@ -1,0 +1,9 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: route
+spec:
+  definitionRef:
+    name: routes.standard.oam.dev
+  extension:
+    template: |
