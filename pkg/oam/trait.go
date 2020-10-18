@@ -2,7 +2,6 @@ package oam
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -11,8 +10,6 @@ import (
 	plur "github.com/gertd/go-pluralize"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/pflag"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/api/types"
@@ -20,21 +17,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 )
-
-func GetTraitDefNameFromRaw(extension runtime.RawExtension) string {
-	if extension.Raw == nil {
-		extension.Raw, _ = extension.MarshalJSON()
-	}
-	var data map[string]interface{}
-	// leverage Admission Controller to do the check
-	_ = json.Unmarshal(extension.Raw, &data)
-	obj := unstructured.Unstructured{Object: data}
-	ann := obj.GetAnnotations()
-	if ann == nil {
-		return obj.GetKind()
-	}
-	return ann[types.AnnTraitDef]
-}
 
 func ListTraitDefinitions(workloadName *string) ([]types.Capability, error) {
 	var traitList []types.Capability

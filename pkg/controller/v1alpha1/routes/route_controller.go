@@ -21,11 +21,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"strconv"
 
 	"github.com/oam-dev/kubevela/api/v1alpha1"
 	standardv1alpha1 "github.com/oam-dev/kubevela/api/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/controller/v1alpha1/routes/ingress"
 
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
@@ -51,15 +51,6 @@ const (
 	errCreateIssuer      = "failed to create cert-manager Issuer"
 )
 
-var (
-	// oamServiceLabel is the pre-defined labels for any serviceMonitor
-	// created by the RouteTrait
-	oamServiceLabel = map[string]string{
-		"k8s-app":    "oam",
-		"controller": "routeTrait",
-	}
-)
-
 // Reconciler reconciles a Route object
 type Reconciler struct {
 	client.Client
@@ -70,7 +61,6 @@ type Reconciler struct {
 
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=routes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=routes/status,verbs=get;update;patch
-
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	mLog := r.Log.WithValues("route", req.NamespacedName)
@@ -83,7 +73,6 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 	mLog.Info("Get the route trait",
 		"host", routeTrait.Spec.Host,
-		"path", routeTrait.Spec.Path,
 		"workload reference", routeTrait.Spec.WorkloadReference,
 		"labels", routeTrait.GetLabels())
 
@@ -105,35 +94,15 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			oamutil.PatchCondition(ctx, r, &routeTrait,
 				cpv1alpha1.ReconcileError(errors.Wrap(err, common.ErrLocatingWorkload)))
 	}
-
-	// try to see if the workload already has services as child resources, and match for our route
-	svc, exist, svcPort, err := r.fetchService(ctx, mLog, workload, &routeTrait)
-	if err != nil && !apierrors.IsNotFound(err) {
-		r.record.Event(eventObj, event.Warning(common.ErrLocatingService, err))
-		return oamutil.ReconcileWaitResult,
-			oamutil.PatchCondition(ctx, r, &routeTrait,
-				cpv1alpha1.ReconcileError(errors.Wrap(err, common.ErrLocatingService)))
-	}
-
-	// Create Services
-	if !exist {
-		// no service found, we will create service according to rule
-		svc, svcPort, err = r.createService(ctx, mLog, workload, &routeTrait)
-		if err != nil {
-			r.record.Event(eventObj, event.Warning(common.ErrCreatingService, err))
-			return oamutil.ReconcileWaitResult,
-				oamutil.PatchCondition(ctx, r, &routeTrait,
-					cpv1alpha1.ReconcileError(errors.Wrap(err, common.ErrCreatingService)))
+	var svc *runtimev1alpha1.TypedReference
+	if NeedDiscovery(&routeTrait) {
+		if svc, err = r.discoveryAndFillBackend(ctx, mLog, eventObj, workload, &routeTrait); err != nil {
+			return oamutil.ReconcileWaitResult, err
 		}
-		r.record.Event(eventObj, event.Normal("Service created",
-			fmt.Sprintf("successfully automatically created a service `%s`", svc.Name)))
-	} else {
-		mLog.Info("workload already has service as child resource, will not create new", "workloadName", workload.GetName())
 	}
 
-	// Create Issuers
-	var issuer standardv1alpha1.TLS
-	if routeTrait.Spec.TLS == nil || routeTrait.Spec.TLS.IssuerName == "" {
+	// Create Issuer
+	if routeTrait.Spec.TLS == nil {
 		issuerName, err := r.createSelfsignedIssuer(ctx, &routeTrait)
 		if err != nil {
 			r.record.Event(eventObj, event.Warning(errCreateIssuer, err))
@@ -143,42 +112,93 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 		r.record.Event(eventObj, event.Normal("Issuer created",
 			fmt.Sprintf("successfully automatically created a Issuer for route TLS `%s`", issuerName)))
-		issuer.Type = standardv1alpha1.NamespaceIssuer
-		issuer.IssuerName = issuerName
-	} else {
-		issuer = *routeTrait.Spec.TLS
+		// All rules will use the same selfsigned issuer.
+		routeTrait.Spec.TLS = &v1alpha1.TLS{
+			IssuerName: issuerName,
+			Type:       standardv1alpha1.NamespaceIssuer,
+		}
+	}
+
+	ingressConstructer, err := ingress.GetRouteIngress(routeTrait.Spec.Provider)
+	if err != nil {
+		mLog.Error(err, "Failed to get routeIngress, use nginx route instead")
+		ingressConstructer = &ingress.Nginx{}
 	}
 
 	// Create Ingress
 	// construct the serviceMonitor that hooks the service to the prometheus server
-	ingress := constructNginxIngress(&routeTrait, issuer, svc, svcPort)
+	ingresses := ingressConstructer.Construct(&routeTrait)
 	// server side apply the serviceMonitor, only the fields we set are touched
 	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(routeTrait.GetUID())}
-	if err := r.Patch(ctx, ingress, client.Apply, applyOpts...); err != nil {
-		mLog.Error(err, "Failed to apply to ingress")
-		r.record.Event(eventObj, event.Warning(errApplyNginxIngress, err))
-		return oamutil.ReconcileWaitResult,
-			oamutil.PatchCondition(ctx, r, &routeTrait,
-				cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyNginxIngress)))
+	for _, ingress := range ingresses {
+		if err := r.Patch(ctx, ingress, client.Apply, applyOpts...); err != nil {
+			mLog.Error(err, "Failed to apply to ingress")
+			r.record.Event(eventObj, event.Warning(errApplyNginxIngress, err))
+			return oamutil.ReconcileWaitResult,
+				oamutil.PatchCondition(ctx, r, &routeTrait,
+					cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyNginxIngress)))
+		}
+		r.record.Event(eventObj, event.Normal("Nginx Ingress created",
+			fmt.Sprintf("successfully server side patched a route trait `%s`", routeTrait.Name)))
 	}
-	r.record.Event(eventObj, event.Normal("Nginx Ingress created",
-		fmt.Sprintf("successfully server side patched a route trait `%s`", routeTrait.Name)))
-
 	// TODO(wonderflow): GC mechanism for no used ingress, service, issuer
 
-	routeTrait.Status.Service = svc
-	routeTrait.Status.Ingress = &runtimev1alpha1.TypedReference{
-		APIVersion: v1beta1.SchemeGroupVersion.String(),
-		Kind:       reflect.TypeOf(v1beta1.Ingress{}).Name(),
-		Name:       ingress.Name,
-		UID:        routeTrait.UID,
+	var ingressCreated []runtimev1alpha1.TypedReference
+	for _, ingress := range ingresses {
+		ingressCreated = append(ingressCreated, runtimev1alpha1.TypedReference{
+			APIVersion: v1beta1.SchemeGroupVersion.String(),
+			Kind:       reflect.TypeOf(v1beta1.Ingress{}).Name(),
+			Name:       ingress.Name,
+			UID:        routeTrait.UID,
+		})
 	}
-	return ctrl.Result{}, oamutil.PatchCondition(ctx, r, &routeTrait)
+	routeTrait.Status.Ingresses = ingressCreated
+	routeTrait.Status.Service = svc
+	return ctrl.Result{}, r.Status().Update(ctx, &routeTrait)
 }
 
-// create a service that targets the exposed workload pod
-func (r *Reconciler) createService(ctx context.Context, mLog logr.Logger, workload *unstructured.Unstructured,
-	routeTrait *v1alpha1.Route) (*runtimev1alpha1.TypedReference, int32, error) {
+// discoveryAndFillBackend will automatically discovery backend for route
+func (r *Reconciler) discoveryAndFillBackend(ctx context.Context, mLog logr.Logger, eventObj runtime.Object, workload *unstructured.Unstructured,
+	routeTrait *v1alpha1.Route) (*runtimev1alpha1.TypedReference, error) {
+
+	// Fetch the child childResources list from the corresponding workload
+	childResources, err := oamutil.FetchWorkloadChildResources(ctx, mLog, r, workload)
+	if err != nil {
+		mLog.Error(err, "Error while fetching the workload child childResources", "workload kind", workload.GetKind(),
+			"workload name", workload.GetName())
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+	}
+	// try to see if the workload already has services in child childResources, and match for our route
+	err = r.fillBackendByCheckChildResource(mLog, routeTrait, childResources)
+	if err != nil && !apierrors.IsNotFound(err) {
+		r.record.Event(eventObj, event.Warning(common.ErrLocatingService, err))
+		return nil, oamutil.PatchCondition(ctx, r, routeTrait,
+			cpv1alpha1.ReconcileError(errors.Wrap(err, common.ErrLocatingService)))
+	}
+
+	// Check if still need discovery after childResource filled.
+	if NeedDiscovery(routeTrait) {
+		// no service found, we will create service according to rule
+		svc, err := r.fillBackendByCreatedService(ctx, mLog, workload, routeTrait, childResources)
+		if err != nil {
+			r.record.Event(eventObj, event.Warning(common.ErrCreatingService, err))
+			return nil, oamutil.PatchCondition(ctx, r, routeTrait,
+				cpv1alpha1.ReconcileError(errors.Wrap(err, common.ErrCreatingService)))
+		}
+		r.record.Event(eventObj, event.Normal("Service created",
+			fmt.Sprintf("successfully automatically created a service `%s`", svc.Name)))
+		return svc, nil
+	}
+	mLog.Info("workload already has service as child resource, will not create service", "workloadName", workload.GetName())
+	return nil, nil
+
+}
+
+// fillBackendByCreatedService will automatically create service by discovery podTemplate or podSpec.
+func (r *Reconciler) fillBackendByCreatedService(ctx context.Context, mLog logr.Logger, workload *unstructured.Unstructured,
+	routeTrait *v1alpha1.Route, childResources []*unstructured.Unstructured) (*runtimev1alpha1.TypedReference, error) {
 
 	oamService := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
@@ -186,9 +206,9 @@ func (r *Reconciler) createService(ctx context.Context, mLog logr.Logger, worklo
 			APIVersion: common.ServiceAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "route-" + workload.GetName(),
-			Namespace: workload.GetNamespace(),
-			Labels:    oamServiceLabel,
+			Name:      routeTrait.GetName(),
+			Namespace: routeTrait.GetNamespace(),
+			Labels:    filterLabels(routeTrait.GetLabels()),
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         routeTrait.GetObjectKind().GroupVersionKind().GroupVersion().String(),
@@ -204,97 +224,70 @@ func (r *Reconciler) createService(ctx context.Context, mLog logr.Logger, worklo
 			Type: corev1.ServiceTypeClusterIP,
 		},
 	}
-	// assign selector
-	if routeTrait.Spec.Backend != nil && len(routeTrait.Spec.Backend.SelectLabels) != 0 {
-		oamService.Spec.Selector = routeTrait.Spec.Backend.SelectLabels
-	}
 
-	port, labels, err := DiscoverPortLabel(ctx, mLog, workload, r)
-	if err == nil {
-		if len(oamService.Spec.Selector) == 0 {
-			oamService.Spec.Selector = labels
-		}
-		if routeTrait.Spec.Backend == nil {
-			routeTrait.Spec.Backend = &standardv1alpha1.Backend{Port: port}
-		} else if routeTrait.Spec.Backend.Port.String() == "0" {
-			routeTrait.Spec.Backend.Port = port
-		}
-	} else {
+	ports, labels, err := DiscoverPortsLabel(ctx, workload, r, childResources)
+	if err != nil {
 		mLog.Info("[WARN] fail to discovery port and label", "err", err)
+		return nil, err
 	}
+	oamService.Spec.Selector = labels
 
-	var servicePort int32 = 443
-	oamService.Spec.Ports = []corev1.ServicePort{
-		{
-			Port:       servicePort,
-			TargetPort: routeTrait.Spec.Backend.Port,
+	// use the same port
+	for _, port := range ports {
+		oamService.Spec.Ports = append(oamService.Spec.Ports, corev1.ServicePort{
+			Port:       int32(port.IntValue()),
+			TargetPort: port,
 			Protocol:   corev1.ProtocolTCP,
-		},
+		})
 	}
 	// server side apply the service, only the fields we set are touched
 	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(routeTrait.GetUID())}
 	if err := r.Patch(ctx, oamService, client.Apply, applyOpts...); err != nil {
 		mLog.Error(err, "Failed to apply to service")
-		return nil, servicePort, err
+		return nil, err
 	}
+	FillRouteTraitWithService(oamService, routeTrait)
 	return &runtimev1alpha1.TypedReference{
 		APIVersion: common.ServiceAPIVersion,
 		Kind:       common.ServiceKind,
 		Name:       oamService.Name,
 		UID:        routeTrait.UID,
-	}, servicePort, nil
+	}, nil
 }
 
 // Assume the workload or it's childResource will always having spec.template as PodTemplate if discoverable
-func DiscoverPortLabel(ctx context.Context, mLog logr.Logger, workload *unstructured.Unstructured, r client.Reader) (intstr.IntOrString, map[string]string, error) {
-	var resources = []*unstructured.Unstructured{workload}
-	// Fetch the child resources list from the corresponding workload
-	childResources, err := oamutil.FetchWorkloadChildResources(ctx, mLog, r, workload)
-	if err == nil {
-		resources = append(resources, childResources...)
-	} else {
-		mLog.Info("[WARN] fail to fetch workload child resource", "name", workload.GetName(), "err", err)
+func DiscoverPortsLabel(ctx context.Context, workload *unstructured.Unstructured, r client.Reader, childResources []*unstructured.Unstructured) ([]intstr.IntOrString, map[string]string, error) {
+
+	// here is the logic follows the design https://github.com/crossplane/oam-kubernetes-runtime/blob/master/design/one-pager-podspecable-workload.md#proposal
+	// Get WorkloadDefinition
+	workloadDef, err := oamutil.FetchWorkloadDefinition(ctx, r, workload)
+	if err != nil {
+		return nil, nil, err
 	}
+	podSpecPath, ok := GetPodSpecPath(workloadDef)
+	if podSpecPath != "" {
+		ports, err := discoveryFromPodSpec(workload, podSpecPath)
+		if err != nil {
+			return nil, nil, err
+		}
+		return ports, filterLabels(workload.GetLabels()), nil
+	}
+	if ok {
+		return discoveryFromPodTemplate(workload, "spec", "template")
+	}
+
+	// If workload is not podSpecable, try to detect it's child resource
+	var resources = []*unstructured.Unstructured{workload}
+	resources = append(resources, childResources...)
 	var gatherErrs []error
 	for _, w := range resources {
-		port, labels, err := discoveryFromObject(w)
+		port, labels, err := discoveryFromPodTemplate(w, "spec", "template")
 		if err == nil {
 			return port, labels, nil
 		}
 		gatherErrs = append(gatherErrs, err)
 	}
-	return intstr.IntOrString{}, nil, fmt.Errorf("can't discovery port from workload %v %v.%v and it's child resource, errorList: %v", workload.GetName(), workload.GetAPIVersion(), workload.GetKind(), gatherErrs)
-}
-
-func discoveryFromObject(w *unstructured.Unstructured) (intstr.IntOrString, map[string]string, error) {
-	obj, found, _ := unstructured.NestedMap(w.Object, "spec", "template")
-	if !found {
-		return intstr.IntOrString{}, nil, fmt.Errorf("not have spec.template in workload %v", w.GetName())
-	}
-	data, err := json.Marshal(obj)
-	if err != nil {
-		return intstr.IntOrString{}, nil, fmt.Errorf("workload %v convert object err %v", w.GetName(), err)
-	}
-	var template corev1.PodTemplate
-	err = json.Unmarshal(data, &template)
-	if err != nil {
-		return intstr.IntOrString{}, nil, fmt.Errorf("workload %v convert object to PodTemplate err %v", w.GetName(), err)
-	}
-	port := getFirstPort(template.Template.Spec.Containers)
-	if port == 0 {
-		return intstr.IntOrString{}, nil, fmt.Errorf("no port found in workload %v", w.GetName())
-	}
-	return intstr.FromInt(int(port)), template.Labels, nil
-}
-
-func getFirstPort(cs []corev1.Container) int32 {
-	//TODO(wonderflow): exclude some sidecars
-	for _, container := range cs {
-		for _, p := range container.Ports {
-			return p.ContainerPort
-		}
-	}
-	return 0
+	return nil, nil, fmt.Errorf("fail to automatically discovery backend from workload %v(%v.%v) and it's child resource, errorList: %v", workload.GetName(), workload.GetAPIVersion(), workload.GetKind(), gatherErrs)
 }
 
 func (r *Reconciler) createSelfsignedIssuer(ctx context.Context, routeTrait *v1alpha1.Route) (string, error) {
@@ -320,135 +313,30 @@ func (r *Reconciler) createSelfsignedIssuer(ctx context.Context, routeTrait *v1a
 	return selfSigned, fmt.Errorf("get %s err %v", selfSigned, err)
 }
 
-func constructNginxIngress(routeTrait *standardv1alpha1.Route, issuer standardv1alpha1.TLS, service *runtimev1alpha1.TypedReference, port int32) *v1beta1.Ingress {
-
-	var annotations = make(map[string]string)
-
-	// Use nginx-ingress as implementation
-	annotations["kubernetes.io/ingress.class"] = "nginx"
-
-	// SSL
-	var issuerAnn = "cert-manager.io/issuer"
-	if issuer.Type == standardv1alpha1.ClusterIssuer {
-		issuerAnn = "cert-manager.io/cluster-issuer"
-	}
-	annotations[issuerAnn] = issuer.IssuerName
-
-	// Rewrite
-	if routeTrait.Spec.RewriteTarget != "" {
-		annotations["ingress.kubernetes.io/rewrite-target"] = routeTrait.Spec.RewriteTarget
-	}
-
-	// Custom headers
-	var headerSnippet string
-	for k, v := range routeTrait.Spec.CustomHeaders {
-		headerSnippet += fmt.Sprintf("more_set_headers \"%s: %s\";\n", k, v)
-	}
-	if headerSnippet != "" {
-		annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = headerSnippet
-	}
-	backend := routeTrait.Spec.Backend
-	if backend != nil {
-		// Backend protocol
-		if backend.Protocol != "" {
-			annotations["nginx.ingress.kubernetes.io/backend-protocol"] = backend.Protocol
-		}
-
-		//Send timeout
-		if backend.SendTimeout != 0 {
-			annotations["nginx.ingress.kubernetes.io/proxy-send-timeout"] = strconv.Itoa(backend.SendTimeout)
-		}
-
-		//Read timeout
-		if backend.ReadTimeout != 0 {
-			annotations["nginx.ingress.kubernetes.io/proxy‑read‑timeout"] = strconv.Itoa(backend.ReadTimeout)
-		}
-	}
-
-	ingress := &v1beta1.Ingress{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       reflect.TypeOf(v1beta1.Ingress{}).Name(),
-			APIVersion: v1beta1.SchemeGroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        routeTrait.Name,
-			Namespace:   routeTrait.Namespace,
-			Annotations: annotations,
-			Labels:      oamServiceLabel,
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					APIVersion:         routeTrait.GetObjectKind().GroupVersionKind().GroupVersion().String(),
-					Kind:               routeTrait.GetObjectKind().GroupVersionKind().Kind,
-					UID:                routeTrait.GetUID(),
-					Name:               routeTrait.GetName(),
-					Controller:         pointer.BoolPtr(true),
-					BlockOwnerDeletion: pointer.BoolPtr(true),
-				},
-			},
-		},
-	}
-	ingress.Spec.TLS = []v1beta1.IngressTLS{
-		{
-			Hosts:      []string{routeTrait.Spec.Host},
-			SecretName: routeTrait.Name + "-cert",
-		},
-	}
-	if routeTrait.Spec.DefaultBackend != nil {
-		ingress.Spec.Backend = routeTrait.Spec.DefaultBackend
-	}
-	ingress.Spec.Rules = []v1beta1.IngressRule{
-		{
-			Host: routeTrait.Spec.Host,
-			IngressRuleValue: v1beta1.IngressRuleValue{HTTP: &v1beta1.HTTPIngressRuleValue{
-				Paths: []v1beta1.HTTPIngressPath{
-					{
-						Path: routeTrait.Spec.Path,
-						Backend: v1beta1.IngressBackend{
-							ServiceName: service.Name,
-							ServicePort: intstr.FromInt(int(port)),
-						},
-					},
-				},
-			}},
-		},
-	}
-	return ingress
-}
-
 // fetch the service that is associated with the workload
-func (r *Reconciler) fetchService(ctx context.Context, mLog logr.Logger,
-	workload *unstructured.Unstructured, routeTrait *v1alpha1.Route) (*runtimev1alpha1.TypedReference, bool, int32, error) {
-	// Fetch the child resources list from the corresponding workload
-	resources, err := oamutil.FetchWorkloadChildResources(ctx, mLog, r, workload)
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			mLog.Error(err, "Error while fetching the workload child resources", "workload kind", workload.GetKind(),
-				"workload name", workload.GetName())
-		}
-		return nil, false, 0, err
+func (r *Reconciler) fillBackendByCheckChildResource(mLog logr.Logger,
+	routeTrait *v1alpha1.Route, childResources []*unstructured.Unstructured) error {
+	if len(childResources) == 0 {
+		return nil
 	}
-
 	// find the service that has the port
-	for _, childRes := range resources {
+	for _, childRes := range childResources {
 		if childRes.GetAPIVersion() == corev1.SchemeGroupVersion.String() && childRes.GetKind() == reflect.TypeOf(corev1.Service{}).Name() {
-			svc := &runtimev1alpha1.TypedReference{
-				APIVersion: common.ServiceAPIVersion,
-				Kind:       common.ServiceKind,
-				Name:       childRes.GetName(),
-				UID:        childRes.GetUID(),
+			data, err := json.Marshal(childRes.Object)
+			if err != nil {
+				mLog.Error(err, "error marshal child childResources as K8s Service, continue to check other resource", "resource name", childRes.GetName())
+				continue
 			}
-			ports, _, _ := unstructured.NestedSlice(childRes.Object, "spec", "ports")
-			for _, port := range ports {
-				data, _ := json.Marshal(port)
-				var servicePort corev1.ServicePort
-				_ = json.Unmarshal(data, &servicePort)
-				if routeTrait.Spec.Backend == nil || routeTrait.Spec.Backend.Port.IntValue() == 0 || servicePort.TargetPort == routeTrait.Spec.Backend.Port {
-					return svc, true, servicePort.Port, nil
-				}
+			var service corev1.Service
+			err = json.Unmarshal(data, &service)
+			if err != nil {
+				mLog.Error(err, "error unmarshal child childResources as K8s Service, continue to check other resource", "resource name", childRes.GetName())
+				continue
 			}
+			FillRouteTraitWithService(&service, routeTrait)
 		}
 	}
-	return nil, false, 0, nil
+	return nil
 }
 
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {

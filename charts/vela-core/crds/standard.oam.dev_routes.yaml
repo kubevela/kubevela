@@ -38,84 +38,90 @@ spec:
           spec:
             description: RouteSpec defines the desired state of Route
             properties:
-              backend:
-                description: Backend indicate how to connect backend service If it's
-                  nil, will auto discovery
-                properties:
-                  port:
-                    anyOf:
-                    - type: integer
-                    - type: string
-                    description: Port points to backend service port.
-                    x-kubernetes-int-or-string: true
-                  protocol:
-                    description: Protocol means backend-protocol, HTTP, HTTPS, GRPC,
-                      GRPCS, AJP and FCGI, By default uses HTTP
-                    type: string
-                  readTimeout:
-                    description: ReadTimeout used for setting read timeout duration
-                      for backend service, the unit is second.
-                    type: integer
-                  selectLabels:
-                    additionalProperties:
-                      type: string
-                    description: SelectLabels for backend service.
-                    type: object
-                  sendTimeout:
-                    description: SendTimeout used for setting send timeout duration
-                      for backend service, the unit is second.
-                    type: integer
-                type: object
-              customHeaders:
-                additionalProperties:
-                  type: string
-                description: CustomHeaders pass a custom list of headers to the backend
-                  service.
-                type: object
-              defaultBackend:
-                description: DefaultBackend uses serviceName
-                properties:
-                  resource:
-                    description: Resource is an ObjectRef to another Kubernetes resource
-                      in the namespace of the Ingress object. If resource is specified,
-                      serviceName and servicePort must not be specified.
-                    properties:
-                      apiGroup:
-                        description: APIGroup is the group for the resource being
-                          referenced. If APIGroup is not specified, the specified
-                          Kind must be in the core API group. For any other third-party
-                          types, APIGroup is required.
-                        type: string
-                      kind:
-                        description: Kind is the type of resource being referenced
-                        type: string
-                      name:
-                        description: Name is the name of resource being referenced
-                        type: string
-                    required:
-                    - kind
-                    - name
-                    type: object
-                  serviceName:
-                    description: Specifies the name of the referenced service.
-                    type: string
-                  servicePort:
-                    anyOf:
-                    - type: integer
-                    - type: string
-                    description: Specifies the port of the referenced service.
-                    x-kubernetes-int-or-string: true
-                type: object
               host:
                 description: Host is the host of the route
                 type: string
-              path:
-                description: Path is location Path, default for "/"
+              provider:
+                description: Provider indicate which ingress controller implementation
+                  the route trait will use, by default it's nginx-ingress
                 type: string
-              rewriteTarget:
-                description: RewriteTarget will rewrite request from Path to RewriteTarget
-                  path.
-                type: string
+              rules:
+                description: Rules contain multiple rules of route
+                items:
+                  description: Rule defines to route rule
+                  properties:
+                    backend:
+                      description: Backend indicate how to connect backend service
+                        If it's nil, will auto discovery
+                      properties:
+                        backendService:
+                          description: BackendService specifies the backend K8s service
+                            and port, it's optional
+                          properties:
+                            port:
+                              anyOf:
+                              - type: integer
+                              - type: string
+                              description: Port allow you direct specify backend service
+                                port.
+                              x-kubernetes-int-or-string: true
+                            serviceName:
+                              description: ServiceName allow you direct specify K8s
+                                service for backend service.
+                              type: string
+                          required:
+                          - port
+                          - serviceName
+                          type: object
+                        readTimeout:
+                          description: ReadTimeout used for setting read timeout duration
+                            for backend service, the unit is second.
+                          type: integer
+                        sendTimeout:
+                          description: SendTimeout used for setting send timeout duration
+                            for backend service, the unit is second.
+                          type: integer
+                      type: object
+                    customHeaders:
+                      additionalProperties:
+                        type: string
+                      description: CustomHeaders pass a custom list of headers to
+                        the backend service.
+                      type: object
+                    defaultBackend:
+                      description: DefaultBackend will become the ingress default
+                        backend if the backend is not available
+                      properties:
+                        apiVersion:
+                          description: APIVersion of the referenced object.
+                          type: string
+                        kind:
+                          description: Kind of the referenced object.
+                          type: string
+                        name:
+                          description: Name of the referenced object.
+                          type: string
+                        uid:
+                          description: UID of the referenced object.
+                          type: string
+                      required:
+                      - apiVersion
+                      - kind
+                      - name
+                      type: object
+                    name:
+                      description: Name will become the suffix of underlying ingress
+                        created by this rule, if not, will use index as suffix.
+                      type: string
+                    path:
+                      description: Path is location Path, default for "/"
+                      type: string
+                    rewriteTarget:
+                      description: RewriteTarget will rewrite request from Path to
+                        RewriteTarget path.
+                      type: string
+                  type: object
+                type: array
               tls:
                 description: TLS indicate route trait will create SSL secret using
                   cert-manager with specified issuer If this is nil, route trait will
@@ -124,7 +130,9 @@ spec:
                   issuerName:
                     type: string
                   type:
-                    description: Type indicate the issuer is ClusterIssuer or NamespaceIssuer
+                    default: Issuer
+                    description: Type indicate the issuer is ClusterIssuer or Issuer(namespace
+                      issuer), by default, it's Issuer
                     type: string
                 type: object
               workloadRef:
@@ -187,28 +195,30 @@ spec:
                   - type
                   type: object
                 type: array
-              ingress:
-                description: A TypedReference refers to an object by Name, Kind, and
-                  APIVersion. It is commonly used to reference cluster-scoped objects
-                  or objects where the namespace is already known.
-                properties:
-                  apiVersion:
-                    description: APIVersion of the referenced object.
-                    type: string
-                  kind:
-                    description: Kind of the referenced object.
-                    type: string
-                  name:
-                    description: Name of the referenced object.
-                    type: string
-                  uid:
-                    description: UID of the referenced object.
-                    type: string
-                required:
-                - apiVersion
-                - kind
-                - name
-                type: object
+              ingresses:
+                items:
+                  description: A TypedReference refers to an object by Name, Kind,
+                    and APIVersion. It is commonly used to reference cluster-scoped
+                    objects or objects where the namespace is already known.
+                  properties:
+                    apiVersion:
+                      description: APIVersion of the referenced object.
+                      type: string
+                    kind:
+                      description: Kind of the referenced object.
+                      type: string
+                    name:
+                      description: Name of the referenced object.
+                      type: string
+                    uid:
+                      description: UID of the referenced object.
+                      type: string
+                  required:
+                  - apiVersion
+                  - kind
+                  - name
+                  type: object
+                type: array
               service:
                 description: A TypedReference refers to an object by Name, Kind, and
                   APIVersion. It is commonly used to reference cluster-scoped objects

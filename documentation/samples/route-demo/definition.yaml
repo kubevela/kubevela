@@ -1,0 +1,53 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: route
+  annotations:
+    definition.oam.dev/apiVersion: standard.oam.dev/v1alpha1
+    definition.oam.dev/kind: Route
+    definition.oam.dev/description: "Add a route for workload"
+spec:
+  appliesToWorkloads:
+    - core.oam.dev/v1alpha2.ContainerizedWorkload
+    - standard.oam.dev/v1alpha1.PodSpecWorkload
+    - deployments.apps
+    - webservice
+  workloadRefPath: spec.workloadRef
+  definitionRef:
+    name: routes.standard.oam.dev
+---
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: webservice
+  annotations:
+    definition.oam.dev/apiVersion: "standard.oam.dev/v1alpha1"
+    definition.oam.dev/kind: "PodSpecWorkload"
+    definition.oam.dev/description: "Long running service with ports exposed"
+spec:
+  definitionRef:
+    name: podspecworkloads.standard.oam.dev
+  childResourceKinds:
+    - apiVersion: apps/v1
+      kind: Deployment
+    - apiVersion: v1
+      kind: Service
+---
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: deployment
+  labels:
+    workload.oam.dev/podspecable: "true"
+spec:
+  definitionRef:
+    name: deployments.apps
+---
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: deploy
+spec:
+  podSpecPath: spec.template.spec
+  definitionRef:
+    name: deployments.apps

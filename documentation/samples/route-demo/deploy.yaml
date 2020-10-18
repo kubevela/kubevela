@@ -1,0 +1,60 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: oam-env-default
+spec:
+  selfSigned: {}
+
+---
+apiVersion: core.oam.dev/v1alpha2
+kind: Component
+metadata:
+  name: mycomp
+spec:
+  workload:
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: mycomp
+      labels:
+        workload.oam.dev/type: deploy
+        component.oam.dev/name: mycomp
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          component.oam.dev/name: mycomp
+      template:
+        metadata:
+          labels:
+            component.oam.dev/name: mycomp
+        spec:
+          containers:
+            - image: crccheck/hello-world
+              imagePullPolicy: Always
+              name: mycomp
+              ports:
+                - containerPort: 8000
+                  name: default
+                  protocol: TCP
+---
+apiVersion: core.oam.dev/v1alpha2
+kind: ApplicationConfiguration
+metadata:
+  name: myapp
+spec:
+  components:
+    - componentName: mycomp
+      traits:
+        - trait:
+            apiVersion: standard.oam.dev/v1alpha1
+            kind: Route
+            metadata:
+              labels:
+                trait.oam.dev/type: route
+            spec:
+              host: mycomp.mytest.com
+#              backend:
+#                port: 8000
+              tls:
+                issuerName: oam-env-default
