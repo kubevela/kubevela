@@ -279,8 +279,6 @@ github.com/crossplane/crossplane-runtime v0.8.0/go.mod h1:gNY/21MLBaz5KNP7hmfXbB
 github.com/crossplane/crossplane-runtime v0.9.0 h1:K6/tLhXKzhsEUUddTvEWWnQLLrawWyw1ptNK7NBDpDU=
 github.com/crossplane/crossplane-runtime v0.9.0/go.mod h1:gNY/21MLBaz5KNP7hmfXbBXp8reYRbwY5B/97Kp4tgM=
 github.com/crossplane/crossplane-tools v0.0.0-20200219001116-bb8b2ce46330/go.mod h1:C735A9X0x0lR8iGVOOxb49Mt70Ua4EM2b7PGaRPBLd4=
-github.com/crossplane/oam-kubernetes-runtime v0.3.0-rc1 h1:N9999ECMaJYf+yhiNgAXk2HIgMeT9E5M7Y1AcXut8dU=
-github.com/crossplane/oam-kubernetes-runtime v0.3.0-rc1/go.mod h1:D+MDS5vrJZWEA5cxr5kyzCSRQwrt1hLD3ONgC7sVMmc=
 github.com/crossplane/oam-kubernetes-runtime v0.3.0-rc1.0.20201015120208-c65ccab4f9c1 h1:uAnGnossZ4biy97EKG6xj9zcGD94Uo1kwbdEPR9lZag=
 github.com/crossplane/oam-kubernetes-runtime v0.3.0-rc1.0.20201015120208-c65ccab4f9c1/go.mod h1:D+MDS5vrJZWEA5cxr5kyzCSRQwrt1hLD3ONgC7sVMmc=
 github.com/cyphar/filepath-securejoin v0.2.2 h1:jCwT2GTP+PY5nBz3c/YL5PAIbusElVrPujOBSCj8xRg=

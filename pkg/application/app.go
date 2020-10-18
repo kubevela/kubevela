@@ -1,7 +1,6 @@
 package application
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -11,17 +10,15 @@ import (
 	"strings"
 	"time"
 
-	"cuelang.org/go/cue"
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
 	"github.com/ghodss/yaml"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/api/types"
-	mycue "github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/oam-dev/kubevela/pkg/plugins"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
@@ -31,29 +28,23 @@ const (
 )
 
 type Application struct {
-	Name string `json:"name"`
-	// key of map is component name
-	Components map[string]map[string]interface{} `json:"components"`
-	Secrets    map[string]map[string]interface{} `json:"secrets"`
-	Scopes     map[string]map[string]interface{} `json:"globalScopes"`
-	CreateTime time.Time                         `json:"createTime,omitempty"`
-	UpdateTime time.Time                         `json:"updateTime,omitempty"`
+	*appfile.AppFile `json:",inline"`
 }
 
 func LoadFromFile(fileName string) (*Application, error) {
-	var app = &Application{}
-	data, err := ioutil.ReadFile(fileName)
+	_, err := ioutil.ReadFile(fileName)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return app, nil
+			return &Application{AppFile: appfile.NewAppFile()}, nil
 		}
 		return nil, err
 	}
-	err = yaml.Unmarshal(data, app)
+
+	f, err := appfile.LoadFromFile(fileName)
 	if err != nil {
 		return nil, err
 	}
-	return app, app.Validate()
+	return &Application{AppFile: f}, nil
 }
 
 func Load(envName, appName string) (*Application, error) {
@@ -129,60 +120,6 @@ func (app *Application) Save(envName string) error {
 	return ioutil.WriteFile(filepath.Join(appDir, app.Name+".yaml"), out, 0644)
 }
 
-func (app *Application) Validate() error {
-	if app == nil {
-		return errors.New("app is nil")
-	}
-	if app.Name == "" {
-		return errors.New("name is required")
-	}
-	if len(app.Components) == 0 {
-		return errors.New("at least one component is required")
-	}
-	for name, comp := range app.Components {
-		lenth := len(comp)
-		if traits, ok := comp[Traits]; ok {
-			lenth--
-			switch trs := traits.(type) {
-			case map[string]map[string]interface{}:
-			case map[string]interface{}:
-				for traitName, tr := range trs {
-					_, ok := tr.(map[string]interface{})
-					if !ok {
-						return fmt.Errorf("trait %s in '%s' must be map", traitName, name)
-					}
-				}
-			default:
-				return fmt.Errorf("format of traits in '%s' must be nested map instead of %v", name, reflect.TypeOf(traits))
-			}
-		}
-		if scopes, ok := comp[Scopes]; ok {
-			lenth--
-			_, ok := scopes.([]string)
-			if !ok {
-				return fmt.Errorf("format of scopes in '%s' must be string array", name)
-			}
-			//TODO(wonderflow) check scope exist
-		}
-		if lenth != 1 {
-			return fmt.Errorf("you must have only one workload in component '%s'", name)
-		}
-		for workloadType, workload := range comp {
-			if NotWorkload(workloadType) {
-				continue
-			}
-			_, ok := workload.(map[string]interface{})
-			if !ok {
-				return fmt.Errorf("format of workload in %s must be map", name)
-			}
-			//TODO(wonderflow) check workload type exists
-			//TODO(wonderflow) check arguments of workload is valid
-		}
-	}
-	//TODO(wonderflow) check scope types
-	return nil
-}
-
 func NotWorkload(tp string) bool {
 	if tp == Scopes || tp == Traits {
 		return true
@@ -192,13 +129,22 @@ func NotWorkload(tp string) bool {
 
 func (app *Application) GetComponents() []string {
 	var components []string
-	for name := range app.Components {
+	for name := range app.Services {
 		components = append(components, name)
 	}
 	sort.Strings(components)
 	return components
 }
 
+func (app *Application) GetServiceConfig(componentName string) (string, map[string]interface{}) {
+	svc, ok := app.Services[componentName]
+	if !ok {
+		return "", make(map[string]interface{})
+	}
+	return svc.GetType(), svc.GetConfig()
+}
+
+// TODO: replace this with GetServiceConfig()
 func (app *Application) GetWorkload(componentName string) (string, map[string]interface{}) {
 	comp, ok := app.Components[componentName]
 	if !ok {
@@ -213,6 +159,7 @@ func (app *Application) GetWorkload(componentName string) (string, map[string]in
 	return "", make(map[string]interface{})
 }
 
+// TODO: replace this with GetServiceConfig() or use AppConfig after RenderOAM()
 func (app *Application) GetTraitNames(componentName string) ([]string, error) {
 	tt, err := app.GetTraits(componentName)
 	if err != nil {
@@ -225,6 +172,7 @@ func (app *Application) GetTraitNames(componentName string) ([]string, error) {
 	return names, nil
 }
 
+// TODO: replace this with GetServiceConfig() or use AppConfig after RenderOAM()
 func (app *Application) GetTraits(componentName string) (map[string]map[string]interface{}, error) {
 	comp, ok := app.Components[componentName]
 	if !ok {
@@ -249,96 +197,15 @@ func (app *Application) GetTraits(componentName string) (map[string]map[string]i
 }
 
 func (app *Application) GetTraitsByType(componentName, traitType string) (map[string]interface{}, error) {
-	traits, err := app.GetTraits(componentName)
-	if err != nil {
-		return nil, err
+	service, ok := app.Services[componentName]
+	if !ok {
+		return nil, fmt.Errorf("component name (%s) doesn't exist", componentName)
 	}
-	for t, tt := range traits {
-		if t == traitType {
-			return tt, nil
-		}
+	t, ok := service[traitType]
+	if !ok {
+		return nil, fmt.Errorf("trait type (%s:%s) doesn't exist", componentName, traitType)
 	}
-	return make(map[string]interface{}), nil
-}
-
-func (app *Application) GetWorkloadObject(componentName string) (*unstructured.Unstructured, string, error) {
-	workloadType, workloadData := app.GetWorkload(componentName)
-	if workloadType == "" {
-		return nil, workloadType, errors.New(componentName + " workload not exist")
-	}
-	obj, err := InstantiateTemplateToCR(workloadType, workloadData)
-	if err != nil {
-		return nil, "", err
-	}
-	return obj, workloadType, nil
-}
-
-// ConvertDataByType will fix int become float after yaml.unmarshal
-func ConvertDataByType(val interface{}, tp cue.Kind) interface{} {
-	switch tp {
-	case cue.FloatKind:
-		switch rv := val.(type) {
-		case int64:
-			return float64(rv)
-		case int:
-			return float64(rv)
-		}
-	case cue.IntKind:
-		switch rv := val.(type) {
-		case float64:
-			return int64(rv)
-		}
-	}
-	return val
-}
-
-// instantiate the template with the given value to generate the CR
-func InstantiateTemplateToCR(capName string, data map[string]interface{}) (*unstructured.Unstructured, error) {
-	cap, err := plugins.LoadCapabilityByName(capName)
-	if err != nil {
-		return nil, err
-	}
-	for _, v := range cap.Parameters {
-		val, ok := data[v.Name]
-		if ok {
-			data[v.Name] = ConvertDataByType(val, v.Type)
-		}
-	}
-	cr, err := mycue.Eval(cap.DefinitionPath, data)
-	if err != nil {
-		return nil, err
-	}
-	if cap.CrdInfo != nil {
-		cr.SetAPIVersion(cap.CrdInfo.APIVersion)
-		cr.SetKind(cap.CrdInfo.Kind)
-	}
-	return cr, nil
-}
-
-func (app *Application) GetComponentTraits(componentName string, env *types.EnvMeta) ([]v1alpha2.ComponentTrait, error) {
-	var traits []v1alpha2.ComponentTrait
-	rawTraits, err := app.GetTraits(componentName)
-	if err != nil {
-		return nil, err
-	}
-	for traitType, traitData := range rawTraits {
-		obj, err := InstantiateTemplateToCR(traitType, traitData)
-		if err != nil {
-			return nil, err
-		}
-		//TODO(wonderflow): handle trait data input/output here
-		obj.SetLabels(map[string]string{oam.TraitTypeLabel: traitType})
-		traits = append(traits, v1alpha2.ComponentTrait{Trait: runtime.RawExtension{Object: obj}})
-	}
-	return traits, nil
-}
-
-func (app *Application) VelaCoreInjection(obj *unstructured.Unstructured, env *types.EnvMeta, traitType string) {
-	switch traitType {
-	case "route":
-
-	}
-
+	return t.(map[string]interface{}), nil
 }
 
 func FormatDefaultHealthScopeName(appName string) string {
@@ -346,57 +213,44 @@ func FormatDefaultHealthScopeName(appName string) string {
 }
 
 //TODO(wonderflow) add scope support here
-func (app *Application) OAM(env *types.EnvMeta) ([]v1alpha2.Component, v1alpha2.ApplicationConfiguration, []oam.Object, error) {
-	var appConfig v1alpha2.ApplicationConfiguration
-	if err := app.Validate(); err != nil {
-		return nil, appConfig, nil, err
+func (app *Application) OAM(env *types.EnvMeta, io cmdutil.IOStreams) ([]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
+	comps, appConfig, err := app.RenderOAM(env.Name, io)
+	if err != nil {
+		return nil, nil, nil, err
 	}
-	appConfig.Name = app.Name
-	appConfig.Namespace = env.Namespace
+	addWorkloadTypeLabel(comps, app.Services)
+	health := addHealthScope(appConfig)
+	return comps, appConfig, []oam.Object{health}, nil
+}
 
-	var health v1alpha2.HealthScope
-	health.Name = FormatDefaultHealthScopeName(app.Name)
-	health.Namespace = env.Namespace
-	health.Spec.WorkloadReferences = make([]v1alpha1.TypedReference, 0)
-
-	var components []v1alpha2.Component
-	for name := range app.Components {
-		// fulfill component
-		var component v1alpha2.Component
-		component.Name = name
-		component.Namespace = env.Namespace
-		obj, workloadType, err := app.GetWorkloadObject(name)
-		if err != nil {
-			return nil, v1alpha2.ApplicationConfiguration{}, nil, err
-		}
-		labels := obj.GetLabels()
+func addWorkloadTypeLabel(comps []*v1alpha2.Component, services map[string]appfile.Service) {
+	for _, comp := range comps {
+		workloadType := services[comp.Name].GetType()
+		workloadObject := comp.Spec.Workload.Object.(*unstructured.Unstructured)
+		labels := workloadObject.GetLabels()
 		if labels == nil {
 			labels = map[string]string{oam.WorkloadTypeLabel: workloadType}
 		} else {
 			labels[oam.WorkloadTypeLabel] = workloadType
 		}
-		obj.SetLabels(labels)
-		component.Spec.Workload.Object = obj
-		components = append(components, component)
-
-		var appConfigComp v1alpha2.ApplicationConfigurationComponent
-		appConfigComp.ComponentName = name
-
-		//TODO(wonderflow): Temporarily we add health scope here, should change to use scope framework
-		appConfigComp.Scopes = append(appConfigComp.Scopes, v1alpha2.ComponentScope{ScopeReference: v1alpha1.TypedReference{
-			APIVersion: v1alpha2.SchemeGroupVersion.String(),
-			Kind:       v1alpha2.HealthScopeKind,
-			Name:       health.Name,
-		}})
-
-		//TODO(wonderflow): handle component data input/output here
-		compTraits, err := app.GetComponentTraits(name, env)
-		if err != nil {
-			return nil, v1alpha2.ApplicationConfiguration{}, nil, err
-		}
-		appConfigComp.Traits = compTraits
-		appConfig.Spec.Components = append(appConfig.Spec.Components, appConfigComp)
+		workloadObject.SetLabels(labels)
 	}
+}
 
-	return components, appConfig, []oam.Object{&health}, nil
+func addHealthScope(appConfig *v1alpha2.ApplicationConfiguration) *v1alpha2.HealthScope {
+	health := &v1alpha2.HealthScope{}
+	health.Name = FormatDefaultHealthScopeName(appConfig.Name)
+	health.Namespace = appConfig.Namespace
+	health.Spec.WorkloadReferences = make([]v1alpha1.TypedReference, 0)
+	for i := range appConfig.Spec.Components {
+		// TODO(wonderflow): Temporarily we add health scope here, should change to use scope framework
+		appConfig.Spec.Components[i].Scopes = append(appConfig.Spec.Components[i].Scopes, v1alpha2.ComponentScope{
+			ScopeReference: v1alpha1.TypedReference{
+				APIVersion: v1alpha2.SchemeGroupVersion.String(),
+				Kind:       v1alpha2.HealthScopeKind,
+				Name:       health.Name,
+			},
+		})
+	}
+	return health
 }
