@@ -19,7 +19,10 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+<<<<<<< HEAD
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
+=======
+>>>>>>> refactor pkg/application to use Appfile
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
@@ -181,6 +184,7 @@ func (app *Application) GetWorkload(componentName string) (string, map[string]in
 	return svcType, workloadData
 }
 
+// TODO: replace this with GetServiceConfig() or use AppConfig after RenderOAM()
 func (app *Application) GetTraitNames(componentName string) ([]string, error) {
 	tt, err := app.GetTraits(componentName)
 	if err != nil {
@@ -193,6 +197,7 @@ func (app *Application) GetTraitNames(componentName string) ([]string, error) {
 	return names, nil
 }
 
+// TODO: replace this with GetServiceConfig() or use AppConfig after RenderOAM()
 func (app *Application) GetTraits(componentName string) (map[string]map[string]interface{}, error) {
 	_, config := app.GetServiceConfig(componentName)
 	traitsData := make(map[string]map[string]interface{})
