@@ -46,7 +46,7 @@ func NewRunCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err = o.LoadApp(cmd, args); err != nil {
 				return err
 			}
-			return o.Run()
+			return o.Run(ioStreams)
 		},
 	}
 	cmd.Flags().StringP("file", "f", "", "launch application from provided appfile")
@@ -77,9 +77,9 @@ func (o *appRunOptions) LoadApp(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func (o *appRunOptions) Run() error {
+func (o *appRunOptions) Run(io cmdutil.IOStreams) error {
 	o.Infof("Launching App Bundle \"%s\"\n", o.appName)
-	if err := o.app.Run(context.Background(), o.client, o.Env); err != nil {
+	if err := o.app.Run(context.Background(), o.client, o.Env, io); err != nil {
 		return err
 	}
 	o.Info("SUCCEED")

@@ -191,7 +191,7 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 	return fmt.Sprintf("delete apps succeed %s from %s", o.AppName, o.Env.Name), nil
 }
 
-func (o *DeleteOptions) DeleteComponent() (string, error) {
+func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) (string, error) {
 	var app *application.Application
 	var err error
 	if o.AppName != "" {
@@ -217,7 +217,7 @@ func (o *DeleteOptions) DeleteComponent() (string, error) {
 
 	// Remove component from appConfig in k8s cluster
 	ctx := context.Background()
-	if err := app.Run(ctx, o.Client, o.Env); err != nil {
+	if err := app.Run(ctx, o.Client, o.Env, io); err != nil {
 		return "", err
 	}
 

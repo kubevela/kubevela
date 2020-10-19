@@ -1,7 +1,10 @@
 package handler
 
 import (
+	"os"
+
 	"github.com/gin-gonic/gin"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/server/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,6 +46,8 @@ func DeleteComponent(c *gin.Context) {
 		Env:      envMeta,
 		AppName:  appName,
 		CompName: componentName}
-	message, err := o.DeleteComponent()
+
+	message, err := o.DeleteComponent(
+		cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr})
 	util.AssembleResponse(c, message, err)
 }
