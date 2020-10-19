@@ -7,7 +7,6 @@ import (
 
 type Manager interface {
 	IsTrait(key string) bool
-	IsWorkload(key string) bool
 	LoadTemplate(key string) string
 }
 
@@ -47,14 +46,6 @@ func (m *manager) IsTrait(key string) bool {
 		return false
 	}
 	return t.captype == types.TypeTrait
-}
-
-func (m *manager) IsWorkload(key string) bool {
-	t, ok := m.templates[key]
-	if !ok {
-		return false
-	}
-	return t.captype == types.TypeWorkload
 }
 
 func (m *manager) LoadTemplate(key string) string {
