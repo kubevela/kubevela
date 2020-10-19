@@ -46,6 +46,8 @@ type PodSpecWorkloadStatus struct {
 // +kubebuilder:object:root=true
 
 // PodSpecWorkload is the Schema for the PodSpec API
+// +genclient:method=GetScale,verb=get,subresource=scale,result=k8s.io/api/autoscaling/v1.Scale
+// +genclient:method=UpdateScale,verb=update,subresource=scale,input=k8s.io/api/autoscaling/v1.Scale,result=k8s.io/api/autoscaling/v1.Scale
 // +kubebuilder:resource:categories={oam}
 // +kubebuilder:subresource:status
 type PodSpecWorkload struct {
