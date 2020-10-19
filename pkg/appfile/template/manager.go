@@ -25,6 +25,11 @@ func Load() (Manager, error) {
 	return m, nil
 }
 
+type template struct {
+	captype types.CapType
+	raw     string
+}
+
 type manager struct {
 	templates map[string]*template
 }
@@ -33,11 +38,6 @@ func newManager() *manager {
 	return &manager{
 		templates: make(map[string]*template),
 	}
-}
-
-type template struct {
-	captype types.CapType
-	raw     string
 }
 
 func (m *manager) IsTrait(key string) bool {

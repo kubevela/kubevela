@@ -19,7 +19,7 @@ func (app *Application) SetWorkload(componentName, workloadType string, workload
 	for k, v := range workloadData {
 		s[k] = v
 	}
-	return nil
+	return app.Validate()
 }
 
 func (app *Application) SetTrait(componentName, traitType string, traitData map[string]interface{}) error {
@@ -43,7 +43,7 @@ func (app *Application) SetTrait(componentName, traitType string, traitData map[
 	for k, v := range traitData {
 		tm[k] = v
 	}
-	return nil
+	return app.Validate()
 }
 
 func (app *Application) RemoveTrait(componentName, traitType string) error {

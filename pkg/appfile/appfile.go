@@ -1,7 +1,6 @@
 package appfile
 
 import (
-	"errors"
 	"io/ioutil"
 	"time"
 
