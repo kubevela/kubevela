@@ -19,10 +19,7 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-<<<<<<< HEAD
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
-=======
->>>>>>> refactor pkg/application to use Appfile
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
