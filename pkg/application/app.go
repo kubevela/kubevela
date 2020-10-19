@@ -18,6 +18,7 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
@@ -29,6 +30,7 @@ const (
 
 type Application struct {
 	*appfile.AppFile `json:",inline"`
+	tm               template.Manager
 }
 
 func LoadFromFile(fileName string) (*Application, error) {
@@ -44,7 +46,12 @@ func LoadFromFile(fileName string) (*Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Application{AppFile: f}, nil
+
+	tm, err := template.Load()
+	if err != nil {
+		return nil, err
+	}
+	return &Application{AppFile: f, tm: tm}, nil
 }
 
 func Load(envName, appName string) (*Application, error) {
@@ -144,22 +151,21 @@ func (app *Application) GetServiceConfig(componentName string) (string, map[stri
 	return svc.GetType(), svc.GetConfig()
 }
 
-// TODO: replace this with GetServiceConfig()
 func (app *Application) GetWorkload(componentName string) (string, map[string]interface{}) {
-	comp, ok := app.Components[componentName]
-	if !ok {
+	svcType, config := app.GetServiceConfig(componentName)
+	if svcType == "" {
 		return "", make(map[string]interface{})
 	}
-	for tp, workload := range comp {
-		if NotWorkload(tp) {
+	workloadData := make(map[string]interface{})
+	for k, v := range config {
+		if app.tm.IsTrait(k) {
 			continue
 		}
-		return tp, workload.(map[string]interface{})
+		workloadData[k] = v
 	}
-	return "", make(map[string]interface{})
+	return svcType, workloadData
 }
 
-// TODO: replace this with GetServiceConfig() or use AppConfig after RenderOAM()
 func (app *Application) GetTraitNames(componentName string) ([]string, error) {
 	tt, err := app.GetTraits(componentName)
 	if err != nil {
@@ -172,28 +178,20 @@ func (app *Application) GetTraitNames(componentName string) ([]string, error) {
 	return names, nil
 }
 
-// TODO: replace this with GetServiceConfig() or use AppConfig after RenderOAM()
 func (app *Application) GetTraits(componentName string) (map[string]map[string]interface{}, error) {
-	comp, ok := app.Components[componentName]
-	if !ok {
-		return nil, fmt.Errorf("%s not exist", componentName)
-	}
-	t, ok := comp[Traits]
-	if !ok {
-		return make(map[string]map[string]interface{}), nil
-	}
-	// assume it's valid, use Validate() to check
-	switch trs := t.(type) {
-	case map[string]interface{}:
-		traits := make(map[string]map[string]interface{})
-		for k, v := range trs {
-			traits[k] = v.(map[string]interface{})
+	_, config := app.GetServiceConfig(componentName)
+	traitsData := make(map[string]map[string]interface{})
+	for k, v := range config {
+		if !app.tm.IsTrait(k) {
+			continue
 		}
-		return traits, nil
-	case map[string]map[string]interface{}:
-		return trs, nil
+		newV, ok := v.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("%s is trait, but with invalid format %s, should be map[string]interface{}", k, reflect.TypeOf(v))
+		}
+		traitsData[k] = newV
 	}
-	return nil, fmt.Errorf("invalid traits data format in %s, expect nested map but got %v", componentName, reflect.TypeOf(t))
+	return traitsData, nil
 }
 
 func (app *Application) GetTraitsByType(componentName, traitType string) (map[string]interface{}, error) {
