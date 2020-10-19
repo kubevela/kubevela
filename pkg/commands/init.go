@@ -66,7 +66,7 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err = o.Traits(); err != nil {
 				return err
 			}
-			_, err = oam.BaseRun(false, o.app, o.client, o.Env)
+			_, err = oam.BaseRun(false, o.app, o.client, o.Env, ioStreams)
 			if err != nil {
 				return err
 			}

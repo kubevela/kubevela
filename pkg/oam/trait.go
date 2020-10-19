@@ -3,6 +3,7 @@ package oam
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -14,6 +15,7 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/application"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 )
@@ -225,14 +227,16 @@ func AttachTrait(c *gin.Context, body apis.TraitBody) (string, error) {
 		return "", err
 	}
 	kubeClient := c.MustGet("KubeClient")
-	return TraitOperationRun(c, kubeClient.(client.Client), env, appObj, staging)
+	io := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+	return TraitOperationRun(c, kubeClient.(client.Client), env, appObj, staging, io)
 }
 
-func TraitOperationRun(ctx context.Context, c client.Client, env *types.EnvMeta, appObj *application.Application, staging bool) (string, error) {
+func TraitOperationRun(ctx context.Context, c client.Client, env *types.EnvMeta, appObj *application.Application,
+	staging bool, io cmdutil.IOStreams) (string, error) {
 	if staging {
 		return "Staging saved", nil
 	}
-	err := appObj.Run(ctx, c, env)
+	err := appObj.Run(ctx, c, env, io)
 	if err != nil {
 		return "", err
 	}
@@ -270,5 +274,6 @@ func DetachTrait(c *gin.Context, envName string, traitType string, componentName
 		return "", err
 	}
 	kubeClient := c.MustGet("KubeClient")
-	return TraitOperationRun(c, kubeClient.(client.Client), env, appObj, staging)
+	io := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+	return TraitOperationRun(c, kubeClient.(client.Client), env, appObj, staging, io)
 }

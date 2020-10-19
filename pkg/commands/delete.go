@@ -97,7 +97,7 @@ func NewCompDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 		}
 
 		ioStreams.Infof("Deleting Component '%s' from Application '%s'\n", o.CompName, o.AppName)
-		message, err := o.DeleteComponent()
+		message, err := o.DeleteComponent(ioStreams)
 		if err != nil {
 			return err
 		}
