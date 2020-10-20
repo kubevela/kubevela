@@ -96,6 +96,8 @@ spec:
         env: [...string]
       
         files: [...string]
+
+        image: string
       }
       
       output: {
@@ -115,7 +117,7 @@ spec:
             spec: {
               containers: [{
                 name:  context.name
-                image: context.image
+                image: parameter.image
                 command: parameter.cmd
               }]
             }
@@ -220,7 +222,7 @@ output: {
         ...
         containers: [{
           name:  context.name
-          image: context.image
+          image: parameter.image
           command: parameter.cmd
         }]
   }
@@ -234,7 +236,6 @@ Here is the takeout:
     ```yaml
     context:
       name: express-server
-      image: oamdev/testapp:v1
     ```
     You can check the definition of `context` block via `vela template context`.
 

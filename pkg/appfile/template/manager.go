@@ -17,41 +17,41 @@ func Load() (Manager, error) {
 	}
 	m := newManager()
 	for _, cap := range caps {
-		t := &template{}
-		t.captype = cap.Type
-		t.raw = cap.CueTemplate
-		m.templates[cap.Name] = t
+		t := &Template{}
+		t.Captype = cap.Type
+		t.Raw = cap.CueTemplate
+		m.Templates[cap.Name] = t
 	}
 	return m, nil
 }
 
-type template struct {
-	captype types.CapType
-	raw     string
+type Template struct {
+	Captype types.CapType
+	Raw     string
 }
 
 type manager struct {
-	templates map[string]*template
+	Templates map[string]*Template
 }
 
 func newManager() *manager {
 	return &manager{
-		templates: make(map[string]*template),
+		Templates: make(map[string]*Template),
 	}
 }
 
 func (m *manager) IsTrait(key string) bool {
-	t, ok := m.templates[key]
+	t, ok := m.Templates[key]
 	if !ok {
 		return false
 	}
-	return t.captype == types.TypeTrait
+	return t.Captype == types.TypeTrait
 }
 
 func (m *manager) LoadTemplate(key string) string {
-	t, ok := m.templates[key]
+	t, ok := m.Templates[key]
 	if !ok {
 		return ""
 	}
-	return t.raw
+	return t.Raw
 }

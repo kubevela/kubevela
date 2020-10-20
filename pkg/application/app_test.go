@@ -8,6 +8,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 )
 
@@ -113,7 +114,9 @@ services:
 	for caseName, c := range cases {
 		tm := template.NewFakeTemplateManager()
 		for k := range c.ExpTraits {
-			tm.TraitNames[k] = struct{}{}
+			tm.Templates[k] = &template.Template{
+				Captype: types.TypeTrait,
+			}
 		}
 		app := newApplication(nil, tm)
 		err := yaml.Unmarshal([]byte(c.raw), &app)

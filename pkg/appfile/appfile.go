@@ -13,6 +13,10 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
+var (
+	ErrImageNotDefined = errors.New("image not defined")
+)
+
 const DefaultAppfilePath = "./vela.yml"
 
 type AppFile struct {
@@ -49,24 +53,19 @@ func LoadFromFile(filename string) (*AppFile, error) {
 }
 
 // BuildOAM renders Appfile into AppConfig, Components. It also builds images for services if defined.
-func (app *AppFile) BuildOAM(ns string, io cmdutil.IOStreams) (
+func (app *AppFile) BuildOAM(ns string, io cmdutil.IOStreams, tm template.Manager) (
 	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, error) {
-	return app.buildOAM(ns, io, true)
+	return app.buildOAM(ns, io, true, tm)
 }
 
 // RenderOAM renders Appfile into AppConfig, Components.
-func (app *AppFile) RenderOAM(ns string, io cmdutil.IOStreams) (
+func (app *AppFile) RenderOAM(ns string, io cmdutil.IOStreams, tm template.Manager) (
 	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, error) {
-	return app.buildOAM(ns, io, false)
+	return app.buildOAM(ns, io, false, tm)
 }
 
-func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, buildImage bool) (
+func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, buildImage bool, tm template.Manager) (
 	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, error) {
-	io.Info("Loading templates ...")
-	tm, err := template.Load()
-	if err != nil {
-		return nil, nil, err
-	}
 
 	appConfig := &v1alpha2.ApplicationConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
@@ -83,7 +82,7 @@ func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, buildImage bool) (
 		if ok {
 			image = v.(string)
 		} else {
-			return nil, nil, errors.New("no image is defined")
+			return nil, nil, ErrImageNotDefined
 		}
 
 		if b := svc.GetBuild(); b != nil {

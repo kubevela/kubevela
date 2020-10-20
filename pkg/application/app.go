@@ -227,7 +227,7 @@ func FormatDefaultHealthScopeName(appName string) string {
 
 // TODO(wonderflow) add scope support here
 func (app *Application) OAM(env *types.EnvMeta, io cmdutil.IOStreams) ([]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
-	comps, appConfig, err := app.RenderOAM(env.Namespace, io)
+	comps, appConfig, err := app.RenderOAM(env.Namespace, io, app.tm)
 	if err != nil {
 		return nil, nil, nil, err
 	}

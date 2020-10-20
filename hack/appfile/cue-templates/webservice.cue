@@ -8,6 +8,8 @@ parameter: #webservice
   env: [...string]
 
   files: [...string]
+
+  image: string
 }
 
 output: {
@@ -27,7 +29,7 @@ output: {
       spec: {
         containers: [{
           name:  context.name
-          image: context.image
+          image: parameter.image
           command: parameter.cmd
         }]
       }
