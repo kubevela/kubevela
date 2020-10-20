@@ -72,6 +72,7 @@ func (s Service) RenderService(tm template.Manager, name, ns, image string) (
 	for k, v := range s.GetConfig() {
 		if tm.IsTrait(k) {
 			traitKeys[k] = v
+			continue
 		}
 		workloadKeys[k] = v
 	}
