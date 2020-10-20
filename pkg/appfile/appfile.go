@@ -24,6 +24,13 @@ type AppFile struct {
 	Secrets    map[string]string  `json:"secrets"`
 }
 
+func NewAppFile() *AppFile {
+	return &AppFile{
+		Services: make(map[string]Service),
+		Secrets:  make(map[string]string),
+	}
+}
+
 func Load() (*AppFile, error) {
 	return LoadFromFile(DefaultAppfilePath)
 }
@@ -33,26 +40,27 @@ func LoadFromFile(filename string) (*AppFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	af := &AppFile{}
+	af := NewAppFile()
 	err = yaml.Unmarshal(b, af)
 	if err != nil {
 		return nil, err
 	}
-	return af, af.Validate()
-}
-
-func (app *AppFile) Validate() error {
-	if app.Name == "" {
-		return errors.New("name is required")
-	}
-	if len(app.Services) == 0 {
-		return errors.New("at least one service component is required")
-	}
-	return nil
+	return af, nil
 }
 
 // BuildOAM renders Appfile into AppConfig, Components. It also builds images for services if defined.
 func (app *AppFile) BuildOAM(ns string, io cmdutil.IOStreams) (
+	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, error) {
+	return app.buildOAM(ns, io, true)
+}
+
+// RenderOAM renders Appfile into AppConfig, Components.
+func (app *AppFile) RenderOAM(ns string, io cmdutil.IOStreams) (
+	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, error) {
+	return app.buildOAM(ns, io, false)
+}
+
+func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, buildImage bool) (
 	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, error) {
 	io.Info("Loading templates ...")
 	tm, err := template.Load()
@@ -71,14 +79,28 @@ func (app *AppFile) BuildOAM(ns string, io cmdutil.IOStreams) (
 
 	for sname, svc := range app.GetServices() {
 		build := svc.GetBuild()
+		var image string
+		if build != nil {
+			image = build.Image
 
-		io.Infof("\nBuilding service (%s)...\n", sname)
-		if err := build.BuildImage(io); err != nil {
-			return nil, nil, err
+			if buildImage {
+				io.Infof("\nBuilding service (%s)...\n", sname)
+				if err := build.BuildImage(io); err != nil {
+					return nil, nil, err
+				}
+			}
+		}
+		if image == "" {
+			v, ok := svc["image"]
+			if ok {
+				image = v.(string)
+			} else {
+				return nil, nil, errors.New("no image is defined")
+			}
 		}
 
 		io.Infof("\nRendering component configs for service (%s)...\n", sname)
-		acComp, comp, err := svc.RenderService(tm, app.Name, ns, build.Image)
+		acComp, comp, err := svc.RenderService(tm, sname, ns, image)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -87,5 +109,4 @@ func (app *AppFile) BuildOAM(ns string, io cmdutil.IOStreams) (
 	}
 
 	return comps, appConfig, nil
-
 }
