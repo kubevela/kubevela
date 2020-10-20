@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -23,11 +22,7 @@ const specValue = "parameter"
 // Eval evaluates the spec with the parameter values
 func Eval(templatePath string, value map[string]interface{}) (*unstructured.Unstructured, error) {
 	r := cue.Runtime{}
-	b, err := ioutil.ReadFile(templatePath)
-	if err != nil {
-		return nil, err
-	}
-	template, err := r.Compile("", string(b)+BaseTemplate)
+	template, err := r.Compile(templatePath, nil)
 	if err != nil {
 		return nil, fmt.Errorf("compile %s err %v", templatePath, err)
 	}
@@ -59,11 +54,7 @@ func Eval(templatePath string, value map[string]interface{}) (*unstructured.Unst
 
 func GetParameters(templatePath string) ([]types.Parameter, string, error) {
 	r := cue.Runtime{}
-	b, err := ioutil.ReadFile(templatePath)
-	if err != nil {
-		return nil, "", err
-	}
-	template, err := r.Compile("", string(b)+BaseTemplate)
+	template, err := r.Compile(templatePath, nil)
 	if err != nil {
 		return nil, "", err
 	}
