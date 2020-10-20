@@ -216,7 +216,7 @@ func (app *Application) GetTraitsByType(componentName, traitType string) (map[st
 	}
 	t, ok := service[traitType]
 	if !ok {
-		return nil, fmt.Errorf("trait type (%s:%s) doesn't exist", componentName, traitType)
+		return make(map[string]interface{}), nil
 	}
 	return t.(map[string]interface{}), nil
 }
@@ -227,7 +227,7 @@ func FormatDefaultHealthScopeName(appName string) string {
 
 // TODO(wonderflow) add scope support here
 func (app *Application) OAM(env *types.EnvMeta, io cmdutil.IOStreams) ([]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
-	comps, appConfig, err := app.RenderOAM(env.Name, io)
+	comps, appConfig, err := app.RenderOAM(env.Namespace, io)
 	if err != nil {
 		return nil, nil, nil, err
 	}

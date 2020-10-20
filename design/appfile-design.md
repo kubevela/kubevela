@@ -24,8 +24,11 @@ Here's an example to deploy a NodeJS express service:
 ```yaml
 services:
   express-server:
+    # this image will be used in both build and deploy config
+    image: oamdev/testapp:v1
+
     build:
-      image: oamdev/testapp:v1
+      # Here more runtime specific build templates will be supported, like NodeJS, Go, Python, Ruby.
       docker:
         file: Dockerfile
         context: .

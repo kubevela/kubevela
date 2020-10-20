@@ -49,4 +49,5 @@ spec:
           }
       }
       parameter: #metrics
+      output: {}
 

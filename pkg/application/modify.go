@@ -2,6 +2,7 @@ package application
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/oam-dev/kubevela/pkg/appfile"
 )
@@ -16,9 +17,11 @@ func (app *Application) SetWorkload(componentName, workloadType string, workload
 		s = appfile.Service{}
 	}
 	s["type"] = workloadType
+	s["name"] = strings.ToLower(componentName)
 	for k, v := range workloadData {
 		s[k] = v
 	}
+	app.Services[componentName] = s
 	return app.Validate()
 }
 
@@ -43,6 +46,8 @@ func (app *Application) SetTrait(componentName, traitType string, traitData map[
 	for k, v := range traitData {
 		tm[k] = v
 	}
+	s[traitType] = t
+	app.Services[componentName] = s
 	return app.Validate()
 }
 

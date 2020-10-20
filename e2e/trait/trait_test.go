@@ -30,7 +30,7 @@ var _ = ginkgo.Describe("Trait", func() {
 			cli := fmt.Sprintf("vela %s %s", traitAlias, applicationNotExistedName)
 			output, err := e2e.Exec(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring("Error: " + applicationNotExistedName + " not exist"))
+			gomega.Expect(output).To(gomega.ContainSubstring("component name (" + applicationNotExistedName + ") doesn't exist"))
 		})
 	})
 

@@ -7,7 +7,6 @@ import (
 )
 
 type Build struct {
-	Image  string `json:"image,omitempty"`
 	Push   Push   `json:"push,omitempty"`
 	Docker Docker `json:"docker,omitempty"`
 }
@@ -22,27 +21,28 @@ type Push struct {
 	Registry string `json:"registry,omitempty"`
 }
 
-func (b *Build) BuildImage(io cmdutil.IOStreams) error {
-	cmd := exec.Command("docker", "build", "-t", b.Image, "-f", b.Docker.File, b.Docker.Context)
+func (b *Build) BuildImage(io cmdutil.IOStreams, image string) error {
+	cmd := exec.Command("docker", "build", "-t", image, "-f", b.Docker.File, b.Docker.Context)
 	out, err := cmd.CombinedOutput()
 	io.Infof("%s\n", out)
 	if err != nil {
 		return err
 	}
-	return b.pushImage(io)
+	return b.pushImage(io, image)
 }
 
-func (b *Build) pushImage(io cmdutil.IOStreams) error {
-	io.Infof("pushing image (%s)...\n", b.Image)
+func (b *Build) pushImage(io cmdutil.IOStreams, image string) error {
+	io.Infof("pushing image (%s)...\n", image)
 
 	switch {
 	case b.Push.Local == "kind":
-		cmd := exec.Command("kind", "load", "docker-image", b.Image)
+		cmd := exec.Command("kind", "load", "docker-image", image)
 		out, err := cmd.CombinedOutput()
 		io.Infof("%s\n", out)
 		return err
 	}
-	cmd := exec.Command("docker", "push", b.Image)
+
+	cmd := exec.Command("docker", "push", image)
 	out, err := cmd.CombinedOutput()
 	io.Infof("%s\n", out)
 	return err

@@ -1,6 +1,7 @@
 package appfile
 
 import (
+	"errors"
 	"io/ioutil"
 	"time"
 
@@ -77,24 +78,20 @@ func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, buildImage bool) (
 	var comps []*v1alpha2.Component
 
 	for sname, svc := range app.GetServices() {
-		build := svc.GetBuild()
 		var image string
-		if build != nil {
-			image = build.Image
+		v, ok := svc["image"]
+		if ok {
+			image = v.(string)
+		} else {
+			return nil, nil, errors.New("no image is defined")
+		}
 
+		if b := svc.GetBuild(); b != nil {
 			if buildImage {
 				io.Infof("\nBuilding service (%s)...\n", sname)
-				if err := build.BuildImage(io); err != nil {
+				if err := b.BuildImage(io, image); err != nil {
 					return nil, nil, err
 				}
-			}
-		}
-		if image == "" {
-			v, ok := svc["image"]
-			if ok {
-				image = v.(string)
-			} else {
-				return nil, nil, errors.New("no image is defined")
 			}
 		}
 

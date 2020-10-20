@@ -183,10 +183,11 @@ func renderOneOutput(appValue *cue.Struct) (*unstructured.Unstructured, error) {
 	if err != nil {
 		return nil, fmt.Errorf("FieldByName('output'): %w", err)
 	}
+
 	final := outputField.Value
 	data, err := cueJson.Marshal(final)
 	if err != nil {
-		return nil, fmt.Errorf("marshal final value err %v", err)
+		return nil, fmt.Errorf("marshal final value failed: %v", err)
 	}
 
 	obj := make(map[string]interface{})

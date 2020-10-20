@@ -97,7 +97,7 @@ services:
 			raw:           yamlNoName,
 			ExpName:       "",
 			InValid:       true,
-			InvalidReason: errors.New("please provide an existed App name"),
+			InvalidReason: errors.New("name is required"),
 		},
 		"trait must be map": {
 			raw: yamlTraitNotMap,
