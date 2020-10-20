@@ -134,7 +134,7 @@ func (app *Application) Validate() error {
 		return errors.New("app is nil")
 	}
 	if app.Name == "" {
-		return errors.New("name is required")
+		return errors.New("please provide an existed App name")
 	}
 	if len(app.Components) == 0 {
 		return errors.New("at least one component is required")

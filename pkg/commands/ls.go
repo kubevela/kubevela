@@ -64,8 +64,8 @@ func NewCompListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 		Use:                   "ls",
 		Aliases:               []string{"list"},
 		DisableFlagsInUseLine: true,
-		Short:                 "List applications",
-		Long:                  "List applications with workloads, traits, status and created time",
+		Short:                 "List components",
+		Long:                  "List components with its application, workloads, traits, status and created time",
 		Example:               `vela comp ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			env, err := GetEnv(cmd)
