@@ -35,6 +35,10 @@ npm-build:
 npm-install:
 	cd dashboard && npm install && cd ./..
 
+generate-doc:
+	rm -r documentation/cli/*
+	go run hack/docgen/gen.go
+
 generate-source:
 	go run hack/frontend/source.go
 

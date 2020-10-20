@@ -1,19 +1,25 @@
-## vela logs
+## vela init
 
-Tail pods logs of an application
+Init an OAM Application
 
 ### Synopsis
 
-Tail pods logs of an application
+Init an OAM Application by one command
 
 ```
-vela logs <appname> [flags]
+vela init
+```
+
+### Examples
+
+```
+vela init
 ```
 
 ### Options
 
 ```
-  -h, --help   help for logs
+  -h, --help   help for init
 ```
 
 ### Options inherited from parent commands
