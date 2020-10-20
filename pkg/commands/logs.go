@@ -68,7 +68,7 @@ func (l *Args) AskComponent() (string, error) {
 		return comps[0], nil
 	}
 	prompt := &survey.Select{
-		Message: "You have multiple Component in your app. Choose one component for logs: ",
+		Message: "You have multiple Components in your app. Please choose one component for logs: ",
 		Options: comps,
 	}
 	var compName string
