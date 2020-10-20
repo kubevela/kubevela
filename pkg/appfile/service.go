@@ -18,6 +18,29 @@ import (
 
 type Service map[string]interface{}
 
+const DefaultWorkloadType = "webservice"
+
+func (s Service) GetType() string {
+	t, ok := s["type"]
+	if !ok {
+		return DefaultWorkloadType
+	}
+	return t.(string)
+}
+
+func (s Service) GetConfig() map[string]interface{} {
+	config := make(map[string]interface{})
+outerLoop:
+	for k, v := range s {
+		switch k {
+		case "build", "type": // skip
+			continue outerLoop
+		}
+		config[k] = v
+	}
+	return config
+}
+
 func (s Service) GetBuild() *Build {
 	v, ok := s["build"]
 	if !ok {
@@ -44,22 +67,14 @@ func (s Service) RenderService(tm template.Manager, name, ns, image string) (
 	workloadKeys := map[string]interface{}{}
 	traitKeys := map[string]interface{}{}
 
-	wtype := "webservice"
+	wtype := s.GetType()
 
-outerLoop:
-	for k, v := range s {
-		switch k {
-		case "build": // skip
-			continue outerLoop
-		case "type":
-			wtype = v.(string)
-		}
-
+	for k, v := range s.GetConfig() {
 		if tm.IsTrait(k) {
 			traitKeys[k] = v
-		} else if tm.IsWorkload(k) {
-			workloadKeys[k] = v
+			continue
 		}
+		workloadKeys[k] = v
 	}
 
 	// render component
