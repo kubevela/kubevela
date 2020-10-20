@@ -24,11 +24,11 @@
 
 FROM mhart/alpine-node:12
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY package.json ./
 
 # If you have native dependencies, you'll need extra tools
 # RUN apk add --no-cache make gcc g++ python
-
+RUN npm install
 RUN npm ci --prod
 
 # Then we copy over the modules from above onto a `slim` image
