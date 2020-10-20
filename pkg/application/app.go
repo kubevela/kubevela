@@ -127,7 +127,7 @@ func (app *Application) Save(envName string) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filepath.Join(appDir, app.Name+".yaml"), out, 0o644)
+	return ioutil.WriteFile(filepath.Join(appDir, app.Name+".yaml"), out, 0644)
 }
 
 func (app *Application) Validate() error {
@@ -135,7 +135,7 @@ func (app *Application) Validate() error {
 		return errors.New("name is required")
 	}
 	if len(app.Services) == 0 {
-		return errors.New("at least one service component is required")
+		return errors.New("at least one service is required")
 	}
 	for name, svc := range app.Services {
 		for traitName, traitData := range svc.GetConfig() {

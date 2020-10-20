@@ -92,7 +92,7 @@ services:
 			raw:           yamlNoService,
 			ExpName:       "myapp",
 			InValid:       true,
-			InvalidReason: errors.New("at least one service component is required"),
+			InvalidReason: errors.New("at least one service is required"),
 		},
 		"no name": {
 			raw:           yamlNoName,

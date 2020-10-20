@@ -164,7 +164,7 @@ func (o *appfileOptions) apply(ac *v1alpha2.ApplicationConfiguration, comps []*v
 func (o *appfileOptions) info(name string) {
 	o.IO.Infof("app has been deployed %s%s%s\n", emojiRocket, emojiRocket, emojiRocket)
 	o.IO.Infof("\tURL: http://%s/\n", o.Env.Domain)
-	o.IO.Infof("\tPort forward: vela port-forward %s <port>\n", name)
+	o.IO.Infof("\tPort forward: vela listen %s <port>\n", name)
 	o.IO.Infof("\tSSH: vela exec %s\n", name)
 	o.IO.Infof("\tLogging: vela logs %s\n", name)
 	o.IO.Infof("\tMetric: TODO\n")
