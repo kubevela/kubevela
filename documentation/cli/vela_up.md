@@ -1,19 +1,19 @@
-## vela logs
+## vela up
 
-Tail pods logs of an application
+Apply an appfile
 
 ### Synopsis
 
-Tail pods logs of an application
+Apply an appfile, by default vela.yml
 
 ```
-vela logs <appname> [flags]
+vela up
 ```
 
 ### Options
 
 ```
-  -h, --help   help for logs
+  -h, --help   help for up
 ```
 
 ### Options inherited from parent commands
