@@ -22,19 +22,13 @@ spec:
         kind:       "Route"
         spec: {
           host: parameter.domain
-            path: parameter.path
-            tls: {
-              issuerName: parameter.issuer
-            }
-            backend: {
-              port: parameter.port
-            }
+          tls: {
+            issuerName: parameter.issuer
+          }
         }
       }
       #route: {
         domain: *"" | string
-        path:   *"" | string
-        port:   *443 | int
         issuer: *"" | string
       }
       parameter: #route
