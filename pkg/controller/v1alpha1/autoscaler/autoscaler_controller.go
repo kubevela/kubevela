@@ -24,34 +24,26 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
-
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 	oamutil "github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
-
-	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/pkg/errors"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-
-	"k8s.io/client-go/util/homedir"
-
-	kedav1alpha1 "github.com/kedacore/keda/api/v1alpha1"
-
-	"k8s.io/client-go/tools/clientcmd"
-
 	"github.com/go-logr/logr"
+	kedav1alpha1 "github.com/kedacore/keda/api/v1alpha1"
 	"github.com/oam-dev/kubevela/api/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/pkg/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	restclient "k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/homedir"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
