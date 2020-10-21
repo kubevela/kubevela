@@ -21,6 +21,7 @@ require (
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-logr/logr v0.1.0
 	github.com/gofrs/uuid v3.3.0+incompatible // indirect
+	github.com/golang/gddo v0.0.0-20190419222130-af0f2af80721
 	github.com/google/go-cmp v0.5.2
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4

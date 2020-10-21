@@ -3,154 +3,43 @@ package autoscalers
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/go-logr/logr"
+	kedav1alpha1 "github.com/kedacore/keda/api/v1alpha1"
+	kedaclient "github.com/kedacore/keda/pkg/generated/clientset/versioned/typed/keda/v1alpha1"
+	"github.com/oam-dev/kubevela/api/v1alpha1"
+	"github.com/pkg/errors"
 	autoscalingv2beta2 "k8s.io/api/autoscaling/v2beta2"
 	apicorev1 "k8s.io/api/core/v1"
-
-	"github.com/crossplane/crossplane-runtime/pkg/event"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/utils/pointer"
-
-	kedav1alpha1 "github.com/kedacore/keda/api/v1alpha1"
-
-	"errors"
-	"strings"
-
-	"github.com/go-logr/logr"
-	kedatype "github.com/kedacore/keda/pkg/generated/clientset/versioned/typed/keda/v1alpha1"
-	"github.com/oam-dev/kubevela/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 )
 
 func (r *AutoscalerReconciler) scaleByKEDA(scaler v1alpha1.Autoscaler, namespace string, log logr.Logger) error {
-	config := r.config
-	kedaClient, err := kedatype.NewForConfig(config)
-	if err != nil {
-		log.Error(err, "failed to initiate a KEDA client", "config", config)
-		return err
-	}
-
 	minReplicas := scaler.Spec.MinReplicas
 	maxReplicas := scaler.Spec.MaxReplicas
 	triggers := scaler.Spec.Triggers
 	scalerName := scaler.Name
 	targetWorkload := scaler.Spec.TargetWorkload
 
-	var resourceMetric *autoscalingv2beta2.ResourceMetricSource
-
 	var kedaTriggers []kedav1alpha1.ScaleTriggers
+	var err error
+	var reason string
+	var resourceMetrics []*autoscalingv2beta2.ResourceMetricSource
 	for _, t := range triggers {
 		if t.Type == CronType {
-			if targetWorkload.Name == "" {
-				err := errors.New(SpecWarningTargetWorkloadNotSet)
-				log.Error(err, "")
-				r.record.Event(&scaler, event.Warning(SpecWarningTargetWorkloadNotSet, err))
-				return err
-			}
-
-			triggerCondition := t.Condition.CronTypeCondition
-			startAt := triggerCondition.StartAt
-			if startAt == "" {
-				return errors.New("spec.triggers.condition.startAt: Required value")
-			}
-			duration := triggerCondition.Duration
-			if duration == "" {
-				return errors.New("spec.triggers.condition.duration: Required value")
-			}
-			var err error
-			startTime, err := time.Parse("15:04", startAt)
-			if err != nil {
-				log.Error(err, SpecWarningStartAtTimeFormat, startAt)
-				r.record.Event(&scaler, event.Warning(SpecWarningStartAtTimeFormat, err))
-				return err
-			}
-			var startHour, startMinute, durationHour int
-			startHour = startTime.Hour()
-			startMinute = startTime.Minute()
-			if !strings.HasSuffix(duration, "h") {
-				log.Error(err, "currently only hours of duration is supported.", "duration", duration)
-				return err
-			}
-
-			splitDuration := strings.Split(duration, "h")
-			if len(splitDuration) != 2 {
-				log.Error(err, "duration hour is not in the right format, like `12h`.", "duration", duration)
-				return err
-			}
-			if durationHour, err = strconv.Atoi(splitDuration[0]); err != nil {
-				log.Error(err, "duration hour is not in the right format, like `12h`.", "duration", duration)
-				return err
-			}
-
-			endHour := durationHour + startHour
-			if endHour >= 24 {
-				log.Error(err, "the sum of the hour of startAt and duration hour has to be less than 24 hours.", "startAt", startAt, "duration", duration)
-				return err
-			}
-			replicas := triggerCondition.Replicas
-			if replicas == 0 {
-				return errors.New("spec.triggers.condition.replicas: Required value")
-			}
-
-			timezone := triggerCondition.Timezone
-			if timezone == "" {
-				return errors.New("spec.triggers.condition.timezone: Required value")
-			}
-
-			days := triggerCondition.Days
-			var dayNo []int
-
-			var i = 0
-
-			// TODO(@zzxwill) On Mac, it's Sunday when i == 0, need check on Linux
-			for _, d := range days {
-				for i < 7 {
-					if strings.EqualFold(time.Weekday(i).String(), d) {
-						dayNo = append(dayNo, i)
-						break
-					}
-					i++
-				}
-			}
-
-			for _, n := range dayNo {
-				kedaTrigger := kedav1alpha1.ScaleTriggers{
-					Type: string(t.Type),
-					Name: t.Name,
-					Metadata: map[string]string{
-						"timezone":        timezone,
-						"start":           fmt.Sprintf("%d %d * * %d", startMinute, startHour, n),
-						"end":             fmt.Sprintf("%d %d * * %d", startMinute, endHour, n),
-						"desiredReplicas": strconv.Itoa(replicas),
-					},
-				}
-				kedaTriggers = append(kedaTriggers, kedaTrigger)
+			if kedaTriggers, err, reason = r.prepareKEDACronScalerTriggerSpec(scaler, t); err != nil {
+				log.Error(err, reason)
+				r.record.Event(&scaler, event.Warning(event.Reason(reason), err))
 			}
 		} else if t.Type == CPUType || t.Type == MemoryType || t.Type == StorageType || t.Type == EphemeralStorageType {
-			resourceMetric = &autoscalingv2beta2.ResourceMetricSource{
-				Name: apicorev1.ResourceName(string(t.Type)),
-				Target: autoscalingv2beta2.MetricTarget{
-					// Currently only CPU `Utilization` is supported
-					Type:               CPUUtilization,
-					AverageUtilization: t.Condition.Target,
-				},
-			}
+			resourceMetric := r.prepareKEDAResourceScalerMetrics(t)
+			resourceMetrics = append(resourceMetrics, resourceMetric)
 		}
-	}
-
-	scaleTarget := kedav1alpha1.ScaleTarget{
-		APIVersion: targetWorkload.APIVersion,
-		Kind:       targetWorkload.Kind,
-		Name:       targetWorkload.Name,
-	}
-
-	var resourceMetrics []*autoscalingv2beta2.ResourceMetricSource
-	resourceMetrics = append(resourceMetrics, resourceMetric)
-	advanced := &kedav1alpha1.AdvancedConfig{
-		HorizontalPodAutoscalerConfig: &kedav1alpha1.HorizontalPodAutoscalerConfig{
-			ResourceMetrics: resourceMetrics,
-		},
 	}
 
 	scaleObj := kedav1alpha1.ScaledObject{
@@ -173,12 +62,27 @@ func (r *AutoscalerReconciler) scaleByKEDA(scaler v1alpha1.Autoscaler, namespace
 			},
 		},
 		Spec: kedav1alpha1.ScaledObjectSpec{
-			ScaleTargetRef:  &scaleTarget,
+			ScaleTargetRef: &kedav1alpha1.ScaleTarget{
+				APIVersion: targetWorkload.APIVersion,
+				Kind:       targetWorkload.Kind,
+				Name:       targetWorkload.Name,
+			},
 			MinReplicaCount: minReplicas,
 			MaxReplicaCount: maxReplicas,
-			Advanced:        advanced,
-			Triggers:        kedaTriggers,
+			Advanced: &kedav1alpha1.AdvancedConfig{
+				HorizontalPodAutoscalerConfig: &kedav1alpha1.HorizontalPodAutoscalerConfig{
+					ResourceMetrics: resourceMetrics,
+				},
+			},
+			Triggers: kedaTriggers,
 		},
+	}
+
+	config := r.config
+	kedaClient, err := kedaclient.NewForConfig(config)
+	if err != nil {
+		log.Error(err, "failed to initiate a KEDA client", "config", config)
+		return err
 	}
 
 	obj, err := kedaClient.ScaledObjects(namespace).Get(r.ctx, scalerName, metav1.GetOptions{})
@@ -196,4 +100,94 @@ func (r *AutoscalerReconciler) scaleByKEDA(scaler v1alpha1.Autoscaler, namespace
 		}
 	}
 	return nil
+}
+
+// prepareKEDACronScalerTriggerSpec converts Autoscaler spec into KEDA Cron scaler spec
+func (r *AutoscalerReconciler) prepareKEDACronScalerTriggerSpec(scaler v1alpha1.Autoscaler, t v1alpha1.Trigger) ([]kedav1alpha1.ScaleTriggers, error, string) {
+	var kedaTriggers []kedav1alpha1.ScaleTriggers
+	targetWorkload := scaler.Spec.TargetWorkload
+	if targetWorkload.Name == "" {
+		err := errors.New(SpecWarningTargetWorkloadNotSet)
+		return kedaTriggers, err, SpecWarningTargetWorkloadNotSet
+	}
+
+	triggerCondition := t.Condition.CronTypeCondition
+	startAt := triggerCondition.StartAt
+	if startAt == "" {
+		return kedaTriggers, errors.New(SpecWarningStartAtTimeRequired), SpecWarningStartAtTimeRequired
+	}
+	duration := triggerCondition.Duration
+	if duration == "" {
+		return kedaTriggers, errors.New(SpecWarningDurationTimeRequired), SpecWarningDurationTimeRequired
+	}
+	var err error
+	startTime, err := time.Parse("15:04", startAt)
+	if err != nil {
+		return kedaTriggers, err, SpecWarningStartAtTimeFormat
+	}
+	var startHour, startMinute int
+	startHour = startTime.Hour()
+	startMinute = startTime.Minute()
+
+	durationTime, err := time.ParseDuration(duration)
+	if err != nil {
+		return kedaTriggers, err, SpecWarningDurationTimeNotInRightFormat
+	}
+	durationHour := durationTime.Hours()
+
+	endHour := int(durationHour) + startHour
+	if endHour >= 24 {
+		return kedaTriggers, errors.New(SpecWarningSumOfStartAndDurationMoreThan24Hour), SpecWarningSumOfStartAndDurationMoreThan24Hour
+	}
+	replicas := triggerCondition.Replicas
+	if replicas == 0 {
+		return kedaTriggers, errors.New(SpecWarningReplicasRequired), SpecWarningReplicasRequired
+	}
+
+	timezone := triggerCondition.Timezone
+	//if timezone == "" {
+	//	timezone = "Asia/Shanghai"
+	//}
+
+	days := triggerCondition.Days
+	var dayNo []int
+
+	var i = 0
+	// TODO(@zzxwill) On Mac, it's Sunday when i == 0, need check on Linux
+	for _, d := range days {
+		for i < 7 {
+			if strings.EqualFold(time.Weekday(i).String(), d) {
+				dayNo = append(dayNo, i)
+				break
+			}
+			i++
+		}
+	}
+
+	for _, n := range dayNo {
+		kedaTrigger := kedav1alpha1.ScaleTriggers{
+			Type: string(t.Type),
+			Name: t.Name,
+			Metadata: map[string]string{
+				"timezone":        timezone,
+				"start":           fmt.Sprintf("%d %d * * %d", startMinute, startHour, n),
+				"end":             fmt.Sprintf("%d %d * * %d", startMinute, endHour, n),
+				"desiredReplicas": strconv.Itoa(replicas),
+			},
+		}
+		kedaTriggers = append(kedaTriggers, kedaTrigger)
+	}
+	return kedaTriggers, nil, ""
+}
+
+func (r *AutoscalerReconciler) prepareKEDAResourceScalerMetrics(t v1alpha1.Trigger) *autoscalingv2beta2.ResourceMetricSource {
+	resourceMetric := &autoscalingv2beta2.ResourceMetricSource{
+		Name: apicorev1.ResourceName(t.Type),
+		Target: autoscalingv2beta2.MetricTarget{
+			// Currently only CPU `Utilization` is supported
+			Type:               CPUUtilization,
+			AverageUtilization: t.Condition.Target,
+		},
+	}
+	return resourceMetric
 }

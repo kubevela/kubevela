@@ -34,7 +34,6 @@ import (
 	"github.com/oam-dev/kubevela/api/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/pkg/errors"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	restclient "k8s.io/client-go/rest"
@@ -47,8 +46,15 @@ import (
 )
 
 const (
-	SpecWarningTargetWorkloadNotSet = "Spec.targetWorkload is not set"
-	SpecWarningStartAtTimeFormat    = "startAt is not in the right format, which should be like `12:01`"
+	SpecWarningTargetWorkloadNotSet                = "Spec.targetWorkload is not set"
+	SpecWarningStartAtTimeFormat                   = "startAt is not in the right format, which should be like `12:01`"
+	SpecWarningWrongCronTriggerFormat              = "the format of cron trigger is not right"
+	SpecWarningStartAtTimeRequired                 = "spec.triggers.condition.startAt: Required value"
+	SpecWarningDurationTimeRequired                = "spec.triggers.condition.duration: Required value"
+	SpecWarningReplicasRequired                    = "spec.triggers.condition.replicas: Required value"
+	SpecWarningTimeZoneRequired                    = "spec.triggers.condition.timezone: Required value"
+	SpecWarningDurationTimeNotInRightFormat        = "spec.triggers.condition.duration: not in the right format"
+	SpecWarningSumOfStartAndDurationMoreThan24Hour = "the sum of the start hour and the duration hour has to be less than 24 hours."
 )
 
 var (
@@ -77,22 +83,24 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 
 	var scaler v1alpha1.Autoscaler
 	if err := r.Get(r.ctx, req.NamespacedName, &scaler); err != nil {
-		if apierrors.IsNotFound(err) {
-			log.Info("Autoscaler is deleted")
-		}
 		return ReconcileWaitResult, client.IgnoreNotFound(err)
 	}
 	log.Info("Retrieved trait Autoscaler", "APIVersion", scaler.APIVersion, "Kind", scaler.Kind)
 
 	// find the resource object to record the event to, default is the parent appConfig.
 	eventObj, err := util.LocateParentAppConfig(r.ctx, r.Client, &scaler)
+	if err != nil {
+		log.Error(err, "Failed to find the parent resource", "Autoscaler", scaler.Name)
+		return util.ReconcileWaitResult, util.PatchCondition(r.ctx, r, &scaler,
+			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrLocateAppConfig)))
+	}
 	if eventObj == nil {
 		// fallback to workload itself
-		log.Error(err, "Failed to find the parent resource", "Autoscaler", scaler.Name)
+		log.Info("There is no parent resource", "Autoscaler", scaler.Name)
 		eventObj = &scaler
 	}
 
-	// Fetch the deployment instance to which the trait refers to
+	// Fetch the instance to which the trait refers to
 	workload, err := oamutil.FetchWorkload(r.ctx, r, log, &scaler)
 	if err != nil {
 		log.Error(err, "Error while fetching the workload", "workload reference",
