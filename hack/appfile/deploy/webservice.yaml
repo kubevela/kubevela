@@ -17,6 +17,8 @@ spec:
         env: [...string]
       
         files: [...string]
+
+        image: string
       }
       
       output: {
@@ -36,7 +38,7 @@ spec:
             spec: {
               containers: [{
                 name:  context.name
-                image: context.image
+                image: parameter.image
                 command: parameter.cmd
               }]
             }

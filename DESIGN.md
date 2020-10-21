@@ -141,10 +141,11 @@ services:
   express-server:
     type: webservice # workload type
     build:
-      image: oamdev/testapp:v1
       docker:
         file: Dockerfile
         context: .
+
+    image: oamdev/testapp:v1
     cmd: ["node", "server.js"]
     ports:
       - 8080:80

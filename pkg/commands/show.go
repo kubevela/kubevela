@@ -73,7 +73,7 @@ func showApplication(cmd *cobra.Command, env *types.EnvMeta, appName string) err
 
 	table.AddRow("  Name", "Type", "Traits")
 
-	for compName := range app.Components {
+	for compName := range app.Services {
 		wtype, _ := app.GetWorkload(compName)
 		var outPutTraits []string
 		traits, _ := app.GetTraits(compName)
@@ -133,7 +133,7 @@ func showComponent(cmd *cobra.Command, env *types.EnvMeta, compName, appName str
 		return err
 	}
 
-	for cname := range app.Components {
+	for cname := range app.Services {
 		if cname != compName {
 			continue
 		}

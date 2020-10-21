@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
@@ -20,6 +19,8 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/template"
+	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
@@ -72,7 +73,13 @@ func (o *appfileOptions) Run() error {
 		return err
 	}
 
-	comps, appConfig, err := app.BuildOAM(o.Env.Namespace, o.IO)
+	o.IO.Info("Loading templates ...")
+	tm, err := template.Load()
+	if err != nil {
+		return err
+	}
+
+	comps, appConfig, err := app.BuildOAM(o.Env.Namespace, o.IO, tm)
 	if err != nil {
 		return err
 	}
@@ -114,7 +121,7 @@ func (o *appfileOptions) Run() error {
 	}
 
 	o.IO.Infof("\nApplying deploy configs ...\n")
-	return o.ApplyAppConfig(appConfig)
+	return o.ApplyAppConfig(appConfig, comps)
 }
 
 // Apply deploy config resources for the app.
@@ -122,7 +129,7 @@ func (o *appfileOptions) Run() error {
 // - for create, it displays app status along with information of url, metrics, ssh, logging.
 // - for update, it rolls out a canary deployment and prints its information. User can verify the canary deployment.
 //   This will wait for user approval. If approved, it continues upgrading the whole; otherwise, it would rollback.
-func (o *appfileOptions) ApplyAppConfig(ac *v1alpha2.ApplicationConfiguration) error {
+func (o *appfileOptions) ApplyAppConfig(ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) error {
 	key := apitypes.NamespacedName{
 		Namespace: ac.Namespace,
 		Name:      ac.Name,
@@ -138,21 +145,27 @@ func (o *appfileOptions) ApplyAppConfig(ac *v1alpha2.ApplicationConfiguration) e
 	default:
 		return err
 	}
-	return o.apply(ac)
-}
-
-func (o *appfileOptions) apply(ac *v1alpha2.ApplicationConfiguration) error {
-	cmd := exec.Command("kubectl", "apply", "-f", ".vela/deploy.yaml")
-	out, err := cmd.CombinedOutput()
-	o.IO.Infof("deploying======\n%s\n", out)
-	if err != nil {
+	if err := o.apply(ac, comps); err != nil {
 		return err
 	}
+	o.info(ac.Name)
+	return nil
+}
+
+func (o *appfileOptions) apply(ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) error {
+	for _, comp := range comps {
+		if err := application.CreateOrUpdateComponent(context.TODO(), o.Kubecli, comp); err != nil {
+			return err
+		}
+	}
+	return application.CreateOrUpdateAppConfig(context.TODO(), o.Kubecli, ac)
+}
+
+func (o *appfileOptions) info(name string) {
 	o.IO.Infof("app has been deployed %s%s%s\n", emojiRocket, emojiRocket, emojiRocket)
 	o.IO.Infof("\tURL: http://%s/\n", o.Env.Domain)
-	o.IO.Infof("\tPort forward: vela port-forward %s <port>\n", ac.Name)
-	o.IO.Infof("\tSSH: vela exec %s\n", ac.Name)
-	o.IO.Infof("\tLogging: vela log %s\n", ac.Name)
+	o.IO.Infof("\tPort forward: vela listen %s <port>\n", name)
+	o.IO.Infof("\tSSH: vela exec %s\n", name)
+	o.IO.Infof("\tLogging: vela logs %s\n", name)
 	o.IO.Infof("\tMetric: TODO\n")
-	return nil
 }

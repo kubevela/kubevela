@@ -1,11 +1,14 @@
 package handler
 
 import (
+	"os"
+
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/api/types"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
@@ -36,7 +39,8 @@ func CreateWorkload(c *gin.Context) {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
 	}
-	msg, err := oam.BaseRun(body.Staging, appObj, kubeClient.(client.Client), env)
+	io := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+	msg, err := oam.BaseRun(body.Staging, appObj, kubeClient.(client.Client), env, io)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return

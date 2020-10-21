@@ -9,6 +9,7 @@ import (
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 
 	"cuelang.org/go/cue"
@@ -35,13 +36,10 @@ func LoadIfExist(envName string, workloadName string, appGroup string) (*applica
 	}
 	app, err := application.Load(envName, appName)
 	if err != nil {
-		return app, err
+		return nil, err
 	}
 	app.Name = appName
 
-	if app.Components == nil {
-		app.Components = make(map[string]map[string]interface{})
-	}
 	return app, nil
 }
 
@@ -110,13 +108,13 @@ func BaseComplete(envName string, workloadName string, appName string, flagSet *
 	return app, app.Save(envName)
 }
 
-func BaseRun(staging bool, App *application.Application, kubeClient client.Client, Env *types.EnvMeta) (string, error) {
+func BaseRun(staging bool, app *application.Application, kubeClient client.Client, Env *types.EnvMeta, io cmdutil.IOStreams) (string, error) {
 	if staging {
 		return "Staging saved", nil
 	}
 	var msg string
-	msg = fmt.Sprintf("Creating App %s\n", App.Name)
-	if err := App.Run(context.Background(), kubeClient, Env); err != nil {
+	msg = fmt.Sprintf("Creating App %s\n", app.Name)
+	if err := app.Run(context.Background(), kubeClient, Env, io); err != nil {
 		err = fmt.Errorf("create app err: %s", err)
 		return "", err
 	}

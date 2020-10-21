@@ -7,62 +7,41 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/appfile/template"
 )
 
 func TestApplication(t *testing.T) {
-	yaml1 := `name: myapp
-components:
+	yamlNormal := `name: myapp
+services:
   frontend:
-    deployment:
-      image: inanimate/echo-server
-      env:
-        PORT: 8080
-    traits:
-      autoscaling:
-        max: 10
-        min: 1
-      rollout:
-        strategy: canary
-        step: 5
+    image: inanimate/echo-server
+    env:
+      PORT: 8080
+    autoscaling:
+      max: 10
+      min: 1
+    rollout:
+      strategy: canary
+      step: 5
   backend:
-    cloneset:
-      image: "back:v1"
+    type: cloneset
+    image: "back:v1"
 `
-	yaml2 := `name: myapp`
-	yaml3 := `components:
+	yamlNoService := `name: myapp`
+	yamlNoName := `services:
   frontend:
-    deployment:
-      image: inanimate/echo-server
-      env:
-        PORT: 8080`
-	yaml4 := `name: myapp
-components:
+    image: inanimate/echo-server
+    env:
+      PORT: 8080`
+	yamlTraitNotMap := `name: myapp
+services:
   frontend:
-    deployment:
-      image: inanimate/echo-server
-    scopes:
-      public-scope: true
-appScopes:
-  public-scope:
-    networkPolicy: public`
-	yaml5 := `name: myapp
-components:
-  frontend:
-    traits:
-      rollout:
-        strategy: canary
-        step: 5
-  backend:
-    cloneset:
-      image: "back:v1"
-`
-	yaml6 := `name: myapp
-components:
-  frontend:
-    deployment:
-      image: inanimate/echo-server
-    traits:
-      autoscaling: 10`
+    image: inanimate/echo-server
+    env:
+      PORT: 8080
+    autoscaling: 10`
 
 	cases := map[string]struct {
 		raw             string
@@ -71,33 +50,33 @@ components:
 		ExpName         string
 		ExpComponents   []string
 		WantWorkload    string
-		ExpWorklaod     map[string]interface{}
+		ExpWorkload     map[string]interface{}
 		ExpWorkloadType string
 		ExpTraits       map[string]map[string]interface{}
 	}{
 		"normal case backend": {
-			raw:           yaml1,
+			raw:           yamlNormal,
 			ExpName:       "myapp",
 			ExpComponents: []string{"backend", "frontend"},
 			WantWorkload:  "backend",
-			ExpWorklaod: map[string]interface{}{
+			ExpWorkload: map[string]interface{}{
 				"image": "back:v1",
 			},
 			ExpWorkloadType: "cloneset",
 			ExpTraits:       map[string]map[string]interface{}{},
 		},
 		"normal case frontend": {
-			raw:           yaml1,
+			raw:           yamlNormal,
 			ExpName:       "myapp",
 			ExpComponents: []string{"backend", "frontend"},
 			WantWorkload:  "frontend",
-			ExpWorklaod: map[string]interface{}{
+			ExpWorkload: map[string]interface{}{
 				"image": "inanimate/echo-server",
 				"env": map[string]interface{}{
 					"PORT": float64(8080),
 				},
 			},
-			ExpWorkloadType: "deployment",
+			ExpWorkloadType: "webservice",
 			ExpTraits: map[string]map[string]interface{}{
 				"autoscaling": {
 					"max": float64(10),
@@ -110,38 +89,36 @@ components:
 			},
 		},
 		"no component": {
-			raw:           yaml2,
+			raw:           yamlNoService,
 			ExpName:       "myapp",
 			InValid:       true,
-			InvalidReason: errors.New("at least one component is required"),
+			InvalidReason: errors.New("at least one service is required"),
 		},
 		"no name": {
-			raw:           yaml3,
+			raw:           yamlNoName,
 			ExpName:       "",
 			InValid:       true,
-			InvalidReason: errors.New("please provide an existed App name"),
-		},
-		"scopes not array": {
-			raw:           yaml4,
-			ExpName:       "myapp",
-			InValid:       true,
-			InvalidReason: fmt.Errorf("format of scopes in 'frontend' must be string array"),
-		},
-		"workload not exist": {
-			raw:           yaml5,
-			ExpName:       "myapp",
-			InValid:       true,
-			InvalidReason: fmt.Errorf("you must have only one workload in component 'frontend'"),
+			InvalidReason: errors.New("name is required"),
 		},
 		"trait must be map": {
-			raw:           yaml6,
+			raw: yamlTraitNotMap,
+			ExpTraits: map[string]map[string]interface{}{
+				"autoscaling": {},
+			},
 			ExpName:       "myapp",
 			InValid:       true,
 			InvalidReason: fmt.Errorf("trait autoscaling in 'frontend' must be map"),
 		},
 	}
+
 	for caseName, c := range cases {
-		var app Application
+		tm := template.NewFakeTemplateManager()
+		for k := range c.ExpTraits {
+			tm.Templates[k] = &template.Template{
+				Captype: types.TypeTrait,
+			}
+		}
+		app := newApplication(nil, tm)
 		err := yaml.Unmarshal([]byte(c.raw), &app)
 		assert.NoError(t, err, caseName)
 		err = app.Validate()
@@ -152,7 +129,7 @@ components:
 		assert.Equal(t, c.ExpName, app.Name, caseName)
 		assert.Equal(t, c.ExpComponents, app.GetComponents(), caseName)
 		workloadType, workload := app.GetWorkload(c.WantWorkload)
-		assert.Equal(t, c.ExpWorklaod, workload, caseName)
+		assert.Equal(t, c.ExpWorkload, workload, caseName)
 		assert.Equal(t, c.ExpWorkloadType, workloadType, caseName)
 		traits, err := app.GetTraits(c.WantWorkload)
 		assert.NoError(t, err, caseName)

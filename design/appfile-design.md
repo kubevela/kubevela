@@ -24,8 +24,11 @@ Here's an example to deploy a NodeJS express service:
 ```yaml
 services:
   express-server:
+    # this image will be used in both build and deploy config
+    image: oamdev/testapp:v1
+
     build:
-      image: oamdev/testapp:v1
+      # Here more runtime specific build templates will be supported, like NodeJS, Go, Python, Ruby.
       docker:
         file: Dockerfile
         context: .
@@ -93,6 +96,8 @@ spec:
         env: [...string]
       
         files: [...string]
+
+        image: string
       }
       
       output: {
@@ -112,7 +117,7 @@ spec:
             spec: {
               containers: [{
                 name:  context.name
-                image: context.image
+                image: parameter.image
                 command: parameter.cmd
               }]
             }
@@ -217,7 +222,7 @@ output: {
         ...
         containers: [{
           name:  context.name
-          image: context.image
+          image: parameter.image
           command: parameter.cmd
         }]
   }
@@ -231,7 +236,6 @@ Here is the takeout:
     ```yaml
     context:
       name: express-server
-      image: oamdev/testapp:v1
     ```
     You can check the definition of `context` block via `vela template context`.
 

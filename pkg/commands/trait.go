@@ -66,7 +66,7 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 						return err
 					}
 				}
-				return o.Run(ctx, cmd)
+				return o.Run(ctx, cmd, ioStreams)
 			},
 			Annotations: map[string]string{
 				types.TagCommandType: types.TypeTraits,
@@ -126,7 +126,7 @@ func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string) error {
 	return o.app.Save(o.Env.Name)
 }
 
-func (o *commandOptions) Run(ctx context.Context, cmd *cobra.Command) error {
+func (o *commandOptions) Run(ctx context.Context, cmd *cobra.Command, io cmdutil.IOStreams) error {
 	if o.Detach {
 		o.Infof("Detaching %s from app %s\n", o.traitType, o.workloadName)
 	} else {
@@ -136,7 +136,7 @@ func (o *commandOptions) Run(ctx context.Context, cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	msg, err := oam.TraitOperationRun(ctx, o.Client, o.Env, o.app, staging)
+	msg, err := oam.TraitOperationRun(ctx, o.Client, o.Env, o.app, staging, io)
 	if err != nil {
 		return err
 	}

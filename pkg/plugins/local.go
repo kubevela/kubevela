@@ -129,7 +129,7 @@ func SinkTemp2Local(templates []types.Capability, dir string) int {
 			fmt.Printf("sync %s err: %v\n", tmp.Name, err)
 			continue
 		}
-		err = ioutil.WriteFile(filepath.Join(subDir, tmp.Name), data, 0644)
+		err = ioutil.WriteFile(filepath.Join(subDir, tmp.Name), data, 0o644)
 		if err != nil {
 			fmt.Printf("sync %s err: %v\n", tmp.Name, err)
 			continue

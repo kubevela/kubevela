@@ -6,6 +6,7 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 
@@ -78,7 +79,7 @@ func NewCompDeployCommands(c types.Args, ioStreams util.IOStreams) *cobra.Comman
 			if err := o.Complete(cmd, args); err != nil {
 				return err
 			}
-			return o.Run(cmd)
+			return o.Run(cmd, ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
@@ -162,12 +163,12 @@ func (o *runOptions) Complete(cmd *cobra.Command, args []string) error {
 	return err
 }
 
-func (o *runOptions) Run(cmd *cobra.Command) error {
+func (o *runOptions) Run(cmd *cobra.Command, io cmdutil.IOStreams) error {
 	staging, err := cmd.Flags().GetBool(Staging)
 	if err != nil {
 		return err
 	}
-	msg, err := oam.BaseRun(staging, o.App, o.KubeClient, o.Env)
+	msg, err := oam.BaseRun(staging, o.App, o.KubeClient, o.Env, io)
 	if err != nil {
 		return err
 	}
