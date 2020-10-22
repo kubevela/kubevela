@@ -21,7 +21,7 @@ all: build
 
 # Run tests
 test: fmt vet lint
-	./hack/unit_test.sh
+	go test -race -coverprofile=coverage.txt -covermode=atomic ./pkg/... ./cmd/...
 
 # Build manager binary
 build: fmt vet lint
