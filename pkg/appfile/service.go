@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
+
 	"cuelang.org/go/cue"
 	cueJson "cuelang.org/go/pkg/encoding/json"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
@@ -97,11 +99,15 @@ func (s Service) RenderService(tm template.Manager, name, ns, image string) (
 	component.Spec.Workload.Object = u
 
 	// render traits
-	traits := []v1alpha2.ComponentTrait{}
-	for k, v := range traitKeys {
-		ts, err := evalTraits(tm.LoadTemplate(k), ctxData, intifyValues(v))
+	traits := make([]v1alpha2.ComponentTrait, 0)
+	for traitType, traitData := range traitKeys {
+		ts, err := evalTraits(tm.LoadTemplate(traitType), ctxData, intifyValues(traitData))
 		if err != nil {
 			return nil, nil, fmt.Errorf("eval traits failed: %w", err)
+		}
+		// one capability corresponds to one trait only
+		if len(ts) == 1 {
+			ts[0].SetLabels(map[string]string{oam.TraitTypeLabel: traitType})
 		}
 		for _, t := range ts {
 			traits = append(traits, v1alpha2.ComponentTrait{
@@ -244,7 +250,6 @@ func evalTraits(raw string, ctxValues, userValues interface{}) ([]*unstructured.
 		}
 		return renderAllOutputs(outputField)
 	}
-
 	u, err := renderOneOutput(appValue)
 	if err != nil {
 		return nil, err
