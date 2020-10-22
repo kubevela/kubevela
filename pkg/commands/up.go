@@ -25,6 +25,7 @@ import (
 )
 
 var (
+	appFilePath string
 	emojiRocket = emoji.Sprint(":rocket")
 )
 
@@ -52,11 +53,16 @@ func NewUpCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 				IO:      ioStream,
 				Env:     velaEnv,
 			}
-
-			return o.Run()
+			filePath, err := cmd.Flags().GetString(appFilePath)
+			if err != nil {
+				return err
+			}
+			return o.Run(filePath)
 		},
 	}
 	cmd.SetOut(ioStream.Out)
+
+	cmd.Flags().StringP(appFilePath, "f", "", "specify file path for appfile")
 	return cmd
 }
 
@@ -66,9 +72,16 @@ type appfileOptions struct {
 	Env     *types.EnvMeta
 }
 
-func (o *appfileOptions) Run() error {
+func (o *appfileOptions) Run(filePath string) error {
+	var app *appfile.AppFile
+	var err error
+
 	o.IO.Info("Parsing vela.yaml ...")
-	app, err := appfile.Load()
+	if filePath != "" {
+		app, err = appfile.LoadFromFile(filePath)
+	} else {
+		app, err = appfile.Load()
+	}
 	if err != nil {
 		return err
 	}
