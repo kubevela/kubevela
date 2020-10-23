@@ -18,6 +18,7 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
+	env2 "github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
 func ListTraitDefinitions(workloadName *string) ([]types.Capability, error) {
@@ -217,7 +218,7 @@ func AttachTrait(c *gin.Context, body apis.TraitBody) (string, error) {
 		return "", err
 	}
 	// Run step
-	env, err := GetEnvByName(body.EnvName)
+	env, err := env2.GetEnvByName(body.EnvName)
 	if err != nil {
 		return "", err
 	}
@@ -269,7 +270,7 @@ func DetachTrait(c *gin.Context, envName string, traitType string, componentName
 		return "", err
 	}
 	// Run
-	env, err := GetEnvByName(envName)
+	env, err := env2.GetEnvByName(envName)
 	if err != nil {
 		return "", err
 	}

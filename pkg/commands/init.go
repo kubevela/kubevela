@@ -17,6 +17,7 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/plugins"
+	"github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
 type appInitOptions struct {
@@ -130,7 +131,7 @@ func (o *appInitOptions) CheckEnv() error {
 			return fmt.Errorf("read app name err %v", err)
 		}
 	}
-	if _, err := oam.CreateOrUpdateEnv(context.Background(), o.client, o.Env.Name, o.Env); err != nil {
+	if _, err := env.CreateOrUpdateEnv(context.Background(), o.client, o.Env.Name, o.Env); err != nil {
 		return err
 	}
 	return nil

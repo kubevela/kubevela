@@ -63,6 +63,7 @@ func NewCommand() *cobra.Command {
 		// Getting Start
 		NewInstallCommand(commandArgs, fake.ChartSource, ioStream),
 		NewEnvCommand(commandArgs, ioStream),
+		NewConfigCommand(commandArgs, ioStream),
 		NewVersionCommand(),
 		NewInitCommand(commandArgs, ioStream),
 		NewUpCommand(commandArgs, ioStream),

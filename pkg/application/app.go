@@ -21,6 +21,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/utils/env"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
@@ -58,7 +59,7 @@ func LoadFromFile(fileName string) (*Application, error) {
 }
 
 func Load(envName, appName string) (*Application, error) {
-	appDir, err := system.GetApplicationDir(envName)
+	appDir, err := getApplicationDir(envName)
 	if err != nil {
 		return nil, fmt.Errorf("get app dir from env %s err %v", envName, err)
 	}
@@ -66,7 +67,7 @@ func Load(envName, appName string) (*Application, error) {
 }
 
 func Delete(envName, appName string) error {
-	appDir, err := system.GetApplicationDir(envName)
+	appDir, err := getApplicationDir(envName)
 	if err != nil {
 		return fmt.Errorf("get app dir from env %s err %v", envName, err)
 	}
@@ -74,7 +75,7 @@ func Delete(envName, appName string) error {
 }
 
 func List(envName string) ([]*Application, error) {
-	appDir, err := system.GetApplicationDir(envName)
+	appDir, err := getApplicationDir(envName)
 	if err != nil {
 		return nil, fmt.Errorf("get app dir from env %s err %v", envName, err)
 	}
@@ -115,7 +116,7 @@ func MatchAppByComp(envName, compName string) (*Application, error) {
 }
 
 func (app *Application) Save(envName string) error {
-	appDir, err := system.GetApplicationDir(envName)
+	appDir, err := getApplicationDir(envName)
 	if err != nil {
 		return fmt.Errorf("get app dir from env %s err %v", envName, err)
 	}
@@ -266,4 +267,10 @@ func addHealthScope(appConfig *v1alpha2.ApplicationConfiguration) *v1alpha2.Heal
 		})
 	}
 	return health
+}
+
+func getApplicationDir(envName string) (string, error) {
+	appDir := filepath.Join(env.GetEnvDirByName(envName), "applications")
+	_, err := system.CreateIfNotExist(appDir)
+	return appDir, err
 }

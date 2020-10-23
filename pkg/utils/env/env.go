@@ -1,4 +1,4 @@
-package oam
+package env
 
 import (
 	"context"
@@ -21,8 +21,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
+func GetEnvDirByName(name string) string {
+	envdir, _ := system.GetEnvDir()
+	return filepath.Join(envdir, name)
+}
+
 func GetEnvByName(name string) (*types.EnvMeta, error) {
-	data, err := ioutil.ReadFile(filepath.Join(system.GetEnvDirByName(name), system.EnvConfigName))
+	data, err := ioutil.ReadFile(filepath.Join(GetEnvDirByName(name), system.EnvConfigName))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("env %s not exist", name)

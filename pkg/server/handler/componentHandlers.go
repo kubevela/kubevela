@@ -4,16 +4,18 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/server/util"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	"github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
 func GetComponent(c *gin.Context) {
 	kubeClient := c.MustGet("KubeClient")
 	envName := c.Param("envName")
-	envMeta, err := oam.GetEnvByName(envName)
+	envMeta, err := env.GetEnvByName(envName)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
@@ -33,7 +35,7 @@ func GetComponent(c *gin.Context) {
 func DeleteComponent(c *gin.Context) {
 	kubeClient := c.MustGet("KubeClient")
 	envName := c.Param("envName")
-	envMeta, err := oam.GetEnvByName(envName)
+	envMeta, err := env.GetEnvByName(envName)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return

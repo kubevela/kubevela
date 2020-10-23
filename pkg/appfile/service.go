@@ -1,6 +1,8 @@
 package appfile
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +18,8 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/utils/config"
+	"github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
 type Service map[string]interface{}
@@ -30,12 +34,20 @@ func (s Service) GetType() string {
 	return t.(string)
 }
 
+func (s Service) GetUserConfigName() string {
+	t, ok := s["config"]
+	if !ok {
+		return ""
+	}
+	return t.(string)
+}
+
 func (s Service) GetConfig() map[string]interface{} {
 	config := make(map[string]interface{})
 outerLoop:
 	for k, v := range s {
 		switch k {
-		case "build", "type": // skip
+		case "build", "type", "config": // skip
 			continue outerLoop
 		}
 		config[k] = v
@@ -87,10 +99,17 @@ func (s Service) RenderService(tm template.Manager, name, ns string) (
 		},
 	}
 
-	// only render webservice workload for now.
-	ctxData := map[string]string{
+	ctxData := map[string]interface{}{
 		"name": name,
 	}
+	if cn := s.GetUserConfigName(); cn != "" {
+		data, err := getConfigData(cn)
+		if err != nil {
+			return nil, nil, err
+		}
+		ctxData["config"] = data
+	}
+
 	u, err := evalComponent(tm.LoadTemplate(wtype), ctxData, intifyValues(workloadKeys))
 	if err != nil {
 		return nil, nil, fmt.Errorf("eval component failed: %w", err)
@@ -122,6 +141,30 @@ func (s Service) RenderService(tm template.Manager, name, ns string) (
 		Traits:        traits,
 	}
 	return acComp, component, nil
+}
+
+func getConfigData(configName string) ([]map[string]string, error) {
+	envName, err := env.GetCurrentEnvName()
+	if err != nil {
+		return nil, err
+	}
+	cfgData, err := config.ReadConfig(envName, configName)
+	if err != nil {
+		return nil, err
+	}
+	scanner := bufio.NewScanner(bytes.NewReader(cfgData))
+	data := []map[string]string{}
+	for scanner.Scan() {
+		k, v, err := config.ReadConfigLine(scanner.Text())
+		if err != nil {
+			return nil, err
+		}
+		data = append(data, map[string]string{
+			"name":  k,
+			"value": v,
+		})
+	}
+	return data, nil
 }
 
 func (af *AppFile) GetServices() map[string]Service {
