@@ -32,7 +32,7 @@ func (r *AutoscalerReconciler) scaleByKEDA(scaler v1alpha1.Autoscaler, namespace
 	var resourceMetrics []*autoscalingv2beta2.ResourceMetricSource
 	for _, t := range triggers {
 		if t.Type == CronType {
-			if kedaTriggers, err, reason = r.prepareKEDACronScalerTriggerSpec(scaler, t); err != nil {
+			if kedaTriggers, reason, err = r.prepareKEDACronScalerTriggerSpec(scaler, t); err != nil {
 				log.Error(err, reason)
 				r.record.Event(&scaler, event.Warning(event.Reason(reason), err))
 			}
@@ -103,27 +103,27 @@ func (r *AutoscalerReconciler) scaleByKEDA(scaler v1alpha1.Autoscaler, namespace
 }
 
 // prepareKEDACronScalerTriggerSpec converts Autoscaler spec into KEDA Cron scaler spec
-func (r *AutoscalerReconciler) prepareKEDACronScalerTriggerSpec(scaler v1alpha1.Autoscaler, t v1alpha1.Trigger) ([]kedav1alpha1.ScaleTriggers, error, string) {
+func (r *AutoscalerReconciler) prepareKEDACronScalerTriggerSpec(scaler v1alpha1.Autoscaler, t v1alpha1.Trigger) ([]kedav1alpha1.ScaleTriggers, string, error) {
 	var kedaTriggers []kedav1alpha1.ScaleTriggers
 	targetWorkload := scaler.Spec.TargetWorkload
 	if targetWorkload.Name == "" {
 		err := errors.New(SpecWarningTargetWorkloadNotSet)
-		return kedaTriggers, err, SpecWarningTargetWorkloadNotSet
+		return kedaTriggers, SpecWarningTargetWorkloadNotSet, err
 	}
 
 	triggerCondition := t.Condition.CronTypeCondition
 	startAt := triggerCondition.StartAt
 	if startAt == "" {
-		return kedaTriggers, errors.New(SpecWarningStartAtTimeRequired), SpecWarningStartAtTimeRequired
+		return kedaTriggers, SpecWarningStartAtTimeRequired, errors.New(SpecWarningStartAtTimeRequired)
 	}
 	duration := triggerCondition.Duration
 	if duration == "" {
-		return kedaTriggers, errors.New(SpecWarningDurationTimeRequired), SpecWarningDurationTimeRequired
+		return kedaTriggers, SpecWarningDurationTimeRequired, errors.New(SpecWarningDurationTimeRequired)
 	}
 	var err error
 	startTime, err := time.Parse("15:04", startAt)
 	if err != nil {
-		return kedaTriggers, err, SpecWarningStartAtTimeFormat
+		return kedaTriggers, SpecWarningStartAtTimeFormat, err
 	}
 	var startHour, startMinute int
 	startHour = startTime.Hour()
@@ -131,17 +131,17 @@ func (r *AutoscalerReconciler) prepareKEDACronScalerTriggerSpec(scaler v1alpha1.
 
 	durationTime, err := time.ParseDuration(duration)
 	if err != nil {
-		return kedaTriggers, err, SpecWarningDurationTimeNotInRightFormat
+		return kedaTriggers, SpecWarningDurationTimeNotInRightFormat, err
 	}
 	durationHour := durationTime.Hours()
 
 	endHour := int(durationHour) + startHour
 	if endHour >= 24 {
-		return kedaTriggers, errors.New(SpecWarningSumOfStartAndDurationMoreThan24Hour), SpecWarningSumOfStartAndDurationMoreThan24Hour
+		return kedaTriggers, SpecWarningSumOfStartAndDurationMoreThan24Hour, errors.New(SpecWarningSumOfStartAndDurationMoreThan24Hour)
 	}
 	replicas := triggerCondition.Replicas
 	if replicas == 0 {
-		return kedaTriggers, errors.New(SpecWarningReplicasRequired), SpecWarningReplicasRequired
+		return kedaTriggers, SpecWarningReplicasRequired, errors.New(SpecWarningReplicasRequired)
 	}
 
 	timezone := triggerCondition.Timezone
@@ -177,7 +177,7 @@ func (r *AutoscalerReconciler) prepareKEDACronScalerTriggerSpec(scaler v1alpha1.
 		}
 		kedaTriggers = append(kedaTriggers, kedaTrigger)
 	}
-	return kedaTriggers, nil, ""
+	return kedaTriggers, "", nil
 }
 
 func (r *AutoscalerReconciler) prepareKEDAResourceScalerMetrics(t v1alpha1.Trigger) *autoscalingv2beta2.ResourceMetricSource {

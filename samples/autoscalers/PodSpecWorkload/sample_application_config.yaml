@@ -22,7 +22,7 @@ spec:
                     startAt: "19:01"
                     duration: 2h
                     days: ["Monday", "Tuesday"]
-                    replicas: 2
+                    replicas: 3
                     timezone: Asia/Shanghai
                 - name: cpu-resource-utilization
                   enabled: true

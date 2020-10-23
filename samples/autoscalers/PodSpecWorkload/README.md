@@ -80,3 +80,27 @@
     component-scaler   8/4     8            8           12m
     component-scaler   4/4     4            4           12m
     ```
+
+# Debug
+  - KEDA ScaledObject won't be ready
+  ```
+  $ kubectl get scaledobject.keda.sh
+  NAME           SCALETARGETKIND   SCALETARGETNAME    TRIGGERS   AUTHENTICATION   READY   ACTIVE   AGE
+  trait-scaler                     component-scaler   cron                                         3m49s
+  ```
+
+  Please check those Pods of Keda.
+  ```
+  $ kubectl get pods -n keda
+  NAME                                               READY   STATUS             RESTARTS   AGE
+  keda-operator-6d89f67964-smksp                     0/1     CrashLoopBackOff   8          22m
+  keda-operator-metrics-apiserver-77598644dd-w7th5   1/1     Running            0          22m
+  ```
+
+  Try to fix the issue, and those Pods will become `READY`.
+  ```
+  k get pods -n keda
+  NAME                                               READY   STATUS    RESTARTS   AGE
+  keda-operator-695d978ddb-w5qct                     1/1     Running   0          7m53s
+  keda-operator-metrics-apiserver-77598644dd-f4fjq   1/1     Running   0          7m53s
+  ```

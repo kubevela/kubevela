@@ -26,7 +26,6 @@ import (
 
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 	oamutil "github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 	"github.com/go-logr/logr"
@@ -48,11 +47,9 @@ import (
 const (
 	SpecWarningTargetWorkloadNotSet                = "Spec.targetWorkload is not set"
 	SpecWarningStartAtTimeFormat                   = "startAt is not in the right format, which should be like `12:01`"
-	SpecWarningWrongCronTriggerFormat              = "the format of cron trigger is not right"
 	SpecWarningStartAtTimeRequired                 = "spec.triggers.condition.startAt: Required value"
 	SpecWarningDurationTimeRequired                = "spec.triggers.condition.duration: Required value"
 	SpecWarningReplicasRequired                    = "spec.triggers.condition.replicas: Required value"
-	SpecWarningTimeZoneRequired                    = "spec.triggers.condition.timezone: Required value"
 	SpecWarningDurationTimeNotInRightFormat        = "spec.triggers.condition.duration: not in the right format"
 	SpecWarningSumOfStartAndDurationMoreThan24Hour = "the sum of the start hour and the duration hour has to be less than 24 hours."
 )
@@ -116,7 +113,7 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 		Kind:               scaler.Kind,
 		UID:                scaler.GetUID(),
 		Name:               scaler.Name,
-		Controller:         pointer.BoolPtr(false),
+		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}
 
@@ -133,7 +130,14 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 	targetWorkloadSetFlag := false
 	for _, res := range resources {
 		resPatch := client.MergeFrom(res.DeepCopyObject())
-		meta.AddOwnerReference(res, ownerReference)
+		refs := res.GetOwnerReferences()
+		for i, r := range refs {
+			if *r.Controller {
+				refs[i].Controller = pointer.BoolPtr(false)
+			}
+		}
+		refs = append(refs, ownerReference)
+		res.SetOwnerReferences(refs)
 		if err := r.Patch(r.ctx, res, resPatch, client.FieldOwner(scaler.GetUID())); err != nil {
 			log.Error(err, "Failed to set ownerReference for child resource")
 			return util.ReconcileWaitResult,
@@ -151,7 +155,7 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 	}
 
 	// if there is no child resource or no child resource kind is deployment or statefuset, set the workload as target workload
-	if len(resources) == 0 && !targetWorkloadSetFlag {
+	if len(resources) == 1 && !targetWorkloadSetFlag {
 		scaler.Spec.TargetWorkload = v1alpha1.TargetWorkload{
 			APIVersion: workload.GetAPIVersion(),
 			Kind:       workload.GetKind(),
