@@ -62,7 +62,7 @@ func (s Service) GetBuild() *Build {
 
 // RenderService render all capabilities of a service to CUE values of a Component.
 // It outputs a Component which will be marshaled as standalone Component and also returned AppConfig Component section.
-func (s Service) RenderService(tm template.Manager, name, ns, image string) (
+func (s Service) RenderService(tm template.Manager, name, ns string) (
 	*v1alpha2.ApplicationConfigurationComponent, *v1alpha2.Component, error) {
 
 	// sort out configs by workload/trait
@@ -89,8 +89,7 @@ func (s Service) RenderService(tm template.Manager, name, ns, image string) (
 
 	// only render webservice workload for now.
 	ctxData := map[string]string{
-		"name":  name,
-		"image": image,
+		"name": name,
 	}
 	u, err := evalComponent(tm.LoadTemplate(wtype), ctxData, intifyValues(workloadKeys))
 	if err != nil {
