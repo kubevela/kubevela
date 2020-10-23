@@ -37,7 +37,7 @@ func NewEnvListCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "List environments",
 		Long:                  "List all environments",
-		Example:               `vela env list [env-name]`,
+		Example:               `vela env ls [env-name]`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return ListEnvs(args, ioStream)
 		},
