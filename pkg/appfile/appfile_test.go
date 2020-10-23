@@ -36,6 +36,9 @@ services:
 	yamlNoImage := `name: myapp
 services:
   bad-server:
+    build:
+      docker:
+        file: Dockerfile
     cmd: ["node", "server.js"]
 `
 

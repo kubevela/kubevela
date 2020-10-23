@@ -81,11 +81,12 @@ func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, buildImage bool, t
 		v, ok := svc["image"]
 		if ok {
 			image = v.(string)
-		} else {
-			return nil, nil, ErrImageNotDefined
 		}
 
 		if b := svc.GetBuild(); b != nil {
+			if image == "" {
+				return nil, nil, ErrImageNotDefined
+			}
 			if buildImage {
 				io.Infof("\nBuilding service (%s)...\n", sname)
 				if err := b.BuildImage(io, image); err != nil {
@@ -94,8 +95,8 @@ func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, buildImage bool, t
 			}
 		}
 
-		io.Infof("\nRendering component configs for service (%s)...\n", sname)
-		acComp, comp, err := svc.RenderService(tm, sname, ns, image)
+		io.Infof("\nRendering configs for service (%s)...\n", sname)
+		acComp, comp, err := svc.RenderService(tm, sname, ns)
 		if err != nil {
 			return nil, nil, err
 		}
