@@ -5,7 +5,7 @@ metadata:
   annotations:
     definition.oam.dev/apiVersion: "standard.oam.dev/v1alpha1"
     definition.oam.dev/kind: "PodSpecWorkload"
-    definition.oam.dev/description: "backend worker"
+    definition.oam.dev/description: "pod without service"
 spec:
   definitionRef:
     name: backendworker
@@ -26,6 +26,7 @@ spec:
               name:  parameter.name
               env: [
                 for e in parameter.env {
+                  if (e._useSecret==true)
                   {
                     name: e.name
                     valueFrom: {
@@ -35,7 +36,9 @@ spec:
                       }
                     }
                     _useSecret: true
-                  } | {
+                  }
+                  if (e._useSecret==false)
+                  {
                     name: e.name
                     value: e.value
                     _useSecret: false
