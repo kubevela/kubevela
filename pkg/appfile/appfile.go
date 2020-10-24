@@ -26,12 +26,15 @@ type AppFile struct {
 	UpdateTime time.Time          `json:"updateTime,omitempty"`
 	Services   map[string]Service `json:"services"`
 	Secrets    map[string]string  `json:"secrets"`
+
+	configGetter configGetter
 }
 
 func NewAppFile() *AppFile {
 	return &AppFile{
-		Services: make(map[string]Service),
-		Secrets:  make(map[string]string),
+		Services:     make(map[string]Service),
+		Secrets:      make(map[string]string),
+		configGetter: defaultConfigGetter{},
 	}
 }
 
@@ -96,7 +99,7 @@ func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, buildImage bool, t
 		}
 
 		io.Infof("\nRendering configs for service (%s)...\n", sname)
-		acComp, comp, err := svc.RenderService(tm, sname, ns)
+		acComp, comp, err := svc.RenderService(tm, sname, ns, app.configGetter)
 		if err != nil {
 			return nil, nil, err
 		}

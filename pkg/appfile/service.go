@@ -30,12 +30,20 @@ func (s Service) GetType() string {
 	return t.(string)
 }
 
+func (s Service) GetUserConfigName() string {
+	t, ok := s["config"]
+	if !ok {
+		return ""
+	}
+	return t.(string)
+}
+
 func (s Service) GetConfig() map[string]interface{} {
 	config := make(map[string]interface{})
 outerLoop:
 	for k, v := range s {
 		switch k {
-		case "build", "type": // skip
+		case "build", "type", "config": // skip
 			continue outerLoop
 		}
 		config[k] = v
@@ -62,8 +70,7 @@ func (s Service) GetBuild() *Build {
 
 // RenderService render all capabilities of a service to CUE values of a Component.
 // It outputs a Component which will be marshaled as standalone Component and also returned AppConfig Component section.
-func (s Service) RenderService(tm template.Manager, name, ns string) (
-	*v1alpha2.ApplicationConfigurationComponent, *v1alpha2.Component, error) {
+func (s Service) RenderService(tm template.Manager, name, ns string, cg configGetter) (*v1alpha2.ApplicationConfigurationComponent, *v1alpha2.Component, error) {
 
 	// sort out configs by workload/trait
 	workloadKeys := map[string]interface{}{}
@@ -87,10 +94,17 @@ func (s Service) RenderService(tm template.Manager, name, ns string) (
 		},
 	}
 
-	// only render webservice workload for now.
-	ctxData := map[string]string{
+	ctxData := map[string]interface{}{
 		"name": name,
 	}
+	if cn := s.GetUserConfigName(); cn != "" {
+		data, err := cg.GetConfigData(cn)
+		if err != nil {
+			return nil, nil, err
+		}
+		ctxData["config"] = data
+	}
+
 	u, err := evalComponent(tm.LoadTemplate(wtype), ctxData, intifyValues(workloadKeys))
 	if err != nil {
 		return nil, nil, fmt.Errorf("eval component failed: %w", err)

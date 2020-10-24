@@ -7,7 +7,7 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/env"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 
 	"github.com/gosuri/uitable"
@@ -122,7 +122,7 @@ func ListEnvs(args []string, ioStreams cmdutil.IOStreams) error {
 	if len(args) > 0 {
 		envName = args[0]
 	}
-	envList, err := oam.ListEnvs(envName)
+	envList, err := env.ListEnvs(envName)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func DeleteEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) 
 		return fmt.Errorf("you must specify environment name for 'vela env delete' command")
 	}
 	for _, envName := range args {
-		msg, err := oam.DeleteEnv(envName)
+		msg, err := env.DeleteEnv(envName)
 		if err != nil {
 			return err
 		}
@@ -153,7 +153,7 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvM
 	}
 	envName := args[0]
 	envArgs.Name = envName
-	msg, err := oam.CreateOrUpdateEnv(ctx, c, envName, envArgs)
+	msg, err := env.CreateOrUpdateEnv(ctx, c, envName, envArgs)
 	if err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func SetEnv(args []string, ioStreams cmdutil.IOStreams) error {
 		return fmt.Errorf("you must specify environment name for vela env command")
 	}
 	envName := args[0]
-	msg, err := oam.SetEnv(envName)
+	msg, err := env.SetEnv(envName)
 	if err != nil {
 		return err
 	}
@@ -181,9 +181,9 @@ func GetEnv(cmd *cobra.Command) (*types.EnvMeta, error) {
 		envName = cmd.Flag("env").Value.String()
 	}
 	if envName != "" {
-		return oam.GetEnvByName(envName)
+		return env.GetEnvByName(envName)
 	}
-	envName, err = oam.GetCurrentEnvName()
+	envName, err = env.GetCurrentEnvName()
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return nil, err
@@ -193,5 +193,5 @@ func GetEnv(cmd *cobra.Command) (*types.EnvMeta, error) {
 		}
 		envName = types.DefaultEnvName
 	}
-	return oam.GetEnvByName(envName)
+	return env.GetEnvByName(envName)
 }

@@ -2,11 +2,13 @@ package handler
 
 import (
 	"github.com/gin-gonic/gin"
+
 	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/utils/env"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/server/util"
 )
@@ -27,7 +29,7 @@ func CreateEnv(c *gin.Context) {
 
 	ctx := util.GetContext(c)
 	kubeClient := c.MustGet("KubeClient")
-	message, err := oam.CreateEnv(ctx, kubeClient.(client.Client), name, &types.EnvMeta{
+	message, err := env.CreateEnv(ctx, kubeClient.(client.Client), name, &types.EnvMeta{
 		Name:      name,
 		Current:   environment.Current,
 		Namespace: namespace,
@@ -47,14 +49,14 @@ func UpdateEnv(c *gin.Context) {
 	}
 	ctx := util.GetContext(c)
 	kubeClient := c.MustGet("KubeClient")
-	message, err := oam.UpdateEnv(ctx, kubeClient.(client.Client), envName, environmentBody.Namespace)
+	message, err := env.UpdateEnv(ctx, kubeClient.(client.Client), envName, environmentBody.Namespace)
 	util.AssembleResponse(c, message, err)
 }
 
 func GetEnv(c *gin.Context) {
 	envName := c.Param("envName")
 	ctrl.Log.Info("Get a get environment request", "envName", envName)
-	envList, err := oam.ListEnvs(envName)
+	envList, err := env.ListEnvs(envName)
 
 	environmentList := make([]apis.Environment, 0)
 	for _, envMeta := range envList {
@@ -74,13 +76,13 @@ func ListEnv(c *gin.Context) {
 func DeleteEnv(c *gin.Context) {
 	envName := c.Param("envName")
 	ctrl.Log.Info("Delete a delete environment request", "envName", envName)
-	msg, err := oam.DeleteEnv(envName)
+	msg, err := env.DeleteEnv(envName)
 	util.AssembleResponse(c, msg, err)
 }
 
 func SetEnv(c *gin.Context) {
 	envName := c.Param("envName")
 	ctrl.Log.Info("Patch a set environment request", "envName", envName)
-	msg, err := oam.SetEnv(envName)
+	msg, err := env.SetEnv(envName)
 	util.AssembleResponse(c, msg, err)
 }

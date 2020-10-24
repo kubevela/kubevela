@@ -13,6 +13,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/server/util"
+	env2 "github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
 // Workload related handlers
@@ -34,7 +35,7 @@ func CreateWorkload(c *gin.Context) {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
 	}
-	env, err := oam.GetEnvByName(evnName)
+	env, err := env2.GetEnvByName(evnName)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return

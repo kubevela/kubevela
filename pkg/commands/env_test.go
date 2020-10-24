@@ -7,16 +7,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	"github.com/crossplane/crossplane-runtime/pkg/test"
+
+	"github.com/oam-dev/kubevela/pkg/utils/env"
 
 	"github.com/oam-dev/kubevela/api/types"
 
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/stretchr/testify/assert"
+
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
 func TestENV(t *testing.T) {
@@ -32,7 +33,7 @@ func TestENV(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check and compare create default env success
-	curEnvName, err := oam.GetCurrentEnvName()
+	curEnvName, err := env.GetCurrentEnvName()
 	assert.NoError(t, err)
 	assert.Equal(t, "default", curEnvName)
 	gotEnv, err := GetEnv(nil)
@@ -53,7 +54,7 @@ func TestENV(t *testing.T) {
 	assert.NoError(t, err)
 
 	// check and compare create env success
-	curEnvName, err = oam.GetCurrentEnvName()
+	curEnvName, err = env.GetCurrentEnvName()
 	assert.NoError(t, err)
 	assert.Equal(t, "env1", curEnvName)
 	gotEnv, err = GetEnv(nil)

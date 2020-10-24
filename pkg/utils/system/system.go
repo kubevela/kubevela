@@ -102,12 +102,6 @@ func InitCapabilityDir() error {
 	return err
 }
 
-func GetApplicationDir(envName string) (string, error) {
-	appDir := filepath.Join(GetEnvDirByName(envName), "applications")
-	_, err := CreateIfNotExist(appDir)
-	return appDir, err
-}
-
 const EnvConfigName = "config.json"
 
 func InitDefaultEnv() error {
@@ -146,9 +140,4 @@ func CreateIfNotExist(dir string) (bool, error) {
 		return false, err
 	}
 	return true, nil
-}
-
-func GetEnvDirByName(name string) string {
-	envdir, _ := GetEnvDir()
-	return filepath.Join(envdir, name)
 }

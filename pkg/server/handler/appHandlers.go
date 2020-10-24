@@ -2,10 +2,12 @@ package handler
 
 import (
 	"github.com/oam-dev/kubevela/pkg/server/util"
+	"github.com/oam-dev/kubevela/pkg/utils/env"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gin-gonic/gin"
+
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -15,7 +17,7 @@ func UpdateApps(c *gin.Context) {
 func GetApp(c *gin.Context) {
 	kubeClient := c.MustGet("KubeClient")
 	envName := c.Param("envName")
-	envMeta, err := oam.GetEnvByName(envName)
+	envMeta, err := env.GetEnvByName(envName)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
@@ -34,7 +36,7 @@ func GetApp(c *gin.Context) {
 func ListApps(c *gin.Context) {
 	kubeClient := c.MustGet("KubeClient")
 	envName := c.Param("envName")
-	envMeta, err := oam.GetEnvByName(envName)
+	envMeta, err := env.GetEnvByName(envName)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
@@ -53,7 +55,7 @@ func ListApps(c *gin.Context) {
 func DeleteApps(c *gin.Context) {
 	kubeClient := c.MustGet("KubeClient")
 	envName := c.Param("envName")
-	envMeta, err := oam.GetEnvByName(envName)
+	envMeta, err := env.GetEnvByName(envName)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
