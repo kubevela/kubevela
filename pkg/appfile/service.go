@@ -1,8 +1,6 @@
 package appfile
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,8 +16,6 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/oam-dev/kubevela/pkg/utils/config"
-	"github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
 type Service map[string]interface{}
@@ -74,8 +70,7 @@ func (s Service) GetBuild() *Build {
 
 // RenderService render all capabilities of a service to CUE values of a Component.
 // It outputs a Component which will be marshaled as standalone Component and also returned AppConfig Component section.
-func (s Service) RenderService(tm template.Manager, name, ns string) (
-	*v1alpha2.ApplicationConfigurationComponent, *v1alpha2.Component, error) {
+func (s Service) RenderService(tm template.Manager, name, ns string, cg configGetter) (*v1alpha2.ApplicationConfigurationComponent, *v1alpha2.Component, error) {
 
 	// sort out configs by workload/trait
 	workloadKeys := map[string]interface{}{}
@@ -103,7 +98,7 @@ func (s Service) RenderService(tm template.Manager, name, ns string) (
 		"name": name,
 	}
 	if cn := s.GetUserConfigName(); cn != "" {
-		data, err := getConfigData(cn)
+		data, err := cg.GetConfigData(cn)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -141,30 +136,6 @@ func (s Service) RenderService(tm template.Manager, name, ns string) (
 		Traits:        traits,
 	}
 	return acComp, component, nil
-}
-
-func getConfigData(configName string) ([]map[string]string, error) {
-	envName, err := env.GetCurrentEnvName()
-	if err != nil {
-		return nil, err
-	}
-	cfgData, err := config.ReadConfig(envName, configName)
-	if err != nil {
-		return nil, err
-	}
-	scanner := bufio.NewScanner(bytes.NewReader(cfgData))
-	data := []map[string]string{}
-	for scanner.Scan() {
-		k, v, err := config.ReadConfigLine(scanner.Text())
-		if err != nil {
-			return nil, err
-		}
-		data = append(data, map[string]string{
-			"name":  k,
-			"value": v,
-		})
-	}
-	return data, nil
 }
 
 func (af *AppFile) GetServices() map[string]Service {

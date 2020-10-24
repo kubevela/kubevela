@@ -42,6 +42,19 @@ services:
     cmd: ["node", "server.js"]
 `
 
+	yamlWithConfig := `name: myapp
+services:
+  express-server:
+    type: withconfig
+    image: oamdev/testapp:v1
+    cmd: ["node", "server.js"]
+    route:
+      domain: example.com
+      http:
+        "/": 8080
+    config: test
+`
+
 	templateWebservice := `parameter: #webservice
 #webservice: {
   cmd: [...string]
@@ -77,6 +90,25 @@ output: {
     command: parameter.cmd
   }
 }`
+	templateWithConfig := `parameter: #withconfig
+#withconfig: {
+  cmd: [...string]
+  image: string
+}
+
+output: {
+  apiVersion: "test.oam.dev/v1"
+  kind: "WebService"
+  metadata: {
+    name: context.name
+  }
+  spec: {
+    image: parameter.image
+    command: parameter.cmd
+    env: context.config
+  }
+}
+`
 	templateRoute := `parameter: #route
 #route: {
   domain: string
@@ -234,6 +266,22 @@ outputs: ingress: {
 		},
 	}
 
+	compWithConfig := comp1.DeepCopy()
+	fakeConfigData2 := []map[string]string{{
+		"name":  "test",
+		"value": "test-value",
+	}}
+	// for deepCopy. Otherwise deepcopy will panic in SetNestedField.
+	fakeConfigData := []interface{}{map[string]interface{}{
+		"name":  "test",
+		"value": "test-value",
+	}}
+	if err := unstructured.SetNestedField(
+		compWithConfig.Spec.Workload.Object.(*unstructured.Unstructured).UnstructuredContent(),
+		fakeConfigData, "spec", "env"); err != nil {
+		t.Fatal(err)
+	}
+
 	type args struct {
 		appfileData       string
 		workloadTemplates map[string]string
@@ -287,12 +335,30 @@ outputs: ingress: {
 				err: ErrImageNotDefined,
 			},
 		},
+		"config data should be set": {
+			args: args{
+				appfileData: yamlWithConfig,
+				workloadTemplates: map[string]string{
+					"withconfig": templateWithConfig,
+				},
+				traitTemplates: map[string]string{
+					"route": templateRoute,
+				},
+			},
+			want: want{
+				appConfig:  ac1,
+				components: []*v1alpha2.Component{compWithConfig},
+			},
+		},
 	}
 
 	io := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	for caseName, c := range cases {
 		t.Run(caseName, func(t *testing.T) {
 			app := NewAppFile()
+			app.configGetter = &fakeConfigGetter{
+				Data: fakeConfigData2,
+			}
 			err := yaml.Unmarshal([]byte(c.args.appfileData), app)
 			if err != nil {
 				t.Fatal(err)
@@ -339,7 +405,7 @@ outputs: ingress: {
 					if cp1.Name != cp2.Name {
 						continue
 					}
-					assert.Equal(t, cp1, cp2)
+					assert.Equal(t, cp1.Spec.Workload.Object, cp2.Spec.Workload.Object)
 					found = true
 					break
 				}
