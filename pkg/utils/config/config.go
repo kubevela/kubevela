@@ -33,12 +33,20 @@ func GetConfigsDir(envName string) (string, error) {
 }
 
 func DeleteConfig(envName, configName string) error {
-	cfgFile := filepath.Join(env.GetEnvDirByName(envName), "configs", configName)
+	d, err := GetConfigsDir(envName)
+	if err != nil {
+		return err
+	}
+	cfgFile := filepath.Join(d, configName)
 	return os.RemoveAll(cfgFile)
 }
 
 func ReadConfig(envName, configName string) ([]byte, error) {
-	cfgFile := filepath.Join(env.GetEnvDirByName(envName), "configs", configName)
+	d, err := GetConfigsDir(envName)
+	if err != nil {
+		return nil, err
+	}
+	cfgFile := filepath.Join(d, configName)
 	b, err := ioutil.ReadFile(cfgFile)
 	if os.IsNotExist(err) {
 		return []byte{}, nil
@@ -47,6 +55,10 @@ func ReadConfig(envName, configName string) ([]byte, error) {
 }
 
 func WriteConfig(envName, configName string, data []byte) error {
-	cfgFile := filepath.Join(env.GetEnvDirByName(envName), "configs", configName)
+	d, err := GetConfigsDir(envName)
+	if err != nil {
+		return err
+	}
+	cfgFile := filepath.Join(d, configName)
 	return ioutil.WriteFile(cfgFile, data, 0600)
 }

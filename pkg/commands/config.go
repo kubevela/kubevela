@@ -49,11 +49,7 @@ func NewConfigListCommand(io cmdutil.IOStreams) *cobra.Command {
 		Long:                  "List all configs",
 		Example:               `vela config ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			d, err := getConfigDir(cmd)
-			if err != nil {
-				return err
-			}
-			return ListConfigs(io, d)
+			return ListConfigs(io, cmd)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -69,11 +65,15 @@ func getConfigDir(cmd *cobra.Command) (string, error) {
 	}
 	return config.GetConfigsDir(e.Name)
 }
-func ListConfigs(ioStreams cmdutil.IOStreams, cfgDir string) error {
+func ListConfigs(ioStreams cmdutil.IOStreams, cmd *cobra.Command) error {
+	d, err := getConfigDir(cmd)
+	if err != nil {
+		return err
+	}
 	table := uitable.New()
 	table.MaxColWidth = 60
 	table.AddRow("NAME")
-	cfgList, err := listConfigs(cfgDir)
+	cfgList, err := listConfigs(d)
 	if err != nil {
 		return err
 	}
@@ -107,28 +107,7 @@ func NewConfigGetCommand(io cmdutil.IOStreams) *cobra.Command {
 		Long:                  "Get data for a config",
 		Example:               `vela config get <config-name>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			e, err := GetEnv(cmd)
-			if err != nil {
-				return err
-			}
-			if len(args) < 1 {
-				return fmt.Errorf("must specify config name, vela config get <name>")
-			}
-			configName := args[0]
-			cfgData, err := config.ReadConfig(e.Name, configName)
-			if err != nil {
-				return err
-			}
-			io.Infof("Data:\n")
-			scanner := bufio.NewScanner(bytes.NewReader(cfgData))
-			for scanner.Scan() {
-				k, v, err := config.ReadConfigLine(scanner.Text())
-				if err != nil {
-					return err
-				}
-				io.Infof("  %s: %s\n", k, v)
-			}
-			return nil
+			return getConfig(args, io, cmd)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -136,6 +115,31 @@ func NewConfigGetCommand(io cmdutil.IOStreams) *cobra.Command {
 	}
 	cmd.SetOut(io.Out)
 	return cmd
+}
+
+func getConfig(args []string, io cmdutil.IOStreams, cmd *cobra.Command) error {
+	e, err := GetEnv(cmd)
+	if err != nil {
+		return err
+	}
+	if len(args) < 1 {
+		return fmt.Errorf("must specify config name, vela config get <name>")
+	}
+	configName := args[0]
+	cfgData, err := config.ReadConfig(e.Name, configName)
+	if err != nil {
+		return err
+	}
+	io.Infof("Data:\n")
+	scanner := bufio.NewScanner(bytes.NewReader(cfgData))
+	for scanner.Scan() {
+		k, v, err := config.ReadConfigLine(scanner.Text())
+		if err != nil {
+			return err
+		}
+		io.Infof("  %s: %s\n", k, v)
+	}
+	return nil
 }
 
 func NewConfigSetCommand(io cmdutil.IOStreams) *cobra.Command {
@@ -147,11 +151,7 @@ func NewConfigSetCommand(io cmdutil.IOStreams) *cobra.Command {
 		Long:                  "Set data for a config",
 		Example:               `vela config set <config-name> KEY=VALUE K2=V2`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			e, err := GetEnv(cmd)
-			if err != nil {
-				return err
-			}
-			return setConfig(args, e.Name, io)
+			return setConfig(args, io, cmd)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -161,7 +161,13 @@ func NewConfigSetCommand(io cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func setConfig(args []string, envName string, io cmdutil.IOStreams) error {
+func setConfig(args []string, io cmdutil.IOStreams, cmd *cobra.Command) error {
+	e, err := GetEnv(cmd)
+	if err != nil {
+		return err
+	}
+	envName := e.Name
+
 	if len(args) < 1 {
 		return fmt.Errorf("must specify config name, vela config set <name> KEY=VALUE")
 	}
@@ -201,7 +207,6 @@ func setConfig(args []string, envName string, io cmdutil.IOStreams) error {
 		vEnc := b64.StdEncoding.EncodeToString([]byte(v))
 		out.WriteString(fmt.Sprintf("%s: %s\n", k, vEnc))
 	}
-
 	err = config.WriteConfig(envName, configName, out.Bytes())
 	if err != nil {
 		return err
@@ -219,20 +224,7 @@ func NewConfigDeleteCommand(io cmdutil.IOStreams) *cobra.Command {
 		Long:                  "Delete config",
 		Example:               `vela config del <config-name>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			e, err := GetEnv(cmd)
-			if err != nil {
-				return err
-			}
-			if len(args) < 1 {
-				return fmt.Errorf("must specify config name, vela config get <name>")
-			}
-			configName := args[0]
-			err = config.DeleteConfig(e.Name, configName)
-			if err != nil {
-				return err
-			}
-			io.Infof("config (%s) deleted successfully\n", configName)
-			return nil
+			return deleteConfig(args, io, cmd)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -240,4 +232,21 @@ func NewConfigDeleteCommand(io cmdutil.IOStreams) *cobra.Command {
 	}
 	cmd.SetOut(io.Out)
 	return cmd
+}
+
+func deleteConfig(args []string, io cmdutil.IOStreams, cmd *cobra.Command) error {
+	e, err := GetEnv(cmd)
+	if err != nil {
+		return err
+	}
+	if len(args) < 1 {
+		return fmt.Errorf("must specify config name, vela config get <name>")
+	}
+	configName := args[0]
+	err = config.DeleteConfig(e.Name, configName)
+	if err != nil {
+		return err
+	}
+	io.Infof("config (%s) deleted successfully\n", configName)
+	return nil
 }
