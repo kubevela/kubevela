@@ -29,7 +29,6 @@ AdvanceCanary
 15. Pick a strategy based on the spec.Analysis (A/B testing, Blue/Green or Canary). The canary status is set as **Promoting** at the end of those phase.
 
 
-
 ## Problems with the flagger design in OAM
 The problem with the current flagger design is that it wants to be strictly GitOps compatible. Thus, it 
 cannot touch the image related fields in the "target" object. That's why it has to create a "primary" deployment
