@@ -1,0 +1,70 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: backendworker
+  annotations:
+    definition.oam.dev/apiVersion: "standard.oam.dev/v1alpha1"
+    definition.oam.dev/kind: "PodSpecWorkload"
+    definition.oam.dev/description: "backend worker"
+spec:
+  definitionRef:
+    name: backendworker
+  childResourceKinds:
+    - apiVersion: apps/v1
+      kind: Deployment
+  extension:
+    template: |
+      output: {
+        apiVersion: "standard.oam.dev/v1alpha1"
+        kind:       "PodSpecWorkload"
+        metadata: name: parameter.name
+        spec: {
+          replicas: 1
+          podSpec: {
+            containers: [{
+              image: parameter.image
+              name:  parameter.name
+              env: [
+                for e in parameter.env {
+                  {
+                    name: e.name
+                    valueFrom: {
+                      secretKeyRef: {
+                        name: e.secretKeyRef.name
+                        key: e.secretKeyRef.key
+                      }
+                    }
+                    _useSecret: true
+                  } | {
+                    name: e.name
+                    value: e.value
+                    _useSecret: false
+                  }
+                }
+              ]
+              ports: [{
+                containerPort: parameter.port
+                protocol:      "TCP"
+                name:          "default"
+                }]
+              }]
+            }
+        }
+      }
+      #backendworker: {
+        name: string
+        image: string
+        port: int
+
+        env: [...{
+          name:  string
+          value: string | *""
+          _useSecret: *false | bool
+          secretKeyRef: {
+            name: string | *""
+            key: string | *""
+          }
+          ...
+        }]
+      }
+      parameter: #backendworker

@@ -1,0 +1,39 @@
+---
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: postgresqlinstances
+  annotations:
+    definition.oam.dev/apiVersion: "database.example.org/v1alpha1"
+    definition.oam.dev/kind: "PostgreSQLInstance"
+    definition.oam.dev/description: "Ali Cloud RDS resource"
+spec:
+  definitionRef:
+    name: postgresqlinstances
+  extension: 
+    template: |
+      output: {
+      	apiVersion: "database.example.org/v1alpha1"
+      	kind: "PostgreSQLInstance"
+      	metadata: 
+          name: "app-postgresql"  	
+        spec: {
+          parameters:
+            storageGB: 20
+          compositionSelector: {
+            matchLabels:
+              provider: "alibaba"
+          }
+          writeConnectionSecretToRef:
+            name: "db-conn"
+
+        }
+      }
+      #rds: {
+      	env: [...{
+      		name:  string
+      		value: string
+      	}]
+      }
+      parameter: #rds
+
