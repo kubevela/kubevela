@@ -1,59 +1,54 @@
-minikube start
-or
-kind create cluster
+# Kubecon 2020 NA Kubevela Tutorial
 
+## Pre-requisites
 
-## KubeWatch
+* Kubernetes cluster version >1.16
+(minikube or kind are fine)
+* Verify with `kubectl config current-context` and `kubectl version`
+* One of the crossplane supported public cloud (AWS, Azure, Alibaba Cloud, GCK) access key and secret
+* Install Crossplane(later)
+* Download KubeVela release from [release page](https://github.com/oam-dev/kubevela/releases)
+* Unpack the package and add it to `PATH` by running `sudo mv ./vela /usr/local/bin/vela`
+* Run `vela install`
 
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/catalog/master/registry/kubewatch.yaml
+## Lab 1: Use vela to deploy a simple application
 
-## crossplane
+### Purpose: Showcase the simple to use, application centric vela user interfaces.
 
-kubectl create namespace crossplane-system
+* Sync with cluster `vela system update`
+* List installed workloads `vela workloads`
+* List installed traits `vela traits`
+* Deploy a simple application with 
 
-helm repo add crossplane-master https://charts.crossplane.io/master/
-or helm repo update
+  ```
+  vela comp deploy mycomp -t backend --image crccheck/hello-world --app lab1
+  vela comp deploy mycomp -t webservice --image crccheck/hello-world --port 8000 --app lab1
+  ```
 
-helm install crossplane  ../crossplane/ --namespace crossplane-system
+* Show application status `vela app show myapp`
 
-## Aliyun provider
+## Lab 2: Add and apply KubeWatch
+  
+### Purpose: Showcase the steps to add and use capacity from community
 
-vela install
-kubectl crossplane install provider crossplane/provider-alibaba:v0.3.0
+* Create a [slack bot](https://api.slack.com/apps?new_app=1)
+* Add a cap center `vela cap center config mycap https://github.com/oam-dev/catalog/tree/master/registry`
+* Check capabilities `vela cap ls`
+* Install the kubewatch capability `vela cap add mycap/kubewatch`
+* Create an application `vela comp deploy mycomp -t webservice --image crccheck/hello-world --port 8000 --app lab2`
+* Add kubewatch trait to the application `vela kubewatch mycomp --app myapp --webhook https://hooks.slack.com/<yourid>`
+* Check the slack channel to verify the notifications
 
-kubectl create secret generic alibaba-creds --from-literal=accessKeyId=xxxxxx --from-literal=accessKeySecret=xxxxxx -n crossplane-system
+## Lab 3: Manage cloud resource and applications in application centric way
 
-kubectl apply -f provider.yaml
+### Purpose: Showcase the application centric view of appfile
 
-## provision 
+### Install crossplane
 
-kubectl crossplane install configuration crossplane/getting-started-with-alibaba:master
+Follow the instruction on crossplane [documents](https://crossplane.io/docs/v0.13/)
+**Don't forget to create secret**
 
-## App Config
+### Apply the appfile
 
-kubectl apply -f def_db.yaml
-kubectl apply -f backendworker.yaml
-kubectl apply -f ui.yaml
+`vela up script/vela.yml`
 
-vela comp deploy database -t rds --app myapp
-
-
-vela comp deploy data-api -t backendworker --image artursouza/rudr-data-api:0.50  --env [{name: "DATABASE_NAME" value: "postgres"}, {name: "DATABASE_HOSTNAME" valueFrom: secretKeyRef: {name: "db-conn" key: "endpoint"}}, {name: "DATABASE_USER" valueFrom: secretKeyRef: {name: "db-conn" key: "username"}}, {name: "DATABASE_PASSWORD" valueFrom: secretKeyRef: {name: "db-conn" key: "password"}}, {name: "DATABASE_PORT" valueFrom: secretKeyRef: {name: "db-conn" key: "port"}}] --port 3009 --app myapp
-
-vela comp deploy flights-api -t backendworker --image sonofjorel/rudr-flights-api:0.49 --port 3003 --env [{name: "data-uri" value: "http://data-api.default.svc.cluster.local:3009/"}] --app myapp
-
-vela comp deploy quakes-api -t backendworker --image sonofjorel/rudr-quakes-api:0.49 --port 3012 --env [{name: "data-uri" value: "http://data-api.default.svc.cluster.local:3009/"}] --app myapp
-
-vela comp deploy weather-api -t backendworker --image sonofjorel/rudr-weather-api:0.49 --port 3015 --env [{name: "data-uri" value: "http://data-api.default.svc.cluster.local:3009/"}] --app myapp
-
-vela comp deploy webui -t ui --image sonofjorel/rudr-web-ui:0.49 --port 8080 --env [{name: "flights-uri" value: "http://flights-api.default.svc.cluster.local:3003/"},{"weather-uri","http://weather-api.default.svc.cluster.local:3015/"},{"quakes-uri","http://quakes-api.default.svc.cluster.local:3012/"}] --app myapp
-
-## From another terminal:
-
-minikube tunnel
-// sample output: route: 10.96.0.0/12 -> 192.168.64.10
-// get port 
-kubectl get svc web-ui
-// sample output : NodePort:                 web-ui  30351/TCP
-// access through http://192.168.64.10:30351
-// refresh data on all tabs, zoom in when opening each map
