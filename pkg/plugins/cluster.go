@@ -132,6 +132,7 @@ func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Capab
 			return types.Capability{}, err
 		}
 		cueTemplate = string(b)
+		tmp.CueTemplate = cueTemplate
 	} else {
 		if tmp.CueTemplate == "" {
 			return types.Capability{}, errors.New("template not exist in definition")
