@@ -28,14 +28,11 @@ services:
           key: username
       - name: DATABASE_PASSWORD 
         _useSecret: true
-        secretKeyRef: 
+        secretKeyRef:
           name: db-conn
           key: password
       - name: DATABASE_PORT
-        _useSecret: true
-        secretKeyRef: 
-          name: db-conn
-          key: port
+        value: "1921"
 
   flights-api:
     type: backend
