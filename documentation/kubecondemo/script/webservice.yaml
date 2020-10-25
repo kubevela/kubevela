@@ -1,7 +1,7 @@
 apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
-  name: webui
+  name: webservice
   annotations:
     definition.oam.dev/apiVersion: "standard.oam.dev/v1alpha1"
     definition.oam.dev/kind: "PodSpecWorkload"
@@ -37,7 +37,7 @@ spec:
             }
         }
       }
-      #webui: {
+      #webservice: {
         name: string
           // +usage=specify app image
           // +short=i
@@ -50,4 +50,4 @@ spec:
       		value: string
       	}]
       }
-      parameter: #webui
+      parameter: #webservice

@@ -43,12 +43,24 @@
 
 ### Purpose: Showcase the application centric view of appfile
 
-### Install crossplane
+### Install Crossplane (This lab uses crossplane version 0.13)
 
-Follow the instruction on crossplane [documents](https://crossplane.io/docs/v0.13/)
-**Don't forget to create secret**
+Also the examples are based on Alibaba Cloud settings
+
+* Create crossplane namespace `kubectl create ns crossplane-system`
+* Install crossplane helm chart `helm install crossplane  charts/crossplane/ --namespace crossplane-system`
+* Install crossplane cli `curl -sL https://raw.githubusercontent.com/crossplane/crossplane/release-0.13/install.sh | sh`
+* Configure cloud provider(Alibaba Cloud) 
+  * Add cloud provider`kubectl crossplane install provider crossplane/provider-alibaba:v0.3.0`
+  * Create provider secret `kubectl create secret generic alibaba-creds --from-literal=accessKeyId=<change here> --from-literal=accessKeySecret=<change here> -n crossplane-system`
+  * Configure the provider `kubectl apply -f script/provider.yaml`
+* Configure infrastructure `kubectl crossplane install configuration crossplane/getting-started-with-alibaba:master`
+
+### Import the database workload definition
+
+`kubectl apply -f script/def_db.yaml`
+`vela system update`
 
 ### Apply the appfile
 
-`vela up script/vela.yml`
-
+`vela up`
