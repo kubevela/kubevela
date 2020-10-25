@@ -25,7 +25,7 @@
   vela comp deploy front -t webservice --image crccheck/hello-world --port 8000 --app lab1
   ```
 
-* Show application status `vela app show myapp`
+* Show application status `vela app show lab1`
 
 ## Lab 2: Add and apply KubeWatch
   
