@@ -161,7 +161,6 @@ rollback-demo-app   Finalising    0        2020-10-24T11:21:34Z
 rollback-demo-app   Succeeded     0        2020-10-24T11:22:04Z
 ```
 
-
 ## Verify that the instances of the v1 workload is the same as the canary maxReplica
 ```shell script
 kubectl get deploy
