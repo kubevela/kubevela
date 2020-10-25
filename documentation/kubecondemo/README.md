@@ -36,7 +36,7 @@
 * Check capabilities `vela cap ls`
 * Install the kubewatch capability `vela cap add mycap/kubewatch`
 * Create an application `vela comp deploy mycomp -t webservice --image crccheck/hello-world --port 8000 --app lab2`
-* Add kubewatch trait to the application `vela kubewatch mycomp --app myapp --webhook https://hooks.slack.com/<yourid>`
+* Add kubewatch trait to the application `vela kubewatch mycomp --app lab2 --webhook https://hooks.slack.com/<yourid>`
 * Check the slack channel to verify the notifications
 
 ## Lab 3: Manage cloud resource and applications in application centric way
