@@ -21,8 +21,8 @@
 * Deploy a simple application with 
 
   ```
-  vela comp deploy mycomp -t backend --image crccheck/hello-world --app lab1
-  vela comp deploy mycomp -t webservice --image crccheck/hello-world --port 8000 --app lab1
+  vela comp deploy back -t backend --image crccheck/hello-world --app lab1
+  vela comp deploy front -t webservice --image crccheck/hello-world --port 8000 --app lab1
   ```
 
 * Show application status `vela app show myapp`
