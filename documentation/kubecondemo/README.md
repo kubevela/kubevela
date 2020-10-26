@@ -7,7 +7,7 @@
 * Verify with `kubectl config current-context` and `kubectl version`
 * One of the crossplane supported public cloud (AWS, Azure, Alibaba Cloud, GCK) access key and secret
 * Install Crossplane(later)
-* Download KubeVela release from [release page](https://github.com/oam-dev/kubevela/releases)
+* Download KubeVela release from [release page](https://github.com/oam-dev/kubevela/releases/tag/v0.0.9)
 * Unpack the package and add it to `PATH` by running `sudo mv ./vela /usr/local/bin/vela`
 * Run `vela install`
 
@@ -50,6 +50,7 @@ Also the examples are based on Alibaba Cloud settings
 * Create crossplane namespace `kubectl create ns crossplane-system`
 * Install crossplane helm chart `helm install crossplane  charts/crossplane/ --namespace crossplane-system`
 * Install crossplane cli `curl -sL https://raw.githubusercontent.com/crossplane/crossplane/release-0.13/install.sh | sh`
+* Add crossplane to path `sudo mv kubectl-crossplane /usr/local/bin`
 * Configure cloud provider(Alibaba Cloud) 
   * Add cloud provider`kubectl crossplane install provider crossplane/provider-alibaba:v0.3.0`
   * Create provider secret `kubectl create secret generic alibaba-creds --from-literal=accessKeyId=<change here> --from-literal=accessKeySecret=<change here> -n crossplane-system`
@@ -59,8 +60,17 @@ Also the examples are based on Alibaba Cloud settings
 ### Import the database workload definition
 
 `kubectl apply -f script/def_db.yaml`
+
+
 `vela system update`
 
 ### Apply the appfile
 
 `vela up`
+
+### Access the web-ui
+
+If you have a cluster supporting Ingress, the route trait will work.
+`kubectl get ingress` command will show the ip address of the web-ui. Copy that service and add the `<ip address> kubevela.kubecon.demo ` record to your local machine's `/etc/hosts`. Then you may access the GUI from web browser.
+
+If you don't have Ingress installed, the eaisest way to access the demo app is through port forwarding :`kubectl port-forward <your webui pod name> 8080` and access it from browser using `http://localhost:8080`.
