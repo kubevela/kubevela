@@ -19,35 +19,36 @@ spec:
       output: {
         apiVersion: "standard.oam.dev/v1alpha1"
         kind:       "PodSpecWorkload"
-        metadata:
-          name: parameter.name
+        metadata: name: parameter.name
         spec: {
           replicas: 1
-            podSpec: {
-              containers: [{
-                 image: parameter.image
-                 name:  parameter.name
-                 env:   parameter.env
-                 ports: [{
-                   containerPort: parameter.port
-                     protocol:      "TCP"
-                     name:          "default"
-                 }]
-               }]
-            }
+          podSpec: {
+            containers: [{
+              image: parameter.image
+              name:  parameter.name
+              env: parameter.env
+              ports: [{
+                containerPort: parameter.port
+                protocol:      "TCP"
+                }]
+            }]
+          }
         }
       }
       #webservice: {
         name: string
-          // +usage=specify app image
-          // +short=i
         image: string
-          // +usage=specify port for container
-          // +short=p
-        port: *8080 | int
+        port: int
+
         env: [...{
-      		name:  string
-      		value: string
-      	}]
+          name:  string
+          value?: string
+          valueFrom?: {
+            secretKeyRef: {
+              name: string
+              key: string
+            }
+          }
+        }]
       }
       parameter: #webservice
