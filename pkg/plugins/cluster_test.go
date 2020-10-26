@@ -107,6 +107,9 @@ var _ = Describe("DefinitionFiles", func() {
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting trait definitions %v", traitDefs))
 		for i := range traitDefs {
+			// CueTemplate should always be fulfilled, even those whose CueTemplateURI is assigend,
+			By("check CueTemplate is fulfilled")
+			Expect(traitDefs[i].CueTemplate).ShouldNot(BeEmpty())
 			traitDefs[i].CueTemplate = ""
 			traitDefs[i].DefinitionPath = ""
 		}
@@ -120,6 +123,9 @@ var _ = Describe("DefinitionFiles", func() {
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting workload definitions  %v", workloadDefs))
 		for i := range workloadDefs {
+			// CueTemplate should always be fulfilled, even those whose CueTemplateURI is assigend,
+			By("check CueTemplate is fulfilled")
+			Expect(workloadDefs[i].CueTemplate).ShouldNot(BeEmpty())
 			workloadDefs[i].CueTemplate = ""
 			workloadDefs[i].DefinitionPath = ""
 		}
