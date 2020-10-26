@@ -1,0 +1,19 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/apiVersion: core.oam.dev/v1alpha2
+    definition.oam.dev/kind: ManualScalerTrait
+    definition.oam.dev/description: "Scale replica for workload"
+  name: scaler
+  namespace: default
+spec:
+  appliesToWorkloads:
+    - webservice
+    - containerizedworkloads.core.oam.dev
+    - deployments.apps
+  definitionRef:
+    name: manualscalertraits.core.oam.dev
+  workloadRefPath: spec.workloadRef
+  extension:
+    template: |-

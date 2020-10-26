@@ -1,0 +1,18 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: route
+  annotations:
+    definition.oam.dev/apiVersion: standard.oam.dev/v1alpha1
+    definition.oam.dev/kind: Route
+    definition.oam.dev/description: "Add a route for workload"
+spec:
+  appliesToWorkloads:
+    - webservice
+    - deployments.apps
+    - podspecworkloads.standard.oam.dev
+  workloadRefPath: spec.workloadRef
+  definitionRef:
+    name: routes.standard.oam.dev
+  extension:
+    template: |

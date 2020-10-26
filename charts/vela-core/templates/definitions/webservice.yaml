@@ -1,12 +1,19 @@
 apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
-  name: webservice.testapps
-  labels:
-    usecase: forplugintest
+  name: webservice
+  annotations:
+    definition.oam.dev/apiVersion: "standard.oam.dev/v1alpha1"
+    definition.oam.dev/kind: "PodSpecWorkload"
+    definition.oam.dev/description: "Long running service with network routes"
 spec:
   definitionRef:
-    name: webservice.testapps
+    name: podspecworkloads.standard.oam.dev
+  childResourceKinds:
+    - apiVersion: apps/v1
+      kind: Deployment
+    - apiVersion: v1
+      kind: Service
   extension:
     template: |
       output: {
@@ -31,11 +38,11 @@ spec:
         // +usage=specify app image
         // +short=i
         image: string
-
+      
         // +usage=specify port for container
         // +short=p
         port:  *6379 | int
-        
+      
         env: [...{
           name:  string
           value?: string

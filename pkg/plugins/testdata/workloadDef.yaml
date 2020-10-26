@@ -12,11 +12,11 @@ spec:
       output: {
       	apiVersion: "apps/v1"
       	kind:       "Deployment"
-      	metadata: name: parameter.name
+      	metadata: name: context.name
       	spec: {
       		containers: [{
       			image: parameter.image
-      			name:  parameter.name
+      			name:  context.name
       			env:   parameter.env
       			ports: [{
       				containerPort: parameter.port
@@ -27,7 +27,6 @@ spec:
       	}
       }
       #deployment: {
-      	name: string
       	// +usage=specify app image
       	// +short=i
       	image: string
