@@ -155,6 +155,7 @@ var _ = AfterSuite(func() {
 	_ = k8sClient.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: DefinitionNamespace}})
 	_ = k8sClient.Delete(context.Background(), &td)
 	_ = k8sClient.Delete(context.Background(), &wd)
+	_ = k8sClient.Delete(context.Background(), &websvcWD)
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })

@@ -9,6 +9,7 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 
+	"github.com/AlecAivazis/survey/v2"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/spf13/cobra"
 	"k8s.io/klog"
@@ -171,4 +172,24 @@ func PrintFlags(cmd *cobra.Command, subcmds []*cobra.Command) {
 		}
 	}
 	cmd.Println()
+}
+
+// AskToChooseOneService will ask users to select one service of the application if more than one exidi
+func AskToChooseOneService(svcNames []string) (string, error) {
+	if len(svcNames) == 0 {
+		return "", fmt.Errorf("no service exist in the application")
+	}
+	if len(svcNames) == 1 {
+		return svcNames[0], nil
+	}
+	prompt := &survey.Select{
+		Message: "You have multiple Services in your app. Please choose one Service: ",
+		Options: svcNames,
+	}
+	var svcName string
+	err := survey.AskOne(prompt, &svcName)
+	if err != nil {
+		return "", fmt.Errorf("choosing service err %v", err)
+	}
+	return svcName, nil
 }
