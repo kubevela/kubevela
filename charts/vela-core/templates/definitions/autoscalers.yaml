@@ -7,9 +7,8 @@ metadata:
     definition.oam.dev/kind: Autoscaler
 spec:
   appliesToWorkloads:
-    - core.oam.dev/v1alpha2.webservice
-    - core.oam.dev/v1alpha2.backend
-    - core.oam.dev/v1alpha2.task
+    - webservice
+    - backend
     - deployments.apps
   workloadRefPath: spec.workloadRef
   definitionRef:

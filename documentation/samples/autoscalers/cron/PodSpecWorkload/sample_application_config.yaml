@@ -12,20 +12,24 @@ spec:
             metadata:
               name: trait-scaler
             spec:
-              minReplicas: 2
+              minReplicas: 1
               maxReplicas: 10
               triggers:
                 - name: weekday-cron
                   enabled: true
                   type: cron
                   condition:
-                    startAt: "19:01"
-                    duration: 2h
-                    days: ["Monday", "Tuesday"]
-                    replicas: 3
+                    startAt: "22:47"
+                    duration: 1m
+                    days: "Monday, Tuesday"
+                    replicas: "3"
                     timezone: Asia/Shanghai
-                - name: cpu-resource-utilization
+                - name: weekday-cron-2
                   enabled: true
-                  type: cpu
+                  type: cron
                   condition:
-                    target: 5
+                    startAt: "22:49"
+                    duration: 2m
+                    days: "Monday"
+                    replicas: "1"
+                    timezone: Asia/Shanghai

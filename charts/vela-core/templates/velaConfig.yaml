@@ -20,3 +20,11 @@ data:
       "namespace": "monitoring",
       "version": "9.4.4"
     }
+  scaledobjects.keda.sh: |
+    {
+      "repo": "kedacore",
+      "urL": "https://kedacore.github.io/charts",
+      "name": "keda",
+      "namespace": "vela-system",
+      "version": "2.0.0-rc2"
+    }

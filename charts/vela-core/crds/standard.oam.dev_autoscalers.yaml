@@ -47,8 +47,9 @@ spec:
                 format: int32
                 type: integer
               targetWorkload:
-                description: TargetWorkload specify the workload or child workload
-                  which is about to be scaled
+                description: TargetWorkload specify the workload which is going to
+                  be scaled, it could be WorkloadReference or the child resource of
+                  it
                 properties:
                   apiVersion:
                     type: string
@@ -65,39 +66,10 @@ spec:
                   description: Trigger defines the trigger of Autoscaler
                   properties:
                     condition:
+                      additionalProperties:
+                        type: string
                       description: Condition set the condition when to trigger scaling
-                      properties:
-                        days:
-                          description: Days means in which days the condition will
-                            take effect
-                          items:
-                            type: string
-                          type: array
-                        duration:
-                          description: Duration means how long the target scaling
-                            will keep, after the time of duration, the scaling will
-                            stop
-                          type: string
-                        replicas:
-                          description: Replicas is the expected replicas
-                          type: integer
-                        startAt:
-                          description: StartAt is the time when the scaler starts,
-                            in format `"HHMM"` for example, "08:00"
-                          type: string
-                        target:
-                          description: Target is the threshold value to the metric
-                          format: int32
-                          type: integer
-                        timezone:
-                          description: Timezone defines the time zone, default to
-                            the timezone of the Kubernetes cluster
-                          type: string
                       type: object
-                    enabled:
-                      description: Enabled marks whether the trigger immediately.
-                        Defaults to `true`
-                      type: boolean
                     name:
                       description: Name is the trigger name, if not set, it will be
                         automatically generated and make it globally unique

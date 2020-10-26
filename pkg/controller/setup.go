@@ -29,8 +29,8 @@ import (
 // Setup workload controllers.
 func Setup(mgr ctrl.Manager) error {
 	for _, setup := range []func(ctrl.Manager) error{
-		metrics.Setup, podspecworkload.Setup, routes.Setup, applicationdeployment.Setup,
-		metrics.Setup, podspecworkload.Setup, routes.Setup, autoscalers.Setup,
+		metrics.Setup, podspecworkload.Setup, routes.Setup,
+		applicationdeployment.Setup, autoscalers.Setup,
 	} {
 		if err := setup(mgr); err != nil {
 			return err

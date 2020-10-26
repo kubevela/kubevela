@@ -274,8 +274,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithAnnotations("controller", "PodSpecWorkload")
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.PodSpecWorkload{}).
-		Owns(&appsv1.Deployment{}).
-		Owns(&corev1.Service{}).
 		Complete(r)
 }
 

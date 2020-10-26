@@ -21,6 +21,6 @@ spec:
                   condition:
                     startAt: "16:30"
                     duration: 2h
-                    days: ["Friday", "Saturday"]
-                    replicas: 4
-                    timezone: Asia/Shanghai
+                    days: "Friday,Saturday"
+                    replicas: "4"
+                    timezone: "Asia/Shanghai"

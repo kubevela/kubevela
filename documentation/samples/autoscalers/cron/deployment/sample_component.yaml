@@ -7,7 +7,6 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     spec:
-      replicas: 1
       selector:
         matchLabels:
           app: nginx

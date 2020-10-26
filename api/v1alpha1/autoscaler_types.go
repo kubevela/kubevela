@@ -57,50 +57,16 @@ func (as *Autoscaler) SetWorkloadReference(reference v1alpha1.TypedReference) {
 	as.Spec.WorkloadReference = reference
 }
 
-type DefaultCondition struct {
-	// Target is the threshold value to the metric
-	Target *int32 `json:"target,omitempty"`
-}
-
-type CronTypeCondition struct {
-	// StartAt is the time when the scaler starts, in format `"HHMM"` for example, "08:00"
-	StartAt string `json:"startAt,omitempty"`
-
-	// Duration means how long the target scaling will keep, after the time of duration, the scaling will stop
-	Duration string `json:"duration,omitempty"`
-
-	// Days means in which days the condition will take effect
-	Days []string `json:"days,omitempty"`
-
-	// Replicas is the expected replicas
-	Replicas int `json:"replicas,omitempty"`
-
-	// Timezone defines the time zone, default to the timezone of the Kubernetes cluster
-	Timezone string `json:"timezone,omitempty"`
-}
-
-// TriggerCondition set the condition when to trigger scaling
-type TriggerCondition struct {
-	// DefaultCondition is the condition for resource types, like `cpu/memory/storage/ephemeral-storage`
-	*DefaultCondition `json:",inline,omitempty"`
-
-	// CronTypeCondition is the condition for Cron type scaling, `cron`
-	*CronTypeCondition `json:",inline,omitempty"`
-}
-
 // Trigger defines the trigger of Autoscaler
 type Trigger struct {
 	// Name is the trigger name, if not set, it will be automatically generated and make it globally unique
 	Name string `json:"name,omitempty"`
 
-	// Enabled marks whether the trigger immediately. Defaults to `true`
-	Enabled bool `json:"enabled,omitempty"`
-
 	// Type allows value in [cpu/memory/storage/ephemeral-storage、cron、pps、qps/rps、custom]
 	Type TriggerType `json:"type"`
 
 	// Condition set the condition when to trigger scaling
-	Condition TriggerCondition `json:"condition"`
+	Condition map[string]string `json:"condition"`
 }
 
 // AutoscalerSpec defines the desired state of Autoscaler
@@ -116,7 +82,8 @@ type AutoscalerSpec struct {
 	// Triggers lists all triggers
 	Triggers []Trigger `json:"triggers"`
 
-	// TargetWorkload specify the workload or child workload which is about to be scaled
+	// TargetWorkload specify the workload which is going to be scaled,
+	// it could be WorkloadReference or the child resource of it
 	TargetWorkload TargetWorkload `json:"targetWorkload,omitempty"`
 
 	// WorkloadReference marks the owner of the workload

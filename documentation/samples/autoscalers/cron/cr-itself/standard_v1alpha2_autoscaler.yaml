@@ -12,8 +12,8 @@ spec:
       condition:
         startAt: "10:14"              # required. "HHMM"
         duration: 2h                 # required. 持续时长；start hour + duration < 24
-        days: ["Monday", "Saturday"]  # optional. In which days the condition will take effect
-        replicas: 5                   # optional.
+        days: "Monday,Saturday"  # optional. In which days the condition will take effect
+        replicas: "5"                   # optional.
         timezone: Asia/Shanghai       # optional. time zone
   targetWorkload:   # workloadRef                   # set by users or be auto-patched by outsiders, like OAM
     name: "php-apache"
