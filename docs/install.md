@@ -35,6 +35,10 @@ This command will install KubeVela server components in your Kubernetes cluster.
 
 > TODO Paste a output of successful installation here.
 
+## Dependencies
+
+> TODO Describe how vela install handle Prometheus & Grafana, Flagger and KEDA, and what if user want to replace them with his own version. (It's fine to say KEDA, Flagger is a temporary fork and we will ship the fixes to upstreams very soon)
+
 
 ## Clean Up
 

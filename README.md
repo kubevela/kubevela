@@ -1,6 +1,6 @@
 ![alt](resources/KubeVela-03.png)
 
-*Making shipping applications more enjoyable.*
+*Make shipping applications more enjoyable.*
 
 # KubeVela
 

@@ -1,10 +1,11 @@
-# Configuring Deployment Environments
+# Setting Up Deployment Environment
 
 Before working with your application, you need to prepare a deployment environment (e.g. test, staging, prod etc) which will configure the workspace, email for certificate issuer and domain for your application.
 
 ## Create environment
 
 > TODO `--namespace` and `--domain` should be able to skipped
+
 > TODO why don't use xip.io as demo?
 
 ```console
