@@ -1,7 +1,6 @@
 #canary: {
-  replica: int
-  headers: [...string]
+	replica: int
+	headers: [...string]
 }
 
 parameter: #canary
-

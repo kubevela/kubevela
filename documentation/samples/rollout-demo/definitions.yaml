@@ -12,14 +12,6 @@ spec:
   revisionEnabled: true
 ---
 apiVersion: core.oam.dev/v1alpha2
-kind: TraitDefinition
-metadata:
-  name: ingresses.extensions
-spec:
-  definitionRef:
-    name: ingresses.extensions
----
-apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
   name: deployments.apps

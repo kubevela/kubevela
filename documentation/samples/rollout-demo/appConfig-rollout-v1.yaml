@@ -4,35 +4,15 @@ metadata:
   name: sample-application-rollout
 spec:
   components:
-    - componentName: rollout-demo-app
+    - revisionName: rollout-demo-app-v1
       traits:
-        - trait:
-            apiVersion: extensions/v1beta1
-            kind: Ingress
-            metadata:
-              name: rollout-demo-app
-            spec:
-              rules:
-                - http:
-                    paths:
-                      - backend:
-                          serviceName: rollout-demo-app
-                          servicePort: 80
         - trait:
             apiVersion: flagger.app/v1beta1
             kind: Canary
             metadata:
               name: rollout-demo-app
-              # annotations:
-                # oam.canary.extension.switch: "true"
-                # oam.canary.distinguish.labels: "pod-template-hash"
             spec:
-              provider: nginx
-              # ingress reference
-              ingressRef:
-                apiVersion: extensions/v1beta1
-                kind: Ingress
-                name: rollout-demo-app
+              provider: smi
               progressDeadlineSeconds: 60
               service:
                 name: rollout-demo-app
@@ -42,7 +22,7 @@ spec:
                 targetPort: 8080
               analysis:
                 # schedule interval (default 60s)
-                interval: 30s
+                interval: 0s
                 # max number of failed metric checks before rollback
                 threshold: 10
                 # max traffic percentage routed to canary
@@ -51,8 +31,5 @@ spec:
                 # canary increment step
                 # percentage (0-100)
                 stepWeight: 10
-                # promotion increment step (default 100)
-                # percentage (0-100)
-                stepWeightPromotion: 100
                 # max replicas scale up to canary
-                maxReplicas: 4
+                maxReplicas: 7

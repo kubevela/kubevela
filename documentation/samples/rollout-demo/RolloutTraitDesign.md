@@ -1,6 +1,35 @@
 # Rollout Trait Design  
 
-## Current design
+## Flagger rollout flow
+Here is the 10,000 ft overview of the flagger rollout flow
+
+The overall controller Run function starts the processNextItem every second in the background. The processNextItme basically calls SyncHandler on each item in the queue.
+It calls the scheduleCanary() function in a for loop. 
+
+SyncHandler
+1. Set the canary status as **Initializing** if canary is not deleted
+2. Finalize (revert) the canary process if the canary has "revertOnDelete" flag. This means reverting the canary process when the canary object is deleted. OAM should NEVER set this to true.  
+3. Each canary will be mapped to a job which runs the "AdvanceCanary" logic below forever until stopped
+
+AdvanceCanary
+1. Create Canary controller/Service router/Mesh router/ through a factory
+2. CanaryController initialize the primary resource by copying from the target
+3. ServiceRouter initialize creates the serivce for the canary/primary resources
+4. Check if the canary has changed if the primary is initialized successfully. Just return if not.
+5. Check if the rollout webhook confirms to start
+6. Check if the Primary is ready, return if not
+7. MeshRouter starts to calculate the traffic weight between primary/canary
+8. Set the canary status as **Initialized** if it's initializing and return. Otherwise, set it to **Progressing** if it determined to advance
+9. Check if the canary revision (spec) changes or dependency changes during rollout, if so, reset to **Progressing**
+10. Check if no need to do analysis, go straight to finish the rollout if not. The default is to route 100% to primary which is not what we want. OAM should NEVER set this to true.
+11. Check with rollback webhooks, rollback if something is wrong
+12. Check if the status is promoting, call controller promote which just copy canary spec to primary. This will set the status to **Finalizing** if there is no error.
+13. Check if the status is finalizing. Finalize delete the canary and set the canary status as **Succeeded**
+14. Roll back if the number of failed cases cross certain threshold.
+15. Pick a strategy based on the spec.Analysis (A/B testing, Blue/Green or Canary). The canary status is set as **Promoting** at the end of those phase.
+
+
+## Problems with the flagger design in OAM
 The problem with the current flagger design is that it wants to be strictly GitOps compatible. Thus, it 
 cannot touch the image related fields in the "target" object. That's why it has to create a "primary" deployment
 and treat the "target" as the "canary" while doing the rollout. It finally "promotes" the primary 
@@ -19,7 +48,7 @@ and ready to be upgraded again.
 
 We decide to take the second approach as it matches with the flow better.
 
-## Proposed design
+## Proposed OAM Design
 - Add a new "meshProvider" type "OAM", the scheduler will automatically set the meshProvider as the "routeTrait" implementation
 which is SMI for now.
 - OAM can fill the workloadRef to the `targetRef` automatically. This will point the trait to the workload 
