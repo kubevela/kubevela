@@ -123,7 +123,7 @@ make test
 
 ### E2E test
 
-** Before e2e test start, make sure you have vela-core running.**
+**Before e2e test start, make sure you have vela-core running.**
 
 ```shell script
 make core-run
