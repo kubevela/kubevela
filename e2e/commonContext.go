@@ -228,6 +228,17 @@ var (
 		})
 	}
 
+	ApplicationExecContext = func(context string, appName string) bool {
+		return ginkgo.Context(context, func() {
+			ginkgo.It("should get output of exec /bin/ls", func() {
+				cli := fmt.Sprintf("vela exec %s -- /bin/ls ", appName)
+				output, err := Exec(cli)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(output).To(gomega.ContainSubstring("bin"))
+			})
+		})
+	}
+
 	ApplicationInitIntercativeCliContext = func(context string, appName string, workloadType string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should init app through interactive questions", func() {

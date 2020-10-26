@@ -28,6 +28,7 @@ var _ = ginkgo.Describe("Application", func() {
 	e2e.ApplicationShowContext("app show", applicationName, workloadType)
 	e2e.ApplicationStatusContext("app status", applicationName, workloadType)
 	e2e.ApplicationCompStatusContext("comp status", applicationName, workloadType, envName)
+	e2e.ApplicationExecContext("exec -- COMMAND", applicationName)
 	e2e.ApplicationInitIntercativeCliContext("init", appNameForInit, workloadType)
 	e2e.WorkloadDeleteContext("delete", applicationName)
 	e2e.WorkloadDeleteContext("delete", appNameForInit)
