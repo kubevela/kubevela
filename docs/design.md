@@ -54,7 +54,7 @@ Thus, KubeVela choose to:
 
 Instead of creating a in-house "application CRD", KubeVela adopts [Open Application Model (OAM)](https://github.com/oam-dev/spec) as its application definition, since OAM:
 1. Defines micro-services application by default.
-2. Can model operations as part of the application (i.e. `Trait`).
+2. Model operations as part of the application (i.e. `Trait`).
 2. Highly extensible: every workload and trait in OAM is a independent definition, no abstraction or capability lock-in.
 
 ### 2. Capability Oriented Architecture
@@ -130,48 +130,11 @@ $ vela comp deploy frontend -t webservice --image oamdev/testapp:v1 --port 80 --
 
 The `-t webservice --image oamdev/testapp:v1 --port 80` arguments are not hard coded, they are schema defined by in-line CUE template of `WebService` workload definition.
 
-The `appfile` is essentially a YAML version of command line tool so we can support more complex and serious scenarios by simply running `$ vela up hello-world.yaml`:
+The `appfile` is essentially a YAML version of command line tool so we can support more complex and serious scenarios by simply running `$ vela up my-app.yaml`:
 
-```yaml
-version: "1.0-alpha.1"
+![alt](resources/appfile.png)
 
-name: helloworld
-
-services:
-  express-server:
-    type: webservice # workload type
-    build:
-      docker:
-        file: Dockerfile
-        context: .
-
-    image: oamdev/testapp:v1
-    cmd: ["node", "server.js"]
-    ports:
-      - 8080:80
-    env:
-      - FOO=bar
-
-    scale: # scaling trait
-      replica: 2
-      auto:
-        range: "1-10"
-        cpu: 80
-        qps: 1000
-
-    canary: # canary trait
-      step: 5
-      headers:
-        - "foo:bar.*"
-
-  redis:
-    image: oamdev/redis
-
-secrets:
-  my-secret: /local-path/my-secret # load local file into k8s secret
-```
-
-The schema of above `appfile` is not hard coded, they are defined by in-line CUE templates of `WebService` workload definition, `Scaling` trait definition and `Canary` trait definition.
+The schema of above `appfile` is not hard coded, they are structured following OAM and enforced by CUE templates of `WebService` workload definition, `Scaling` trait definition and `Canary` trait definition.
 
 We will skip the example of dashboard, but similarly, the schema of GUI forms are defined by in-lined CUE template of definition objects.
 
@@ -185,8 +148,8 @@ From highest level, KubeVela is composed by only two components:
 Including: `cli`, `dashboard`, `appfile`, they are all client side tools to provide developer facing abstractions by leveraging CUElang based parametering and templating.
 ### 2. KubeVela core
 Including:
-  - [OAM Kubernetes runtime](https://github.com/crossplane/oam-kubernetes-runtime) to provide application level building blocks such as `Component` and `Application` etc.
-  - [Built-in workload and trait controllers](https://github.com/oam-dev/kubevela/tree/master/pkg/controller/v1alpha1) to implement core capabilities such as `webservice`, `route` and `rollout` etc.
+  - [OAM Kubernetes runtime](https://github.com/crossplane/oam-kubernetes-runtime) to provide application-centric building blocks such as `Component` and `Application` etc.
+  - [Built-in workload and trait controllers](https://github.com/oam-dev/kubevela/tree/master/pkg/controller/v1alpha1) to provide core capabilities such as `webservice`, `route` and `rollout` etc.
   - Capability Management: manage features of KubeVela following Capability Oriented Architecture. 
     - Every feature of KubeVela is a "addon", and it is registered by Kubernetes API resource (including CRD) leveraging OAM definition objects.
     - CRD Registry: register controllers of Kubernetes add-ons and discover them by CRD. This will enable automatically install controllers/operators when CRD is missing in the cluster.

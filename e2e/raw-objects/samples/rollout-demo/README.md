@@ -16,15 +16,15 @@ bin/vela install
 
 ## Run ApplicationConfiguration V1
 ```shell script
-kubectl apply -f documentation/samples/rollout-demo/definitions.yaml
+kubectl apply -f e2e/raw-objects/samples/rollout-demo/definitions.yaml
 traitdefinition.core.oam.dev/canaries.flagger.app created
 traitdefinition.core.oam.dev/ingresses.extensions created
 workloaddefinition.core.oam.dev/deployments.apps created
 
-kubectl apply -f documentation/samples/rollout-demo/deploy-component-v1.yaml
+kubectl apply -f e2e/raw-objects/samples/rollout-demo/deploy-component-v1.yaml
 component.core.oam.dev/rollout-demo-app created
 
-kubectl apply -f documentation/samples/rollout-demo/appConfig-rollout-v1.yaml
+kubectl apply -f e2e/raw-objects/samples/rollout-demo/appConfig-rollout-v1.yaml
 applicationconfiguration.core.oam.dev/sample-application-rollout created
 ```
 
@@ -41,10 +41,10 @@ rollout-demo-app-v1    1/1    1            1           80s
 
 ## Upgrade the component to v2 and change the revision name of the component in the appConfig 
 ```shell script
-kubectl apply -f documentation/samples/rollout-demo/deploy-component-v2.yaml
+kubectl apply -f e2e/raw-objects/samples/rollout-demo/deploy-component-v2.yaml
 component.core.oam.dev/rollout-demo-app configured
 
-kubectl apply -f documentation/samples/rollout-demo/appConfig-rollout-v2.yaml
+kubectl apply -f e2e/raw-objects/samples/rollout-demo/appConfig-rollout-v2.yaml
 applicationconfiguration.core.oam.dev/sample-application-rollout created
 ```
 
@@ -140,7 +140,7 @@ rollout-demo-app-v2   7/7     7            7           15m
 
 ## Roll back to V1
 ```shell script
-kubectl apply -f documentation/samples/rollout-demo/appConfig-rollback-v1.yaml
+kubectl apply -f e2e/raw-objects/samples/rollout-demo/appConfig-rollback-v1.yaml
 applicationconfiguration.core.oam.dev/sample-application-rollout configured
 ```
 
@@ -171,7 +171,7 @@ rollout-demo-app-v2   0/0     0            0           24m
 
 ## Clean up
 ```shell script
-kubectl delete -f documentation/samples/rollout-demo/ 
+kubectl delete -f e2e/raw-objects/samples/rollout-demo/ 
 ```
 
 ## Improvements

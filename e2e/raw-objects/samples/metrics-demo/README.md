@@ -13,7 +13,7 @@ OAM will automatically install a prometheus stack in the `monitoring` namespace 
 
 ## Run ApplicationConfiguration
 ```shell script
-kubectl apply -f documentation/samples/metrics-demo/
+kubectl apply -f e2e/raw-objects/samples/metrics-demo/
 workloaddefinition.core.oam.dev/deployments.apps created
 traitdefinition.core.oam.dev/services created
 traitdefinition.core.oam.dev/metricstraits.standard.oam.dev created

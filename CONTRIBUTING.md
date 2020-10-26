@@ -1,5 +1,9 @@
 # CONTRIBUTING
 
+## About KubeVela
+
+KubeVela project is initialized and maintained by the cloud native community since day 0 with [bootstrapping contributors from 8+ different organizations](https://github.com/oam-dev/kubevela/graphs/contributors). We intend for KubeVela to have a open governance since the very beginning and donate the project to neutral foundation as soon as it's released. 
+
 This doc explains how to set up a development environment, so you can get started
 contributing to `kubevela` or build a PoC (Proof of Concept). 
 
