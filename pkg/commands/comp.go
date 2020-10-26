@@ -19,6 +19,7 @@ const (
 	App          = "app"
 	WorkloadType = "type"
 	TraitDetach  = "detach"
+	Service      = "svc"
 )
 
 type runOptions oam.RunOptions

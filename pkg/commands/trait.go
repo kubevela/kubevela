@@ -3,9 +3,11 @@ package commands
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/application"
+	"github.com/oam-dev/kubevela/pkg/commands/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/plugins"
@@ -76,7 +78,7 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 		for _, v := range tmp.Parameters {
 			types.SetFlagBy(pluginCmd.Flags(), v)
 		}
-		pluginCmd.Flags().StringP(App, "a", "", "create or add into an existing application group")
+		pluginCmd.Flags().StringP(Service, "", "", "specify one service belonging to the application")
 		pluginCmd.Flags().BoolP(Staging, "s", false, "only save changes locally without real update application")
 		pluginCmd.Flags().BoolP(TraitDetach, "", false, "detach trait from component")
 
@@ -89,12 +91,32 @@ func (o *commandOptions) Prepare(cmd *cobra.Command, args []string) error {
 	if len(args) < 1 {
 		return errors.New("please specify the name of the app")
 	}
-	o.workloadName = args[0]
-	if app := cmd.Flag(App).Value.String(); app != "" {
-		o.appName = app
-	} else {
-		o.appName = o.workloadName
+	o.appName = args[0]
+	// get application
+	app, err := application.Load(o.Env.Name, o.appName)
+	if err != nil {
+		return err
 	}
+	if len(app.Name) == 0 {
+		return fmt.Errorf("the application %s doesn't exist in current env %s", o.appName, o.Env.Name)
+	}
+
+	// get service name
+	serviceNames := app.GetComponents()
+	if svcName := cmd.Flag(Service).Value.String(); svcName != "" {
+		for _, v := range serviceNames {
+			if v == svcName {
+				o.workloadName = svcName
+				return nil
+			}
+		}
+		return fmt.Errorf("the service %s doesn't exist in the application %s", svcName, o.appName)
+	}
+	svcName, err := util.AskToChooseOneService(serviceNames)
+	if err != nil {
+		return err
+	}
+	o.workloadName = svcName
 	return nil
 }
 

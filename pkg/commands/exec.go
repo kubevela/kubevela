@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/spf13/cobra"
@@ -16,6 +15,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/oam-dev/kubevela/pkg/application"
+	"github.com/oam-dev/kubevela/pkg/commands/util"
 	velacmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	cmdexec "k8s.io/kubectl/pkg/cmd/exec"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
@@ -127,7 +127,7 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 }
 
 func (o *VelaExecOptions) Complete() error {
-	compName, err := o.askComponent()
+	compName, err := util.AskToChooseOneService(o.App.GetComponents())
 	if err != nil {
 		return err
 	}
@@ -144,23 +144,6 @@ func (o *VelaExecOptions) Complete() error {
 	// [podName, COMMAND...]
 	args[0] = podName
 	return o.kcExecOptions.Complete(o.f, o.Cmd, args, 1)
-}
-
-func (o *VelaExecOptions) askComponent() (string, error) {
-	comps := o.App.GetComponents()
-	if len(comps) == 1 {
-		return comps[0], nil
-	}
-	prompt := &survey.Select{
-		Message: "You have multiple Components in your app. Please choose one component for logs: ",
-		Options: comps,
-	}
-	var compName string
-	err := survey.AskOne(prompt, &compName)
-	if err != nil {
-		return "", fmt.Errorf("choosing component name err %v", err)
-	}
-	return compName, nil
 }
 
 func (o *VelaExecOptions) getPodName(compName string) (string, error) {
