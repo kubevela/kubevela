@@ -47,10 +47,10 @@
 
 Also the examples are based on Alibaba Cloud settings
 
-* Create crossplane namespace `kubectl create ns crossplane-system`
-* Install crossplane helm chart `helm install crossplane  charts/crossplane/ --namespace crossplane-system`
-* Install crossplane cli `curl -sL https://raw.githubusercontent.com/crossplane/crossplane/release-0.13/install.sh | sh`
-* Add crossplane to path `sudo mv kubectl-crossplane /usr/local/bin`
+* Create crossplane namespace: `kubectl create ns crossplane-system`
+* Install crossplane helm chart: `helm install crossplane  charts/crossplane/ --namespace crossplane-system`
+* Install crossplane cli: `curl -sL https://raw.githubusercontent.com/crossplane/crossplane/release-0.13/install.sh | sh`
+* Add crossplane to `PATH`:  `sudo mv kubectl-crossplane /usr/local/bin`
 * Configure cloud provider(Alibaba Cloud) 
   * Add cloud provider`kubectl crossplane install provider crossplane/provider-alibaba:v0.3.0`
   * Create provider secret `kubectl create secret generic alibaba-creds --from-literal=accessKeyId=<change here> --from-literal=accessKeySecret=<change here> -n crossplane-system`
