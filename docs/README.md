@@ -8,9 +8,9 @@ Learn and use KubeVela with tutorials and user stories.
 - [Concepts](concepts.md)
 
 **For Developers**
-- [Configuring Deployment Environment](developers/config-enviroments.md)
+- [Setting Up Deployment Environment](developers/config-enviroments.md)
 - [Deploying Application](developers/deploy-app.md)
-- [Visiting Application](developers/set-route.md)
+- [Setting Routes](developers/set-route.md)
 - [Setting Auto-scaling Policy](developers/set-autoscaling.md)
 - [Setting Rollout Strategy](developers/set-rollout.md)
 - [Monitoring Application](developers/set-metrics.md)

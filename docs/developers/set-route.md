@@ -1,4 +1,4 @@
-# Visiting Application
+# Setting Routes
 
 Once your web services of the application is deployed, you can visit it from outside world via `route` feature. 
 
