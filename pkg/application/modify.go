@@ -2,7 +2,6 @@ package application
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/oam-dev/kubevela/pkg/appfile"
 )
@@ -17,7 +16,6 @@ func (app *Application) SetWorkload(componentName, workloadType string, workload
 		s = appfile.Service{}
 	}
 	s["type"] = workloadType
-	s["name"] = strings.ToLower(componentName)
 	for k, v := range workloadData {
 		s[k] = v
 	}

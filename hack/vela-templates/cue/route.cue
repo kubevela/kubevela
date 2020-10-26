@@ -10,13 +10,15 @@ output: {
       }
     }
 
-    rules: parameter.rules
+    if parameter["rules"] != _|_ {
+      rules: parameter.rules
+    }
   }
 }
 #route: {
   domain: *"" | string
   issuer: *"" | string
-  rules: [...{
+  rules?: [...{
     path: string
     rewriteTarget: *"" | string
   }]

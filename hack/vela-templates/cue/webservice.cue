@@ -8,7 +8,9 @@ output: {
       containers: [{
         name:  context.name
         image: parameter.image
-        env: parameter.env
+        if parameter["env"] != _|_ {
+          env: parameter.env
+        }
         ports: [{
           containerPort: parameter.port
         }]
@@ -25,7 +27,7 @@ output: {
   // +short=p
   port:  *6379 | int
 
-  env: [...{
+  env?: [...{
     name:  string
     value?: string
     valueFrom?: {
