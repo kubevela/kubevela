@@ -15,7 +15,7 @@ output: {
     }
   }
 }
-#route: {
+parameter: {
   domain: *"" | string
   issuer: *"" | string
   rules?: [...{
@@ -23,4 +23,3 @@ output: {
     rewriteTarget: *"" | string
   }]
 }
-parameter: #route

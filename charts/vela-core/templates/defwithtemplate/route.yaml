@@ -33,7 +33,7 @@ spec:
           }
         }
       }
-      #route: {
+      parameter: {
         domain: *"" | string
         issuer: *"" | string
         rules?: [...{
@@ -41,4 +41,4 @@ spec:
           rewriteTarget: *"" | string
         }]
       }
-      parameter: #route
+      

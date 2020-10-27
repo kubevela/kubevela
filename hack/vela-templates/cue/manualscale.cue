@@ -5,8 +5,7 @@ output: {
     replicaCount: parameter.replica
   }
 }
-#scale: {
+parameter: {
   //+short=r
   replica: *1 | int
 }
-parameter: #scale

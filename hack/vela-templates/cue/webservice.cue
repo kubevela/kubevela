@@ -18,7 +18,7 @@ output: {
     }
   }
 }
-#webservice: {
+parameter: {
   // +usage=specify app image
   // +short=i
   image: string
@@ -38,4 +38,3 @@ output: {
     }
   }]
 }
-parameter: #webservice

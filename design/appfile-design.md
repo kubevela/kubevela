@@ -86,8 +86,7 @@ spec:
     name: deployments.apps
   extension:
     template: |
-      parameter: #webservice
-      #webservice: {
+      parameter: {
         // +vela:cli:enabled=true
         // +vela:cli:usage=specify commands to run in container
         // +vela:cli:short=c
@@ -152,7 +151,7 @@ kind: WorkloadDefinition | TraitDefinition
 spec:
   extension:
     template: |
-      parameter: #webservice
+      parameter: {
       ...
 ```
 
@@ -167,8 +166,7 @@ Vela allows platform builders to write bespoke templates to extend Appfile confi
 A template starts with `parameter` and its definition:
 
 ```yaml
-parameter: #webservice
-#webservice: {
+parameter: {
   // +vela:cli:enabled=true
   // +vela:cli:usage=specify commands to run in container
   // +vela:cli:short=c
@@ -178,7 +176,6 @@ parameter: #webservice
 
 Here is the takeout:
 * The `parameter` defines the user input fields and is used to render final output with user input values. These fields will be exposed to users in Appfile.
-* The definition `#webservice` is used to tell the name of the template. This name is used to correlate workload and trait types to fields in Appfile.
 
 Note that there is difference in how Workload and Trait expose parameters.
 

@@ -5,7 +5,7 @@ output: {
     scrapeService: parameter
   }
 }
-#metrics: {
+parameter: {
   // +usage=format of the metrics, default as prometheus
   // +short=f
   format:  *"prometheus" | string
@@ -16,4 +16,3 @@ output: {
   // +usage= the label selector for the pods, default is the workload labels
   selector?: [string]: string
 }
-parameter: #metrics

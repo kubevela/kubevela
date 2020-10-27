@@ -14,9 +14,8 @@ output: {
   }
 }
 
-#backend: {
+parameter: {
   // +usage=specify app image
   // +short=i
   image: string
 }
-parameter: #backend

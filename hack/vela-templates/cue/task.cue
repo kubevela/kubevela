@@ -13,7 +13,7 @@ output: {
         }]
   }
 }
-#task: {
+parameter: {
   // +usage=specify number of tasks to run in parallel
   // +short=c
   count: *1 | int
@@ -22,5 +22,3 @@ output: {
   // +short=i
   image: string
 }
-parameter: #task
-
