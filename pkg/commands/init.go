@@ -147,7 +147,7 @@ func (o *appInitOptions) Workload() error {
 		workloadList = append(workloadList, w.Name)
 	}
 	prompt := &survey.Select{
-		Message: "Choose an workload for your component: ",
+		Message: "Choose workload type for your service: ",
 		Options: workloadList,
 	}
 	err = survey.AskOne(prompt, &o.workloadType)

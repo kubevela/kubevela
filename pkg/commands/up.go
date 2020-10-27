@@ -118,7 +118,7 @@ func (o *appfileOptions) Run(filePath string) error {
 		}
 		b, err := yaml.Marshal(comp)
 		if err != nil {
-			return fmt.Errorf("marshal Component (%s) failed: %w", comp.Name, err)
+			return fmt.Errorf("marshal service (%s) failed: %w", comp.Name, err)
 		}
 		cfg.Write(b)
 		cfg.WriteByte('\n')
