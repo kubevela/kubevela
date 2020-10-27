@@ -137,7 +137,10 @@ func main() {
 
 	if useWebhook {
 		setupLog.Info("vela webhook enabled, will serving at :" + strconv.Itoa(webhookPort))
-		oamwebhook.Add(mgr)
+		if err = oamwebhook.Add(mgr); err != nil {
+			setupLog.Error(err, "unable to setup oam runtime webhook")
+			os.Exit(1)
+		}
 		velawebhook.Register(mgr)
 		if err := waitWebhookSecretVolume(certDir, waitSecretTimeout, waitSecretInterval); err != nil {
 			setupLog.Error(err, "unable to get webhook secret")

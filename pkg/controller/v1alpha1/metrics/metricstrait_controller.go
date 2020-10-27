@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
+
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 
 	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
@@ -67,6 +69,7 @@ var (
 // Reconciler reconciles a MetricsTrait object
 type Reconciler struct {
 	client.Client
+	dm     discoverymapper.DiscoveryMapper
 	Log    logr.Logger
 	Scheme *runtime.Scheme
 	record event.Recorder
@@ -158,7 +161,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 func (r *Reconciler) fetchServicesLabel(ctx context.Context, mLog logr.Logger,
 	workload *unstructured.Unstructured, targetPort intstr.IntOrString) (map[string]string, error) {
 	// Fetch the child resources list from the corresponding workload
-	resources, err := oamutil.FetchWorkloadChildResources(ctx, mLog, r, workload)
+	resources, err := oamutil.FetchWorkloadChildResources(ctx, mLog, r, r.dm, workload)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			mLog.Error(err, "Error while fetching the workload child resources", "workload kind", workload.GetKind(),
@@ -307,10 +310,15 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Setup adds a controller that reconciles MetricsTrait.
 func Setup(mgr ctrl.Manager) error {
+	dm, err := discoverymapper.New(mgr.GetConfig())
+	if err != nil {
+		return err
+	}
 	reconciler := Reconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("MetricsTrait"),
 		Scheme: mgr.GetScheme(),
+		dm:     dm,
 	}
 	return reconciler.SetupWithManager(mgr)
 }

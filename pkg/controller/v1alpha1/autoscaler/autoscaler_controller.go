@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
+
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
@@ -53,6 +55,7 @@ var ReconcileWaitResult = reconcile.Result{RequeueAfter: 30 * time.Second}
 type AutoscalerReconciler struct {
 	client.Client
 
+	dm     discoverymapper.DiscoveryMapper
 	Log    logr.Logger
 	Scheme *runtime.Scheme
 	record event.Recorder
@@ -95,7 +98,7 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 	}
 
 	// Fetch the child resources list from the corresponding workload
-	resources, err := util.FetchWorkloadChildResources(ctx, log, r, workload)
+	resources, err := util.FetchWorkloadChildResources(ctx, log, r, r.dm, workload)
 	if err != nil {
 		log.Error(err, "Error while fetching the workload child resources", "workload", workload.UnstructuredContent())
 		r.record.Event(eventObj, event.Warning(util.ErrFetchChildResources, err))
@@ -145,10 +148,15 @@ func (r *AutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Setup adds a controller that reconciles MetricsTrait.
 func Setup(mgr ctrl.Manager) error {
+	dm, err := discoverymapper.New(mgr.GetConfig())
+	if err != nil {
+		return err
+	}
 	r := AutoscalerReconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("Autoscaler"),
 		Scheme: mgr.GetScheme(),
+		dm:     dm,
 	}
 	return r.SetupWithManager(mgr)
 }

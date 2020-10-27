@@ -37,12 +37,10 @@ var _ = BeforeSuite(func(done Done) {
 	logf.SetLogger(zap.LoggerTo(GinkgoWriter, true))
 
 	By("bootstrapping test environment")
-	useExistCluster := true
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
 			filepath.Join("..", "config", "crd", "bases")},
-		UseExistingCluster: &useExistCluster,
 	}
 
 	var err error

@@ -51,7 +51,7 @@ var _ = BeforeSuite(func(done Done) {
 	logf.SetLogger(zap.LoggerTo(GinkgoWriter, true))
 	ctx := context.Background()
 	By("bootstrapping test environment")
-	useExistCluster := true
+	useExistCluster := false
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:  []string{filepath.Join("..", "config", "crd", "bases")},
 		UseExistingCluster: &useExistCluster,
