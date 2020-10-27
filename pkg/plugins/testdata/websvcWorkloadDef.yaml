@@ -27,7 +27,7 @@ spec:
           }
         }
       }
-      #webservice: {
+      parameter: {
         // +usage=specify app image
         // +short=i
         image: string
@@ -47,4 +47,3 @@ spec:
           }
         }]
       }
-      parameter: #webservice

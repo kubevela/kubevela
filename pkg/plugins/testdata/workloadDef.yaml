@@ -26,7 +26,7 @@ spec:
       		}]
       	}
       }
-      #deployment: {
+      parameter: {
       	// +usage=specify app image
       	// +short=i
       	image: string
@@ -38,4 +38,3 @@ spec:
       		value: string
       	}]
       }
-      parameter: #deployment

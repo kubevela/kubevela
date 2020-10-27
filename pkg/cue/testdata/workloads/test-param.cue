@@ -1,7 +1,7 @@
 Template: {
 }
 
-#deployment: {
+parameter: {
 	name: string
 	// +usage=specify app image
 	// +short=i
