@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
+
 	"github.com/oam-dev/kubevela/api/v1alpha1"
 	standardv1alpha1 "github.com/oam-dev/kubevela/api/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
@@ -54,6 +56,7 @@ const (
 // Reconciler reconciles a Route object
 type Reconciler struct {
 	client.Client
+	dm     discoverymapper.DiscoveryMapper
 	Log    logr.Logger
 	record event.Recorder
 	Scheme *runtime.Scheme
@@ -162,7 +165,7 @@ func (r *Reconciler) discoveryAndFillBackend(ctx context.Context, mLog logr.Logg
 	routeTrait *v1alpha1.Route) (*runtimev1alpha1.TypedReference, error) {
 
 	// Fetch the child childResources list from the corresponding workload
-	childResources, err := oamutil.FetchWorkloadChildResources(ctx, mLog, r, workload)
+	childResources, err := oamutil.FetchWorkloadChildResources(ctx, mLog, r, r.dm, workload)
 	if err != nil {
 		mLog.Error(err, "Error while fetching the workload child childResources", "workload kind", workload.GetKind(),
 			"workload name", workload.GetName())
@@ -225,7 +228,7 @@ func (r *Reconciler) fillBackendByCreatedService(ctx context.Context, mLog logr.
 		},
 	}
 
-	ports, labels, err := DiscoverPortsLabel(ctx, workload, r, childResources)
+	ports, labels, err := DiscoverPortsLabel(ctx, workload, r, r.dm, childResources)
 	if err != nil {
 		mLog.Info("[WARN] fail to discovery port and label", "err", err)
 		return nil, err
@@ -256,11 +259,11 @@ func (r *Reconciler) fillBackendByCreatedService(ctx context.Context, mLog logr.
 }
 
 // Assume the workload or it's childResource will always having spec.template as PodTemplate if discoverable
-func DiscoverPortsLabel(ctx context.Context, workload *unstructured.Unstructured, r client.Reader, childResources []*unstructured.Unstructured) ([]intstr.IntOrString, map[string]string, error) {
+func DiscoverPortsLabel(ctx context.Context, workload *unstructured.Unstructured, r client.Reader, dm discoverymapper.DiscoveryMapper, childResources []*unstructured.Unstructured) ([]intstr.IntOrString, map[string]string, error) {
 
 	// here is the logic follows the design https://github.com/crossplane/oam-kubernetes-runtime/blob/master/design/one-pager-podspecable-workload.md#proposal
 	// Get WorkloadDefinition
-	workloadDef, err := oamutil.FetchWorkloadDefinition(ctx, r, workload)
+	workloadDef, err := oamutil.FetchWorkloadDefinition(ctx, r, dm, workload)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -349,10 +352,15 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Setup adds a controller that reconciles MetricsTrait.
 func Setup(mgr ctrl.Manager) error {
+	dm, err := discoverymapper.New(mgr.GetConfig())
+	if err != nil {
+		return err
+	}
 	reconciler := Reconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("Route"),
 		Scheme: mgr.GetScheme(),
+		dm:     dm,
 	}
 	return reconciler.SetupWithManager(mgr)
 }

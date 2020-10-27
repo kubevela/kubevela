@@ -21,6 +21,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
+
 	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	oamCore "github.com/crossplane/oam-kubernetes-runtime/apis/core"
 	. "github.com/onsi/ginkgo"
@@ -100,10 +102,14 @@ var _ = BeforeSuite(func(done Done) {
 		LeaderElectionID:   "9f6dad5a.oam.dev",
 	})
 	Expect(err).ToNot(HaveOccurred())
+	dm, err := discoverymapper.New(mgr.GetConfig())
+	Expect(err).ToNot(HaveOccurred())
+
 	r := Reconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("MetricsTrait"),
 		Scheme: mgr.GetScheme(),
+		dm:     dm,
 	}
 	Expect(r.SetupWithManager(mgr)).ToNot(HaveOccurred())
 	controllerDone = make(chan struct{}, 1)

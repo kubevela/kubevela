@@ -39,6 +39,7 @@ tmp/
 cmd/vela/fake/source.go
 cmd/vela/fake/chart_source.go
 charts/vela-core/crds/_.yaml
+.test_vela
 
 .vela/
 
