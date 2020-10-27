@@ -6,7 +6,7 @@ This document is the detailed design and architecture of the KubeVela being buil
 
 ## Overview
 
-KubeVela is a simple, complete, but highly extensible cloud native application platform based on Kubernetes and Open Application Model (OAM). KubeVela intends to bring application-centric experience to its end users and democratize building cloud native application platforms for platform engineers.
+KubeVela is a simple, complete, but highly extensible cloud native application platform based on Kubernetes. KubeVela intends to bring application-centric experience to end users and democratize building cloud native application platforms for platform engineers.
 
 ## User Stories
 
@@ -18,13 +18,13 @@ As a end user (e.g. application developers, operators etc) of the platform, I on
 - Monitoring, debugging, rollout/rollback the application.
 - Dockerfile is fine, but please keep it simple. 
 
-As a platform engineer, I want to build a easy-to-use platform for my end users. In detail, the platform should be:
+As a platform engineer, I want to build a easy-to-use platform for end users. In detail, the platform should be:
 - Heroku-like (_in terms of both user experience and functionality_). 
   - and I prefer to build my own version with OSS tools, particularly, with Kubernetes (for obvious reason).
 - Easy to build. 
   - I am too busy to reinvent any wheel, I want to reuse every capability in Kubernetes community as possible,  with minimal effort. Writing some simple CRD and controllers is fine, but please, just the simple ones like copy-paste.
 - Powerful and highly extensible.
-  - I don't want to lock my users with restricted abstractions and capabilities like traditional PaaS or FaaS/Serverless. I love Kubernetes and what it has enabled. So in terms of capability, I hope my platform is fully open and has unlimited possibilities like Kubernetes itself, rather than another opinionated close system like traditional PaaS.
+  - I don't want to lock users with restricted abstractions and capabilities like traditional PaaS or FaaS/Serverless. I love Kubernetes and what it has enabled. So in terms of capability, I hope my platform is fully open and has unlimited possibilities like Kubernetes itself, rather than another opinionated close system like traditional PaaS.
 
 
 ## Core Principles
@@ -42,7 +42,7 @@ The design of KubeVela intends to make users think in terms of application, not 
 
 Lacking application context impacts the user experience and significantly raised the bar to adopt cloud native stack. We believe "application" is the natural mindset of developers and it's the core concept an application platform should expose.
 
-![alt](resources/app-centric.png)
+![alt](../esources/app-centric.png)
 
 KubeVela intends to let developers push code, define application in developer facing primitives, and make daily operations as configurations of the application.  
 
@@ -53,15 +53,15 @@ Thus, KubeVela choose to:
 #### Solution
 
 Instead of creating a in-house "application CRD", KubeVela adopts [Open Application Model (OAM)](https://github.com/oam-dev/spec) as its application definition, since OAM:
-1. Defines micro-services application by default.
-2. Model operations as part of the application (i.e. `Trait`).
-2. Highly extensible: every workload and trait in OAM is a independent definition, no abstraction or capability lock-in.
+1. defines micro-services application by default.
+2. models day 2 operations as part of the application (i.e. `Application Traits`).
+2. Is highly extensible: every workload and trait in OAM is a independent definition, no abstraction or capability lock-in.
 
 ### 2. Capability Oriented Architecture
 
 To enable platform builders use KubeVela as the extensible "PaaS core", KubeVela intends to make its every capability a standalone "plug-in".
 
-![alt](resources/coa.png)
+![alt](../resources/coa.png)
 
 For example, there are several "built-in" workload types in KubeVela such as `Web Service` or `Task`. It is by design that they are all independent CRD controllers that abstract Kubernetes built-in workloads and create Service automatically if needed. KubeVela itself is **NOT** aware of the specification or implementation of these workload types.
 
@@ -132,7 +132,7 @@ The `-t webservice --image oamdev/testapp:v1 --port 80` arguments are not hard c
 
 The `appfile` is essentially a YAML version of command line tool so we can support more complex and serious scenarios by simply running `$ vela up my-app.yaml`:
 
-![alt](resources/appfile.png)
+![alt](../resources/appfile.png)
 
 The schema of above `appfile` is not hard coded, they are structured following OAM and enforced by CUE templates of `WebService` workload definition, `Scaling` trait definition and `Canary` trait definition.
 
@@ -140,7 +140,7 @@ We will skip the example of dashboard, but similarly, the schema of GUI forms ar
 
 ## Architecture
 
-![alt](resources/arch.png)
+![alt](../resources/arch.png)
 
 From highest level, KubeVela is composed by only two components:
 
