@@ -76,11 +76,10 @@ func GetParameters(templatePath string) ([]types.Parameter, error) {
 	var found bool
 	for i := 0; i < tempStruct.Len(); i++ {
 		paraDef = tempStruct.Field(i)
-		if !paraDef.IsDefinition || paraDef.IsHidden {
-			continue
+		if paraDef.Name == specValue {
+			found = true
+			break
 		}
-		found = true
-		break
 	}
 	if !found {
 		return nil, errors.New("arguments not exist")
