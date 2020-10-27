@@ -10,9 +10,9 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/application"
+	"github.com/oam-dev/kubevela/pkg/commands/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -62,23 +62,6 @@ type Args struct {
 	App    *application.Application
 }
 
-func (l *Args) AskComponent() (string, error) {
-	comps := l.App.GetComponents()
-	if len(comps) == 1 {
-		return comps[0], nil
-	}
-	prompt := &survey.Select{
-		Message: "You have multiple Components in your app. Please choose one component for logs: ",
-		Options: comps,
-	}
-	var compName string
-	err := survey.AskOne(prompt, &compName)
-	if err != nil {
-		return "", fmt.Errorf("choosing component name err %v", err)
-	}
-	return compName, nil
-}
-
 // Run refer to the implementation at https://github.com/oam-dev/stern/blob/master/stern/main.go
 func (l *Args) Run(ctx context.Context, ioStreams cmdutil.IOStreams) error {
 
@@ -86,7 +69,7 @@ func (l *Args) Run(ctx context.Context, ioStreams cmdutil.IOStreams) error {
 	if err != nil {
 		return err
 	}
-	compName, err := l.AskComponent()
+	compName, err := util.AskToChooseOneService(l.App.GetComponents())
 	if err != nil {
 		return err
 	}

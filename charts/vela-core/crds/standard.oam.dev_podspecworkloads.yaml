@@ -5691,7 +5691,6 @@ spec:
                 type: integer
             required:
             - podSpec
-            - replicas
             type: object
           status:
             description: PodSpecWorkloadStatus defines the observed state of PodSpecWorkload

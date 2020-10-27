@@ -7,12 +7,9 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     metadata:
-      name: rollout-demo-app
       labels:
         app: rollout-demo-app
-        # pod-template-hash: 7564juhy8m6n785i
     spec:
-      replicas: 2
       selector:
         matchLabels:
           app: rollout-demo-app
@@ -20,10 +17,9 @@ spec:
         metadata:
           labels:
             app: rollout-demo-app
-            # pod-template-hash: 7564juhy8m6n785i
         spec:
           containers:
-            - image: openshift/deployment-example:v1
+            - image: stefanprodan/podinfo:5.0.2
               name: metrics-provider
               ports:
                 - name: http

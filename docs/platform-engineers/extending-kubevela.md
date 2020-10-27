@@ -1,0 +1,1 @@
+<!-- Three steps to integrate a external capability -->

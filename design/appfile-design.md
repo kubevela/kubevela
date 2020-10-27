@@ -278,7 +278,7 @@ Here is the takeout:
 
 ### `vela up`
 
-The vela-cli will have an `up` command to provide seamless workflow experience. Provide an `vela.yml` Appfile in the same directory that you will run `vela up` and it is good to go. There is an example under `examples/testapp/` .
+The vela-cli will have an `up` command to provide seamless workflow experience. Provide an `vela.yaml` Appfile in the same directory that you will run `vela up` and it is good to go. There is an example under `examples/testapp/` .
 
 ## Examples
 

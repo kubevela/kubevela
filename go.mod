@@ -33,26 +33,32 @@ require (
 	github.com/stretchr/testify v1.6.1
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.3
-	go.uber.org/zap v1.13.0
+	github.com/wonderflow/keda-api v0.0.0-20201026084048-e7c39fa208e8
+	go.uber.org/zap v1.15.0
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.2.4
-	k8s.io/api v0.18.6
+	k8s.io/api v0.18.8
 	k8s.io/apiextensions-apiserver v0.18.6
-	k8s.io/apimachinery v0.18.6
+	k8s.io/apimachinery v0.18.8
 	k8s.io/cli-runtime v0.18.6
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/klog v1.0.0
-	k8s.io/kube-openapi v0.0.0-20200410145947-bcb3869e6f29 // indirect
-	k8s.io/kubectl v0.18.6 // indirect
-	k8s.io/utils v0.0.0-20200414100711-2df71ebbae66
-	sigs.k8s.io/controller-runtime v0.6.0
+	k8s.io/kubectl v0.18.6
+	k8s.io/utils v0.0.0-20200603063816-c1c6865ac451
+	sigs.k8s.io/controller-runtime v0.6.1
 )
 
 replace (
 	github.com/Azure/go-autorest => github.com/Azure/go-autorest v12.2.0+incompatible // https://github.com/kubernetes/client-go/issues/628
+	github.com/Sirupsen/logrus v1.7.0 => github.com/sirupsen/logrus v1.7.0
+	// fix build issue https://github.com/docker/distribution/issues/2406
+	github.com/docker/distribution => github.com/docker/distribution v0.0.0-20191216044856-a8371794149d
+	github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.0-alpha
+	// fix build issue https://github.com/ory/dockertest/issues/208
+	golang.org/x/sys => golang.org/x/sys v0.0.0-20200826173525-f9321e4c35a6
 	// clint-go had a buggy release, https://github.com/kubernetes/client-go/issues/749
-	k8s.io/client-go => k8s.io/client-go v0.18.6
+	k8s.io/client-go => k8s.io/client-go v0.18.8
 )
