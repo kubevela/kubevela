@@ -104,8 +104,8 @@ func (s Service) RenderService(tm template.Manager, name, ns string, cg configGe
 		}
 		ctxData["config"] = data
 	}
-
-	u, err := evalComponent(tm.LoadTemplate(wtype), ctxData, intifyValues(workloadKeys))
+	_, rawTmpl := tm.LoadTemplate(wtype)
+	u, err := evalComponent(rawTmpl, ctxData, intifyValues(workloadKeys))
 	if err != nil {
 		return nil, nil, fmt.Errorf("eval component failed: %w", err)
 	}
@@ -114,13 +114,14 @@ func (s Service) RenderService(tm template.Manager, name, ns string, cg configGe
 	// render traits
 	traits := make([]v1alpha2.ComponentTrait, 0)
 	for traitType, traitData := range traitKeys {
-		ts, err := evalTraits(tm.LoadTemplate(traitType), ctxData, intifyValues(traitData))
+		defName, rawTmpl := tm.LoadTemplate(traitType)
+		ts, err := evalTraits(rawTmpl, ctxData, intifyValues(traitData))
 		if err != nil {
 			return nil, nil, fmt.Errorf("eval traits failed: %w", err)
 		}
 		// one capability corresponds to one trait only
 		if len(ts) == 1 {
-			ts[0].SetLabels(map[string]string{oam.TraitTypeLabel: traitType})
+			ts[0].SetLabels(map[string]string{oam.TraitTypeLabel: defName})
 		}
 		for _, t := range ts {
 			traits = append(traits, v1alpha2.ComponentTrait{

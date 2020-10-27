@@ -95,6 +95,7 @@ func HandleDefinition(name, syncDir, crdName string, annotation map[string]strin
 		return types.Capability{}, err
 	}
 	tmp.Type = tp
+	tmp.DefName = name
 	if tp == types.TypeTrait {
 		tmp.AppliesTo = applyTo
 	}

@@ -7,7 +7,7 @@ import (
 
 type Manager interface {
 	IsTrait(key string) bool
-	LoadTemplate(key string) string
+	LoadTemplate(key string) (defName, tmpl string)
 }
 
 func Load() (Manager, error) {
@@ -20,6 +20,7 @@ func Load() (Manager, error) {
 		t := &Template{}
 		t.Captype = cap.Type
 		t.Raw = cap.CueTemplate
+		t.DefName = cap.DefName
 		m.Templates[cap.Name] = t
 	}
 	return m, nil
@@ -28,6 +29,7 @@ func Load() (Manager, error) {
 type Template struct {
 	Captype types.CapType
 	Raw     string
+	DefName string
 }
 
 type manager struct {
@@ -48,10 +50,10 @@ func (m *manager) IsTrait(key string) bool {
 	return t.Captype == types.TypeTrait
 }
 
-func (m *manager) LoadTemplate(key string) string {
+func (m *manager) LoadTemplate(key string) (string, string) {
 	t, ok := m.Templates[key]
 	if !ok {
-		return ""
+		return "", ""
 	}
-	return t.Raw
+	return t.DefName, t.Raw
 }

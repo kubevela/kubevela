@@ -39,6 +39,7 @@ type CrdInfo struct {
 type Capability struct {
 	Name           string      `json:"name"`
 	Type           CapType     `json:"type"`
+	DefName        string      `json:"defName,omitempty"`
 	CueTemplate    string      `json:"template,omitempty"`
 	CueTemplateURI string      `json:"templateURI,omitempty"`
 	Parameters     []Parameter `json:"parameters,omitempty"`

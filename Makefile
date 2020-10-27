@@ -122,12 +122,14 @@ core-run: generate fmt vet manifests
 # Install CRDs and Definitions of Vela Core into a cluster, this is for develop convenient.
 core-install: manifests
 	kubectl apply -f charts/vela-core/crds/
+	kubectl apply -f charts/vela-core/templates/scopedef/
 	kubectl apply -f charts/vela-core/templates/definitions/
 	kubectl apply -f charts/third_party/prometheus
 	bin/vela system update
 
 # Uninstall CRDs and Definitions of Vela Core from a cluster, this is for develop convenient.
 core-uninstall: manifests
+	kubectl delete -f charts/vela-core/templates/scopedef/
 	kubectl delete -f charts/vela-core/templates/definitions/
 	kubectl delete -f charts/third_party/prometheus
 	kubectl delete -f charts/vela-core/crds/
