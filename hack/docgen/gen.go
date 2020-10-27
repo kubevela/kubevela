@@ -10,7 +10,7 @@ import (
 
 func main() {
 	vela := commands.NewCommand()
-	err := doc.GenMarkdownTree(vela, "./documentation/cli/")
+	err := doc.GenMarkdownTree(vela, "./docs/cli/")
 	if err != nil {
 		log.Fatal(err)
 	}
