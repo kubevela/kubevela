@@ -21,6 +21,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
+// ProductionACMEServer is the production ACME Server from let's encrypt
+const ProductionACMEServer = "https://acme-v02.api.letsencrypt.org/directory"
+
 func GetEnvDirByName(name string) string {
 	envdir, _ := system.GetEnvDir()
 	return filepath.Join(envdir, name)
@@ -45,14 +48,37 @@ func GetEnvByName(name string) (*types.EnvMeta, error) {
 //If it does not exist, create it and set to the new env.
 //If it exists, update it and set to the new env.
 func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, envArgs *types.EnvMeta) (string, error) {
+
+	createOrUpdated := "created"
+	old, err := GetEnvByName(envName)
+	if err == nil {
+		createOrUpdated = "updated"
+		if envArgs.Domain == "" {
+			envArgs.Domain = old.Domain
+		}
+		if envArgs.Email == "" {
+			envArgs.Email = old.Email
+		}
+		if envArgs.Issuer == "" {
+			envArgs.Issuer = old.Issuer
+		}
+		if envArgs.Namespace == "" {
+			envArgs.Namespace = old.Namespace
+		}
+	}
+
+	if envArgs.Namespace == "" {
+		envArgs.Namespace = "default"
+	}
+
 	var message = ""
 	// Create Namespace
 	if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envArgs.Namespace}}); err != nil && !apierrors.IsAlreadyExists(err) {
 		return message, err
 	}
 
-	// Create Issuer For SSL
-	if envArgs.Email != "" {
+	// Create Issuer For SSL if both email and domain are all set.
+	if envArgs.Email != "" && envArgs.Domain != "" {
 		issuerName := "oam-env-" + envArgs.Name
 		if err := c.Create(ctx, &certmanager.Issuer{
 			ObjectMeta: metav1.ObjectMeta{Name: issuerName, Namespace: envArgs.Namespace},
@@ -60,7 +86,7 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 				IssuerConfig: certmanager.IssuerConfig{
 					ACME: &acmev1.ACMEIssuer{
 						Email:  envArgs.Email,
-						Server: "https://acme-v02.api.letsencrypt.org/directory",
+						Server: ProductionACMEServer,
 						PrivateKey: v1.SecretKeySelector{
 							LocalObjectReference: v1.LocalObjectReference{Name: "oam-env-" + envArgs.Name + ".key"},
 						},
@@ -100,7 +126,11 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 	if err = ioutil.WriteFile(curEnvPath, []byte(envName), 0644); err != nil {
 		return message, err
 	}
-	message = fmt.Sprintf("environment %s created, Namespace: %s, Email: %s.", envName, envArgs.Namespace, envArgs.Email)
+
+	message = fmt.Sprintf("environment %s %s, Namespace: %s", envName, createOrUpdated, envArgs.Namespace)
+	if envArgs.Email != "" {
+		message += fmt.Sprintf(", Email: %s", envArgs.Email)
+	}
 	return message, nil
 }
 

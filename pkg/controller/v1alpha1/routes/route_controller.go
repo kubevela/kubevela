@@ -21,8 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
+	"time"
 
 	"github.com/oam-dev/kubevela/api/v1alpha1"
 	standardv1alpha1 "github.com/oam-dev/kubevela/api/v1alpha1"
@@ -32,10 +31,10 @@ import (
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
 	oamutil "github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
-	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/api/networking/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -50,8 +49,9 @@ import (
 
 const (
 	errApplyNginxIngress = "failed to apply the ingress"
-	errCreateIssuer      = "failed to create cert-manager Issuer"
 )
+
+var requeueNotReady = 10 * time.Second
 
 // Reconciler reconciles a Route object
 type Reconciler struct {
@@ -104,33 +104,15 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 	}
 
-	// Create Issuer
-	if routeTrait.Spec.TLS == nil {
-		issuerName, err := r.createSelfsignedIssuer(ctx, &routeTrait)
-		if err != nil {
-			r.record.Event(eventObj, event.Warning(errCreateIssuer, err))
-			return oamutil.ReconcileWaitResult,
-				oamutil.PatchCondition(ctx, r, &routeTrait,
-					cpv1alpha1.ReconcileError(errors.Wrap(err, errCreateIssuer)))
-		}
-		r.record.Event(eventObj, event.Normal("Issuer created",
-			fmt.Sprintf("successfully automatically created a Issuer for route TLS `%s`", issuerName)))
-		// All rules will use the same selfsigned issuer.
-		routeTrait.Spec.TLS = &v1alpha1.TLS{
-			IssuerName: issuerName,
-			Type:       standardv1alpha1.NamespaceIssuer,
-		}
-	}
-
-	ingressConstructer, err := ingress.GetRouteIngress(routeTrait.Spec.Provider)
+	routeIngress, err := ingress.GetRouteIngress(routeTrait.Spec.Provider, r.Client)
 	if err != nil {
 		mLog.Error(err, "Failed to get routeIngress, use nginx route instead")
-		ingressConstructer = &ingress.Nginx{}
+		routeIngress = &ingress.Nginx{}
 	}
 
 	// Create Ingress
 	// construct the serviceMonitor that hooks the service to the prometheus server
-	ingresses := ingressConstructer.Construct(&routeTrait)
+	ingresses := routeIngress.Construct(&routeTrait)
 	// server side apply the serviceMonitor, only the fields we set are touched
 	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(routeTrait.GetUID())}
 	for _, ingress := range ingresses {
@@ -141,7 +123,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				oamutil.PatchCondition(ctx, r, &routeTrait,
 					cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyNginxIngress)))
 		}
-		r.record.Event(eventObj, event.Normal("Nginx Ingress created",
+		r.record.Event(eventObj, event.Normal("nginx ingress created",
 			fmt.Sprintf("successfully server side patched a route trait `%s`", routeTrait.Name)))
 	}
 	// TODO(wonderflow): GC mechanism for no used ingress, service, issuer
@@ -157,6 +139,12 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 	routeTrait.Status.Ingresses = ingressCreated
 	routeTrait.Status.Service = svc
+	var conditions []runtimev1alpha1.Condition
+	routeTrait.Status.Status, conditions = routeIngress.CheckStatus(&routeTrait)
+	routeTrait.Status.Conditions = conditions
+	if routeTrait.Status.Status != ingress.StatusReady {
+		return ctrl.Result{RequeueAfter: requeueNotReady}, r.Status().Update(ctx, &routeTrait)
+	}
 	return ctrl.Result{}, r.Status().Update(ctx, &routeTrait)
 }
 
@@ -291,29 +279,6 @@ func DiscoverPortsLabel(ctx context.Context, workload *unstructured.Unstructured
 		gatherErrs = append(gatherErrs, err)
 	}
 	return nil, nil, fmt.Errorf("fail to automatically discovery backend from workload %v(%v.%v) and it's child resource, errorList: %v", workload.GetName(), workload.GetAPIVersion(), workload.GetKind(), gatherErrs)
-}
-
-func (r *Reconciler) createSelfsignedIssuer(ctx context.Context, routeTrait *v1alpha1.Route) (string, error) {
-	var selfSigned = "selfsigned"
-	var issuer = certmanager.Issuer{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: certmanager.SchemeGroupVersion.String(),
-			Kind:       certmanager.IssuerKind,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      selfSigned,
-			Namespace: routeTrait.Namespace,
-		},
-	}
-	err := r.Client.Get(ctx, client.ObjectKey{Name: selfSigned, Namespace: routeTrait.Namespace}, &issuer)
-	if err == nil {
-		return selfSigned, nil
-	}
-	issuer.Spec.SelfSigned = &certmanager.SelfSignedIssuer{}
-	if apierrors.IsNotFound(err) {
-		return selfSigned, r.Client.Create(ctx, &issuer)
-	}
-	return selfSigned, fmt.Errorf("get %s err %v", selfSigned, err)
 }
 
 // fetch the service that is associated with the workload

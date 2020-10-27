@@ -177,7 +177,7 @@ var _ = ginkgo.Describe("API", func() {
 			err = json.Unmarshal(result, &r)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(http.StatusOK).Should(gomega.Equal(r.Code), string(result))
-			output := fmt.Sprintf("Creating App %s\nSUCCEED", workloadName)
+			output := fmt.Sprintf("App %s deployed", workloadName)
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(output))
 		})
 

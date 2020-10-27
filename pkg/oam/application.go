@@ -112,6 +112,7 @@ func ListComponents(ctx context.Context, c client.Client, opt Option) ([]apis.Co
 				CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
 				Component:   component,
 				AppConfig:   a,
+				App:         a.Name,
 			})
 		}
 	}

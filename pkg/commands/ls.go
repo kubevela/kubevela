@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
@@ -18,47 +17,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 )
 
-func NewAppListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	ctx := context.Background()
-	cmd := &cobra.Command{
-		Use:                   "ls",
-		DisableFlagsInUseLine: true,
-		Short:                 "List applications",
-		Long:                  "List applications with workloads, traits, status and created time",
-		Example:               `vela app ls`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			env, err := GetEnv(cmd)
-			if err != nil {
-				return err
-			}
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
-			if err != nil {
-				return err
-			}
-			return printApplicationList(ctx, newClient, env.Namespace, ioStreams)
-		},
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeApp,
-		},
-	}
-	cmd.Flags().StringP(App, "a", "", "Application name")
-	return cmd
-}
-
-func printApplicationList(ctx context.Context, c client.Client, namespace string, ioStreams cmdutil.IOStreams) error {
-	var applicationList corev1alpha2.ApplicationConfigurationList
-
-	err := c.List(ctx, &applicationList, &client.ListOptions{Namespace: namespace})
-	if err != nil {
-		return err
-	}
-	for _, v := range applicationList.Items {
-		ioStreams.Info(v.Name)
-	}
-	return nil
-}
-
-func NewCompListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "ls",
@@ -66,7 +25,7 @@ func NewCompListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 		DisableFlagsInUseLine: true,
 		Short:                 "List services",
 		Long:                  "List services with their application, type, traits, status and created time, etc.",
-		Example:               `vela svc ls`,
+		Example:               `vela ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			env, err := GetEnv(cmd)
 			if err != nil {
@@ -87,6 +46,7 @@ func NewCompListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 			types.TagCommandType: types.TypeApp,
 		},
 	}
+	cmd.PersistentFlags().StringP(App, "", "", "specify the name of application")
 	return cmd
 }
 
@@ -117,7 +77,7 @@ func mergeStagingComponents(deployed []apis.ComponentMeta, env *types.EnvMeta, i
 	}
 	var all []apis.ComponentMeta
 	for _, app := range apps {
-		comps, appConfig, _, err := app.OAM(env, ioStreams)
+		comps, appConfig, _, err := app.OAM(env, ioStreams, true)
 		if err != nil {
 			ioStreams.Errorf("convert app %s err %v\n", app.Name, err)
 			continue

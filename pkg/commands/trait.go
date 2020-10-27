@@ -158,11 +158,17 @@ func (o *commandOptions) Run(ctx context.Context, cmd *cobra.Command, io cmdutil
 	if err != nil {
 		return err
 	}
-	msg, err := oam.TraitOperationRun(ctx, o.Client, o.Env, o.app, staging, io)
+	_, err = oam.TraitOperationRun(ctx, o.Client, o.Env, o.app, staging, io)
 	if err != nil {
 		return err
 	}
+	deployStatus, err := printTrackingDeployStatus(ctx, o.Client, o.IOStreams, o.workloadName, o.appName, o.Env)
+	if err != nil {
+		return err
+	}
+	if deployStatus != compStatusDeployed {
+		return nil
+	}
 
-	o.Info(msg)
-	return nil
+	return printComponentStatus(context.Background(), o.Client, o.IOStreams, o.workloadName, o.appName, o.Env)
 }

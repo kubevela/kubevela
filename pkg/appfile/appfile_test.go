@@ -377,7 +377,7 @@ outputs: ingress: {
 				}
 			}
 
-			comps, ac, err := app.RenderOAM("default", io, tm)
+			comps, ac, err := app.RenderOAM("default", io, tm, false)
 			if err != nil {
 				assert.Equal(t, c.want.err, err)
 				return

@@ -145,10 +145,7 @@ func ValidateAndMutateForCore(traitType, workloadName string, flags *pflag.FlagS
 			}
 		}
 		issuer, _ := flags.GetString("issuer")
-		if issuer == "" {
-			if env.Issuer == "" {
-				return fmt.Errorf("--issuer is required, you can also set email in environment and let it generate automatically")
-			}
+		if issuer == "" && env.Issuer != "" {
 			if err := flags.Set("issuer", env.Issuer); err != nil {
 				return fmt.Errorf("set flag for vela-core trait('route') err %v, please make sure your template is right", err)
 			}
@@ -241,7 +238,7 @@ func TraitOperationRun(ctx context.Context, c client.Client, env *types.EnvMeta,
 	if err != nil {
 		return "", err
 	}
-	return "Succeeded!", nil
+	return "Deployed!", nil
 }
 
 func PrepareDetachTrait(envName string, traitType string, componentName string, appName string) (*application.Application, error) {

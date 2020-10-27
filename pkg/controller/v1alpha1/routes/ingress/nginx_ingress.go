@@ -1,21 +1,102 @@
 package ingress
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strconv"
 
 	standardv1alpha1 "github.com/oam-dev/kubevela/api/v1alpha1"
 
+	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
+	cmmeta "github.com/wonderflow/cert-manager-api/pkg/apis/meta/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type Nginx struct{}
+type Nginx struct {
+	Client client.Client
+}
 
 var _ RouteIngress = &Nginx{}
+
+func (n *Nginx) CheckStatus(routeTrait *standardv1alpha1.Route) (string, []runtimev1alpha1.Condition) {
+	ctx := context.Background()
+	// check issuer
+	if routeTrait.Spec.TLS != nil && routeTrait.Spec.TLS.Type != standardv1alpha1.ClusterIssuer {
+		tls := routeTrait.Spec.TLS
+		var issuer certmanager.Issuer
+		err := n.Client.Get(ctx, types.NamespacedName{Namespace: routeTrait.Namespace, Name: tls.IssuerName}, &issuer)
+		if err != nil || len(issuer.Status.Conditions) < 1 {
+			var message string
+			if err == nil {
+				message = fmt.Sprintf("issuer '%v' is pending to be resolved by controller", tls.IssuerName)
+			} else {
+				message = err.Error()
+			}
+			return StatusSynced, []runtimev1alpha1.Condition{{Type: runtimev1alpha1.TypeSynced,
+				Status: v1.ConditionFalse, LastTransitionTime: metav1.Now(), Reason: runtimev1alpha1.ReasonUnavailable,
+				Message: message}}
+		}
+		//TODO(wonderflow): handle more than one condition case
+		condition := issuer.Status.Conditions[0]
+		if condition.Status != cmmeta.ConditionTrue {
+			return StatusSynced, []runtimev1alpha1.Condition{{Type: runtimev1alpha1.TypeSynced,
+				Status: v1.ConditionFalse, LastTransitionTime: metav1.Now(), Reason: runtimev1alpha1.ConditionReason(condition.Reason),
+				Message: condition.Message}}
+		}
+	}
+	// check ingress
+	ingresses := n.Construct(routeTrait)
+	for _, in := range ingresses {
+
+		// Check Certificate
+		if routeTrait.Spec.TLS != nil {
+			var cert certmanager.Certificate
+			// check cert
+			err := n.Client.Get(ctx, types.NamespacedName{Namespace: routeTrait.Namespace, Name: in.Name + "-cert"}, &cert)
+			if err != nil || len(cert.Status.Conditions) < 1 {
+				var message string
+				if err == nil {
+					message = fmt.Sprintf("CertificateRequest %s is pending to be resolved by controller", in.Name)
+				} else {
+					message = err.Error()
+				}
+				return StatusSynced, []runtimev1alpha1.Condition{{Type: runtimev1alpha1.TypeSynced,
+					Status: v1.ConditionFalse, LastTransitionTime: metav1.Now(), Reason: runtimev1alpha1.ReasonUnavailable,
+					Message: message}}
+			}
+			//TODO(wonderflow): handle more than one condition case
+			certcondition := cert.Status.Conditions[0]
+			if certcondition.Status != cmmeta.ConditionTrue || certcondition.Type != certmanager.CertificateConditionReady {
+				return StatusSynced, []runtimev1alpha1.Condition{{Type: runtimev1alpha1.TypeSynced,
+					Status: v1.ConditionFalse, LastTransitionTime: metav1.Now(), Reason: runtimev1alpha1.ConditionReason(certcondition.Reason),
+					Message: certcondition.Message}}
+			}
+		}
+
+		// Check Ingress
+		var ingress v1beta1.Ingress
+		if err := n.Client.Get(ctx, types.NamespacedName{Namespace: in.Namespace, Name: in.Name}, &ingress); err != nil {
+			return StatusSynced, []runtimev1alpha1.Condition{{Type: runtimev1alpha1.TypeSynced,
+				Status: v1.ConditionFalse, LastTransitionTime: metav1.Now(), Reason: runtimev1alpha1.ReasonUnavailable,
+				Message: err.Error()}}
+		}
+		ingressvalue := ingress.Status.LoadBalancer.Ingress
+		if len(ingressvalue) < 1 || ingressvalue[0].IP == "" {
+			return StatusSynced, []runtimev1alpha1.Condition{{Type: runtimev1alpha1.TypeSynced,
+				Status: v1.ConditionFalse, LastTransitionTime: metav1.Now(), Reason: runtimev1alpha1.ReasonCreating,
+				Message: fmt.Sprintf("IP of %s ingress is generating", in.Name)}}
+		}
+	}
+	return StatusReady, []runtimev1alpha1.Condition{{Type: runtimev1alpha1.TypeReady, Status: v1.ConditionTrue,
+		Reason: runtimev1alpha1.ReasonAvailable, LastTransitionTime: metav1.Now()}}
+}
 
 func (*Nginx) Construct(routeTrait *standardv1alpha1.Route) []*v1beta1.Ingress {
 
@@ -35,12 +116,13 @@ func (*Nginx) Construct(routeTrait *standardv1alpha1.Route) []*v1beta1.Ingress {
 		annotations["kubernetes.io/ingress.class"] = TypeNginx
 
 		// SSL
-		var issuerAnn = "cert-manager.io/issuer"
-		if routeTrait.Spec.TLS.Type == standardv1alpha1.ClusterIssuer {
-			issuerAnn = "cert-manager.io/cluster-issuer"
+		if routeTrait.Spec.TLS != nil {
+			var issuerAnn = "cert-manager.io/issuer"
+			if routeTrait.Spec.TLS.Type == standardv1alpha1.ClusterIssuer {
+				issuerAnn = "cert-manager.io/cluster-issuer"
+			}
+			annotations[issuerAnn] = routeTrait.Spec.TLS.IssuerName
 		}
-		annotations[issuerAnn] = routeTrait.Spec.TLS.IssuerName
-
 		// Rewrite
 		if rule.RewriteTarget != "" {
 			annotations["ingress.kubernetes.io/rewrite-target"] = rule.RewriteTarget
@@ -87,11 +169,13 @@ func (*Nginx) Construct(routeTrait *standardv1alpha1.Route) []*v1beta1.Ingress {
 				},
 			},
 		}
-		ingress.Spec.TLS = []v1beta1.IngressTLS{
-			{
-				Hosts:      []string{routeTrait.Spec.Host},
-				SecretName: routeTrait.Name + "-" + name + "-cert",
-			},
+		if routeTrait.Spec.TLS != nil {
+			ingress.Spec.TLS = []v1beta1.IngressTLS{
+				{
+					Hosts:      []string{routeTrait.Spec.Host},
+					SecretName: routeTrait.Name + "-" + name + "-cert",
+				},
+			}
 		}
 		if rule.DefaultBackend != nil {
 			ingress.Spec.Backend = &v1beta1.IngressBackend{

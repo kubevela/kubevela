@@ -41,7 +41,7 @@ func AddCompCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 	compCommands.PersistentFlags().StringP(App, "a", "", "specify the name of application containing the services")
 
 	compCommands.AddCommand(
-		NewCompListCommand(c, ioStreams),
+
 		NewCompDeployCommands(c, ioStreams),
 		NewCompShowCommand(ioStreams),
 		NewCompStatusCommand(c, ioStreams),

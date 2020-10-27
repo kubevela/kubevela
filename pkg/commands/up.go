@@ -92,7 +92,7 @@ func (o *appfileOptions) Run(filePath string) error {
 		return err
 	}
 
-	comps, appConfig, err := app.BuildOAM(o.Env.Namespace, o.IO, tm)
+	comps, appConfig, err := app.BuildOAM(o.Env.Namespace, o.IO, tm, false)
 	if err != nil {
 		return err
 	}

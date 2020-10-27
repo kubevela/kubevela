@@ -66,11 +66,11 @@ func TestENV(t *testing.T) {
 	ioStream.Out = &b
 	err = ListEnvs([]string{}, ioStream)
 	assert.NoError(t, err)
-	assert.Equal(t, "NAME   \tCURRENT\tNAMESPACE\ndefault\t       \tdefault  \nenv1   \t*      \ttest1    \n", b.String())
+	assert.Equal(t, "NAME   \tCURRENT\tNAMESPACE\tEMAIL\tDOMAIN\ndefault\t       \tdefault  \t     \t      \nenv1   \t*      \ttest1    \t     \t      \n", b.String())
 	b.Reset()
 	err = ListEnvs([]string{"env1"}, ioStream)
 	assert.NoError(t, err)
-	assert.Equal(t, "NAME\tCURRENT\tNAMESPACE\nenv1\t       \ttest1    \n", b.String())
+	assert.Equal(t, "NAME\tCURRENT\tNAMESPACE\tEMAIL\tDOMAIN\nenv1\t       \ttest1    \t     \t      \n", b.String())
 	ioStream.Out = os.Stdout
 
 	// can not delete current env

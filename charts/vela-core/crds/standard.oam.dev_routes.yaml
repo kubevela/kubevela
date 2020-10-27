@@ -241,6 +241,8 @@ spec:
                 - kind
                 - name
                 type: object
+              status:
+                type: string
             type: object
         type: object
     served: true

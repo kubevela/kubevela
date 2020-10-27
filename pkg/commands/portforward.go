@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
@@ -52,8 +54,8 @@ func NewPortForwardCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra
 		Short: "Forward one or more local ports to a Pod of a service in an application",
 		Long:  "Forward one or more local ports to a Pod of a service in an application",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) < 2 {
-				ioStreams.Error("Please specify application name and list of ports.")
+			if len(args) < 1 {
+				ioStreams.Error("Please specify application name.")
 				return nil
 			}
 			if err := o.Init(context.Background(), cmd, args); err != nil {
@@ -118,7 +120,35 @@ func (o *VelaPortForwardOptions) Complete() error {
 	if err != nil {
 		return err
 	}
-
+	if len(o.Args) < 2 {
+		var found bool
+		_, configs := o.App.GetServiceConfig(svcName)
+		for k, v := range configs {
+			if k == "port" {
+				var val string
+				switch pv := v.(type) {
+				case int:
+					val = strconv.Itoa(pv)
+				case string:
+					val = pv
+				case float64:
+					val = strconv.Itoa(int(pv))
+				default:
+					return fmt.Errorf("invalid type '%s' of port %v", reflect.TypeOf(v), k)
+				}
+				if val == "80" {
+					val = "8080:80"
+				} else if val == "443" {
+					val = "8443:443"
+				}
+				o.Args = append(o.Args, val)
+				found = true
+			}
+		}
+		if !found {
+			return fmt.Errorf("no port found in app or arguments")
+		}
+	}
 	args := make([]string, len(o.Args))
 	copy(args, o.Args)
 	args[0] = podName

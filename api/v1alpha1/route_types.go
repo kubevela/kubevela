@@ -105,6 +105,7 @@ type BackendServiceRef struct {
 type RouteStatus struct {
 	Ingresses                         []runtimev1alpha1.TypedReference `json:"ingresses,omitempty"`
 	Service                           *runtimev1alpha1.TypedReference  `json:"service,omitempty"`
+	Status                            string                           `json:"status,omitempty"`
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
 }
 
