@@ -21,6 +21,7 @@ import (
 	"github.com/oam-dev/trait-injector/pkg/injector"
 	"github.com/oam-dev/trait-injector/pkg/plugin"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
+	kedav1alpha1 "github.com/wonderflow/keda-api/api/v1alpha1"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -58,7 +59,7 @@ func init() {
 	_ = velacoreoamdev.AddToScheme(scheme)
 	_ = injectorv1alpha1.AddToScheme(scheme)
 	_ = certmanager.AddToScheme(scheme)
-
+	_ = kedav1alpha1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
