@@ -17,7 +17,7 @@ var (
 	ErrImageNotDefined = errors.New("image not defined")
 )
 
-const DefaultAppfilePath = "./vela.yml"
+const DefaultAppfilePath = "./vela.yaml"
 
 type AppFile struct {
 	Name       string             `json:"name"`

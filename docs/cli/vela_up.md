@@ -4,7 +4,7 @@ Apply an appfile
 
 ### Synopsis
 
-Apply an appfile, by default vela.yml
+Apply an appfile, by default vela.yaml
 
 ```
 vela up

@@ -28,7 +28,7 @@ type PodSpecWorkloadSpec struct {
 	// Replicas is the desired number of replicas of the given podSpec.
 	// These are replicas in the sense that they are instantiations of the same podSpec.
 	// If unspecified, defaults to 1.
-	Replicas *int32 `json:"replicas"`
+	Replicas *int32 `json:"replicas,omitempty"`
 
 	// PodSpec describes the pods that will be created,
 	// we omit the meta part as it will be exactly the same as the PodSpecWorkload
@@ -46,6 +46,8 @@ type PodSpecWorkloadStatus struct {
 // +kubebuilder:object:root=true
 
 // PodSpecWorkload is the Schema for the PodSpec API
+// +genclient:method=GetScale,verb=get,subresource=scale,result=k8s.io/api/autoscaling/v1.Scale
+// +genclient:method=UpdateScale,verb=update,subresource=scale,input=k8s.io/api/autoscaling/v1.Scale,result=k8s.io/api/autoscaling/v1.Scale
 // +kubebuilder:resource:categories={oam}
 // +kubebuilder:subresource:status
 type PodSpecWorkload struct {

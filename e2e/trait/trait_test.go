@@ -14,6 +14,7 @@ var (
 	applicationName           = "app-trait-basic"
 	applicationNotExistedName = "app-trait-basic-NOT-EXISTED"
 	traitAlias                = "scale"
+	serviceNameNotExisting    = "svc-not-existing"
 )
 
 var _ = ginkgo.Describe("Trait", func() {
@@ -25,15 +26,23 @@ var _ = ginkgo.Describe("Trait", func() {
 	e2e.TraitManualScalerAttachContext("vela attach trait", traitAlias, applicationName)
 
 	// Trait
-	ginkgo.Context("vela attach trait to a not existed app", func() {
-		ginkgo.It("should print successful attached information", func() {
+	ginkgo.Context("vela attach trait to a not existing app", func() {
+		ginkgo.It("should alert app not exist", func() {
 			cli := fmt.Sprintf("vela %s %s", traitAlias, applicationNotExistedName)
 			output, err := e2e.Exec(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(output).To(gomega.ContainSubstring("component name (" + applicationNotExistedName + ") doesn't exist"))
+			gomega.Expect(output).To(gomega.ContainSubstring("the application " + applicationNotExistedName + " doesn't exist in current env " + envName))
 		})
 	})
 
+	ginkgo.Context("vela attach trait to a not existing service", func() {
+		ginkgo.It("should alert service not exist", func() {
+			cli := fmt.Sprintf("vela %s %s --svc %s", traitAlias, applicationName, serviceNameNotExisting)
+			output, err := e2e.Exec(cli)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(output).To(gomega.ContainSubstring("the service " + serviceNameNotExisting + " doesn't exist in the application " + applicationName))
+		})
+	})
 	//ginkgo.Context("vela detach trait", func() {
 	//	ginkgo.It("should print successful detached information", func() {
 	//		cli := fmt.Sprintf("vela %s --detach %s", traitAlias, applicationName)
