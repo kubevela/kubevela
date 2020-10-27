@@ -12,9 +12,8 @@ output: {
 		}]
 	}
 }
-#route: {
+parameter: {
 	domain:  string
 	port:    *80 | int
 	service: string
 }
-parameter: #route

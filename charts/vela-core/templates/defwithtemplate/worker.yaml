@@ -8,7 +8,7 @@ metadata:
     definition.oam.dev/description: "Backend worker without ports exposed"
 spec:
   definitionRef:
-    name: podspecworkload.standard.oam.dev
+    name: podspecworkloads.standard.oam.dev
   childResourceKinds:
     - apiVersion: apps/v1
       kind: Deployment
@@ -18,22 +18,21 @@ spec:
         apiVersion: "standard.oam.dev/v1alpha1"
         kind:       "PodSpecWorkload"
         metadata:
-          name: parameter.name
+          name: context.name
         spec: {
           replicas: 1
-            podSpec: {
-              containers: [{
-                 image: parameter.image
-                   name:  parameter.name
-               }]
-            }
+          podSpec: {
+            containers: [{
+              image: parameter.image
+              name:  context.name
+            }]
+          }
         }
       }
-      #backend: {
-        name: string
-          // +usage=specify app image
-          // +short=i
+      
+      parameter: {
+        // +usage=specify app image
+        // +short=i
         image: string
       }
-      parameter: #backend
-
+      

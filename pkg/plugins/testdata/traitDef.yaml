@@ -16,7 +16,6 @@ spec:
       		domain: parameter.domain
       	}
       }
-      #route: {
+      parameter: {
       	domain: string
       }
-      parameter: #route

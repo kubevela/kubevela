@@ -9,23 +9,22 @@ metadata:
   namespace: default
 spec:
   appliesToWorkloads:
-    - core.oam.dev/v1alpha2.ContainerizedWorkload
-    - apps/v1.Deployment
     - webservice
+    - containerizedworkloads.core.oam.dev
+    - deployments.apps
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
   extension:
     template: |-
       output: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replica
-      	}
+        apiVersion: "core.oam.dev/v1alpha2"
+        kind:       "ManualScalerTrait"
+        spec: {
+          replicaCount: parameter.replica
+        }
       }
-      #scale: {
-      	//+short=r
-      	replica: *2 | int
+      parameter: {
+        //+short=r
+        replica: *2 | int
       }
-      parameter: #scale

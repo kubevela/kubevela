@@ -1,0 +1,13 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: task
+  annotations:
+    definition.oam.dev/apiVersion: "v1"
+    definition.oam.dev/kind: "Job"
+    definition.oam.dev/description: "One-time task/job"
+spec:
+  definitionRef:
+    name: jobs
+  extension:
+    template: |

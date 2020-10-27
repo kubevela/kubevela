@@ -8,9 +8,8 @@ output: {
 	}
 }
 
-#rollout: {
+parameter: {
 	replica:        *3 | int
 	maxUnavailable: *1 | int
 	batch:          *2 | int
 }
-parameter: #rollout

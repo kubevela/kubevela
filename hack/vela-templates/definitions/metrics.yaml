@@ -1,0 +1,23 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: metric
+  namespace: default
+  annotations:
+    definition.oam.dev/apiVersion: standard.oam.dev/v1alpha1
+    definition.oam.dev/kind: MetricsTrait
+    definition.oam.dev/description: "Add metric monitoring for workload"
+spec:
+  appliesToWorkloads:
+    - webservice
+    - backend
+    - task
+    - containerizedworkloads.core.oam.dev
+    - clonesetworkloads.apps.kruise.io
+    - deployments.apps
+    - statefulsets.apps
+  definitionRef:
+    name: metricstraits.standard.oam.dev
+  workloadRefPath: spec.workloadRef
+  extension:
+    template: |-

@@ -95,6 +95,7 @@ func HandleDefinition(name, syncDir, crdName string, annotation map[string]strin
 		return types.Capability{}, err
 	}
 	tmp.Type = tp
+	tmp.Name = name
 	if tp == types.TypeTrait {
 		tmp.AppliesTo = applyTo
 	}
@@ -146,7 +147,7 @@ func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Capab
 		return types.Capability{}, err
 	}
 	tmp.DefinitionPath = filePath
-	tmp.Parameters, tmp.Name, err = cue.GetParameters(filePath)
+	tmp.Parameters, err = cue.GetParameters(filePath)
 	if err != nil {
 		return types.Capability{}, err
 	}

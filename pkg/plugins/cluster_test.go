@@ -18,7 +18,7 @@ import (
 var _ = Describe("DefinitionFiles", func() {
 
 	route := types.Capability{
-		Name: "route",
+		Name: "routes.test",
 		Type: types.TypeTrait,
 		Parameters: []types.Parameter{
 			{
@@ -33,17 +33,11 @@ var _ = Describe("DefinitionFiles", func() {
 	}
 
 	deployment := types.Capability{
-		Name:        "deployment",
+		Name:        "deployments.testapps",
 		Type:        types.TypeWorkload,
 		CrdName:     "deployments.testapps",
 		Description: "description not defined",
 		Parameters: []types.Parameter{
-			{
-				Name:     "name",
-				Required: true,
-				Type:     cue.StringKind,
-				Default:  "",
-			},
 			{
 				Type: cue.ListKind,
 				Name: "env",
@@ -67,33 +61,25 @@ var _ = Describe("DefinitionFiles", func() {
 	}
 
 	websvc := types.Capability{
-		Name:           "webservice",
-		Type:           types.TypeWorkload,
-		CueTemplateURI: "https://raw.githubusercontent.com/oam-dev/kubevela/master/vela-templates/web-service.cue",
-		Description:    "description not defined",
-		Parameters: []types.Parameter{
-			{
-				Name:     "name",
-				Required: true,
-				Default:  "",
-				Type:     cue.StringKind,
-			},
-			{
-				Name:     "image",
-				Type:     cue.StringKind,
-				Default:  "",
-				Short:    "i",
-				Required: true,
-				Usage:    "specify app image",
-			},
-			{
-				Name:    "port",
-				Type:    cue.IntKind,
-				Short:   "p",
-				Default: int64(6379),
-				Usage:   "specify port for container",
-			},
-		},
+		Name:        "webservice.testapps",
+		Type:        types.TypeWorkload,
+		Description: "description not defined",
+		Parameters: []types.Parameter{{
+			Name: "env", Type: cue.ListKind,
+		}, {
+			Name:     "image",
+			Type:     cue.StringKind,
+			Default:  "",
+			Short:    "i",
+			Required: true,
+			Usage:    "specify app image",
+		}, {
+			Name:    "port",
+			Type:    cue.IntKind,
+			Short:   "p",
+			Default: int64(6379),
+			Usage:   "specify port for container",
+		}},
 		CrdName: "webservice.testapps",
 	}
 

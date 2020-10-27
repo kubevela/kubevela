@@ -7,7 +7,7 @@ import (
 
 type Manager interface {
 	IsTrait(key string) bool
-	LoadTemplate(key string) string
+	LoadTemplate(key string) (tmpl string)
 }
 
 func Load() (Manager, error) {

@@ -104,7 +104,6 @@ func (s Service) RenderService(tm template.Manager, name, ns string, cg configGe
 		}
 		ctxData["config"] = data
 	}
-
 	u, err := evalComponent(tm.LoadTemplate(wtype), ctxData, intifyValues(workloadKeys))
 	if err != nil {
 		return nil, nil, fmt.Errorf("eval component failed: %w", err)

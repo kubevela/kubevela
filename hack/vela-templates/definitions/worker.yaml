@@ -1,0 +1,16 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: backend
+  annotations:
+    definition.oam.dev/apiVersion: "standard.oam.dev/v1alpha1"
+    definition.oam.dev/kind: "PodSpecWorkload"
+    definition.oam.dev/description: "Backend worker without ports exposed"
+spec:
+  definitionRef:
+    name: podspecworkloads.standard.oam.dev
+  childResourceKinds:
+    - apiVersion: apps/v1
+      kind: Deployment
+  extension:
+    template: |

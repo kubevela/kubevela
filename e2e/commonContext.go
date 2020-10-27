@@ -231,10 +231,12 @@ var (
 	ApplicationExecContext = func(context string, appName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should get output of exec /bin/ls", func() {
-				cli := fmt.Sprintf("vela exec %s -- /bin/ls ", appName)
-				output, err := Exec(cli)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("bin"))
+				gomega.Eventually(func() string {
+					cli := fmt.Sprintf("vela exec %s -- /bin/ls ", appName)
+					output, err := Exec(cli)
+					gomega.Expect(err).NotTo(gomega.HaveOccurred())
+					return output
+				}, 90*time.Second, 5*time.Second).Should(gomega.ContainSubstring("bin"))
 			})
 		})
 	}
