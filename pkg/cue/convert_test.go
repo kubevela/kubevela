@@ -55,9 +55,8 @@ func TestEvalDeployment(t *testing.T) {
 }
 
 func TestGetParameter(t *testing.T) {
-	params, workloadType, err := GetParameters("testdata/workloads/metrics.cue")
+	params, err := GetParameters("testdata/workloads/metrics.cue")
 	assert.NoError(t, err)
-	assert.Equal(t, "metrics", workloadType)
 	assert.Equal(t, params, []types.Parameter{
 		{Name: "format", Required: false, Default: "prometheus", Usage: "format of the metrics, " +
 			"default as prometheus", Short: "f", Type: cue.StringKind},
@@ -66,9 +65,8 @@ func TestGetParameter(t *testing.T) {
 		{Name: "selector", Required: false, Usage: "the label selector for the pods, default is the workload labels", Type: cue.StructKind},
 	})
 
-	params, workloadType, err = GetParameters("testdata/workloads/deployment.cue")
+	params, err = GetParameters("testdata/workloads/deployment.cue")
 	assert.NoError(t, err)
-	assert.Equal(t, "deployment", workloadType)
 	assert.Equal(t, []types.Parameter{
 		{Name: "name", Required: true, Default: "", Type: cue.StringKind},
 		{Name: "env", Required: false, Default: nil, Type: cue.ListKind},
@@ -77,9 +75,8 @@ func TestGetParameter(t *testing.T) {
 			Type: cue.IntKind}},
 		params)
 
-	params, workloadType, err = GetParameters("testdata/workloads/test-param.cue")
+	params, err = GetParameters("testdata/workloads/test-param.cue")
 	assert.NoError(t, err)
-	assert.Equal(t, "deployment", workloadType)
 	assert.Equal(t, []types.Parameter{
 		{Name: "name", Required: true, Default: "", Type: cue.StringKind},
 		{Name: "env", Required: false, Default: nil, Type: cue.ListKind},

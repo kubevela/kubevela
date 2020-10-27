@@ -57,19 +57,19 @@ func Eval(templatePath string, value map[string]interface{}) (*unstructured.Unst
 	return &unstructured.Unstructured{Object: obj}, nil
 }
 
-func GetParameters(templatePath string) ([]types.Parameter, string, error) {
+func GetParameters(templatePath string) ([]types.Parameter, error) {
 	r := cue.Runtime{}
 	b, err := ioutil.ReadFile(templatePath)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	template, err := r.Compile("", string(b)+BaseTemplate)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	tempStruct, err := template.Value().Struct()
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	// find the parameter definition
 	var paraDef cue.FieldInfo
@@ -83,14 +83,12 @@ func GetParameters(templatePath string) ([]types.Parameter, string, error) {
 		break
 	}
 	if !found {
-		return nil, "", errors.New("arguments not exist")
+		return nil, errors.New("arguments not exist")
 	}
 	arguments, err := paraDef.Value.Struct()
 	if err != nil {
-		return nil, "", fmt.Errorf("arguments not defined as struct %v", err)
+		return nil, fmt.Errorf("arguments not defined as struct %v", err)
 	}
-	// workloadType is the name of the parameter definition
-	var workloadType = strings.TrimPrefix(paraDef.Name, "#")
 	// parse each fields in the parameter fields
 	var params []types.Parameter
 	for i := 0; i < arguments.Len(); i++ {
@@ -115,7 +113,7 @@ func GetParameters(templatePath string) ([]types.Parameter, string, error) {
 		param.Short, param.Usage = RetrieveComments(val)
 		params = append(params, param)
 	}
-	return params, workloadType, nil
+	return params, nil
 }
 
 func getDefaultByKind(k cue.Kind) interface{} {

@@ -18,9 +18,8 @@ import (
 var _ = Describe("DefinitionFiles", func() {
 
 	route := types.Capability{
-		Name:    "route",
-		Type:    types.TypeTrait,
-		DefName: "routes.test",
+		Name: "routes.test",
+		Type: types.TypeTrait,
 		Parameters: []types.Parameter{
 			{
 				Name:     "domain",
@@ -34,9 +33,8 @@ var _ = Describe("DefinitionFiles", func() {
 	}
 
 	deployment := types.Capability{
-		Name:        "deployment",
+		Name:        "deployments.testapps",
 		Type:        types.TypeWorkload,
-		DefName:     "deployments.testapps",
 		CrdName:     "deployments.testapps",
 		Description: "description not defined",
 		Parameters: []types.Parameter{
@@ -63,9 +61,8 @@ var _ = Describe("DefinitionFiles", func() {
 	}
 
 	websvc := types.Capability{
-		Name:        "webservice",
+		Name:        "webservice.testapps",
 		Type:        types.TypeWorkload,
-		DefName:     "webservice.testapps",
 		Description: "description not defined",
 		Parameters: []types.Parameter{{
 			Name: "env", Type: cue.ListKind,
