@@ -13,7 +13,7 @@ var (
 	envName                   = "env-trait"
 	applicationName           = "app-trait-basic"
 	applicationNotExistedName = "app-trait-basic-NOT-EXISTED"
-	traitAlias                = "scale"
+	traitAlias                = "scaler"
 	serviceNameNotExisting    = "svc-not-existing"
 )
 

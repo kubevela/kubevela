@@ -7,5 +7,5 @@ output: {
 }
 parameter: {
   //+short=r
-  replica: *1 | int
+  replica: *2 | int
 }

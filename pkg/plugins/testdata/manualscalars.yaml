@@ -4,7 +4,7 @@ metadata:
   annotations:
     definition.oam.dev/apiVersion: core.oam.dev/v1alpha2
     definition.oam.dev/kind: ManualScalerTrait
-  name: manualscalertraits.core.oam.dev
+  name: scaler
   namespace: default
 spec:
   appliesToWorkloads:

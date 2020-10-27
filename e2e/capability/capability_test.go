@@ -14,16 +14,16 @@ import (
 var (
 	capabilityCenterBasic = apis.CapabilityCenterMeta{
 		Name: "capability-center-e2e-basic",
-		URL:  "https://github.com/oam-dev/kubevela/tree/master/pkg/plugins/testdata",
+		URL:  "https://github.com/hongchaodeng/kubevela/tree/master/pkg/plugins/testdata",
 	}
 
 	scaleCapability = types.Capability{
-		Name: "scale",
+		Name: "scaler",
 		Type: types.TypeTrait,
 	}
 
 	routeCapability = types.Capability{
-		Name: "route",
+		Name: "routes.test",
 		Type: types.TypeTrait,
 	}
 )
