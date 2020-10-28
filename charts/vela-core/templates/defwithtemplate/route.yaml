@@ -10,7 +10,6 @@ spec:
   appliesToWorkloads:
     - webservice
     - deployments.apps
-    - podspecworkloads.standard.oam.dev
   workloadRefPath: spec.workloadRef
   definitionRef:
     name: routes.standard.oam.dev

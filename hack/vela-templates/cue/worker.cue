@@ -1,16 +1,27 @@
 output: {
-  apiVersion: "standard.oam.dev/v1alpha1"
-  kind:       "PodSpecWorkload"
+  apiVersion: "apps/v1"
+  kind:       "Deployment"
   metadata:
     name: context.name
   spec: {
     replicas: 1
-    podSpec: {
-      containers: [{
-        image: parameter.image
-        name:  context.name
-      }]
+
+    template: {
+      metadata:
+        labels:
+          "component.oam.dev/name": context.name
+          
+      spec: {
+        containers: [{
+          name:  context.name
+          image: parameter.image
+        }]
+      }
     }
+
+    selector: 
+      matchLabels:
+        "component.oam.dev/name": context.name
   }
 }
 

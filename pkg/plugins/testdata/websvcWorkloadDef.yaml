@@ -10,8 +10,8 @@ spec:
   extension:
     template: |
       output: {
-        apiVersion: "standard.oam.dev/v1alpha1"
-        kind:       "PodSpecWorkload"
+        apiVersion: "apps/v1"
+        kind:       "Deployment"
         metadata: name: context.name
         spec: {
           replicas: 1
