@@ -18,21 +18,15 @@ package dependency
 
 import (
 	"context"
-	"encoding/json"
-	"os"
+	"io/ioutil"
+	"os/exec"
 
-	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
-	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/api/types"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 const (
@@ -41,66 +35,41 @@ const (
 )
 
 var (
-	helmInstallFunc func(ioStreams cmdutil.IOStreams, c types.Chart) error
+	log = ctrl.Log.WithName("vela dependency manager")
 )
 
-func init() {
-	helmInstallFunc = oam.InstallHelmChart
-}
-
 // Setup vela dependency
-func Install(client client.Client) error {
-	log := ctrl.Log.WithName("vela dependency manager")
-	// Fetch the vela configuration
-	velaConfigNN := k8stypes.NamespacedName{Name: VelaConfigName, Namespace: types.DefaultOAMNS}
-	velaConfig := v1.ConfigMap{}
-	if err := client.Get(context.TODO(), velaConfigNN, &velaConfig); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
+func Install(kubecli client.Client) error {
+	return runCmdFromConfig(kubecli, "install.sh")
+}
+
+func Uninstall(kubecli client.Client) error {
+	return runCmdFromConfig(kubecli, "uninstall.sh")
+}
+
+func runCmdFromConfig(kubecli client.Client, filename string) error {
+	velaConfig, err := fetchVelaConfig(kubecli)
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	scriptData := velaConfig.Data[filename]
+	if err := ioutil.WriteFile(filename, []byte(scriptData), 0700); err != nil {
 		return err
 	}
-	for crd, chart := range velaConfig.Data {
-		log.Info("check on dependency", "crd resource", crd)
-		if err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: crd}, &crdv1.CustomResourceDefinition{}); err != nil {
-			if apierrors.IsNotFound(err) {
-				if instErr := installHelmChart(client, []byte(chart), log); instErr != nil {
-					return errors.Wrap(instErr, "failed to install helm chart")
-				}
-			} else {
-				return err
-			}
-		} else {
-			log.Info("resources already exists, skip install", "crd", crd)
-		}
+	cmd := exec.Command("/bin/sh", filename)
+	out, err := cmd.CombinedOutput()
+	log.Info(string(out))
+	if err != nil {
+		return err
 	}
 	return nil
 }
 
-func installHelmChart(client client.Client, chart []byte, log logr.Logger) error {
-	ioStreams := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	var helmChart types.Chart
-	err := json.Unmarshal(chart, &helmChart)
-	if err != nil {
-		return errors.Wrap(err, "failed to unmarshal the helm chart data")
+func fetchVelaConfig(kubecli client.Client) (*v1.ConfigMap, error) {
+	velaConfigNN := k8stypes.NamespacedName{Name: VelaConfigName, Namespace: types.DefaultOAMNS}
+	velaConfig := &v1.ConfigMap{}
+	if err := kubecli.Get(context.TODO(), velaConfigNN, velaConfig); err != nil {
+		return nil, err
 	}
-	log.Info("install helm char", "chart name", helmChart.Name)
-	// create the namespace
-	if helmChart.Namespace != types.DefaultAppNamespace {
-		if len(helmChart.Namespace) > 0 {
-			exist, err := cmdutil.DoesNamespaceExist(client, helmChart.Namespace)
-			if err != nil {
-				return err
-			}
-			if !exist {
-				if err = cmdutil.NewNamespace(client, helmChart.Namespace); err != nil {
-					return errors.Wrap(err, "failed to create the namespace")
-				}
-			}
-		}
-	}
-	if err = helmInstallFunc(ioStreams, helmChart); err != nil {
-		return err
-	}
-	return nil
+	return velaConfig, nil
 }

@@ -4,27 +4,18 @@ metadata:
   name: vela-config
   namespace: {{ .Release.Namespace }}
 data:
-  certificates.cert-manager.io: |
-    {
-      "repo": "jetstack",
-      "urL": "https://charts.jetstack.io",
-      "name": "cert-manager",
-      "namespace": "cert-manager",
-      "version": "1.0.3"
-    }
-  servicemonitors.monitoring.coreos.com: |
-    {
-      "repo": "prometheus-community",
-      "urL": "https://prometheus-community.github.io/helm-charts",
-      "name": "kube-prometheus-stack",
-      "namespace": "monitoring",
-      "version": "9.4.4"
-    }
-  scaledobjects.keda.sh: |
-    {
-      "repo": "kedacore",
-      "urL": "https://kedacore.github.io/charts",
-      "name": "keda",
-      "namespace": "vela-system",
-      "version": "2.0.0-rc2"
-    }
+  install.sh: |
+    helm repo add jetstack https://charts.jetstack.io
+    helm install -n cert-manager --version 1.0.3 cert-manager jetstack/cert-manager
+    helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+    helm install -n vela-system --version 3.7.1 ingress-nginx ingress-nginx/ingress-nginx
+    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+    helm install -n vela-system --version 9.4.4 kube-prometheus-stack prometheus-community/kube-prometheus-stack
+    helm repo add kedacore https://kedacore.github.io/charts
+    helm install -n vela-system --version 2.0.0-rc2 keda kedacore/keda
+    helm list -n vela-system
+  uninstall.sh: |
+    helm uninstall -n vela-system keda
+    helm uninstall -n vela-system kube-prometheus-stack
+    helm uninstall -n vela-system ingress-nginx
+    helm uninstall -n vela-sstem cert-manager

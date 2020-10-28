@@ -185,9 +185,10 @@ func InstallOamRuntime(chartPath, chartSource string, vals map[string]interface{
 		chartRequested, err = loader.Load(chartPath)
 	} else {
 		chartRequested, err = cli.LoadChart(chartSource)
-		ioStreams.Infof("install chart %s, version %s, desc : %s, contains %d file\n",
-			chartRequested.Metadata.Name, chartRequested.Metadata.Version, chartRequested.Metadata.Description,
-			len(chartRequested.Raw))
+		if chartRequested != nil {
+			m, l := chartRequested.Metadata, len(chartRequested.Raw)
+			ioStreams.Infof("install chart %s, version %s, desc : %s, contains %d file\n", m.Name, m.Version, m.Description, l)
+		}
 	}
 	if err != nil {
 		return fmt.Errorf("error loading chart for installation: %s", err)

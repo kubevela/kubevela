@@ -26,10 +26,11 @@ $ sudo mv ./vela /usr/local/bin/vela
 
 ## Initialize KubeVela
 
+Install KubeVela server component:
+
 ```console
-$ vela install
+vela install
 ```
-This command will install KubeVela server components in your Kubernetes cluster.
 
 ## Verify
 
@@ -42,17 +43,9 @@ This command will install KubeVela server components in your Kubernetes cluster.
 
 ## Clean Up
 
-```console
-$ helm uninstall kubevela -n vela-system
-release "kubevela" uninstalled
-```
+Clean up KubeVela server component:
 
 ```console
-$ kubectl delete crd workloaddefinitions.core.oam.dev traitdefinitions.core.oam.dev  scopedefinitions.core.oam.dev
-customresourcedefinition.apiextensions.k8s.io "workloaddefinitions.core.oam.dev" deleted
-customresourcedefinition.apiextensions.k8s.io "traitdefinitions.core.oam.dev" deleted
-```
-
-```console
-$ rm -r ~/.vela
+helm uninstall -n vela-system kubevela
+rm -r ~/.vela
 ```

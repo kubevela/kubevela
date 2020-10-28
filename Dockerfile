@@ -1,7 +1,12 @@
 # Build the manager binary
-FROM golang:1.13 as builder
+FROM golang:1.14 as builder
 
 WORKDIR /workspace
+
+# Download Helm
+RUN wget https://get.helm.sh/helm-v3.4.0-linux-amd64.tar.gz && \
+    tar -zxvf helm-v3.4.0-linux-amd64.tar.gz
+
 # Copy the Go Modules manifests
 COPY go.mod go.mod
 COPY go.sum go.sum
@@ -21,8 +26,10 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o manager 
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 # oamdev/gcr.io-distroless-static:nonroot is syncd from gcr.io/distroless/static:nonroot as somewhere can't reach gcr.io
 FROM oamdev/gcr.io-distroless-static:nonroot
-WORKDIR /
+WORKDIR /app/
+ENV PATH "/app:$PATH"
 COPY --from=builder /workspace/manager .
+COPY --from=builder /workspace/linux-amd64/helm .
 USER nonroot:nonroot
 
-ENTRYPOINT ["/manager"]
+ENTRYPOINT ["/app/manager"]
