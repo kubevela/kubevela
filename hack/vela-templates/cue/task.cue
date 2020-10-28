@@ -5,12 +5,12 @@ output: {
   spec: {
     parallelism: parameter.count
     completions: parameter.count
-    template:
-      spec:
-        containers: [{
-          name:  context.name
-          image: parameter.image
-        }]
+    template: spec: {
+      containers: [{
+        name:  context.name
+        image: parameter.image
+      }]
+    }
   }
 }
 parameter: {

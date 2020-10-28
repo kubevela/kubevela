@@ -5,11 +5,15 @@ output: {
   spec: {
     replicas: 1
 
+    selector: matchLabels: {
+      "app.oam.dev/component": context.name
+    }
+
     template: {
-      metadata:
-        labels:
-          "component.oam.dev/name": context.name
-          
+      metadata: labels: {
+        "app.oam.dev/component": context.name
+      }
+
       spec: {
         containers: [{
           name:  context.name
@@ -23,10 +27,6 @@ output: {
         }]
       }
     }
-
-    selector: 
-      matchLabels:
-        "component.oam.dev/name": context.name
   }
 }
 parameter: {
