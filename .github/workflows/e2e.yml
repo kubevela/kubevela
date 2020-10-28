@@ -9,25 +9,14 @@ on:
 jobs:
   build:
     name: e2e-tests
-    runs-on: ubuntu-latest
+    runs-on: aliyun
     steps:
-      - name: Set up Go 1.14
-        uses: actions/setup-go@v1
-        with:
-          go-version: 1.14
-        id: go
-
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
 
       - name: Get dependencies
         run: |
           go get -v -t -d ./...
-
-      - name: Install ginkgo
-        run:  |
-          sudo apt-get update
-          sudo apt-get install -y golang-ginkgo-dev
 
       - name: Setup Kind Cluster
         uses: engineerd/setup-kind@v0.4.0
@@ -36,9 +25,6 @@ jobs:
 
       - name: Load Image to kind cluster
         run: make kind-load
-
-      - name: install Kubebuilder
-        uses: RyanSiu1995/kubebuilder-action@v1
 
       - name: Run Make
         run: make
