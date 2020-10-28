@@ -72,7 +72,7 @@ const (
 
 const (
 	ErrNotLoadAppConfig  = "cannot load the application"
-	ErrFmtNotInitialized = "oam-core-controller cannot initilize the component: %s"
+	ErrFmtNotInitialized = "KubeVela core cannot initilize the service: %s"
 )
 
 const (
@@ -109,7 +109,7 @@ func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	cmd := &cobra.Command{
 		Use:     "status <APPLICATION-NAME>",
 		Short:   "get status of an application",
-		Long:    "get status of an application, including workloads and traits of each components.",
+		Long:    "get status of an application, including workloads and traits of each service.",
 		Example: `vela status <APPLICATION-NAME>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
@@ -219,14 +219,14 @@ func getWorkloadHealthConditions(ctx context.Context, c client.Client, app *appl
 func NewCompStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:     "status <COMPONENT-NAME>",
-		Short:   "get status of a component",
-		Long:    "get status of a component, including its workload and health status",
-		Example: `vela comp status <COMPONENT-NAME>`,
+		Use:     "status <SERVICE-NAME>",
+		Short:   "get status of a service",
+		Long:    "get status of a service, including its workload and health status",
+		Example: `vela svc status <SERVICE-NAME>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength == 0 {
-				ioStreams.Errorf("Hint: please specify a component")
+				ioStreams.Errorf("Hint: please specify the service name")
 				os.Exit(1)
 			}
 			compName := args[0]
@@ -264,13 +264,13 @@ func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmduti
 		appConfigReconcileStatus := appConfig.Status.GetCondition(runtimev1alpha1.TypeSynced).Status
 		switch appConfigReconcileStatus {
 		case corev1.ConditionUnknown:
-			ioStreams.Info("\nUnknown error occurs during component initialization. \nPlease check OAM controller ...")
+			ioStreams.Info("\nUnknown error occurs during service initialization. \nPlease check KubeVela core ...")
 		case corev1.ConditionTrue:
-			ioStreams.Info("\nThe component is still under initialization, please try again later ...")
+			ioStreams.Info("\nThe service is still under initialization, please try again later ...")
 		case corev1.ConditionFalse:
 			appConfigConditionMsg := appConfig.Status.GetCondition(runtimev1alpha1.TypeSynced).Message
-			ioStreams.Info("\nError occurs in OAM runtime during component initialization.")
-			ioStreams.Infof("\nOAM controller condition message: %s \n", appConfigConditionMsg)
+			ioStreams.Info("\nError occurs during service initialization.")
+			ioStreams.Infof("\nMessage: %s \n", appConfigConditionMsg)
 		}
 		return nil
 	}
@@ -297,8 +297,8 @@ HealthCheckLoop:
 		}
 	}
 
-	ioStreams.Infof("Showing status of Component %s deployed in Environment %s\n", compName, env.Name)
-	ioStreams.Infof(white.Sprint("Component Status:\n"))
+	ioStreams.Infof("Showing status of service %s deployed in Environment %s\n", compName, env.Name)
+	ioStreams.Infof(white.Sprint("Service Status:\n"))
 	workloadType := wlStatus.Reference.Kind
 	healthColor := getHealthStatusColor(healthStatus)
 	healthInfo = strings.ReplaceAll(healthInfo, "\n", "\n\t") // formart healthInfo output
@@ -373,7 +373,7 @@ TrackInitLoop:
 		if time.Since(tInit) > initTimeout {
 			ioStreams.Info(red.Sprintf("\n%sInitialization Timeout After %s!",
 				emojiTimeout, duration.HumanDuration(time.Since(tInit))))
-			ioStreams.Info(red.Sprint("Please make sure oam-core-controller is installed."))
+			ioStreams.Info(red.Sprint("Please make sure KubeVela core is installed."))
 			sInit.Stop()
 			return compStatusUnknown, nil
 		}
@@ -535,9 +535,9 @@ func trackHealthCheckingStatus(ctx context.Context, c client.Client, compName, a
 		healthStatus = HealthStatusNotDiagnosed
 		statusInfo, _, _, err := getWorkloadInstanceStatusAndCreationTime(ctx, c, env.Namespace, wlStatus.Reference)
 		if err != nil {
-			return compStatusUnknown, HealthStatusUnknown, "", errors.Wrap(err, "WARN: The component type is unknown to HealthScope and cannot get status.")
+			return compStatusUnknown, HealthStatusUnknown, "", errors.Wrap(err, "WARN: The service type is unknown to HealthScope and cannot get status.")
 		}
-		healthInfo := fmt.Sprintf("WARN: The component type is unknown to HealthScope.\nYou may check component status with [%s/%s] status: \n%s",
+		healthInfo := fmt.Sprintf("WARN: The service type is unknown to HealthScope.\nYou may check service status with [%s/%s] status: \n%s",
 			wlhc.TargetWorkload.Kind, wlhc.TargetWorkload.Name, statusInfo)
 		return compStatusHealthCheckDone, healthStatus, healthInfo, nil
 	}

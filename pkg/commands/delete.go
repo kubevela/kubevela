@@ -60,14 +60,14 @@ func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 // NewCompDeleteCommand delete component
 func NewCompDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:                   "delete <ComponentName>",
+		Use:                   "delete <SERVICE_NAME>",
 		DisableFlagsInUseLine: true,
-		Short:                 "Delete Component From Application",
-		Long:                  "Delete Component From Application",
+		Short:                 "Delete a service from an application",
+		Long:                  "Delete a service from an application",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},
-		Example: "vela comp delete frontend",
+		Example: "vela svc delete frontend",
 	}
 	cmd.SetOut(ioStreams.Out)
 
@@ -83,7 +83,7 @@ func NewCompDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 			return err
 		}
 		if len(args) < 1 {
-			return errors.New("must specify name for the component")
+			return errors.New("must specify the service name")
 		}
 		o.CompName = args[0]
 		appName, err := cmd.Flags().GetString(App)
@@ -96,7 +96,7 @@ func NewCompDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 			o.AppName = o.CompName
 		}
 
-		ioStreams.Infof("Deleting Component '%s' from Application '%s'\n", o.CompName, o.AppName)
+		ioStreams.Infof("Deleting service '%s' from Application '%s'\n", o.CompName, o.AppName)
 		message, err := o.DeleteComponent(ioStreams)
 		if err != nil {
 			return err

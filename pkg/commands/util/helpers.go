@@ -183,7 +183,7 @@ func AskToChooseOneService(svcNames []string) (string, error) {
 		return svcNames[0], nil
 	}
 	prompt := &survey.Select{
-		Message: "You have multiple Services in your app. Please choose one Service: ",
+		Message: "You have multiple services in your app. Please choose one service: ",
 		Options: svcNames,
 	}
 	var svcName string

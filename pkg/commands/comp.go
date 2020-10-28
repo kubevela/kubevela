@@ -30,15 +30,15 @@ func newRunOptions(ioStreams util.IOStreams) *runOptions {
 
 func AddCompCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 	compCommands := &cobra.Command{
-		Use:                   "comp",
+		Use:                   "svc",
 		DisableFlagsInUseLine: true,
-		Short:                 "Manage Components",
-		Long:                  "Manage Components",
+		Short:                 "Manage services",
+		Long:                  "Manage services",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},
 	}
-	compCommands.PersistentFlags().StringP(App, "a", "", "specify application name for component")
+	compCommands.PersistentFlags().StringP(App, "a", "", "specify the name of application containing the services")
 
 	compCommands.AddCommand(
 		NewCompListCommand(c, ioStreams),
@@ -56,9 +56,9 @@ func NewCompDeployCommands(c types.Args, ioStreams util.IOStreams) *cobra.Comman
 		DisableFlagsInUseLine: true,
 		// Dynamic flag parse in compeletion
 		DisableFlagParsing: true,
-		Short:              "Init and Run workloads",
-		Long:               "Init and Run workloads",
-		Example:            "vela comp deploy -t <workload-type>",
+		Short:              "Initialize and run a service",
+		Long:               "Initialize and run a service. The app name would be the same as service name, if it's not specified.",
+		Example:            "vela svc deploy -t <SERVICE_TYPE>",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 || args[0] == "-h" {
 				err := cmd.Help()
@@ -89,7 +89,7 @@ func NewCompDeployCommands(c types.Args, ioStreams util.IOStreams) *cobra.Comman
 	runCmd.SetOut(ioStreams.Out)
 
 	runCmd.Flags().BoolP(Staging, "s", false, "only save changes locally without real update application")
-	runCmd.Flags().StringP(WorkloadType, "t", "", "specify workload type for application")
+	runCmd.Flags().StringP(WorkloadType, "t", "", "specify workload type of the service")
 
 	return runCmd
 }
@@ -97,7 +97,7 @@ func NewCompDeployCommands(c types.Args, ioStreams util.IOStreams) *cobra.Comman
 func GetWorkloadNameFromArgs(args []string) (string, error) {
 	argsLength := len(args)
 	if argsLength < 1 {
-		return "", errors.New("must specify name for component")
+		return "", errors.New("must specify the name of service")
 	}
 	return args[0], nil
 
@@ -137,7 +137,7 @@ func (o *runOptions) Complete(cmd *cobra.Command, args []string) error {
 		}
 		errMsg := "can not find workload, check workloads by `vela workloads` and choose a suitable one."
 		if workloadList != nil {
-			errMsg = fmt.Sprintf("must specify type of workload, please use `-t` and choose from %v.", workloadList)
+			errMsg = fmt.Sprintf("must specify the workload type of service, please use `-t` and choose from %v.", workloadList)
 		}
 		return errors.New(errMsg)
 	}

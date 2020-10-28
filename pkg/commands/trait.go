@@ -80,7 +80,7 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 		}
 		pluginCmd.Flags().StringP(Service, "", "", "specify one service belonging to the application")
 		pluginCmd.Flags().BoolP(Staging, "s", false, "only save changes locally without real update application")
-		pluginCmd.Flags().BoolP(TraitDetach, "", false, "detach trait from component")
+		pluginCmd.Flags().BoolP(TraitDetach, "", false, "detach trait from service")
 
 		parentCmd.AddCommand(pluginCmd)
 	}

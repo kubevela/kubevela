@@ -69,7 +69,7 @@ func showApplication(cmd *cobra.Command, env *types.EnvMeta, appName string) err
 	cmd.Println()
 
 	table = uitable.New()
-	cmd.Printf("Components:\n\n")
+	cmd.Printf("Services:\n\n")
 
 	table.AddRow("  Name", "Type", "Traits")
 
@@ -89,14 +89,14 @@ func showApplication(cmd *cobra.Command, env *types.EnvMeta, appName string) err
 
 func NewCompShowCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "show <COMPONENT-NAME>",
-		Short:   "get component detail",
-		Long:    "get component detail, including arguments of workload and trait",
-		Example: `vela comp show <COMPONENT-NAME>`,
+		Use:     "show <SERVICE_NAME>",
+		Short:   "show service details",
+		Long:    "show service details, including arguments of workload and traits",
+		Example: `vela svc show <SERVICE_NAME>`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength == 0 {
-				ioStreams.Errorf("Hint: please specify the application name\n")
+				ioStreams.Errorf("Hint: please specify the service name\n")
 				os.Exit(1)
 			}
 			compName := args[0]

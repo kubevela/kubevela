@@ -18,11 +18,11 @@ var _ = ginkgo.Describe("Workload", func() {
 	e2e.RefreshContext("refresh")
 	e2e.EnvInitContext("env init", envName)
 	e2e.EnvSetContext("env set", envName)
-	e2e.WorkloadRunContext("deploy", fmt.Sprintf("vela comp deploy -t webservice %s -p 80 --image nginx:1.9.4", applicationName))
+	e2e.WorkloadRunContext("deploy", fmt.Sprintf("vela svc deploy -t webservice %s -p 80 --image nginx:1.9.4", applicationName))
 
 	ginkgo.Context("run without enough flags", func() {
 		ginkgo.It("should throw error message: some flags are NOT set", func() {
-			cli := fmt.Sprintf("vela comp deploy -t webservice %s -p 80", notEnoughFlagsApplicationName)
+			cli := fmt.Sprintf("vela svc deploy -t webservice %s -p 80", notEnoughFlagsApplicationName)
 			output, err := e2e.Exec(cli)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("required flag(s) \"image\" not set"))

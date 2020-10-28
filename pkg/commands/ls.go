@@ -64,9 +64,9 @@ func NewCompListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 		Use:                   "ls",
 		Aliases:               []string{"list"},
 		DisableFlagsInUseLine: true,
-		Short:                 "List components",
-		Long:                  "List components with its application, workloads, traits, status and created time",
-		Example:               `vela comp ls`,
+		Short:                 "List services",
+		Long:                  "List services with their application, type, traits, status and created time, etc.",
+		Example:               `vela svc ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			env, err := GetEnv(cmd)
 			if err != nil {
@@ -96,12 +96,12 @@ func printComponentList(ctx context.Context, c client.Client, appName string, en
 		Namespace: env.Namespace,
 	})
 	if err != nil {
-		ioStreams.Infof("listing Components: %s\n", err)
+		ioStreams.Infof("listing services: %s\n", err)
 		return
 	}
 	all := mergeStagingComponents(deployedComponentList, env, ioStreams)
 	table := uitable.New()
-	table.AddRow("NAME", "APP", "WORKLOAD", "TRAITS", "STATUS", "CREATED-TIME")
+	table.AddRow("NAME", "APP", "TYPE", "TRAITS", "STATUS", "CREATED-TIME")
 	for _, a := range all {
 		traitAlias := strings.Join(a.TraitNames, ",")
 		table.AddRow(a.Name, a.App, a.WorkloadName, traitAlias, a.Status, a.CreatedTime)

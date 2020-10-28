@@ -130,7 +130,7 @@ var (
 		})
 	}
 
-	//WorkloadRunContext used for test vela comp deploy
+	//WorkloadRunContext used for test vela svc deploy
 	WorkloadRunContext = func(context string, cli string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print successful creation information", func() {
@@ -165,11 +165,11 @@ var (
 		})
 	}
 
-	// ComponentListContext used for test vela comp ls
+	// ComponentListContext used for test vela svc ls
 	ComponentListContext = func(context string, applicationName string, traitAlias string) bool {
 		return ginkgo.Context("ls", func() {
 			ginkgo.It("should list all applications", func() {
-				output, err := Exec("vela comp ls")
+				output, err := Exec("vela svc ls")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
 				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
@@ -194,7 +194,7 @@ var (
 
 	ApplicationCompStatusContext = func(context string, applicationName, workloadType, envName string) bool {
 		return ginkgo.Context(context, func() {
-			ginkgo.It("should get status for the component", func() {
+			ginkgo.It("should get status of the service", func() {
 				ginkgo.By("init new k8s client")
 				k8sclient, err := newK8sClient()
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -206,7 +206,7 @@ var (
 					return len(appConfig.Status.Workloads)
 				}, 90*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))
 
-				cli := fmt.Sprintf("vela comp status %s", applicationName)
+				cli := fmt.Sprintf("vela svc status %s", applicationName)
 				output, err := LongTimeExec(cli, 120*time.Second)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("Checking health status"))
