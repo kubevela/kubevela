@@ -25,7 +25,7 @@ $ vela app show myapp
   
   Components:
   
-    Name  	    Type      	Traits
+    Name  	  Type      	Traits
     frontend	webservice	route
 ```
 
@@ -53,14 +53,14 @@ $ vela svc show mycomp
  Traits:
  
    route:
-     domain:	frontend.kubevela.io
+     domain:	frontend.kubevela.demo
      issuer:	oam-env-demo
      name:  	route
 ```
 
-## Step by Step
+## Deploy Application Step by Step
 
-You can also use KubeVela CLI to deploy application step by step, with more detailed configurations.
+You can also use KubeVela CLI to deploy a more complex micro-services application step by step, with detailed configurations.
 
 Check the available workload types.
 
@@ -89,7 +89,7 @@ SUCCEED
 
 ```console
 $ vela svc ls
-NAME  	    APP  	WORKLOAD  	  TRAITS	STATUS 	    CREATED-TIME
-backend    	myapp	backendworker   	    Deployed	2020-09-18 22:42:04 +0800 CST
-frontend	myapp	webservice	      	    Deployed	2020-09-18 22:42:04 +0800 CST
+NAME  	    APP  	WORKLOAD  	  TRAITS	  STATUS 	  CREATED-TIME
+backend    	myapp	backendworker   	      Deployed	2020-09-18 22:42:04 +0800 CST
+frontend	  myapp	webservice	      	    Deployed	2020-09-18 22:42:04 +0800 CST
 ```
