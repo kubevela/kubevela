@@ -131,7 +131,7 @@ var _ = BeforeSuite(func(done Done) {
 	webservice := &v1alpha2.WorkloadDefinition{}
 	webservice.Name = "webservice"
 	webservice.Namespace = RouteNSName
-	webservice.Spec.Reference.Name = "podspecworkloads.standard.oam.dev"
+	webservice.Spec.Reference.Name = "deployments.apps"
 	webservice.Spec.ChildResourceKinds = []v1alpha2.ChildResourceKind{{
 		APIVersion: "apps/v1",
 		Kind:       "Deployment",

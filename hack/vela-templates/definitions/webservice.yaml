@@ -3,16 +3,11 @@ kind: WorkloadDefinition
 metadata:
   name: webservice
   annotations:
-    definition.oam.dev/apiVersion: "standard.oam.dev/v1alpha1"
-    definition.oam.dev/kind: "PodSpecWorkload"
+    definition.oam.dev/apiVersion: "apps/v1"
+    definition.oam.dev/kind: "Deployment"
     definition.oam.dev/description: "Long running service with network routes"
 spec:
   definitionRef:
-    name: podspecworkloads.standard.oam.dev
-  childResourceKinds:
-    - apiVersion: apps/v1
-      kind: Deployment
-    - apiVersion: v1
-      kind: Service
+    name: deployments.apps
   extension:
     template: |

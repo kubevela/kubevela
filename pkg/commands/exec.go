@@ -151,7 +151,6 @@ func (o *VelaExecOptions) getPodName(compName string) (string, error) {
 		LabelSelector: labels.Set(map[string]string{
 			//TODO(roywang) except core workloads, not any workloads will pass these label to pod
 			// find a rigorous way to get pod by compname
-			oam.LabelAppName:      o.App.Name,
 			oam.LabelAppComponent: compName,
 		}).String(),
 	})
