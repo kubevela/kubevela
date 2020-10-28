@@ -96,6 +96,7 @@ e2e-api-test:
 
 e2e-cleanup:
 	# Clean up
+	rm -rf ~/.vela
 
 # load docker image to the kind cluster
 kind-load:
