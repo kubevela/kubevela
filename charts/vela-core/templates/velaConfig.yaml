@@ -18,4 +18,4 @@ data:
     helm uninstall -n vela-system keda
     helm uninstall -n vela-system kube-prometheus-stack
     helm uninstall -n vela-system ingress-nginx
-    helm uninstall -n vela-sstem cert-manager
+    helm uninstall -n cert-manager cert-manager
