@@ -6,7 +6,6 @@ metadata:
     definition.oam.dev/kind: ManualScalerTrait
     definition.oam.dev/description: "Scale replica for workload"
   name: scaler
-  namespace: default
 spec:
   appliesToWorkloads:
     - webservice
