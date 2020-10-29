@@ -144,7 +144,7 @@ var (
 	WorkloadDeleteContext = func(context string, applicationName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print successful deletion information", func() {
-				cli := fmt.Sprintf("vela app delete %s", applicationName)
+				cli := fmt.Sprintf("vela delete %s", applicationName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("delete apps succeed"))
@@ -171,7 +171,7 @@ var (
 			ginkgo.It("should list all applications", func() {
 				output, err := Exec("vela ls")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
+				gomega.Expect(output).To(gomega.ContainSubstring("SERVICE"))
 				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
 				if traitAlias != "" {
 					gomega.Expect(output).To(gomega.ContainSubstring(traitAlias))

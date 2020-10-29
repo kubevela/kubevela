@@ -71,6 +71,7 @@ func NewCommand() *cobra.Command {
 		// Apps
 		NewAppsCommand(commandArgs, ioStream),
 		NewListCommand(commandArgs, ioStream),
+		NewDeleteCommand(commandArgs, ioStream),
 		// Workloads
 		AddCompCommands(commandArgs, ioStream),
 

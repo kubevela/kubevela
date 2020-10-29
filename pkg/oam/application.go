@@ -163,7 +163,7 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 	err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Env.Namespace}, &appConfig)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return "", nil
+			return fmt.Sprintf("app %s already deleted", o.AppName), nil
 		}
 		return "", fmt.Errorf("delete appconfig err %s", err)
 	}
@@ -174,12 +174,12 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 		c.Namespace = o.Env.Namespace
 		err = o.Client.Delete(ctx, &c)
 		if err != nil && !apierrors.IsNotFound(err) {
-			return "", fmt.Errorf("delete component err: %s", err)
+			return "", fmt.Errorf("delete service err: %s", err)
 		}
 	}
 	err = o.Client.Delete(ctx, &appConfig)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return "", fmt.Errorf("delete appconfig err %s", err)
+		return "", fmt.Errorf("delete application err %s", err)
 	}
 	var healthScope corev1alpha2.HealthScope
 	healthScope.Name = application.FormatDefaultHealthScopeName(o.AppName)
