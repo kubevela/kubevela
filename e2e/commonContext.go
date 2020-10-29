@@ -241,6 +241,17 @@ var (
 		})
 	}
 
+	ApplicationPortForwardContext = func(context string, appName string) bool {
+		return ginkgo.Context(context, func() {
+			ginkgo.It("should get output of portward successfully", func() {
+				cli := fmt.Sprintf("vela port-forward %s 8080:8080 ", appName)
+				output, err := ExecAndTerminate(cli)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(output).To(gomega.ContainSubstring("Forward successfully"))
+			})
+		})
+	}
+
 	ApplicationInitIntercativeCliContext = func(context string, appName string, workloadType string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should init app through interactive questions", func() {
