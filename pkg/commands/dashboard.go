@@ -17,9 +17,9 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/server"
 	"github.com/oam-dev/kubevela/pkg/server/util"
+	"github.com/oam-dev/kubevela/pkg/utils/helm"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 
 	"github.com/mholt/archiver/v3"
@@ -198,7 +198,7 @@ func OpenBrowser(url string) error {
 }
 
 func CheckVelaRuntimeInstalledAndReady(ioStreams cmdutil.IOStreams, c client.Client) (bool, error) {
-	if !oam.IsHelmReleaseRunning(types.DefaultOAMReleaseName, types.DefaultOAMRuntimeChartName, ioStreams) {
+	if !helm.IsHelmReleaseRunning(types.DefaultOAMReleaseName, types.DefaultOAMRuntimeChartName, types.DefaultOAMNS, ioStreams) {
 		ioStreams.Info(fmt.Sprintf("\n%s %s", emojiFail, "KubeVela runtime is not installed yet."))
 		ioStreams.Info(fmt.Sprintf("\n%s %s%s or %s",
 			emojiLightBulb,

@@ -1,4 +1,4 @@
-package oam
+package helm
 
 import (
 	"fmt"
@@ -13,7 +13,6 @@ import (
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/cli"
 	"helm.sh/helm/v3/pkg/getter"
-	"helm.sh/helm/v3/pkg/kube"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/repo"
 
@@ -25,7 +24,7 @@ var (
 	settings = cli.New()
 )
 
-func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, version, namespace, releaseName string,
+func Install(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, version, namespace, releaseName string,
 	vals map[string]interface{}) error {
 	if !IsHelmRepositoryExist(repoName, repoURL) {
 		err := AddHelmRepository(repoName, repoURL,
@@ -34,7 +33,7 @@ func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, vers
 			return err
 		}
 	}
-	if IsHelmReleaseRunning(releaseName, chartName, ioStreams) {
+	if IsHelmReleaseRunning(releaseName, chartName, namespace, ioStreams) {
 		return nil
 	}
 
@@ -46,19 +45,19 @@ func HelmInstall(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, vers
 	if err != nil {
 		return err
 	}
-	release, err := chartClient.Run(chartRequested, vals)
+	rel, err := chartClient.Run(chartRequested, vals)
 	if err != nil {
 		return err
 	}
-	ioStreams.Infof("Successfully installed %s as release name %s\n", chartName, release.Name)
+	ioStreams.Infof("Successfully installed chart (%s) with release name (%s)\n", chartName, rel.Name)
 	return nil
 }
 
-func HelmUninstall(ioStreams cmdutil.IOStreams, chartName, releaseName string) error {
-	if !IsHelmReleaseRunning(releaseName, chartName, ioStreams) {
+func Uninstall(ioStreams cmdutil.IOStreams, chartName, namespace, releaseName string) error {
+	if !IsHelmReleaseRunning(releaseName, chartName, namespace, ioStreams) {
 		return nil
 	}
-	uninstall, err := NewHelmUninstall()
+	uninstall, err := NewHelmUninstall(namespace)
 	if err != nil {
 		return err
 	}
@@ -66,7 +65,7 @@ func HelmUninstall(ioStreams cmdutil.IOStreams, chartName, releaseName string) e
 	if err != nil {
 		return err
 	}
-	ioStreams.Infof("Successfully removed %s with release name %s\n", chartName, releaseName)
+	ioStreams.Infof("Successfully removed chart (%s) with release name (%s)\n", chartName, releaseName)
 	return nil
 }
 
@@ -95,6 +94,20 @@ func NewHelmInstall(version, namespace, releaseName string) (*action.Install, er
 		client.Version = types.DefaultOAMVersion
 	}
 	return client, nil
+}
+
+func NewHelmUninstall(namespace string) (*action.Uninstall, error) {
+	actionConfig := new(action.Configuration)
+
+	if err := actionConfig.Init(
+		cmdutil.NewRestConfigGetter(namespace),
+		namespace,
+		os.Getenv("HELM_DRIVER"),
+		debug,
+	); err != nil {
+		return nil, err
+	}
+	return action.NewUninstall(actionConfig), nil
 }
 
 func IsHelmRepositoryExist(name, url string) bool {
@@ -152,8 +165,8 @@ func AddHelmRepository(name, url, username, password, certFile, keyFile, caFile 
 	return nil
 }
 
-func IsHelmReleaseRunning(releaseName, chartName string, streams cmdutil.IOStreams) bool {
-	releases, err := GetHelmRelease()
+func IsHelmReleaseRunning(releaseName, chartName, ns string, streams cmdutil.IOStreams) bool {
+	releases, err := GetHelmRelease(ns)
 	if err != nil {
 		streams.Error("get helm release err", err)
 		return false
@@ -166,11 +179,11 @@ func IsHelmReleaseRunning(releaseName, chartName string, streams cmdutil.IOStrea
 	return false
 }
 
-func GetHelmRelease() ([]*release.Release, error) {
+func GetHelmRelease(ns string) ([]*release.Release, error) {
 	actionConfig := new(action.Configuration)
 	client := action.NewList(actionConfig)
 
-	if err := actionConfig.Init(settings.RESTClientGetter(), types.DefaultOAMNS, os.Getenv("HELM_DRIVER"), debug); err != nil {
+	if err := actionConfig.Init(settings.RESTClientGetter(), ns, os.Getenv("HELM_DRIVER"), debug); err != nil {
 		return nil, err
 	}
 	results, err := client.Run()
@@ -194,18 +207,4 @@ func GetChart(client *action.Install, name string) (*chart.Chart, error) {
 		return nil, err
 	}
 	return chartRequested, nil
-}
-
-func NewHelmUninstall() (*action.Uninstall, error) {
-	actionConfig := new(action.Configuration)
-
-	if err := actionConfig.Init(
-		kube.GetConfig(cmdutil.GetKubeConfig(), "", types.DefaultOAMNS),
-		types.DefaultOAMNS,
-		os.Getenv("HELM_DRIVER"),
-		debug,
-	); err != nil {
-		return nil, err
-	}
-	return action.NewUninstall(actionConfig), nil
 }

@@ -17,7 +17,7 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/helm"
 )
 
 type VelaRuntimeStatus int
@@ -79,7 +79,7 @@ func NewAdminInfoCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 }
 
 func (i *infoCmd) run(ioStreams cmdutil.IOStreams) error {
-	clusterVersion, err := GetOAMReleaseVersion()
+	clusterVersion, err := GetOAMReleaseVersion(types.DefaultOAMNS)
 	if err != nil {
 		return fmt.Errorf("fail to get cluster chartPath: %v", err)
 	}
@@ -133,7 +133,7 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 		ioStreams.Info("created namespace", types.DefaultOAMNS)
 	}
 
-	if oam.IsHelmReleaseRunning(types.DefaultOAMReleaseName, types.DefaultOAMRuntimeChartName, i.ioStreams) {
+	if helm.IsHelmReleaseRunning(types.DefaultOAMReleaseName, types.DefaultOAMRuntimeChartName, types.DefaultOAMNS, i.ioStreams) {
 		i.ioStreams.Info("Vela system along with OAM runtime already exist.")
 	} else {
 		vals, err := i.resolveValues()
@@ -185,14 +185,15 @@ func InstallOamRuntime(chartPath, chartSource string, vals map[string]interface{
 		chartRequested, err = loader.Load(chartPath)
 	} else {
 		chartRequested, err = cli.LoadChart(chartSource)
-		ioStreams.Infof("install chart %s, version %s, desc : %s, contains %d file\n",
-			chartRequested.Metadata.Name, chartRequested.Metadata.Version, chartRequested.Metadata.Description,
-			len(chartRequested.Raw))
+		if chartRequested != nil {
+			m, l := chartRequested.Metadata, len(chartRequested.Raw)
+			ioStreams.Infof("install chart %s, version %s, desc : %s, contains %d file\n", m.Name, m.Version, m.Description, l)
+		}
 	}
 	if err != nil {
 		return fmt.Errorf("error loading chart for installation: %s", err)
 	}
-	installClient, err := oam.NewHelmInstall("", types.DefaultOAMNS, types.DefaultOAMReleaseName)
+	installClient, err := helm.NewHelmInstall("", types.DefaultOAMNS, types.DefaultOAMReleaseName)
 	if err != nil {
 		return fmt.Errorf("error create helm install client: %s", err)
 	}
@@ -207,8 +208,8 @@ func InstallOamRuntime(chartPath, chartSource string, vals map[string]interface{
 	return nil
 }
 
-func GetOAMReleaseVersion() (string, error) {
-	results, err := oam.GetHelmRelease()
+func GetOAMReleaseVersion(ns string) (string, error) {
+	results, err := helm.GetHelmRelease(ns)
 	if err != nil {
 		return "", err
 	}

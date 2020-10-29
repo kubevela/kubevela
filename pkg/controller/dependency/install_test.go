@@ -59,7 +59,7 @@ func TestSuccessfulInstall(t *testing.T) {
 		},
 	}
 	client := fake.NewFakeClientWithScheme(scheme, velaConfig, &crd)
-	if err := Install(client); err != nil {
+	if err := installHelmChart(client, []byte("{}"), log); err != nil {
 		t.Errorf("failed to install dependency error: %v", err)
 	}
 }
@@ -68,28 +68,8 @@ func TestFailedInstall(t *testing.T) {
 	helmInstallFunc = failedHelmInstall
 	velaConfig := velaConfigBase.DeepCopy()
 	client := fake.NewFakeClientWithScheme(scheme, velaConfig)
-	if err := Install(client); errors.Cause(err) != errHelm {
+	if err := installHelmChart(client, []byte("{}"), log); errors.Cause(err) != errHelm {
 		t.Errorf("failed to get install dependency error: %v", err)
-	}
-}
-
-func TestNoNeedToInstall(t *testing.T) {
-	// set it to fail as we won't get to it
-	helmInstallFunc = failedHelmInstall
-	velaConfig := velaConfigBase.DeepCopy()
-	certManagerCRD := crdv1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "certificates.cert-manager.io",
-		},
-	}
-	prometheusCRD := crdv1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "prometheuses.monitoring.coreos.com",
-		},
-	}
-	client := fake.NewFakeClientWithScheme(scheme, velaConfig, &certManagerCRD, &prometheusCRD)
-	if err := Install(client); err != nil {
-		t.Errorf("failed to install dependency error: %v", err)
 	}
 }
 

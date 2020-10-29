@@ -20,6 +20,7 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
+	"github.com/oam-dev/kubevela/pkg/utils/helm"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
@@ -161,7 +162,7 @@ func GetSyncedCapabilities(repoName, addonName string) (types.Capability, error)
 }
 
 func InstallHelmChart(ioStreams cmdutil.IOStreams, c types.Chart) error {
-	return HelmInstall(ioStreams, c.Repo, c.URL, c.Name, c.Version, c.Namespace, c.Name, nil)
+	return helm.Install(ioStreams, c.Repo, c.URL, c.Name, c.Version, c.Namespace, c.Name, nil)
 }
 
 func ListCapabilityCenters() ([]apis.CapabilityCenterMeta, error) {
@@ -253,7 +254,7 @@ func UninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 
 	if cap.Install != nil && cap.Install.Helm.Name != "" {
 		// 2. Remove Helm chart if there is
-		if err := HelmUninstall(ioStreams, cap.Install.Helm.Name, cap.Name); err != nil {
+		if err := helm.Uninstall(ioStreams, cap.Install.Helm.Name, types.DefaultOAMNS, cap.Name); err != nil {
 			return err
 		}
 	}

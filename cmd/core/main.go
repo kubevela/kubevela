@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
+	"syscall"
 	"time"
 
 	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
@@ -16,6 +18,7 @@ import (
 	oamcontroller "github.com/crossplane/oam-kubernetes-runtime/pkg/controller"
 	oamv1alpha2 "github.com/crossplane/oam-kubernetes-runtime/pkg/controller/v1alpha2"
 	oamwebhook "github.com/crossplane/oam-kubernetes-runtime/pkg/webhook/v1alpha2"
+	"github.com/go-logr/logr"
 	injectorv1alpha1 "github.com/oam-dev/trait-injector/api/v1alpha1"
 	injectorcontroller "github.com/oam-dev/trait-injector/controllers"
 	"github.com/oam-dev/trait-injector/pkg/injector"
@@ -111,10 +114,7 @@ func main() {
 		setupLog.Error(err, "unable to create a kubernetes client")
 		os.Exit(1)
 	}
-	if err = dependency.Install(k8sClient); err != nil {
-		setupLog.Error(err, "unable to install the dependency")
-		os.Exit(1)
-	}
+	go dependency.Install(k8sClient)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -177,10 +177,11 @@ func main() {
 	}
 
 	setupLog.Info("starting the vela controller manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(makeSignalHandler(setupLog, k8sClient)); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+	setupLog.Info("program safely stops...")
 }
 
 // registerHealthChecks is used to create readiness&liveness probes
@@ -228,4 +229,23 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 			}
 		}
 	}
+}
+
+func makeSignalHandler(log logr.Logger, kubecli client.Client) (stopCh <-chan struct{}) {
+	stop := make(chan struct{})
+	c := make(chan os.Signal, 2)
+
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-c
+		dependency.Uninstall(kubecli)
+		close(stop)
+
+		// second signal. Exit directly.
+		<-c
+		os.Exit(1)
+	}()
+
+	return stop
 }
