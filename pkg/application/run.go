@@ -14,7 +14,7 @@ import (
 )
 
 func (app *Application) Run(ctx context.Context, client client.Client, env *types.EnvMeta, io cmdutil.IOStreams) error {
-	components, appconfig, scopes, err := app.OAM(env, io)
+	components, appconfig, scopes, err := app.OAM(env, io, true)
 	if err != nil {
 		return err
 	}

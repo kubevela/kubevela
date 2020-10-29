@@ -136,7 +136,7 @@ var (
 			ginkgo.It("should print successful creation information", func() {
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("SUCCEED"))
+				gomega.Expect(output).To(gomega.ContainSubstring("deployed"))
 			})
 		})
 	}
@@ -157,10 +157,10 @@ var (
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print successful attached information", func() {
 				cli := fmt.Sprintf("vela %s %s", traitAlias, applicationName)
-				output, err := Exec(cli)
+				output, err := LongTimeExec(cli, 180*time.Second)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("Adding " + traitAlias + " for app"))
-				gomega.Expect(output).To(gomega.ContainSubstring("Succeeded!"))
+				gomega.Expect(output).To(gomega.ContainSubstring("Deploying"))
 			})
 		})
 	}
@@ -169,7 +169,7 @@ var (
 	ComponentListContext = func(context string, applicationName string, traitAlias string) bool {
 		return ginkgo.Context("ls", func() {
 			ginkgo.It("should list all applications", func() {
-				output, err := Exec("vela svc ls")
+				output, err := Exec("vela ls")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("NAME"))
 				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
@@ -298,7 +298,7 @@ var (
 					_, _ = c.ExpectEOF()
 				})
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("Initializing"))
+				gomega.Expect(output).To(gomega.ContainSubstring("Deploying"))
 			})
 		})
 	}

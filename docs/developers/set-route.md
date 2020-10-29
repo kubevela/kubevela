@@ -1,8 +1,7 @@
 # Setting Routes
 
-Once your web services of the application is deployed, you can visit it from outside world via `route` feature. 
-
-## `route`
+Once your web services of the application deployed, you can visit it locally via `port-forward` or
+from outside world via `route` feature. 
 
 ```console
 $ vela svc ls
@@ -10,19 +9,64 @@ NAME  	    APP  	WORKLOAD  	  TRAITS	STATUS 	    CREATED-TIME
 frontend	myapp	webservice	      	    Deployed	2020-09-18 22:42:04 +0800 CST
 ```
 
+## `port-forward`
+
+It will directly open browser for you.
+
 ```console
-$ vela route frontend --app myapp
-  Adding route for app frontend
-  Succeeded!
+$ vela port-forward myapp
+Forwarding from 127.0.0.1:8080 -> 80
+Forwarding from [::1]:8080 -> 80
 
-  Route information:
-
-  HOSTS                	   ADDRESS         PORTS     AGE
-  frontend.kubevela.demo   123.57.10.233   80, 443   73s
+Forward successfully! Opening browser ...
+Handling connection for 8080
+Handling connection for 8080
 ```
 
-> TODO why don't use xip.io as demo?
+## `route`
 
-Please configure `kubevela.demo` domain pointing to the public address (e.g. `123.57.10.233`) and your application can be then reached by `https://frontend.kubevela.demo`.
+`route` is mainly used for public visiting your app.
 
-> You can achieve this by modifying `/etc/hosts` if your domain is fake.
+### If you have didn't configure domain in environment
+
+You can manually configure it by setting domain parameter.
+
+```console
+$ vela route myapp --domain frontend.mycustom.domain
+Adding route for app frontend
+
+Rendering configs for service (frontend)...
+⠋ Deploying ...
+✅ Application Deployed Successfully!
+Showing status of service(type: webservice) frontend deployed in Environment myenv
+Service frontend Status:	 HEALTHY Ready: 1/1
+	route: 	Visiting URL: http://frontend.mycustom.domain	IP: 123.57.10.233
+
+Last Deployment:
+	Created at: 2020-10-29 15:45:13 +0800 CST
+	Updated at: 2020-10-29T16:12:45+08:00
+```
+
+Then you will be able to visit by:
+
+```shell script
+$ curl -H "Host:frontend.mycustom.domain" 123.57.10.233
+```
+
+### If you have domain set in environment
+
+```console
+$ vela route myapp
+Adding route for app frontend
+
+Rendering configs for service (frontend)...
+⠋ Deploying ...
+✅ Application Deployed Successfully!
+Showing status of service(type: webservice) frontend deployed in Environment default
+Service frontend Status:	 HEALTHY Ready: 1/1
+	route: 	Visiting URL: https://frontend.123.57.10.233.xip.io	IP: 123.57.10.233
+
+Last Deployment:
+	Created at: 2020-10-29 11:26:46 +0800 CST
+	Updated at: 2020-10-29T11:28:01+08:00
+```

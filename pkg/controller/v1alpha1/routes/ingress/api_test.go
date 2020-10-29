@@ -7,10 +7,10 @@ import (
 )
 
 func TestGetRouteIngress(t *testing.T) {
-	_, err := GetRouteIngress("nginx")
+	_, err := GetRouteIngress("nginx", nil)
 	assert.NoError(t, err)
-	_, err = GetRouteIngress("")
+	_, err = GetRouteIngress("", nil)
 	assert.NoError(t, err)
-	_, err = GetRouteIngress("istio")
+	_, err = GetRouteIngress("istio", nil)
 	assert.EqualError(t, err, "unknow route ingress provider 'istio', only 'nginx' is supported now")
 }

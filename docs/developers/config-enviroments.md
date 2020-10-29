@@ -4,18 +4,67 @@ Before working with your application, you need to prepare a deployment environme
 
 ## Create environment
 
-> TODO `--namespace` and `--domain` should be able to skipped
-
-> TODO why don't use xip.io as demo?
-
 ```console
-$ vela env init demo --namespace demo --email my@email.com --domain kubevela.demo
-ENVIROMENT demo CREATED, Namespace: demo, Email: my@email.com.
+$ vela env init demo --email my@email.com
+environment demo created, Namespace: default, Email: my@email.com
 ```
 
 ## Check the deployment environment metadata
 
 ```console
-$ cat ~/.vela/envs/demo/config.json
-  {"name":"demo","namespace":"demo","email":"my@email.com","domain":"kubevela.demo","issuer":"oam-env-demo"}
+$ vela env ls
+NAME   	CURRENT	NAMESPACE	EMAIL                	DOMAIN
+default	       	default  	
+demo   	*      	default  	my@email.com
 ```
+
+By default, the environment will use `default` namespace in K8s.
+
+## Configure changes 
+
+You could change the config by executing the environment again.
+
+```console
+$ vela env init demo --namespace demo
+environment demo created, Namespace: demo, Email: my@email.com
+```
+
+```console
+$ vela env ls
+NAME   	CURRENT	NAMESPACE	EMAIL                	DOMAIN
+default	       	default  	
+demo   	*      	demo     	my@email.com
+```
+
+**Note that the created apps won't be affected, only newly created apps will use the updated info.**
+
+## [Optional] Configure Domain if you have public IP
+
+If your K8s cluster is provisioned by cloud provider and has public IP for ingress.
+You could configure your domain in the environment, then you'll be able to visit
+your app by this domain with an mTLS supported automatically.
+
+For example, you could get the public IP from ingress service.  
+
+```console
+$ kubectl get svc -A | grep LoadBalancer
+NAME                         TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)                      AGE
+nginx-ingress-lb             LoadBalancer   172.21.2.174    123.57.10.233   80:32740/TCP,443:32086/TCP   41d
+```
+
+The fourth column is public IP. Configure 'A' record for your custom domain.
+
+```
+*.your.domain => 123.57.10.233
+``` 
+
+You could also use `123.57.10.233.xip.io` as your domain, if you don't have a custom one.
+`xip.io` will automatically route to the prefix IP `123.57.10.233`.
+
+
+```console
+$ vela env init demo --domain 123.57.10.233.xip.io
+environment demo updated, Namespace: demo, Email: my@email.com
+```
+
+

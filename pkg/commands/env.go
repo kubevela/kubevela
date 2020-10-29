@@ -70,7 +70,7 @@ func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		},
 	}
 	cmd.SetOut(ioStreams.Out)
-	cmd.Flags().StringVar(&envArgs.Namespace, "namespace", "default", "specify K8s namespace for env")
+	cmd.Flags().StringVar(&envArgs.Namespace, "namespace", "", "specify K8s namespace for env")
 	cmd.Flags().StringVar(&envArgs.Email, "email", "", "specify email for production TLS Certificate notification")
 	cmd.Flags().StringVar(&envArgs.Domain, "domain", "", "specify domain your applications")
 	return cmd
@@ -117,7 +117,7 @@ func NewEnvSetCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 func ListEnvs(args []string, ioStreams cmdutil.IOStreams) error {
 	table := uitable.New()
 	table.MaxColWidth = 60
-	table.AddRow("NAME", "CURRENT", "NAMESPACE")
+	table.AddRow("NAME", "CURRENT", "NAMESPACE", "EMAIL", "DOMAIN")
 	var envName = ""
 	if len(args) > 0 {
 		envName = args[0]
@@ -127,7 +127,7 @@ func ListEnvs(args []string, ioStreams cmdutil.IOStreams) error {
 		return err
 	}
 	for _, env := range envList {
-		table.AddRow(env.Name, env.Current, env.Namespace)
+		table.AddRow(env.Name, env.Current, env.Namespace, env.Email, env.Domain)
 	}
 	ioStreams.Info(table.String())
 	return nil

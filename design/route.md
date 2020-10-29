@@ -96,7 +96,7 @@ you to give a specified ingress controller type. Currently, only nginx-ingress i
 
 The `tls` field allow you to specify a TLS for this route with an IssuerName, the IssuerName pointing to an Issuer Object
 created by cert-manager. Cert-manager and ingress controller will handle certificate creation and binding.
-If not specified, a selfsigned issuer will be created.
+If not specified, mTLS was disabled and you can only visit by http.
 
 If no rule specified, route trait will create one rule automatically and match with the port.
 

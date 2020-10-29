@@ -11,21 +11,19 @@ import (
 	"github.com/briandowns/spinner"
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
 	"github.com/fatih/color"
-	"github.com/ghodss/yaml"
 	"github.com/gosuri/uitable"
 	"github.com/kyokomi/emoji"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/util/duration"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	oam2 "github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // HealthStatus represents health status strings.
@@ -59,8 +57,11 @@ var (
 type CompStatus int
 
 const (
+	// nolint
 	compStatusInitializing CompStatus = iota
+	// nolint
 	compStatusInitFail
+	// nolint
 	compStatusInitialized
 	compStatusDeploying
 	compStatusDeployFail
@@ -72,13 +73,13 @@ const (
 
 const (
 	ErrNotLoadAppConfig  = "cannot load the application"
-	ErrFmtNotInitialized = "KubeVela core cannot initilize the service: %s"
+	ErrFmtNotInitialized = "initializing service: %s failed"
+	ErrServiceNotFound   = "service %s not found in app"
 )
 
 const (
 	firstElemPrefix = `├─`
 	lastElemPrefix  = `└─`
-	indent          = "  "
 	pipe            = `│ `
 )
 
@@ -91,16 +92,18 @@ var (
 )
 
 var (
-	emojiSucceed   = emoji.Sprint(":check_mark_button:")
-	emojiFail      = emoji.Sprint(":cross_mark:")
+	emojiSucceed = emoji.Sprint(":check_mark_button:")
+	emojiFail    = emoji.Sprint(":cross_mark:")
+	// nolint
 	emojiTimeout   = emoji.Sprint(":heavy_exclamation_mark:")
 	emojiLightBulb = emoji.Sprint(":light_bulb:")
 )
 
 const (
-	trackingInterval      time.Duration = 1 * time.Second
+	trackingInterval time.Duration = 1 * time.Second
+	// nolint
 	initTimeout           time.Duration = 30 * time.Second
-	deployTimeout         time.Duration = 30 * time.Second
+	deployTimeout         time.Duration = 10 * time.Second
 	healthCheckBufferTime time.Duration = 120 * time.Second
 )
 
@@ -258,83 +261,33 @@ func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmduti
 	if app == nil || appConfig == nil {
 		return errors.New(ErrNotLoadAppConfig)
 	}
-
-	wlStatus, foundWlStatus := getWorkloadStatusFromAppConfig(appConfig, compName)
-	if !foundWlStatus {
-		appConfigReconcileStatus := appConfig.Status.GetCondition(runtimev1alpha1.TypeSynced).Status
-		switch appConfigReconcileStatus {
-		case corev1.ConditionUnknown:
-			ioStreams.Info("\nUnknown error occurs during service initialization. \nPlease check KubeVela core ...")
-		case corev1.ConditionTrue:
-			ioStreams.Info("\nThe service is still under initialization, please try again later ...")
-		case corev1.ConditionFalse:
-			appConfigConditionMsg := appConfig.Status.GetCondition(runtimev1alpha1.TypeSynced).Message
-			ioStreams.Info("\nError occurs during service initialization.")
-			ioStreams.Infof("\nMessage: %s \n", appConfigConditionMsg)
-		}
-		return nil
+	svc, ok := app.Services[compName]
+	if !ok {
+		return fmt.Errorf(ErrServiceNotFound, compName)
 	}
+	workloadType := svc.GetType()
+	ioStreams.Infof("Showing status of service(type: %s) %s deployed in Environment %s\n", workloadType, white.Sprint(compName), env.Name)
 
-	var healthInfo string
-	var healthStatus HealthStatus
-
-	sHealthCheck := newTrackingSpinner("Checking health status ...")
-	sHealthCheck.Start()
-
-HealthCheckLoop:
-	for {
-		time.Sleep(trackingInterval)
-		var healthcheckStatus CompStatus
-		healthcheckStatus, healthStatus, healthInfo, err = trackHealthCheckingStatus(ctx, c, compName, appName, env)
-		if err != nil {
-			sHealthCheck.Stop()
-			ioStreams.Info(red.Sprintf("Health checking failed!"))
-			return err
-		}
-		if healthcheckStatus == compStatusHealthCheckDone {
-			sHealthCheck.Stop()
-			break HealthCheckLoop
-		}
-	}
-
-	ioStreams.Infof("Showing status of service %s deployed in Environment %s\n", compName, env.Name)
-	ioStreams.Infof(white.Sprint("Service Status:\n"))
-	workloadType := wlStatus.Reference.Kind
-	healthColor := getHealthStatusColor(healthStatus)
-	healthInfo = strings.ReplaceAll(healthInfo, "\n", "\n\t") // formart healthInfo output
-	ioStreams.Infof("\tName: %s  %s(type) %s %s\n",
-		compName, workloadType, healthColor.Sprint(healthStatus), healthColor.Sprint(healthInfo))
-
-	traits, err := app.GetTraits(compName)
+	healthStatus, healthInfo, err := healthCheckLoop(ctx, c, compName, appName, env)
 	if err != nil {
+		ioStreams.Info(healthInfo)
 		return err
 	}
-	if len(traits) > 0 {
-		// print tree structure of Traits
-		tbl := uitable.New()
-		tbl.Separator = "  "
-		traitNames := []string{}
-		for k := range traits {
-			traitNames = append(traitNames, k)
+	ioStreams.Infof(white.Sprintf("Service %s Status:", compName))
+
+	healthColor := getHealthStatusColor(healthStatus)
+	healthInfo = strings.ReplaceAll(healthInfo, "\n", "\n\t") // formart healthInfo output
+	ioStreams.Infof("\t %s %s\n", healthColor.Sprint(healthStatus), healthColor.Sprint(healthInfo))
+
+	// workload Must found
+	workloadStatus, _ := getWorkloadStatusFromAppConfig(appConfig, compName)
+	for _, tr := range workloadStatus.Traits {
+		traitType, traitInfo, err := traitCheckLoop(ctx, c, tr.Reference, compName, appConfig, app, 60*time.Second)
+		if err != nil {
+			ioStreams.Infof("%s status: %s", white.Sprint(traitType), traitInfo)
+			return err
 		}
-		for tIndex, tName := range traitNames {
-			var tPrefix string
-			switch tIndex {
-			case len(traitNames) - 1:
-				tPrefix = lastElemPrefix
-			default:
-				tPrefix = firstElemPrefix
-			}
-			tbl.AddRow(
-				"\t",
-				fmt.Sprintf("%s%s%s/%s",
-					indent,
-					gray.Sprint(printPrefix(tPrefix)),
-					"Trait",
-					tName))
-		}
-		ioStreams.Info("\tTraits")
-		ioStreams.Info(tbl)
+		ioStreams.Infof("\t%s: %s", white.Sprint(traitType), traitInfo)
 	}
 
 	ioStreams.Infof(white.Sprint("\nLast Deployment:\n"))
@@ -343,93 +296,84 @@ HealthCheckLoop:
 	return nil
 }
 
-func getWorkloadInstanceStatusAndCreationTime(ctx context.Context, c client.Client, ns string, wlRef runtimev1alpha1.TypedReference) (string, bool, metav1.Time, error) {
-	wlUnstruct := unstructured.Unstructured{}
-	wlUnstruct.SetGroupVersionKind(wlRef.GroupVersionKind())
-	if err := c.Get(ctx, client.ObjectKey{Namespace: ns, Name: wlRef.Name},
-		&wlUnstruct); err != nil {
-		return "", false, metav1.Time{}, err
+func traitCheckLoop(ctx context.Context, c client.Client, reference runtimev1alpha1.TypedReference, compName string, appConfig *v1alpha2.ApplicationConfiguration, app *application.Application, timeout time.Duration) (string, string, error) {
+	tr, err := oam2.GetUnstructured(ctx, c, appConfig.Namespace, reference)
+	if err != nil {
+		return "", "", err
 	}
-	ct := wlUnstruct.GetCreationTimestamp()
-
-	statusData, foundStatus, _ := unstructured.NestedMap(wlUnstruct.Object, "status")
-	if foundStatus {
-		statusYaml, err := yaml.Marshal(statusData)
-		if err != nil {
-			return "", false, ct, err
-		}
-		return string(statusYaml), true, ct, nil
+	traitType, ok := tr.GetLabels()[oam.TraitTypeLabel]
+	if !ok {
+		message, err := oam2.GetStatusFromObject(tr)
+		return traitType, message, err
 	}
-	return "", false, ct, nil
-}
 
-func printTrackingInitStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, compName, appName string, env *types.EnvMeta) (CompStatus, error) {
-	tInit := time.Now()
-	sInit := newTrackingSpinner("Initializing ...")
-	sInit.Start()
-TrackInitLoop:
+	checker := oam2.GetChecker(traitType, c)
+
+	// Health Check Loop For Trait
+	var message string
+	sHealthCheck := newTrackingSpinner(fmt.Sprintf("Checking %s status ...", traitType))
+	sHealthCheck.Start()
+	defer sHealthCheck.Stop()
+CheckLoop:
 	for {
 		time.Sleep(trackingInterval)
-		if time.Since(tInit) > initTimeout {
-			ioStreams.Info(red.Sprintf("\n%sInitialization Timeout After %s!",
-				emojiTimeout, duration.HumanDuration(time.Since(tInit))))
-			ioStreams.Info(red.Sprint("Please make sure KubeVela core is installed."))
-			sInit.Stop()
-			return compStatusUnknown, nil
-		}
-		initStatus, failMsg, err := trackInitializeStatus(ctx, c, compName, appName, env)
+		var check oam2.CheckStatus
+		check, message, err = checker.Check(ctx, reference, compName, appConfig, app)
 		if err != nil {
-			return compStatusUnknown, err
+			message = red.Sprintf("%s check failed!", traitType)
+			return traitType, message, err
 		}
-		switch initStatus {
-		case compStatusInitializing:
-			continue
-		case compStatusInitialized:
-			ioStreams.Info(green.Sprintf("\n%sInitialization Succeed!", emojiSucceed))
-			sInit.Stop()
-			break TrackInitLoop
-		case compStatusInitFail:
-			ioStreams.Info(red.Sprintf("\n%sInitialization Failed!", emojiFail))
-			ioStreams.Info(red.Sprintf("Reason: %s", failMsg))
-			sInit.Stop()
-			return compStatusInitFail, nil
+		if check == oam2.StatusDone {
+			break CheckLoop
+		}
+		if time.Since(tr.GetCreationTimestamp().Time) >= timeout {
+			return traitType, fmt.Sprintf("Checking timeout: %s", message), nil
 		}
 	}
-	return compStatusInitialized, nil
+	return traitType, message, nil
 }
 
-func trackInitializeStatus(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (CompStatus, string, error) {
-	app, appConfig, err := getApp(ctx, c, compName, appName, env)
-	if err != nil {
-		return compStatusUnknown, "", err
-	}
-	if app == nil || appConfig == nil {
-		return compStatusUnknown, "", errors.New(ErrNotLoadAppConfig)
-	}
-	_, foundWlStatus := getWorkloadStatusFromAppConfig(appConfig, compName)
-	appConfigReconcileStatus := appConfig.Status.GetCondition(runtimev1alpha1.TypeSynced).Status
-	switch appConfigReconcileStatus {
-	case corev1.ConditionUnknown:
-		return compStatusInitializing, "", nil
-	case corev1.ConditionTrue:
-		if foundWlStatus {
-			return compStatusInitialized, "", nil
+func healthCheckLoop(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (HealthStatus, string, error) {
+	// Health Check Loop For Workload
+	var healthInfo string
+	var healthStatus HealthStatus
+	var err error
+
+	sHealthCheck := newTrackingSpinner("Checking health status ...")
+	sHealthCheck.Start()
+	defer sHealthCheck.Stop()
+HealthCheckLoop:
+	for {
+		time.Sleep(trackingInterval)
+		var healthcheckStatus CompStatus
+		healthcheckStatus, healthStatus, healthInfo, err = trackHealthCheckingStatus(ctx, c, compName, appName, env)
+		if err != nil {
+			healthInfo = red.Sprintf("Health checking failed!")
+			return "", healthInfo, err
 		}
-		return compStatusInitializing, "", nil
-	case corev1.ConditionFalse:
-		appConfigConditionMsg := appConfig.Status.GetCondition(runtimev1alpha1.TypeSynced).Message
-		return compStatusInitFail, appConfigConditionMsg, nil
+		if healthcheckStatus == compStatusHealthCheckDone {
+			break HealthCheckLoop
+		}
 	}
-	return compStatusInitializing, "", nil
+	return healthStatus, healthInfo, nil
+}
+
+func tryGetWorkloadStatus(ctx context.Context, c client.Client, ns string, wlRef runtimev1alpha1.TypedReference) (string, error) {
+	workload, err := oam2.GetUnstructured(ctx, c, ns, wlRef)
+	if err != nil {
+		return "", err
+	}
+	return oam2.GetStatusFromObject(workload)
 }
 
 func printTrackingDeployStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, compName, appName string, env *types.EnvMeta) (CompStatus, error) {
 	sDeploy := newTrackingSpinner("Deploying ...")
 	sDeploy.Start()
+	defer sDeploy.Stop()
 TrackDeployLoop:
 	for {
 		time.Sleep(trackingInterval)
-		deployStatus, failMsg, err := trackDeployStatus(ctx, c, compName, appName, env)
+		deployStatus, failMsg, err := TrackDeployStatus(ctx, c, compName, appName, env)
 		if err != nil {
 			return compStatusUnknown, err
 		}
@@ -437,20 +381,19 @@ TrackDeployLoop:
 		case compStatusDeploying:
 			continue
 		case compStatusDeployed:
-			ioStreams.Info(green.Sprintf("\n%sDeployment Succeed!", emojiSucceed))
-			sDeploy.Stop()
+			ioStreams.Info(green.Sprintf("\n%sApplication Deployed Successfully!", emojiSucceed))
 			break TrackDeployLoop
 		case compStatusDeployFail:
-			ioStreams.Info(red.Sprintf("\n%sDeployment Failed!", emojiFail))
+			ioStreams.Info(red.Sprintf("\n%sApplication Failed to Deploy!", emojiFail))
 			ioStreams.Info(red.Sprintf("Reason: %s", failMsg))
-			sDeploy.Stop()
 			return compStatusDeployFail, nil
 		}
 	}
 	return compStatusDeployed, nil
 }
 
-func trackDeployStatus(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (CompStatus, string, error) {
+// TrackDeployStatus will only check AppConfig is deployed successfully,
+func TrackDeployStatus(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (CompStatus, string, error) {
 	app, appConfig, err := getApp(ctx, c, compName, appName, env)
 	if err != nil {
 		return compStatusUnknown, "", err
@@ -458,31 +401,20 @@ func trackDeployStatus(ctx context.Context, c client.Client, compName, appName s
 	if app == nil || appConfig == nil {
 		return compStatusUnknown, "", errors.New(ErrNotLoadAppConfig)
 	}
-
-	wlStatus, foundWlStatus := getWorkloadStatusFromAppConfig(appConfig, compName)
-	// make sure component already initilized
-	if !foundWlStatus {
-		appConfigConditionMsg := appConfig.Status.GetCondition(runtimev1alpha1.TypeSynced).Message
-		return compStatusUnknown, "", fmt.Errorf(ErrFmtNotInitialized, appConfigConditionMsg)
+	condition := appConfig.Status.Conditions
+	if len(condition) < 1 {
+		return compStatusDeploying, "", nil
 	}
-	wlRef := wlStatus.Reference
 
-	//TODO(roywang) temporarily use status to judge workload controller is running
-	// even not every workload has `status` field
-	//TODO(roywang) check whether traits are ready
-	_, foundStatus, ct, err := getWorkloadInstanceStatusAndCreationTime(ctx, c, env.Namespace, wlRef)
-	if err != nil {
-		return compStatusUnknown, "", err
-	}
-	if foundStatus {
+	// If condition is true, we can regard appConfig is deployed successfully
+	if condition[0].Status == corev1.ConditionTrue {
 		return compStatusDeployed, "", nil
 	}
 
 	// if not found workload status in AppConfig
-	// then use age to check whether the worload controller is running
-	if time.Since(ct.Time) > deployTimeout {
-		return compStatusDeployFail, fmt.Sprintf("The controller of [%s] is not installed or running.",
-			wlStatus.Reference.GroupVersionKind().String()), nil
+	// then use age to check whether the workload controller is running
+	if time.Since(appConfig.GetCreationTimestamp().Time) > deployTimeout {
+		return compStatusDeployFail, condition[0].Message, nil
 	}
 	return compStatusDeploying, "", nil
 }
@@ -509,45 +441,39 @@ func trackHealthCheckingStatus(ctx context.Context, c client.Client, compName, a
 			healthScopeName = v.Reference.Name
 		}
 	}
-	if len(healthScopeName) == 0 {
-		// no health scope referenced
-		statusInfo, _, _, err := getWorkloadInstanceStatusAndCreationTime(ctx, c, env.Namespace, wlStatus.Reference)
-		if err != nil {
+	var healthStatus HealthStatus
+	if healthScopeName != "" {
+		var healthScope v1alpha2.HealthScope
+		if err = c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: healthScopeName}, &healthScope); err != nil {
 			return compStatusUnknown, HealthStatusUnknown, "", err
 		}
-		return compStatusHealthCheckDone, HealthStatusNotDiagnosed, statusInfo, nil
+		var wlhc *v1alpha2.WorkloadHealthCondition
+		for _, v := range healthScope.Status.WorkloadHealthConditions {
+			if v.ComponentName == compName {
+				wlhc = v
+			}
+		}
+		if wlhc == nil {
+			return compStatusUnknown, HealthStatusUnknown, "", fmt.Errorf("cannot get health condition from the health scope: %s", healthScope.Name)
+		}
+		healthStatus = wlhc.HealthStatus
+		if healthStatus == HealthStatusHealthy {
+			return compStatusHealthCheckDone, healthStatus, wlhc.Diagnosis, nil
+		}
+		if healthStatus == HealthStatusUnhealthy {
+			cTime := appConfig.GetCreationTimestamp()
+			if time.Since(cTime.Time) <= healthCheckBufferTime {
+				return compStatusHealthChecking, HealthStatusUnknown, "", nil
+			}
+			return compStatusHealthCheckDone, healthStatus, wlhc.Diagnosis, nil
+		}
 	}
-	var healthScope v1alpha2.HealthScope
-	if err = c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: healthScopeName}, &healthScope); err != nil {
+	// No health scope specified or health status is unknown , try get status from workload
+	statusInfo, err := tryGetWorkloadStatus(ctx, c, env.Namespace, wlStatus.Reference)
+	if err != nil {
 		return compStatusUnknown, HealthStatusUnknown, "", err
 	}
-	var wlhc *v1alpha2.WorkloadHealthCondition
-	for _, v := range healthScope.Status.WorkloadHealthConditions {
-		if v.ComponentName == compName {
-			wlhc = v
-		}
-	}
-	if wlhc == nil {
-		return compStatusUnknown, HealthStatusUnknown, "", fmt.Errorf("cannot get health condition from the health scope: %s", healthScope.Name)
-	}
-	healthStatus := wlhc.HealthStatus
-	if healthStatus == HealthStatusUnknown {
-		healthStatus = HealthStatusNotDiagnosed
-		statusInfo, _, _, err := getWorkloadInstanceStatusAndCreationTime(ctx, c, env.Namespace, wlStatus.Reference)
-		if err != nil {
-			return compStatusUnknown, HealthStatusUnknown, "", errors.Wrap(err, "WARN: The service type is unknown to HealthScope and cannot get status.")
-		}
-		healthInfo := fmt.Sprintf("WARN: The service type is unknown to HealthScope.\nYou may check service status with [%s/%s] status: \n%s",
-			wlhc.TargetWorkload.Kind, wlhc.TargetWorkload.Name, statusInfo)
-		return compStatusHealthCheckDone, healthStatus, healthInfo, nil
-	}
-	if healthStatus == HealthStatusUnhealthy {
-		cTime := appConfig.GetCreationTimestamp()
-		if time.Since(cTime.Time) <= healthCheckBufferTime {
-			return compStatusHealthChecking, HealthStatusUnknown, "", nil
-		}
-	}
-	return compStatusHealthCheckDone, healthStatus, wlhc.Diagnosis, nil
+	return compStatusHealthCheckDone, HealthStatusNotDiagnosed, statusInfo, nil
 }
 
 func getApp(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (*application.Application, *v1alpha2.ApplicationConfiguration, error) {

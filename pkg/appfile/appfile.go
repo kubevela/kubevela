@@ -56,18 +56,18 @@ func LoadFromFile(filename string) (*AppFile, error) {
 }
 
 // BuildOAM renders Appfile into AppConfig, Components. It also builds images for services if defined.
-func (app *AppFile) BuildOAM(ns string, io cmdutil.IOStreams, tm template.Manager) (
+func (app *AppFile) BuildOAM(ns string, io cmdutil.IOStreams, tm template.Manager, slience bool) (
 	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, error) {
-	return app.buildOAM(ns, io, true, tm)
+	return app.buildOAM(ns, io, true, tm, slience)
 }
 
 // RenderOAM renders Appfile into AppConfig, Components.
-func (app *AppFile) RenderOAM(ns string, io cmdutil.IOStreams, tm template.Manager) (
+func (app *AppFile) RenderOAM(ns string, io cmdutil.IOStreams, tm template.Manager, slience bool) (
 	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, error) {
-	return app.buildOAM(ns, io, false, tm)
+	return app.buildOAM(ns, io, false, tm, slience)
 }
 
-func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, buildImage bool, tm template.Manager) (
+func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, buildImage bool, tm template.Manager, slience bool) (
 	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, error) {
 
 	appConfig := &v1alpha2.ApplicationConfiguration{
@@ -97,8 +97,9 @@ func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, buildImage bool, t
 				}
 			}
 		}
-
-		io.Infof("\nRendering configs for service (%s)...\n", sname)
+		if !slience {
+			io.Infof("\nRendering configs for service (%s)...\n", sname)
+		}
 		acComp, comp, err := svc.RenderService(tm, sname, ns, app.configGetter)
 		if err != nil {
 			return nil, nil, err
