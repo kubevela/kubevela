@@ -19,13 +19,12 @@ package dependency
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
-	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -33,6 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/api/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/helm"
 )
 
 const (
@@ -41,6 +41,7 @@ const (
 )
 
 var (
+	log             = ctrl.Log.WithName("dependency installer")
 	helmInstallFunc func(ioStreams cmdutil.IOStreams, c types.Chart) error
 )
 
@@ -49,32 +50,40 @@ func init() {
 }
 
 // Setup vela dependency
-func Install(client client.Client) error {
-	log := ctrl.Log.WithName("vela dependency manager")
-	// Fetch the vela configuration
-	velaConfigNN := k8stypes.NamespacedName{Name: VelaConfigName, Namespace: types.DefaultOAMNS}
-	velaConfig := v1.ConfigMap{}
-	if err := client.Get(context.TODO(), velaConfigNN, &velaConfig); err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
+func Install(kubecli client.Client) error {
+	velaConfig, err := fetchVelaConfig(kubecli)
+	if err != nil {
 		return err
 	}
-	for crd, chart := range velaConfig.Data {
-		log.Info("check on dependency", "crd resource", crd)
-		if err := client.Get(context.TODO(), k8stypes.NamespacedName{Name: crd}, &crdv1.CustomResourceDefinition{}); err != nil {
-			if apierrors.IsNotFound(err) {
-				if instErr := installHelmChart(client, []byte(chart), log); instErr != nil {
-					return errors.Wrap(instErr, "failed to install helm chart")
-				}
-			} else {
-				return err
-			}
-		} else {
-			log.Info("resources already exists, skip install", "crd", crd)
+	for _, chart := range velaConfig.Data {
+		err := installHelmChart(kubecli, []byte(chart), log)
+		if err != nil {
+			return errors.Wrap(err, "failed to install helm chart")
 		}
 	}
 	return nil
+}
+
+func Uninstall(kubecli client.Client) {
+	velaConfig, err := fetchVelaConfig(kubecli)
+	if err != nil {
+		log.Error(err, "fetchVelaConfig failed")
+	}
+	for _, chart := range velaConfig.Data {
+		err := uninstallHelmChart([]byte(chart), log)
+		if err != nil {
+			log.Error(err, "failed to install helm chart")
+		}
+	}
+}
+
+func fetchVelaConfig(kubecli client.Client) (*v1.ConfigMap, error) {
+	velaConfigNN := k8stypes.NamespacedName{Name: VelaConfigName, Namespace: types.DefaultOAMNS}
+	velaConfig := &v1.ConfigMap{}
+	if err := kubecli.Get(context.TODO(), velaConfigNN, velaConfig); err != nil {
+		return nil, client.IgnoreNotFound(err)
+	}
+	return velaConfig, nil
 }
 
 func installHelmChart(client client.Client, chart []byte, log logr.Logger) error {
@@ -84,7 +93,7 @@ func installHelmChart(client client.Client, chart []byte, log logr.Logger) error
 	if err != nil {
 		return errors.Wrap(err, "failed to unmarshal the helm chart data")
 	}
-	log.Info("install helm char", "chart name", helmChart.Name)
+	log.Info("installing helm chart", "chart name", helmChart.Name)
 	// create the namespace
 	if helmChart.Namespace != types.DefaultAppNamespace {
 		if len(helmChart.Namespace) > 0 {
@@ -94,12 +103,26 @@ func installHelmChart(client client.Client, chart []byte, log logr.Logger) error
 			}
 			if !exist {
 				if err = cmdutil.NewNamespace(client, helmChart.Namespace); err != nil {
-					return errors.Wrap(err, "failed to create the namespace")
+					return fmt.Errorf("create namespace (%s) failed", helmChart.Namespace)
 				}
 			}
 		}
 	}
 	if err = helmInstallFunc(ioStreams, helmChart); err != nil {
+		return err
+	}
+	return nil
+}
+
+func uninstallHelmChart(chart []byte, log logr.Logger) error {
+	io := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+	var c types.Chart
+	err := json.Unmarshal(chart, &c)
+	if err != nil {
+		return errors.Wrap(err, "failed to unmarshal the helm chart data")
+	}
+	log.Info("uninstalling helm chart", "chart name", c.Name)
+	if err = helm.Uninstall(io, c.Name, c.Namespace, c.Name); err != nil {
 		return err
 	}
 	return nil

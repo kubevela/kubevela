@@ -49,10 +49,7 @@ func DoesNamespaceExist(c client.Client, namespace string) (bool, error) {
 	var ns corev1.Namespace
 	err := c.Get(context.Background(), types.NamespacedName{Name: namespace}, &ns)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			return false, nil
-		}
-		return false, err
+		return false, client.IgnoreNotFound(err)
 	}
 	return true, nil
 }

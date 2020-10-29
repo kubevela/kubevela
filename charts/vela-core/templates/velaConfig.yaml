@@ -26,5 +26,21 @@ data:
       "urL": "https://kedacore.github.io/charts",
       "name": "keda",
       "namespace": "vela-system",
-      "version": "2.0.0-rc2"
+      "version": "1.5.0"
+    }
+  ingresses.networking.k8s.io: |
+    {
+      "repo": "ingress-nginx",
+      "urL": "https://kubernetes.github.io/ingress-nginx",
+      "name": "ingress-nginx",
+      "namespace": "vela-system",
+      "version": "3.7.1"
+    }
+  flagger.app: |
+    {
+      "repo": "flagger",
+      "urL": "https://flagger.app",
+      "name": "flagger",
+      "namespace": "vela-system",
+      "version": "1.2.0"
     }
