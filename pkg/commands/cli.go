@@ -87,6 +87,7 @@ func NewCommand() *cobra.Command {
 		NewDashboardCommand(commandArgs, ioStream, fake.FrontendSource),
 
 		NewExecCommand(commandArgs, ioStream),
+		NewPortForwardCommand(commandArgs, ioStream),
 		NewLogsCommand(commandArgs, ioStream),
 
 		NewTemplateCommand(commandArgs, ioStream),

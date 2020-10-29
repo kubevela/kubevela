@@ -37,6 +37,16 @@ func Exec(cli string) (string, error) {
 	s := session.Wait(30 * time.Second)
 	return string(s.Out.Contents()) + string(s.Err.Contents()), nil
 }
+func ExecAndTerminate(cli string) (string, error) {
+	var output []byte
+	session, err := AsyncExec(cli)
+	if err != nil {
+		return string(output), err
+	}
+	time.Sleep(3 * time.Second)
+	s := session.Terminate()
+	return string(s.Out.Contents()) + string(s.Err.Contents()), nil
+}
 
 func LongTimeExec(cli string, timeout time.Duration) (string, error) {
 	var output []byte
