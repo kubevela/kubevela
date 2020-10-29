@@ -112,7 +112,7 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 
 	flag := cmd.Flags()
 	flag.StringVarP(&i.chartPath, "vela-chart-path", "p", "", "path to vela core chart to override default chart")
-	flag.StringVarP(&i.chartArgs.imagePullPolicy, "image-pull-policy", "", "Always", "vela core image pull policy, this will align to chart value image.pullPolicy")
+	flag.StringVarP(&i.chartArgs.imagePullPolicy, "image-pull-policy", "", "IfNotPresent", "vela core image pull policy, this will align to chart value image.pullPolicy")
 	flag.StringVarP(&i.chartArgs.imageRepo, "image-repo", "", "oamdev/vela-core", "vela core image repo, this will align to chart value image.repo")
 	flag.StringVarP(&i.chartArgs.imageTag, "image-tag", "", "latest", "vela core image repo, this will align to chart value image.tag")
 	flag.BoolVarP(&i.waitReady, "wait", "w", false, "wait until vela-core is ready to serve")

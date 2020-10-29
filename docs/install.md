@@ -105,8 +105,18 @@ $ rm -r ~/.vela
 This will uninstall KubeVela server component and its dependency components.
 This also cleans up local CLI cache.
 
-Then clean up CRDs:
+Then clean up CRDs (CRDs are not removed via helm by default):
 
 ```
-$ kubectl delete crd workloaddefinitions.core.oam.dev traitdefinitions.core.oam.dev  scopedefinitions.core.oam.dev
+$ kubectl delete crd \
+  workloaddefinitions.core.oam.dev \
+  traitdefinitions.core.oam.dev \
+  scopedefinitions.core.oam.dev \
+  prometheuses.monitoring.coreos.com \
+  prometheusrules.monitoring.coreos.com \
+  servicemonitors.monitoring.coreos.com \
+  podmonitors.monitoring.coreos.com \
+  alertmanagers.monitoring.coreos.com \
+  thanosrulers.monitoring.coreos.com \
+  probes.monitoring.coreos.com
 ```

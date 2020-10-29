@@ -4,28 +4,12 @@ metadata:
   name: vela-config
   namespace: {{ .Release.Namespace }}
 data:
-  certificates.cert-manager.io: |
-    {
-      "repo": "jetstack",
-      "urL": "https://charts.jetstack.io",
-      "name": "cert-manager",
-      "namespace": "cert-manager",
-      "version": "1.0.3"
-    }
-  grafana: |
-    {
-      "repo": "grafana",
-      "urL": "https://grafana.github.io/helm-charts",
-      "name": "grafana",
-      "namespace": "monitoring",
-      "version": "6.0.1"
-    }
   servicemonitors.monitoring.coreos.com: |
     {
       "repo": "prometheus-community",
       "urL": "https://prometheus-community.github.io/helm-charts",
       "name": "kube-prometheus-stack",
-      "namespace": "monitoring",
+      "namespace": "vela-system",
       "version": "9.4.4"
     }
   ingresses.networking.k8s.io: |

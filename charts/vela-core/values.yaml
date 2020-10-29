@@ -7,7 +7,7 @@ useWebhook: true
 image:
   repository: oamdev/vela-core
   tag: latest
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
 
 imagePullSecrets: []
 nameOverride: ""
