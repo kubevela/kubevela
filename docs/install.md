@@ -17,7 +17,7 @@
 
 > TODO please give a copy-paste friendly shell instead of instructions
 
-1. Download the latest `vela` binary from the [releases page](https://github.com/oam-dev/kubevela/releases). 
+1. Download the latest `vela` binary from the [releases page](https://github.com/oam-dev/kubevela/releases).
 2. Unpack the `vela` binary and add it to `$PATH` to get started.
 
 ```console
@@ -109,14 +109,24 @@ Then clean up CRDs (CRDs are not removed via helm by default):
 
 ```
 $ kubectl delete crd \
-  workloaddefinitions.core.oam.dev \
-  traitdefinitions.core.oam.dev \
+  applicationconfigurations.core.oam.dev \
+  applicationdeployments.core.oam.dev \
+  autoscalers.standard.oam.dev \
+  certificaterequests.cert-manager.io \
+  certificates.cert-manager.io \
+  challenges.acme.cert-manager.io \
+  clusterissuers.cert-manager.io \
+  components.core.oam.dev \
+  containerizedworkloads.core.oam.dev \
+  healthscopes.core.oam.dev \
+  issuers.cert-manager.io \
+  manualscalertraits.core.oam.dev \
+  metricstraits.standard.oam.dev \
+  orders.acme.cert-manager.io \
+  podspecworkloads.standard.oam.dev \
+  routes.standard.oam.dev \
   scopedefinitions.core.oam.dev \
-  prometheuses.monitoring.coreos.com \
-  prometheusrules.monitoring.coreos.com \
   servicemonitors.monitoring.coreos.com \
-  podmonitors.monitoring.coreos.com \
-  alertmanagers.monitoring.coreos.com \
-  thanosrulers.monitoring.coreos.com \
-  probes.monitoring.coreos.com
+  traitdefinitions.core.oam.dev \
+  workloaddefinitions.core.oam.dev
 ```
