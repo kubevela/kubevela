@@ -12,6 +12,14 @@ data:
       "namespace": "cert-manager",
       "version": "1.0.3"
     }
+  grafana: |
+    {
+      "repo": "grafana",
+      "urL": "https://grafana.github.io/helm-charts",
+      "name": "grafana",
+      "namespace": "monitoring",
+      "version": "6.0.1"
+    }
   servicemonitors.monitoring.coreos.com: |
     {
       "repo": "prometheus-community",
@@ -19,14 +27,6 @@ data:
       "name": "kube-prometheus-stack",
       "namespace": "monitoring",
       "version": "9.4.4"
-    }
-  scaledobjects.keda.sh: |
-    {
-      "repo": "kedacore",
-      "urL": "https://kedacore.github.io/charts",
-      "name": "keda",
-      "namespace": "vela-system",
-      "version": "1.5.0"
     }
   ingresses.networking.k8s.io: |
     {

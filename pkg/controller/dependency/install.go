@@ -49,25 +49,35 @@ func init() {
 	helmInstallFunc = oam.InstallHelmChart
 }
 
-// Setup vela dependency
-func Install(kubecli client.Client) error {
+// Setup vela dependency.
+// Failing to install vela dependency should not block server from starting up.
+// Some users might fail to get charts due to network blockage. We should fix this in other ways.
+// Note: reconsider delegating the work to helm operator.
+func Install(kubecli client.Client) {
 	velaConfig, err := fetchVelaConfig(kubecli)
 	if err != nil {
-		return err
+		log.Error(err, "fetchVelaConfig failed")
+		return
+	}
+	if velaConfig == nil {
+		log.Info("no vela config")
+		return
 	}
 	for _, chart := range velaConfig.Data {
 		err := installHelmChart(kubecli, []byte(chart), log)
 		if err != nil {
-			return errors.Wrap(err, "failed to install helm chart")
+			log.Error(err, "failed to install helm chart")
 		}
 	}
-	return nil
 }
 
 func Uninstall(kubecli client.Client) {
 	velaConfig, err := fetchVelaConfig(kubecli)
 	if err != nil {
 		log.Error(err, "fetchVelaConfig failed")
+	}
+	if velaConfig == nil {
+		return
 	}
 	for _, chart := range velaConfig.Data {
 		err := uninstallHelmChart([]byte(chart), log)

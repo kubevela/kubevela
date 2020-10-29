@@ -114,10 +114,7 @@ func main() {
 		setupLog.Error(err, "unable to create a kubernetes client")
 		os.Exit(1)
 	}
-	if err = dependency.Install(k8sClient); err != nil {
-		setupLog.Error(err, "unable to install the dependency")
-		os.Exit(1)
-	}
+	go dependency.Install(k8sClient)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
