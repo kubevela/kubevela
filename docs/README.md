@@ -27,4 +27,4 @@ Learn and use KubeVela with tutorials and user stories.
 - [Design and Architecture](design.md)
 
 **Roadmap**
-- [Roadmap of KubeVela v1.0](roadmap.md)
+- [Roadmap of KubeVela](roadmap.md)
