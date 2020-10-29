@@ -31,18 +31,18 @@ As a platform engineer, I want to build a easy-to-use platform for end users. In
 
 In nutshell, the principles for KubeVela project are:
 
-- For end users, it out-of-the-box ships a fully featured PaaS-like experience, nothing special.
-- For platform builders, it works like a special Kubernetes "distro" or extensible PaaS core that could be used to build something more complex. It allows platform builders to ship any existing capabilities in cloud native ecosystem to end users with minimal effort, or develop a new capability at ease in a standardized and Kubernetes-native approach.
+- For end users, it out-of-the-box provides a fully featured PaaS-like experience, nothing special.
+- For platform builders, it works like a special Kubernetes "distro" or extensible PaaS core that could be used to build something more complex on top of. It allows platform builders to integrate any existing capabilities in Kubernetes ecosystem to end users with minimal effort, or develop a new capability at ease in a standardized and Kubernetes-native approach.
 
 ## Design Details
 
 ### 1. Application Centric
 
-The design of KubeVela intends to make users think in terms of application, not containers or infrastructure. 
+The API and interfaces of KubeVela intends to make users think in terms of application, not containers or infrastructure. 
 
 Lacking application context impacts the user experience and significantly raised the bar to adopt cloud native stack. We believe "application" is the natural mindset of developers and it's the core concept an application platform should expose.
 
-![alt](../esources/app-centric.png)
+![alt](../resources/app-centric.png)
 
 KubeVela intends to let developers push code, define application in developer facing primitives, and make daily operations as configurations of the application.  
 
@@ -55,11 +55,11 @@ Thus, KubeVela choose to:
 Instead of creating a in-house "application CRD", KubeVela adopts [Open Application Model (OAM)](https://github.com/oam-dev/spec) as its application definition, since OAM:
 1. defines micro-services application by default.
 2. models day 2 operations as part of the application (i.e. `Application Traits`).
-2. Is highly extensible: every workload and trait in OAM is a independent definition, no abstraction or capability lock-in.
+2. is highly extensible: every workload and trait in OAM is a independent definition, no abstraction or capability lock-in.
 
 ### 2. Capability Oriented Architecture
 
-To enable platform builders use KubeVela as the extensible "PaaS core", KubeVela intends to make its every capability a standalone "plug-in".
+To enable platform builders use KubeVela to create their own application platforms in an easy and Kubernetes native approach, KubeVela intends to make its every capability a standalone "plug-in".
 
 ![alt](../resources/coa.png)
 
@@ -73,7 +73,7 @@ This loosely coupled design of KubeVela adopts the idea of Capability Oriented A
 
 #### Solution
 
-We decide to build KubeVela core with [OAM Kubernetes runtime](https://github.com/crossplane/oam-kubernetes-runtime) which already implemented the building block features such as standalone workload type and trait controllers. Whether a given trait could work with certain workload types is also clarified as `appliesTo` field of trait definition. For platform builders, OAM Kubernetes Runtime also provided a [lightweight library](https://github.com/crossplane/oam-kubernetes-runtime/blob/2be3900a3817aed570de9ec353e6ab0b50e100f0/pkg/controller/v1alpha2/core/traits/manualscalertrait/manualscalertrait_controller.go#L42) to implement trait controller so it doesn't need to care about workload kinds.
+KubeVela core is built with [OAM Kubernetes Runtime](https://github.com/crossplane/oam-kubernetes-runtime) which met the requirements of KubeVela such as supporting bring in standalone controllers as workload type and trait, it also defined a clear interface between how a trait could operate a workload instance in a generic approach. Overall, this library defined a set of abstraction and interfaces for platform builder to assemble various Kubernetes capabilities into a PaaS without coupling them together or introducing any glue code.  
 
 ##### Capability Register and Discovery
 
@@ -94,17 +94,17 @@ For capabilities like cloud services, KubeVela intends to leverage Kubernetes as
 
 ### 3. Extensible User Interface
 
-KubeVela is built with Kubernetes and OAM also adopts Kubernetes API resource model. So in nutshell, **ALL** functionalities of KubeVela core are able to be consumed by simple `kubectl`, for example:
+KubeVela is built with Kubernetes and OAM (which adopts Kubernetes API model). So in nutshell, **ALL** functionalities of KubeVela core can be handled by simple `kubectl`, for example:
 
 ```yaml
 $ kubectl apply -f frontend-component.yaml # create frontend component
 $ kubectl apply -f backend-component.yaml # create backend component
-$ kubectl apply -f application-config.yaml # assign operational traits to components
+$ kubectl apply -f application-config.yaml # assign operational traits to components and deploy the whole application
 ```
 
-However, Kubernetes API should not be the end game. Declarative YAML objects are great to build platforms like KubeVela with but when directly exposed to end users, it creates heavy mental burden and high learning curve. For example, even with highest level abstraction, the default [containerized workload schema](https://github.com/oam-dev/spec/blob/master/core/workloads/schema/containerized_workload.md) of OAM still has dozens fields to learn with many rough edges to be aware.
+We call these server side objects "the application model of KubeVela", they are essentially the Kubernetes API objects KubeVela exposes.
 
-Thus KubeVela intends to introduce a lightweight user facing layer on top of its Kubernetes API objects with following goals in mind:
+However, we also agree that Kubernetes API model is great to build platforms like KubeVela with but when directly exposed to end users, it creates heavy mental burden and high learning curve. Hence, as any other user facing platforms, KubeVela intend to introduce a lightweight user facing layer with following goals in mind:
 
 - Shorten the learning curve of new developers. Most capabilities in KubeVela are developed by big
 companies that run very complex workloads. However, for the bigger developer community, the new user facing layer will provide a much simpler path to on-board KubeVela.
@@ -114,27 +114,31 @@ companies that run very complex workloads. However, for the bigger developer com
 
 #### Solution
 
-We concluded above requirements of the user interface layer as introducing a modeling language on top of the existing model objects. With this context, we decide to adopt [CUElang](https://github.com/cuelang/cue) as the modeling language of KubeVela. In detail, every workload or trait definition will inline a cue template as the contract between user and Kubernetes API object.
+We concluded such "highly extensible user interface layer" as a need for a dynamic "modeling language" on top of the KubeVela's application model objects. After evaluation, we decided to adopt [CUElang](https://github.com/cuelang/cue) since it's perfect as a pure data configuration language that allow us to build developer facing tools, nothing more, nothing less.
 
-However, we don't assume users need to learn or write CUElang directly. Instead, the reason we choose CUElang is it's just perfect to help us create developer facing tools based on it. Thus, KubeVela introduced three most common tools based to CUElang for developers to use:
+In detail, we integrated CUE based abstraction as part of OAM implementation since the *abstraction* and *model* are closely related. For platform builders, every workload or trait definition in KubeVela references a CUE template as its abstraction between human and the underlying Kubernetes capability, platform builders are free to modify those templates at any time
+
+On the other hand, it's by intention that the end users of KubeVela don't need to learn or write CUE. Instead, we created following tools for them by leveraging above OAM + CUE user interface layer:
 
 1. A command line tool.
 2. A GUI dashboard.
 3. A Docker Compose style `appfile`.
 
-An example for `vela cli`:
+For example, the `vela cli`:
 
 ```console
-$ vela comp deploy frontend -t webservice --image oamdev/testapp:v1 --port 80 --app helloworld
+$ vela svc deploy frontend -t webservice --image oamdev/testapp:v1 --port 80 --app helloworld
 ```
 
 The `-t webservice --image oamdev/testapp:v1 --port 80` arguments are not hard coded, they are schema defined by in-line CUE template of `WebService` workload definition.
 
-The `appfile` is essentially a YAML version of command line tool so we can support more complex and serious scenarios by simply running `$ vela up my-app.yaml`:
+The `appfile` is essentially a YAML version of command line tool but it can support more complex structures with a single command like `$ vela up`:
 
 ![alt](../resources/appfile.png)
 
-The schema of above `appfile` is not hard coded, they are structured following OAM and enforced by CUE templates of `WebService` workload definition, `Scaling` trait definition and `Canary` trait definition.
+The schema of above `appfile` is not hard coded as well, they are organized following OAM and enforced by CUE templates of `WebService` workload definition, `Scaling` trait definition and `Canary` trait definition.
+
+> Appfile has its [independent design doc](https://github.com/oam-dev/kubevela/blob/master/design/appfile-design.md) which includes more details. There's also [an example](https://github.com/oam-dev/kubevela/blob/master/design/appfile-design.md#multiple-outputs-in-traitdefinition) showing how platform builder could use CUE to define a `route` capability in KubeVela.
 
 We will skip the example of dashboard, but similarly, the schema of GUI forms are defined by in-lined CUE template of definition objects.
 
@@ -145,7 +149,7 @@ We will skip the example of dashboard, but similarly, the schema of GUI forms ar
 From highest level, KubeVela is composed by only two components:
 
 ### 1. User interface layer
-Including: `cli`, `dashboard`, `appfile`, they are all client side tools to provide developer facing abstractions by leveraging CUElang based parametering and templating.
+Including: `cli`, `dashboard`, `appfile`, they are all client side tools based on the CUE based abstractions mentioned above.
 ### 2. KubeVela core
 Including:
   - [OAM Kubernetes runtime](https://github.com/crossplane/oam-kubernetes-runtime) to provide application-centric building blocks such as `Component` and `Application` etc.
