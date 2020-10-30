@@ -11,11 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
 	"github.com/ghodss/yaml"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -222,51 +220,13 @@ func (app *Application) GetTraitsByType(componentName, traitType string) (map[st
 	return t.(map[string]interface{}), nil
 }
 
-func FormatDefaultHealthScopeName(appName string) string {
-	return appName + "-default-health"
-}
-
 // TODO(wonderflow) add scope support here
 func (app *Application) OAM(env *types.EnvMeta, io cmdutil.IOStreams, slience bool) ([]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
-	comps, appConfig, err := app.RenderOAM(env.Namespace, io, app.tm, slience)
+	comps, appConfig, scopes, err := app.RenderOAM(env.Namespace, io, app.tm, slience)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	addWorkloadTypeLabel(comps, app.Services)
-	health := addHealthScope(appConfig)
-	return comps, appConfig, []oam.Object{health}, nil
-}
-
-func addWorkloadTypeLabel(comps []*v1alpha2.Component, services map[string]appfile.Service) {
-	for _, comp := range comps {
-		workloadType := services[comp.Name].GetType()
-		workloadObject := comp.Spec.Workload.Object.(*unstructured.Unstructured)
-		labels := workloadObject.GetLabels()
-		if labels == nil {
-			labels = map[string]string{oam.WorkloadTypeLabel: workloadType}
-		} else {
-			labels[oam.WorkloadTypeLabel] = workloadType
-		}
-		workloadObject.SetLabels(labels)
-	}
-}
-
-func addHealthScope(appConfig *v1alpha2.ApplicationConfiguration) *v1alpha2.HealthScope {
-	health := &v1alpha2.HealthScope{}
-	health.Name = FormatDefaultHealthScopeName(appConfig.Name)
-	health.Namespace = appConfig.Namespace
-	health.Spec.WorkloadReferences = make([]v1alpha1.TypedReference, 0)
-	for i := range appConfig.Spec.Components {
-		// TODO(wonderflow): Temporarily we add health scope here, should change to use scope framework
-		appConfig.Spec.Components[i].Scopes = append(appConfig.Spec.Components[i].Scopes, v1alpha2.ComponentScope{
-			ScopeReference: v1alpha1.TypedReference{
-				APIVersion: v1alpha2.SchemeGroupVersion.String(),
-				Kind:       v1alpha2.HealthScopeKind,
-				Name:       health.Name,
-			},
-		})
-	}
-	return health
+	return comps, appConfig, scopes, nil
 }
 
 func getApplicationDir(envName string) (string, error) {

@@ -13,8 +13,8 @@ services:
         context: .
 
       # Uncomment the following to push to local kind cluster
-      # push:
-      #   local: kind
+      push:
+        local: kind
 
     # type: webservice (default) | worker | task
 
