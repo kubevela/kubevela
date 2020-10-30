@@ -61,7 +61,7 @@ func printComponentList(ctx context.Context, c client.Client, appName string, en
 	}
 	all := mergeStagingComponents(deployedComponentList, env, ioStreams)
 	table := uitable.New()
-	table.AddRow("NAME", "APP", "TYPE", "TRAITS", "STATUS", "CREATED-TIME")
+	table.AddRow("SERVICE", "APP", "TYPE", "TRAITS", "STATUS", "CREATED-TIME")
 	for _, a := range all {
 		traitAlias := strings.Join(a.TraitNames, ",")
 		table.AddRow(a.Name, a.App, a.WorkloadName, traitAlias, a.Status, a.CreatedTime)

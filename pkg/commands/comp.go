@@ -45,7 +45,6 @@ func AddCompCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 		NewCompDeployCommands(c, ioStreams),
 		NewCompShowCommand(ioStreams),
 		NewCompStatusCommand(c, ioStreams),
-		NewCompDeleteCommand(c, ioStreams),
 	)
 	return compCommands
 }
