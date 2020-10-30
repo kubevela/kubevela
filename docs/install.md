@@ -1,7 +1,7 @@
 # Install KubeVela
 
 ## Prerequisites
-- Kubernete cluster which is v1.15.0 or greater
+- Kubernetes cluster which is v1.15.0 or greater
 - kubectl current context is configured for the target cluster install
   - ```kubectl config current-context```
 
