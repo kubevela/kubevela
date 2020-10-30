@@ -13,27 +13,22 @@ services:
         context: .
 
       # Uncomment the following to push to local kind cluster
-      push:
-        local: kind
+      # push:
+      #   local: kind
 
     # type: webservice (default) | worker | task
 
+    cmd: ["node", "server.js"]
     port: 8080
-
-    env:
-      - FOO=bar
-      - FOO2=sec:my-secret # map the key same as the env name (`FOO2`) from my-secret to env var
-      - FOO3=sec:my-secret:key # map specific key from my-secret to env var
-      - sec:my-secret # map all KV pairs from my-secret to env var
-
-    files: # Mount secret as a file
-      - /mnt/path=sec:my-secret
 
     scaler:
       replica: 1
 
-    route:
-      domain: example.com
+    # route:
+    #   domain: example.com
+    #   rules:
+    #     - path: /testapp
+    #       rewriteTarget: /
 
     # metrics:
     #   format: "prometheus"
@@ -41,3 +36,7 @@ services:
     #   path: "/metrics"
     #   scheme:  "http"
     #   enabled: true
+
+  # pi:
+  #   image: perl 
+  #   cmd: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
