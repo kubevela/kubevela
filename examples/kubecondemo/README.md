@@ -55,7 +55,7 @@ Also the examples are based on Alibaba Cloud settings
   * Add cloud provider: `kubectl crossplane install provider crossplane/provider-alibaba:v0.3.0`
   * Create provider secret: `kubectl create secret generic alibaba-creds --from-literal=accessKeyId=<change here> --from-literal=accessKeySecret=<change here> -n crossplane-system`
   * Configure the provider: `kubectl apply -f script/provider.yaml`
-* Configure infrastructure: `kubectl crossplane install configuration crossplane/getting-started-with-alibaba:master`
+* Configure infrastructure: `kubectl crossplane install configuration crossplane/getting-started-with-alibaba:v0.13`
 
 ### Import the database workload definition
 

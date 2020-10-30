@@ -1,39 +1,35 @@
----
 apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
-  name: postgresqlinstances
+  name: rds
   annotations:
     definition.oam.dev/apiVersion: "database.example.org/v1alpha1"
     definition.oam.dev/kind: "PostgreSQLInstance"
-    definition.oam.dev/description: "Ali Cloud RDS resource"
+    definition.oam.dev/description: "RDS on Ali Cloud"
 spec:
   definitionRef:
-    name: postgresqlinstances
-  extension: 
+    name: rds.apps
+  extension:
     template: |
       output: {
-      	apiVersion: "database.example.org/v1alpha1"
-      	kind: "PostgreSQLInstance"
-      	metadata: 
-          name: "app-postgresql"  	
-        spec: {
+        apiVersion: "database.example.org/v1alpha1"
+        kind: "PostgreSQLInstance"
+        metadata:
+          name: context.name
+        spec: {         
           parameters:
             storageGB: 20
           compositionSelector: {
             matchLabels:
-              provider: "alibaba"
+              provider: parameter.provider
           }
           writeConnectionSecretToRef:
-            name: "db-conn"
-
+            name: parameter.secretname
         }
       }
-      #rds: {
-      	env: [...{
-      		name:  string
-      		value: string
-      	}]
+      
+      parameter: {
+        secretname: *"db-conn" | string
+        provider: *"alibaba" | string
       }
-      parameter: #rds
-
+      

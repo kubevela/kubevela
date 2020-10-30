@@ -4,7 +4,7 @@ deploymentStrategy: RollingUpdate
 
 image:
   repository: crossplane/crossplane
-  tag: v0.14.0-rc.18.g99c02be
+  tag: v0.13.0
   pullPolicy: Always
 
 args: {}
