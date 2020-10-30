@@ -104,7 +104,7 @@ func (s Service) RenderService(tm template.Manager, name, ns string, cg configGe
 		}
 		ctxData["config"] = data
 	}
-	u, err := evalComponent(tm.LoadTemplate(wtype), ctxData, intifyValues(workloadKeys))
+	u, err := evalComponent(tm, wtype, ctxData, intifyValues(workloadKeys))
 	if err != nil {
 		return nil, nil, fmt.Errorf("eval service failed: %w", err)
 	}
@@ -240,8 +240,12 @@ func renderAllOutputs(field cue.FieldInfo) ([]*unstructured.Unstructured, error)
 	return us, nil
 }
 
-func evalComponent(raw string, ctxValues, userValues interface{}) (*unstructured.Unstructured, error) {
-	appValue, err := getValueStruct(raw, ctxValues, userValues)
+func evalComponent(tm template.Manager, wtype string, ctxValues, userValues interface{}) (*unstructured.Unstructured, error) {
+	workloadCueTemplate := tm.LoadTemplate(wtype)
+	if workloadCueTemplate == "" {
+		return nil, fmt.Errorf("capability %s unexist", wtype)
+	}
+	appValue, err := getValueStruct(workloadCueTemplate, ctxValues, userValues)
 	if err != nil {
 		return nil, err
 	}
