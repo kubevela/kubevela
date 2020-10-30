@@ -57,16 +57,16 @@ Kubernetes capabilities for application management. It is built on top of
 Kubernetes and relieves the pains of both the platform builders and the application
 developers by doing the following:
 
-- Kubevela enforces a single **application** concept and **ALL** the exposed
+- KubeVela enforces a single **application** concept and **ALL** the exposed
   Kubernetes capabilities serve for the applications only.
   It adopts the [Open Application Model](https://github.com/oam-dev/spec) (OAM)
   for its application definition. The conventional Pod and container concepts
   are completely eliminated.
  
-- A Kubevela application is composed of various supported components or
+- A KubeVela application is composed of various supported components or
   [traits](https://github.com/oam-dev/spec/blob/master/introduction.md) and their
   schemas are determined by the platform builders. New capabilities can be added
-  to Kubevela through a CRD registry mechanism. 
+  to KubeVela through a CRD registry mechanism. 
 
 - KubeVela provides a rich set of tools to help platform builders to abstract
   the Kubernetes resource and CRD APIs.
@@ -77,16 +77,16 @@ developers by doing the following:
 
 - Schema changes take effect immediately. Neither recompiliation nor redeployment
   of KubeVela is required. This makes the process of delivering new capabilities
-  using Kubevela extremely simple.
+  using KubeVela extremely simple.
   
-With Kubevela, platform builders now have indefinite flexibilities in designing
+With KubeVela, platform builders now have indefinite flexibilities in designing
 and implementing new capabilities without worrying about what and how to expose
 the new capabilities to the end users. However, the ultimate beneficiaries are
 the application developers:
 - Instead of managing a handful Kubernetes YAML files, only a simple
   docker-compose style [appfile](./docs/developers/devex/appfile.md) is needed
-  to manage an application in Kubevela. 
-- Out of the box, Kubevela provides a CLI tool to simplify the application
+  to manage an application in KubeVela. 
+- Out of the box, KubeVela provides a CLI tool to simplify the application
   management workflow which can be easily integrated with existing CI/CD pipelines.
 
 ## Comparisons
@@ -97,7 +97,7 @@ The typical examples are Heroku and Cloud Foundry. They also provide full
 application management capabilities and aim to improve developer experience
 and efficiency. KubeVela shares the same goal but its built-in features are
 much lighter and easier to maintain compared to most of the existing PaaS offerings.
-Kubevela core components are nothing but a set of Kubernetes controllers/plugins.
+KubeVela core components are nothing but a set of Kubernetes controllers/plugins.
 
 The biggest difference lies in the extensibility. Most PaaS systems enforce
 constraints in the type of supported applications and the supported capabilities.
@@ -105,7 +105,7 @@ They are either inextensible or create their own addon systems maintained by the
 user communities. In contrast, KubeVela is built on top of Kubernetes,
 and all the supported capabilities are implemented by Kubernetes CRD controllers.
 No additional addon system is introduced. A new capability can be installed in
-Kubevela at any time by simply registering the CRD in Kubevela.
+KubeVela at any time by simply registering the CRD in KubeVela.
 
 
 ### Serverless platforms  
@@ -115,8 +115,8 @@ and agility to deploy serverless applications. However, those platforms impose
 even more constraints in extensibility. They are argurably "hard-coded" PaaS.
 
 Kubernetes based serverless platforms such as Knative, OpenFaaS can be easily
-integrated with Kubevela by registering themself as platform capabilities.
-Even for AWS Lambda, there is an success story to integrate it with Kubevela
+integrated with KubeVela by registering themself as platform capabilities.
+Even for AWS Lambda, there is an success story to integrate it with KubeVela
 by the tools developed by Crossplane.
 
 ### Platform agnostic developer tools
@@ -125,19 +125,19 @@ The typical example is [Waypoint](https://github.com/hashicorp/waypoint). It is
 a user facing tool which introduces a consistent workflow (i.e., build,
 deploy, release) for developers to ship applications on top of different platforms.
 KubeVela can be integrated into Waypoint like any other supported platforms. 
-In this case, developers can use the Waypoint workflow instead of the Kubevela
+In this case, developers can use the Waypoint workflow instead of the KubeVela
 CLI to manage applications.
 
 
 ### Package management tools 
 
-People may mistakenly think Kubevela is another package manager like Helm.
+People may mistakenly think KubeVela is another package manager like Helm.
 Although using Helm chart significantly reduces the burden of managing a
 complicated Kubernetes application, whoever prepares the helm chart cannot avoid
 the tedious and error-prone work of packaging those YAML files.
 
-Kubevela aims to fundamentally remove the need of managing conventional Kubernetes
-YAML files. However, in the server side, Kubevela still relies on Helm to package
+KubeVela aims to fundamentally remove the need of managing conventional Kubernetes
+YAML files. However, in the server side, KubeVela still relies on Helm to package
 and manage the third-party plugins such as `Prometheus`, etc.
 
 ### Kubernetes
