@@ -1,10 +1,10 @@
 ## vela template context
 
-show context parameters
+Show context parameters
 
 ### Synopsis
 
-show context parameter
+Show context parameter
 
 ```
 vela template context

@@ -27,8 +27,8 @@ func NewTemplateContextCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "context",
 		DisableFlagsInUseLine: true,
-		Short:                 "show context parameters",
-		Long:                  "show context parameter",
+		Short:                 "Show context parameters",
+		Long:                  "Show context parameter",
 		Example:               `vela template context`,
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeSystem,

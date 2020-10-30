@@ -26,12 +26,12 @@ func NewCommand() *cobra.Command {
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			allCommands := cmd.Commands()
-			cmd.Printf("✈️  A Micro App Platform for Kubernetes.\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
+			cmd.Printf("✈️  The Extensible Application Platform Based on Kubernetes and Open Application Model (OAM).\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
 			PrintHelpByTag(cmd, allCommands, types.TypeStart)
 			PrintHelpByTag(cmd, allCommands, types.TypeApp)
 			PrintHelpByTag(cmd, allCommands, types.TypeTraits)
-			PrintHelpByTag(cmd, allCommands, types.TypeOthers)
 			PrintHelpByTag(cmd, allCommands, types.TypeSystem)
+			PrintHelpByTag(cmd, allCommands, types.TypeOthers)
 			cmd.Println("Flags:")
 			cmd.Println("  -h, --help   help for vela")
 			cmd.Println()
