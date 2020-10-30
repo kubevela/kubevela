@@ -20,7 +20,6 @@ func NewAppsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	}
 
 	cmd.AddCommand(
-		NewAppStatusCommand(c, ioStreams),
 		NewRunCommand(c, ioStreams))
 	return cmd
 }

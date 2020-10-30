@@ -6,11 +6,13 @@ import (
 	"os"
 	"sort"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
+	"github.com/spf13/cobra"
 
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -240,4 +242,62 @@ func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) (string, error) {
 	}
 
 	return fmt.Sprintf("delete component succeed %s from %s", o.CompName, o.AppName), nil
+}
+
+func chooseSvc(services []string) (string, error) {
+	var svcName string
+	services = append(services, DefaultChosenAllSvc)
+	prompt := &survey.Select{
+		Message: "Please choose one service: ",
+		Options: services,
+		Default: DefaultChosenAllSvc,
+	}
+	err := survey.AskOne(prompt, &svcName)
+	if err != nil {
+		return "", fmt.Errorf("failed to retrieve services of the application, err %v", err)
+	}
+	return svcName, nil
+}
+
+// GetServicesWhenDescribingApplication gets the target services list either from cli `--svc` flag or from survey
+func GetServicesWhenDescribingApplication(cmd *cobra.Command, app *application.Application) ([]string, error) {
+	var svcFlag string
+	var svcFlagStatus string
+	// to store the value of flag `--svc` set in Cli, or selected value in survey
+	var targetServices []string
+	if svcFlag = cmd.Flag("svc").Value.String(); svcFlag == "" {
+		svcFlagStatus = FlagNotSet
+	} else {
+		svcFlagStatus = FlagIsInvalid
+	}
+	// all services name of the application `appName`
+	var services []string
+	for svcName := range app.Services {
+		services = append(services, svcName)
+		if svcFlag == svcName {
+			svcFlagStatus = FlagIsValid
+			targetServices = append(targetServices, svcName)
+		}
+	}
+	totalServices := len(services)
+	if svcFlagStatus == FlagNotSet && totalServices == 1 {
+		targetServices = services
+	}
+	if svcFlagStatus == FlagIsInvalid || (svcFlagStatus == FlagNotSet && totalServices > 1) {
+		if svcFlagStatus == FlagIsInvalid {
+			cmd.Printf("The service name '%s' is not valid\n", svcFlag)
+		}
+		chosenSvc, err := chooseSvc(services)
+		if err != nil {
+			return []string{}, err
+		}
+
+		if chosenSvc == DefaultChosenAllSvc {
+			targetServices = services
+		} else {
+			targetServices = targetServices[:0]
+			targetServices = append(targetServices, chosenSvc)
+		}
+	}
+	return targetServices, nil
 }

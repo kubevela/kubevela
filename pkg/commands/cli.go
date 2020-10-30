@@ -73,6 +73,7 @@ func NewCommand() *cobra.Command {
 		NewListCommand(commandArgs, ioStream),
 		NewDeleteCommand(commandArgs, ioStream),
 		NewAppShowCommand(ioStream),
+		NewAppStatusCommand(commandArgs, ioStream),
 
 		// Workloads
 		AddCompCommands(commandArgs, ioStream),
