@@ -6,30 +6,29 @@
 
 The modern trends of cloud-native application management have moved towards
 pursuing a simplified developer experience across clouds and infrastructures.
-As the dominating cloud-native platform, Kubernetes, however, has brought
-significant challenges for achieving this goal. Kubernetes has a considerably
-high learning curve:
+As the dominating cloud-native platform, Kubernetes, excellently 
+abstracts the infrastructure details and manages application lifecycle in
+a consistent manner. However, many application developers
+believe that Kubernete is not an easy platform to use. The primary reason
+is that Kuberntes exposes full levels of API details in order to enable 
+flexible users control. Despite the flexibility, it leads to a few problems.
 
-- Application developers have to learn quite a few new concepts and resource
-  specifications such as pods, ingresses, services, resource quota etc., before
-  deploying their applications.
+Firstly, application developers have to understand quite a few new 
+concepts and resource specifications before deploying their applications.
+Sometimes, this is not an easy task. For example, it may take a while
+for developers to understand some runtime related configurations
+such as `allowPrivilegeEscalation` which they rarely touch in their daily work.
+The pervasive use of CRDs makes the situation even worse since developers
+have to learn all the CRD schemas as well. 
 
-- The built-in resources sometimes are tied to underline infrastructure.
-  For example, almost all cloud vendors have their own specifications for
-  configuring a volume, making the `PodSpec` different across clouds.
-
-- The pervasive use of CRDs makes the situation even worse since developers
-  have to learn all the CRD schemas as well, which can be hard to understand
-  if they are poorly designed.
-
-Moreover, Kuberntes exposes full levels of API details to enable flexible user
-control. The consequence is that application management in Kubernetes soon
+Moreover, since developers have to specify the details of all the
+involved resource objects, application management in Kubernetes soon
 becomes a headache of handling a large amount of resource YAML files.
-Despite the flexibility, the lack of API abstraction has led to low productivity,
+We have seen that the lack of API abstraction had led to low productivity,
 unexpected errors or misconfigurations in production. Application developers
-often question "why am I bothered with these many YAML files?"
+start to question "why am I bothered with these many YAML files?"
 
-On the other hand, Kubernetes is a platform platform. Literally, the extended
+On the other hand, Kubernetes is a platform for platforms. Literally, the extended
 capabilities provided by the platform builders are the keys to support the
 Kubenetes ecosystems. Nowadays, a typical production Kubernetes would install
 dozens of customized operators and plugins. Since abstracting the Kubernetes
@@ -48,14 +47,14 @@ dealing with the API abstraction:
   The operator design could easily becomes a marathon negotiation in order
   to meet the abstraction requirement.
 
-In the end, application developers complain that Kubernetes is hard to use
+In the end, application developers may complain that Kubernetes is hard to use
 and the platform builders may want to help but they cannot do it easily.
 
 ## What is KubeVela?
 
 KubeVela is a framework to help platform builders to easily expose and extend
 Kubernetes capabilities for application management. It is built on top of
-Kubernetes and reliefs the pains of both the platform builders and the application
+Kubernetes and relieves the pains of both the platform builders and the application
 developers by doing the following:
 
 - Kubevela enforces a single **application** concept and **ALL** the exposed
@@ -82,12 +81,13 @@ developers by doing the following:
   
 With Kubevela, platform builders now have indefinite flexibilities in designing
 and implementing new capabilities without worrying about what and how to expose
-the new capabilities to the end users.
-
-The ultimate beneficiaries are the application developers. Instead of managing
-a handful Kubernetes YAML files, only a simple docker-compose style **appfile**
-is needed to manage an application in Kubevela.
-
+the new capabilities to the end users. However, the ultimate beneficiaries are
+the application developers:
+- Instead of managing a handful Kubernetes YAML files, only a simple
+  docker-compose style [appfile](./docs/developers/devex/appfile.md) is needed
+  to manage an application in Kubevela. 
+- Out of the box, Kubevela provides a CLI tool to simplify the application
+  management workflow which can be easily integrated with existing CI/CD pipelines.
 
 ## Comparisons
 
@@ -122,11 +122,11 @@ by the tools developed by Crossplane.
 ### Platform agnostic developer tools
 
 The typical example is [Waypoint](https://github.com/hashicorp/waypoint). It is
-a platform agnostic tool which introduces a consistent workflow (i.e., build,
-deploy, release) in application delivery. Waypoint cannot manage or leverage
-platform specific capabilities. KubeVela can be integrated into Waypoint 
-like any other supported platforms. In this case, developers can use the Waypoint
-workflow instead of the Kubevela CLI to manage applications.
+a user facing tool which introduces a consistent workflow (i.e., build,
+deploy, release) for developers to ship applications on top of different platforms.
+KubeVela can be integrated into Waypoint like any other supported platforms. 
+In this case, developers can use the Waypoint workflow instead of the Kubevela
+CLI to manage applications.
 
 
 ### Package management tools 
@@ -142,6 +142,7 @@ and manage the third-party plugins such as `Prometheus`, etc.
 
 ### Kubernetes
 
-KubeVela can be treated as a special Kubernetes distribution for application management.
+KubeVela can be treated as a special Kubernetes "distribution" that focuses on
+developers and application management only.
 It leverages the native Kubernetes extensibility to resolve a hard problem - making
 application management enjoyable in Kubernetes.
