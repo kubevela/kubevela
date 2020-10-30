@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
@@ -182,7 +183,7 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 		return "", fmt.Errorf("delete application err %s", err)
 	}
 	var healthScope corev1alpha2.HealthScope
-	healthScope.Name = application.FormatDefaultHealthScopeName(o.AppName)
+	healthScope.Name = appfile.FormatDefaultHealthScopeName(o.AppName)
 	healthScope.Namespace = o.Env.Namespace
 	err = o.Client.Delete(ctx, &healthScope)
 	if err != nil && !apierrors.IsNotFound(err) {

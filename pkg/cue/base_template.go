@@ -4,7 +4,7 @@ const BaseTemplate = `
 
 context: {
   name: string
-  config: [...{
+  config?: [...{
     name: string
     value: string
   }]

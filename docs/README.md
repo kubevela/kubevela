@@ -4,6 +4,7 @@ Learn and use KubeVela with tutorials and user stories.
 
 **Overview**
 - [Introduction](introduction.md)
+- [Installation](./installmd)
 - [Quick Start](quick-start.md)
 - [Concepts](concepts.md)
 
@@ -15,9 +16,10 @@ Learn and use KubeVela with tutorials and user stories.
 - [Setting Rollout Strategy](developers/set-rollout.md)
 - [Monitoring Application](developers/set-metrics.md)
 - [Using Appfile](developers/devex/appfile.md)
-- [Execute Commands in Container](developers/exec-cmd.md)
 - [Check Application Logs](developers/check-logs.md)
-- [Configuring Application](developers/config-app.md)
+- [Execute Commands in Container](developers/exec-cmd.md)
+- [Port Forward to Container](developers/port-forward.md)
+- [Setting Configurations in Application](developers/config-app.md)
 - [Consuming Cloud Services](developers/cloud-service.md)
 
 **For Platform Engineers**

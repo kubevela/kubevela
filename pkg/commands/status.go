@@ -21,6 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	oam2 "github.com/oam-dev/kubevela/pkg/oam"
@@ -73,7 +74,7 @@ const (
 
 const (
 	ErrNotLoadAppConfig  = "cannot load the application"
-	ErrFmtNotInitialized = "initializing service: %s failed"
+	ErrFmtNotInitialized = "service: %s not ready"
 	ErrServiceNotFound   = "service %s not found in app"
 )
 
@@ -195,7 +196,7 @@ func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOSt
 func getWorkloadHealthConditions(ctx context.Context, c client.Client, app *application.Application, ns string) (map[string]*WorkloadHealthCondition, error) {
 	hs := &v1alpha2.HealthScope{}
 	// only use default health scope
-	hsName := application.FormatDefaultHealthScopeName(app.Name)
+	hsName := appfile.FormatDefaultHealthScopeName(app.Name)
 	if err := c.Get(ctx, client.ObjectKey{Namespace: ns, Name: hsName}, hs); err != nil {
 		return nil, err
 	}

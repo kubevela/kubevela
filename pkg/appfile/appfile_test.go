@@ -4,10 +4,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -162,6 +164,13 @@ outputs: ingress: {
 		Spec: v1alpha2.ApplicationConfigurationSpec{
 			Components: []v1alpha2.ApplicationConfigurationComponent{{
 				ComponentName: "express-server",
+				Scopes: []v1alpha2.ComponentScope{{
+					ScopeReference: v1alpha1.TypedReference{
+						APIVersion: "core.oam.dev/v1alpha2",
+						Kind:       "HealthScope",
+						Name:       "myapp-default-health",
+					},
+				}},
 				Traits: []v1alpha2.ComponentTrait{{
 					Trait: runtime.RawExtension{
 						Object: &unstructured.Unstructured{
@@ -220,6 +229,13 @@ outputs: ingress: {
 	ac2.Spec.Components = append(ac2.Spec.Components, v1alpha2.ApplicationConfigurationComponent{
 		ComponentName: "mongodb",
 		Traits:        []v1alpha2.ComponentTrait{},
+		Scopes: []v1alpha2.ComponentScope{{
+			ScopeReference: v1alpha1.TypedReference{
+				APIVersion: "core.oam.dev/v1alpha2",
+				Kind:       "HealthScope",
+				Name:       "myapp-default-health",
+			},
+		}},
 	})
 
 	comp1 := &v1alpha2.Component{
@@ -233,7 +249,12 @@ outputs: ingress: {
 					Object: map[string]interface{}{
 						"apiVersion": "test.oam.dev/v1",
 						"kind":       "WebService",
-						"metadata":   map[string]interface{}{"name": "express-server"},
+						"metadata": map[string]interface{}{
+							"name": "express-server",
+							"labels": map[string]interface{}{
+								"workload.oam.dev/type": "webservice",
+							},
+						},
 						"spec": map[string]interface{}{
 							"image":   "oamdev/testapp:v1",
 							"command": []interface{}{"node", "server.js"},
@@ -255,7 +276,12 @@ outputs: ingress: {
 					Object: map[string]interface{}{
 						"apiVersion": "test.oam.dev/v1",
 						"kind":       "Worker",
-						"metadata":   map[string]interface{}{"name": "mongodb"},
+						"metadata": map[string]interface{}{
+							"name": "mongodb",
+							"labels": map[string]interface{}{
+								"workload.oam.dev/type": "backend",
+							},
+						},
 						"spec": map[string]interface{}{
 							"image":   "bitnami/mongodb:3.6.20",
 							"command": []interface{}{"mongodb"},
@@ -281,6 +307,8 @@ outputs: ingress: {
 		fakeConfigData, "spec", "env"); err != nil {
 		t.Fatal(err)
 	}
+	compWithConfig.Spec.Workload.Object.(*unstructured.Unstructured).SetLabels(
+		map[string]string{"workload.oam.dev/type": "withconfig"})
 
 	type args struct {
 		appfileData       string
@@ -377,7 +405,7 @@ outputs: ingress: {
 				}
 			}
 
-			comps, ac, err := app.RenderOAM("default", io, tm, false)
+			comps, ac, _, err := app.RenderOAM("default", io, tm, false)
 			if err != nil {
 				assert.Equal(t, c.want.err, err)
 				return
@@ -414,5 +442,47 @@ outputs: ingress: {
 				}
 			}
 		})
+	}
+}
+
+func TestAddWorkloadTypeLabel(t *testing.T) {
+	tests := map[string]struct {
+		comps    []*v1alpha2.Component
+		services map[string]Service
+		expect   []*v1alpha2.Component
+	}{
+		"empty case": {
+			comps:    []*v1alpha2.Component{},
+			services: map[string]Service{},
+			expect:   []*v1alpha2.Component{},
+		},
+		"add type to labels normal case": {
+			comps: []*v1alpha2.Component{
+				{
+					ObjectMeta: v1.ObjectMeta{Name: "mycomp"},
+					Spec:       v1alpha2.ComponentSpec{Workload: runtime.RawExtension{Object: &unstructured.Unstructured{Object: map[string]interface{}{}}}},
+				},
+			},
+			services: map[string]Service{
+				"mycomp": {"type": "kubewatch"},
+			},
+			expect: []*v1alpha2.Component{
+				{
+					ObjectMeta: v1.ObjectMeta{Name: "mycomp"},
+					Spec: v1alpha2.ComponentSpec{
+						Workload: runtime.RawExtension{
+							Object: &unstructured.Unstructured{Object: map[string]interface{}{
+								"metadata": map[string]interface{}{
+									"labels": map[string]interface{}{
+										"workload.oam.dev/type": "kubewatch",
+									}}}}},
+					},
+				},
+			},
+		},
+	}
+	for key, ca := range tests {
+		addWorkloadTypeLabel(ca.comps, ca.services)
+		assert.Equal(t, ca.expect, ca.comps, key)
 	}
 }

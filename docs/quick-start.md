@@ -1,9 +1,5 @@
 # Quick Start
 
-## Install
-
-Please follow [this simple guide](install.md).
-
 ## Deploy Application
 
 ```console

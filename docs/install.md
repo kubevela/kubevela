@@ -1,9 +1,11 @@
 # Install KubeVela
 
 ## Prerequisites
-- Kubernetes cluster which is v1.15.0 or greater
-- kubectl current context is configured for the target cluster install
-  - ```kubectl config current-context```
+
+- Kubernetes cluster >= v1.15.0
+- kubectl installed and configured
+
+You may pick either Minikube or KinD as local cluster testing option.
 
 ### Minikube
 
@@ -11,7 +13,31 @@
 
 ### KinD
 
-> TODO anything need to do?
+Follow [this guide](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) to install kind.
+
+Then spins up a kind cluster:
+
+```console
+cat <<EOF | kind create cluster --config=-
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+  extraPortMappings:
+  - containerPort: 80
+    hostPort: 80
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
+EOF
+```
 
 ## Get KubeVela
 
@@ -51,7 +77,6 @@ cert-manager         	cert-manager	1       	...
 flagger              	vela-system 	1
 ingress-nginx        	vela-system 	1
 kube-prometheus-stack	monitoring  	1
-grafana              	monitoring  	1
 ...
 ```
 
@@ -59,7 +84,7 @@ grafana              	monitoring  	1
 
 We have installed the following dependency components along with Vela server component:
 
-- [Prometheus](https://prometheus-community.github.io/helm-charts/) & [Grafana](https://github.com/grafana/helm-charts/tree/main/charts/grafana)
+- [Prometheus Stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack)
 - [Cert-manager](https://cert-manager.io/)
 - [Ingress-nginx](https://github.com/kubernetes/ingress-nginx/)
 - [Flagger](https://flagger.app/)

@@ -5,13 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/appfile"
-
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/assert"
 
@@ -141,47 +134,5 @@ services:
 		traits, err := app.GetTraits(c.WantWorkload)
 		assert.NoError(t, err, caseName)
 		assert.Equal(t, c.ExpTraits, traits, caseName)
-	}
-}
-
-func TestAddWorkloadTypeLabel(t *testing.T) {
-	tests := map[string]struct {
-		comps    []*v1alpha2.Component
-		services map[string]appfile.Service
-		expect   []*v1alpha2.Component
-	}{
-		"empty case": {
-			comps:    []*v1alpha2.Component{},
-			services: map[string]appfile.Service{},
-			expect:   []*v1alpha2.Component{},
-		},
-		"add type to labels normal case": {
-			comps: []*v1alpha2.Component{
-				{
-					ObjectMeta: v1.ObjectMeta{Name: "mycomp"},
-					Spec:       v1alpha2.ComponentSpec{Workload: runtime.RawExtension{Object: &unstructured.Unstructured{Object: map[string]interface{}{}}}},
-				},
-			},
-			services: map[string]appfile.Service{
-				"mycomp": {"type": "kubewatch"},
-			},
-			expect: []*v1alpha2.Component{
-				{
-					ObjectMeta: v1.ObjectMeta{Name: "mycomp"},
-					Spec: v1alpha2.ComponentSpec{
-						Workload: runtime.RawExtension{
-							Object: &unstructured.Unstructured{Object: map[string]interface{}{
-								"metadata": map[string]interface{}{
-									"labels": map[string]interface{}{
-										"workload.oam.dev/type": "kubewatch",
-									}}}}},
-					},
-				},
-			},
-		},
-	}
-	for key, ca := range tests {
-		addWorkloadTypeLabel(ca.comps, ca.services)
-		assert.Equal(t, ca.expect, ca.comps, key)
 	}
 }

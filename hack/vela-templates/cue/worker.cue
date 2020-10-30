@@ -19,6 +19,10 @@ output: {
         containers: [{
           name:  context.name
           image: parameter.image
+
+          if parameter["cmd"] != _|_ {
+            command: parameter.cmd
+          }
         }]
       }
     }
@@ -33,4 +37,6 @@ parameter: {
   // +usage=specify app image
   // +short=i
   image: string
+
+  cmd?: [...string]
 }
