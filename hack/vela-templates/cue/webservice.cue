@@ -18,9 +18,24 @@ output: {
         containers: [{
           name:  context.name
           image: parameter.image
+
+          if parameter["cmd"] != _|_ {
+            command: parameter.cmd
+          }
+
           if parameter["env"] != _|_ {
             env: parameter.env
           }
+          
+          if context["config"] != _|_ {
+            env: [
+              for k, v in context.config {
+                name: k
+                value: v
+              }
+            ]
+          }
+
           ports: [{
             containerPort: parameter.port
           }]
@@ -33,6 +48,8 @@ parameter: {
   // +usage=specify app image
   // +short=i
   image: string
+
+  cmd?: [...string]
 
   // +usage=specify port for container
   // +short=p

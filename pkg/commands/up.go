@@ -11,6 +11,7 @@ import (
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/ghodss/yaml"
 	"github.com/kyokomi/emoji"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -130,11 +131,20 @@ func (o *appfileOptions) Run(filePath string) error {
 		return err
 	}
 	if err := ioutil.WriteFile(deployFilePath, cfg.Bytes(), 0600); err != nil {
-		return err
+		return errors.Wrap(err, "write deploy config manifests failed")
+	}
+
+	if err := o.saveToAppDir(app); err != nil {
+		return errors.Wrap(err, "save to app dir failed")
 	}
 
 	o.IO.Infof("\nApplying deploy configs ...\n")
 	return o.ApplyAppConfig(appConfig, comps)
+}
+
+func (o *appfileOptions) saveToAppDir(f *appfile.AppFile) error {
+	app := &application.Application{AppFile: f}
+	return app.Save(o.Env.Name)
 }
 
 // Apply deploy config resources for the app.
@@ -174,11 +184,9 @@ func (o *appfileOptions) apply(ac *v1alpha2.ApplicationConfiguration, comps []*v
 	return application.CreateOrUpdateAppConfig(context.TODO(), o.Kubecli, ac)
 }
 
-func (o *appfileOptions) info(name string) {
+func (o *appfileOptions) info(appName string) {
 	o.IO.Infof("app has been deployed %s%s%s\n", emojiRocket, emojiRocket, emojiRocket)
-	o.IO.Infof("\tURL: http://%s/\n", o.Env.Domain)
-	o.IO.Infof("\tPort forward: vela listen %s <port>\n", name)
-	o.IO.Infof("\tSSH: vela exec %s\n", name)
-	o.IO.Infof("\tLogging: vela logs %s\n", name)
-	o.IO.Infof("\tMetric: TODO\n")
+	o.IO.Infof("\tPort forward: vela port-forward %s <port>\n", appName)
+	o.IO.Infof("\tSSH: vela exec %s\n", appName)
+	o.IO.Infof("\tLogging: vela logs %s\n", appName)
 }

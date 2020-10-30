@@ -9,7 +9,7 @@ data:
       "repo": "prometheus-community",
       "urL": "https://prometheus-community.github.io/helm-charts",
       "name": "kube-prometheus-stack",
-      "namespace": "vela-system",
+      "namespace": "monitoring",
       "version": "9.4.4"
     }
   ingresses.networking.k8s.io: |

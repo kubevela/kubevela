@@ -3,7 +3,7 @@ name: testapp
 
 services:
   express-server:
-    # this image will be used in both build and deploy config
+    # this image will be used in both build and deploy steps
     image: oamdev/testapp:v1
 
     build:
@@ -16,14 +16,9 @@ services:
       # push:
       #   local: kind
 
-    # type: webservice (default) | task
+    # type: webservice (default) | worker | task
 
-    cmd: ["node", "server.js"]
-
-    route:
-      domain: example.com
-      http: # match the longest prefix
-        "/": 8080
+    port: 8080
 
     env:
       - FOO=bar
@@ -34,17 +29,15 @@ services:
     files: # Mount secret as a file
       - /mnt/path=sec:my-secret
 
-    scale:
-      replica: 2
-      auto: # automatic scale up and down based on given metrics
-        range: "1-10"
-        cpu: 80 # if cpu utilization is above 80%, scale up
-        qps: 1000 # if qps is higher than 1k, scale up
+    scaler:
+      replica: 1
 
-    canary: # Auto-create canary deployment. Only upgrade after verify successfully.
-      replica: 1 # canary deployment size
-      headers:
-        - "foo:bar.*"
+    route:
+      domain: example.com
 
-secrets:
-  my-secret: /local-path/my-secret # load local file into k8s secret
+    # metrics:
+    #   format: "prometheus"
+    #   port: 8080
+    #   path: "/metrics"
+    #   scheme:  "http"
+    #   enabled: true

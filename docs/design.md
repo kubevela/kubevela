@@ -138,7 +138,7 @@ The `appfile` is essentially a YAML version of command line tool but it can supp
 
 The schema of above `appfile` is not hard coded as well, they are organized following OAM and enforced by CUE templates of `WebService` workload definition, `Scaling` trait definition and `Canary` trait definition.
 
-> Appfile has its [independent design doc](https://github.com/oam-dev/kubevela/blob/master/design/appfile-design.md) which includes more details. There's also [an example](https://github.com/oam-dev/kubevela/blob/master/design/appfile-design.md#multiple-outputs-in-traitdefinition) showing how platform builder could use CUE to define a `route` capability in KubeVela.
+> Appfile has its [independent design doc](./design/appfile-design.md) which includes more details. There's also [an example](./design/appfile-design.md#multiple-outputs-in-traitdefinition) showing how platform builder could use CUE to define a `route` capability in KubeVela.
 
 We will skip the example of dashboard, but similarly, the schema of GUI forms are defined by in-lined CUE template of definition objects.
 
