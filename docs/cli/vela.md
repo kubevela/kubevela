@@ -36,7 +36,7 @@ vela [flags]
 * [vela route](vela_route.md)	 - Attach route trait to an app
 * [vela scaler](vela_scaler.md)	 - Attach scaler trait to an app
 * [vela svc](vela_svc.md)	 - Manage services
-* [vela system](vela_system.md)	 - system management utilities
+* [vela system](vela_system.md)	 - System management utilities
 * [vela template](vela_template.md)	 - Manage templates
 * [vela traits](vela_traits.md)	 - List traits
 * [vela up](vela_up.md)	 - Apply an appfile

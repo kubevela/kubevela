@@ -51,8 +51,8 @@ type infoCmd struct {
 func SystemCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "system",
-		Short: "system management utilities",
-		Long:  "system management utilities",
+		Short: "System management utilities",
+		Long:  "System management utilities",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeSystem,
 		},
@@ -66,8 +66,8 @@ func NewAdminInfoCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "info",
-		Short: "show vela client and cluster chartPath",
-		Long:  "show vela client and cluster chartPath",
+		Short: "Show vela client and cluster chartPath",
+		Long:  "Show vela client and cluster chartPath",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return i.run(ioStreams)
 		},
