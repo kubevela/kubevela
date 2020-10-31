@@ -24,11 +24,12 @@ test: fmt vet lint
 	go test -race -coverprofile=coverage.txt -covermode=atomic ./pkg/... ./cmd/...
 
 # Build manager binary
-build: fmt vet lint build-cli
+build: fmt vet lint
 	go run hack/chart/generate.go
+	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
 	git checkout cmd/vela/fake/chart_source.go
 
-build-cli:
+vela-cli:
 	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
 
 npm-build:

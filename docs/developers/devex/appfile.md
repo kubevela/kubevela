@@ -165,7 +165,7 @@ Apply again:
 $ vela up
 ```
 
-**In kind cluster**, we can visit the web service:
+**In [kind cluster setup](../../install.md#kind)**, we can visit the web service:
 
 > If no in kind cluster, replace localhost with ingress address
 
