@@ -163,7 +163,7 @@ func (o *appfileOptions) ApplyAppConfig(ac *v1alpha2.ApplicationConfiguration, c
 		Namespace: ac.Namespace,
 		Name:      ac.Name,
 	}
-	o.IO.Infof("\nChecking if app has been deployed...\n")
+	o.IO.Infof("Checking if app has been deployed...\n")
 	var tmpAC v1alpha2.ApplicationConfiguration
 	err := o.Kubecli.Get(context.TODO(), key, &tmpAC)
 	switch {
@@ -177,7 +177,7 @@ func (o *appfileOptions) ApplyAppConfig(ac *v1alpha2.ApplicationConfiguration, c
 	if err := o.apply(ac, comps, scopes); err != nil {
 		return err
 	}
-	o.info(ac.Name)
+	o.info(ac.Name, comps)
 	return nil
 }
 
@@ -194,10 +194,13 @@ func (o *appfileOptions) apply(ac *v1alpha2.ApplicationConfiguration, comps []*v
 	return application.CreateOrUpdateAppConfig(context.TODO(), o.Kubecli, ac)
 }
 
-func (o *appfileOptions) info(appName string) {
-	o.IO.Infof("app has been deployed 🚀🚀🚀\n")
-	o.IO.Infof("\tPort forward: vela port-forward %s\n", appName)
-	o.IO.Infof("\tSSH: vela exec %s\n", appName)
-	o.IO.Infof("\tLogging: vela logs %s\n", appName)
-	// TODO: print status
+func (o *appfileOptions) info(appName string, comps []*v1alpha2.Component) {
+	o.IO.Infof("✅ app has been deployed 🚀🚀🚀\n")
+	o.IO.Infof("    Port forward: vela port-forward %s\n", appName)
+	o.IO.Infof("             SSH: vela exec %s\n", appName)
+	o.IO.Infof("         Logging: vela logs %s\n", appName)
+	o.IO.Infof("      App status: vela app status %s\n", appName)
+	for _, comp := range comps {
+		o.IO.Infof("  Service status: vela svc status %s\n", comp.Name)
+	}
 }

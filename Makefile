@@ -29,6 +29,9 @@ build: fmt vet lint
 	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
 	git checkout cmd/vela/fake/chart_source.go
 
+vela-cli:
+	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
+
 npm-build:
 	cd dashboard && npm run build && cd ./..
 
