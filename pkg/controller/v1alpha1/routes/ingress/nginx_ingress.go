@@ -125,7 +125,7 @@ func (*Nginx) Construct(routeTrait *standardv1alpha1.Route) []*v1beta1.Ingress {
 		}
 		// Rewrite
 		if rule.RewriteTarget != "" {
-			annotations["ingress.kubernetes.io/rewrite-target"] = rule.RewriteTarget
+			annotations["nginx.ingress.kubernetes.io/rewrite-target"] = rule.RewriteTarget
 		}
 
 		// Custom headers
