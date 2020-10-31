@@ -10,7 +10,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/spf13/cobra"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func NewAppShowCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
@@ -42,15 +41,7 @@ func NewAppShowCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-type Unkown struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
-	Spec              interface{} `json:"spec"`
-	Status            interface{} `json:"status"`
-}
-
 func showApplication(cmd *cobra.Command, env *types.EnvMeta, appName string) error {
-
 	app, err := application.Load(env.Name, appName)
 	if err != nil {
 		return err
