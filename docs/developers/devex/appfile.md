@@ -69,9 +69,9 @@ Check the status of the service:
 
 ```console
 $ vela svc status express-server
-Showing status of service(type: webservice) express-server deployed in Environment default
 Service express-server Status:	 HEALTHY Ready: 1/1
-	scaler: replica=1
+
+Last Deployment:
 ...
 ```
 
@@ -111,15 +111,6 @@ metadata:
 spec:
   components:
   - componentName: express-server
-    traits:
-    - trait:
-        apiVersion: core.oam.dev/v1alpha2
-        kind: ManualScalerTrait
-        ...
-    - trait:
-        apiVersion: standard.oam.dev/v1alpha1
-        kind: Route
-        ...
 ---
 apiVersion: core.oam.dev/v1alpha2
 kind: Component
@@ -155,8 +146,8 @@ servcies:
     route:
       domain: example.com
       rules:
-        - path: /testapp(.*)
-          rewriteTarget: /$1
+        - path: /testapp
+          rewriteTarget: /
 ```
 
 Apply again:
@@ -165,7 +156,16 @@ Apply again:
 $ vela up
 ```
 
-**In [kind cluster setup](../../install.md#kind)**, we can visit the web service:
+Check status and we can see route trait:
+```console
+$ vela svc status express-server
+Showing status of service(type: webservice) express-server deployed in Environment default
+Service express-server Status:	 HEALTHY Ready: 1/1
+	route: 	Visiting URL: http://example.com	IP: localhost
+...
+```
+
+**In [kind cluster setup](../../install.md#kind)**, we can visit the web service via localhost:
 
 > If no in kind cluster, replace localhost with ingress address
 
