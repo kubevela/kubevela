@@ -17,12 +17,12 @@ Firstly, application developers have to understand quite a few new
 concepts and resource specifications before deploying their applications.
 Sometimes, this is not an easy task. For example, it may take a while
 for developers to understand some runtime related configurations
-such as `allowPrivilegeEscalation` which they rarely touch in their daily work.
+such as `allowPrivilegeEscalation` which they rarely touch in daily work.
 The pervasive use of CRDs makes the situation even worse since developers
 have to learn all the CRD schemas as well. 
 
-Moreover, since developers have to specify the details of all the
-involved resource objects, application management in Kubernetes soon
+Moreover, since in Kubernetes developers have to know all of 
+the configuration details of involved objects, application management soon
 becomes a headache of handling a large amount of resource YAML files.
 We have seen that the lack of API abstraction had led to low productivity,
 unexpected errors or misconfigurations in production. Application developers

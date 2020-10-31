@@ -4,7 +4,7 @@ Learn and use KubeVela with tutorials and user stories.
 
 **Overview**
 - [Introduction](introduction.md)
-- [Installation](./installmd)
+- [Installation](./install.md)
 - [Quick Start](quick-start.md)
 - [Concepts](concepts.md)
 
