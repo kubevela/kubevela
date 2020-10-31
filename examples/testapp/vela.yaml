@@ -21,8 +21,8 @@ services:
     cmd: ["node", "server.js"]
     port: 8080
 
-    scaler:
-      replica: 1
+    # scaler:
+    #   replica: 1
 
     # route:
     #   domain: example.com
