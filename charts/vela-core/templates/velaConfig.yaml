@@ -12,14 +12,6 @@ data:
       "namespace": "monitoring",
       "version": "9.4.4"
     }
-  ingresses.networking.k8s.io: |
-    {
-      "repo": "ingress-nginx",
-      "urL": "https://kubernetes.github.io/ingress-nginx",
-      "name": "ingress-nginx",
-      "namespace": "vela-system",
-      "version": "3.7.1"
-    }
   flagger.app: |
     {
       "repo": "flagger",

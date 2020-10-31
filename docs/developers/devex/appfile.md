@@ -167,7 +167,7 @@ Service express-server Status:	 HEALTHY Ready: 1/1
 
 **In [kind cluster setup](../../install.md#kind)**, we can visit the web service via localhost:
 
-> If no in kind cluster, replace localhost with ingress address
+> If not in kind cluster, replace localhost with ingress address
 
 ```
 $ curl -H "Host:example.com" http://localhost/testapp

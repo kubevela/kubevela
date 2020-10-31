@@ -9,7 +9,19 @@ You may pick either Minikube or KinD as local cluster testing option.
 
 ### Minikube
 
-> TODO enable ingress controller
+Follow the minikube [installation guide](https://minikube.sigs.k8s.io/docs/start/).
+
+Once minikube is installed, create a cluster:
+
+```console
+$ minikube start
+```
+
+Install ingress:
+
+```console
+$ minikube addons enable ingress
+```
 
 ### KinD
 
@@ -37,6 +49,11 @@ nodes:
     hostPort: 443
     protocol: TCP
 EOF
+```
+
+Then install [ingress for kind](https://kind.sigs.k8s.io/docs/user/ingress/#ingress-nginx):
+```console
+$ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/static/provider/kind/deploy.yaml
 ```
 
 ## Get KubeVela
@@ -75,7 +92,6 @@ $ helm list --all-namespaces
 NAME                 	NAMESPACE   	REVISION	...
 cert-manager         	cert-manager	1       	...
 flagger              	vela-system 	1
-ingress-nginx        	vela-system 	1
 kube-prometheus-stack	monitoring  	1
 ...
 ```
@@ -86,8 +102,9 @@ We have installed the following dependency components along with Vela server com
 
 - [Prometheus Stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack)
 - [Cert-manager](https://cert-manager.io/)
-- [Ingress-nginx](https://github.com/kubernetes/ingress-nginx/)
 - [Flagger](https://flagger.app/)
+
+> NOTE: If you are not using minikube or kind, please make sure to [install ingress-nginx](https://kubernetes.github.io/ingress-nginx/deploy/) by yourself.
 
 The config has been saved in a ConfigMap in "vela-system/vela-config":
 
