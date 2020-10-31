@@ -96,7 +96,11 @@ func (d *RouteChecker) Check(ctx context.Context, reference runtimev1alpha1.Type
 		} else {
 			url = "http://" + in.Spec.Rules[0].Host
 		}
-		message += fmt.Sprintf("\tVisiting URL: %s\tIP: %s\n", url, value[0].IP)
+		addr := value[0].IP
+		if value[0].Hostname != "" {
+			addr = value[0].Hostname
+		}
+		message += fmt.Sprintf("\tVisiting URL: %s\tIP: %s\n", url, addr)
 	}
 	return StatusDone, message, nil
 }

@@ -88,10 +88,10 @@ func (n *Nginx) CheckStatus(routeTrait *standardv1alpha1.Route) (string, []runti
 				Message: err.Error()}}
 		}
 		ingressvalue := ingress.Status.LoadBalancer.Ingress
-		if len(ingressvalue) < 1 || ingressvalue[0].IP == "" {
+		if len(ingressvalue) < 1 || (ingressvalue[0].IP == "" && ingressvalue[0].Hostname == "") {
 			return StatusSynced, []runtimev1alpha1.Condition{{Type: runtimev1alpha1.TypeSynced,
 				Status: v1.ConditionFalse, LastTransitionTime: metav1.Now(), Reason: runtimev1alpha1.ReasonCreating,
-				Message: fmt.Sprintf("IP of %s ingress is generating", in.Name)}}
+				Message: fmt.Sprintf("IP/Hostname of %s ingress is generating", in.Name)}}
 		}
 	}
 	return StatusReady, []runtimev1alpha1.Condition{{Type: runtimev1alpha1.TypeReady, Status: v1.ConditionTrue,
