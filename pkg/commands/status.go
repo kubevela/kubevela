@@ -142,6 +142,9 @@ func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOSt
 	namespace := env.Name
 
 	targetServices, err := oam2.GetServicesWhenDescribingApplication(cmd, app)
+	if err != nil {
+		return err
+	}
 
 	cmd.Printf("About:\n\n")
 	table := uitable.New()
@@ -154,7 +157,7 @@ func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOSt
 	cmd.Printf("Services:\n\n")
 
 	for _, svcName := range targetServices {
-		if printComponentStatus(ctx, c, ioStreams, svcName, appName, env); err != nil {
+		if err := printComponentStatus(ctx, c, ioStreams, svcName, appName, env); err != nil {
 			return err
 		}
 	}

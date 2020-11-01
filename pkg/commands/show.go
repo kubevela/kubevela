@@ -49,6 +49,9 @@ func showApplication(cmd *cobra.Command, env *types.EnvMeta, appName string) err
 		return err
 	}
 	targetServices, err := oam.GetServicesWhenDescribingApplication(cmd, app)
+	if err != nil {
+		return err
+	}
 
 	cmd.Printf("About:\n\n")
 	table := uitable.New()
