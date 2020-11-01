@@ -35,6 +35,7 @@ vela [flags]
 * [vela port-forward](vela_port-forward.md)	 - Forward one or more local ports to a Pod of a service in an application
 * [vela route](vela_route.md)	 - Attach route trait to an app
 * [vela scaler](vela_scaler.md)	 - Attach scaler trait to an app
+* [vela show](vela_show.md)	 - Get details of an application
 * [vela svc](vela_svc.md)	 - Manage services
 * [vela system](vela_system.md)	 - System management utilities
 * [vela template](vela_template.md)	 - Manage templates

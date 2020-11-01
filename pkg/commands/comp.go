@@ -43,7 +43,6 @@ func AddCompCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 	compCommands.AddCommand(
 
 		NewCompDeployCommands(c, ioStreams),
-		NewCompShowCommand(ioStreams),
 		NewCompStatusCommand(c, ioStreams),
 	)
 	return compCommands
