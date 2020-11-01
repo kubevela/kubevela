@@ -1,51 +1,54 @@
 apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
-  name: rds
+  name: webservice
   annotations:
-    definition.oam.dev/apiVersion: "database.example.org/v1alpha1"
-    definition.oam.dev/kind: "PostgreSQLInstance"
-    definition.oam.dev/description: "rds on Alibaba Cloud"
+    definition.oam.dev/apiVersion: "standard.oam.dev/v1alpha1"
+    definition.oam.dev/kind: "PodSpecWorkload"
+    definition.oam.dev/description: "Flight tracker web ui"
 spec:
   definitionRef:
-    name: rds.apps
+    name: podspecworkloads.standard.oam.dev
+  childResourceKinds:
+    - apiVersion: apps/v1
+      kind: Deployment
+    - apiVersion: v1
+      kind: Service
   extension:
     template: |
       output: {
-        apiVersion: "database.example.org/v1alpha1"
-        kind: "PostgreSQLInstance"
-        metadata:
-          name: context.name
-        spec: {         
-          selector: matchLabels: {
-            "app.oam.dev/component": context.name
+        apiVersion: "standard.oam.dev/v1alpha1"
+        kind:       "PodSpecWorkload"
+        metadata: name: parameter.name
+        spec: {
+          replicas: 1
+          podSpec: {
+            containers: [{
+              image: parameter.image
+              name:  parameter.name
+              env: parameter.env
+              ports: [{
+                containerPort: parameter.port
+                protocol:      "TCP"
+                }]
+            }]
           }
-      
-          template: {
-            metadata: labels: {
-              "app.oam.dev/component": context.name
-            }
-                
-            spec: {
-              parameters:
-                storageGB: 20
-              compositionSelector: {
-                matchLabels:
-                  provider: parameter.provider
-              }
-              writeConnectionSecretToRef:
-                name: parameter.secretname
-            }
-          }
-      
-          selector: 
-            matchLabels:
-              "app.oam.dev/component": context.name
         }
       }
-      
-      parameter: {
-        secretname: *"db-conn" | string
-        provider: *"alibaba" | string
+      #webservice: {
+        name: string
+        image: string
+        port: int
+
+        env: [...{
+          name:  string
+          value?: string
+          valueFrom?: {
+            secretKeyRef: {
+              name: string
+              key: string
+            }
+          }
+        }]
       }
-      
+      parameter: #webservice
