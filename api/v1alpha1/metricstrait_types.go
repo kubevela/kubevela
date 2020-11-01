@@ -39,12 +39,11 @@ type ScapeServiceEndPoint struct {
 	// The default and only supported format is "prometheus" for now
 	Format string `json:"format,omitempty"`
 	// Number or name of the port to access on the pods targeted by the service.
-	// When this field has value implies that we need to create a service for the workload
-	// Mutually exclusive with port.
+	// The default is discovered automatically from podTemplate, metricTrait will create a service for the workload
 	TargetPort intstr.IntOrString `json:"port,omitempty"`
 	// Route service traffic to pods with label keys and values matching this
-	// The default is the labels in the workload
-	// Mutually exclusive with port.
+	// The default is discovered automatically from podTemplate.
+	// If no podTemplate, use the labels specified here, or use the labels of the workload
 	TargetSelector map[string]string `json:"selector,omitempty"`
 	// HTTP path to scrape for metrics.
 	// default is /metrics
@@ -63,8 +62,13 @@ type ScapeServiceEndPoint struct {
 type MetricsTraitStatus struct {
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
 
-	// ServiceMonitorNames managed by this trait
-	ServiceMonitorNames []string `json:"serviceMonitorName,omitempty"`
+	// ServiceMonitorName managed by this trait
+	ServiceMonitorName string `json:"serviceMonitorName,omitempty"`
+
+	// Port is the real port monitoring
+	Port intstr.IntOrString `json:"port,omitempty"`
+	// SelectorLabels is the real labels selected
+	SelectorLabels map[string]string `json:"selectorLabels,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -193,7 +193,7 @@ var _ = Describe("Metrics Trait Integration Test", func() {
 			time.Second*10, time.Millisecond*500).Should(BeNil())
 		logf.Log.Info("[TEST] Get the created service", "service ports", createdService.Spec.Ports)
 		Expect(createdService.Labels).Should(Equal(oamServiceLabel))
-		Expect(createdService.Spec.Selector).Should(Equal(podSelector))
+		Expect(createdService.Spec.Selector).Should(Equal(deployLabel))
 		By("Check that we have created the serviceMonitor in the pre-defined namespaceName")
 		var serviceMonitor monitoringv1.ServiceMonitor
 		Eventually(

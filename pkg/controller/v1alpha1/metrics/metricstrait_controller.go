@@ -21,13 +21,10 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
-
-	"github.com/oam-dev/kubevela/pkg/controller/common"
-
 	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
 	oamutil "github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -42,10 +39,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/api/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
 
 const (
 	errApplyServiceMonitor = "failed to apply the service monitor"
+	errFailDiscoveryLabels = "failed to discover labels from pod template, use workload labels directly"
 	servicePort            = 4848
 )
 
@@ -120,8 +120,9 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			oamutil.PatchCondition(ctx, r, &metricsTrait,
 				cpv1alpha1.ReconcileError(errors.Wrap(err, common.ErrLocatingWorkload)))
 	}
+	var targetPort = metricsTrait.Spec.ScrapeService.TargetPort
 	// try to see if the workload already has services as child resources
-	serviceLabel, err := r.fetchServicesLabel(ctx, mLog, workload, metricsTrait.Spec.ScrapeService.TargetPort)
+	serviceLabel, err := r.fetchServicesLabel(ctx, mLog, workload, targetPort)
 	if err != nil && !apierrors.IsNotFound(err) {
 		r.record.Event(eventObj, event.Warning(common.ErrLocatingService, err))
 		return oamutil.ReconcileWaitResult,
@@ -130,7 +131,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	} else if serviceLabel == nil {
 		// TODO: use podMonitor instead?
 		// no service with the targetPort found, we will create a service that talks to the targetPort
-		serviceLabel, err = r.createService(ctx, mLog, workload, &metricsTrait)
+		serviceLabel, targetPort, err = r.createService(ctx, mLog, workload, &metricsTrait)
 		if err != nil {
 			r.record.Event(eventObj, event.Warning(common.ErrCreatingService, err))
 			return oamutil.ReconcileWaitResult,
@@ -138,8 +139,12 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 					cpv1alpha1.ReconcileError(errors.Wrap(err, common.ErrCreatingService)))
 		}
 	}
+
+	metricsTrait.Status.Port = targetPort
+	metricsTrait.Status.SelectorLabels = serviceLabel
+
 	// construct the serviceMonitor that hooks the service to the prometheus server
-	serviceMonitor := constructServiceMonitor(&metricsTrait, serviceLabel)
+	serviceMonitor := constructServiceMonitor(&metricsTrait, targetPort)
 	// server side apply the serviceMonitor, only the fields we set are touched
 	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(metricsTrait.GetUID())}
 	if err := r.Patch(ctx, serviceMonitor, client.Apply, applyOpts...); err != nil {
@@ -153,8 +158,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		fmt.Sprintf("successfully server side patched a serviceMonitor `%s`", serviceMonitor.Name)))
 
 	r.gcOrphanServiceMonitor(ctx, mLog, &metricsTrait)
-
-	return ctrl.Result{}, oamutil.PatchCondition(ctx, r, &metricsTrait, cpv1alpha1.ReconcileSuccess())
+	(&metricsTrait).SetConditions(cpv1alpha1.ReconcileSuccess())
+	return ctrl.Result{}, errors.Wrap(r.Status().Update(ctx, &metricsTrait), common.ErrUpdateStatus)
 }
 
 // fetch the label of the service that is associated with the workload
@@ -186,7 +191,7 @@ func (r *Reconciler) fetchServicesLabel(ctx context.Context, mLog logr.Logger,
 
 // create a service that targets the exposed workload pod
 func (r *Reconciler) createService(ctx context.Context, mLog logr.Logger, workload *unstructured.Unstructured,
-	metricsTrait *v1alpha1.MetricsTrait) (map[string]string, error) {
+	metricsTrait *v1alpha1.MetricsTrait) (map[string]string, intstr.IntOrString, error) {
 	oamService := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       common.ServiceKind,
@@ -201,18 +206,31 @@ func (r *Reconciler) createService(ctx context.Context, mLog logr.Logger, worklo
 			Type: corev1.ServiceTypeClusterIP,
 		},
 	}
+	var targetPort = metricsTrait.Spec.ScrapeService.TargetPort
 	// assign selector
-	if len(metricsTrait.Spec.ScrapeService.TargetSelector) == 0 {
-		// default is that we assumed that the pods have the same label as the workload
-		// we might be able to find the podSpec label but it is more complicated
-		oamService.Spec.Selector = workload.GetLabels()
+	ports, labels, err := utils.DiscoveryFromPodTemplate(workload, "spec", "template")
+	if err != nil {
+		mLog.Info(errFailDiscoveryLabels, "err", err)
+		if len(metricsTrait.Spec.ScrapeService.TargetSelector) == 0 {
+			// we assumed that the pods have the same label as the workload if no discoverable
+			oamService.Spec.Selector = workload.GetLabels()
+		} else {
+			oamService.Spec.Selector = metricsTrait.Spec.ScrapeService.TargetSelector
+		}
 	} else {
-		oamService.Spec.Selector = metricsTrait.Spec.ScrapeService.TargetSelector
+		oamService.Spec.Selector = labels
+	}
+	if targetPort.String() == "0" {
+		if len(ports) == 0 {
+			return nil, intstr.IntOrString{}, fmt.Errorf("no ports discovered or specified")
+		}
+		// choose the first one if no port specified
+		targetPort = ports[0]
 	}
 	oamService.Spec.Ports = []corev1.ServicePort{
 		{
 			Port:       servicePort,
-			TargetPort: metricsTrait.Spec.ScrapeService.TargetPort,
+			TargetPort: targetPort,
 			Protocol:   corev1.ProtocolTCP,
 		},
 	}
@@ -220,46 +238,41 @@ func (r *Reconciler) createService(ctx context.Context, mLog logr.Logger, worklo
 	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(metricsTrait.GetUID())}
 	if err := r.Patch(ctx, oamService, client.Apply, applyOpts...); err != nil {
 		mLog.Error(err, "Failed to apply to service")
-		return nil, err
+		return nil, intstr.IntOrString{}, err
 	}
-	return oamServiceLabel, nil
+	return oamService.Spec.Selector, targetPort, nil
 }
 
 // remove all service monitors that are no longer used
 func (r *Reconciler) gcOrphanServiceMonitor(ctx context.Context, mLog logr.Logger,
 	metricsTrait *v1alpha1.MetricsTrait) {
-	var gcCandidates []string
-	copy(metricsTrait.Status.ServiceMonitorNames, gcCandidates)
+	var gcCandidate = metricsTrait.Status.ServiceMonitorName
 	if metricsTrait.Spec.ScrapeService.Enabled != nil && !*metricsTrait.Spec.ScrapeService.Enabled {
 		// initialize it to be an empty list, gc everything
-		metricsTrait.Status.ServiceMonitorNames = []string{}
+		metricsTrait.Status.ServiceMonitorName = ""
 	} else {
 		// re-initialize to the current service monitor
-		metricsTrait.Status.ServiceMonitorNames = []string{metricsTrait.Name}
+		metricsTrait.Status.ServiceMonitorName = metricsTrait.Name
 	}
-	for _, smn := range gcCandidates {
-		if smn != metricsTrait.Name {
-			if err := r.Delete(ctx, &monitoring.ServiceMonitor{
-				TypeMeta: metav1.TypeMeta{
-					Kind:       serviceMonitorKind,
-					APIVersion: serviceMonitorAPIVersion,
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      smn,
-					Namespace: metricsTrait.GetNamespace(),
-				},
-			}, client.GracePeriodSeconds(10)); err != nil {
-				mLog.Error(err, "Failed to delete serviceMonitor", "name", smn, "error", err)
-				// add it back
-				metricsTrait.Status.ServiceMonitorNames = append(metricsTrait.Status.ServiceMonitorNames, smn)
-			}
-		}
+	if gcCandidate == metricsTrait.Name {
+		return
+	}
+	if err := r.Delete(ctx, &monitoring.ServiceMonitor{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       serviceMonitorKind,
+			APIVersion: serviceMonitorAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      gcCandidate,
+			Namespace: metricsTrait.GetNamespace(),
+		},
+	}, client.GracePeriodSeconds(10)); err != nil {
+		mLog.Error(err, "Failed to delete serviceMonitor", "name", gcCandidate, "error", err)
 	}
 }
 
 // construct a serviceMonitor given a metrics trait along with a label selector pointing to the underlying service
-func constructServiceMonitor(metricsTrait *v1alpha1.MetricsTrait,
-	serviceLabels map[string]string) *monitoring.ServiceMonitor {
+func constructServiceMonitor(metricsTrait *v1alpha1.MetricsTrait, targetPort intstr.IntOrString) *monitoring.ServiceMonitor {
 	return &monitoring.ServiceMonitor{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       serviceMonitorKind,
@@ -282,7 +295,7 @@ func constructServiceMonitor(metricsTrait *v1alpha1.MetricsTrait,
 		},
 		Spec: monitoring.ServiceMonitorSpec{
 			Selector: metav1.LabelSelector{
-				MatchLabels: serviceLabels,
+				MatchLabels: oamServiceLabel,
 			},
 			// we assumed that the service is in the same namespace as the trait
 			NamespaceSelector: monitoring.NamespaceSelector{
@@ -290,7 +303,7 @@ func constructServiceMonitor(metricsTrait *v1alpha1.MetricsTrait,
 			},
 			Endpoints: []monitoring.Endpoint{
 				{
-					TargetPort: &metricsTrait.Spec.ScrapeService.TargetPort,
+					TargetPort: &targetPort,
 					Path:       metricsTrait.Spec.ScrapeService.Path,
 					Scheme:     metricsTrait.Spec.ScrapeService.Scheme,
 				},

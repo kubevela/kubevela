@@ -56,9 +56,9 @@ spec:
                     - type: integer
                     - type: string
                     description: Number or name of the port to access on the pods
-                      targeted by the service. When this field has value implies that
-                      we need to create a service for the workload Mutually exclusive
-                      with port.
+                      targeted by the service. The default is discovered automatically
+                      from podTemplate, metricTrait will create a service for the
+                      workload
                     x-kubernetes-int-or-string: true
                   scheme:
                     description: Scheme at which metrics should be scraped The default
@@ -68,8 +68,9 @@ spec:
                     additionalProperties:
                       type: string
                     description: Route service traffic to pods with label keys and
-                      values matching this The default is the labels in the workload
-                      Mutually exclusive with port.
+                      values matching this The default is discovered automatically
+                      from podTemplate. If no podTemplate, use the labels specified
+                      here, or use the labels of the workload
                     type: object
                 type: object
               workloadRef:
@@ -132,11 +133,20 @@ spec:
                   - type
                   type: object
                 type: array
-              serviceMonitorName:
-                description: ServiceMonitorNames managed by this trait
-                items:
+              port:
+                anyOf:
+                - type: integer
+                - type: string
+                description: Port is the real port monitoring
+                x-kubernetes-int-or-string: true
+              selectorLabels:
+                additionalProperties:
                   type: string
-                type: array
+                description: SelectorLabels is the real labels selected
+                type: object
+              serviceMonitorName:
+                description: ServiceMonitorName managed by this trait
+                type: string
             type: object
         required:
         - spec

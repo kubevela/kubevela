@@ -250,10 +250,13 @@ func (in *MetricsTraitSpec) DeepCopy() *MetricsTraitSpec {
 func (in *MetricsTraitStatus) DeepCopyInto(out *MetricsTraitStatus) {
 	*out = *in
 	in.ConditionedStatus.DeepCopyInto(&out.ConditionedStatus)
-	if in.ServiceMonitorNames != nil {
-		in, out := &in.ServiceMonitorNames, &out.ServiceMonitorNames
-		*out = make([]string, len(*in))
-		copy(*out, *in)
+	out.Port = in.Port
+	if in.SelectorLabels != nil {
+		in, out := &in.SelectorLabels, &out.SelectorLabels
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
 	}
 }
 

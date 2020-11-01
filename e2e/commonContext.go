@@ -160,7 +160,7 @@ var (
 				output, err := LongTimeExec(cli, 180*time.Second)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("Adding " + traitAlias + " for app"))
-				gomega.Expect(output).To(gomega.ContainSubstring("Deploying"))
+				gomega.Expect(output).To(gomega.ContainSubstring("Checking Status"))
 			})
 		})
 	}
@@ -298,7 +298,7 @@ var (
 					_, _ = c.ExpectEOF()
 				})
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("Deploying"))
+				gomega.Expect(output).To(gomega.ContainSubstring("Checking Status"))
 			})
 		})
 	}
