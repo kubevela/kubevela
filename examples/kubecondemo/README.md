@@ -59,9 +59,11 @@ Also the examples are based on Alibaba Cloud settings
 
 ### Import the database workload definition
 
+First, register the db workload definition:
 `kubectl apply -f script/def_db.yaml`
-
-
+The webservice workload is customized a little.
+`kubectl apply -f script/webservice.yaml`
+Don't forget to update vela:
 `vela system update`
 
 ### Apply the appfile
