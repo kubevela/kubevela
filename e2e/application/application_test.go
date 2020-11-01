@@ -25,7 +25,7 @@ var _ = ginkgo.Describe("Application", func() {
 		workloadType, applicationName))
 	e2e.ComponentListContext("ls", applicationName, "")
 	e2e.TraitManualScalerAttachContext("vela attach scaler trait", traitAlias, applicationName)
-	e2e.ApplicationShowContext("app show", applicationName, workloadType)
+	e2e.ApplicationShowContext("show", applicationName, workloadType)
 	e2e.ApplicationStatusContext("app status", applicationName, workloadType)
 	e2e.ApplicationCompStatusContext("svc status", applicationName, workloadType, envName)
 	e2e.ApplicationExecContext("exec -- COMMAND", applicationName)

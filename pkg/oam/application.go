@@ -17,6 +17,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	DefaultChosenAllSvc = "ALL SERVICES"
+	FlagNotSet          = "FlagNotSet"
+	FlagIsInvalid       = "FlagIsInvalid"
+	FlagIsValid         = "FlagIsValid"
+)
+
 type componentMetaList []apis.ComponentMeta
 type ApplicationMetaList []apis.ApplicationMeta
 

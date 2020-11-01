@@ -218,7 +218,7 @@ var (
 	ApplicationShowContext = func(context string, applicationName string, workloadType string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should show app information", func() {
-				cli := fmt.Sprintf("vela app show %s", applicationName)
+				cli := fmt.Sprintf("vela show %s", applicationName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				// TODO(zzxwill) need to check workloadType after app show is refined

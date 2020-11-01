@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/oam-dev/kubevela/pkg/oam"
+
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/gosuri/uitable"
 	"github.com/oam-dev/kubevela/api/types"
@@ -11,8 +13,6 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/spf13/cobra"
 )
-
-const DefaultChosenSvc = "ALL SERVICES"
 
 func NewAppShowCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
@@ -50,25 +50,42 @@ func showApplication(cmd *cobra.Command, env *types.EnvMeta, appName string) err
 		return err
 	}
 
-	var chosenSvc string
-	var validInputtedSvc bool
-	inputtedSvc := cmd.Flag("svc").Value.String()
-
+	var svcFlag, chosenSvc string
+	var svcFlagStatus string
+	// to store the value of flag `--svc` set in Cli, or selected value in survey
+	var targetServices []string
+	if svcFlag = cmd.Flag("svc").Value.String(); svcFlag == "" {
+		svcFlagStatus = oam.FlagNotSet
+	} else {
+		svcFlagStatus = oam.FlagIsInvalid
+	}
+	// all services name of the application `appName`
 	var services []string
 	for svcName := range app.Services {
 		services = append(services, svcName)
-		if inputtedSvc == svcName {
-			validInputtedSvc = true
+		if svcFlag == svcName {
+			svcFlagStatus = oam.FlagIsValid
+			targetServices = append(targetServices, svcName)
 		}
 	}
-
-	if inputtedSvc != "" && !validInputtedSvc || inputtedSvc == "" && len(services) > 1 {
-		if inputtedSvc != "" && !validInputtedSvc {
-			cmd.Printf("The service name '%s' is not valid\n", inputtedSvc)
+	totalServices := len(services)
+	if svcFlagStatus == oam.FlagNotSet && totalServices == 1 {
+		targetServices = services
+	}
+	if svcFlagStatus == oam.FlagIsInvalid || (svcFlagStatus == oam.FlagNotSet && totalServices > 1) {
+		if svcFlagStatus == oam.FlagIsInvalid {
+			cmd.Printf("The service name '%s' is not valid\n", svcFlag)
 		}
 		chosenSvc, err = chooseSvc(services)
 		if err != nil {
 			return err
+		}
+
+		if chosenSvc == oam.DefaultChosenAllSvc {
+			targetServices = services
+		} else {
+			targetServices = targetServices[:0]
+			targetServices = append(targetServices, chosenSvc)
 		}
 	}
 
@@ -87,14 +104,9 @@ func showApplication(cmd *cobra.Command, env *types.EnvMeta, appName string) err
 	table = uitable.New()
 	cmd.Printf("Services:\n\n")
 
-	for svcName := range app.Services {
-		if inputtedSvc != "" && validInputtedSvc && svcName == inputtedSvc ||
-			inputtedSvc != "" && !validInputtedSvc && (svcName == chosenSvc || chosenSvc == DefaultChosenSvc) ||
-			inputtedSvc == "" && len(services) == 1 ||
-			inputtedSvc == "" && len(services) > 1 && (svcName == chosenSvc || chosenSvc == DefaultChosenSvc) {
-			if err := showComponent(cmd, env, svcName, appName); err != nil {
-				return err
-			}
+	for _, svcName := range targetServices {
+		if err := showComponent(cmd, env, svcName, appName); err != nil {
+			return err
 		}
 	}
 	cmd.Println(table.String())
@@ -151,11 +163,11 @@ func showComponent(cmd *cobra.Command, env *types.EnvMeta, compName, appName str
 
 func chooseSvc(services []string) (string, error) {
 	var svcName string
-	services = append(services, DefaultChosenSvc)
+	services = append(services, oam.DefaultChosenAllSvc)
 	prompt := &survey.Select{
 		Message: "Please choose one service: ",
 		Options: services,
-		Default: DefaultChosenSvc,
+		Default: oam.DefaultChosenAllSvc,
 	}
 	err := survey.AskOne(prompt, &svcName)
 	if err != nil {
