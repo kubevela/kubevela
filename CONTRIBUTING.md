@@ -74,43 +74,60 @@ vela env init myenv --namespace myenv --email my@email.com --domain kubevela.io
 For example, use the following command to create and run an application.
 
 ```shell script
-$ vela comp deploy mycomp -t webservice --image crccheck/hello-world --port 8000
-Creating AppConfig appcomp
-SUCCEED
+$ vela svc deploy mysvc -t webservice --image crccheck/hello-world --port 8000 -a abc
+  App abc deployed
 ```
 
 * Add Trait
 
 ```shell script
-$ vela route mycomp
-Adding route for app abc
-Succeeded!
+$ vela route abc
+  Adding route for app mysvc
+  ⠋ Deploying ...
+  ✅ Application Deployed Successfully!
+    - Name: mysvc
+      Type: webservice
+      HEALTHY Ready: 1/1
+      Last Deployment:
+        Created at: 2020-11-02 11:17:28 +0800 CST
+        Updated at: 2020-11-02T11:21:23+08:00
+      Routes:
+        - route: Visiting URL: http://abc.kubevela.io	IP: 47.242.68.137
 ```
 
 * Check Status
 
 ```
-$ vela comp status abc
-Showing status of Component abc deployed in Environment t2
-Component Status:
-	Name: abc  PodSpecWorkload(type) UNKNOWN APIVersion standard.oam.dev/v1alpha1 Kind PodSpecWorkload workload is unknown for HealthScope
-	Traits
-	    └─Trait/route
-
-Last Deployment:
-	Created at: 2020-09-18 18:47:09 +0800 CST
-	Updated at: 2020-09-18T18:47:16+08:00
+$ vela status abc
+  About:
+  
+    Name:      	abc
+    Namespace: 	default
+    Created at:	2020-11-02 11:17:28.067738 +0800 CST
+    Updated at:	2020-11-02 11:28:13.490986 +0800 CST
+  
+  Services:
+  
+    - Name: mysvc
+      Type: webservice
+      HEALTHY Ready: 1/1
+      Last Deployment:
+        Created at: 2020-11-02 11:17:28 +0800 CST
+        Updated at: 2020-11-02T11:28:13+08:00
+      Routes:
+        - route: Visiting URL: http://abc.kubevela.io	IP: 47.242.68.137
 ```
 
 * Delete App
 
 ```shell script
-$ vela app ls
-abc
+$ vela ls
+  SERVICE       	APP      	TYPE	TRAITS	STATUS  	CREATED-TIME
+  mysvc            	abc       	    	      	Deployed 	2020-11-02 11:17:28 +0800 CST
 
-$ vela app delete abc
-Deleting Application "abc"
-delete apps succeed abc from t2
+$ vela delete abc
+  Deleting Application "abc"
+  delete apps succeed abc from default
 ```
 
 ## Tests

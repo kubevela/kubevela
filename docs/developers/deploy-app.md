@@ -11,51 +11,29 @@ $ vela app init
 Check the application:
 
 ```console
-$ vela app show myapp
+$ vela show myapp
   About:
   
     Name:      	myapp
-    Created at:	2020-09-18 22:42:04.191171 +0800 CST
-    Updated at:	2020-09-18 22:51:11.128997 +0800 CST
+    Created at:	2020-11-02 11:39:04.626416 +0800 CST
+    Updated at:	2020-11-02 11:39:04.627998 +0800 CST
   
   
   Environment:
   
-    Namespace:	demo
+    Namespace:	default
   
-  Components:
+  Services:
   
-    Name  	  Type      	Traits
-    frontend	webservice	route
-```
-
-Check the deployed service:
-
-```console
-$ vela svc show mycomp
- About:
- 
-   Name:        	frontend
-   WorkloadType:	webservice
-   Application: 	myapp
- 
- Environment:
- 
-   Namespace:	demo
- 
- Arguments:
- 
-   image:	crccheck/hello-world
-   name: 	frontend
-   port: 	8000
- 
- 
- Traits:
- 
-   route:
-     domain:	frontend.kubevela.demo
-     issuer:	oam-env-demo
-     name:  	route
+    - Name:        	frontend
+      WorkloadType:	webservice
+      Arguments:
+        port:         	8000
+        image:        	crccheck/hello-world
+        Traits:
+          - route:
+              domain:	frontend.example.com
+              issuer:	oam-env-default
 ```
 
 ## Deploy Application Step by Step
@@ -73,8 +51,7 @@ Deploy the first service named `frontend` with `Web Service` type.
 
 ```console
 $ vela svc deploy frontend -t webservice --image crccheck/hello-world --app myapp
-Creating frontend ...
-SUCCEED
+App myapp deployed
 ```
 
 > TODO auto generate a random application name, so --app myapp becomes optional
@@ -88,8 +65,7 @@ SUCCEED
 ```
 
 ```console
-$ vela svc ls
-NAME  	    APP  	WORKLOAD  	  TRAITS	  STATUS 	  CREATED-TIME
-backend    	myapp	backendworker   	      Deployed	2020-09-18 22:42:04 +0800 CST
-frontend	  myapp	webservice	      	    Deployed	2020-09-18 22:42:04 +0800 CST
+$ vela ls
+SERVICE       	APP      	TYPE	TRAITS	STATUS  	CREATED-TIME
+frontend      	myapp    	    	      	Deployed	2020-11-02 11:39:05 +0800 CST
 ```
