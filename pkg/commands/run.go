@@ -79,7 +79,7 @@ func (o *appRunOptions) LoadApp(cmd *cobra.Command, args []string) error {
 
 func (o *appRunOptions) Run(io cmdutil.IOStreams) error {
 	o.Infof("Launching App Bundle \"%s\"\n", o.appName)
-	if err := o.app.Run(context.Background(), o.client, o.Env, io); err != nil {
+	if err := o.app.BuildRun(context.Background(), o.client, o.Env, io); err != nil {
 		return err
 	}
 	o.Info("SUCCEED")

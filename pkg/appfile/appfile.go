@@ -24,11 +24,10 @@ const DefaultAppfilePath = "./vela.yaml"
 
 type AppFile struct {
 	Name       string             `json:"name"`
-	Version    string             `json:"version"`
 	CreateTime time.Time          `json:"createTime,omitempty"`
 	UpdateTime time.Time          `json:"updateTime,omitempty"`
 	Services   map[string]Service `json:"services"`
-	Secrets    map[string]string  `json:"secrets"`
+	Secrets    map[string]string  `json:"secrets,omitempty"`
 
 	configGetter configGetter
 }

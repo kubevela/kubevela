@@ -228,7 +228,7 @@ func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) (string, error) {
 
 	// Remove component from appConfig in k8s cluster
 	ctx := context.Background()
-	if err := app.Run(ctx, o.Client, o.Env, io); err != nil {
+	if err := app.BuildRun(ctx, o.Client, o.Env, io); err != nil {
 		return "", err
 	}
 

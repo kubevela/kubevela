@@ -169,30 +169,29 @@ Apply again:
 $ vela up
 ```
 
-Check status and we can see route trait:
+Check the status until we see route trait ready:
 ```console
 $ vela status testapp
-  About:
-  
-    Name:      	testapp
-    Namespace: 	default
-    Created at:	2020-11-02 11:12:39.881431 +0800 CST
-    Updated at:	2020-11-02 11:12:39.881431 +0800 CST
-  
-  Services:
-  
-    - Name: express-server
-      Type: webservice
-      HEALTHY Ready: 1/1
-      Last Deployment:
-        Created at: 2020-11-02 11:08:33 +0800 CST
-        Updated at: 2020-11-02T11:12:39+08:00
-      Routes:
-        - route: 	Visiting URL: http://example.com	IP: 47.242.171.248
+About:
 
+  Name:      	testapp
+  Namespace: 	default
+  Created at:	...
+  Updated at:	...
+
+Services:
+
+  - Name: express-server
+    Type: webservice
+    HEALTHY Ready: 1/1
+    Last Deployment:
+      Created at: ...
+      Updated at: ...
+    Routes:
+      - route: 	Visiting URL: http://example.com	IP: localhost
 ```
 
-**In [kind cluster setup](../../install.md#kind)**, we can visit the web service via localhost:
+**In [kind cluster setup](../../install.md#kind)**, you can visit the service via localhost:
 
 > If not in kind cluster, replace localhost with ingress address
 
@@ -226,3 +225,18 @@ Then deploy appfile again:
 ```console
 $ vela up
 ```
+
+## What's Next?
+
+Congratulations! You have just deployed an app using Vela.
+
+Here are some next steps that you can have more play with your app:
+
+- [Check Application Logs](../check-logs.md)
+- [Execute Commands in Container](../exec-cmd.md)
+- [Port Forward to Container](../port-forward.md)
+
+
+## References
+
+For more configuration options of built-in capabilities, check [references](../references/README.md)
