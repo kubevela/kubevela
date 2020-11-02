@@ -1,3 +1,8 @@
 # Execute Commands in Container
 
-> 有什么？怎么用？得到什么？
+Run: 
+```
+$ vela exec testapp -- /bin/sh
+```
+
+This open a shell within the container of testapp.

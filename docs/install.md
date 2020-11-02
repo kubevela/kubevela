@@ -1,6 +1,6 @@
 # Install KubeVela
 
-## Prerequisites
+## 1. Setup local k8s cluster
 
 - Kubernetes cluster >= v1.15.0
 - kubectl installed and configured
@@ -56,7 +56,7 @@ Then install [ingress for kind](https://kind.sigs.k8s.io/docs/user/ingress/#ingr
 $ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/static/provider/kind/deploy.yaml
 ```
 
-## Get KubeVela
+## 2. Get KubeVela
 
 > TODO please give a copy-paste friendly shell instead of instructions
 
@@ -67,7 +67,7 @@ $ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/ma
 $ sudo mv ./vela /usr/local/bin/vela
 ```
 
-## Initialize KubeVela
+## 3. Initialize KubeVela
 
 Run:
 
@@ -77,7 +77,7 @@ $ vela install
 
 This will install KubeVela server component and its dependency components.
 
-## Verify
+## 4. Verify
 
 Check Vela Helm Chart has been installed:
 ```
@@ -96,44 +96,7 @@ kube-prometheus-stack	monitoring  	1
 ...
 ```
 
-## Dependencies
-
-We have installed the following dependency components along with Vela server component:
-
-- [Prometheus Stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack)
-- [Cert-manager](https://cert-manager.io/)
-- [Flagger](https://flagger.app/)
-
-> NOTE: If you are not using minikube or kind, please make sure to [install ingress-nginx](https://kubernetes.github.io/ingress-nginx/deploy/) by yourself.
-
-The config has been saved in a ConfigMap in "vela-system/vela-config":
-
-```
-$ kubectl -n vela-system get cm vela-config -o yaml
-apiVersion: v1
-data:
-  certificates.cert-manager.io: |
-    {
-      "repo": "jetstack",
-      "urL": "https://charts.jetstack.io",
-      "name": "cert-manager",
-      "namespace": "cert-manager",
-      "version": "1.0.3"
-    }
-  flagger.app: |
-  ...
-kind: ConfigMap
-```
-
-User can specify their own dependencies by editing the `vela-config` ConfigMap.
-Currently adding new chart or updating existing chart requires redeploying Vela:
-```
-$ kubectl -n vela-system edit cm vela-config
-...
-
-$ helm uninstall -n vela-system kubevela
-$ helm install -n vela-system kubevela
-```
+**Voila!** You are all set to go.
 
 ## Clean Up
 
@@ -171,4 +134,43 @@ $ kubectl delete crd \
   servicemonitors.monitoring.coreos.com \
   traitdefinitions.core.oam.dev \
   workloaddefinitions.core.oam.dev
+```
+
+## [Optional] Add/Update Dependencies
+
+We have installed the following dependency components along with Vela server component:
+
+- [Prometheus Stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack)
+- [Cert-manager](https://cert-manager.io/)
+- [Flagger](https://flagger.app/)
+
+> NOTE: If you are not using minikube or kind, please make sure to [install ingress-nginx](https://kubernetes.github.io/ingress-nginx/deploy/) by yourself.
+
+The config has been saved in a ConfigMap in "vela-system/vela-config":
+
+```
+$ kubectl -n vela-system get cm vela-config -o yaml
+apiVersion: v1
+data:
+  certificates.cert-manager.io: |
+    {
+      "repo": "jetstack",
+      "urL": "https://charts.jetstack.io",
+      "name": "cert-manager",
+      "namespace": "cert-manager",
+      "version": "1.0.3"
+    }
+  flagger.app: |
+  ...
+kind: ConfigMap
+```
+
+User can specify their own dependencies by editing the `vela-config` ConfigMap.
+Currently adding new chart or updating existing chart requires redeploying Vela:
+```
+$ kubectl -n vela-system edit cm vela-config
+...
+
+$ helm uninstall -n vela-system kubevela
+$ helm install -n vela-system kubevela
 ```
