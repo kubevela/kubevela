@@ -199,8 +199,8 @@ func (o *appfileOptions) info(appName string, comps []*v1alpha2.Component) {
 	o.IO.Infof("    Port forward: vela port-forward %s\n", appName)
 	o.IO.Infof("             SSH: vela exec %s\n", appName)
 	o.IO.Infof("         Logging: vela logs %s\n", appName)
-	o.IO.Infof("      App status: vela app status %s\n", appName)
+	o.IO.Infof("      App status: vela status %s\n", appName)
 	for _, comp := range comps {
-		o.IO.Infof("  Service status: vela svc status %s\n", comp.Name)
+		o.IO.Infof("  Service status: vela status %s --svc %s\n", appName, comp.Name)
 	}
 }

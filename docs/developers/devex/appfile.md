@@ -60,19 +60,32 @@ app has not been deployed, creating a new deployment...
     Port forward: vela port-forward testapp
              SSH: vela exec testapp
          Logging: vela logs testapp
-      App status: vela app status testapp
-  Service status: vela svc status express-server
+      App status: vela status testapp
+  Service status: vela status testapp --svc express-server
 ```
 
 
 Check the status of the service:
 
 ```console
-$ vela svc status express-server
-Service express-server Status:	 HEALTHY Ready: 1/1
+$ vela status testapp
+  About:
+  
+    Name:      	testapp
+    Namespace: 	default
+    Created at:	2020-11-02 11:08:32.138484 +0800 CST
+    Updated at:	2020-11-02 11:08:32.138485 +0800 CST
+  
+  Services:
+  
+    - Name: express-server
+      Type: webservice
+      HEALTHY Ready: 1/1
+      Last Deployment:
+        Created at: 2020-11-02 11:08:33 +0800 CST
+        Updated at: 2020-11-02T11:08:32+08:00
+      Routes:
 
-Last Deployment:
-...
 ```
 
 ### Alternative: Local testing without pushing image remotely
@@ -158,11 +171,25 @@ $ vela up
 
 Check status and we can see route trait:
 ```console
-$ vela svc status express-server
-Showing status of service(type: webservice) express-server deployed in Environment default
-Service express-server Status:	 HEALTHY Ready: 1/1
-	route: 	Visiting URL: http://example.com	IP: localhost
-...
+$ vela status testapp
+  About:
+  
+    Name:      	testapp
+    Namespace: 	default
+    Created at:	2020-11-02 11:12:39.881431 +0800 CST
+    Updated at:	2020-11-02 11:12:39.881431 +0800 CST
+  
+  Services:
+  
+    - Name: express-server
+      Type: webservice
+      HEALTHY Ready: 1/1
+      Last Deployment:
+        Created at: 2020-11-02 11:08:33 +0800 CST
+        Updated at: 2020-11-02T11:12:39+08:00
+      Routes:
+        - route: 	Visiting URL: http://example.com	IP: 47.242.171.248
+
 ```
 
 **In [kind cluster setup](../../install.md#kind)**, we can visit the web service via localhost:
