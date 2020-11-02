@@ -6,7 +6,6 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/oam"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/gosuri/uitable"
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/application"
@@ -49,44 +48,9 @@ func showApplication(cmd *cobra.Command, env *types.EnvMeta, appName string) err
 	if err != nil {
 		return err
 	}
-
-	var svcFlag, chosenSvc string
-	var svcFlagStatus string
-	// to store the value of flag `--svc` set in Cli, or selected value in survey
-	var targetServices []string
-	if svcFlag = cmd.Flag("svc").Value.String(); svcFlag == "" {
-		svcFlagStatus = oam.FlagNotSet
-	} else {
-		svcFlagStatus = oam.FlagIsInvalid
-	}
-	// all services name of the application `appName`
-	var services []string
-	for svcName := range app.Services {
-		services = append(services, svcName)
-		if svcFlag == svcName {
-			svcFlagStatus = oam.FlagIsValid
-			targetServices = append(targetServices, svcName)
-		}
-	}
-	totalServices := len(services)
-	if svcFlagStatus == oam.FlagNotSet && totalServices == 1 {
-		targetServices = services
-	}
-	if svcFlagStatus == oam.FlagIsInvalid || (svcFlagStatus == oam.FlagNotSet && totalServices > 1) {
-		if svcFlagStatus == oam.FlagIsInvalid {
-			cmd.Printf("The service name '%s' is not valid\n", svcFlag)
-		}
-		chosenSvc, err = chooseSvc(services)
-		if err != nil {
-			return err
-		}
-
-		if chosenSvc == oam.DefaultChosenAllSvc {
-			targetServices = services
-		} else {
-			targetServices = targetServices[:0]
-			targetServices = append(targetServices, chosenSvc)
-		}
+	targetServices, err := oam.GetServicesWhenDescribingApplication(cmd, app)
+	if err != nil {
+		return err
 	}
 
 	cmd.Printf("About:\n\n")
@@ -159,19 +123,4 @@ func showComponent(cmd *cobra.Command, env *types.EnvMeta, compName, appName str
 		cmd.Println()
 	}
 	return nil
-}
-
-func chooseSvc(services []string) (string, error) {
-	var svcName string
-	services = append(services, oam.DefaultChosenAllSvc)
-	prompt := &survey.Select{
-		Message: "Please choose one service: ",
-		Options: services,
-		Default: oam.DefaultChosenAllSvc,
-	}
-	err := survey.AskOne(prompt, &svcName)
-	if err != nil {
-		return "", fmt.Errorf("failed to retrieve services of the application, err %v", err)
-	}
-	return svcName, nil
 }

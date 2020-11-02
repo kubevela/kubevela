@@ -183,7 +183,7 @@ var (
 	ApplicationStatusContext = func(context string, applicationName string, workloadType string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should get status for the application", func() {
-				cli := fmt.Sprintf("vela app status %s", applicationName)
+				cli := fmt.Sprintf("vela status %s", applicationName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
@@ -192,7 +192,7 @@ var (
 		})
 	}
 
-	ApplicationCompStatusContext = func(context string, applicationName, workloadType, envName string) bool {
+	ApplicationStatusDeeplyContext = func(context string, applicationName, workloadType, envName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should get status of the service", func() {
 				ginkgo.By("init new k8s client")
@@ -206,7 +206,7 @@ var (
 					return len(appConfig.Status.Workloads)
 				}, 90*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))
 
-				cli := fmt.Sprintf("vela svc status %s", applicationName)
+				cli := fmt.Sprintf("vela status %s", applicationName)
 				output, err := LongTimeExec(cli, 120*time.Second)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("Checking health status"))

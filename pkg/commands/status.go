@@ -21,7 +21,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/api/types"
-	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	oam2 "github.com/oam-dev/kubevela/pkg/oam"
@@ -78,14 +77,7 @@ const (
 	ErrServiceNotFound   = "service %s not found in app"
 )
 
-const (
-	firstElemPrefix = `├─`
-	lastElemPrefix  = `└─`
-	pipe            = `│ `
-)
-
 var (
-	gray   = color.New(color.FgHiBlack)
 	red    = color.New(color.FgRed)
 	green  = color.New(color.FgGreen)
 	yellow = color.New(color.FgYellow)
@@ -131,127 +123,46 @@ func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 			if err != nil {
 				return err
 			}
-			return printAppStatus(ctx, newClient, ioStreams, appName, env)
+			return printAppStatus(ctx, newClient, ioStreams, appName, env, cmd)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},
 	}
+	cmd.Flags().StringP("svc", "s", "", "service name")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
 
-func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta) error {
+func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta, cmd *cobra.Command) error {
 	app, err := application.Load(env.Name, appName)
 	if err != nil {
 		return err
 	}
 	namespace := env.Name
-	tbl := uitable.New()
-	tbl.Separator = "  "
-	tbl.AddRow(
-		white.Sprint("NAMESPCAE"),
-		white.Sprint("NAME"),
-		white.Sprint("INFO"))
 
-	tbl.AddRow(
-		namespace,
-		fmt.Sprintf("%s/%s",
-			"Application",
-			appName))
-
-	components := app.GetComponents()
-	// get a map coantaining all workloads health condition
-	wlConditionsMap, err := getWorkloadHealthConditions(ctx, c, app, namespace)
+	targetServices, err := oam2.GetServicesWhenDescribingApplication(cmd, app)
 	if err != nil {
 		return err
 	}
 
-	for cIndex, compName := range components {
-		var cPrefix string
-		switch cIndex {
-		case len(components) - 1:
-			cPrefix = lastElemPrefix
-		default:
-			cPrefix = firstElemPrefix
+	cmd.Printf("About:\n\n")
+	table := uitable.New()
+	table.AddRow("  Name:", appName)
+	table.AddRow("  Namespace:", namespace)
+	table.AddRow("  Created at:", app.CreateTime.String())
+	table.AddRow("  Updated at:", app.UpdateTime.String())
+	cmd.Printf("%s\n\n", table.String())
+
+	cmd.Printf("Services:\n\n")
+
+	for _, svcName := range targetServices {
+		if err := printComponentStatus(ctx, c, ioStreams, svcName, appName, env); err != nil {
+			return err
 		}
-
-		wlHealthCondition := wlConditionsMap[compName]
-		wlHealthStatus := wlHealthCondition.HealthStatus
-		healthColor := getHealthStatusColor(wlHealthStatus)
-
-		// print component info
-		tbl.AddRow("",
-			fmt.Sprintf("%s%s/%s",
-				gray.Sprint(printPrefix(cPrefix)),
-				"Component",
-				compName),
-			healthColor.Sprintf("%s %s", wlHealthStatus, wlHealthCondition.Diagnosis))
 	}
-	ioStreams.Info(tbl)
+
 	return nil
-}
-
-// map componentName <=> WorkloadHealthCondition
-func getWorkloadHealthConditions(ctx context.Context, c client.Client, app *application.Application, ns string) (map[string]*WorkloadHealthCondition, error) {
-	hs := &v1alpha2.HealthScope{}
-	// only use default health scope
-	hsName := appfile.FormatDefaultHealthScopeName(app.Name)
-	if err := c.Get(ctx, client.ObjectKey{Namespace: ns, Name: hsName}, hs); err != nil {
-		return nil, err
-	}
-	wlConditions := hs.Status.WorkloadHealthConditions
-	r := map[string]*WorkloadHealthCondition{}
-	components := app.GetComponents()
-	for _, compName := range components {
-		for _, wlhc := range wlConditions {
-			if wlhc.ComponentName == compName {
-				r[compName] = wlhc
-				break
-			}
-		}
-		if r[compName] == nil {
-			r[compName] = &WorkloadHealthCondition{
-				HealthStatus: HealthStatusNotDiagnosed,
-			}
-		}
-	}
-
-	return r, nil
-}
-
-func NewCompStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	ctx := context.Background()
-	cmd := &cobra.Command{
-		Use:     "status <SERVICE-NAME>",
-		Short:   "get status of a service",
-		Long:    "get status of a service, including its workload and health status",
-		Example: `vela svc status <SERVICE-NAME>`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			argsLength := len(args)
-			if argsLength == 0 {
-				ioStreams.Errorf("Hint: please specify the service name")
-				os.Exit(1)
-			}
-			compName := args[0]
-			env, err := GetEnv(cmd)
-			if err != nil {
-				ioStreams.Errorf("Error: failed to get Env: %s", err)
-				return err
-			}
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
-			if err != nil {
-				return err
-			}
-			appName, _ := cmd.Flags().GetString(App)
-			return printComponentStatus(ctx, newClient, ioStreams, compName, appName, env)
-		},
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeApp,
-		},
-	}
-	cmd.SetOut(ioStreams.Out)
-	return cmd
 }
 
 func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, compName, appName string, env *types.EnvMeta) error {
@@ -267,20 +178,25 @@ func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmduti
 		return fmt.Errorf(ErrServiceNotFound, compName)
 	}
 	workloadType := svc.GetType()
-	ioStreams.Infof("Showing status of service(type: %s) %s deployed in Environment %s\n", workloadType, white.Sprint(compName), env.Name)
 
 	healthStatus, healthInfo, err := healthCheckLoop(ctx, c, compName, appName, env)
 	if err != nil {
 		ioStreams.Info(healthInfo)
 		return err
 	}
-	ioStreams.Infof(white.Sprintf("Service %s Status:", compName))
+	ioStreams.Infof(white.Sprintf("  - Name: %s\n", compName))
+	ioStreams.Infof("    Type: %s\n", workloadType)
 
 	healthColor := getHealthStatusColor(healthStatus)
-	healthInfo = strings.ReplaceAll(healthInfo, "\n", "\n\t") // formart healthInfo output
-	ioStreams.Infof("\t %s %s\n", healthColor.Sprint(healthStatus), healthColor.Sprint(healthInfo))
+	healthInfo = strings.ReplaceAll(healthInfo, "\n", "\n\t") // format healthInfo output
+	ioStreams.Infof("    %s %s\n", healthColor.Sprint(healthStatus), healthColor.Sprint(healthInfo))
+
+	ioStreams.Infof("    Last Deployment:\n")
+	ioStreams.Infof("      Created at: %v\n", appConfig.CreationTimestamp)
+	ioStreams.Infof("      Updated at: %v\n", app.UpdateTime.Format(time.RFC3339))
 
 	// workload Must found
+	ioStreams.Infof("    Routes:\n")
 	workloadStatus, _ := getWorkloadStatusFromAppConfig(appConfig, compName)
 	for _, tr := range workloadStatus.Traits {
 		traitType, traitInfo, err := traitCheckLoop(ctx, c, tr.Reference, compName, appConfig, app, 60*time.Second)
@@ -288,12 +204,9 @@ func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmduti
 			ioStreams.Infof("%s status: %s", white.Sprint(traitType), traitInfo)
 			return err
 		}
-		ioStreams.Infof("\t%s: %s", white.Sprint(traitType), traitInfo)
+		ioStreams.Infof("      - %s: %s", white.Sprint(traitType), traitInfo)
 	}
-
-	ioStreams.Infof(white.Sprint("\nLast Deployment:\n"))
-	ioStreams.Infof("\tCreated at: %v\n", appConfig.CreationTimestamp)
-	ioStreams.Infof("\tUpdated at: %v\n", app.UpdateTime.Format(time.RFC3339))
+	ioStreams.Info("")
 	return nil
 }
 
@@ -525,21 +438,6 @@ func newTrackingSpinner(suffix string) *spinner.Spinner {
 func applySpinnerNewSuffix(s *spinner.Spinner, suffix string) {
 	suffixColor := color.New(color.Bold, color.FgGreen)
 	s.Suffix = suffixColor.Sprintf(" %s", suffix)
-}
-
-func printPrefix(p string) string {
-	if strings.HasSuffix(p, firstElemPrefix) {
-		p = strings.Replace(p, firstElemPrefix, pipe, strings.Count(p, firstElemPrefix)-1)
-	} else {
-		p = strings.ReplaceAll(p, firstElemPrefix, pipe)
-	}
-
-	if strings.HasSuffix(p, lastElemPrefix) {
-		p = strings.Replace(p, lastElemPrefix, strings.Repeat(" ", len([]rune(lastElemPrefix))), strings.Count(p, lastElemPrefix)-1)
-	} else {
-		p = strings.ReplaceAll(p, lastElemPrefix, strings.Repeat(" ", len([]rune(lastElemPrefix))))
-	}
-	return p
 }
 
 func getHealthStatusColor(s HealthStatus) *color.Color {
