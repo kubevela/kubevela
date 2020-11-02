@@ -208,23 +208,29 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 		setupLog.Info(fmt.Sprintf("waiting webhook secret, time consumed: %d/%d seconds ...",
 			int64(time.Since(start).Seconds()), int64(timeout.Seconds())))
 		if _, err := os.Stat(certDir); !os.IsNotExist(err) {
-			f, _ := os.Open(certDir)
-			defer f.Close()
-			// check if dir is empty
-			if _, err := f.Readdir(1); err == io.EOF {
-				continue
-			}
-			// check if secret files are empty
-			err := filepath.Walk(certDir, func(path string, info os.FileInfo, err error) error {
-				// even Cert dir is created, cert files are still empty for a while
-				if info.Size() == 0 {
-					return errors.New("secret is not ready")
+			ready := func() bool {
+				f, _ := os.Open(certDir)
+				defer f.Close()
+				// check if dir is empty
+				if _, err := f.Readdir(1); err == io.EOF {
+					return false
 				}
-				return nil
-			})
-			if err == nil {
-				setupLog.Info(fmt.Sprintf("webhook secret is ready (time consumed: %d seconds)",
-					int64(time.Since(start).Seconds())))
+				// check if secret files are empty
+				err := filepath.Walk(certDir, func(path string, info os.FileInfo, err error) error {
+					// even Cert dir is created, cert files are still empty for a while
+					if info.Size() == 0 {
+						return errors.New("secret is not ready")
+					}
+					return nil
+				})
+				if err == nil {
+					setupLog.Info(fmt.Sprintf("webhook secret is ready (time consumed: %d seconds)",
+						int64(time.Since(start).Seconds())))
+					return true
+				}
+				return false
+			}()
+			if ready {
 				return nil
 			}
 		}
