@@ -48,7 +48,7 @@ func NewUpCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 				return err
 			}
 
-			o := &appfileOptions{
+			o := &AppfileOptions{
 				Kubecli: kubecli,
 				IO:      ioStream,
 				Env:     velaEnv,
@@ -66,13 +66,13 @@ func NewUpCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-type appfileOptions struct {
+type AppfileOptions struct {
 	Kubecli client.Client
 	IO      cmdutil.IOStreams
 	Env     *types.EnvMeta
 }
 
-func (o *appfileOptions) Run(filePath string) error {
+func (o *AppfileOptions) Run(filePath string) error {
 	var app *appfile.AppFile
 	var err error
 
@@ -148,7 +148,7 @@ func (o *appfileOptions) Run(filePath string) error {
 	return o.ApplyAppConfig(appConfig, comps, scopes)
 }
 
-func (o *appfileOptions) saveToAppDir(f *appfile.AppFile) error {
+func (o *AppfileOptions) saveToAppDir(f *appfile.AppFile) error {
 	app := &application.Application{AppFile: f}
 	return app.Save(o.Env.Name)
 }
@@ -158,7 +158,7 @@ func (o *appfileOptions) saveToAppDir(f *appfile.AppFile) error {
 // - for create, it displays app status along with information of url, metrics, ssh, logging.
 // - for update, it rolls out a canary deployment and prints its information. User can verify the canary deployment.
 //   This will wait for user approval. If approved, it continues upgrading the whole; otherwise, it would rollback.
-func (o *appfileOptions) ApplyAppConfig(ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component, scopes []oam.Object) error {
+func (o *AppfileOptions) ApplyAppConfig(ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component, scopes []oam.Object) error {
 	key := apitypes.NamespacedName{
 		Namespace: ac.Namespace,
 		Name:      ac.Name,
@@ -177,11 +177,11 @@ func (o *appfileOptions) ApplyAppConfig(ac *v1alpha2.ApplicationConfiguration, c
 	if err := o.apply(ac, comps, scopes); err != nil {
 		return err
 	}
-	o.info(ac.Name, comps)
+	o.IO.Infof(o.Info(ac.Name, comps))
 	return nil
 }
 
-func (o *appfileOptions) apply(ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component, scopes []oam.Object) error {
+func (o *AppfileOptions) apply(ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component, scopes []oam.Object) error {
 	for _, comp := range comps {
 		if err := application.CreateOrUpdateComponent(context.TODO(), o.Kubecli, comp); err != nil {
 			return err
@@ -194,13 +194,14 @@ func (o *appfileOptions) apply(ac *v1alpha2.ApplicationConfiguration, comps []*v
 	return application.CreateOrUpdateAppConfig(context.TODO(), o.Kubecli, ac)
 }
 
-func (o *appfileOptions) info(appName string, comps []*v1alpha2.Component) {
-	o.IO.Infof("✅ app has been deployed 🚀🚀🚀\n")
-	o.IO.Infof("    Port forward: vela port-forward %s\n", appName)
-	o.IO.Infof("             SSH: vela exec %s\n", appName)
-	o.IO.Infof("         Logging: vela logs %s\n", appName)
-	o.IO.Infof("      App status: vela status %s\n", appName)
+func (o *AppfileOptions) Info(appName string, comps []*v1alpha2.Component) string {
+	var appUpMessage = "✅ app has been deployed 🚀🚀🚀\n" +
+		fmt.Sprintf("    Port forward: vela port-forward %s\n", appName) +
+		fmt.Sprintf("             SSH: vela exec %s\n", appName) +
+		fmt.Sprintf("         Logging: vela logs %s\n", appName) +
+		fmt.Sprintf("      App status: vela status %s\n", appName)
 	for _, comp := range comps {
-		o.IO.Infof("  Service status: vela status %s --svc %s\n", appName, comp.Name)
+		appUpMessage += fmt.Sprintf("  Service status: vela status %s --svc %s\n", appName, comp.Name)
 	}
+	return appUpMessage
 }
