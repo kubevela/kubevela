@@ -13,20 +13,25 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
-func (app *Application) Run(ctx context.Context, client client.Client, env *types.EnvMeta, io cmdutil.IOStreams) error {
+func (app *Application) BuildRun(ctx context.Context, client client.Client, env *types.EnvMeta, io cmdutil.IOStreams) error {
 	components, appconfig, scopes, err := app.OAM(env, io, true)
 	if err != nil {
 		return err
 	}
-	for _, cmp := range components {
-		if err = CreateOrUpdateComponent(ctx, client, cmp); err != nil {
+	return app.Run(ctx, client, appconfig, components, scopes)
+}
+
+func (app *Application) Run(ctx context.Context, client client.Client,
+	ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component, scopes []oam.Object) error {
+	for _, comp := range comps {
+		if err := CreateOrUpdateComponent(ctx, client, comp); err != nil {
 			return err
 		}
 	}
-	if err = CreateScopes(ctx, client, scopes); err != nil {
+	if err := CreateScopes(ctx, client, scopes); err != nil {
 		return err
 	}
-	return CreateOrUpdateAppConfig(ctx, client, appconfig)
+	return CreateOrUpdateAppConfig(ctx, client, ac)
 }
 
 func CreateOrUpdateComponent(ctx context.Context, client client.Client, comp *v1alpha2.Component) error {

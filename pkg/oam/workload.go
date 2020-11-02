@@ -112,7 +112,7 @@ func BaseRun(staging bool, app *application.Application, kubeClient client.Clien
 	if staging {
 		return "Staging saved", nil
 	}
-	if err := app.Run(context.Background(), kubeClient, Env, io); err != nil {
+	if err := app.BuildRun(context.Background(), kubeClient, Env, io); err != nil {
 		err = fmt.Errorf("create app err: %s", err)
 		return "", err
 	}

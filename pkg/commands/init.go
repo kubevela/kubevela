@@ -3,11 +3,13 @@ package commands
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"strconv"
 
 	"cuelang.org/go/cue"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
+	"github.com/ghodss/yaml"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -29,6 +31,7 @@ type appInitOptions struct {
 	appName      string
 	workloadName string
 	workloadType string
+	renderOnly   bool
 }
 
 // NewInitCommand init application
@@ -67,12 +70,30 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err = o.Traits(); err != nil {
 				return err
 			}
-			_, err = oam.BaseRun(false, o.app, o.client, o.Env, ioStreams)
+			comps, appconfig, scopes, err := o.app.OAM(o.Env, ioStreams, true)
 			if err != nil {
 				return err
 			}
 
+			b, err := yaml.Marshal(o.app.AppFile)
+			if err != nil {
+				return err
+			}
+			err = ioutil.WriteFile("./vela.yaml", b, 0600)
+			if err != nil {
+				return err
+			}
+			o.IOStreams.Info("\nRendered and written deployment config to " + color.New(color.FgCyan).Sprint("vela.yaml"))
+
+			if o.renderOnly {
+				return nil
+			}
+
 			ctx := context.Background()
+			err = o.app.Run(ctx, o.client, appconfig, comps, scopes)
+			if err != nil {
+				return err
+			}
 			deployStatus, err := printTrackingDeployStatus(ctx, o.client, o.IOStreams, o.workloadName, o.appName, o.Env)
 			if err != nil {
 				return err
@@ -84,6 +105,7 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			return printComponentStatus(context.Background(), o.client, o.IOStreams, o.workloadName, o.appName, o.Env)
 		},
 	}
+	cmd.Flags().BoolVar(&o.renderOnly, "render-only", false, "Rendering vela.yaml in current dir and do not deploy")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
@@ -263,7 +285,10 @@ func (o *appInitOptions) Traits() error {
 	switch o.workloadType {
 	case "webservice":
 		//TODO(wonderflow) this should get from workload definition to know which trait should be suggestions
-		var suggestTraits = []string{"route"}
+		var suggestTraits = []string{}
+		if o.Env.Domain != "" {
+			suggestTraits = append(suggestTraits, "route")
+		}
 		for _, tr := range suggestTraits {
 			trait, err := GetCapabilityByName(tr, traits)
 			if err != nil {

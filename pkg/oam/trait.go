@@ -234,7 +234,7 @@ func TraitOperationRun(ctx context.Context, c client.Client, env *types.EnvMeta,
 	if staging {
 		return "Staging saved", nil
 	}
-	err := appObj.Run(ctx, c, env, io)
+	err := appObj.BuildRun(ctx, c, env, io)
 	if err != nil {
 		return "", err
 	}
