@@ -191,22 +191,21 @@ func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmduti
 	healthInfo = strings.ReplaceAll(healthInfo, "\n", "\n\t") // format healthInfo output
 	ioStreams.Infof("    %s %s\n", healthColor.Sprint(healthStatus), healthColor.Sprint(healthInfo))
 
-	ioStreams.Infof("    Last Deployment:\n")
-	ioStreams.Infof("      Created at: %v\n", appConfig.CreationTimestamp)
-	ioStreams.Infof("      Updated at: %v\n", app.UpdateTime.Format(time.RFC3339))
-
 	// workload Must found
 	ioStreams.Infof("    Routes:\n")
 	workloadStatus, _ := getWorkloadStatusFromAppConfig(appConfig, compName)
 	for _, tr := range workloadStatus.Traits {
 		traitType, traitInfo, err := traitCheckLoop(ctx, c, tr.Reference, compName, appConfig, app, 60*time.Second)
 		if err != nil {
-			ioStreams.Infof("%s status: %s", white.Sprint(traitType), traitInfo)
-			return err
+			ioStreams.Infof("      - %s%s: %s, err: %v", emojiFail, white.Sprint(traitType), traitInfo, err)
+			continue
 		}
-		ioStreams.Infof("      - %s: %s", white.Sprint(traitType), traitInfo)
+		ioStreams.Infof("      - %s%s: %s", emojiSucceed, white.Sprint(traitType), traitInfo)
 	}
 	ioStreams.Info("")
+	ioStreams.Infof("    Last Deployment:\n")
+	ioStreams.Infof("      Created at: %v\n", appConfig.CreationTimestamp)
+	ioStreams.Infof("      Updated at: %v\n", app.UpdateTime.Format(time.RFC3339))
 	return nil
 }
 
@@ -281,7 +280,7 @@ func tryGetWorkloadStatus(ctx context.Context, c client.Client, ns string, wlRef
 }
 
 func printTrackingDeployStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, compName, appName string, env *types.EnvMeta) (CompStatus, error) {
-	sDeploy := newTrackingSpinner("Deploying ...")
+	sDeploy := newTrackingSpinner("Checking Status ...")
 	sDeploy.Start()
 	defer sDeploy.Stop()
 TrackDeployLoop:

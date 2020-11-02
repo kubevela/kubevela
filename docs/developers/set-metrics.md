@@ -1,3 +1,45 @@
 # Monitoring Application
 
-> TODO
+If your application has exposed metrics, you can easily setup monitoring system
+with the help of `metric` capability.
+
+Let's run [`christianhxc/gorandom:1.0`](https://github.com/christianhxc/prometheus-tutorial) as an example app.
+The app will emit random latencies as metrics.
+
+```console
+$ vela svc deploy metricapp -t webservice --image christianhxc/gorandom:1.0 --port 8080
+```
+
+Then add metric by:
+
+```console
+$ vela metric metricapp
+Adding metric for app metricapp
+⠋ Deploying ...
+✅ Application Deployed Successfully!
+  - Name: metricapp
+    Type: webservice
+    HEALTHY Ready: 1/1
+    Routes:
+      - ✅ metric: Monitoring port: 8080, path: /metrics, format: prometheus, schema: http.
+    Last Deployment:
+      Created at: 2020-11-02 14:31:56 +0800 CST
+      Updated at: 2020-11-02T14:32:00+08:00
+```
+
+The metrics trait will automatically discover port and label to monitor if no parameters specified.
+If more than one ports found, it will choose the first one by default.
+
+
+## Verify that the metrics are collected on prometheus
+
+TODO we should set up promethus Instance along with service at vela installation
+
+```
+kubectl apply -f e2e/raw-objects/samples/metrics-demo/prometheus/prometheus-oam.yaml
+```
+
+```shell script
+kubectl --namespace monitoring port-forward svc/prometheus-oam  4848
+```
+Then access the prometheus dashboard via http://localhost:4848/targets

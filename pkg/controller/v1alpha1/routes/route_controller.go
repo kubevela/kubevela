@@ -23,6 +23,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
+
 	"github.com/oam-dev/kubevela/api/v1alpha1"
 	standardv1alpha1 "github.com/oam-dev/kubevela/api/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
@@ -255,16 +257,16 @@ func DiscoverPortsLabel(ctx context.Context, workload *unstructured.Unstructured
 	if err != nil {
 		return nil, nil, err
 	}
-	podSpecPath, ok := GetPodSpecPath(workloadDef)
+	podSpecPath, ok := utils.GetPodSpecPath(workloadDef)
 	if podSpecPath != "" {
-		ports, err := discoveryFromPodSpec(workload, podSpecPath)
+		ports, err := utils.DiscoveryFromPodSpec(workload, podSpecPath)
 		if err != nil {
 			return nil, nil, err
 		}
 		return ports, filterLabels(workload.GetLabels()), nil
 	}
 	if ok {
-		return discoveryFromPodTemplate(workload, "spec", "template")
+		return utils.DiscoveryFromPodTemplate(workload, "spec", "template")
 	}
 
 	// If workload is not podSpecable, try to detect it's child resource
@@ -272,7 +274,7 @@ func DiscoverPortsLabel(ctx context.Context, workload *unstructured.Unstructured
 	resources = append(resources, childResources...)
 	var gatherErrs []error
 	for _, w := range resources {
-		port, labels, err := discoveryFromPodTemplate(w, "spec", "template")
+		port, labels, err := utils.DiscoveryFromPodTemplate(w, "spec", "template")
 		if err == nil {
 			return port, labels, nil
 		}

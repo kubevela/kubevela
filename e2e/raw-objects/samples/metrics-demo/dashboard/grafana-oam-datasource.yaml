@@ -1,7 +1,7 @@
 apiVersion: integreatly.org/v1alpha1
 kind: GrafanaDataSource
 metadata:
-  name: oam-grafanadatasource
+  name: monitoring
 spec:
   name: middleware.yaml
   datasources:

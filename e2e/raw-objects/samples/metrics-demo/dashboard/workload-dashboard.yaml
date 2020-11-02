@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: oam-monitoring-dashboard
-  namespace: oam-monitoring
+  namespace: monitoring
   labels:
     app: oam-runtime
     chart: prometheus-operator-9.3.0

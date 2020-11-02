@@ -31,6 +31,8 @@ func GetChecker(traitType string, c client.Client) Checker {
 	switch traitType {
 	case "route":
 		return &RouteChecker{c: c}
+	case "metric":
+		return &MetricChecker{c: c}
 	}
 	return &DefaultChecker{c: c}
 }
@@ -59,9 +61,34 @@ func (d *DefaultChecker) Check(ctx context.Context, reference runtimev1alpha1.Ty
 	}
 	var message string
 	for k, v := range traitData {
-		message += fmt.Sprintf("%v=%v\n", k, v)
+		message += fmt.Sprintf("%v=%v\n\t\t", k, v)
 	}
 	return StatusDone, message, err
+}
+
+type MetricChecker struct {
+	c client.Client
+}
+
+func (d *MetricChecker) Check(ctx context.Context, reference runtimev1alpha1.TypedReference, _ string, appConfig *v1alpha2.ApplicationConfiguration, _ *application.Application) (CheckStatus, string, error) {
+	metric := v1alpha1.MetricsTrait{}
+	if err := d.c.Get(ctx, client.ObjectKey{Namespace: appConfig.Namespace, Name: reference.Name}, &metric); err != nil {
+		return StatusChecking, "", err
+	}
+	condition := metric.Status.Conditions
+	if len(condition) < 1 {
+		return StatusChecking, "", nil
+	}
+	if condition[0].Status != v1.ConditionTrue {
+		return StatusChecking, condition[0].Message, nil
+	}
+	if metric.Spec.ScrapeService.Enabled != nil && !*metric.Spec.ScrapeService.Enabled {
+		return StatusDone, "Monitoring disabled", nil
+	}
+	var message = fmt.Sprintf("Monitoring port: %s, path: %s, format: %s, schema: %s.",
+		metric.Status.Port.String(), metric.Spec.ScrapeService.Path,
+		metric.Spec.ScrapeService.Format, metric.Spec.ScrapeService.Scheme)
+	return StatusDone, message, nil
 }
 
 type RouteChecker struct {

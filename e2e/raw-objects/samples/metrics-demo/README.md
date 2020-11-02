@@ -31,7 +31,11 @@ Then access the prometheus dashboard via http://localhost:4848
 ```shell script
 kubectl --namespace monitoring port-forward service/kube-prometheus-stack-grafana  3000:80
 ```
-Then access the grafana dashboard via http://localhost:3000.  You shall set the data source URL as `http://prometheus-oam:4848`
+Then access the grafana dashboard via http://localhost:3000.
+
+You shall set the data source URL as `http://prometheus-oam:4848` by:
+
+
 
 ## Setup Grafana Panel and Alert
 ```shell script
