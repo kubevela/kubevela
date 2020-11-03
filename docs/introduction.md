@@ -4,29 +4,29 @@
 
 ## Motivation
 
-The modern trend of cloud-native technology is moving towards pursuing consistent application delivery across clouds and on-premises infrastructures using Kubernetes as the common abstraction layer. Kubernetes, although excellent in abstracting low-level infrastructure details, does introduce another layer of complexity to application developers, namely understanding the concepts of pods, port exposing, privilege escalation, resource claims, CRD, and so on. We’ve seen such a nontrivial learning curve and the lack of developer-facing abstraction have impacted user experience, slowed down productivity, led to unexpected errors or misconfigurations in production. People start questioning the value of this revolution: "why am I bothered with that many YAML files?".
+The trend of cloud-native technology is moving towards pursuing consistent application delivery across clouds and on-premises infrastructures using Kubernetes as the common abstraction layer. Kubernetes, although excellent in abstracting low-level infrastructure details, does introduce extra complexity to application developers, namely understanding the concepts of pods, port exposing, privilege escalation, resource claims, CRD, and so on. We’ve seen the nontrivial learning curve and the lack of developer-facing abstraction have impacted user experiences, slowed down productivity, led to unexpected errors or misconfigurations in production. People start to question the value of this revolution: "why am I bothered with these many YAML files?".
 
-On the other hand, abstracting Kubernetes to serve developers' needs is a highly opinionated process, and the resultant abstractions would only make sense had the decision makers been the platform builders. Unfortunately, the platform builders today face the following dilemma:
+On the other hand, abstracting Kubernetes to serve developers' requirementss is a highly opinionated process, and the resultant abstractions would only make sense had the decision makers been the platform builders. Unfortunately, the platform builders today face the following dilemma:
 
 *There is no tool or framework for them to easily extend the abstractions if any*. 
 
-Thus, many platforms today introduce restricted abstractions, implementations and add-on mechanisms despite the extensibility of Kubernetes. This makes extending such platforms per developers' requirements or to wider scenarios almost impossible, not to mention taking the full advantage of the extremely rich Kubernetes ecosystems. 
+Thus, many platforms today introduce restricted abstractions and add-on mechanisms despite the extensibility of Kubernetes. This makes extending such platforms for developers' requirements or to wider scenarios almost impossible, not to mention taking the full advantage of the rich Kubernetes ecosystems.
 
-In the end, developers complain those platforms are too rigid and slow in response to feature requests or improvements. The platform engineers do want to help but the engineering effort is daunting: any simple API change in the platform could easily become a marathon negotiation around the opinionated abstraction design.
+In the end, developers complain those platforms are too rigid and slow in response to feature requests or improvements. The platform builders do want to help but the engineering effort is daunting: any simple API change in the platform could easily become a marathon negotiation around the opinionated abstraction design.
 
 ## What is KubeVela?
 
 For developers, KubeVela itself is an easy-to-use tool that enables them to describe and ship their applications to Kubernetes with minimal effort. Instead of managing a handful Kubernetes YAML files, a simple docker-compose style [Appfile](./docs/developers/devex/appfile.md) is all they need, following an application-centric workflow that can be easily integrated with any CI/CD pipeline.
 
-The above experience cannot be achieved without KubeVela's innovative offerings to platform builders.
+The above experience cannot be achieved without KubeVela's innovative offerings to the platform builders.
 
 For platform builders, KubeVela serves as a framework that empowers them to create developer facing yet highly extensible platforms at ease. In details, KubeVela relieves the pains of building such platforms by doing the following:
 
-- Application Centric. Behind the Appfile, KubeVela enforces the corresponding **application** concept as its main API and **ALL** KubeVela's capabilities serve for the applications' needs only. This is achieved by adopting the [Open Application Model](https://github.com/oam-dev/spec) as the core API for the platform.
+- Application Centric. Behind the Appfile, KubeVela enforces an **application** concept as its main API and **ALL** KubeVela's capabilities serve for the applications' requirements only. This is achieved by adopting the [Open Application Model](https://github.com/oam-dev/spec) as the core API for KubeVela.
  
 - Extending Natively. An application in KubeVela is composed of various pluggable workload types and operation features (i.e. traits). Capabilities from Kubernetes ecosystem can be added to KubeVela as new workload types or traits through Kubernetes CRD registry mechanism at any time.
 
-- Simple yet Extensible Abstraction Mechanism. KubeVela's main user interfaces （i.e. Appfile and CLI) are built with [CUELang](https://github.com/cuelang/cue) as the abstraction engine between the user-facing schemas and the underline Kubernetes resources. KubeVela provides a set of built-in abstractions to start with and platform administrators are free to modify them at any time. Abstraction changes take effect at runtime, neither recompilation nor redeployment of KubeVela is required. 
+- Simple yet Extensible Abstraction Mechanism. KubeVela's main user interfaces （i.e. Appfile and CLI) are built using a [CUELang](https://github.com/cuelang/cue) based abstraction engine which translates the user-facing schemas to the underline Kubernetes resources. KubeVela provides a set of built-in abstractions to start with and the platform builders are free to modify them at any time. Abstraction changes take effect at runtime, neither recompilation nor redeployment of KubeVela is required.
   
 With KubeVela, platform builders now finally have the tooling support to design and ship any new capabilities to their end-users with high confidence and low turn around time. 
 
