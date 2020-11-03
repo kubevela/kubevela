@@ -22,7 +22,7 @@ spec:
   serviceAccountName: kube-prometheus-stack-prometheus
   serviceMonitorNamespaceSelector:
     matchLabels:
-      mornitoring: oam
+      app.kubernetes.io/part-of: kubevela
   serviceMonitorSelector:
     matchLabels:
       k8s-app: oam

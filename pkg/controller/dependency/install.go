@@ -63,10 +63,15 @@ func Install(kubecli client.Client) {
 		log.Info("no vela config")
 		return
 	}
-	for _, chart := range velaConfig.Data {
+	for key, chart := range velaConfig.Data {
 		err := installHelmChart(kubecli, []byte(chart), log)
 		if err != nil {
-			log.Error(err, "failed to install helm chart")
+			log.Error(err, fmt.Sprintf("failed to install helm chart for %s", key))
+		}
+		if key == "servicemonitors.monitoring.coreos.com" {
+			if err = InstallPromethusInstance(kubecli); err != nil {
+				log.Error(err, "failed to install promethus Instance")
+			}
 		}
 	}
 }
@@ -113,7 +118,7 @@ func installHelmChart(client client.Client, chart []byte, log logr.Logger) error
 			}
 			if !exist {
 				if err = cmdutil.NewNamespace(client, helmChart.Namespace); err != nil {
-					return fmt.Errorf("create namespace (%s) failed", helmChart.Namespace)
+					return fmt.Errorf("create namespace (%s) failed for chart %s", helmChart.Namespace, helmChart.Name)
 				}
 			}
 		}

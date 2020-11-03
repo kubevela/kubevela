@@ -245,7 +245,10 @@ func makeSignalHandler(log logr.Logger, kubecli client.Client) (stopCh <-chan st
 
 	go func() {
 		<-c
-		dependency.Uninstall(kubecli)
+		// Do not uninstall when vela-core terminating.
+		// When running on K8s, old pod will terminate after new pod running, it will cause charts uninstalled.
+		// https://github.com/oam-dev/kubevela/issues/499
+		// dependency.Uninstall(kubecli)
 		close(stop)
 
 		// second signal. Exit directly.

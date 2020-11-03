@@ -33,13 +33,8 @@ If more than one ports found, it will choose the first one by default.
 
 ## Verify that the metrics are collected on prometheus
 
-TODO we should set up promethus Instance along with service at vela installation
-
-```
-kubectl apply -f e2e/raw-objects/samples/metrics-demo/prometheus/prometheus-oam.yaml
-```
-
 ```shell script
-kubectl --namespace monitoring port-forward svc/prometheus-oam  4848
+kubectl --namespace monitoring port-forward `k -n monitoring get pods -l prometheus=oam -o name` 9090
 ```
-Then access the prometheus dashboard via http://localhost:4848/targets
+
+Then access the prometheus dashboard via http://localhost:9090/targets

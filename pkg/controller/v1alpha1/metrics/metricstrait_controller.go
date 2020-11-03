@@ -201,6 +201,16 @@ func (r *Reconciler) createService(ctx context.Context, mLog logr.Logger, worklo
 			Name:      "oam-" + workload.GetName(),
 			Namespace: workload.GetNamespace(),
 			Labels:    oamServiceLabel,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         metricsTrait.GetObjectKind().GroupVersionKind().GroupVersion().String(),
+					Kind:               metricsTrait.GetObjectKind().GroupVersionKind().Kind,
+					UID:                metricsTrait.GetUID(),
+					Name:               metricsTrait.GetName(),
+					Controller:         pointer.BoolPtr(true),
+					BlockOwnerDeletion: pointer.BoolPtr(true),
+				},
+			},
 		},
 		Spec: corev1.ServiceSpec{
 			Type: corev1.ServiceTypeClusterIP,
