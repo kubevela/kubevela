@@ -4,9 +4,9 @@
 
 # KubeVela
 
-For developers, KubeVela is an easy-to-use tool that enables developers to describe and ship their applications with simple commands.
+For developers, KubeVela is an easy-to-use tool that enables them to describe and ship their applications to Kubernetes with minimal effort.
 
-For platform engineers, KubeVela is an extensible engine where platform builders can create something more complex on top of, in an easy and Kubernetes native approach.
+For platform builders, KubeVela serves as a framework that empowers them to create developer facing yet highly extensible platforms at ease.
 
 - Slack: [Discuss](https://cloud-native.slack.com/archives/C01BLQ3HTJA)
 - Gitter: [Community](https://gitter.im/oam-dev/community)
