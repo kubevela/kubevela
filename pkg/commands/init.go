@@ -56,7 +56,7 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			o.IOStreams.Info("Welcome to use KubeVela CLI! We're going to help you run applications through a couple of questions.")
+			o.IOStreams.Info("Welcome to use KubeVela CLI! Please describe your applications.")
 			o.IOStreams.Info()
 			if err = o.CheckEnv(); err != nil {
 				return err
@@ -83,7 +83,7 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			o.IOStreams.Info("\nRendered and written deployment config to " + color.New(color.FgCyan).Sprint("vela.yaml"))
+			o.IOStreams.Info("\nDeployment config is rendered and written to " + color.New(color.FgCyan).Sprint("vela.yaml"))
 
 			if o.renderOnly {
 				return nil
@@ -112,7 +112,7 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 
 func (o *appInitOptions) Naming() error {
 	prompt := &survey.Input{
-		Message: "What would you like to name your application: ",
+		Message: "What would you like to name your application (required): ",
 	}
 	err := survey.AskOne(prompt, &o.appName)
 	if err != nil {
@@ -128,20 +128,20 @@ func (o *appInitOptions) CheckEnv() error {
 	o.Infof("Environment: %s, namespace: %s\n\n", o.Env.Name, o.Env.Namespace)
 	if o.Env.Domain == "" {
 		prompt := &survey.Input{
-			Message: "Do you want to setup a domain for web service: ",
+			Message: "What is the domain of your application service (optional): ",
 		}
 		err := survey.AskOne(prompt, &o.Env.Domain)
 		if err != nil {
-			return fmt.Errorf("read app name err %v", err)
+			return fmt.Errorf("read domain err %v", err)
 		}
 	}
 	if o.Env.Email == "" {
 		prompt := &survey.Input{
-			Message: "Provide an email for production certification: ",
+			Message: "What is your email (optional, used to generate certification): ",
 		}
 		err := survey.AskOne(prompt, &o.Env.Email)
 		if err != nil {
-			return fmt.Errorf("read app name err %v", err)
+			return fmt.Errorf("read email err %v", err)
 		}
 	}
 	if _, err := env.CreateOrUpdateEnv(context.Background(), o.client, o.Env.Name, o.Env); err != nil {
@@ -160,7 +160,7 @@ func (o *appInitOptions) Workload() error {
 		workloadList = append(workloadList, w.Name)
 	}
 	prompt := &survey.Select{
-		Message: "Choose workload type for your service: ",
+		Message: "Choose the workload type for your application (required, e.g., webservice): ",
 		Options: workloadList,
 	}
 	err = survey.AskOne(prompt, &o.workloadType)
@@ -172,11 +172,11 @@ func (o *appInitOptions) Workload() error {
 		return err
 	}
 	namePrompt := &survey.Input{
-		Message: fmt.Sprintf("What would you name this %s: ", o.workloadType),
+		Message: fmt.Sprintf("What would you like to name this %s (required): ", o.workloadType),
 	}
 	err = survey.AskOne(namePrompt, &o.workloadName)
 	if err != nil {
-		return fmt.Errorf("read name err %v", err)
+		return fmt.Errorf("read workload name err %v", err)
 	}
 	fs := pflag.NewFlagSet("workload", pflag.ContinueOnError)
 	for _, p := range workload.Parameters {

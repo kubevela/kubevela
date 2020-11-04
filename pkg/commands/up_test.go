@@ -38,6 +38,6 @@ func TestUp(t *testing.T) {
 		},
 	}
 	msg := o.Info(appName, services)
-	assert.Contains(t, msg, "app has been deployed")
+	assert.Contains(t, msg, "App has been deployed")
 	assert.Contains(t, msg, fmt.Sprintf("App status: vela status %s", appName))
 }
