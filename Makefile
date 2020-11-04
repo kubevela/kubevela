@@ -20,7 +20,7 @@ endif
 all: build
 
 # Run tests
-test: fmt vet lint
+test: vet lint
 	go test -race -coverprofile=coverage.txt -covermode=atomic ./pkg/... ./cmd/...
 
 # Build manager binary
@@ -66,6 +66,7 @@ run: fmt vet
 # Run go fmt against code
 fmt:
 	go fmt ./...
+	./hack/cue-fmt.sh
 
 # Run go vet against code
 vet:
