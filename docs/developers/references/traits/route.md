@@ -6,7 +6,7 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **Domain** | **string** |  | [default to ]
 **Issuer** | **string** |  | [default to ]
-**Rules** | [**[]RouteRules**](routerules.md) |  | [optional] 
+**Rules** | [**[]RouteRules**](#routerules) |  | [optional] 
 
 
 ### RouteRules

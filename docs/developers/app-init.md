@@ -12,13 +12,14 @@ Welcome to use KubeVela CLI! We're going to help you run applications through a 
 
 Environment: default, namespace: default
 
-? Do you want to setup a domain for web service:
-? Provide an email for production certification:
-? What would you like to name your application:  testapp
-? Choose workload type for your service:  webservice
-? What would you name this webservice:  testsvc
+? What is the domain of your application service (optional):  example.com
+? What is your email (optional, used to generate certification):
+? What would you like to name your application (required):  testapp
+? Choose the workload type for your application (required, e.g., webservice):  webservice
+? What would you like to name this webservice (required):  testsvc
 ? specify app image crccheck/hello-world
 ? specify port for container 8000
+
 ...
 ✅ Application Deployed Successfully!
   - Name: testsvc

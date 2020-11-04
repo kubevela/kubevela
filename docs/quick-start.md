@@ -14,15 +14,15 @@ Welcome to use KubeVela CLI! We're going to help you run applications through a 
 
 Environment: default, namespace: default
 
-? Do you want to setup a domain for web service: example.com
-? Provide an email for production certification:
-? What would you like to name your application:  testapp
-? Choose workload type for your service:  webservice
-? What would you name this webservice:  testsvc
-? specify app image: crccheck/hello-world
-? specify port for container: 8000
+? What is the domain of your application service (optional):  example.com
+? What is your email (optional, used to generate certification):
+? What would you like to name your application (required):  testapp
+? Choose the workload type for your application (required, e.g., webservice):  webservice
+? What would you like to name this webservice (required):  testsvc
+? specify app image crccheck/hello-world
+? specify port for container 8000
 
-Rendered and written deployment config to vela.yaml
+Deployment config is rendered and written to vela.yaml
 ```
 
 In current directory, you will have a generated `vela.yaml`:
@@ -49,12 +49,12 @@ Parsing vela.yaml ...
 Loading templates ...
 
 Rendering configs for service (testsvc)...
-writing deploy config to (.vela/deploy.yaml)
+Writing deploy config to (.vela/deploy.yaml)
 
 Applying deploy configs ...
 Checking if app has been deployed...
-app existed, updating existing deployment...
-✅ app has been deployed 🚀🚀🚀
+App has not been deployed, creating a new deployment...
+✅ App has been deployed 🚀🚀🚀
     Port forward: vela port-forward testapp
              SSH: vela exec testapp
          Logging: vela logs testapp
