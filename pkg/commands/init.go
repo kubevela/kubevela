@@ -56,7 +56,7 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			o.IOStreams.Info("Welcome to use KubeVela CLI! Please describe your applications.")
+			o.IOStreams.Info("Welcome to use KubeVela CLI! Please describe your application.")
 			o.IOStreams.Info()
 			if err = o.CheckEnv(); err != nil {
 				return err
