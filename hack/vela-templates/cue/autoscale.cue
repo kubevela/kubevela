@@ -4,7 +4,7 @@ output: {
 	spec: {
 		minReplicas: parameter.minReplicas
 		maxReplicas: parameter.maxReplicas
-		triggers: [...{
+		triggers: [{
 			name: parameter.name
 			type: parameter.type
 			condition: {
@@ -14,7 +14,7 @@ output: {
 				replicas: parameter.replicas
 				timezone: parameter.timezone
 			}
-		}]
+		}, ...]
 	}
 }
 parameter: {
@@ -22,9 +22,9 @@ parameter: {
 	maxReplicas: *4 | int
 	name:        *"" | string
 	type:        *"cron" | string
-	startAt:     *"00:01" | string
-	duration:    *"" | string
-	days:        *"Monday, Tuesday" | string
+	startAt:     string
+	duration:    string
+	days:        string
 	replicas:    *"2" | string
 	timezone:    *"Asia/Shanghai" | string
 }
