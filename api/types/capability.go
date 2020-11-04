@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"cuelang.org/go/cue"
+	"github.com/google/go-cmp/cmp"
 	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -136,4 +137,69 @@ func SetFlagBy(flags *pflag.FlagSet, v Parameter) {
 		}
 		flags.Float64P(v.Name, v.Short, vv, v.Usage)
 	}
+}
+
+var CapabilityCmpOptions = []cmp.Option{
+	cmp.Comparer(func(a, b Parameter) bool {
+		if a.Name != b.Name || a.Short != b.Short || a.Required != b.Required ||
+			a.Usage != b.Usage || a.Type != b.Type {
+			return false
+		}
+		switch a.Type {
+		case cue.IntKind:
+			var va, vb int64
+			switch vala := a.Default.(type) {
+			case int64:
+				va = vala
+			case json.Number:
+				va, _ = vala.Int64()
+			case int:
+				va = int64(vala)
+			case float64:
+				va = int64(vala)
+			}
+			switch valb := b.Default.(type) {
+			case int64:
+				vb = valb
+			case json.Number:
+				vb, _ = valb.Int64()
+			case int:
+				vb = int64(valb)
+			case float64:
+				vb = int64(valb)
+			}
+			return va == vb
+		case cue.StringKind:
+			return a.Default.(string) == b.Default.(string)
+		case cue.BoolKind:
+			return a.Default.(bool) == b.Default.(bool)
+		case cue.NumberKind, cue.FloatKind:
+			var va, vb float64
+			switch vala := a.Default.(type) {
+			case int64:
+				va = float64(vala)
+			case json.Number:
+				va, _ = vala.Float64()
+			case int:
+				va = float64(vala)
+			case float64:
+				va = float64(vala)
+			}
+			switch valb := b.Default.(type) {
+			case int64:
+				vb = float64(valb)
+			case json.Number:
+				vb, _ = valb.Float64()
+			case int:
+				vb = float64(valb)
+			case float64:
+				vb = float64(valb)
+			}
+			return va == vb
+		}
+		return true
+	})}
+
+func EqualCapability(a, b Capability) bool {
+	return cmp.Equal(a, b, CapabilityCmpOptions...)
 }

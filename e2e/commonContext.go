@@ -51,10 +51,7 @@ var (
 			ginkgo.It("Sync commands from your Kubernetes cluster and locally cached them", func() {
 				output, err := Exec("vela system update")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("syncing workload definitions from cluster..."))
-				gomega.Expect(output).To(gomega.ContainSubstring("sync"))
-				gomega.Expect(output).To(gomega.ContainSubstring("successfully"))
-				gomega.Expect(output).To(gomega.ContainSubstring("remove"))
+				gomega.Expect(output).To(gomega.ContainSubstring("Synchronizing capabilities from cluster"))
 			})
 		})
 	}
@@ -152,6 +149,27 @@ var (
 		})
 	}
 
+	WorkloadCapabilityListContext = func() bool {
+		return ginkgo.Context("list workload capabilities", func() {
+			ginkgo.It("should sync capabilities from cluster before listing workload capabilities", func() {
+				output, err := Exec("vela workloads")
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(output).To(gomega.ContainSubstring("Sync capabilities successfully"))
+				gomega.Expect(output).To(gomega.ContainSubstring("Listing workload capabilities"))
+			})
+		})
+	}
+
+	TraitCapabilityListContext = func() bool {
+		return ginkgo.Context("list traits capabilities", func() {
+			ginkgo.It("should sync capabilities from cluster before listing trait capabilities", func() {
+				output, err := Exec("vela traits")
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(output).To(gomega.ContainSubstring("Sync capabilities successfully"))
+				gomega.Expect(output).To(gomega.ContainSubstring("Listing trait capabilities"))
+			})
+		})
+	}
 	// TraitManualScalerAttachContext used for test trait attach success
 	TraitManualScalerAttachContext = func(context string, traitAlias string, applicationName string) bool {
 		return ginkgo.Context(context, func() {

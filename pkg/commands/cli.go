@@ -85,8 +85,8 @@ func NewCommand() *cobra.Command {
 		SystemCommandGroup(commandArgs, ioStream),
 		NewCompletionCommand(),
 
-		NewTraitsCommand(ioStream),
-		NewWorkloadsCommand(ioStream),
+		NewTraitsCommand(commandArgs, ioStream),
+		NewWorkloadsCommand(commandArgs, ioStream),
 
 		NewDashboardCommand(commandArgs, ioStream, fake.FrontendSource),
 
