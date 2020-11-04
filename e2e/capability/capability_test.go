@@ -14,7 +14,7 @@ import (
 var (
 	capabilityCenterBasic = apis.CapabilityCenterMeta{
 		Name: "capability-center-e2e-basic",
-		URL:  "https://github.com/hongchaodeng/kubevela/tree/master/pkg/plugins/testdata",
+		URL:  "https://github.com/oam-dev/kubevela/tree/master/pkg/plugins/testdata",
 	}
 
 	scaleCapability = types.Capability{
@@ -27,6 +27,8 @@ var (
 		Type: types.TypeTrait,
 	}
 )
+
+// TODO: chagne this into a mock UT to avoid remote call.
 
 var _ = ginkgo.Describe("Capability", func() {
 	ginkgo.Context("capability center", func() {
