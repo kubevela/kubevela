@@ -261,15 +261,15 @@ var (
 						q, a string
 					}{
 						{
-							q: "Do you want to setup a domain for web service: ",
+							q: "What is the domain of your application service (optional): ",
 							a: "testdomain",
 						},
 						{
-							q: "Provide an email for production certification: ",
+							q: "What is your email (optional, used to generate certification): ",
 							a: "test@mail",
 						},
 						{
-							q: "What would you like to name your application: ",
+							q: "What would you like to name your application (required): ",
 							a: appName,
 						},
 						{
@@ -277,7 +277,7 @@ var (
 							a: workloadType,
 						},
 						{
-							q: "What would you name this webservice: ",
+							q: "What would you like to name this webservice (required): ",
 							a: "mysvc",
 						},
 						{

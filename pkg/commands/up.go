@@ -132,7 +132,7 @@ func (o *AppfileOptions) Run(filePath string) error {
 	}
 
 	deployFilePath := ".vela/deploy.yaml"
-	o.IO.Infof("writing deploy config to (%s)\n", deployFilePath)
+	o.IO.Infof("Writing deploy config to (%s)\n", deployFilePath)
 	if err := os.MkdirAll(filepath.Dir(deployFilePath), 0700); err != nil {
 		return err
 	}
@@ -168,9 +168,9 @@ func (o *AppfileOptions) ApplyAppConfig(ac *v1alpha2.ApplicationConfiguration, c
 	err := o.Kubecli.Get(context.TODO(), key, &tmpAC)
 	switch {
 	case apierrors.IsNotFound(err):
-		o.IO.Infof("app has not been deployed, creating a new deployment...\n")
+		o.IO.Infof("App has not been deployed, creating a new deployment...\n")
 	case err == nil:
-		o.IO.Infof("app existed, updating existing deployment...\n")
+		o.IO.Infof("App exists, updating existing deployment...\n")
 	default:
 		return err
 	}
@@ -195,7 +195,7 @@ func (o *AppfileOptions) apply(ac *v1alpha2.ApplicationConfiguration, comps []*v
 }
 
 func (o *AppfileOptions) Info(appName string, comps []*v1alpha2.Component) string {
-	var appUpMessage = "✅ app has been deployed 🚀🚀🚀\n" +
+	var appUpMessage = "✅ App has been deployed 🚀🚀🚀\n" +
 		fmt.Sprintf("    Port forward: vela port-forward %s\n", appName) +
 		fmt.Sprintf("             SSH: vela exec %s\n", appName) +
 		fmt.Sprintf("         Logging: vela logs %s\n", appName) +
