@@ -79,7 +79,7 @@ func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.
 func printRefreshReport(newCaps, oldCaps []types.Capability, io cmdutil.IOStreams) {
 	report := refreshResultReport(newCaps, oldCaps)
 	table := uitable.New()
-	table.AddRow("NAME", "TYPE", "DESCRIPTION")
+	table.AddRow("TYPE", "CATEGORY", "DESCRIPTION")
 
 	if len(report[added]) == 0 && len(report[updated]) == 0 && len(report[deleted]) == 0 {
 		// no change occurs, just show all existing caps

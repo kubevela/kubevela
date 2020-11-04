@@ -21,6 +21,7 @@ Learn and use KubeVela with tutorials and user stories.
 - [Port Forward to Container](developers/port-forward.md)
 - [Configuring data/env in Application](developers/config-app.md)
 - [Consuming Cloud Services](developers/cloud-service.md)
+- [Capability References](developers/references/README.md)
 
 **For Platform Engineers**
 - [Extending KubeVela](platform-engineers/extending-kubevela.md)
