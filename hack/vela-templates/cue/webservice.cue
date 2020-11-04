@@ -39,8 +39,15 @@ output: {
 					ports: [{
 						containerPort: parameter.port
 					}]
+
+					resources: {
+						limits:
+							cpu: parameter.CPULimits
+						requests:
+							cpu: parameter.CPURequests
+					}
 				}]
-			}
+		}
 		}
 	}
 }
@@ -65,4 +72,8 @@ parameter: {
 			}
 		}
 	}]
+	// +usage=CPU core limits for the workload
+	CPULimits?: *"1" | string
+	// +usage=CPU core requests for the workload
+	CPURequests?: *"0.1" | string
 }

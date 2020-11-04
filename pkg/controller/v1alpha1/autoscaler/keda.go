@@ -39,7 +39,7 @@ func (r *AutoscalerReconciler) scaleByKEDA(scaler v1alpha1.Autoscaler, namespace
 				return err
 			}
 			kedaTriggers = append(kedaTriggers, cronKedaTriggers...)
-		} else {
+		} else if t.Type == CPUType {
 			kedaTriggers = append(kedaTriggers, kedav1alpha1.ScaleTriggers{
 				Type:     string(t.Type),
 				Name:     t.Name,

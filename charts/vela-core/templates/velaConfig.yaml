@@ -26,5 +26,5 @@ data:
       "urL": "https://kedacore.github.io/charts",
       "name": "keda",
       "namespace": "keda",
-      "version": "2.0.0-beta1.2"
+      "version": "2.0.0-rc3"
     }
