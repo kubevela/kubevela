@@ -2,7 +2,6 @@ package plugins
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
+	"github.com/pkg/errors"
 
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"k8s.io/apimachinery/pkg/labels"
@@ -22,11 +22,11 @@ import (
 const DescriptionUndefined = "description not defined"
 
 func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Capability, error) {
-	workloads, err := GetWorkloadsFromCluster(ctx, namespace, c, syncDir, selector)
+	workloads, _, err := GetWorkloadsFromCluster(ctx, namespace, c, syncDir, selector)
 	if err != nil {
 		return nil, err
 	}
-	traits, err := GetTraitsFromCluster(ctx, namespace, c, syncDir, selector)
+	traits, _, err := GetTraitsFromCluster(ctx, namespace, c, syncDir, selector)
 	if err != nil {
 		return nil, err
 	}
@@ -34,21 +34,20 @@ func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c client.
 	return workloads, nil
 }
 
-func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Capability, error) {
+func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Capability, []error, error) {
 	var templates []types.Capability
 	var workloadDefs corev1alpha2.WorkloadDefinitionList
 	err := c.List(ctx, &workloadDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
 	if err != nil {
-		return nil, fmt.Errorf("list WorkloadDefinition err: %s", err)
+		return nil, nil, fmt.Errorf("list WorkloadDefinition err: %s", err)
 	}
 
+	templateErrors := []error{}
 	for _, wd := range workloadDefs.Items {
 		tmp, err := HandleDefinition(wd.Name, syncDir, wd.Spec.Reference.Name, wd.Annotations, wd.Spec.Extension, types.TypeWorkload, nil)
 		if err != nil {
-			fmt.Printf("[WARN] hanlde workload template `%s` failed with error: %v\n", wd.Name, err)
+			templateErrors = append(templateErrors, errors.Wrapf(err, "handle workload template `%s` failed", wd.Name))
 			continue
-		} else {
-			fmt.Printf("imported workload `%s`\n", wd.Name)
 		}
 		if apiVerion, kind := cmdutil.GetAPIVersionKindFromWorkload(wd); apiVerion != "" && kind != "" {
 			tmp.CrdInfo = &types.CrdInfo{
@@ -58,24 +57,23 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Cli
 		}
 		templates = append(templates, tmp)
 	}
-	return templates, nil
+	return templates, templateErrors, nil
 }
 
-func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Capability, error) {
+func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Capability, []error, error) {
 	var templates []types.Capability
 	var traitDefs corev1alpha2.TraitDefinitionList
 	err := c.List(ctx, &traitDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
 	if err != nil {
-		return nil, fmt.Errorf("list TraitDefinition err: %s", err)
+		return nil, nil, fmt.Errorf("list TraitDefinition err: %s", err)
 	}
 
+	templateErrors := []error{}
 	for _, td := range traitDefs.Items {
 		tmp, err := HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Annotations, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads)
 		if err != nil {
-			fmt.Printf("[WARN] hanlde trait template `%s` failed with error: %v\n", td.Name, err)
+			templateErrors = append(templateErrors, errors.Wrapf(err, "handle trait template `%s` failed", td.Name))
 			continue
-		} else {
-			fmt.Printf("imported trait `%s`\n", td.Name)
 		}
 		if apiVerion, kind := cmdutil.GetAPIVersionKindFromTrait(td); apiVerion != "" && kind != "" {
 			tmp.CrdInfo = &types.CrdInfo{
@@ -85,7 +83,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 		}
 		templates = append(templates, tmp)
 	}
-	return templates, nil
+	return templates, templateErrors, nil
 }
 
 func HandleDefinition(name, syncDir, crdName string, annotation map[string]string, extention *runtime.RawExtension, tp types.CapType, applyTo []string) (types.Capability, error) {

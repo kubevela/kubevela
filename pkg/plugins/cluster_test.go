@@ -89,7 +89,7 @@ var _ = Describe("DefinitionFiles", func() {
 	// Notice!!  DefinitionPath Object is Cluster Scope object
 	// which means objects created in other DefinitionNamespace will also affect here.
 	It("gettrait", func() {
-		traitDefs, err := GetTraitsFromCluster(context.Background(), DefinitionNamespace, k8sClient, definitionDir, selector)
+		traitDefs, _, err := GetTraitsFromCluster(context.Background(), DefinitionNamespace, k8sClient, definitionDir, selector)
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting trait definitions %v", traitDefs))
 		for i := range traitDefs {
@@ -105,7 +105,7 @@ var _ = Describe("DefinitionFiles", func() {
 	// Notice!!  DefinitionPath Object is Cluster Scope object
 	// which means objects created in other DefinitionNamespace will also affect here.
 	It("getworkload", func() {
-		workloadDefs, err := GetWorkloadsFromCluster(context.Background(), DefinitionNamespace, k8sClient, definitionDir, selector)
+		workloadDefs, _, err := GetWorkloadsFromCluster(context.Background(), DefinitionNamespace, k8sClient, definitionDir, selector)
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting workload definitions  %v", workloadDefs))
 		for i := range workloadDefs {
