@@ -21,21 +21,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
-
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 	oamutil "github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 	"github.com/go-logr/logr"
+	"github.com/oam-dev/kubevela/api/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"github.com/oam-dev/kubevela/api/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/controller/common"
 )
 
 const (
@@ -69,6 +67,7 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 	ctx := context.Background()
 	var scaler v1alpha1.Autoscaler
 	if err := r.Get(ctx, req.NamespacedName, &scaler); err != nil {
+		log.Error(err, "Failed to get trait", "traitName", scaler.Name)
 		return ReconcileWaitResult, client.IgnoreNotFound(err)
 	}
 	log.Info("Retrieved trait Autoscaler", "APIVersion", scaler.APIVersion, "Kind", scaler.Kind)

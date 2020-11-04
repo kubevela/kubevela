@@ -192,7 +192,7 @@ func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmduti
 	ioStreams.Infof("    %s %s\n", healthColor.Sprint(healthStatus), healthColor.Sprint(healthInfo))
 
 	// workload Must found
-	ioStreams.Infof("    Routes:\n")
+	ioStreams.Infof("    Traits:\n")
 	workloadStatus, _ := getWorkloadStatusFromAppConfig(appConfig, compName)
 	for _, tr := range workloadStatus.Traits {
 		traitType, traitInfo, err := traitCheckLoop(ctx, c, tr.Reference, compName, appConfig, app, 60*time.Second)

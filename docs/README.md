@@ -12,7 +12,7 @@ Learn and use KubeVela with tutorials and user stories.
 - [Setting Up Deployment Environment](developers/config-enviroments.md)
 - [Initializing Application](developers/app-init.md)
 - [Setting Routes](developers/set-route.md)
-- [Setting Auto-scaling Policy](developers/set-autoscaling.md)
+- [Setting Auto-scaling Policy](developers/set-autoscale.md)
 - [Setting Rollout Strategy](developers/set-rollout.md)
 - [Monitoring Application](developers/set-metrics.md)
 - [Using Appfile](developers/devex/appfile.md)
