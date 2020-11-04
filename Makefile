@@ -92,7 +92,7 @@ e2e-setup:
 
 e2e-test:
 	# Run e2e test
-	ginkgo -v -skipPackage setup,apiserver -r e2e
+	ginkgo -v -skipPackage capability,setup,apiserver -r e2e
 
 e2e-api-test:
 	# Run e2e test
