@@ -6,7 +6,7 @@ from outside world via `route` feature.
 ```console
 $ vela svc ls
 NAME  	    APP  	WORKLOAD  	  TRAITS	STATUS 	    CREATED-TIME
-frontend	myapp	webservice	      	    Deployed	2020-09-18 22:42:04 +0800 CST
+frontend	testapp	webservice	      	    Deployed	2020-09-18 22:42:04 +0800 CST
 ```
 
 ## `port-forward`
@@ -14,7 +14,7 @@ frontend	myapp	webservice	      	    Deployed	2020-09-18 22:42:04 +0800 CST
 It will directly open browser for you.
 
 ```console
-$ vela port-forward myapp
+$ vela port-forward testapp
 Forwarding from 127.0.0.1:8080 -> 80
 Forwarding from [::1]:8080 -> 80
 
@@ -32,7 +32,7 @@ Handling connection for 8080
 You can manually configure it by setting domain parameter.
 
 ```console
-$ vela route myapp --domain frontend.mycustom.domain
+$ vela route testapp --domain frontend.mycustom.domain
 Adding route for app frontend
 
 Rendering configs for service (frontend)...
@@ -56,7 +56,7 @@ $ curl -H "Host:frontend.mycustom.domain" 123.57.10.233
 ### If you have domain set in environment
 
 ```console
-$ vela route myapp
+$ vela route testapp
 Adding route for app frontend
 
 Rendering configs for service (frontend)...

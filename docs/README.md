@@ -10,7 +10,7 @@ Learn and use KubeVela with tutorials and user stories.
 
 **For Developers**
 - [Setting Up Deployment Environment](developers/config-enviroments.md)
-- [Deploying Application](developers/deploy-app.md)
+- [Initializing Application](developers/app-init.md)
 - [Setting Routes](developers/set-route.md)
 - [Setting Auto-scaling Policy](developers/set-autoscaling.md)
 - [Setting Rollout Strategy](developers/set-rollout.md)
@@ -19,7 +19,7 @@ Learn and use KubeVela with tutorials and user stories.
 - [Check Application Logs](developers/check-logs.md)
 - [Execute Commands in Container](developers/exec-cmd.md)
 - [Port Forward to Container](developers/port-forward.md)
-- [Setting Configurations in Application](developers/config-app.md)
+- [Configuring data/env in Application](developers/config-app.md)
 - [Consuming Cloud Services](developers/cloud-service.md)
 
 **For Platform Engineers**

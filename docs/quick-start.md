@@ -14,7 +14,7 @@ Welcome to use KubeVela CLI! We're going to help you run applications through a 
 
 Environment: default, namespace: default
 
-? Do you want to setup a domain for web service:
+? Do you want to setup a domain for web service: example.com
 ? Provide an email for production certification:
 ? What would you like to name your application:  testapp
 ? Choose workload type for your service:  webservice
@@ -34,27 +34,14 @@ updateTime: ...
 name: testapp
 services:
   testsvc:
+    type: webservice
     image: crccheck/hello-world
     port: 8000
-    type: webservice
-```
-
-## 2. Add Routing Config
-
-Add routing config under `route`:
-
-```yaml
-services:
-  testsvc:
-    ...
     route:
       domain: testsvc.example.com
-      rules:
-        - path: /testapp
-          rewriteTarget: /
 ```
 
-## 3. Deploy Application
+## 2. Deploy Application
 
 ```console
 $ vela up
@@ -102,7 +89,7 @@ Services:
 > If not in kind cluster, replace localhost with ingress address
 
 ```
-$ curl -H "Host:testsvc.example.com" http://localhost/testapp
+$ curl -H "Host:testsvc.example.com" http://localhost/
 <xmp>
 Hello World
 

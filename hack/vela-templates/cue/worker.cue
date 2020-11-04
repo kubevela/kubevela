@@ -1,42 +1,42 @@
 output: {
-  apiVersion: "apps/v1"
-  kind:       "Deployment"
-  metadata:
-    name: context.name
-  spec: {
-    replicas: 1
-    
-    selector: matchLabels: {
-      "app.oam.dev/component": context.name
-    }
+	apiVersion: "apps/v1"
+	kind:       "Deployment"
+	metadata:
+		name: context.name
+	spec: {
+		replicas: 1
 
-    template: {
-      metadata: labels: {
-        "app.oam.dev/component": context.name
-      }
-          
-      spec: {
-        containers: [{
-          name:  context.name
-          image: parameter.image
+		selector: matchLabels: {
+			"app.oam.dev/component": context.name
+		}
 
-          if parameter["cmd"] != _|_ {
-            command: parameter.cmd
-          }
-        }]
-      }
-    }
+		template: {
+			metadata: labels: {
+				"app.oam.dev/component": context.name
+			}
 
-    selector: 
-      matchLabels:
-        "app.oam.dev/component": context.name
-  }
+			spec: {
+				containers: [{
+					name:  context.name
+					image: parameter.image
+
+					if parameter["cmd"] != _|_ {
+						command: parameter.cmd
+					}
+				}]
+			}
+		}
+
+		selector:
+			matchLabels:
+				"app.oam.dev/component": context.name
+	}
 }
 
 parameter: {
-  // +usage=specify app image
-  // +short=i
-  image: string
+	// +usage=specify app image
+	// +short=i
+	image: string
 
-  cmd?: [...string]
+	cmd?: [...string]
 }
