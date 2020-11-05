@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: unit-tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - name: Set up Go 1.14
         uses: actions/setup-go@v1
@@ -22,7 +22,6 @@ jobs:
 
       - name: Install ginkgo
         run:  |
-          sudo apt-get update
           sudo apt-get install -y golang-ginkgo-dev
 
       - name: Setup Kind Cluster
