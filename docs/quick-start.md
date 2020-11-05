@@ -1,16 +1,16 @@
 # Quick Start
 
-Welcome to KubeVela! In this guide, we'll walk you through how to deploy applications on KubeVela CLI/Appfile.
+Welcome to KubeVela! In this guide, we'll walk you through how to deploy a simple service application using KubeVela CLI/Appfile.
 
 ## Setup
 
-Make sure you have finished and verified installation following [this guide](./install.md).
+Make sure you have finished and verified the installation following [this guide](./install.md).
 
-## 1. Initialize Application Deployment Config
+## 1. Initialize Application
 
 ```console
 $ vela init --render-only
-Welcome to use KubeVela CLI! We're going to help you run applications through a couple of questions.
+Welcome to use KubeVela CLI! Please describe your application.
 
 Environment: default, namespace: default
 
@@ -25,7 +25,7 @@ Environment: default, namespace: default
 Rendered and written deployment config to vela.yaml
 ```
 
-In current directory, you will have a generated `vela.yaml`:
+In the current directory, you will find a generated `vela.yaml` file (i.e., an Appfile):
 
 ```yaml
 createTime: ...
@@ -84,9 +84,7 @@ Services:
       - route: 	Visiting URL: http://testsvc.example.com	IP: localhost
 ```
 
-**In [kind cluster setup](../../install.md#kind)**, you can visit the service via localhost:
-
-> If not in kind cluster, replace localhost with ingress address
+**In [kind cluster setup](../../install.md#kind)**, you can visit the service via localhost. In other setups, replace localhost with ingress address accordingly.
 
 ```
 $ curl -H "Host:testsvc.example.com" http://localhost/
@@ -107,9 +105,9 @@ Hello World
 
 ## What's Next
 
-Congratulations! You have just deployed an app using Vela. Here are some recommended next steps:
+Congratulations! You have just deployed an app using KubeVela. Here are some recommended next steps:
 
-- Learn about the project's [movation](./introduction.md) and [architecture](./design.md)
+- Learn about the project's [motivation](./introduction.md) and [architecture](./design.md)
 - Try out more [tutorials](./README.md)
 - Join our community [Slack](https://cloud-native.slack.com/archives/C01BLQ3HTJA) and/or [Gitter](https://gitter.im/oam-dev/community)
 
