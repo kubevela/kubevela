@@ -23,8 +23,8 @@ var _ = ginkgo.Describe("Application", func() {
 	e2e.EnvSetContext("env set", envName)
 	e2e.WorkloadRunContext("deploy", fmt.Sprintf("vela svc deploy -t %s %s -p 80 --image nginx:1.9.4",
 		workloadType, applicationName))
-	e2e.ComponentListContext("ls", applicationName, "")
 	e2e.TraitManualScalerAttachContext("vela attach scaler trait", traitAlias, applicationName)
+	e2e.ComponentListContext("ls", applicationName, workloadType, traitAlias)
 	e2e.ApplicationShowContext("show", applicationName, workloadType)
 	e2e.ApplicationStatusContext("status", applicationName, workloadType)
 	e2e.ApplicationStatusDeeplyContext("status", applicationName, workloadType, envName)

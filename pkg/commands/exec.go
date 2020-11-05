@@ -69,7 +69,7 @@ func NewExecCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra.Comman
 			}
 			argsLenAtDash := cmd.ArgsLenAtDash()
 			if argsLenAtDash != 1 {
-				ioStreams.Error("Please specify at least one commnad for the container.")
+				ioStreams.Error("Please specify at least one command for the container.")
 				return nil
 			}
 
