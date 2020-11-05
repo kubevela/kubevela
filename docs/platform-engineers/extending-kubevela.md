@@ -3,7 +3,7 @@
 ## How Capabilities Work
 
 A Capability is a functionality provided by the infrastructure that users can configure to run and operate applications.
-Vela has [an extensible capability system](../design.md#2-capability-oriented-architecture) that allows platform builders to bring bespoke infrastructure capabilityes into Vela by writing YAML definitions and CUE templates.
+Vela has [an extensible capability system](../design.md#2-capability-oriented-architecture) that allows platform builders to bring bespoke infrastructure capabilities into Vela by writing YAML definitions and CUE templates.
 
 In the following tutorial, you will learn how to add a new capability and expose it to users via CLI/Appfile.
 The new capability is a type of trait but the same process applies to workload as well.
@@ -55,9 +55,7 @@ EOF
 
 That's it! Once you have applied the definition file the feature will be automatically registered in Vela Server and exposed to users.
 
-### Step 3: Verify New Trait
-
-Verify new trait:
+### Step 3: Verify Kubewatch Trait Installed
 
 ```console
 $ vela traits
@@ -130,7 +128,7 @@ Check your Slack channel to verify the nofitications:
 
 Instead of using CLI, you can add `kubewatch` config to Appfile:
 
-```yaml
+```console
 $ cat << EOF >> vela.yaml
     kubewatch:
       webhook: https://hooks.slack.com/<your-token>
