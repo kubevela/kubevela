@@ -100,6 +100,8 @@ func mergeStagingComponents(deployed []apis.ComponentMeta, env *types.EnvMeta, i
 				})
 				continue
 			}
+			compMeta.TraitNames = traits
+			compMeta.WorkloadName = app.AppFile.Services[c.Name].GetType()
 			cspec := c.Spec.DeepCopy()
 			cspec.Workload.Raw, _ = cspec.Workload.MarshalJSON()
 			cspec.Workload.Object = nil

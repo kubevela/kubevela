@@ -184,13 +184,14 @@ var (
 	}
 
 	// ComponentListContext used for test vela svc ls
-	ComponentListContext = func(context string, applicationName string, traitAlias string) bool {
+	ComponentListContext = func(context string, applicationName string, workloadType string, traitAlias string) bool {
 		return ginkgo.Context("ls", func() {
 			ginkgo.It("should list all applications", func() {
 				output, err := Exec("vela ls")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("SERVICE"))
 				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
+				gomega.Expect(output).To(gomega.ContainSubstring(workloadType))
 				if traitAlias != "" {
 					gomega.Expect(output).To(gomega.ContainSubstring(traitAlias))
 				}
