@@ -55,7 +55,7 @@ EOF
 
 That's it! Once you have applied the definition file the feature will be automatically registered in Vela Server and exposed to users.
 
-### Step 3: Verify and Setup App
+### Step 3: Verify New Trait
 
 Verify new trait:
 
@@ -72,6 +72,8 @@ NAME     	DESCRIPTION                       	APPLIES TO
 kubewatch	Add a watch for resource
 ...
 ```
+
+### Step 4: Adding Kubewatch Trait to The App
 
 Write an Appfile:
 
@@ -100,8 +102,6 @@ $ vela up
       App status: vela status testapp
   Service status: vela status testapp --svc testsvc
 ```
-
-### Step 4: Adding Kubewatch Trait to The App
 
 You can use either of the following options to attach the newly added kubewatch trait to the App:
 
