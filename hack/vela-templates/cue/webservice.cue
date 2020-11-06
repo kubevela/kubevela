@@ -36,8 +36,17 @@ output: {
 					ports: [{
 						containerPort: parameter.port
 					}]
+
+					if parameter["cpuRequests"] != _|_ {
+						resources: {
+							limits:
+								cpu: parameter.cpuRequests
+							requests:
+								cpu: parameter.cpuRequests
+						}
+					}
 				}]
-			}
+		}
 		}
 	}
 }
@@ -62,4 +71,7 @@ parameter: {
 			}
 		}
 	}]
+	// +usage=CPU core requests for the workload
+	// +alias=cpu-requests
+	cpuRequests?: string
 }

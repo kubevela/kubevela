@@ -36,6 +36,16 @@ services:
     #   scheme:  "http"
     #   enabled: true
 
+#    autoscale:
+#      minReplicas: 1
+#      maxReplicas: 4
+#      cron:
+#        startAt:  "14:00"
+#        duration: "2h"
+#        days:     "Monday, Thursday"
+#        replicas: "2"
+#        timezone: "America/Seattle"
+
   # pi:
   #   image: perl 
   #   cmd: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]

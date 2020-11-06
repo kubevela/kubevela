@@ -85,6 +85,7 @@ type Parameter struct {
 	Default  interface{} `json:"default,omitempty"`
 	Usage    string      `json:"usage,omitempty"`
 	Type     cue.Kind    `json:"type,omitempty"`
+	Alias    string      `json:"alias,omitempty"`
 }
 
 // ConvertTemplateJSON2Object convert spec.extension to object
@@ -105,6 +106,10 @@ func ConvertTemplateJSON2Object(in *runtime.RawExtension) (Capability, error) {
 }
 
 func SetFlagBy(flags *pflag.FlagSet, v Parameter) {
+	name := v.Name
+	if v.Alias != "" {
+		name = v.Alias
+	}
 	switch v.Type {
 	case cue.IntKind:
 		var vv int64
@@ -118,11 +123,11 @@ func SetFlagBy(flags *pflag.FlagSet, v Parameter) {
 		case float64:
 			vv = int64(val)
 		}
-		flags.Int64P(v.Name, v.Short, vv, v.Usage)
+		flags.Int64P(name, v.Short, vv, v.Usage)
 	case cue.StringKind:
-		flags.StringP(v.Name, v.Short, v.Default.(string), v.Usage)
+		flags.StringP(name, v.Short, v.Default.(string), v.Usage)
 	case cue.BoolKind:
-		flags.BoolP(v.Name, v.Short, v.Default.(bool), v.Usage)
+		flags.BoolP(name, v.Short, v.Default.(bool), v.Usage)
 	case cue.NumberKind, cue.FloatKind:
 		var vv float64
 		switch val := v.Default.(type) {
@@ -135,7 +140,7 @@ func SetFlagBy(flags *pflag.FlagSet, v Parameter) {
 		case float64:
 			vv = val
 		}
-		flags.Float64P(v.Name, v.Short, vv, v.Usage)
+		flags.Float64P(name, v.Short, vv, v.Usage)
 	}
 }
 
