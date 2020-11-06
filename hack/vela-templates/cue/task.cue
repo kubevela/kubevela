@@ -1,7 +1,6 @@
 output: {
 	apiVersion: "v1"
 	kind:       "Job"
-	metadata: name: context.name
 	spec: {
 		parallelism: parameter.count
 		completions: parameter.count
