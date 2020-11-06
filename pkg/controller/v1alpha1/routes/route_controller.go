@@ -201,7 +201,7 @@ func (r *Reconciler) fillBackendByCreatedService(ctx context.Context, mLog logr.
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      routeTrait.GetName(),
 			Namespace: routeTrait.GetNamespace(),
-			Labels:    filterLabels(routeTrait.GetLabels()),
+			Labels:    utils.SelectOAMAppLabelsWithoutRevision(routeTrait.GetLabels()),
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         routeTrait.GetObjectKind().GroupVersionKind().GroupVersion().String(),
@@ -263,7 +263,7 @@ func DiscoverPortsLabel(ctx context.Context, workload *unstructured.Unstructured
 		if err != nil {
 			return nil, nil, err
 		}
-		return ports, filterLabels(workload.GetLabels()), nil
+		return ports, utils.SelectOAMAppLabelsWithoutRevision(workload.GetLabels()), nil
 	}
 	if ok {
 		return utils.DiscoveryFromPodTemplate(workload, "spec", "template")
