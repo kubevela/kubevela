@@ -67,11 +67,7 @@ func NewCapCenterConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err := oam.AddCapabilityCenter(capName, capURL, token); err != nil {
 				return err
 			}
-			ioStreams.Infof("Successfully configured capability center: %s, start to sync from remote", capName)
-			if err := oam.SyncCapabilityFromCenter(capName, capURL, token); err != nil {
-				return err
-			}
-			ioStreams.Info("sync finished")
+			ioStreams.Infof("Successfully configured capability center %s and sync from remote\n", capName)
 			return nil
 		},
 		Annotations: map[string]string{

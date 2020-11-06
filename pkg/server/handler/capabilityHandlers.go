@@ -19,10 +19,6 @@ func AddCapabilityCenter(c *gin.Context) {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
 	}
-	if err := oam.SyncCapabilityFromCenter(body.Name, body.Address, body.Token); err != nil {
-		util.HandleError(c, util.StatusInternalServerError, err.Error())
-		return
-	}
 	util.AssembleResponse(c, "Successfully configured capability center and synchronized from remote", nil)
 }
 
