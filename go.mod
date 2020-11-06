@@ -8,8 +8,8 @@ require (
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
 	github.com/briandowns/spinner v1.11.1
 	github.com/coreos/prometheus-operator v0.41.1
-	github.com/crossplane/crossplane-runtime v0.9.0
-	github.com/crossplane/oam-kubernetes-runtime v0.3.0-rc1.0.20201027023226-ad311dba14a0
+	github.com/crossplane/crossplane-runtime v0.10.0
+	github.com/crossplane/oam-kubernetes-runtime v0.3.2
 	github.com/fatih/color v1.9.0
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/ghodss/yaml v1.0.0
@@ -47,7 +47,7 @@ require (
 	k8s.io/klog v1.0.0
 	k8s.io/kubectl v0.18.6
 	k8s.io/utils v0.0.0-20200603063816-c1c6865ac451
-	sigs.k8s.io/controller-runtime v0.6.1
+	sigs.k8s.io/controller-runtime v0.6.2
 )
 
 replace (

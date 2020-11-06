@@ -188,7 +188,7 @@ Services:
       Created at: ...
       Updated at: ...
     Routes:
-      - route: 	Visiting URL: http://example.com	IP: localhost
+      - route: 	Visiting URL: http://example.com	IP: <ingress-IP-address>
 ```
 
 **In [kind cluster setup](../../install.md#kind)**, you can visit the service via localhost:
