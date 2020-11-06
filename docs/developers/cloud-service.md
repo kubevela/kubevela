@@ -14,8 +14,10 @@ KubeVela will delegate the lifecycle management of cloud service to Crossplane.
 
 ## Install Crossplane (This demo uses crossplane version 0.13)
 
-You will need a Kubernetes cluster ver> 1.16 (Minikube and Kind clusters are fine).
-Also you will need to have KubeVela installed on the cluster.
+You will need a Kubernetes cluster ver> 1.16 (Minikube and Kind clusters are fine).   
+Also you will need to have KubeVela installed on the cluster.   
+The folder that containes all the demo scripts are under `../../examples/kubecondemo/`. For your convience, cd to that folder first:  
+`cd ../../examples/kubecondemo/`   
 To provision a cloud resource, you need to have the Access Key and Secret to your Alibaba cloud account.
 
 * Create crossplane namespace: `kubectl create ns crossplane-system`
@@ -25,7 +27,7 @@ To provision a cloud resource, you need to have the Access Key and Secret to you
 * Configure cloud provider(Alibaba Cloud) 
   * Add cloud provider: `kubectl crossplane install provider crossplane/provider-alibaba:v0.3.0`
   * Create provider secret: `kubectl create secret generic alibaba-creds --from-literal=accessKeyId=<change here> --from-literal=accessKeySecret=<change here> -n crossplane-system`
-  * Configure the provider: `kubectl apply -f ../../examples/kubecondemo/script/provider.yaml`
+  * Configure the provider: `kubectl apply -f script/provider.yaml`
 * Configure infrastructure: `kubectl crossplane install configuration crossplane/getting-started-with-alibaba:v0.13`
 
 So far we have configured Crossplane on the cluster.
@@ -33,9 +35,9 @@ So far we have configured Crossplane on the cluster.
 ## Import the database workload definition
 
 First, register the db workload definition:   
-`kubectl apply -f ../../examples/kubecondemo/script/def_db.yaml`   
+`kubectl apply -f script/def_db.yaml`   
 The webservice workload is different from the default version so we have to overwrite it.   
-`kubectl apply -f ../../examples/kubecondemo/script/webservice.yaml`   
+`kubectl apply -f cript/webservice.yaml`   
 Don't forget to update vela:   
 `vela system update`   
 
@@ -51,7 +53,7 @@ database:
 ```
 
 Next, we start the application:   
-`vela up -f ../../examples/kubecondemo/vela.yaml`
+`vela up`
 
 ## Verify the database status
 
