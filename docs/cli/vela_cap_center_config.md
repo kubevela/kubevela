@@ -1,10 +1,10 @@
 ## vela cap center config
 
-Configure or add the capability center, default is local (built-in capabilities)
+Configure (add if not exist) a capability center, default is local (built-in capabilities)
 
 ### Synopsis
 
-Configure or add the capability center, default is local (built-in capabilities)
+Configure (add if not exist) a capability center, default is local (built-in capabilities)
 
 ```
 vela cap center config <centerName> <centerURL> [flags]
