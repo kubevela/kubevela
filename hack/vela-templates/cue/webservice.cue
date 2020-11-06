@@ -2,8 +2,6 @@ output: {
 	apiVersion: "apps/v1"
 	kind:       "Deployment"
 	spec: {
-		replicas: 1
-
 		selector: matchLabels: {
 			"app.oam.dev/component": context.name
 		}
