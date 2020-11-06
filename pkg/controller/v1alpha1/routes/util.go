@@ -1,8 +1,6 @@
 package routes
 
 import (
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
-
 	"github.com/oam-dev/kubevela/api/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -69,15 +67,4 @@ func FillRouteTraitWithService(service *corev1.Service, routeTrait *v1alpha1.Rou
 			}
 		}
 	}
-}
-
-func filterLabels(labels map[string]string) map[string]string {
-	newLabel := make(map[string]string)
-	for k, v := range labels {
-		if k == oam.LabelOAMResourceType || k == oam.WorkloadTypeLabel {
-			continue
-		}
-		newLabel[k] = v
-	}
-	return newLabel
 }

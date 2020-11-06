@@ -7,6 +7,7 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
 	"github.com/oam-dev/kubevela/api/types"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -81,4 +82,21 @@ func getContainerPorts(cs []v1.Container) []intstr.IntOrString {
 		}
 	}
 	return ports
+}
+
+// SelectOAMAppLabelsWithoutRevision will filter and return OAM app labels only, if no labels, return the original one.
+func SelectOAMAppLabelsWithoutRevision(labels map[string]string) map[string]string {
+	newLabel := make(map[string]string)
+	for k, v := range labels {
+		// Note: we don't include revision label by design
+		// if we want to distinguish with different revisions, we should include it in other function.
+		if k != oam.LabelAppName && k != oam.LabelAppComponent {
+			continue
+		}
+		newLabel[k] = v
+	}
+	if len(newLabel) <= 0 {
+		return labels
+	}
+	return newLabel
 }
