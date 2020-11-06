@@ -307,6 +307,10 @@ var (
 							q: "specify port for container ",
 							a: "8080",
 						},
+						{
+							q: "CPU core requests for the workload ",
+							a: "",
+						},
 					}
 					for _, qa := range data {
 						_, err := c.ExpectString(qa.q)

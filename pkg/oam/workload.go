@@ -6,13 +6,12 @@ import (
 	"strconv"
 	"strings"
 
+	"cuelang.org/go/cue"
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
-
-	"cuelang.org/go/cue"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -62,30 +61,35 @@ func BaseComplete(envName string, workloadName string, appName string, flagSet *
 	}
 
 	for _, v := range template.Parameters {
+		name := v.Name
+		if v.Alias != "" {
+			name = v.Alias
+		}
 		// Cli can check required flag before make a request to backend, but API itself could not, so validate flags here
-		flag := flagSet.Lookup(v.Name)
-		if v.Name == "name" {
+		flag := flagSet.Lookup(name)
+		if name == "name" {
 			continue
 		}
 		if flag == nil || flag.Value.String() == "" {
 			if v.Required {
-				return nil, fmt.Errorf("required flag(s) \"%s\" not set", v.Name)
+				return nil, fmt.Errorf("required flag(s) \"%s\" not set", name)
 			}
 			continue
 		}
+
 		switch v.Type {
 		case cue.IntKind:
-			workloadData[v.Name], err = flagSet.GetInt64(v.Name)
+			workloadData[v.Name], err = flagSet.GetInt64(name)
 		case cue.StringKind:
-			workloadData[v.Name], err = flagSet.GetString(v.Name)
+			workloadData[v.Name], err = flagSet.GetString(name)
 		case cue.BoolKind:
-			workloadData[v.Name], err = flagSet.GetBool(v.Name)
+			workloadData[v.Name], err = flagSet.GetBool(name)
 		case cue.NumberKind, cue.FloatKind:
-			workloadData[v.Name], err = flagSet.GetFloat64(v.Name)
+			workloadData[v.Name], err = flagSet.GetFloat64(name)
 		}
 		if err != nil {
 			if strings.Contains(err.Error(), "of flag of type string") {
-				data, _ := flagSet.GetString(v.Name)
+				data, _ := flagSet.GetString(name)
 				switch v.Type {
 				case cue.IntKind:
 					workloadData[v.Name], err = strconv.ParseInt(data, 10, 64)

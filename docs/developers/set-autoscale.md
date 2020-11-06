@@ -7,27 +7,17 @@ Contents:
 ## Scale by CPU resource utilization metrics
 Introduce how to automatically scale workloads by resource utilization metrics in Cli. Currently, only cpu utilization 
 is supported.
-
-### Prerequisites
- - [ ] [KEDA v2.0.0](https://keda.sh/blog/keda-2.0-beta/)
- 
-   KEDA will be automatically deployed during vela installation, so just run the following command.
-   ```shell
-   $ vela install
-   ```
-   
-### Scale an application
    
 - Deploy an application
 
   Run the following command to deploy application `helloworld`.
   
   ```
-  $ vela svc deploy frontend -t webservice -a helloworld --image nginx:1.9.2 --port 80
+  $ vela svc deploy frontend -t webservice -a helloworld --image nginx:1.9.2 --port 80 --cpu-requests=0.05
   App helloworld deployed
   ```
   
-  Check the replicas of Deployment `frontend` which is deployed by workload webservice `helloworld` and there is one replica.
+  By default, the replicas of the workload webservice `helloworld` is.
 
 - Scale the application by CPU utilization metrics
   ```
@@ -41,15 +31,14 @@ is supported.
       Traits:
         - ✅ autoscale: type: cpu	minReplicas: 1	maxReplicas: 5	CPUUtilization(target/current): 5%/0%	replicas: 0
       Last Deployment:
-        Created at: 2020-11-05 20:07:23 +0800 CST
-        Updated at: 2020-11-05T20:25:49+08:00
+        Created at: 2020-11-06 16:10:54 +0800 CST
+        Updated at: 2020-11-06T16:19:04+08:0
   ```
   
 - Access the application with heavy requests
   
   ```
   $ vela port-forward helloworld 80
-  Password:
   Forwarding from 127.0.0.1:80 -> 80
   Forwarding from [::1]:80 -> 80
   
@@ -62,7 +51,7 @@ is supported.
   
   On your macOS, you might need to add `sudo` ahead of the command.
   
-  Use Apache HTTP server benchmarking tool `ab` to access the application.
+- Use Apache HTTP server benchmarking tool `ab` to access the application.
   
   ```
   $ ab -n 10000 -c 200 http://127.0.0.1/
@@ -74,7 +63,7 @@ is supported.
   Completed 1000 requests
   ```
   
-  Monitor the replicas of Deployment `frontend` again, its replicas gradually increase from one to three. 
+  Monitor the replicas of the workload, and its replicas gradually increase from one to four. 
   ```
   $ vela status helloworld --svc frontend
   About:
@@ -111,7 +100,7 @@ is supported.
       Type: webservice
       HEALTHY Ready: 1/1
       Traits:
-        - ✅ autoscale: type: cpu	minReplicas: 1	maxReplicas: 5	CPUUtilization(target/current): 5%/10%	replicas: 3
+        - ✅ autoscale: type: cpu	minReplicas: 1	maxReplicas: 5	CPUUtilization(target/current): 5%/14%	replicas: 4
       Last Deployment:
         Created at: 2020-11-05 20:07:23 +0800 CST
         Updated at: 2020-11-05T20:50:42+08:00
@@ -120,18 +109,8 @@ is supported.
   Stop `ab` tool, and the replicas will decrease to one eventually.
 
 
-docs/developers/set-autoscale.md## Scale workload by cron
+## Scale workload by cron
 Introduce how to automatically scale workloads by cron in Appfile.
-
-### Prerequisites
- - [ ] [KEDA v2.0.0](https://keda.sh/blog/keda-2.0-beta/)
- 
-   KEDA will be automatically deployed during vela installation, so just run the following command.
-   ```shell
-   $ vela install
-   ```
-   
-### Scale an application
 
 - Prepare Appfile
   Follow the instructions of [appfile](./devex/appfile.md) to prepare the `vela.yaml` as below.
