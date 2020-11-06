@@ -1,7 +1,6 @@
 output: {
 	apiVersion: "apps/v1"
 	kind:       "Deployment"
-	metadata: name: context.name
 	spec: {
 		replicas: 1
 
