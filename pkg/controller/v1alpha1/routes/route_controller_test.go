@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
+
 	"github.com/oam-dev/kubevela/api/v1alpha1"
 
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
@@ -134,7 +136,7 @@ var _ = Describe("Route Trait Integration Test", func() {
 									"kind":       "Route",
 									"metadata": map[string]interface{}{
 										"labels": map[string]interface{}{
-											"trait.oam.dev/type": "route",
+											oam.TraitTypeLabel: "route",
 										},
 									},
 									"spec": map[string]interface{}{
