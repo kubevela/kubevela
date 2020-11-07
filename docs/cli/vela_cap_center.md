@@ -21,7 +21,7 @@ Manage Capability Center with config, sync, list
 ### SEE ALSO
 
 * [vela cap](vela_cap.md)	 - Capability Management
-* [vela cap center config](vela_cap_center_config.md)	 - Configure or add the capability center, default is local (built-in capabilities)
+* [vela cap center config](vela_cap_center_config.md)	 - Configure (add if not exist) a capability center, default is local (built-in capabilities)
 * [vela cap center ls](vela_cap_center_ls.md)	 - List all capability centers
 * [vela cap center remove](vela_cap_center_remove.md)	 - Remove specified capability center
 * [vela cap center sync](vela_cap_center_sync.md)	 - Sync capabilities from remote center, default to sync all centers

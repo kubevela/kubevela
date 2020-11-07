@@ -1,25 +1,25 @@
-## vela cap remove
+## vela cap install
 
-Remove capability from cluster
+Install capability into cluster
 
 ### Synopsis
 
-Remove capability from cluster
+Install capability into cluster
 
 ```
-vela cap remove <name> [flags]
+vela cap install <center>/<name> [flags]
 ```
 
 ### Examples
 
 ```
-vela cap remove route
+vela cap install mycenter/route
 ```
 
 ### Options
 
 ```
-  -h, --help           help for remove
+  -h, --help           help for install
   -t, --token string   Github Repo token
 ```
 

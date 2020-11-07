@@ -1,13 +1,13 @@
 ## vela cap ls
 
-List all capabilities in center
+List capabilities from cap-center
 
 ### Synopsis
 
-List all capabilities in center
+List capabilities from cap-center
 
 ```
-vela cap ls [centerName] [flags]
+vela cap ls [cap-center] [flags]
 ```
 
 ### Examples

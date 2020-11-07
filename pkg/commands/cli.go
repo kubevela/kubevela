@@ -97,7 +97,7 @@ func NewCommand() *cobra.Command {
 	)
 
 	// Traits
-	if err = AddTraitCommands(cmds, commandArgs, ioStream); err != nil {
+	if err := AddTraitCommands(cmds, commandArgs, ioStream); err != nil {
 		fmt.Println("Add trait commands from traitDefinition err", err)
 		os.Exit(1)
 	}

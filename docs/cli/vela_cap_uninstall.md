@@ -1,25 +1,25 @@
-## vela cap add
+## vela cap uninstall
 
-Add capability into cluster
+Uninstall capability from cluster
 
 ### Synopsis
 
-Add capability into cluster
+Uninstall capability from cluster
 
 ```
-vela cap add <center>/<name> [flags]
+vela cap uninstall <name> [flags]
 ```
 
 ### Examples
 
 ```
-vela cap add mycenter/route
+vela cap uninstall route
 ```
 
 ### Options
 
 ```
-  -h, --help           help for add
+  -h, --help           help for uninstall
   -t, --token string   Github Repo token
 ```
 
