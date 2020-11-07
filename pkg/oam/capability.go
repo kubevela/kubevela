@@ -244,9 +244,9 @@ func UninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 	var obj runtime.Object
 	switch cap.Type {
 	case types.TypeTrait:
-		obj = &v1alpha2.TraitDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.CrdName, Namespace: types.DefaultOAMNS}}
+		obj = &v1alpha2.TraitDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultOAMNS}}
 	case types.TypeWorkload:
-		obj = &v1alpha2.WorkloadDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.CrdName, Namespace: types.DefaultOAMNS}}
+		obj = &v1alpha2.WorkloadDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultOAMNS}}
 	}
 	if err := client.Delete(ctx, obj); err != nil {
 		return err
