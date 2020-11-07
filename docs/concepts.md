@@ -7,7 +7,7 @@ This document explains some technical terms that are widely used in KubeVela, su
 ![alt](../resources/concepts.png)
 
 ## Workload Type & Trait
-The core KubeVela APIs are built based on Open Application Model (OAM). Hence, the `workload type` and `trait` concepts are borrowed from OAM.
+The core KubeVela APIs are built based on Open Application Model (OAM). Hence, the `workload type` and `trait` concepts are inherited from OAM.
 
 A [workload type](https://github.com/oam-dev/spec/blob/master/4.workload_definitions.md) declares the characteristics that runtime infrastructure should take into account in application management. A typical workload type could be a "long running service", or a "one-time off task" that can be instantiated as part of your application.
 

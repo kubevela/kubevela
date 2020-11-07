@@ -11,6 +11,8 @@ For platform builders, KubeVela serves as a framework that empowers them to crea
 - Slack: [Discuss](https://cloud-native.slack.com/archives/C01BLQ3HTJA)
 - Gitter: [Community](https://gitter.im/oam-dev/community)
 
+> NOTE: KubeVela is still in early stage and iterating quickly. It's currently under preview release.
+
 ## Quick Start
 
 Quick start guides are available on [this section](docs/quick-start.md).
@@ -24,5 +26,3 @@ Check out [CONTRIBUTING](./CONTRIBUTING.md) to see how to develop with KubeVela.
 
 ## Code of Conduct
 This project has adopted the [CNCF Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md). See [CODE OF CONDUCT](CODE_OF_CONDUCT.md) for details.
-
-> NOTE: KubeVela is an early project and iterating quickly to continue to make it easier to ship applications and build platforms atop. It's still under preview release for now.
