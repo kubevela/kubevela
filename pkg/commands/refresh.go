@@ -36,7 +36,7 @@ func NewRefreshCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			if err != nil {
 				return err
 			}
-			return RefreshDefinitions(ctx, newClient, ioStreams)
+			return RefreshDefinitions(ctx, newClient, ioStreams, false)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeSystem,
@@ -46,7 +46,7 @@ func NewRefreshCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 	return cmd
 }
 
-func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams) error {
+func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, silentOutput bool) error {
 	ioStreams.Infof("Synchronizing capabilities from cluster%s...\n", emojiWait)
 	dir, _ := system.GetCapabilityDir()
 
@@ -72,11 +72,12 @@ func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.
 	plugins.SinkTemp2Local(templates, dir)
 	plugins.RemoveLegacyTemps(syncedTemplates, dir)
 
-	printRefreshReport(syncedTemplates, oldCaps, ioStreams)
+	printRefreshReport(syncedTemplates, oldCaps, ioStreams, silentOutput)
 	return nil
 }
 
-func printRefreshReport(newCaps, oldCaps []types.Capability, io cmdutil.IOStreams) {
+// silent indicates whether output existing caps if no change occurs. If false, output all existing caps.
+func printRefreshReport(newCaps, oldCaps []types.Capability, io cmdutil.IOStreams, silent bool) {
 	report := refreshResultReport(newCaps, oldCaps)
 	table := uitable.New()
 	table.AddRow("TYPE", "CATEGORY", "DESCRIPTION")
@@ -95,7 +96,9 @@ func printRefreshReport(newCaps, oldCaps []types.Capability, io cmdutil.IOStream
 			}
 		}
 		io.Infof("Sync capabilities successfully %s(no changes)\n", emojiSucceed)
-		io.Info(table.String())
+		if !silent {
+			io.Info(table.String())
+		}
 		return
 	}
 
