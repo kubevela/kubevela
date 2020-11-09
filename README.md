@@ -19,7 +19,7 @@ Quick start guides are available on [this section](docs/quick-start.md).
 
 ## Documentation
 
-Full documentation is available on the [documentation section](docs/README.md).
+To see full documentation, visit [kubevela.io](https://kubevela.io/).
 
 ## Contributing
 Check out [CONTRIBUTING](./CONTRIBUTING.md) to see how to develop with KubeVela.
