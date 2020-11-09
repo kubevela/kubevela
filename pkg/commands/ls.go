@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 
+	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
@@ -70,13 +72,13 @@ func printComponentList(ctx context.Context, c client.Client, appName string, en
 }
 
 func mergeStagingComponents(deployed []apis.ComponentMeta, env *types.EnvMeta, ioStreams cmdutil.IOStreams) []apis.ComponentMeta {
-	apps, err := application.List(env.Name)
+	localApps, err := application.List(env.Name)
 	if err != nil {
 		ioStreams.Error("list application err", err)
 		return deployed
 	}
 	var all []apis.ComponentMeta
-	for _, app := range apps {
+	for _, app := range localApps {
 		comps, appConfig, _, err := app.OAM(env, ioStreams, true)
 		if err != nil {
 			ioStreams.Errorf("convert app %s err %v\n", app.Name, err)
@@ -113,7 +115,11 @@ func mergeStagingComponents(deployed []apis.ComponentMeta, env *types.EnvMeta, i
 					v.Traits[j] = t
 				}
 				aspec.Components[i] = v
+				if compMeta.AppConfig.Spec.Components[i].Traits == nil && len(v.Traits) == 0 {
+					compMeta.AppConfig.Spec.Components[i].Traits = make([]v1alpha2.ComponentTrait, 0)
+				}
 			}
+
 			if !gocmp.Equal(compMeta.Component.Spec, *cspec) || !gocmp.Equal(compMeta.AppConfig.Spec, *aspec) {
 				compMeta.Status = types.StatusStaging
 			}
