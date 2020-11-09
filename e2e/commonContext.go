@@ -34,28 +34,6 @@ var (
 		})
 	}
 
-	SystemUpdateContext = func(context string) bool {
-		return ginkgo.Context(context, func() {
-			ginkgo.It("Synchronize workload/trait definitions from cluster", func() {
-				output, err := Exec("vela system update")
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("workload definitions successfully synced"))
-				gomega.Expect(output).To(gomega.ContainSubstring("trait definitions successfully synced"))
-			})
-		})
-	}
-
-	// RefreshContext used for test vela system update
-	RefreshContext = func(context string) bool {
-		return ginkgo.Context(context, func() {
-			ginkgo.It("Sync commands from your Kubernetes cluster and locally cached them", func() {
-				output, err := Exec("vela system update")
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("Synchronizing capabilities from cluster"))
-			})
-		})
-	}
-
 	// EnvInitContext used for test Env
 	EnvInitContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {

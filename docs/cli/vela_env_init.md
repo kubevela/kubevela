@@ -23,6 +23,7 @@ vela env init test --namespace test --email my@email.com
       --email string       specify email for production TLS Certificate notification
   -h, --help               help for init
       --namespace string   specify K8s namespace for env
+  -s, --sync               synchronize capabilities from cluster into local (default true)
 ```
 
 ### Options inherited from parent commands

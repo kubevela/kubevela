@@ -95,8 +95,8 @@ func InteractiveExec(cli string, consoleFn func(*expect.Console)) (string, error
 }
 
 func BeforeSuit() {
-	//Without this line, will hit issue like `<string>: Error: unknown command "scale" for "vela"`
-	_, _ = Exec("vela system update")
+	// sync capabilities from cluster into local
+	_, _ = Exec("vela workloads")
 }
 
 func newK8sClient() (client.Client, error) {

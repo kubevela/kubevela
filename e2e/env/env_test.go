@@ -13,7 +13,6 @@ var (
 )
 
 var _ = ginkgo.Describe("Env", func() {
-	e2e.RefreshContext("refresh")
 	e2e.EnvInitContext("env init", envName)
 	e2e.EnvInitContext("env init another one", envName2)
 	e2e.EnvShowContext("env show", envName)

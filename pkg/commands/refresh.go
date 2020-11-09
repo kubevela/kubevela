@@ -10,7 +10,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 
-	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -23,30 +22,7 @@ const (
 	deleted   refreshStatus = "Deleted"
 )
 
-func NewRefreshCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	ctx := context.Background()
-	cmd := &cobra.Command{
-		Use:                   "update",
-		DisableFlagsInUseLine: true,
-		Short:                 "Sync definition from cluster",
-		Long:                  "Refresh and sync definition files from cluster",
-		Example:               `vela system update`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
-			if err != nil {
-				return err
-			}
-			return RefreshDefinitions(ctx, newClient, ioStreams)
-		},
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeSystem,
-		},
-	}
-	cmd.SetOut(ioStreams.Out)
-	return cmd
-}
-
-func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams) error {
+func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, silentOutput bool) error {
 	ioStreams.Infof("Synchronizing capabilities from cluster%s...\n", emojiWait)
 	dir, _ := system.GetCapabilityDir()
 
@@ -72,11 +48,12 @@ func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.
 	plugins.SinkTemp2Local(templates, dir)
 	plugins.RemoveLegacyTemps(syncedTemplates, dir)
 
-	printRefreshReport(syncedTemplates, oldCaps, ioStreams)
+	printRefreshReport(syncedTemplates, oldCaps, ioStreams, silentOutput)
 	return nil
 }
 
-func printRefreshReport(newCaps, oldCaps []types.Capability, io cmdutil.IOStreams) {
+// silent indicates whether output existing caps if no change occurs. If false, output all existing caps.
+func printRefreshReport(newCaps, oldCaps []types.Capability, io cmdutil.IOStreams, silent bool) {
 	report := refreshResultReport(newCaps, oldCaps)
 	table := uitable.New()
 	table.AddRow("TYPE", "CATEGORY", "DESCRIPTION")
@@ -95,7 +72,9 @@ func printRefreshReport(newCaps, oldCaps []types.Capability, io cmdutil.IOStream
 			}
 		}
 		io.Infof("Sync capabilities successfully %s(no changes)\n", emojiSucceed)
-		io.Info(table.String())
+		if !silent {
+			io.Info(table.String())
+		}
 		return
 	}
 

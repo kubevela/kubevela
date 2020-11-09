@@ -57,7 +57,7 @@ func SystemCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command
 			types.TagCommandType: types.TypeSystem,
 		},
 	}
-	cmd.AddCommand(NewAdminInfoCommand(ioStream), NewRefreshCommand(c, ioStream))
+	cmd.AddCommand(NewAdminInfoCommand(ioStream))
 	return cmd
 }
 
@@ -146,7 +146,7 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 		}
 	}
 
-	if err := RefreshDefinitions(context.Background(), i.client, ioStreams); err != nil {
+	if err := RefreshDefinitions(context.Background(), i.client, ioStreams, false); err != nil {
 		return err
 	}
 	ioStreams.Info("- Finished successfully.")
