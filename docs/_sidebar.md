@@ -1,0 +1,62 @@
+- Overview
+  - [Introduction](/en/introduction.md)
+  - [Installation](/en/install.md)
+  - [Quick Start](/en/quick-start.md)
+  - [Concepts](/en/concepts.md)
+
+- For Developers
+  - [Setting Up Deployment Environment](/en/developers/config-enviroments.md)
+  - [Initializing Application](/en/developers/app-init.md)
+  - [Setting Routes](/en/developers/set-route.md)
+  - [Setting Auto-scaling Policy](/en/developers/set-autoscale.md)
+  - [Setting Rollout Strategy](/en/developers/set-rollout.md)
+  - [Monitoring Application](/en/developers/set-metrics.md)
+  - [Using Appfile](/en/developers/devex/appfile.md)
+  - [Check Application Logs](/en/developers/check-logs.md)
+  - [Execute Commands in Container](/en/developers/exec-cmd.md)
+  - [Port Forward to Container](/en/developers/port-forward.md)
+  - [Configuring data/env in Application](/en/developers/config-app.md)
+  - [Consuming Cloud Services](/en/developers/cloud-service.md)
+  - [Managing Capabilities](/en/developers/cap-center.md)
+  - [Capability References](/en/developers/references/README.md)
+
+- For Platform Engineers
+  - [Extending KubeVela](/en/platform-engineers/extending-kubevela.md)
+
+- Internals
+  - [Design and Architecture](/en/design.md)
+
+- Roadmap
+  - [KubeVela Roadmap](/en/roadmap.md)
+
+- CLI Reference
+  - General
+    - [vela config](/en/cli/vela_config.md)
+    - [vela env](/en/cli/vela_env.md)
+    - [vela init](/en/cli/vela_init.md)
+    - [vela install](/en/cli/vela_install.md)
+    - [vela up](/en/cli/vela_up.md)
+    - [vela version](/en/cli/vela_version.md)
+  - Applications
+    - [vela delete](/en/cli/vela_delete.md)
+    - [vela exec](/en/cli/vela_exec.md)
+    - [vela logs](/en/cli/vela_logs.md)
+    - [vela ls](/en/cli/vela_ls.md)
+    - [vela port-forward](/en/cli/vela_port-forward.md)
+    - [vela show](/en/cli/vela_show.md)
+    - [vela status](/en/cli/vela_status.md)
+    - [vela svc](/en/cli/vela_svc.md)
+  - Workload Types
+    - [vela workloads](/en/cli/vela_workloads.md)
+  - Traits
+    - [vela traits](/en/cli/vela_traits.md)
+    - [vela manualscale](/en/cli/vela_manualscaler.md)
+    - [vela scale](/en/cli/vela_scale.md)
+    - [vela rollout](/en/cli/vela_rollout.md)
+  - System
+    - [vela completion](/en/cli/vela_completion.md)
+    - [vela dashboard](/en/cli/vela_dashboard.md)
+    - [vela system](/en/cli/vela_system.md)
+    - [vela template](/en/cli/vela_template.md)
+  - Extensibility
+    - [vela cap](/en/cli/vela_cap.md)
