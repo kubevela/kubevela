@@ -1,14 +1,8 @@
-# Extending Capabilities in KubeVela
+# Extending Traits in KubeVela
 
-## How Capabilities Work
+In the following tutorial, you will learn how to add a new trait and expose it to users via Appfile.
 
-A Capability is a functionality provided by the infrastructure that users can configure to run and operate applications.
-Vela has [an extensible capability system](../design.md#2-capability-oriented-architecture) that allows platform builders to bring bespoke infrastructure capabilities into Vela by writing YAML definitions and CUE templates.
-
-In the following tutorial, you will learn how to add a new capability and expose it to users via CLI/Appfile.
-The new capability is a type of trait but the same process applies to workload as well.
-
-## Add A New Capability
+## Add A New Trait
 
 Prerequisites:
 
@@ -101,32 +95,9 @@ $ vela up
   Service status: vela status testapp --svc testsvc
 ```
 
-You can use either of the following options to attach the newly added kubewatch trait to the App:
+#### Verify
 
-#### Option 1: Testing in CLI
-
-Add kubewatch trait to the application:
-
-```bash
-$ vela kubewatch testapp --svc testsvc --webhook https://hooks.slack.com/<your-token>
-Adding kubewatch for app testsvc
-⠋ Checking Status ...
-✅ Application Deployed Successfully!
-  - Name: testsvc
-    Type: webservice
-    HEALTHY Ready: 1/1
-    Traits:
-      - ✅ kubewatch: webhook=https://hooks.slack.com/...
-  ...
-```
-
-Check your Slack channel to verify the nofitications:
-
-![Image of Kubewatch](../../resources/kubewatch-notif.jpg)
-
-#### Option 2: Testing in Appfile
-
-Instead of using CLI, you can add `kubewatch` config to Appfile:
+You can now add `kubewatch` config to Appfile to attach the newly added kubewatch trait to the App:
 
 ```bash
 $ cat << EOF >> vela.yaml
@@ -140,3 +111,8 @@ Deploy it:
 ```
 $ vela up
 ```
+
+Check your Slack channel to verify the nofitications:
+
+![Image of Kubewatch](../../resources/kubewatch-notif.jpg)
+
