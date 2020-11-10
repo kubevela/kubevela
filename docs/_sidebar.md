@@ -38,7 +38,6 @@
     - [vela up](/en/cli/vela_up.md)
     - [vela version](/en/cli/vela_version.md)
   - Applications
-    - [vela app](/en/cli/vela_app.md)
     - [vela delete](/en/cli/vela_delete.md)
     - [vela exec](/en/cli/vela_exec.md)
     - [vela logs](/en/cli/vela_logs.md)
@@ -51,9 +50,9 @@
     - [vela workloads](/en/cli/vela_workloads.md)
   - Traits
     - [vela traits](/en/cli/vela_traits.md)
-    - [vela scaler](/en/cli/vela_scaler.md)
-    - [vela metric](/en/cli/vela_metric.md)
-    - [vela route](/en/cli/vela_route.md)
+    - [vela manualscale](/en/cli/vela_manualscaler.md)
+    - [vela scale](/en/cli/vela_scale.md)
+    - [vela rollout](/en/cli/vela_rollout.md)
   - System
     - [vela completion](/en/cli/vela_completion.md)
     - [vela dashboard](/en/cli/vela_dashboard.md)
