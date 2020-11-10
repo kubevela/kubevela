@@ -1,12 +1,14 @@
 # Quick Start
 
-Welcome to KubeVela! In this guide, we'll walk you through how to deploy a simple service application using KubeVela CLI/Appfile.
+Welcome to KubeVela! In this guide, we'll walk you through how to install KubeVela, and deploy your first simple application.
 
-## Setup
+## Step 1: Install
 
 Make sure you have finished and verified the installation following [this guide](./install.md).
 
-## 1. Initialize Application
+## Step 2: Deploy Your First Application
+
+**vela init**
 
 ```bash
 $ vela init --render-only
@@ -41,7 +43,7 @@ services:
       domain: testsvc.example.com
 ```
 
-## 2. Deploy Application
+**vela up**
 
 ```bash
 $ vela up
@@ -67,10 +69,10 @@ Check the status until we see route trait ready:
 $ vela status testapp
 About:
 
-  Name:      	testapp
-  Namespace: 	default
-  Created at:	...
-  Updated at:	...
+  Name:       testapp
+  Namespace:  default
+  Created at: ...
+  Updated at: ...
 
 Services:
 
@@ -81,7 +83,7 @@ Services:
       Created at: ...
       Updated at: ...
     Routes:
-      - route: 	Visiting URL: http://testsvc.example.com	IP: localhost
+      - route:  Visiting URL: http://testsvc.example.com  IP: localhost
 ```
 
 **In [kind cluster setup](./install.md#kind)**, you can visit the service via localhost. In other setups, replace localhost with ingress address accordingly.
@@ -102,6 +104,7 @@ Hello World
                              `'--.._\..--''
 </xmp>
 ```
+**Voila!** You are all set to go.
 
 ## What's Next
 
