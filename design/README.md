@@ -36,7 +36,7 @@ Keywords: _focus_, _self-service_.
 
 KubeVela intends to ensure developers only think in the scope of _application_, not container or infrastructure. We've seen lacking application context impacts the developer experience and raises the bar to adopt cloud native technology and we believe _application_ is the natural mindset for developers and it's the core API KubeVela should expose.
 
-![alt](../resources/app-centric.png)
+![alt](../docs/resources/app-centric.png)
 
 In KubeVela, it is only push code, deploy application in developer facing primitives, and claim operations policies that developers would do. Thus, KubeVela choose to:
 1. Introduce _application_ as its first class API.
