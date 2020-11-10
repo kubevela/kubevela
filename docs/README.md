@@ -6,8 +6,8 @@
 - Fork and clone
 
   ```
-  $ git clone git@github.com:xxx/kubevela.io.git
-  $ cd kubevela.io
+  $ git clone git@github.com:oam-dev/kubevela.git
+  $ cd kubevela/docs
   ```
 
 - Install docsify-cli
