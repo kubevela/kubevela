@@ -2,7 +2,7 @@
 
 This document presents the detailed design and architecture of KubeVela.
 
-> All the diagrams in this document are [publicly available](https://docs.google.com/presentation/d/1Y3gnKrd7fUZGgee7Ia9vBsRIYhcZLQwMUCDkk1RJvQc).
+> All the diagrams in this document are available in [this slides](https://docs.google.com/presentation/d/1Y3gnKrd7fUZGgee7Ia9vBsRIYhcZLQwMUCDkk1RJvQc).
 
 ## User Stories
 
@@ -70,7 +70,7 @@ a workload type instance following the instance's [characteristic labels](https:
 KubeVela leverages [OAM definition objects](https://github.com/oam-dev/spec/blob/master/4.workload_definitions.md) to register and discover workloads and traits:
 
 
-```console
+```bash
 $ kubectl apply -f workload-definition.yaml # register a new workload type
 $ kubectl apply -f trait-definition.yaml # register a new trait
 ```
@@ -98,7 +98,7 @@ In KubeVela, we introduced a docker-compose style "appfile" with high level abst
 
 In addition, the schema of `appfile` is designed to be "assembled" with independent workload types and traits defined using OAM specification. For example:
 
-```
+```yaml
 services:
   frontend:
     type: webservice
