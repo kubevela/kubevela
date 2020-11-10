@@ -85,6 +85,7 @@ func (s Service) RenderService(tm template.Manager, name, ns string, cg configGe
 		}
 		workloadKeys[k] = v
 	}
+	workloadKeys["name"] = name
 
 	// render component
 	component := &v1alpha2.Component{
