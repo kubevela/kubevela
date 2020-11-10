@@ -15,7 +15,7 @@ For platform builders, KubeVela serves as a framework that empowers them to crea
 
 ## Quick Start
 
-Quick start guides are available on [this section](docs/quick-start.md).
+Quick start guides are available on [this section](docs/en/quick-start.md).
 
 ## Documentation
 
