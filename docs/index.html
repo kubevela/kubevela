@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>KubeVela - Make shipping applications more enjoyable.</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <meta name="description" content="Description">
+    <meta name="viewport"
+        content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <link rel="icon" href="favicon.ico">
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify/themes/vue.css">
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css" />
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify-sidebar-collapse/dist/sidebar.min.css" />
+    <link rel="stylesheet" href="//cdn.jsdelivr.net/npm/docsify-top-banner-plugin@latest/dist/style.css" />
+    <link rel="stylesheet" href="//unpkg.com/@fortawesome/fontawesome-free/css/fontawesome.css" />
+    <link rel="stylesheet" href="//unpkg.com/@fortawesome/fontawesome-free/css/brands.css" />
+    <link rel="stylesheet" href="//unpkg.com/@fortawesome/fontawesome-free/css/regular.css" />
+    <link rel="stylesheet" href="//unpkg.com/@fortawesome/fontawesome-free/css/solid.css" />
+</head>
+
+<body>
+    <div id="app">Loading ...</div>
+    <script type="text/javascript">
+        window.$docsify = {
+            name: 'KubeVela',
+            repo: 'oam-dev/kubevela',
+            logo: '/resources/KubeVela-03.png height="50px"',
+            relativePath: true,
+            coverpage: true,
+            autoHeader: true,
+            loadSidebar: true,
+            themeColor: '#296fff',
+            subMaxLevel: 1,
+            auto2top: true,
+            loadNavbar: true,
+            formatUpdated: '{YYYY}.{MM}.{DD} {HH}:{mm}',
+            homepage: '/en/README.md',
+            alias: {
+                '/.*/_navbar.md': '/_navbar.md',
+            },
+            search: {
+                placeholder: {
+                    '/': 'Type to search',
+                    '/zh-cn/': '搜索',
+                    '/en-us/': 'Type to search'
+                },
+                noData: {
+                    '/': 'No Results',
+                    '/zh-cn/': '找不到结果',
+                    '/en-us/': 'No Results'
+                }
+            },
+            share: {
+                reddit: true,
+                linkedin: true,
+                facebook: true,
+                twitter: true,
+                whatsapp: true,
+                telegram: true,
+            },
+            pagination: {
+                previousText: 'Prev',
+                nextText: 'Next',
+                crossChapter: true,
+                crossChapterText: true,
+            },
+            copyCode: {
+                buttonText: 'Copy to clipboard',
+                errorText: 'Error',
+                successText: 'Copied'
+            },
+            tabs: {
+                persist: true,
+                sync: true,
+                theme: 'classic',
+                tabComments: true,
+                tabHeadings: true
+            },
+            'flexible-alerts': {
+                style: 'callout'
+            },
+            plugins: [
+                function (hook) {
+                    var footer = [
+                        '<hr/>',
+                        '<footer>',
+                        '<span><a href="https://github.com/oam-dev/kubevela"><img alt="KubeVela" src="/resources/KubeVela-03.png" height="20px"></a></span>',
+                        '<br>',
+                        'Copyright &copy;2020 - 2020.</span>',
+                        '<span>Powered By <a href="https://github.com/QingWei-Li/docsify" target="_blank">docsify</a>.</span>',
+                        '</footer>'
+                    ].join('');
+
+                    hook.afterEach(function (html) {
+                        return html + footer
+                    })
+                }
+            ]
+        }
+
+    </script>
+    <script src="//cdn.jsdelivr.net/npm/docsify/lib/docsify.min.js"></script>
+    <script src="static/search.js"></script>
+    <script src="static/zoom-image.js"></script>
+    <script src="static/docsify-share.min.js"></script>
+    <script src="static/docsify-pagination.min.js"></script>
+    <script src="static/prism-bash.min.js"></script>
+    <script src="static/prism-go.min.js"></script>
+    <script src="https://unpkg.com/docsify-copy-code@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docsify-tabs@1"></script>
+    <script src="//cdn.jsdelivr.net/npm/docsify-sidebar-collapse/dist/docsify-sidebar-collapse.min.js"></script>
+    <script src="https://unpkg.com/docsify-plugin-flexible-alerts"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docsify-example-panels"></script>
+    <script src="//unpkg.com/docsify-fontawesome/dist/docsify-fontawesome.min.js"></script>
+</body>
+
+</html>
