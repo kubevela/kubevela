@@ -156,8 +156,7 @@ func (d *AutoscalerChecker) Check(ctx context.Context, ref runtimev1alpha1.Typed
 	if err := d.c.Get(ctx, client.ObjectKey{Namespace: appConfig.Namespace, Name: hpaName}, &hpa); err != nil {
 		return StatusChecking, "", err
 	}
-	message := fmt.Sprintf("type: %s\tminReplicas: %v\tmaxReplicas: %v\t", scalerType, *hpa.Spec.MinReplicas,
-		hpa.Spec.MaxReplicas)
+	message := fmt.Sprintf("type: %-8s", scalerType)
 	if scalerType == string(autoscalers.CPUType) {
 		// When attaching trait, and before the scaler trait works, `CurrentCPUUtilizationPercentage` is nil
 		currentCPUUtilizationPercentage := hpa.Status.CurrentCPUUtilizationPercentage
@@ -165,10 +164,11 @@ func (d *AutoscalerChecker) Check(ctx context.Context, ref runtimev1alpha1.Typed
 		if currentCPUUtilizationPercentage == nil {
 			currentCPUUtilizationPercentage = &zeroPercentage
 		}
-		message += fmt.Sprintf("CPUUtilization(target/current): %v%%/%v%%\t", *hpa.Spec.TargetCPUUtilizationPercentage,
-			*currentCPUUtilizationPercentage)
+		message += fmt.Sprintf("cpu-utilization(target/current): %v%%/%v%%\t",
+			*hpa.Spec.TargetCPUUtilizationPercentage, *currentCPUUtilizationPercentage)
 	}
-	message += fmt.Sprintf("replicas: %v", hpa.Status.CurrentReplicas)
+	message += fmt.Sprintf("replicas(min/max/current): %v/%v/%v", *hpa.Spec.MinReplicas, hpa.Spec.MaxReplicas,
+		hpa.Status.CurrentReplicas)
 	return StatusDone, message, nil
 }
 

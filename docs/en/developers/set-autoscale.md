@@ -29,7 +29,7 @@ is supported.
       Type: webservice
       HEALTHY Ready: 1/1
       Traits:
-        - ✅ autoscale: type: cpu	minReplicas: 1	maxReplicas: 5	CPUUtilization(target/current): 5%/0%	replicas: 0
+        - ✅ autoscale: type: cpu     cpu-utilization(target/current): 5%/0%	replicas(min/max/current): 1/5/0
       Last Deployment:
         Created at: 2020-11-06 16:10:54 +0800 CST
         Updated at: 2020-11-06T16:19:04+08:0
@@ -79,7 +79,7 @@ is supported.
       Type: webservice
       HEALTHY Ready: 1/1
       Traits:
-        - ✅ autoscale: type: cpu	minReplicas: 1	maxReplicas: 5	CPUUtilization(target/current): 5%/10%	replicas: 2
+        - ✅ autoscale: type: cpu     cpu-utilization(target/current): 5%/10%	replicas(min/max/current): 1/5/2
       Last Deployment:
         Created at: 2020-11-05 20:07:23 +0800 CST
         Updated at: 2020-11-05T20:50:42+08:00
@@ -100,7 +100,7 @@ is supported.
       Type: webservice
       HEALTHY Ready: 1/1
       Traits:
-        - ✅ autoscale: type: cpu	minReplicas: 1	maxReplicas: 5	CPUUtilization(target/current): 5%/14%	replicas: 4
+        - ✅ autoscale: type: cpu     cpu-utilization(target/current): 5%/14%	replicas(min/max/current): 1/5/4
       Last Deployment:
         Created at: 2020-11-05 20:07:23 +0800 CST
         Updated at: 2020-11-05T20:50:42+08:00
@@ -132,8 +132,8 @@ Introduce how to automatically scale workloads by cron in Appfile.
       port: 8080
   
       autoscale:
-        minReplicas: 1
-        maxReplicas: 4
+        min: 1
+        max: 4
         cron:
           startAt:  "14:00"
           duration: "2h"
@@ -202,7 +202,7 @@ Introduce how to automatically scale workloads by cron in Appfile.
       Type: webservice
       HEALTHY Ready: 1/1
       Traits:
-        - ✅ autoscale: type: cron	minReplicas: 1	maxReplicas: 4	replicas: 1
+        - ✅ autoscale: type: cron    replicas(min/max/current): 1/4/1
       Last Deployment:
         Created at: 2020-11-05 17:09:03 +0800 CST
         Updated at: 2020-11-05T17:09:02+08:00
@@ -217,19 +217,19 @@ Introduce how to automatically scale workloads by cron in Appfile.
   
     Name:      	testapp
     Namespace: 	default
-    Created at:	2020-11-05 17:09:02.426632 +0800 CST
-    Updated at:	2020-11-05 17:09:02.426632 +0800 CST
+    Created at:	2020-11-10 10:18:59.498079 +0800 CST
+    Updated at:	2020-11-10 10:18:59.49808 +0800 CST
   
   Services:
   
     - Name: express-server
       Type: webservice
-      HEALTHY Ready: 1/1
+      HEALTHY Ready: 2/2
       Traits:
-        - ✅ autoscale: type: cron	minReplicas: 1	maxReplicas: 4	replicas: 2
+        - ✅ autoscale: type: cron    replicas(min/max/current): 1/4/2
       Last Deployment:
-        Created at: 2020-11-05 17:09:03 +0800 CST
-        Updated at: 2020-11-05T17:09:02+08:00
+        Created at: 2020-11-10 10:18:59 +0800 CST
+        Updated at: 2020-11-10T10:18:59+08:00
   ```
   
   Wait after the period ends, the replicas will be one eventually.
