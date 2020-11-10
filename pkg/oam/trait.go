@@ -173,19 +173,23 @@ func AddOrUpdateTrait(env *types.EnvMeta, appName string, componentName string, 
 		return app, err
 	}
 	for _, v := range template.Parameters {
+		name := v.Name
+		if v.Alias != "" {
+			name = v.Alias
+		}
 		switch v.Type {
 		case cue.IntKind:
-			traitData[v.Name], err = flagSet.GetInt64(v.Name)
+			traitData[v.Name], err = flagSet.GetInt64(name)
 		case cue.StringKind:
-			traitData[v.Name], err = flagSet.GetString(v.Name)
+			traitData[v.Name], err = flagSet.GetString(name)
 		case cue.BoolKind:
-			traitData[v.Name], err = flagSet.GetBool(v.Name)
+			traitData[v.Name], err = flagSet.GetBool(name)
 		case cue.NumberKind, cue.FloatKind:
-			traitData[v.Name], err = flagSet.GetFloat64(v.Name)
+			traitData[v.Name], err = flagSet.GetFloat64(name)
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("get flag(s) \"%s\" err %v", v.Name, err)
+			return nil, fmt.Errorf("get flag(s) \"%s\" err %v", name, err)
 		}
 	}
 	if err = app.SetTrait(componentName, traitAlias, traitData); err != nil {

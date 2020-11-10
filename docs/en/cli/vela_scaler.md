@@ -1,27 +1,27 @@
-## vela scale
+## vela scaler
 
-Attach scale trait to an app
+Attach scaler trait to an app
 
 ### Synopsis
 
-Attach scale trait to an app
+Attach scaler trait to an app
 
 ```
-vela scale <appname> [args]
+vela scaler <appname> [args]
 ```
 
 ### Examples
 
 ```
-vela scale frontend
+vela scaler frontend
 ```
 
 ### Options
 
 ```
       --detach        detach trait from service
-  -h, --help          help for scale
-  -r, --replica int    (default 2)
+  -h, --help          help for scaler
+  -r, --replica int    (default 1)
   -s, --staging       only save changes locally without real update application
       --svc string    specify one service belonging to the application
 ```

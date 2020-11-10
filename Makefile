@@ -38,8 +38,8 @@ npm-build:
 npm-install:
 	cd dashboard && npm install && cd ./..
 
-generate-doc:
-	rm -r docs/cli/*
+doc-gen:
+	rm -r docs/en/cli/*
 	go run hack/docgen/gen.go
 
 generate-source:

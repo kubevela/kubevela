@@ -1,0 +1,14 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: rollout
+spec:
+  appliesToWorkloads:
+    - podspecworkload.standard.oam.dev
+    - deployments.apps
+  definitionRef:
+    name: canaries.flagger.app
+  workloadRefPath: spec.targetRef
+  revisionEnabled: true
+  extension:
+    template: |-

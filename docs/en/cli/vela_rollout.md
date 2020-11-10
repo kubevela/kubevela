@@ -19,13 +19,13 @@ vela rollout frontend
 ### Options
 
 ```
-      --batch int             (default 2)
-      --detach               detach trait from service
-  -h, --help                 help for rollout
-      --maxUnavailable int    (default 1)
-      --replica int           (default 3)
-  -s, --staging              only save changes locally without real update application
-      --svc string           specify one service belonging to the application
+      --detach            detach trait from service
+  -h, --help              help for rollout
+      --interval string    (default "30s")
+      --replica int       total replica of the workload (default 5)
+  -s, --staging           only save changes locally without real update application
+      --step-weight int   weight percent of every step in rolling update (default 20)
+      --svc string        specify one service belonging to the application
 ```
 
 ### Options inherited from parent commands

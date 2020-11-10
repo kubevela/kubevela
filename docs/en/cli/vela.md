@@ -19,6 +19,7 @@ vela [flags]
 
 ### SEE ALSO
 
+* [vela autoscale](vela_autoscale.md)	 - Attach autoscale trait to an app
 * [vela cap](vela_cap.md)	 - Capability Management
 * [vela completion](vela_completion.md)	 - Output shell completion code for the specified shell (bash or zsh)
 * [vela config](vela_config.md)	 - Manage application configurations
@@ -30,10 +31,11 @@ vela [flags]
 * [vela install](vela_install.md)	 - Initialize vela on both client and server
 * [vela logs](vela_logs.md)	 - Tail logs for application
 * [vela ls](vela_ls.md)	 - List services
-* [vela manualscaler](vela_manualscaler.md)	 - Attach manualscaler trait to an app
+* [vela metric](vela_metric.md)	 - Attach metric trait to an app
 * [vela port-forward](vela_port-forward.md)	 - Forward one or more local ports to a Pod of a service in an application
 * [vela rollout](vela_rollout.md)	 - Attach rollout trait to an app
-* [vela scale](vela_scale.md)	 - Attach scale trait to an app
+* [vela route](vela_route.md)	 - Attach route trait to an app
+* [vela scaler](vela_scaler.md)	 - Attach scaler trait to an app
 * [vela show](vela_show.md)	 - Get details of an application
 * [vela status](vela_status.md)	 - get status of an application
 * [vela svc](vela_svc.md)	 - Manage services
