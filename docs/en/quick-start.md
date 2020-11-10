@@ -8,7 +8,7 @@ Make sure you have finished and verified the installation following [this guide]
 
 ## 1. Initialize Application
 
-```console
+```bash
 $ vela init --render-only
 Welcome to use KubeVela CLI! Please describe your application.
 
@@ -43,7 +43,7 @@ services:
 
 ## 2. Deploy Application
 
-```console
+```bash
 $ vela up
 Parsing vela.yaml ...
 Loading templates ...
@@ -63,7 +63,7 @@ App has not been deployed, creating a new deployment...
 ```
 
 Check the status until we see route trait ready:
-```console
+```bash
 $ vela status testapp
 About:
 
@@ -84,7 +84,7 @@ Services:
       - route: 	Visiting URL: http://testsvc.example.com	IP: localhost
 ```
 
-**In [kind cluster setup](../../install.md#kind)**, you can visit the service via localhost. In other setups, replace localhost with ingress address accordingly.
+**In [kind cluster setup](./install.md#kind)**, you can visit the service via localhost. In other setups, replace localhost with ingress address accordingly.
 
 ```
 $ curl -H "Host:testsvc.example.com" http://localhost/
@@ -108,7 +108,7 @@ Hello World
 Congratulations! You have just deployed an app using KubeVela. Here are some recommended next steps:
 
 - Learn about the project's [motivation](./introduction.md) and [architecture](./design.md)
-- Try out more [tutorials](./README.md)
+- Try out more [tutorials](./developers/config-enviroments.md)
 - Join our community [Slack](https://cloud-native.slack.com/archives/C01BLQ3HTJA) and/or [Gitter](https://gitter.im/oam-dev/community)
 
 Welcome onboard and sail Vela!

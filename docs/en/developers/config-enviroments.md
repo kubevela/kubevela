@@ -4,14 +4,14 @@ Before working with your application, you need to prepare a deployment environme
 
 ## Create environment
 
-```console
+```bash
 $ vela env init demo --email my@email.com
 environment demo created, Namespace: default, Email: my@email.com
 ```
 
 ## Check the deployment environment metadata
 
-```console
+```bash
 $ vela env ls
 NAME   	CURRENT	NAMESPACE	EMAIL                	DOMAIN
 default	       	default  	
@@ -24,12 +24,12 @@ By default, the environment will use `default` namespace in K8s.
 
 You could change the config by executing the environment again.
 
-```console
+```bash
 $ vela env init demo --namespace demo
 environment demo created, Namespace: demo, Email: my@email.com
 ```
 
-```console
+```bash
 $ vela env ls
 NAME   	CURRENT	NAMESPACE	EMAIL                	DOMAIN
 default	       	default  	
@@ -46,7 +46,7 @@ your app by this domain with an mTLS supported automatically.
 
 For example, you could get the public IP from ingress service.  
 
-```console
+```bash
 $ kubectl get svc -A | grep LoadBalancer
 NAME                         TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)                      AGE
 nginx-ingress-lb             LoadBalancer   172.21.2.174    123.57.10.233   80:32740/TCP,443:32086/TCP   41d
@@ -62,7 +62,7 @@ You could also use `123.57.10.233.xip.io` as your domain, if you don't have a cu
 `xip.io` will automatically route to the prefix IP `123.57.10.233`.
 
 
-```console
+```bash
 $ vela env init demo --domain 123.57.10.233.xip.io
 environment demo updated, Namespace: demo, Email: my@email.com
 ```

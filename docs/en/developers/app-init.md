@@ -6,7 +6,7 @@ To initialize and deploy an application with one service, run:
 
 > If you only want to initialize without deploying the app, add `--render-only` flag
 
-```console
+```bash
 $ vela  init
 Welcome to use KubeVela CLI! We're going to help you run applications through a couple of questions.
 
@@ -34,7 +34,7 @@ Environment: default, namespace: default
 
 Check the application:
 
-```console
+```bash
 $ vela show testapp
 About:
 
@@ -63,7 +63,7 @@ You can also use KubeVela CLI to deploy multiple services for an application.
 
 Check the available workload types.
 
-```console
+```bash
 $ vela workloads
 NAME      	DESCRIPTION
 worker   	Backend worker without ports exposed
@@ -72,7 +72,7 @@ webservice	Long running service with network routes
 
 Deploy the first service named `frontend` with `Web Service` type:
 
-```console
+```bash
 $ vela svc deploy frontend --app testapp -t webservice --image crccheck/hello-world
 App testapp deployed
 ```
@@ -81,12 +81,12 @@ App testapp deployed
 
 Deploy the second service named `backend` with "Backend Worker" type:
 
-```console
+```bash
 $ vela svc deploy backend --app testapp2 -t worker --image crccheck/hello-world
 App testapp2 deployed
 ```
 
-```console
+```bash
 $ vela ls
 SERVICE 	APP     	TYPE	TRAITS	STATUS 	CREATED-TIME
 frontend	testapp 	    	      	...

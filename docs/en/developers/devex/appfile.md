@@ -1,9 +1,9 @@
 # Using Appfile for More Flexible Configuration
 
 Appfile supports more flexible options than CLI/UI to configure appliation deployment on Vela.
-A detailed design doc could be found [here](../../design/appfile-design.md).
+A detailed design doc could be found [here](https://github.com/oam-dev/kubevela/blob/master/docs/design/appfile-design.md).
 
-In this tutorial, we will build and deploy an example NodeJS app under [examples/testapp/](https://github.com/oam-dev/kubevela/tree/master/examples/testapp).
+In this tutorial, we will build and deploy an example NodeJS app under [examples/testapp/](https://github.com/oam-dev/kubevela.io/tree/master/examples/testapp).
 
 ## Prerequisites
 
@@ -14,16 +14,16 @@ In this tutorial, we will build and deploy an example NodeJS app under [examples
 
 git clone and go to the testapp directory:
 
-```console
-$ git clone https://github.com/oam-dev/kubevela.git
-$ cd kubevela/examples/testapp
+```bash
+$ git clone https://github.com/oam-dev/kubevela.io.git
+$ cd kubevela.io/examples/testapp
 ```
 
 The example contains NodeJS app code, Dockerfile to build the app.
 
 ## 2. Deploy app in one command
 
-In the directory there is a [vela.yaml](../../../examples/testapp/vela.yaml) which follows Appfile format supported by Vela.
+In the directory there is a [vela.yaml](https://github.com/oam-dev/kubevela.io/tree/master/examples/testapp/vela.yaml) which follows Appfile format supported by Vela.
 We are going to use it to build and deploy the app.
 
 ATTENTION: change the image field in vela.yaml to something you can push to on your host:
@@ -36,7 +36,7 @@ ATTENTION: change the image field in vela.yaml to something you can push to on y
 
 Run the following command:
 
-```console
+```bash
 $ vela up
 Parsing vela.yaml ...
 Loading templates ...
@@ -67,7 +67,7 @@ App has not been deployed, creating a new deployment...
 
 Check the status of the service:
 
-```console
+```bash
 $ vela status testapp
   About:
   
@@ -107,7 +107,7 @@ Add local option to `build`:
 
 Then deploy the app to kind:
 
-```console
+```bash
 $ vela up
 ```
 
@@ -165,12 +165,12 @@ servcies:
 
 Apply again:
 
-```console
+```bash
 $ vela up
 ```
 
 Check the status until we see route trait ready:
-```console
+```bash
 $ vela status testapp
 About:
 
@@ -200,9 +200,25 @@ $ curl -H "Host:example.com" http://localhost/testapp
 Hello World
 ```
 
-## 4. Add monitoring metrics
+## 4. Add auto scaling
 
-TODO
+```yaml
+name: testapp
+
+services:
+  express-server:
+    ...
+
+    autoscale:
+      minReplicas: 1
+      maxReplicas: 4
+      cron:
+        startAt:  "14:00"
+        duration: "2h"
+        days:     "Monday, Thursday"
+        replicas: "2"
+        timezone: "America/Seattle"
+```
 
 ## [Optional] Configure "task" workload type
 
@@ -222,7 +238,7 @@ services:
 
 Then deploy appfile again:
 
-```console
+```bash
 $ vela up
 ```
 

@@ -1,6 +1,6 @@
 # Check Logs of Container
 
-```console
+```bash
 $ vela logs testapp
 ```
 

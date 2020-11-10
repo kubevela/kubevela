@@ -6,13 +6,13 @@ with the help of `metric` capability.
 Let's run [`christianhxc/gorandom:1.0`](https://github.com/christianhxc/prometheus-tutorial) as an example app.
 The app will emit random latencies as metrics.
 
-```console
+```bash
 $ vela svc deploy metricapp -t webservice --image christianhxc/gorandom:1.0 --port 8080
 ```
 
 Then add metric by:
 
-```console
+```bash
 $ vela metric metricapp
 Adding metric for app metricapp
 ⠋ Deploying ...

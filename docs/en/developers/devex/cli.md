@@ -6,7 +6,7 @@ Learn about general configurations for `vela` command line tool. For the usage o
 
 #### bash
 
-```console
+```bash
 To load completions in your current shell session:
 $ source <(vela completion bash)
 
@@ -19,7 +19,7 @@ MacOS:
 
 #### zsh
 
-```console
+```bash
 To load completions in your current shell session:
 $ source <(vela completion zsh)
 

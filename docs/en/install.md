@@ -7,31 +7,29 @@
 
 You may pick either Minikube or KinD as local cluster testing option.
 
-<!-- tabs:start -->
-
-#### ** Minikube **
+### Minikube
 
 Follow the minikube [installation guide](https://minikube.sigs.k8s.io/docs/start/).
 
 Once minikube is installed, create a cluster:
 
-```console
+```bash
 $ minikube start
 ```
 
 Install ingress:
 
-```console
+```bash
 $ minikube addons enable ingress
 ```
 
-#### ** KinD **
+### KinD
 
 Follow [this guide](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) to install kind.
 
 Then spins up a kind cluster:
 
-```console
+```bash
 cat <<EOF | kind create cluster --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
@@ -54,18 +52,16 @@ EOF
 ```
 
 Then install [ingress for kind](https://kind.sigs.k8s.io/docs/user/ingress/#ingress-nginx):
-```console
+```bash
 $ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/static/provider/kind/deploy.yaml
 ```
-
-<!-- tabs:end -->
 
 ## 2. Get KubeVela
 
 1. Download the latest `vela` binary from the [releases page](https://github.com/oam-dev/kubevela/releases).
 2. Unpack the `vela` binary and add it to `$PATH` to get started.
 
-```console
+```bash
 $ sudo mv ./vela /usr/local/bin/vela
 ```
 
@@ -73,7 +69,7 @@ $ sudo mv ./vela /usr/local/bin/vela
 
 Run:
 
-```console
+```bash
 $ vela install
 ```
 
@@ -104,7 +100,7 @@ kube-prometheus-stack	monitoring  	1
 
 Run:
 
-```console
+```bash
 $ helm uninstall -n vela-system kubevela
 $ rm -r ~/.vela
 ```
@@ -146,8 +142,7 @@ We have installed the following dependency components along with Vela server com
 - [Cert-manager](https://cert-manager.io/)
 - [Flagger](https://flagger.app/)
 
-> [!NOTE]
-> If you are not using minikube or kind, please make sure to [install ingress-nginx](https://kubernetes.github.io/ingress-nginx/deploy/) by yourself.
+> NOTE: If you are not using minikube or kind, please make sure to [install ingress-nginx](https://kubernetes.github.io/ingress-nginx/deploy/) by yourself.
 
 The config has been saved in a ConfigMap in "vela-system/vela-config":
 

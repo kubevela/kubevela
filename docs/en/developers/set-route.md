@@ -3,7 +3,7 @@
 Once your web services of the application deployed, you can visit it locally via `port-forward` or
 from outside world via `route` feature. 
 
-```console
+```bash
 $ vela svc ls
 NAME  	    APP  	WORKLOAD  	  TRAITS	STATUS 	    CREATED-TIME
 frontend	testapp	webservice	      	    Deployed	2020-09-18 22:42:04 +0800 CST
@@ -13,7 +13,7 @@ frontend	testapp	webservice	      	    Deployed	2020-09-18 22:42:04 +0800 CST
 
 It will directly open browser for you.
 
-```console
+```bash
 $ vela port-forward testapp
 Forwarding from 127.0.0.1:8080 -> 80
 Forwarding from [::1]:8080 -> 80
@@ -31,7 +31,7 @@ Handling connection for 8080
 
 You can manually configure it by setting domain parameter.
 
-```console
+```bash
 $ vela route testapp --domain frontend.mycustom.domain
 Adding route for app frontend
 
@@ -55,7 +55,7 @@ $ curl -H "Host:frontend.mycustom.domain" 123.57.10.233
 
 ### If you have domain set in environment
 
-```console
+```bash
 $ vela route testapp
 Adding route for app frontend
 

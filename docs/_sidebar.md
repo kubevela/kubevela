@@ -16,17 +16,18 @@
   - [Execute Commands in Container](/en/developers/exec-cmd.md)
   - [Port Forward to Container](/en/developers/port-forward.md)
   - [Configuring data/env in Application](/en/developers/config-app.md)
-  <!-- - [Consuming Cloud Services](/en/developers/cloud-service.md) -->
+  - [Consuming Cloud Services](/en/developers/cloud-service.md)
+  - [Managing Capabilities](/en/developers/cap-center.md)
   - [Capability References](/en/developers/references/README.md)
 
 - For Platform Engineers
- - [Extending KubeVela](/en/platform-engineers/extending-kubevela.md)
+  - [Extending KubeVela](/en/platform-engineers/extending-kubevela.md)
 
 - Internals
   - [Design and Architecture](/en/design.md)
 
 - Roadmap
- - [KubeVela Roadmap](/en/roadmap.md)
+  - [KubeVela Roadmap](/en/roadmap.md)
 
 - CLI Reference
   - General

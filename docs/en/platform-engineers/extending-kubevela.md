@@ -17,14 +17,14 @@ Prerequisites:
 
 ### Step 1: Install KubeWatch
 
-```console
+```bash
 $ helm repo add vela-demo https://wonderflow.info/kubewatch/archives/
 $ helm install kubewatch vela-demo/kubewatch --version 0.1.0
 ```
 
 ### Step 2: Add Trait Definition with CUE template
 
-```console
+```bash
 $ cat << EOF | kubectl apply -f -
 apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
@@ -57,7 +57,7 @@ That's it! Once you have applied the definition file the feature will be automat
 
 ### Step 3: Verify Kubewatch Trait Installed
 
-```console
+```bash
 $ vela traits
 Synchronizing capabilities from cluster⌛ ...
 Sync capabilities successfully ✅ Add(1) Update(0) Delete(0)
@@ -75,7 +75,7 @@ kubewatch	Add a watch for resource
 
 Write an Appfile:
 
-```console
+```bash
 $ cat << EOF > vela.yaml
 name: testapp
 services:
@@ -90,7 +90,7 @@ EOF
 
 Deploy it:
 
-```console
+```bash
 $ vela up
 ...
 ✅ App has been deployed 🚀🚀🚀
@@ -107,7 +107,7 @@ You can use either of the following options to attach the newly added kubewatch 
 
 Add kubewatch trait to the application:
 
-```console
+```bash
 $ vela kubewatch testapp --svc testsvc --webhook https://hooks.slack.com/<your-token>
 Adding kubewatch for app testsvc
 ⠋ Checking Status ...
@@ -128,7 +128,7 @@ Check your Slack channel to verify the nofitications:
 
 Instead of using CLI, you can add `kubewatch` config to Appfile:
 
-```console
+```bash
 $ cat << EOF >> vela.yaml
     kubewatch:
       webhook: https://hooks.slack.com/<your-token>

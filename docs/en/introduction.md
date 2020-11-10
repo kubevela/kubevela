@@ -16,7 +16,7 @@ In the end, developers complain those platforms are too rigid and slow in respon
 
 ## What is KubeVela?
 
-For developers, KubeVela itself is an easy-to-use tool that enables them to describe and ship their applications to Kubernetes with minimal effort. Instead of managing a handful Kubernetes YAML files, a simple docker-compose style [Appfile](./docs/developers/devex/appfile.md) is all they need, following an application-centric workflow that can be easily integrated with any CI/CD pipeline.
+For developers, KubeVela itself is an easy-to-use tool that enables them to describe and ship their applications to Kubernetes with minimal effort. Instead of managing a handful Kubernetes YAML files, a simple docker-compose style [Appfile](/en/developers/devex/appfile) is all they need, following an application-centric workflow that can be easily integrated with any CI/CD pipeline.
 
 The above experience cannot be achieved without KubeVela's innovative offerings to the platform builders.
 

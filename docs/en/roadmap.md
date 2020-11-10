@@ -9,7 +9,7 @@ Overall, KubeVela alpha release will mainly focus on:
 2. Complete the feature set of capability extensibility,
 3. Developer-centric experience around Appfile (Application-as-Code).
 
-## Notable Tasks
+# Notable Tasks
 
 KubeVela Controller:
 - [Moving CUE based abstraction layer to kubevela core instead of cli side](https://github.com/oam-dev/kubevela/projects/1#card-48198530).

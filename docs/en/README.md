@@ -15,14 +15,11 @@ For platform builders, KubeVela serves as a framework that empowers them to crea
 
 ## Quick Start
 
-Quick start guides are available on [this section](docs/quick-start.md).
+Quick start guides are available on [this section](/en/quick-start).
 
-## Documentation
-
-To see full documentation, visit [kubevela.io](https://kubevela.io/).
 
 ## Contributing
-Check out [CONTRIBUTING](./CONTRIBUTING.md) to see how to develop with KubeVela.
+Check out [CONTRIBUTING](https://github.com/oam-dev/kubevela/blob/master/CONTRIBUTING.md) to see how to develop with KubeVela.
 
 ## Code of Conduct
 This project has adopted the [CNCF Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md). See [CODE OF CONDUCT](CODE_OF_CONDUCT.md) for details.

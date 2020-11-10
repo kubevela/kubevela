@@ -4,7 +4,7 @@
 
 ## `vela config set`
 
-```console
+```bash
 $ vela config set test a=b c=d
 reading existing config data and merging with user input
 config data saved successfully ✅
@@ -12,7 +12,7 @@ config data saved successfully ✅
 
 ## `vela config get`
 
-```console
+```bash
 $ vela config get test
 Data:
   a: b
@@ -21,14 +21,14 @@ Data:
 
 ## `vela config del`
 
-```console
+```bash
 $ vela config del test
 config (test) deleted successfully
 ```
 
 ## `vela config ls`
 
-```console
+```bash
 $ vela config set test a=b
 $ vela config set test2 c=d
 $ vela config ls
@@ -41,7 +41,7 @@ test2
 
 The config data can be set as the env in applications.
 
-```console
+```bash
 $ vela config set demo DEMO_HELLO=helloworld
 ```
 
@@ -56,7 +56,7 @@ services:
 ```
 
 Then run:
-```console
+```bash
 $ vela up
 Parsing vela.yaml ...
 Loading templates ...
