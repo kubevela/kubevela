@@ -21,7 +21,7 @@ parameter: {
 	// +short=c
 	count: *1 | int
 
-	// +usage=specify app image
+	// +usage=Which image would you like to use for your service
 	// +short=i
 	image: string
 

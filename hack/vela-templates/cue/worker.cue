@@ -30,7 +30,7 @@ output: {
 }
 
 parameter: {
-	// +usage=specify app image
+	// +usage=Which image would you like to use for your service
 	// +short=i
 	image: string
 

@@ -114,7 +114,7 @@ func (o *appInitOptions) Naming() error {
 	prompt := &survey.Input{
 		Message: "What would you like to name your application (required): ",
 	}
-	err := survey.AskOne(prompt, &o.appName)
+	err := survey.AskOne(prompt, &o.appName, survey.WithValidator(survey.Required))
 	if err != nil {
 		return fmt.Errorf("read app name err %v", err)
 	}
@@ -163,7 +163,7 @@ func (o *appInitOptions) Workload() error {
 		Message: "Choose the workload type for your application (required, e.g., webservice): ",
 		Options: workloadList,
 	}
-	err = survey.AskOne(prompt, &o.workloadType)
+	err = survey.AskOne(prompt, &o.workloadType, survey.WithValidator(survey.Required))
 	if err != nil {
 		return fmt.Errorf("read workload type err %v", err)
 	}
@@ -174,7 +174,7 @@ func (o *appInitOptions) Workload() error {
 	namePrompt := &survey.Input{
 		Message: fmt.Sprintf("What would you like to name this %s (required): ", o.workloadType),
 	}
-	err = survey.AskOne(namePrompt, &o.workloadName)
+	err = survey.AskOne(namePrompt, &o.workloadName, survey.WithValidator(survey.Required))
 	if err != nil {
 		return fmt.Errorf("read workload name err %v", err)
 	}
@@ -186,6 +186,16 @@ func (o *appInitOptions) Workload() error {
 		usage := p.Usage
 		if usage == "" {
 			usage = "what would you configure for parameter '" + color.New(color.FgCyan).Sprintf("%s", p.Name) + "'"
+		}
+		if p.Required {
+			usage += " (required): "
+		} else {
+			defaultValue := fmt.Sprintf("%v", p.Default)
+			if defaultValue != "" {
+				usage += fmt.Sprintf(" (optional, default is %s): ", defaultValue)
+			} else {
+				usage += " (optional): "
+			}
 		}
 		switch p.Type {
 		case cue.StringKind:
