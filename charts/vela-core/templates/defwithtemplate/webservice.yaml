@@ -64,15 +64,15 @@ spec:
       	}
       }
       parameter: {
-      	// +usage=specify app image
+      	// +usage=Which image would you like to use for your service
       	// +short=i
       	image: string
       
       	cmd?: [...string]
       
-      	// +usage=specify port for container
+      	// +usage=Which port do you want customer traffic sent to
       	// +short=p
-      	port: *6379 | int
+      	port: *80 | int
       
       	env?: [...{
       		name:   string
@@ -84,7 +84,7 @@ spec:
       			}
       		}
       	}]
-      	// +usage=CPU core requests for the workload
+      	// +usage=CPU core requests for the workload, specify like '0.5', '1'.
       	// +alias=cpu-requests
       	cpuRequests?: string
       }

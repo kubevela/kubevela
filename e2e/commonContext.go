@@ -278,16 +278,16 @@ var (
 							a: "mysvc",
 						},
 						{
-							q: "specify app image ",
+							q: "Which image would you like to use for your service ",
 							a: "nginx:latest",
 						},
 						{
-							q: "specify port for container ",
+							q: "Which port do you want customer traffic sent to ",
 							a: "8080",
 						},
 						{
-							q: "CPU core requests for the workload ",
-							a: "",
+							q: "CPU core requests for the workload, specify like '0.5', '1'. (optional):",
+							a: "0.5",
 						},
 					}
 					for _, qa := range data {

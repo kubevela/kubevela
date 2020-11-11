@@ -6,8 +6,8 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **Cmd** | **[]string** |  | [optional]
 **Env** | [**[]WebserviceEnv**](#webserviceenv) |  | [optional]
-**Image** | **string** | specify app image |
-**Port** | **int32** | specify port for container | [default to 6379]
+**Image** | **string** | Which image would you like to use for your service |
+**Port** | **int32** | Which port do you want customer traffic sent to | [default to 6379]
 
 
 ### WebserviceEnv

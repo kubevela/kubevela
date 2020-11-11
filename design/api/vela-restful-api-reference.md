@@ -444,7 +444,7 @@ sample response
 	"data": {
 		"name": "podspecworkload",
 		"type": "workload",
-		"template": "#Template: {\n\tapiVersion: \"core.oam.dev/v1alpha2\"\n\tkind:       \"PodSpecWorkload\"\n\tmetadata: name: podspecworkload.name\n\tspec: {\n\t\tcontainers: [{\n\t\t\timage: containerized.image\n\t\t\tname:  containerized.name\n\t\t\tports: [{\n\t\t\t\tcontainerPort: containerized.port\n\t\t\t\tprotocol:      \"TCP\"\n\t\t\t\tname:          \"default\"\n\t\t\t}]\n\t\t}]\n\t}\n}\ncontainerized: {\n\tname: string\n\t// +usage=specify app image\n\t// +short=i\n\timage: string\n\t// +usage=specify port for container\n\t// +short=p\n\tport: *6379 | int\n}\n",
+		"template": "#Template: {\n\tapiVersion: \"core.oam.dev/v1alpha2\"\n\tkind:       \"PodSpecWorkload\"\n\tmetadata: name: podspecworkload.name\n\tspec: {\n\t\tcontainers: [{\n\t\t\timage: containerized.image\n\t\t\tname:  containerized.name\n\t\t\tports: [{\n\t\t\t\tcontainerPort: containerized.port\n\t\t\t\tprotocol:      \"TCP\"\n\t\t\t\tname:          \"default\"\n\t\t\t}]\n\t\t}]\n\t}\n}\ncontainerized: {\n\tname: string\n\t// +usage=Which image would you like to use for your service\n\t// +short=i\n\timage: string\n\t// +usage=Which port do you want customer traffic sent to\n\t// +short=p\n\tport: *6379 | int\n}\n",
 		"parameters": [{
 			"name": "name",
 			"required": true,
@@ -455,13 +455,13 @@ sample response
 			"short": "i",
 			"required": true,
 			"default": "",
-			"usage": "specify app image",
+			"usage": "Which image would you like to use for your service",
 			"type": 16
 		}, {
 			"name": "port",
 			"short": "p",
 			"default": 6379,
-			"usage": "specify port for container",
+			"usage": "Which port do you want customer traffic sent to",
 			"type": 4
 		}],
 		"definition": "/Users/zhouzhengxi/.vela/capabilities/containerizedworkloads.core.oam.dev.cue",
@@ -492,13 +492,13 @@ sample response
 			"short": "i",
 			"required": true,
 			"default": "",
-			"usage": "specify app image",
+			"usage": "Which image would you like to use for your service",
 			"type": 16
 		}, {
 			"name": "port",
 			"short": "p",
 			"default": 6379,
-			"usage": "specify port for container",
+			"usage": "Which port do you want customer traffic sent to",
 			"type": 4
 		}]
 	}, {
@@ -675,7 +675,7 @@ sample response
 	"data": [{
 		"name": "podspecworkload",
 		"type": "workload",
-		"template": "#Template: {\n\tapiVersion: \"core.oam.dev/v1alpha2\"\n\tkind:       \"ContainerizedWorkload\"\n\tmetadata: name: podspecworkload.name\n\tspec: {\n\t\tcontainers: [{\n\t\t\timage: containerized.image\n\t\t\tname:  containerized.name\n\t\t\tports: [{\n\t\t\t\tcontainerPort: containerized.port\n\t\t\t\tprotocol:      \"TCP\"\n\t\t\t\tname:          \"default\"\n\t\t\t}]\n\t\t}]\n\t}\n}\ncontainerized: {\n\tname: string\n\t// +usage=specify app image\n\t// +short=i\n\timage: string\n\t// +usage=specify port for container\n\t// +short=p\n\tport: *6379 | int\n}\n",
+		"template": "#Template: {\n\tapiVersion: \"core.oam.dev/v1alpha2\"\n\tkind:       \"ContainerizedWorkload\"\n\tmetadata: name: podspecworkload.name\n\tspec: {\n\t\tcontainers: [{\n\t\t\timage: containerized.image\n\t\t\tname:  containerized.name\n\t\t\tports: [{\n\t\t\t\tcontainerPort: containerized.port\n\t\t\t\tprotocol:      \"TCP\"\n\t\t\t\tname:          \"default\"\n\t\t\t}]\n\t\t}]\n\t}\n}\ncontainerized: {\n\tname: string\n\t// +usage=Which image would you like to use for your service\n\t// +short=i\n\timage: string\n\t// +usage=Which port do you want customer traffic sent to\n\t// +short=p\n\tport: *6379 | int\n}\n",
 		"parameters": [{
 			"name": "name",
 			"required": true,
@@ -686,13 +686,13 @@ sample response
 			"short": "i",
 			"required": true,
 			"default": "",
-			"usage": "specify app image",
+			"usage": "Which image would you like to use for your service",
 			"type": 16
 		}, {
 			"name": "port",
 			"short": "p",
 			"default": 6379,
-			"usage": "specify port for container",
+			"usage": "Which port do you want customer traffic sent to",
 			"type": 4
 		}],
 		"definition": "/Users/zhouzhengxi/.vela/centers/c1/.tmp/containerizedworkloads.core.oam.dev.cue",

@@ -21,8 +21,8 @@ Environment: default, namespace: default
 ? What would you like to name your application (required):  testapp
 ? Choose the workload type for your application (required, e.g., webservice):  webservice
 ? What would you like to name this webservice (required):  testsvc
-? specify app image crccheck/hello-world
-? specify port for container 8000
+? Which image would you like to use for your service (required): crccheck/hello-world
+? Which port do you want customer traffic sent to (optional, default is 80): 8000
 
 ...
 ✅ Application Deployed Successfully!
