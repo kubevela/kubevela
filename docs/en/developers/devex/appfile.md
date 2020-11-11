@@ -1,7 +1,6 @@
-# Using Appfile for More Flexible Configuration
+# Learning Appfile Step by Step
 
-Appfile supports more flexible options than CLI/UI to configure appliation deployment on Vela.
-A detailed design doc could be found [here](https://github.com/oam-dev/kubevela/blob/master/docs/design/appfile-design.md).
+Appfile is the main user interface to configure application deployment on Vela.
 
 In this tutorial, we will build and deploy an example NodeJS app under [examples/testapp/](https://github.com/oam-dev/kubevela.io/tree/master/examples/testapp).
 
@@ -111,7 +110,7 @@ Then deploy the app to kind:
 $ vela up
 ```
 
-### [Optional] Check rendered manifests
+<details><summary>(Advanced) Check rendered manifests</summary>
 
 By default, Vela renders the final manifests in `.vela/deploy.yaml`:
 
@@ -146,81 +145,9 @@ metadata:
 spec:
   ...
 ```
+</details>
 
-## 3. Add routing
-
-Add routing config under `express-server`:
-
-```yaml
-servcies:
-  express-server:
-    ...
-
-    route:
-      domain: example.com
-      rules:
-        - path: /testapp
-          rewriteTarget: /
-```
-
-Apply again:
-
-```bash
-$ vela up
-```
-
-Check the status until we see route trait ready:
-```bash
-$ vela status testapp
-About:
-
-  Name:      	testapp
-  Namespace: 	default
-  Created at:	...
-  Updated at:	...
-
-Services:
-
-  - Name: express-server
-    Type: webservice
-    HEALTHY Ready: 1/1
-    Last Deployment:
-      Created at: ...
-      Updated at: ...
-    Routes:
-      - route: 	Visiting URL: http://example.com	IP: <ingress-IP-address>
-```
-
-**In [kind cluster setup](../../install.md#kind)**, you can visit the service via localhost:
-
-> If not in kind cluster, replace localhost with ingress address
-
-```
-$ curl -H "Host:example.com" http://localhost/testapp
-Hello World
-```
-
-## 4. Add auto scaling
-
-```yaml
-name: testapp
-
-services:
-  express-server:
-    ...
-
-    autoscale:
-      minReplicas: 1
-      maxReplicas: 4
-      cron:
-        startAt:  "14:00"
-        duration: "2h"
-        days:     "Monday, Thursday"
-        replicas: "2"
-        timezone: "America/Seattle"
-```
-
-## [Optional] Configure "task" workload type
+## [Optional] Configure another workload type
 
 By now we have deployed a *webservice* workload. We can also add a *task* workload in appfile:
 
@@ -236,11 +163,13 @@ services:
     ...
 ```
 
-Then deploy appfile again:
+Then deploy appfile again to update the application:
 
 ```bash
 $ vela up
 ```
+
+> Interested in the design of Appfile? A detailed design doc could be found [here](https://github.com/oam-dev/kubevela/blob/master/docs/design/appfile-design.md).
 
 ## What's Next?
 

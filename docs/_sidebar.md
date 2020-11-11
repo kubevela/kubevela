@@ -3,31 +3,34 @@
   - [Getting Started](/en/quick-start.md)
 
 - Using KubeVela
-  - [Setting Up Deployment Environment](/en/developers/config-enviroments.md)
-  - [Initializing Application](/en/developers/app-init.md)
-  - [Setting Routes](/en/developers/set-route.md)
-  - [Setting Auto-scaling Policy](/en/developers/set-autoscale.md)
-  - [Setting Rollout Strategy](/en/developers/set-rollout.md)
-  - [Monitoring Application](/en/developers/set-metrics.md)
-  - [Using Appfile](/en/developers/devex/appfile.md)
-  - [Check Application Logs](/en/developers/check-logs.md)
-  - [Execute Commands in Container](/en/developers/exec-cmd.md)
-  - [Port Forward to Container](/en/developers/port-forward.md)
-  - [Configuring data/env in Application](/en/developers/config-app.md)
-  - [Consuming Cloud Services](/en/developers/cloud-service.md)
-  - [Managing Capabilities](/en/developers/cap-center.md)
-  - [Capability References](/en/developers/references/README.md)
-
+  - Appfile
+    - [Learning Appfile](/en/developers/devex/appfile.md)
+  - Operating
+    - [Port Forwarding](/en/developers/port-forward.md)
+    - [Setting Routes](/en/developers/set-route.md)
+    - [Setting Auto-scaling Policy](/en/developers/set-autoscale.md)
+    - [Setting Rollout Strategy](/en/developers/set-rollout.md)
+    - [Monitoring Application](/en/developers/set-metrics.md)
+  - Debugging
+    - [Check Application Logs](/en/developers/check-logs.md)
+    - [Execute Commands in Container](/en/developers/exec-cmd.md)  
+  - Extensibility
+    - [Managing Capabilities](/en/developers/cap-center.md)
+  - Configuring
+    - [Setting Up Deployment Environment](/en/developers/config-enviroments.md)
+    - [Configuring data/env in Application](/en/developers/config-app.md)
+  - [Alternative Commands](/en/developers/alternative-cmd.md)
 - Extending KubeVela
   - [Add Trait](/en/platform-engineers/trait.md)
   - [Add Workload Type](/en/platform-engineers/workload-type.md)
-  - [Add Cloud Resource](/en/platform-engineers/cloud-resource.md)
+  - [Add Cloud Services](/en/platform-engineers/cloud-resource.md)
 
 - Roadmap
   - [KubeVela Roadmap](/en/roadmap.md)
 
 - Reference
   - [Concepts and Glossaries](/en/concepts.md)
+  - [Capability Documentation](/en/developers/references/README.md)
   - CLI
     - General
       - [vela config](/en/cli/vela_config.md)

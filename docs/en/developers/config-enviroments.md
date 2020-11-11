@@ -1,6 +1,6 @@
 # Setting Up Deployment Environment
 
-Before working with your application, you need to prepare a deployment environment (e.g. test, staging, prod etc) which will configure the workspace, email for certificate issuer and domain for your application.
+A deployment environment is where you could configure the workspace, email for certificate issuer and domain for your applications globally. A typical set of deployment environment is `test`, `staging`, `prod`, etc.
 
 ## Create environment
 
@@ -67,4 +67,24 @@ $ vela env init demo --domain 123.57.10.233.xip.io
 environment demo updated, Namespace: demo, Email: my@email.com
 ```
 
+### Using domain in Appfile
+
+Since you now have domain configured globally in deployment environment, you don't need to specify the domain in route configuration anymore.
+
+```yaml
+# in demo environment
+servcies:
+  express-server:
+    ...
+
+    route:
+      rules:
+        - path: /testapp
+          rewriteTarget: /
+```
+
+```
+$ curl http://123.57.10.233.xip.io/testapp
+Hello World
+```
 
