@@ -72,7 +72,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 	for _, td := range traitDefs.Items {
 		tmp, err := HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Annotations, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads)
 		if err != nil {
-			templateErrors = append(templateErrors, errors.Wrapf(err, "handle trait template `%s` failed", td.Name))
+			templateErrors = append(templateErrors, errors.Wrapf(err, "handle trait template `%s` failed\n", td.Name))
 			continue
 		}
 		if apiVersion, kind := cmdutil.GetAPIVersionKindFromTrait(td); apiVersion != "" && kind != "" {
@@ -86,14 +86,13 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 	return templates, templateErrors, nil
 }
 
-func HandleDefinition(name, syncDir, crdName string, annotation map[string]string, extention *runtime.RawExtension, tp types.CapType, applyTo []string) (types.Capability, error) {
+func HandleDefinition(name, syncDir, crdName string, annotation map[string]string, extension *runtime.RawExtension, tp types.CapType, applyTo []string) (types.Capability, error) {
 	var tmp types.Capability
-	tmp, err := HandleTemplate(extention, name, syncDir)
+	tmp, err := HandleTemplate(extension, name, syncDir)
 	if err != nil {
 		return types.Capability{}, err
 	}
 	tmp.Type = tp
-	tmp.Name = name
 	if tp == types.TypeTrait {
 		tmp.AppliesTo = applyTo
 	}
@@ -118,6 +117,7 @@ func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Capab
 	if err != nil {
 		return types.Capability{}, err
 	}
+	tmp.Name = name
 
 	var cueTemplate string
 	if tmp.CueTemplateURI != "" {

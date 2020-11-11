@@ -86,4 +86,8 @@ func TestGetParameter(t *testing.T) {
 		{Name: "enable", Default: false, Type: cue.BoolKind},
 		{Name: "fval", Default: 64.3, Type: cue.FloatKind},
 		{Name: "nval", Default: float64(0), Required: true, Type: cue.NumberKind}}, params)
+	params, err = GetParameters("testdata/workloads/empty.cue")
+	assert.NoError(t, err)
+	var exp []types.Parameter
+	assert.Equal(t, exp, params)
 }

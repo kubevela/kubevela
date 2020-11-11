@@ -31,16 +31,26 @@ func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.
 	}
 	var syncedTemplates []types.Capability
 
-	templates, _, err := plugins.GetWorkloadsFromCluster(ctx, types.DefaultOAMNS, c, dir, nil)
+	templates, templateErrors, err := plugins.GetWorkloadsFromCluster(ctx, types.DefaultOAMNS, c, dir, nil)
 	if err != nil {
 		return err
+	}
+	if len(templateErrors) > 0 {
+		for _, e := range templateErrors {
+			ioStreams.Infof("WARN: %v, you will unable to use this workload capability", e)
+		}
 	}
 	syncedTemplates = append(syncedTemplates, templates...)
 	plugins.SinkTemp2Local(templates, dir)
 
-	templates, _, err = plugins.GetTraitsFromCluster(ctx, types.DefaultOAMNS, c, dir, nil)
+	templates, templateErrors, err = plugins.GetTraitsFromCluster(ctx, types.DefaultOAMNS, c, dir, nil)
 	if err != nil {
 		return err
+	}
+	if len(templateErrors) > 0 {
+		for _, e := range templateErrors {
+			ioStreams.Infof("WARN: %v, you will unable to use this trait capability", e)
+		}
 	}
 	syncedTemplates = append(syncedTemplates, templates...)
 	plugins.SinkTemp2Local(templates, dir)

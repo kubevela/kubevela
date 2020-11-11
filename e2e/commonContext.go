@@ -132,8 +132,7 @@ var (
 			ginkgo.It("should sync capabilities from cluster before listing workload capabilities", func() {
 				output, err := Exec("vela workloads")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("Sync capabilities successfully"))
-				gomega.Expect(output).To(gomega.ContainSubstring("Listing workload capabilities"))
+				gomega.Expect(output).To(gomega.ContainSubstring("webservice"))
 			})
 		})
 	}
@@ -143,8 +142,9 @@ var (
 			ginkgo.It("should sync capabilities from cluster before listing trait capabilities", func() {
 				output, err := Exec("vela traits")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("Sync capabilities successfully"))
-				gomega.Expect(output).To(gomega.ContainSubstring("Listing trait capabilities"))
+				gomega.Expect(output).To(gomega.ContainSubstring("metric"))
+				gomega.Expect(output).To(gomega.ContainSubstring("rollout"))
+				gomega.Expect(output).To(gomega.ContainSubstring("route"))
 			})
 		})
 	}
