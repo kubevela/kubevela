@@ -1,65 +1,118 @@
 # Setting Rollout Strategy
 
-You could use rollout capability to rolling upgrade your app.
+The `rollout` section is used to configure rolling update policy for your app.
+
+Add rollout config under `express-server` along with the [`route` config](./set-rollout.md).
+
+As for convenience， the complete example would like as below:
+
+```yaml
+name: testapp
+services:
+  express-server:
+    type: webservice
+    image: oamdev/testapp:v1
+    port: 8080
+    rollout:
+      replica: 5
+      stepWeight: 20
+      interval: "30s"
+    route:
+      domain: example.com
+```
+
+Apply this `appfile.yaml`:
+
+```bash
+$ vela up
+```
+
+
+You could use rollout capability to 
 
 The workflow will like below:
 
 Firstly, deploy your app by:
 
-```shell script
+```bash
 $ vela svc deploy testapp -t webservice --image oamdev/testapp:v1 --port 8080
 App testapp deployed
 ```
 
-Add route for visit:
+You could check the status by:
 
-```shell script
-$ vela route testapp --domain myhost.com
-Adding route for app testapp
-⠋ Checking Status ...
-✅ Application Deployed Successfully!
+```bash
+$ vela status testapp
+About:
+
+  Name:      	testapp
+  Namespace: 	myenv
+  Created at:	2020-11-09 17:34:38.064006 +0800 CST
+  Updated at:	2020-11-10 17:05:53.903168 +0800 CST
+
+Services:
+
   - Name: testapp
     Type: webservice
-    HEALTHY Ready: 1/1
+    HEALTHY Ready: 5/5
     Traits:
-      - ✅ route: 	Visiting URL: http://myhost.com	IP: <your-ingress-IP-address>
+      - ✅ rollout: interval=5s
+		replica=5
+		stepWeight=20
+      - ✅ route: 	Visiting URL: http://example.com	IP: <your-ingress-IP-address>
 
     Last Deployment:
-      Created at: 2020-11-09 12:50:30 +0800 CST
-      Updated at: 2020-11-09T12:51:19+08:00
+      Created at: 2020-11-09 17:34:38 +0800 CST
+      Updated at: 2020-11-10T17:05:53+08:00
 ```
 
+Visiting this app by:
+
 ```shell script
-$ curl -H "Host:myhost.com" http://<your-ingress-IP-address>/
+$ curl -H "Host:example.com" http://<your-ingress-IP-address>/
 Hello World%
 ```
 
-Secondly, add rollout policy for your app:
+In day 2, assuming we have make some changes on our app and build the new image and name it by `oamdev/testapp:v2`.
 
-```shell script
-vela rollout testapp --replica 5 --step-weight 20 --interval 5s
+Let's update the appfile by:
+
+```yaml
+name: testapp
+services:
+  express-server:
+    type: webservice
+-   image: oamdev/testapp:v1
++   image: oamdev/testapp:v2
+    port: 8080
+    rollout:
+      replica: 5
+      stepWeight: 20
+      interval: "30s"
+    route:
+      domain: example.com
 ```
 
-Then update your app by:
+Apply this `appfile.yaml` again:
 
-```shell script
-vela svc deploy testapp -t webservice --image oamdev/testapp:v2 --port 8080
+```bash
+$ vela up
 ```
 
 Then it will rolling update your instance, you could try `curl` your app multiple times:
 
 ```shell script
-$ curl -H "Host:myhost.com" http://39.97.232.19/
+$ curl -H "Host:example.com" http://<your-ingress-ip-address>/
 Hello World  -- Updated Version Two!%                                         
-$ curl -H "Host:myhost.com" http://39.97.232.19/
+$ curl -H "Host:example.com" http://<your-ingress-ip-address>/
 Hello World%                                                                  
-$ curl -H "Host:myhost.com" http://39.97.232.19/
+$ curl -H "Host:example.com" http://<your-ingress-ip-address>/
 Hello World%                                                                  
-$ curl -H "Host:myhost.com" http://39.97.232.19/
+$ curl -H "Host:example.com" http://<your-ingress-ip-address>/
 Hello World  -- Updated Version Two!%                                         
-$ curl -H "Host:myhost.com" http://39.97.232.19/
+$ curl -H "Host:example.com" http://<your-ingress-ip-address>/
 Hello World%                                                                  
-$ curl -H "Host:myhost.com" http://39.97.232.19/
+$ curl -H "Host:example.com" http://<your-ingress-ip-address>/
 Hello World  -- Updated Version Two!%
 ``` 
 
