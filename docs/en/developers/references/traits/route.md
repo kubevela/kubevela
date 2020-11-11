@@ -4,8 +4,8 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**Domain** | **string** |  | [default to ]
-**Issuer** | **string** |  | [default to ]
+**Domain** | **string** | specify your host url for this app | [ default to (empty) ]
+**Issuer** | **string** | specify your certificate issue  | [default to no tls]
 **Rules** | [**[]RouteRules**](#routerules) |  | [optional] 
 
 
@@ -13,5 +13,5 @@ Name | Type | Description | Notes
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**Path** | **string** |  | 
-**RewriteTarget** | **string** |  | [default to ]
+**Path** | **string** |  | [ default to (empty) ]
+**RewriteTarget** | **string** |  | [ default to (empty) ]

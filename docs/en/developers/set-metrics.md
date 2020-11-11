@@ -33,7 +33,7 @@ If more than one ports found, it will choose the first one by default.
 
 ## Verify that the metrics are collected on prometheus
 
-```shell script
+```bash
 kubectl --namespace monitoring port-forward `k -n monitoring get pods -l prometheus=oam -o name` 9090
 ```
 
