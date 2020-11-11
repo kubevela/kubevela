@@ -1,6 +1,0 @@
-dependencies:
-- name: oam-kubernetes-runtime
-  repository: https://charts.crossplane.io/alpha
-  version: 0.2.2
-digest: sha256:c719dbcb1845241851f2b55ada9975b862885c1cecd5bae19e6b5339291fc81b
-generated: "2020-10-10T01:47:45.31055709Z"
