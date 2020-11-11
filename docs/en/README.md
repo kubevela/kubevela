@@ -1,4 +1,4 @@
-![alt](resources/KubeVela-03.png)
+![alt](../resources/KubeVela-03.png)
 
 *Make shipping applications more enjoyable.*
 
