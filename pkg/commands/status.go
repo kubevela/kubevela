@@ -90,7 +90,8 @@ var (
 	// nolint
 	emojiTimeout   = emoji.Sprint(":heavy_exclamation_mark:")
 	emojiLightBulb = emoji.Sprint(":light_bulb:")
-	emojiWait      = emoji.Sprint(":hourglass:")
+	// nolint
+	emojiWait = emoji.Sprint(":hourglass:")
 )
 
 const (

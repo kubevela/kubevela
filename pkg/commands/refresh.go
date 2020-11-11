@@ -23,15 +23,14 @@ const (
 )
 
 func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, silentOutput bool) error {
-	ioStreams.Infof("Synchronizing capabilities from cluster%s...\n", emojiWait)
 	dir, _ := system.GetCapabilityDir()
 
 	oldCaps, err := plugins.LoadAllInstalledCapability()
 	if err != nil {
 		return err
 	}
-	syncedTemplates := []types.Capability{}
-	//TODO show errors of handling templates
+	var syncedTemplates []types.Capability
+
 	templates, _, err := plugins.GetWorkloadsFromCluster(ctx, types.DefaultOAMNS, c, dir, nil)
 	if err != nil {
 		return err
@@ -39,7 +38,6 @@ func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.
 	syncedTemplates = append(syncedTemplates, templates...)
 	plugins.SinkTemp2Local(templates, dir)
 
-	//TODO show errors of handling templates
 	templates, _, err = plugins.GetTraitsFromCluster(ctx, types.DefaultOAMNS, c, dir, nil)
 	if err != nil {
 		return err
@@ -71,14 +69,14 @@ func printRefreshReport(newCaps, oldCaps []types.Capability, io cmdutil.IOStream
 				table.AddRow(cap.Name, cap.Type, cap.Description)
 			}
 		}
-		io.Infof("Sync capabilities successfully %s(no changes)\n", emojiSucceed)
 		if !silent {
+			io.Infof("Automatically discover capabilities successfully %s(no changes)\n", emojiSucceed)
 			io.Info(table.String())
 		}
 		return
 	}
 
-	io.Infof("Sync capabilities successfully %sAdd(%s) Update(%s) Delete(%s)\n",
+	io.Infof("Automatically discover capabilities successfully %sAdd(%s) Update(%s) Delete(%s)\n",
 		emojiSucceed,
 		green.Sprint(len(report[added])),
 		yellow.Sprint(len(report[updated])),

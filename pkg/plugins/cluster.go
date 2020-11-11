@@ -42,16 +42,16 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Cli
 		return nil, nil, fmt.Errorf("list WorkloadDefinition err: %s", err)
 	}
 
-	templateErrors := []error{}
+	var templateErrors []error
 	for _, wd := range workloadDefs.Items {
 		tmp, err := HandleDefinition(wd.Name, syncDir, wd.Spec.Reference.Name, wd.Annotations, wd.Spec.Extension, types.TypeWorkload, nil)
 		if err != nil {
 			templateErrors = append(templateErrors, errors.Wrapf(err, "handle workload template `%s` failed", wd.Name))
 			continue
 		}
-		if apiVerion, kind := cmdutil.GetAPIVersionKindFromWorkload(wd); apiVerion != "" && kind != "" {
+		if apiVersion, kind := cmdutil.GetAPIVersionKindFromWorkload(wd); apiVersion != "" && kind != "" {
 			tmp.CrdInfo = &types.CrdInfo{
-				APIVersion: apiVerion,
+				APIVersion: apiVersion,
 				Kind:       kind,
 			}
 		}
@@ -68,16 +68,16 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 		return nil, nil, fmt.Errorf("list TraitDefinition err: %s", err)
 	}
 
-	templateErrors := []error{}
+	var templateErrors []error
 	for _, td := range traitDefs.Items {
 		tmp, err := HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Annotations, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads)
 		if err != nil {
 			templateErrors = append(templateErrors, errors.Wrapf(err, "handle trait template `%s` failed", td.Name))
 			continue
 		}
-		if apiVerion, kind := cmdutil.GetAPIVersionKindFromTrait(td); apiVerion != "" && kind != "" {
+		if apiVersion, kind := cmdutil.GetAPIVersionKindFromTrait(td); apiVersion != "" && kind != "" {
 			tmp.CrdInfo = &types.CrdInfo{
-				APIVersion: apiVerion,
+				APIVersion: apiVersion,
 				Kind:       kind,
 			}
 		}
