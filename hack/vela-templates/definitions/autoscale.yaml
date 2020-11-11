@@ -8,8 +8,6 @@ spec:
   appliesToWorkloads:
     - webservice
     - backend
-    - deployments.apps
-    - podspecworkload
   workloadRefPath: spec.workloadRef
   definitionRef:
     name: autoscalers.standard.oam.dev

@@ -8,26 +8,26 @@ spec:
   appliesToWorkloads:
     - webservice
     - backend
-    - deployments.apps
-    - podspecworkload
   workloadRefPath: spec.workloadRef
   definitionRef:
     name: autoscalers.standard.oam.dev
   extension:
     template: |
+      import "strconv"
+      
       output: {
       	apiVersion: "standard.oam.dev/v1alpha1"
       	kind:       "Autoscaler"
       	spec: {
       		minReplicas: parameter.min
       		maxReplicas: parameter.max
-      		if parameter["cpu"] != _|_ && parameter["cron"] != _|_ {
+      		if parameter["cpuPercent"] != _|_ && parameter["cron"] != _|_ {
       			triggers: [cpuScaler, cronScaler]
       		}
-      		if parameter["cpu"] != _|_ && parameter["cron"] == _|_ {
+      		if parameter["cpuPercent"] != _|_ && parameter["cron"] == _|_ {
       			triggers: [cpuScaler]
       		}
-      		if parameter["cpu"] == _|_ && parameter["cron"] != _|_ {
+      		if parameter["cpuPercent"] == _|_ && parameter["cron"] != _|_ {
       			triggers: [cronScaler]
       		}
       	}
@@ -37,16 +37,22 @@ spec:
       	type: "cpu"
       	condition: {
       		type: "Utilization"
-      		if parameter["cpu"] != _|_ {
-      			value: parameter.cpu
+      		if parameter["cpuPercent"] != _|_ {
+      			value: strconv.FormatInt(parameter.cpuPercent, 10)
       		}
       	}
       }
       
       cronScaler: {
       	type: "cron"
-      	if parameter["cron"] != _|_ {
-      		condition: parameter.cron
+      	if parameter["cron"] != _|_ && parameter.cron["replicas"] != _|_ {
+      		condition: {
+      			startAt:  parameter.cron.startAt
+      			duration: parameter.cron.duration
+      			days:     parameter.cron.days
+      			replicas: strconv.FormatInt(parameter.cron.replicas, 10)
+      			timezone: parameter.cron.timezone
+      		}
       	}
       }
       
@@ -56,15 +62,19 @@ spec:
       	// +usage=maximal replicas of the workload
       	max: int
       	// +usage=specify the value for CPU utilization, like 80, which means 80%
-      	cpu?: string
+      	// +alias=cpu-percent
+      	cpuPercent?: int
       	// +usage=just for `appfile`, not available for Cli usage
       	cron?: {
-      		startAt:  string
+      		// +usage=the time to start scaling, like `08:00`
+      		startAt: string
+      		// +usage=for how long the scaling will last
       		duration: string
       		// +usage=several workdays or weekends, like "Monday, Tuesday"
-      		days:     string
-      		replicas: string
-      		// +usage=timezone, like "America/Seattle"
+      		days: string
+      		// +usage=the target replicas to be scaled to
+      		replicas: int
+      		// +usage=timezone, like "America/Los_Angeles"
       		timezone: string
       	}
       }

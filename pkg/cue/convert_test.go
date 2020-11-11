@@ -73,7 +73,7 @@ func TestGetParameter(t *testing.T) {
 		{Name: "image", Short: "i", Required: true, Usage: "Which image would you like to use for your service", Default: "", Type: cue.StringKind},
 		{Name: "port", Short: "p", Required: false, Usage: "Which port do you want customer traffic sent to", Default: int64(8080),
 			Type: cue.IntKind},
-		{Name: "cpuRequests", Short: "", Required: false, Usage: "", Default: "", Type: cue.StringKind}},
+		{Name: "cpu", Short: "", Required: false, Usage: "", Default: "", Type: cue.StringKind}},
 		params)
 
 	params, err = GetParameters("testdata/workloads/test-param.cue")
