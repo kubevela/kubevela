@@ -1,8 +1,8 @@
 # Managing Capabilities
 
-This tutorial talks about how to install capabilities (caps) from remote centers.
+Developers can install more capabilities (workload types and traits) from any GitHub repo that contains OAM definition objects (i.e. capability center).
 
-## Add Cap Center
+## Add Capability Center
 
 Add and sync a remote center:
 
@@ -16,7 +16,7 @@ successfully sync 1/1 from my-center remote center
 sync finished
 ```
 
-## List Cap Centers
+## List Capability Centers
 
 ```bash
 $ vela cap center ls
@@ -30,7 +30,7 @@ my-center	https://github.com/oam-dev/catalog/tree/master/registry
 $ vela cap center remove my-center
 ```
 
-## List Caps
+## List Capabilities
 
 ```bash
 $ vela cap ls my-center
@@ -38,7 +38,7 @@ NAME     	CENTER   	TYPE 	DEFINITION                  	STATUS     	APPLIES-TO
 kubewatch	my-center	trait	kubewatches.labs.bitnami.com	uninstalled	[]
 ```
 
-## Install Cap
+## Install Capability
 
 ```bash
 $ vela cap install my-center/kubewatch
@@ -61,7 +61,7 @@ kubewatch 	trait   	Add a watch for resource
 ...
 ```
 
-## Uninstall Cap
+## Uninstall Capability
 
 > Note: make sure no apps are using the capability before uninstalling.
 
