@@ -68,7 +68,7 @@ Services:
 
 Visiting this app by:
 
-```shell script
+```bash
 $ curl -H "Host:example.com" http://<your-ingress-IP-address>/
 Hello World%
 ```
@@ -101,7 +101,7 @@ $ vela up
 
 Then it will rolling update your instance, you could try `curl` your app multiple times:
 
-```shell script
+```bash
 $ curl -H "Host:example.com" http://<your-ingress-ip-address>/
 Hello World  -- Updated Version Two!%                                         
 $ curl -H "Host:example.com" http://<your-ingress-ip-address>/
@@ -121,7 +121,7 @@ It will return both version of output info as both instances are all existing.
 <details>
   <summary>Under the hood, it was flagger canary running.</summary>
 
-```shell script
+```bash
 $ kubectl get canaries.flagger.app testapp-trait-76fc76fddc -w
 NAME                       STATUS        WEIGHT   LASTTRANSITIONTIME
 testapp-trait-76fc76fddc   Progressing   0        2020-11-10T09:06:10Z
