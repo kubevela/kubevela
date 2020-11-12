@@ -403,8 +403,8 @@ func getApp(ctx context.Context, c client.Client, compName, appName string, env 
 		return nil, nil, err
 	}
 
-	appConfig := &v1alpha2.ApplicationConfiguration{}
-	if err = c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: app.Name}, appConfig); err != nil {
+	appConfig, err := application.GetAppConfig(ctx, c, app, env)
+	if err != nil {
 		return nil, nil, err
 	}
 	return app, appConfig, nil
