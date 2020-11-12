@@ -73,8 +73,7 @@ Hello World
 
 Congratulations! You have just deployed an app using KubeVela. Here are some recommended next steps:
 
-- Learn about the project's [motivation](./introduction.md) and [architecture](./design.md)
-- Try out more [tutorials](./developers/devex/appfile.md)
+- Try out more [tutorials](developers/learn-appfile.md)
 - Join our community [Slack](https://cloud-native.slack.com/archives/C01BLQ3HTJA) and/or [Gitter](https://gitter.im/oam-dev/community)
 
 Welcome onboard and sail Vela!

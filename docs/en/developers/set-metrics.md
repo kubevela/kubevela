@@ -1,7 +1,6 @@
 # Monitoring Application
 
-If your application has exposed metrics, you can easily setup monitoring system
-with the help of `metric` capability.
+If your application has exposed metrics, you can easily tell the platform how to collect the metrics data from your app with `metric` capability.
 
 Let's run [`christianhxc/gorandom:1.0`](https://github.com/christianhxc/prometheus-tutorial) as an example app.
 The app will emit random latencies as metrics.
@@ -60,12 +59,18 @@ The metrics trait will automatically discover port and label to monitor if no pa
 If more than one ports found, it will choose the first one by default.
 
 
-## Verify that the metrics are collected on prometheus
+**(Optional) Verify that the metrics are collected on Prometheus**
 
+<details>
+
+Expose the port of Prometheus dashboard:
+  
 ```bash
 kubectl --namespace monitoring port-forward `kubectl -n monitoring get pods -l prometheus=oam -o name` 9090
 ```
 
-Then access the prometheus dashboard via http://localhost:9090/targets
+Then access the Prometheus dashboard via http://localhost:9090/targets
 
-![Image of Prometheus Dashboard](../../resources/metrics.jpg)
+![Prometheus Dashboard](../../resources/metrics.jpg)
+
+</details>

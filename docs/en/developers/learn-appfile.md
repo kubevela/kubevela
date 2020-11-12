@@ -6,7 +6,8 @@ In this tutorial, we will build and deploy an example NodeJS app under [examples
 
 ## Prerequisites
 
-- [docker](https://docs.docker.com/get-docker/) installed on the host
+- [Docker](https://docs.docker.com/get-docker/) installed on the host
+- [KubeVela](../install.md) installed and configured
 
 ## 1. Download test app code
 
@@ -24,7 +25,7 @@ The example contains NodeJS app code, Dockerfile to build the app.
 In the directory there is a [vela.yaml](https://github.com/oam-dev/kubevela/tree/master/docs/examples/testapp/vela.yaml) which follows Appfile format supported by Vela.
 We are going to use it to build and deploy the app.
 
-**ATTENTION**: change the image field in vela.yaml to something you can push to:
+> NOTE: please change `oamdev` to your own registry account so you can push. Or, you could try the alternative approach in `Local testing without pushing image remotely` section.
 
 ```yaml
     image: oamdev/testapp:v1 # change this to your image
@@ -67,10 +68,10 @@ Check the status of the service:
 $ vela status testapp
   About:
   
-    Name:      	testapp
-    Namespace: 	default
-    Created at:	2020-11-02 11:08:32.138484 +0800 CST
-    Updated at:	2020-11-02 11:08:32.138485 +0800 CST
+    Name:       testapp
+    Namespace:  default
+    Created at: 2020-11-02 11:08:32.138484 +0800 CST
+    Updated at: 2020-11-02 11:08:32.138485 +0800 CST
   
   Services:
   
@@ -86,7 +87,7 @@ $ vela status testapp
 
 ### Alternative: Local testing without pushing image remotely
 
-If you have local [kind](../../install.md#kind) cluster running, you may try the local push option without pushing image remotely.
+If you have local [kind](../install.md) cluster running, you may try the local push option. No remote container registry is needed in this case.
 
 Add local option to `build`:
 
@@ -146,13 +147,12 @@ spec:
 
 ## [Optional] Configure another workload type
 
-By now we have deployed a *webservice* workload. We can also add a *task* workload in appfile:
-
-> Below is a simplified [k8s job example](https://kubernetes.io/docs/concepts/workloads/controllers/job/#running-an-example-job) using Vela:
+By now we have deployed a *[Web Service](references/workload-types/webservice.md)*. We can also add another service of *[Task](references/workload-types/task.md)* type in the same app:
 
 ```yaml
 services:
   pi:
+    type: task
     image: perl 
     cmd: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
 
@@ -160,25 +160,20 @@ services:
     ...
 ```
 
-Then deploy appfile again to update the application:
+Then deploy Appfile again to update the application:
 
 ```bash
 $ vela up
 ```
 
-> Interested in the design of Appfile? A detailed design doc could be found [here](https://github.com/oam-dev/kubevela/blob/master/design/vela-core/appfile-design.md).
+> Interested in the more details of Appfile? [Learn Full Schema of Appfile](references/devex/appfile.md)
 
 ## What's Next?
 
 Congratulations! You have just deployed an app using Vela.
 
-Here are some next steps that you can have more play with your app:
+Some tips that you can have more play with your app:
+- [Check Application Logs](./check-logs.md)
+- [Execute Commands in Application Container](./exec-cmd.md)
+- [Access Application via Route](./port-forward.md)
 
-- [Check Application Logs](../check-logs.md)
-- [Execute Commands in Container](../exec-cmd.md)
-- [Port Forward to Container](../port-forward.md)
-
-
-## References
-
-For more configuration options of built-in capabilities, check [references](../references/README.md)

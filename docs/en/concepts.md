@@ -22,7 +22,7 @@ A service represents the runtime configurations (i.e., workload type and traits)
 ## Application
 An application in KubeVela is a collection of services which describes what a developer tries to build and ship from high level. An example could be an "website" application which is composed of two services "frontend" and "backend", or a "wordpress" application which is composed of "php-server" and "database".
 
-An application is defined by an `Appfile` (named `vela.yaml` by default) in KubeVela.
+An application is defined by an `Appfile` (named `vela.yaml` by default) in KubeVela. Please check its full schema in the [Appfile reference documentation](developers/references/devex/appfile.md).
 
 ## Environment
 Before releasing an application to production, it's important to test the code in testing/staging workspaces. In KubeVela, we describe these workspaces as "deployment environments" or "environments" for short. Each environment has its own configuration (e.g., domain, Kubernetes namespace, configuration data, access control policy etc.) to allow user to create different deployment environments such as "test" and "production".

@@ -16,13 +16,15 @@ servcies:
           rewriteTarget: /
 ```
 
+> The full specification of `route` could be found [here](references/traits/route.md)
+
 Apply again:
 
 ```bash
 $ vela up
 ```
 
-Check the status until we see route trait ready:
+Check the status until we see route is ready:
 ```bash
 $ vela status testapp
 About:
