@@ -1,0 +1,35 @@
+output: {
+	apiVersion: "flagger.app/v1beta1"
+	kind:       "Canary"
+	spec: {
+		provider:                "smi"
+		progressDeadlineSeconds: 60
+		service: {
+			// Currently Traffic route is not supported, but this is required field for flagger CRD
+			port: 80
+			// Currently Traffic route is not supported, but this is required field for flagger CRD
+			targetPort: 8080
+		}
+		analysis: {
+			interval: parameter.interval
+			// max number of failed metric checks before rollback
+			threshold: 10
+			// max traffic percentage routed to canary
+			// percentage (0-100)
+			maxWeight: 50
+			// canary increment step
+			// percentage (0-100)
+			stepWeight: parameter.stepWeight
+			// max replicas scale up to canary
+			maxReplicas: parameter.replica
+		}
+	}
+}
+parameter: {
+	// +usage=total replica of the workload
+	replica: *5 | int
+	// +alias=step-weight
+	// +usage=weight percent of every step in rolling update
+	stepWeight: *20 | int
+	interval:   *"30s" | string
+}

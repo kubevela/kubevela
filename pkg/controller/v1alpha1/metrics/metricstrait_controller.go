@@ -55,16 +55,19 @@ var (
 )
 
 var (
-	// oamServiceLabel is the pre-defined labels for any serviceMonitor
-	// created by the MetricsTrait,  prometheus operator listens on this
-	oamServiceLabel = map[string]string{
-		"k8s-app":    "oam",
-		"controller": "metricsTrait",
-	}
 	// ServiceMonitorNSName is the name of the namespace in which the serviceMonitor resides
 	// it must be the same that the prometheus operator is listening to
 	ServiceMonitorNSName = "monitoring"
 )
+
+// GetOAMServiceLabel will return oamServiceLabel as the pre-defined labels for any serviceMonitor
+// created by the MetricsTrait,  prometheus operator listens on this
+func GetOAMServiceLabel() map[string]string {
+	return map[string]string{
+		"k8s-app":    "oam",
+		"controller": "metricsTrait",
+	}
+}
 
 // Reconciler reconciles a MetricsTrait object
 type Reconciler struct {
@@ -200,7 +203,7 @@ func (r *Reconciler) createService(ctx context.Context, mLog logr.Logger, worklo
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "oam-" + workload.GetName(),
 			Namespace: workload.GetNamespace(),
-			Labels:    oamServiceLabel,
+			Labels:    GetOAMServiceLabel(),
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         metricsTrait.GetObjectKind().GroupVersionKind().GroupVersion().String(),
@@ -291,7 +294,7 @@ func constructServiceMonitor(metricsTrait *v1alpha1.MetricsTrait, targetPort int
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      metricsTrait.Name,
 			Namespace: ServiceMonitorNSName,
-			Labels:    oamServiceLabel,
+			Labels:    GetOAMServiceLabel(),
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         metricsTrait.GetObjectKind().GroupVersionKind().GroupVersion().String(),
@@ -305,7 +308,7 @@ func constructServiceMonitor(metricsTrait *v1alpha1.MetricsTrait, targetPort int
 		},
 		Spec: monitoring.ServiceMonitorSpec{
 			Selector: metav1.LabelSelector{
-				MatchLabels: oamServiceLabel,
+				MatchLabels: GetOAMServiceLabel(),
 			},
 			// we assumed that the service is in the same namespace as the trait
 			NamespaceSelector: monitoring.NamespaceSelector{

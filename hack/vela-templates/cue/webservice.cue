@@ -1,10 +1,7 @@
 output: {
 	apiVersion: "apps/v1"
 	kind:       "Deployment"
-	metadata: name: context.name
 	spec: {
-		replicas: 1
-
 		selector: matchLabels: {
 			"app.oam.dev/component": context.name
 		}
@@ -39,21 +36,30 @@ output: {
 					ports: [{
 						containerPort: parameter.port
 					}]
+
+					if parameter["cpuRequests"] != _|_ {
+						resources: {
+							limits:
+								cpu: parameter.cpuRequests
+							requests:
+								cpu: parameter.cpuRequests
+						}
+					}
 				}]
-			}
+		}
 		}
 	}
 }
 parameter: {
-	// +usage=specify app image
+	// +usage=Which image would you like to use for your service
 	// +short=i
 	image: string
 
 	cmd?: [...string]
 
-	// +usage=specify port for container
+	// +usage=Which port do you want customer traffic sent to
 	// +short=p
-	port: *6379 | int
+	port: *80 | int
 
 	env?: [...{
 		name:   string
@@ -65,4 +71,7 @@ parameter: {
 			}
 		}
 	}]
+	// +usage=CPU core requests for the workload, specify like '0.5', '1'.
+	// +alias=cpu-requests
+	cpuRequests?: string
 }

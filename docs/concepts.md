@@ -1,1 +1,0 @@
-<!-- Glossaries in KubeVela-->

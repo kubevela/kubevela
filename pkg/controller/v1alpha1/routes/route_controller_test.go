@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
+
 	"github.com/oam-dev/kubevela/api/v1alpha1"
 
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
@@ -134,7 +136,7 @@ var _ = Describe("Route Trait Integration Test", func() {
 									"kind":       "Route",
 									"metadata": map[string]interface{}{
 										"labels": map[string]interface{}{
-											"trait.oam.dev/type": "route",
+											oam.TraitTypeLabel: "route",
 										},
 									},
 									"spec": map[string]interface{}{
@@ -284,7 +286,7 @@ var _ = Describe("Route Trait Integration Test", func() {
 	})
 	It("Test with podSpecPath specified using deploy workload", func() {
 		compName := "test-deploy"
-		comp, workloadLabel, _ := getComponent("deploy", compName)
+		comp, _, _ := getComponent("deploy", compName)
 		ac := getAC(compName)
 		Expect(k8sClient.Create(ctx, &comp)).ToNot(HaveOccurred())
 		Expect(k8sClient.Create(ctx, &ac)).ToNot(HaveOccurred())
@@ -343,7 +345,7 @@ var _ = Describe("Route Trait Integration Test", func() {
 			},
 			time.Second*30, time.Millisecond*500).Should(BeNil())
 		logf.Log.Info("[TEST] Get the created service", "service ports", createdSvc.Spec.Ports)
-		for k, v := range workloadLabel {
+		for k, v := range map[string]string{"app.oam.dev/component": compName, "app.oam.dev/name": "test-app-" + compName} {
 			Expect(createdSvc.Spec.Selector).Should(HaveKeyWithValue(k, v))
 		}
 		Expect(createdSvc.Spec.Ports[0].TargetPort.IntVal).Should(Equal(int32(podPort)))

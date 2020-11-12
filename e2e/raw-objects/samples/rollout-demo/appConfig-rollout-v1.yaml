@@ -15,7 +15,6 @@ spec:
               provider: smi
               progressDeadlineSeconds: 60
               service:
-                name: rollout-demo-app
                 # ClusterIP port number
                 port: 80
                 # container port number or name

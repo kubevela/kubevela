@@ -34,28 +34,6 @@ var (
 		})
 	}
 
-	SystemUpdateContext = func(context string) bool {
-		return ginkgo.Context(context, func() {
-			ginkgo.It("Synchronize workload/trait definitions from cluster", func() {
-				output, err := Exec("vela system update")
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("workload definitions successfully synced"))
-				gomega.Expect(output).To(gomega.ContainSubstring("trait definitions successfully synced"))
-			})
-		})
-	}
-
-	// RefreshContext used for test vela system update
-	RefreshContext = func(context string) bool {
-		return ginkgo.Context(context, func() {
-			ginkgo.It("Sync commands from your Kubernetes cluster and locally cached them", func() {
-				output, err := Exec("vela system update")
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("Synchronizing capabilities from cluster"))
-			})
-		})
-	}
-
 	// EnvInitContext used for test Env
 	EnvInitContext = func(context string, envName string) bool {
 		return ginkgo.Context(context, func() {
@@ -154,8 +132,7 @@ var (
 			ginkgo.It("should sync capabilities from cluster before listing workload capabilities", func() {
 				output, err := Exec("vela workloads")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("Sync capabilities successfully"))
-				gomega.Expect(output).To(gomega.ContainSubstring("Listing workload capabilities"))
+				gomega.Expect(output).To(gomega.ContainSubstring("webservice"))
 			})
 		})
 	}
@@ -165,8 +142,9 @@ var (
 			ginkgo.It("should sync capabilities from cluster before listing trait capabilities", func() {
 				output, err := Exec("vela traits")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("Sync capabilities successfully"))
-				gomega.Expect(output).To(gomega.ContainSubstring("Listing trait capabilities"))
+				gomega.Expect(output).To(gomega.ContainSubstring("metric"))
+				gomega.Expect(output).To(gomega.ContainSubstring("rollout"))
+				gomega.Expect(output).To(gomega.ContainSubstring("route"))
 			})
 		})
 	}
@@ -300,12 +278,16 @@ var (
 							a: "mysvc",
 						},
 						{
-							q: "specify app image ",
+							q: "Which image would you like to use for your service ",
 							a: "nginx:latest",
 						},
 						{
-							q: "specify port for container ",
+							q: "Which port do you want customer traffic sent to ",
 							a: "8080",
+						},
+						{
+							q: "CPU core requests for the workload, specify like '0.5', '1'. (optional):",
+							a: "0.5",
 						},
 					}
 					for _, qa := range data {

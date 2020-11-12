@@ -21,15 +21,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/oam-dev/kubevela/pkg/controller/v1alpha1/podspecworkload"
-
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
-
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/controller"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/controller/v1alpha2/applicationconfiguration"
-
 	oamCore "github.com/crossplane/oam-kubernetes-runtime/apis/core"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/controller"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/controller/v1alpha2/applicationconfiguration"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
@@ -45,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	standardv1alpha1 "github.com/oam-dev/kubevela/api/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/v1alpha1/podspecworkload"
 	// +kubebuilder:scaffold:imports
 )
 

@@ -10,7 +10,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 
-	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -23,60 +22,46 @@ const (
 	deleted   refreshStatus = "Deleted"
 )
 
-func NewRefreshCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	ctx := context.Background()
-	cmd := &cobra.Command{
-		Use:                   "update",
-		DisableFlagsInUseLine: true,
-		Short:                 "Sync definition from cluster",
-		Long:                  "Refresh and sync definition files from cluster",
-		Example:               `vela system update`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
-			if err != nil {
-				return err
-			}
-			return RefreshDefinitions(ctx, newClient, ioStreams)
-		},
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeSystem,
-		},
-	}
-	cmd.SetOut(ioStreams.Out)
-	return cmd
-}
-
-func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams) error {
-	ioStreams.Infof("Synchronizing capabilities from cluster%s...\n", emojiWait)
+func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, silentOutput bool) error {
 	dir, _ := system.GetCapabilityDir()
 
 	oldCaps, err := plugins.LoadAllInstalledCapability()
 	if err != nil {
 		return err
 	}
-	syncedTemplates := []types.Capability{}
-	//TODO show errors of handling templates
-	templates, _, err := plugins.GetWorkloadsFromCluster(ctx, types.DefaultOAMNS, c, dir, nil)
+	var syncedTemplates []types.Capability
+
+	templates, templateErrors, err := plugins.GetWorkloadsFromCluster(ctx, types.DefaultOAMNS, c, dir, nil)
 	if err != nil {
 		return err
+	}
+	if len(templateErrors) > 0 {
+		for _, e := range templateErrors {
+			ioStreams.Infof("WARN: %v, you will unable to use this workload capability", e)
+		}
 	}
 	syncedTemplates = append(syncedTemplates, templates...)
 	plugins.SinkTemp2Local(templates, dir)
 
-	//TODO show errors of handling templates
-	templates, _, err = plugins.GetTraitsFromCluster(ctx, types.DefaultOAMNS, c, dir, nil)
+	templates, templateErrors, err = plugins.GetTraitsFromCluster(ctx, types.DefaultOAMNS, c, dir, nil)
 	if err != nil {
 		return err
+	}
+	if len(templateErrors) > 0 {
+		for _, e := range templateErrors {
+			ioStreams.Infof("WARN: %v, you will unable to use this trait capability", e)
+		}
 	}
 	syncedTemplates = append(syncedTemplates, templates...)
 	plugins.SinkTemp2Local(templates, dir)
 	plugins.RemoveLegacyTemps(syncedTemplates, dir)
 
-	printRefreshReport(syncedTemplates, oldCaps, ioStreams)
+	printRefreshReport(syncedTemplates, oldCaps, ioStreams, silentOutput)
 	return nil
 }
 
-func printRefreshReport(newCaps, oldCaps []types.Capability, io cmdutil.IOStreams) {
+// silent indicates whether output existing caps if no change occurs. If false, output all existing caps.
+func printRefreshReport(newCaps, oldCaps []types.Capability, io cmdutil.IOStreams, silent bool) {
 	report := refreshResultReport(newCaps, oldCaps)
 	table := uitable.New()
 	table.AddRow("TYPE", "CATEGORY", "DESCRIPTION")
@@ -94,12 +79,14 @@ func printRefreshReport(newCaps, oldCaps []types.Capability, io cmdutil.IOStream
 				table.AddRow(cap.Name, cap.Type, cap.Description)
 			}
 		}
-		io.Infof("Sync capabilities successfully %s(no changes)\n", emojiSucceed)
-		io.Info(table.String())
+		if !silent {
+			io.Infof("Automatically discover capabilities successfully %s(no changes)\n", emojiSucceed)
+			io.Info(table.String())
+		}
 		return
 	}
 
-	io.Infof("Sync capabilities successfully %sAdd(%s) Update(%s) Delete(%s)\n",
+	io.Infof("Automatically discover capabilities successfully %sAdd(%s) Update(%s) Delete(%s)\n",
 		emojiSucceed,
 		green.Sprint(len(report[added])),
 		yellow.Sprint(len(report[updated])),

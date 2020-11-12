@@ -64,12 +64,12 @@ func (app *AppFile) BuildOAM(ns string, io cmdutil.IOStreams, tm template.Manage
 }
 
 // RenderOAM renders Appfile into AppConfig, Components.
-func (app *AppFile) RenderOAM(ns string, io cmdutil.IOStreams, tm template.Manager, slience bool) (
+func (app *AppFile) RenderOAM(ns string, io cmdutil.IOStreams, tm template.Manager, silence bool) (
 	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
-	return app.buildOAM(ns, io, false, tm, slience)
+	return app.buildOAM(ns, io, false, tm, silence)
 }
 
-func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, buildImage bool, tm template.Manager, slience bool) (
+func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, buildImage bool, tm template.Manager, silence bool) (
 	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
 
 	appConfig := &v1alpha2.ApplicationConfiguration{
@@ -99,7 +99,7 @@ func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, buildImage bool, t
 				}
 			}
 		}
-		if !slience {
+		if !silence {
 			io.Infof("\nRendering configs for service (%s)...\n", sname)
 		}
 		acComp, comp, err := svc.RenderService(tm, sname, ns, app.configGetter)

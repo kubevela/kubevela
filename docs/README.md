@@ -1,33 +1,31 @@
-# KubeVela Documentation
+# KubeVela Website
+[kubevela.io](https://kubevela.io)
 
-Learn and use KubeVela with tutorials and user stories.
+## Contributing
 
-**Overview**
-- [Introduction](introduction.md)
-- [Installation](./install.md)
-- [Quick Start](quick-start.md)
-- [Concepts](concepts.md)
+- Fork and clone
 
-**For Developers**
-- [Setting Up Deployment Environment](developers/config-enviroments.md)
-- [Initializing Application](developers/app-init.md)
-- [Setting Routes](developers/set-route.md)
-- [Setting Auto-scaling Policy](developers/set-autoscale.md)
-- [Setting Rollout Strategy](developers/set-rollout.md)
-- [Monitoring Application](developers/set-metrics.md)
-- [Using Appfile](developers/devex/appfile.md)
-- [Check Application Logs](developers/check-logs.md)
-- [Execute Commands in Container](developers/exec-cmd.md)
-- [Port Forward to Container](developers/port-forward.md)
-- [Configuring data/env in Application](developers/config-app.md)
-- [Consuming Cloud Services](developers/cloud-service.md)
-- [Capability References](developers/references/README.md)
+  ```
+  $ git clone git@github.com:oam-dev/kubevela.git
+  $ cd kubevela/docs
+  ```
 
-**For Platform Engineers**
-- [Extending KubeVela](platform-engineers/extending-kubevela.md)
+- Install docsify-cli
+  ```
+  $ npm i docsify-cli -g
+  ```
 
-**Internals**
-- [Design and Architecture](design.md)
+- Make your changes
 
-**Roadmap**
-- [Roadmap of KubeVela](roadmap.md)
+- Local preview
+  ```
+  $ docsify serve
+  Serving /xxx/kubevela.io now.
+  Listening at http://localhost:3000
+  ```
+
+  Preview your changes at [http://127.0.0.1:3000/](http://127.0.0.1:3000/).
+
+- Push your commit
+
+  Thanks for your contribution!

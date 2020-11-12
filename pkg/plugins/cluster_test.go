@@ -48,14 +48,14 @@ var _ = Describe("DefinitionFiles", func() {
 				Default:  "",
 				Short:    "i",
 				Required: true,
-				Usage:    "specify app image",
+				Usage:    "Which image would you like to use for your service",
 			},
 			{
 				Name:    "port",
 				Type:    cue.IntKind,
 				Short:   "p",
 				Default: int64(8080),
-				Usage:   "specify port for container",
+				Usage:   "Which port do you want customer traffic sent to",
 			},
 		},
 	}
@@ -72,13 +72,13 @@ var _ = Describe("DefinitionFiles", func() {
 			Default:  "",
 			Short:    "i",
 			Required: true,
-			Usage:    "specify app image",
+			Usage:    "Which image would you like to use for your service",
 		}, {
 			Name:    "port",
 			Type:    cue.IntKind,
 			Short:   "p",
 			Default: int64(6379),
-			Usage:   "specify port for container",
+			Usage:   "Which port do you want customer traffic sent to",
 		}},
 		CrdName: "webservice.testapps",
 	}

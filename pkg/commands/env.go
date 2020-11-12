@@ -51,6 +51,7 @@ func NewEnvListCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 
 func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var envArgs types.EnvMeta
+	var syncCluster bool
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "init <envName>",
@@ -63,6 +64,11 @@ func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			if err != nil {
 				return err
 			}
+			if syncCluster {
+				if err := RefreshDefinitions(ctx, newClient, ioStreams, true); err != nil {
+					return err
+				}
+			}
 			return CreateOrUpdateEnv(ctx, newClient, &envArgs, args, ioStreams)
 		},
 		Annotations: map[string]string{
@@ -73,6 +79,7 @@ func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 	cmd.Flags().StringVar(&envArgs.Namespace, "namespace", "", "specify K8s namespace for env")
 	cmd.Flags().StringVar(&envArgs.Email, "email", "", "specify email for production TLS Certificate notification")
 	cmd.Flags().StringVar(&envArgs.Domain, "domain", "", "specify domain your applications")
+	cmd.Flags().BoolVarP(&syncCluster, "sync", "s", true, "synchronize capabilities from cluster into local")
 	return cmd
 }
 

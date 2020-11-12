@@ -1,0 +1,51 @@
+name: testapp
+
+services:
+  express-server:
+    # this image will be used in both build and deploy steps
+    image: oamdev/testapp:v1
+
+    build:
+      # Here more runtime specific build templates will be supported, like NodeJS, Go, Python, Ruby.
+      docker:
+        file: Dockerfile
+        context: .
+
+      # Uncomment the following to push to local kind cluster
+      # push:
+      #   local: kind
+
+    # type: webservice (default) | worker | task
+
+    cmd: ["node", "server.js"]
+    port: 8080
+
+    # scaler:
+    #   replica: 1
+
+    # route:
+    #   domain: example.com
+    #   rules:
+    #     - path: /testapp
+    #       rewriteTarget: /
+
+    # metrics:
+    #   format: "prometheus"
+    #   port: 8080
+    #   path: "/metrics"
+    #   scheme:  "http"
+    #   enabled: true
+
+    # autoscale:
+    #   min: 1
+    #   max: 4
+    #   cron:
+    #     startAt:  "14:00"
+    #     duration: "2h"
+    #     days:     "Monday, Thursday"
+    #     replicas: "2"
+    #     timezone: "America/Seattle"
+
+  # pi:
+  #   image: perl 
+  #   cmd: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]

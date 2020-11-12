@@ -1,3 +1,0 @@
-# Setting Rollout Strategy
-
-> TODO

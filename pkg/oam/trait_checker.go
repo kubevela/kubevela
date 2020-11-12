@@ -5,18 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"k8s.io/api/networking/v1beta1"
-
-	v1 "k8s.io/api/core/v1"
-
-	"github.com/oam-dev/kubevela/api/v1alpha1"
-
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
+	"github.com/oam-dev/kubevela/api/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/application"
+	autoscalers "github.com/oam-dev/kubevela/pkg/controller/v1alpha1/autoscaler"
+	v12 "k8s.io/api/autoscaling/v1"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/networking/v1beta1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -33,7 +31,12 @@ func GetChecker(traitType string, c client.Client) Checker {
 		return &RouteChecker{c: c}
 	case "metric":
 		return &MetricChecker{c: c}
+	case "autoscale":
+		return &AutoscalerChecker{c: c}
+	case "cronscale":
+		return &AutoscalerChecker{c: c}
 	}
+
 	return &DefaultChecker{c: c}
 }
 
@@ -129,6 +132,43 @@ func (d *RouteChecker) Check(ctx context.Context, reference runtimev1alpha1.Type
 		}
 		message += fmt.Sprintf("\tVisiting URL: %s\tIP: %s\n", url, addr)
 	}
+	return StatusDone, message, nil
+}
+
+type AutoscalerChecker struct {
+	c client.Client
+}
+
+func (d *AutoscalerChecker) Check(ctx context.Context, ref runtimev1alpha1.TypedReference, _ string, appConfig *v1alpha2.ApplicationConfiguration, _ *application.Application) (CheckStatus, string, error) {
+	traitName := ref.Name
+	var scaler v1alpha1.Autoscaler
+	if err := d.c.Get(ctx, client.ObjectKey{Namespace: appConfig.Namespace, Name: traitName}, &scaler); err != nil {
+		return StatusChecking, "", err
+	}
+	var scalerType string
+	triggers := scaler.Spec.Triggers
+	if len(triggers) >= 1 {
+		scalerType = string(triggers[0].Type)
+	}
+
+	hpaName := "keda-hpa-" + traitName
+	var hpa v12.HorizontalPodAutoscaler
+	if err := d.c.Get(ctx, client.ObjectKey{Namespace: appConfig.Namespace, Name: hpaName}, &hpa); err != nil {
+		return StatusChecking, "", err
+	}
+	message := fmt.Sprintf("type: %-8s", scalerType)
+	if scalerType == string(autoscalers.CPUType) {
+		// When attaching trait, and before the scaler trait works, `CurrentCPUUtilizationPercentage` is nil
+		currentCPUUtilizationPercentage := hpa.Status.CurrentCPUUtilizationPercentage
+		var zeroPercentage int32 = 0
+		if currentCPUUtilizationPercentage == nil {
+			currentCPUUtilizationPercentage = &zeroPercentage
+		}
+		message += fmt.Sprintf("cpu-utilization(target/current): %v%%/%v%%\t",
+			*hpa.Spec.TargetCPUUtilizationPercentage, *currentCPUUtilizationPercentage)
+	}
+	message += fmt.Sprintf("replicas(min/max/current): %v/%v/%v", *hpa.Spec.MinReplicas, hpa.Spec.MaxReplicas,
+		hpa.Status.CurrentReplicas)
 	return StatusDone, message, nil
 }
 

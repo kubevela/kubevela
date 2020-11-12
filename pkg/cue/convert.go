@@ -9,9 +9,8 @@ import (
 
 	"cuelang.org/go/cue"
 	cueJson "cuelang.org/go/pkg/encoding/json"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
 	"github.com/oam-dev/kubevela/api/types"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // OutputFieldName is the name of the struct contains the CR data
@@ -96,6 +95,7 @@ func GetParameters(templatePath string) ([]types.Parameter, error) {
 			continue
 		}
 		var param = types.Parameter{
+
 			Name:     fi.Name,
 			Required: !fi.IsOptional,
 		}
@@ -109,7 +109,8 @@ func GetParameters(templatePath string) ([]types.Parameter, error) {
 		if param.Default == nil {
 			param.Default = getDefaultByKind(param.Type)
 		}
-		param.Short, param.Usage = RetrieveComments(val)
+		param.Short, param.Usage, param.Alias = RetrieveComments(val)
+
 		params = append(params, param)
 	}
 	return params, nil
@@ -159,10 +160,12 @@ func GetDefault(val cue.Value) interface{} {
 const (
 	UsagePrefix = "+usage="
 	ShortPrefix = "+short="
+	// AliasPrefix is an alias of the name of a parameter element, in order to making it more friendly to Cli users
+	AliasPrefix = "+alias="
 )
 
-func RetrieveComments(value cue.Value) (string, string) {
-	var short, usage string
+func RetrieveComments(value cue.Value) (string, string, string) {
+	var short, usage, alias string
 	docs := value.Doc()
 	for _, doc := range docs {
 		lines := strings.Split(doc.Text(), "\n")
@@ -176,7 +179,10 @@ func RetrieveComments(value cue.Value) (string, string) {
 			if strings.HasPrefix(line, UsagePrefix) {
 				usage = strings.TrimPrefix(line, UsagePrefix)
 			}
+			if strings.HasPrefix(line, AliasPrefix) {
+				alias = strings.TrimPrefix(line, AliasPrefix)
+			}
 		}
 	}
-	return short, usage
+	return short, usage, alias
 }

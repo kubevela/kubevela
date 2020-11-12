@@ -141,7 +141,7 @@ var _ = Describe("Metrics Trait Integration Test", func() {
 			time.Second*10, time.Millisecond*500).Should(BeNil())
 		logf.Log.Info("[TEST] Get the created service", "service ports", createdService.Spec.Ports)
 		Expect(createdService.GetNamespace()).Should(Equal(namespaceName))
-		Expect(createdService.Labels).Should(Equal(oamServiceLabel))
+		Expect(createdService.Labels).Should(Equal(GetOAMServiceLabel()))
 		Expect(len(createdService.Spec.Ports)).Should(Equal(1))
 		Expect(createdService.Spec.Ports[0].Port).Should(BeEquivalentTo(servicePort))
 		Expect(createdService.Spec.Selector).Should(Equal(deployLabel))
@@ -156,7 +156,7 @@ var _ = Describe("Metrics Trait Integration Test", func() {
 			time.Second*5, time.Millisecond*50).Should(BeNil())
 		logf.Log.Info("[TEST] Get the created serviceMonitor", "service end ports", serviceMonitor.Spec.Endpoints)
 		Expect(serviceMonitor.GetNamespace()).Should(Equal(ServiceMonitorNSName))
-		Expect(serviceMonitor.Spec.Selector.MatchLabels).Should(Equal(oamServiceLabel))
+		Expect(serviceMonitor.Spec.Selector.MatchLabels).Should(Equal(GetOAMServiceLabel()))
 		Expect(serviceMonitor.Spec.Selector.MatchExpressions).Should(BeNil())
 		Expect(serviceMonitor.Spec.NamespaceSelector.MatchNames).Should(Equal([]string{metricsTrait.Namespace}))
 		Expect(serviceMonitor.Spec.NamespaceSelector.Any).Should(BeFalse())
@@ -192,7 +192,7 @@ var _ = Describe("Metrics Trait Integration Test", func() {
 			},
 			time.Second*10, time.Millisecond*500).Should(BeNil())
 		logf.Log.Info("[TEST] Get the created service", "service ports", createdService.Spec.Ports)
-		Expect(createdService.Labels).Should(Equal(oamServiceLabel))
+		Expect(createdService.Labels).Should(Equal(GetOAMServiceLabel()))
 		Expect(createdService.Spec.Selector).Should(Equal(deployLabel))
 		By("Check that we have created the serviceMonitor in the pre-defined namespaceName")
 		var serviceMonitor monitoringv1.ServiceMonitor
@@ -204,7 +204,7 @@ var _ = Describe("Metrics Trait Integration Test", func() {
 			},
 			time.Second*5, time.Millisecond*50).Should(BeNil())
 		logf.Log.Info("[TEST] Get the created serviceMonitor", "service end ports", serviceMonitor.Spec.Endpoints)
-		Expect(serviceMonitor.Spec.Selector.MatchLabels).Should(Equal(oamServiceLabel))
+		Expect(serviceMonitor.Spec.Selector.MatchLabels).Should(Equal(GetOAMServiceLabel()))
 		Expect(serviceMonitor.Spec.Selector.MatchExpressions).Should(BeNil())
 		Expect(serviceMonitor.Spec.NamespaceSelector.MatchNames).Should(Equal([]string{metricsTrait.Namespace}))
 		Expect(serviceMonitor.Spec.NamespaceSelector.Any).Should(BeFalse())

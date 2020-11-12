@@ -207,7 +207,6 @@ func renderOneOutput(appValue *cue.Struct) (*unstructured.Unstructured, error) {
 	if err != nil {
 		return nil, fmt.Errorf("marshal final value failed: %v", err)
 	}
-
 	obj := make(map[string]interface{})
 	if err = json.Unmarshal([]byte(data), &obj); err != nil {
 		return nil, err
@@ -243,7 +242,7 @@ func renderAllOutputs(field cue.FieldInfo) ([]*unstructured.Unstructured, error)
 func evalComponent(tm template.Manager, wtype string, ctxValues, userValues interface{}) (*unstructured.Unstructured, error) {
 	workloadCueTemplate := tm.LoadTemplate(wtype)
 	if workloadCueTemplate == "" {
-		return nil, fmt.Errorf("capability %s unexist", wtype)
+		return nil, fmt.Errorf("no template found in capability %s", wtype)
 	}
 	appValue, err := getValueStruct(workloadCueTemplate, ctxValues, userValues)
 	if err != nil {

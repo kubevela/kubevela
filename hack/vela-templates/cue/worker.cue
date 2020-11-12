@@ -1,11 +1,7 @@
 output: {
 	apiVersion: "apps/v1"
 	kind:       "Deployment"
-	metadata:
-		name: context.name
 	spec: {
-		replicas: 1
-
 		selector: matchLabels: {
 			"app.oam.dev/component": context.name
 		}
@@ -34,7 +30,7 @@ output: {
 }
 
 parameter: {
-	// +usage=specify app image
+	// +usage=Which image would you like to use for your service
 	// +short=i
 	image: string
 

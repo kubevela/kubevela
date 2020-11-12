@@ -14,11 +14,11 @@ data:
     }
   flagger.app: |
     {
-      "repo": "flagger",
-      "urL": "https://flagger.app",
+      "repo": "oam-flagger",
+      "urL": "https://oam.dev/flagger/archives/",
       "name": "flagger",
       "namespace": "vela-system",
-      "version": "1.2.0"
+      "version": "1.1.0"
     }
   keda: |
     {
@@ -26,5 +26,5 @@ data:
       "urL": "https://kedacore.github.io/charts",
       "name": "keda",
       "namespace": "keda",
-      "version": "2.0.0-beta1.2"
+      "version": "2.0.0-rc3"
     }
