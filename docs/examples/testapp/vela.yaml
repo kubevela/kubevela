@@ -36,15 +36,15 @@ services:
     #   scheme:  "http"
     #   enabled: true
 
-#    autoscale:
-#      min: 1
-#      max: 4
-#      cron:
-#        startAt:  "14:00"
-#        duration: "2h"
-#        days:     "Monday, Thursday"
-#        replicas: "2"
-#        timezone: "America/Seattle"
+    # autoscale:
+    #   min: 1
+    #   max: 4
+    #   cron:
+    #     startAt:  "14:00"
+    #     duration: "2h"
+    #     days:     "Monday, Thursday"
+    #     replicas: "2"
+    #     timezone: "America/Seattle"
 
   # pi:
   #   image: perl 

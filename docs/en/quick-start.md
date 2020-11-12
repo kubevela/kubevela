@@ -8,45 +8,8 @@ Make sure you have finished and verified the installation following [this guide]
 
 ## Step 2: Deploy Your First Application
 
-**vela init**
-
 ```bash
-$ vela init --render-only
-Welcome to use KubeVela CLI! Please describe your application.
-
-Environment: default, namespace: default
-
-? What is the domain of your application service (optional):  example.com
-? What is your email (optional, used to generate certification):
-? What would you like to name your application (required):  testapp
-? Choose the workload type for your application (required, e.g., webservice):  webservice
-? What would you like to name this webservice (required):  testsvc
-? Which image would you like to use for your service (required): crccheck/hello-world
-? Which port do you want customer traffic sent to (optional, default is 80): 8000
-
-Deployment config is rendered and written to vela.yaml
-```
-
-In the current directory, you will find a generated `vela.yaml` file (i.e., an Appfile):
-
-```yaml
-createTime: ...
-updateTime: ...
-
-name: testapp
-services:
-  testsvc:
-    type: webservice
-    image: crccheck/hello-world
-    port: 8000
-    route:
-      domain: testsvc.example.com
-```
-
-**vela up**
-
-```bash
-$ vela up
+$ vela up -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/vela.yaml
 Parsing vela.yaml ...
 Loading templates ...
 
@@ -111,7 +74,7 @@ Hello World
 Congratulations! You have just deployed an app using KubeVela. Here are some recommended next steps:
 
 - Learn about the project's [motivation](./introduction.md) and [architecture](./design.md)
-- Try out more [tutorials](./developers/config-enviroments.md)
+- Try out more [tutorials](./developers/devex/appfile.md)
 - Join our community [Slack](https://cloud-native.slack.com/archives/C01BLQ3HTJA) and/or [Gitter](https://gitter.im/oam-dev/community)
 
 Welcome onboard and sail Vela!

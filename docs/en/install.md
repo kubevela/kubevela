@@ -116,6 +116,7 @@ This will install KubeVela server component and its dependency components.
   - [Prometheus Stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack)
   - [Cert-manager](https://cert-manager.io/)
   - [Flagger](https://flagger.app/)
+  - [KEDA](https://keda.sh/)
 
   The config has been saved in a ConfigMap in "vela-system/vela-config":
 
