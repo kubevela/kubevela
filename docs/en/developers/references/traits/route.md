@@ -1,5 +1,27 @@
 # Route
 
+## Description
+
+`Route` is used to configure external access to your service.
+
+## Specification
+
+List of all available properties for a `Route` trait.
+
+```yaml
+name: my-app-name
+
+services:
+  my-service-name:
+    ...
+    route:
+      domain: example.com
+      issuer: tls
+      rules:
+        - path: /testapp
+          rewriteTarget: /
+```
+
 ## Properties
 
 Name | Type | Description | Notes

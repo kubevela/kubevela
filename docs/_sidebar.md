@@ -4,16 +4,16 @@
 
 - Using KubeVela
   - Appfile
-    - [Learning Appfile](/en/developers/devex/appfile.md)
+    - [Learning Appfile](/en/developers/learn-appfile.md)
   - Operating
     - [Setting Routes](/en/developers/set-route.md)
     - [Setting Auto-scaling Policy](/en/developers/set-autoscale.md)
     - [Setting Rollout Strategy](/en/developers/set-rollout.md)
     - [Setting Monitoring Policy](/en/developers/set-metrics.md)
   - Debugging
+    - [Port Forwarding](/en/developers/port-forward.md)
     - [Check Application Logs](/en/developers/check-logs.md)
     - [Execute Commands in Container](/en/developers/exec-cmd.md)  
-    - [Port Forwarding](/en/developers/port-forward.md)
   - Extensibility
     - [Managing Capabilities](/en/developers/cap-center.md)
   - Configuring
@@ -28,9 +28,19 @@
 - Roadmap
   - [KubeVela Roadmap](/en/roadmap.md)
 
-- Reference
+- References
   - [Concepts and Glossaries](/en/concepts.md)
-  - [Capability Documentation](/en/developers/references/README.md)
+  - [Appfile](/en/developers/references/devex/appfile.md)
+  - Capabilities
+    - Workload Types
+      - [Web Service](/en/developers/references/workload-types/web-service.md)
+      - [Task](/en/developers/references/workload-types/task.md)
+      - [Worker](/en/developers/references/workload-types/backend-worker.md)
+    - Traits
+      - [Route](/en/developers/references/traits/route.md)
+      - [Autoscale](/en/developers/references/traits/autoscale.md)
+      - [Rollout](en/developers/references/traits/rollout.md)
+      - [Metrics](en/developers/references/traits/metrics.md)
   - CLI
     - General
       - [vela config](/en/cli/vela_config.md)

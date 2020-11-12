@@ -2,9 +2,7 @@
 
 The `rollout` section is used to configure rolling update policy for your app.
 
-Add rollout config under `express-server` along with the [`route` config](./set-rollout.md).
-
-As for convenience， the complete example would like as below:
+Add rollout config under `express-server` along with a `route`.
 
 ```yaml
 name: testapp
@@ -13,30 +11,22 @@ services:
     type: webservice
     image: oamdev/testapp:v1
     port: 8080
+
     rollout:
       replica: 5
       stepWeight: 20
       interval: "30s"
+    
     route:
       domain: example.com
 ```
+
+> The full specification of `rollout` could be found [here](references/traits/rollout.md)
 
 Apply this `appfile.yaml`:
 
 ```bash
 $ vela up
-```
-
-
-You could use rollout capability to 
-
-The workflow will like below:
-
-Firstly, deploy your app by:
-
-```bash
-$ vela svc deploy testapp -t webservice --image oamdev/testapp:v1 --port 8080
-App testapp deployed
 ```
 
 You could check the status by:
@@ -99,7 +89,7 @@ Apply this `appfile.yaml` again:
 $ vela up
 ```
 
-Then it will rolling update your instance, you could try `curl` your app multiple times:
+You could then try to `curl` your app multiple times and and see how the new instances being promoted following Canary rollout strategy:
 
 ```bash
 $ curl -H "Host:example.com" http://<your-ingress-ip-address>/
@@ -114,23 +104,7 @@ $ curl -H "Host:example.com" http://<your-ingress-ip-address>/
 Hello World%                                                                  
 $ curl -H "Host:example.com" http://<your-ingress-ip-address>/
 Hello World  -- Updated Version Two!%
-``` 
-
-It will return both version of output info as both instances are all existing.
-
-<details>
-  <summary>Under the hood, it was flagger canary running.</summary>
-
-```bash
-$ kubectl get canaries.flagger.app testapp-trait-76fc76fddc -w
-NAME                       STATUS        WEIGHT   LASTTRANSITIONTIME
-testapp-trait-76fc76fddc   Progressing   0        2020-11-10T09:06:10Z
-testapp-trait-76fc76fddc   Progressing   20       2020-11-10T09:06:30Z
-testapp-trait-76fc76fddc   Progressing   40       2020-11-10T09:06:40Z
-testapp-trait-76fc76fddc   Progressing   60       2020-11-10T09:07:31Z
-testapp-trait-76fc76fddc   Promoting     0        2020-11-10T09:08:00Z
-testapp-trait-76fc76fddc   Promoting     100      2020-11-10T09:08:10Z
-testapp-trait-76fc76fddc   Finalising    0        2020-11-10T09:08:20Z
-testapp-trait-76fc76fddc   Succeeded     0        2020-11-10T09:08:30Z
 ```
-</details>
+
+For every 30 second, 20% more traffic will be shifted to the new instance from the old instance as we configured in Appfile.
+

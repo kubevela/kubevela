@@ -1,7 +1,5 @@
 # KubeVela CLI
 
-Learn about general configurations for `vela` command line tool. For the usage of the CLI, please check the KubeVela's [user documentation](../../README.md) instead.
-
 ### Auto-completion
 
 #### bash

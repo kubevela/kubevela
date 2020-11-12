@@ -1,5 +1,27 @@
 # Metrics
 
+## Description
+
+`Metrics` is used to configure monitoring metrics to your service.
+
+## Specification
+
+List of all available properties for a `Route` trait.
+
+```yaml
+name: my-app-name
+
+services:
+  my-service-name:
+    ...
+    metrics:
+      format: "prometheus"
+      port: 8080
+      path: "/metrics"
+      scheme:  "http"
+      enabled: true
+```
+
 ## Properties
 
 Name | Type | Description | Notes

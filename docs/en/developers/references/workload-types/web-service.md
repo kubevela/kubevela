@@ -1,6 +1,35 @@
-# Webservice
+# Web Service
 
-## Properties
+## Description
+
+`Web Service` is a workload type to describe long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers.
+
+If workload type is skipped for any service defined in Appfile, it will be defaulted to `Web Service` type.
+
+## Specification
+
+List of all configuration options for a `Web Service` workload type.
+
+```yaml
+name: my-app-name
+
+services:
+  my-service-name:
+    type: webservice # could be skipped
+    image: oamdev/testapp:v1
+    cmd: ["node", "server.js"]
+    port: 8080
+    env:
+      - name: FOO
+        value: bar
+      - name: FOO
+        valueFrom:
+          secretKeyRef: 
+            name: bar
+            key: bar
+```
+
+## Parameters
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
