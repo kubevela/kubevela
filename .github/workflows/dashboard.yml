@@ -7,7 +7,7 @@ on:
     branches: [master]
     paths-ignore:
     - 'docs/**'
-    - 'resources/**'
+    - '**.md'
 defaults:
   run:
     working-directory: ./dashboard
