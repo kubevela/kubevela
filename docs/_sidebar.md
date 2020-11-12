@@ -39,8 +39,8 @@
     - Traits
       - [Route](/en/developers/references/traits/route.md)
       - [Autoscale](/en/developers/references/traits/autoscale.md)
-      - [Rollout](en/developers/references/traits/rollout.md)
-      - [Metrics](en/developers/references/traits/metrics.md)
+      - [Rollout](/en/developers/references/traits/rollout.md)
+      - [Metrics](/en/developers/references/traits/metrics.md)
   - CLI
     - General
       - [vela config](/en/cli/vela_config.md)
