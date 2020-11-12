@@ -23,6 +23,9 @@ func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		Short:                 "List traits",
 		Long:                  "List traits",
 		Example:               `vela traits`,
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeTraits,
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if syncCluster {
 				newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})

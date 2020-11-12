@@ -21,6 +21,9 @@ func NewWorkloadsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 		Short:                 "List workloads",
 		Long:                  "List workloads",
 		Example:               `vela workloads`,
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeApp,
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if syncCluster {
 				newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
