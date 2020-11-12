@@ -3,13 +3,10 @@ package oam
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 
 	"cuelang.org/go/cue"
 	plur "github.com/gertd/go-pluralize"
-	"github.com/gin-gonic/gin"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -18,7 +15,6 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
-	env2 "github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
 func ListTraitDefinitions(workloadName *string) ([]types.Capability, error) {
@@ -198,41 +194,6 @@ func AddOrUpdateTrait(env *types.EnvMeta, appName string, componentName string, 
 	return app, app.Save(env.Name)
 }
 
-func AttachTrait(c *gin.Context, body apis.TraitBody) (string, error) {
-	// Prepare
-	var appObj *application.Application
-	fs := pflag.NewFlagSet("trait", pflag.ContinueOnError)
-	for _, f := range body.Flags {
-		fs.String(f.Name, f.Value, "")
-	}
-	var staging = false
-	var err error
-	if body.Staging != "" {
-		staging, err = strconv.ParseBool(body.Staging)
-		if err != nil {
-			return "", err
-		}
-	}
-	traitAlias := body.Name
-	template, err := plugins.GetInstalledCapabilityWithCapAlias(types.TypeTrait, traitAlias)
-	if err != nil {
-		return "", err
-	}
-	// Run step
-	env, err := env2.GetEnvByName(body.EnvName)
-	if err != nil {
-		return "", err
-	}
-
-	appObj, err = AddOrUpdateTrait(env, body.AppName, body.ComponentName, fs, template)
-	if err != nil {
-		return "", err
-	}
-	kubeClient := c.MustGet("KubeClient")
-	io := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	return TraitOperationRun(c, kubeClient.(client.Client), env, appObj, staging, io)
-}
-
 func TraitOperationRun(ctx context.Context, c client.Client, env *types.EnvMeta, appObj *application.Application,
 	staging bool, io cmdutil.IOStreams) (string, error) {
 	if staging {
@@ -259,23 +220,4 @@ func PrepareDetachTrait(envName string, traitType string, componentName string, 
 		return appObj, err
 	}
 	return appObj, appObj.Save(envName)
-}
-
-func DetachTrait(c *gin.Context, envName string, traitType string, componentName string, appName string, staging bool) (string, error) {
-	var appObj *application.Application
-	var err error
-	if appName == "" {
-		appName = componentName
-	}
-	if appObj, err = PrepareDetachTrait(envName, traitType, componentName, appName); err != nil {
-		return "", err
-	}
-	// Run
-	env, err := env2.GetEnvByName(envName)
-	if err != nil {
-		return "", err
-	}
-	kubeClient := c.MustGet("KubeClient")
-	io := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	return TraitOperationRun(c, kubeClient.(client.Client), env, appObj, staging, io)
 }

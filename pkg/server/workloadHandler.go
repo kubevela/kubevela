@@ -1,11 +1,10 @@
-package handler
+package server
 
 import (
 	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/pflag"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/api/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
@@ -17,8 +16,7 @@ import (
 )
 
 // Workload related handlers
-func CreateWorkload(c *gin.Context) {
-	kubeClient := c.MustGet("KubeClient")
+func (s *APIServer) CreateWorkload(c *gin.Context) {
 	var body apis.WorkloadRunBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		util.HandleError(c, util.InvalidArgument, "the workload run request body is invalid")
@@ -41,7 +39,7 @@ func CreateWorkload(c *gin.Context) {
 		return
 	}
 	io := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	msg, err := oam.BaseRun(body.Staging, appObj, kubeClient.(client.Client), env, io)
+	msg, err := oam.BaseRun(body.Staging, appObj, s.KubeClient, env, io)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
@@ -52,7 +50,7 @@ func CreateWorkload(c *gin.Context) {
 		for _, t := range body.Traits {
 			t.AppName = body.AppName
 			t.ComponentName = body.WorkloadName
-			msg, err = oam.AttachTrait(c, t)
+			msg, err = s.DoAttachTrait(c, t)
 			if err != nil {
 				util.HandleError(c, util.StatusInternalServerError, err.Error())
 				return
@@ -62,10 +60,10 @@ func CreateWorkload(c *gin.Context) {
 	}
 }
 
-func UpdateWorkload(c *gin.Context) {
+func (s *APIServer) UpdateWorkload(c *gin.Context) {
 }
 
-func GetWorkload(c *gin.Context) {
+func (s *APIServer) GetWorkload(c *gin.Context) {
 	var workloadType = c.Param("workloadName")
 	var capability types.Capability
 	var err error
@@ -77,7 +75,7 @@ func GetWorkload(c *gin.Context) {
 	util.AssembleResponse(c, capability, err)
 }
 
-func ListWorkload(c *gin.Context) {
+func (s *APIServer) ListWorkload(c *gin.Context) {
 	var workloadDefinitionList []apis.WorkloadMeta
 	workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
 	if err != nil {

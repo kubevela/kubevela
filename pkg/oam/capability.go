@@ -9,11 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
-
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
-
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 	"github.com/ghodss/yaml"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"

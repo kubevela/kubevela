@@ -51,7 +51,7 @@ func NewDashboardCommand(c types.Args, ioStreams cmdutil.IOStreams, frontendSour
 			if !runtimeReady {
 				return nil
 			}
-			return SetupAPIServer(newClient, cmd, o)
+			return SetupAPIServer(c, cmd, o)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeSystem,
@@ -124,8 +124,7 @@ func (o *Options) GetStaticPath() error {
 	return nil
 }
 
-func SetupAPIServer(kubeClient client.Client, cmd *cobra.Command, o Options) error {
-
+func SetupAPIServer(c types.Args, cmd *cobra.Command, o Options) error {
 	// setup logging
 	var w io.Writer
 	if len(o.logFilePath) > 0 {
@@ -154,12 +153,14 @@ func SetupAPIServer(kubeClient client.Client, cmd *cobra.Command, o Options) err
 	}
 
 	//Setup RESTful server
-	server := server.APIServer{}
-
+	server, err := server.New(c, o.port, o.staticPath)
+	if err != nil {
+		return err
+	}
 	errCh := make(chan error, 1)
 	cmd.Printf("Serving at %v\nstatic dir is %v", o.port, o.staticPath)
 
-	server.Launch(kubeClient, o.port, o.staticPath, errCh)
+	server.Launch(errCh)
 	select {
 	case err = <-errCh:
 		return err
@@ -207,5 +208,5 @@ func CheckVelaRuntimeInstalledAndReady(ioStreams cmdutil.IOStreams, c client.Cli
 			white.Sprint("vela install --help")))
 		return false, nil
 	}
-	return PrintTrackVelaRuntimeStatus(context.Background(), c, ioStreams)
+	return PrintTrackVelaRuntimeStatus(context.Background(), c, ioStreams, 5*time.Minute)
 }

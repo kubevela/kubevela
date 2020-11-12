@@ -26,14 +26,20 @@ func main() {
 		o.Development = development
 		o.DestWritter = w
 	}))
-	apiServer := server.APIServer{}
-	kubeClient, err := oam.InitKubeClient()
+
+	c, err := oam.InitArgs()
 	if err != nil {
-		ctrl.Log.Error(err, "failed to init an Kubernetes client")
+		ctrl.Log.Error(err, "failed to init Kubernetes Config")
 		os.Exit(1)
 	}
+	apiServer, err := server.New(c, util.DefaultAPIServerPort, "")
+	if err != nil {
+		ctrl.Log.Error(err, "failed to init dashboard server")
+		os.Exit(1)
+	}
+
 	errCh := make(chan error, 1)
-	apiServer.Launch(kubeClient, util.DefaultAPIServerPort, "", errCh)
+	apiServer.Launch(errCh)
 	err = <-errCh
 	if err != nil {
 		ctrl.Log.Error(err, "failed to launch API server")

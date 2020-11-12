@@ -6,12 +6,10 @@ metadata:
     usecase: forplugintest
 spec:
   definitionRef:
-    name: routes.test
+    name: routes.standard.oam.dev
   extension:
     template: |
       output: {
-      	apiVersion: "apps/v1"
-      	kind:       "Route"
       	spec: {
       		domain: parameter.domain
       	}

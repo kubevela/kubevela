@@ -100,7 +100,7 @@ func NewCapInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 			if err != nil {
 				return err
 			}
-			if _, err = oam.AddCapabilityIntoCluster(newClient, args[0]); err != nil {
+			if _, err = oam.AddCapabilityIntoCluster(newClient, mapper, args[0]); err != nil {
 				return err
 			}
 			return nil
