@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
+
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -91,6 +93,10 @@ func NewCapInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 				return errors.New("you must specify <center>/<name> for capability you want to install")
 			}
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			if err != nil {
+				return err
+			}
+			mapper, err := discoverymapper.New(c.Config)
 			if err != nil {
 				return err
 			}

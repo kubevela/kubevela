@@ -3,8 +3,6 @@ kind: WorkloadDefinition
 metadata:
   name: worker
   annotations:
-    definition.oam.dev/apiVersion: "apps/v1"
-    definition.oam.dev/kind: "Deployment"
     definition.oam.dev/description: "Backend worker without ports exposed"
 spec:
   definitionRef:

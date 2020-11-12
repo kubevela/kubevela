@@ -9,6 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
+
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
+
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/ghodss/yaml"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -59,7 +63,7 @@ func SyncCapabilityFromCenter(capName, capURL, capToken string) error {
 	return client.SyncCapabilityFromCenter()
 }
 
-func AddCapabilityIntoCluster(c client.Client, capability string) (string, error) {
+func AddCapabilityIntoCluster(c client.Client, mapper discoverymapper.DiscoveryMapper, capability string) (string, error) {
 	ss := strings.Split(capability, "/")
 	if len(ss) < 2 {
 		return "", errors.New("invalid format for " + capability + ", please follow format <center>/<name>")
@@ -67,13 +71,13 @@ func AddCapabilityIntoCluster(c client.Client, capability string) (string, error
 	repoName := ss[0]
 	name := ss[1]
 	ioStreams := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	if err := InstallCapability(c, repoName, name, ioStreams); err != nil {
+	if err := InstallCapability(c, mapper, repoName, name, ioStreams); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("Successfully installed capability %s from %s", name, repoName), nil
 }
 
-func InstallCapability(client client.Client, centerName, capabilityName string, ioStreams cmdutil.IOStreams) error {
+func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMapper, centerName, capabilityName string, ioStreams cmdutil.IOStreams) error {
 	dir, _ := system.GetCapCenterDir()
 	repoDir := filepath.Join(dir, centerName)
 	tp, err := GetSyncedCapabilities(centerName, capabilityName)
@@ -100,11 +104,13 @@ func InstallCapability(client client.Client, centerName, capabilityName string, 
 				return err
 			}
 		}
-		if apiVerion, kind := cmdutil.GetAPIVersionKindFromWorkload(wd); apiVerion != "" && kind != "" {
-			tp.CrdInfo = &types.CrdInfo{
-				APIVersion: apiVerion,
-				Kind:       kind,
-			}
+		gvk, err := util.GetGVKFromDefinition(mapper, wd.Spec.Reference)
+		if err != nil {
+			return err
+		}
+		tp.CrdInfo = &types.CrdInfo{
+			APIVersion: gvk.GroupVersion().String(),
+			Kind:       gvk.Kind,
 		}
 		if err = client.Create(context.Background(), &wd); err != nil && !apierrors.IsAlreadyExists(err) {
 			return err
@@ -126,11 +132,13 @@ func InstallCapability(client client.Client, centerName, capabilityName string, 
 				return err
 			}
 		}
-		if apiVerion, kind := cmdutil.GetAPIVersionKindFromTrait(td); apiVerion != "" && kind != "" {
-			tp.CrdInfo = &types.CrdInfo{
-				APIVersion: apiVerion,
-				Kind:       kind,
-			}
+		gvk, err := util.GetGVKFromDefinition(mapper, td.Spec.Reference)
+		if err != nil {
+			return err
+		}
+		tp.CrdInfo = &types.CrdInfo{
+			APIVersion: gvk.GroupVersion().String(),
+			Kind:       gvk.Kind,
 		}
 		if err = client.Create(context.Background(), &td); err != nil && !apierrors.IsAlreadyExists(err) {
 			return err

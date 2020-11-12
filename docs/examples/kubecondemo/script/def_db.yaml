@@ -3,8 +3,6 @@ kind: WorkloadDefinition
 metadata:
   name: rds
   annotations:
-    definition.oam.dev/apiVersion: "database.example.org/v1alpha1"
-    definition.oam.dev/kind: "PostgreSQLInstance"
     definition.oam.dev/description: "RDS on Ali Cloud"
 spec:
   definitionRef:

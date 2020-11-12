@@ -25,8 +25,6 @@ kind: TraitDefinition
 metadata:
   name: kubewatch
   annotations:
-    definition.oam.dev/apiVersion: labs.bitnami.com/v1alpha1
-    definition.oam.dev/kind: KubeWatch
     definition.oam.dev/description: "Add a watch for resource"
 spec:
   appliesToWorkloads:

@@ -2,9 +2,6 @@ apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata:
   name: autoscalers.standard.oam.dev
-  annotations:
-    definition.oam.dev/apiVersion: standard.oam.dev/v1alpha1
-    definition.oam.dev/kind: Autoscaler
 spec:
   appliesToWorkloads:
     - webservice
