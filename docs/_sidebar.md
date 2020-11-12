@@ -6,7 +6,6 @@
   - Appfile
     - [Learning Appfile](/en/developers/devex/appfile.md)
   - Operating
-    - [Port Forwarding](/en/developers/port-forward.md)
     - [Setting Routes](/en/developers/set-route.md)
     - [Setting Auto-scaling Policy](/en/developers/set-autoscale.md)
     - [Setting Rollout Strategy](/en/developers/set-rollout.md)
@@ -14,6 +13,7 @@
   - Debugging
     - [Check Application Logs](/en/developers/check-logs.md)
     - [Execute Commands in Container](/en/developers/exec-cmd.md)  
+    - [Port Forwarding](/en/developers/port-forward.md)
   - Extensibility
     - [Managing Capabilities](/en/developers/cap-center.md)
   - Configuring

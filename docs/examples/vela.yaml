@@ -1,0 +1,8 @@
+name: testapp
+services:
+  testsvc:
+    type: webservice
+    image: crccheck/hello-world
+    port: 8000
+    route:
+      domain: testsvc.example.com

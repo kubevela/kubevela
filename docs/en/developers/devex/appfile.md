@@ -2,35 +2,32 @@
 
 Appfile is the main user interface to configure application deployment on Vela.
 
-In this tutorial, we will build and deploy an example NodeJS app under [examples/testapp/](https://github.com/oam-dev/kubevela.io/tree/master/examples/testapp).
+In this tutorial, we will build and deploy an example NodeJS app under [examples/testapp/](https://github.com/oam-dev/kubevela/tree/master/docs/examples/testapp).
 
 ## Prerequisites
 
 - [docker](https://docs.docker.com/get-docker/) installed on the host
-- [vela](../../install.md) installed and configured
 
 ## 1. Download test app code
 
 git clone and go to the testapp directory:
 
 ```bash
-$ git clone https://github.com/oam-dev/kubevela.io.git
-$ cd kubevela.io/examples/testapp
+$ git clone https://github.com/oam-dev/kubevela.git
+$ cd kubevela/docs/examples/testapp
 ```
 
 The example contains NodeJS app code, Dockerfile to build the app.
 
 ## 2. Deploy app in one command
 
-In the directory there is a [vela.yaml](https://github.com/oam-dev/kubevela.io/tree/master/examples/testapp/vela.yaml) which follows Appfile format supported by Vela.
+In the directory there is a [vela.yaml](https://github.com/oam-dev/kubevela/tree/master/docs/examples/testapp/vela.yaml) which follows Appfile format supported by Vela.
 We are going to use it to build and deploy the app.
 
-ATTENTION: change the image field in vela.yaml to something you can push to on your host:
-
-> Or you may try the local testing option introduced in the following section.
+**ATTENTION**: change the image field in vela.yaml to something you can push to:
 
 ```yaml
-    image: oamdev/testapp:v1
+    image: oamdev/testapp:v1 # change this to your image
 ```
 
 Run the following command:
@@ -169,7 +166,7 @@ Then deploy appfile again to update the application:
 $ vela up
 ```
 
-> Interested in the design of Appfile? A detailed design doc could be found [here](https://github.com/oam-dev/kubevela/blob/master/docs/design/appfile-design.md).
+> Interested in the design of Appfile? A detailed design doc could be found [here](https://github.com/oam-dev/kubevela/blob/master/design/vela-core/appfile-design.md).
 
 ## What's Next?
 

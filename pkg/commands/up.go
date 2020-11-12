@@ -5,8 +5,10 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
@@ -72,12 +74,32 @@ type AppfileOptions struct {
 	Env     *types.EnvMeta
 }
 
+func saveRemoteAppfile(url string) (string, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	dest := "vela.yaml"
+	return dest, ioutil.WriteFile(dest, body, 0600)
+}
+
 func (o *AppfileOptions) Run(filePath string) error {
 	var app *appfile.AppFile
 	var err error
 
 	o.IO.Info("Parsing vela.yaml ...")
 	if filePath != "" {
+		if strings.HasPrefix(filePath, "https://") || strings.HasPrefix(filePath, "http://") {
+			filePath, err = saveRemoteAppfile(filePath)
+			if err != nil {
+				return err
+			}
+		}
 		app, err = appfile.LoadFromFile(filePath)
 	} else {
 		app, err = appfile.Load()

@@ -8,7 +8,7 @@ In this tutorial, we use Crossplane as the cloud resource operator for Kubernete
 
 <details>
 
-To make this process more easier, we provide all the needed scripts in [this folder](https://github.com/oam-dev/kubevela.io/tree/master/examples/kubecondemo). 
+To make this process more easier, we provide all the needed scripts in [this folder](https://github.com/oam-dev/kubevela/tree/master/docs/examples/kubecondemo). 
 
 Please do:
 ```console
@@ -58,7 +58,7 @@ services:
     ...
 ```
 
-> Please check the full application sample in [tutorial folder](https://github.com/oam-dev/kubevela.io/blob/master/examples/kubecondemo/vela.yaml).
+> Please check the full application sample in [tutorial folder](https://github.com/oam-dev/kubevela/blob/master/docs/examples/kubecondemo/vela.yaml).
 
 Next, we could deploy the application with `$ vela up`
 

@@ -1,4 +1,4 @@
-# Alternatives Commands
+# Alternative Commands
 
 Besides Appfile, KubeVela also provides a set of alternatives commands to deploy the application. Think about "shortcuts" that could generate and apply Appfile without the need to write YAML file manually.
 
