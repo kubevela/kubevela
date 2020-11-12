@@ -32,7 +32,6 @@ func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 				if err := RefreshDefinitions(ctx, newClient, ioStreams, true); err != nil {
 					return err
 				}
-				ioStreams.Info("\nListing trait capabilities ...\n")
 			}
 			return printTraitList(&workloadName, ioStreams)
 		},

@@ -92,11 +92,8 @@ type Parameter struct {
 func ConvertTemplateJSON2Object(in *runtime.RawExtension) (Capability, error) {
 	var t Capability
 	var extension Capability
-	if in == nil {
-		return t, fmt.Errorf("extension field is nil")
-	}
-	if in.Raw == nil {
-		return t, fmt.Errorf("template object is nil")
+	if in == nil || in.Raw == nil {
+		return t, fmt.Errorf("no template found")
 	}
 	err := json.Unmarshal(in.Raw, &extension)
 	if err == nil {

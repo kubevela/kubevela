@@ -30,7 +30,6 @@ func NewWorkloadsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 				if err := RefreshDefinitions(ctx, newClient, ioStreams, true); err != nil {
 					return err
 				}
-				ioStreams.Info("\nListing workload capabilities ...\n")
 			}
 			workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
 			if err != nil {

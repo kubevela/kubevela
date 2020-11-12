@@ -42,16 +42,16 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Cli
 		return nil, nil, fmt.Errorf("list WorkloadDefinition err: %s", err)
 	}
 
-	templateErrors := []error{}
+	var templateErrors []error
 	for _, wd := range workloadDefs.Items {
 		tmp, err := HandleDefinition(wd.Name, syncDir, wd.Spec.Reference.Name, wd.Annotations, wd.Spec.Extension, types.TypeWorkload, nil)
 		if err != nil {
 			templateErrors = append(templateErrors, errors.Wrapf(err, "handle workload template `%s` failed", wd.Name))
 			continue
 		}
-		if apiVerion, kind := cmdutil.GetAPIVersionKindFromWorkload(wd); apiVerion != "" && kind != "" {
+		if apiVersion, kind := cmdutil.GetAPIVersionKindFromWorkload(wd); apiVersion != "" && kind != "" {
 			tmp.CrdInfo = &types.CrdInfo{
-				APIVersion: apiVerion,
+				APIVersion: apiVersion,
 				Kind:       kind,
 			}
 		}
@@ -68,16 +68,16 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 		return nil, nil, fmt.Errorf("list TraitDefinition err: %s", err)
 	}
 
-	templateErrors := []error{}
+	var templateErrors []error
 	for _, td := range traitDefs.Items {
 		tmp, err := HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Annotations, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads)
 		if err != nil {
-			templateErrors = append(templateErrors, errors.Wrapf(err, "handle trait template `%s` failed", td.Name))
+			templateErrors = append(templateErrors, errors.Wrapf(err, "handle trait template `%s` failed\n", td.Name))
 			continue
 		}
-		if apiVerion, kind := cmdutil.GetAPIVersionKindFromTrait(td); apiVerion != "" && kind != "" {
+		if apiVersion, kind := cmdutil.GetAPIVersionKindFromTrait(td); apiVersion != "" && kind != "" {
 			tmp.CrdInfo = &types.CrdInfo{
-				APIVersion: apiVerion,
+				APIVersion: apiVersion,
 				Kind:       kind,
 			}
 		}
@@ -86,14 +86,13 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 	return templates, templateErrors, nil
 }
 
-func HandleDefinition(name, syncDir, crdName string, annotation map[string]string, extention *runtime.RawExtension, tp types.CapType, applyTo []string) (types.Capability, error) {
+func HandleDefinition(name, syncDir, crdName string, annotation map[string]string, extension *runtime.RawExtension, tp types.CapType, applyTo []string) (types.Capability, error) {
 	var tmp types.Capability
-	tmp, err := HandleTemplate(extention, name, syncDir)
+	tmp, err := HandleTemplate(extension, name, syncDir)
 	if err != nil {
 		return types.Capability{}, err
 	}
 	tmp.Type = tp
-	tmp.Name = name
 	if tp == types.TypeTrait {
 		tmp.AppliesTo = applyTo
 	}
@@ -118,6 +117,7 @@ func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Capab
 	if err != nil {
 		return types.Capability{}, err
 	}
+	tmp.Name = name
 
 	var cueTemplate string
 	if tmp.CueTemplateURI != "" {
