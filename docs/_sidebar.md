@@ -9,7 +9,7 @@
     - [Setting Routes](/en/developers/set-route.md)
     - [Setting Auto-scaling Policy](/en/developers/set-autoscale.md)
     - [Setting Rollout Strategy](/en/developers/set-rollout.md)
-    - [Monitoring Application](/en/developers/set-metrics.md)
+    - [Setting Monitoring Policy](/en/developers/set-metrics.md)
   - Debugging
     - [Check Application Logs](/en/developers/check-logs.md)
     - [Execute Commands in Container](/en/developers/exec-cmd.md)  
