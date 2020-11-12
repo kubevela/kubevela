@@ -3,8 +3,6 @@ kind: TraitDefinition
 metadata:
   name: autoscale
   annotations:
-    definition.oam.dev/apiVersion: standard.oam.dev/v1alpha1
-    definition.oam.dev/kind: Autoscaler
     definition.oam.dev/description: "Automatically scale workloads"
 spec:
   appliesToWorkloads:

@@ -11,8 +11,6 @@ const (
 )
 
 const (
-	AnnAPIVersion  = "definition.oam.dev/apiVersion"
-	AnnKind        = "definition.oam.dev/kind"
 	AnnDescription = "definition.oam.dev/description"
 
 	LabelPodSpecable = "workload.oam.dev/podspecable"

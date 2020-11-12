@@ -6,8 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/oam-dev/kubevela/api/types"
-
 	"github.com/AlecAivazis/survey/v2"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/spf13/cobra"
@@ -61,14 +59,6 @@ func GetComponent(ctx context.Context, c client.Client, componentName string, na
 	var component corev1alpha2.Component
 	err := c.Get(ctx, client.ObjectKey{Name: componentName, Namespace: namespace}, &component)
 	return component, err
-}
-
-func GetAPIVersionKindFromTrait(td corev1alpha2.TraitDefinition) (string, string) {
-	return td.Annotations[types.AnnAPIVersion], td.Annotations[types.AnnKind]
-}
-
-func GetAPIVersionKindFromWorkload(td corev1alpha2.WorkloadDefinition) (string, string) {
-	return td.Annotations[types.AnnAPIVersion], td.Annotations[types.AnnKind]
 }
 
 func PrintFlags(cmd *cobra.Command, subcmds []*cobra.Command) {

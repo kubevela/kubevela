@@ -1,4 +1,4 @@
-package handler
+package server
 
 import (
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -6,10 +6,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/server/util"
 
 	"github.com/gin-gonic/gin"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func AddCapabilityCenter(c *gin.Context) {
+func (s *APIServer) AddCapabilityCenter(c *gin.Context) {
 	var body plugins.CapCenterConfig
 	if err := c.ShouldBindJSON(&body); err != nil {
 		util.HandleError(c, util.StatusInternalServerError, "the add capability center request body is invalid")
@@ -22,7 +21,7 @@ func AddCapabilityCenter(c *gin.Context) {
 	util.AssembleResponse(c, "Successfully configured capability center and synchronized from remote", nil)
 }
 
-func ListCapabilityCenters(c *gin.Context) {
+func (s *APIServer) ListCapabilityCenters(c *gin.Context) {
 	capabilityCenterList, err := oam.ListCapabilityCenters()
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
@@ -31,7 +30,7 @@ func ListCapabilityCenters(c *gin.Context) {
 	util.AssembleResponse(c, capabilityCenterList, nil)
 }
 
-func SyncCapabilityCenter(c *gin.Context) {
+func (s *APIServer) SyncCapabilityCenter(c *gin.Context) {
 	capabilityCenterName := c.Param("capabilityCenterName")
 	if err := oam.SyncCapabilityCenter(capabilityCenterName); err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
@@ -40,10 +39,9 @@ func SyncCapabilityCenter(c *gin.Context) {
 	util.AssembleResponse(c, "sync finished", nil)
 }
 
-func AddCapabilityIntoCluster(c *gin.Context) {
+func (s *APIServer) AddCapabilityIntoCluster(c *gin.Context) {
 	cap := c.Param("capabilityCenterName") + "/" + c.Param("capabilityName")
-	kubeClient := c.MustGet("KubeClient")
-	msg, err := oam.AddCapabilityIntoCluster(kubeClient.(client.Client), cap)
+	msg, err := oam.AddCapabilityIntoCluster(s.KubeClient, s.dm, cap)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError)
 		return
@@ -51,16 +49,15 @@ func AddCapabilityIntoCluster(c *gin.Context) {
 	util.AssembleResponse(c, msg, nil)
 }
 
-func DeleteCapabilityCenter(c *gin.Context) {
+func (s *APIServer) DeleteCapabilityCenter(c *gin.Context) {
 	capabilityCenterName := c.Param("capabilityCenterName")
 	msg, err := oam.RemoveCapabilityCenter(capabilityCenterName)
 	util.AssembleResponse(c, msg, err)
 }
 
-func RemoveCapabilityFromCluster(c *gin.Context) {
+func (s *APIServer) RemoveCapabilityFromCluster(c *gin.Context) {
 	capabilityCenterName := c.Param("capabilityName")
-	kubeClient := c.MustGet("KubeClient")
-	msg, err := oam.RemoveCapabilityFromCluster(kubeClient.(client.Client), capabilityCenterName)
+	msg, err := oam.RemoveCapabilityFromCluster(s.KubeClient, capabilityCenterName)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
@@ -68,7 +65,7 @@ func RemoveCapabilityFromCluster(c *gin.Context) {
 	util.AssembleResponse(c, msg, nil)
 }
 
-func ListCapabilities(c *gin.Context) {
+func (s *APIServer) ListCapabilities(c *gin.Context) {
 	capabilityCenterName := c.Param("capabilityName")
 	capabilityList, err := oam.ListCapabilities(capabilityCenterName)
 	if err != nil {

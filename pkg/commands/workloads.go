@@ -9,7 +9,6 @@ import (
 
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func NewWorkloadsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
@@ -23,11 +22,7 @@ func NewWorkloadsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 		Example:               `vela workloads`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if syncCluster {
-				newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
-				if err != nil {
-					return err
-				}
-				if err := RefreshDefinitions(ctx, newClient, ioStreams, true); err != nil {
+				if err := RefreshDefinitions(ctx, c, ioStreams, true); err != nil {
 					return err
 				}
 			}

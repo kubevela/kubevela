@@ -16,7 +16,6 @@ import (
 )
 
 var _ = Describe("DefinitionFiles", func() {
-
 	route := types.Capability{
 		Name: "routes.test",
 		Type: types.TypeTrait,
@@ -29,13 +28,17 @@ var _ = Describe("DefinitionFiles", func() {
 			},
 		},
 		Description: "description not defined",
-		CrdName:     "routes.test",
+		CrdName:     "routes.standard.oam.dev",
+		CrdInfo: &types.CrdInfo{
+			APIVersion: "standard.oam.dev/v1alpha1",
+			Kind:       "Route",
+		},
 	}
 
 	deployment := types.Capability{
 		Name:        "deployments.testapps",
 		Type:        types.TypeWorkload,
-		CrdName:     "deployments.testapps",
+		CrdName:     "deployments.apps",
 		Description: "description not defined",
 		Parameters: []types.Parameter{
 			{
@@ -57,6 +60,10 @@ var _ = Describe("DefinitionFiles", func() {
 				Default: int64(8080),
 				Usage:   "Which port do you want customer traffic sent to",
 			},
+		},
+		CrdInfo: &types.CrdInfo{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
 		},
 	}
 
@@ -80,7 +87,11 @@ var _ = Describe("DefinitionFiles", func() {
 			Default: int64(6379),
 			Usage:   "Which port do you want customer traffic sent to",
 		}},
-		CrdName: "webservice.testapps",
+		CrdName: "deployments.apps",
+		CrdInfo: &types.CrdInfo{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+		},
 	}
 
 	req, _ := labels.NewRequirement("usecase", selection.Equals, []string{"forplugintest"})
@@ -89,7 +100,7 @@ var _ = Describe("DefinitionFiles", func() {
 	// Notice!!  DefinitionPath Object is Cluster Scope object
 	// which means objects created in other DefinitionNamespace will also affect here.
 	It("gettrait", func() {
-		traitDefs, _, err := GetTraitsFromCluster(context.Background(), DefinitionNamespace, k8sClient, definitionDir, selector)
+		traitDefs, _, err := GetTraitsFromCluster(context.Background(), DefinitionNamespace, types.Args{Config: cfg, Schema: scheme}, definitionDir, selector)
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting trait definitions %v", traitDefs))
 		for i := range traitDefs {
@@ -105,7 +116,7 @@ var _ = Describe("DefinitionFiles", func() {
 	// Notice!!  DefinitionPath Object is Cluster Scope object
 	// which means objects created in other DefinitionNamespace will also affect here.
 	It("getworkload", func() {
-		workloadDefs, _, err := GetWorkloadsFromCluster(context.Background(), DefinitionNamespace, k8sClient, definitionDir, selector)
+		workloadDefs, _, err := GetWorkloadsFromCluster(context.Background(), DefinitionNamespace, types.Args{Config: cfg, Schema: scheme}, definitionDir, selector)
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting workload definitions  %v", workloadDefs))
 		for i := range workloadDefs {
@@ -118,7 +129,7 @@ var _ = Describe("DefinitionFiles", func() {
 		Expect(workloadDefs).Should(Equal([]types.Capability{deployment, websvc}))
 	})
 	It("getall", func() {
-		alldef, err := GetCapabilitiesFromCluster(context.Background(), DefinitionNamespace, k8sClient, definitionDir, selector)
+		alldef, err := GetCapabilitiesFromCluster(context.Background(), DefinitionNamespace, types.Args{Config: cfg, Schema: scheme}, definitionDir, selector)
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting all definitions %v", alldef))
 		for i := range alldef {

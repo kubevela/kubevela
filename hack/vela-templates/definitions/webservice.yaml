@@ -3,8 +3,6 @@ kind: WorkloadDefinition
 metadata:
   name: webservice
   annotations:
-    definition.oam.dev/apiVersion: "apps/v1"
-    definition.oam.dev/kind: "Deployment"
     definition.oam.dev/description: "Long running service with network routes"
 spec:
   definitionRef:

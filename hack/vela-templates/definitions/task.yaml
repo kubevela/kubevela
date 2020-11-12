@@ -3,8 +3,6 @@ kind: WorkloadDefinition
 metadata:
   name: task
   annotations:
-    definition.oam.dev/apiVersion: "v1"
-    definition.oam.dev/kind: "Job"
     definition.oam.dev/description: "One-time task/job"
 spec:
   definitionRef:

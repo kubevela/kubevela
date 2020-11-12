@@ -7,15 +7,13 @@ import (
 
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/server/handler"
 	"github.com/oam-dev/kubevela/pkg/server/util"
 )
 
 // setup the gin http server handler
 
-func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
+func (s *APIServer) setupRoute(staticPath string) http.Handler {
 	// if deploying static Dashboard, set the mode to `release`, or to `debug`
 	if staticPath != "" {
 		gin.SetMode(gin.ReleaseMode)
@@ -46,44 +44,41 @@ func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
 	router.Use(util.SetContext())
 	router.Use(gin.Recovery())
 	router.Use(util.ValidateHeaders())
-	//Store kubernetes client which could be retrieved by handlers
-	router.Use(util.StoreClient(kubeClient))
 	// all requests start with /api
 	api := router.Group(util.RootPath)
 	// env related operation
 	envs := api.Group(util.EnvironmentPath)
 	{
-		envs.POST("/", handler.CreateEnv)
-		envs.PUT("/:envName", handler.UpdateEnv)
-		envs.GET("/:envName", handler.GetEnv)
-		envs.GET("/", handler.ListEnv)
+		envs.POST("/", s.CreateEnv)
+		envs.PUT("/:envName", s.UpdateEnv)
+		envs.GET("/:envName", s.GetEnv)
+		envs.GET("/", s.ListEnv)
 		// Allow levaing out `/` to make API more friendly
-		envs.GET("", handler.ListEnv)
-		envs.DELETE("/:envName", handler.DeleteEnv)
-		envs.PATCH("/:envName", handler.SetEnv)
+		envs.GET("", s.ListEnv)
+		envs.DELETE("/:envName", s.DeleteEnv)
+		envs.PATCH("/:envName", s.SetEnv)
 		// app related operation
 		apps := envs.Group("/:envName/apps")
 		{
-			//apps.POST("/", handler.CreateApps)
-			apps.GET("/:appName", handler.GetApp)
-			apps.PUT("/:appName", handler.UpdateApps)
-			apps.GET("/", handler.ListApps)
-			apps.GET("", handler.ListApps)
-			apps.DELETE("/:appName", handler.DeleteApps)
+			apps.GET("/:appName", s.GetApp)
+			apps.PUT("/:appName", s.UpdateApps)
+			apps.GET("/", s.ListApps)
+			apps.GET("", s.ListApps)
+			apps.DELETE("/:appName", s.DeleteApps)
 
 			// component related operation
 			components := apps.Group("/:appName/components")
 			{
-				components.GET("/:compName", handler.GetComponent)
-				components.PUT("/:compName", handler.GetComponent)
-				components.GET("/", handler.GetApp)
-				components.GET("", handler.GetApp)
-				components.DELETE("/:compName", handler.DeleteComponent)
+				components.GET("/:compName", s.GetComponent)
+				components.PUT("/:compName", s.GetComponent)
+				components.GET("/", s.GetApp)
+				components.GET("", s.GetApp)
+				components.DELETE("/:compName", s.DeleteComponent)
 
 				traitWorkload := components.Group("/:compName/" + util.TraitDefinitionPath)
 				{
-					traitWorkload.POST("/", handler.AttachTrait)
-					traitWorkload.DELETE("/:traitName", handler.DetachTrait)
+					traitWorkload.POST("/", s.AttachTrait)
+					traitWorkload.DELETE("/:traitName", s.DetachTrait)
 				}
 			}
 		}
@@ -91,56 +86,56 @@ func setupRoute(kubeClient client.Client, staticPath string) http.Handler {
 	// workload related api
 	workload := api.Group(util.WorkloadDefinitionPath)
 	{
-		workload.POST("/", handler.CreateWorkload)
-		workload.GET("/:workloadName", handler.GetWorkload)
-		workload.PUT("/:workloadName", handler.UpdateWorkload)
-		workload.GET("/", handler.ListWorkload)
-		workload.GET("", handler.ListWorkload)
+		workload.POST("/", s.CreateWorkload)
+		workload.GET("/:workloadName", s.GetWorkload)
+		workload.PUT("/:workloadName", s.UpdateWorkload)
+		workload.GET("/", s.ListWorkload)
+		workload.GET("", s.ListWorkload)
 	}
 	// trait related api
 	trait := api.Group(util.TraitDefinitionPath)
 	{
-		trait.GET("/:traitName", handler.GetTrait)
-		trait.GET("/", handler.ListTrait)
-		trait.GET("", handler.ListTrait)
+		trait.GET("/:traitName", s.GetTrait)
+		trait.GET("/", s.ListTrait)
+		trait.GET("", s.ListTrait)
 	}
 	// scope related api
 	scopes := api.Group(util.ScopeDefinitionPath)
 	{
-		scopes.POST("/", handler.CreateScope)
-		scopes.GET("/:scopeName", handler.GetScope)
-		scopes.PUT("/:scopeName", handler.UpdateScope)
-		scopes.GET("/", handler.ListScope)
-		scopes.GET("", handler.ListScope)
-		scopes.DELETE("/:scopeName", handler.DeleteScope)
+		scopes.POST("/", s.CreateScope)
+		scopes.GET("/:scopeName", s.GetScope)
+		scopes.PUT("/:scopeName", s.UpdateScope)
+		scopes.GET("/", s.ListScope)
+		scopes.GET("", s.ListScope)
+		scopes.DELETE("/:scopeName", s.DeleteScope)
 	}
 
 	// capability center related api
 	capCenters := api.Group(util.CapabilityCenterPath)
 	{
-		capCenters.PUT("/", handler.AddCapabilityCenter)
-		capCenters.GET("/", handler.ListCapabilityCenters)
-		capCenters.GET("", handler.ListCapabilityCenters)
-		capCenters.DELETE("/:capabilityCenterName", handler.DeleteCapabilityCenter)
+		capCenters.PUT("/", s.AddCapabilityCenter)
+		capCenters.GET("/", s.ListCapabilityCenters)
+		capCenters.GET("", s.ListCapabilityCenters)
+		capCenters.DELETE("/:capabilityCenterName", s.DeleteCapabilityCenter)
 
 		caps := capCenters.Group("/:capabilityCenterName" + util.CapabilityPath)
 		{
-			caps.PUT("/", handler.SyncCapabilityCenter)
-			caps.PUT("/:capabilityName", handler.AddCapabilityIntoCluster)
+			caps.PUT("/", s.SyncCapabilityCenter)
+			caps.PUT("/:capabilityName", s.AddCapabilityIntoCluster)
 		}
 	}
 
 	// capability related api
 	caps := api.Group(util.CapabilityPath)
 	{
-		caps.DELETE("/:capabilityName", handler.RemoveCapabilityFromCluster)
-		caps.DELETE("/", handler.RemoveCapabilityFromCluster)
-		caps.GET("/", handler.ListCapabilities)
-		caps.GET("", handler.ListCapabilities)
+		caps.DELETE("/:capabilityName", s.RemoveCapabilityFromCluster)
+		caps.DELETE("/", s.RemoveCapabilityFromCluster)
+		caps.GET("/", s.ListCapabilities)
+		caps.GET("", s.ListCapabilities)
 	}
 
 	// version
-	api.GET(util.VersionPath, handler.GetVersion)
+	api.GET(util.VersionPath, s.GetVersion)
 	// default
 	router.NoRoute(util.NoRoute())
 

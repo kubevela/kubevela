@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
+
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -94,7 +96,11 @@ func NewCapInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 			if err != nil {
 				return err
 			}
-			if _, err = oam.AddCapabilityIntoCluster(newClient, args[0]); err != nil {
+			mapper, err := discoverymapper.New(c.Config)
+			if err != nil {
+				return err
+			}
+			if _, err = oam.AddCapabilityIntoCluster(newClient, mapper, args[0]); err != nil {
 				return err
 			}
 			return nil
