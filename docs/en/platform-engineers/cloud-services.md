@@ -70,19 +70,13 @@ worker    	Backend worker without ports exposed
 
 ## Step 3: Try out RDS workload to an application
 
-In the sample Appfile, we claim an RDS instance with workload type of `rds`:
+Let's first create an Appfile. We will claim an RDS instance with workload type of `rds`:
 
-``` yaml
-name: test-rds
+```bash
+$ cat << EOF > vela.yaml
 
-services:
-  ...
-  database:
-    type: rds
-    name: alibabaRds
-    ...
+EOF
 ```
-
 Next, we could deploy the application with `$ vela up`
 
 ## Verify the database status
@@ -93,9 +87,9 @@ In our Appfile, we created another service called `checkdb`. The database will w
 After confirming the service is `checkdb`, we shall see the printout of the database information:
 ```console
 PGUSER=myuser
-PGPASSWORD=o76aTnDdu7FvTJIL5vvkQSF8ind
+PGPASSWORD=<password>
 PGPORT=1921
 PGDATABASE=postgres
-PGHOST=rm-rj9lxi3613x8m1e6y.pg.rds.aliyuncs.com
+PGHOST=<hostname>
 ...
 ```
