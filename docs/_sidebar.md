@@ -22,8 +22,8 @@
   - [Alternative Commands](/en/developers/alternative-cmd.md)
 - Extending KubeVela
   - [Add Trait](/en/platform-engineers/trait.md)
-  - [Add Workload Type](/en/platform-engineers/workload-type.md)
-  - [Add Cloud Services](/en/platform-engineers/cloud-resource.md)
+<!--   - [Add Workload Type](/en/platform-engineers/workload-type.md)
+  - [Add Cloud Services](/en/platform-engineers/cloud-resource.md) -->
 
 - Roadmap
   - [KubeVela Roadmap](/en/roadmap.md)
