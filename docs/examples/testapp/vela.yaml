@@ -43,8 +43,8 @@ services:
     #     startAt:  "14:00"
     #     duration: "2h"
     #     days:     "Monday, Thursday"
-    #     replicas: "2"
-    #     timezone: "America/Seattle"
+    #     replicas: 2
+    #     timezone: "America/Los_Angeles"
 
   # pi:
   #   image: perl 
