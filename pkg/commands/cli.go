@@ -61,6 +61,7 @@ func NewCommand() *cobra.Command {
 	cmds.AddCommand(
 		// Getting Start
 		NewInstallCommand(commandArgs, fake.ChartSource, ioStream),
+		NewInitCommand(commandArgs, ioStream),
 		NewUpCommand(commandArgs, ioStream),
 
 		// Apps
@@ -85,8 +86,6 @@ func NewCommand() *cobra.Command {
 		NewDashboardCommand(commandArgs, ioStream, fake.FrontendSource),
 		NewCompletionCommand(),
 		NewVersionCommand(),
-
-		NewInitCommand(commandArgs, ioStream),
 
 		AddCompCommands(commandArgs, ioStream),
 	)

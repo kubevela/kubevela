@@ -101,6 +101,9 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 
 			return printComponentStatus(context.Background(), o.client, o.IOStreams, o.workloadName, o.appName, o.Env)
 		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeStart,
+		},
 	}
 	cmd.Flags().BoolVar(&o.renderOnly, "render-only", false, "Rendering vela.yaml in current dir and do not deploy")
 	cmd.SetOut(ioStreams.Out)
