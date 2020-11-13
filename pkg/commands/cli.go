@@ -29,9 +29,8 @@ func NewCommand() *cobra.Command {
 			cmd.Printf("✈️  The Extensible Application Platform Based on Kubernetes and Open Application Model (OAM).\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
 			PrintHelpByTag(cmd, allCommands, types.TypeStart)
 			PrintHelpByTag(cmd, allCommands, types.TypeApp)
-			PrintHelpByTag(cmd, allCommands, types.TypeTraits)
+			PrintHelpByTag(cmd, allCommands, types.TypeCap)
 			PrintHelpByTag(cmd, allCommands, types.TypeSystem)
-			PrintHelpByTag(cmd, allCommands, types.TypeOthers)
 			cmd.Println("Flags:")
 			cmd.Println("  -h, --help   help for vela")
 			cmd.Println()
@@ -62,10 +61,6 @@ func NewCommand() *cobra.Command {
 	cmds.AddCommand(
 		// Getting Start
 		NewInstallCommand(commandArgs, fake.ChartSource, ioStream),
-		NewEnvCommand(commandArgs, ioStream),
-		NewConfigCommand(commandArgs, ioStream),
-		NewVersionCommand(),
-		NewInitCommand(commandArgs, ioStream),
 		NewUpCommand(commandArgs, ioStream),
 
 		// Apps
@@ -73,27 +68,27 @@ func NewCommand() *cobra.Command {
 		NewDeleteCommand(commandArgs, ioStream),
 		NewAppShowCommand(ioStream),
 		NewAppStatusCommand(commandArgs, ioStream),
-
-		// Workloads
-		AddCompCommands(commandArgs, ioStream),
-
-		// Capability Systems
-		CapabilityCommandGroup(commandArgs, ioStream),
-
-		// System
-		SystemCommandGroup(commandArgs, ioStream),
-		NewCompletionCommand(),
-
-		NewTraitsCommand(commandArgs, ioStream),
-		NewWorkloadsCommand(commandArgs, ioStream),
-
-		NewDashboardCommand(commandArgs, ioStream, fake.FrontendSource),
-
 		NewExecCommand(commandArgs, ioStream),
 		NewPortForwardCommand(commandArgs, ioStream),
 		NewLogsCommand(commandArgs, ioStream),
+		NewEnvCommand(commandArgs, ioStream),
+		NewConfigCommand(commandArgs, ioStream),
 
+		// Capabilities
+		CapabilityCommandGroup(commandArgs, ioStream),
 		NewTemplateCommand(commandArgs, ioStream),
+		NewTraitsCommand(commandArgs, ioStream),
+		NewWorkloadsCommand(commandArgs, ioStream),
+
+		// Helper
+		SystemCommandGroup(commandArgs, ioStream),
+		NewDashboardCommand(commandArgs, ioStream, fake.FrontendSource),
+		NewCompletionCommand(),
+		NewVersionCommand(),
+
+		NewInitCommand(commandArgs, ioStream),
+
+		AddCompCommands(commandArgs, ioStream),
 	)
 
 	// Traits
@@ -116,18 +111,9 @@ func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 	for _, c := range all {
 		if val, ok := c.Annotations[types.TagCommandType]; ok && val == tag {
 			table.AddRow("    "+c.Use, c.Long)
-			for _, subcmd := range c.Commands() {
-				table.AddRow("      "+subcmd.Use, "  "+subcmd.Long)
-			}
 		}
 	}
 	cmd.Println(table.String())
-	if tag == types.TypeTraits {
-		if len(table.Rows) > 0 {
-			cmd.Println()
-		}
-		cmd.Println("    Want more? < install more capabilities by `vela cap` >")
-	}
 	cmd.Println()
 }
 
@@ -146,7 +132,7 @@ GolangVersion: %v
 				runtime.Version())
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeStart,
+			types.TagCommandType: types.TypeSystem,
 		},
 	}
 }

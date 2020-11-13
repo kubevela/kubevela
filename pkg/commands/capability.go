@@ -22,7 +22,7 @@ func CapabilityCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Com
 		Short: "Capability Management",
 		Long:  "Capability Management with config, list, add, remove capabilities",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeOthers,
+			types.TagCommandType: types.TypeCap,
 		},
 	}
 	cmd.AddCommand(
@@ -39,9 +39,6 @@ func NewCenterCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 		Use:   "center <command>",
 		Short: "Manage Capability Center",
 		Long:  "Manage Capability Center with config, sync, list",
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeOthers,
-		},
 	}
 	cmd.AddCommand(
 		NewCapCenterConfigCommand(ioStream),
@@ -71,9 +68,6 @@ func NewCapCenterConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			}
 			ioStreams.Infof("Successfully configured capability center %s and sync from remote\n", capName)
 			return nil
-		},
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeOthers,
 		},
 	}
 	cmd.PersistentFlags().StringP("token", "t", "", "Github Repo token")
@@ -105,9 +99,6 @@ func NewCapInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 			}
 			return nil
 		},
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeOthers,
-		},
 	}
 	cmd.PersistentFlags().StringP("token", "t", "", "Github Repo token")
 	return cmd
@@ -137,9 +128,6 @@ func NewCapUninstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 			}
 			return oam.RemoveCapability(newClient, name, ioStreams)
 		},
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeOthers,
-		},
 	}
 	cmd.PersistentFlags().StringP("token", "t", "", "Github Repo token")
 	return cmd
@@ -161,9 +149,6 @@ func NewCapCenterSyncCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			}
 			ioStreams.Info("sync finished")
 			return nil
-		},
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeOthers,
 		},
 	}
 	return cmd
@@ -193,9 +178,6 @@ func NewCapListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			ioStreams.Info(table.String())
 			return nil
 		},
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeOthers,
-		},
 	}
 	return cmd
 }
@@ -209,9 +191,6 @@ func NewCapCenterListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return ListCapCenters(args, ioStreams)
 		},
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeOthers,
-		},
 	}
 	return cmd
 }
@@ -224,9 +203,6 @@ func NewCapCenterRemoveCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		Example: "vela cap center remove mycenter",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return RemoveCapCenter(args, ioStreams)
-		},
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeOthers,
 		},
 	}
 	return cmd
