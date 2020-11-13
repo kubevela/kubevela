@@ -22,7 +22,7 @@ func NewEnvCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 		Short:                 "Manage application environments",
 		Long:                  "Manage application environments",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeStart,
+			types.TagCommandType: types.TypeApp,
 		},
 	}
 	cmd.SetOut(ioStream.Out)

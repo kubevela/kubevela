@@ -20,9 +20,6 @@ func NewWorkloadsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 		Short:                 "List workloads",
 		Long:                  "List workloads",
 		Example:               `vela workloads`,
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeApp,
-		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if syncCluster {
 				if err := RefreshDefinitions(ctx, c, ioStreams, true); err != nil {
@@ -34,6 +31,9 @@ func NewWorkloadsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 				return err
 			}
 			return printWorkloadList(workloads, ioStreams)
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeCap,
 		},
 	}
 	cmd.SetOut(ioStreams.Out)

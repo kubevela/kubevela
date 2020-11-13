@@ -42,10 +42,7 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Init an OAM Application",
 		Long:                  "Init an OAM Application by one command",
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeStart,
-		},
-		Example: "vela init",
+		Example:               "vela init",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 			if err != nil {
@@ -103,6 +100,9 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			}
 
 			return printComponentStatus(context.Background(), o.client, o.IOStreams, o.workloadName, o.appName, o.Env)
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeStart,
 		},
 	}
 	cmd.Flags().BoolVar(&o.renderOnly, "render-only", false, "Rendering vela.yaml in current dir and do not deploy")

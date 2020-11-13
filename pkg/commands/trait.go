@@ -40,6 +40,7 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 
 		var name = tmp.Name
 		pluginCmd := &cobra.Command{
+			Hidden:                true,
 			Use:                   name + " <appname> [args]",
 			DisableFlagsInUseLine: true,
 			Short:                 "Attach " + name + " trait to an app",
@@ -69,9 +70,6 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 					}
 				}
 				return o.Run(ctx, cmd, ioStreams)
-			},
-			Annotations: map[string]string{
-				types.TagCommandType: types.TypeTraits,
 			},
 		}
 		pluginCmd.SetOut(ioStreams.Out)

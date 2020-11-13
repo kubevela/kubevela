@@ -34,9 +34,6 @@ func AddCompCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Manage services",
 		Long:                  "Manage services",
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeApp,
-		},
 	}
 	compCommands.PersistentFlags().StringP(App, "a", "", "specify the name of application containing the services")
 
