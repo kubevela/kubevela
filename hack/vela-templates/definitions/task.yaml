@@ -3,7 +3,7 @@ kind: WorkloadDefinition
 metadata:
   name: task
   annotations:
-    definition.oam.dev/description: "One-time task/job"
+    definition.oam.dev/description: "One-off task to run a piece of code or script to completion"
 spec:
   definitionRef:
     name: jobs

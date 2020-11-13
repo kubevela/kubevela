@@ -3,11 +3,11 @@ kind: TraitDefinition
 metadata:
   name: autoscale
   annotations:
-    definition.oam.dev/description: "Automatically scale workloads"
+    definition.oam.dev/description: "Automatically scale the app following certain triggers or metrics"
 spec:
   appliesToWorkloads:
     - webservice
-    - backend
+    - worker
   workloadRefPath: spec.workloadRef
   definitionRef:
     name: autoscalers.standard.oam.dev

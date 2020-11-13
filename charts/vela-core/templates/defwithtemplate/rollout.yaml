@@ -2,10 +2,11 @@ apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata:
   name: rollout
+  annotations:
+    definition.oam.dev/description: "Configure canary deployment strategy to release the app"
 spec:
   appliesToWorkloads:
-    - podspecworkload.standard.oam.dev
-    - deployments.apps
+    - webservice
   definitionRef:
     name: canaries.flagger.app
   workloadRefPath: spec.targetRef
