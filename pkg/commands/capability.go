@@ -19,8 +19,8 @@ import (
 func CapabilityCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cap",
-		Short: "Capability Management",
-		Long:  "Capability Management with config, list, add, remove capabilities",
+		Short: "Manage capability centers and installing/uninstalling capabilities",
+		Long:  "Manage capability centers and installing/uninstalling capabilities",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
 		},

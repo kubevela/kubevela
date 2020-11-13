@@ -17,8 +17,8 @@ func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 	cmd := &cobra.Command{
 		Use:                   "delete APP_NAME",
 		DisableFlagsInUseLine: true,
-		Short:                 "Delete Applications",
-		Long:                  "Delete Applications",
+		Short:                 "Delete an application",
+		Long:                  "Delete an application",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},

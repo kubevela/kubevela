@@ -19,8 +19,8 @@ func NewEnvCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "env",
 		DisableFlagsInUseLine: true,
-		Short:                 "Manage application environments",
-		Long:                  "Manage application environments",
+		Short:                 "Manage environments",
+		Long:                  "Manage environments",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},

@@ -61,8 +61,8 @@ func NewPortForwardCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra
 
 	cmd := &cobra.Command{
 		Use:   "port-forward APP_NAME [options] [LOCAL_PORT:]REMOTE_PORT [...[LOCAL_PORT_N:]REMOTE_PORT_N]",
-		Short: "Forward one or more local ports to a Pod of a service in an application",
-		Long:  "Forward one or more local ports to a Pod of a service in an application",
+		Short: "Forward local ports to services in an application",
+		Long:  "Forward local ports to services in an application",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				ioStreams.Error("Please specify application name.")
