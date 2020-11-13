@@ -3,16 +3,12 @@ kind: TraitDefinition
 metadata:
   name: metric
   annotations:
-    definition.oam.dev/description: "Add metric monitoring for workload"
+    definition.oam.dev/description: "Configure metrics targets to be monitored for the app"
 spec:
   appliesToWorkloads:
     - webservice
     - backend
     - task
-    - containerizedworkloads.core.oam.dev
-    - clonesetworkloads.apps.kruise.io
-    - deployments.apps
-    - statefulsets.apps
   definitionRef:
     name: metricstraits.standard.oam.dev
   workloadRefPath: spec.workloadRef
