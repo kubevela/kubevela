@@ -125,7 +125,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				oamutil.PatchCondition(ctx, r, &routeTrait,
 					cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyNginxIngress)))
 		}
-		r.record.Event(eventObj, event.Normal("nginx ingress created",
+		r.record.Event(eventObj, event.Normal("nginx ingress patched",
 			fmt.Sprintf("successfully server side patched a route trait `%s`", routeTrait.Name)))
 	}
 	// TODO(wonderflow): GC mechanism for no used ingress, service, issuer

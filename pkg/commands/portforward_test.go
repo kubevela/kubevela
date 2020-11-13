@@ -44,6 +44,7 @@ func TestPortForwardCommand(t *testing.T) {
 		kcPortForwardOptions: &portforward.PortForwardOptions{},
 		f:                    tf,
 		ClientSet:            fakeClientSet,
+		VelaC:                fakeC,
 	}
 	err := o.Init(context.Background(), cmd, []string{"fakeApp", "8081:8080"})
 	assert.NoError(t, err)
