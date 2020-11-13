@@ -40,8 +40,8 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "init",
 		DisableFlagsInUseLine: true,
-		Short:                 "Init an OAM Application",
-		Long:                  "Init an OAM Application by one command",
+		Short:                 "Create scaffold for an application",
+		Long:                  "Create scaffold for an application",
 		Example:               "vela init",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})

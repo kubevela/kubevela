@@ -26,7 +26,7 @@ func NewListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 		Aliases:               []string{"list"},
 		DisableFlagsInUseLine: true,
 		Short:                 "List services",
-		Long:                  "List services with their application, type, traits, status and created time, etc.",
+		Long:                  "List services of all applications",
 		Example:               `vela ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			env, err := GetEnv(cmd)

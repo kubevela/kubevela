@@ -24,8 +24,8 @@ func NewConfigCommand(args types.Args, io cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "config",
 		DisableFlagsInUseLine: true,
-		Short:                 "Manage application configurations",
-		Long:                  "Manage application configurations under given env",
+		Short:                 "Manage configurations",
+		Long:                  "Manage configurations",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},

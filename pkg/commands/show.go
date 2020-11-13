@@ -16,8 +16,8 @@ import (
 func NewAppShowCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "show APP_NAME",
-		Short:   "Get details of an application",
-		Long:    "Get details of an application",
+		Short:   "Show details of an application",
+		Long:    "Show details of an application",
 		Example: `vela show APP_NAME`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)

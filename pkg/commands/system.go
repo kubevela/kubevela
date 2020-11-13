@@ -98,8 +98,8 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 	i := &initCmd{ioStreams: ioStreams}
 	cmd := &cobra.Command{
 		Use:   "install",
-		Short: "Initialize vela on both client and server",
-		Long:  "Install OAM runtime and vela builtin capabilities.",
+		Short: "Install Vela Core with built-in capabilities",
+		Long:  "Install Vela Core with built-in capabilities",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 			if err != nil {
