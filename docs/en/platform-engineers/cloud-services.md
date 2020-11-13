@@ -2,53 +2,78 @@
 
 In this tutorial, we will add a Alibaba Cloud's RDS service as a new workload type in KubeVela.
 
-## Step 1: Install and configure Crossplane (v0.13)
+## Step 1: Install and configure Crossplane 
 
-In this tutorial, we use Crossplane as the cloud resource operator for Kubernetes. 
-
-<details>
-
-To make this process more easier, we provide all the needed scripts in [this folder](https://github.com/oam-dev/kubevela/tree/master/docs/examples/kubecondemo). 
-
-Please do:
-```console
-$ cd examples/kubecondemo/
-```
-You also need to have the Access Key and Secret to your Alibaba Cloud account by hand and then follow the steps below.
-
-* Create crossplane namespace: `kubectl create ns crossplane-system`
-* Install crossplane helm chart: `helm install crossplane  charts/crossplane/ --namespace crossplane-system`
-* Install crossplane cli: `curl -sL https://raw.githubusercontent.com/crossplane/crossplane/release-0.13/install.sh | sh`
-* Add crossplane to `PATH`:  `sudo mv kubectl-crossplane /usr/local/bin`
-* Configure cloud provider(Alibaba Cloud) 
-  * Add cloud provider: `kubectl crossplane install provider crossplane/provider-alibaba:v0.3.0`
-  * Create provider secret: `kubectl create secret generic alibaba-creds --from-literal=accessKeyId=<change here> --from-literal=accessKeySecret=<change here> -n crossplane-system`
-  * Configure the provider: `kubectl apply -f script/provider.yaml`
-* Configure infrastructure: `kubectl crossplane install configuration crossplane/getting-started-with-alibaba:v0.13`
-
-So far we have configured Crossplane on the cluster.
-
-</details>
+In this tutorial, we use Crossplane as the cloud resource operator for Kubernetes.   
+Please follow the Crossplane [Documentation](https://crossplane.io/docs/) under the `Welcome` section to configure Crossplane with your cloud account.   
+**Note: When installing crossplane helm chart, please do not include the `--set alpha.oam.enabled=true` flag as KubeVela has already installed these OAM crds.**
 
 ## Step 2: Add Workload Definition
 
-First, register the `rds` workload type to KubeVela: 
+First,register the `rds` workload type to KubeVela:
 
-```console
-kubectl apply -f script/def_db.yaml
+```bash
+$ cat << EOF | kubectl apply -f -
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: rds
+  annotations:
+    definition.oam.dev/apiVersion: "database.example.org/v1alpha1"
+    definition.oam.dev/kind: "PostgreSQLInstance"
+    definition.oam.dev/description: "RDS on Ali Cloud"
+spec:
+  definitionRef:
+    name: rds.apps
+  extension:
+    template: |
+      output: {
+        apiVersion: "database.example.org/v1alpha1"
+        kind: "PostgreSQLInstance"
+        metadata:
+          name: context.name
+        spec: {         
+          parameters:
+            storageGB: 20
+          compositionSelector: {
+            matchLabels:
+              provider: parameter.provider
+          }
+          writeConnectionSecretToRef:
+            name: parameter.secretname
+        }
+      }
+      
+      parameter: {
+        secretname: *"db-conn" | string
+        provider: *"alibaba" | string
+      }     
+EOF
 ``` 
 
-Check the new workload type is added:   
+Check if the new workload type is added:   
 ```console
 $ vela workloads
+Synchronizing capabilities from cluster⌛ ...
+Sync capabilities successfully ✅ Add(1) Update(0) Delete(0)
+TYPE	CATEGORY	DESCRIPTION     
++rds	workload	RDS on Ali Cloud
+
+Listing workload capabilities ...
+
+NAME      	DESCRIPTION                             
+rds       	RDS on Ali Cloud                        
+task      	One-time task/job                       
+webservice	Long running service with network routes
+worker    	Backend worker without ports exposed    
 ```   
 
-## Step 3: Verify RDS workload type in Appfile
+## Step 3: Try out RDS workload to an application
 
-Now in the Appfile, we claim an RDS instance with workload type of `rds`:
+In the sample Appfile, we claim an RDS instance with workload type of `rds`:
 
 ``` yaml
-name: lab3
+name: test-rds
 
 services:
   ...
@@ -58,31 +83,19 @@ services:
     ...
 ```
 
-> Please check the full application sample in [tutorial folder](https://github.com/oam-dev/kubevela/blob/master/docs/examples/kubecondemo/vela.yaml).
-
 Next, we could deploy the application with `$ vela up`
 
-**(Optional) Verify the database status**
+## Verify the database status
 
-<details>
-
-We can verify the status of database (usually takes 6 min to be ready):
-
+The database provision will take some time (> 5 min to be ready):
+In our Appfile, we created another service called `checkdb`. The database will write all the connecting credentials in a secret which we put into the `checkdb` service as environmental variables. Now we can verify the database configuration simply by printing out the environmental variables of the `checkdb` service:   
+`$ vela exec test-rds -- printenv`   
+After confirming the service is `checkdb`, we shall see the printout of the database information:
 ```console
-$ kubectl get postgresqlinstance`
+PGUSER=myuser
+PGPASSWORD=o76aTnDdu7FvTJIL5vvkQSF8ind
+PGPORT=1921
+PGDATABASE=postgres
+PGHOST=rm-rj9lxi3613x8m1e6y.pg.rds.aliyuncs.com
+...
 ```
-
-When the database is ready, you can see the `READY: True` output.
-
-</details>
-
-### Access the application
-
-In the Appfile we added a route trait with domain of `kubevela.kubecon.demo`.
-
-So the application should be accessable via:
-
-```
-$ curl -H "Host:kubevela.kubecon.demo" http://localhost:8080
-```
-
