@@ -17,7 +17,7 @@ func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 	var syncCluster bool
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:                   "traits [--apply-to WORKLOADNAME]",
+		Use:                   "traits [--apply-to WORKLOAD_NAME]",
 		DisableFlagsInUseLine: true,
 		Short:                 "List traits",
 		Long:                  "List traits",
