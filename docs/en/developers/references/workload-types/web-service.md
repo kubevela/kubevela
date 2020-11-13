@@ -19,6 +19,7 @@ services:
     image: oamdev/testapp:v1
     cmd: ["node", "server.js"]
     port: 8080
+    cpu: "0.1"
     env:
       - name: FOO
         value: bar
@@ -37,7 +38,7 @@ Name | Type | Description | Notes
 **Env** | [**[]WebserviceEnv**](#webserviceenv) |  | [optional]
 **Image** | **string** | Which image would you like to use for your service |
 **Port** | **int32** | Which port do you want customer traffic sent to | [default to 80]
-**cpu** | **string** | CPU core requests for the workload, specify like &#39;0.5&#39;, &#39;1&#39 | [optional]
+**cpu** | **string** | Number of CPU units for the service, like `500m` (0.5 CPU core), `1` (1 CPU core) | [optional]
 
 ### WebserviceEnv
 
