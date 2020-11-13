@@ -1,6 +1,6 @@
 # Setting Rollout Strategy
 
-The `rollout` section is used to configure rolling update policy for your app.
+The `rollout` section is used to configure Canary deployment strategy to release your app.
 
 Add rollout config under `express-server` along with a `route`.
 
@@ -19,15 +19,6 @@ services:
     
     route:
       domain: "example.com"
-```
-
-If your cluster don't have ingress, you could set domain to be empty like below:
-
-```yaml
-...
-    route:
--     domain: "example.com"
-+     domain: ""
 ```
 
 > The full specification of `rollout` could be found [here](references/traits/rollout.md)
@@ -72,19 +63,6 @@ $ curl -H "Host:example.com" http://<your-ingress-IP-address>/
 Hello World -- Rolling 01
 ```
 
-If you don't have ingress in your cluster and you leave domain to be empty, then you could visit this app by:
-
-```bash
-$ vela port-forward testapp --route
-Forwarding from 127.0.0.1:8080 -> 80
-Forwarding from [::1]:8080 -> 80
-
-Forward successfully! Opening browser ...
-Handling connection for 8080
-```
-
-It will automatically open browser for you.
-
 In day 2, assuming we have make some changes on our app and build the new image and name it by `oamdev/testapp:v2`.
 
 Let's update the appfile by:
@@ -110,7 +88,6 @@ Apply this `appfile.yaml` again:
 ```bash
 $ vela up
 ```
-
 
 You could run `vela status` several times to see the instance rolling:
 
@@ -139,9 +116,9 @@ Services:
       Updated at: 2020-11-12T19:02:40+08:00
 ```
 
-You could then try to `curl` your app multiple times and and see how the new instances being promoted following Canary
-rollout strategy: (Note: Using `vela port-forward` will not see this as port-forward will proxy network on fixed port, only ingress
-has loadbalance.)
+You could then try to `curl` your app multiple times and and see how the app being rollout following Canary
+deployment strategy:
+
 
 ```bash
 $ curl -H "Host:example.com" http://<your-ingress-ip-address>/
