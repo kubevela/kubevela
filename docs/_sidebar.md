@@ -21,9 +21,10 @@
     - [Configuring data/env in Application](/en/developers/config-app.md)
   - [Alternative Commands](/en/developers/alternative-cmd.md)
 - Extending KubeVela
-  - [Add Trait](/en/platform-engineers/trait.md)
   - [Add Workload Type](/en/platform-engineers/workload-type.md)
-  - [Add Cloud Services](/en/platform-engineers/cloud-resource.md)
+  - [Add Cloud Services](/en/platform-engineers/cloud-services.md)
+  - [Add Trait](/en/platform-engineers/trait.md)
+<!--   - [Add Cloud Services](/en/platform-engineers/cloud-resource.md) -->
 
 - Roadmap
   - [KubeVela Roadmap](/en/roadmap.md)
