@@ -10,7 +10,7 @@ Please follow the Crossplane [Documentation](https://crossplane.io/docs/) under 
 
 ## Step 2: Add Workload Definition
 
-First,register the `rds` workload type to KubeVela:
+First,register the `rds` workload type to KubeVela.
 
 ```bash
 $ cat << EOF | kubectl apply -f -
@@ -34,7 +34,7 @@ spec:
           name: context.name
         spec: {         
           parameters:
-            storageGB: 20
+            storageGB: parameter.storage
           compositionSelector: {
             matchLabels:
               provider: parameter.provider
@@ -47,6 +47,7 @@ spec:
       parameter: {
         secretname: *"db-conn" | string
         provider: *"alibaba" | string
+        storage: *20 | int
       }     
 EOF
 ``` 
@@ -70,13 +71,48 @@ worker    	Backend worker without ports exposed
 
 ## Step 3: Try out RDS workload to an application
 
-Let's first create an Appfile. We will claim an RDS instance with workload type of `rds`:
+Let's first create an Appfile. We will claim an RDS instance with workload type of `rds`. You may need to change the variables here to reflect your configuration. 
 
 ```bash
 $ cat << EOF > vela.yaml
+name: test-rds
 
+services:
+  database:
+    type: rds
+    name: alibabaRds
+    storage: 20
+
+  checkdb:
+    type: webservice
+    image: nginx
+    name: checkdb
+    env:
+      - name: PGDATABASE
+        value: postgres
+      - name: PGHOST
+        valueFrom:
+          secretKeyRef:
+            name: db-conn
+            key: endpoint
+      - name: PGUSER
+        valueFrom:
+          secretKeyRef:
+            name: db-conn
+            key: username
+      - name: PGPASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: db-conn
+            key: password
+      - name: PGPORT
+        valueFrom:
+          secretKeyRef:
+            name: db-conn
+            key: port
 EOF
 ```
+
 Next, we could deploy the application with `$ vela up`
 
 ## Verify the database status
