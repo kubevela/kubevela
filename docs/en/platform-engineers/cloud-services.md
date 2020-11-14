@@ -4,9 +4,10 @@ In this tutorial, we will add a Alibaba Cloud's RDS service as a new workload ty
 
 ## Step 1: Install and configure Crossplane 
 
-In this tutorial, we use Crossplane as the cloud resource operator for Kubernetes.   
-Please follow the Crossplane [Documentation](https://crossplane.io/docs/) under the `Welcome` section to configure Crossplane with your cloud account.   
-**Note: When installing crossplane helm chart, please do not include the `--set alpha.oam.enabled=true` flag as KubeVela has already installed these OAM crds.**
+We use Crossplane as the cloud resource operator for Kubernetes. This tutorial has been verified with crossplane `version 0.14`.
+Please follow the Crossplane [Documentation](https://crossplane.io/docs/), especially the `Install & Configure` and `Compose Infrastructure` sections to configure Crossplane with your cloud account.
+
+**Note: When installing crossplane helm chart, please don't set `alpha.oam.enabled=true` as OAM crds are already installed by KubeVela.**
 
 ## Step 2: Add Workload Definition
 
@@ -117,8 +118,8 @@ Next, we could deploy the application with `$ vela up`
 
 ## Verify the database status
 
-The database provision will take some time (> 5 min to be ready):
-In our Appfile, we created another service called `checkdb`. The database will write all the connecting credentials in a secret which we put into the `checkdb` service as environmental variables. Now we can verify the database configuration simply by printing out the environmental variables of the `checkdb` service:   
+The database provision will take some time (> 5 min) to be ready.
+In our Appfile, we created another service called `checkdb`. The database will write all the connecting credentials in a secret which we put into the `checkdb` service as environmental variables. To verify the database configuration, we simply print out the environmental variables of the `checkdb` service:   
 `$ vela exec test-rds -- printenv`   
 After confirming the service is `checkdb`, we shall see the printout of the database information:
 ```console
