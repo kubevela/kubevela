@@ -1,6 +1,6 @@
 # Setting Rollout Strategy
 
-The `rollout` section is used to configure Canary deployment strategy to release your app.
+The `rollout` section is used to configure Canary strategy to release your app.
 
 Add rollout config under `express-server` along with a `route`.
 
@@ -116,8 +116,7 @@ Services:
       Updated at: 2020-11-12T19:02:40+08:00
 ```
 
-You could then try to `curl` your app multiple times and and see how the app being rollout following Canary
-deployment strategy:
+You could then try to `curl` your app multiple times and and see how the app being rollout following Canary strategy:
 
 
 ```bash
@@ -135,4 +134,4 @@ $ curl -H "Host:example.com" http://<your-ingress-ip-address>/
 Hello World -- This is rolling 02
 ```
 
-For every 30 second, 20% more traffic will be shifted to the new instance from the old instance as we configured in Appfile.
+> NOTE: please check the [detailed documentation](references/traits/rollout.md#how-rollout-works) for `Rollout` trait to fully understand how canary release strategy works in KubeVela.
