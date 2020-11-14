@@ -47,7 +47,7 @@ Successfully installed capability openfaas from my-center
 
 ```bash
 $ vela workloads
-Automatically discover capabilities successfully ✅ Add(0) Update(1) Delete(0)
+Automatically discover capabilities successfully ✅ Add(1) Update(0) Delete(0)
 TYPE      	CATEGORY	DESCRIPTION
 *openfaas 	workload	OpenFaaS function workload
 NAME      	DESCRIPTION
