@@ -11,8 +11,6 @@ const (
 )
 
 const (
-	AnnAPIVersion  = "definition.oam.dev/apiVersion"
-	AnnKind        = "definition.oam.dev/kind"
 	AnnDescription = "definition.oam.dev/description"
 
 	LabelPodSpecable = "workload.oam.dev/podspecable"
@@ -37,10 +35,10 @@ type EnvMeta struct {
 const (
 	TagCommandType = "commandType"
 
-	TypeStart   = "Getting Started"
-	TypeApp     = "Applications"
-	TypeTraits  = "Traits"
-	TypeRelease = "Release"
-	TypeOthers  = "Others"
-	TypeSystem  = "System"
+	TypeStart  = "Getting Started"
+	TypeApp    = "Managing Applications"
+	TypeCap    = "Managing Capabilities"
+	TypeSystem = "System"
+
+	TypeTraits = "Traits"
 )

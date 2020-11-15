@@ -19,10 +19,10 @@ func NewEnvCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "env",
 		DisableFlagsInUseLine: true,
-		Short:                 "Manage application environments",
-		Long:                  "Manage application environments",
+		Short:                 "Manage environments",
+		Long:                  "Manage environments",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeStart,
+			types.TagCommandType: types.TypeApp,
 		},
 	}
 	cmd.SetOut(ioStream.Out)
@@ -65,7 +65,7 @@ func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 				return err
 			}
 			if syncCluster {
-				if err := RefreshDefinitions(ctx, newClient, ioStreams, true); err != nil {
+				if err := RefreshDefinitions(ctx, c, ioStreams, true); err != nil {
 					return err
 				}
 			}

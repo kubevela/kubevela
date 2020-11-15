@@ -1,7 +1,0 @@
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
-metadata:
-  name: deployments.apps
-spec:
-  definitionRef:
-    name: deployments.apps

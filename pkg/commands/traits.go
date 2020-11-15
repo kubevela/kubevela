@@ -10,7 +10,6 @@ import (
 	"github.com/gosuri/uitable"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
@@ -18,22 +17,21 @@ func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 	var syncCluster bool
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:                   "traits [--apply-to WORKLOADNAME]",
+		Use:                   "traits [--apply-to WORKLOAD_NAME]",
 		DisableFlagsInUseLine: true,
 		Short:                 "List traits",
 		Long:                  "List traits",
 		Example:               `vela traits`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if syncCluster {
-				newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
-				if err != nil {
-					return err
-				}
-				if err := RefreshDefinitions(ctx, newClient, ioStreams, true); err != nil {
+				if err := RefreshDefinitions(ctx, c, ioStreams, true); err != nil {
 					return err
 				}
 			}
 			return printTraitList(&workloadName, ioStreams)
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypeCap,
 		},
 	}
 

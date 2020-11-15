@@ -59,9 +59,9 @@ func NewExecCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra.Comman
 		VelaC: c,
 	}
 	cmd := &cobra.Command{
-		Use:   "exec [flags] AppName -- COMMAND [args...]",
-		Short: "Execute a command in a container",
-		Long:  "Execute a command in the 1st container of specific Application => Service => (1st)Pod",
+		Use:   "exec [flags] APP_NAME -- COMMAND [args...]",
+		Short: "Execute command in a container",
+		Long:  "Execute command in a container",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				ioStreams.Error("Please specify an application name.")

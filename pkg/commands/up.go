@@ -36,7 +36,7 @@ func NewUpCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 		Use:                   "up",
 		DisableFlagsInUseLine: true,
 		Short:                 "Apply an appfile",
-		Long:                  "Apply an appfile, by default vela.yaml",
+		Long:                  "Apply an appfile",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
 		},

@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"os"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
@@ -55,12 +57,12 @@ func init() {
 // Note: reconsider delegating the work to helm operator.
 func Install(kubecli client.Client) {
 	velaConfig, err := fetchVelaConfig(kubecli)
-	if err != nil {
-		log.Error(err, "fetchVelaConfig failed")
+	if apierrors.IsNotFound(err) {
+		log.Info("no ConfigMap('vela-config') found in vela-system namespace, will not install any dependency")
 		return
 	}
-	if velaConfig == nil {
-		log.Info("no vela config")
+	if err != nil {
+		log.Error(err, "fetch ConfigMap('vela-config') in vela-system namespace failed")
 		return
 	}
 	for key, chart := range velaConfig.Data {
@@ -96,7 +98,7 @@ func fetchVelaConfig(kubecli client.Client) (*v1.ConfigMap, error) {
 	velaConfigNN := k8stypes.NamespacedName{Name: VelaConfigName, Namespace: types.DefaultOAMNS}
 	velaConfig := &v1.ConfigMap{}
 	if err := kubecli.Get(context.TODO(), velaConfigNN, velaConfig); err != nil {
-		return nil, client.IgnoreNotFound(err)
+		return nil, err
 	}
 	return velaConfig, nil
 }

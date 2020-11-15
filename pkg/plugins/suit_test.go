@@ -33,6 +33,7 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var cfg *rest.Config
+var scheme *runtime.Scheme
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var definitionDir string
@@ -53,7 +54,7 @@ var _ = BeforeSuite(func(done Done) {
 	By("bootstrapping test environment")
 	useExistCluster := false
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:  []string{filepath.Join("..", "config", "crd", "bases")},
+		CRDDirectoryPaths:  []string{filepath.Join("..", "..", "charts", "vela-core", "crds")},
 		UseExistingCluster: &useExistCluster,
 	}
 
@@ -61,63 +62,17 @@ var _ = BeforeSuite(func(done Done) {
 	cfg, err = testEnv.Start()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
-	scheme := runtime.NewScheme()
+	scheme = runtime.NewScheme()
 	Expect(corev1alpha2.AddToScheme(scheme)).NotTo(HaveOccurred())
 	Expect(clientgoscheme.AddToScheme(scheme)).NotTo(HaveOccurred())
 	Expect(v1beta1.AddToScheme(scheme)).NotTo(HaveOccurred())
-
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
-	crd := v1beta1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "traitdefinitions.core.oam.dev",
-		},
-		Spec: v1beta1.CustomResourceDefinitionSpec{
-			Group: "core.oam.dev",
-			Names: v1beta1.CustomResourceDefinitionNames{
-				Kind:     "TraitDefinition",
-				ListKind: "TraitDefinitionList",
-				Plural:   "traitdefinitions",
-				Singular: "traitdefinition",
-			},
-			Versions: []v1beta1.CustomResourceDefinitionVersion{
-				{
-					Name:    "v1alpha2",
-					Served:  true,
-					Storage: true,
-				},
-			},
-		},
-	}
-	Expect(k8sClient.Create(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-	crd = v1beta1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "workloaddefinitions.core.oam.dev",
-		},
-		Spec: v1beta1.CustomResourceDefinitionSpec{
-			Group: "core.oam.dev",
-			Names: v1beta1.CustomResourceDefinitionNames{
-				Kind:     "WorkloadDefinition",
-				ListKind: "WorkloadDefinitionList",
-				Plural:   "workloaddefinitions",
-				Singular: "workloaddefinition",
-			},
-			Versions: []v1beta1.CustomResourceDefinitionVersion{
-				{
-					Name:    "v1alpha2",
-					Served:  true,
-					Storage: true,
-				},
-			},
-		},
-	}
 	definitionDir, err = system.GetCapabilityDir()
 	Expect(err).Should(BeNil())
 	Expect(os.MkdirAll(definitionDir, 0755)).Should(BeNil())
-	Expect(k8sClient.Create(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: DefinitionNamespace}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 

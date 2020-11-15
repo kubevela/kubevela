@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"strings"
 
 	standardv1alpha1 "github.com/oam-dev/kubevela/api/v1alpha1"
 
@@ -100,6 +101,10 @@ func (n *Nginx) CheckStatus(routeTrait *standardv1alpha1.Route) (string, []runti
 
 func (*Nginx) Construct(routeTrait *standardv1alpha1.Route) []*v1beta1.Ingress {
 
+	// Don't create ingress if no host set, this is used for local K8s cluster demo and the route trait will create K8s service only.
+	if routeTrait.Spec.Host == "" || strings.Contains(routeTrait.Spec.Host, "localhost") || strings.Contains(routeTrait.Spec.Host, "127.0.0.1") {
+		return nil
+	}
 	var ingresses []*v1beta1.Ingress
 	for idx, rule := range routeTrait.Spec.Rules {
 		name := rule.Name

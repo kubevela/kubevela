@@ -48,7 +48,7 @@ Kubernetes based serverless platforms such as Knative, OpenFaaS can be easily in
 
 ### Platform agnostic developer tools
 
-The typical example is [Waypoint](https://github.com/hashicorp/waypoint). Waypoint is a developer facing tool which introduces a consistent workflow (i.e., build, deploy, release) to ship applications on top of different platforms.
+The typical example is Hashicorp's Waypoint. Waypoint is a developer facing tool which introduces a consistent workflow (i.e., build, deploy, release) to ship applications on top of different platforms.
 
 KubeVela can be integrated into Waypoint like any other supported platforms. In this case, developers will use the Waypoint workflow instead of the KubeVela Appfile/CLI to manage applications, and all the capabilities of KubeVela including abstractions will still be available in this integration.
 

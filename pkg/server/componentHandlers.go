@@ -1,10 +1,9 @@
-package handler
+package server
 
 import (
 	"os"
 
 	"github.com/gin-gonic/gin"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -12,8 +11,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
-func GetComponent(c *gin.Context) {
-	kubeClient := c.MustGet("KubeClient")
+func (s *APIServer) GetComponent(c *gin.Context) {
 	envName := c.Param("envName")
 	envMeta, err := env.GetEnvByName(envName)
 	if err != nil {
@@ -24,7 +22,7 @@ func GetComponent(c *gin.Context) {
 	applicationName := c.Param("appName")
 	componentName := c.Param("compName")
 	ctx := util.GetContext(c)
-	componentMeta, err := oam.RetrieveComponent(ctx, kubeClient.(client.Client), applicationName, componentName, namespace)
+	componentMeta, err := oam.RetrieveComponent(ctx, s.KubeClient, applicationName, componentName, namespace)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
@@ -32,8 +30,7 @@ func GetComponent(c *gin.Context) {
 	util.AssembleResponse(c, componentMeta, nil)
 }
 
-func DeleteComponent(c *gin.Context) {
-	kubeClient := c.MustGet("KubeClient")
+func (s *APIServer) DeleteComponent(c *gin.Context) {
 	envName := c.Param("envName")
 	envMeta, err := env.GetEnvByName(envName)
 	if err != nil {
@@ -44,7 +41,7 @@ func DeleteComponent(c *gin.Context) {
 	componentName := c.Param("compName")
 
 	o := oam.DeleteOptions{
-		Client:   kubeClient.(client.Client),
+		Client:   s.KubeClient,
 		Env:      envMeta,
 		AppName:  appName,
 		CompName: componentName}

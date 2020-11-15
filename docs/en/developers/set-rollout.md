@@ -1,6 +1,6 @@
 # Setting Rollout Strategy
 
-The `rollout` section is used to configure rolling update policy for your app.
+The `rollout` section is used to configure Canary strategy to release your app.
 
 Add rollout config under `express-server` along with a `route`.
 
@@ -9,8 +9,8 @@ name: testapp
 services:
   express-server:
     type: webservice
-    image: oamdev/testapp:v1
-    port: 8080
+    image: oamdev/testapp:rolling01
+    port: 80
 
     rollout:
       replica: 5
@@ -18,7 +18,7 @@ services:
       interval: "30s"
     
     route:
-      domain: example.com
+      domain: "example.com"
 ```
 
 > The full specification of `rollout` could be found [here](references/traits/rollout.md)
@@ -60,7 +60,7 @@ Visiting this app by:
 
 ```bash
 $ curl -H "Host:example.com" http://<your-ingress-IP-address>/
-Hello World%
+Hello World -- Rolling 01
 ```
 
 In day 2, assuming we have make some changes on our app and build the new image and name it by `oamdev/testapp:v2`.
@@ -72,9 +72,9 @@ name: testapp
 services:
   express-server:
     type: webservice
--   image: oamdev/testapp:v1
-+   image: oamdev/testapp:v2
-    port: 8080
+-   image: oamdev/testapp:rolling01
++   image: oamdev/testapp:rolling02
+    port: 80
     rollout:
       replica: 5
       stepWeight: 20
@@ -89,22 +89,49 @@ Apply this `appfile.yaml` again:
 $ vela up
 ```
 
-You could then try to `curl` your app multiple times and and see how the new instances being promoted following Canary rollout strategy:
+You could run `vela status` several times to see the instance rolling:
+
+```shell script
+$ vela status testapp
+About:
+
+  Name:      	testapp
+  Namespace: 	myenv
+  Created at:	2020-11-12 19:02:40.353693 +0800 CST
+  Updated at:	2020-11-12 19:02:40.353693 +0800 CST
+
+Services:
+
+  - Name: express-server
+    Type: webservice
+    HEALTHY express-server-v2:Ready: 1/1 express-server-v1:Ready: 4/4
+    Traits:
+      - ✅ rollout: interval=30s
+		replica=5
+		stepWeight=20
+      - ✅ route: 	 Visiting by using 'vela port-forward testapp --route'
+
+    Last Deployment:
+      Created at: 2020-11-12 17:20:46 +0800 CST
+      Updated at: 2020-11-12T19:02:40+08:00
+```
+
+You could then try to `curl` your app multiple times and and see how the app being rollout following Canary strategy:
+
 
 ```bash
 $ curl -H "Host:example.com" http://<your-ingress-ip-address>/
-Hello World  -- Updated Version Two!%                                         
+Hello World -- This is rolling 02                                        
 $ curl -H "Host:example.com" http://<your-ingress-ip-address>/
-Hello World%                                                                  
+Hello World -- Rolling 01                                                                
 $ curl -H "Host:example.com" http://<your-ingress-ip-address>/
-Hello World%                                                                  
+Hello World -- Rolling 01                                                    
 $ curl -H "Host:example.com" http://<your-ingress-ip-address>/
-Hello World  -- Updated Version Two!%                                         
+Hello World -- This is rolling 02                                         
 $ curl -H "Host:example.com" http://<your-ingress-ip-address>/
-Hello World%                                                                  
+Hello World -- Rolling 01                                                  
 $ curl -H "Host:example.com" http://<your-ingress-ip-address>/
-Hello World  -- Updated Version Two!%
+Hello World -- This is rolling 02
 ```
 
-For every 30 second, 20% more traffic will be shifted to the new instance from the old instance as we configured in Appfile.
-
+> NOTE: please check the [detailed documentation](references/traits/rollout.md#how-rollout-works) for `Rollout` trait to fully understand how canary release strategy works in KubeVela.

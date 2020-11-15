@@ -37,12 +37,12 @@ output: {
 						containerPort: parameter.port
 					}]
 
-					if parameter["cpuRequests"] != _|_ {
+					if parameter["cpu"] != _|_ {
 						resources: {
 							limits:
-								cpu: parameter.cpuRequests
+								cpu: parameter.cpu
 							requests:
-								cpu: parameter.cpuRequests
+								cpu: parameter.cpu
 						}
 					}
 				}]
@@ -71,7 +71,6 @@ parameter: {
 			}
 		}
 	}]
-	// +usage=CPU core requests for the workload, specify like '0.5', '1'.
-	// +alias=cpu-requests
-	cpuRequests?: string
+	// +usage=Number of CPU units for the service, like `500m` (0.5 CPU core), `1` (1 CPU core)
+	cpu?: string
 }

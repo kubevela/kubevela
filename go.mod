@@ -9,7 +9,7 @@ require (
 	github.com/briandowns/spinner v1.11.1
 	github.com/coreos/prometheus-operator v0.41.1
 	github.com/crossplane/crossplane-runtime v0.10.0
-	github.com/crossplane/oam-kubernetes-runtime v0.3.2
+	github.com/crossplane/oam-kubernetes-runtime v0.3.3-0.20201112082656-22b7738dcdf3
 	github.com/fatih/color v1.9.0
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/ghodss/yaml v1.0.0

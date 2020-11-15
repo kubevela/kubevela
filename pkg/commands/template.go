@@ -15,7 +15,7 @@ func NewTemplateCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command
 		Short:                 "Manage templates",
 		Long:                  "Manage templates",
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeSystem,
+			types.TagCommandType: types.TypeCap,
 		},
 	}
 	cmd.SetOut(ioStream.Out)

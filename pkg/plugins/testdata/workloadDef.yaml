@@ -6,7 +6,7 @@ metadata:
     usecase: forplugintest
 spec:
   definitionRef:
-    name: deployments.testapps
+    name: deployments.apps
   extension:
     template: |
       output: {

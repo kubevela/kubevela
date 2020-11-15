@@ -286,7 +286,7 @@ var (
 							a: "8080",
 						},
 						{
-							q: "CPU core requests for the workload, specify like '0.5', '1'. (optional):",
+							q: "Number of CPU units for the service, like `500m` (0.5 CPU core), `1` (1 CPU core) (optional):",
 							a: "0.5",
 						},
 					}

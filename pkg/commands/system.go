@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
 	"time"
 
 	"github.com/openservicemesh/osm/pkg/cli"
@@ -17,6 +19,7 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 )
 
@@ -35,7 +38,8 @@ type initCmd struct {
 	client    client.Client
 	chartPath string
 	chartArgs chartArgs
-	waitReady bool
+	waitReady string
+	c         types.Args
 }
 
 type chartArgs struct {
@@ -94,8 +98,8 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 	i := &initCmd{ioStreams: ioStreams}
 	cmd := &cobra.Command{
 		Use:   "install",
-		Short: "Initialize vela on both client and server",
-		Long:  "Install OAM runtime and vela builtin capabilities.",
+		Short: "Install Vela Core with built-in capabilities",
+		Long:  "Install Vela Core with built-in capabilities",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 			if err != nil {
@@ -103,6 +107,7 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 			}
 			i.client = newClient
 			i.namespace = types.DefaultOAMNS
+			i.c = c
 			return i.run(ioStreams, chartContent)
 		},
 		Annotations: map[string]string{
@@ -115,12 +120,17 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 	flag.StringVarP(&i.chartArgs.imagePullPolicy, "image-pull-policy", "", "IfNotPresent", "vela core image pull policy, this will align to chart value image.pullPolicy")
 	flag.StringVarP(&i.chartArgs.imageRepo, "image-repo", "", "oamdev/vela-core", "vela core image repo, this will align to chart value image.repo")
 	flag.StringVarP(&i.chartArgs.imageTag, "image-tag", "", "latest", "vela core image repo, this will align to chart value image.tag")
-	flag.BoolVarP(&i.waitReady, "wait", "w", false, "wait until vela-core is ready to serve")
+	flag.StringVarP(&i.waitReady, "wait", "w", "0s", "wait until vela-core is ready to serve, default will not wait")
 
 	return cmd
 }
 
 func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
+	waitDuration, err := time.ParseDuration(i.waitReady)
+	if err != nil {
+		return fmt.Errorf("invalid wait timeoout duration %v, should use '120s', '5m' like format", err)
+	}
+
 	ioStreams.Info("- Installing Vela Core Chart:")
 	exist, err := cmdutil.DoesNamespaceExist(i.client, types.DefaultOAMNS)
 	if err != nil {
@@ -145,19 +155,49 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 			return err
 		}
 	}
-
-	if err := RefreshDefinitions(context.Background(), i.client, ioStreams, false); err != nil {
+	if err = CheckCapabilityReady(context.Background(), i.c, waitDuration); err != nil {
+		return err
+	}
+	if err := RefreshDefinitions(context.Background(), i.c, ioStreams, false); err != nil {
 		return err
 	}
 	ioStreams.Info("- Finished successfully.")
 
-	if i.waitReady {
-		_, err := PrintTrackVelaRuntimeStatus(context.Background(), i.client, ioStreams)
+	if waitDuration > 0 {
+		_, err := PrintTrackVelaRuntimeStatus(context.Background(), i.client, ioStreams, waitDuration)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// MUST wait to install capability succeed
+func CheckCapabilityReady(ctx context.Context, c types.Args, timeout time.Duration) error {
+	if timeout < 2*time.Minute {
+		timeout = 2 * time.Minute
+	}
+	tmpdir, err := ioutil.TempDir(".", "tmpcap")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpdir)
+
+	start := time.Now()
+	spiner := newTrackingSpinner("Waiting Capability ready to install ...")
+	spiner.Start()
+	defer spiner.Stop()
+
+	for {
+		_, err = plugins.GetCapabilitiesFromCluster(ctx, types.DefaultOAMNS, c, tmpdir, nil)
+		if err == nil {
+			return nil
+		}
+		if time.Since(start) > timeout {
+			return fmt.Errorf("timeout checking capability ready: %v", err)
+		}
+		time.Sleep(5 * time.Second)
+	}
 }
 
 func (i *initCmd) resolveValues() (map[string]interface{}, error) {
@@ -222,9 +262,8 @@ func GetOAMReleaseVersion(ns string) (string, error) {
 	return "", errors.New("oam-kubernetes-runtime not found in your kubernetes cluster, try `vela install` to install")
 }
 
-func PrintTrackVelaRuntimeStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams) (bool, error) {
-	trackTimeout := 5 * time.Minute
-	trackInterval := 2 * time.Second
+func PrintTrackVelaRuntimeStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, trackTimeout time.Duration) (bool, error) {
+	trackInterval := 5 * time.Second
 
 	ioStreams.Info("\nIt may take 1-2 minutes before KubeVela runtime is ready.")
 	start := time.Now()

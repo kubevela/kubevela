@@ -7,8 +7,11 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
+
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
+
 	"github.com/oam-dev/kubevela/api/types"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/pkg/errors"
@@ -21,7 +24,7 @@ import (
 
 const DescriptionUndefined = "description not defined"
 
-func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Capability, error) {
+func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c types.Args, syncDir string, selector labels.Selector) ([]types.Capability, error) {
 	workloads, _, err := GetWorkloadsFromCluster(ctx, namespace, c, syncDir, selector)
 	if err != nil {
 		return nil, err
@@ -34,10 +37,19 @@ func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c client.
 	return workloads, nil
 }
 
-func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Capability, []error, error) {
+func GetWorkloadsFromCluster(ctx context.Context, namespace string, c types.Args, syncDir string, selector labels.Selector) ([]types.Capability, []error, error) {
+	newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+	if err != nil {
+		return nil, nil, err
+	}
+	dm, err := discoverymapper.New(c.Config)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	var templates []types.Capability
 	var workloadDefs corev1alpha2.WorkloadDefinitionList
-	err := c.List(ctx, &workloadDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
+	err = newClient.List(ctx, &workloadDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
 	if err != nil {
 		return nil, nil, fmt.Errorf("list WorkloadDefinition err: %s", err)
 	}
@@ -49,21 +61,31 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c client.Cli
 			templateErrors = append(templateErrors, errors.Wrapf(err, "handle workload template `%s` failed", wd.Name))
 			continue
 		}
-		if apiVersion, kind := cmdutil.GetAPIVersionKindFromWorkload(wd); apiVersion != "" && kind != "" {
-			tmp.CrdInfo = &types.CrdInfo{
-				APIVersion: apiVersion,
-				Kind:       kind,
-			}
+		gvk, err := util.GetGVKFromDefinition(dm, wd.Spec.Reference)
+		if err != nil {
+			return nil, nil, fmt.Errorf("make sure you have installed CRD(controller) for this capability '%s': %v ", wd.Name, err)
+		}
+		tmp.CrdInfo = &types.CrdInfo{
+			APIVersion: gvk.GroupVersion().String(),
+			Kind:       gvk.Kind,
 		}
 		templates = append(templates, tmp)
 	}
 	return templates, templateErrors, nil
 }
 
-func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client, syncDir string, selector labels.Selector) ([]types.Capability, []error, error) {
+func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, syncDir string, selector labels.Selector) ([]types.Capability, []error, error) {
+	newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+	if err != nil {
+		return nil, nil, err
+	}
+	dm, err := discoverymapper.New(c.Config)
+	if err != nil {
+		return nil, nil, err
+	}
 	var templates []types.Capability
 	var traitDefs corev1alpha2.TraitDefinitionList
-	err := c.List(ctx, &traitDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
+	err = newClient.List(ctx, &traitDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
 	if err != nil {
 		return nil, nil, fmt.Errorf("list TraitDefinition err: %s", err)
 	}
@@ -75,11 +97,13 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c client.Client
 			templateErrors = append(templateErrors, errors.Wrapf(err, "handle trait template `%s` failed\n", td.Name))
 			continue
 		}
-		if apiVersion, kind := cmdutil.GetAPIVersionKindFromTrait(td); apiVersion != "" && kind != "" {
-			tmp.CrdInfo = &types.CrdInfo{
-				APIVersion: apiVersion,
-				Kind:       kind,
-			}
+		gvk, err := util.GetGVKFromDefinition(dm, td.Spec.Reference)
+		if err != nil {
+			return nil, nil, fmt.Errorf("make sure you have installed CRD(controller) for this capability '%s': %v ", td.Name, err)
+		}
+		tmp.CrdInfo = &types.CrdInfo{
+			APIVersion: gvk.GroupVersion().String(),
+			Kind:       gvk.Kind,
 		}
 		templates = append(templates, tmp)
 	}

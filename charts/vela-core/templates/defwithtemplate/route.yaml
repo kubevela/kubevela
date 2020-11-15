@@ -3,13 +3,10 @@ kind: TraitDefinition
 metadata:
   name: route
   annotations:
-    definition.oam.dev/apiVersion: standard.oam.dev/v1alpha1
-    definition.oam.dev/kind: Route
-    definition.oam.dev/description: "Add a route for workload"
+    definition.oam.dev/description: "Configure route policy to the app"
 spec:
   appliesToWorkloads:
     - webservice
-    - deployments.apps
   workloadRefPath: spec.workloadRef
   definitionRef:
     name: routes.standard.oam.dev

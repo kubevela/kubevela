@@ -142,21 +142,42 @@ Last Deployment:
 ## `vela autoscale`
 
 A shortcut to autoscale the service.
+Currently, Cli only supports setting CPU resource utilization auto-scaling policy. To configure cron auto-scaling policy,
+please refer to [autoscale in Appfile](/en/developers/set-autoscale.md).
 
-```console
-$ vela autoscale helloworld --svc frontend --min 1 --max 5 --cpu 5
-Adding autoscale for app frontend
-⠋ Checking Status ...
-✅ Application Deployed Successfully!
-  - Name: frontend
-    Type: webservice
-    HEALTHY Ready: 1/1
-    Traits:
-      - ✅ autoscale: type: cpu     cpu-utilization(target/current): 5%/0% replicas(min/max/current): 1/5/0
-    Last Deployment:
-      Created at: 2020-11-06 16:10:54 +0800 CST
-      Updated at: 2020-11-06T16:19:04+08:0
-```
+- Deploy an application
+
+  Run the following command to deploy application `helloworld`.
+
+  ```
+  $ vela svc deploy frontend -t webservice -a helloworld --image nginx:1.9.2 --port 80 --cpu=0.05
+  App helloworld deployed
+  ```
+
+  By default, the replicas of the workload webservice `helloworld` is one.
+
+- Scale the application by CPU utilization metrics
+  ```
+  $ vela autoscale helloworld --svc frontend --min 1 --max 5 --cpu-percent 5
+  Adding autoscale for app frontend
+  ⠋ Checking Status ...
+  ✅ Application Deployed Successfully!
+    - Name: frontend
+      Type: webservice
+      HEALTHY Ready: 1/1
+      Traits:
+        - ✅ autoscale: type: cpu     cpu-utilization(target/current): 5%/0%	replicas(min/max/current): 1/5/0
+      Last Deployment:
+        Created at: 2020-11-06 16:10:54 +0800 CST
+        Updated at: 2020-11-06T16:19:04+08:0
+  ```
+
+- Monitor the replicas changing when the application becomes overloaded
+
+  Continue to monitor the replicas changing when the application becoming overloaded. You can use Apache HTTP server
+  benchmarking tool `ab` to mock many requests to the application as we did in [Autoscalig in Appfile](/en/developers/set-autoscale.md).
+
+  With more and more requests to the application, the replicas gradually increase from one to four.
 
 ## `vela metric`
 

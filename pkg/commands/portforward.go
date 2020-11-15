@@ -9,6 +9,13 @@ import (
 	"strconv"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
+	types2 "k8s.io/apimachinery/pkg/types"
+
+	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/spf13/cobra"
@@ -39,6 +46,8 @@ type VelaPortForwardOptions struct {
 	f                    k8scmdutil.Factory
 	kcPortForwardOptions *cmdpf.PortForwardOptions
 	ClientSet            kubernetes.Interface
+	Client               client.Client
+	routeTrait           bool
 }
 
 func NewPortForwardCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra.Command {
@@ -49,15 +58,21 @@ func NewPortForwardCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra
 			PortForwarder: &defaultPortForwarder{ioStreams},
 		},
 	}
+
 	cmd := &cobra.Command{
 		Use:   "port-forward APP_NAME [options] [LOCAL_PORT:]REMOTE_PORT [...[LOCAL_PORT_N:]REMOTE_PORT_N]",
-		Short: "Forward one or more local ports to a Pod of a service in an application",
-		Long:  "Forward one or more local ports to a Pod of a service in an application",
+		Short: "Forward local ports to services in an application",
+		Long:  "Forward local ports to services in an application",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				ioStreams.Error("Please specify application name.")
 				return nil
 			}
+			newClient, err := client.New(o.VelaC.Config, client.Options{Scheme: o.VelaC.Schema})
+			if err != nil {
+				return err
+			}
+			o.Client = newClient
 			if err := o.Init(context.Background(), cmd, args); err != nil {
 				return err
 			}
@@ -77,6 +92,7 @@ func NewPortForwardCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra
 	cmd.Flags().Duration(podRunningTimeoutFlag, defaultPodExecTimeout,
 		"The length of time (like 5s, 2m, or 3h, higher than zero) to wait until at least one pod is running",
 	)
+	cmd.Flags().BoolVar(&o.routeTrait, "route", false, "forward ports from route trait service")
 	return cmd
 }
 
@@ -111,11 +127,56 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	return nil
 }
 
+func GetRouteServiceName(appconfig *v1alpha2.ApplicationConfiguration, svcName string) string {
+	for _, comp := range appconfig.Status.Workloads {
+		if comp.ComponentName != svcName {
+			continue
+		}
+		for _, tr := range comp.Traits {
+			// TODO check from Capability
+			if tr.Reference.Kind == "Route" && tr.Reference.APIVersion == "standard.oam.dev/v1alpha1" {
+				return tr.Reference.Name
+			}
+		}
+	}
+	return ""
+}
+
 func (o *VelaPortForwardOptions) Complete() error {
 	svcName, err := util.AskToChooseOneService(o.App.GetComponents())
 	if err != nil {
 		return err
 	}
+	if o.routeTrait {
+		appconfig, err := application.GetAppConfig(o.Context, o.Client, o.App, o.Env)
+		if err != nil {
+			return err
+		}
+		routeSvc := GetRouteServiceName(appconfig, svcName)
+		if routeSvc == "" {
+			return fmt.Errorf("no route trait found in %s %s", o.App.Name, svcName)
+		}
+		var svc = corev1.Service{}
+		err = o.Client.Get(o.Context, types2.NamespacedName{Name: routeSvc, Namespace: o.Env.Namespace}, &svc)
+		if err != nil {
+			return err
+		}
+		if len(svc.Spec.Ports) <= 0 {
+			return fmt.Errorf("no port found in service %s", routeSvc)
+		}
+		val := strconv.Itoa(int(svc.Spec.Ports[0].Port))
+		if val == "80" {
+			val = "8080:80"
+		} else if val == "443" {
+			val = "8443:443"
+		}
+		o.Args = append(o.Args, val)
+		args := make([]string, len(o.Args))
+		copy(args, o.Args)
+		args[0] = "svc/" + routeSvc
+		return o.kcPortForwardOptions.Complete(o.f, o.Cmd, args)
+	}
+
 	podName, err := o.getPodName(svcName)
 	if err != nil {
 		return err

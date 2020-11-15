@@ -2,70 +2,45 @@
 
 In the following tutorial, you will learn how to add a new trait and expose it to users via Appfile.
 
-## Add A New Trait
+### Step 1: Install KubeWatch via Cap Center
 
-Prerequisites:
-
-- [helm v3](https://helm.sh/docs/intro/install/)
-- [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
-
-### Step 1: Install KubeWatch
+Add cap center that contains KubeWatch:
 
 ```bash
-$ helm repo add vela-demo https://wonderflow.info/kubewatch/archives/
-$ helm install kubewatch vela-demo/kubewatch --version 0.1.0
+$ vela cap center config my-center https://github.com/oam-dev/catalog/tree/master/registry
+successfully sync 2/2 from my-center remote center
+Successfully configured capability center my-center and sync from remote
+
+$ vela cap center sync my-center
+successfully sync 2/2 from my-center remote center
+sync finished
 ```
 
-### Step 2: Add Trait Definition with CUE template
+Install KubeWatch:
 
 ```bash
-$ cat << EOF | kubectl apply -f -
-apiVersion: core.oam.dev/v1alpha2
-kind: TraitDefinition
-metadata:
-  name: kubewatch
-  annotations:
-    definition.oam.dev/apiVersion: labs.bitnami.com/v1alpha1
-    definition.oam.dev/kind: KubeWatch
-    definition.oam.dev/description: "Add a watch for resource"
-spec:
-  appliesToWorkloads:
-    - "*"
-  workloadRefPath: spec.workloadRef
-  definitionRef:
-    name: kubewatches.labs.bitnami.com
-  extension:
-    template: |
-      output: {
-        apiVersion: "labs.bitnami.com/v1alpha1"
-        kind:       "KubeWatch"
-        spec: handler: webhook: url: parameter.webhook
-      }
-      parameter: {
-        webhook: string
-      }
-EOF
+$ vela cap install my-center/kubewatch
+Installing trait capability kubewatch
+...
+Successfully installed chart (kubewatch) with release name (kubewatch)
+Successfully installed capability kubewatch from my-center
+
+
 ```
 
-That's it! Once you have applied the definition file the feature will be automatically registered in Vela Server and exposed to users.
+### Step 2: Verify Kubewatch Trait Added
 
-### Step 3: Verify Kubewatch Trait Installed
 
 ```bash
 $ vela traits
 Synchronizing capabilities from cluster⌛ ...
-Sync capabilities successfully ✅ Add(1) Update(0) Delete(0)
-TYPE      	CATEGORY	DESCRIPTION
-+kubewatch	trait   	Add a watch for resource
-
-Listing trait capabilities ...
-
-NAME     	DESCRIPTION                       	APPLIES TO
-kubewatch	Add a watch for resource
+Sync capabilities successfully ✅ (no changes)
+TYPE          CATEGORY    DESCRIPTION
+kubewatch     trait       Add a watch for resource
 ...
 ```
 
-### Step 4: Adding Kubewatch Trait to The App
+### Step 3: Adding Kubewatch Trait to The App
 
 Write an Appfile:
 
@@ -86,18 +61,9 @@ Deploy it:
 
 ```bash
 $ vela up
-...
-✅ App has been deployed 🚀🚀🚀
-    Port forward: vela port-forward testapp
-             SSH: vela exec testapp
-         Logging: vela logs testapp
-      App status: vela status testapp
-  Service status: vela status testapp --svc testsvc
 ```
 
-#### Verify
-
-You can now add `kubewatch` config to Appfile to attach the newly added kubewatch trait to the App:
+Now add `kubewatch` config to Appfile:
 
 ```bash
 $ cat << EOF >> vela.yaml
@@ -106,7 +72,7 @@ $ cat << EOF >> vela.yaml
 EOF
 ```
 
-Deploy it:
+Update deployment:
 
 ```
 $ vela up

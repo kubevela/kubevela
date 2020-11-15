@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -10,6 +11,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
@@ -233,4 +236,12 @@ func getApplicationDir(envName string) (string, error) {
 	appDir := filepath.Join(env.GetEnvDirByName(envName), "applications")
 	_, err := system.CreateIfNotExist(appDir)
 	return appDir, err
+}
+
+func GetAppConfig(ctx context.Context, c client.Client, app *Application, env *types.EnvMeta) (*v1alpha2.ApplicationConfiguration, error) {
+	appConfig := &v1alpha2.ApplicationConfiguration{}
+	if err := c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: app.Name}, appConfig); err != nil {
+		return nil, err
+	}
+	return appConfig, nil
 }

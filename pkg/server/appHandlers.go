@@ -1,21 +1,17 @@
-package handler
+package server
 
 import (
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/server/util"
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	"github.com/gin-gonic/gin"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-func UpdateApps(c *gin.Context) {
+func (s *APIServer) UpdateApps(c *gin.Context) {
 }
 
-func GetApp(c *gin.Context) {
-	kubeClient := c.MustGet("KubeClient")
+func (s *APIServer) GetApp(c *gin.Context) {
 	envName := c.Param("envName")
 	envMeta, err := env.GetEnvByName(envName)
 	if err != nil {
@@ -25,7 +21,7 @@ func GetApp(c *gin.Context) {
 	namespace := envMeta.Namespace
 	appName := c.Param("appName")
 	ctx := util.GetContext(c)
-	applicationMeta, err := oam.RetrieveApplicationStatusByName(ctx, kubeClient.(client.Client), appName, namespace)
+	applicationMeta, err := oam.RetrieveApplicationStatusByName(ctx, s.KubeClient, appName, namespace)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
@@ -33,8 +29,7 @@ func GetApp(c *gin.Context) {
 	util.AssembleResponse(c, applicationMeta, nil)
 }
 
-func ListApps(c *gin.Context) {
-	kubeClient := c.MustGet("KubeClient")
+func (s *APIServer) ListApps(c *gin.Context) {
 	envName := c.Param("envName")
 	envMeta, err := env.GetEnvByName(envName)
 	if err != nil {
@@ -44,7 +39,7 @@ func ListApps(c *gin.Context) {
 	namespace := envMeta.Namespace
 
 	ctx := util.GetContext(c)
-	applicationMetaList, err := oam.ListApplications(ctx, kubeClient.(client.Client), oam.Option{Namespace: namespace})
+	applicationMetaList, err := oam.ListApplications(ctx, s.KubeClient, oam.Option{Namespace: namespace})
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
@@ -52,8 +47,7 @@ func ListApps(c *gin.Context) {
 	util.AssembleResponse(c, applicationMetaList, nil)
 }
 
-func DeleteApps(c *gin.Context) {
-	kubeClient := c.MustGet("KubeClient")
+func (s *APIServer) DeleteApps(c *gin.Context) {
 	envName := c.Param("envName")
 	envMeta, err := env.GetEnvByName(envName)
 	if err != nil {
@@ -63,7 +57,7 @@ func DeleteApps(c *gin.Context) {
 	appName := c.Param("appName")
 
 	o := oam.DeleteOptions{
-		Client:  kubeClient.(client.Client),
+		Client:  s.KubeClient,
 		Env:     envMeta,
 		AppName: appName,
 	}

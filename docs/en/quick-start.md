@@ -27,7 +27,7 @@ App has not been deployed, creating a new deployment...
   Service status: vela status testapp --svc testsvc
 ```
 
-Check the status until we see route trait ready:
+Check the status until we see `Routes` are ready:
 ```bash
 $ vela status testapp
 About:

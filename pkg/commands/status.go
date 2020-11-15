@@ -105,10 +105,10 @@ const (
 func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
-		Use:     "status <APPLICATION-NAME>",
-		Short:   "get status of an application",
-		Long:    "get status of an application, including workloads and traits of each service.",
-		Example: `vela status <APPLICATION-NAME>`,
+		Use:     "status APP_NAME",
+		Short:   "Show status of an application",
+		Long:    "Show status of an application, including workloads and traits of each service.",
+		Example: `vela status APP_NAME`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength == 0 {
@@ -403,8 +403,8 @@ func getApp(ctx context.Context, c client.Client, compName, appName string, env 
 		return nil, nil, err
 	}
 
-	appConfig := &v1alpha2.ApplicationConfiguration{}
-	if err = c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: app.Name}, appConfig); err != nil {
+	appConfig, err := application.GetAppConfig(ctx, c, app, env)
+	if err != nil {
 		return nil, nil, err
 	}
 	return app, appConfig, nil

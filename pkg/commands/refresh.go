@@ -9,8 +9,6 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type refreshStatus string
@@ -22,7 +20,7 @@ const (
 	deleted   refreshStatus = "Deleted"
 )
 
-func RefreshDefinitions(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, silentOutput bool) error {
+func RefreshDefinitions(ctx context.Context, c types.Args, ioStreams cmdutil.IOStreams, silentOutput bool) error {
 	dir, _ := system.GetCapabilityDir()
 
 	oldCaps, err := plugins.LoadAllInstalledCapability()

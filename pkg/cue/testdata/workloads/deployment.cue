@@ -10,7 +10,7 @@
 		name:  string
 		value: string
 	}]
-	cpuRequests?: string
+	cpu?: string
 }
 output: {
 	apiVersion: "apps/v1"
@@ -33,12 +33,12 @@ output: {
 					protocol:      "TCP"
 					name:          "default"
 				}]
-				if parameter["cpuRequests"] != _|_ {
+				if parameter["cpu"] != _|_ {
 					resources: {
 						limits:
-							cpu: parameter.cpuRequests
+							cpu: parameter.cpu
 						requests:
-							cpu: parameter.cpuRequests
+							cpu: parameter.cpu
 					}
 				}
 			}]

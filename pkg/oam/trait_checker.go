@@ -132,6 +132,9 @@ func (d *RouteChecker) Check(ctx context.Context, reference runtimev1alpha1.Type
 		}
 		message += fmt.Sprintf("\tVisiting URL: %s\tIP: %s\n", url, addr)
 	}
+	if len(route.Status.Ingresses) == 0 {
+		message += fmt.Sprintf("Visiting by using 'vela port-forward %s --route'\n", appConfig.Name)
+	}
 	return StatusDone, message, nil
 }
 
