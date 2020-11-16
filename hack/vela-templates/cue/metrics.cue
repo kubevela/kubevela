@@ -9,7 +9,7 @@ parameter: {
 	// +usage=format of the metrics, default as prometheus
 	// +short=f
 	format: *"prometheus" | string
-	// +usage= the metric path of the service
+	// +usage= the metrics path of the service
 	path:    *"/metrics" | string
 	scheme:  *"http" | string
 	enabled: *true | bool

@@ -21,7 +21,7 @@ services:
     port: 8080
 
     # scaler:
-    #   replica: 1
+    #   replicas: 1
 
     # route:
     #   domain: example.com

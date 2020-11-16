@@ -13,7 +13,7 @@ services:
     port: 80
 
     rollout:
-      replica: 5
+      replicas: 5
       stepWeight: 20
       interval: "30s"
     
@@ -47,7 +47,7 @@ Services:
     HEALTHY Ready: 5/5
     Traits:
       - ✅ rollout: interval=5s
-		replica=5
+		replicas=5
 		stepWeight=20
       - ✅ route: 	Visiting URL: http://example.com	IP: <your-ingress-IP-address>
 
@@ -76,7 +76,7 @@ services:
 +   image: oamdev/testapp:rolling02
     port: 80
     rollout:
-      replica: 5
+      replicas: 5
       stepWeight: 20
       interval: "30s"
     route:
@@ -107,7 +107,7 @@ Services:
     HEALTHY express-server-v2:Ready: 1/1 express-server-v1:Ready: 4/4
     Traits:
       - ✅ rollout: interval=30s
-		replica=5
+		replicas=5
 		stepWeight=20
       - ✅ route: 	 Visiting by using 'vela port-forward testapp --route'
 

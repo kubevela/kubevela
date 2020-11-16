@@ -44,7 +44,6 @@ func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 func printTraitList(workloadName *string, ioStreams cmdutil.IOStreams) error {
 	table := uitable.New()
 	table.Wrap = true
-	table.MaxColWidth = 60
 	traitDefinitionList, err := oam.ListTraitDefinitions(workloadName)
 	if err != nil {
 		return err

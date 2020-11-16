@@ -29,11 +29,9 @@ func GetChecker(traitType string, c client.Client) Checker {
 	switch traitType {
 	case "route":
 		return &RouteChecker{c: c}
-	case "metric":
+	case "metrics":
 		return &MetricChecker{c: c}
 	case "autoscale":
-		return &AutoscalerChecker{c: c}
-	case "cronscale":
 		return &AutoscalerChecker{c: c}
 	}
 

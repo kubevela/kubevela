@@ -8,7 +8,7 @@
 
 ### `Autoscale`
 
-When `Rollout` and `Autoscle` traits are attached to the same service, they two will fight over the number of instances during rollout. Thus, it's by design that `Rollout` will take over replicas control (specified by `.replica` field) during rollout.
+When `Rollout` and `Autoscle` traits are attached to the same service, they two will fight over the number of instances during rollout. Thus, it's by design that `Rollout` will take over replicas control (specified by `.replicas` field) during rollout.
 
 > Note: in up coming releases, KubeVela will introduce a separate section in Appfile to define release phase configurations such as `Rollout`.
 
@@ -22,8 +22,8 @@ servcies:
     ...
 
     rollout:
-      replica: 2
-      stepWeight: 5
+      replicas: 2
+      stepWeight: 50
       interval: "10s"
 ```
 
@@ -31,8 +31,8 @@ servcies:
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**replica** | **string** | replica number of the service instance per revision | [ default to 5 ]
-**stepWeight** | **string** | canary increment step percentage (0-100)| [default to 20 ]
+**replicas** | **string** | replicas number of the service instance per revision | [ default to 2 ]
+**stepWeight** | **string** | canary increment step percentage (0-100)| [default to 50 ]
 **interval** | **string** | wait interval for every rolling update step | [default to '30s'] 
 
 ## How `Rollout` works?
@@ -44,7 +44,7 @@ In detail, `Rollout` controller will create a canary of your app , and then grad
 
 ![alt](../../../../resources/traffic-shifting-analysis.png)
 
-In this sample, for every `10s`, `5%` traffic will be shifted to canary from the primary, until the traffic on canary reached `50%`. At the mean time, the instance number of canary will automatically scale to `replica: 2` per configured in Appfile.
+In this sample, for every `10s`, `5%` traffic will be shifted to canary from the primary, until the traffic on canary reached `50%`. At the mean time, the instance number of canary will automatically scale to `replicas: 2` per configured in Appfile.
 
 
 Based on analysis result of the KPIs during this traffic shifting, a canary will be promoted or aborted if analysis is failed. If promoting, the primary will be upgraded from v1 to v2, and traffic will be fully shifted back to the primary instances. So as result, canary instances will be deleted after the promotion finished.

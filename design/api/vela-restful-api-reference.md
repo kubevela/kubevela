@@ -426,7 +426,7 @@ Please also specify `traits` values if need to attach a trait to several traits 
       "workload_name": "poc5",
       "flags": [
         {
-          "name": "replica",
+          "name": "replicas",
           "value": "4"
         }
       ]
@@ -534,7 +534,7 @@ sample request
   "name": "scale",
   "flags": [
     {
-      "name": "replica",
+      "name": "replicas",
       "value": "4"
     }
   ]
@@ -556,9 +556,9 @@ sample response
 	"data": {
 		"name": "manualscaler",
 		"type": "trait",
-		"template": "#Template: {\n\tapiVersion: \"core.oam.dev/v1alpha2\"\n\tkind:       \"ManualScalerTrait\"\n\tspec: {\n\t\treplicaCount: manualscaler.replica\n\t}\n}\nmanualscaler: {\n\t//+short=r\n\treplica: *2 | int\n}\n",
+		"template": "#Template: {\n\tapiVersion: \"core.oam.dev/v1alpha2\"\n\tkind:       \"ManualScalerTrait\"\n\tspec: {\n\t\treplicaCount: manualscaler.replicas\n\t}\n}\nmanualscaler: {\n\t//+short=r\n\treplicas: *2 | int\n}\n",
 		"parameters": [{
-			"name": "replica",
+			"name": "replicas",
 			"short": "r",
 			"default": 2,
 			"type": 4
@@ -702,9 +702,9 @@ sample response
 	},{
 		"name": "rollout",
 		"type": "trait",
-		"template": "#Template: {\n\tapiVersion: \"extend.oam.dev/v1alpha2\"\n\tkind:       \"SimpleRolloutTrait\"\n\tspec: {\n\t\treplica:        rollout.replica\n\t\tmaxUnavailable: rollout.maxUnavailable\n\t\tbatch:          rollout.batch\n\t}\n}\nrollout: {\n\treplica:        *3 | int\n\tmaxUnavailable: *1 | int\n\tbatch:          *2 | int\n}\n",
+		"template": "#Template: {\n\tapiVersion: \"extend.oam.dev/v1alpha2\"\n\tkind:       \"SimpleRolloutTrait\"\n\tspec: {\n\t\treplicas:        rollout.replicas\n\t\tmaxUnavailable: rollout.maxUnavailable\n\t\tbatch:          rollout.batch\n\t}\n}\nrollout: {\n\treplicas:        *3 | int\n\tmaxUnavailable: *1 | int\n\tbatch:          *2 | int\n}\n",
 		"parameters": [{
-			"name": "replica",
+			"name": "replicas",
 			"default": 3,
 			"type": 4
 		}, {
