@@ -1,6 +1,6 @@
 # Monitoring Application
 
-If your application has exposed metrics, you can easily tell the platform how to collect the metrics data from your app with `metric` capability.
+If your application has exposed metrics, you can easily tell the platform how to collect the metrics data from your app with `metrics` capability.
 
 Let's run [`christianhxc/gorandom:1.0`](https://github.com/christianhxc/prometheus-tutorial) as an example app.
 The app will emit random latencies as metrics.
@@ -17,7 +17,7 @@ The app will emit random latencies as metrics.
           image: christianhxc/gorandom:1.0
           port: 8080
 
-          metric:
+          metrics:
             enabled: true
             format: prometheus
             path: /metrics
@@ -49,7 +49,7 @@ The app will emit random latencies as metrics.
         Type: webservice
         HEALTHY Ready: 1/1
         Traits:
-          - ✅ metric: Monitoring port: 8080, path: /metrics, format: prometheus, schema: http.
+          - ✅ metrics: Monitoring port: 8080, path: /metrics, format: prometheus, schema: http.
         Last Deployment:
           Created at: 2020-11-11 17:00:59 -0800 PST
           Updated at: 2020-11-11T17:01:06-08:00

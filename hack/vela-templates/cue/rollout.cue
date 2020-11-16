@@ -21,15 +21,15 @@ output: {
 			// percentage (0-100)
 			stepWeight: parameter.stepWeight
 			// max replicas scale up to canary
-			maxReplicas: parameter.replica
+			maxReplicas: parameter.replicas
 		}
 	}
 }
 parameter: {
-	// +usage=total replica of the workload
-	replica: *5 | int
+	// +usage=total replicas of the workload
+	replicas: *2 | int
 	// +alias=step-weight
 	// +usage=weight percent of every step in rolling update
-	stepWeight: *20 | int
+	stepWeight: *50 | int
 	interval:   *"30s" | string
 }

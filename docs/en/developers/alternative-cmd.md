@@ -179,12 +179,12 @@ please refer to [autoscale in Appfile](/en/developers/set-autoscale.md).
 
   With more and more requests to the application, the replicas gradually increase from one to four.
 
-## `vela metric`
+## `vela metrics`
 
 A shortcut to add metrics config.
 
 If your application has exposed metrics, you can easily setup monitoring system
-with the help of `metric` capability.
+with the help of `metrics` capability.
 
 Let's run [`christianhxc/gorandom:1.0`](https://github.com/christianhxc/prometheus-tutorial) as an example app.
 The app will emit random latencies as metrics.
@@ -193,18 +193,18 @@ The app will emit random latencies as metrics.
 $ vela svc deploy metricapp -t webservice --image christianhxc/gorandom:1.0 --port 8080
 ```
 
-Then add metric by:
+Then add metrics by:
 
 ```bash
-$ vela metric metricapp
-Adding metric for app metricapp
+$ vela metrics metricapp
+Adding metrics for app metricapp
 ⠋ Deploying ...
 ✅ Application Deployed Successfully!
   - Name: metricapp
     Type: webservice
     HEALTHY Ready: 1/1
     Routes:
-      - ✅ metric: Monitoring port: 8080, path: /metrics, format: prometheus, schema: http.
+      - ✅ metrics: Monitoring port: 8080, path: /metrics, format: prometheus, schema: http.
     Last Deployment:
       Created at: 2020-11-02 14:31:56 +0800 CST
       Updated at: 2020-11-02T14:32:00+08:00
@@ -261,7 +261,7 @@ Hello World%
 Secondly, add rollout policy for your app:
 
 ```shell script
-$ vela rollout testapp --replica 5 --step-weight 20 --interval 5s
+$ vela rollout testapp --replicas 5 --step-weight 20 --interval 5s
 ```
 
 Then update your app by:

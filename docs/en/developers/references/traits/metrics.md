@@ -26,7 +26,7 @@ services:
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**Path** | **string** | the metric path of the service | [default to /metrics]
+**Path** | **string** | the metrics path of the service | [default to /metrics]
 **Format** | **string** | +format of the metrics, default as prometheus | [default to prometheus]
 **Scheme** | **string** |  | [default to http]
 **Enabled** | **bool** |  | [default to true]

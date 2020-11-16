@@ -50,14 +50,14 @@ services:
       - /mnt/path=sec:my-secret
 
     scale:
-      replica: 2
+      replicas: 2
       auto: # automatic scale up and down based on given metrics
         range: "1-10"
         cpu: 80 # if cpu utilization is above 80%, scale up
         qps: 1000 # if qps is higher than 1k, scale up
 
     canary: # Auto-create canary deployment. Only upgrade after verify successfully.
-      replica: 1 # canary deployment size
+      replicas: 1 # canary deployment size
       headers:
         - "foo:bar.*"
 ```

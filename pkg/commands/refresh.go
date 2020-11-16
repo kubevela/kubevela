@@ -78,13 +78,13 @@ func printRefreshReport(newCaps, oldCaps []types.Capability, io cmdutil.IOStream
 			}
 		}
 		if !silent {
-			io.Infof("Automatically discover capabilities successfully %s(no changes)\n", emojiSucceed)
+			io.Infof("Automatically discover capabilities successfully %s(no changes)\n\n", emojiSucceed)
 			io.Info(table.String())
 		}
 		return
 	}
 
-	io.Infof("Automatically discover capabilities successfully %sAdd(%s) Update(%s) Delete(%s)\n",
+	io.Infof("Automatically discover capabilities successfully %sAdd(%s) Update(%s) Delete(%s)\n\n",
 		emojiSucceed,
 		green.Sprint(len(report[added])),
 		yellow.Sprint(len(report[updated])),
@@ -94,6 +94,7 @@ func printRefreshReport(newCaps, oldCaps []types.Capability, io cmdutil.IOStream
 	addStsRow(updated, report, table)
 	addStsRow(deleted, report, table)
 	io.Info(table.String())
+	io.Info()
 }
 
 func addStsRow(sts refreshStatus, report map[refreshStatus][]types.Capability, t *uitable.Table) {

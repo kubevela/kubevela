@@ -40,7 +40,8 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 
 		var name = tmp.Name
 		pluginCmd := &cobra.Command{
-			Hidden:                true,
+			// We can't hide these command, if so, cli docs will also disappear from auto-gen
+			// Hidden:                true,
 			Use:                   name + " <appname> [args]",
 			DisableFlagsInUseLine: true,
 			Short:                 "Attach " + name + " trait to an app",

@@ -15,7 +15,7 @@ services:
   my-service-name:
     ...
     scaler:
-      replica: 100
+      replicas: 100
 ```
 
 ## Properties
