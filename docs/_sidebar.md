@@ -23,7 +23,7 @@
 - Extending KubeVela
   - [Add Workload Type](/en/platform-engineers/workload-type.md)
   - [Add Trait](/en/platform-engineers/trait.md)
-<!--   - [Add Cloud Services](/en/platform-engineers/cloud-resource.md) -->
+  - [Add Cloud Services](/en/platform-engineers/cloud-services.md)
 
 - Roadmap
   - [KubeVela Roadmap](/en/roadmap.md)
