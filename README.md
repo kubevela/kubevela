@@ -15,11 +15,11 @@ For platform builders, KubeVela serves as a framework that empowers them to crea
 
 ## Quick Start
 
-Quick start guides are available on [this section](docs/en/quick-start.md).
+Quick start guides are available on [this section](https://kubevela.io/#/en/quick-start).
 
 ## Documentation
 
-To see full documentation, visit [kubevela.io](https://kubevela.io/).
+For full documentation, please visit the KubeVela website: [https://kubevela.io](https://kubevela.io/).
 
 ## Contributing
 Check out [CONTRIBUTING](./CONTRIBUTING.md) to see how to develop with KubeVela.
