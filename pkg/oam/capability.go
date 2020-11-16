@@ -98,7 +98,7 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 		ioStreams.Info("Installing workload capability " + wd.Name)
 		if tp.Install != nil {
 			tp.Source.ChartName = tp.Install.Helm.Name
-			if err = InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
+			if err = helm.InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
 				return err
 			}
 		}
@@ -126,7 +126,7 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 		ioStreams.Info("Installing trait capability " + td.Name)
 		if tp.Install != nil {
 			tp.Source.ChartName = tp.Install.Helm.Name
-			if err = InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
+			if err = helm.InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
 				return err
 			}
 		}
@@ -165,10 +165,6 @@ func GetSyncedCapabilities(repoName, addonName string) (types.Capability, error)
 		}
 	}
 	return types.Capability{}, fmt.Errorf("%s/%s not exist, try vela cap:center:sync %s to sync from remote", repoName, addonName, repoName)
-}
-
-func InstallHelmChart(ioStreams cmdutil.IOStreams, c types.Chart) error {
-	return helm.Install(ioStreams, c.Repo, c.URL, c.Name, c.Version, c.Namespace, c.Name, c.Values)
 }
 
 func ListCapabilityCenters() ([]apis.CapabilityCenterMeta, error) {

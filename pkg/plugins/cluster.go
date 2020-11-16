@@ -5,7 +5,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
+
+	"github.com/oam-dev/kubevela/pkg/utils/helm"
+
+	util2 "github.com/oam-dev/kubevela/pkg/commands/util"
 
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 
@@ -61,6 +66,13 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c types.Args
 			templateErrors = append(templateErrors, errors.Wrapf(err, "handle workload template `%s` failed", wd.Name))
 			continue
 		}
+		if tmp.Install != nil {
+			tmp.Source = &types.Source{ChartName: tmp.Install.Helm.Name}
+			ioStream := util2.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+			if err = helm.InstallHelmChart(ioStream, tmp.Install.Helm); err != nil {
+				return nil, nil, fmt.Errorf("unable to install helm chart dependency %s(%s from %s) for this workload '%s': %v ", tmp.Install.Helm.Name, tmp.Install.Helm.Version, tmp.Install.Helm.URL, wd.Name, err)
+			}
+		}
 		gvk, err := util.GetGVKFromDefinition(dm, wd.Spec.Reference)
 		if err != nil {
 			return nil, nil, fmt.Errorf("make sure you have installed CRD(controller) for this capability '%s': %v ", wd.Name, err)
@@ -96,6 +108,13 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, s
 		if err != nil {
 			templateErrors = append(templateErrors, errors.Wrapf(err, "handle trait template `%s` failed\n", td.Name))
 			continue
+		}
+		if tmp.Install != nil {
+			tmp.Source = &types.Source{ChartName: tmp.Install.Helm.Name}
+			ioStream := util2.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+			if err = helm.InstallHelmChart(ioStream, tmp.Install.Helm); err != nil {
+				return nil, nil, fmt.Errorf("unable to install helm chart dependency %s(%s from %s) for this trait '%s': %v ", tmp.Install.Helm.Name, tmp.Install.Helm.Version, tmp.Install.Helm.URL, td.Name, err)
+			}
 		}
 		gvk, err := util.GetGVKFromDefinition(dm, td.Spec.Reference)
 		if err != nil {

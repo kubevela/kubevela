@@ -8,7 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+
 	"github.com/oam-dev/kubevela/pkg/server"
 	"github.com/oam-dev/kubevela/pkg/server/util"
 
@@ -27,7 +28,7 @@ func main() {
 		o.DestWritter = w
 	}))
 
-	c, err := oam.InitArgs()
+	c, err := common.InitBaseRestConfig()
 	if err != nil {
 		ctrl.Log.Error(err, "failed to init Kubernetes Config")
 		os.Exit(1)

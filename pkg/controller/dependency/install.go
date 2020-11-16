@@ -33,7 +33,6 @@ import (
 
 	"github.com/oam-dev/kubevela/api/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 )
 
@@ -48,7 +47,7 @@ var (
 )
 
 func init() {
-	helmInstallFunc = oam.InstallHelmChart
+	helmInstallFunc = helm.InstallHelmChart
 }
 
 // Setup vela dependency.
@@ -66,7 +65,7 @@ func Install(kubecli client.Client) {
 		return
 	}
 	for key, chart := range velaConfig.Data {
-		err := installHelmChart(kubecli, []byte(chart), log)
+		err := installHelmChart([]byte(chart), log)
 		if err != nil {
 			log.Error(err, fmt.Sprintf("failed to install helm chart for %s", key))
 		}
@@ -103,7 +102,7 @@ func fetchVelaConfig(kubecli client.Client) (*v1.ConfigMap, error) {
 	return velaConfig, nil
 }
 
-func installHelmChart(client client.Client, chart []byte, log logr.Logger) error {
+func installHelmChart(chart []byte, log logr.Logger) error {
 	ioStreams := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	var helmChart types.Chart
 	err := json.Unmarshal(chart, &helmChart)
@@ -111,20 +110,6 @@ func installHelmChart(client client.Client, chart []byte, log logr.Logger) error
 		return errors.Wrap(err, "failed to unmarshal the helm chart data")
 	}
 	log.Info("installing helm chart", "chart name", helmChart.Name)
-	// create the namespace
-	if helmChart.Namespace != types.DefaultAppNamespace {
-		if len(helmChart.Namespace) > 0 {
-			exist, err := cmdutil.DoesNamespaceExist(client, helmChart.Namespace)
-			if err != nil {
-				return err
-			}
-			if !exist {
-				if err = cmdutil.NewNamespace(client, helmChart.Namespace); err != nil {
-					return fmt.Errorf("create namespace (%s) failed for chart %s", helmChart.Namespace, helmChart.Name)
-				}
-			}
-		}
-	}
 	if err = helmInstallFunc(ioStreams, helmChart); err != nil {
 		return err
 	}

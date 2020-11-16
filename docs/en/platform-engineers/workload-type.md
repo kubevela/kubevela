@@ -6,7 +6,7 @@ In the following tutorial, you will learn how to add OpenFaaS Function a new wor
 
 ## Step 1: Create Workload Definition
 
-To register OpenFaaS as a new workload type in KubeVela, the only thing needed is to create a OAM `WorkloadDefinition` object for it. A full example can be found in this [openfaas.yaml](https://github.com/oam-dev/catalog/blob/master/registry/openfaas.yaml). Several highlights are list below.
+To register OpenFaaS as a new workload type in KubeVela, the only thing needed is to create an OAM `WorkloadDefinition` object for it. A full example can be found in this [openfaas.yaml](https://github.com/oam-dev/catalog/blob/master/registry/openfaas.yaml). Several highlights are list below.
 
 ### 1. Describe The Workload Type
 
@@ -94,21 +94,26 @@ $ kubectl apply -f https://raw.githubusercontent.com/openfaas/faas-netes/master/
 As long as the definition file is ready, you just need to apply it to Kubernetes.
 
 ```bash
-$ kubectl apply -f openfaas.yaml
+$ kubectl apply -f https://raw.githubusercontent.com/oam-dev/catalog/master/registry/openfaas.yaml
 ```
 
 And the new workload type will immediately become available for developers to use in KubeVela.
+It may take some time to be available as the dependency(helm chart) need to install.
 
 ```bash
 $ vela workloads
+Successfully installed chart (openfaas) with release name (openfaas)
+"my-repo" has been added to your repositories
 Automatically discover capabilities successfully ✅ Add(1) Update(0) Delete(0)
-TYPE      	CATEGORY	DESCRIPTION
-*openfaas 	workload	OpenFaaS function workload
+
+TYPE     	CATEGORY	DESCRIPTION
++openfaas	workload	OpenFaaS function workload
+
 NAME      	DESCRIPTION
 openfaas  	OpenFaaS function workload
-task      	One-time task/job
-webservice	Long running service with network routes
-worker    	Backend worker without ports exposed
+task      	One-off task to run a piece of code or script to completion
+webservice	Long-running scalable service with stable endpoint to receive external traffic
+worker    	Long-running scalable backend worker without network endpoint
 ```
 
 ## (Optional) Step 3: Deploy OpenFaaS Function via Appfile

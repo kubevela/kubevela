@@ -1,4 +1,4 @@
-package oam
+package common
 
 import (
 	"fmt"
@@ -26,7 +26,7 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
-func InitArgs() (types.Args, error) {
+func InitBaseRestConfig() (types.Args, error) {
 	restConf, err := config.GetConfig()
 	if err != nil {
 		fmt.Println("get kubeConfig err", err)
