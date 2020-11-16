@@ -5,8 +5,6 @@
 [![LICENSE](https://img.shields.io/github/license/oam-dev/kubevela.svg?style=flat-square)](/LICENSE)
 [![Releases](https://img.shields.io/github/release/oam-dev/kubevela/all.svg?style=flat-square)](https://github.com/oam-dev/kubevela/releases)
 [![TODOs](https://img.shields.io/endpoint?url=https://api.tickgit.com/badge?repo=github.com/oam-dev/kubevela)](https://www.tickgit.com/browse?repo=github.com/oam-dev/kubevela)
-[![Join the chat at https://gitter.im/oam-dev](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/oam-dev/community?utm_source=badge&utm_medium=badge&utm_content=badge)
-[<img src="https://img.shields.io/badge/slack-@crossplane/oam-black.svg?logo=slack">](https://crossplane.slack.com/messages#oam)
 [![Twitter](https://img.shields.io/twitter/url?style=social&url=https%3A%2F%2Ftwitter.com%2Foam_dev)](https://twitter.com/oam_dev)
 
 ![alt](docs/resources/KubeVela-03.png)
