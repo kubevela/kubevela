@@ -34,10 +34,10 @@ type ApplicationDeploymentStatus struct {
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
 }
 
+// ApplicationDeployment is the Schema for the ApplicationDeployment API
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:categories={oam}
 // +kubebuilder:subresource:status
-// ApplicationDeployment is the Schema for the ApplicationDeployment API
 type ApplicationDeployment struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -46,8 +46,8 @@ type ApplicationDeployment struct {
 	Status ApplicationDeploymentStatus `json:"status,omitempty"`
 }
 
-// +kubebuilder:object:root=true
 // ApplicationDeploymentList contains a list of ApplicationDeployment
+// +kubebuilder:object:root=true
 type ApplicationDeploymentList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

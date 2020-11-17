@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
+// GithubContent for cap center
 type GithubContent struct {
 	Owner string `json:"owner"`
 	Repo  string `json:"repo"`
@@ -29,17 +30,19 @@ type GithubContent struct {
 	Ref   string `json:"ref"`
 }
 
-//CapCenterConfig is used to store cap center config in file
+// CapCenterConfig is used to store cap center config in file
 type CapCenterConfig struct {
 	Name    string `json:"name"`
 	Address string `json:"address"`
 	Token   string `json:"token"`
 }
 
+// CenterClient defines an interface for cap center client
 type CenterClient interface {
 	SyncCapabilityFromCenter() error
 }
 
+// NewCenterClient create a client from type
 func NewCenterClient(ctx context.Context, name, address, token string) (CenterClient, error) {
 	Type, cfg, err := Parse(address)
 	if err != nil {
@@ -52,9 +55,13 @@ func NewCenterClient(ctx context.Context, name, address, token string) (CenterCl
 	return nil, errors.New("we only support github as repository now")
 }
 
+// TypeGithub represents github
 const TypeGithub = "github"
+
+// TypeUnknown represents parse failed
 const TypeUnknown = "unknown"
 
+// Parse will parse config from address
 func Parse(addr string) (string, *GithubContent, error) {
 	url, err := url.Parse(addr)
 	if err != nil {
@@ -105,6 +112,7 @@ func Parse(addr string) (string, *GithubContent, error) {
 	return TypeUnknown, nil, nil
 }
 
+// RemoteCapability defines the capability discovered from remote cap center
 type RemoteCapability struct {
 	// Name MUST be xxx.yaml
 	Name string `json:"name"`
@@ -114,8 +122,10 @@ type RemoteCapability struct {
 	Type string `json:"type"`
 }
 
+// RemoteCapabilities is slice of cap center
 type RemoteCapabilities []RemoteCapability
 
+// LoadRepos will load all cap center repos
 //TODO(wonderflow): we can make default(built-in) repo configurable, then we should make default inside the answer
 func LoadRepos() ([]CapCenterConfig, error) {
 	config, err := system.GetRepoConfig()
@@ -136,6 +146,7 @@ func LoadRepos() ([]CapCenterConfig, error) {
 	return repos, nil
 }
 
+// StoreRepos will store cap center repo locally
 func StoreRepos(repos []CapCenterConfig) error {
 	config, err := system.GetRepoConfig()
 	if err != nil {
@@ -148,6 +159,7 @@ func StoreRepos(repos []CapCenterConfig) error {
 	return ioutil.WriteFile(config, data, 0644)
 }
 
+// ParseAndSyncCapability will convert config from remote center to capability
 func ParseAndSyncCapability(data []byte, syncDir string) (types.Capability, error) {
 	var obj = unstructured.Unstructured{Object: make(map[string]interface{})}
 	err := yaml.Unmarshal(data, &obj.Object)
@@ -175,6 +187,7 @@ func ParseAndSyncCapability(data []byte, syncDir string) (types.Capability, erro
 	return types.Capability{}, fmt.Errorf("unknown definition Type %s", obj.GetKind())
 }
 
+// GithubCenter implementation of cap center
 type GithubCenter struct {
 	client     *github.Client
 	cfg        *GithubContent
@@ -184,6 +197,7 @@ type GithubCenter struct {
 
 var _ CenterClient = &GithubCenter{}
 
+// NewGithubCenter will create client by github center implementation
 func NewGithubCenter(ctx context.Context, token, centerName string, r *GithubContent) (*GithubCenter, error) {
 	var tc *http.Client
 	if token != "" {
@@ -195,6 +209,7 @@ func NewGithubCenter(ctx context.Context, token, centerName string, r *GithubCon
 	return &GithubCenter{client: github.NewClient(tc), cfg: r, centerName: centerName, ctx: ctx}, nil
 }
 
+// SyncCapabilityFromCenter will sync capability from github cap center
 //TODO(wonderflow): currently we only sync by create, we also need to delete which not exist remotely.
 func (g *GithubCenter) SyncCapabilityFromCenter() error {
 	_, dirs, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, g.cfg.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})

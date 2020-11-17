@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// OAMLabel defines the label of namespace automatically created by kubevela
 var OAMLabel = map[string]string{"app.kubernetes.io/part-of": "kubevela"}
 
 // DoesNamespaceExist check namespace exist
@@ -24,6 +25,7 @@ func DoesNamespaceExist(c client.Client, namespace string) (bool, error) {
 	return true, nil
 }
 
+// NewNamespace create namespace
 func NewNamespace(c client.Client, namespace string) error {
 	ns := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace,
 		// marking a special label for promethus monitoring.
@@ -35,7 +37,7 @@ func NewNamespace(c client.Client, namespace string) error {
 	return nil
 }
 
-// DoesCoreCRDExist check CRD exist
+// DoesCRDExist check CRD exist
 func DoesCRDExist(cxt context.Context, c client.Client, crdName string) (bool, error) {
 	err := c.Get(cxt, types.NamespacedName{Name: crdName}, &apiextensions.CustomResourceDefinition{})
 	if err != nil {

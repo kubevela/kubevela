@@ -3,72 +3,17 @@ package util
 import (
 	"context"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/spf13/cobra"
-	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
-	DefaultErrorExitCode = 1
-)
-
-func Print(msg string) {
-	if klog.V(2) {
-		klog.FatalDepth(2, msg)
-	}
-	if len(msg) > 0 {
-		// add newline if needed
-		if !strings.HasSuffix(msg, "\n") {
-			msg += "\n"
-		}
-		fmt.Fprint(os.Stderr, msg)
-	}
-}
-
-func fatal(msg string, code int) {
-	if klog.V(2) {
-		klog.FatalDepth(2, msg)
-	}
-	if len(msg) > 0 {
-		// add newline if needed
-		if !strings.HasSuffix(msg, "\n") {
-			msg += "\n"
-		}
-		fmt.Fprint(os.Stderr, msg)
-	}
-	os.Exit(code)
-}
-
-func CheckErr(err error) {
-	if err == nil {
-		return
-	}
-	msg := err.Error()
-	if !strings.HasPrefix(msg, "error: ") {
-		msg = fmt.Sprintf("error: %s", msg)
-	}
-	fatal(msg, DefaultErrorExitCode)
-}
-
+// GetComponent get OAM component
 func GetComponent(ctx context.Context, c client.Client, componentName string, namespace string) (corev1alpha2.Component, error) {
 	var component corev1alpha2.Component
 	err := c.Get(ctx, client.ObjectKey{Name: componentName, Namespace: namespace}, &component)
 	return component, err
-}
-
-func PrintFlags(cmd *cobra.Command, subcmds []*cobra.Command) {
-	cmd.Println("Flags:")
-	for _, sub := range subcmds {
-		if sub.HasLocalFlags() {
-			cmd.Println(sub.LocalFlags().FlagUsages())
-		}
-	}
-	cmd.Println()
 }
 
 // AskToChooseOneService will ask users to select one service of the application if more than one exidi

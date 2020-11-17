@@ -66,7 +66,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	return resp
 }
 
-// Default sets all the default value for the PodSpecWorkload
+// DefaultPodSpecWorkload will set the default value for the PodSpecWorkload
 func DefaultPodSpecWorkload(obj *v1alpha1.PodSpecWorkload) {
 	mutatelog.Info("default", "name", obj.Name)
 	if obj.Spec.Replicas == nil {

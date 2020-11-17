@@ -15,6 +15,8 @@ import (
 	"github.com/oam-dev/kubevela/api/types"
 )
 
+const LabelPodSpecable = "workload.oam.dev/podspecable"
+
 func GetPodSpecPath(workloadDef *v1alpha2.WorkloadDefinition) (string, bool) {
 	if workloadDef.Spec.PodSpecPath != "" {
 		return workloadDef.Spec.PodSpecPath, true
@@ -22,7 +24,7 @@ func GetPodSpecPath(workloadDef *v1alpha2.WorkloadDefinition) (string, bool) {
 	if workloadDef.Labels == nil {
 		return "", false
 	}
-	podSpecable, ok := workloadDef.Labels[types.LabelPodSpecable]
+	podSpecable, ok := workloadDef.Labels[LabelPodSpecable]
 	if !ok {
 		return "", false
 	}

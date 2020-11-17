@@ -78,6 +78,7 @@ type Reconciler struct {
 	record event.Recorder
 }
 
+// Reconcile is the main logic for metric trait controller
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=metricstraits,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=metricstraits/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=monitoring.coreos.com,resources=*,verbs=get;list;watch;create;update;patch;delete
@@ -85,7 +86,6 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=core.oam.dev,resources=*,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core.oam.dev,resources=*/status,verbs=get;
 // +kubebuilder:rbac:groups="",resources=events,verbs=get;list;create;update;patch
-
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	mLog := r.Log.WithValues("metricstrait", req.NamespacedName)
@@ -325,6 +325,7 @@ func constructServiceMonitor(metricsTrait *v1alpha1.MetricsTrait, targetPort int
 	}
 }
 
+// SetupWithManager setup Reconciler with ctrl.Manager
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("MetricsTrait")).
 		WithAnnotations("controller", "metricsTrait")

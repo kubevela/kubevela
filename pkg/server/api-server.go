@@ -12,12 +12,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// APIServer run a restful API server for dashboard
 type APIServer struct {
 	server     *http.Server
 	KubeClient client.Client
 	dm         discoverymapper.DiscoveryMapper
 }
 
+// New will create APIServer
 func New(c types.Args, port, staticPath string) (*APIServer, error) {
 	newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 	if err != nil {
@@ -42,6 +44,7 @@ func New(c types.Args, port, staticPath string) (*APIServer, error) {
 	return s, nil
 }
 
+// Launch will start the apiserver
 func (s *APIServer) Launch(errChan chan<- error) {
 	go func() {
 		err := s.server.ListenAndServe()
@@ -51,6 +54,7 @@ func (s *APIServer) Launch(errChan chan<- error) {
 	}()
 }
 
+// Shutdown will close the apiserver
 func (s *APIServer) Shutdown(ctx context.Context) error {
 	ctrl.Log.Info("sever shutting down")
 	return s.server.Shutdown(ctx)

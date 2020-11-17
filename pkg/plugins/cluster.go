@@ -23,8 +23,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
+// nolint
 const DescriptionUndefined = "description not defined"
 
+// GetCapabilitiesFromCluster will get capability from K8s cluster
 func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c types.Args, syncDir string, selector labels.Selector) ([]types.Capability, error) {
 	workloads, _, err := GetWorkloadsFromCluster(ctx, namespace, c, syncDir, selector)
 	if err != nil {
@@ -38,6 +40,7 @@ func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c types.A
 	return workloads, nil
 }
 
+// GetWorkloadsFromCluster will get capability from K8s cluster
 func GetWorkloadsFromCluster(ctx context.Context, namespace string, c types.Args, syncDir string, selector labels.Selector) ([]types.Capability, []error, error) {
 	newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 	if err != nil {
@@ -73,7 +76,7 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c types.Args
 		if err != nil {
 			return nil, nil, fmt.Errorf("make sure you have installed CRD(controller) for this capability '%s': %v ", wd.Name, err)
 		}
-		tmp.CrdInfo = &types.CrdInfo{
+		tmp.CrdInfo = &types.CRDInfo{
 			APIVersion: gvk.GroupVersion().String(),
 			Kind:       gvk.Kind,
 		}
@@ -82,6 +85,7 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c types.Args
 	return templates, templateErrors, nil
 }
 
+// GetTraitsFromCluster will get capability from K8s cluster
 func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, syncDir string, selector labels.Selector) ([]types.Capability, []error, error) {
 	newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 	if err != nil {
@@ -116,7 +120,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, s
 		if err != nil {
 			return nil, nil, fmt.Errorf("make sure you have installed CRD(controller) for this capability '%s': %v ", td.Name, err)
 		}
-		tmp.CrdInfo = &types.CrdInfo{
+		tmp.CrdInfo = &types.CRDInfo{
 			APIVersion: gvk.GroupVersion().String(),
 			Kind:       gvk.Kind,
 		}
@@ -125,6 +129,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, s
 	return templates, templateErrors, nil
 }
 
+// HandleDefinition will handle definition to capability
 func HandleDefinition(name, syncDir, crdName string, annotation map[string]string, extension *runtime.RawExtension, tp types.CapType, applyTo []string) (types.Capability, error) {
 	var tmp types.Capability
 	tmp, err := HandleTemplate(extension, name, syncDir)
@@ -140,6 +145,7 @@ func HandleDefinition(name, syncDir, crdName string, annotation map[string]strin
 	return tmp, nil
 }
 
+// GetDescription get description from annotation
 func GetDescription(annotation map[string]string) string {
 	if annotation == nil {
 		return DescriptionUndefined
@@ -151,6 +157,7 @@ func GetDescription(annotation map[string]string) string {
 	return desc
 }
 
+// HandleTemplate will handle definition template to capability
 func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Capability, error) {
 	tmp, err := types.ConvertTemplateJSON2Object(in)
 	if err != nil {

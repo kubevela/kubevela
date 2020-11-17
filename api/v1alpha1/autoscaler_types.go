@@ -30,9 +30,9 @@ type Protocol string
 // TriggerType defines the type of trigger
 type TriggerType string
 
+// Autoscaler is the Schema for the autoscalers API
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:categories={oam}
-// Autoscaler is the Schema for the autoscalers API
 type Autoscaler struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -41,18 +41,22 @@ type Autoscaler struct {
 	Status AutoscalerStatus `json:"status,omitempty"`
 }
 
+// SetConditions set condition for CR status
 func (as *Autoscaler) SetConditions(c ...v1alpha1.Condition) {
 	as.Status.SetConditions(c...)
 }
 
+// GetCondition get condition from CR status
 func (as *Autoscaler) GetCondition(conditionType v1alpha1.ConditionType) v1alpha1.Condition {
 	return as.Status.GetCondition(conditionType)
 }
 
+// GetWorkloadReference get workload reference
 func (as *Autoscaler) GetWorkloadReference() v1alpha1.TypedReference {
 	return as.Spec.WorkloadReference
 }
 
+// SetWorkloadReference set workload reference
 func (as *Autoscaler) SetWorkloadReference(reference v1alpha1.TypedReference) {
 	as.Spec.WorkloadReference = reference
 }

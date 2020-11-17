@@ -10,18 +10,23 @@ import (
 	standardv1alpha1 "github.com/oam-dev/kubevela/api/v1alpha1"
 )
 
+// TypeNginx is a type of route implementation
 const TypeNginx = "nginx"
 
 const (
-	StatusReady  = "Ready"
+	// StatusReady represents status is ready
+	StatusReady = "Ready"
+	// StatusSynced represents status is synced, this mean the controller has reconciled but not ready
 	StatusSynced = "Synced"
 )
 
+// RouteIngress is an interface of route ingress implementation
 type RouteIngress interface {
 	Construct(routeTrait *standardv1alpha1.Route) []*v1beta1.Ingress
 	CheckStatus(routeTrait *standardv1alpha1.Route) (string, []runtimev1alpha1.Condition)
 }
 
+// GetRouteIngress will get real implementation from type, we could support more in the future.
 func GetRouteIngress(provider string, client client.Client) (RouteIngress, error) {
 	var routeIngress RouteIngress
 	switch provider {

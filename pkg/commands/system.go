@@ -83,7 +83,7 @@ func NewAdminInfoCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 }
 
 func (i *infoCmd) run(ioStreams cmdutil.IOStreams) error {
-	clusterVersion, err := GetOAMReleaseVersion(types.DefaultOAMNS)
+	clusterVersion, err := GetOAMReleaseVersion(types.DefaultKubeVelaNS)
 	if err != nil {
 		return fmt.Errorf("fail to get cluster chartPath: %v", err)
 	}
@@ -106,7 +106,7 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 				return err
 			}
 			i.client = newClient
-			i.namespace = types.DefaultOAMNS
+			i.namespace = types.DefaultKubeVelaNS
 			i.c = c
 			return i.run(ioStreams, chartContent)
 		},
@@ -132,18 +132,18 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 	}
 
 	ioStreams.Info("- Installing Vela Core Chart:")
-	exist, err := cmdutil.DoesNamespaceExist(i.client, types.DefaultOAMNS)
+	exist, err := cmdutil.DoesNamespaceExist(i.client, types.DefaultKubeVelaNS)
 	if err != nil {
 		return err
 	}
 	if !exist {
-		if err := cmdutil.NewNamespace(i.client, types.DefaultOAMNS); err != nil {
+		if err := cmdutil.NewNamespace(i.client, types.DefaultKubeVelaNS); err != nil {
 			return err
 		}
-		ioStreams.Info("created namespace", types.DefaultOAMNS)
+		ioStreams.Info("created namespace", types.DefaultKubeVelaNS)
 	}
 
-	if helm.IsHelmReleaseRunning(types.DefaultOAMReleaseName, types.DefaultOAMRuntimeChartName, types.DefaultOAMNS, i.ioStreams) {
+	if helm.IsHelmReleaseRunning(types.DefaultKubeVelaReleaseName, types.DefaultKubeVelaChartName, types.DefaultKubeVelaNS, i.ioStreams) {
 		i.ioStreams.Info("Vela system along with OAM runtime already exist.")
 	} else {
 		vals, err := i.resolveValues()
@@ -189,7 +189,7 @@ func CheckCapabilityReady(ctx context.Context, c types.Args, timeout time.Durati
 	defer spiner.Stop()
 
 	for {
-		_, err = plugins.GetCapabilitiesFromCluster(ctx, types.DefaultOAMNS, c, tmpdir, nil)
+		_, err = plugins.GetCapabilitiesFromCluster(ctx, types.DefaultKubeVelaNS, c, tmpdir, nil)
 		if err == nil {
 			return nil
 		}
@@ -233,7 +233,7 @@ func InstallOamRuntime(chartPath, chartSource string, vals map[string]interface{
 	if err != nil {
 		return fmt.Errorf("error loading chart for installation: %s", err)
 	}
-	installClient, err := helm.NewHelmInstall("", types.DefaultOAMNS, types.DefaultOAMReleaseName)
+	installClient, err := helm.NewHelmInstall("", types.DefaultKubeVelaNS, types.DefaultKubeVelaReleaseName)
 	if err != nil {
 		return fmt.Errorf("error create helm install client: %s", err)
 	}
@@ -255,7 +255,7 @@ func GetOAMReleaseVersion(ns string) (string, error) {
 	}
 
 	for _, result := range results {
-		if result.Chart.ChartFullPath() == types.DefaultOAMRuntimeChartName {
+		if result.Chart.ChartFullPath() == types.DefaultKubeVelaChartName {
 			return result.Chart.AppVersion(), nil
 		}
 	}
@@ -301,10 +301,10 @@ func PrintTrackVelaRuntimeStatus(ctx context.Context, c client.Client, ioStreams
 func getVelaRuntimeStatus(ctx context.Context, c client.Client) (VelaRuntimeStatus, string, error) {
 	podList := &corev1.PodList{}
 	opts := []client.ListOption{
-		client.InNamespace(types.DefaultOAMNS),
+		client.InNamespace(types.DefaultKubeVelaNS),
 		client.MatchingLabels{
-			"app.kubernetes.io/name":     types.DefaultOAMRuntimeChartName,
-			"app.kubernetes.io/instance": types.DefaultOAMReleaseName,
+			"app.kubernetes.io/name":     types.DefaultKubeVelaChartName,
+			"app.kubernetes.io/instance": types.DefaultKubeVelaReleaseName,
 		},
 	}
 	if err := c.List(ctx, podList, opts...); err != nil {

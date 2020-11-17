@@ -37,6 +37,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 )
 
+// nolint:golint
 const (
 	SpecWarningTargetWorkloadNotSet                = "Spec.targetWorkload is not set"
 	SpecWarningStartAtTimeFormat                   = "startAt is not in the right format, which should be like `12:01`"

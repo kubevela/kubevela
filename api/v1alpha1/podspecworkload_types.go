@@ -73,10 +73,12 @@ func init() {
 
 var _ oam.Workload = &PodSpecWorkload{}
 
+// SetConditions set condition for this CR
 func (in *PodSpecWorkload) SetConditions(c ...cpv1alpha1.Condition) {
 	in.Status.SetConditions(c...)
 }
 
+// GetCondition set condition for this CR
 func (in *PodSpecWorkload) GetCondition(c cpv1alpha1.ConditionType) cpv1alpha1.Condition {
 	return in.Status.GetCondition(c)
 }

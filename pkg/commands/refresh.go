@@ -30,7 +30,7 @@ func RefreshDefinitions(ctx context.Context, c types.Args, ioStreams cmdutil.IOS
 	}
 	var syncedTemplates []types.Capability
 
-	templates, templateErrors, err := plugins.GetWorkloadsFromCluster(ctx, types.DefaultOAMNS, c, dir, nil)
+	templates, templateErrors, err := plugins.GetWorkloadsFromCluster(ctx, types.DefaultKubeVelaNS, c, dir, nil)
 	if err != nil {
 		return err
 	}
@@ -42,7 +42,7 @@ func RefreshDefinitions(ctx context.Context, c types.Args, ioStreams cmdutil.IOS
 	syncedTemplates = append(syncedTemplates, templates...)
 	plugins.SinkTemp2Local(templates, dir)
 
-	templates, templateErrors, err = plugins.GetTraitsFromCluster(ctx, types.DefaultOAMNS, c, dir, nil)
+	templates, templateErrors, err = plugins.GetTraitsFromCluster(ctx, types.DefaultKubeVelaNS, c, dir, nil)
 	if err != nil {
 		return err
 	}

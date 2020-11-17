@@ -57,6 +57,7 @@ func Eval(templatePath string, value map[string]interface{}) (*unstructured.Unst
 	return &unstructured.Unstructured{Object: obj}, nil
 }
 
+// GetParameters get parameter from cue template
 func GetParameters(templatePath string) ([]types.Parameter, error) {
 	r := cue.Runtime{}
 	b, err := ioutil.ReadFile(templatePath)
@@ -136,6 +137,7 @@ func getDefaultByKind(k cue.Kind) interface{} {
 	return nil
 }
 
+// GetDefault evaluate default Go value from CUE
 func GetDefault(val cue.Value) interface{} {
 	switch val.Kind() {
 	case cue.IntKind:
@@ -159,12 +161,15 @@ func GetDefault(val cue.Value) interface{} {
 }
 
 const (
+	// UsagePrefix defines the usage display for KubeVela CLI
 	UsagePrefix = "+usage="
+	// ShortPrefix defines the short argument for KubeVela CLI
 	ShortPrefix = "+short="
 	// AliasPrefix is an alias of the name of a parameter element, in order to making it more friendly to Cli users
 	AliasPrefix = "+alias="
 )
 
+// RetrieveComments will retrieve Usage, Short and Alias from CUE Value
 func RetrieveComments(value cue.Value) (string, string, string) {
 	var short, usage, alias string
 	docs := value.Doc()
