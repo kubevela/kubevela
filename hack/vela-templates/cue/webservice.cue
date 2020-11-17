@@ -25,12 +25,7 @@ output: {
 					}
 
 					if context["config"] != _|_ {
-						env: [
-							for k, v in context.config {
-								name:  k
-								value: v
-							},
-						]
+						env: context.config
 					}
 
 					ports: [{
