@@ -13,6 +13,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
+// LoadCapabilityByName will load capability from local by name
 func LoadCapabilityByName(name string) (types.Capability, error) {
 	caps, err := LoadAllInstalledCapability()
 	if err != nil {
@@ -26,6 +27,7 @@ func LoadCapabilityByName(name string) (types.Capability, error) {
 	return types.Capability{}, fmt.Errorf("%s not found", name)
 }
 
+// LoadAllInstalledCapability will list all capability
 func LoadAllInstalledCapability() ([]types.Capability, error) {
 	workloads, err := LoadInstalledCapabilityWithType(types.TypeWorkload)
 	if err != nil {
@@ -39,11 +41,13 @@ func LoadAllInstalledCapability() ([]types.Capability, error) {
 	return workloads, nil
 }
 
+// LoadInstalledCapabilityWithType will load cap list by type
 func LoadInstalledCapabilityWithType(capT types.CapType) ([]types.Capability, error) {
 	dir, _ := system.GetCapabilityDir()
 	return loadInstalledCapabilityWithType(dir, capT)
 }
 
+// GetInstalledCapabilityWithCapAlias will get cap by alias
 func GetInstalledCapabilityWithCapAlias(capT types.CapType, capAlias string) (types.Capability, error) {
 	dir, _ := system.GetCapabilityDir()
 	return loadInstalledCapabilityWithCapAlias(dir, capT, capAlias)
@@ -109,6 +113,7 @@ func loadInstalledCapability(dir string, capAlias string) ([]types.Capability, e
 	return tmps, nil
 }
 
+// GetSubDir will get dir for capability
 func GetSubDir(dir string, capT types.CapType) string {
 	switch capT {
 	case types.TypeWorkload:
@@ -119,6 +124,7 @@ func GetSubDir(dir string, capT types.CapType) string {
 	return dir
 }
 
+// SinkTemp2Local will sink template to local file
 func SinkTemp2Local(templates []types.Capability, dir string) int {
 	success := 0
 	for _, tmp := range templates {
@@ -174,6 +180,7 @@ func RemoveLegacyTemps(retainedTemps []types.Capability, dir string) int {
 	return success
 }
 
+// LoadCapabilityFromSyncedCenter will load capability from dir
 func LoadCapabilityFromSyncedCenter(dir string) ([]types.Capability, error) {
 	var tmps []types.Capability
 	files, err := ioutil.ReadDir(dir)

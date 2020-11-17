@@ -7,6 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+// NeedDiscovery checks the routeTrait Spec if it's needed to automatically discover
 func NeedDiscovery(routeTrait *v1alpha1.Route) bool {
 	if len(routeTrait.Spec.Rules) == 0 {
 		return true
@@ -42,6 +43,7 @@ func MatchService(targetPort intstr.IntOrString, rule v1alpha1.Rule) bool {
 	return false
 }
 
+// FillRouteTraitWithService will use existing Service or created Service to fill the spec
 func FillRouteTraitWithService(service *corev1.Service, routeTrait *v1alpha1.Route) {
 	if len(routeTrait.Spec.Rules) == 0 {
 		routeTrait.Spec.Rules = []v1alpha1.Rule{{Name: "auto-created"}}

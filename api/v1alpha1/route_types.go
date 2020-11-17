@@ -66,6 +66,7 @@ type Rule struct {
 	Backend *Backend `json:"backend,omitempty"`
 }
 
+// TLS defines certificate issuer and type for mTLS configuration
 type TLS struct {
 	IssuerName string `json:"issuerName,omitempty"`
 
@@ -74,13 +75,17 @@ type TLS struct {
 	Type IssuerType `json:"type,omitempty"`
 }
 
+// IssuerType defines the type of issuer
 type IssuerType string
 
 const (
-	ClusterIssuer   IssuerType = "ClusterIssuer"
+	// ClusterIssuer is a cluster level type of issuer
+	ClusterIssuer IssuerType = "ClusterIssuer"
+	// NamespaceIssuer is the default one
 	NamespaceIssuer IssuerType = "Issuer"
 )
 
+// Backend defines backend configure for route trait.
 // Route will automatically discover podSpec and label for BackendService.
 // If BackendService is already set, discovery won't work.
 // If BackendService is not set, the discovery mechanism will work.
@@ -109,10 +114,10 @@ type RouteStatus struct {
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
 }
 
+// Route is the Schema for the routes API
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:categories={oam}
 // +kubebuilder:subresource:status
-// Route is the Schema for the routes API
 type Route struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -121,8 +126,8 @@ type Route struct {
 	Status RouteStatus `json:"status,omitempty"`
 }
 
-// +kubebuilder:object:root=true
 // RouteList contains a list of Route
+// +kubebuilder:object:root=true
 type RouteList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
@@ -135,20 +140,22 @@ func init() {
 
 var _ oam.Trait = &Route{}
 
+// SetConditions set condition for CR status
 func (r *Route) SetConditions(c ...runtimev1alpha1.Condition) {
 	r.Status.SetConditions(c...)
 }
 
+// GetCondition get condition from CR status
 func (r *Route) GetCondition(c runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
 	return r.Status.GetCondition(c)
 }
 
-// GetWorkloadReference of this ManualScalerTrait.
+// GetWorkloadReference of this Route Trait.
 func (r *Route) GetWorkloadReference() runtimev1alpha1.TypedReference {
 	return r.Spec.WorkloadReference
 }
 
-// SetWorkloadReference of this ManualScalerTrait.
+// SetWorkloadReference of this Route Trait.
 func (r *Route) SetWorkloadReference(rt runtimev1alpha1.TypedReference) {
 	r.Spec.WorkloadReference = rt
 }

@@ -10,8 +10,11 @@ import (
 )
 
 const defaultVelaHome = ".vela"
+
+// VelaHomeEnv defines vela home system env
 const VelaHomeEnv = "VELA_HOME"
 
+// GetVelaHomeDir return vela home dir
 func GetVelaHomeDir() (string, error) {
 	if custom := os.Getenv(VelaHomeEnv); custom != "" {
 		return custom, nil
@@ -23,6 +26,7 @@ func GetVelaHomeDir() (string, error) {
 	return filepath.Join(home, defaultVelaHome), nil
 }
 
+// GetDefaultFrontendDir return default vela frontend dir
 func GetDefaultFrontendDir() (string, error) {
 	home, err := GetVelaHomeDir()
 	if err != nil {
@@ -31,6 +35,7 @@ func GetDefaultFrontendDir() (string, error) {
 	return filepath.Join(home, "frontend"), nil
 }
 
+// GetCapCenterDir return cap center dir
 func GetCapCenterDir() (string, error) {
 	home, err := GetVelaHomeDir()
 	if err != nil {
@@ -39,6 +44,7 @@ func GetCapCenterDir() (string, error) {
 	return filepath.Join(home, "centers"), nil
 }
 
+// GetRepoConfig return repo config
 func GetRepoConfig() (string, error) {
 	home, err := GetCapCenterDir()
 	if err != nil {
@@ -47,6 +53,7 @@ func GetRepoConfig() (string, error) {
 	return filepath.Join(home, "config.yaml"), nil
 }
 
+// GetCapabilityDir return capability dirs including workloads and traits
 func GetCapabilityDir() (string, error) {
 	home, err := GetVelaHomeDir()
 	if err != nil {
@@ -55,6 +62,7 @@ func GetCapabilityDir() (string, error) {
 	return filepath.Join(home, "capabilities"), nil
 }
 
+// GetEnvDir return KubeVela environments dir
 func GetEnvDir() (string, error) {
 	homedir, err := GetVelaHomeDir()
 	if err != nil {
@@ -63,6 +71,7 @@ func GetEnvDir() (string, error) {
 	return filepath.Join(homedir, "envs"), nil
 }
 
+// GetCurrentEnvPath return current env config
 func GetCurrentEnvPath() (string, error) {
 	homedir, err := GetVelaHomeDir()
 	if err != nil {
@@ -71,6 +80,7 @@ func GetCurrentEnvPath() (string, error) {
 	return filepath.Join(homedir, "curenv"), nil
 }
 
+// InitDirs create dir if not exits
 func InitDirs() error {
 	if err := InitCapabilityDir(); err != nil {
 		return err
@@ -84,6 +94,7 @@ func InitDirs() error {
 	return nil
 }
 
+// InitCapCenterDir create dir if not exits
 func InitCapCenterDir() error {
 	home, err := GetCapCenterDir()
 	if err != nil {
@@ -93,6 +104,7 @@ func InitCapCenterDir() error {
 	return err
 }
 
+// InitCapabilityDir create dir if not exits
 func InitCapabilityDir() error {
 	dir, err := GetCapabilityDir()
 	if err != nil {
@@ -102,8 +114,10 @@ func InitCapabilityDir() error {
 	return err
 }
 
+// EnvConfigName defines config
 const EnvConfigName = "config.json"
 
+// InitDefaultEnv create dir if not exits
 func InitDefaultEnv() error {
 	envDir, err := GetEnvDir()
 	if err != nil {
@@ -131,6 +145,7 @@ func InitDefaultEnv() error {
 	return nil
 }
 
+// CreateIfNotExist create dir if not exist
 func CreateIfNotExist(dir string) (bool, error) {
 	_, err := os.Stat(dir)
 	if err != nil {

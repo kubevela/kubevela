@@ -11,6 +11,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
+// ReadConfigLine will read config from line
 func ReadConfigLine(line string) (string, string, error) {
 	ss := strings.SplitN(line, ":", 2)
 	if len(ss) != 2 {
@@ -26,12 +27,14 @@ func ReadConfigLine(line string) (string, string, error) {
 	return ss[0], string(vDec), nil
 }
 
+// GetConfigsDir will get config from dir
 func GetConfigsDir(envName string) (string, error) {
 	cfgDir := filepath.Join(env.GetEnvDirByName(envName), "configs")
 	err := os.MkdirAll(cfgDir, 0700)
 	return cfgDir, err
 }
 
+// DeleteConfig will delete local config file
 func DeleteConfig(envName, configName string) error {
 	d, err := GetConfigsDir(envName)
 	if err != nil {
@@ -41,6 +44,7 @@ func DeleteConfig(envName, configName string) error {
 	return os.RemoveAll(cfgFile)
 }
 
+// ReadConfig will read the config data from local
 func ReadConfig(envName, configName string) ([]byte, error) {
 	d, err := GetConfigsDir(envName)
 	if err != nil {
@@ -54,6 +58,7 @@ func ReadConfig(envName, configName string) ([]byte, error) {
 	return b, err
 }
 
+// WriteConfig will write data into local config
 func WriteConfig(envName, configName string, data []byte) error {
 	d, err := GetConfigsDir(envName)
 	if err != nil {

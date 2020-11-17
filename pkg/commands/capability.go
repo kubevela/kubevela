@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
-
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"

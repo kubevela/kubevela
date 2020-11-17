@@ -20,12 +20,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// Nginx is nginx ingress implementation
 type Nginx struct {
 	Client client.Client
 }
 
 var _ RouteIngress = &Nginx{}
 
+// CheckStatus will check status of the ingress
 func (n *Nginx) CheckStatus(routeTrait *standardv1alpha1.Route) (string, []runtimev1alpha1.Condition) {
 	ctx := context.Background()
 	// check issuer
@@ -99,6 +101,7 @@ func (n *Nginx) CheckStatus(routeTrait *standardv1alpha1.Route) (string, []runti
 		Reason: runtimev1alpha1.ReasonAvailable, LastTransitionTime: metav1.Now()}}
 }
 
+// Construct will construct ingress from route
 func (*Nginx) Construct(routeTrait *standardv1alpha1.Route) []*v1beta1.Ingress {
 
 	// Don't create ingress if no host set, this is used for local K8s cluster demo and the route trait will create K8s service only.

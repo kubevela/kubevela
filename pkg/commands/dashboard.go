@@ -199,7 +199,7 @@ func OpenBrowser(url string) error {
 }
 
 func CheckVelaRuntimeInstalledAndReady(ioStreams cmdutil.IOStreams, c client.Client) (bool, error) {
-	if !helm.IsHelmReleaseRunning(types.DefaultOAMReleaseName, types.DefaultOAMRuntimeChartName, types.DefaultOAMNS, ioStreams) {
+	if !helm.IsHelmReleaseRunning(types.DefaultKubeVelaReleaseName, types.DefaultKubeVelaChartName, types.DefaultKubeVelaNS, ioStreams) {
 		ioStreams.Info(fmt.Sprintf("\n%s %s", emojiFail, "KubeVela runtime is not installed yet."))
 		ioStreams.Info(fmt.Sprintf("\n%s %s%s or %s",
 			emojiLightBulb,

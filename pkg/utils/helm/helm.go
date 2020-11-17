@@ -23,12 +23,14 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
+// VelaDebugLog defines an ENV to set vela helm install log to be debug
 const VelaDebugLog = "VELA_DEBUG"
 
 var (
 	settings = cli.New()
 )
 
+// Install will install helm chart
 func Install(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, version, namespace, releaseName string,
 	vals map[string]interface{}) error {
 
@@ -79,6 +81,7 @@ func Install(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, version,
 	return nil
 }
 
+// Uninstall will uninstall helm chart
 func Uninstall(ioStreams cmdutil.IOStreams, chartName, namespace, releaseName string) error {
 	if !IsHelmReleaseRunning(releaseName, chartName, namespace, ioStreams) {
 		return nil
@@ -95,10 +98,11 @@ func Uninstall(ioStreams cmdutil.IOStreams, chartName, namespace, releaseName st
 	return nil
 }
 
+// NewHelmInstall will create a install client for helm install
 func NewHelmInstall(version, namespace, releaseName string) (*action.Install, error) {
 	actionConfig := new(action.Configuration)
 	if len(namespace) == 0 {
-		namespace = types.DefaultOAMNS
+		namespace = types.DefaultKubeVelaNS
 	}
 	if err := actionConfig.Init(
 		cmdutil.NewRestConfigGetter(namespace),
@@ -117,11 +121,12 @@ func NewHelmInstall(version, namespace, releaseName string) (*action.Install, er
 	if len(version) > 0 {
 		client.Version = version
 	} else {
-		client.Version = types.DefaultOAMVersion
+		client.Version = types.DefaultKubeVelaVersion
 	}
 	return client, nil
 }
 
+// NewHelmUninstall will create a helm uninstall client
 func NewHelmUninstall(namespace string) (*action.Uninstall, error) {
 	actionConfig := new(action.Configuration)
 
@@ -136,6 +141,7 @@ func NewHelmUninstall(namespace string) (*action.Uninstall, error) {
 	return action.NewUninstall(actionConfig), nil
 }
 
+// IsHelmRepositoryExist will check help repo exists
 func IsHelmRepositoryExist(name, url string) bool {
 	repos := GetHelmRepositoryList()
 	for _, repo := range repos {
@@ -146,6 +152,7 @@ func IsHelmRepositoryExist(name, url string) bool {
 	return false
 }
 
+// GetHelmRepositoryList get the helm repo list from default setting
 func GetHelmRepositoryList() []*repo.Entry {
 	f, err := repo.LoadFile(settings.RepositoryConfig)
 	if err == nil && len(f.Repositories) > 0 {
@@ -153,6 +160,7 @@ func GetHelmRepositoryList() []*repo.Entry {
 	}
 	return nil
 }
+
 func debug(format string, v ...interface{}) {
 	if settings.Debug {
 		format = fmt.Sprintf("[debug] %s\n", format)
@@ -160,6 +168,7 @@ func debug(format string, v ...interface{}) {
 	}
 }
 
+// AddHelmRepository add helm repo
 func AddHelmRepository(name, url, username, password, certFile, keyFile, caFile string, insecureSkipTLSverify bool, out io.Writer) error {
 	var f repo.File
 	c := repo.Entry{
@@ -191,6 +200,7 @@ func AddHelmRepository(name, url, username, password, certFile, keyFile, caFile 
 	return nil
 }
 
+// IsHelmReleaseRunning check helm release running
 func IsHelmReleaseRunning(releaseName, chartName, ns string, streams cmdutil.IOStreams) bool {
 	releases, err := GetHelmRelease(ns)
 	if err != nil {
@@ -205,6 +215,7 @@ func IsHelmReleaseRunning(releaseName, chartName, ns string, streams cmdutil.IOS
 	return false
 }
 
+// GetHelmRelease will get helm release
 func GetHelmRelease(ns string) ([]*release.Release, error) {
 	actionConfig := new(action.Configuration)
 	client := action.NewList(actionConfig)
@@ -220,6 +231,7 @@ func GetHelmRelease(ns string) ([]*release.Release, error) {
 	return results, nil
 }
 
+// GetChart will locate chart
 func GetChart(client *action.Install, name string) (*chart.Chart, error) {
 	if os.Getenv(VelaDebugLog) != "" {
 		settings.Debug = true
@@ -237,6 +249,7 @@ func GetChart(client *action.Install, name string) (*chart.Chart, error) {
 	return chartRequested, nil
 }
 
+// InstallHelmChart will install helm chart from types.Chart
 func InstallHelmChart(ioStreams cmdutil.IOStreams, c types.Chart) error {
 	return Install(ioStreams, c.Repo, c.URL, c.Name, c.Version, c.Namespace, c.Name, c.Values)
 }

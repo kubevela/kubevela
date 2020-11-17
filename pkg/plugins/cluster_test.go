@@ -29,7 +29,7 @@ var _ = Describe("DefinitionFiles", func() {
 		},
 		Description: "description not defined",
 		CrdName:     "routes.standard.oam.dev",
-		CrdInfo: &types.CrdInfo{
+		CrdInfo: &types.CRDInfo{
 			APIVersion: "standard.oam.dev/v1alpha1",
 			Kind:       "Route",
 		},
@@ -61,7 +61,7 @@ var _ = Describe("DefinitionFiles", func() {
 				Usage:   "Which port do you want customer traffic sent to",
 			},
 		},
-		CrdInfo: &types.CrdInfo{
+		CrdInfo: &types.CRDInfo{
 			APIVersion: "apps/v1",
 			Kind:       "Deployment",
 		},
@@ -88,7 +88,7 @@ var _ = Describe("DefinitionFiles", func() {
 			Usage:   "Which port do you want customer traffic sent to",
 		}},
 		CrdName: "deployments.apps",
-		CrdInfo: &types.CrdInfo{
+		CrdInfo: &types.CRDInfo{
 			APIVersion: "apps/v1",
 			Kind:       "Deployment",
 		},

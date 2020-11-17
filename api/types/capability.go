@@ -26,12 +26,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+// Source record the source of Capability
 type Source struct {
 	RepoName  string `json:"repoName"`
 	ChartName string `json:"chartName,omitempty"`
 }
 
-type CrdInfo struct {
+// CRDInfo record the CRD info of the Capability
+type CRDInfo struct {
 	APIVersion string `json:"apiVersion"`
 	Kind       string `json:"kind"`
 }
@@ -55,9 +57,10 @@ type Capability struct {
 	// Plugin Source
 	Source  *Source       `json:"source,omitempty"`
 	Install *Installation `json:"install,omitempty"`
-	CrdInfo *CrdInfo      `json:"crdInfo,omitempty"`
+	CrdInfo *CRDInfo      `json:"crdInfo,omitempty"`
 }
 
+// Chart defines all necessary information to install a whole chart
 type Chart struct {
 	Repo      string                 `json:"repo"`
 	URL       string                 `json:"url"`
@@ -67,18 +70,25 @@ type Chart struct {
 	Values    map[string]interface{} `json:"values"`
 }
 
+// Installation defines the installation method for this Capability, currently only helm is supported
 type Installation struct {
 	Helm Chart `json:"helm"`
+	//TODO(wonderflow) add raw yaml file support for install capability
 }
 
+// CapType defines the type of capability
 type CapType string
 
 const (
+	// TypeWorkload represents OAM Workload
 	TypeWorkload CapType = "workload"
-	TypeTrait    CapType = "trait"
-	TypeScope    CapType = "scope"
+	// TypeTrait represents OAM Trait
+	TypeTrait CapType = "trait"
+	// TypeScope represent OAM Scope
+	TypeScope CapType = "scope"
 )
 
+// Parameter defines a parameter for cli from capability template
 type Parameter struct {
 	Name     string      `json:"name"`
 	Short    string      `json:"short,omitempty"`
@@ -103,6 +113,7 @@ func ConvertTemplateJSON2Object(in *runtime.RawExtension) (Capability, error) {
 	return t, err
 }
 
+// SetFlagBy set cli flag from Parameter
 func SetFlagBy(flags *pflag.FlagSet, v Parameter) {
 	name := v.Name
 	if v.Alias != "" {
@@ -142,6 +153,7 @@ func SetFlagBy(flags *pflag.FlagSet, v Parameter) {
 	}
 }
 
+// CapabilityCmpOptions will set compare option
 var CapabilityCmpOptions = []cmp.Option{
 	cmp.Comparer(func(a, b Parameter) bool {
 		if a.Name != b.Name || a.Short != b.Short || a.Required != b.Required ||
@@ -186,7 +198,7 @@ var CapabilityCmpOptions = []cmp.Option{
 			case int:
 				va = float64(vala)
 			case float64:
-				va = float64(vala)
+				va = vala
 			}
 			switch valb := b.Default.(type) {
 			case int64:
@@ -203,6 +215,7 @@ var CapabilityCmpOptions = []cmp.Option{
 		return true
 	})}
 
+// EqualCapability will check whether two capabilities is equal
 func EqualCapability(a, b Capability) bool {
 	return cmp.Equal(a, b, CapabilityCmpOptions...)
 }

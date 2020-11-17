@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/api/types"
@@ -24,11 +25,13 @@ import (
 // ProductionACMEServer is the production ACME Server from let's encrypt
 const ProductionACMEServer = "https://acme-v02.api.letsencrypt.org/directory"
 
+// GetEnvDirByName will get env dir from name
 func GetEnvDirByName(name string) string {
 	envdir, _ := system.GetEnvDir()
 	return filepath.Join(envdir, name)
 }
 
+// GetEnvByName will get env info by name
 func GetEnvByName(name string) (*types.EnvMeta, error) {
 	data, err := ioutil.ReadFile(filepath.Join(GetEnvDirByName(name), system.EnvConfigName))
 	if err != nil {
@@ -44,9 +47,9 @@ func GetEnvByName(name string) (*types.EnvMeta, error) {
 	return &meta, nil
 }
 
-//Create or update env.
-//If it does not exist, create it and set to the new env.
-//If it exists, update it and set to the new env.
+// CreateOrUpdateEnv will create or update env.
+// If it does not exist, create it and set to the new env.
+// If it exists, update it and set to the new env.
 func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, envArgs *types.EnvMeta) (string, error) {
 
 	createOrUpdated := "created"
@@ -92,7 +95,7 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 						},
 						Solvers: []acmev1.ACMEChallengeSolver{{
 							HTTP01: &acmev1.ACMEChallengeSolverHTTP01{
-								Ingress: &acmev1.ACMEChallengeSolverHTTP01Ingress{Class: GetStringPointer("nginx")},
+								Ingress: &acmev1.ACMEChallengeSolverHTTP01Ingress{Class: pointer.StringPtr("nginx")},
 							},
 						}},
 					},
@@ -134,10 +137,6 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 	return message, nil
 }
 
-func GetStringPointer(v string) *string {
-	return &v
-}
-
 // CreateEnv will only create. If env already exists, return error
 func CreateEnv(ctx context.Context, c client.Client, envName string, envArgs *types.EnvMeta) (string, error) {
 	_, err := GetEnvByName(envName)
@@ -148,7 +147,7 @@ func CreateEnv(ctx context.Context, c client.Client, envName string, envArgs *ty
 	return CreateOrUpdateEnv(ctx, c, envName, envArgs)
 }
 
-//Update Env, if env does not exist, return error
+// UpdateEnv will update Env, if env does not exist, return error
 func UpdateEnv(ctx context.Context, c client.Client, envName string, namespace string) (string, error) {
 	var message = ""
 	envMeta, err := GetEnvByName(envName)
@@ -175,6 +174,7 @@ func UpdateEnv(ctx context.Context, c client.Client, envName string, namespace s
 	return message, err
 }
 
+// ListEnvs will list all envs
 func ListEnvs(envName string) ([]*types.EnvMeta, error) {
 	var envList []*types.EnvMeta
 	if envName != "" {
@@ -220,6 +220,7 @@ func ListEnvs(envName string) ([]*types.EnvMeta, error) {
 	return envList, nil
 }
 
+// GetCurrentEnvName will get current env name
 func GetCurrentEnvName() (string, error) {
 	currentEnvPath, err := system.GetCurrentEnvPath()
 	if err != nil {
@@ -232,6 +233,7 @@ func GetCurrentEnvName() (string, error) {
 	return string(data), nil
 }
 
+// DeleteEnv will delete env locally
 func DeleteEnv(envName string) (string, error) {
 	var message string
 	var err error
@@ -261,6 +263,7 @@ func DeleteEnv(envName string) (string, error) {
 	return message, err
 }
 
+// SetEnv will set the current env to the specified one
 func SetEnv(envName string) (string, error) {
 	var msg string
 	currentEnvPath, err := system.GetCurrentEnvPath()

@@ -64,6 +64,7 @@ type Reconciler struct {
 	Scheme *runtime.Scheme
 }
 
+// Reconcile is the main logic of controller
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=routes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=routes/status,verbs=get;update;patch
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
@@ -248,7 +249,7 @@ func (r *Reconciler) fillBackendByCreatedService(ctx context.Context, mLog logr.
 	}, nil
 }
 
-// Assume the workload or it's childResource will always having spec.template as PodTemplate if discoverable
+// DiscoverPortsLabel assume the workload or it's childResource will always having spec.template as PodTemplate if discoverable
 func DiscoverPortsLabel(ctx context.Context, workload *unstructured.Unstructured, r client.Reader, dm discoverymapper.DiscoveryMapper, childResources []*unstructured.Unstructured) ([]intstr.IntOrString, map[string]string, error) {
 
 	// here is the logic follows the design https://github.com/crossplane/oam-kubernetes-runtime/blob/master/design/one-pager-podspecable-workload.md#proposal
@@ -309,6 +310,7 @@ func (r *Reconciler) fillBackendByCheckChildResource(mLog logr.Logger,
 	return nil
 }
 
+// SetupWithManager setup with manager
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("Route")).
 		WithAnnotations("controller", "route")

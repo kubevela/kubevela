@@ -94,7 +94,7 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 		if err = yaml.Unmarshal(workloadData, &wd); err != nil {
 			return err
 		}
-		wd.Namespace = types.DefaultOAMNS
+		wd.Namespace = types.DefaultKubeVelaNS
 		ioStreams.Info("Installing workload capability " + wd.Name)
 		if tp.Install != nil {
 			tp.Source.ChartName = tp.Install.Helm.Name
@@ -106,7 +106,7 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 		if err != nil {
 			return err
 		}
-		tp.CrdInfo = &types.CrdInfo{
+		tp.CrdInfo = &types.CRDInfo{
 			APIVersion: gvk.GroupVersion().String(),
 			Kind:       gvk.Kind,
 		}
@@ -122,7 +122,7 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 		if err = yaml.Unmarshal(traitdata, &td); err != nil {
 			return err
 		}
-		td.Namespace = types.DefaultOAMNS
+		td.Namespace = types.DefaultKubeVelaNS
 		ioStreams.Info("Installing trait capability " + td.Name)
 		if tp.Install != nil {
 			tp.Source.ChartName = tp.Install.Helm.Name
@@ -134,7 +134,7 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 		if err != nil {
 			return err
 		}
-		tp.CrdInfo = &types.CrdInfo{
+		tp.CrdInfo = &types.CRDInfo{
 			APIVersion: gvk.GroupVersion().String(),
 			Kind:       gvk.Kind,
 		}
@@ -246,9 +246,9 @@ func UninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 	var obj runtime.Object
 	switch cap.Type {
 	case types.TypeTrait:
-		obj = &v1alpha2.TraitDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultOAMNS}}
+		obj = &v1alpha2.TraitDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultKubeVelaNS}}
 	case types.TypeWorkload:
-		obj = &v1alpha2.WorkloadDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultOAMNS}}
+		obj = &v1alpha2.WorkloadDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultKubeVelaNS}}
 	}
 	if err := client.Delete(ctx, obj); err != nil {
 		return err
@@ -256,7 +256,7 @@ func UninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 
 	if cap.Install != nil && cap.Install.Helm.Name != "" {
 		// 2. Remove Helm chart if there is
-		if err := helm.Uninstall(ioStreams, cap.Install.Helm.Name, types.DefaultOAMNS, cap.Name); err != nil {
+		if err := helm.Uninstall(ioStreams, cap.Install.Helm.Name, types.DefaultKubeVelaNS, cap.Name); err != nil {
 			return err
 		}
 	}

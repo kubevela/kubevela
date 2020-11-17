@@ -22,6 +22,7 @@ type Reconciler struct {
 	Scheme *runtime.Scheme
 }
 
+// Reconcile is the main logci of applicationdeployment controller
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applicationdeployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applicationdeployments/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applicationconfigurations,verbs=get;list;watch;create;update;patch;delete
@@ -44,6 +45,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, nil
 }
 
+// SetupWithManager setup the controller with manager
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("ApplicationDeployment")).
 		WithAnnotations("controller", "ApplicationDeployment")

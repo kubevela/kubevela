@@ -8,11 +8,12 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
-	"github.com/oam-dev/kubevela/api/types"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
+
+const LabelPodSpecable = "workload.oam.dev/podspecable"
 
 func GetPodSpecPath(workloadDef *v1alpha2.WorkloadDefinition) (string, bool) {
 	if workloadDef.Spec.PodSpecPath != "" {
@@ -21,7 +22,7 @@ func GetPodSpecPath(workloadDef *v1alpha2.WorkloadDefinition) (string, bool) {
 	if workloadDef.Labels == nil {
 		return "", false
 	}
-	podSpecable, ok := workloadDef.Labels[types.LabelPodSpecable]
+	podSpecable, ok := workloadDef.Labels[LabelPodSpecable]
 	if !ok {
 		return "", false
 	}

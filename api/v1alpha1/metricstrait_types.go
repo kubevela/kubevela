@@ -99,20 +99,22 @@ func init() {
 
 var _ oam.Trait = &MetricsTrait{}
 
+// SetConditions for set CR condition
 func (tr *MetricsTrait) SetConditions(c ...runtimev1alpha1.Condition) {
 	tr.Status.SetConditions(c...)
 }
 
+// GetCondition for get CR condition
 func (tr *MetricsTrait) GetCondition(c runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
 	return tr.Status.GetCondition(c)
 }
 
-// GetWorkloadReference of this ManualScalerTrait.
+// GetWorkloadReference of this MetricsTrait.
 func (tr *MetricsTrait) GetWorkloadReference() runtimev1alpha1.TypedReference {
 	return tr.Spec.WorkloadReference
 }
 
-// SetWorkloadReference of this ManualScalerTrait.
+// SetWorkloadReference of this MetricsTrait.
 func (tr *MetricsTrait) SetWorkloadReference(r runtimev1alpha1.TypedReference) {
 	tr.Spec.WorkloadReference = r
 }

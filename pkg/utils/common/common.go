@@ -15,6 +15,7 @@ import (
 )
 
 var (
+	// Scheme defines the default KubeVela schema
 	Scheme = k8sruntime.NewScheme()
 )
 
@@ -26,6 +27,7 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
+// InitBaseRestConfig will return reset config for create controller runtime client
 func InitBaseRestConfig() (types.Args, error) {
 	restConf, err := config.GetConfig()
 	if err != nil {
