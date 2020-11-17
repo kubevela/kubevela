@@ -11,8 +11,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/intstr"
-
-	"github.com/oam-dev/kubevela/api/types"
 )
 
 const LabelPodSpecable = "workload.oam.dev/podspecable"
