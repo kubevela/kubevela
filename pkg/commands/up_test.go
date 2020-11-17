@@ -5,17 +5,14 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/oam-dev/kubevela/api/types"
-
-	"github.com/oam-dev/kubevela/pkg/commands/util"
-
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
 func TestUp(t *testing.T) {

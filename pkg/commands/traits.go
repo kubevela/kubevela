@@ -4,12 +4,12 @@ import (
 	"context"
 	"strings"
 
-	"github.com/oam-dev/kubevela/api/types"
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	"github.com/gosuri/uitable"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/spf13/cobra"
+
+	"github.com/oam-dev/kubevela/api/types"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {

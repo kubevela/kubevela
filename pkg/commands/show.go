@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	"github.com/gosuri/uitable"
+	"github.com/spf13/cobra"
+
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/spf13/cobra"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 func NewAppShowCommand(ioStreams cmdutil.IOStreams) *cobra.Command {

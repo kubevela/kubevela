@@ -5,6 +5,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/gosuri/uitable"
+
 	"github.com/oam-dev/kubevela/api/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"

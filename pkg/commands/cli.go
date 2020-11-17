@@ -9,14 +9,15 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 
 	"github.com/gosuri/uitable"
+	"github.com/spf13/cobra"
+	"k8s.io/klog"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
+
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/cmd/vela/fake"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/oam-dev/kubevela/version"
-	"github.com/spf13/cobra"
-	"k8s.io/klog"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 func NewCommand() *cobra.Command {

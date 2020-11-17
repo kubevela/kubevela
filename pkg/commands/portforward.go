@@ -9,28 +9,26 @@ import (
 	"strconv"
 	"strings"
 
-	corev1 "k8s.io/api/core/v1"
-	types2 "k8s.io/apimachinery/pkg/types"
-
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
-	"github.com/oam-dev/kubevela/api/types"
 	"github.com/spf13/cobra"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	types2 "k8s.io/apimachinery/pkg/types"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	cmdpf "k8s.io/kubectl/pkg/cmd/portforward"
+	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
+
+	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	velacmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	cmdpf "k8s.io/kubectl/pkg/cmd/portforward"
-	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
 type VelaPortForwardOptions struct {

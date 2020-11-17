@@ -6,8 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/oam-dev/kubevela/api/types"
 	"github.com/spf13/cobra"
+
+	"github.com/oam-dev/kubevela/api/types"
 )
 
 const completionDesc = `Output shell completion code for the specified shell (bash or zsh). 

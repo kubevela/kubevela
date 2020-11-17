@@ -7,18 +7,18 @@ import (
 	"time"
 
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
-	"github.com/oam-dev/kubevela/api/types"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
+	cmdexec "k8s.io/kubectl/pkg/cmd/exec"
+	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 
+	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	velacmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	cmdexec "k8s.io/kubectl/pkg/cmd/exec"
-	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
 const (
