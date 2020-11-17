@@ -38,6 +38,7 @@ spec:
       	condition: {
       		type: "Utilization"
       		if parameter["cpuPercent"] != _|_ {
+      			// Temporarily use `strconv` for type converting. This bug will be fixed in kubevela#585
       			value: strconv.FormatInt(parameter.cpuPercent, 10)
       		}
       	}

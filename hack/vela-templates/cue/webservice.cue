@@ -71,6 +71,6 @@ parameter: {
 			}
 		}
 	}]
-	// +usage=Number of CPU units for the service, like `500m` (0.5 CPU core), `1` (1 CPU core)
+	// +usage=Number of CPU units for the service, like `0.5` (0.5 CPU core), `1` (1 CPU core)
 	cpu?: string
 }

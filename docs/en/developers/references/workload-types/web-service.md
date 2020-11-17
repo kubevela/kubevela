@@ -38,7 +38,7 @@ Name | Type | Description | Notes
 **Env** | [**[]WebserviceEnv**](#webserviceenv) |  | [optional]
 **Image** | **string** | Which image would you like to use for your service |
 **Port** | **int32** | Which port do you want customer traffic sent to | [default to 80]
-**cpu** | **string** | Number of CPU units for the service, like `500m` (0.5 CPU core), `1` (1 CPU core) | [optional]
+**cpu** | **string** | Number of CPU units for the service, like `0.5` (0.5 CPU core), `1` (1 CPU core) | [optional]
 
 ### WebserviceEnv
 
