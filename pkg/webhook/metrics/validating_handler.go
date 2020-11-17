@@ -72,6 +72,8 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			validatelog.Info("update failed", "name", obj.Name, "err", allErrs.ToAggregate().Error())
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
+	default:
+		// Do nothing for DELETE and CONNECT
 	}
 
 	return admission.ValidationResponse(true, "")

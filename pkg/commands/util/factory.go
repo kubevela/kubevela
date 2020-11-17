@@ -61,7 +61,7 @@ func (r *restConfigGetter) ToDiscoveryClient() (discovery.CachedDiscoveryInterfa
 	httpCacheDir := defaultCacheDir
 
 	discoveryCacheDir := computeDiscoverCacheDir(filepath.Join(homedir.HomeDir(), ".kube", "cache", "discovery"), config.Host)
-	return diskcached.NewCachedDiscoveryClientForConfig(config, discoveryCacheDir, httpCacheDir, time.Duration(10*time.Minute))
+	return diskcached.NewCachedDiscoveryClientForConfig(config, discoveryCacheDir, httpCacheDir, 10*time.Minute)
 }
 
 // ToRESTMapper returns a mapper.

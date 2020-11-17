@@ -159,7 +159,7 @@ func (o *VelaPortForwardOptions) Complete() error {
 		if err != nil {
 			return err
 		}
-		if len(svc.Spec.Ports) <= 0 {
+		if len(svc.Spec.Ports) == 0 {
 			return fmt.Errorf("no port found in service %s", routeSvc)
 		}
 		val := strconv.Itoa(int(svc.Spec.Ports[0].Port))

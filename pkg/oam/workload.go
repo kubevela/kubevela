@@ -87,6 +87,9 @@ func BaseComplete(envName string, workloadName string, appName string, flagSet *
 			workloadData[v.Name], err = flagSet.GetBool(name)
 		case cue.NumberKind, cue.FloatKind:
 			workloadData[v.Name], err = flagSet.GetFloat64(name)
+		default:
+			// Currently we don't support get value from complex type
+			continue
 		}
 		if err != nil {
 			if strings.Contains(err.Error(), "of flag of type string") {
@@ -98,6 +101,8 @@ func BaseComplete(envName string, workloadName string, appName string, flagSet *
 					workloadData[v.Name], err = strconv.ParseBool(data)
 				case cue.NumberKind, cue.FloatKind:
 					workloadData[v.Name], err = strconv.ParseFloat(data, 64)
+				default:
+					return nil, fmt.Errorf("should not get string from type(%s) for parameter \"%s\"", v.Type.String(), name)
 				}
 				if err != nil {
 					return nil, fmt.Errorf("get flag(s) \"%s\" err %v", v.Name, err)
@@ -113,11 +118,11 @@ func BaseComplete(envName string, workloadName string, appName string, flagSet *
 	return app, app.Save(envName)
 }
 
-func BaseRun(staging bool, app *application.Application, kubeClient client.Client, Env *types.EnvMeta, io cmdutil.IOStreams) (string, error) {
+func BaseRun(staging bool, app *application.Application, kubeClient client.Client, env *types.EnvMeta, io cmdutil.IOStreams) (string, error) {
 	if staging {
 		return "Staging saved", nil
 	}
-	if err := app.BuildRun(context.Background(), kubeClient, Env, io); err != nil {
+	if err := app.BuildRun(context.Background(), kubeClient, env, io); err != nil {
 		err = fmt.Errorf("create app err: %s", err)
 		return "", err
 	}

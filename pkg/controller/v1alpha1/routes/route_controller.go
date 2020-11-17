@@ -165,12 +165,7 @@ func (r *Reconciler) discoveryAndFillBackend(ctx context.Context, mLog logr.Logg
 		}
 	}
 	// try to see if the workload already has services in child childResources, and match for our route
-	err = r.fillBackendByCheckChildResource(mLog, routeTrait, childResources)
-	if err != nil && !apierrors.IsNotFound(err) {
-		r.record.Event(eventObj, event.Warning(common.ErrLocatingService, err))
-		return nil, oamutil.PatchCondition(ctx, r, routeTrait,
-			cpv1alpha1.ReconcileError(errors.Wrap(err, common.ErrLocatingService)))
-	}
+	r.fillBackendByCheckChildResource(mLog, routeTrait, childResources)
 
 	// Check if still need discovery after childResource filled.
 	if NeedDiscovery(routeTrait) {
@@ -286,9 +281,9 @@ func DiscoverPortsLabel(ctx context.Context, workload *unstructured.Unstructured
 
 // fetch the service that is associated with the workload
 func (r *Reconciler) fillBackendByCheckChildResource(mLog logr.Logger,
-	routeTrait *v1alpha1.Route, childResources []*unstructured.Unstructured) error {
+	routeTrait *v1alpha1.Route, childResources []*unstructured.Unstructured) {
 	if len(childResources) == 0 {
-		return nil
+		return
 	}
 	// find the service that has the port
 	for _, childRes := range childResources {
@@ -307,7 +302,6 @@ func (r *Reconciler) fillBackendByCheckChildResource(mLog logr.Logger,
 			FillRouteTraitWithService(&service, routeTrait)
 		}
 	}
-	return nil
 }
 
 // SetupWithManager setup with manager

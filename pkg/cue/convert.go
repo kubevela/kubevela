@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -23,7 +24,7 @@ const specValue = "parameter"
 // Eval evaluates the spec with the parameter values
 func Eval(templatePath string, value map[string]interface{}) (*unstructured.Unstructured, error) {
 	r := cue.Runtime{}
-	b, err := ioutil.ReadFile(templatePath)
+	b, err := ioutil.ReadFile(filepath.Clean(templatePath))
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +61,7 @@ func Eval(templatePath string, value map[string]interface{}) (*unstructured.Unst
 // GetParameters get parameter from cue template
 func GetParameters(templatePath string) ([]types.Parameter, error) {
 	r := cue.Runtime{}
-	b, err := ioutil.ReadFile(templatePath)
+	b, err := ioutil.ReadFile(filepath.Clean(templatePath))
 	if err != nil {
 		return nil, err
 	}
@@ -132,8 +133,9 @@ func getDefaultByKind(k cue.Kind) interface{} {
 	case cue.NumberKind, cue.FloatKind:
 		var d float64
 		return d
+	default:
+		// assume other cue kind won't be valid parameter
 	}
-	// assume other cue kind won't be valid parameter
 	return nil
 }
 
@@ -156,6 +158,7 @@ func GetDefault(val cue.Value) interface{} {
 		if d, err := val.Float64(); err == nil {
 			return d
 		}
+	default:
 	}
 	return getDefaultByKind(val.Kind())
 }

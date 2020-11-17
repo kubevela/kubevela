@@ -119,6 +119,7 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 	if _, err = system.CreateIfNotExist(subEnvDir); err != nil {
 		return message, err
 	}
+	// nolint:gosec
 	if err = ioutil.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
 		return message, err
 	}
@@ -126,6 +127,7 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 	if err != nil {
 		return message, err
 	}
+	// nolint:gosec
 	if err = ioutil.WriteFile(curEnvPath, []byte(envName), 0644); err != nil {
 		return message, err
 	}
@@ -167,6 +169,7 @@ func UpdateEnv(ctx context.Context, c client.Client, envName string, namespace s
 		return message, err
 	}
 	subEnvDir := filepath.Join(envdir, envName)
+	// nolint:gosec
 	if err = ioutil.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
 		return message, err
 	}
@@ -226,7 +229,7 @@ func GetCurrentEnvName() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	data, err := ioutil.ReadFile(currentEnvPath)
+	data, err := ioutil.ReadFile(filepath.Clean(currentEnvPath))
 	if err != nil {
 		return "", err
 	}
@@ -274,6 +277,7 @@ func SetEnv(envName string) (string, error) {
 	if err != nil {
 		return msg, err
 	}
+	//nolint:gosec
 	if err = ioutil.WriteFile(currentEnvPath, []byte(envName), 0644); err != nil {
 		return msg, err
 	}

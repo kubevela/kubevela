@@ -65,10 +65,8 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 						return err
 					}
 					o.Detach = true
-				} else {
-					if err := o.AddOrUpdateTrait(cmd, args); err != nil {
-						return err
-					}
+				} else if err := o.AddOrUpdateTrait(cmd, args); err != nil {
+					return err
 				}
 				return o.Run(ctx, cmd, ioStreams)
 			},

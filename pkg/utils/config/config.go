@@ -51,7 +51,7 @@ func ReadConfig(envName, configName string) ([]byte, error) {
 		return nil, err
 	}
 	cfgFile := filepath.Join(d, configName)
-	b, err := ioutil.ReadFile(cfgFile)
+	b, err := ioutil.ReadFile(filepath.Clean(cfgFile))
 	if os.IsNotExist(err) {
 		return []byte{}, nil
 	}

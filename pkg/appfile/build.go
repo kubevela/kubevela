@@ -45,6 +45,8 @@ func asyncLog(reader io.ReadCloser, stream cmdutil.IOStreams) {
 }
 
 func (b *Build) BuildImage(io cmdutil.IOStreams, image string) error {
+	//nolint:gosec
+	// TODO(hongchaodeng): remove this dependency by using go lib
 	cmd := exec.Command("docker", "build", "-t", image, "-f", b.Docker.File, b.Docker.Context)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -73,6 +75,7 @@ func (b *Build) pushImage(io cmdutil.IOStreams, image string) error {
 	io.Infof("pushing image (%s)...\n", image)
 	switch {
 	case b.Push.Local == "kind":
+		//nolint:gosec
 		cmd := exec.Command("kind", "load", "docker-image", image)
 		stdout, err := cmd.StdoutPipe()
 		if err != nil {
@@ -95,7 +98,9 @@ func (b *Build) pushImage(io cmdutil.IOStreams, image string) error {
 			return err
 		}
 		return nil
+	default:
 	}
+	//nolint:gosec
 	cmd := exec.Command("docker", "push", image)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

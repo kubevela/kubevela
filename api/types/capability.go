@@ -208,7 +208,7 @@ var CapabilityCmpOptions = []cmp.Option{
 			case int:
 				vb = float64(valb)
 			case float64:
-				vb = float64(valb)
+				vb = valb
 			}
 			return va == vb
 		}

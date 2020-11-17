@@ -146,6 +146,8 @@ func ValidateAndMutateForCore(traitType, workloadName string, flags *pflag.FlagS
 				return fmt.Errorf("set flag for vela-core trait('route') err %v, please make sure your template is right", err)
 			}
 		}
+	default:
+		// extend other trait here in the future
 	}
 	return nil
 }
@@ -182,6 +184,9 @@ func AddOrUpdateTrait(env *types.EnvMeta, appName string, componentName string, 
 			traitData[v.Name], err = flagSet.GetBool(name)
 		case cue.NumberKind, cue.FloatKind:
 			traitData[v.Name], err = flagSet.GetFloat64(name)
+		default:
+			// Currently we don't support get value from complex type
+			continue
 		}
 
 		if err != nil {

@@ -166,12 +166,12 @@ func (r *AutoscalerReconciler) prepareKEDACronScalerTriggerSpec(scaler v1alpha1.
 	endHour := int(durationHour) + startHour
 
 	if endMinite >= 60 {
-		endMinite = endMinite % 60
+		endMinite %= 60
 		endHour++
 	}
 	var durationOneMoreDay int
 	if endHour >= 24 {
-		endHour = endHour % 24
+		endHour %= 24
 		durationOneMoreDay = 1
 	}
 	replicas, err := strconv.Atoi(triggerCondition.Replicas)

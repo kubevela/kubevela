@@ -54,16 +54,20 @@ func ConstructError(ec Code, a ...interface{}) error {
 	msg := ""
 	// the number of keys should be equal to the number of placeholders defined in ErrorCode.Message.
 	c := strings.Count(ec.Message(), "%")
-	if a == nil && c > 0 ||
-		a != nil && (c != len(a) || a[0] == nil) {
-		ctrl.Log.Error(fmt.Errorf("Args '%v' do not match placeholders in the msg '%s'", a, ec.Message()),
-			"Invalid error message argument")
-	} else if len(a) == 0 || a[0] == nil {
-		msg = ec.Message()
-	} else {
+	switch {
+	case a == nil && c > 0 ||
+		a != nil && (c != len(a) || a[0] == nil):
+		{
+			ctrl.Log.Error(fmt.Errorf("Args '%v' do not match placeholders in the msg '%s'", a, ec.Message()),
+				"Invalid error message argument")
+		}
+	case len(a) == 0 || a[0] == nil:
+		{
+			msg = ec.Message()
+		}
+	default:
 		msg = fmt.Sprintf(ec.Message(), a...)
 	}
-
 	return errors.New(msg)
 }
 

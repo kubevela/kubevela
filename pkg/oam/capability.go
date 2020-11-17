@@ -87,7 +87,7 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 	switch tp.Type {
 	case types.TypeWorkload:
 		var wd v1alpha2.WorkloadDefinition
-		workloadData, err := ioutil.ReadFile(filepath.Join(repoDir, tp.CrdName+".yaml"))
+		workloadData, err := ioutil.ReadFile(filepath.Clean(filepath.Join(repoDir, tp.CrdName+".yaml")))
 		if err != nil {
 			return nil
 		}
@@ -115,7 +115,7 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 		}
 	case types.TypeTrait:
 		var td v1alpha2.TraitDefinition
-		traitdata, err := ioutil.ReadFile(filepath.Join(repoDir, tp.CrdName+".yaml"))
+		traitdata, err := ioutil.ReadFile(filepath.Clean(filepath.Join(repoDir, tp.CrdName+".yaml")))
 		if err != nil {
 			return nil
 		}
@@ -249,6 +249,8 @@ func UninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 		obj = &v1alpha2.TraitDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultKubeVelaNS}}
 	case types.TypeWorkload:
 		obj = &v1alpha2.WorkloadDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultKubeVelaNS}}
+	case types.TypeScope:
+		return fmt.Errorf("uninstall scope capability was not supported yet")
 	}
 	if err := client.Delete(ctx, obj); err != nil {
 		return err
@@ -268,6 +270,8 @@ func UninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 		return os.Remove(filepath.Join(capdir, "traits", cap.Name))
 	case types.TypeWorkload:
 		return os.Remove(filepath.Join(capdir, "workloads", cap.Name))
+	case types.TypeScope:
+		// TODO(wonderflow): add scope remove here.
 	}
 	ioStreams.Infof("%s removed successfully", cap.Name)
 	return nil

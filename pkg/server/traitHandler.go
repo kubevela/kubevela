@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"os"
 	"strconv"
 
@@ -84,7 +85,7 @@ func (s *APIServer) DetachTrait(c *gin.Context) {
 	util.AssembleResponse(c, msg, nil)
 }
 
-func (s *APIServer) DoAttachTrait(c *gin.Context, body apis.TraitBody) (string, error) {
+func (s *APIServer) DoAttachTrait(c context.Context, body apis.TraitBody) (string, error) {
 	// Prepare
 	var appObj *application.Application
 	fs := pflag.NewFlagSet("trait", pflag.ContinueOnError)
@@ -118,7 +119,7 @@ func (s *APIServer) DoAttachTrait(c *gin.Context, body apis.TraitBody) (string, 
 	return oam.TraitOperationRun(c, s.KubeClient, env, appObj, staging, io)
 }
 
-func (s *APIServer) DoDetachTrait(c *gin.Context, envName string, traitType string, componentName string, appName string, staging bool) (string, error) {
+func (s *APIServer) DoDetachTrait(c context.Context, envName string, traitType string, componentName string, appName string, staging bool) (string, error) {
 	var appObj *application.Application
 	var err error
 	if appName == "" {

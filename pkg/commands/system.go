@@ -181,6 +181,7 @@ func CheckCapabilityReady(ctx context.Context, c types.Args, timeout time.Durati
 	if err != nil {
 		return err
 	}
+	//nolint:errcheck
 	defer os.RemoveAll(tmpdir)
 
 	start := time.Now()

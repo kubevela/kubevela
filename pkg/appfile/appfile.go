@@ -3,6 +3,7 @@ package appfile
 import (
 	"errors"
 	"io/ioutil"
+	"path/filepath"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
@@ -45,7 +46,7 @@ func Load() (*AppFile, error) {
 }
 
 func LoadFromFile(filename string) (*AppFile, error) {
-	b, err := ioutil.ReadFile(filename)
+	b, err := ioutil.ReadFile(filepath.Clean(filename))
 	if err != nil {
 		return nil, err
 	}

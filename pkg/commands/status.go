@@ -30,7 +30,7 @@ import (
 type HealthStatus = v1alpha2.HealthStatus
 
 const (
-	// HealthStatusNotDiagnosed means there's no health scope refered or unknown health status returned
+	// HealthStatusNotDiagnosed means there's no health scope referred or unknown health status returned
 	HealthStatusNotDiagnosed HealthStatus = "NOT DIAGNOSED"
 )
 

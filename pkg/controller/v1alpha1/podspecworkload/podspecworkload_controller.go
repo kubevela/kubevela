@@ -89,7 +89,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		log.Error(err, "workload", "name", workload.Name)
 		eventObj = &workload
 	}
-	deploy, err := r.renderDeployment(ctx, &workload)
+	deploy, err := r.renderDeployment(&workload)
 	if err != nil {
 		log.Error(err, "Failed to render a deployment")
 		r.record.Event(eventObj, event.Warning(errRenderDeployment, err))
@@ -119,10 +119,10 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// Determine whether it is necessary to create a service.if container.
-	setPorts := r.checkContainerPortsSpecified(ctx, &workload)
+	setPorts := r.checkContainerPortsSpecified(&workload)
 	if setPorts {
 		// create a service for the workload
-		service, err := r.renderService(ctx, &workload)
+		service, err := r.renderService(&workload)
 		if err != nil {
 			log.Error(err, "Failed to render a service")
 			r.record.Event(eventObj, event.Warning(errRenderService, err))
@@ -156,8 +156,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 }
 
 // create a corresponding deployment
-func (r *Reconciler) renderDeployment(ctx context.Context,
-	workload *v1alpha1.PodSpecWorkload) (*appsv1.Deployment, error) {
+func (r *Reconciler) renderDeployment(workload *v1alpha1.PodSpecWorkload) (*appsv1.Deployment, error) {
 	// generate the deployment
 	deploy := &appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -210,8 +209,7 @@ func (r *Reconciler) renderDeployment(ctx context.Context,
 }
 
 // check whether the container port is specified
-func (r *Reconciler) checkContainerPortsSpecified(ctx context.Context,
-	workload *v1alpha1.PodSpecWorkload) bool {
+func (r *Reconciler) checkContainerPortsSpecified(workload *v1alpha1.PodSpecWorkload) bool {
 	if workload == nil {
 		return false
 	}
@@ -224,8 +222,7 @@ func (r *Reconciler) checkContainerPortsSpecified(ctx context.Context,
 }
 
 // create a service for the deployment
-func (r *Reconciler) renderService(ctx context.Context,
-	workload *v1alpha1.PodSpecWorkload) (*corev1.Service, error) {
+func (r *Reconciler) renderService(workload *v1alpha1.PodSpecWorkload) (*corev1.Service, error) {
 	// create a service for the workload
 	service := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
@@ -236,7 +233,7 @@ func (r *Reconciler) renderService(ctx context.Context,
 			Name:      workload.GetName(),
 			Namespace: workload.GetNamespace(),
 			Labels: map[string]string{
-				labelNameKey: string(workload.GetName()),
+				labelNameKey: workload.GetName(),
 			},
 		},
 		Spec: corev1.ServiceSpec{

@@ -51,6 +51,7 @@ func NewCenterClient(ctx context.Context, name, address, token string) (CenterCl
 	switch Type {
 	case TypeGithub:
 		return NewGithubCenter(ctx, token, name, cfg)
+	default:
 	}
 	return nil, errors.New("we only support github as repository now")
 }
@@ -132,7 +133,7 @@ func LoadRepos() ([]CapCenterConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := ioutil.ReadFile(config)
+	data, err := ioutil.ReadFile(filepath.Clean(config))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []CapCenterConfig{}, nil
@@ -156,6 +157,7 @@ func StoreRepos(repos []CapCenterConfig) error {
 	if err != nil {
 		return err
 	}
+	//nolint:gosec
 	return ioutil.WriteFile(config, data, 0644)
 }
 
@@ -244,6 +246,7 @@ func (g *GithubCenter) SyncCapabilityFromCenter() error {
 			fmt.Printf("parse definition of %s err %v\n", *fileContent.Name, err)
 			continue
 		}
+		//nolint:gosec
 		err = ioutil.WriteFile(filepath.Join(repoDir, tmp.CrdName+".yaml"), data, 0644)
 		if err != nil {
 			fmt.Printf("write definition %s to %s err %v\n", tmp.CrdName+".yaml", repoDir, err)
