@@ -6,11 +6,12 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+
 	"github.com/gosuri/uitable"
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/cmd/vela/fake"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/oam-dev/kubevela/version"
 	"github.com/spf13/cobra"
@@ -50,7 +51,7 @@ func NewCommand() *cobra.Command {
 
 	commandArgs := types.Args{
 		Config: restConf,
-		Schema: oam.Scheme,
+		Schema: common.Scheme,
 	}
 
 	if err := system.InitDirs(); err != nil {

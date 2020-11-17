@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
@@ -15,10 +17,13 @@ import (
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/repo"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/api/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
+
+const VelaDebugLog = "VELA_DEBUG"
 
 var (
 	settings = cli.New()
@@ -26,6 +31,27 @@ var (
 
 func Install(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, version, namespace, releaseName string,
 	vals map[string]interface{}) error {
+
+	if len(namespace) > 0 {
+		args, err := common.InitBaseRestConfig()
+		if err != nil {
+			return err
+		}
+		kubeClient, err := client.New(args.Config, client.Options{Scheme: args.Schema})
+		if err != nil {
+			return err
+		}
+		exist, err := cmdutil.DoesNamespaceExist(kubeClient, namespace)
+		if err != nil {
+			return err
+		}
+		if !exist {
+			if err = cmdutil.NewNamespace(kubeClient, namespace); err != nil {
+				return fmt.Errorf("create namespace (%s) failed for chart %s: %s", namespace, chartName, err)
+			}
+		}
+	}
+
 	if !IsHelmRepositoryExist(repoName, repoURL) {
 		err := AddHelmRepository(repoName, repoURL,
 			"", "", "", "", "", false, ioStreams.Out)
@@ -195,7 +221,9 @@ func GetHelmRelease(ns string) ([]*release.Release, error) {
 }
 
 func GetChart(client *action.Install, name string) (*chart.Chart, error) {
-	settings.Debug = true
+	if os.Getenv(VelaDebugLog) != "" {
+		settings.Debug = true
+	}
 
 	chartPath, err := client.ChartPathOptions.LocateChart(name, settings)
 	if err != nil {
@@ -207,4 +235,8 @@ func GetChart(client *action.Install, name string) (*chart.Chart, error) {
 		return nil, err
 	}
 	return chartRequested, nil
+}
+
+func InstallHelmChart(ioStreams cmdutil.IOStreams, c types.Chart) error {
+	return Install(ioStreams, c.Repo, c.URL, c.Name, c.Version, c.Namespace, c.Name, c.Values)
 }
