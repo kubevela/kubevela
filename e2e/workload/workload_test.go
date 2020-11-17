@@ -3,9 +3,10 @@ package e2e
 import (
 	"fmt"
 
-	"github.com/oam-dev/kubevela/e2e"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
+
+	"github.com/oam-dev/kubevela/e2e"
 )
 
 var (

@@ -11,9 +11,10 @@ import (
 
 	"github.com/Netflix/go-expect"
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/server/util"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"

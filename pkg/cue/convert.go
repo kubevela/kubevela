@@ -9,8 +9,9 @@ import (
 
 	"cuelang.org/go/cue"
 	cueJson "cuelang.org/go/pkg/encoding/json"
-	"github.com/oam-dev/kubevela/api/types"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/oam-dev/kubevela/api/types"
 )
 
 // OutputFieldName is the name of the struct contains the CR data

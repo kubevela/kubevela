@@ -8,23 +8,19 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/oam-dev/kubevela/pkg/utils/helm"
-
-	util2 "github.com/oam-dev/kubevela/pkg/commands/util"
-
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
-
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
-
-	"github.com/oam-dev/kubevela/api/types"
-	"github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/oam-dev/kubevela/pkg/utils/system"
-	"github.com/pkg/errors"
-
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
+	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
+	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/api/types"
+	util2 "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/utils/helm"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
 const DescriptionUndefined = "description not defined"

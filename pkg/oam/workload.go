@@ -7,13 +7,14 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
+	"github.com/spf13/pflag"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/oam-dev/kubevela/api/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
-	"github.com/spf13/pflag"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type RunOptions struct {

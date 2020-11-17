@@ -27,13 +27,14 @@ import (
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 	oamutil "github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 	"github.com/go-logr/logr"
-	"github.com/oam-dev/kubevela/api/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"github.com/oam-dev/kubevela/api/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 )
 
 const (

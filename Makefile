@@ -1,14 +1,14 @@
 # Vela version
 VELA_VERSION ?= 0.1.0
 # Repo info
-GIT_COMMIT ?= git-$(shell git rev-parse --short HEAD)
-VELA_VERSION_VAR := github.com/oam-dev/kubevela/version.VelaVersion
+GIT_COMMIT          ?= git-$(shell git rev-parse --short HEAD)
+VELA_VERSION_VAR    := github.com/oam-dev/kubevela/version.VelaVersion
 VELA_GITVERSION_VAR := github.com/oam-dev/kubevela/version.GitRevision
-LDFLAGS ?= "-X $(VELA_VERSION_VAR)=$(VELA_VERSION) -X $(VELA_GITVERSION_VAR)=$(GIT_COMMIT)"
+LDFLAGS             ?= "-X $(VELA_VERSION_VAR)=$(VELA_VERSION) -X $(VELA_GITVERSION_VAR)=$(GIT_COMMIT)"
 
-GOX      = go run github.com/mitchellh/gox
-TARGETS  := darwin/amd64 linux/amd64 windows/amd64
-DIST_DIRS       := find * -type d -exec
+GOX         = go run github.com/mitchellh/gox
+TARGETS     := darwin/amd64 linux/amd64 windows/amd64
+DIST_DIRS   := find * -type d -exec
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -64,8 +64,9 @@ run: fmt vet
 	go run ./cmd/core/main.go
 
 # Run go fmt against code
-fmt:
+fmt: goimports
 	go fmt ./...
+	$(GOIMPORTS) -local github.com/oam-dev/kubevela -w ./pkg ./cmd
 	./hack/cue-fmt.sh
 
 # Run go vet against code
@@ -184,4 +185,16 @@ ifeq (, $(shell which golangci-lint))
 GOLANGCILINT=$(GOBIN)/golangci-lint
 else
 GOLANGCILINT=$(shell which golangci-lint)
+endif
+
+.PHONY: goimports
+goimports:
+ifeq (, $(shell which goimports))
+	@{ \
+	set -e ;\
+	GO111MODULE=off go get -u golang.org/x/tools/cmd/goimports ;\
+	}
+GOIMPORTS=$(GOBIN)/goimports
+else
+GOIMPORTS=$(shell which goimports)
 endif

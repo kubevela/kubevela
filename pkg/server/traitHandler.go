@@ -4,19 +4,18 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/oam-dev/kubevela/pkg/application"
-	util2 "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/plugins"
-	env2 "github.com/oam-dev/kubevela/pkg/utils/env"
-	"github.com/spf13/pflag"
-
 	"github.com/gin-gonic/gin"
+	"github.com/spf13/pflag"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/application"
+	util2 "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/server/util"
+	env2 "github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
 // Trait related handlers

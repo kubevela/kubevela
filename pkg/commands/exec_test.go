@@ -6,16 +6,17 @@ import (
 	"testing"
 
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
-	"github.com/oam-dev/kubevela/api/types"
-	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/application"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/kubectl/pkg/cmd/exec"
 	cmdtesting "k8s.io/kubectl/pkg/cmd/testing"
+
+	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/application"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
 func TestExecCommand(t *testing.T) {
