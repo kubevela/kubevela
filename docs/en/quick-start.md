@@ -20,19 +20,19 @@ Applying deploy configs ...
 Checking if app has been deployed...
 App has not been deployed, creating a new deployment...
 ✅ App has been deployed 🚀🚀🚀
-    Port forward: vela port-forward testapp
-             SSH: vela exec testapp
-         Logging: vela logs testapp
-      App status: vela status testapp
-  Service status: vela status testapp --svc testsvc
+    Port forward: vela port-forward first-vela-app
+             SSH: vela exec first-vela-app
+         Logging: vela logs first-vela-app
+      App status: vela status first-vela-app
+  Service status: vela status first-vela-app --svc testsvc
 ```
 
 Check the status until we see `Routes` are ready:
 ```bash
-$ vela status testapp
+$ vela status first-vela-app
 About:
 
-  Name:       testapp
+  Name:       first-vela-app
   Namespace:  default
   Created at: ...
   Updated at: ...
