@@ -6,7 +6,7 @@ Requirements:
 - Kubernetes cluster >= v1.15.0
 - kubectl installed and configured
 
-You may pick either Minikube or KinD as local cluster testing option.
+If you don't have K8s cluster from Cloud Provider, you may pick either Minikube or KinD as local cluster testing option.
 
 > NOTE: If you are not using minikube or kind, please make sure to [install or enable ingress-nginx](https://kubernetes.github.io/ingress-nginx/deploy/) by yourself.
 
@@ -73,6 +73,12 @@ $ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/ma
 ```bash
 $ sudo mv ./vela /usr/local/bin/vela
 ```
+
+> Known Issue(https://github.com/oam-dev/kubevela/issues/625): 
+> If you're using mac, it will report that “vela” cannot be opened because the developer cannot be verified.
+>
+> The new version of MacOS is stricter about running software you've downloaded that isn't signed with an Apple developer key. And we haven't supported that for KubeVela yet.  
+> You can open your 'System Preference' -> 'Security & Privacy' -> General, click the 'Allow Anyway' to temporarily fix it.
 
 ## 3. Initialize KubeVela
 
