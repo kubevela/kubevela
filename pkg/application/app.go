@@ -43,7 +43,7 @@ func LoadFromFile(fileName string) (*Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = ioutil.ReadFile(fileName)
+	_, err = os.Stat(fileName)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return newApplication(nil, tm), nil
@@ -129,6 +129,7 @@ func (app *Application) Save(envName string) error {
 	if err != nil {
 		return err
 	}
+	//nolint:gosec
 	return ioutil.WriteFile(filepath.Join(appDir, app.Name+".yaml"), out, 0644)
 }
 

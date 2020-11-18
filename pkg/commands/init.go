@@ -314,7 +314,7 @@ func (o *appInitOptions) Traits() error {
 				return err
 			}
 		}
-		return nil
+	default:
 	}
 	return nil
 }

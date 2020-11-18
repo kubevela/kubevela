@@ -209,14 +209,18 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 			int64(time.Since(start).Seconds()), int64(timeout.Seconds())))
 		if _, err := os.Stat(certDir); !os.IsNotExist(err) {
 			ready := func() bool {
-				f, _ := os.Open(certDir)
+				f, err := os.Open(filepath.Clean(certDir))
+				if err != nil {
+					return false
+				}
+				// nolint
 				defer f.Close()
 				// check if dir is empty
 				if _, err := f.Readdir(1); err == io.EOF {
 					return false
 				}
 				// check if secret files are empty
-				err := filepath.Walk(certDir, func(path string, info os.FileInfo, err error) error {
+				err = filepath.Walk(certDir, func(path string, info os.FileInfo, err error) error {
 					// even Cert dir is created, cert files are still empty for a while
 					if info.Size() == 0 {
 						return errors.New("secret is not ready")

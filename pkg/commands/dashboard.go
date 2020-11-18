@@ -87,6 +87,7 @@ func (o *Options) GetStaticPath() error {
 		return fmt.Errorf("get fontend dir err %v", err)
 	}
 	_ = os.RemoveAll(o.staticPath)
+	//nolint:gosec
 	err = os.MkdirAll(o.staticPath, 0755)
 	if err != nil {
 		return fmt.Errorf("create fontend dir err %v", err)
@@ -96,12 +97,15 @@ func (o *Options) GetStaticPath() error {
 		return fmt.Errorf("decode frontendSource err %v", err)
 	}
 	tgzpath := filepath.Join(o.staticPath, "frontend.tgz")
+	//nolint:gosec
 	err = ioutil.WriteFile(tgzpath, data, 0644)
 	if err != nil {
 		return fmt.Errorf("write frontend.tgz to static path err %v", err)
 	}
+	//nolint:errcheck
 	defer os.Remove(tgzpath)
 	tgz := archiver.NewTarGz()
+	//nolint:errcheck
 	defer tgz.Close()
 	if err = tgz.Unarchive(tgzpath, o.staticPath); err != nil {
 		return fmt.Errorf("write static files to fontend dir err %v", err)
@@ -183,6 +187,8 @@ func SetupAPIServer(c types.Args, cmd *cobra.Command, o Options) error {
 	return server.Shutdown(ctx)
 }
 
+//nolint:gosec
+// OpenBrowser will open browser by url in different OS system
 func OpenBrowser(url string) error {
 	var err error
 	switch runtime.GOOS {

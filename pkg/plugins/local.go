@@ -87,7 +87,7 @@ func loadInstalledCapability(dir string, capAlias string) ([]types.Capability, e
 		if strings.HasSuffix(f.Name(), ".cue") {
 			continue
 		}
-		data, err := ioutil.ReadFile(filepath.Join(dir, f.Name()))
+		data, err := ioutil.ReadFile(filepath.Clean(filepath.Join(dir, f.Name())))
 		if err != nil {
 			fmt.Printf("read file %s err %v\n", f.Name(), err)
 			continue
@@ -120,6 +120,8 @@ func GetSubDir(dir string, capT types.CapType) string {
 		return filepath.Join(dir, "workloads")
 	case types.TypeTrait:
 		return filepath.Join(dir, "traits")
+	case types.TypeScope:
+		return filepath.Join(dir, "scopes")
 	}
 	return dir
 }
@@ -135,7 +137,8 @@ func SinkTemp2Local(templates []types.Capability, dir string) int {
 			fmt.Printf("sync %s err: %v\n", tmp.Name, err)
 			continue
 		}
-		err = ioutil.WriteFile(filepath.Join(subDir, tmp.Name), data, 0o644)
+		//nolint:gosec
+		err = ioutil.WriteFile(filepath.Join(subDir, tmp.Name), data, 0644)
 		if err != nil {
 			fmt.Printf("sync %s err: %v\n", tmp.Name, err)
 			continue
@@ -148,7 +151,7 @@ func SinkTemp2Local(templates []types.Capability, dir string) int {
 // RemoveLegacyTemps will remove capability definitions under `dir` but not included in `retainedTemps`.
 func RemoveLegacyTemps(retainedTemps []types.Capability, dir string) int {
 	success := 0
-	retainedFiles := []string{}
+	var retainedFiles []string
 	subDirs := []string{GetSubDir(dir, types.TypeWorkload), GetSubDir(dir, types.TypeTrait)}
 	for _, tmp := range retainedTemps {
 		subDir := GetSubDir(dir, tmp.Type)
@@ -197,7 +200,7 @@ func LoadCapabilityFromSyncedCenter(dir string) ([]types.Capability, error) {
 		if strings.HasSuffix(f.Name(), ".cue") {
 			continue
 		}
-		data, err := ioutil.ReadFile(filepath.Join(dir, f.Name()))
+		data, err := ioutil.ReadFile(filepath.Clean(filepath.Join(dir, f.Name())))
 		if err != nil {
 			fmt.Printf("read file %s err %v\n", f.Name(), err)
 			continue

@@ -132,6 +132,7 @@ func InitDefaultEnv() error {
 		return nil
 	}
 	data, _ := json.Marshal(&types.EnvMeta{Namespace: types.DefaultAppNamespace, Name: types.DefaultEnvName})
+	//nolint:gosec
 	if err = ioutil.WriteFile(filepath.Join(defaultEnvDir, EnvConfigName), data, 0644); err != nil {
 		return err
 	}
@@ -139,6 +140,7 @@ func InitDefaultEnv() error {
 	if err != nil {
 		return err
 	}
+	//nolint:gosec
 	if err = ioutil.WriteFile(curEnvPath, []byte(types.DefaultEnvName), 0644); err != nil {
 		return err
 	}
@@ -150,6 +152,7 @@ func CreateIfNotExist(dir string) (bool, error) {
 	_, err := os.Stat(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
+			// nolint:gosec
 			return false, os.MkdirAll(dir, 0755)
 		}
 		return false, err

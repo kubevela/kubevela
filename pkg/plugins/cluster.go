@@ -171,6 +171,7 @@ func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Capab
 		if err != nil {
 			return types.Capability{}, err
 		}
+		//nolint:errcheck
 		defer res.Body.Close()
 		b, err := ioutil.ReadAll(res.Body)
 		if err != nil {
@@ -186,6 +187,7 @@ func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Capab
 	}
 	_, _ = system.CreateIfNotExist(syncDir)
 	filePath := filepath.Join(syncDir, name+".cue")
+	//nolint:gosec
 	err = ioutil.WriteFile(filePath, []byte(cueTemplate), 0644)
 	if err != nil {
 		return types.Capability{}, err

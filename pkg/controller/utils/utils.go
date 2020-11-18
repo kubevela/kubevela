@@ -96,7 +96,7 @@ func SelectOAMAppLabelsWithoutRevision(labels map[string]string) map[string]stri
 		}
 		newLabel[k] = v
 	}
-	if len(newLabel) <= 0 {
+	if len(newLabel) == 0 {
 		return labels
 	}
 	return newLabel

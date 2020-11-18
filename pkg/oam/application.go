@@ -84,7 +84,7 @@ func ListApplications(ctx context.Context, c client.Client, opt Option) ([]apis.
 }
 
 // ListApplicationConfigurations lists all OAM ApplicationConfiguration
-func ListApplicationConfigurations(ctx context.Context, c client.Client, opt Option) (corev1alpha2.ApplicationConfigurationList, error) {
+func ListApplicationConfigurations(ctx context.Context, c client.Reader, opt Option) (corev1alpha2.ApplicationConfigurationList, error) {
 	var appConfigList corev1alpha2.ApplicationConfigurationList
 
 	if opt.AppName != "" {

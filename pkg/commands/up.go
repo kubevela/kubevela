@@ -75,10 +75,12 @@ type AppfileOptions struct {
 }
 
 func saveRemoteAppfile(url string) (string, error) {
+	//nolint:gosec
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
 	}
+	//nolint:errcheck
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
