@@ -175,6 +175,7 @@ func AddOrUpdateTrait(env *types.EnvMeta, appName string, componentName string, 
 		if v.Alias != "" {
 			name = v.Alias
 		}
+		// nolint:exhaustive
 		switch v.Type {
 		case cue.IntKind:
 			traitData[v.Name], err = flagSet.GetInt64(name)

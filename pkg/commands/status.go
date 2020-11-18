@@ -292,6 +292,7 @@ TrackDeployLoop:
 		if err != nil {
 			return compStatusUnknown, err
 		}
+		// nolint:exhaustive
 		switch deployStatus {
 		case compStatusDeploying:
 			continue
@@ -443,6 +444,7 @@ func applySpinnerNewSuffix(s *spinner.Spinner, suffix string) {
 
 func getHealthStatusColor(s HealthStatus) *color.Color {
 	var c *color.Color
+	// nolint:exhaustive
 	switch s {
 	case HealthStatusHealthy:
 		c = green

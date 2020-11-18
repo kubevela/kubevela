@@ -207,7 +207,7 @@ func ListEnvs(envName string) ([]*types.EnvMeta, error) {
 		if !f.IsDir() {
 			continue
 		}
-		data, err := ioutil.ReadFile(filepath.Join(envDir, f.Name(), system.EnvConfigName))
+		data, err := ioutil.ReadFile(filepath.Clean(filepath.Join(envDir, f.Name(), system.EnvConfigName)))
 		if err != nil {
 			continue
 		}

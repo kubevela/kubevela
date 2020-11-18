@@ -8,22 +8,25 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
+// Build defines the build section of AppFile
 type Build struct {
 	Push   Push   `json:"push,omitempty"`
 	Docker Docker `json:"docker,omitempty"`
 }
 
+// Docker defines the docker build section
 type Docker struct {
 	File    string `json:"file"`
 	Context string `json:"context"`
 }
 
+// Push defines where to push your image
 type Push struct {
 	Local    string `json:"local,omitempty"`
 	Registry string `json:"registry,omitempty"`
 }
 
-func asyncLog(reader io.ReadCloser, stream cmdutil.IOStreams) {
+func asyncLog(reader io.Reader, stream cmdutil.IOStreams) {
 	cache := ""
 	buf := make([]byte, 1024)
 	for {
@@ -44,6 +47,7 @@ func asyncLog(reader io.ReadCloser, stream cmdutil.IOStreams) {
 	}
 }
 
+// BuildImage will build a image with name and context.
 func (b *Build) BuildImage(io cmdutil.IOStreams, image string) error {
 	//nolint:gosec
 	// TODO(hongchaodeng): remove this dependency by using go lib

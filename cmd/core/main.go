@@ -241,6 +241,7 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 	}
 }
 
+//nolint:unparam
 func makeSignalHandler(log logr.Logger, kubecli client.Client) (stopCh <-chan struct{}) {
 	stop := make(chan struct{})
 	c := make(chan os.Signal, 2)

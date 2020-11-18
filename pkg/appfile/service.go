@@ -18,10 +18,13 @@ import (
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
 )
 
+// Service defines the service spec for AppFile, it will contain all information a service realted including OAM component, traits, source to image, etc...
 type Service map[string]interface{}
 
+// DefaultWorkloadType defines the default service type if no type specified in Appfile
 const DefaultWorkloadType = "webservice"
 
+// GetType get type from AppFile
 func (s Service) GetType() string {
 	t, ok := s["type"]
 	if !ok {
@@ -30,6 +33,7 @@ func (s Service) GetType() string {
 	return t.(string)
 }
 
+// GetUserConfigName get user config from AppFile, it will contain config file in it.
 func (s Service) GetUserConfigName() string {
 	t, ok := s["config"]
 	if !ok {
@@ -38,6 +42,7 @@ func (s Service) GetUserConfigName() string {
 	return t.(string)
 }
 
+// GetConfig will get OAM workload and trait information exclude inner section('build','type' and 'config')
 func (s Service) GetConfig() map[string]interface{} {
 	config := make(map[string]interface{})
 outerLoop:
@@ -51,6 +56,7 @@ outerLoop:
 	return config
 }
 
+// GetBuild will get source to image build info
 func (s Service) GetBuild() *Build {
 	v, ok := s["build"]
 	if !ok {
@@ -137,6 +143,7 @@ func (s Service) RenderService(tm template.Manager, name, ns string, cg configGe
 	return acComp, component, nil
 }
 
+// GetServices will get all services defined in AppFile
 func (af *AppFile) GetServices() map[string]Service {
 	return af.Services
 }

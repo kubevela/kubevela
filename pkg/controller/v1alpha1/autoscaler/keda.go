@@ -99,6 +99,7 @@ func (r *AutoscalerReconciler) scaleByKEDA(scaler v1alpha1.Autoscaler, namespace
 	return nil
 }
 
+// CronTypeCondition defines the cron type for autoscaler
 type CronTypeCondition struct {
 	// StartAt is the time when the scaler starts, in format `"HHMM"` for example, "08:00"
 	StartAt string `json:"startAt,omitempty"`
@@ -116,6 +117,7 @@ type CronTypeCondition struct {
 	Timezone string `json:"timezone,omitempty"`
 }
 
+// GetCronTypeCondition will get condition from map
 func GetCronTypeCondition(condition map[string]string) (*CronTypeCondition, error) {
 	data, err := json.Marshal(condition)
 	if err != nil {

@@ -26,6 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
+// Application is an implementation level object for Appfile, all vela commands will access AppFile from Appliction struct here.
 type Application struct {
 	*appfile.AppFile `json:",inline"`
 	tm               template.Manager
@@ -38,6 +39,7 @@ func newApplication(f *appfile.AppFile, tm template.Manager) *Application {
 	return &Application{AppFile: f, tm: tm}
 }
 
+// LoadFromFile will load application from file
 func LoadFromFile(fileName string) (*Application, error) {
 	tm, err := template.Load()
 	if err != nil {
@@ -59,6 +61,7 @@ func LoadFromFile(fileName string) (*Application, error) {
 	return app, app.Validate()
 }
 
+// Load will load application with env and name from default vela home dir.
 func Load(envName, appName string) (*Application, error) {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
@@ -67,6 +70,7 @@ func Load(envName, appName string) (*Application, error) {
 	return LoadFromFile(filepath.Join(appDir, appName+".yaml"))
 }
 
+// Delete will delete an app along with it's appfile.
 func Delete(envName, appName string) error {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
@@ -75,6 +79,7 @@ func Delete(envName, appName string) error {
 	return os.Remove(filepath.Join(appDir, appName+".yaml"))
 }
 
+// List will list all apps
 func List(envName string) ([]*Application, error) {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
@@ -101,6 +106,7 @@ func List(envName string) ([]*Application, error) {
 	return apps, nil
 }
 
+// MatchAppByComp will get application with componentName without AppName.
 func MatchAppByComp(envName, compName string) (*Application, error) {
 	apps, err := List(envName)
 	if err != nil {
@@ -116,6 +122,7 @@ func MatchAppByComp(envName, compName string) (*Application, error) {
 	return nil, fmt.Errorf("no app found contains %s in env %s", compName, envName)
 }
 
+// Save will save appfile into default dir.
 func (app *Application) Save(envName string) error {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
@@ -133,6 +140,7 @@ func (app *Application) Save(envName string) error {
 	return ioutil.WriteFile(filepath.Join(appDir, app.Name+".yaml"), out, 0644)
 }
 
+// Validate will validate whether an Appfile is valid.
 func (app *Application) Validate() error {
 	if app.Name == "" {
 		return errors.New("name is required")
@@ -152,6 +160,7 @@ func (app *Application) Validate() error {
 	return nil
 }
 
+// GetComponents will get oam components from Appfile.
 func (app *Application) GetComponents() []string {
 	var components []string
 	for name := range app.Services {
@@ -161,6 +170,7 @@ func (app *Application) GetComponents() []string {
 	return components
 }
 
+// GetServiceConfig will get service type and it's configuration
 func (app *Application) GetServiceConfig(componentName string) (string, map[string]interface{}) {
 	svc, ok := app.Services[componentName]
 	if !ok {
@@ -169,6 +179,7 @@ func (app *Application) GetServiceConfig(componentName string) (string, map[stri
 	return svc.GetType(), svc.GetConfig()
 }
 
+// GetWorkload will get workload type and it's configuration
 func (app *Application) GetWorkload(componentName string) (string, map[string]interface{}) {
 	svcType, config := app.GetServiceConfig(componentName)
 	if svcType == "" {
@@ -184,6 +195,7 @@ func (app *Application) GetWorkload(componentName string) (string, map[string]in
 	return svcType, workloadData
 }
 
+// GetTraitNames will list all traits attached to the specified component.
 func (app *Application) GetTraitNames(componentName string) ([]string, error) {
 	tt, err := app.GetTraits(componentName)
 	if err != nil {
@@ -196,6 +208,7 @@ func (app *Application) GetTraitNames(componentName string) ([]string, error) {
 	return names, nil
 }
 
+// GetTraits will list all traits and it's configurations attached to the specified component.
 func (app *Application) GetTraits(componentName string) (map[string]map[string]interface{}, error) {
 	_, config := app.GetServiceConfig(componentName)
 	traitsData := make(map[string]map[string]interface{})
@@ -212,6 +225,7 @@ func (app *Application) GetTraits(componentName string) (map[string]map[string]i
 	return traitsData, nil
 }
 
+// GetTraitsByType will get trait configuration with specified component and trait type, we assume one type of trait can only attach to a component once.
 func (app *Application) GetTraitsByType(componentName, traitType string) (map[string]interface{}, error) {
 	service, ok := app.Services[componentName]
 	if !ok {
@@ -224,6 +238,7 @@ func (app *Application) GetTraitsByType(componentName, traitType string) (map[st
 	return t.(map[string]interface{}), nil
 }
 
+// OAM will convert an AppFile to OAM objects
 // TODO(wonderflow) add scope support here
 func (app *Application) OAM(env *types.EnvMeta, io cmdutil.IOStreams, silence bool) ([]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
 	comps, appConfig, scopes, err := app.RenderOAM(env.Namespace, io, app.tm, silence)
@@ -239,6 +254,7 @@ func getApplicationDir(envName string) (string, error) {
 	return appDir, err
 }
 
+// GetAppConfig will get AppConfig from K8s cluster.
 func GetAppConfig(ctx context.Context, c client.Client, app *Application, env *types.EnvMeta) (*v1alpha2.ApplicationConfiguration, error) {
 	appConfig := &v1alpha2.ApplicationConfiguration{}
 	if err := c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: app.Name}, appConfig); err != nil {

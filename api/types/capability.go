@@ -119,6 +119,7 @@ func SetFlagBy(flags *pflag.FlagSet, v Parameter) {
 	if v.Alias != "" {
 		name = v.Alias
 	}
+	// nolint:exhaustive
 	switch v.Type {
 	case cue.IntKind:
 		var vv int64
@@ -150,6 +151,8 @@ func SetFlagBy(flags *pflag.FlagSet, v Parameter) {
 			vv = val
 		}
 		flags.Float64P(name, v.Short, vv, v.Usage)
+	default:
+		// other types not supported yet
 	}
 }
 
@@ -160,6 +163,7 @@ var CapabilityCmpOptions = []cmp.Option{
 			a.Usage != b.Usage || a.Type != b.Type {
 			return false
 		}
+		// nolint:exhaustive
 		switch a.Type {
 		case cue.IntKind:
 			var va, vb int64
@@ -211,6 +215,8 @@ var CapabilityCmpOptions = []cmp.Option{
 				vb = valb
 			}
 			return va == vb
+		default:
+			// complex type not supported, will regard them as not changed.
 		}
 		return true
 	})}

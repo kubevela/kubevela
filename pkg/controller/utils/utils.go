@@ -13,8 +13,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
+// LabelPodSpecable defines whether a workload has podSpec or not.
 const LabelPodSpecable = "workload.oam.dev/podspecable"
 
+// GetPodSpecPath get podSpec field and label
 func GetPodSpecPath(workloadDef *v1alpha2.WorkloadDefinition) (string, bool) {
 	if workloadDef.Spec.PodSpecPath != "" {
 		return workloadDef.Spec.PodSpecPath, true
@@ -30,6 +32,7 @@ func GetPodSpecPath(workloadDef *v1alpha2.WorkloadDefinition) (string, bool) {
 	return "", ok
 }
 
+// DiscoveryFromPodSpec will discover pods from podSpec
 func DiscoveryFromPodSpec(w *unstructured.Unstructured, fieldPath string) ([]intstr.IntOrString, error) {
 	paved := fieldpath.Pave(w.Object)
 	obj, err := paved.GetValue(fieldPath)

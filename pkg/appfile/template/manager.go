@@ -5,11 +5,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/plugins"
 )
 
+// Manager defines a manager for template
 type Manager interface {
 	IsTrait(key string) bool
 	LoadTemplate(key string) (tmpl string)
 }
 
+// Load will load all installed capabilities and create a manager
 func Load() (Manager, error) {
 	caps, err := plugins.LoadAllInstalledCapability()
 	if err != nil {
@@ -25,6 +27,7 @@ func Load() (Manager, error) {
 	return m, nil
 }
 
+// Template defines a raw template struct
 type Template struct {
 	Captype types.CapType
 	Raw     string

@@ -1,2 +1,2 @@
-// package api contains all api types of KubeVela
+// Package api contains all api types of KubeVela
 package api

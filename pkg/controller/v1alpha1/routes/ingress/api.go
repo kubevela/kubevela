@@ -10,8 +10,10 @@ import (
 	standardv1alpha1 "github.com/oam-dev/kubevela/api/v1alpha1"
 )
 
-// TypeNginx is a type of route implementation
+// TypeNginx is a type of route implementation using [Nginx-Ingress](https://github.com/kubernetes/ingress-nginx)
 const TypeNginx = "nginx"
+
+// TypeContour is a type of route implementation using [contour ingress](https://github.com/projectcontour/contour)
 const TypeContour = "contour"
 
 const (

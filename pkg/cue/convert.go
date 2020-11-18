@@ -120,6 +120,7 @@ func GetParameters(templatePath string) ([]types.Parameter, error) {
 }
 
 func getDefaultByKind(k cue.Kind) interface{} {
+	// nolint:exhaustive
 	switch k {
 	case cue.IntKind:
 		var d int64
@@ -141,6 +142,7 @@ func getDefaultByKind(k cue.Kind) interface{} {
 
 // GetDefault evaluate default Go value from CUE
 func GetDefault(val cue.Value) interface{} {
+	// nolint:exhaustive
 	switch val.Kind() {
 	case cue.IntKind:
 		if d, err := val.Int64(); err == nil {

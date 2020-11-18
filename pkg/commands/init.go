@@ -179,7 +179,8 @@ func (o *appInitOptions) Workload() error {
 		return fmt.Errorf("read workload name err %v", err)
 	}
 	fs := pflag.NewFlagSet("workload", pflag.ContinueOnError)
-	for _, p := range workload.Parameters {
+	for _, pp := range workload.Parameters {
+		p := pp
 		if p.Name == "name" {
 			continue
 		}
@@ -197,6 +198,7 @@ func (o *appInitOptions) Workload() error {
 				usage += " (optional): "
 			}
 		}
+		// nolint:exhaustive
 		switch p.Type {
 		case cue.StringKind:
 			var data string
@@ -272,6 +274,8 @@ func (o *appInitOptions) Workload() error {
 				return fmt.Errorf("read param %s err %v", p.Name, err)
 			}
 			fs.Bool(p.Name, data, p.Usage)
+		default:
+			// other type not supported
 		}
 	}
 	o.app, err = oam.BaseComplete(o.Env.Name, o.workloadName, o.appName, fs, o.workloadType)

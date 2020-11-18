@@ -19,6 +19,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 )
 
+// nolint:golint
 const (
 	DefaultChosenAllSvc = "ALL SERVICES"
 	FlagNotSet          = "FlagNotSet"
