@@ -126,11 +126,11 @@ Overall, as illustrated in the following figure, KubeVela is composed of **two c
 ![alt](../resources/arch.png)
 
 ### KubeVela User Interfaces
-They include `appfile`, `cli` and `dashboard`.
+The main user interface of KubeVela is `appfile` (i.e. `Application`), with `cli` and `dashboard` build around this concept.
 
 ### KubeVela Core
 It is a server side controller which is composed of:
-- [Crossplane OAM Kubernetes runtime](https://github.com/crossplane/oam-kubernetes-runtime) which provides Control Plane Objects such as `Component` and `Application Configuration` etc.
+- [Crossplane OAM Kubernetes runtime](https://github.com/crossplane/oam-kubernetes-runtime) which implements OAM control plane specification including `Component` and `Application Configuration` etc.
 - Built-in workload and trait implementations which provide core capabilities such as `webservice`, `route` and `rollout` etc.
 - A capability manager which manages features of KubeVela as independent add-ons following the design of _Capability Oriented Architecture_ mentioned above.
-- A CRD registry which registers and discovers Kubernetes controllers by their CRDs. This enables KubeVela to automatically install dependent controllers/operators when adding a new CRD.
+- A CRD registry which registers and discovers Kubernetes controllers/operators by their CRDs. This enables KubeVela to install dependent controllers/operators automatically when a new CRD based capability is added.
