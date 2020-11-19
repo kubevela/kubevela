@@ -1,5 +1,5 @@
 # Build the manager binary
-FROM golang:1.13 as builder
+FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.13 as builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
@@ -15,14 +15,19 @@ COPY api/ api/
 COPY pkg/ pkg/
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GO111MODULE=on go build -a -o manager main.go
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} GO111MODULE=on go build -a -o manager-${TARGETARCH} main.go
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-# oamdev/gcr.io-distroless-static:nonroot is syncd from gcr.io/distroless/static:nonroot as somewhere can't reach gcr.io
-FROM oamdev/gcr.io-distroless-static:nonroot
+# Could use `--build-arg=BASE_DISTROLESS=gcr.io/distroless/static:nonroot` to overwrite
+ARG BASE_DISTROLESS
+FROM ${BASE_DISTROLESS:-gcr.io/distroless/static:nonroot}
+
 WORKDIR /
-COPY --from=builder /workspace/manager .
+
+ARG TARGETARCH
+COPY --from=builder /workspace/manager-${TARGETARCH} /manager
 USER nonroot:nonroot
 
 ENTRYPOINT ["/manager"]
