@@ -5,7 +5,7 @@ The `route` section is used to configure the access to your app.
 Add routing config under `express-server`:
 
 ```yaml
-servcies:
+services:
   express-server:
     ...
 
