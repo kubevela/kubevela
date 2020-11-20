@@ -53,6 +53,10 @@ func Install(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, version,
 			}
 		}
 	}
+	// check release running first before add repo and install chart
+	if IsHelmReleaseRunning(releaseName, chartName, namespace, ioStreams) {
+		return nil
+	}
 
 	if !IsHelmRepositoryExist(repoName, repoURL) {
 		err := AddHelmRepository(repoName, repoURL,
@@ -60,9 +64,6 @@ func Install(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, version,
 		if err != nil {
 			return err
 		}
-	}
-	if IsHelmReleaseRunning(releaseName, chartName, namespace, ioStreams) {
-		return nil
 	}
 
 	chartClient, err := NewHelmInstall(version, namespace, releaseName)
