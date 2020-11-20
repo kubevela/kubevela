@@ -74,7 +74,7 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c types.Args
 		}
 		gvk, err := util.GetGVKFromDefinition(dm, wd.Spec.Reference)
 		if err != nil {
-			return nil, nil, fmt.Errorf("make sure you have installed CRD(controller) for this capability '%s': %v ", wd.Name, err)
+			return nil, nil, fmt.Errorf("capability '%s' was not ready: %v ", wd.Name, err)
 		}
 		tmp.CrdInfo = &types.CRDInfo{
 			APIVersion: gvk.GroupVersion().String(),
@@ -118,7 +118,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, s
 		}
 		gvk, err := util.GetGVKFromDefinition(dm, td.Spec.Reference)
 		if err != nil {
-			return nil, nil, fmt.Errorf("make sure you have installed CRD(controller) for this capability '%s': %v ", td.Name, err)
+			return nil, nil, fmt.Errorf("capability '%s' was not ready: %v ", td.Name, err)
 		}
 		tmp.CrdInfo = &types.CRDInfo{
 			APIVersion: gvk.GroupVersion().String(),
