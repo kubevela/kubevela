@@ -35,6 +35,7 @@ func NewDashboardCommand(c types.Args, ioStreams cmdutil.IOStreams, frontendSour
 	var o Options
 	o.frontendSource = frontendSource
 	cmd := &cobra.Command{
+		Hidden:  true,
 		Use:     "dashboard",
 		Short:   "Setup API Server and launch Dashboard",
 		Long:    "Setup API Server and launch Dashboard",
