@@ -156,7 +156,9 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 		}
 	}
 	if err = CheckCapabilityReady(context.Background(), i.c, waitDuration); err != nil {
-		return err
+		ioStreams.Infof("- Vela-Core was installed successfully while some capabilities were still installing background, "+
+			"try running 'vela workloads' or 'vela traits' to check after a while, details %v", err)
+		return nil
 	}
 	if err := RefreshDefinitions(context.Background(), i.c, ioStreams, false); err != nil {
 		return err
