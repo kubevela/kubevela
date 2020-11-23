@@ -12,6 +12,7 @@ import (
 
 // TypeNginx is a type of route implementation
 const TypeNginx = "nginx"
+const TypeContour = "contour"
 
 const (
 	// StatusReady represents status is ready
@@ -32,6 +33,8 @@ func GetRouteIngress(provider string, client client.Client) (RouteIngress, error
 	switch provider {
 	case TypeNginx, "":
 		routeIngress = &Nginx{Client: client}
+	case TypeContour:
+		routeIngress = &Contour{Client: client}
 	default:
 		return nil, fmt.Errorf("unknow route ingress provider '%v', only '%s' is supported now", provider, TypeNginx)
 	}
