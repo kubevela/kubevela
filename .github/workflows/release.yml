@@ -92,18 +92,3 @@ jobs:
           asset_path: ./_bin/sha256sums.txt
           asset_name: sha256sums.txt
           asset_content_type: text/plain
-      - name: Publish to Github Docker Package Registry
-        uses: elgohr/Publish-Docker-Github-Action@2.21
-        with:
-          name: oam-dev/kubevela/vela-core
-          username: $GITHUB_ACTOR
-          password: ${{ secrets.GITHUB_TOKEN }}
-          registry: docker.pkg.github.com
-          tags: "${{ steps.get_version.outputs.VERSION }}"
-      - name: Publish to Docker Hub Registry
-        uses: elgohr/Publish-Docker-Github-Action@2.21
-        with:
-          name: oamdev/vela-core
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-          tags: "${{ steps.get_version.outputs.VERSION }}"
