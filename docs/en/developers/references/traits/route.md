@@ -29,6 +29,7 @@ Name | Type | Description | Notes
 **Domain** | **string** | specify your host url for this app | [ default to (empty) ]
 **Issuer** | **string** | specify your certificate issue  | [default to no tls]
 **Rules** | [**[]RouteRules**](#routerules) |  | [optional] 
+**Provider** | **string** | ingress controller name ,we support **nginx**,**[contour](#https://github.com/projectcontour/contour)**  | [empty means using nginx-ingress]
 
 
 ### RouteRules
