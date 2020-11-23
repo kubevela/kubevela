@@ -19,13 +19,17 @@ import (
 	autoscalers "github.com/oam-dev/kubevela/pkg/controller/v1alpha1/autoscaler"
 )
 
+// CheckStatus defines the type of checking status
 type CheckStatus string
 
 const (
+	// StatusChecking means in checking loop
 	StatusChecking = "checking"
-	StatusDone     = "done"
+	// StatusDone means check has done
+	StatusDone = "done"
 )
 
+// GetChecker will get Trait checker for 'vela status'
 func GetChecker(traitType string, c client.Client) Checker {
 	switch traitType {
 	case "route":
@@ -39,14 +43,17 @@ func GetChecker(traitType string, c client.Client) Checker {
 	return &DefaultChecker{c: c}
 }
 
+// Checker defines the interface of checker
 type Checker interface {
 	Check(ctx context.Context, reference runtimev1alpha1.TypedReference, compName string, appConfig *v1alpha2.ApplicationConfiguration, app *application.Application) (CheckStatus, string, error)
 }
 
+// DefaultChecker defines the default checker
 type DefaultChecker struct {
 	c client.Client
 }
 
+// Check default check object if exist and print the configs
 func (d *DefaultChecker) Check(ctx context.Context, reference runtimev1alpha1.TypedReference, compName string, appConfig *v1alpha2.ApplicationConfiguration, app *application.Application) (CheckStatus, string, error) {
 	tr, err := GetUnstructured(ctx, d.c, appConfig.Namespace, reference)
 	if err != nil {
@@ -68,10 +75,12 @@ func (d *DefaultChecker) Check(ctx context.Context, reference runtimev1alpha1.Ty
 	return StatusDone, message, err
 }
 
+// MetricChecker check for 'metrics' core trait
 type MetricChecker struct {
 	c client.Client
 }
 
+// Check metrics
 func (d *MetricChecker) Check(ctx context.Context, reference runtimev1alpha1.TypedReference, _ string, appConfig *v1alpha2.ApplicationConfiguration, _ *application.Application) (CheckStatus, string, error) {
 	metric := v1alpha1.MetricsTrait{}
 	if err := d.c.Get(ctx, client.ObjectKey{Namespace: appConfig.Namespace, Name: reference.Name}, &metric); err != nil {
@@ -93,10 +102,12 @@ func (d *MetricChecker) Check(ctx context.Context, reference runtimev1alpha1.Typ
 	return StatusDone, message, nil
 }
 
+// RouteChecker check for 'route' core trait
 type RouteChecker struct {
 	c client.Client
 }
 
+// Check understand route status
 func (d *RouteChecker) Check(ctx context.Context, reference runtimev1alpha1.TypedReference, _ string, appConfig *v1alpha2.ApplicationConfiguration, _ *application.Application) (CheckStatus, string, error) {
 	route := v1alpha1.Route{}
 	if err := d.c.Get(ctx, client.ObjectKey{Namespace: appConfig.Namespace, Name: reference.Name}, &route); err != nil {
@@ -137,10 +148,12 @@ func (d *RouteChecker) Check(ctx context.Context, reference runtimev1alpha1.Type
 	return StatusDone, message, nil
 }
 
+// AutoscalerChecker checks 'autoscale' trait
 type AutoscalerChecker struct {
 	c client.Client
 }
 
+// Check should understand autoscale trait status
 func (d *AutoscalerChecker) Check(ctx context.Context, ref runtimev1alpha1.TypedReference, _ string, appConfig *v1alpha2.ApplicationConfiguration, _ *application.Application) (CheckStatus, string, error) {
 	traitName := ref.Name
 	var scaler v1alpha1.Autoscaler
@@ -174,6 +187,7 @@ func (d *AutoscalerChecker) Check(ctx context.Context, ref runtimev1alpha1.Typed
 	return StatusDone, message, nil
 }
 
+// GetUnstructured get object by GVK.
 func GetUnstructured(ctx context.Context, c client.Client, ns string, resourceRef runtimev1alpha1.TypedReference) (*unstructured.Unstructured, error) {
 	resource := unstructured.Unstructured{}
 	resource.SetGroupVersionKind(resourceRef.GroupVersionKind())
@@ -183,6 +197,7 @@ func GetUnstructured(ctx context.Context, c client.Client, ns string, resourceRe
 	return &resource, nil
 }
 
+// GetStatusFromObject get Unstructured object status
 func GetStatusFromObject(resource *unstructured.Unstructured) (string, error) {
 	var message string
 	statusData, foundStatus, _ := unstructured.NestedMap(resource.Object, "status")

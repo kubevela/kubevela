@@ -31,6 +31,7 @@ import (
 	velacmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
+// VelaPortForwardOptions for vela port-forward
 type VelaPortForwardOptions struct {
 	Cmd       *cobra.Command
 	Args      []string
@@ -48,6 +49,7 @@ type VelaPortForwardOptions struct {
 	routeTrait           bool
 }
 
+// NewPortForwardCommand is vela port-forward command
 func NewPortForwardCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra.Command {
 	o := &VelaPortForwardOptions{
 		VelaC:     c,
@@ -94,6 +96,7 @@ func NewPortForwardCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra
 	return cmd
 }
 
+// Init will initialize
 func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, argsIn []string) error {
 	o.Context = ctx
 	o.Cmd = cmd
@@ -125,7 +128,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	return nil
 }
 
-func GetRouteServiceName(appconfig *v1alpha2.ApplicationConfiguration, svcName string) string {
+func getRouteServiceName(appconfig *v1alpha2.ApplicationConfiguration, svcName string) string {
 	for _, comp := range appconfig.Status.Workloads {
 		if comp.ComponentName != svcName {
 			continue
@@ -140,6 +143,7 @@ func GetRouteServiceName(appconfig *v1alpha2.ApplicationConfiguration, svcName s
 	return ""
 }
 
+// Complete will complete the config of port-forward
 func (o *VelaPortForwardOptions) Complete() error {
 	svcName, err := util.AskToChooseOneService(o.App.GetComponents())
 	if err != nil {
@@ -150,7 +154,7 @@ func (o *VelaPortForwardOptions) Complete() error {
 		if err != nil {
 			return err
 		}
-		routeSvc := GetRouteServiceName(appconfig, svcName)
+		routeSvc := getRouteServiceName(appconfig, svcName)
 		if routeSvc == "" {
 			return fmt.Errorf("no route trait found in %s %s", o.App.Name, svcName)
 		}
@@ -234,6 +238,7 @@ func (o *VelaPortForwardOptions) getPodName(svcName string) (string, error) {
 	return podList.Items[0].Name, nil
 }
 
+// Run will execute port-forward
 func (o *VelaPortForwardOptions) Run() error {
 	go func() {
 		<-o.kcPortForwardOptions.ReadyChannel

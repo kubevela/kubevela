@@ -28,7 +28,7 @@ const (
 )
 
 type componentMetaList []apis.ComponentMeta
-type ApplicationMetaList []apis.ApplicationMeta
+type applicationMetaList []apis.ApplicationMeta
 
 func (comps componentMetaList) Len() int {
 	return len(comps)
@@ -40,16 +40,17 @@ func (comps componentMetaList) Less(i, j int) bool {
 	return comps[i].CreatedTime > comps[j].CreatedTime
 }
 
-func (a ApplicationMetaList) Len() int {
+func (a applicationMetaList) Len() int {
 	return len(a)
 }
-func (a ApplicationMetaList) Swap(i, j int) {
+func (a applicationMetaList) Swap(i, j int) {
 	a[i], a[j] = a[j], a[i]
 }
-func (a ApplicationMetaList) Less(i, j int) bool {
+func (a applicationMetaList) Less(i, j int) bool {
 	return a[i].CreatedTime > a[j].CreatedTime
 }
 
+// Option is option work with dashboard api server
 type Option struct {
 	// Optional filter, if specified, only components in such app will be listed
 	AppName string
@@ -57,6 +58,7 @@ type Option struct {
 	Namespace string
 }
 
+// DeleteOptions is options for delete
 type DeleteOptions struct {
 	AppName  string
 	CompName string
@@ -66,7 +68,7 @@ type DeleteOptions struct {
 
 // ListApplications lists all applications
 func ListApplications(ctx context.Context, c client.Client, opt Option) ([]apis.ApplicationMeta, error) {
-	var applicationMetaList ApplicationMetaList
+	var applicationMetaList applicationMetaList
 	appConfigList, err := ListApplicationConfigurations(ctx, c, opt)
 	if err != nil {
 		return nil, err
@@ -103,6 +105,7 @@ func ListApplicationConfigurations(ctx context.Context, c client.Reader, opt Opt
 	return appConfigList, nil
 }
 
+// ListComponents will list all components for dashboard
 func ListComponents(ctx context.Context, c client.Client, opt Option) ([]apis.ComponentMeta, error) {
 	var componentMetaList componentMetaList
 	var appConfigList corev1alpha2.ApplicationConfigurationList
@@ -131,6 +134,7 @@ func ListComponents(ctx context.Context, c client.Client, opt Option) ([]apis.Co
 	return componentMetaList, nil
 }
 
+// RetrieveApplicationStatusByName will get app status
 func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, applicationName string, namespace string) (apis.ApplicationMeta, error) {
 	var applicationMeta apis.ApplicationMeta
 	var appConfig corev1alpha2.ApplicationConfiguration
@@ -165,6 +169,7 @@ func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, appli
 	return applicationMeta, nil
 }
 
+// DeleteApp will delete app including server side
 func (o *DeleteOptions) DeleteApp() (string, error) {
 	if err := application.Delete(o.Env.Name, o.AppName); err != nil && !os.IsNotExist(err) {
 		return "", err
@@ -203,6 +208,7 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 	return fmt.Sprintf("delete apps succeed %s from %s", o.AppName, o.Env.Name), nil
 }
 
+// DeleteComponent will delete one component including server side.
 func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) (string, error) {
 	var app *application.Application
 	var err error

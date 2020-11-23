@@ -15,6 +15,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
+// CapabilityCommandGroup commands for capability center
 func CapabilityCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cap",
@@ -33,6 +34,7 @@ func CapabilityCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	return cmd
 }
 
+// NewCenterCommand Manage Capability Center
 func NewCenterCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "center <command>",
@@ -48,6 +50,7 @@ func NewCenterCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
+// NewCapCenterConfigCommand Configure (add if not exist) a capability center, default is local (built-in capabilities)
 func NewCapCenterConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "config <centerName> <centerURL>",
@@ -73,6 +76,7 @@ func NewCapCenterConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
+// NewCapInstallCommand Install capability into cluster
 func NewCapInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "install <center>/<name>",
@@ -103,6 +107,7 @@ func NewCapInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 	return cmd
 }
 
+// NewCapUninstallCommand Uninstall capability from cluster
 func NewCapUninstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "uninstall <name>",
@@ -132,6 +137,7 @@ func NewCapUninstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 	return cmd
 }
 
+// NewCapCenterSyncCommand Sync capabilities from remote center, default to sync all centers
 func NewCapCenterSyncCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "sync [centerName]",
@@ -153,6 +159,7 @@ func NewCapCenterSyncCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
+// NewCapListCommand List capabilities from cap-center
 func NewCapListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ls [cap-center]",
@@ -181,6 +188,7 @@ func NewCapListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
+// NewCapCenterListCommand List all capability centers
 func NewCapCenterListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ls",
@@ -188,12 +196,13 @@ func NewCapCenterListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		Long:    "List all configured capability centers",
 		Example: `vela cap center ls`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return ListCapCenters(args, ioStreams)
+			return listCapCenters(ioStreams)
 		},
 	}
 	return cmd
 }
 
+// NewCapCenterRemoveCommand Remove specified capability center
 func NewCapCenterRemoveCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "remove <centerName>",
@@ -201,13 +210,13 @@ func NewCapCenterRemoveCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		Long:    "Remove specified capability center",
 		Example: "vela cap center remove mycenter",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return RemoveCapCenter(args, ioStreams)
+			return removeCapCenter(args, ioStreams)
 		},
 	}
 	return cmd
 }
 
-func ListCapCenters(args []string, ioStreams cmdutil.IOStreams) error {
+func listCapCenters(ioStreams cmdutil.IOStreams) error {
 	table := uitable.New()
 	table.AddRow("NAME", "ADDRESS")
 	capabilityCenterList, err := oam.ListCapabilityCenters()
@@ -221,7 +230,7 @@ func ListCapCenters(args []string, ioStreams cmdutil.IOStreams) error {
 	return nil
 }
 
-func RemoveCapCenter(args []string, ioStreams cmdutil.IOStreams) error {
+func removeCapCenter(args []string, ioStreams cmdutil.IOStreams) error {
 	if len(args) < 1 {
 		return errors.New("you must specify <name> for capability center you want to remove")
 	}

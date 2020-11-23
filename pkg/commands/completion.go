@@ -37,6 +37,7 @@ To load completions for every new session, execute once:
 $ vela completion zsh > "${fpath[1]}/_vela"
 `
 
+// NewCompletionCommand Output shell completion code for the specified shell (bash or zsh)
 func NewCompletionCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "completion < bash | zsh >",

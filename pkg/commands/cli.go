@@ -20,6 +20,7 @@ import (
 	"github.com/oam-dev/kubevela/version"
 )
 
+// NewCommand will contain all commands
 func NewCommand() *cobra.Command {
 	ioStream := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 
@@ -106,6 +107,7 @@ func NewCommand() *cobra.Command {
 	return cmds
 }
 
+// PrintHelpByTag print custom defined help message
 func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 	cmd.Printf("  %s:\n\n", tag)
 	table := uitable.New()
@@ -118,6 +120,7 @@ func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 	cmd.Println()
 }
 
+// NewVersionCommand print client version
 func NewVersionCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",

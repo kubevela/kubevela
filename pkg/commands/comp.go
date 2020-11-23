@@ -1,3 +1,5 @@
+// nolint:golint
+// We will soon deprecate this command, we should use 'vela up' as the only deploy command.
 package commands
 
 import (

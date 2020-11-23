@@ -1,3 +1,4 @@
+//nolint:golint
 package server
 
 import (
@@ -101,7 +102,7 @@ func (s *APIServer) DoAttachTrait(c context.Context, body apis.TraitBody) (strin
 		}
 	}
 	traitAlias := body.Name
-	template, err := plugins.GetInstalledCapabilityWithCapAlias(types.TypeTrait, traitAlias)
+	template, err := plugins.GetInstalledCapabilityWithCapName(types.TypeTrait, traitAlias)
 	if err != nil {
 		return "", err
 	}

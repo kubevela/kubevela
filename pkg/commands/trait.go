@@ -1,3 +1,5 @@
+//nolint:golint
+// TODO add lint back
 package commands
 
 import (

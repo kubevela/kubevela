@@ -51,13 +51,6 @@ type WorkloadMeta struct {
 	AppliesTo  []string          `json:"appliesTo,omitempty"`
 }
 
-// TraitMeta store trait metadata for dashboard restful API server
-type TraitMeta struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description,omitempty"`
-	AppliesTo   []string `json:"appliesTo,omitempty"`
-}
-
 // TraitBody used to present trait which is to be attached and, of which parameters are set
 type TraitBody struct {
 	EnvName       string       `json:"envName"`

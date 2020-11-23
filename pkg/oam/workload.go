@@ -17,6 +17,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/plugins"
 )
 
+// RunOptions include all options for run
 type RunOptions struct {
 	Env          *types.EnvMeta
 	WorkloadName string
@@ -27,6 +28,7 @@ type RunOptions struct {
 	util.IOStreams
 }
 
+// LoadIfExist will load Application from local dir
 func LoadIfExist(envName string, workloadName string, appGroup string) (*application.Application, error) {
 	var appName string
 	if appGroup != "" {
@@ -43,6 +45,7 @@ func LoadIfExist(envName string, workloadName string, appGroup string) (*applica
 	return app, nil
 }
 
+// BaseComplete will construct an Application from cli parameters.
 func BaseComplete(envName string, workloadName string, appName string, flagSet *pflag.FlagSet, workloadType string) (*application.Application, error) {
 	app, err := LoadIfExist(envName, workloadName, appName)
 	if err != nil {
@@ -119,6 +122,7 @@ func BaseComplete(envName string, workloadName string, appName string, flagSet *
 	return app, app.Save(envName)
 }
 
+// BaseRun will check if it's a stating operation before run
 func BaseRun(staging bool, app *application.Application, kubeClient client.Client, env *types.EnvMeta, io cmdutil.IOStreams) (string, error) {
 	if staging {
 		return "Staging saved", nil
