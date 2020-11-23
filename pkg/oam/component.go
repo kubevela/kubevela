@@ -8,6 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// RetrieveComponent will get component status
 func RetrieveComponent(ctx context.Context, c client.Client, applicationName, componentName, namespace string) (apis.ComponentMeta, error) {
 	var componentMeta apis.ComponentMeta
 	applicationMeta, err := RetrieveApplicationStatusByName(ctx, c, applicationName, namespace)

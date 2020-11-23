@@ -14,9 +14,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
-	"github.com/oam-dev/kubevela/pkg/server/apis"
 )
 
+// ListTraitDefinitions will list all definition include traits and workloads
 func ListTraitDefinitions(workloadName *string) ([]types.Capability, error) {
 	var traitList []types.Capability
 	traits, err := plugins.LoadInstalledCapabilityWithType(types.TypeTrait)
@@ -27,13 +27,14 @@ func ListTraitDefinitions(workloadName *string) ([]types.Capability, error) {
 	if err != nil {
 		return traitList, err
 	}
-	traitList = assembleDefinitionList(traits, workloads, workloadName)
+	traitList = convertAllAppliyToList(traits, workloads, workloadName)
 	return traitList, nil
 }
 
-func GetTraitDefinition(workloadName *string, capabilityAlias string) (types.Capability, error) {
+// GetTraitDefinition will get trait capability with applyTo converted
+func GetTraitDefinition(workloadName *string, traitType string) (types.Capability, error) {
 	var traitDef types.Capability
-	traitCap, err := plugins.GetInstalledCapabilityWithCapAlias(types.TypeTrait, capabilityAlias)
+	traitCap, err := plugins.GetInstalledCapabilityWithCapName(types.TypeTrait, traitType)
 	if err != nil {
 		return traitDef, err
 	}
@@ -41,20 +42,20 @@ func GetTraitDefinition(workloadName *string, capabilityAlias string) (types.Cap
 	if err != nil {
 		return traitDef, err
 	}
-	traitList := assembleDefinitionList([]types.Capability{traitCap}, workloadsCap, workloadName)
+	traitList := convertAllAppliyToList([]types.Capability{traitCap}, workloadsCap, workloadName)
 	if len(traitList) != 1 {
-		return traitDef, fmt.Errorf("could not get installed capability by %s", capabilityAlias)
+		return traitDef, fmt.Errorf("could not get installed capability by %s", traitType)
 	}
 	traitDef = traitList[0]
 	return traitDef, nil
 }
 
-func assembleDefinitionList(traits []types.Capability, workloads []types.Capability, workloadName *string) []types.Capability {
+func convertAllAppliyToList(traits []types.Capability, workloads []types.Capability, workloadName *string) []types.Capability {
 	var traitList []types.Capability
 	for _, t := range traits {
 		convertedApplyTo := ConvertApplyTo(t.AppliesTo, workloads)
 		if *workloadName != "" {
-			if !In(convertedApplyTo, *workloadName) {
+			if !in(convertedApplyTo, *workloadName) {
 				continue
 			}
 			convertedApplyTo = []string{*workloadName}
@@ -65,6 +66,7 @@ func assembleDefinitionList(traits []types.Capability, workloads []types.Capabil
 	return traitList
 }
 
+// ConvertApplyTo will convert applyTo slice to workload capability name if CRD matches
 func ConvertApplyTo(applyTo []string, workloads []types.Capability) []string {
 	var converted []string
 	for _, v := range applyTo {
@@ -72,7 +74,7 @@ func ConvertApplyTo(applyTo []string, workloads []types.Capability) []string {
 		if !exist {
 			continue
 		}
-		if !In(converted, newName) {
+		if !in(converted, newName) {
 			converted = append(converted, newName)
 		}
 	}
@@ -88,7 +90,7 @@ func check(applyto string, workloads []types.Capability) (string, bool) {
 	return "", false
 }
 
-func In(l []string, v string) bool {
+func in(l []string, v string) bool {
 	for _, ll := range l {
 		if ll == v {
 			return true
@@ -97,6 +99,8 @@ func In(l []string, v string) bool {
 	return false
 }
 
+// Parse will parse applyTo(with format apigroup/Version.Kind) to crd name by just calculate the plural of kind word.
+// TODO we should use discoverymapper instead of calculate plural
 func Parse(applyTo string) string {
 	l := strings.Split(applyTo, "/")
 	if len(l) != 2 {
@@ -110,18 +114,7 @@ func Parse(applyTo string) string {
 	return plur.NewClient().Plural(strings.ToLower(l[1])) + "." + apigroup
 }
 
-func SimplifyCapabilityStruct(capabilityList []types.Capability) []apis.TraitMeta {
-	var traitList []apis.TraitMeta
-	for _, c := range capabilityList {
-		traitList = append(traitList, apis.TraitMeta{
-			Name:        c.Name,
-			Description: c.Description,
-			AppliesTo:   c.AppliesTo,
-		})
-	}
-	return traitList
-}
-
+// ValidateAndMutateForCore was built in validate and mutate function for core workloads and traits
 func ValidateAndMutateForCore(traitType, workloadName string, flags *pflag.FlagSet, env *types.EnvMeta) error {
 	switch traitType {
 	case "route":
@@ -152,7 +145,7 @@ func ValidateAndMutateForCore(traitType, workloadName string, flags *pflag.FlagS
 	return nil
 }
 
-//AddOrUpdateTrait attach trait to workload
+// AddOrUpdateTrait attach trait to workload
 func AddOrUpdateTrait(env *types.EnvMeta, appName string, componentName string, flagSet *pflag.FlagSet, template types.Capability) (*application.Application, error) {
 	err := ValidateAndMutateForCore(template.Name, componentName, flagSet, env)
 	if err != nil {
@@ -200,6 +193,7 @@ func AddOrUpdateTrait(env *types.EnvMeta, appName string, componentName string, 
 	return app, app.Save(env.Name)
 }
 
+// TraitOperationRun will check if it's a stage operation before run
 func TraitOperationRun(ctx context.Context, c client.Client, env *types.EnvMeta, appObj *application.Application,
 	staging bool, io cmdutil.IOStreams) (string, error) {
 	if staging {
@@ -212,6 +206,7 @@ func TraitOperationRun(ctx context.Context, c client.Client, env *types.EnvMeta,
 	return "Deployed!", nil
 }
 
+// PrepareDetachTrait will detach trait in local AppFile
 func PrepareDetachTrait(envName string, traitType string, componentName string, appName string) (*application.Application, error) {
 	var appObj *application.Application
 	var err error

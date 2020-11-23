@@ -69,7 +69,7 @@ func (s *APIServer) GetWorkload(c *gin.Context) {
 	var capability types.Capability
 	var err error
 
-	if capability, err = plugins.GetInstalledCapabilityWithCapAlias(types.TypeWorkload, workloadType); err != nil {
+	if capability, err = plugins.GetInstalledCapabilityWithCapName(types.TypeWorkload, workloadType); err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
 	}

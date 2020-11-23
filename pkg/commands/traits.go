@@ -1,3 +1,5 @@
+//nolint:golint
+// TODO add lint back
 package commands
 
 import (
@@ -49,8 +51,7 @@ func printTraitList(workloadName *string, ioStreams cmdutil.IOStreams) error {
 		return err
 	}
 	table.AddRow("NAME", "DESCRIPTION", "APPLIES TO")
-	simplifiedTraits := oam.SimplifyCapabilityStruct(traitDefinitionList)
-	for _, t := range simplifiedTraits {
+	for _, t := range traitDefinitionList {
 		table.AddRow(t.Name, t.Description, strings.Join(t.AppliesTo, "\n"))
 	}
 	ioStreams.Info(table.String())

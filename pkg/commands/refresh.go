@@ -21,6 +21,7 @@ const (
 	deleted   refreshStatus = "Deleted"
 )
 
+// RefreshDefinitions will sync local capabilities with cluster installed ones
 func RefreshDefinitions(ctx context.Context, c types.Args, ioStreams cmdutil.IOStreams, silentOutput bool) error {
 	dir, _ := system.GetCapabilityDir()
 

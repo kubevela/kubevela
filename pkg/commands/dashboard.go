@@ -1,3 +1,5 @@
+//nolint:golint
+// TODO add lint back
 package commands
 
 import (
@@ -188,7 +190,7 @@ func SetupAPIServer(c types.Args, cmd *cobra.Command, o Options) error {
 	return server.Shutdown(ctx)
 }
 
-//nolint:gosec
+// nolint:gosec
 // OpenBrowser will open browser by url in different OS system
 func OpenBrowser(url string) error {
 	var err error

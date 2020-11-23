@@ -26,6 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
+// AddCapabilityCenter will add a cap center
 func AddCapabilityCenter(capName, capURL, capToken string) error {
 	repos, err := plugins.LoadRepos()
 	if err != nil {
@@ -53,6 +54,7 @@ func AddCapabilityCenter(capName, capURL, capToken string) error {
 	return SyncCapabilityFromCenter(capName, capURL, capToken)
 }
 
+// SyncCapabilityFromCenter will sync all capabilities from center
 func SyncCapabilityFromCenter(capName, capURL, capToken string) error {
 	client, err := plugins.NewCenterClient(context.Background(), capName, capURL, capToken)
 	if err != nil {
@@ -61,6 +63,7 @@ func SyncCapabilityFromCenter(capName, capURL, capToken string) error {
 	return client.SyncCapabilityFromCenter()
 }
 
+// AddCapabilityIntoCluster will add a capability into K8s cluster, it is equal to apply a definition yaml and run `vela workloads/traits`
 func AddCapabilityIntoCluster(c client.Client, mapper discoverymapper.DiscoveryMapper, capability string) (string, error) {
 	ss := strings.Split(capability, "/")
 	if len(ss) < 2 {
@@ -75,10 +78,11 @@ func AddCapabilityIntoCluster(c client.Client, mapper discoverymapper.DiscoveryM
 	return fmt.Sprintf("Successfully installed capability %s from %s", name, repoName), nil
 }
 
+// InstallCapability will add a cap into K8s cluster and install it's controller(helm charts)
 func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMapper, centerName, capabilityName string, ioStreams cmdutil.IOStreams) error {
 	dir, _ := system.GetCapCenterDir()
 	repoDir := filepath.Join(dir, centerName)
-	tp, err := GetSyncedCapabilities(centerName, capabilityName)
+	tp, err := GetCapabilityFromCenter(centerName, capabilityName)
 	if err != nil {
 		return err
 	}
@@ -152,7 +156,8 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 	return nil
 }
 
-func GetSyncedCapabilities(repoName, addonName string) (types.Capability, error) {
+// GetCapabilityFromCenter will list all synced capabilities from cap center and return the specified one
+func GetCapabilityFromCenter(repoName, addonName string) (types.Capability, error) {
 	dir, _ := system.GetCapCenterDir()
 	repoDir := filepath.Join(dir, repoName)
 	templates, err := plugins.LoadCapabilityFromSyncedCenter(repoDir)
@@ -167,6 +172,7 @@ func GetSyncedCapabilities(repoName, addonName string) (types.Capability, error)
 	return types.Capability{}, fmt.Errorf("%s/%s not exist, try vela cap:center:sync %s to sync from remote", repoName, addonName, repoName)
 }
 
+// ListCapabilityCenters will list all capabilities from center
 func ListCapabilityCenters() ([]apis.CapabilityCenterMeta, error) {
 	var capabilityCenterList []apis.CapabilityCenterMeta
 	centers, err := plugins.LoadRepos()
@@ -182,6 +188,7 @@ func ListCapabilityCenters() ([]apis.CapabilityCenterMeta, error) {
 	return capabilityCenterList, nil
 }
 
+// SyncCapabilityCenter will sync capabilities from center to local
 func SyncCapabilityCenter(capabilityCenterName string) error {
 	repos, err := plugins.LoadRepos()
 	if err != nil {
@@ -217,6 +224,8 @@ func SyncCapabilityCenter(capabilityCenterName string) error {
 	return nil
 }
 
+// RemoveCapabilityFromCluster will remove a capability from cluster.
+// 1. remove definition 2. uninstall chart 3. remove local files
 func RemoveCapabilityFromCluster(client client.Client, capabilityName string) (string, error) {
 	ioStreams := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	if err := RemoveCapability(client, capabilityName, ioStreams); err != nil {
@@ -226,6 +235,8 @@ func RemoveCapabilityFromCluster(client client.Client, capabilityName string) (s
 	return msg, nil
 }
 
+// RemoveCapability will remove a capability from cluster.
+// 1. remove definition 2. uninstall chart 3. remove local files
 func RemoveCapability(client client.Client, capabilityName string, ioStreams cmdutil.IOStreams) error {
 	// TODO(wonderflow): make sure no apps is using this capability
 	caps, err := plugins.LoadAllInstalledCapability()
@@ -234,13 +245,13 @@ func RemoveCapability(client client.Client, capabilityName string, ioStreams cmd
 	}
 	for _, w := range caps {
 		if w.Name == capabilityName {
-			return UninstallCap(client, w, ioStreams)
+			return uninstallCap(client, w, ioStreams)
 		}
 	}
 	return errors.New(capabilityName + " not exist")
 }
 
-func UninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.IOStreams) error {
+func uninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.IOStreams) error {
 	// 1. Remove WorkloadDefinition or TraitDefinition
 	ctx := context.Background()
 	var obj runtime.Object
@@ -258,7 +269,10 @@ func UninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 
 	if cap.Install != nil && cap.Install.Helm.Name != "" {
 		// 2. Remove Helm chart if there is
-		if err := helm.Uninstall(ioStreams, cap.Install.Helm.Name, types.DefaultKubeVelaNS, cap.Name); err != nil {
+		if cap.Install.Helm.Namespace == "" {
+			cap.Install.Helm.Namespace = types.DefaultKubeVelaNS
+		}
+		if err := helm.Uninstall(ioStreams, cap.Install.Helm.Name, cap.Install.Helm.Namespace, cap.Name); err != nil {
 			return err
 		}
 	}
@@ -277,6 +291,7 @@ func UninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 	return nil
 }
 
+// ListCapabilities will list all caps from specified center
 func ListCapabilities(capabilityCenterName string) ([]types.Capability, error) {
 	var capabilityList []types.Capability
 	dir, err := system.GetCapCenterDir()
@@ -284,7 +299,7 @@ func ListCapabilities(capabilityCenterName string) ([]types.Capability, error) {
 		return capabilityList, err
 	}
 	if capabilityCenterName != "" {
-		return ListCenterCapabilities(filepath.Join(dir, capabilityCenterName))
+		return listCenterCapabilities(filepath.Join(dir, capabilityCenterName))
 	}
 	dirs, err := ioutil.ReadDir(dir)
 	if err != nil {
@@ -294,7 +309,7 @@ func ListCapabilities(capabilityCenterName string) ([]types.Capability, error) {
 		if !dd.IsDir() {
 			continue
 		}
-		caps, err := ListCenterCapabilities(filepath.Join(dir, dd.Name()))
+		caps, err := listCenterCapabilities(filepath.Join(dir, dd.Name()))
 		if err != nil {
 			return capabilityList, err
 		}
@@ -303,7 +318,7 @@ func ListCapabilities(capabilityCenterName string) ([]types.Capability, error) {
 	return capabilityList, nil
 }
 
-func ListCenterCapabilities(repoDir string) ([]types.Capability, error) {
+func listCenterCapabilities(repoDir string) ([]types.Capability, error) {
 	templates, err := plugins.LoadCapabilityFromSyncedCenter(repoDir)
 	if err != nil {
 		return templates, err
@@ -312,9 +327,9 @@ func ListCenterCapabilities(repoDir string) ([]types.Capability, error) {
 		return templates, nil
 	}
 	baseDir := filepath.Base(repoDir)
-	workloads := GatherWorkloads(templates)
+	workloads := gatherWorkloads(templates)
 	for i, p := range templates {
-		status := CheckInstallStatus(baseDir, p)
+		status := checkInstallStatus(baseDir, p)
 		convertedApplyTo := ConvertApplyTo(p.AppliesTo, workloads)
 		templates[i].Center = baseDir
 		templates[i].Status = status
@@ -323,6 +338,7 @@ func ListCenterCapabilities(repoDir string) ([]types.Capability, error) {
 	return templates, nil
 }
 
+// RemoveCapabilityCenter will remove a cap center from local
 func RemoveCapabilityCenter(centerName string) (string, error) {
 	var message string
 	var err error
@@ -356,7 +372,7 @@ func RemoveCapabilityCenter(centerName string) (string, error) {
 	return message, err
 }
 
-func GatherWorkloads(templates []types.Capability) []types.Capability {
+func gatherWorkloads(templates []types.Capability) []types.Capability {
 	workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
 	if err != nil {
 		workloads = make([]types.Capability, 0)
@@ -369,7 +385,7 @@ func GatherWorkloads(templates []types.Capability) []types.Capability {
 	return workloads
 }
 
-func CheckInstallStatus(repoName string, tmp types.Capability) string {
+func checkInstallStatus(repoName string, tmp types.Capability) string {
 	var status = "uninstalled"
 	installed, _ := plugins.LoadInstalledCapabilityWithType(tmp.Type)
 	for _, i := range installed {

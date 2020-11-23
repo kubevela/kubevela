@@ -47,10 +47,10 @@ func LoadInstalledCapabilityWithType(capT types.CapType) ([]types.Capability, er
 	return loadInstalledCapabilityWithType(dir, capT)
 }
 
-// GetInstalledCapabilityWithCapAlias will get cap by alias
-func GetInstalledCapabilityWithCapAlias(capT types.CapType, capAlias string) (types.Capability, error) {
+// GetInstalledCapabilityWithCapName will get cap by alias
+func GetInstalledCapabilityWithCapName(capT types.CapType, capName string) (types.Capability, error) {
 	dir, _ := system.GetCapabilityDir()
-	return loadInstalledCapabilityWithCapAlias(dir, capT, capAlias)
+	return loadInstalledCapabilityWithCapName(dir, capT, capName)
 }
 
 // leave dir as argument for test convenience
@@ -59,19 +59,19 @@ func loadInstalledCapabilityWithType(dir string, capT types.CapType) ([]types.Ca
 	return loadInstalledCapability(dir, "")
 }
 
-func loadInstalledCapabilityWithCapAlias(dir string, capT types.CapType, capAlias string) (types.Capability, error) {
+func loadInstalledCapabilityWithCapName(dir string, capT types.CapType, capName string) (types.Capability, error) {
 	var cap types.Capability
 	dir = GetSubDir(dir, capT)
-	capList, err := loadInstalledCapability(dir, capAlias)
+	capList, err := loadInstalledCapability(dir, capName)
 	if err != nil {
 		return cap, err
 	} else if len(capList) != 1 {
-		return cap, fmt.Errorf("could not get installed capability by %s", capAlias)
+		return cap, fmt.Errorf("could not get installed capability by %s", capName)
 	}
 	return capList[0], nil
 }
 
-func loadInstalledCapability(dir string, capAlias string) ([]types.Capability, error) {
+func loadInstalledCapability(dir string, name string) ([]types.Capability, error) {
 	var tmps []types.Capability
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
@@ -99,9 +99,9 @@ func loadInstalledCapability(dir string, capAlias string) ([]types.Capability, e
 			fmt.Printf("ignore invalid format file: %s\n", f.Name())
 			continue
 		}
-		// Get the specified installed capability: a WorkoadDefinition or a TraitDefinition
-		if capAlias != "" {
-			if capAlias == f.Name() {
+		// Get the specified installed capability: workload or trait
+		if name != "" {
+			if name == f.Name() {
 				tmps = append(tmps, tmp)
 				break
 			}

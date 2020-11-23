@@ -20,6 +20,7 @@ import (
 // Under each env dir, there are individual files for each config.
 // The format is the same as k8s Secret.Data field with value base64 encoded.
 
+// NewConfigCommand will create command for config management for AppFile
 func NewConfigCommand(args types.Args, io cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "config",
@@ -40,6 +41,7 @@ func NewConfigCommand(args types.Args, io cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
+// NewConfigListCommand list all created configs
 func NewConfigListCommand(io cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "ls",
@@ -58,6 +60,7 @@ func NewConfigListCommand(io cmdutil.IOStreams) *cobra.Command {
 	cmd.SetOut(io.Out)
 	return cmd
 }
+
 func getConfigDir(cmd *cobra.Command) (string, error) {
 	e, err := GetEnv(cmd)
 	if err != nil {
@@ -65,6 +68,8 @@ func getConfigDir(cmd *cobra.Command) (string, error) {
 	}
 	return config.GetConfigsDir(e.Name)
 }
+
+// ListConfigs will list all configs
 func ListConfigs(ioStreams cmdutil.IOStreams, cmd *cobra.Command) error {
 	d, err := getConfigDir(cmd)
 	if err != nil {
@@ -98,6 +103,7 @@ func listConfigs(dir string) ([]string, error) {
 	return l, nil
 }
 
+// NewConfigGetCommand get config from local
 func NewConfigGetCommand(io cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "get",
@@ -142,6 +148,7 @@ func getConfig(args []string, io cmdutil.IOStreams, cmd *cobra.Command) error {
 	return nil
 }
 
+// NewConfigSetCommand set a config data in local
 func NewConfigSetCommand(io cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "set",
@@ -215,6 +222,7 @@ func setConfig(args []string, io cmdutil.IOStreams, cmd *cobra.Command) error {
 	return nil
 }
 
+// NewConfigDeleteCommand delete a config from local
 func NewConfigDeleteCommand(io cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "del",

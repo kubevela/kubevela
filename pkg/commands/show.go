@@ -13,6 +13,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
+// NewAppShowCommand will show current application config
 func NewAppShowCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "show APP_NAME",
