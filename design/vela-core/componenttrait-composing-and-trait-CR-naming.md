@@ -97,7 +97,7 @@ a component.
 
 ## Set the CR name in a friendly way
 
-Before OAM Kubernetes Runtime release v0.3.2, we named all trait name in the format of `${ComponentName}-trait-${HashTag}`. This will lead to confusions
+Currently, we named all trait name in the format of `${ComponentName}-trait-${HashTag}`. This will lead to confusions
 when listing CRs of all Traits of a component. 
 
 In this proposal, we propose to change the naming rule to `${ComponentName}-${TraitDefinitionName}-${HashTag}`.
