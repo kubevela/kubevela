@@ -10,7 +10,7 @@ Now definition name is no longer coupled with CRD name, it's align to capability
 and two TraitDefinition  resources can both refer to the same CRD. So it's necessary to specify how to assemble trait CR
 in ApplicationConfiguration and to set the CR name in a friendly way.
 
-## Several ways to compose ComponentTrait in ApplicationConfiguration
+## Several ways to assemble trait CR in ApplicationConfiguration
 
 - If the name of TraitDefinition is the same with the referenced CRD
 
