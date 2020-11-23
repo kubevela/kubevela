@@ -7,7 +7,7 @@
 ## Background
 
 Now definition name is no longer coupled with CRD name, it's align to capability name  in KubeVela,
-and two TraitDefinitions can both refer to the same Trait CRD. So it's necessary to specify how to compose ComponentTrait
+and two TraitDefinition  resources can both refer to the same CRD. So it's necessary to specify how to assemble trait CR
 in ApplicationConfiguration and to set the CR name in a friendly way.
 
 ## Several ways to compose ComponentTrait in ApplicationConfiguration
