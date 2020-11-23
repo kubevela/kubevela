@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
+
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 
 	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
@@ -167,13 +168,7 @@ func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Capab
 
 	var cueTemplate string
 	if tmp.CueTemplateURI != "" {
-		res, err := http.Get(tmp.CueTemplateURI)
-		if err != nil {
-			return types.Capability{}, err
-		}
-		//nolint:errcheck
-		defer res.Body.Close()
-		b, err := ioutil.ReadAll(res.Body)
+		b, err := common.HTTPGet(context.Background(), tmp.CueTemplateURI)
 		if err != nil {
 			return types.Capability{}, err
 		}

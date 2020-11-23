@@ -115,6 +115,8 @@ func addStsRow(sts refreshStatus, report map[refreshStatus][]types.Capability, t
 	case deleted:
 		stsIcon = "-"
 		stsColor = red
+	case unchanged:
+		// normal color display
 	}
 	for _, cap := range caps {
 		t.AddRow(

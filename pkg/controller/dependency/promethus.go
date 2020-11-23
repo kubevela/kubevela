@@ -13,6 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// InstallPromethusInstance will install promethus instance for vela-core
 func InstallPromethusInstance(kubecli client.Client) error {
 	var promIns = monitoring.Prometheus{}
 	err := kubecli.Get(context.Background(), types.NamespacedName{Namespace: "monitoring", Name: "oam"}, &promIns)

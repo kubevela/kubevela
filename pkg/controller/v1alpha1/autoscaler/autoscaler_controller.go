@@ -61,6 +61,7 @@ type AutoscalerReconciler struct {
 	record event.Recorder
 }
 
+// Reconcile is the main logic for autoscaler controller
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=autoscalers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=autoscalers/status,verbs=get;update;patch
 func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
@@ -139,6 +140,7 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 	return ctrl.Result{}, nil
 }
 
+// SetupWithManager will setup with event recorder
 func (r *AutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("Autoscaler")).
 		WithAnnotations("controller", "Autoscaler")

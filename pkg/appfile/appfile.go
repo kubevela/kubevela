@@ -18,11 +18,14 @@ import (
 )
 
 var (
+	//nolint
 	ErrImageNotDefined = errors.New("image not defined")
 )
 
+// DefaultAppfilePath defines the default file path that used by `vela up` command
 const DefaultAppfilePath = "./vela.yaml"
 
+// AppFile defines the spec of KubeVela Appfile
 type AppFile struct {
 	Name       string             `json:"name"`
 	CreateTime time.Time          `json:"createTime,omitempty"`
@@ -33,6 +36,7 @@ type AppFile struct {
 	configGetter configGetter
 }
 
+// NewAppFile init an empty AppFile struct
 func NewAppFile() *AppFile {
 	return &AppFile{
 		Services:     make(map[string]Service),
@@ -41,10 +45,12 @@ func NewAppFile() *AppFile {
 	}
 }
 
+// Load will load appfile from default path
 func Load() (*AppFile, error) {
 	return LoadFromFile(DefaultAppfilePath)
 }
 
+// LoadFromFile will read the file and load the AppFile struct
 func LoadFromFile(filename string) (*AppFile, error) {
 	b, err := ioutil.ReadFile(filepath.Clean(filename))
 	if err != nil {
@@ -152,6 +158,8 @@ func addHealthScope(appConfig *v1alpha2.ApplicationConfiguration) *v1alpha2.Heal
 	}
 	return health
 }
+
+// FormatDefaultHealthScopeName will create a default health scope name.
 func FormatDefaultHealthScopeName(appName string) string {
 	return appName + "-default-health"
 }

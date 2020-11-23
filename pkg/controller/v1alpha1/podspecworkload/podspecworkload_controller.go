@@ -65,6 +65,7 @@ type Reconciler struct {
 	Scheme *runtime.Scheme
 }
 
+// Reconcile is the main logic for podspecworkload controller
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=podspecworkloads,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=podspecworkloads/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
@@ -266,6 +267,7 @@ func (r *Reconciler) renderService(workload *v1alpha1.PodSpecWorkload) (*corev1.
 	return service, nil
 }
 
+// SetupWithManager will setup controller for podspecworkload
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("PodSpecWorkload")).
 		WithAnnotations("controller", "PodSpecWorkload")

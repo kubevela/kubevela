@@ -1,7 +1,10 @@
 package common
 
 import (
+	"context"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
 
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
@@ -39,4 +42,20 @@ func InitBaseRestConfig() (types.Args, error) {
 		Config: restConf,
 		Schema: Scheme,
 	}, nil
+}
+
+// HTTPGet will send GET http request with context
+func HTTPGet(ctx context.Context, url string) ([]byte, error) {
+	// Change NewRequest to NewRequestWithContext and pass context it
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	//nolint:errcheck
+	defer resp.Body.Close()
+	return ioutil.ReadAll(resp.Body)
 }

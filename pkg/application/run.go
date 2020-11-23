@@ -13,6 +13,7 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
+// BuildRun will build OAM and deploy from Appfile
 func (app *Application) BuildRun(ctx context.Context, client client.Client, env *types.EnvMeta, io cmdutil.IOStreams) error {
 	components, appconfig, scopes, err := app.OAM(env, io, true)
 	if err != nil {
@@ -21,6 +22,7 @@ func (app *Application) BuildRun(ctx context.Context, client client.Client, env 
 	return app.Run(ctx, client, appconfig, components, scopes)
 }
 
+// Run will deploy OAM objects.
 func (app *Application) Run(ctx context.Context, client client.Client,
 	ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component, scopes []oam.Object) error {
 	for _, comp := range comps {
@@ -34,6 +36,7 @@ func (app *Application) Run(ctx context.Context, client client.Client,
 	return CreateOrUpdateAppConfig(ctx, client, ac)
 }
 
+// CreateOrUpdateComponent will create if not exist and update if exists.
 func CreateOrUpdateComponent(ctx context.Context, client client.Client, comp *v1alpha2.Component) error {
 	var getc v1alpha2.Component
 	key := ctypes.NamespacedName{Name: comp.Name, Namespace: comp.Namespace}
@@ -47,6 +50,7 @@ func CreateOrUpdateComponent(ctx context.Context, client client.Client, comp *v1
 	return client.Update(ctx, comp)
 }
 
+// CreateOrUpdateAppConfig will create if not exist and update if exists.
 func CreateOrUpdateAppConfig(ctx context.Context, client client.Client, appConfig *v1alpha2.ApplicationConfiguration) error {
 	var geta v1alpha2.ApplicationConfiguration
 	key := ctypes.NamespacedName{Name: appConfig.Name, Namespace: appConfig.Namespace}
@@ -64,6 +68,7 @@ func CreateOrUpdateAppConfig(ctx context.Context, client client.Client, appConfi
 	return client.Update(ctx, appConfig)
 }
 
+// CreateScopes will create all scopes
 func CreateScopes(ctx context.Context, client client.Client, scopes []oam.Object) error {
 	for _, obj := range scopes {
 		key := ctypes.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}

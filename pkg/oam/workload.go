@@ -77,7 +77,7 @@ func BaseComplete(envName string, workloadName string, appName string, flagSet *
 			}
 			continue
 		}
-
+		// nolint:exhaustive
 		switch v.Type {
 		case cue.IntKind:
 			workloadData[v.Name], err = flagSet.GetInt64(name)
@@ -94,6 +94,7 @@ func BaseComplete(envName string, workloadName string, appName string, flagSet *
 		if err != nil {
 			if strings.Contains(err.Error(), "of flag of type string") {
 				data, _ := flagSet.GetString(name)
+				// nolint:exhaustive
 				switch v.Type {
 				case cue.IntKind:
 					workloadData[v.Name], err = strconv.ParseInt(data, 10, 64)
