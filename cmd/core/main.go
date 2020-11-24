@@ -83,7 +83,7 @@ func main() {
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
-	flag.StringVar(&logFilePath, "log-file-path", "", "The address the metric endpoint binds to.")
+	flag.StringVar(&logFilePath, "log-file-path", "", "The file to write logs to.")
 	flag.IntVar(&logRetainDate, "log-retain-date", 7, "The number of days of logs history to retain.")
 	flag.BoolVar(&logCompress, "log-compress", true, "Enable compression on the rotated logs.")
 	flag.IntVar(&controllerArgs.RevisionLimit, "revision-limit", 50,
