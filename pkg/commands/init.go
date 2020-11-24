@@ -1,5 +1,3 @@
-//nolint:golint
-// TODO add lint back
 package commands
 
 import (
@@ -118,7 +116,7 @@ func (o *appInitOptions) Naming() error {
 	}
 	err := survey.AskOne(prompt, &o.appName, survey.WithValidator(survey.Required))
 	if err != nil {
-		return fmt.Errorf("read app name err %v", err)
+		return fmt.Errorf("read app name err %w", err)
 	}
 	return nil
 }
@@ -134,7 +132,7 @@ func (o *appInitOptions) CheckEnv() error {
 		}
 		err := survey.AskOne(prompt, &o.Env.Domain)
 		if err != nil {
-			return fmt.Errorf("read domain err %v", err)
+			return fmt.Errorf("read domain err %w", err)
 		}
 	}
 	if o.Env.Email == "" {
@@ -143,7 +141,7 @@ func (o *appInitOptions) CheckEnv() error {
 		}
 		err := survey.AskOne(prompt, &o.Env.Email)
 		if err != nil {
-			return fmt.Errorf("read email err %v", err)
+			return fmt.Errorf("read email err %w", err)
 		}
 	}
 	if _, err := env.CreateOrUpdateEnv(context.Background(), o.client, o.Env.Name, o.Env); err != nil {
@@ -167,7 +165,7 @@ func (o *appInitOptions) Workload() error {
 	}
 	err = survey.AskOne(prompt, &o.workloadType, survey.WithValidator(survey.Required))
 	if err != nil {
-		return fmt.Errorf("read workload type err %v", err)
+		return fmt.Errorf("read workload type err %w", err)
 	}
 	workload, err := GetCapabilityByName(o.workloadType, workloads)
 	if err != nil {
@@ -178,7 +176,7 @@ func (o *appInitOptions) Workload() error {
 	}
 	err = survey.AskOne(namePrompt, &o.workloadName, survey.WithValidator(survey.Required))
 	if err != nil {
-		return fmt.Errorf("read workload name err %v", err)
+		return fmt.Errorf("read workload name err %w", err)
 	}
 	fs := pflag.NewFlagSet("workload", pflag.ContinueOnError)
 	for _, pp := range workload.Parameters {
@@ -213,7 +211,7 @@ func (o *appInitOptions) Workload() error {
 			}
 			err = survey.AskOne(prompt, &data, opts...)
 			if err != nil {
-				return fmt.Errorf("read param %s err %v", p.Name, err)
+				return fmt.Errorf("read param %s err %w", p.Name, err)
 			}
 			fs.String(p.Name, data, p.Usage)
 		case cue.NumberKind, cue.FloatKind:
@@ -235,7 +233,7 @@ func (o *appInitOptions) Workload() error {
 			}))
 			err = survey.AskOne(prompt, &data, opts...)
 			if err != nil {
-				return fmt.Errorf("read param %s err %v", p.Name, err)
+				return fmt.Errorf("read param %s err %w", p.Name, err)
 			}
 			val, _ := strconv.ParseFloat(data, 64)
 			fs.Float64(p.Name, val, p.Usage)
@@ -258,7 +256,7 @@ func (o *appInitOptions) Workload() error {
 			}))
 			err = survey.AskOne(prompt, &data, opts...)
 			if err != nil {
-				return fmt.Errorf("read param %s err %v", p.Name, err)
+				return fmt.Errorf("read param %s err %w", p.Name, err)
 			}
 			val, _ := strconv.ParseInt(data, 10, 64)
 			fs.Int64(p.Name, val, p.Usage)
@@ -273,7 +271,7 @@ func (o *appInitOptions) Workload() error {
 				err = survey.AskOne(prompt, &data)
 			}
 			if err != nil {
-				return fmt.Errorf("read param %s err %v", p.Name, err)
+				return fmt.Errorf("read param %s err %w", p.Name, err)
 			}
 			fs.Bool(p.Name, data, p.Usage)
 		default:
@@ -284,6 +282,7 @@ func (o *appInitOptions) Workload() error {
 	return err
 }
 
+// GetCapabilityByName get eponymous types.Capability from workloads by name
 func GetCapabilityByName(name string, workloads []types.Capability) (types.Capability, error) {
 	for _, v := range workloads {
 		if v.Name == name {
@@ -300,7 +299,7 @@ func (o *appInitOptions) Traits() error {
 	}
 	switch o.workloadType {
 	case "webservice":
-		//TODO(wonderflow) this should get from workload definition to know which trait should be suggestions
+		// TODO(wonderflow) this should get from workload definition to know which trait should be suggestions
 		var suggestTraits = []string{}
 		if o.Env.Domain != "" {
 			suggestTraits = append(suggestTraits, "route")
@@ -314,7 +313,7 @@ func (o *appInitOptions) Traits() error {
 			for _, pa := range trait.Parameters {
 				types.SetFlagBy(tflags, pa)
 			}
-			//TODO(wonderflow): give a way to add parameter for trait
+			// TODO(wonderflow): give a way to add parameter for trait
 			o.app, err = oam.AddOrUpdateTrait(o.Env, o.appName, o.workloadName, tflags, trait)
 			if err != nil {
 				return err
