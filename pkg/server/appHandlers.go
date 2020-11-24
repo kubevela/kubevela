@@ -1,4 +1,3 @@
-//nolint:golint
 package server
 
 import (
@@ -9,9 +8,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// UpdateApps is placeholder for updating applications
 func (s *APIServer) UpdateApps(c *gin.Context) {
 }
 
+// GetApp requests an application by the namespacedname in the gin.Context
 func (s *APIServer) GetApp(c *gin.Context) {
 	envName := c.Param("envName")
 	envMeta, err := env.GetEnvByName(envName)
@@ -30,6 +31,7 @@ func (s *APIServer) GetApp(c *gin.Context) {
 	util.AssembleResponse(c, applicationMeta, nil)
 }
 
+// ListApps requests a list of application by the namespace in the gin.Context
 func (s *APIServer) ListApps(c *gin.Context) {
 	envName := c.Param("envName")
 	envMeta, err := env.GetEnvByName(envName)
@@ -48,6 +50,7 @@ func (s *APIServer) ListApps(c *gin.Context) {
 	util.AssembleResponse(c, applicationMetaList, nil)
 }
 
+// DeleteApps deletes an application by the namespacedname in the gin.Context
 func (s *APIServer) DeleteApps(c *gin.Context) {
 	envName := c.Param("envName")
 	envMeta, err := env.GetEnvByName(envName)
