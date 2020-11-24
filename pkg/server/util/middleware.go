@@ -1,4 +1,3 @@
-//nolint:golint
 package util
 
 import (
@@ -32,6 +31,7 @@ const (
 	HeaderClientIP = "clientIP"
 )
 
+// ContextKeyType defining the context key type for the middleware
 type ContextKeyType string
 
 const (
@@ -42,8 +42,8 @@ const (
 	HeaderRequestID ContextKeyType = "x-fc-request-id"
 )
 
+// RESTful API paths
 const (
-	// RESTful API paths
 	RootPath               = "/api"
 	EnvironmentPath        = "/envs"
 	ApplicationPath        = "/apps"
@@ -55,14 +55,14 @@ const (
 	VersionPath            = "/version"
 )
 
-//NoRoute is a handler which is invoked when there is no route matches.
+// NoRoute is a handler which is invoked when there is no route matches.
 func NoRoute() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		SetErrorAndAbort(c, PathNotSupported, c.Request.Method, c.Request.URL.Path)
 	}
 }
 
-//generateRequestID :Get request id
+// generateRequestID :Get request id
 func generateRequestID() string {
 	id, _ := uuid.NewV4()
 	return id.String()
@@ -102,7 +102,7 @@ func SetContext() gin.HandlerFunc {
 	}
 }
 
-// get the context from the gin context
+// GetContext get the context from the gin context
 func GetContext(c *gin.Context) context.Context {
 	return c.MustGet(ContextKey).(context.Context)
 }
