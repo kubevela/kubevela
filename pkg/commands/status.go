@@ -1,5 +1,3 @@
-//nolint:golint
-// TODO add lint back
 package commands
 
 import (
@@ -58,14 +56,9 @@ var (
 // CompStatus represents the status of a component during "vela init"
 type CompStatus int
 
+// Enums of CompStatus
 const (
-	// nolint
-	compStatusInitializing CompStatus = iota
-	// nolint
-	compStatusInitFail
-	// nolint
-	compStatusInitialized
-	compStatusDeploying
+	compStatusDeploying CompStatus = iota
 	compStatusDeployFail
 	compStatusDeployed
 	compStatusHealthChecking
@@ -73,6 +66,7 @@ const (
 	compStatusUnknown
 )
 
+// Error msg used in `status` command
 const (
 	ErrNotLoadAppConfig  = "cannot load the application"
 	ErrFmtNotInitialized = "service: %s not ready"
@@ -87,23 +81,18 @@ var (
 )
 
 var (
-	emojiSucceed = emoji.Sprint(":check_mark_button:")
-	emojiFail    = emoji.Sprint(":cross_mark:")
-	// nolint
-	emojiTimeout   = emoji.Sprint(":heavy_exclamation_mark:")
+	emojiSucceed   = emoji.Sprint(":check_mark_button:")
+	emojiFail      = emoji.Sprint(":cross_mark:")
 	emojiLightBulb = emoji.Sprint(":light_bulb:")
-	// nolint
-	emojiWait = emoji.Sprint(":hourglass:")
 )
 
 const (
-	trackingInterval time.Duration = 1 * time.Second
-	// nolint
-	initTimeout           time.Duration = 30 * time.Second
+	trackingInterval      time.Duration = 1 * time.Second
 	deployTimeout         time.Duration = 10 * time.Second
 	healthCheckBufferTime time.Duration = 120 * time.Second
 )
 
+// NewAppStatusCommand creates `status` command for showing status
 func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
@@ -294,7 +283,6 @@ TrackDeployLoop:
 		if err != nil {
 			return compStatusUnknown, err
 		}
-		// nolint:exhaustive
 		switch deployStatus {
 		case compStatusDeploying:
 			continue
@@ -305,6 +293,8 @@ TrackDeployLoop:
 			ioStreams.Info(red.Sprintf("\n%sApplication Failed to Deploy!", emojiFail))
 			ioStreams.Info(red.Sprintf("Reason: %s", failMsg))
 			return compStatusDeployFail, nil
+		default:
+			continue
 		}
 	}
 	return compStatusDeployed, nil
@@ -446,15 +436,10 @@ func applySpinnerNewSuffix(s *spinner.Spinner, suffix string) {
 
 func getHealthStatusColor(s HealthStatus) *color.Color {
 	var c *color.Color
-	// nolint:exhaustive
 	switch s {
 	case HealthStatusHealthy:
 		c = green
-	case HealthStatusUnhealthy:
-		c = red
-	case HealthStatusUnknown:
-		c = yellow
-	case HealthStatusNotDiagnosed:
+	case HealthStatusUnknown, HealthStatusNotDiagnosed:
 		c = yellow
 	default:
 		c = red

@@ -1,5 +1,3 @@
-//nolint:golint
-// TODO add lint back
 package commands
 
 import (
@@ -17,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// NewEnvCommand creates `env` command and its nested children
 func NewEnvCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "env",
@@ -32,6 +31,7 @@ func NewEnvCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
+// NewEnvListCommand creates `env list` command for listing all environments
 func NewEnvListCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "ls",
@@ -51,6 +51,7 @@ func NewEnvListCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
+// NewEnvInitCommand creates `env init` command for initializing environments
 func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var envArgs types.EnvMeta
 	var syncCluster bool
@@ -85,6 +86,7 @@ func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 	return cmd
 }
 
+// NewEnvDeleteCommand creates `env delete` command for deleting environments
 func NewEnvDeleteCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
@@ -104,6 +106,7 @@ func NewEnvDeleteCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
+// NewEnvSetCommand creates `env set` command for setting current environment
 func NewEnvSetCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "set",
@@ -123,6 +126,7 @@ func NewEnvSetCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
+// ListEnvs shows info of all environments
 func ListEnvs(args []string, ioStreams cmdutil.IOStreams) error {
 	table := uitable.New()
 	table.MaxColWidth = 60
@@ -142,6 +146,7 @@ func ListEnvs(args []string, ioStreams cmdutil.IOStreams) error {
 	return nil
 }
 
+// DeleteEnv deletes an environment
 func DeleteEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) error {
 	if len(args) < 1 {
 		return fmt.Errorf("you must specify environment name for 'vela env delete' command")
@@ -156,6 +161,7 @@ func DeleteEnv(ctx context.Context, args []string, ioStreams cmdutil.IOStreams) 
 	return nil
 }
 
+// CreateOrUpdateEnv creates or updates an environment
 func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvMeta, args []string, ioStreams cmdutil.IOStreams) error {
 	if len(args) < 1 {
 		return fmt.Errorf("you must specify environment name for 'vela env init' command")
@@ -170,6 +176,7 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvM
 	return nil
 }
 
+// SetEnv sets current environment
 func SetEnv(args []string, ioStreams cmdutil.IOStreams) error {
 	if len(args) < 1 {
 		return fmt.Errorf("you must specify environment name for vela env command")
@@ -183,6 +190,8 @@ func SetEnv(args []string, ioStreams cmdutil.IOStreams) error {
 	return nil
 }
 
+// GetEnv gets environment by name or current environment
+// if no env exists, then init default environment
 func GetEnv(cmd *cobra.Command) (*types.EnvMeta, error) {
 	var envName string
 	var err error

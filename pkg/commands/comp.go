@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// constants used in `svc` command
 const (
 	Staging      = "staging"
 	App          = "app"
@@ -30,6 +31,7 @@ func newRunOptions(ioStreams util.IOStreams) *runOptions {
 	return &runOptions{IOStreams: ioStreams}
 }
 
+// AddCompCommands creates `svc` command and its nested children command
 func AddCompCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 	compCommands := &cobra.Command{
 		Use:                   "svc",
@@ -45,6 +47,7 @@ func AddCompCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 	return compCommands
 }
 
+// NewCompDeployCommands creates `deploy` command
 func NewCompDeployCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 	runCmd := &cobra.Command{
 		Use:                   "deploy [args]",
@@ -89,6 +92,7 @@ func NewCompDeployCommands(c types.Args, ioStreams util.IOStreams) *cobra.Comman
 	return runCmd
 }
 
+// GetWorkloadNameFromArgs gets workload from the args
 func GetWorkloadNameFromArgs(args []string) (string, error) {
 	argsLength := len(args)
 	if argsLength < 1 {

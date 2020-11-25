@@ -1,5 +1,3 @@
-//nolint:golint
-// TODO add lint back
 package commands
 
 import (
@@ -13,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// NewWorkloadsCommand creates `workloads` command
 func NewWorkloadsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var syncCluster bool
 	ctx := context.Background()

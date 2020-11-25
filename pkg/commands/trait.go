@@ -1,5 +1,3 @@
-//nolint:golint
-// TODO add lint back
 package commands
 
 import (
@@ -31,6 +29,7 @@ type commandOptions struct {
 	cmdutil.IOStreams
 }
 
+// AddTraitCommands loads Trait command from installed capabilities
 func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.IOStreams) error {
 	templates, err := plugins.LoadInstalledCapabilityWithType(types.TypeTrait)
 	if err != nil {
@@ -86,6 +85,7 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 	return nil
 }
 
+// Prepare prepares data for constructing OAM entities
 func (o *commandOptions) Prepare(cmd *cobra.Command, args []string) error {
 	if len(args) < 1 {
 		return errors.New("please specify the name of the app")
@@ -119,6 +119,7 @@ func (o *commandOptions) Prepare(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// AddOrUpdateTrait adds or updates trait
 func (o *commandOptions) AddOrUpdateTrait(cmd *cobra.Command, args []string) error {
 	var err error
 	if err = o.Prepare(cmd, args); err != nil {
@@ -132,6 +133,7 @@ func (o *commandOptions) AddOrUpdateTrait(cmd *cobra.Command, args []string) err
 	return nil
 }
 
+// DetachTrait removes a trait already attached to a service
 func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string) error {
 	var err error
 	if err = o.Prepare(cmd, args); err != nil {
@@ -147,6 +149,7 @@ func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string) error {
 	return o.app.Save(o.Env.Name)
 }
 
+// Run executes create/update/detach trait
 func (o *commandOptions) Run(ctx context.Context, cmd *cobra.Command, io cmdutil.IOStreams) error {
 	if o.Detach {
 		o.Infof("Detaching %s from app %s\n", o.traitType, o.workloadName)

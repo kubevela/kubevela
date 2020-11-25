@@ -28,6 +28,12 @@ linters-settings:
     # see https://github.com/kisielk/errcheck#the-deprecated-method for details
     ignore: fmt:.*,io/ioutil:^Read.*
 
+  exhaustive:
+    # indicates that switch statements are to be considered exhaustive if a
+    # 'default' case is present, even if all enum members aren't listed in the
+    # switch
+    default-signifies-exhaustive: true
+
   govet:
     # report about shadowed variables
     check-shadowing: false
