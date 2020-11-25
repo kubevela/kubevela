@@ -20,10 +20,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/applicationdeployment"
-	autoscalers "github.com/oam-dev/kubevela/pkg/controller/v1alpha1/autoscaler"
-	"github.com/oam-dev/kubevela/pkg/controller/v1alpha1/metrics"
-	"github.com/oam-dev/kubevela/pkg/controller/v1alpha1/podspecworkload"
-	"github.com/oam-dev/kubevela/pkg/controller/v1alpha1/routes"
+	autoscalers "github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/autoscaler"
+	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/metrics"
+	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/podspecworkload"
+	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/routes"
 )
 
 // Setup workload controllers.

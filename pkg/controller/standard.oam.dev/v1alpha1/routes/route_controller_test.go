@@ -7,7 +7,7 @@ import (
 
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
 
-	"github.com/oam-dev/kubevela/apis/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"

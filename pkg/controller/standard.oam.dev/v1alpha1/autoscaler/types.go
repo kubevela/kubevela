@@ -2,7 +2,7 @@
 package autoscalers
 
 import (
-	"github.com/oam-dev/kubevela/apis/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
 const (

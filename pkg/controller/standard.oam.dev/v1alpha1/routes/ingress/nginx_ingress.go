@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	standardv1alpha1 "github.com/oam-dev/kubevela/apis/v1alpha1"
+	standardv1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"

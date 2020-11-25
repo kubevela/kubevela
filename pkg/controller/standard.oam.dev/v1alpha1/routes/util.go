@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"github.com/oam-dev/kubevela/apis/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"

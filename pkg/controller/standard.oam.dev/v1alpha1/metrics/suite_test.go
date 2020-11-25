@@ -38,7 +38,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	standardv1alpha1 "github.com/oam-dev/kubevela/apis/v1alpha1"
+	standardv1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -70,7 +70,7 @@ var _ = BeforeSuite(func(done Done) {
 	useExistCluster := false
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
+			filepath.Join("../../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
 		},
 		UseExistingCluster: &useExistCluster,
 	}

@@ -36,7 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	velacoreoamdev "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	velacore "github.com/oam-dev/kubevela/apis/v1alpha1"
+	velacore "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	velacontroller "github.com/oam-dev/kubevela/pkg/controller"
 	"github.com/oam-dev/kubevela/pkg/controller/dependency"
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook"
