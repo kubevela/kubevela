@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/apis/types"
 
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
 	ctrl "sigs.k8s.io/controller-runtime"

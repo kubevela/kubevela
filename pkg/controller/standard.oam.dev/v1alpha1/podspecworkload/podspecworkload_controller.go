@@ -35,7 +35,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/api/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/v1alpha1"
 )
 
 // Reconcile error strings.

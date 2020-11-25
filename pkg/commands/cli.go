@@ -13,7 +13,7 @@ import (
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/cmd/vela/fake"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/utils/system"

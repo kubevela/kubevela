@@ -29,7 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/oam-dev/kubevela/api/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/v1alpha1"
 )
 
 // ValidatingHandler handles MetricsTrait

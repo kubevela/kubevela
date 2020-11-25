@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/pflag"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	util2 "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"

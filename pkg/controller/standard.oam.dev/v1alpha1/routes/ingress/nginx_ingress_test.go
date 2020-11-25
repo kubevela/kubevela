@@ -12,10 +12,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 
-	standardv1alpha1 "github.com/oam-dev/kubevela/api/v1alpha1"
+	standardv1alpha1 "github.com/oam-dev/kubevela/apis/v1alpha1"
 )
 
-func TestContourConstruct(t *testing.T) {
+func TestConstruct(t *testing.T) {
 	tests := map[string]struct {
 		routeTrait *standardv1alpha1.Route
 		exp        []*v1beta1.Ingress
@@ -57,7 +57,7 @@ func TestContourConstruct(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "trait-test-myrule1",
 						Annotations: map[string]string{
-							"kubernetes.io/ingress.class": "contour",
+							"kubernetes.io/ingress.class": "nginx",
 							"cert-manager.io/issuer":      "test-issuer",
 						},
 						OwnerReferences: []metav1.OwnerReference{
@@ -99,8 +99,8 @@ func TestContourConstruct(t *testing.T) {
 		},
 	}
 	for message, ti := range tests {
-		contour := &Contour{}
-		got := contour.Construct(ti.routeTrait)
+		nginx := &Nginx{}
+		got := nginx.Construct(ti.routeTrait)
 		assert.Equal(t, len(ti.exp), len(got))
 		for idx := range ti.exp {
 			assert.Equal(t, ti.exp[idx], got[idx], message+" index "+strconv.Itoa(idx))

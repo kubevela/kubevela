@@ -5,4 +5,4 @@
 
 //go:generate go run ../hack/crd/update.go ../charts/vela-core/crds/
 
-package api
+package apis

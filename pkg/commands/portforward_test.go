@@ -13,7 +13,7 @@ import (
 	"k8s.io/kubectl/pkg/cmd/portforward"
 	cmdtesting "k8s.io/kubectl/pkg/cmd/testing"
 
-	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 

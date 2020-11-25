@@ -13,8 +13,8 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	"github.com/oam-dev/kubevela/api/types"
-	"github.com/oam-dev/kubevela/api/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/apis/v1alpha1"
 )
 
 var (

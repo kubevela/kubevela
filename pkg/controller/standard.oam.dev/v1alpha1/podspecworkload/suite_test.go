@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package autoscalers
+package podspecworkload
 
 import (
 	"path/filepath"
@@ -30,7 +30,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	standardv1alpha1 "github.com/oam-dev/kubevela/api/v1alpha1"
+	v1alpha1 "github.com/oam-dev/kubevela/apis/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -54,7 +54,9 @@ var _ = BeforeSuite(func(done Done) {
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{filepath.Join("..", "config", "crd", "bases")},
+		CRDDirectoryPaths: []string{
+			filepath.Join("../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
+			filepath.Join("..", "config", "crd", "bases")},
 	}
 
 	var err error
@@ -62,7 +64,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
 
-	err = standardv1alpha1.AddToScheme(scheme.Scheme)
+	err = v1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	// +kubebuilder:scaffold:scheme

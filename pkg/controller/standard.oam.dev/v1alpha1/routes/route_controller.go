@@ -25,8 +25,8 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 
-	"github.com/oam-dev/kubevela/api/v1alpha1"
-	standardv1alpha1 "github.com/oam-dev/kubevela/api/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/v1alpha1"
+	standardv1alpha1 "github.com/oam-dev/kubevela/apis/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/v1alpha1/routes/ingress"
 

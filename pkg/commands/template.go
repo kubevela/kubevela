@@ -5,7 +5,7 @@ package commands
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
 )

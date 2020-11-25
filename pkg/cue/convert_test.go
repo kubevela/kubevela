@@ -6,7 +6,7 @@ import (
 	"cuelang.org/go/cue"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/apis/types"
 
 	"github.com/stretchr/testify/assert"
 )

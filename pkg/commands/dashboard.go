@@ -17,7 +17,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/server"
 	"github.com/oam-dev/kubevela/pkg/server/util"
