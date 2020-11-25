@@ -1,5 +1,3 @@
-//nolint:golint
-// TODO add lint back
 package commands
 
 import (
@@ -10,6 +8,7 @@ import (
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
 )
 
+// NewTemplateCommand creates `template` command and its nested children command
 func NewTemplateCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "template",
@@ -25,6 +24,7 @@ func NewTemplateCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command
 	return cmd
 }
 
+// NewTemplateContextCommand creates `context` command
 func NewTemplateContextCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "context",

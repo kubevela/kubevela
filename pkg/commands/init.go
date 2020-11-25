@@ -34,7 +34,7 @@ type appInitOptions struct {
 	renderOnly   bool
 }
 
-// NewInitCommand init application
+// NewInitCommand creates `init` command
 func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	o := &appInitOptions{IOStreams: ioStreams}
 	cmd := &cobra.Command{
@@ -110,6 +110,7 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
+// Naming asks user to input app name
 func (o *appInitOptions) Naming() error {
 	prompt := &survey.Input{
 		Message: "What would you like to name your application (required): ",
@@ -121,6 +122,7 @@ func (o *appInitOptions) Naming() error {
 	return nil
 }
 
+// CheckEnv checks environment, e.g., domain and email.
 func (o *appInitOptions) CheckEnv() error {
 	if o.Env.Namespace == "" {
 		o.Env.Namespace = "default"
@@ -150,6 +152,7 @@ func (o *appInitOptions) CheckEnv() error {
 	return nil
 }
 
+// Workload asks user to choose workload type from installed workloads
 func (o *appInitOptions) Workload() error {
 	workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
 	if err != nil {
@@ -292,6 +295,7 @@ func GetCapabilityByName(name string, workloads []types.Capability) (types.Capab
 	return types.Capability{}, fmt.Errorf("%s not found", name)
 }
 
+// Traits attaches specific trait to service
 func (o *appInitOptions) Traits() error {
 	traits, err := plugins.LoadInstalledCapabilityWithType(types.TypeTrait)
 	if err != nil {

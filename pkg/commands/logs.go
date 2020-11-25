@@ -1,5 +1,3 @@
-//nolint:golint
-// TODO add lint back
 package commands
 
 import (
@@ -23,6 +21,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+// NewLogsCommand creates `logs` command to tail logs of application
 func NewLogsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	largs := &Args{C: c}
 	cmd := &cobra.Command{}
@@ -57,6 +56,7 @@ func NewLogsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
+// Args creates arguments for `logs` command
 type Args struct {
 	Output string
 	Env    *types.EnvMeta
@@ -75,7 +75,7 @@ func (l *Args) Run(ctx context.Context, ioStreams cmdutil.IOStreams) error {
 	if err != nil {
 		return err
 	}
-	//TODO(wonderflow): we could get labels from service to narrow the pods scope selected
+	// TODO(wonderflow): we could get labels from service to narrow the pods scope selected
 	labelSelector := labels.Everything()
 	pod, err := regexp.Compile(compName + "-.*")
 	if err != nil {
@@ -137,7 +137,7 @@ func (l *Args) Run(ctx context.Context, ioStreams cmdutil.IOStreams) error {
 			if tails[id] != nil {
 				continue
 			}
-			//48h
+			// 48h
 			dur, _ := time.ParseDuration("48h")
 			tail := stern.NewTail(p.Namespace, p.Pod, p.Container, template, &stern.TailOptions{
 				Timestamps:   true,
@@ -145,7 +145,7 @@ func (l *Args) Run(ctx context.Context, ioStreams cmdutil.IOStreams) error {
 				Exclude:      nil,
 				Include:      nil,
 				Namespace:    false,
-				TailLines:    nil, //default for all logs
+				TailLines:    nil, // default for all logs
 			})
 			tails[id] = tail
 

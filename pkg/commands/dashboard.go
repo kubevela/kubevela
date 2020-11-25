@@ -1,5 +1,3 @@
-//nolint:golint
-// TODO add lint back
 package commands
 
 import (
@@ -33,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
+// NewDashboardCommand creates `dashboard` command and its nested children commands
 func NewDashboardCommand(c types.Args, ioStreams cmdutil.IOStreams, frontendSource string) *cobra.Command {
 	var o Options
 	o.frontendSource = frontendSource
@@ -70,6 +69,7 @@ func NewDashboardCommand(c types.Args, ioStreams cmdutil.IOStreams, frontendSour
 	return cmd
 }
 
+// Options creates options for `dashboard` command
 type Options struct {
 	logFilePath    string
 	logRetainDate  int
@@ -80,6 +80,7 @@ type Options struct {
 	frontendSource string
 }
 
+// GetStaticPath gets the path of front-end directory
 func (o *Options) GetStaticPath() error {
 	if o.frontendSource == "" {
 		return nil
@@ -87,23 +88,23 @@ func (o *Options) GetStaticPath() error {
 	var err error
 	o.staticPath, err = system.GetDefaultFrontendDir()
 	if err != nil {
-		return fmt.Errorf("get fontend dir err %v", err)
+		return fmt.Errorf("get fontend dir err %w", err)
 	}
 	_ = os.RemoveAll(o.staticPath)
 	//nolint:gosec
 	err = os.MkdirAll(o.staticPath, 0755)
 	if err != nil {
-		return fmt.Errorf("create fontend dir err %v", err)
+		return fmt.Errorf("create fontend dir err %w", err)
 	}
 	data, err := base64.StdEncoding.DecodeString(o.frontendSource)
 	if err != nil {
-		return fmt.Errorf("decode frontendSource err %v", err)
+		return fmt.Errorf("decode frontendSource err %w", err)
 	}
 	tgzpath := filepath.Join(o.staticPath, "frontend.tgz")
 	//nolint:gosec
 	err = ioutil.WriteFile(tgzpath, data, 0644)
 	if err != nil {
-		return fmt.Errorf("write frontend.tgz to static path err %v", err)
+		return fmt.Errorf("write frontend.tgz to static path err %w", err)
 	}
 	//nolint:errcheck
 	defer os.Remove(tgzpath)
@@ -111,11 +112,11 @@ func (o *Options) GetStaticPath() error {
 	//nolint:errcheck
 	defer tgz.Close()
 	if err = tgz.Unarchive(tgzpath, o.staticPath); err != nil {
-		return fmt.Errorf("write static files to fontend dir err %v", err)
+		return fmt.Errorf("write static files to fontend dir err %w", err)
 	}
 	files, err := ioutil.ReadDir(o.staticPath)
 	if err != nil {
-		return fmt.Errorf("read static file %s err %v", o.staticPath, err)
+		return fmt.Errorf("read static file %s err %w", o.staticPath, err)
 	}
 	var name string
 	for _, fi := range files {
@@ -131,6 +132,7 @@ func (o *Options) GetStaticPath() error {
 	return nil
 }
 
+// SetupAPIServer starts a RESTfulAPI server
 func SetupAPIServer(c types.Args, cmd *cobra.Command, o Options) error {
 	// setup logging
 	var w io.Writer
@@ -159,7 +161,7 @@ func SetupAPIServer(c types.Args, cmd *cobra.Command, o Options) error {
 		o.port = ":" + o.port
 	}
 
-	//Setup RESTful server
+	// Setup RESTful server
 	server, err := server.New(c, o.port, o.staticPath)
 	if err != nil {
 		return err
@@ -190,8 +192,8 @@ func SetupAPIServer(c types.Args, cmd *cobra.Command, o Options) error {
 	return server.Shutdown(ctx)
 }
 
-// nolint:gosec
 // OpenBrowser will open browser by url in different OS system
+// nolint:gosec
 func OpenBrowser(url string) error {
 	var err error
 	switch runtime.GOOS {
@@ -207,6 +209,7 @@ func OpenBrowser(url string) error {
 	return err
 }
 
+// CheckVelaRuntimeInstalledAndReady checks whether vela-core runtime is installed and ready
 func CheckVelaRuntimeInstalledAndReady(ioStreams cmdutil.IOStreams, c client.Client) (bool, error) {
 	if !helm.IsHelmReleaseRunning(types.DefaultKubeVelaReleaseName, types.DefaultKubeVelaChartName, types.DefaultKubeVelaNS, ioStreams) {
 		ioStreams.Info(fmt.Sprintf("\n%s %s", emojiFail, "KubeVela runtime is not installed yet."))

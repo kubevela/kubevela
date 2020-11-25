@@ -1,5 +1,3 @@
-//nolint:golint
-// TODO add lint back
 package commands
 
 import (
@@ -30,6 +28,7 @@ const (
 	defaultTTY            = true
 )
 
+// VelaExecOptions creates options for `exec` command
 type VelaExecOptions struct {
 	Cmd   *cobra.Command
 	Args  []string
@@ -46,6 +45,7 @@ type VelaExecOptions struct {
 	ClientSet     kubernetes.Interface
 }
 
+// NewExecCommand creates `exec` command
 func NewExecCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra.Command {
 	o := &VelaExecOptions{
 		kcExecOptions: &cmdexec.ExecOptions{
@@ -98,6 +98,7 @@ func NewExecCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra.Comman
 	return cmd
 }
 
+// Init prepares the arguments accepted by the Exec command
 func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []string) error {
 	o.Context = ctx
 	o.Cmd = c
@@ -128,6 +129,7 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 	return nil
 }
 
+// Complete loads data from the command environment
 func (o *VelaExecOptions) Complete() error {
 	compName, err := util.AskToChooseOneService(o.App.GetComponents())
 	if err != nil {
@@ -151,7 +153,7 @@ func (o *VelaExecOptions) Complete() error {
 func (o *VelaExecOptions) getPodName(compName string) (string, error) {
 	podList, err := o.ClientSet.CoreV1().Pods(o.Env.Namespace).List(o.Context, v1.ListOptions{
 		LabelSelector: labels.Set(map[string]string{
-			//TODO(roywang) except core workloads, not any workloads will pass these label to pod
+			// TODO(roywang) except core workloads, not any workloads will pass these label to pod
 			// find a rigorous way to get pod by compname
 			oam.LabelAppComponent: compName,
 		}).String(),
@@ -172,6 +174,7 @@ func (o *VelaExecOptions) getPodName(compName string) (string, error) {
 	return podList.Items[0].Name, nil
 }
 
+// Run executes a validated remote execution against a pod
 func (o *VelaExecOptions) Run() error {
 	return o.kcExecOptions.Run()
 }

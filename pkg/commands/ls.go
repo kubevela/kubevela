@@ -1,5 +1,3 @@
-//nolint:golint
-// TODO add lint back
 package commands
 
 import (
@@ -20,6 +18,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 )
 
+// NewListCommand creates `ls` command and its nested children command
 func NewListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
@@ -130,6 +129,7 @@ func mergeStagingComponents(deployed []apis.ComponentMeta, env *types.EnvMeta, i
 	return all
 }
 
+// GetCompMeta gets meta of a component
 func GetCompMeta(deployed []apis.ComponentMeta, appName, compName string) (apis.ComponentMeta, bool) {
 	for _, v := range deployed {
 		if v.Name == compName && v.App == appName {

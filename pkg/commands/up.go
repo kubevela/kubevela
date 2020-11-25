@@ -1,5 +1,3 @@
-//nolint:golint
-// TODO add lint back
 package commands
 
 import (
@@ -34,6 +32,7 @@ var (
 	appFilePath string
 )
 
+// NewUpCommand will create command for applying an AppFile
 func NewUpCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "up",
@@ -71,6 +70,7 @@ func NewUpCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
+// AppfileOptions is some configuration that modify options for an Appfile
 type AppfileOptions struct {
 	Kubecli client.Client
 	IO      cmdutil.IOStreams
@@ -87,6 +87,7 @@ func saveRemoteAppfile(url string) (string, error) {
 	return dest, ioutil.WriteFile(dest, body, 0644)
 }
 
+// Run starts an application according to Appfile
 func (o *AppfileOptions) Run(filePath string) error {
 	var app *appfile.AppFile
 	var err error
@@ -174,7 +175,7 @@ func (o *AppfileOptions) saveToAppDir(f *appfile.AppFile) error {
 	return app.Save(o.Env.Name)
 }
 
-// Apply deploy config resources for the app.
+// ApplyAppConfig applys config resources for the app.
 // It differs by create and update:
 // - for create, it displays app status along with information of url, metrics, ssh, logging.
 // - for update, it rolls out a canary deployment and prints its information. User can verify the canary deployment.
@@ -215,6 +216,7 @@ func (o *AppfileOptions) apply(ac *v1alpha2.ApplicationConfiguration, comps []*v
 	return application.CreateOrUpdateAppConfig(context.TODO(), o.Kubecli, ac)
 }
 
+// Info shows the status of each service in the Appfile
 func (o *AppfileOptions) Info(appName string, comps []*v1alpha2.Component) string {
 	var appUpMessage = "✅ App has been deployed 🚀🚀🚀\n" +
 		fmt.Sprintf("    Port forward: vela port-forward %s\n", appName) +

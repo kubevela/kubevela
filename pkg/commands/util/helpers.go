@@ -31,7 +31,7 @@ func AskToChooseOneService(svcNames []string) (string, error) {
 	var svcName string
 	err := survey.AskOne(prompt, &svcName)
 	if err != nil {
-		return "", fmt.Errorf("choosing service err %v", err)
+		return "", fmt.Errorf("choosing service err %w", err)
 	}
 	return svcName, nil
 }
