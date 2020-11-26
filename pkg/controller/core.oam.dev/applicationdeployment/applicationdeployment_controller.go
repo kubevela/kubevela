@@ -41,7 +41,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 	log.Info("Get the applicationdeployment", "apiVersion", appdeploy.APIVersion, "kind", appdeploy.Kind)
 
-	//TODO add reconcile logic here
+	// TODO add reconcile logic here
 
 	return ctrl.Result{}, nil
 }

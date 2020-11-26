@@ -45,7 +45,7 @@ func (r *AutoscalerReconciler) scaleByKEDA(scaler v1alpha1.Autoscaler, namespace
 				Name:     t.Name,
 				Metadata: t.Condition,
 
-				//TODO(wonderflow): add auth in the future
+				// TODO(wonderflow): add auth in the future
 				AuthenticationRef: nil,
 			})
 		}

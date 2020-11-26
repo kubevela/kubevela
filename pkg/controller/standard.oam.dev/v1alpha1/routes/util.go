@@ -51,11 +51,11 @@ func FillRouteTraitWithService(service *corev1.Service, routeTrait *v1alpha1.Rou
 	for idx, rule := range routeTrait.Spec.Rules {
 		// If backendService.port not specified, will always use the service found and it's first port as backendService.
 		for _, servicePort := range service.Spec.Ports {
-			//We use targetPort rather than port to match with the rule, because if serviceName not specified,
-			//Users will only know containerPort(which is targetPort)
+			// We use targetPort rather than port to match with the rule, because if serviceName not specified,
+			// Users will only know containerPort(which is targetPort)
 			if MatchService(servicePort.TargetPort, rule) {
 				ref := &v1alpha1.BackendServiceRef{
-					//Use port of service rather than targetPort, it will be used in ingress pointing to the service
+					// Use port of service rather than targetPort, it will be used in ingress pointing to the service
 					Port:        intstr.FromInt(int(servicePort.Port)),
 					ServiceName: service.Name,
 				}
