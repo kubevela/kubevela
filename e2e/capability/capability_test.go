@@ -3,7 +3,7 @@ package e2e
 import (
 	"fmt"
 
-	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/e2e"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 

@@ -25,10 +25,9 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 
-	"github.com/oam-dev/kubevela/api/v1alpha1"
-	standardv1alpha1 "github.com/oam-dev/kubevela/api/v1alpha1"
+	standardv1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
-	"github.com/oam-dev/kubevela/pkg/controller/v1alpha1/routes/ingress"
+	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/routes/ingress"
 
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
@@ -153,7 +152,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 // discoveryAndFillBackend will automatically discovery backend for route
 func (r *Reconciler) discoveryAndFillBackend(ctx context.Context, mLog logr.Logger, eventObj runtime.Object, workload *unstructured.Unstructured,
-	routeTrait *v1alpha1.Route) (*runtimev1alpha1.TypedReference, error) {
+	routeTrait *standardv1alpha1.Route) (*runtimev1alpha1.TypedReference, error) {
 
 	// Fetch the child childResources list from the corresponding workload
 	childResources, err := oamutil.FetchWorkloadChildResources(ctx, mLog, r, r.dm, workload)
@@ -187,7 +186,7 @@ func (r *Reconciler) discoveryAndFillBackend(ctx context.Context, mLog logr.Logg
 
 // fillBackendByCreatedService will automatically create service by discovery podTemplate or podSpec.
 func (r *Reconciler) fillBackendByCreatedService(ctx context.Context, mLog logr.Logger, workload *unstructured.Unstructured,
-	routeTrait *v1alpha1.Route, childResources []*unstructured.Unstructured) (*runtimev1alpha1.TypedReference, error) {
+	routeTrait *standardv1alpha1.Route, childResources []*unstructured.Unstructured) (*runtimev1alpha1.TypedReference, error) {
 
 	oamService := &corev1.Service{
 		TypeMeta: metav1.TypeMeta{
@@ -281,7 +280,7 @@ func DiscoverPortsLabel(ctx context.Context, workload *unstructured.Unstructured
 
 // fetch the service that is associated with the workload
 func (r *Reconciler) fillBackendByCheckChildResource(mLog logr.Logger,
-	routeTrait *v1alpha1.Route, childResources []*unstructured.Unstructured) {
+	routeTrait *standardv1alpha1.Route, childResources []*unstructured.Unstructured) {
 	if len(childResources) == 0 {
 		return
 	}

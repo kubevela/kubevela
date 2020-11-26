@@ -11,7 +11,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 
-	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/apis/types"
 
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 

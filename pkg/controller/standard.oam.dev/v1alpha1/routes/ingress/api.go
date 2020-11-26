@@ -7,7 +7,7 @@ import (
 	"k8s.io/api/networking/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	standardv1alpha1 "github.com/oam-dev/kubevela/api/v1alpha1"
+	standardv1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
 // TypeNginx is a type of route implementation using [Nginx-Ingress](https://github.com/kubernetes/ingress-nginx)

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	standardv1alpha1 "github.com/oam-dev/kubevela/api/v1alpha1"
+	standardv1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
@@ -20,15 +20,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// Contour is Contour ingress implementation
-type Contour struct {
+// Nginx is nginx ingress implementation
+type Nginx struct {
 	Client client.Client
 }
 
-var _ RouteIngress = &Contour{}
+var _ RouteIngress = &Nginx{}
 
 // CheckStatus will check status of the ingress
-func (n *Contour) CheckStatus(routeTrait *standardv1alpha1.Route) (string, []runtimev1alpha1.Condition) {
+func (n *Nginx) CheckStatus(routeTrait *standardv1alpha1.Route) (string, []runtimev1alpha1.Condition) {
 	ctx := context.Background()
 	// check issuer
 	if routeTrait.Spec.TLS != nil && routeTrait.Spec.TLS.Type != standardv1alpha1.ClusterIssuer {
@@ -46,7 +46,7 @@ func (n *Contour) CheckStatus(routeTrait *standardv1alpha1.Route) (string, []run
 				Status: v1.ConditionFalse, LastTransitionTime: metav1.Now(), Reason: runtimev1alpha1.ReasonUnavailable,
 				Message: message}}
 		}
-		// TODO(wonderflow): handle more than one condition case
+		//TODO(wonderflow): handle more than one condition case
 		condition := issuer.Status.Conditions[0]
 		if condition.Status != cmmeta.ConditionTrue {
 			return StatusSynced, []runtimev1alpha1.Condition{{Type: runtimev1alpha1.TypeSynced,
@@ -74,7 +74,7 @@ func (n *Contour) CheckStatus(routeTrait *standardv1alpha1.Route) (string, []run
 					Status: v1.ConditionFalse, LastTransitionTime: metav1.Now(), Reason: runtimev1alpha1.ReasonUnavailable,
 					Message: message}}
 			}
-			// TODO(wonderflow): handle more than one condition case
+			//TODO(wonderflow): handle more than one condition case
 			certcondition := cert.Status.Conditions[0]
 			if certcondition.Status != cmmeta.ConditionTrue || certcondition.Type != certmanager.CertificateConditionReady {
 				return StatusSynced, []runtimev1alpha1.Condition{{Type: runtimev1alpha1.TypeSynced,
@@ -102,7 +102,7 @@ func (n *Contour) CheckStatus(routeTrait *standardv1alpha1.Route) (string, []run
 }
 
 // Construct will construct ingress from route
-func (*Contour) Construct(routeTrait *standardv1alpha1.Route) []*v1beta1.Ingress {
+func (*Nginx) Construct(routeTrait *standardv1alpha1.Route) []*v1beta1.Ingress {
 
 	// Don't create ingress if no host set, this is used for local K8s cluster demo and the route trait will create K8s service only.
 	if routeTrait.Spec.Host == "" || strings.Contains(routeTrait.Spec.Host, "localhost") || strings.Contains(routeTrait.Spec.Host, "127.0.0.1") {
@@ -121,7 +121,7 @@ func (*Contour) Construct(routeTrait *standardv1alpha1.Route) []*v1beta1.Ingress
 
 		var annotations = make(map[string]string)
 
-		annotations["kubernetes.io/ingress.class"] = TypeContour
+		annotations["kubernetes.io/ingress.class"] = TypeNginx
 
 		// SSL
 		if routeTrait.Spec.TLS != nil {
@@ -131,15 +131,28 @@ func (*Contour) Construct(routeTrait *standardv1alpha1.Route) []*v1beta1.Ingress
 			}
 			annotations[issuerAnn] = routeTrait.Spec.TLS.IssuerName
 		}
-		// todo Rewrite
+		// Rewrite
+		if rule.RewriteTarget != "" {
+			annotations["nginx.ingress.kubernetes.io/rewrite-target"] = rule.RewriteTarget
+		}
 
-		// todo Custom headers
+		// Custom headers
+		var headerSnippet string
+		for k, v := range rule.CustomHeaders {
+			headerSnippet += fmt.Sprintf("more_set_headers \"%s: %s\";\n", k, v)
+		}
+		if headerSnippet != "" {
+			annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = headerSnippet
+		}
 
-		// todo Send timeout
+		//Send timeout
+		if backend.SendTimeout != 0 {
+			annotations["nginx.ingress.kubernetes.io/proxy-send-timeout"] = strconv.Itoa(backend.SendTimeout)
+		}
 
-		// Read timeout
+		//Read timeout
 		if backend.ReadTimeout != 0 {
-			annotations["projectcontour.io/response-timeout"] = strconv.Itoa(backend.ReadTimeout)
+			annotations["nginx.ingress.kubernetes.io/proxy‑read‑timeout"] = strconv.Itoa(backend.ReadTimeout)
 		}
 
 		ingress := &v1beta1.Ingress{

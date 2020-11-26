@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/selection"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 var _ = Describe("DefinitionFiles", func() {

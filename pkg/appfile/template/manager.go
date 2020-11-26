@@ -1,7 +1,7 @@
 package template
 
 import (
-	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 )
 

@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/oam-dev/kubevela/api/types"
+	"github.com/oam-dev/kubevela/apis/types"
 
 	"github.com/stretchr/testify/assert"
 )
