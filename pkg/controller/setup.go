@@ -19,7 +19,7 @@ package controller
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/applicationdeployment"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationdeployment"
 	autoscalers "github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/autoscaler"
 	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/metrics"
 	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/podspecworkload"

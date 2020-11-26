@@ -9,8 +9,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/plugins"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -25,7 +25,7 @@ const (
 	Service      = "svc"
 )
 
-type runOptions oam.RunOptions
+type runOptions serverlib.RunOptions
 
 func newRunOptions(ioStreams util.IOStreams) *runOptions {
 	return &runOptions{IOStreams: ioStreams}
@@ -154,7 +154,7 @@ func (o *runOptions) Complete(cmd *cobra.Command, args []string) error {
 	if err = flags.Parse(args); err != nil {
 		return err
 	}
-	app, err := oam.BaseComplete(envName, workloadName, appName, flags, workloadType)
+	app, err := serverlib.BaseComplete(envName, workloadName, appName, flags, workloadType)
 	if err != nil {
 		return err
 	}
@@ -168,7 +168,7 @@ func (o *runOptions) Run(cmd *cobra.Command, io cmdutil.IOStreams) error {
 	if err != nil {
 		return err
 	}
-	msg, err := oam.BaseRun(staging, o.App, o.KubeClient, o.Env, io)
+	msg, err := serverlib.BaseRun(staging, o.App, o.KubeClient, o.Env, io)
 	if err != nil {
 		return err
 	}

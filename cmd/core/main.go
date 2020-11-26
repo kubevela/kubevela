@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	core_oam_dev "github.com/oam-dev/kubevela/apis/core.oam.dev"
+
 	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	oamcore "github.com/crossplane/oam-kubernetes-runtime/apis/core"
@@ -35,7 +37,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	velacoreoamdev "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	velacore "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	velacontroller "github.com/oam-dev/kubevela/pkg/controller"
 	"github.com/oam-dev/kubevela/pkg/controller/dependency"
@@ -59,7 +60,7 @@ func init() {
 	_ = oamcore.AddToScheme(scheme)
 	_ = monitoring.AddToScheme(scheme)
 	_ = velacore.AddToScheme(scheme)
-	_ = velacoreoamdev.AddToScheme(scheme)
+	_ = core_oam_dev.AddToScheme(scheme)
 	_ = injectorv1alpha1.AddToScheme(scheme)
 	_ = certmanager.AddToScheme(scheme)
 	_ = kedav1alpha1.AddToScheme(scheme)

@@ -110,8 +110,6 @@ kind-load:
 
 # Image URL to use all building/pushing image targets
 IMG ?= vela-core:latest
-# Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
-CRD_OPTIONS ?= "crd:crdVersions=v1"
 
 # Run tests
 core-test: generate fmt vet manifests
@@ -141,8 +139,7 @@ core-uninstall: manifests
 	kubectl delete -f charts/vela-core/crds/
 
 # Generate manifests e.g. CRD, RBAC etc.
-manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=charts/vela-core/crds
+manifests:
 	go generate $(foreach t,pkg apis,./$(t)/...)
 	./hack/vela-templates/gen_definitions.sh
 

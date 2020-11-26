@@ -1,8 +1,8 @@
 package server
 
 import (
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/server/util"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 
 	"github.com/gin-gonic/gin"
@@ -23,7 +23,7 @@ func (s *APIServer) GetApp(c *gin.Context) {
 	namespace := envMeta.Namespace
 	appName := c.Param("appName")
 	ctx := util.GetContext(c)
-	applicationMeta, err := oam.RetrieveApplicationStatusByName(ctx, s.KubeClient, appName, namespace)
+	applicationMeta, err := serverlib.RetrieveApplicationStatusByName(ctx, s.KubeClient, appName, namespace)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
@@ -42,7 +42,7 @@ func (s *APIServer) ListApps(c *gin.Context) {
 	namespace := envMeta.Namespace
 
 	ctx := util.GetContext(c)
-	applicationMetaList, err := oam.ListApplications(ctx, s.KubeClient, oam.Option{Namespace: namespace})
+	applicationMetaList, err := serverlib.ListApplications(ctx, s.KubeClient, serverlib.Option{Namespace: namespace})
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
@@ -60,7 +60,7 @@ func (s *APIServer) DeleteApps(c *gin.Context) {
 	}
 	appName := c.Param("appName")
 
-	o := oam.DeleteOptions{
+	o := serverlib.DeleteOptions{
 		Client:  s.KubeClient,
 		Env:     envMeta,
 		AppName: appName,

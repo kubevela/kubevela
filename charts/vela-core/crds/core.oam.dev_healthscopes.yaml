@@ -26,18 +26,13 @@ spec:
     name: v1alpha2
     schema:
       openAPIV3Schema:
-        description: A HealthScope determines an aggregate health status based of
-          the health of components.
+        description: A HealthScope determines an aggregate health status based of the health of components.
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
           metadata:
             type: object
@@ -45,22 +40,17 @@ spec:
             description: A HealthScopeSpec defines the desired state of a HealthScope.
             properties:
               probe-interval:
-                description: ProbeInterval is the amount of time in seconds between
-                  probing tries.
+                description: ProbeInterval is the amount of time in seconds between probing tries.
                 format: int32
                 type: integer
               probe-timeout:
-                description: ProbeTimeout is the amount of time in seconds to wait
-                  when receiving a response before marked failure.
+                description: ProbeTimeout is the amount of time in seconds to wait when receiving a response before marked failure.
                 format: int32
                 type: integer
               workloadRefs:
-                description: WorkloadReferences to the workloads that are in this
-                  scope.
+                description: WorkloadReferences to the workloads that are in this scope.
                 items:
-                  description: A TypedReference refers to an object by Name, Kind,
-                    and APIVersion. It is commonly used to reference cluster-scoped
-                    objects or objects where the namespace is already known.
+                  description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
                   properties:
                     apiVersion:
                       description: APIVersion of the referenced object.
@@ -92,25 +82,20 @@ spec:
                   description: A Condition that may apply to a resource.
                   properties:
                     lastTransitionTime:
-                      description: LastTransitionTime is the last time this condition
-                        transitioned from one status to another.
+                      description: LastTransitionTime is the last time this condition transitioned from one status to another.
                       format: date-time
                       type: string
                     message:
-                      description: A Message containing details about this condition's
-                        last transition from one status to another, if any.
+                      description: A Message containing details about this condition's last transition from one status to another, if any.
                       type: string
                     reason:
-                      description: A Reason for this condition's last transition from
-                        one status to another.
+                      description: A Reason for this condition's last transition from one status to another.
                       type: string
                     status:
-                      description: Status of this condition; is it currently True,
-                        False, or Unknown?
+                      description: Status of this condition; is it currently True, False, or Unknown?
                       type: string
                     type:
-                      description: Type of this condition. At most one of each condition
-                        type may apply to a resource at any point in time.
+                      description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
                       type: string
                   required:
                   - lastTransitionTime
@@ -120,15 +105,12 @@ spec:
                   type: object
                 type: array
               healthConditions:
-                description: WorkloadHealthConditions represents health condition
-                  of workloads in the scope
+                description: WorkloadHealthConditions represents health condition of workloads in the scope
                 items:
-                  description: WorkloadHealthCondition represents informative health
-                    condition.
+                  description: WorkloadHealthCondition represents informative health condition.
                   properties:
                     componentName:
-                      description: ComponentName represents the component name if
-                        target is a workload
+                      description: ComponentName represents the component name if target is a workload
                       type: string
                     diagnosis:
                       type: string
@@ -136,9 +118,7 @@ spec:
                       description: HealthStatus represents health status strings.
                       type: string
                     targetWorkload:
-                      description: A TypedReference refers to an object by Name, Kind,
-                        and APIVersion. It is commonly used to reference cluster-scoped
-                        objects or objects where the namespace is already known.
+                      description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
                       properties:
                         apiVersion:
                           description: APIVersion of the referenced object.
@@ -158,16 +138,14 @@ spec:
                       - name
                       type: object
                     workloadStatus:
-                      description: WorkloadStatus represents status of workloads whose
-                        HealthStatus is UNKNOWN.
+                      description: WorkloadStatus represents status of workloads whose HealthStatus is UNKNOWN.
                       type: string
                   required:
                   - healthStatus
                   type: object
                 type: array
               scopeHealthCondition:
-                description: ScopeHealthCondition represents health condition summary
-                  of the scope
+                description: ScopeHealthCondition represents health condition summary of the scope
                 properties:
                   healthStatus:
                     description: HealthStatus represents health status strings.

@@ -8,10 +8,10 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/server/util"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 	env2 "github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
@@ -28,7 +28,7 @@ func (s *APIServer) CreateWorkload(c *gin.Context) {
 	}
 	evnName := body.EnvName
 
-	appObj, err := oam.BaseComplete(evnName, body.WorkloadName, body.AppName, fs, body.WorkloadType)
+	appObj, err := serverlib.BaseComplete(evnName, body.WorkloadName, body.AppName, fs, body.WorkloadType)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
@@ -39,7 +39,7 @@ func (s *APIServer) CreateWorkload(c *gin.Context) {
 		return
 	}
 	io := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	msg, err := oam.BaseRun(body.Staging, appObj, s.KubeClient, env, io)
+	msg, err := serverlib.BaseRun(body.Staging, appObj, s.KubeClient, env, io)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return

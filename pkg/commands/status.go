@@ -23,7 +23,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	oam2 "github.com/oam-dev/kubevela/pkg/oam"
+	oam2 "github.com/oam-dev/kubevela/pkg/serverlib"
 )
 
 // HealthStatus represents health status strings.

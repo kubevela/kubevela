@@ -9,7 +9,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 )
 
 // NewTraitsCommand creates `traits` command
@@ -45,7 +45,7 @@ func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 func printTraitList(workloadName *string, ioStreams cmdutil.IOStreams) error {
 	table := uitable.New()
 	table.Wrap = true
-	traitDefinitionList, err := oam.ListTraitDefinitions(workloadName)
+	traitDefinitionList, err := serverlib.ListTraitDefinitions(workloadName)
 	if err != nil {
 		return err
 	}

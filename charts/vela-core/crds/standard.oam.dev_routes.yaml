@@ -4,7 +4,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.2.5
+    controller-gen.kubebuilder.io/version: v0.2.4
   creationTimestamp: null
   name: routes.standard.oam.dev
 spec:
@@ -24,14 +24,10 @@ spec:
         description: Route is the Schema for the routes API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
           metadata:
             type: object
@@ -42,8 +38,7 @@ spec:
                 description: Host is the host of the route
                 type: string
               provider:
-                description: Provider indicate which ingress controller implementation
-                  the route trait will use, by default it's nginx-ingress
+                description: Provider indicate which ingress controller implementation the route trait will use, by default it's nginx-ingress
                 type: string
               rules:
                 description: Rules contain multiple rules of route
@@ -51,46 +46,38 @@ spec:
                   description: Rule defines to route rule
                   properties:
                     backend:
-                      description: Backend indicate how to connect backend service
-                        If it's nil, will auto discovery
+                      description: Backend indicate how to connect backend service If it's nil, will auto discovery
                       properties:
                         backendService:
-                          description: BackendService specifies the backend K8s service
-                            and port, it's optional
+                          description: BackendService specifies the backend K8s service and port, it's optional
                           properties:
                             port:
                               anyOf:
                               - type: integer
                               - type: string
-                              description: Port allow you direct specify backend service
-                                port.
+                              description: Port allow you direct specify backend service port.
                               x-kubernetes-int-or-string: true
                             serviceName:
-                              description: ServiceName allow you direct specify K8s
-                                service for backend service.
+                              description: ServiceName allow you direct specify K8s service for backend service.
                               type: string
                           required:
                           - port
                           - serviceName
                           type: object
                         readTimeout:
-                          description: ReadTimeout used for setting read timeout duration
-                            for backend service, the unit is second.
+                          description: ReadTimeout used for setting read timeout duration for backend service, the unit is second.
                           type: integer
                         sendTimeout:
-                          description: SendTimeout used for setting send timeout duration
-                            for backend service, the unit is second.
+                          description: SendTimeout used for setting send timeout duration for backend service, the unit is second.
                           type: integer
                       type: object
                     customHeaders:
                       additionalProperties:
                         type: string
-                      description: CustomHeaders pass a custom list of headers to
-                        the backend service.
+                      description: CustomHeaders pass a custom list of headers to the backend service.
                       type: object
                     defaultBackend:
-                      description: DefaultBackend will become the ingress default
-                        backend if the backend is not available
+                      description: DefaultBackend will become the ingress default backend if the backend is not available
                       properties:
                         apiVersion:
                           description: APIVersion of the referenced object.
@@ -110,34 +97,28 @@ spec:
                       - name
                       type: object
                     name:
-                      description: Name will become the suffix of underlying ingress
-                        created by this rule, if not, will use index as suffix.
+                      description: Name will become the suffix of underlying ingress created by this rule, if not, will use index as suffix.
                       type: string
                     path:
                       description: Path is location Path, default for "/"
                       type: string
                     rewriteTarget:
-                      description: RewriteTarget will rewrite request from Path to
-                        RewriteTarget path.
+                      description: RewriteTarget will rewrite request from Path to RewriteTarget path.
                       type: string
                   type: object
                 type: array
               tls:
-                description: TLS indicate route trait will create SSL secret using
-                  cert-manager with specified issuer If this is nil, route trait will
-                  use a selfsigned issuer
+                description: TLS indicate route trait will create SSL secret using cert-manager with specified issuer If this is nil, route trait will use a selfsigned issuer
                 properties:
                   issuerName:
                     type: string
                   type:
                     default: Issuer
-                    description: Type indicate the issuer is ClusterIssuer or Issuer(namespace
-                      issuer), by default, it's Issuer
+                    description: Type indicate the issuer is ClusterIssuer or Issuer(namespace issuer), by default, it's Issuer
                     type: string
                 type: object
               workloadRef:
-                description: WorkloadReference to the workload whose metrics needs
-                  to be exposed
+                description: WorkloadReference to the workload whose metrics needs to be exposed
                 properties:
                   apiVersion:
                     description: APIVersion of the referenced object.
@@ -168,25 +149,20 @@ spec:
                   description: A Condition that may apply to a resource.
                   properties:
                     lastTransitionTime:
-                      description: LastTransitionTime is the last time this condition
-                        transitioned from one status to another.
+                      description: LastTransitionTime is the last time this condition transitioned from one status to another.
                       format: date-time
                       type: string
                     message:
-                      description: A Message containing details about this condition's
-                        last transition from one status to another, if any.
+                      description: A Message containing details about this condition's last transition from one status to another, if any.
                       type: string
                     reason:
-                      description: A Reason for this condition's last transition from
-                        one status to another.
+                      description: A Reason for this condition's last transition from one status to another.
                       type: string
                     status:
-                      description: Status of this condition; is it currently True,
-                        False, or Unknown?
+                      description: Status of this condition; is it currently True, False, or Unknown?
                       type: string
                     type:
-                      description: Type of this condition. At most one of each condition
-                        type may apply to a resource at any point in time.
+                      description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
                       type: string
                   required:
                   - lastTransitionTime
@@ -197,9 +173,7 @@ spec:
                 type: array
               ingresses:
                 items:
-                  description: A TypedReference refers to an object by Name, Kind,
-                    and APIVersion. It is commonly used to reference cluster-scoped
-                    objects or objects where the namespace is already known.
+                  description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
                   properties:
                     apiVersion:
                       description: APIVersion of the referenced object.
@@ -220,9 +194,7 @@ spec:
                   type: object
                 type: array
               service:
-                description: A TypedReference refers to an object by Name, Kind, and
-                  APIVersion. It is commonly used to reference cluster-scoped objects
-                  or objects where the namespace is already known.
+                description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
                 properties:
                   apiVersion:
                     description: APIVersion of the referenced object.
