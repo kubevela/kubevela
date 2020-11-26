@@ -67,8 +67,26 @@ $ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/ma
 
 ## 2. Get KubeVela
 
-1. Download the latest `vela` binary from the [releases page](https://github.com/oam-dev/kubevela/releases).
-2. Unpack the `vela` binary and add it to `$PATH` to get started.
+Here are two ways to get KubeVela Cli:
+
+### Download and install by script
+
+**macOS/Linux**
+
+```
+curl -fsSl https://kubevela.io/install.sh | bash
+```
+
+**Windows**
+
+```
+powershell -Command "iwr -useb https://kubevela.io/install.ps1 | iex"
+```
+
+### Download directly from releases
+
+- Download the latest `vela` binary from the [releases page](https://github.com/oam-dev/kubevela/releases).
+- Unpack the `vela` binary and add it to `$PATH` to get started.
 
 ```bash
 $ sudo mv ./vela /usr/local/bin/vela
