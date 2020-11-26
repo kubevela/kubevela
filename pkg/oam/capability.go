@@ -146,7 +146,7 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 			return err
 		}
 	case types.TypeScope:
-		//TODO(wonderflow): support install scope here
+		// TODO(wonderflow): support install scope here
 	}
 
 	success := plugins.SinkTemp2Local([]types.Capability{tp}, defDir)

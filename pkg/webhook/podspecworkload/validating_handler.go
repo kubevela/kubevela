@@ -55,7 +55,6 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	//nolint:exhaustive
 	switch req.AdmissionRequest.Operation {
 	case admissionv1beta1.Create:
 		if allErrs := ValidateCreate(obj); len(allErrs) > 0 {

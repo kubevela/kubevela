@@ -1,4 +1,3 @@
-//nolint:golint
 package server
 
 import (
@@ -12,6 +11,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
+// GetComponent gets a comoponent from cluster
 func (s *APIServer) GetComponent(c *gin.Context) {
 	envName := c.Param("envName")
 	envMeta, err := env.GetEnvByName(envName)
@@ -31,6 +31,7 @@ func (s *APIServer) GetComponent(c *gin.Context) {
 	util.AssembleResponse(c, componentMeta, nil)
 }
 
+// DeleteComponent deletes a component from cluster
 func (s *APIServer) DeleteComponent(c *gin.Context) {
 	envName := c.Param("envName")
 	envMeta, err := env.GetEnvByName(envName)

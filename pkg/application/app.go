@@ -65,7 +65,7 @@ func LoadFromFile(fileName string) (*Application, error) {
 func Load(envName, appName string) (*Application, error) {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
-		return nil, fmt.Errorf("get app dir from env %s err %v", envName, err)
+		return nil, fmt.Errorf("get app dir from env %s err %w", envName, err)
 	}
 	return LoadFromFile(filepath.Join(appDir, appName+".yaml"))
 }
@@ -74,7 +74,7 @@ func Load(envName, appName string) (*Application, error) {
 func Delete(envName, appName string) error {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
-		return fmt.Errorf("get app dir from env %s err %v", envName, err)
+		return fmt.Errorf("get app dir from env %s err %w", envName, err)
 	}
 	return os.Remove(filepath.Join(appDir, appName+".yaml"))
 }
@@ -83,11 +83,11 @@ func Delete(envName, appName string) error {
 func List(envName string) ([]*Application, error) {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
-		return nil, fmt.Errorf("get app dir from env %s err %v", envName, err)
+		return nil, fmt.Errorf("get app dir from env %s err %w", envName, err)
 	}
 	files, err := ioutil.ReadDir(appDir)
 	if err != nil {
-		return nil, fmt.Errorf("list apps from %s err %v", appDir, err)
+		return nil, fmt.Errorf("list apps from %s err %w", appDir, err)
 	}
 	var apps []*Application
 	for _, f := range files {
@@ -99,7 +99,7 @@ func List(envName string) ([]*Application, error) {
 		}
 		app, err := LoadFromFile(filepath.Join(appDir, f.Name()))
 		if err != nil {
-			return nil, fmt.Errorf("load application err %v", err)
+			return nil, fmt.Errorf("load application err %w", err)
 		}
 		apps = append(apps, app)
 	}
@@ -126,7 +126,7 @@ func MatchAppByComp(envName, compName string) (*Application, error) {
 func (app *Application) Save(envName string) error {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
-		return fmt.Errorf("get app dir from env %s err %v", envName, err)
+		return fmt.Errorf("get app dir from env %s err %w", envName, err)
 	}
 	if app.CreateTime.IsZero() {
 		app.CreateTime = time.Now()

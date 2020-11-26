@@ -49,7 +49,7 @@ func Install(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, version,
 		}
 		if !exist {
 			if err = cmdutil.NewNamespace(kubeClient, namespace); err != nil {
-				return fmt.Errorf("create namespace (%s) failed for chart %s: %s", namespace, chartName, err)
+				return fmt.Errorf("create namespace (%s) failed for chart %s: %w", namespace, chartName, err)
 			}
 		}
 	}

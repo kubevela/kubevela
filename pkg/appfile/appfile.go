@@ -17,8 +17,8 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
+// error msg used in Appfile
 var (
-	//nolint
 	ErrImageNotDefined = errors.New("image not defined")
 )
 

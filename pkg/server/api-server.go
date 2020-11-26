@@ -7,6 +7,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 
+	"github.com/pkg/errors"
+
 	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,7 +50,8 @@ func New(c types.Args, port, staticPath string) (*APIServer, error) {
 func (s *APIServer) Launch(errChan chan<- error) {
 	go func() {
 		err := s.server.ListenAndServe()
-		if err != nil && err != http.ErrServerClosed {
+		if err != nil && errors.Is(err, http.ErrServerClosed) {
+
 			errChan <- err
 		}
 	}()

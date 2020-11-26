@@ -1,4 +1,3 @@
-//nolint:golint
 package util
 
 import (
@@ -10,10 +9,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 )
 
+// DefaultDashboardPort refers to the default port number of dashboard
 var DefaultDashboardPort = ":38081"
 
+// DefaultAPIServerPort refers to the default port number of APIServer
 const DefaultAPIServerPort = ":8081"
 
+// AssembleResponse assembles response data to return
 func AssembleResponse(c *gin.Context, data interface{}, err error) {
 	var code = http.StatusOK
 	if err != nil {
@@ -31,6 +33,7 @@ func AssembleResponse(c *gin.Context, data interface{}, err error) {
 	})
 }
 
+// URL returns the URL of Dashboard based on default port
 func URL(url string) string {
 	return fmt.Sprintf("http://127.0.0.1%s/api%s", DefaultDashboardPort, url)
 }

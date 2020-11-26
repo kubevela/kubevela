@@ -1,4 +1,3 @@
-//nolint:golint
 package server
 
 import (
@@ -11,7 +10,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
-// environment related handlers
+// CreateEnv creates an environment
 func (s *APIServer) CreateEnv(c *gin.Context) {
 	var environment apis.Environment
 	if err := c.ShouldBindJSON(&environment); err != nil {
@@ -36,6 +35,7 @@ func (s *APIServer) CreateEnv(c *gin.Context) {
 	util.AssembleResponse(c, message, err)
 }
 
+// UpdateEnv updates an environment
 func (s *APIServer) UpdateEnv(c *gin.Context) {
 	envName := c.Param("envName")
 	ctrl.Log.Info("Put a update environment request", "envName", envName)
@@ -49,6 +49,7 @@ func (s *APIServer) UpdateEnv(c *gin.Context) {
 	util.AssembleResponse(c, message, err)
 }
 
+// GetEnv gets an environment
 func (s *APIServer) GetEnv(c *gin.Context) {
 	envName := c.Param("envName")
 	ctrl.Log.Info("Get a get environment request", "envName", envName)
@@ -65,10 +66,12 @@ func (s *APIServer) GetEnv(c *gin.Context) {
 	util.AssembleResponse(c, environmentList, err)
 }
 
+// ListEnv lists all environments
 func (s *APIServer) ListEnv(c *gin.Context) {
 	s.GetEnv(c)
 }
 
+// DeleteEnv deltes an environment
 func (s *APIServer) DeleteEnv(c *gin.Context) {
 	envName := c.Param("envName")
 	ctrl.Log.Info("Delete a delete environment request", "envName", envName)
@@ -76,6 +79,7 @@ func (s *APIServer) DeleteEnv(c *gin.Context) {
 	util.AssembleResponse(c, msg, err)
 }
 
+// SetEnv sets an environment
 func (s *APIServer) SetEnv(c *gin.Context) {
 	envName := c.Param("envName")
 	ctrl.Log.Info("Patch a set environment request", "envName", envName)

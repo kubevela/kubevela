@@ -1,6 +1,7 @@
 package appfile
 
 import (
+	"errors"
 	"io"
 	"os/exec"
 	"strings"
@@ -31,7 +32,7 @@ func asyncLog(reader io.Reader, stream cmdutil.IOStreams) {
 	buf := make([]byte, 1024)
 	for {
 		num, err := reader.Read(buf)
-		if err != nil && err != io.EOF {
+		if err != nil && errors.Is(err, io.EOF) {
 			return
 		}
 		if num > 0 {
@@ -41,7 +42,7 @@ func asyncLog(reader io.Reader, stream cmdutil.IOStreams) {
 			stream.Infof("%s%s\n", cache, line)
 			cache = s[len(s)-1]
 		}
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 	}

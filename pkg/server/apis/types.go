@@ -66,10 +66,10 @@ type ComponentMeta struct {
 	Name     string               `json:"name"`
 	Status   string               `json:"status,omitempty"`
 	Workload runtime.RawExtension `json:"workload,omitempty"`
-	//WorkloadName for `vela comp ls`
+	// WorkloadName for `vela comp ls`
 	WorkloadName string                        `json:"workloadName,omitempty"`
 	Traits       []corev1alpha2.ComponentTrait `json:"traits,omitempty"`
-	//TraitNames for `vela comp ls`
+	// TraitNames for `vela comp ls`
 	TraitNames  []string                              `json:"traitsNames,omitempty"`
 	App         string                                `json:"app"`
 	CreatedTime string                                `json:"createdTime,omitempty"`

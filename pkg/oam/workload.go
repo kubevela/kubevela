@@ -109,11 +109,11 @@ func BaseComplete(envName string, workloadName string, appName string, flagSet *
 					return nil, fmt.Errorf("should not get string from type(%s) for parameter \"%s\"", v.Type.String(), name)
 				}
 				if err != nil {
-					return nil, fmt.Errorf("get flag(s) \"%s\" err %v", v.Name, err)
+					return nil, fmt.Errorf("get flag(s) \"%s\" err %w", v.Name, err)
 				}
 				continue
 			}
-			return nil, fmt.Errorf("get flag(s) \"%s\" err %v", v.Name, err)
+			return nil, fmt.Errorf("get flag(s) \"%s\" err %w", v.Name, err)
 		}
 	}
 	if err = app.SetWorkload(workloadName, tp, workloadData); err != nil {
@@ -128,7 +128,7 @@ func BaseRun(staging bool, app *application.Application, kubeClient client.Clien
 		return "Staging saved", nil
 	}
 	if err := app.BuildRun(context.Background(), kubeClient, env, io); err != nil {
-		err = fmt.Errorf("create app err: %s", err)
+		err = fmt.Errorf("create app err: %w", err)
 		return "", err
 	}
 	return fmt.Sprintf("App %s deployed", app.Name), nil

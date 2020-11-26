@@ -94,7 +94,7 @@ func Parse(addr string) (string, *GithubContent, error) {
 			Owner: l[0],
 			Repo:  l[1],
 			Path:  strings.Join(l[2:], "/"),
-			Ref:   "", //use default branch
+			Ref:   "", // use default branch
 		}, nil
 	case "api.github.com":
 		if len(l) != 5 {
@@ -108,7 +108,7 @@ func Parse(addr string) (string, *GithubContent, error) {
 			Ref:   url.Query().Get("ref"),
 		}, nil
 	default:
-		//TODO(wonderflow): support raw url and oss format in the future
+		// TODO(wonderflow): support raw url and oss format in the future
 	}
 	return TypeUnknown, nil, nil
 }
@@ -127,7 +127,7 @@ type RemoteCapability struct {
 type RemoteCapabilities []RemoteCapability
 
 // LoadRepos will load all cap center repos
-//TODO(wonderflow): we can make default(built-in) repo configurable, then we should make default inside the answer
+// TODO(wonderflow): we can make default(built-in) repo configurable, then we should make default inside the answer
 func LoadRepos() ([]CapCenterConfig, error) {
 	config, err := system.GetRepoConfig()
 	if err != nil {
@@ -184,7 +184,7 @@ func ParseAndSyncCapability(data []byte, syncDir string) (types.Capability, erro
 		}
 		return HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Annotations, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads)
 	case "ScopeDefinition":
-		//TODO(wonderflow): support scope definition here.
+		// TODO(wonderflow): support scope definition here.
 	}
 	return types.Capability{}, fmt.Errorf("unknown definition Type %s", obj.GetKind())
 }
@@ -212,7 +212,7 @@ func NewGithubCenter(ctx context.Context, token, centerName string, r *GithubCon
 }
 
 // SyncCapabilityFromCenter will sync capability from github cap center
-//TODO(wonderflow): currently we only sync by create, we also need to delete which not exist remotely.
+// TODO(wonderflow): currently we only sync by create, we also need to delete which not exist remotely.
 func (g *GithubCenter) SyncCapabilityFromCenter() error {
 	_, dirs, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, g.cfg.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
 	if err != nil {
@@ -238,7 +238,7 @@ func (g *GithubCenter) SyncCapabilityFromCenter() error {
 		if *fileContent.Encoding == "base64" {
 			data, err = base64.StdEncoding.DecodeString(*fileContent.Content)
 			if err != nil {
-				return fmt.Errorf("decode github content %s err %v", *fileContent.Path, err)
+				return fmt.Errorf("decode github content %s err %w", *fileContent.Path, err)
 			}
 		}
 		tmp, err := ParseAndSyncCapability(data, filepath.Join(dir, ".tmp"))
