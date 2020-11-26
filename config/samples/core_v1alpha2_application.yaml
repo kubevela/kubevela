@@ -1,0 +1,7 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: Application
+metadata:
+  name: application-sample
+spec:
+  # Add fields here
+  foo: bar
