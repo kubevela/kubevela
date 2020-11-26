@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
-	vela "github.com/oam-dev/kubevela/apis/core/v1alpha2"
+	vela "github.com/oam-dev/kubevela/api/core.oam.dev/v1alpha2"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
