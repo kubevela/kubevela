@@ -33,7 +33,7 @@ spec:
     kind: Deployment
     spec:
       ...
-      template
+      template:
         spec:
           containers:
             - image: sample/app:1.0
