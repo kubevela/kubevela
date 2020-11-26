@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 func TestCheckPodSpecWorkloadHealth(t *testing.T) {

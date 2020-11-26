@@ -13,6 +13,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+// Package v1alpha2
+
 package v1alpha2
 
 import (
@@ -21,7 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // An OperatingSystem required by a containerised workload.

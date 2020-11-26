@@ -12,14 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	core_oam_dev "github.com/oam-dev/kubevela/apis/core.oam.dev"
-
 	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	oamcore "github.com/crossplane/oam-kubernetes-runtime/apis/core"
-	oamcontroller "github.com/crossplane/oam-kubernetes-runtime/pkg/controller"
-	oamv1alpha2 "github.com/crossplane/oam-kubernetes-runtime/pkg/controller/v1alpha2"
-	oamwebhook "github.com/crossplane/oam-kubernetes-runtime/pkg/webhook/v1alpha2"
 	"github.com/go-logr/logr"
 	injectorv1alpha1 "github.com/oam-dev/trait-injector/api/v1alpha1"
 	injectorcontroller "github.com/oam-dev/trait-injector/controllers"
@@ -37,10 +31,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	coreoamdev "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	velacore "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	velacontroller "github.com/oam-dev/kubevela/pkg/controller"
+	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/dependency"
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook"
+	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2"
 )
 
 const (
@@ -60,7 +59,7 @@ func init() {
 	_ = oamcore.AddToScheme(scheme)
 	_ = monitoring.AddToScheme(scheme)
 	_ = velacore.AddToScheme(scheme)
-	_ = core_oam_dev.AddToScheme(scheme)
+	_ = coreoamdev.AddToScheme(scheme)
 	_ = injectorv1alpha1.AddToScheme(scheme)
 	_ = certmanager.AddToScheme(scheme)
 	_ = kedav1alpha1.AddToScheme(scheme)

@@ -5,13 +5,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/types"
-
 	"github.com/pkg/errors"
-
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
 // APIServer run a restful API server for dashboard

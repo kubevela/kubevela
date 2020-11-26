@@ -30,7 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 )
 
 // ValidatingHandler handles Component

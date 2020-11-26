@@ -17,8 +17,9 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {

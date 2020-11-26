@@ -22,7 +22,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 )
 
 // A ControllerHooks provide customized reconcile logic for an ApplicationConfiguration

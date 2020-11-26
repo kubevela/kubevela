@@ -21,10 +21,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 
 	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
-	oamCore "github.com/crossplane/oam-kubernetes-runtime/apis/core"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -37,6 +36,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	oamCore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 
 	standardv1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	// +kubebuilder:scaffold:imports

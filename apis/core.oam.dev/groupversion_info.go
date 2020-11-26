@@ -14,9 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package v1alpha2 contains API Schema definitions for the core.oam.dev v1alpha2 API group
-// +kubebuilder:object:generate=true
-// +groupName=core.oam.dev
+// Package core_oam_dev contains API Schema definitions for the core.oam.dev v1alpha2 API group
 package core_oam_dev
 
 import (

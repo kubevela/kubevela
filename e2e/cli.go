@@ -15,9 +15,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	oamcore "github.com/crossplane/oam-kubernetes-runtime/apis/core"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+
+	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 )
 
 var rudrPath = GetCliBinary()

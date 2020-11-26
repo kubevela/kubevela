@@ -21,13 +21,12 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/controller"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/controller/v1alpha2/applicationconfiguration"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/controller/v1alpha2/core/scopes/healthscope"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/controller/v1alpha2/core/traits/manualscalertrait"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/controller/v1alpha2/core/workloads/containerizedworkload"
-
+	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationdeployment"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/scopes/healthscope"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/traits/manualscalertrait"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/workloads/containerizedworkload"
 )
 
 // Setup workload controllers.

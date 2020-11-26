@@ -3,19 +3,17 @@ package applicationdeployment
 import (
 	"context"
 
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/controller"
-
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/go-logr/logr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 )
 
 // Reconciler reconciles a PodSpecWorkload object

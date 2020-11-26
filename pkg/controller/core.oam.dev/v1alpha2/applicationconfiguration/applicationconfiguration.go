@@ -39,11 +39,13 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/controller"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+
+	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 )
 
 const (
@@ -81,7 +83,7 @@ const (
 )
 
 // Setup adds a controller that reconciles ApplicationConfigurations.
-func Setup(mgr ctrl.Manager, args controller.Args, l logging.Logger) error {
+func Setup(mgr ctrl.Manager, args core.Args, l logging.Logger) error {
 	dm, err := discoverymapper.New(mgr.GetConfig())
 	if err != nil {
 		return fmt.Errorf("create discovery dm fail %v", err)

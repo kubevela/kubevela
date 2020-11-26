@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/mock"
+	"github.com/oam-dev/kubevela/pkg/oam/mock"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -21,10 +21,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
-	. "github.com/crossplane/oam-kubernetes-runtime/pkg/webhook/v1alpha2/component"
+	. "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/component"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Component Admission controller Test", func() {

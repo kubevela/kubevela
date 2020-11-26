@@ -28,10 +28,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	controllerscheme "sigs.k8s.io/controller-runtime/pkg/scheme"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
+	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -56,7 +57,7 @@ var _ = BeforeSuite(func(done Done) {
 	By("Bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("../../../..", "charts/oam-kubernetes-runtime/crds"), // this has all the required CRDs,
+			filepath.Join("../../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
 		},
 	}
 	var err error

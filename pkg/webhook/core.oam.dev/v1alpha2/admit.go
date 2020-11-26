@@ -1,8 +1,8 @@
 package v1alpha2
 
 import (
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/webhook/v1alpha2/applicationconfiguration"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/webhook/v1alpha2/component"
+	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationconfiguration"
+	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/component"
 
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 )

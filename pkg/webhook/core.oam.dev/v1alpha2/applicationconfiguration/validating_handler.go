@@ -6,9 +6,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"

@@ -1,8 +1,9 @@
 package apis
 
 import (
-	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 
 	"github.com/oam-dev/kubevela/apis/types"
 )

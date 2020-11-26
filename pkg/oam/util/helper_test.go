@@ -24,10 +24,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/mock"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/mock"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 func TestLocateParentAppConfig(t *testing.T) {

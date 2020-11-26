@@ -18,9 +18,10 @@ package v1alpha1
 
 import (
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // PodSpecWorkloadSpec defines the desired state of PodSpecWorkload

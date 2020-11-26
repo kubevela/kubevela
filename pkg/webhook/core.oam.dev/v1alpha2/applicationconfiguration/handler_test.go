@@ -18,10 +18,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/mock"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/mock"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("ApplicationConfiguration Admission controller Test", func() {

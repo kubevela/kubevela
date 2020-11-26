@@ -5,14 +5,15 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"cuelang.org/go/cue"
 	cueJson "cuelang.org/go/pkg/encoding/json"
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
