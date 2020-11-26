@@ -121,6 +121,10 @@ core-test: generate fmt vet manifests
 manager: generate fmt vet lint manifests
 	go build -o bin/manager ./cmd/core/main.go
 
+# Build server binary
+server: generate fmt vet lint manifests
+	go build -o bin/vela-server ./cmd/server/main.go
+
 # Run against the configured Kubernetes cluster in ~/.kube/config
 core-run: generate fmt vet manifests
 	go run ./cmd/core/main.go
