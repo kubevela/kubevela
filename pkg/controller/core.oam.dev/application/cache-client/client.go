@@ -64,6 +64,7 @@ func (f *Factory) GetTraitDefition(ctx context.Context, ns, name string) (*core.
 // GetApplication Get Application
 func (f *Factory) GetApplication(ctx context.Context, key client.ObjectKey) (*v1alpha2.Application, error) {
 	app := new(v1alpha2.Application)
+
 	if err := f.Get(ctx, key, app); err != nil {
 		if err := f.client.Get(ctx, key, app); err != nil {
 			return nil, err

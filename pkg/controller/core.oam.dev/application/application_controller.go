@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	v1alpha22 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	v1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 
 	core "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/pkg/errors"
@@ -159,7 +159,7 @@ func (r *applicationReconciler) Reconcile(req ctrl.Request) (result ctrl.Result,
 // SetupWithManager install to manager
 func (r *applicationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha22.Application{}).
+		For(&v1alpha2.Application{}).
 		Owns(&core.ApplicationConfiguration{}).Owns(&core.Component{}).
 		Complete(r)
 }
