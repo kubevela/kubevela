@@ -2,17 +2,19 @@ package application
 
 import (
 	"context"
+	"time"
+
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	core "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/go-logr/logr"
-	v1alpha22 "github.com/oam-dev/kubevela/api/core.oam.dev/v1alpha2"
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"time"
+
+	v1alpha22 "github.com/oam-dev/kubevela/api/core.oam.dev/v1alpha2"
 )
 
 const (
@@ -42,6 +44,7 @@ func errorCondition(tpy string, err error) runtimev1alpha1.Condition {
 		Type:               runtimev1alpha1.ConditionType(tpy),
 		Status:             v1.ConditionFalse,
 		LastTransitionTime: metav1.NewTime(time.Now()),
+		Reason:             runtimev1alpha1.ReasonReconcileError,
 		Message:            err.Error(),
 	}
 }
@@ -50,12 +53,13 @@ func readyCondition(tpy string) runtimev1alpha1.Condition {
 	return runtimev1alpha1.Condition{
 		Type:               runtimev1alpha1.ConditionType(tpy),
 		Status:             v1.ConditionTrue,
+		Reason:             runtimev1alpha1.ReasonAvailable,
 		LastTransitionTime: metav1.NewTime(time.Now()),
 	}
 }
 
 type reter struct {
-	h   *ApplicationReconciler
+	h   *applicationReconciler
 	app *v1alpha22.Application
 	l   logr.Logger
 }
@@ -71,6 +75,7 @@ func (ret *reter) Err(err error) (ctrl.Result, error) {
 	return ctrl.Result{}, err
 }
 
+// Object interface
 type Object interface {
 	metav1.Object
 	runtime.Object

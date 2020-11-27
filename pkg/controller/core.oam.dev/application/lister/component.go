@@ -7,7 +7,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-
 // ComponentLister helps list Component.
 type ComponentLister interface {
 	// List lists all Components in the indexer.
@@ -69,7 +68,7 @@ func (s componentNamespaceLister) Get(name string) (*core.Component, error) {
 		return nil, err
 	}
 	if !exists {
-		return nil, errors.NewNotFound( core.SchemeGroupVersion.WithResource("Component").GroupResource(), name)
+		return nil, errors.NewNotFound(core.SchemeGroupVersion.WithResource("Component").GroupResource(), name)
 	}
 	return obj.(*core.Component), nil
 }

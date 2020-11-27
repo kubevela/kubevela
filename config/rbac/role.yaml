@@ -7,19 +7,9 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - get
-  - list
-  - patch
-  - update
-- apiGroups:
   - core.oam.dev
   resources:
-  - '*'
+  - applications
   verbs:
   - create
   - delete
@@ -31,45 +21,7 @@ rules:
 - apiGroups:
   - core.oam.dev
   resources:
-  - '*/status'
-  verbs:
-  - get
-- apiGroups:
-  - monitoring.coreos.com
-  resources:
-  - '*'
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - monitoring.coreos.com
-  resources:
-  - '*/status'
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - standard.oam.dev
-  resources:
-  - metricstraits
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - standard.oam.dev
-  resources:
-  - metricstraits/status
+  - applications/status
   verbs:
   - get
   - patch

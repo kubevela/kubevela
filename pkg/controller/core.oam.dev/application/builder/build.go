@@ -1,76 +1,80 @@
 package builder
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
 	cueparser "cuelang.org/go/cue/parser"
-	"encoding/json"
-	"fmt"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/application/parser"
 	"github.com/pkg/errors"
+
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/application/parser"
 )
 
 type builder struct {
 	app *parser.Appfile
 }
 
-const(
+const (
+	// OamApplicationLable is application's metadata label
 	OamApplicationLable = "application.oam.dev"
 )
 
-func Build(ns string,app *parser.Appfile)(*v1alpha2.ApplicationConfiguration, []*v1alpha2.Component, error){
-	b:=&builder{app}
+// Build template to applicationConfig & Component
+func Build(ns string, app *parser.Appfile) (*v1alpha2.ApplicationConfiguration, []*v1alpha2.Component, error) {
+	b := &builder{app}
 	return b.Complete(ns)
 }
 
+// Complete: builder complete rendering
 func (b *builder) Complete(ns string) (*v1alpha2.ApplicationConfiguration, []*v1alpha2.Component, error) {
-	appconfig:=&v1alpha2.ApplicationConfiguration{}
+	appconfig := &v1alpha2.ApplicationConfiguration{}
 	appconfig.SetGroupVersionKind(v1alpha2.ApplicationConfigurationGroupVersionKind)
-	appconfig.Name=b.app.Name()
-	appconfig.Namespace=ns
-	appconfig.Spec.Components=[]v1alpha2.ApplicationConfigurationComponent{}
+	appconfig.Name = b.app.Name()
+	appconfig.Namespace = ns
+	appconfig.Spec.Components = []v1alpha2.ApplicationConfigurationComponent{}
 
-	if appconfig.Labels==nil{
-		appconfig.Labels= map[string]string{}
+	if appconfig.Labels == nil {
+		appconfig.Labels = map[string]string{}
 	}
-	appconfig.Labels[OamApplicationLable]=b.app.Name()
+	appconfig.Labels[OamApplicationLable] = b.app.Name()
 
-	componets:= []*v1alpha2.Component{}
-	for _,wl:=range b.app.Services(){
+	componets := []*v1alpha2.Component{}
+	for _, wl := range b.app.Services() {
 
-		compCtx:=map[string]string{"name":wl.Name()}
+		compCtx := map[string]string{"name": wl.Name()}
 
-		component,err:=wl.Eval(newLoader(compCtx))
-		if err!=nil{
-			return nil,nil,err
+		component, err := wl.Eval(newLoader(compCtx))
+		if err != nil {
+			return nil, nil, err
 		}
 
-		component.Namespace=ns
-		if component.Labels==nil{
-			component.Labels= map[string]string{}
+		component.Namespace = ns
+		if component.Labels == nil {
+			component.Labels = map[string]string{}
 		}
-		component.Labels[OamApplicationLable]=b.app.Name()
+		component.Labels[OamApplicationLable] = b.app.Name()
 		component.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
-		componets=append(componets,component)
+		componets = append(componets, component)
 
-		comp:=v1alpha2.ApplicationConfigurationComponent{
+		comp := v1alpha2.ApplicationConfigurationComponent{
 			ComponentName: wl.Name(),
-			Traits: []v1alpha2.ComponentTrait{},
+			Traits:        []v1alpha2.ComponentTrait{},
 		}
-		for _,trait:=range wl.Traits(){
-			ctraits,err:=trait.Eval(newLoader(compCtx))
-			if err!=nil{
-				return nil,nil,err
+		for _, trait := range wl.Traits() {
+			ctraits, err := trait.Eval(newLoader(compCtx))
+			if err != nil {
+				return nil, nil, err
 			}
-			comp.Traits=append(comp.Traits,ctraits...)
+			comp.Traits = append(comp.Traits, ctraits...)
 		}
-		appconfig.Spec.Components=append(appconfig.Spec.Components,comp)
+		appconfig.Spec.Components = append(appconfig.Spec.Components, comp)
 	}
-	return appconfig,componets,nil
+	return appconfig, componets, nil
 }
-
 
 type loader struct {
 	files map[string]*ast.File
@@ -90,7 +94,8 @@ func newLoader(ctx interface{}) parser.Render {
 	return l
 }
 
-func (l *loader) WithTemplate(raw string)  parser.Render {
+// WithTemplate: loader add template
+func (l *loader) WithTemplate(raw string) parser.Render {
 	if l.err != nil {
 		return l
 	}
@@ -102,7 +107,8 @@ func (l *loader) WithTemplate(raw string)  parser.Render {
 	return l
 }
 
-func (l *loader) WithContext(ctx interface{})  parser.Render {
+// WithContext: loader add context
+func (l *loader) WithContext(ctx interface{}) parser.Render {
 	if l.err != nil {
 		return l
 	}
@@ -115,7 +121,8 @@ func (l *loader) WithContext(ctx interface{})  parser.Render {
 	return l
 }
 
-func (l *loader) WithParams(params interface{})  parser.Render {
+// WithParams: loader add params
+func (l *loader) WithParams(params interface{}) parser.Render {
 	if l.err != nil {
 		return l
 	}
@@ -128,6 +135,7 @@ func (l *loader) WithParams(params interface{})  parser.Render {
 	return l
 }
 
+// Complete: loader generate cue instance
 func (l *loader) Complete() (*cue.Instance, error) {
 	if l.err != nil {
 		return nil, l.err
@@ -139,17 +147,18 @@ func (l *loader) Complete() (*cue.Instance, error) {
 		}
 	}
 	insts := cue.Build([]*build.Instance{bi})
+
+	var ret *cue.Instance
 	for _, inst := range insts {
 		if err := inst.Value().Validate(cue.Concrete(true)); err != nil {
 			return nil, errors.WithMessagef(err, "loader cue-instance validate")
 		}
-		return inst, nil
+		ret = inst
 	}
-	return nil, nil
+	return ret, nil
 }
 
 func marshal(key string, v interface{}) string {
-
-	_body,_:=json.Marshal(v)
-	return fmt.Sprintf("%s: %s",key,string(_body))
+	_body, _ := json.Marshal(v)
+	return fmt.Sprintf("%s: %s", key, string(_body))
 }
