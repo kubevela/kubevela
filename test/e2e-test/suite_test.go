@@ -96,11 +96,11 @@ var _ = BeforeSuite(func(done Done) {
 
 	By("Applying CRD of WorkloadDefinition and TraitDefinition")
 	var workloadDefinitionCRD crdv1.CustomResourceDefinition
-	Expect(readYaml("../../charts/oam-kubernetes-runtime/crds/core.oam.dev_workloaddefinitions.yaml", &workloadDefinitionCRD)).Should(BeNil())
+	Expect(readYaml("../../charts/vela-core/crds/core.oam.dev_workloaddefinitions.yaml", &workloadDefinitionCRD)).Should(BeNil())
 	Expect(k8sClient.Create(context.Background(), &workloadDefinitionCRD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	var traitDefinitionCRD crdv1.CustomResourceDefinition
-	Expect(readYaml("../../charts/oam-kubernetes-runtime/crds/core.oam.dev_traitdefinitions.yaml", &traitDefinitionCRD)).Should(BeNil())
+	Expect(readYaml("../../charts/vela-core/crds/core.oam.dev_traitdefinitions.yaml", &traitDefinitionCRD)).Should(BeNil())
 	Expect(k8sClient.Create(context.Background(), &traitDefinitionCRD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	// Create manual scaler trait definition

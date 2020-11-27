@@ -167,9 +167,10 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 		By("Verify the appconfig's dependency is satisfied")
 		appconfig = &v1alpha2.ApplicationConfiguration{}
 		Eventually(func() []v1alpha2.UnstaifiedDependency {
+			reconcileRetry(reconciler, req)
 			k8sClient.Get(ctx, appconfigKey, appconfig)
 			return appconfig.Status.Dependency.Unsatisfied
-		}, time.Second, 300*time.Millisecond).Should(BeNil())
+		}, 5*time.Second, 300*time.Millisecond).Should(BeNil())
 	}
 
 	It("trait depends on another trait", func() {

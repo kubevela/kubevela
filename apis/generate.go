@@ -3,9 +3,6 @@
 // See the below link for details on what is happening here.
 // https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
 
-// NOTE(@negz): See the below link for details on what is happening here.
-// https://github.com/golang/go/wiki/Modules#how-can-i-track-tool-dependencies-for-a-module
-
 // NOTE(@wonderflow) We don't remove existing CRDs here, because the crd folders contain not only auto generated.
 
 // Generate deepcopy methodsets and CRD manifests
