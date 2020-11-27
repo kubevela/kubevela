@@ -7,7 +7,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-
 // ApplicationConfigurationLister helps list ApplicationConfiguration.
 type ApplicationConfigurationLister interface {
 	// List lists all Appconfigs in the indexer.
@@ -21,7 +20,7 @@ type appConfigLister struct {
 	indexer cache.Indexer
 }
 
-// NewAppconfigLister returns a new AppconfigLister.
+// NewApplicationConfigurationLister returns a new AppconfigLister.
 func NewApplicationConfigurationLister(indexer cache.Indexer) ApplicationConfigurationLister {
 	return &appConfigLister{indexer: indexer}
 }
@@ -39,7 +38,7 @@ func (s *appConfigLister) AppConfigs(namespace string) AppConfigNamespaceLister 
 	return appConfigNamespaceLister{indexer: s.indexer, namespace: namespace}
 }
 
-// AppconfigNamespaceLister helps list and get Appconfigs.
+// AppConfigNamespaceLister helps list and get Appconfigs.
 type AppConfigNamespaceLister interface {
 	// List lists all Appconfigs in the indexer for a given namespace.
 	List(selector labels.Selector) (ret []*core.ApplicationConfiguration, err error)
@@ -69,7 +68,7 @@ func (s appConfigNamespaceLister) Get(name string) (*core.ApplicationConfigurati
 		return nil, err
 	}
 	if !exists {
-		return nil, errors.NewNotFound( core.SchemeGroupVersion.WithResource("appConfig").GroupResource(), name)
+		return nil, errors.NewNotFound(core.SchemeGroupVersion.WithResource("appConfig").GroupResource(), name)
 	}
 	return obj.(*core.ApplicationConfiguration), nil
 }

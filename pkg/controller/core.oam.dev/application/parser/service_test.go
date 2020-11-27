@@ -1,10 +1,12 @@
 package parser
 
 import (
-	"github.com/ghodss/yaml"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/application/template"
 	"reflect"
 	"testing"
+
+	"github.com/ghodss/yaml"
+
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/application/template"
 )
 
 func TestParser(t *testing.T) {
@@ -113,8 +115,6 @@ services:
 	}
 
 }
-
-
 
 func equal(af, dest *Appfile) bool {
 	if af.name != dest.name || len(af.services) != len(dest.services) {

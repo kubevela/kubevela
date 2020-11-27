@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	fclient "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/application/cache-client"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	kyaml "sigs.k8s.io/yaml"
+
+	fclient "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/application/cache-client"
 )
 
 type manager struct {
@@ -16,6 +18,7 @@ type manager struct {
 	fclient.FastClient
 }
 
+// GetHanler  get template handler
 func GetHanler(ns string, cli fclient.FastClient) Handler {
 	m := &manager{
 		ns:         ns,
@@ -24,16 +27,22 @@ func GetHanler(ns string, cli fclient.FastClient) Handler {
 	return m.LoadTemplate
 }
 
+// Handler is template handler type
 type Handler func(key string) (string, Kind, error)
 
+// Kind is template kind
 type Kind uint16
 
 const (
+	// WorkloadKind ...
 	WorkloadKind Kind = (1 << iota)
+	// TraitKind ...
 	TraitKind
+	// Unkownkind ...
 	Unkownkind
 )
 
+// LoadTemplate Get template according to key
 func (m *manager) LoadTemplate(key string) (string, Kind, error) {
 	ctx := context.Background()
 	wd, err := m.GetWorkloadDefinition(ctx, m.ns, key)
@@ -75,11 +84,13 @@ func getTemplate(raw []byte) (string, error) {
 	return fmt.Sprint(_tmp["template"]), nil
 }
 
+// MockManager ...
 type MockManager struct {
 	wds []*v1alpha2.WorkloadDefinition
 	tds []*v1alpha2.TraitDefinition
 }
 
+// LoadTemplate add template according to key
 func (mock *MockManager) LoadTemplate(key string) (string, Kind, error) {
 	for _, wd := range mock.wds {
 		if wd.Name == key {
@@ -108,6 +119,7 @@ func (mock *MockManager) LoadTemplate(key string) (string, Kind, error) {
 	return "", Unkownkind, nil
 }
 
+// AddWD  add workload definition to Mock Manager
 func (mock *MockManager) AddWD(s string) error {
 	wd := &v1alpha2.WorkloadDefinition{}
 	_body, err := kyaml.YAMLToJSON([]byte(s))
@@ -125,6 +137,7 @@ func (mock *MockManager) AddWD(s string) error {
 	return nil
 }
 
+// AddTD add triat definition to Mock Manager
 func (mock *MockManager) AddTD(s string) error {
 	td := &v1alpha2.TraitDefinition{}
 	_body, err := kyaml.YAMLToJSON([]byte(s))

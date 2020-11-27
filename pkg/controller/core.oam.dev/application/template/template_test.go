@@ -1,11 +1,10 @@
 package template
 
 import (
-	"cuelang.org/go/cue"
 	"testing"
+
+	"cuelang.org/go/cue"
 )
-
-
 
 func TestTemplate(t *testing.T) {
 
@@ -57,7 +56,7 @@ func TestTemplate(t *testing.T) {
       }
       `
 
-	if err:=mock.AddWD(`
+	if err := mock.AddWD(`
 apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
@@ -69,11 +68,10 @@ spec:
     name: deployments.apps
   extension:
     template: |
-` + cueTemplate);err!=nil{
+` + cueTemplate); err != nil {
 		t.Error(err)
 		return
 	}
-
 
 	temp, kind, err := mock.LoadTemplate("worker")
 	if err != nil {
@@ -86,19 +84,19 @@ spec:
 	}
 
 	var r cue.Runtime
-	inst,err:=r.Compile("-",temp)
-	if err!=nil{
+	inst, err := r.Compile("-", temp)
+	if err != nil {
 		t.Error(err)
 		return
 	}
-	instDest,err:=r.Compile("-",cueTemplate)
-	if err!=nil{
+	instDest, err := r.Compile("-", cueTemplate)
+	if err != nil {
 		t.Error(err)
 		return
 	}
-	s1,_:=inst.Value().String()
-	s2,_:=instDest.Value().String()
-	if s1!=s2 {
+	s1, _ := inst.Value().String()
+	s2, _ := instDest.Value().String()
+	if s1 != s2 {
 		t.Errorf("parsered template is not correct")
 	}
 }

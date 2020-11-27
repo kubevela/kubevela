@@ -19,16 +19,18 @@ package application
 import (
 	"context"
 	"fmt"
+
 	core "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/pkg/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
+
 	"github.com/oam-dev/kubevela/api/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/application/builder"
 	fclient "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/application/cache-client"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/application/lister"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/application/parser"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/application/template"
-	"github.com/pkg/errors"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -40,7 +42,7 @@ import (
 )
 
 // ApplicationReconciler reconciles a Application object
-type ApplicationReconciler struct {
+type applicationReconciler struct {
 	client.Client
 	Log             logr.Logger
 	Scheme          *runtime.Scheme
@@ -52,7 +54,8 @@ type ApplicationReconciler struct {
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications/status,verbs=get;update;patch
 
-func (r *ApplicationReconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error) {
+// Reconcile process app event
+func (r *applicationReconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error) {
 
 	ctx := context.Background()
 	_log := r.Log.WithValues("application", req.NamespacedName)
@@ -87,6 +90,9 @@ func (r *ApplicationReconciler) Reconcile(req ctrl.Request) (result ctrl.Result,
 		}
 
 		comps, err := r.componentLister.Components(req.Namespace).List(_selector)
+		if err != nil && !kerrors.IsNotFound(err) {
+			return ctrl.Result{}, errors.WithMessage(err, "list componetes")
+		}
 		for _, comp := range comps {
 			owns = true
 			if comp.DeletionTimestamp != nil {
@@ -107,13 +113,19 @@ func (r *ApplicationReconciler) Reconcile(req ctrl.Request) (result ctrl.Result,
 	}
 
 	registerFinalizers(app)
-	app.Status.Phase = "pending"
+	app.Status.Phase = "rendering"
 	handler := &reter{r, app, _log}
 
 	//parse template
 	appParser := parser.NewParser(template.GetHanler(req.Namespace, r.reader))
 
-	appfile, err := appParser.Parse(app.Name, app.Spec)
+	expr, err := app.Spec.Maps()
+	if err != nil {
+		app.Status.SetConditions(errorCondition("Parser", err))
+		return handler.Err(err)
+	}
+
+	appfile, err := appParser.Parse(app.Name, expr)
 
 	if err != nil {
 		app.Status.SetConditions(errorCondition("Parser", err))
@@ -143,14 +155,16 @@ func (r *ApplicationReconciler) Reconcile(req ctrl.Request) (result ctrl.Result,
 	return ctrl.Result{}, r.Update(ctx, app)
 }
 
-func (r *ApplicationReconciler) SetupWithManager(mgr ctrl.Manager) error {
+// SetupWithManager install to manager
+func (r *applicationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha2.Application{}).
 		Owns(&core.ApplicationConfiguration{}).Owns(&core.Component{}).
 		Complete(r)
 }
 
-func (r *ApplicationReconciler) InjectCache(_cache cache.Cache) error {
+// InjectCache setup cache
+func (r *applicationReconciler) InjectCache(_cache cache.Cache) error {
 	ctx := context.Background()
 
 	r.reader = fclient.NewFastClient(_cache, r.Client)
@@ -172,7 +186,7 @@ func (r *ApplicationReconciler) InjectCache(_cache cache.Cache) error {
 
 // Setup adds a controller that reconciles ApplicationDeployment.
 func Setup(mgr ctrl.Manager) error {
-	reconciler := ApplicationReconciler{
+	reconciler := applicationReconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("Application"),
 		Scheme: mgr.GetScheme(),

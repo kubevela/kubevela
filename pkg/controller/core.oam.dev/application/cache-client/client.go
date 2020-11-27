@@ -1,36 +1,42 @@
-package cache_client
+package cacheclient
 
 import (
 	"context"
+
 	core "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	v1alpha22 "github.com/oam-dev/kubevela/api/core.oam.dev/v1alpha2"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	v1alpha22 "github.com/oam-dev/kubevela/api/core.oam.dev/v1alpha2"
 )
 
+// FastClient is a interface
 type FastClient interface {
 	GetWorkloadDefinition(ctx context.Context, ns, name string) (*core.WorkloadDefinition, error)
 	GetTraitDefition(ctx context.Context, ns, name string) (*core.TraitDefinition, error)
 	GetApplication(ctx context.Context, key client.ObjectKey) (*v1alpha22.Application, error)
 }
 
-type factory struct {
+// Factory can get wd|td|app
+type Factory struct {
 	cache.Cache
 	client client.Client
 }
 
-func NewFastClient(c cache.Cache, cli client.Client) *factory {
+// NewFastClient generate fast client
+func NewFastClient(c cache.Cache, cli client.Client) *Factory {
 
-	c.GetInformer(context.Background(), &core.WorkloadDefinition{})
-	c.GetInformer(context.Background(), &core.TraitDefinition{})
+	_, _ = c.GetInformer(context.Background(), &core.WorkloadDefinition{})
+	_, _ = c.GetInformer(context.Background(), &core.TraitDefinition{})
 
-	return &factory{
+	return &Factory{
 		c,
 		cli,
 	}
 }
 
-func (f *factory) GetWorkloadDefinition(ctx context.Context, ns, name string) (*core.WorkloadDefinition, error) {
+// GetWorkloadDefinition  Get WorkloadDefinition
+func (f *Factory) GetWorkloadDefinition(ctx context.Context, ns, name string) (*core.WorkloadDefinition, error) {
 	wd := new(core.WorkloadDefinition)
 	key := client.ObjectKey{
 		Namespace: ns,
@@ -42,7 +48,8 @@ func (f *factory) GetWorkloadDefinition(ctx context.Context, ns, name string) (*
 	return wd, nil
 }
 
-func (f *factory) GetTraitDefition(ctx context.Context, ns, name string) (*core.TraitDefinition, error) {
+// GetTraitDefition Get TraitDefition
+func (f *Factory) GetTraitDefition(ctx context.Context, ns, name string) (*core.TraitDefinition, error) {
 	td := new(core.TraitDefinition)
 	key := client.ObjectKey{
 		Namespace: ns,
@@ -54,7 +61,8 @@ func (f *factory) GetTraitDefition(ctx context.Context, ns, name string) (*core.
 	return td, nil
 }
 
-func (f *factory) GetApplication(ctx context.Context, key client.ObjectKey) (*v1alpha22.Application, error) {
+// GetApplication Get Application
+func (f *Factory) GetApplication(ctx context.Context, key client.ObjectKey) (*v1alpha22.Application, error) {
 	app := new(v1alpha22.Application)
 	if err := f.Get(ctx, key, app); err != nil {
 		if err := f.client.Get(ctx, key, app); err != nil {

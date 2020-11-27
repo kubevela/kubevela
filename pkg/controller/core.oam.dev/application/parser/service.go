@@ -1,15 +1,18 @@
 package parser
 
 import (
+	"fmt"
+
 	"cuelang.org/go/cue"
 	cueJson "cuelang.org/go/pkg/encoding/json"
-	"fmt"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/application/template"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/application/template"
 )
 
+// Render is cue render
 type Render interface {
 	//WithContext(ctx interface{}) Render
 	WithParams(params interface{}) Render
@@ -17,6 +20,7 @@ type Render interface {
 	Complete() (*cue.Instance, error)
 }
 
+// Workload is component
 type Workload struct {
 	name     string
 	typ      string
@@ -25,14 +29,17 @@ type Workload struct {
 	traits   []*Trait
 }
 
+// Name export workload's name
 func (wl *Workload) Name() string {
 	return wl.name
 }
 
+// Traits export workload's traits
 func (wl *Workload) Traits() []*Trait {
 	return wl.traits
 }
 
+// Eval convert template to Component
 func (wl *Workload) Eval(render Render) (*v1alpha2.Component, error) {
 	inst, err := render.WithParams(wl.params).WithTemplate(wl.template).Complete()
 	if err != nil {
@@ -59,12 +66,14 @@ func (wl *Workload) Eval(render Render) (*v1alpha2.Component, error) {
 	return component, nil
 }
 
+// Trait is ComponentTrait
 type Trait struct {
 	name     string
 	params   map[string]interface{}
 	template string
 }
 
+// Eval convert template to ComponentTrait
 func (trait *Trait) Eval(render Render) ([]v1alpha2.ComponentTrait, error) {
 	inst, err := render.WithParams(trait.params).WithTemplate(trait.template).Complete()
 	if err != nil {
@@ -110,32 +119,39 @@ func (trait *Trait) Eval(render Render) ([]v1alpha2.ComponentTrait, error) {
 	return compTraits, nil
 }
 
+// Appfile describle application
 type Appfile struct {
 	name     string
 	services []*Workload
 }
 
+// TemplateValidate validate Template format
 func (af *Appfile) TemplateValidate() error {
 	return nil
 }
 
+// Services export Services
 func (af *Appfile) Services() []*Workload {
 	return af.services
 }
 
+// Name export appfile name
 func (af *Appfile) Name() string {
 	return af.name
 }
 
-type parser struct {
+// Parser is appfile parser
+type Parser struct {
 	templ template.Handler
 }
 
-func NewParser(handler template.Handler)*parser{
-	return &parser{templ: handler}
+// NewParser create appfile parser
+func NewParser(handler template.Handler) *Parser {
+	return &Parser{templ: handler}
 }
 
-func (pser *parser) Parse(name string, expr map[string]interface{}) (*Appfile, error) {
+// Parse convert map to Appfile
+func (pser *Parser) Parse(name string, expr map[string]interface{}) (*Appfile, error) {
 	var svcs interface{}
 	for _, name := range []string{"Service", "Services", "service", "services"} {
 		if v, ok := expr[name]; ok {
@@ -164,7 +180,7 @@ func (pser *parser) Parse(name string, expr map[string]interface{}) (*Appfile, e
 	return appfile, nil
 }
 
-func (pser *parser) parseWorkload(name string, expr interface{}) (*Workload, error) {
+func (pser *Parser) parseWorkload(name string, expr interface{}) (*Workload, error) {
 	workload := new(Workload)
 	workload.traits = []*Trait{}
 	workload.name = name
@@ -198,7 +214,7 @@ func (pser *parser) parseWorkload(name string, expr interface{}) (*Workload, err
 				workload.traits = append(workload.traits, trait)
 			}
 		}
-		workload.params=params
+		workload.params = params
 	default:
 		return nil, errors.Errorf("service(%s) format invalid", name)
 	}
@@ -206,7 +222,7 @@ func (pser *parser) parseWorkload(name string, expr interface{}) (*Workload, err
 	return workload, nil
 }
 
-func (pser *parser) parseTrait(label string, expr interface{}) (*Trait, error) {
+func (pser *Parser) parseTrait(label string, expr interface{}) (*Trait, error) {
 
 	templ, kind, err := pser.templ(label)
 	if err != nil {
@@ -227,7 +243,7 @@ func (pser *parser) parseTrait(label string, expr interface{}) (*Trait, error) {
 	return trait, nil
 }
 
-
+// TestExceptApp is test data
 var TestExceptApp = &Appfile{
 	name: "test",
 	services: []*Workload{
