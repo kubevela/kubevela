@@ -1,4 +1,3 @@
-//nolint:golint
 package server
 
 import (
@@ -20,7 +19,7 @@ import (
 	env2 "github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
-// Trait related handlers
+// AttachTrait attaches a trait to a component
 func (s *APIServer) AttachTrait(c *gin.Context) {
 	var body apis.TraitBody
 	body.EnvName = c.Param("envName")
@@ -40,6 +39,7 @@ func (s *APIServer) AttachTrait(c *gin.Context) {
 	util.AssembleResponse(c, msg, nil)
 }
 
+// GetTrait gets a trait by name
 func (s *APIServer) GetTrait(c *gin.Context) {
 	var traitType = c.Param("traitName")
 	var workloadType string
@@ -53,6 +53,7 @@ func (s *APIServer) GetTrait(c *gin.Context) {
 	util.AssembleResponse(c, capability, err)
 }
 
+// ListTrait lists all traits
 func (s *APIServer) ListTrait(c *gin.Context) {
 	var traitList []types.Capability
 	var workloadName string
@@ -64,6 +65,7 @@ func (s *APIServer) ListTrait(c *gin.Context) {
 	util.AssembleResponse(c, traitList, err)
 }
 
+// DetachTrait detaches a trait from a component
 func (s *APIServer) DetachTrait(c *gin.Context) {
 	envName := c.Param("envName")
 	traitType := c.Param("traitName")
@@ -86,6 +88,7 @@ func (s *APIServer) DetachTrait(c *gin.Context) {
 	util.AssembleResponse(c, msg, nil)
 }
 
+// DoAttachTrait executes attaching trait operation
 func (s *APIServer) DoAttachTrait(c context.Context, body apis.TraitBody) (string, error) {
 	// Prepare
 	var appObj *application.Application
@@ -120,6 +123,7 @@ func (s *APIServer) DoAttachTrait(c context.Context, body apis.TraitBody) (strin
 	return oam.TraitOperationRun(c, s.KubeClient, env, appObj, staging, io)
 }
 
+// DoDetachTrait executes detaching trait operation
 func (s *APIServer) DoDetachTrait(c context.Context, envName string, traitType string, componentName string, appName string, staging bool) (string, error) {
 	var appObj *application.Application
 	var err error

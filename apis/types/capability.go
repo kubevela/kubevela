@@ -51,7 +51,7 @@ type Capability struct {
 	Status         string      `json:"status,omitempty"`
 	Description    string      `json:"description,omitempty"`
 
-	//trait only
+	// trait only
 	AppliesTo []string `json:"appliesTo,omitempty"`
 
 	// Plugin Source
@@ -73,7 +73,7 @@ type Chart struct {
 // Installation defines the installation method for this Capability, currently only helm is supported
 type Installation struct {
 	Helm Chart `json:"helm"`
-	//TODO(wonderflow) add raw yaml file support for install capability
+	// TODO(wonderflow) add raw yaml file support for install capability
 }
 
 // CapType defines the type of capability

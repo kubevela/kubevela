@@ -216,7 +216,7 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 				// nolint
 				defer f.Close()
 				// check if dir is empty
-				if _, err := f.Readdir(1); err == io.EOF {
+				if _, err := f.Readdir(1); errors.Is(err, io.EOF) {
 					return false
 				}
 				// check if secret files are empty

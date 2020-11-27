@@ -1,4 +1,3 @@
-//nolint: golint
 package server
 
 import (
@@ -16,7 +15,7 @@ import (
 	env2 "github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
-// Workload related handlers
+// CreateWorkload creates a workload
 func (s *APIServer) CreateWorkload(c *gin.Context) {
 	var body apis.WorkloadRunBody
 	if err := c.ShouldBindJSON(&body); err != nil {
@@ -61,9 +60,11 @@ func (s *APIServer) CreateWorkload(c *gin.Context) {
 	}
 }
 
+// UpdateWorkload updates a workload
 func (s *APIServer) UpdateWorkload(c *gin.Context) {
 }
 
+// GetWorkload gets a workload by name
 func (s *APIServer) GetWorkload(c *gin.Context) {
 	var workloadType = c.Param("workloadName")
 	var capability types.Capability
@@ -76,6 +77,7 @@ func (s *APIServer) GetWorkload(c *gin.Context) {
 	util.AssembleResponse(c, capability, err)
 }
 
+// ListWorkload lists all workloads in the cluster
 func (s *APIServer) ListWorkload(c *gin.Context) {
 	var workloadDefinitionList []apis.WorkloadMeta
 	workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)

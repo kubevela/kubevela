@@ -212,7 +212,7 @@ func renderOneOutput(appValue *cue.Struct) (*unstructured.Unstructured, error) {
 	final := outputField.Value
 	data, err := cueJson.Marshal(final)
 	if err != nil {
-		return nil, fmt.Errorf("marshal final value failed: %v", err)
+		return nil, fmt.Errorf("marshal final value failed: %w", err)
 	}
 	obj := make(map[string]interface{})
 	if err = json.Unmarshal([]byte(data), &obj); err != nil {
@@ -233,7 +233,7 @@ func renderAllOutputs(field cue.FieldInfo) ([]*unstructured.Unstructured, error)
 		final := iter.Value()
 		data, err := cueJson.Marshal(final)
 		if err != nil {
-			return nil, fmt.Errorf("marshal final value err %v", err)
+			return nil, fmt.Errorf("marshal final value err %w", err)
 		}
 		// need to unmarshal it to a map to get rid of the outer spec name
 		obj := make(map[string]interface{})

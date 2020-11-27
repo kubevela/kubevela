@@ -46,7 +46,7 @@ func (n *Nginx) CheckStatus(routeTrait *standardv1alpha1.Route) (string, []runti
 				Status: v1.ConditionFalse, LastTransitionTime: metav1.Now(), Reason: runtimev1alpha1.ReasonUnavailable,
 				Message: message}}
 		}
-		//TODO(wonderflow): handle more than one condition case
+		// TODO(wonderflow): handle more than one condition case
 		condition := issuer.Status.Conditions[0]
 		if condition.Status != cmmeta.ConditionTrue {
 			return StatusSynced, []runtimev1alpha1.Condition{{Type: runtimev1alpha1.TypeSynced,
@@ -74,7 +74,7 @@ func (n *Nginx) CheckStatus(routeTrait *standardv1alpha1.Route) (string, []runti
 					Status: v1.ConditionFalse, LastTransitionTime: metav1.Now(), Reason: runtimev1alpha1.ReasonUnavailable,
 					Message: message}}
 			}
-			//TODO(wonderflow): handle more than one condition case
+			// TODO(wonderflow): handle more than one condition case
 			certcondition := cert.Status.Conditions[0]
 			if certcondition.Status != cmmeta.ConditionTrue || certcondition.Type != certmanager.CertificateConditionReady {
 				return StatusSynced, []runtimev1alpha1.Condition{{Type: runtimev1alpha1.TypeSynced,
@@ -145,12 +145,12 @@ func (*Nginx) Construct(routeTrait *standardv1alpha1.Route) []*v1beta1.Ingress {
 			annotations["nginx.ingress.kubernetes.io/configuration-snippet"] = headerSnippet
 		}
 
-		//Send timeout
+		// Send timeout
 		if backend.SendTimeout != 0 {
 			annotations["nginx.ingress.kubernetes.io/proxy-send-timeout"] = strconv.Itoa(backend.SendTimeout)
 		}
 
-		//Read timeout
+		// Read timeout
 		if backend.ReadTimeout != 0 {
 			annotations["nginx.ingress.kubernetes.io/proxy‑read‑timeout"] = strconv.Itoa(backend.ReadTimeout)
 		}

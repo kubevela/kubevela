@@ -25,12 +25,12 @@ import (
 
 // ApplicationDeploymentSpec defines the desired state of ApplicationDeployment
 type ApplicationDeploymentSpec struct {
-	//TODO add spec here
+	// TODO add spec here
 }
 
 // ApplicationDeploymentStatus defines the observed state of ApplicationDeployment
 type ApplicationDeploymentStatus struct {
-	//TODO add status field here
+	// TODO add status field here
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
 }
 

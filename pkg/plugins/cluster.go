@@ -56,7 +56,7 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c types.Args
 	var workloadDefs corev1alpha2.WorkloadDefinitionList
 	err = newClient.List(ctx, &workloadDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
 	if err != nil {
-		return nil, nil, fmt.Errorf("list WorkloadDefinition err: %s", err)
+		return nil, nil, fmt.Errorf("list WorkloadDefinition err: %w", err)
 	}
 
 	var templateErrors []error
@@ -70,12 +70,12 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c types.Args
 			tmp.Source = &types.Source{ChartName: tmp.Install.Helm.Name}
 			ioStream := util2.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 			if err = helm.InstallHelmChart(ioStream, tmp.Install.Helm); err != nil {
-				return nil, nil, fmt.Errorf("unable to install helm chart dependency %s(%s from %s) for this workload '%s': %v ", tmp.Install.Helm.Name, tmp.Install.Helm.Version, tmp.Install.Helm.URL, wd.Name, err)
+				return nil, nil, fmt.Errorf("unable to install helm chart dependency %s(%s from %s) for this workload '%s': %w ", tmp.Install.Helm.Name, tmp.Install.Helm.Version, tmp.Install.Helm.URL, wd.Name, err)
 			}
 		}
 		gvk, err := util.GetGVKFromDefinition(dm, wd.Spec.Reference)
 		if err != nil {
-			return nil, nil, fmt.Errorf("capability '%s' was not ready: %v ", wd.Name, err)
+			return nil, nil, fmt.Errorf("capability '%s' was not ready: %w ", wd.Name, err)
 		}
 		tmp.CrdInfo = &types.CRDInfo{
 			APIVersion: gvk.GroupVersion().String(),
@@ -100,7 +100,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, s
 	var traitDefs corev1alpha2.TraitDefinitionList
 	err = newClient.List(ctx, &traitDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
 	if err != nil {
-		return nil, nil, fmt.Errorf("list TraitDefinition err: %s", err)
+		return nil, nil, fmt.Errorf("list TraitDefinition err: %w", err)
 	}
 
 	var templateErrors []error
@@ -114,12 +114,12 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, s
 			tmp.Source = &types.Source{ChartName: tmp.Install.Helm.Name}
 			ioStream := util2.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 			if err = helm.InstallHelmChart(ioStream, tmp.Install.Helm); err != nil {
-				return nil, nil, fmt.Errorf("unable to install helm chart dependency %s(%s from %s) for this trait '%s': %v ", tmp.Install.Helm.Name, tmp.Install.Helm.Version, tmp.Install.Helm.URL, td.Name, err)
+				return nil, nil, fmt.Errorf("unable to install helm chart dependency %s(%s from %s) for this trait '%s': %w ", tmp.Install.Helm.Name, tmp.Install.Helm.Version, tmp.Install.Helm.URL, td.Name, err)
 			}
 		}
 		gvk, err := util.GetGVKFromDefinition(dm, td.Spec.Reference)
 		if err != nil {
-			return nil, nil, fmt.Errorf("capability '%s' was not ready: %v ", td.Name, err)
+			return nil, nil, fmt.Errorf("capability '%s' was not ready: %w ", td.Name, err)
 		}
 		tmp.CrdInfo = &types.CRDInfo{
 			APIVersion: gvk.GroupVersion().String(),

@@ -181,28 +181,28 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 		if apierrors.IsNotFound(err) {
 			return fmt.Sprintf("app %s already deleted", o.AppName), nil
 		}
-		return "", fmt.Errorf("delete appconfig err %s", err)
+		return "", fmt.Errorf("delete appconfig err %w", err)
 	}
 	for _, comp := range appConfig.Spec.Components {
 		var c corev1alpha2.Component
-		//TODO(wonderflow): what if we use componentRevision here?
+		// TODO(wonderflow): what if we use componentRevision here?
 		c.Name = comp.ComponentName
 		c.Namespace = o.Env.Namespace
 		err = o.Client.Delete(ctx, &c)
 		if err != nil && !apierrors.IsNotFound(err) {
-			return "", fmt.Errorf("delete service err: %s", err)
+			return "", fmt.Errorf("delete service err: %w", err)
 		}
 	}
 	err = o.Client.Delete(ctx, &appConfig)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return "", fmt.Errorf("delete application err %s", err)
+		return "", fmt.Errorf("delete application err %w", err)
 	}
 	var healthScope corev1alpha2.HealthScope
 	healthScope.Name = appfile.FormatDefaultHealthScopeName(o.AppName)
 	healthScope.Namespace = o.Env.Namespace
 	err = o.Client.Delete(ctx, &healthScope)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return "", fmt.Errorf("delete health scope %s err %v", healthScope.Name, err)
+		return "", fmt.Errorf("delete health scope %s err %w", healthScope.Name, err)
 	}
 
 	return fmt.Sprintf("delete apps succeed %s from %s", o.AppName, o.Env.Name), nil
@@ -245,7 +245,7 @@ func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) (string, error) {
 	c.Namespace = o.Env.Namespace
 	err = o.Client.Delete(context.Background(), &c)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return "", fmt.Errorf("delete component err: %s", err)
+		return "", fmt.Errorf("delete component err: %w", err)
 	}
 
 	return fmt.Sprintf("delete component succeed %s from %s", o.CompName, o.AppName), nil
@@ -261,7 +261,7 @@ func chooseSvc(services []string) (string, error) {
 	}
 	err := survey.AskOne(prompt, &svcName)
 	if err != nil {
-		return "", fmt.Errorf("failed to retrieve services of the application, err %v", err)
+		return "", fmt.Errorf("failed to retrieve services of the application, err %w", err)
 	}
 	return svcName, nil
 }

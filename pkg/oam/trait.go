@@ -130,13 +130,13 @@ func ValidateAndMutateForCore(traitType, workloadName string, flags *pflag.FlagS
 				env.Domain = strings.TrimPrefix(env.Domain, "http://")
 			}
 			if err := flags.Set("domain", workloadName+"."+env.Domain); err != nil {
-				return fmt.Errorf("set flag for vela-core trait('route') err %v, please make sure your template is right", err)
+				return fmt.Errorf("set flag for vela-core trait('route') err %w, please make sure your template is right", err)
 			}
 		}
 		issuer, _ := flags.GetString("issuer")
 		if issuer == "" && env.Issuer != "" {
 			if err := flags.Set("issuer", env.Issuer); err != nil {
-				return fmt.Errorf("set flag for vela-core trait('route') err %v, please make sure your template is right", err)
+				return fmt.Errorf("set flag for vela-core trait('route') err %w, please make sure your template is right", err)
 			}
 		}
 	default:
@@ -184,7 +184,7 @@ func AddOrUpdateTrait(env *types.EnvMeta, appName string, componentName string, 
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("get flag(s) \"%s\" err %v", name, err)
+			return nil, fmt.Errorf("get flag(s) \"%s\" err %w", name, err)
 		}
 	}
 	if err = app.SetTrait(componentName, traitAlias, traitData); err != nil {

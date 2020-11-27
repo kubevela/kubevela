@@ -41,12 +41,12 @@ func DiscoveryFromPodSpec(w *unstructured.Unstructured, fieldPath string) ([]int
 	}
 	data, err := json.Marshal(obj)
 	if err != nil {
-		return nil, fmt.Errorf("discovery podSpec from %s in workload %v err %v", fieldPath, w.GetName(), err)
+		return nil, fmt.Errorf("discovery podSpec from %s in workload %v err %w", fieldPath, w.GetName(), err)
 	}
 	var spec v1.PodSpec
 	err = json.Unmarshal(data, &spec)
 	if err != nil {
-		return nil, fmt.Errorf("discovery podSpec from %s in workload %v err %v", fieldPath, w.GetName(), err)
+		return nil, fmt.Errorf("discovery podSpec from %s in workload %v err %w", fieldPath, w.GetName(), err)
 	}
 	ports := getContainerPorts(spec.Containers)
 	if len(ports) == 0 {
@@ -63,12 +63,12 @@ func DiscoveryFromPodTemplate(w *unstructured.Unstructured, fields ...string) ([
 	}
 	data, err := json.Marshal(obj)
 	if err != nil {
-		return nil, nil, fmt.Errorf("workload %v convert object err %v", w.GetName(), err)
+		return nil, nil, fmt.Errorf("workload %v convert object err %w", w.GetName(), err)
 	}
 	var spec v1.PodTemplateSpec
 	err = json.Unmarshal(data, &spec)
 	if err != nil {
-		return nil, nil, fmt.Errorf("workload %v convert object to PodTemplate err %v", w.GetName(), err)
+		return nil, nil, fmt.Errorf("workload %v convert object to PodTemplate err %w", w.GetName(), err)
 	}
 	ports := getContainerPorts(spec.Spec.Containers)
 	if len(ports) == 0 {
@@ -79,7 +79,7 @@ func DiscoveryFromPodTemplate(w *unstructured.Unstructured, fields ...string) ([
 
 func getContainerPorts(cs []v1.Container) []intstr.IntOrString {
 	var ports []intstr.IntOrString
-	//TODO(wonderflow): exclude some sidecars
+	// TODO(wonderflow): exclude some sidecars
 	for _, container := range cs {
 		for _, port := range container.Ports {
 			ports = append(ports, intstr.FromInt(int(port.ContainerPort)))

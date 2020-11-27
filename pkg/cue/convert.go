@@ -30,25 +30,25 @@ func Eval(templatePath string, value map[string]interface{}) (*unstructured.Unst
 	}
 	template, err := r.Compile("", string(b)+BaseTemplate)
 	if err != nil {
-		return nil, fmt.Errorf("compile %s err %v", templatePath, err)
+		return nil, fmt.Errorf("compile %s err %w", templatePath, err)
 	}
 	// fill in the parameter values and evaluate
 	tempValue := template.Value()
 	appValue, err := tempValue.Fill(value, specValue).Eval().Struct()
 	if err != nil {
-		return nil, fmt.Errorf("fill value to template err %v", err)
+		return nil, fmt.Errorf("fill value to template err %w", err)
 	}
 	// fetch the spec struct content
 	final, err := appValue.FieldByName(OutputFieldName, true)
 	if err != nil {
-		return nil, fmt.Errorf("get template %s err %v", OutputFieldName, err)
+		return nil, fmt.Errorf("get template %s err %w", OutputFieldName, err)
 	}
 	if err := final.Value.Validate(cue.Concrete(true), cue.Final()); err != nil {
 		return nil, err
 	}
 	data, err := cueJson.Marshal(final.Value)
 	if err != nil {
-		return nil, fmt.Errorf("marshal final value err %v", err)
+		return nil, fmt.Errorf("marshal final value err %w", err)
 	}
 	// need to unmarshal it to a map to get rid of the outer spec name
 	obj := make(map[string]interface{})
@@ -88,7 +88,7 @@ func GetParameters(templatePath string) ([]types.Parameter, error) {
 	}
 	arguments, err := paraDef.Value.Struct()
 	if err != nil {
-		return nil, fmt.Errorf("arguments not defined as struct %v", err)
+		return nil, fmt.Errorf("arguments not defined as struct %w", err)
 	}
 	// parse each fields in the parameter fields
 	var params []types.Parameter
