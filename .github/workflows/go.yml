@@ -101,8 +101,8 @@ jobs:
         run: |
           make e2e-cleanup
           make e2e-setup
-          make e2e-test
           make e2e-api-test
+          make e2e-test
 
   lint:
     runs-on: ubuntu-20.04

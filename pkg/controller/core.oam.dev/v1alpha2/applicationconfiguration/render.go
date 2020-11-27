@@ -553,7 +553,6 @@ func (r *components) getDataInput(ctx context.Context, s *dagSource, ac *unstruc
 	}
 	paved := fieldpath.Pave(u.UnstructuredContent())
 	pavedAC := fieldpath.Pave(ac.UnstructuredContent())
-
 	rawval, err := paved.GetValue(obj.FieldPath)
 	if err != nil {
 		if fieldpath.IsNotFound(err) {

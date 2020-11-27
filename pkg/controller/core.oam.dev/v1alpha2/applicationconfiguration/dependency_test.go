@@ -154,7 +154,12 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 
 		// fill value to fieldPath
 		Expect(unstructured.SetNestedField(outFoo.Object, "test", "status", "key")).Should(BeNil())
-		Expect(k8sClient.Update(ctx, outFoo)).Should(Succeed())
+		Expect(k8sClient.Status().Update(ctx, outFoo)).Should(Succeed())
+		Eventually(func() string {
+			k8sClient.Get(ctx, outFooKey, outFoo)
+			data, _, _ := unstructured.NestedString(outFoo.Object, "status", "key")
+			return data
+		}, time.Second, 300*time.Millisecond).Should(Equal("test"))
 
 		By("Reconcile")
 		reconcileRetry(reconciler, req)
@@ -167,10 +172,10 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 		By("Verify the appconfig's dependency is satisfied")
 		appconfig = &v1alpha2.ApplicationConfiguration{}
 		Eventually(func() []v1alpha2.UnstaifiedDependency {
-			reconcileRetry(reconciler, req)
+			reconciler.Reconcile(req)
 			k8sClient.Get(ctx, appconfigKey, appconfig)
 			return appconfig.Status.Dependency.Unsatisfied
-		}, 5*time.Second, 300*time.Millisecond).Should(BeNil())
+		}, 2*time.Second, 300*time.Millisecond).Should(BeNil())
 	}
 
 	It("trait depends on another trait", func() {
@@ -404,7 +409,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 		Expect(err).Should(BeNil())
 		err = unstructured.SetNestedField(outFoo.Object, "hash-v1", "status", "app-hash")
 		Expect(err).Should(BeNil())
-		Expect(k8sClient.Update(ctx, outFoo)).Should(Succeed())
+		Expect(k8sClient.Status().Update(ctx, outFoo)).Should(Succeed())
 
 		By("Reconcile")
 		Expect(func() error { _, err := reconciler.Reconcile(req); return err }()).Should(BeNil())
@@ -496,7 +501,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 		Expect(unstructured.SetNestedField(outFoo.Object, "test-new", "status", "key")).Should(BeNil())
 		Expect(unstructured.SetNestedField(outFoo.Object, "hash-v2", "status", "app-hash")).Should(BeNil())
 		By("Update outFoo & check successfully")
-		Expect(k8sClient.Update(ctx, outFoo)).Should(Succeed())
+		Expect(k8sClient.Status().Update(ctx, outFoo)).Should(Succeed())
 		Eventually(func() bool {
 			if err := k8sClient.Get(ctx, outFooKey, outFoo); err != nil {
 				return false

@@ -116,9 +116,10 @@ var _ = BeforeSuite(func(done Done) {
 				Singular: "foo",
 			},
 			Versions: []crdv1.CustomResourceDefinitionVersion{{
-				Name:    "v1",
-				Served:  true,
-				Storage: true,
+				Name:         "v1",
+				Served:       true,
+				Storage:      true,
+				Subresources: &crdv1.CustomResourceSubresources{Status: &crdv1.CustomResourceSubresourceStatus{}},
 				Schema: &crdv1.CustomResourceValidation{
 					OpenAPIV3Schema: &crdv1.JSONSchemaProps{
 						Type: "object",
