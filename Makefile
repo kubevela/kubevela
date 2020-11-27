@@ -102,8 +102,6 @@ e2e-api-test:
 	ginkgo -v -r e2e/apiserver
 
 e2e-cleanup:
-	helm uninstall kubevela -n vela-system
-	kubectl delete namespace vela-system --wait
 	# Clean up
 	rm -rf ~/.vela
 
