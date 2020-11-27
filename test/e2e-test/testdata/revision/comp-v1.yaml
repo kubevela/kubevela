@@ -1,0 +1,11 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: Component
+metadata:
+  name: example-component
+  namespace: component-versioning-test
+spec:
+  workload:
+    apiVersion: example.com/v1
+    kind: Bar
+    spec:
+      key: v1
