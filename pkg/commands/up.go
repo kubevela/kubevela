@@ -11,8 +11,6 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -20,6 +18,10 @@ import (
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	apitypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"

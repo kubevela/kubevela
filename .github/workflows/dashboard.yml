@@ -13,7 +13,7 @@ defaults:
     working-directory: ./dashboard
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     strategy:
       matrix:
         node-version: [10.x]

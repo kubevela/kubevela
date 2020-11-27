@@ -14,10 +14,6 @@ import (
 
 	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	oamcore "github.com/crossplane/oam-kubernetes-runtime/apis/core"
-	oamcontroller "github.com/crossplane/oam-kubernetes-runtime/pkg/controller"
-	oamv1alpha2 "github.com/crossplane/oam-kubernetes-runtime/pkg/controller/v1alpha2"
-	oamwebhook "github.com/crossplane/oam-kubernetes-runtime/pkg/webhook/v1alpha2"
 	"github.com/go-logr/logr"
 	injectorv1alpha1 "github.com/oam-dev/trait-injector/api/v1alpha1"
 	injectorcontroller "github.com/oam-dev/trait-injector/controllers"
@@ -35,11 +31,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	velacoreoamdev "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	velacore "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	velacontroller "github.com/oam-dev/kubevela/pkg/controller"
+	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/dependency"
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook"
+	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2"
 )
 
 const (
@@ -59,7 +58,6 @@ func init() {
 	_ = oamcore.AddToScheme(scheme)
 	_ = monitoring.AddToScheme(scheme)
 	_ = velacore.AddToScheme(scheme)
-	_ = velacoreoamdev.AddToScheme(scheme)
 	_ = injectorv1alpha1.AddToScheme(scheme)
 	_ = certmanager.AddToScheme(scheme)
 	_ = kedav1alpha1.AddToScheme(scheme)
@@ -67,7 +65,7 @@ func init() {
 }
 
 func main() {
-	var metricsAddr, logFilePath string
+	var metricsAddr, logFilePath, leaderElectionNamespace string
 	var enableLeaderElection, logCompress bool
 	var logRetainDate int
 	var certDir string
@@ -83,12 +81,16 @@ func main() {
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&leaderElectionNamespace, "leader-election-namespace", "",
+		"Determines the namespace in which the leader election configmap will be created.")
 	flag.StringVar(&logFilePath, "log-file-path", "", "The file to write logs to.")
 	flag.IntVar(&logRetainDate, "log-retain-date", 7, "The number of days of logs history to retain.")
 	flag.BoolVar(&logCompress, "log-compress", true, "Enable compression on the rotated logs.")
 	flag.IntVar(&controllerArgs.RevisionLimit, "revision-limit", 50,
 		"RevisionLimit is the maximum number of revisions that will be maintained. The default value is 50.")
 	flag.StringVar(&healthAddr, "health-addr", ":9440", "The address the health endpoint binds to.")
+	flag.BoolVar(&controllerArgs.ApplyOnceOnly, "apply-once-only", false,
+		"For the purpose of some production environment that workload or trait should not be affected if no spec change")
 	flag.Parse()
 
 	// setup logging
@@ -117,13 +119,14 @@ func main() {
 	go dependency.Install(k8sClient)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       kubevelaName,
-		Port:                   webhookPort,
-		CertDir:                certDir,
-		HealthProbeBindAddress: healthAddr,
+		Scheme:                  scheme,
+		MetricsBindAddress:      metricsAddr,
+		LeaderElection:          enableLeaderElection,
+		LeaderElectionNamespace: leaderElectionNamespace,
+		LeaderElectionID:        kubevelaName,
+		Port:                    webhookPort,
+		CertDir:                 certDir,
+		HealthProbeBindAddress:  healthAddr,
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to create a controller manager")
@@ -177,6 +180,9 @@ func main() {
 	}
 
 	setupLog.Info("starting the vela controller manager")
+	if controllerArgs.ApplyOnceOnly {
+		setupLog.Info("applyOnceOnly is enabled that means workload or trait only apply once if no spec change even they are changed by others")
+	}
 	if err := mgr.Start(makeSignalHandler(setupLog, k8sClient)); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)

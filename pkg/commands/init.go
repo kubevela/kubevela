@@ -17,8 +17,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/plugins"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
@@ -281,7 +281,7 @@ func (o *appInitOptions) Workload() error {
 			// other type not supported
 		}
 	}
-	o.app, err = oam.BaseComplete(o.Env.Name, o.workloadName, o.appName, fs, o.workloadType)
+	o.app, err = serverlib.BaseComplete(o.Env.Name, o.workloadName, o.appName, fs, o.workloadType)
 	return err
 }
 
@@ -318,7 +318,7 @@ func (o *appInitOptions) Traits() error {
 				types.SetFlagBy(tflags, pa)
 			}
 			// TODO(wonderflow): give a way to add parameter for trait
-			o.app, err = oam.AddOrUpdateTrait(o.Env, o.appName, o.workloadName, tflags, trait)
+			o.app, err = serverlib.AddOrUpdateTrait(o.Env, o.appName, o.workloadName, tflags, trait)
 			if err != nil {
 				return err
 			}

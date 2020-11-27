@@ -32,8 +32,6 @@ import (
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
-	oamutil "github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -46,6 +44,9 @@ import (
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (

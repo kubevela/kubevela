@@ -10,7 +10,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 )
 
 // NewAppShowCommand will show current application config
@@ -49,7 +49,7 @@ func showApplication(cmd *cobra.Command, env *types.EnvMeta, appName string) err
 	if err != nil {
 		return err
 	}
-	targetServices, err := oam.GetServicesWhenDescribingApplication(cmd, app)
+	targetServices, err := serverlib.GetServicesWhenDescribingApplication(cmd, app)
 	if err != nil {
 		return err
 	}

@@ -6,11 +6,13 @@ import (
 	"strconv"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // LabelPodSpecable defines whether a workload has podSpec or not.

@@ -5,12 +5,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
@@ -22,6 +20,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Route Trait Integration Test", func() {

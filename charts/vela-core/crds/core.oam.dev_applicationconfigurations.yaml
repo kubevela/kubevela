@@ -27,47 +27,31 @@ spec:
         description: An ApplicationConfiguration represents an OAM application.
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
           metadata:
             type: object
           spec:
-            description: An ApplicationConfigurationSpec defines the desired state
-              of a ApplicationConfiguration.
+            description: An ApplicationConfigurationSpec defines the desired state of a ApplicationConfiguration.
             properties:
               components:
-                description: Components of which this ApplicationConfiguration consists.
-                  Each component will be used to instantiate a workload.
+                description: Components of which this ApplicationConfiguration consists. Each component will be used to instantiate a workload.
                 items:
-                  description: An ApplicationConfigurationComponent specifies a component
-                    of an ApplicationConfiguration. Each component is used to instantiate
-                    a workload.
+                  description: An ApplicationConfigurationComponent specifies a component of an ApplicationConfiguration. Each component is used to instantiate a workload.
                   properties:
                     componentName:
-                      description: ComponentName specifies a component whose latest
-                        revision will be bind with ApplicationConfiguration. When
-                        the spec of the referenced component changes, ApplicationConfiguration
-                        will automatically migrate all trait affect from the prior
-                        revision to the new one. This is mutually exclusive with RevisionName.
+                      description: ComponentName specifies a component whose latest revision will be bind with ApplicationConfiguration. When the spec of the referenced component changes, ApplicationConfiguration will automatically migrate all trait affect from the prior revision to the new one. This is mutually exclusive with RevisionName.
                       type: string
                     dataInputs:
-                      description: DataInputs specify the data input sinks into this
-                        component.
+                      description: DataInputs specify the data input sinks into this component.
                       items:
-                        description: DataInput specifies a data input sink to an object.
-                          If input is array, it will be appended to the target field
-                          paths.
+                        description: DataInput specifies a data input sink to an object. If input is array, it will be appended to the target field paths.
                         properties:
                           toFieldPaths:
-                            description: ToFieldPaths specifies the field paths of
-                              an object to fill passed value.
+                            description: ToFieldPaths specifies the field paths of an object to fill passed value.
                             items:
                               type: string
                             type: array
@@ -75,8 +59,7 @@ spec:
                             description: ValueFrom specifies the value source.
                             properties:
                               dataOutputName:
-                                description: DataOutputName matches a name of a DataOutput
-                                  in the same AppConfig.
+                                description: DataOutputName matches a name of a DataOutput in the same AppConfig.
                                 type: string
                             required:
                             - dataOutputName
@@ -84,38 +67,26 @@ spec:
                         type: object
                       type: array
                     dataOutputs:
-                      description: DataOutputs specify the data output sources from
-                        this component.
+                      description: DataOutputs specify the data output sources from this component.
                       items:
-                        description: DataOutput specifies a data output source from
-                          an object.
+                        description: DataOutput specifies a data output source from an object.
                         properties:
                           conditions:
-                            description: Conditions specify the conditions that should
-                              be satisfied before emitting a data output. Different
-                              conditions are AND-ed together. If no conditions is
-                              specified, it is by default to check output value not
-                              empty.
+                            description: Conditions specify the conditions that should be satisfied before emitting a data output. Different conditions are AND-ed together. If no conditions is specified, it is by default to check output value not empty.
                             items:
-                              description: ConditionRequirement specifies the requirement
-                                to match a value.
+                              description: ConditionRequirement specifies the requirement to match a value.
                               properties:
                                 fieldPath:
-                                  description: FieldPath specifies got value from
-                                    workload/trait object
+                                  description: FieldPath specifies got value from workload/trait object
                                   type: string
                                 op:
-                                  description: ConditionOperator specifies the operator
-                                    to match a value.
+                                  description: ConditionOperator specifies the operator to match a value.
                                   type: string
                                 value:
-                                  description: Value specifies an expected value This
-                                    is mutually exclusive with ValueFrom
+                                  description: Value specifies an expected value This is mutually exclusive with ValueFrom
                                   type: string
                                 valueFrom:
-                                  description: ValueFrom specifies expected value
-                                    from AppConfig This is mutually exclusive with
-                                    Value
+                                  description: ValueFrom specifies expected value from AppConfig This is mutually exclusive with Value
                                   properties:
                                     fieldPath:
                                       type: string
@@ -127,23 +98,17 @@ spec:
                               type: object
                             type: array
                           fieldPath:
-                            description: FieldPath refers to the value of an object's
-                              field.
+                            description: FieldPath refers to the value of an object's field.
                             type: string
                           name:
-                            description: Name is the unique name of a DataOutput in
-                              an ApplicationConfiguration.
+                            description: Name is the unique name of a DataOutput in an ApplicationConfiguration.
                             type: string
                         type: object
                       type: array
                     parameterValues:
-                      description: ParameterValues specify values for the the specified
-                        component's parameters. Any parameter required by the component
-                        must be specified.
+                      description: ParameterValues specify values for the the specified component's parameters. Any parameter required by the component must be specified.
                       items:
-                        description: A ComponentParameterValue specifies a value for
-                          a named parameter. The associated component must publish
-                          a parameter with this name.
+                        description: A ComponentParameterValue specifies a value for a named parameter. The associated component must publish a parameter with this name.
                         properties:
                           name:
                             description: Name of the component parameter to set.
@@ -160,20 +125,15 @@ spec:
                         type: object
                       type: array
                     revisionName:
-                      description: RevisionName of a specific component revision to
-                        which to bind ApplicationConfiguration. This is mutually exclusive
-                        with componentName.
+                      description: RevisionName of a specific component revision to which to bind ApplicationConfiguration. This is mutually exclusive with componentName.
                       type: string
                     scopes:
-                      description: Scopes in which the specified component should
-                        exist.
+                      description: Scopes in which the specified component should exist.
                       items:
-                        description: A ComponentScope specifies a scope in which a
-                          component should exist.
+                        description: A ComponentScope specifies a scope in which a component should exist.
                         properties:
                           scopeRef:
-                            description: A ScopeReference must refer to an OAM scope
-                              resource.
+                            description: A ScopeReference must refer to an OAM scope resource.
                             properties:
                               apiVersion:
                                 description: APIVersion of the referenced object.
@@ -199,20 +159,15 @@ spec:
                     traits:
                       description: Traits of the specified component.
                       items:
-                        description: A ComponentTrait specifies a trait that should
-                          be applied to a component.
+                        description: A ComponentTrait specifies a trait that should be applied to a component.
                         properties:
                           dataInputs:
-                            description: DataInputs specify the data input sinks into
-                              this trait.
+                            description: DataInputs specify the data input sinks into this trait.
                             items:
-                              description: DataInput specifies a data input sink to
-                                an object. If input is array, it will be appended
-                                to the target field paths.
+                              description: DataInput specifies a data input sink to an object. If input is array, it will be appended to the target field paths.
                               properties:
                                 toFieldPaths:
-                                  description: ToFieldPaths specifies the field paths
-                                    of an object to fill passed value.
+                                  description: ToFieldPaths specifies the field paths of an object to fill passed value.
                                   items:
                                     type: string
                                   type: array
@@ -220,8 +175,7 @@ spec:
                                   description: ValueFrom specifies the value source.
                                   properties:
                                     dataOutputName:
-                                      description: DataOutputName matches a name of
-                                        a DataOutput in the same AppConfig.
+                                      description: DataOutputName matches a name of a DataOutput in the same AppConfig.
                                       type: string
                                   required:
                                   - dataOutputName
@@ -229,38 +183,26 @@ spec:
                               type: object
                             type: array
                           dataOutputs:
-                            description: DataOutputs specify the data output sources
-                              from this trait.
+                            description: DataOutputs specify the data output sources from this trait.
                             items:
-                              description: DataOutput specifies a data output source
-                                from an object.
+                              description: DataOutput specifies a data output source from an object.
                               properties:
                                 conditions:
-                                  description: Conditions specify the conditions that
-                                    should be satisfied before emitting a data output.
-                                    Different conditions are AND-ed together. If no
-                                    conditions is specified, it is by default to check
-                                    output value not empty.
+                                  description: Conditions specify the conditions that should be satisfied before emitting a data output. Different conditions are AND-ed together. If no conditions is specified, it is by default to check output value not empty.
                                   items:
-                                    description: ConditionRequirement specifies the
-                                      requirement to match a value.
+                                    description: ConditionRequirement specifies the requirement to match a value.
                                     properties:
                                       fieldPath:
-                                        description: FieldPath specifies got value
-                                          from workload/trait object
+                                        description: FieldPath specifies got value from workload/trait object
                                         type: string
                                       op:
-                                        description: ConditionOperator specifies the
-                                          operator to match a value.
+                                        description: ConditionOperator specifies the operator to match a value.
                                         type: string
                                       value:
-                                        description: Value specifies an expected value
-                                          This is mutually exclusive with ValueFrom
+                                        description: Value specifies an expected value This is mutually exclusive with ValueFrom
                                         type: string
                                       valueFrom:
-                                        description: ValueFrom specifies expected
-                                          value from AppConfig This is mutually exclusive
-                                          with Value
+                                        description: ValueFrom specifies expected value from AppConfig This is mutually exclusive with Value
                                         properties:
                                           fieldPath:
                                             type: string
@@ -272,12 +214,10 @@ spec:
                                     type: object
                                   type: array
                                 fieldPath:
-                                  description: FieldPath refers to the value of an
-                                    object's field.
+                                  description: FieldPath refers to the value of an object's field.
                                   type: string
                                 name:
-                                  description: Name is the unique name of a DataOutput
-                                    in an ApplicationConfiguration.
+                                  description: Name is the unique name of a DataOutput in an ApplicationConfiguration.
                                   type: string
                               type: object
                             type: array
@@ -296,8 +236,7 @@ spec:
             - components
             type: object
           status:
-            description: An ApplicationConfigurationStatus represents the observed
-              state of a ApplicationConfiguration.
+            description: An ApplicationConfigurationStatus represents the observed state of a ApplicationConfiguration.
             properties:
               conditions:
                 description: Conditions of the resource.
@@ -305,25 +244,20 @@ spec:
                   description: A Condition that may apply to a resource.
                   properties:
                     lastTransitionTime:
-                      description: LastTransitionTime is the last time this condition
-                        transitioned from one status to another.
+                      description: LastTransitionTime is the last time this condition transitioned from one status to another.
                       format: date-time
                       type: string
                     message:
-                      description: A Message containing details about this condition's
-                        last transition from one status to another, if any.
+                      description: A Message containing details about this condition's last transition from one status to another, if any.
                       type: string
                     reason:
-                      description: A Reason for this condition's last transition from
-                        one status to another.
+                      description: A Reason for this condition's last transition from one status to another.
                       type: string
                     status:
-                      description: Status of this condition; is it currently True,
-                        False, or Unknown?
+                      description: Status of this condition; is it currently True, False, or Unknown?
                       type: string
                     type:
-                      description: Type of this condition. At most one of each condition
-                        type may apply to a resource at any point in time.
+                      description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
                       type: string
                   required:
                   - lastTransitionTime
@@ -333,17 +267,14 @@ spec:
                   type: object
                 type: array
               dependency:
-                description: DependencyStatus represents the observed state of the
-                  dependency of an ApplicationConfiguration.
+                description: DependencyStatus represents the observed state of the dependency of an ApplicationConfiguration.
                 properties:
                   unsatisfied:
                     items:
-                      description: UnstaifiedDependency describes unsatisfied dependency
-                        flow between one pair of objects.
+                      description: UnstaifiedDependency describes unsatisfied dependency flow between one pair of objects.
                       properties:
                         from:
-                          description: DependencyFromObject represents the object
-                            that dependency data comes from.
+                          description: DependencyFromObject represents the object that dependency data comes from.
                           properties:
                             apiVersion:
                               description: APIVersion of the referenced object.
@@ -367,8 +298,7 @@ spec:
                         reason:
                           type: string
                         to:
-                          description: DependencyToObject represents the object that
-                            dependency data goes to.
+                          description: DependencyToObject represents the object that dependency data goes to.
                           properties:
                             apiVersion:
                               description: APIVersion of the referenced object.
@@ -399,14 +329,12 @@ spec:
                     type: array
                 type: object
               historyWorkloads:
-                description: HistoryWorkloads will record history but still working
-                  revision workloads.
+                description: HistoryWorkloads will record history but still working revision workloads.
                 items:
-                  description: HistoryWorkload contain the old component revision
-                    that are still running
+                  description: HistoryWorkload contain the old component revision that are still running
                   properties:
                     revision:
-                      description: component revision of this workload
+                      description: Revision of this workload
                       type: string
                     workloadRef:
                       description: Reference to running workload.
@@ -435,9 +363,7 @@ spec:
                 format: int64
                 type: integer
               status:
-                description: Status is a place holder for a customized controller
-                  to fill if it needs a single place to summarize the status of the
-                  entire application
+                description: Status is a place holder for a customized controller to fill if it needs a single place to summarize the status of the entire application
                 type: string
               workloads:
                 description: Workloads created by this ApplicationConfiguration.
@@ -453,8 +379,7 @@ spec:
                     scopes:
                       description: Scopes associated with this workload.
                       items:
-                        description: A WorkloadScope represents a scope associated
-                          with a workload and its status
+                        description: A WorkloadScope represents a scope associated with a workload and its status
                         properties:
                           scopeRef:
                             description: Reference to a scope created by an ApplicationConfiguration.
@@ -477,29 +402,25 @@ spec:
                             - name
                             type: object
                           status:
-                            description: Status is a place holder for a customized
-                              controller to fill if it needs a single place to summarize
-                              the status of the scope
+                            description: Status is a place holder for a customized controller to fill if it needs a single place to summarize the status of the scope
                             type: string
                         required:
                         - scopeRef
                         type: object
                       type: array
                     status:
-                      description: Status is a place holder for a customized controller
-                        to fill if it needs a single place to summarize the entire
-                        status of the workload
+                      description: Status is a place holder for a customized controller to fill if it needs a single place to summarize the entire status of the workload
                       type: string
                     traits:
                       description: Traits associated with this workload.
                       items:
-                        description: A WorkloadTrait represents a trait associated
-                          with a workload and its status
+                        description: A WorkloadTrait represents a trait associated with a workload and its status
                         properties:
+                          message:
+                            description: Message will allow controller to leave some additional information for this trait
+                            type: string
                           status:
-                            description: Status is a place holder for a customized
-                              controller to fill if it needs a single place to summarize
-                              the status of the trait
+                            description: Status is a place holder for a customized controller to fill if it needs a single place to summarize the status of the trait
                             type: string
                           traitRef:
                             description: Reference to a trait created by an ApplicationConfiguration.

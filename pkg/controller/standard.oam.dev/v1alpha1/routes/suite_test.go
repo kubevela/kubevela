@@ -22,10 +22,6 @@ import (
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	oamCore "github.com/crossplane/oam-kubernetes-runtime/apis/core"
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/controller"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/controller/v1alpha2/applicationconfiguration"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
@@ -39,6 +35,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
+
+	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+
+	oamCore "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 
 	standardv1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/podspecworkload"

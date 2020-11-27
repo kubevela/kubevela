@@ -5,13 +5,14 @@ import (
 	"os"
 	"testing"
 
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/kubectl/pkg/cmd/portforward"
 	cmdtesting "k8s.io/kubectl/pkg/cmd/testing"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"

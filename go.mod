@@ -10,6 +10,7 @@ require (
 	github.com/coreos/prometheus-operator v0.41.1
 	github.com/crossplane/crossplane-runtime v0.10.0
 	github.com/crossplane/oam-kubernetes-runtime v0.3.3-0.20201112082656-22b7738dcdf3
+	github.com/davecgh/go-spew v1.1.1
 	github.com/fatih/color v1.9.0
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/ghodss/yaml v1.0.0
@@ -45,9 +46,11 @@ require (
 	k8s.io/cli-runtime v0.18.6
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/klog v1.0.0
+	k8s.io/kube-openapi v0.0.0-20200410145947-bcb3869e6f29
 	k8s.io/kubectl v0.18.6
 	k8s.io/utils v0.0.0-20200603063816-c1c6865ac451
 	sigs.k8s.io/controller-runtime v0.6.2
+	sigs.k8s.io/controller-tools v0.2.4
 )
 
 replace (

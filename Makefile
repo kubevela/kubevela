@@ -10,6 +10,22 @@ GOX         = go run github.com/mitchellh/gox
 TARGETS     := darwin/amd64 linux/amd64 windows/amd64
 DIST_DIRS   := find * -type d -exec
 
+TIME_LONG	= `date +%Y-%m-%d' '%H:%M:%S`
+TIME_SHORT	= `date +%H:%M:%S`
+TIME		= $(TIME_SHORT)
+
+BLUE         := $(shell printf "\033[34m")
+YELLOW       := $(shell printf "\033[33m")
+RED          := $(shell printf "\033[31m")
+GREEN        := $(shell printf "\033[32m")
+CNone        := $(shell printf "\033[0m")
+
+INFO	= echo ${TIME} ${BLUE}[ .. ]${CNone}
+WARN	= echo ${TIME} ${YELLOW}[WARN]${CNone}
+ERR		= echo ${TIME} ${RED}[FAIL]${CNone}
+OK		= echo ${TIME} ${GREEN}[ OK ]${CNone}
+FAIL	= (echo ${TIME} ${RED}[FAIL]${CNone} && false)
+
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -22,12 +38,14 @@ all: build
 # Run tests
 test: vet lint
 	go test -race -coverprofile=coverage.txt -covermode=atomic ./pkg/... ./cmd/...
+	@$(OK) unit-tests pass
 
 # Build manager binary
 build: fmt vet lint
 	go run hack/chart/generate.go
 	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
 	git checkout cmd/vela/fake/chart_source.go
+	@$(OK) build succeed
 
 vela-cli:
 	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
@@ -64,10 +82,10 @@ run: fmt vet
 	go run ./cmd/core/main.go
 
 # Run go fmt against code
-fmt: goimports
+fmt: goimports installcue
 	go fmt ./...
 	$(GOIMPORTS) -local github.com/oam-dev/kubevela -w ./pkg ./cmd
-	./hack/cue-fmt.sh
+	$(CUE) fmt ./hack/vela-templates/cue/*
 
 # Run go vet against code
 vet:
@@ -75,6 +93,14 @@ vet:
 
 lint: golangci
 	$(GOLANGCILINT) run  ./...
+
+reviewable: fmt vet lint manifests
+	go mod tidy
+
+# Execute auto-gen code commands and ensure branch is clean.
+check-diff: reviewable
+	git diff --quiet || $(FAIL)
+	@$(OK) branch is clean
 
 # Build the docker image
 docker-build: test
@@ -94,6 +120,10 @@ e2e-setup:
 e2e-test:
 	# Run e2e test
 	ginkgo -v -skipPackage capability,setup,apiserver -r e2e
+	ginkgo -v ./test/e2e-test
+	# integration test will clean environment, please don't put test behind it.
+	CGO_ENABLED=0 go test -timeout 1h -count=1 -v -tags 'integration' ./test/integration
+	@$(OK) tests pass
 
 e2e-api-test:
 	# Run e2e test
@@ -110,19 +140,17 @@ kind-load:
 
 # Image URL to use all building/pushing image targets
 IMG ?= vela-core:latest
-# Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
-CRD_OPTIONS ?= "crd:crdVersions=v1"
 
 # Run tests
-core-test: generate fmt vet manifests
+core-test: fmt vet manifests
 	go test ./pkg/... -coverprofile cover.out
 
 # Build manager binary
-manager: generate fmt vet lint manifests
+manager: fmt vet lint manifests
 	go build -o bin/manager ./cmd/core/main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
-core-run: generate fmt vet manifests
+core-run: fmt vet manifests
 	go run ./cmd/core/main.go
 
 # Install CRDs and Definitions of Vela Core into a cluster, this is for develop convenient.
@@ -133,6 +161,7 @@ core-install: manifests
 	kubectl apply -f charts/vela-core/templates/definitions/
 	kubectl apply -f charts/vela-core/templates/velaConfig.yaml
 	bin/vela workloads
+	@$(OK) install succeed
 
 # Uninstall CRDs and Definitions of Vela Core from a cluster, this is for develop convenient.
 core-uninstall: manifests
@@ -141,31 +170,9 @@ core-uninstall: manifests
 	kubectl delete -f charts/vela-core/crds/
 
 # Generate manifests e.g. CRD, RBAC etc.
-manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=charts/vela-core/crds
+manifests:
 	go generate $(foreach t,pkg apis,./$(t)/...)
 	./hack/vela-templates/gen_definitions.sh
-
-# Generate code
-generate: controller-gen
-	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
-
-# find or download controller-gen
-# download controller-gen if necessary
-controller-gen:
-ifeq (, $(shell which controller-gen))
-	@{ \
-	set -e ;\
-	CONTROLLER_GEN_TMP_DIR=$$(mktemp -d) ;\
-	cd $$CONTROLLER_GEN_TMP_DIR ;\
-	go mod init tmp ;\
-	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.5 ;\
-	rm -rf $$CONTROLLER_GEN_TMP_DIR ;\
-	}
-CONTROLLER_GEN=$(GOBIN)/controller-gen
-else
-CONTROLLER_GEN=$(shell which controller-gen)
-endif
 
 GOLANGCILINT_VERSION ?= v1.29.0
 HOSTOS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
@@ -197,4 +204,16 @@ ifeq (, $(shell which goimports))
 GOIMPORTS=$(GOBIN)/goimports
 else
 GOIMPORTS=$(shell which goimports)
+endif
+
+.PHONY: installcue
+installcue:
+ifeq (, $(shell which cue))
+	@{ \
+	set -e ;\
+	GO111MODULE=off go get -u cuelang.org/go/cmd/cue ;\
+	}
+CUE=$(GOBIN)/cue
+else
+CUE=$(shell which cue)
 endif

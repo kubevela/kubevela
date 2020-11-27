@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/discoverymapper"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 )
 
 // CapabilityCommandGroup commands for capability center
@@ -65,7 +66,7 @@ func NewCapCenterConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			capName := args[0]
 			capURL := args[1]
 			token := cmd.Flag("token").Value.String()
-			if err := oam.AddCapabilityCenter(capName, capURL, token); err != nil {
+			if err := serverlib.AddCapabilityCenter(capName, capURL, token); err != nil {
 				return err
 			}
 			ioStreams.Infof("Successfully configured capability center %s and sync from remote\n", capName)
@@ -97,7 +98,7 @@ func NewCapInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 			if err != nil {
 				return err
 			}
-			if _, err = oam.AddCapabilityIntoCluster(newClient, mapper, args[0]); err != nil {
+			if _, err = serverlib.AddCapabilityIntoCluster(newClient, mapper, args[0]); err != nil {
 				return err
 			}
 			return nil
@@ -130,7 +131,7 @@ func NewCapUninstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 				}
 				name = l[1]
 			}
-			return oam.RemoveCapability(newClient, name, ioStreams)
+			return serverlib.RemoveCapability(newClient, name, ioStreams)
 		},
 	}
 	cmd.PersistentFlags().StringP("token", "t", "", "Github Repo token")
@@ -149,7 +150,7 @@ func NewCapCenterSyncCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			if len(args) > 0 {
 				specified = args[0]
 			}
-			if err := oam.SyncCapabilityCenter(specified); err != nil {
+			if err := serverlib.SyncCapabilityCenter(specified); err != nil {
 				return err
 			}
 			ioStreams.Info("sync finished")
@@ -171,7 +172,7 @@ func NewCapListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			if len(args) > 0 {
 				repoName = args[0]
 			}
-			capabilityList, err := oam.ListCapabilities(repoName)
+			capabilityList, err := serverlib.ListCapabilities(repoName)
 			if err != nil {
 				return err
 			}
@@ -219,7 +220,7 @@ func NewCapCenterRemoveCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 func listCapCenters(ioStreams cmdutil.IOStreams) error {
 	table := uitable.New()
 	table.AddRow("NAME", "ADDRESS")
-	capabilityCenterList, err := oam.ListCapabilityCenters()
+	capabilityCenterList, err := serverlib.ListCapabilityCenters()
 	if err != nil {
 		return err
 	}
@@ -235,7 +236,7 @@ func removeCapCenter(args []string, ioStreams cmdutil.IOStreams) error {
 		return errors.New("you must specify <name> for capability center you want to remove")
 	}
 	centerName := args[0]
-	msg, err := oam.RemoveCapabilityCenter(centerName)
+	msg, err := serverlib.RemoveCapabilityCenter(centerName)
 	if err == nil {
 		ioStreams.Info(msg)
 	}

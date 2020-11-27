@@ -5,8 +5,9 @@ import (
 	"fmt"
 
 	"github.com/AlecAivazis/survey/v2"
-	corev1alpha2 "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 )
 
 // GetComponent get OAM component
