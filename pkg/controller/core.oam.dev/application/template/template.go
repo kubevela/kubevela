@@ -1,7 +1,6 @@
 package template
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 
@@ -10,19 +9,18 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	kyaml "sigs.k8s.io/yaml"
 
-	fclient "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/application/cache-client"
+	fclient "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/application/defclient"
 )
 
 type manager struct {
 	ns string
-	fclient.FastClient
+	fclient.DefinitionClient
 }
 
 // GetHanler  get template handler
-func GetHanler(ns string, cli fclient.FastClient) Handler {
+func GetHanler(cli fclient.DefinitionClient) Handler {
 	m := &manager{
-		ns:         ns,
-		FastClient: cli,
+		DefinitionClient: cli,
 	}
 	return m.LoadTemplate
 }
@@ -44,8 +42,7 @@ const (
 
 // LoadTemplate Get template according to key
 func (m *manager) LoadTemplate(key string) (string, Kind, error) {
-	ctx := context.Background()
-	wd, err := m.GetWorkloadDefinition(ctx, m.ns, key)
+	wd, err := m.GetWorkloadDefinition(key)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return "", Unkownkind, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 	}
@@ -58,7 +55,7 @@ func (m *manager) LoadTemplate(key string) (string, Kind, error) {
 			return jsonRaw, WorkloadKind, nil
 		}
 	}
-	td, err := m.GetTraitDefition(ctx, m.ns, key)
+	td, err := m.GetTraitDefition(key)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return "", Unkownkind, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 	}

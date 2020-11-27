@@ -56,5 +56,6 @@ func (option *serverOptions) register(fs *pflag.FlagSet) {
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	fs.StringVar(&option.LeaderElectionNamespace, "leader-election-namespace", "",
 		"Determines the namespace in which the leader election configmap will be created.")
+	option.SyncPeriod = new(time.Duration)
 	fs.DurationVar(option.SyncPeriod, "sync-period", time.Minute*10, "determines the minimum frequency at which watched resources are reconciled.")
 }

@@ -53,6 +53,7 @@ func (b *builder) Complete(ns string) (*v1alpha2.ApplicationConfiguration, []*v1
 		}
 
 		component.Namespace = ns
+		component.Name = wl.Name()
 		if component.Labels == nil {
 			component.Labels = map[string]string{}
 		}
@@ -64,6 +65,7 @@ func (b *builder) Complete(ns string) (*v1alpha2.ApplicationConfiguration, []*v1
 			ComponentName: wl.Name(),
 			Traits:        []v1alpha2.ComponentTrait{},
 		}
+
 		for _, trait := range wl.Traits() {
 			ctraits, err := trait.Eval(newLoader(compCtx))
 			if err != nil {

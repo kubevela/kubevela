@@ -65,14 +65,20 @@ type reter struct {
 }
 
 func (ret *reter) Err(err error) (ctrl.Result, error) {
-	nerr := ret.h.Update(context.Background(), ret.app)
-	if err == nil {
-		return ctrl.Result{}, nerr
+
+	nerr := ret.h.Status().Update(context.Background(), ret.app)
+	if err == nil && nerr == nil {
+		return ctrl.Result{}, nil
 	}
 	if nerr != nil {
-		ret.h.Log.Error(nerr, "update application")
+		ret.l.Error(nerr, "[Update] application")
 	}
-	return ctrl.Result{}, err
+	if err != nil {
+		ret.l.Error(err, "[Handle]")
+	}
+	return ctrl.Result{
+		RequeueAfter: time.Second * 10,
+	}, nil
 }
 
 // Object interface

@@ -3,6 +3,8 @@ package parser
 import (
 	"fmt"
 
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+
 	"cuelang.org/go/cue"
 	cueJson "cuelang.org/go/pkg/encoding/json"
 	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
@@ -192,7 +194,7 @@ func (pser *Parser) parseWorkload(name string, expr interface{}) (*Workload, err
 		}
 		workload.typ = fmt.Sprint(_type)
 		templ, kind, err := pser.templ(workload.typ)
-		if err != nil {
+		if err != nil && !kerrors.IsNotFound(err) {
 			return nil, errors.WithMessagef(err, "fetch %s' type", name)
 		}
 		if kind == template.Unkownkind || kind == template.TraitKind {
@@ -225,7 +227,7 @@ func (pser *Parser) parseWorkload(name string, expr interface{}) (*Workload, err
 func (pser *Parser) parseTrait(label string, expr interface{}) (*Trait, error) {
 
 	templ, kind, err := pser.templ(label)
-	if err != nil {
+	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, err
 	}
 	if kind != template.TraitKind {

@@ -38,6 +38,7 @@ spec:
               type: object
             description: ApplicationSpec defines the desired state of Application
             type: object
+            x-kubernetes-preserve-unknown-fields: true
           status:
             description: ApplicationStatus defines the observed state of Application
             properties:
