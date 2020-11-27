@@ -8,7 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 
-	vela "github.com/oam-dev/kubevela/api/core.oam.dev/v1alpha2"
+	vela "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 )
 
 var (

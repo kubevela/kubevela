@@ -3,18 +3,18 @@ package cacheclient
 import (
 	"context"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+
 	core "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	v1alpha22 "github.com/oam-dev/kubevela/api/core.oam.dev/v1alpha2"
 )
 
 // FastClient is a interface
 type FastClient interface {
 	GetWorkloadDefinition(ctx context.Context, ns, name string) (*core.WorkloadDefinition, error)
 	GetTraitDefition(ctx context.Context, ns, name string) (*core.TraitDefinition, error)
-	GetApplication(ctx context.Context, key client.ObjectKey) (*v1alpha22.Application, error)
+	GetApplication(ctx context.Context, key client.ObjectKey) (*v1alpha2.Application, error)
 }
 
 // Factory can get wd|td|app
@@ -62,8 +62,8 @@ func (f *Factory) GetTraitDefition(ctx context.Context, ns, name string) (*core.
 }
 
 // GetApplication Get Application
-func (f *Factory) GetApplication(ctx context.Context, key client.ObjectKey) (*v1alpha22.Application, error) {
-	app := new(v1alpha22.Application)
+func (f *Factory) GetApplication(ctx context.Context, key client.ObjectKey) (*v1alpha2.Application, error) {
+	app := new(v1alpha2.Application)
 	if err := f.Get(ctx, key, app); err != nil {
 		if err := f.client.Get(ctx, key, app); err != nil {
 			return nil, err

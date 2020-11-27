@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	core "github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
@@ -13,15 +15,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
-
-	v1alpha22 "github.com/oam-dev/kubevela/api/core.oam.dev/v1alpha2"
 )
 
 const (
 	serviceFinalizer = "services.finalizer.core.oam.dev"
 )
 
-func registerFinalizers(app *v1alpha22.Application) bool {
+func registerFinalizers(app *v1alpha2.Application) bool {
 	newFinalizer := false
 	if !meta.FinalizerExists(&app.ObjectMeta, serviceFinalizer) {
 		meta.AddFinalizer(&app.ObjectMeta, serviceFinalizer)
@@ -30,7 +30,7 @@ func registerFinalizers(app *v1alpha22.Application) bool {
 	return newFinalizer
 }
 
-func removeFinalizers(app *v1alpha22.Application) bool {
+func removeFinalizers(app *v1alpha2.Application) bool {
 	remove := false
 	if meta.FinalizerExists(&app.ObjectMeta, serviceFinalizer) {
 		meta.RemoveFinalizer(&app.ObjectMeta, serviceFinalizer)
@@ -60,7 +60,7 @@ func readyCondition(tpy string) runtimev1alpha1.Condition {
 
 type reter struct {
 	h   *applicationReconciler
-	app *v1alpha22.Application
+	app *v1alpha2.Application
 	l   logr.Logger
 }
 
