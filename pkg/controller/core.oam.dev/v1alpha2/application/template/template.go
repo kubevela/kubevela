@@ -4,20 +4,18 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	kyaml "sigs.k8s.io/yaml"
 
-	fclient "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
 )
 
 type manager struct {
-	fclient.DefinitionClient
+	defclient.DefinitionClient
 }
 
 // GetHanler  get template handler
-func GetHanler(cli fclient.DefinitionClient) Handler {
+func GetHanler(cli defclient.DefinitionClient) Handler {
 	m := &manager{
 		DefinitionClient: cli,
 	}
@@ -78,74 +76,4 @@ func getTemplate(raw []byte) (string, error) {
 		return "", err
 	}
 	return fmt.Sprint(_tmp["template"]), nil
-}
-
-// MockManager ...
-type MockManager struct {
-	wds []*v1alpha2.WorkloadDefinition
-	tds []*v1alpha2.TraitDefinition
-}
-
-// LoadTemplate add template according to key
-func (mock *MockManager) LoadTemplate(key string) (string, Kind, error) {
-	for _, wd := range mock.wds {
-		if wd.Name == key {
-			jsonRaw, err := getTemplate(wd.Spec.Extension.Raw)
-			if err != nil {
-				return "", Unkownkind, err
-			}
-			if jsonRaw != "" {
-				return jsonRaw, WorkloadKind, nil
-			}
-		}
-	}
-
-	for _, td := range mock.tds {
-		if td.Name == key {
-			jsonRaw, err := getTemplate(td.Spec.Extension.Raw)
-			if err != nil {
-				return "", Unkownkind, err
-			}
-			if jsonRaw != "" {
-				return jsonRaw, TraitKind, nil
-			}
-		}
-	}
-
-	return "", Unkownkind, nil
-}
-
-// AddWD  add workload definition to Mock Manager
-func (mock *MockManager) AddWD(s string) error {
-	wd := &v1alpha2.WorkloadDefinition{}
-	_body, err := kyaml.YAMLToJSON([]byte(s))
-	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(_body, wd); err != nil {
-		return err
-	}
-
-	if mock.wds == nil {
-		mock.wds = []*v1alpha2.WorkloadDefinition{}
-	}
-	mock.wds = append(mock.wds, wd)
-	return nil
-}
-
-// AddTD add triat definition to Mock Manager
-func (mock *MockManager) AddTD(s string) error {
-	td := &v1alpha2.TraitDefinition{}
-	_body, err := kyaml.YAMLToJSON([]byte(s))
-	if err != nil {
-		return err
-	}
-	if err := json.Unmarshal(_body, td); err != nil {
-		return err
-	}
-	if mock.tds == nil {
-		mock.tds = []*v1alpha2.TraitDefinition{}
-	}
-	mock.tds = append(mock.tds, td)
-	return nil
 }

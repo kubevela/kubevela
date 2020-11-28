@@ -3,13 +3,15 @@ package template
 import (
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
+
 	"cuelang.org/go/cue"
 )
 
 func TestTemplate(t *testing.T) {
 
 	var (
-		mock = &MockManager{}
+		mock = &defclient.MockClient{}
 	)
 
 	cueTemplate := `
@@ -73,7 +75,10 @@ spec:
 		return
 	}
 
-	temp, kind, err := mock.LoadTemplate("worker")
+	m := manager{
+		mock,
+	}
+	temp, kind, err := m.LoadTemplate("worker")
 	if err != nil {
 		t.Error(err)
 		return

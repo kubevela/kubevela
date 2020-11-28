@@ -4,14 +4,18 @@ import (
 	"reflect"
 	"testing"
 
+	"cuelang.org/go/cue"
+
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
+
 	"github.com/ghodss/yaml"
 
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/template"
 )
 
 func TestParser(t *testing.T) {
-	m := template.MockManager{}
-	m.AddTD(`
+	mock := &defclient.MockClient{}
+	mock.AddTD(`
 apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata:
@@ -38,7 +42,7 @@ spec:
       	//+short=r
       	replicas: *1 | int
       }`)
-	m.AddWD(`
+	mock.AddWD(`
 apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
@@ -104,7 +108,7 @@ services:
 	o := map[string]interface{}{}
 	yaml.Unmarshal([]byte(appfileYaml), &o)
 
-	appfile, err := NewParser(m.LoadTemplate).Parse("test", o)
+	appfile, err := NewParser(template.GetHanler(mock)).Parse("test", o)
 	if err != nil {
 		t.Error(err)
 		return
@@ -114,6 +118,88 @@ services:
 		t.Error("parser appfile wrong")
 	}
 
+}
+
+func TestEval(t *testing.T) {
+
+	traitDef := `
+output: {
+      	apiVersion: "core.oam.dev/v1alpha2"
+      	kind:       "ManualScalerTrait"
+      	spec: {
+      		replicaCount: 10
+      	}
+}`
+	trait := &Trait{
+		template: traitDef,
+	}
+
+	trs, err := trait.Eval(&mockRender{})
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	if len(trs) != 1 {
+		t.Errorf("output means there is only one trait")
+	}
+
+	workloadDef := `
+output: {
+      	apiVersion: "apps/v1"
+      	kind:       "Deployment"
+      	spec: {
+      		selector: matchLabels: {
+      			"app.oam.dev/component": "test"
+      		}
+      
+      		template: {
+      			metadata: labels: {
+      				"app.oam.dev/component": "test"
+      			}
+      
+      			spec: {
+      				containers: [{
+      					name:  "test"
+      					image: "parameter.image"
+      				}]
+      			}
+      		}
+      
+      		selector:
+      			matchLabels:
+      				"app.oam.dev/component": "test"
+      	}
+}`
+	workload := &Workload{
+		template: workloadDef,
+	}
+
+	if _, err := workload.Eval(&mockRender{}); err != nil {
+		t.Error(err)
+	}
+
+}
+
+type mockRender struct {
+	body string
+}
+
+// WithParams Mock Fill Params
+func (mr *mockRender) WithParams(params interface{}) Render {
+	return mr
+}
+
+// WithTemplate Mock Fill Params
+func (mr *mockRender) WithTemplate(raw string) Render {
+	mr.body = raw
+	return mr
+}
+
+// Complete generate cue instance
+func (mr *mockRender) Complete() (*cue.Instance, error) {
+	var r cue.Runtime
+	return r.Compile("-", mr.body)
 }
 
 func equal(af, dest *Appfile) bool {
