@@ -6,8 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/server/util"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
@@ -23,7 +23,7 @@ func (s *APIServer) GetComponent(c *gin.Context) {
 	applicationName := c.Param("appName")
 	componentName := c.Param("compName")
 	ctx := util.GetContext(c)
-	componentMeta, err := oam.RetrieveComponent(ctx, s.KubeClient, applicationName, componentName, namespace)
+	componentMeta, err := serverlib.RetrieveComponent(ctx, s.KubeClient, applicationName, componentName, namespace)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
@@ -42,7 +42,7 @@ func (s *APIServer) DeleteComponent(c *gin.Context) {
 	appName := c.Param("appName")
 	componentName := c.Param("compName")
 
-	o := oam.DeleteOptions{
+	o := serverlib.DeleteOptions{
 		Client:   s.KubeClient,
 		Env:      envMeta,
 		AppName:  appName,

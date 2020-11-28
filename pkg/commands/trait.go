@@ -9,8 +9,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/plugins"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -127,7 +127,7 @@ func (o *commandOptions) AddOrUpdateTrait(cmd *cobra.Command, args []string) err
 	}
 	flags := cmd.Flags()
 
-	if o.app, err = oam.AddOrUpdateTrait(o.Env, o.appName, o.workloadName, flags, o.Template); err != nil {
+	if o.app, err = serverlib.AddOrUpdateTrait(o.Env, o.appName, o.workloadName, flags, o.Template); err != nil {
 		return err
 	}
 	return nil
@@ -139,7 +139,7 @@ func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string) error {
 	if err = o.Prepare(cmd, args); err != nil {
 		return err
 	}
-	if o.app, err = oam.PrepareDetachTrait(o.Env.Name, o.traitType, o.workloadName, o.appName); err != nil {
+	if o.app, err = serverlib.PrepareDetachTrait(o.Env.Name, o.traitType, o.workloadName, o.appName); err != nil {
 		return err
 	}
 	var traitType = o.Template.Name
@@ -160,7 +160,7 @@ func (o *commandOptions) Run(ctx context.Context, cmd *cobra.Command, io cmdutil
 	if err != nil {
 		return err
 	}
-	_, err = oam.TraitOperationRun(ctx, o.Client, o.Env, o.app, staging, io)
+	_, err = serverlib.TraitOperationRun(ctx, o.Client, o.Env, o.app, staging, io)
 	if err != nil {
 		return err
 	}

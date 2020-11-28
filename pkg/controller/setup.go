@@ -19,7 +19,6 @@ package controller
 import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/applicationdeployment"
 	autoscalers "github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/autoscaler"
 	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/metrics"
 	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/podspecworkload"
@@ -30,7 +29,7 @@ import (
 func Setup(mgr ctrl.Manager) error {
 	for _, setup := range []func(ctrl.Manager) error{
 		metrics.Setup, podspecworkload.Setup, routes.Setup,
-		applicationdeployment.Setup, autoscalers.Setup,
+		autoscalers.Setup,
 	} {
 		if err := setup(mgr); err != nil {
 			return err

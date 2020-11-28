@@ -10,8 +10,6 @@ import (
 
 	"github.com/briandowns/spinner"
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
 	"github.com/fatih/color"
 	"github.com/gosuri/uitable"
 	"github.com/kyokomi/emoji"
@@ -20,10 +18,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	oam2 "github.com/oam-dev/kubevela/pkg/oam"
+	oam2 "github.com/oam-dev/kubevela/pkg/serverlib"
 )
 
 // HealthStatus represents health status strings.

@@ -67,8 +67,8 @@ func (spec *ApplicationSpec) DeepCopy() *ApplicationSpec {
 // RenderStatus is Application Render Status
 type RenderStatus string
 
-// ApplicationStatus defines the observed state of Application
-type ApplicationStatus struct {
+// AppStatus defines the observed state of Application
+type AppStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
@@ -87,7 +87,7 @@ type Application struct {
 
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Spec   ApplicationSpec   `json:"spec,omitempty"`
-	Status ApplicationStatus `json:"status,omitempty"`
+	Status AppStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true

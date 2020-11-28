@@ -4,18 +4,20 @@ import (
 	"context"
 	"strings"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	runtimeoam "github.com/crossplane/oam-kubernetes-runtime/pkg/oam"
 	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+
+	runtimeoam "github.com/oam-dev/kubevela/pkg/oam"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 )
 
 // NewListCommand creates `ls` command and its nested children command
@@ -53,7 +55,7 @@ func NewListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 }
 
 func printComponentList(ctx context.Context, c client.Client, appName string, env *types.EnvMeta, ioStreams cmdutil.IOStreams) {
-	deployedComponentList, err := oam.ListComponents(ctx, c, oam.Option{
+	deployedComponentList, err := serverlib.ListComponents(ctx, c, serverlib.Option{
 		AppName:   appName,
 		Namespace: env.Namespace,
 	})

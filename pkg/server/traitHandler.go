@@ -12,10 +12,10 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	util2 "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/server/util"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 	env2 "github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
@@ -46,7 +46,7 @@ func (s *APIServer) GetTrait(c *gin.Context) {
 	var capability types.Capability
 	var err error
 
-	if capability, err = oam.GetTraitDefinition(&workloadType, traitType); err != nil {
+	if capability, err = serverlib.GetTraitDefinition(&workloadType, traitType); err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
 	}
@@ -58,7 +58,7 @@ func (s *APIServer) ListTrait(c *gin.Context) {
 	var traitList []types.Capability
 	var workloadName string
 	var err error
-	if traitList, err = oam.ListTraitDefinitions(&workloadName); err != nil {
+	if traitList, err = serverlib.ListTraitDefinitions(&workloadName); err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
 	}
@@ -115,12 +115,12 @@ func (s *APIServer) DoAttachTrait(c context.Context, body apis.TraitBody) (strin
 		return "", err
 	}
 
-	appObj, err = oam.AddOrUpdateTrait(env, body.AppName, body.ComponentName, fs, template)
+	appObj, err = serverlib.AddOrUpdateTrait(env, body.AppName, body.ComponentName, fs, template)
 	if err != nil {
 		return "", err
 	}
 	io := util2.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	return oam.TraitOperationRun(c, s.KubeClient, env, appObj, staging, io)
+	return serverlib.TraitOperationRun(c, s.KubeClient, env, appObj, staging, io)
 }
 
 // DoDetachTrait executes detaching trait operation
@@ -130,7 +130,7 @@ func (s *APIServer) DoDetachTrait(c context.Context, envName string, traitType s
 	if appName == "" {
 		appName = componentName
 	}
-	if appObj, err = oam.PrepareDetachTrait(envName, traitType, componentName, appName); err != nil {
+	if appObj, err = serverlib.PrepareDetachTrait(envName, traitType, componentName, appName); err != nil {
 		return "", err
 	}
 	// Run
@@ -139,5 +139,5 @@ func (s *APIServer) DoDetachTrait(c context.Context, envName string, traitType s
 		return "", err
 	}
 	io := util2.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	return oam.TraitOperationRun(c, s.KubeClient, env, appObj, staging, io)
+	return serverlib.TraitOperationRun(c, s.KubeClient, env, appObj, staging, io)
 }

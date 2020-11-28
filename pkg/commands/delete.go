@@ -5,7 +5,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 
 	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -31,7 +31,7 @@ func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		if err != nil {
 			return err
 		}
-		o := &oam.DeleteOptions{}
+		o := &serverlib.DeleteOptions{}
 		o.Client = newClient
 		o.Env, err = GetEnv(cmd)
 		if err != nil {

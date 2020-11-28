@@ -1,0 +1,8 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: bars.example.com
+spec:
+  revisionEnabled: true
+  definitionRef:
+    name: bars.example.com

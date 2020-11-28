@@ -1,0 +1,14 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: ApplicationConfiguration
+metadata:
+  name: example-appconfig
+  namespace: component-versioning-test
+spec:
+  components:
+    - componentName: example-component
+      traits:
+        - trait:
+            apiVersion: example.com/v1
+            kind: Bar
+            spec:
+              foo: bar
