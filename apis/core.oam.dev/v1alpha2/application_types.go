@@ -86,8 +86,8 @@ type Application struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// +kubebuilder:pruning:PreserveUnknownFields
-	Spec   ApplicationSpec   `json:"spec,omitempty"`
-	Status AppStatus `json:"status,omitempty"`
+	Spec   ApplicationSpec `json:"spec,omitempty"`
+	Status AppStatus       `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true

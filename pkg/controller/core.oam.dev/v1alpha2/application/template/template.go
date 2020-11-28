@@ -13,7 +13,6 @@ import (
 )
 
 type manager struct {
-	ns string
 	fclient.DefinitionClient
 }
 

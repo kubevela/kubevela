@@ -8,8 +8,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 )
 
 var (
@@ -31,7 +31,7 @@ func newServerCommand() *cobra.Command {
 				return err
 			}
 
-			if err := application.Setup(mgr,core.Args{},nil); err != nil {
+			if err := application.Setup(mgr, core.Args{}, nil); err != nil {
 				return err
 			}
 

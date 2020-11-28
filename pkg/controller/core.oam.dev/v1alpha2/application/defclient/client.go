@@ -16,7 +16,7 @@ type DefinitionClient interface {
 
 // Factory can get wd|td|app
 type Factory struct {
-	client  client.Client
+	client client.Client
 }
 
 // NewDefinitionClient generate definition fetcher
@@ -50,4 +50,3 @@ func (f *Factory) GetTraitDefition(name string) (*v1alpha2.TraitDefinition, erro
 	}
 	return td, nil
 }
-

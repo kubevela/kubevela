@@ -17,8 +17,9 @@ limitations under the License.
 package v1alpha2
 
 import (
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 
@@ -35,7 +36,7 @@ func Setup(mgr ctrl.Manager, args controller.Args, l logging.Logger) error {
 	for _, setup := range []func(ctrl.Manager, controller.Args, logging.Logger) error{
 		applicationconfiguration.Setup,
 		containerizedworkload.Setup, manualscalertrait.Setup, healthscope.Setup,
-		applicationdeployment.Setup,application.Setup,
+		applicationdeployment.Setup, application.Setup,
 	} {
 		if err := setup(mgr, args, l); err != nil {
 			return err

@@ -18,16 +18,19 @@ package application
 
 import (
 	"context"
+
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
+
+	"github.com/pkg/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/builder"
 	fclient "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/parser"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/template"
-	"github.com/pkg/errors"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,8 +41,8 @@ import (
 // ApplicationReconciler reconciles a Application object
 type applicationReconciler struct {
 	client.Client
-	Log             logr.Logger
-	Scheme          *runtime.Scheme
+	Log    logr.Logger
+	Scheme *runtime.Scheme
 }
 
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications,verbs=get;list;watch;create;update;patch;delete
@@ -50,11 +53,11 @@ func (r *applicationReconciler) Reconcile(req ctrl.Request) (result ctrl.Result,
 
 	ctx := context.Background()
 	_log := r.Log.WithValues("application", req.NamespacedName)
-	app:=new(v1alpha2.Application)
+	app := new(v1alpha2.Application)
 	if err := r.Get(ctx, client.ObjectKey{
 		Name:      req.Name,
 		Namespace: req.Namespace,
-	},app);err != nil {
+	}, app); err != nil {
 		if kerrors.IsNotFound(err) {
 			err = nil
 		}
@@ -65,31 +68,34 @@ func (r *applicationReconciler) Reconcile(req ctrl.Request) (result ctrl.Result,
 		_log.Info("Handle delete")
 		owns := false
 
-		matchLabels:=client.MatchingLabels{
+		matchLabels := client.MatchingLabels{
 			builder.OamApplicationLable: app.Name,
 		}
 
-		aclist:=&v1alpha2.ApplicationConfigurationList{}
-		if err:=r.List(ctx,aclist,matchLabels);err != nil && !kerrors.IsNotFound(err) {
+		aclist := &v1alpha2.ApplicationConfigurationList{}
+		if err := r.List(ctx, aclist, matchLabels); err != nil && !kerrors.IsNotFound(err) {
 			return ctrl.Result{}, errors.WithMessage(err, "list appConfigs")
 		}
-		for _, ac := range aclist.Items {
+		for index := range aclist.Items {
+			ac := aclist.Items[index]
 			owns = true
 			if ac.DeletionTimestamp != nil {
 				continue
 			}
+
 			if err := r.Client.Delete(ctx, &ac); err != nil && !kerrors.IsNotFound(err) {
 				return ctrl.Result{}, errors.Errorf("delete ApplicationConfig: %s", ac.Name)
 			}
 		}
 
-		compList:=&v1alpha2.ComponentList{}
-		if err:=r.List(ctx,compList,client.MatchingLabels{
+		compList := &v1alpha2.ComponentList{}
+		if err := r.List(ctx, compList, client.MatchingLabels{
 			builder.OamApplicationLable: app.Name,
-		});err != nil && !kerrors.IsNotFound(err) {
+		}); err != nil && !kerrors.IsNotFound(err) {
 			return ctrl.Result{}, errors.WithMessage(err, "list componetes")
 		}
-		for _, comp := range compList.Items {
+		for index := range compList.Items {
+			comp := compList.Items[index]
 			owns = true
 			if comp.DeletionTimestamp != nil {
 				continue
@@ -165,9 +171,8 @@ func (r *applicationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-
 // Setup adds a controller that reconciles ApplicationDeployment.
-func Setup(mgr ctrl.Manager,_ core.Args, _ logging.Logger) error {
+func Setup(mgr ctrl.Manager, _ core.Args, _ logging.Logger) error {
 	reconciler := applicationReconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("Application"),

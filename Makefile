@@ -150,7 +150,7 @@ manager: fmt vet lint manifests
 	go build -o bin/manager ./cmd/core/main.go
 
 # Build server binary
-server: generate fmt vet lint manifests
+server: fmt vet lint manifests
 	go build -o bin/vela-server ./pkg/controller/core.oam.dev/v1alpha2/application/testcmd
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
