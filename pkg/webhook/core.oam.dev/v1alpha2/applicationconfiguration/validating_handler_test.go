@@ -9,8 +9,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -260,13 +258,13 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 			want: nil,
 		},
 		{
-			caseName: "apply trait to workload with specific type",
+			caseName: "apply trait to workload with specific workloadDefinition name",
 			validatingAppConfig: ValidatingAppConfig{
 				validatingComps: []ValidatingComponent{
 					{
-						component: v1alpha2.Component{ObjectMeta: v1.ObjectMeta{
-							Labels: map[string]string{oam.WorkloadTypeLabel: "TestWorkload"},
-						}},
+						workloadDefinition: v1alpha2.WorkloadDefinition{
+							ObjectMeta: v1.ObjectMeta{Name: "TestWorkload"},
+						},
 						validatingTraits: []ValidatingTrait{
 							{traitDefinition: v1alpha2.TraitDefinition{
 								Spec: v1alpha2.TraitDefinitionSpec{
@@ -309,9 +307,26 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 				validatingComps: []ValidatingComponent{
 					{
 						workloadDefinition: v1alpha2.WorkloadDefinition{
-							TypeMeta: v1.TypeMeta{
-								APIVersion: "example.com/v1",
-								Kind:       "TestWorkload",
+							Spec: v1alpha2.WorkloadDefinitionSpec{
+								Reference: v1alpha2.DefinitionReference{
+									Name: "testworkloads.example.com",
+								},
+							},
+						},
+						validatingTraits: []ValidatingTrait{
+							{traitDefinition: v1alpha2.TraitDefinition{
+								Spec: v1alpha2.TraitDefinitionSpec{
+									AppliesToWorkloads: []string{"*.example.com"},
+								},
+							}},
+						},
+					},
+					{
+						workloadDefinition: v1alpha2.WorkloadDefinition{
+							Spec: v1alpha2.WorkloadDefinitionSpec{
+								Reference: v1alpha2.DefinitionReference{
+									Name: "testworkload2s.example.com",
+								},
 							},
 						},
 						validatingTraits: []ValidatingTrait{
@@ -332,28 +347,19 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 				validatingComps: []ValidatingComponent{
 					{
 						compName: "example-comp",
-						component: v1alpha2.Component{ObjectMeta: v1.ObjectMeta{
-							Labels: map[string]string{oam.WorkloadTypeLabel: "TestWorkload0"},
-						}},
 						workloadDefinition: v1alpha2.WorkloadDefinition{
-							TypeMeta: v1.TypeMeta{
-								APIVersion: "unknown.group/v1",
-								Kind:       "TestWorkload1",
-							},
+							ObjectMeta: v1.ObjectMeta{Name: "TestWorkload"},
 							Spec: v1alpha2.WorkloadDefinitionSpec{
 								Reference: v1alpha2.DefinitionReference{
-									Name: "TestWorkload2",
+									Name: "TestWorkload1",
 								},
 							},
 						},
 						validatingTraits: []ValidatingTrait{
 							{traitDefinition: v1alpha2.TraitDefinition{
-								TypeMeta: v1.TypeMeta{
-									APIVersion: "example.com/v1",
-									Kind:       "TestTrait",
-								},
+								ObjectMeta: v1.ObjectMeta{Name: "TestTrait"},
 								Spec: v1alpha2.TraitDefinitionSpec{
-									AppliesToWorkloads: []string{"example.com", "TestWorkload"},
+									AppliesToWorkloads: []string{"example.com", "TestWorkload2"},
 								},
 							}},
 						},
@@ -361,8 +367,8 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 				},
 			},
 			want: []error{fmt.Errorf(errFmtUnappliableTrait,
-				"example.com/v1, Kind=TestTrait", "unknown.group/v1, Kind=TestWorkload1", "example-comp",
-				[]string{"example.com", "TestWorkload"})},
+				"TestTrait", "TestWorkload", "example-comp",
+				[]string{"example.com", "TestWorkload2"})},
 		},
 	}
 
