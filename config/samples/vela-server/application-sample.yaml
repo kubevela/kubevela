@@ -1,0 +1,14 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: Application
+metadata:
+  name: application-sample
+spec:
+  services:
+      myweb:
+        type: worker
+        image: "busybox"
+        cmd:
+        - sleep
+        - "1000"
+        scaler:
+          replicas: 10

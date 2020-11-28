@@ -151,7 +151,7 @@ manager: fmt vet lint manifests
 
 # Build server binary
 server: generate fmt vet lint manifests
-	go build -o bin/vela-server ./cmd/server
+	go build -o bin/vela-server ./pkg/controller/core.oam.dev/v1alpha2/application/testcmd
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 core-run: fmt vet manifests
