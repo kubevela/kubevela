@@ -615,7 +615,7 @@ func getExpectVal(m v1alpha2.ConditionRequirement, ac *fieldpath.Paved) (string,
 	var err error
 	value, err := ac.GetString(m.ValueFrom.FieldPath)
 	if err != nil {
-		return "", fmt.Errorf("get valueFrom.fieldPath fail: %v", err)
+		return "", fmt.Errorf("get valueFrom.fieldPath fail: %w", err)
 	}
 	return value, nil
 }

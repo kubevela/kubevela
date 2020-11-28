@@ -229,7 +229,7 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 		want                []error
 	}{
 		{
-			caseName: "apply trait to any workload",
+			caseName: "validate succeed: apply trait to any workload",
 			validatingAppConfig: ValidatingAppConfig{
 				validatingComps: []ValidatingComponent{
 					{
@@ -243,12 +243,12 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 						validatingTraits: []ValidatingTrait{
 							{traitDefinition: v1alpha2.TraitDefinition{
 								Spec: v1alpha2.TraitDefinitionSpec{
-									AppliesToWorkloads: []string{"*"},
+									AppliesToWorkloads: []string{"*"}, // "*" means apply to any
 								},
 							}},
 							{traitDefinition: v1alpha2.TraitDefinition{
 								Spec: v1alpha2.TraitDefinitionSpec{
-									AppliesToWorkloads: []string{},
+									AppliesToWorkloads: []string{}, // empty means apply to any
 								},
 							}},
 						},
@@ -258,12 +258,12 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 			want: nil,
 		},
 		{
-			caseName: "apply trait to workload with specific workloadDefinition name",
+			caseName: "validate succeed: apply trait to workload with specific workloadDefinition name",
 			validatingAppConfig: ValidatingAppConfig{
 				validatingComps: []ValidatingComponent{
 					{
 						workloadDefinition: v1alpha2.WorkloadDefinition{
-							ObjectMeta: v1.ObjectMeta{Name: "TestWorkload"},
+							ObjectMeta: v1.ObjectMeta{Name: "TestWorkload"}, // matched workload def(type) nmae
 						},
 						validatingTraits: []ValidatingTrait{
 							{traitDefinition: v1alpha2.TraitDefinition{
@@ -278,14 +278,14 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 			want: nil,
 		},
 		{
-			caseName: "apply trait to workload with specific definition reference name",
+			caseName: "validate succeed: apply trait to workload with specific definition reference name",
 			validatingAppConfig: ValidatingAppConfig{
 				validatingComps: []ValidatingComponent{
 					{
 						workloadDefinition: v1alpha2.WorkloadDefinition{
 							Spec: v1alpha2.WorkloadDefinitionSpec{
 								Reference: v1alpha2.DefinitionReference{
-									Name: "TestWorkload",
+									Name: "TestWorkload", // matched CRD name
 								},
 							},
 						},
@@ -302,14 +302,14 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 			want: nil,
 		},
 		{
-			caseName: "apply trait to workload with specific group",
+			caseName: "validate succeed: apply trait to workload with specific group",
 			validatingAppConfig: ValidatingAppConfig{
 				validatingComps: []ValidatingComponent{
 					{
 						workloadDefinition: v1alpha2.WorkloadDefinition{
 							Spec: v1alpha2.WorkloadDefinitionSpec{
 								Reference: v1alpha2.DefinitionReference{
-									Name: "testworkloads.example.com",
+									Name: "testworkloads.example.com", // matched CRD group
 								},
 							},
 						},
@@ -342,7 +342,7 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 			want: nil,
 		},
 		{
-			caseName: "apply trait to unappliable workload",
+			caseName: "validate fail: apply trait to unappliable workload",
 			validatingAppConfig: ValidatingAppConfig{
 				validatingComps: []ValidatingComponent{
 					{
@@ -351,7 +351,7 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 							ObjectMeta: v1.ObjectMeta{Name: "TestWorkload"},
 							Spec: v1alpha2.WorkloadDefinitionSpec{
 								Reference: v1alpha2.DefinitionReference{
-									Name: "TestWorkload1",
+									Name: "TestWorkload1.example.foo",
 								},
 							},
 						},
@@ -369,6 +369,94 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 			want: []error{fmt.Errorf(errFmtUnappliableTrait,
 				"TestTrait", "TestWorkload", "example-comp",
 				[]string{"example.com", "TestWorkload2"})},
+		},
+		{
+			caseName: "validate fail: applyTo has CRD group but not match workload",
+			validatingAppConfig: ValidatingAppConfig{
+				validatingComps: []ValidatingComponent{
+					{
+						compName: "example-comp",
+						workloadDefinition: v1alpha2.WorkloadDefinition{
+							ObjectMeta: v1.ObjectMeta{
+								Name: "TestWorkload",
+							},
+							Spec: v1alpha2.WorkloadDefinitionSpec{
+								Reference: v1alpha2.DefinitionReference{
+									Name: "testworkloads.example.foo", // dismatched CRD group
+								},
+							},
+						},
+						validatingTraits: []ValidatingTrait{
+							{traitDefinition: v1alpha2.TraitDefinition{
+								ObjectMeta: v1.ObjectMeta{Name: "TestTrait"},
+								Spec: v1alpha2.TraitDefinitionSpec{
+									AppliesToWorkloads: []string{"*.example.com"},
+								},
+							}},
+						},
+					},
+				},
+			},
+			want: []error{fmt.Errorf(errFmtUnappliableTrait,
+				"TestTrait", "TestWorkload", "example-comp",
+				[]string{"*.example.com"})},
+		},
+		{
+			caseName: "validate fail: applyTo has CRD name but not match",
+			validatingAppConfig: ValidatingAppConfig{
+				validatingComps: []ValidatingComponent{
+					{
+						compName: "example-comp",
+						workloadDefinition: v1alpha2.WorkloadDefinition{
+							ObjectMeta: v1.ObjectMeta{
+								Name: "TestWorkload",
+							},
+							Spec: v1alpha2.WorkloadDefinitionSpec{
+								Reference: v1alpha2.DefinitionReference{
+									Name: "bar.example.com", // dismatched CRD name
+								},
+							},
+						},
+						validatingTraits: []ValidatingTrait{
+							{traitDefinition: v1alpha2.TraitDefinition{
+								ObjectMeta: v1.ObjectMeta{Name: "TestTrait"},
+								Spec: v1alpha2.TraitDefinitionSpec{
+									AppliesToWorkloads: []string{"foo.example.com"},
+								},
+							}},
+						},
+					},
+				},
+			},
+			want: []error{fmt.Errorf(errFmtUnappliableTrait,
+				"TestTrait", "TestWorkload", "example-comp",
+				[]string{"foo.example.com"})},
+		},
+		{
+			caseName: "validate fail: applyTo has definition name but not match",
+			validatingAppConfig: ValidatingAppConfig{
+				validatingComps: []ValidatingComponent{
+					{
+						compName: "example-comp",
+						workloadDefinition: v1alpha2.WorkloadDefinition{
+							ObjectMeta: v1.ObjectMeta{
+								Name: "bar", // dismatched workload def(type) name
+							},
+						},
+						validatingTraits: []ValidatingTrait{
+							{traitDefinition: v1alpha2.TraitDefinition{
+								ObjectMeta: v1.ObjectMeta{Name: "TestTrait"},
+								Spec: v1alpha2.TraitDefinitionSpec{
+									AppliesToWorkloads: []string{"foo"},
+								},
+							}},
+						},
+					},
+				},
+			},
+			want: []error{fmt.Errorf(errFmtUnappliableTrait,
+				"TestTrait", "bar", "example-comp",
+				[]string{"foo"})},
 		},
 	}
 

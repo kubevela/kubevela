@@ -86,7 +86,7 @@ const (
 func Setup(mgr ctrl.Manager, args core.Args, l logging.Logger) error {
 	dm, err := discoverymapper.New(mgr.GetConfig())
 	if err != nil {
-		return fmt.Errorf("create discovery dm fail %v", err)
+		return fmt.Errorf("create discovery dm fail %w", err)
 	}
 	name := "oam/" + strings.ToLower(v1alpha2.ApplicationConfigurationGroupKind)
 
