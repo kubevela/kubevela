@@ -38,7 +38,6 @@ require (
 	go.uber.org/zap v1.15.0
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
-	gopkg.in/yaml.v2 v2.3.0
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.2.4
 	k8s.io/api v0.18.8
@@ -51,8 +50,8 @@ require (
 	k8s.io/kubectl v0.18.6
 	k8s.io/utils v0.0.0-20200603063816-c1c6865ac451
 	sigs.k8s.io/controller-runtime v0.6.2
-	sigs.k8s.io/yaml v1.2.0
 	sigs.k8s.io/controller-tools v0.2.4
+	sigs.k8s.io/yaml v1.2.0
 )
 
 replace (
