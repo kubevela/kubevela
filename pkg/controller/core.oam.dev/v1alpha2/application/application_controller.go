@@ -121,7 +121,7 @@ func (r *applicationReconciler) Reconcile(req ctrl.Request) (result ctrl.Result,
 	handler := &reter{r, app, _log}
 
 	_log.Info("Parse Template")
-	//parse template
+	// parse template
 	appParser := parser.NewParser(template.GetHanler(fclient.NewDefinitionClient(r.Client)))
 
 	expr, err := app.Spec.Maps()

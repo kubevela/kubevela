@@ -17,7 +17,7 @@ import (
 
 // Render is cue render
 type Render interface {
-	//WithContext(ctx interface{}) Render
+	// WithContext(ctx interface{}) Render
 	WithParams(params interface{}) Render
 	WithTemplate(raw string) Render
 	Complete() (*cue.Instance, error)
@@ -90,7 +90,7 @@ func (trait *Trait) Eval(render Render) ([]v1alpha2.ComponentTrait, error) {
 		iter, err := outputs.List()
 		if err != nil {
 			return nil, errors.Errorf("output|outputs not found in traitDef %s ", trait.name)
-			//return nil,errors.WithMessagef(err,"traitDef %s outputs must be list",trait.name)
+			// return nil,errors.WithMessagef(err,"traitDef %s outputs must be list",trait.name)
 		}
 		for iter.Next() {
 			cueValues = append(cueValues, iter.Value())
