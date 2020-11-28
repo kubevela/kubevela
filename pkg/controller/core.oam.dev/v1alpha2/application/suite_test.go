@@ -20,6 +20,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -79,3 +81,18 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })
+
+func TestFinalizers(t *testing.T) {
+
+	app := &v1alpha2.Application{}
+	ok := registerFinalizers(app)
+	if !ok || !meta.FinalizerExists(app, serviceFinalizer) {
+		t.Errorf("registerFinalizers failed")
+		return
+	}
+
+	ok = removeFinalizers(app)
+	if !ok || meta.FinalizerExists(app, serviceFinalizer) {
+		t.Errorf("removeFinalizers failed")
+	}
+}
