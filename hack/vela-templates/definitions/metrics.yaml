@@ -3,7 +3,7 @@ kind: TraitDefinition
 metadata:
   name: metrics
   annotations:
-    definition.oam.dev/description: "Configure metrics targets to be monitored for the app"
+    definition.oam.dev/description: "`Metrics` is used to configure monitoring metrics to your service."
 spec:
   appliesToWorkloads:
     - webservice

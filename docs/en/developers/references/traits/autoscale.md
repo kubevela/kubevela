@@ -1,6 +1,6 @@
 ## Description
 
-`Autoscale` is used to automatically scale workloads by resource utilization metrics and cron
+`Autoscale` is used to automatically scale workloads by resource utilization metrics and cron.
 
 ## Specification
 
