@@ -1,10 +1,12 @@
+# Autoscale
+
 ## Description
 
-`Autoscale` is used to automatically scale workloads by resource utilization metrics and cron
+`Autoscale` is used to automatically scales workloads by resource utilization metrics and cron.
 
 ## Specification
 
-List of all available properties for a `Autoscale` trait.
+List of all configuration options for a `Autoscale` trait.
 
 ```yaml
 name: testapp
@@ -26,20 +28,21 @@ express-server:
 
 ## Properties
 
-Name | Type  | Description | Notes
-------------  | ------------- | ------------- | ------------- 
- min | int |  minimal replicas of the workload | required 
- max | int |  maximal replicas of the workload | required 
- cpuPercent | int |  specify the value for CPU utilization, like 80, which means 80% |  
- cron | [{Cron}](#Cron) |  just for `appfile`, not available for Cli usage |  
+Name | Description | Type | Required | Default 
+------------ | ------------- | ------------- | ------------- | ------------- 
+ min | Minimal replicas of the workload | int | true |  
+ max | Maximal replicas of the workload | int | true |  
+ cpuPercent | Specify the value for CPU utilization, like 80, which means 80% | int | false |  
+ cron | Cron type auto-scaling. Just for `appfile`, not available for Cli usage | [cron](#cron) | false |  
 
-### Cron
 
-Name | Type |  Description | Notes
------------- | ------------- | ------------- | ------------- 
- startAt | string |  the time to start scaling, like `08:00` |  
- duration | string |  for how long the scaling will last |  
- days | string |  several workdays or weekends, like "Monday, Tuesday" |  
- replicas | int |  the target replicas to be scaled to |  
- timezone | string |  timezone, like "America/Los_Angeles" |  
+### cron
 
+Name | Description | Type | Required | Default 
+------------ | ------------- | ------------- | ------------- | ------------- 
+ startAt | The time to start scaling, like `08:00` | string | true |  
+ duration | For how long the scaling will last | string | true |  
+ days | Several workdays or weekends, like "Monday, Tuesday" | string | true |  
+ replicas | The target replicas to be scaled to | int | true |  
+ timezone | Timezone, like "America/Los_Angeles" | string | true |  
+ 

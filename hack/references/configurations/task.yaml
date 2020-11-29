@@ -1,0 +1,8 @@
+name: my-app-name
+
+services:
+  my-service-name:
+    type: task
+    image: perl
+    count: 10
+    cmd: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]

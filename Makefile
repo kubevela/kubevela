@@ -41,6 +41,7 @@ npm-install:
 doc-gen:
 	rm -r docs/en/cli/*
 	go run hack/docgen/gen.go
+	go run hack/references/generate.go
 
 generate-source:
 	go run hack/frontend/source.go

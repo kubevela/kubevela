@@ -19,11 +19,10 @@ services:
     cmd: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
 ```
 
-
 ## Properties
 
-Name | Type | Description | Notes
------------- | ------------- | ------------- | -------------
-**Cmd** | **[]string** |  | [optional] 
-**Count** | **int32** | specify number of tasks to run in parallel | [default to 1]
-**Image** | **string** | Which image would you like to use for your service | 
+Name | Description | Type | Required | Default 
+------------ | ------------- | ------------- | ------------- | ------------- 
+ cmd | Commands to run in the container | []string | false |  
+ count | specify number of tasks to run in parallel | int | true | 1 
+ image | Which image would you like to use for your service | string | true |  

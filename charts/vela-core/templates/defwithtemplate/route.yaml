@@ -3,7 +3,7 @@ kind: TraitDefinition
 metadata:
   name: route
   annotations:
-    definition.oam.dev/description: "Configure route policy to the app"
+    definition.oam.dev/description: "`Route` is used to configure external access to your service."
 spec:
   appliesToWorkloads:
     - webservice
@@ -30,7 +30,9 @@ spec:
       	}
       }
       parameter: {
+      	// +usage= Domain name
       	domain: *"" | string
+      
       	issuer: *"" | string
       	rules?: [...{
       		path:          string

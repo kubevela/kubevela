@@ -25,5 +25,6 @@ parameter: {
 	// +short=i
 	image: string
 
+	// +usage=Commands to run in the container
 	cmd?: [...string]
 }

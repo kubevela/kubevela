@@ -3,7 +3,8 @@ kind: WorkloadDefinition
 metadata:
   name: webservice
   annotations:
-    definition.oam.dev/description: "Long-running scalable service with stable endpoint to receive external traffic"
+    definition.oam.dev/description: "`Webservice` is a workload type to describe long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers.
+    If workload type is skipped for any service defined in Appfile, it will be defaulted to `Web Service` type."
 spec:
   definitionRef:
     name: deployments.apps
@@ -61,19 +62,26 @@ spec:
       	// +short=i
       	image: string
       
+      	// +usage=Commands to run in the container
       	cmd?: [...string]
       
       	// +usage=Which port do you want customer traffic sent to
       	// +short=p
       	port: *80 | int
-      
+      	// +usage=Define arguments by using environment variables
       	env?: [...{
-      		name:   string
+      		// +usage=Environment variable name
+      		name: string
+      		// +usage=The value of the environment variable
       		value?: string
+      		// +usage=Specifies a source the value of this var should come from
       		valueFrom?: {
+      			// +usage=Selects a key of a secret in the pod's namespace
       			secretKeyRef: {
+      				// +usage=The name of the secret in the pod's namespace to select from
       				name: string
-      				key:  string
+      				// +usage=The key of the secret to select from. Must be a valid secret key
+      				key: string
       			}
       		}
       	}]

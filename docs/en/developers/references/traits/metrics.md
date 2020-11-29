@@ -6,7 +6,7 @@
 
 ## Specification
 
-List of all available properties for a `Route` trait.
+List of all configuration options for a `Metrics` trait.
 
 ```yaml
 name: my-app-name
@@ -24,11 +24,11 @@ services:
 
 ## Properties
 
-Name | Type | Description | Notes
------------- | ------------- | ------------- | -------------
-**Path** | **string** | the metrics path of the service | [default to /metrics]
-**Format** | **string** | +format of the metrics, default as prometheus | [default to prometheus]
-**Scheme** | **string** |  | [default to http]
-**Enabled** | **bool** |  | [default to true]
-**Port** | **int32** | the port for metrics, will discovery automatically by default | [default to 0], >=1024 & <=65535
-**Selector** | **map[string]string** | the label selector for the pods, will discovery automatically by default | [optional] 
+Name | Description | Type | Required | Default 
+------------ | ------------- | ------------- | ------------- | ------------- 
+ path | The metrics path of the service | string | true | /metrics 
+ format | Format of the metrics, default as prometheus | string | true | prometheus 
+ scheme | The way to retrieve data which can take the values `http` or `https` | string | true | http 
+ enabled |  | bool | true | true 
+ port | The port for metrics, will discovery automatically by default | int | true | 0 
+ selector | The label selector for the pods, will discovery automatically by default | map[string]string | false |  

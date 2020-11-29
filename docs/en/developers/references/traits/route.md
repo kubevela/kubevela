@@ -6,7 +6,7 @@
 
 ## Specification
 
-List of all available properties for a `Route` trait.
+List of all configuration options for a `Route` trait.
 
 ```yaml
 name: my-app-name
@@ -24,16 +24,17 @@ services:
 
 ## Properties
 
-Name | Type | Description | Notes
------------- | ------------- | ------------- | -------------
-**Domain** | **string** | specify your host url for this app | [ default to (empty) ]
-**Issuer** | **string** | specify your certificate issue  | [default to no tls]
-**Rules** | [**[]RouteRules**](#routerules) |  | [optional] 
+Name | Description | Type | Required | Default 
+------------ | ------------- | ------------- | ------------- | ------------- 
+ domain |  Domain name | string | true | empty 
+ issuer |  | string | true | empty 
+ rules |  | [[]rules](#rules) | false |  
 
 
-### RouteRules
+### rules
 
-Name | Type | Description | Notes
------------- | ------------- | ------------- | -------------
-**Path** | **string** |  | [ default to (empty) ]
-**RewriteTarget** | **string** |  | [ default to (empty) ]
+Name | Description | Type | Required | Default 
+------------ | ------------- | ------------- | ------------- | ------------- 
+ path |  | string | true |  
+ rewriteTarget |  | string | true | empty 
+ 
