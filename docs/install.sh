@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 
-# ------------------------------------------------------------
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
-# ------------------------------------------------------------
+# Implemented based on Dapr Cli https://github.com/dapr/cli/tree/master/install
 
 # Vela CLI location
 : ${VELA_INSTALL_DIR:="/usr/local/bin"}

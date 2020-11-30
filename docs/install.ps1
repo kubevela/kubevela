@@ -1,7 +1,5 @@
-# ------------------------------------------------------------
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT License.
-# ------------------------------------------------------------
+# Implemented based on Dapr Cli https://github.com/dapr/cli/tree/master/install
+
 param (
     [string]$Version,
     [string]$VelaRoot = "c:\vela"
