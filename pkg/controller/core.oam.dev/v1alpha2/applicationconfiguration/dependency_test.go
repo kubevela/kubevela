@@ -412,7 +412,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 		Expect(k8sClient.Status().Update(ctx, outFoo)).Should(Succeed())
 
 		By("Reconcile")
-		Expect(func() error { _, err := reconciler.Reconcile(req); return err }()).Should(BeNil())
+		reconcileRetry(reconciler, req)
 
 		// Verification after satisfying dependency
 		By("Verify the appconfig's dependency is satisfied")

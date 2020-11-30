@@ -103,7 +103,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	var svc *runtimev1alpha1.TypedReference
 	if NeedDiscovery(&routeTrait) {
 		if svc, err = r.discoveryAndFillBackend(ctx, mLog, eventObj, workload, &routeTrait); err != nil {
-			return oamutil.ReconcileWaitResult, err
+			return oamutil.ReconcileWaitResult, oamutil.PatchCondition(ctx, r, &routeTrait,
+				cpv1alpha1.ReconcileError(err))
 		}
 	}
 
@@ -148,7 +149,11 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if routeTrait.Status.Status != ingress.StatusReady {
 		return ctrl.Result{RequeueAfter: requeueNotReady}, r.Status().Update(ctx, &routeTrait)
 	}
-	return ctrl.Result{}, r.Status().Update(ctx, &routeTrait)
+	err = r.Status().Update(ctx, &routeTrait)
+	if err != nil {
+		return oamutil.ReconcileWaitResult, err
+	}
+	return ctrl.Result{}, nil
 }
 
 // discoveryAndFillBackend will automatically discovery backend for route
@@ -173,8 +178,7 @@ func (r *Reconciler) discoveryAndFillBackend(ctx context.Context, mLog logr.Logg
 		svc, err := r.fillBackendByCreatedService(ctx, mLog, workload, routeTrait, childResources)
 		if err != nil {
 			r.record.Event(eventObj, event.Warning(common.ErrCreatingService, err))
-			return nil, oamutil.PatchCondition(ctx, r, routeTrait,
-				cpv1alpha1.ReconcileError(errors.Wrap(err, common.ErrCreatingService)))
+			return nil, errors.Wrap(err, common.ErrCreatingService)
 		}
 		r.record.Event(eventObj, event.Normal("Service created",
 			fmt.Sprintf("successfully automatically created a service `%s`", svc.Name)))

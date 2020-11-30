@@ -55,6 +55,8 @@ const (
 	longWait         = 1 * time.Minute
 )
 
+var errResult = reconcile.Result{RequeueAfter: shortWait}
+
 // Reconcile error strings.
 const (
 	errGetAppConfig          = "cannot get application configuration"
@@ -230,7 +232,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 
 	ac := &v1alpha2.ApplicationConfiguration{}
 	if err := r.client.Get(ctx, req.NamespacedName, ac); err != nil {
-		return reconcile.Result{}, errors.Wrap(resource.IgnoreNotFound(err), errGetAppConfig)
+		return errResult, errors.Wrap(resource.IgnoreNotFound(err), errGetAppConfig)
 	}
 	acPatch := ac.DeepCopy()
 
@@ -266,6 +268,11 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 			r.record.Event(ac, event.Normal(reasonExecutePosthook, "Successfully executed a posthook", "posthook name", name))
 		}
 		returnErr = errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+
+		// Make sure if error occurs, reconcile will not happen too frequency
+		if returnErr != nil && result.RequeueAfter < shortWait {
+			result.RequeueAfter = shortWait
+		}
 	}()
 
 	// execute the prehooks
@@ -287,7 +294,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		log.Info("Cannot render components", "error", err, "requeue-after", time.Now().Add(shortWait))
 		r.record.Event(ac, event.Warning(reasonCannotRenderComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errRenderComponents)))
-		return reconcile.Result{RequeueAfter: shortWait}, errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+		return errResult, errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
 	}
 	log.Debug("Successfully rendered components", "workloads", len(workloads))
 	r.record.Event(ac, event.Normal(reasonRenderComponents, "Successfully rendered components", "workloads", strconv.Itoa(len(workloads))))
@@ -300,7 +307,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		log.Debug("Cannot apply components", "error", err, "requeue-after", time.Now().Add(shortWait))
 		r.record.Event(ac, event.Warning(reasonCannotApplyComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyComponents)))
-		return reconcile.Result{RequeueAfter: shortWait}, errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+		return errResult, errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
 	}
 	log.Debug("Successfully applied components", "workloads", len(workloads))
 	r.record.Event(ac, event.Normal(reasonApplyComponents, "Successfully applied components", "workloads", strconv.Itoa(len(workloads))))
@@ -320,7 +327,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 			log.Debug("Cannot garbage collect component", "error", err, "requeue-after", time.Now().Add(shortWait))
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGCComponent)))
-			return reconcile.Result{RequeueAfter: shortWait}, errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+			return errResult, errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
 		}
 		log.Debug("Garbage collected resource")
 		record.Event(ac, event.Normal(reasonGGComponent, "Successfully garbage collected component"))

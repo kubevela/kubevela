@@ -37,10 +37,10 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/test/integration"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core"
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/controller"
-	v1alph2controller "github.com/crossplane/oam-kubernetes-runtime/pkg/controller/v1alpha2"
+	coreoamdev "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	v1alph2controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 )
 
 var (
@@ -226,7 +226,7 @@ func TestAppConfigController(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := core.AddToScheme(i.GetScheme()); err != nil {
+	if err := coreoamdev.AddToScheme(i.GetScheme()); err != nil {
 		t.Fatal(err)
 	}
 

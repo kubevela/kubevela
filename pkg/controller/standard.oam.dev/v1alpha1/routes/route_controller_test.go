@@ -352,4 +352,39 @@ var _ = Describe("Route Trait Integration Test", func() {
 		}
 		Expect(createdSvc.Spec.Ports[0].TargetPort.IntVal).Should(Equal(int32(podPort)))
 	})
+	It("Test should get error condition if definition not found", func() {
+		compName := "test-no-def"
+		comp, _, _ := getComponent("unknow1", compName)
+		ac := getAC(compName)
+		Expect(k8sClient.Create(ctx, &comp)).ToNot(HaveOccurred())
+		Expect(k8sClient.Create(ctx, &ac)).ToNot(HaveOccurred())
+
+		By("Check that we have created the route")
+		createdRoute := v1alpha1.Route{}
+		var traitName string
+		Eventually(
+			func() string {
+				err := k8sClient.Get(ctx,
+					types.NamespacedName{Namespace: ns.Name, Name: ac.Name},
+					&ac)
+				if err != nil {
+					return err.Error()
+				}
+				if len(ac.Status.Workloads) < 1 || len(ac.Status.Workloads[0].Traits) < 1 {
+					return "workload or trait not ready"
+				}
+				traitName = ac.Status.Workloads[0].Traits[0].Reference.Name
+				err = k8sClient.Get(ctx,
+					types.NamespacedName{Namespace: ns.Name, Name: traitName},
+					&createdRoute)
+				if err != nil {
+					return err.Error()
+				}
+				if len(createdRoute.Status.Conditions) == 1 {
+					return createdRoute.Status.Conditions[0].Message
+				}
+				return ""
+			},
+			time.Second*10, time.Millisecond*500).Should(Equal(`failed to create the services: WorkloadDefinition.core.oam.dev "unknow1" not found`))
+	})
 })
