@@ -8,10 +8,10 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog"
@@ -168,13 +168,22 @@ func ValidateTraitAppliableToWorkloadFn(_ context.Context, v ValidatingAppConfig
 	klog.Info("validate trait is appliable to workload", "name", v.appConfig.Name)
 	var allErrs []error
 	for _, c := range v.validatingComps {
-		workloadType := c.component.GetLabels()[oam.WorkloadTypeLabel]
-		workloadDefRefName := c.workloadDefinition.Spec.Reference.Name
 		// TODO(roywang) consider a CRD group could have multiple versions
 		// and maybe we need to specify the minimum version here in the future
-		workloadGroup := c.workloadDefinition.GetObjectKind().GroupVersionKind().Group
+		// according to OAM convention, Spec.Reference.Name in workloadDefinition is CRD name
+		crdName := c.workloadDefinition.Spec.Reference.Name
+		// according to OAM convention, name of workloadDefinition is the workload type.
+		workloadTypeName := c.workloadDefinition.GetName()
+		workloadGroup := schema.ParseGroupResource(crdName).Group
+
+		klog.Info("validate trait is appliable to workload: ",
+			fmt.Sprintf("workloadDefRefName:%s, workloadDefName(type):%s, workloadGroup:%s",
+				crdName, workloadTypeName, workloadGroup))
 	ValidateApplyTo:
 		for _, t := range c.validatingTraits {
+			klog.Info("validate trait is appliable to workload: ",
+				fmt.Sprintf("trait %q is allowed to apply to %s",
+					t.traitDefinition.GetName(), t.traitDefinition.Spec.AppliesToWorkloads))
 			if len(t.traitDefinition.Spec.AppliesToWorkloads) == 0 {
 				// AppliesToWorkloads is empty, the trait can be applied to ANY workload
 				continue
@@ -187,14 +196,14 @@ func ValidateTraitAppliableToWorkloadFn(_ context.Context, v ValidatingAppConfig
 				if strings.HasPrefix(applyTo, "*.") && workloadGroup == applyTo[2:] {
 					continue ValidateApplyTo
 				}
-				if workloadType == applyTo ||
-					workloadDefRefName == applyTo {
+				if crdName == applyTo ||
+					workloadTypeName == applyTo {
 					continue ValidateApplyTo
 				}
 			}
 			allErrs = append(allErrs, fmt.Errorf(errFmtUnappliableTrait,
-				t.traitDefinition.GetObjectKind().GroupVersionKind().String(),
-				c.workloadDefinition.GetObjectKind().GroupVersionKind().String(),
+				t.traitDefinition.GetName(),
+				c.workloadDefinition.GetName(),
 				c.compName, t.traitDefinition.Spec.AppliesToWorkloads))
 		}
 	}

@@ -268,6 +268,17 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 		By(string(resp.Result.Reason))
 		Expect(resp.Allowed).Should(BeTrue())
 
+		By("Test delete operation request")
+		req = admission.Request{
+			AdmissionRequest: admissionv1beta1.AdmissionRequest{
+				Operation: admissionv1beta1.Delete,
+				Resource:  reqResource,
+				Object:    runtime.RawExtension{Raw: util.JSONMarshal(appConfig)},
+			},
+		}
+		resp = handler.Handle(context.TODO(), req)
+		Expect(resp.Allowed).Should(BeTrue())
+
 		By("Test bad admission request format")
 		req = admission.Request{
 			AdmissionRequest: admissionv1beta1.AdmissionRequest{
@@ -277,6 +288,51 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 			},
 		}
 		resp = handler.Handle(context.TODO(), req)
+		Expect(resp.Allowed).Should(BeFalse())
+
+		By("Prepare for a bad admission resource")
+		badReqResource := metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "foo"}
+		req = admission.Request{
+			AdmissionRequest: admissionv1beta1.AdmissionRequest{
+				Operation: admissionv1beta1.Create,
+				Resource:  badReqResource,
+				Object:    runtime.RawExtension{Raw: util.JSONMarshal(appConfig)},
+			},
+		}
+		resp = handler.Handle(context.TODO(), req)
+		Expect(resp.Allowed).Should(BeFalse())
+
+		By("reject the request for error occurs when prepare data for validation")
+		errClientInstance := &test.MockClient{
+			MockGet: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+				return fmt.Errorf("cannot prepare data for validation")
+			},
+		}
+		req = admission.Request{
+			AdmissionRequest: admissionv1beta1.AdmissionRequest{
+				Operation: admissionv1beta1.Create,
+				Resource:  reqResource,
+				Object:    runtime.RawExtension{Raw: util.JSONMarshal(appConfig)},
+			},
+		}
+		injc.InjectClient(errClientInstance)
+		resp = handler.Handle(context.TODO(), req)
+		Expect(resp.Allowed).Should(BeFalse())
+
+		By("reject the request for validation fails")
+		var rejectHandler admission.Handler = &ValidatingHandler{
+			Mapper: mapper,
+			Validators: []AppConfigValidator{
+				AppConfigValidateFunc(func(c context.Context, vac ValidatingAppConfig) []error {
+					return []error{fmt.Errorf("validation fails")}
+				}),
+			},
+		}
+		rejectDeecoderInjector := rejectHandler.(admission.DecoderInjector)
+		rejectDeecoderInjector.InjectDecoder(decoder)
+		rejectClientInjector := rejectHandler.(inject.Client)
+		rejectClientInjector.InjectClient(clientInstance)
+		resp = rejectHandler.Handle(context.TODO(), req)
 		Expect(resp.Allowed).Should(BeFalse())
 	})
 })

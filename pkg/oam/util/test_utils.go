@@ -82,6 +82,8 @@ func (matcher ErrorMatcher) Match(actual interface{}) (success bool, err error) 
 }
 
 // FailureMessage builds an error message.
+//nolint:errorlint
+// TODO(roywang) use errors.As() instead of type assertion on error
 func (matcher ErrorMatcher) FailureMessage(actual interface{}) (message string) {
 	actualError, actualOK := actual.(error)
 	expectedError, expectedOK := matcher.ExpectedError.(error)
@@ -102,6 +104,8 @@ func (matcher ErrorMatcher) FailureMessage(actual interface{}) (message string) 
 }
 
 // NegatedFailureMessage builds an error message.
+//nolint:errorlint
+// TODO(roywang) use errors.As() instead of type assertion on error
 func (matcher ErrorMatcher) NegatedFailureMessage(actual interface{}) (message string) {
 	actualError, actualOK := actual.(error)
 	expectedError, expectedOK := matcher.ExpectedError.(error)

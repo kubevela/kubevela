@@ -84,6 +84,7 @@ type workloads struct {
 	dm             discoverymapper.DiscoveryMapper
 }
 
+//nolint:errorlint
 func (a *workloads) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload, ao ...resource.ApplyOption) error {
 	// they are all in the same namespace
 	var namespace = w[0].Workload.GetNamespace()
@@ -91,6 +92,7 @@ func (a *workloads) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus,
 		if !wl.HasDep {
 			err := a.patchingClient.Apply(ctx, wl.Workload, ao...)
 			if err != nil {
+				// TODO(roywang) use errors.As() insteand of type assertion on error
 				if _, ok := err.(*GenerationUnchanged); !ok {
 					// GenerationUnchanged only aborts applying current workload
 					// but not blocks the whole reconciliation through returning an error
@@ -104,6 +106,7 @@ func (a *workloads) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus,
 			}
 			t := trait.Object
 			if err := a.updatingClient.Apply(ctx, &trait.Object, ao...); err != nil {
+				// TODO(roywang) use errors.As() insteand of type assertion on error
 				if _, ok := err.(*GenerationUnchanged); !ok {
 					// GenerationUnchanged only aborts applying current trait
 					// but not blocks the whole reconciliation through returning an error
