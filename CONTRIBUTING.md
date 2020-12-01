@@ -1,4 +1,4 @@
-# CONTRIBUTING
+# CONTRIBUTING Guide
 
 ## About KubeVela
 
@@ -7,7 +7,10 @@ KubeVela project is initialized and maintained by the cloud native community sin
 This doc explains how to set up a development environment, so you can get started
 contributing to `kubevela` or build a PoC (Proof of Concept). 
 
-## Prerequisites
+
+## Development
+
+### Prerequisites
 
 1. Golang version 1.13+
 2. Kubernetes version v1.16+ with `~/.kube/config` configured.
@@ -16,7 +19,7 @@ contributing to `kubevela` or build a PoC (Proof of Concept).
 
 We also recommend you to learn about KubeVela's [design](docs/en/design.md) before dive into its code.
 
-## Build
+### Build
 
 * Clone this project
 
@@ -63,7 +66,7 @@ make core-run
 This command will run controller locally, it will use your local KubeConfig which means you need to have a k8s cluster
 locally. If you don't have a one, we suggest that you could setup up a cluster with [kind](https://kind.sigs.k8s.io/).
 
-## Use
+### Use
 
 * Create environment
  
@@ -132,7 +135,7 @@ $ vela delete abc
   delete apps succeed abc from default
 ```
 
-## Tests
+## Testing
 
 ### Unit test
 
@@ -156,3 +159,11 @@ make e2e-test
 
 ## Make a pull request
 Remember to write unit-test and e2e test before making a pull request.
+
+## Merge Regulations
+
+Before merging, the pull request should obey the following rules:
+
+- The commit title and message should be clear about what this PR does.
+- All test CI should pass green.
+- The `codecov/project` should pass. This means the coverage should not drop. See [Codecov commit status](https://docs.codecov.io/docs/commit-status#project-status).
