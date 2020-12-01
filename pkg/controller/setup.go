@@ -26,13 +26,23 @@ import (
 )
 
 // Setup workload controllers.
-func Setup(mgr ctrl.Manager) error {
-	for _, setup := range []func(ctrl.Manager) error{
-		metrics.Setup, podspecworkload.Setup, routes.Setup,
-		autoscalers.Setup,
-	} {
-		if err := setup(mgr); err != nil {
-			return err
+func Setup(mgr ctrl.Manager, capabilities []string) error {
+	for _, cap := range capabilities {
+		var setup func(ctrl.Manager) error
+		switch cap {
+		case "metrics":
+			setup = metrics.Setup
+		case "podspecworkload":
+			setup = podspecworkload.Setup
+		case "route":
+			setup = routes.Setup
+		case "autoscale":
+			setup = autoscalers.Setup
+		}
+		if setup != nil {
+			if err := setup(mgr); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

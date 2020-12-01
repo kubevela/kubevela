@@ -14,16 +14,22 @@ import (
 // +kubebuilder:webhook:path=/mutate-standard-oam-dev-v1alpha1-podspecworkload,mutating=true,failurePolicy=fail,groups=standard.oam.dev,resources=PodSpecWorkload,verbs=create;update,versions=v1alpha1,name=mpodspecworkload.kb.io
 
 // Register will register all the services to the webhook server
-func Register(mgr manager.Manager) {
+func Register(mgr manager.Manager, capabilities []string) {
 	server := mgr.GetWebhookServer()
-	// MetricsTrait
-	server.Register("/validate-standard-oam-dev-v1alpha1-metricstrait",
-		&webhook.Admission{Handler: &metrics.ValidatingHandler{}})
-	server.Register("/mutate-standard-oam-dev-v1alpha1-metricstrait",
-		&webhook.Admission{Handler: &metrics.MutatingHandler{}})
-	// PodSpecWorkload
-	server.Register("/validate-standard-oam-dev-v1alpha1-podspecworkload",
-		&webhook.Admission{Handler: &podspecworkload.ValidatingHandler{}})
-	server.Register("/mutate-standard-oam-dev-v1alpha1-podspecworkload",
-		&webhook.Admission{Handler: &podspecworkload.MutatingHandler{}})
+	for _, cap := range capabilities {
+		switch cap {
+		case "metrics":
+			// MetricsTrait
+			server.Register("/validate-standard-oam-dev-v1alpha1-metricstrait",
+				&webhook.Admission{Handler: &metrics.ValidatingHandler{}})
+			server.Register("/mutate-standard-oam-dev-v1alpha1-metricstrait",
+				&webhook.Admission{Handler: &metrics.MutatingHandler{}})
+		case "podspecworkload":
+			// PodSpecWorkload
+			server.Register("/validate-standard-oam-dev-v1alpha1-podspecworkload",
+				&webhook.Admission{Handler: &podspecworkload.ValidatingHandler{}})
+			server.Register("/mutate-standard-oam-dev-v1alpha1-podspecworkload",
+				&webhook.Admission{Handler: &podspecworkload.MutatingHandler{}})
+		}
+	}
 }
