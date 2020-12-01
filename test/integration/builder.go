@@ -22,7 +22,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 )
 
 type wdModifier func(*v1alpha2.WorkloadDefinition)

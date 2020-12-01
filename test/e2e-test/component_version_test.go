@@ -14,8 +14,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/crossplane/oam-kubernetes-runtime/apis/core/v1alpha2"
-	"github.com/crossplane/oam-kubernetes-runtime/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/apps/v1"

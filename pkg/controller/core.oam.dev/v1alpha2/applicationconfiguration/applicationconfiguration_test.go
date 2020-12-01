@@ -157,7 +157,8 @@ func TestReconciler(t *testing.T) {
 				},
 			},
 			want: want{
-				err: errors.Wrap(errBoom, errGetAppConfig),
+				result: reconcile.Result{RequeueAfter: shortWait},
+				err:    errors.Wrap(errBoom, errGetAppConfig),
 			},
 		},
 		"RenderComponentsError": {
