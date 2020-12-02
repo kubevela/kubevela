@@ -61,7 +61,8 @@ func LoadFromFile(filename string) (*AppFile, error) {
 	af := NewAppFile()
 	// Add JSON format appfile support
 	if json.Valid(b) {
-		if j, err := yaml.JSONToYAML(b); err != nil{
+		j, e := yaml.JSONToYAML(b)
+		if e != nil{
 			return nil, err
 		}
 		err = yaml.Unmarshal(j, af)
