@@ -114,8 +114,8 @@ e2e-setup:
 	bin/vela install --image-pull-policy IfNotPresent --image-repo vela-core-test --image-tag $(GIT_COMMIT)
 	ginkgo version
 	ginkgo -v -r e2e/setup
-	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
 	bin/vela dashboard &
+	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
 
 e2e-test:
 	# Run e2e test
