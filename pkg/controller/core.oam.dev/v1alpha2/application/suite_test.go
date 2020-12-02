@@ -100,15 +100,6 @@ var _ = Describe("Test Application Controller", func() {
 			},
 		}
 
-		mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-			Scheme: scheme.Scheme,
-		})
-
-		Expect(err).ToNot(HaveOccurred())
-		Expect(mgr).ToNot(BeNil())
-
-		ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
-
 		wd := &v1alpha2.WorkloadDefinition{}
 		wDDefJson, _ := yaml.YAMLToJSON([]byte(wDDefYaml))
 		Expect(json.Unmarshal(wDDefJson, wd)).Should(BeNil())
@@ -148,7 +139,7 @@ spec:
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
 
 		reconciler := &Reconciler{
-			Client: mgr.GetClient(),
+			Client: k8sClient,
 			Log:    ctrl.Log.WithName("Application"),
 			Scheme: scheme.Scheme,
 		}
