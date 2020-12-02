@@ -8,16 +8,13 @@ import (
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
-
-	"github.com/oam-dev/kubevela/pkg/utils/env"
-
-	"github.com/oam-dev/kubevela/apis/types"
-
-	"github.com/oam-dev/kubevela/pkg/utils/system"
-
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/utils/env"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
 func TestENV(t *testing.T) {
@@ -100,4 +97,11 @@ func TestENV(t *testing.T) {
 	// set success
 	err = SetEnv([]string{"default"}, ioStream)
 	assert.NoError(t, err)
+}
+
+func TestEnvInitCommandPersistentPreRunE(t *testing.T) {
+	io := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+	fakeC := types.Args{}
+	cmd := NewEnvInitCommand(fakeC, io)
+	assert.Nil(t, cmd.PersistentPreRunE(new(cobra.Command), []string{}))
 }
