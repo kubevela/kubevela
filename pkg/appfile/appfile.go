@@ -3,6 +3,7 @@ package appfile
 import (
 	"errors"
 	"io/ioutil"
+	"json"
 	"path/filepath"
 	"time"
 
@@ -62,7 +63,7 @@ func LoadFromFile(filename string) (*AppFile, error) {
 	// Add JSON format appfile support
 	if json.Valid(b) {
 		j, e := yaml.JSONToYAML(b)
-		if e != nil{
+		if e != nil {
 			return nil, err
 		}
 		err = yaml.Unmarshal(j, af)
