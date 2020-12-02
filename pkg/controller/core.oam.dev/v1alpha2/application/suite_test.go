@@ -92,18 +92,17 @@ var _ = AfterSuite(func() {
 
 var _ = Describe("Test Application Controller", func() {
 
-	ctx := context.Background()
-	ns := corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "vela-test",
-		},
-	}
-
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme: scheme.Scheme,
-	})
-
 	It("Test Application Reconciler", func() {
+		ctx := context.Background()
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test",
+			},
+		}
+
+		mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+			Scheme: scheme.Scheme,
+		})
 
 		Expect(err).ToNot(HaveOccurred())
 		Expect(mgr).ToNot(BeNil())

@@ -1,11 +1,12 @@
 package parser
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
 	"cuelang.org/go/cue"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/template"
@@ -210,6 +211,7 @@ func equal(af, dest *Appfile) bool {
 			return false
 		}
 		if !reflect.DeepEqual(wd.params, destWd.params) {
+			fmt.Printf("%#v | %#v\n", wd.params, destWd.params)
 			return false
 		}
 		for j, td := range wd.Traits() {
@@ -218,6 +220,7 @@ func equal(af, dest *Appfile) bool {
 				return false
 			}
 			if !reflect.DeepEqual(td.params, destTd.params) {
+				fmt.Printf("%#v | %#v\n", td.params, destTd.params)
 				return false
 			}
 

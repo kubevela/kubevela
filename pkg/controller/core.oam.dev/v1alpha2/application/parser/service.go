@@ -257,7 +257,7 @@ var TestExceptApp = &Appfile{
 			},
 			template: `
       output: {
-      	apiVersion: "apps/v1"
+        apiVersion: "apps/v1"
       	kind:       "Deployment"
       	spec: {
       		selector: matchLabels: {
@@ -298,7 +298,7 @@ var TestExceptApp = &Appfile{
 				{
 					name: "scaler",
 					params: map[string]interface{}{
-						"replicas": float64(10),
+						"replicas": 10,
 					},
 					template: `
       output: {
