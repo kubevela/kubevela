@@ -3,13 +3,13 @@ package commands
 import (
 	"errors"
 
-	"github.com/oam-dev/kubevela/apis/types"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/serverlib"
-
 	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/types"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 )
 
 // NewDeleteCommand Delete App
@@ -19,6 +19,9 @@ func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		DisableFlagsInUseLine: true,
 		Short:                 "Delete an application",
 		Long:                  "Delete an application",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},

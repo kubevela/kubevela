@@ -20,14 +20,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 var (
@@ -43,6 +41,9 @@ func NewUpCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 		Long:                  "Apply an appfile",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
+		},
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			velaEnv, err := GetEnv(cmd)

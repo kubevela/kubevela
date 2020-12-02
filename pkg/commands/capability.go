@@ -9,10 +9,9 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/serverlib"
 )
 
@@ -22,12 +21,15 @@ func CapabilityCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Com
 		Use:   "cap",
 		Short: "Manage capability centers and installing/uninstalling capabilities",
 		Long:  "Manage capability centers and installing/uninstalling capabilities",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
 		},
 	}
 	cmd.AddCommand(
-		NewCenterCommand(c, ioStream),
+		NewCenterCommand(ioStream),
 		NewCapListCommand(ioStream),
 		NewCapInstallCommand(c, ioStream),
 		NewCapUninstallCommand(c, ioStream),
@@ -36,7 +38,7 @@ func CapabilityCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Com
 }
 
 // NewCenterCommand Manage Capability Center
-func NewCenterCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func NewCenterCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "center <command>",
 		Short: "Manage Capability Center",
@@ -84,6 +86,9 @@ func NewCapInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 		Short:   "Install capability into cluster",
 		Long:    "Install capability into cluster",
 		Example: `vela cap install mycenter/route`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var err error
 			argsLength := len(args)
@@ -115,6 +120,9 @@ func NewCapUninstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 		Short:   "Uninstall capability from cluster",
 		Long:    "Uninstall capability from cluster",
 		Example: `vela cap uninstall route`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				return errors.New("you must specify <name> for capability you want to uninstall")
