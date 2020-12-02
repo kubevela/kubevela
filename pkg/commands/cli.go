@@ -6,16 +6,14 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/oam-dev/kubevela/pkg/utils/common"
-
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"k8s.io/klog"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/cmd/vela/fake"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	"github.com/oam-dev/kubevela/version"
 )
@@ -45,14 +43,8 @@ func NewCommand() *cobra.Command {
 		},
 	}
 	cmds.PersistentFlags().StringP("env", "e", "", "specify environment name for application")
-	restConf, err := config.GetConfig()
-	if err != nil {
-		fmt.Println("get kubeconfig err", err)
-		os.Exit(1)
-	}
 
 	commandArgs := types.Args{
-		Config: restConf,
 		Schema: common.Scheme,
 	}
 
@@ -76,11 +68,11 @@ func NewCommand() *cobra.Command {
 		NewPortForwardCommand(commandArgs, ioStream),
 		NewLogsCommand(commandArgs, ioStream),
 		NewEnvCommand(commandArgs, ioStream),
-		NewConfigCommand(commandArgs, ioStream),
+		NewConfigCommand(ioStream),
 
 		// Capabilities
 		CapabilityCommandGroup(commandArgs, ioStream),
-		NewTemplateCommand(commandArgs, ioStream),
+		NewTemplateCommand(ioStream),
 		NewTraitsCommand(commandArgs, ioStream),
 		NewWorkloadsCommand(commandArgs, ioStream),
 

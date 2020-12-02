@@ -5,15 +5,15 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/spf13/cobra"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/serverlib"
-
-	"github.com/spf13/cobra"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type commandOptions struct {
@@ -48,6 +48,9 @@ func AddTraitCommands(parentCmd *cobra.Command, c types.Args, ioStreams cmdutil.
 			Short:                 "Attach " + name + " trait to an app",
 			Long:                  "Attach " + name + " trait to an app",
 			Example:               "vela " + name + " frontend",
+			PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+				return c.SetConfig()
+			},
 			RunE: func(cmd *cobra.Command, args []string) error {
 				o := &commandOptions{IOStreams: ioStreams, traitType: name}
 				o.Template = tmp

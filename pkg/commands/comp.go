@@ -6,14 +6,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/spf13/cobra"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/serverlib"
-
-	"github.com/spf13/cobra"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // constants used in `svc` command
@@ -38,6 +38,9 @@ func AddCompCommands(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 		DisableFlagsInUseLine: true,
 		Short:                 "Manage services",
 		Long:                  "Manage services",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 	}
 	compCommands.PersistentFlags().StringP(App, "a", "", "specify the name of application containing the services")
 
@@ -57,6 +60,9 @@ func NewCompDeployCommands(c types.Args, ioStreams util.IOStreams) *cobra.Comman
 		Short:              "Initialize and run a service",
 		Long:               "Initialize and run a service. The app name would be the same as service name, if it's not specified.",
 		Example:            "vela svc deploy -t <SERVICE_TYPE>",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 || args[0] == "-h" {
 				err := cmd.Help()

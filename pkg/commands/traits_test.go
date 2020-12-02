@@ -2,11 +2,12 @@ package commands
 
 import (
 	"bytes"
+	"os"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/gosuri/uitable"
+	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
@@ -89,4 +90,11 @@ func Test_printTraitList(t *testing.T) {
 		nn := c.workloadName
 		assert.NoError(t, printTraitList(&nn, iostream))
 	}
+}
+
+func TestNewTraitsCommandPersistentPreRunE(t *testing.T) {
+	io := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+	fakeC := types.Args{}
+	cmd := NewTraitsCommand(fakeC, io)
+	assert.Nil(t, cmd.PersistentPreRunE(new(cobra.Command), []string{}))
 }

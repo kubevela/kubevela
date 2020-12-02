@@ -10,12 +10,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
-	runtimeoam "github.com/oam-dev/kubevela/pkg/oam"
-
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	runtimeoam "github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/serverlib"
 )
@@ -30,6 +28,9 @@ func NewListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 		Short:                 "List services",
 		Long:                  "List services of all applications",
 		Example:               `vela ls`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			env, err := GetEnv(cmd)
 			if err != nil {
