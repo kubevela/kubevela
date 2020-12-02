@@ -3,9 +3,9 @@ package template
 import (
 	"testing"
 
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
-
 	"cuelang.org/go/cue"
+
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
 )
 
 func TestTemplate(t *testing.T) {

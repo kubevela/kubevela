@@ -11,7 +11,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/parser"
 )
 
@@ -20,8 +19,8 @@ type builder struct {
 }
 
 const (
-	// OamApplicationLable is application's metadata label
-	OamApplicationLable = "application.oam.dev"
+	// OamApplicationLabel is application's metadata label
+	OamApplicationLabel = "application.oam.dev"
 )
 
 // Build template to applicationConfig & Component
@@ -41,7 +40,7 @@ func (b *builder) Complete(ns string) (*v1alpha2.ApplicationConfiguration, []*v1
 	if appconfig.Labels == nil {
 		appconfig.Labels = map[string]string{}
 	}
-	appconfig.Labels[OamApplicationLable] = b.app.Name()
+	appconfig.Labels[OamApplicationLabel] = b.app.Name()
 
 	componets := []*v1alpha2.Component{}
 	for _, wl := range b.app.Services() {
@@ -58,7 +57,7 @@ func (b *builder) Complete(ns string) (*v1alpha2.ApplicationConfiguration, []*v1
 		if component.Labels == nil {
 			component.Labels = map[string]string{}
 		}
-		component.Labels[OamApplicationLable] = b.app.Name()
+		component.Labels[OamApplicationLabel] = b.app.Name()
 		component.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
 		componets = append(componets, component)
 

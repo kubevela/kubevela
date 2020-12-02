@@ -4,39 +4,17 @@ import (
 	"context"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/apply"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/builder"
 )
-
-const (
-	serviceFinalizer = "services.finalizer.core.oam.dev"
-)
-
-func registerFinalizers(app *v1alpha2.Application) bool {
-	newFinalizer := false
-	if !meta.FinalizerExists(&app.ObjectMeta, serviceFinalizer) {
-		meta.AddFinalizer(&app.ObjectMeta, serviceFinalizer)
-		newFinalizer = true
-	}
-	return newFinalizer
-}
-
-func removeFinalizers(app *v1alpha2.Application) bool {
-	remove := false
-	if meta.FinalizerExists(&app.ObjectMeta, serviceFinalizer) {
-		meta.RemoveFinalizer(&app.ObjectMeta, serviceFinalizer)
-		remove = true
-	}
-	return remove
-}
 
 func errorCondition(tpy string, err error) runtimev1alpha1.Condition {
 	return runtimev1alpha1.Condition{
@@ -58,7 +36,7 @@ func readyCondition(tpy string) runtimev1alpha1.Condition {
 }
 
 type reter struct {
-	h   *applicationReconciler
+	h   *Reconciler
 	app *v1alpha2.Application
 	l   logr.Logger
 }
@@ -80,23 +58,19 @@ func (ret *reter) Err(err error) (ctrl.Result, error) {
 	}, nil
 }
 
-// Object interface
-type Object interface {
-	metav1.Object
-	runtime.Object
-}
-
 func (ret *reter) apply(ac *v1alpha2.ApplicationConfiguration, comps ...*v1alpha2.Component) error {
-	objs := []Object{}
+	objs := []apply.Object{}
 	for _, c := range comps {
 		objs = append(objs, c)
 	}
 	objs = append(objs, ac)
-	return ret.Apply(objs...)
-}
 
-func (ret *reter) Apply(objs ...Object) error {
+	listOption := listObjs(client.MatchingLabels{
+		builder.OamApplicationLabel: ret.app.Name,
+	}, client.InNamespace(ret.app.Namespace))
+
 	isController := true
+
 	owner := metav1.OwnerReference{
 		APIVersion: ret.app.APIVersion,
 		Kind:       ret.app.Kind,
@@ -105,13 +79,40 @@ func (ret *reter) Apply(objs ...Object) error {
 		Controller: &isController,
 	}
 
-	ctx := context.Background()
-	for _, obj := range objs {
-		obj.SetOwnerReferences([]metav1.OwnerReference{owner})
-		if err := ret.h.Create(ctx, obj); err != nil && !kerrors.IsAlreadyExists(err) {
-			return err
+	return apply.New(ret.h.Client).Apply(objs,
+		apply.DanglingPolicy("delete"),
+		apply.List(listOption),
+		apply.SetOwnerReferences([]metav1.OwnerReference{owner}),
+	)
+}
+
+func listObjs(listOpts ...client.ListOption) apply.Lister {
+	return func(cli client.Client) ([]apply.Object, error) {
+		ctx := context.Background()
+		acs := new(v1alpha2.ApplicationConfigurationList)
+		if err := cli.List(ctx, acs, listOpts...); err != nil {
+			return nil, err
 		}
+		comps := new(v1alpha2.ComponentList)
+		if err := cli.List(ctx, comps, listOpts...); err != nil {
+			return nil, err
+		}
+		objs := []apply.Object{}
+		for index := range acs.Items {
+			ac := acs.Items[index]
+			if ac.DeletionTimestamp != nil {
+				continue
+			}
+			objs = append(objs, &ac)
+		}
+		for index := range comps.Items {
+			comp := comps.Items[index]
+			if comp.DeletionTimestamp != nil {
+				continue
+			}
+			objs = append(objs, &comp)
+		}
+		return objs, nil
 	}
-	return nil
 
 }

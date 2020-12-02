@@ -5,11 +5,9 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue"
+	"gopkg.in/yaml.v2"
 
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
-
-	"github.com/ghodss/yaml"
-
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/template"
 )
 

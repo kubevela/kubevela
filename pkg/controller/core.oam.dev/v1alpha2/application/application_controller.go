@@ -20,26 +20,22 @@ import (
 	"context"
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	"github.com/go-logr/logr"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-
-	"github.com/pkg/errors"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/builder"
 	fclient "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/parser"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/template"
-
-	"github.com/go-logr/logr"
-	"k8s.io/apimachinery/pkg/runtime"
-	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// ApplicationReconciler reconciles a Application object
-type applicationReconciler struct {
+// Reconciler reconciles a Application object
+type Reconciler struct {
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
@@ -49,10 +45,10 @@ type applicationReconciler struct {
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications/status,verbs=get;update;patch
 
 // Reconcile process app event
-func (r *applicationReconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error) {
+func (r *Reconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error) {
 
 	ctx := context.Background()
-	_log := r.Log.WithValues("application", req.NamespacedName)
+	applog := r.Log.WithValues("application", req.NamespacedName)
 	app := new(v1alpha2.Application)
 	if err := r.Get(ctx, client.ObjectKey{
 		Name:      req.Name,
@@ -65,106 +61,57 @@ func (r *applicationReconciler) Reconcile(req ctrl.Request) (result ctrl.Result,
 	}
 
 	if app.DeletionTimestamp != nil {
-		_log.Info("Handle delete")
-		owns := false
-
-		matchLabels := client.MatchingLabels{
-			builder.OamApplicationLable: app.Name,
-		}
-
-		aclist := &v1alpha2.ApplicationConfigurationList{}
-		if err := r.List(ctx, aclist, matchLabels); err != nil && !kerrors.IsNotFound(err) {
-			return ctrl.Result{}, errors.WithMessage(err, "list appConfigs")
-		}
-		for index := range aclist.Items {
-			ac := aclist.Items[index]
-			owns = true
-			if ac.DeletionTimestamp != nil {
-				continue
-			}
-
-			if err := r.Client.Delete(ctx, &ac); err != nil && !kerrors.IsNotFound(err) {
-				return ctrl.Result{}, errors.Errorf("delete ApplicationConfig: %s", ac.Name)
-			}
-		}
-
-		compList := &v1alpha2.ComponentList{}
-		if err := r.List(ctx, compList, client.MatchingLabels{
-			builder.OamApplicationLable: app.Name,
-		}); err != nil && !kerrors.IsNotFound(err) {
-			return ctrl.Result{}, errors.WithMessage(err, "list componetes")
-		}
-		for index := range compList.Items {
-			comp := compList.Items[index]
-			owns = true
-			if comp.DeletionTimestamp != nil {
-				continue
-			}
-			if err := r.Client.Delete(ctx, &comp); err != nil && !kerrors.IsNotFound(err) {
-				return ctrl.Result{}, errors.Errorf("delete Component: %s", comp.Name)
-			}
-		}
-		if !owns {
-			_log.Info("Remove finalizer")
-			removeFinalizers(app)
-			return ctrl.Result{}, r.Update(ctx, app)
-		}
-	}
-
-	if app.Status.Phase == "finished" {
 		return ctrl.Result{}, nil
 	}
 
-	_log.Info("Start Rendering")
-	registerFinalizers(app)
-	app.Status.Phase = "rendering"
-	handler := &reter{r, app, _log}
+	applog.Info("Start Rendering")
 
-	_log.Info("Parse Template")
+	app.Status.Phase = "rendering"
+	handler := &reter{r, app, applog}
+
+	applog.Info("parse template")
 	// parse template
 	appParser := parser.NewParser(template.GetHanler(fclient.NewDefinitionClient(r.Client)))
 
-	expr, err := app.Spec.Maps()
+	expr, err := parser.DecodeJSONMarshaler(app.Spec)
 	if err != nil {
-		app.Status.SetConditions(errorCondition("Parser", err))
+		app.Status.SetConditions(errorCondition("Parsed", err))
 		return handler.Err(err)
 	}
-
 	appfile, err := appParser.Parse(app.Name, expr)
 
 	if err != nil {
-		app.Status.SetConditions(errorCondition("Parser", err))
+		app.Status.SetConditions(errorCondition("Parsed", err))
 		return handler.Err(err)
 	}
 
-	app.Status.SetConditions(readyCondition("Parser"))
+	app.Status.SetConditions(readyCondition("Parsed"))
 
-	_log.Info("Build Template")
+	applog.Info("build template")
 	// build template to applicationconfig & component
 	ac, comps, err := builder.Build(app.Namespace, appfile)
 	if err != nil {
-		app.Status.SetConditions(errorCondition("Build", err))
+		app.Status.SetConditions(errorCondition("Built", err))
 		return handler.Err(err)
 	}
 
-	app.Status.SetConditions(readyCondition("Build"))
+	app.Status.SetConditions(readyCondition("Built"))
 
-	_log.Info("Apply Output RC")
+	applog.Info("apply applicationconfig & component to the cluster")
 	// apply applicationconfig & component to the cluster
 	if err := handler.apply(ac, comps...); err != nil {
-		app.Status.SetConditions(errorCondition("Apply", err))
+		app.Status.SetConditions(errorCondition("Applied", err))
 		return handler.Err(err)
 	}
 
-	app.Status.SetConditions(readyCondition("Apply"))
+	app.Status.SetConditions(readyCondition("Applied"))
 
-	app.Status.Phase = "finished"
-	_log.Info("Finish Rendering")
+	app.Status.Phase = "running"
 	return ctrl.Result{}, r.Status().Update(ctx, app)
 }
 
 // SetupWithManager install to manager
-func (r *applicationReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha2.Application{}).
 		Owns(&v1alpha2.ApplicationConfiguration{}).Owns(&v1alpha2.Component{}).
@@ -173,7 +120,7 @@ func (r *applicationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Setup adds a controller that reconciles ApplicationDeployment.
 func Setup(mgr ctrl.Manager, _ core.Args, _ logging.Logger) error {
-	reconciler := applicationReconciler{
+	reconciler := Reconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("Application"),
 		Scheme: mgr.GetScheme(),

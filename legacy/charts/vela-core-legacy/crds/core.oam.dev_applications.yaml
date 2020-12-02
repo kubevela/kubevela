@@ -30,9 +30,6 @@ spec:
         metadata:
           type: object
         spec:
-          additionalProperties:
-            type: object
-          description: ApplicationSpec defines the desired state of Application
           type: object
           
         status:

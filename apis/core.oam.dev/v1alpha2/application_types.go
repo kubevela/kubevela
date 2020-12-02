@@ -17,7 +17,7 @@ limitations under the License.
 package v1alpha2
 
 import (
-	"encoding/json"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,44 +25,6 @@ import (
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// ApplicationSpec defines the desired state of Application
-type ApplicationSpec map[string]anyone
-
-// Maps generate maps
-func (spec ApplicationSpec) Maps() (map[string]interface{}, error) {
-	ret := map[string]interface{}{}
-	for k, v := range spec {
-		var _v interface{}
-		if err := json.Unmarshal(v.Raw, &_v); err != nil {
-			return nil, err
-		}
-		ret[k] = _v
-	}
-	return ret, nil
-}
-
-type anyone struct {
-	// Raw will hold the complete serialized object
-	Raw []byte `json:"-"`
-}
-
-// UnmarshalJSON implement jsonUnmarshal
-func (any *anyone) UnmarshalJSON(in []byte) error {
-	any.Raw = in
-	return nil
-}
-
-// MarshalJSON implement jsonMarshal
-func (any *anyone) MarshalJSON() ([]byte, error) {
-	return any.Raw, nil
-}
-
-// DeepCopy method
-func (spec *ApplicationSpec) DeepCopy() *ApplicationSpec {
-	ret := *spec
-	return &ret
-}
 
 // RenderStatus is Application Render Status
 type RenderStatus string
@@ -86,8 +48,8 @@ type Application struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// +kubebuilder:pruning:PreserveUnknownFields
-	Spec   ApplicationSpec `json:"spec,omitempty"`
-	Status AppStatus       `json:"status,omitempty"`
+	Spec   runtime.RawExtension `json:"spec,omitempty"`
+	Status AppStatus            `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true

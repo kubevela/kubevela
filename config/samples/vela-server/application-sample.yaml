@@ -4,11 +4,11 @@ metadata:
   name: application-sample
 spec:
   services:
-      myweb:
-        type: worker
-        image: "busybox"
-        cmd:
-        - sleep
-        - "1000"
-        scaler:
-          replicas: 10
+    myweb:
+      type: worker
+      image: "busybox"
+      cmd:
+      - sleep
+      - "1000"
+      scaler:
+        replicas: 10
