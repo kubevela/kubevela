@@ -58,6 +58,7 @@ func NewCommand() *cobra.Command {
 		NewInstallCommand(commandArgs, fake.ChartSource, ioStream),
 		NewInitCommand(commandArgs, ioStream),
 		NewUpCommand(commandArgs, ioStream),
+		NewExportCommand(commandArgs, ioStream),
 
 		// Apps
 		NewListCommand(commandArgs, ioStream),
