@@ -37,8 +37,8 @@ func main() {
 	var specificationType string
 	caps, err := plugins.LoadAllInstalledCapability()
 	if err != nil {
-		fmt.Printf("failed to generate reference docs for all capabilites: %s", err)
-		os.Exit(-1)
+		fmt.Printf("failed to generate reference docs for all capabilities: %s", err)
+		os.Exit(1)
 	}
 	for _, c := range caps {
 		switch c.Type {
@@ -50,7 +50,7 @@ func main() {
 			specificationType = "trait"
 		default:
 			fmt.Printf("the type of the capability is not right")
-			os.Exit(-1)
+			os.Exit(1)
 		}
 
 		fileName := fmt.Sprintf("%s.md", c.Name)
@@ -58,7 +58,7 @@ func main() {
 		f, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE, 0644)
 		if err != nil {
 			fmt.Printf("failed to open file %s: %s", filePath, err)
-			os.Exit(-1)
+			os.Exit(1)
 		}
 		capName := c.Name
 		ref := ReferenceMarkdown{
@@ -69,17 +69,25 @@ func main() {
 		cueValue, err := getCUEParameterValue(c.CueTemplate)
 		if err != nil {
 			fmt.Printf("failed to retrieve `parameters` value from %s with err: %s", c.Name, err)
-			os.Exit(-1)
+			os.Exit(1)
 		}
 		refContent = ""
 		var defaultDepth = 0
 		recurseDepth = &defaultDepth
 		capNameInTitle := strings.Title(capName)
-		ref.parseParameters(cueValue, "Properties", defaultDepth)
+		if err := ref.parseParameters(cueValue, "Properties", defaultDepth); err != nil {
+			fmt.Printf(err.Error())
+			os.Exit(1)
+		}
 		title := fmt.Sprintf("# %s", capNameInTitle)
 		description := fmt.Sprintf("\n\n## Description\n\n%s", c.Description)
 		specificationIntro := fmt.Sprintf("List of all configuration options for a `%s` %s.", capNameInTitle, specificationType)
-		specification := fmt.Sprintf("\n\n## Specification\n\n%s\n\n%s", specificationIntro, generateSpecification(capName))
+		specificationContent, err := generateSpecification(capName)
+		if err != nil {
+			fmt.Printf(err.Error())
+			os.Exit(1)
+		}
+		specification := fmt.Sprintf("\n\n## Specification\n\n%s\n\n%s", specificationIntro, specificationContent)
 		refContent = title + description + specification + refContent
 		f.WriteString(refContent)
 		f.Close()
@@ -132,15 +140,14 @@ func getCUEParameterValue(cueStr string) (cue.Value, error) {
 }
 
 // parseParameters parses every parameter
-func (ref *ReferenceMarkdown) parseParameters(paraValue cue.Value, paramKey string, depth int) {
+func (ref *ReferenceMarkdown) parseParameters(paraValue cue.Value, paramKey string, depth int) error {
 	var params []Parameter
 	*recurseDepth++
 	switch paraValue.Kind() {
 	case cue.StructKind:
 		arguments, err := paraValue.Struct()
 		if err != nil {
-			fmt.Printf("arguments not defined as struct %v", err)
-			os.Exit(-1)
+			return errors.New(fmt.Sprintf("arguments not defined as struct %v", err))
 		}
 		for i := 0; i < arguments.Len(); i++ {
 			var param Parameter
@@ -164,20 +171,23 @@ func (ref *ReferenceMarkdown) parseParameters(paraValue cue.Value, paramKey stri
 				if name == "selector" {
 					param.PrintableType = "map[string]string"
 				} else {
-					ref.parseParameters(val, name, depth)
+					if err := ref.parseParameters(val, name, depth); err != nil {
+						return err
+					}
 					param.PrintableType = fmt.Sprintf("[%s](#%s)", name, name)
 				}
 			case cue.ListKind:
 				elem, success := val.Elem()
 				if !success {
-					fmt.Printf("failed to get elements from %v", success)
-					os.Exit(-1)
+					return errors.New(fmt.Sprintf("failed to get elements from %s", val))
 				}
 				switch elem.Kind() {
 				case cue.StructKind:
 					param.PrintableType = fmt.Sprintf("[[]%s](#%s)", name, name)
 					depth := *recurseDepth
-					ref.parseParameters(elem, name, depth)
+					if err := ref.parseParameters(elem, name, depth); err != nil {
+						return err
+					}
 				default:
 					param.Type = elem.Kind()
 					param.PrintableType = fmt.Sprintf("[]%s", elem.IncompleteKind().String())
@@ -187,11 +197,11 @@ func (ref *ReferenceMarkdown) parseParameters(paraValue cue.Value, paramKey stri
 			}
 			params = append(params, param)
 		}
-
 	}
 
 	tableName := fmt.Sprintf("%s %s", strings.Repeat("#", depth+2), paramKey)
 	refContent = ref.prepareParameterTable(tableName, params) + refContent
+	return nil
 }
 
 // getPrintableDefaultValue converts the value in `interface{}` type to be printable
@@ -213,21 +223,20 @@ func getPrintableDefaultValue(v interface{}) string {
 	return ""
 }
 
-func generateSpecification(capability string) string {
-	configurationPath, err := filepath.Abs(filepath.Join("hack/references/configurations", fmt.Sprintf("%s.yaml", capability)))
+// generateSpecification generates Specification part for reference docs
+func generateSpecification(capability string) (string, error) {
+	configurationPath, err := filepath.Abs(filepath.Join("hack/references/configurations",
+		fmt.Sprintf("%s.yaml", capability)))
 	if err != nil {
-		fmt.Printf("failed to get configuration path: %v", err)
-		os.Exit(-1)
+		return "", errors.New(fmt.Sprintf("failed to get configuration path: %v", err))
 	}
 	f, err := os.Open(configurationPath)
 	if err != nil {
-		fmt.Printf("failed to open configuration file: %v", err)
-		os.Exit(-1)
+		return "", errors.New(fmt.Sprintf("failed to open configuration file: %v", err))
 	}
 	spec, err := ioutil.ReadAll(f)
 	if err != nil {
-		fmt.Printf("failed to read configuration file: %v", err)
-		os.Exit(-1)
+		return "", errors.New(fmt.Sprintf("failed to read configuration file: %v", err))
 	}
-	return fmt.Sprintf("```yaml\n%s```", spec)
+	return fmt.Sprintf("```yaml\n%s```", spec), nil
 }

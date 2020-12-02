@@ -2,7 +2,7 @@
 
 ## Description
 
-`Scaler` is used to configure replicas to your service.
+`Scaler` is used to configure replicas for your service.
 
 ## Specification
 

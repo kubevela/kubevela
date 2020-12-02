@@ -2,7 +2,7 @@
 
 ## Description
 
-`Autoscale` is used to automatically scales workloads by resource utilization metrics and cron.
+`Autoscale` is used to automatically scale workloads by resource utilization metrics or cron triggers.
 
 ## Specification
 
@@ -45,4 +45,3 @@ Name | Description | Type | Required | Default
  days | Several workdays or weekends, like "Monday, Tuesday" | string | true |  
  replicas | The target replicas to be scaled to | int | true |  
  timezone | Timezone, like "America/Los_Angeles" | string | true |  
- 

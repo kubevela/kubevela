@@ -2,7 +2,7 @@
 
 ## Description
 
-`Rollout` is used to configure Canary deployment strategy to your application.
+`Rollout` is used to configure Canary deployment strategy for your application.
 
 ## Specification
 
