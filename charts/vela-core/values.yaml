@@ -4,8 +4,8 @@
 
 replicaCount: 1
 useWebhook: true
-# By default, enable all builtin capabilities
-enableCaps: all
+# By default, don't disable any builtin capabilities
+disableCaps: ""
 image:
   repository: oamdev/vela-core
   tag: latest

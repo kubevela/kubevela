@@ -1,4 +1,4 @@
-package autoscalers
+package autoscaler
 
 import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"

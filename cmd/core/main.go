@@ -9,7 +9,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -38,6 +37,7 @@ import (
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/dependency"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2"
 )
@@ -74,7 +74,7 @@ func main() {
 	var useWebhook, useTraitInjector bool
 	var controllerArgs oamcontroller.Args
 	var healthAddr string
-	var enableCaps string
+	var disableCaps string
 
 	flag.BoolVar(&useWebhook, "use-webhook", false, "Enable Admission Webhook")
 	flag.BoolVar(&useTraitInjector, "use-trait-injector", false, "Enable TraitInjector")
@@ -93,7 +93,7 @@ func main() {
 	flag.StringVar(&healthAddr, "health-addr", ":9440", "The address the health endpoint binds to.")
 	flag.BoolVar(&controllerArgs.ApplyOnceOnly, "apply-once-only", false,
 		"For the purpose of some production environment that workload or trait should not be affected if no spec change")
-	flag.StringVar(&enableCaps, "enable-caps", "all", "To be enabled builtin capability list.")
+	flag.StringVar(&disableCaps, "disable-caps", "", "To be disabled builtin capability list.")
 	flag.Parse()
 
 	// setup logging
@@ -141,14 +141,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	var capabilities []string
-	switch enableCaps {
-	case "none":
-		capabilities = []string{}
-	case "all":
-		capabilities = []string{"metrics", "podspecworkload", "route", "autoscale"}
-	default:
-		capabilities = strings.Split(enableCaps, ",")
+	if err := utils.CheckDisabledCapabilities(disableCaps); err != nil {
+		setupLog.Error(err, "unable to get enabled capabilities")
+		os.Exit(1)
 	}
 
 	if useWebhook {
@@ -157,7 +152,7 @@ func main() {
 			setupLog.Error(err, "unable to setup oam runtime webhook")
 			os.Exit(1)
 		}
-		velawebhook.Register(mgr, capabilities)
+		velawebhook.Register(mgr, disableCaps)
 		if err := waitWebhookSecretVolume(certDir, waitSecretTimeout, waitSecretInterval); err != nil {
 			setupLog.Error(err, "unable to get webhook secret")
 			os.Exit(1)
@@ -169,7 +164,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = velacontroller.Setup(mgr, capabilities); err != nil {
+	if err = velacontroller.Setup(mgr, disableCaps); err != nil {
 		setupLog.Error(err, "unable to setup the vela core controller")
 		os.Exit(1)
 	}

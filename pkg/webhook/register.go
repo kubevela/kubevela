@@ -4,6 +4,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
+
+	"github.com/oam-dev/kubevela/pkg/controller/common"
+
 	"github.com/oam-dev/kubevela/pkg/webhook/standard.oam.dev/v1alpha1/metrics"
 	"github.com/oam-dev/kubevela/pkg/webhook/standard.oam.dev/v1alpha1/podspecworkload"
 )
@@ -14,22 +18,21 @@ import (
 // +kubebuilder:webhook:path=/mutate-standard-oam-dev-v1alpha1-podspecworkload,mutating=true,failurePolicy=fail,groups=standard.oam.dev,resources=PodSpecWorkload,verbs=create;update,versions=v1alpha1,name=mpodspecworkload.kb.io
 
 // Register will register all the services to the webhook server
-func Register(mgr manager.Manager, capabilities []string) {
+func Register(mgr manager.Manager, disableCaps string) {
+	disableCapsSet := utils.StoreInSet(disableCaps)
 	server := mgr.GetWebhookServer()
-	for _, cap := range capabilities {
-		switch cap {
-		case "metrics":
-			// MetricsTrait
-			server.Register("/validate-standard-oam-dev-v1alpha1-metricstrait",
-				&webhook.Admission{Handler: &metrics.ValidatingHandler{}})
-			server.Register("/mutate-standard-oam-dev-v1alpha1-metricstrait",
-				&webhook.Admission{Handler: &metrics.MutatingHandler{}})
-		case "podspecworkload":
-			// PodSpecWorkload
-			server.Register("/validate-standard-oam-dev-v1alpha1-podspecworkload",
-				&webhook.Admission{Handler: &podspecworkload.ValidatingHandler{}})
-			server.Register("/mutate-standard-oam-dev-v1alpha1-podspecworkload",
-				&webhook.Admission{Handler: &podspecworkload.MutatingHandler{}})
-		}
+	if disableCaps == common.DisableNoneCaps || !disableCapsSet.Contains(common.MetricsControllerName) {
+		// MetricsTrait
+		server.Register("/validate-standard-oam-dev-v1alpha1-metricstrait",
+			&webhook.Admission{Handler: &metrics.ValidatingHandler{}})
+		server.Register("/mutate-standard-oam-dev-v1alpha1-metricstrait",
+			&webhook.Admission{Handler: &metrics.MutatingHandler{}})
+	}
+	if disableCaps == common.DisableNoneCaps || !disableCapsSet.Contains(common.PodspecWorkloadControllerName) {
+		// PodSpecWorkload
+		server.Register("/validate-standard-oam-dev-v1alpha1-podspecworkload",
+			&webhook.Admission{Handler: &podspecworkload.ValidatingHandler{}})
+		server.Register("/mutate-standard-oam-dev-v1alpha1-podspecworkload",
+			&webhook.Admission{Handler: &podspecworkload.MutatingHandler{}})
 	}
 }

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package autoscalers
+package autoscaler
 
 import (
 	"context"
@@ -52,8 +52,8 @@ const (
 // ReconcileWaitResult is the time to wait between reconciliation.
 var ReconcileWaitResult = reconcile.Result{RequeueAfter: 30 * time.Second}
 
-// AutoscalerReconciler reconciles a Autoscaler object
-type AutoscalerReconciler struct {
+// Reconciler reconciles a Autoscaler object
+type Reconciler struct {
 	client.Client
 
 	dm     discoverymapper.DiscoveryMapper
@@ -65,7 +65,7 @@ type AutoscalerReconciler struct {
 // Reconcile is the main logic for autoscaler controller
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=autoscalers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=autoscalers/status,verbs=get;update;patch
-func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("autoscaler", req.NamespacedName)
 	log.Info("Reconciling Autoscaler...")
 	ctx := context.Background()
@@ -142,7 +142,7 @@ func (r *AutoscalerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) 
 }
 
 // SetupWithManager will setup with event recorder
-func (r *AutoscalerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("Autoscaler")).
 		WithAnnotations("controller", "Autoscaler")
 	return ctrl.NewControllerManagedBy(mgr).
@@ -156,7 +156,7 @@ func Setup(mgr ctrl.Manager) error {
 	if err != nil {
 		return err
 	}
-	r := AutoscalerReconciler{
+	r := Reconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("Autoscaler"),
 		Scheme: mgr.GetScheme(),
