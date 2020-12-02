@@ -1,9 +1,9 @@
 package appfile
 
 import (
+	"encoding/json"
 	"errors"
 	"io/ioutil"
-	"json"
 	"path/filepath"
 	"time"
 
