@@ -83,8 +83,8 @@ jobs:
 
       - name: Setup Kind Cluster
         run: |
-          kind delete cluster
-          kind create cluster
+          kind delete cluster --name e2e
+          kind create cluster --name e2e
           kubectl version
           kubectl cluster-info
 
