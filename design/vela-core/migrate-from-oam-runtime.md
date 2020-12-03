@@ -1,10 +1,8 @@
 # How to upgrade to KubeVela
 
 What if I want to upgrade from [oam-kubernetes-runtime](https://github.com/crossplane/oam-kubernetes-runtime) to KubeVela? Here's a detailed guide!
-has already been merged into [vela-core](https://github.com/oam-dev/kubevela/pull/663) now. Here is the doc for users who want
-to migrate from OAM Runtime to use KubeVela.
 
-## For Users Who are Using OAM runtime as Standalone Controller
+## For users who are using OAM runtime as standalone controller
 
 If you are using OAM Runtime as Standalone Controller, upgrading to KubeVela to KubeVela is very straight forward.
 
@@ -14,7 +12,7 @@ Server-side KubeVela(We call it `vela-core` for convenience) now includes follow
 | ---- |  ----  | ----  | ----  |
 | Control Plane Object | `applicationconfigurations.core.oam.dev` | Yes | OAM Runtime |
 | Control Plane Object | `components.core.oam.dev` | Yes | OAM Runtime |
-| Workload | `containerizedworklaods.core.oam.dev` | Yes | OAM Runtime |
+| Workload Type | `containerizedworklaods.core.oam.dev` | Yes | OAM Runtime |
 | Scope | `healthscope.core.oam.dev` | Yes | OAM Runtime |
 | Trait | `manualscalertraits.core.oam.dev` | Yes | OAM Runtime |
 | Control Plane Object | `scopedefinitions.core.oam.dev` | No | OAM Runtime |
@@ -22,13 +20,13 @@ Server-side KubeVela(We call it `vela-core` for convenience) now includes follow
 | Control Plane Object | `workloaddefinitions.core.oam.dev` | No | OAM Runtime |
 | Trait | `autoscalers.standard.oam.dev` | Yes | New in KubeVela |
 | Trait | `metricstraits.standard.oam.dev` | Yes | New in KubeVela |
-| Workload | `podspecworkloads.standard.oam.dev` | Yes | New in KubeVela |
+| Workload Type | `podspecworkloads.standard.oam.dev` | Yes | New in KubeVela |
 | Trait | `route.standard.oam.dev` | Yes | New in KubeVela |
 
 CRDs and Controllers in the table from 'OAM Runtime' are exactly the same to those in `oam-kubernetes-runtime`.
 So in KubeVela we have added 4 more new CRDs with controller. 
 
-### Option 1: You want only Pure OAM Runtime by using vela-core with No additional traits and workloads.
+### Option 1: I only want to have OAM control plane objects onlywithout additional traits and workload types.
 
 1. Find you deployment
 
