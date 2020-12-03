@@ -74,7 +74,7 @@ metadata:
 ...
 ```
 
-### Option 2: I want full functioning KubeVela, including its built-in workload types and traits.
+### Option 2: I want full featured KubeVela, including its built-in workload types and traits.
 
 1. Install Additional CRDs
 
