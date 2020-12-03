@@ -193,7 +193,11 @@ func (o *AppfileOptions) Run(filePath string) error {
 	}
 
 	o.IO.Infof("\nApplying deploy configs ...\n")
-	return o.ApplyAppConfig(res.appConfig, res.comps, res.scopes)
+	if err := o.ApplyAppConfig(res.appConfig, res.comps, res.scopes); err != nil {
+		return err
+	}
+	addons := res.app.Addons
+	return appfile.DeployAddon(addons)
 }
 
 func (o *AppfileOptions) saveToAppDir(f *appfile.AppFile) error {

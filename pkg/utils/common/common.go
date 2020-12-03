@@ -3,16 +3,17 @@ package common
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
 
+	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
-
-	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -59,4 +60,15 @@ func HTTPGet(ctx context.Context, url string) ([]byte, error) {
 	//nolint:errcheck
 	defer resp.Body.Close()
 	return ioutil.ReadAll(resp.Body)
+}
+
+// RealtimePrintCommandOutput prints command output in real time
+func RealtimePrintCommandOutput(cmd *exec.Cmd) error {
+	writer := io.MultiWriter(os.Stdout)
+	cmd.Stdout = writer
+	cmd.Stderr = writer
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	return nil
 }
