@@ -142,7 +142,7 @@ Then you have successfully migrate from oam-kubernetes-runtime to KubeVela.
 
 ## For users who are importing OAM runtime as library
 
-If you are using `oam-kubernetes-runtime` as code library, you can update your import headers.
+If you are importing `oam-kubernetes-runtime` as library, you can update your import headers.
 
 Files are refactored as below:
 
