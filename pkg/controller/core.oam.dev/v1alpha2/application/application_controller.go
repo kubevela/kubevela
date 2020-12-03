@@ -66,7 +66,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error
 
 	applog.Info("Start Rendering")
 
-	app.Status.Phase = "rendering"
+	app.Status.Phase = v1alpha2.ApplicationRendering
 	handler := &reter{r, app, applog}
 
 	applog.Info("parse template")
@@ -106,7 +106,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error
 
 	app.Status.SetConditions(readyCondition("Applied"))
 
-	app.Status.Phase = "running"
+	app.Status.Phase = v1alpha2.ApplicationRunning
 	return ctrl.Result{}, r.Status().Update(ctx, app)
 }
 

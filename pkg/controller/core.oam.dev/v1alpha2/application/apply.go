@@ -72,8 +72,8 @@ func (ret *reter) apply(ac *v1alpha2.ApplicationConfiguration, comps ...*v1alpha
 	isController := true
 
 	owner := metav1.OwnerReference{
-		APIVersion: ret.app.APIVersion,
-		Kind:       ret.app.Kind,
+		APIVersion: v1alpha2.Group + "/" + v1alpha2.Version,
+		Kind:       "Application",
 		Name:       ret.app.Name,
 		UID:        ret.app.UID,
 		Controller: &isController,

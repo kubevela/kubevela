@@ -21,26 +21,21 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"testing"
-	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -51,6 +46,7 @@ var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var testScheme = runtime.NewScheme()
+var decoder *admission.Decoder
 
 func TestAPIs(t *testing.T) {
 
@@ -85,6 +81,21 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
+	decoder, err = admission.NewDecoder(testScheme)
+	Expect(err).Should(BeNil())
+	Expect(decoder).ToNot(BeNil())
+
+	ctx := context.Background()
+	wd := &v1alpha2.WorkloadDefinition{}
+	wDDefJson, _ := yaml.YAMLToJSON([]byte(wDDefYaml))
+	Expect(json.Unmarshal(wDDefJson, wd)).Should(BeNil())
+	Expect(k8sClient.Create(ctx, wd)).Should(BeNil())
+
+	td := &v1alpha2.TraitDefinition{}
+	tDDefJson, _ := yaml.YAMLToJSON([]byte(tDDefYaml))
+	Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
+	Expect(k8sClient.Create(ctx, td)).Should(BeNil())
+
 	close(done)
 }, 60)
 
@@ -93,88 +104,6 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })
-
-var _ = Describe("Test Application Controller", func() {
-	ctx := context.Background()
-
-	ns := corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "vela-test",
-		},
-	}
-
-	app := &v1alpha2.Application{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Application",
-			APIVersion: "core.oam.dev/v1alpha2",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "application-sample",
-			Namespace: ns.Name,
-		},
-		Spec: runtime.RawExtension{
-			Raw: []byte("{\"services\":{\"myweb\":{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\",\"scaler\":{\"replicas\":10},\"type\":\"worker\"}}}")},
-	}
-
-	wd := &v1alpha2.WorkloadDefinition{}
-	wDDefJson, _ := yaml.YAMLToJSON([]byte(wDDefYaml))
-
-	td := &v1alpha2.TraitDefinition{}
-	tDDefJson, _ := yaml.YAMLToJSON([]byte(tDDefYaml))
-
-	BeforeEach(func() {
-		Expect(json.Unmarshal(wDDefJson, wd)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, td)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-		Eventually(
-			func() error {
-				return k8sClient.Create(ctx, &ns)
-			},
-			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	})
-
-	It("Test Application Reconciler", func() {
-		Expect(k8sClient.Create(ctx, app.DeepCopyObject())).Should(BeNil())
-		reconciler := &Reconciler{
-			Client: k8sClient,
-			Log:    ctrl.Log.WithName("Application"),
-			Scheme: scheme.Scheme,
-		}
-		appKey := client.ObjectKey{
-			Name:      app.Name,
-			Namespace: app.Namespace,
-		}
-		reconcileRetry(reconciler, reconcile.Request{
-			NamespacedName: appKey})
-
-		checkApp := &v1alpha2.Application{}
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
-
-		appConfig := &v1alpha2.ApplicationConfiguration{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      app.Name,
-		}, appConfig)).Should(BeNil())
-
-		component := &v1alpha2.Component{}
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      "myweb",
-		}, component)).Should(BeNil())
-	})
-
-})
-
-func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
-	Eventually(func() error {
-		_, err := r.Reconcile(req)
-		return err
-	}, 3*time.Second, time.Second).Should(BeNil())
-}
 
 const (
 	wDDefYaml = `

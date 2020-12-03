@@ -26,8 +26,15 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// RenderStatus is Application Render Status
-type RenderStatus string
+// ApplicationPhase is a label for the condition of a application at the current time
+type ApplicationPhase string
+
+const (
+	// ApplicationRendering means the app is rendering
+	ApplicationRendering ApplicationPhase = "rendering"
+	// ApplicationRunning means the app finished rendering and applied result to the cluster
+	ApplicationRunning ApplicationPhase = "running"
+)
 
 // AppStatus defines the observed state of Application
 type AppStatus struct {
@@ -36,7 +43,7 @@ type AppStatus struct {
 
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
 
-	Phase RenderStatus `json:"status,omitempty"`
+	Phase ApplicationPhase `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
