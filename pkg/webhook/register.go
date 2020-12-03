@@ -4,10 +4,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
-
 	"github.com/oam-dev/kubevela/pkg/controller/common"
-
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/webhook/standard.oam.dev/v1alpha1/metrics"
 	"github.com/oam-dev/kubevela/pkg/webhook/standard.oam.dev/v1alpha1/podspecworkload"
 )

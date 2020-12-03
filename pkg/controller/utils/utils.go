@@ -2,7 +2,6 @@ package utils
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -125,7 +124,7 @@ func CheckDisabledCapabilities(disableCaps string) error {
 	default:
 		for _, c := range strings.Split(disableCaps, ",") {
 			if !allBuiltinCapabilities.Contains(c) {
-				return errors.New("disable caps list is invalid")
+				return fmt.Errorf("%s in disable caps list is not built-in", c)
 			}
 		}
 		return nil
