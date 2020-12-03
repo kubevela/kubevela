@@ -6,7 +6,7 @@ to migrate from OAM Runtime to use KubeVela.
 
 ## For Users Who are Using OAM runtime as Standalone Controller
 
-If you are using OAM Runtime as Standalone Controller, migrating to KubeVela is very straight forward.
+If you are using OAM Runtime as Standalone Controller, upgrading to KubeVela to KubeVela is very straight forward.
 
 Server-side KubeVela(We call it `vela-core` for convenience) now includes following **BUILT-IN** CRDs and controllers.
 
