@@ -1,6 +1,6 @@
 # Migrate from OAM Runtime
 
-Now we are refactoring OAM runtime in vela-core with CUE based abstractions, all source code from [oam-kubernetes-runtime](https://github.com/crossplane/oam-kubernetes-runtime)
+Now we are refactoring OAM runtime in vela-core with CUE based abstractions. All source code from [oam-kubernetes-runtime](https://github.com/crossplane/oam-kubernetes-runtime)
 has already been merged into [vela-core](https://github.com/oam-dev/kubevela/pull/663) now. Here is the doc for users who want
 to migrate from OAM Runtime to use KubeVela.
 
