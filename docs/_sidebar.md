@@ -74,3 +74,4 @@
       - [vela template](/en/cli/vela_template.md)
     - Extensibility
       - [vela cap](/en/cli/vela_cap.md)
+  - [FAQ](/en/developers/references/devex/faq.md)
