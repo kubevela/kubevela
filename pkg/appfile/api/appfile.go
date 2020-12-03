@@ -41,6 +41,7 @@ type AppFile struct {
 	UpdateTime time.Time          `json:"updateTime,omitempty"`
 	Services   map[string]Service `json:"services"`
 	Secrets    map[string]string  `json:"secrets,omitempty"`
+	Addons     map[string]Addon   `json:"addons,omitempty"`
 
 	configGetter config.Store
 	initialized  bool

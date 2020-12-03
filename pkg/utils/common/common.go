@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"cuelang.org/go/cue"
@@ -122,4 +124,15 @@ func GenOpenAPIFromFile(filePath string, fileName string) ([]byte, error) {
 		return nil, inst.Err
 	}
 	return GenOpenAPI(inst)
+}
+
+// RealtimePrintCommandOutput prints command output in real time
+func RealtimePrintCommandOutput(cmd *exec.Cmd) error {
+	writer := io.MultiWriter(os.Stdout)
+	cmd.Stdout = writer
+	cmd.Stderr = writer
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	return nil
 }
