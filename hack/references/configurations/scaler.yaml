@@ -1,0 +1,7 @@
+name: my-app-name
+
+services:
+  my-service-name:
+    ...
+    scaler:
+      replicas: 100

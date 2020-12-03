@@ -3,7 +3,7 @@ kind: TraitDefinition
 metadata:
   name: rollout
   annotations:
-    definition.oam.dev/description: "Configure canary deployment strategy to release the app"
+    definition.oam.dev/description: "`Rollout` is used to configure Canary deployment strategy for your application."
 spec:
   appliesToWorkloads:
     - webservice
