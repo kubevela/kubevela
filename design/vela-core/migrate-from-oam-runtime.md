@@ -140,7 +140,7 @@ $ helm template --release-name kubevela -n vela-system -s templates/kubevela-con
 
 Then you have successfully migrate from oam-kubernetes-runtime to KubeVela.
 
-## For Users Who are Using OAM runtime as Code Library
+## For users who are importing OAM runtime as library
 
 If you are using `oam-kubernetes-runtime` as code library, you can update your import headers.
 
