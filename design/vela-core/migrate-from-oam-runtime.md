@@ -49,7 +49,7 @@ $ kubectl -n oam-system edit deployment oam-kubernetes-runtime-oam
 There are two changes:
 
 - update the image from `crossplane/oam-kubernetes-runtime:latest` to `oamdev/vela-core:latest`
-- add an args `- "--disable-caps=all"`, this will disable all additional workload and trait built in vela-core.
+- add an args `- "--disable-caps=all"`, which will disable all additional workloads and traits built in vela-core.
 
 ```yaml
 apiVersion: apps/v1
