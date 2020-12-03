@@ -12,14 +12,14 @@ Server-side KubeVela(We call it `vela-core` for convenience) now includes follow
 
 | Type |  CRD   | Controller  | From |
 | ---- |  ----  | ----  | ----  |
-| Framework | `applicationconfigurations.core.oam.dev` | Yes | OAM Runtime |
-| Framework | `components.core.oam.dev` | No | OAM Runtime |
+| Control Plane Object | `applicationconfigurations.core.oam.dev` | Yes | OAM Runtime |
+| Control Plane Object | `components.core.oam.dev` | Yes | OAM Runtime |
 | Workload | `containerizedworklaods.core.oam.dev` | Yes | OAM Runtime |
 | Scope | `healthscope.core.oam.dev` | Yes | OAM Runtime |
 | Trait | `manualscalertraits.core.oam.dev` | Yes | OAM Runtime |
-| Framework | `scopedefinitions.core.oam.dev` | No | OAM Runtime |
-| Framework | `traitdefinitions.core.oam.dev` | No | OAM Runtime |
-| Framework | `workloaddefinitions.core.oam.dev` | No | OAM Runtime |
+| Control Plane Object | `scopedefinitions.core.oam.dev` | No | OAM Runtime |
+| Control Plane Object | `traitdefinitions.core.oam.dev` | No | OAM Runtime |
+| Control Plane Object | `workloaddefinitions.core.oam.dev` | No | OAM Runtime |
 | Trait | `autoscalers.standard.oam.dev` | Yes | New in KubeVela |
 | Trait | `metricstraits.standard.oam.dev` | Yes | New in KubeVela |
 | Workload | `podspecworkloads.standard.oam.dev` | Yes | New in KubeVela |
@@ -49,7 +49,14 @@ $ kubectl -n oam-system edit deployment oam-kubernetes-runtime-oam
 There are two changes:
 
 - update the image from `crossplane/oam-kubernetes-runtime:latest` to `oamdev/vela-core:latest`
-- add an args `- "--disable-caps=all"`, which will disable all additional workloads and traits built in vela-core.
+- add an args `- "--disable-caps=all"`, which will disable all additional workloads and traits built in vela-core described in the following table.
+
+| Type | Current KubeVela Additional CRD   |
+| ---- |  ----  |
+| Trait | `autoscalers.standard.oam.dev` |
+| Trait | `metricstraits.standard.oam.dev` |
+| Workload | `podspecworkloads.standard.oam.dev` |
+| Trait | `route.standard.oam.dev` |
 
 ```yaml
 apiVersion: apps/v1
@@ -128,6 +135,8 @@ $ helm template --release-name kubevela -n vela-system -s templates/webhook.yaml
 ```shell script
 $ helm template --release-name kubevela -n vela-system -s templates/kubevela-controller.yaml charts/vela-core/ | kubectl apply -f -
 ```
+
+> TIPS: If you want to disable webhook, change 'useWebhook' to be 'false' in  `charts/vela-core/values.yaml`
 
 Then you have successfully migrate from oam-kubernetes-runtime to KubeVela.
 
