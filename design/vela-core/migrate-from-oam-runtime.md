@@ -26,7 +26,7 @@ Server-side KubeVela(We call it `vela-core` for convenience) now includes follow
 CRDs and Controllers in the table from 'OAM Runtime' are exactly the same to those in `oam-kubernetes-runtime`.
 So in KubeVela we have added 4 more new CRDs with controller. 
 
-### Option 1: I only want to have OAM control plane objects onlywithout additional traits and workload types.
+### Option 1: I only want to have OAM control plane objects only, no additional traits and workload types.
 
 1. Find you deployment
 
