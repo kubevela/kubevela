@@ -1,4 +1,4 @@
-# Migrate from OAM Kubernetes Runtime
+# How to upgrade to KubeVela
 
 What if I want to upgrade from [oam-kubernetes-runtime](https://github.com/crossplane/oam-kubernetes-runtime) to KubeVela? Here's a detailed guide!
 has already been merged into [vela-core](https://github.com/oam-dev/kubevela/pull/663) now. Here is the doc for users who want
