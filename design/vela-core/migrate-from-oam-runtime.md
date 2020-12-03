@@ -25,7 +25,7 @@ Server-side KubeVela(We call it `vela-core` for convenience) now include followi
 | Workload | `podspecworkloads.standard.oam.dev` | Yes | New in KubeVela |
 | Trait | `route.standard.oam.dev` | Yes | New in KubeVela |
 
-CRDs and Controllers in the table from 'OAM Runtime' are exactly the same ones in `oam-kubernetes-runtime`.
+CRDs and Controllers in the table from 'OAM Runtime' are exactly the same to those in `oam-kubernetes-runtime`.
 So in KubeVela we have added 4 more new CRDs with controller. 
 
 ### Option 1: You want only Pure OAM Runtime by using vela-core with No additional traits and workloads.
