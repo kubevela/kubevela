@@ -28,7 +28,7 @@ var (
 
 // DefaultAppfilePath defines the default file path that used by `vela up` command
 const (
-	DefaultJsonAppfilePath         = "./vela.json"
+	DefaultJSONAppfilePath         = "./vela.json"
 	DefaultAppfilePath             = "./vela.yaml"
 	DefaultUnknowFormatAppfilePath = "./vela.appfile"
 )
@@ -58,8 +58,8 @@ func Load() (*AppFile, error) {
 	if _, err := os.Stat(DefaultAppfilePath); err != nil {
 		return LoadFromFile(DefaultAppfilePath)
 	}
-	if _, err := os.Stat(DefaultJsonAppfilePath); err != nil {
-		return LoadFromFile(DefaultJsonAppfilePath)
+	if _, err := os.Stat(DefaultJSONAppfilePath); err != nil {
+		return LoadFromFile(DefaultJSONAppfilePath)
 	}
 	return LoadFromFile(DefaultUnknowFormatAppfilePath)
 }
