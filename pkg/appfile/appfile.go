@@ -30,7 +30,7 @@ var (
 const (
 	DefaultJSONAppfilePath         = "./vela.json"
 	DefaultAppfilePath             = "./vela.yaml"
-	DefaultUnknowFormatAppfilePath = "./vela.appfile"
+	DefaultUnknowFormatAppfilePath = "./Appfile"
 )
 
 // AppFile defines the spec of KubeVela Appfile
@@ -65,16 +65,16 @@ func Load() (*AppFile, error) {
 }
 
 // JsonToYaml will convert JSON format appfile to yaml and load the AppFile struct
-func JsonToYaml(data []byte, AppFile *AppFile) (*AppFile, error) {
+func JsonToYaml(data []byte, appFile *AppFile) (*AppFile, error) {
 	j, e := yaml.JSONToYAML(data)
 	if e != nil {
 		return nil, e
 	}
-	err := yaml.Unmarshal(j, AppFile)
+	err := yaml.Unmarshal(j, appFile)
 	if err != nil {
 		return nil, err
 	}
-	return AppFile, nil
+	return appFile, nil
 }
 
 // LoadFromFile will read the file and load the AppFile struct
