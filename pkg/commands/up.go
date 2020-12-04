@@ -9,8 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/utils/common"
-
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -20,14 +18,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var (
@@ -43,6 +40,9 @@ func NewUpCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 		Long:                  "Apply an appfile",
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
+		},
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			velaEnv, err := GetEnv(cmd)
@@ -95,16 +95,24 @@ func saveRemoteAppfile(url string) (string, error) {
 	return dest, ioutil.WriteFile(dest, body, 0644)
 }
 
-// Run starts an application according to Appfile
-func (o *AppfileOptions) Run(filePath string) error {
+type buildResult struct {
+	app       *appfile.AppFile
+	appConfig *v1alpha2.ApplicationConfiguration
+	comps     []*v1alpha2.Component
+	scopes    []oam.Object
+}
+
+func (o *AppfileOptions) export(filePath string, quiet bool) (*buildResult, []byte, error) {
 	var app *appfile.AppFile
 	var err error
-	o.IO.Info("Parsing vela appfile ...")
+	if !quiet {
+		o.IO.Info("Parsing vela appfile ...")
+	}
 	if filePath != "" {
 		if strings.HasPrefix(filePath, "https://") || strings.HasPrefix(filePath, "http://") {
 			filePath, err = saveRemoteAppfile(filePath)
 			if err != nil {
-				return err
+				return nil, nil, err
 			}
 		}
 		app, err = appfile.LoadFromFile(filePath)
@@ -112,18 +120,20 @@ func (o *AppfileOptions) Run(filePath string) error {
 		app, err = appfile.Load()
 	}
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	o.IO.Info("Loading templates ...")
+	if !quiet {
+		o.IO.Info("Loading templates ...")
+	}
 	tm, err := template.Load()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	comps, appConfig, scopes, err := app.BuildOAM(o.Env.Namespace, o.IO, tm, false)
+	comps, appConfig, scopes, err := app.BuildOAM(o.Env.Namespace, o.IO, tm, quiet)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	var w bytes.Buffer
@@ -135,7 +145,7 @@ func (o *AppfileOptions) Run(filePath string) error {
 	}
 	err = enc.Encode(appConfig, &w)
 	if err != nil {
-		return fmt.Errorf("yaml encode AppConfig failed: %w", err)
+		return nil, nil, fmt.Errorf("yaml encode AppConfig failed: %w", err)
 	}
 	w.WriteByte('\n')
 
@@ -147,7 +157,7 @@ func (o *AppfileOptions) Run(filePath string) error {
 		}
 		err = enc.Encode(comp, &w)
 		if err != nil {
-			return fmt.Errorf("yaml encode service (%s) failed: %w", comp.Name, err)
+			return nil, nil, fmt.Errorf("yaml encode service (%s) failed: %w", comp.Name, err)
 		}
 		w.WriteByte('\n')
 	}
@@ -155,26 +165,40 @@ func (o *AppfileOptions) Run(filePath string) error {
 		w.WriteString("---\n")
 		err = enc.Encode(scope, &w)
 		if err != nil {
-			return fmt.Errorf("yaml encode scope (%s) failed: %w", scope.GetName(), err)
+			return nil, nil, fmt.Errorf("yaml encode scope (%s) failed: %w", scope.GetName(), err)
 		}
 		w.WriteByte('\n')
 	}
+	br := &buildResult{
+		app:       app,
+		appConfig: appConfig,
+		comps:     comps,
+		scopes:    scopes,
+	}
+	return br, w.Bytes(), nil
+}
 
+// Run starts an application according to Appfile
+func (o *AppfileOptions) Run(filePath string) error {
+	res, data, err := o.export(filePath, false)
+	if err != nil {
+		return err
+	}
 	deployFilePath := ".vela/deploy.yaml"
 	o.IO.Infof("Writing deploy config to (%s)\n", deployFilePath)
 	if err := os.MkdirAll(filepath.Dir(deployFilePath), 0700); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(deployFilePath, w.Bytes(), 0600); err != nil {
+	if err := ioutil.WriteFile(deployFilePath, data, 0600); err != nil {
 		return errors.Wrap(err, "write deploy config manifests failed")
 	}
 
-	if err := o.saveToAppDir(app); err != nil {
+	if err := o.saveToAppDir(res.app); err != nil {
 		return errors.Wrap(err, "save to app dir failed")
 	}
 
 	o.IO.Infof("\nApplying deploy configs ...\n")
-	return o.ApplyAppConfig(appConfig, comps, scopes)
+	return o.ApplyAppConfig(res.appConfig, res.comps, res.scopes)
 }
 
 func (o *AppfileOptions) saveToAppDir(f *appfile.AppFile) error {

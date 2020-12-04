@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gosuri/uitable"
+	"github.com/spf13/cobra"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
-
-	"github.com/gosuri/uitable"
-	"github.com/spf13/cobra"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // NewEnvCommand creates `env` command and its nested children
@@ -62,6 +62,9 @@ func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		Short:                 "Create environments",
 		Long:                  "Create environment and set the currently using environment",
 		Example:               `vela env init test --namespace test --email my@email.com`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 			if err != nil {

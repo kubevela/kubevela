@@ -33,14 +33,15 @@
   - [Appfile](/en/developers/references/devex/appfile.md)
   - Capabilities
     - Workload Types
-      - [Web Service](/en/developers/references/workload-types/web-service.md)
+      - [Webservice](/en/developers/references/workload-types/webservice.md)
       - [Task](/en/developers/references/workload-types/task.md)
-      - [Worker](/en/developers/references/workload-types/backend-worker.md)
+      - [Worker](/en/developers/references/workload-types/worker.md)
     - Traits
       - [Route](/en/developers/references/traits/route.md)
       - [Autoscale](/en/developers/references/traits/autoscale.md)
       - [Rollout](/en/developers/references/traits/rollout.md)
       - [Metrics](/en/developers/references/traits/metrics.md)
+      - [Scaler](/en/developers/references/traits/scaler.md)
   - CLI
     - General
       - [vela config](/en/cli/vela_config.md)
@@ -74,3 +75,4 @@
       - [vela template](/en/cli/vela_template.md)
     - Extensibility
       - [vela cap](/en/cli/vela_cap.md)
+  - [FAQ](/en/developers/references/devex/faq.md)

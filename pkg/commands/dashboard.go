@@ -15,13 +15,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/types"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/server"
-	"github.com/oam-dev/kubevela/pkg/server/util"
-	"github.com/oam-dev/kubevela/pkg/utils/helm"
-	"github.com/oam-dev/kubevela/pkg/utils/system"
-
 	"github.com/mholt/archiver/v3"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap/zapcore"
@@ -29,6 +22,13 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	"github.com/oam-dev/kubevela/apis/types"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/server"
+	"github.com/oam-dev/kubevela/pkg/server/util"
+	"github.com/oam-dev/kubevela/pkg/utils/helm"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
 // NewDashboardCommand creates `dashboard` command and its nested children commands
@@ -41,6 +41,9 @@ func NewDashboardCommand(c types.Args, ioStreams cmdutil.IOStreams, frontendSour
 		Short:   "Setup API Server and launch Dashboard",
 		Long:    "Setup API Server and launch Dashboard",
 		Example: `dashboard`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 			if err != nil {

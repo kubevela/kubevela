@@ -9,7 +9,7 @@ import (
 )
 
 // NewTemplateCommand creates `template` command and its nested children command
-func NewTemplateCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func NewTemplateCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "template",
 		DisableFlagsInUseLine: true,

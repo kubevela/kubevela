@@ -59,6 +59,7 @@ npm-install:
 doc-gen:
 	rm -r docs/en/cli/*
 	go run hack/docgen/gen.go
+	go run hack/references/generate.go
 
 generate-source:
 	go run hack/frontend/source.go
@@ -99,7 +100,7 @@ reviewable: fmt vet lint manifests
 
 # Execute auto-gen code commands and ensure branch is clean.
 check-diff: reviewable
-	git diff --quiet || $(FAIL)
+	git diff --quiet || ($(ERR) please run 'make reviewable' to include all changes && false)
 	@$(OK) branch is clean
 
 # Build the docker image

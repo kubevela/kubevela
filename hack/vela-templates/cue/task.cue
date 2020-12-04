@@ -1,5 +1,5 @@
 output: {
-	apiVersion: "v1"
+	apiVersion: "batch/v1"
 	kind:       "Job"
 	spec: {
 		parallelism: parameter.count
@@ -25,5 +25,6 @@ parameter: {
 	// +short=i
 	image: string
 
+	// +usage=Commands to run in the container
 	cmd?: [...string]
 }

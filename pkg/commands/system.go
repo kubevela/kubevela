@@ -105,6 +105,9 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 		Use:   "install",
 		Short: "Install Vela Core with built-in capabilities",
 		Long:  "Install Vela Core with built-in capabilities",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 			if err != nil {

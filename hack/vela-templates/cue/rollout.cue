@@ -26,10 +26,11 @@ output: {
 	}
 }
 parameter: {
-	// +usage=total replicas of the workload
+	// +usage=Total replicas of the workload
 	replicas: *2 | int
 	// +alias=step-weight
-	// +usage=weight percent of every step in rolling update
+	// +usage=Weight percent of every step in rolling update
 	stepWeight: *50 | int
-	interval:   *"30s" | string
+	// +usage=Schedule interval time
+	interval: *"30s" | string
 }

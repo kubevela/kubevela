@@ -243,7 +243,7 @@ func (app *Application) GetTraitsByType(componentName, traitType string) (map[st
 // OAM will convert an AppFile to OAM objects
 // TODO(wonderflow) add scope support here
 func (app *Application) OAM(env *types.EnvMeta, io cmdutil.IOStreams, silence bool) ([]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
-	comps, appConfig, scopes, err := app.RenderOAM(env.Namespace, io, app.tm, silence)
+	comps, appConfig, scopes, err := app.BuildOAM(env.Namespace, io, app.tm, silence)
 	if err != nil {
 		return nil, nil, nil, err
 	}

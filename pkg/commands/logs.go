@@ -8,17 +8,17 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/application"
-	"github.com/oam-dev/kubevela/pkg/commands/util"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-
 	"github.com/fatih/color"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/wercker/stern/stern"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/application"
+	"github.com/oam-dev/kubevela/pkg/commands/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
 // NewLogsCommand creates `logs` command to tail logs of application
@@ -28,6 +28,13 @@ func NewLogsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd.Use = "logs"
 	cmd.Short = "Tail logs for application"
 	cmd.Long = "Tail logs for application"
+	cmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if err := c.SetConfig(); err != nil {
+			return err
+		}
+		largs.C = c
+		return nil
+	}
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		if len(args) < 1 {
 			ioStreams.Errorf("please specify app name")

@@ -23,6 +23,9 @@ func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		Short:                 "List traits",
 		Long:                  "List traits",
 		Example:               `vela traits`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if syncCluster {
 				if err := RefreshDefinitions(ctx, c, ioStreams, true); err != nil {
