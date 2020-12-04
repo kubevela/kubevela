@@ -57,9 +57,10 @@ func NewPortForwardCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra
 		},
 	}
 	cmd := &cobra.Command{
-		Use:   "port-forward APP_NAME [options] [LOCAL_PORT:]REMOTE_PORT [...[LOCAL_PORT_N:]REMOTE_PORT_N]",
-		Short: "Forward local ports to services in an application",
-		Long:  "Forward local ports to services in an application",
+		Use:     "port-forward APP_NAME",
+		Short:   "Forward local ports to services in an application",
+		Long:    "Forward local ports to services in an application",
+		Example: "port-forward APP_NAME [options] [LOCAL_PORT:]REMOTE_PORT [...[LOCAL_PORT_N:]REMOTE_PORT_N]",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			if err := c.SetConfig(); err != nil {
 				return err
