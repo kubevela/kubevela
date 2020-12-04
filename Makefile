@@ -1,5 +1,5 @@
 # Vela version
-VELA_VERSION ?= 0.1.0
+VELA_VERSION ?= master
 # Repo info
 GIT_COMMIT          ?= git-$(shell git rev-parse --short HEAD)
 VELA_VERSION_VAR    := github.com/oam-dev/kubevela/version.VelaVersion
@@ -104,8 +104,8 @@ check-diff: reviewable
 	@$(OK) branch is clean
 
 # Build the docker image
-docker-build: test
-	docker build . -t ${IMG}
+docker-build:
+	docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) . -t ${IMG}
 
 # Push the docker image
 docker-push:

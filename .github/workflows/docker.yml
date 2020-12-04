@@ -19,6 +19,11 @@ jobs:
             VERSION=latest
           fi
           echo ::set-output name=VERSION::${VERSION}
+      - name: Get git revision
+        id: vars
+        shell: bash
+        run: |
+          echo "::set-output name=git_revision::$(git rev-parse --short HEAD)"
       - name: Login ghcr.io
         uses: docker/login-action@v1
         with:
@@ -43,6 +48,9 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
+          build-args: |
+            GITVERSION=git-${{ steps.vars.outputs.git_revision }}
+            VERSION=${{ steps.get_version.outputs.VERSION }}
           tags: |-
             ghcr.io/${{ github.repository }}/vela-core:${{ steps.get_version.outputs.VERSION }}
             docker.io/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}

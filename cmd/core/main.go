@@ -40,6 +40,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/version"
 )
 
 const (
@@ -66,6 +67,9 @@ func init() {
 }
 
 func main() {
+
+	setupLog.Info(fmt.Sprintf("KubeVela Version: %s, GIT Revision: %s.", version.VelaVersion, version.GitRevision))
+
 	var metricsAddr, logFilePath, leaderElectionNamespace string
 	var enableLeaderElection, logCompress bool
 	var logRetainDate int
@@ -188,6 +192,7 @@ func main() {
 	}
 
 	setupLog.Info("starting the vela controller manager")
+
 	if controllerArgs.ApplyOnceOnly {
 		setupLog.Info("applyOnceOnly is enabled that means workload or trait only apply once if no spec change even they are changed by others")
 	}

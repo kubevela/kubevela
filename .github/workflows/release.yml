@@ -20,6 +20,9 @@ jobs:
         id: go
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
+      - name: Get the version
+        id: get_version
+        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
       - name: Use Node.js 10.x
         uses: actions/setup-node@v1
         with:
@@ -30,6 +33,8 @@ jobs:
         run: make npm-build
       - name: Run generate-source
         run: make generate-source
+      - name: Tag helm chart image
+        run: sed -i 's/latest/${{ steps.get_version.outputs.VERSION }}/g' charts/vela-core/values.yaml
       - name: Run cross-build
         run: make cross-build
       - name: Run compress binary
@@ -40,9 +45,6 @@ jobs:
         with:
           tag_name: ${{ github.ref }}
           release_name: Release ${{ github.ref }}
-      - name: Get the version
-        id: get_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
       - name: Upload Linux tar.gz
         uses: actions/upload-release-asset@v1.0.2
         with:
