@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -18,7 +19,6 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"os"
 )
 
 // error msg used in Appfile
@@ -28,8 +28,9 @@ var (
 
 // DefaultAppfilePath defines the default file path that used by `vela up` command
 const (
-	DefaultJsonAppfilePath = "./vela.json"
-	DefaultAppfilePath = "./vela.yaml"
+	DefaultJsonAppfilePath         = "./vela.json"
+	DefaultAppfilePath             = "./vela.yaml"
+	DefaultUnknowFormatAppfilePath = "./vela.appfile"
 )
 
 // AppFile defines the spec of KubeVela Appfile
@@ -54,13 +55,26 @@ func NewAppFile() *AppFile {
 
 // Load will load appfile from default path
 func Load() (*AppFile, error) {
-	if _, err := os.Stat(DefaultAppfilePath); err != nil{
+	if _, err := os.Stat(DefaultAppfilePath); err != nil {
 		return LoadFromFile(DefaultAppfilePath)
 	}
-	if _, err := os.Stat(DefaultJsonAppfilePath); err != nil{
+	if _, err := os.Stat(DefaultJsonAppfilePath); err != nil {
 		return LoadFromFile(DefaultJsonAppfilePath)
 	}
-	return LoadFromFile("./vela.appfile")
+	return LoadFromFile(DefaultUnknowFormatAppfilePath)
+}
+
+// JsonToYaml will convert JSON format appfile to yaml and load the AppFile struct
+func JsonToYaml(data []byte, AppFile *AppFile) (*AppFile, error) {
+	j, e := yaml.JSONToYAML(data)
+	if e != nil {
+		return nil, e
+	}
+	err := yaml.Unmarshal(j, AppFile)
+	if err != nil {
+		return nil, err
+	}
+	return AppFile, nil
 }
 
 // LoadFromFile will read the file and load the AppFile struct
@@ -76,18 +90,10 @@ func LoadFromFile(filename string) (*AppFile, error) {
 	case ".yaml", ".yml":
 		err = yaml.Unmarshal(b, af)
 	case ".json":
-		j, e := yaml.JSONToYAML(b)
-		if e != nil {
-			return nil, err
-		}
-		err = yaml.Unmarshal(j, af)
+		af, err = JsonToYaml(b, af)
 	default:
 		if json.Valid(b) {
-			j, e := yaml.JSONToYAML(b)
-			if e != nil {
-				return nil, err
-			}
-			err = yaml.Unmarshal(j, af)
+			af, err = JsonToYaml(b, af)
 		} else {
 			err = yaml.Unmarshal(b, af)
 		}

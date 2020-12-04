@@ -14,9 +14,11 @@ var (
 	applicationName = "app-basic"
 	traitAlias      = "scaler"
 	appNameForInit  = "initmyapp"
+	jsonAppFile 	= `{"name":"nginx-vela","services":{"nginx":{"type":"webservice","image":"nginx:1.9.4","port":80}}}`
 )
 
 var _ = ginkgo.Describe("Application", func() {
+	e2e.JsonAppFileContext("json appfile apply", jsonAppFile)
 	e2e.EnvSetContext("env set", "default")
 	e2e.DeleteEnvFunc("env delete", envName)
 	e2e.EnvInitContext("env init", envName)
