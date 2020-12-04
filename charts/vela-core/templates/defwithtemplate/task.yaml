@@ -16,6 +16,7 @@ spec:
       		parallelism: parameter.count
       		completions: parameter.count
       		template: spec: {
+            restartPolicy: parameter.policy
       			containers: [{
       				name:  context.name
       				image: parameter.image
@@ -35,7 +36,10 @@ spec:
       	// +usage=Which image would you like to use for your service
       	// +short=i
       	image: string
-      
+       
+        // +usage=Restart policy for all containers within the pod
+        policy: string 
+        
       	// +usage=Commands to run in the container
       	cmd?: [...string]
       }
