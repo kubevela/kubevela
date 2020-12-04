@@ -43,13 +43,19 @@ func LoadAllInstalledCapability() ([]types.Capability, error) {
 
 // LoadInstalledCapabilityWithType will load cap list by type
 func LoadInstalledCapabilityWithType(capT types.CapType) ([]types.Capability, error) {
-	dir, _ := system.GetCapabilityDir()
+	dir, err := system.GetCapabilityDir()
+	if err != nil {
+		return nil, err
+	}
 	return loadInstalledCapabilityWithType(dir, capT)
 }
 
 // GetInstalledCapabilityWithCapName will get cap by alias
 func GetInstalledCapabilityWithCapName(capT types.CapType, capName string) (types.Capability, error) {
-	dir, _ := system.GetCapabilityDir()
+	dir, err := system.GetCapabilityDir()
+	if err != nil {
+		return types.Capability{}, err
+	}
 	return loadInstalledCapabilityWithCapName(dir, capT, capName)
 }
 
@@ -106,9 +112,8 @@ func loadInstalledCapability(dir string, name string) ([]types.Capability, error
 				break
 			}
 			continue
-		} else {
-			tmps = append(tmps, tmp)
 		}
+		tmps = append(tmps, tmp)
 	}
 	return tmps, nil
 }

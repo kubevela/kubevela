@@ -26,14 +26,14 @@ func (s *APIServer) CreateWorkload(c *gin.Context) {
 	for _, f := range body.Flags {
 		fs.String(f.Name, f.Value, "")
 	}
-	evnName := body.EnvName
+	envName := body.EnvName
 
-	appObj, err := serverlib.BaseComplete(evnName, body.WorkloadName, body.AppName, fs, body.WorkloadType)
+	appObj, err := serverlib.BaseComplete(envName, body.WorkloadName, body.AppName, fs, body.WorkloadType)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
 	}
-	env, err := env2.GetEnvByName(evnName)
+	env, err := env2.GetEnvByName(envName)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
@@ -46,18 +46,18 @@ func (s *APIServer) CreateWorkload(c *gin.Context) {
 	}
 	if len(body.Traits) == 0 {
 		util.AssembleResponse(c, msg, err)
-	} else {
-		for _, t := range body.Traits {
-			t.AppName = body.AppName
-			t.ComponentName = body.WorkloadName
-			msg, err = s.DoAttachTrait(c, t)
-			if err != nil {
-				util.HandleError(c, util.StatusInternalServerError, err.Error())
-				return
-			}
-		}
-		util.AssembleResponse(c, msg, err)
+		return
 	}
+	for _, t := range body.Traits {
+		t.AppName = body.AppName
+		t.ComponentName = body.WorkloadName
+		msg, err = s.DoAttachTrait(c, t)
+		if err != nil {
+			util.HandleError(c, util.StatusInternalServerError, err.Error())
+			return
+		}
+	}
+	util.AssembleResponse(c, msg, err)
 }
 
 // UpdateWorkload updates a workload
