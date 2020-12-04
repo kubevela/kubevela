@@ -18,6 +18,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"os"
 )
 
 // error msg used in Appfile
@@ -26,7 +27,10 @@ var (
 )
 
 // DefaultAppfilePath defines the default file path that used by `vela up` command
-const DefaultAppfilePath = "./vela.yaml"
+const (
+	DefaultJsonAppfilePath = "./vela.json"
+	DefaultAppfilePath = "./vela.yaml"
+)
 
 // AppFile defines the spec of KubeVela Appfile
 type AppFile struct {
@@ -50,7 +54,13 @@ func NewAppFile() *AppFile {
 
 // Load will load appfile from default path
 func Load() (*AppFile, error) {
-	return LoadFromFile(DefaultAppfilePath)
+	if _, err := os.Stat(DefaultAppfilePath); err != nil{
+		return LoadFromFile(DefaultAppfilePath)
+	}
+	if _, err := os.Stat(DefaultJsonAppfilePath); err != nil{
+		return LoadFromFile(DefaultJsonAppfilePath)
+	}
+	return LoadFromFile("./vela.appfile")
 }
 
 // LoadFromFile will read the file and load the AppFile struct
@@ -61,14 +71,26 @@ func LoadFromFile(filename string) (*AppFile, error) {
 	}
 	af := NewAppFile()
 	// Add JSON format appfile support
-	if json.Valid(b) {
+	ext := filepath.Ext(filename)
+	switch ext {
+	case ".yaml", ".yml":
+		err = yaml.Unmarshal(b, af)
+	case ".json":
 		j, e := yaml.JSONToYAML(b)
 		if e != nil {
 			return nil, err
 		}
 		err = yaml.Unmarshal(j, af)
-	} else {
-		err = yaml.Unmarshal(b, af)
+	default:
+		if json.Valid(b) {
+			j, e := yaml.JSONToYAML(b)
+			if e != nil {
+				return nil, err
+			}
+			err = yaml.Unmarshal(j, af)
+		} else {
+			err = yaml.Unmarshal(b, af)
+		}
 	}
 	if err != nil {
 		return nil, err

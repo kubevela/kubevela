@@ -84,7 +84,13 @@ func saveRemoteAppfile(url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	dest := "vela.yaml"
+	ext := filepath.Ext(url)
+	dest := "vela.appfile"
+	if ext == ".json"{
+		dest = "vela.json"
+	} else if ext == ".yaml" || ext == ".yml" {
+		dest = "vela.yaml"
+	}
 	//nolint:gosec
 	return dest, ioutil.WriteFile(dest, body, 0644)
 }
@@ -93,8 +99,7 @@ func saveRemoteAppfile(url string) (string, error) {
 func (o *AppfileOptions) Run(filePath string) error {
 	var app *appfile.AppFile
 	var err error
-
-	o.IO.Info("Parsing vela.yaml ...")
+	o.IO.Info("Parsing vela appfile ...")
 	if filePath != "" {
 		if strings.HasPrefix(filePath, "https://") || strings.HasPrefix(filePath, "http://") {
 			filePath, err = saveRemoteAppfile(filePath)
