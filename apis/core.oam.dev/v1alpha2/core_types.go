@@ -215,10 +215,21 @@ type ComponentSpec struct {
 	// A Workload that will be created for each ApplicationConfiguration that
 	// includes this Component. Workload is an instance of a workloadDefinition.
 	// We either use the GVK info or a special "type" field in the workload to associate
-	// the content of the workload with its workloadDefinition
+	// the content of the workload with its workloadDefinition.
+	// The 'workload' field is mutually exclusive with the 'type' and 'settings' field.
 	// +kubebuilder:validation:EmbeddedResource
 	// +kubebuilder:pruning:PreserveUnknownFields
-	Workload runtime.RawExtension `json:"workload"`
+	Workload runtime.RawExtension `json:"workload,omitempty"`
+
+	// Type specify a workload type for this component. Workload type is defined by OAM WorkloadDefinition.
+	// If type used, the component properties should write in settings field.
+	// The 'type' field along with 'settings' field is mutually exclusive with the 'workload' field.
+	Type string `json:"type,omitempty"`
+
+	// Settings specify detail configurations of this component according to the spec defined in WorkloadDefinition template.
+	// The 'settings' field along with 'type' field is mutually exclusive with the 'workload' field.
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Settings runtime.RawExtension `json:"settings,omitempty"`
 
 	// Parameters exposed by this component. ApplicationConfigurations that
 	// reference this component may specify values for these parameters, which
@@ -288,6 +299,16 @@ type ComponentTrait struct {
 	// +kubebuilder:validation:EmbeddedResource
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Trait runtime.RawExtension `json:"trait"`
+
+	// Name specify a trait type binding to the component. Trait type is defined by OAM TraitDefinition.
+	// If 'name' used, the configuration of trait should write in the 'properties' field.
+	// The 'name' field along with 'properties' field is mutually exclusive with the 'trait' field.
+	Name string `json:"name,omitempty"`
+
+	// Properties specify detail configurations of this trait according to the spec defined in TraitDefinition template.
+	// The 'properties' field along with 'name' field is mutually exclusive with the 'trait' field.
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Properties runtime.RawExtension `json:"properties,omitempty"`
 
 	// DataOutputs specify the data output sources from this trait.
 	// +optional

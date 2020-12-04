@@ -509,6 +509,7 @@ func (in *ComponentScope) DeepCopy() *ComponentScope {
 func (in *ComponentSpec) DeepCopyInto(out *ComponentSpec) {
 	*out = *in
 	in.Workload.DeepCopyInto(&out.Workload)
+	in.Settings.DeepCopyInto(&out.Settings)
 	if in.Parameters != nil {
 		in, out := &in.Parameters, &out.Parameters
 		*out = make([]ComponentParameter, len(*in))
@@ -553,6 +554,7 @@ func (in *ComponentStatus) DeepCopy() *ComponentStatus {
 func (in *ComponentTrait) DeepCopyInto(out *ComponentTrait) {
 	*out = *in
 	in.Trait.DeepCopyInto(&out.Trait)
+	in.Properties.DeepCopyInto(&out.Properties)
 	if in.DataOutputs != nil {
 		in, out := &in.DataOutputs, &out.DataOutputs
 		*out = make([]DataOutput, len(*in))

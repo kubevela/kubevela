@@ -221,6 +221,13 @@ spec:
                                   type: string
                               type: object
                             type: array
+                          name:
+                            description: Name specify a trait type binding to the component. Trait type is defined by OAM TraitDefinition. If 'name' used, the configuration of trait should write in the 'properties' field. The 'name' field along with 'properties' field is mutually exclusive with the 'trait' field.
+                            type: string
+                          properties:
+                            description: Properties specify detail configurations of this trait according to the spec defined in TraitDefinition template. The 'properties' field along with 'name' field is mutually exclusive with the 'trait' field.
+                            type: object
+                            x-kubernetes-preserve-unknown-fields: true
                           trait:
                             description: A Trait that will be created for the component
                             type: object
