@@ -40,12 +40,10 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
+	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-
-	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 )
 
 const (
