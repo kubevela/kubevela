@@ -64,7 +64,7 @@ func Load() (*AppFile, error) {
 	return LoadFromFile(DefaultUnknowFormatAppfilePath)
 }
 
-// JsonToYaml will convert JSON format appfile to yaml and load the AppFile struct
+// JSONToYaml will convert JSON format appfile to yaml and load the AppFile struct
 func JSONToYaml(data []byte, appFile *AppFile) (*AppFile, error) {
 	j, e := yaml.JSONToYAML(data)
 	if e != nil {
