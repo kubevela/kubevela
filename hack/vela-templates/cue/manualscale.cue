@@ -7,5 +7,6 @@ output: {
 }
 parameter: {
 	//+short=r
+	//+usage=Replicas of the workload
 	replicas: *1 | int
 }

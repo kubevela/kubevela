@@ -1,0 +1,8 @@
+servcies:
+  express-server:
+    ...
+
+    rollout:
+      replicas: 2
+      stepWeight: 50
+      interval: "10s"

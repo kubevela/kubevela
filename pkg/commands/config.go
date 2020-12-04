@@ -21,7 +21,7 @@ import (
 // The format is the same as k8s Secret.Data field with value base64 encoded.
 
 // NewConfigCommand will create command for config management for AppFile
-func NewConfigCommand(args types.Args, io cmdutil.IOStreams) *cobra.Command {
+func NewConfigCommand(io cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "config",
 		DisableFlagsInUseLine: true,

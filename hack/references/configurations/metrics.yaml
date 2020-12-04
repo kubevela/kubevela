@@ -1,0 +1,11 @@
+name: my-app-name
+
+services:
+  my-service-name:
+    ...
+    metrics:
+      format: "prometheus"
+      port: 8080
+      path: "/metrics"
+      scheme:  "http"
+      enabled: true

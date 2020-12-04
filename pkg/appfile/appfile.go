@@ -107,16 +107,10 @@ func LoadFromFile(filename string) (*AppFile, error) {
 // BuildOAM renders Appfile into AppConfig, Components. It also builds images for services if defined.
 func (app *AppFile) BuildOAM(ns string, io cmdutil.IOStreams, tm template.Manager, slience bool) (
 	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
-	return app.buildOAM(ns, io, true, tm, slience)
+	return app.buildOAM(ns, io, tm, slience)
 }
 
-// RenderOAM renders Appfile into AppConfig, Components.
-func (app *AppFile) RenderOAM(ns string, io cmdutil.IOStreams, tm template.Manager, silence bool) (
-	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
-	return app.buildOAM(ns, io, false, tm, silence)
-}
-
-func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, buildImage bool, tm template.Manager, silence bool) (
+func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, tm template.Manager, silence bool) (
 	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
 
 	appConfig := &v1alpha2.ApplicationConfiguration{
@@ -139,11 +133,9 @@ func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, buildImage bool, t
 			if image == "" {
 				return nil, nil, nil, ErrImageNotDefined
 			}
-			if buildImage {
-				io.Infof("\nBuilding service (%s)...\n", sname)
-				if err := b.BuildImage(io, image); err != nil {
-					return nil, nil, nil, err
-				}
+			io.Infof("\nBuilding service (%s)...\n", sname)
+			if err := b.BuildImage(io, image); err != nil {
+				return nil, nil, nil, err
 			}
 		}
 		if !silence {

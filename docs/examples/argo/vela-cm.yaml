@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vela-kubeconfig
+  namespace: argocd
+data:
+  config: |
+    # fill your vela control plane kubeconfig here

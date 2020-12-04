@@ -18,9 +18,9 @@ services:
     cmd: ["node", "server.js"]
 ```
 
-## Parameters
+## Properties
 
-Name | Type | Description | Notes
------------- | ------------- | ------------- | -------------
-**Cmd** | **[]string** |  | [optional] 
-**Image** | **string** | pecify app image | 
+Name | Description | Type | Required | Default 
+------------ | ------------- | ------------- | ------------- | ------------- 
+ cmd | Commands to run in the container | []string | false |  
+ image | Which image would you like to use for your service | string | true |  

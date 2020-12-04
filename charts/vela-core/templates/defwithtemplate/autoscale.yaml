@@ -3,7 +3,7 @@ kind: TraitDefinition
 metadata:
   name: autoscale
   annotations:
-    definition.oam.dev/description: "Automatically scale the app following certain triggers or metrics"
+    definition.oam.dev/description: "`Autoscale` is used to automatically scale workloads by resource utilization metrics or cron triggers."
 spec:
   appliesToWorkloads:
     - webservice
@@ -58,24 +58,24 @@ spec:
       }
       
       parameter: {
-      	// +usage=minimal replicas of the workload
+      	// +usage=Minimal replicas of the workload
       	min: int
-      	// +usage=maximal replicas of the workload
+      	// +usage=Maximal replicas of the workload
       	max: int
-      	// +usage=specify the value for CPU utilization, like 80, which means 80%
+      	// +usage=Specify the value for CPU utilization, like 80, which means 80%
       	// +alias=cpu-percent
       	cpuPercent?: int
-      	// +usage=just for `appfile`, not available for Cli usage
+      	// +usage=Cron type auto-scaling. Just for `appfile`, not available for Cli usage
       	cron?: {
-      		// +usage=the time to start scaling, like `08:00`
+      		// +usage=The time to start scaling, like `08:00`
       		startAt: string
-      		// +usage=for how long the scaling will last
+      		// +usage=For how long the scaling will last
       		duration: string
-      		// +usage=several workdays or weekends, like "Monday, Tuesday"
+      		// +usage=Several workdays or weekends, like "Monday, Tuesday"
       		days: string
-      		// +usage=the target replicas to be scaled to
+      		// +usage=The target replicas to be scaled to
       		replicas: int
-      		// +usage=timezone, like "America/Los_Angeles"
+      		// +usage=Timezone, like "America/Los_Angeles"
       		timezone: string
       	}
       }

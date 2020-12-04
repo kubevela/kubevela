@@ -19,7 +19,7 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
-func TestRenderOAM(t *testing.T) {
+func TestBuildOAM(t *testing.T) {
 	yamlOneService := `name: myapp
 services:
   express-server:
@@ -406,7 +406,7 @@ outputs: ingress: {
 				}
 			}
 
-			comps, ac, _, err := app.RenderOAM("default", io, tm, false)
+			comps, ac, _, err := app.BuildOAM("default", io, tm, false)
 			if err != nil {
 				assert.Equal(t, c.want.err, err)
 				return

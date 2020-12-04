@@ -3,7 +3,8 @@ kind: WorkloadDefinition
 metadata:
   name: webservice
   annotations:
-    definition.oam.dev/description: "Long-running scalable service with stable endpoint to receive external traffic"
+    definition.oam.dev/description: "`Webservice` is a workload type to describe long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers.
+    If workload type is skipped for any service defined in Appfile, it will be defaulted to `Web Service` type."
 spec:
   definitionRef:
     name: deployments.apps

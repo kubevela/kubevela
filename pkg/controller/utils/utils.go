@@ -4,19 +4,26 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	mapset "github.com/deckarep/golang-set"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // LabelPodSpecable defines whether a workload has podSpec or not.
 const LabelPodSpecable = "workload.oam.dev/podspecable"
+
+// allBuiltinCapabilities includes all builtin controllers
+// TODO(zzxwill) needs to automatically discovery all controllers
+var allBuiltinCapabilities = mapset.NewSet(common.MetricsControllerName, common.PodspecWorkloadControllerName,
+	common.RouteControllerName, common.AutoscaleControllerName)
 
 // GetPodSpecPath get podSpec field and label
 func GetPodSpecPath(workloadDef *v1alpha2.WorkloadDefinition) (string, bool) {
@@ -105,4 +112,30 @@ func SelectOAMAppLabelsWithoutRevision(labels map[string]string) map[string]stri
 		return labels
 	}
 	return newLabel
+}
+
+// CheckDisabledCapabilities checks whether the disabled capability controllers are valid
+func CheckDisabledCapabilities(disableCaps string) error {
+	switch disableCaps {
+	case common.DisableNoneCaps:
+		return nil
+	case common.DisableAllCaps:
+		return nil
+	default:
+		for _, c := range strings.Split(disableCaps, ",") {
+			if !allBuiltinCapabilities.Contains(c) {
+				return fmt.Errorf("%s in disable caps list is not built-in", c)
+			}
+		}
+		return nil
+	}
+}
+
+// StoreInSet stores items in Set
+func StoreInSet(disableCaps string) mapset.Set {
+	var disableSlice []interface{}
+	for _, c := range strings.Split(disableCaps, ",") {
+		disableSlice = append(disableSlice, c)
+	}
+	return mapset.NewSetFromSlice(disableSlice)
 }

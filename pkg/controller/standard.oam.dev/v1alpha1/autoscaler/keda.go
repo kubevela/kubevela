@@ -1,4 +1,4 @@
-package autoscalers
+package autoscaler
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
-func (r *AutoscalerReconciler) scaleByKEDA(scaler v1alpha1.Autoscaler, namespace string, log logr.Logger) error {
+func (r *Reconciler) scaleByKEDA(scaler v1alpha1.Autoscaler, namespace string, log logr.Logger) error {
 	ctx := context.Background()
 	minReplicas := scaler.Spec.MinReplicas
 	maxReplicas := scaler.Spec.MaxReplicas
@@ -131,7 +131,7 @@ func GetCronTypeCondition(condition map[string]string) (*CronTypeCondition, erro
 }
 
 // prepareKEDACronScalerTriggerSpec converts Autoscaler spec into KEDA Cron scaler spec
-func (r *AutoscalerReconciler) prepareKEDACronScalerTriggerSpec(scaler v1alpha1.Autoscaler, t v1alpha1.Trigger) ([]kedav1alpha1.ScaleTriggers, string, error) {
+func (r *Reconciler) prepareKEDACronScalerTriggerSpec(scaler v1alpha1.Autoscaler, t v1alpha1.Trigger) ([]kedav1alpha1.ScaleTriggers, string, error) {
 	var kedaTriggers []kedav1alpha1.ScaleTriggers
 	targetWorkload := scaler.Spec.TargetWorkload
 	if targetWorkload.Name == "" {

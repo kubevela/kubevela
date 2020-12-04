@@ -16,7 +16,9 @@ output: {
 	}
 }
 parameter: {
+	// +usage= Domain name
 	domain: *"" | string
+
 	issuer: *"" | string
 	rules?: [...{
 		path:          string

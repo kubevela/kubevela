@@ -43,6 +43,9 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 		Short:                 "Create scaffold for an application",
 		Long:                  "Create scaffold for an application",
 		Example:               "vela init",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
 			if err != nil {

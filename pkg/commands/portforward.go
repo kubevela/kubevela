@@ -18,19 +18,16 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
+	cmdpf "k8s.io/kubectl/pkg/cmd/portforward"
+	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
-
-	cmdpf "k8s.io/kubectl/pkg/cmd/portforward"
-	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
-
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	velacmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // VelaPortForwardOptions for vela port-forward
@@ -54,17 +51,22 @@ type VelaPortForwardOptions struct {
 // NewPortForwardCommand is vela port-forward command
 func NewPortForwardCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra.Command {
 	o := &VelaPortForwardOptions{
-		VelaC:     c,
 		ioStreams: ioStreams,
 		kcPortForwardOptions: &cmdpf.PortForwardOptions{
 			PortForwarder: &defaultPortForwarder{ioStreams},
 		},
 	}
-
 	cmd := &cobra.Command{
 		Use:   "port-forward APP_NAME [options] [LOCAL_PORT:]REMOTE_PORT [...[LOCAL_PORT_N:]REMOTE_PORT_N]",
 		Short: "Forward local ports to services in an application",
 		Long:  "Forward local ports to services in an application",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := c.SetConfig(); err != nil {
+				return err
+			}
+			o.VelaC = c
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				ioStreams.Error("Please specify application name.")

@@ -3,9 +3,9 @@ kind: WorkloadDefinition
 metadata:
   name: task
   annotations:
-    definition.oam.dev/description: "One-off task to run a piece of code or script to completion"
+    definition.oam.dev/description: "`Task` is a workload type to describe jobs that run code or a script to completion."
 spec:
   definitionRef:
-    name: jobs
+    name: jobs.batch
   extension:
     template: |

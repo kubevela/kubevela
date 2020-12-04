@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,12 +13,11 @@ import (
 	"k8s.io/kubectl/pkg/cmd/exec"
 	cmdtesting "k8s.io/kubectl/pkg/cmd/testing"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 func TestExecCommand(t *testing.T) {
@@ -59,4 +59,11 @@ func TestExecCommand(t *testing.T) {
 	o.App = fakeApp
 	err = o.Complete()
 	assert.NoError(t, err)
+}
+
+func TestExecCommandPersistentPreRunE(t *testing.T) {
+	io := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+	fakeC := types.Args{}
+	cmd := NewExecCommand(fakeC, io)
+	assert.Nil(t, cmd.PersistentPreRunE(new(cobra.Command), []string{}))
 }

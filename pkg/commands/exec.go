@@ -14,12 +14,11 @@ import (
 	cmdexec "k8s.io/kubectl/pkg/cmd/exec"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	velacmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 const (
@@ -59,12 +58,18 @@ func NewExecCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra.Comman
 			},
 			Executor: &cmdexec.DefaultRemoteExecutor{},
 		},
-		VelaC: c,
 	}
 	cmd := &cobra.Command{
 		Use:   "exec [flags] APP_NAME -- COMMAND [args...]",
 		Short: "Execute command in a container",
 		Long:  "Execute command in a container",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if err := c.SetConfig(); err != nil {
+				return err
+			}
+			o.VelaC = c
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 1 {
 				ioStreams.Error("Please specify an application name.")
