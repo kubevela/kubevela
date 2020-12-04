@@ -1,5 +1,5 @@
 output: {
-	apiVersion: "v1"
+	apiVersion: "batch/v1"
 	kind:       "Job"
 	spec: {
 		parallelism: parameter.count

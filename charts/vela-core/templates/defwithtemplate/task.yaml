@@ -6,11 +6,11 @@ metadata:
     definition.oam.dev/description: "`Task` is a workload type to describe jobs that run code or a script to completion."
 spec:
   definitionRef:
-    name: jobs
+    name: jobs.batch
   extension:
     template: |
       output: {
-      	apiVersion: "v1"
+      	apiVersion: "batch/v1"
       	kind:       "Job"
       	spec: {
       		parallelism: parameter.count
