@@ -5,6 +5,7 @@
   * [Error: ScopeDefinition exists](#error-scopedefinition-exists)
   * [Warning: capability rollout was not ready](#warning-capability-rollout-was-not-ready)
   * [You have reached your pull rate limit](#You-have-reached-your-pull-rate-limit)
+  * [Warning: Namespace cert-manager exists](#warning-namespace-cert-manager-exists)
   
   
   
@@ -170,4 +171,53 @@ You can use github container registry instead.
 
 ```
 $ docker pull ghcr.io/oam-dev/kubevela/vela-core:latest
+```
+
+### Warning: Namespace cert-manager exists
+
+If you hit the issue as below, an `cert-manager` release might exist whose namespace and RBAC related resource conflict
+with KubeVela.
+
+```
+$ vela install
+- Installing Vela Core Chart:
+install chart vela-core, version 0.1.0, desc : A Helm chart for Kube Vela core, contains 35 file
+Failed to install the chart with error: Namespace "cert-manager" in namespace "" exists and cannot be imported into the current release: invalid ownership metadata; label validation error: missing key "app.kubernetes.io/managed-by": must be set to "Helm"; annotation validation error: missing key "meta.helm.sh/release-name": must be set to "kubevela"; annotation validation error: missing key "meta.helm.sh/release-namespace": must be set to "vela-system"
+rendered manifests contain a resource that already exists. Unable to continue with install
+helm.sh/helm/v3/pkg/action.(*Install).Run
+        /home/runner/go/pkg/mod/helm.sh/helm/v3@v3.2.4/pkg/action/install.go:274
+...
+        /opt/hostedtoolcache/go/1.14.12/x64/src/runtime/asm_amd64.s:1373
+Error: rendered manifests contain a resource that already exists. Unable to continue with install: Namespace "cert-manager" in namespace "" exists and cannot be imported into the current release: invalid ownership metadata; label validation error: missing key "app.kubernetes.io/managed-by": must be set to "Helm"; annotation validation error: missing key "meta.helm.sh/release-name": must be set to "kubevela"; annotation validation error: missing key "meta.helm.sh/release-namespace": must be set to "vela-system"
+```
+
+Try these steps to fix the problem.
+
+- Delete release `cert-manager`
+- Delete namespace `cert-manager`
+- Install KubeVela again
+
+```
+$ helm delete cert-manager -n cert-manager
+release "cert-manager" uninstalled
+
+$ kubectl delete ns cert-manager
+namespace "cert-manager" deleted
+
+$ vela install
+- Installing Vela Core Chart:
+install chart vela-core, version 0.1.0, desc : A Helm chart for Kube Vela core, contains 35 file
+Successfully installed the chart, status: deployed, last deployed time = 2020-12-04 10:46:46.782617 +0800 CST m=+4.248889379
+Automatically discover capabilities successfully ✅ (no changes)
+
+TYPE      	CATEGORY	DESCRIPTION
+task      	workload	One-off task to run a piece of code or script to completion
+webservice	workload	Long-running scalable service with stable endpoint to receive external traffic
+worker    	workload	Long-running scalable backend worker without network endpoint
+autoscale 	trait   	Automatically scale the app following certain triggers or metrics
+metrics   	trait   	Configure metrics targets to be monitored for the app
+rollout   	trait   	Configure canary deployment strategy to release the app
+route     	trait   	Configure route policy to the app
+scaler    	trait   	Manually scale the app
+- Finished successfully.
 ```
