@@ -86,7 +86,7 @@ func saveRemoteAppfile(url string) (string, error) {
 	}
 	ext := filepath.Ext(url)
 	dest := "Appfile"
-	if ext == ".json"{
+	if ext == ".json" {
 		dest = "vela.json"
 	} else if ext == ".yaml" || ext == ".yml" {
 		dest = "vela.yaml"

@@ -65,7 +65,7 @@ func Load() (*AppFile, error) {
 }
 
 // JsonToYaml will convert JSON format appfile to yaml and load the AppFile struct
-func JsonToYaml(data []byte, appFile *AppFile) (*AppFile, error) {
+func JSONToYaml(data []byte, appFile *AppFile) (*AppFile, error) {
 	j, e := yaml.JSONToYAML(data)
 	if e != nil {
 		return nil, e
@@ -90,10 +90,10 @@ func LoadFromFile(filename string) (*AppFile, error) {
 	case ".yaml", ".yml":
 		err = yaml.Unmarshal(b, af)
 	case ".json":
-		af, err = JsonToYaml(b, af)
+		af, err = JSONToYaml(b, af)
 	default:
 		if json.Valid(b) {
-			af, err = JsonToYaml(b, af)
+			af, err = JSONToYaml(b, af)
 		} else {
 			err = yaml.Unmarshal(b, af)
 		}
