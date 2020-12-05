@@ -125,9 +125,9 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 
 	flag := cmd.Flags()
 	flag.StringVarP(&i.chartPath, "vela-chart-path", "p", "", "path to vela core chart to override default chart")
-	flag.StringVarP(&i.chartArgs.imagePullPolicy, "image-pull-policy", "", "IfNotPresent", "vela core image pull policy, this will align to chart value image.pullPolicy")
-	flag.StringVarP(&i.chartArgs.imageRepo, "image-repo", "", "oamdev/vela-core", "vela core image repo, this will align to chart value image.repo")
-	flag.StringVarP(&i.chartArgs.imageTag, "image-tag", "", "latest", "vela core image repo, this will align to chart value image.tag")
+	flag.StringVarP(&i.chartArgs.imagePullPolicy, "image-pull-policy", "", "", "vela core image pull policy, this will align to chart value image.pullPolicy")
+	flag.StringVarP(&i.chartArgs.imageRepo, "image-repo", "", "", "vela core image repo, this will align to chart value image.repo")
+	flag.StringVarP(&i.chartArgs.imageTag, "image-tag", "", "", "vela core image repo, this will align to chart value image.tag")
 	flag.StringVarP(&i.waitReady, "wait", "w", "0s", "wait until vela-core is ready to serve, default will not wait")
 
 	return cmd
@@ -213,12 +213,19 @@ func CheckCapabilityReady(ctx context.Context, c types.Args, timeout time.Durati
 
 func (i *initCmd) resolveValues() (map[string]interface{}, error) {
 	finalValues := map[string]interface{}{}
-	valuesConfig := []string{
-		// TODO(wonderflow) values here could give more arguments in command line
-		fmt.Sprintf("image.repository=%s", i.chartArgs.imageRepo),
-		fmt.Sprintf("image.tag=%s", i.chartArgs.imageTag),
-		fmt.Sprintf("image.pullPolicy=%s", i.chartArgs.imagePullPolicy),
+	var valuesConfig []string
+	// By default align values.yaml in chart
+	if i.chartArgs.imageRepo != "" {
+		valuesConfig = append(valuesConfig, fmt.Sprintf("image.repository=%s", i.chartArgs.imageRepo))
 	}
+	if i.chartArgs.imageTag != "" {
+		valuesConfig = append(valuesConfig, fmt.Sprintf("image.tag=%s", i.chartArgs.imageTag))
+	}
+	if i.chartArgs.imagePullPolicy != "" {
+		valuesConfig = append(valuesConfig, fmt.Sprintf("image.pullPolicy=%s", i.chartArgs.imagePullPolicy))
+	}
+	// TODO(wonderflow) values here could give more arguments in command line
+
 	for _, val := range valuesConfig {
 		// parses Helm strvals line and merges into a map for the final overrides for values.yaml
 		if err := strvals.ParseInto(val, finalValues); err != nil {

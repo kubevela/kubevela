@@ -111,9 +111,11 @@ spec:
             - "--use-webhook=true"
             - "--webhook-port={{ .Values.webhookService.port }}"
             - "--webhook-cert-dir={{ .Values.certificate.mountPath }}"
+            {{ end }}
             - "--health-addr=:{{ .Values.healthCheck.port }}"
+            {{ if ne .Values.disableCaps "" }}
             - "--disable-caps={{ .Values.disableCaps }}"
-          {{ end }}
+            {{ end }}
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:
