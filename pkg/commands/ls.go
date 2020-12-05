@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	gocmp "github.com/google/go-cmp/cmp"
-	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -65,7 +64,7 @@ func printComponentList(ctx context.Context, c client.Client, appName string, en
 		return
 	}
 	all := mergeStagingComponents(deployedComponentList, env, ioStreams)
-	table := uitable.New()
+	table := newUITable()
 	table.AddRow("SERVICE", "APP", "TYPE", "TRAITS", "STATUS", "CREATED-TIME")
 	for _, a := range all {
 		traitAlias := strings.Join(a.TraitNames, ",")

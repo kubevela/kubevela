@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -55,7 +54,7 @@ func showApplication(cmd *cobra.Command, env *types.EnvMeta, appName string) err
 	}
 
 	cmd.Printf("About:\n\n")
-	table := uitable.New()
+	table := newUITable()
 	table.AddRow("  Name:", appName)
 	table.AddRow("  Created at:", app.CreateTime.String())
 	table.AddRow("  Updated at:", app.UpdateTime.String())
@@ -66,7 +65,7 @@ func showApplication(cmd *cobra.Command, env *types.EnvMeta, appName string) err
 	cmd.Printf("  Namespace:\t%s\n", env.Namespace)
 	cmd.Println()
 
-	table = uitable.New()
+	table = newUITable()
 	cmd.Printf("Services:\n\n")
 
 	for _, svcName := range targetServices {
@@ -96,12 +95,12 @@ func showComponent(cmd *cobra.Command, env *types.EnvMeta, compName, appName str
 			continue
 		}
 		wtype, data := app.GetWorkload(compName)
-		table := uitable.New()
+		table := newUITable()
 		table.AddRow("  - Name:", compName)
 		table.AddRow("    WorkloadType:", wtype)
 		cmd.Printf(table.String())
 		cmd.Printf("\n    Arguments:\n")
-		table = uitable.New()
+		table = newUITable()
 		for k, v := range data {
 			table.AddRow(fmt.Sprintf("      %s:        ", k), v)
 		}
@@ -115,7 +114,7 @@ func showComponent(cmd *cobra.Command, env *types.EnvMeta, compName, appName str
 		cmd.Printf("      Traits:\n")
 		for k, v := range traits {
 			cmd.Printf("        - %s:\n", k)
-			table = uitable.New()
+			table = newUITable()
 			for kk, vv := range v {
 				table.AddRow(fmt.Sprintf("            %s:", kk), vv)
 			}

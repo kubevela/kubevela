@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -131,8 +130,7 @@ func NewEnvSetCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 
 // ListEnvs shows info of all environments
 func ListEnvs(args []string, ioStreams cmdutil.IOStreams) error {
-	table := uitable.New()
-	table.MaxColWidth = 60
+	table := newUITable()
 	table.AddRow("NAME", "CURRENT", "NAMESPACE", "EMAIL", "DOMAIN")
 	var envName = ""
 	if len(args) > 0 {
