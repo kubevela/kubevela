@@ -72,7 +72,7 @@ It will build container image, render deployment manifests in yaml, and apply th
 
 ### Extensible Design
 
-The Appfile could be extended with more configurations by adding more capabilities to the OAM system. The config fields in Appfile are strongly correlated to the [capabilities system of OAM](https://github.com/oam-dev/kubevela/blob/master/docs/design.md#2-capability-oriented-architecture) – Config fields are registered in the capabilities system and exposed via a [CUE template](https://cuelang.org/).
+The Appfile could be extended with more configurations by adding more capabilities to the OAM system. The config fields in Appfile are strongly correlated to the [capabilities system of OAM](../../docs/en/design.md#capability-oriented) – Config fields are registered in the capabilities system and exposed via a [CUE template](https://cuelang.org/).
 
 Here is an example of a capability definition that platform builders register:
 
@@ -140,7 +140,7 @@ In the following, we will discuss technical details of the proposed design.
 
 ### Registration via Definition/Capability
 
-Vela allows platform builders to extend Appfile config fields by registering them via [capabilities system of OAM](https://github.com/oam-dev/kubevela/blob/master/docs/design.md#2-capability-oriented-architecture).
+Vela allows platform builders to extend Appfile config fields by registering them via [capabilities system of OAM](../../docs/en/design.md#capability-oriented).
 
 The entire template should be put under `spec.extension.template` as raw string:
 
