@@ -37,8 +37,9 @@ spec:
       	// +short=i
       	image: string
       
-        // +usage=Define job restartpolicy policy, the value should be Never or OnFailur,,is not Always
-        policy: *"Never"|string
+	// +usage=Define job restart policy, the value should be Never or OnFailure. By default, it's Never.
+	policy: *"Never" | string
+
       	// +usage=Commands to run in the container
       	cmd?: [...string]
       }
