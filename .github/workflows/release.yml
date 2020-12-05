@@ -31,10 +31,12 @@ jobs:
         run: make npm-install
       - name: Run npm build
         run: make npm-build
+      - name: Tag helm chart image
+        run:  |
+          sed -i 's/latest/${{ steps.get_version.outputs.VERSION }}/g' charts/vela-core/values.yaml
+          sed -i 's/0.1.0/${{ steps.get_version.outputs.VERSION }}/g' charts/vela-core/Chart.yaml
       - name: Run generate-source
         run: make generate-source
-      - name: Tag helm chart image
-        run: sed -i 's/latest/${{ steps.get_version.outputs.VERSION }}/g' charts/vela-core/values.yaml
       - name: Run cross-build
         run: make cross-build
       - name: Run compress binary

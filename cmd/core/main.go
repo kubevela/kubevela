@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/oam-dev/kubevela/version"
+
 	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/go-logr/logr"
@@ -40,7 +42,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/version"
 )
 
 const (
@@ -67,9 +68,6 @@ func init() {
 }
 
 func main() {
-
-	setupLog.Info(fmt.Sprintf("KubeVela Version: %s, GIT Revision: %s.", version.VelaVersion, version.GitRevision))
-
 	var metricsAddr, logFilePath, leaderElectionNamespace string
 	var enableLeaderElection, logCompress bool
 	var logRetainDate int
@@ -116,6 +114,9 @@ func main() {
 		o.Development = true
 		o.DestWritter = w
 	}))
+
+	setupLog.Info(fmt.Sprintf("KubeVela Version: %s, GIT Revision: %s.", version.VelaVersion, version.GitRevision))
+	setupLog.Info(fmt.Sprintf("Disable Capabilities: %s.", disableCaps))
 
 	// install dependency charts first
 	k8sClient, err := client.New(ctrl.GetConfigOrDie(), client.Options{Scheme: scheme})
