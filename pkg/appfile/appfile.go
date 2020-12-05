@@ -1,8 +1,10 @@
 package appfile
 
 import (
+	"encoding/json"
 	"errors"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -25,7 +27,11 @@ var (
 )
 
 // DefaultAppfilePath defines the default file path that used by `vela up` command
-const DefaultAppfilePath = "./vela.yaml"
+const (
+	DefaultJSONAppfilePath         = "./vela.json"
+	DefaultAppfilePath             = "./vela.yaml"
+	DefaultUnknowFormatAppfilePath = "./Appfile"
+)
 
 // AppFile defines the spec of KubeVela Appfile
 type AppFile struct {
@@ -49,7 +55,26 @@ func NewAppFile() *AppFile {
 
 // Load will load appfile from default path
 func Load() (*AppFile, error) {
-	return LoadFromFile(DefaultAppfilePath)
+	if _, err := os.Stat(DefaultAppfilePath); err != nil {
+		return LoadFromFile(DefaultAppfilePath)
+	}
+	if _, err := os.Stat(DefaultJSONAppfilePath); err != nil {
+		return LoadFromFile(DefaultJSONAppfilePath)
+	}
+	return LoadFromFile(DefaultUnknowFormatAppfilePath)
+}
+
+// JSONToYaml will convert JSON format appfile to yaml and load the AppFile struct
+func JSONToYaml(data []byte, appFile *AppFile) (*AppFile, error) {
+	j, e := yaml.JSONToYAML(data)
+	if e != nil {
+		return nil, e
+	}
+	err := yaml.Unmarshal(j, appFile)
+	if err != nil {
+		return nil, err
+	}
+	return appFile, nil
 }
 
 // LoadFromFile will read the file and load the AppFile struct
@@ -59,7 +84,20 @@ func LoadFromFile(filename string) (*AppFile, error) {
 		return nil, err
 	}
 	af := NewAppFile()
-	err = yaml.Unmarshal(b, af)
+	// Add JSON format appfile support
+	ext := filepath.Ext(filename)
+	switch ext {
+	case ".yaml", ".yml":
+		err = yaml.Unmarshal(b, af)
+	case ".json":
+		af, err = JSONToYaml(b, af)
+	default:
+		if json.Valid(b) {
+			af, err = JSONToYaml(b, af)
+		} else {
+			err = yaml.Unmarshal(b, af)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
