@@ -13,10 +13,15 @@ RUN go mod download
 COPY cmd/core/main.go main.go
 COPY apis/ apis/
 COPY pkg/ pkg/
+COPY version/ version/
 
 # Build
 ARG TARGETARCH
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} GO111MODULE=on go build -a -o manager-${TARGETARCH} main.go
+ARG VERSION
+ARG GITVERSION
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} GO111MODULE=on \
+    go build -a -ldflags "-X github.com/oam-dev/kubevela/version.VelaVersion=${VERSION:-undefined} -X github.com/oam-dev/kubevela/version.GitRevision=${GITVERSION:-undefined}" \
+    -o manager-${TARGETARCH} main.go
 
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details

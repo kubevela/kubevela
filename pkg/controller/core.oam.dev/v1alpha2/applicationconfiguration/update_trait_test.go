@@ -237,12 +237,12 @@ spec:
 
 			By("Apply appConfig & check successfully")
 			Expect(k8sClient.Apply(ctx, &appConfigUpdated)).Should(Succeed())
-			Eventually(func() bool {
+			Eventually(func() int64 {
 				if err := k8sClient.Get(ctx, appConfigKey, &appConfig); err != nil {
-					return false
+					return 0
 				}
-				return appConfig.GetGeneration() == 2
-			}, time.Second, 300*time.Millisecond).Should(BeTrue())
+				return appConfig.GetGeneration()
+			}, time.Second, 300*time.Millisecond).Should(Equal(int64(2)))
 
 			By("Reconcile")
 			reconcileRetry(reconciler, req)
@@ -262,13 +262,13 @@ spec:
 			var traitObj unstructured.Unstructured
 			traitObj.SetAPIVersion("example.com/v1")
 			traitObj.SetKind("Bar")
-			Eventually(func() bool {
+			Eventually(func() int64 {
 				if err := k8sClient.Get(ctx,
 					client.ObjectKey{Namespace: namespace, Name: traitName}, &traitObj); err != nil {
-					return false
+					return 0
 				}
-				return traitObj.GetGeneration() == 2
-			}, 3*time.Second, time.Second).Should(BeTrue())
+				return traitObj.GetGeneration()
+			}, 3*time.Second, time.Second).Should(Equal(int64(2)))
 
 			By("Check labels are removed")
 			_, found, _ := unstructured.NestedString(traitObj.UnstructuredContent(), "metadata", "labels", "test.label")
