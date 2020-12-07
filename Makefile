@@ -2,6 +2,7 @@
 VELA_VERSION ?= master
 # Repo info
 GIT_COMMIT          ?= git-$(shell git rev-parse --short HEAD)
+GIT_COMMIT_LONG     ?= $(shell git rev-parse HEAD)
 VELA_VERSION_VAR    := github.com/oam-dev/kubevela/version.VelaVersion
 VELA_GITVERSION_VAR := github.com/oam-dev/kubevela/version.GitRevision
 LDFLAGS             ?= "-X $(VELA_VERSION_VAR)=$(VELA_VERSION) -X $(VELA_GITVERSION_VAR)=$(GIT_COMMIT)"
@@ -70,6 +71,8 @@ cross-build:
 
 compress:
 	( \
+		echo "\n## Release Info\nVERSION: $(VELA_VERSION)" >> README.md && \
+		echo "GIT_COMMIT: $(GIT_COMMIT_LONG)\n" >> README.md && \
 		cd _bin && \
 		$(DIST_DIRS) cp ../LICENSE {} \; && \
 		$(DIST_DIRS) cp ../README.md {} \; && \
