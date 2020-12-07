@@ -26,7 +26,7 @@ parameter: {
 	// +short=i
 	image: string
 
-	// +usage=Define job restart policy, the value should be Never or OnFailure. By default, it's Never.
+	// +usage=Define the job restart policy, the value can only be Never or OnFailure. By default, it's Never.
 	restart: *"Never" | string
 
 	// +usage=Commands to run in the container
