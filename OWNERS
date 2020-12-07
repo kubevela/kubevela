@@ -5,5 +5,4 @@ approvers:
 reviewers:
 - kubevela-controller
 - kubevela-dashboard
-- oam-k8s-runtime
 - oam-spec
