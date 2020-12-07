@@ -94,9 +94,34 @@ It's required and will be used to generate mTLS secrets.
 Route Trait designed to be compatible with different ingress controller implementations, the `provider` field will allow
 you to give a specified ingress controller type. Currently, only nginx-ingress is supported. 
 
-The `tls` field allow you to specify a TLS for this route with an IssuerName, the IssuerName pointing to an Issuer Object
+The `tls` field allow you to specify a TLS for this route with an IssuerName, the IssuerName pointing to an [Issuer Object](https://cert-manager.io/docs/concepts/issuer/)
 created by cert-manager. Cert-manager and ingress controller will handle certificate creation and binding.
-If not specified, mTLS was disabled and you can only visit by http.
+
+Currently, vela-cli will create an Issuer Object automatically by using the email defined in `vela init` workflow.
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: oam-env-<env.name>
+  namespace: <env.namespace>
+spec:
+  acme:
+    # Email address used for ACME registration
+    email: <env.email>
+    # The ACME server URL
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # Name of a secret used to store the ACME account private key, the key will be automatically created by cert-manager
+    privateKeySecretRef:
+      name: oam-env-<env.name>.key
+    # Enable the HTTP-01 challenge provider, there are many other solvers besides http01.
+    solvers:
+    - http01:
+       ingress:
+         class:  nginx
+```
+
+If `tls` field in route trait not specified, mTLS will be disabled by default. You can also manually configure ingress later.
 
 If no rule specified, route trait will create one rule automatically and match with the port.
 
