@@ -14,14 +14,7 @@ aliases:
   - hongchaodeng
   - zzxwill
   - ryanzhang-oss
-  
-  oam-k8s-runtime:            # inherit from https://github.com/crossplane/oam-kubernetes-runtime/blob/master/OWNERS.md
-  - hongchaodeng
-  - wonderflow
-  - ryanzhang-oss
   - captainroy-hy
-  - negz
-  - hasheddan
 
   oam-spec:                   # inherit from https://github.com/oam-dev/spec/blob/master/OWNERS.md
   - hongchaodeng
