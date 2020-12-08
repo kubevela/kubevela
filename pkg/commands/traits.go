@@ -14,7 +14,7 @@ import (
 // NewTraitsCommand creates `traits` command
 func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var workloadName string
-	var syncCluster bool
+	var syncCluster, enforceRefresh bool
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "traits [--apply-to WORKLOAD_NAME]",
@@ -27,7 +27,7 @@ func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if syncCluster {
-				if err := RefreshDefinitions(ctx, c, ioStreams, true); err != nil {
+				if err := RefreshDefinitions(ctx, c, ioStreams, true, enforceRefresh); err != nil {
 					return err
 				}
 			}
@@ -41,6 +41,7 @@ func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 	cmd.SetOut(ioStreams.Out)
 	cmd.Flags().StringVar(&workloadName, "apply-to", "", "Workload name")
 	cmd.Flags().BoolVarP(&syncCluster, "sync", "s", true, "Synchronize capabilities from cluster into local")
+	cmd.Flags().BoolVarP(&enforceRefresh, "", "r", false, "Enforce refresh from cluster even if cache is not expired")
 	return cmd
 }
 
