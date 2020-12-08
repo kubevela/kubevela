@@ -10,8 +10,9 @@ If you don't have K8s cluster from Cloud Provider, you may pick either Minikube 
 
 > NOTE: If you are not using minikube or kind, please make sure to [install or enable ingress-nginx](https://kubernetes.github.io/ingress-nginx/deploy/) by yourself.
 
-<details><summary>Minikube</summary>
-  <p>
+<!-- tabs:start -->
+
+#### **Minikube**
 
 Follow the minikube [installation guide](https://minikube.sigs.k8s.io/docs/start/).
 
@@ -25,12 +26,9 @@ Install ingress:
 
 ```bash
 $ minikube addons enable ingress
-```
-  <p>
-</details>  
+``` 
 
-<details><summary>KinD</summary>
-  <p>
+#### **KinD**
 
 Follow [this guide](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) to install kind.
 
@@ -62,28 +60,38 @@ Then install [ingress for kind](https://kind.sigs.k8s.io/docs/user/ingress/#ingr
 ```bash
 $ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/static/provider/kind/deploy.yaml
 ```
-  <p>
-</details> 
+
+<!-- tabs:end -->
 
 ## 2. Get KubeVela
 
-Here are two ways to get KubeVela Cli:
+Here are three ways to get KubeVela Cli:
 
-### Download and install by script
+<!-- tabs:start -->
+
+#### **Homebrew**
 
 **macOS/Linux**
 
+```console
+$ brew install kubevela
 ```
-curl -fsSl https://kubevela.io/install.sh | bash
+
+#### **Script**
+
+**macOS/Linux**
+
+```console
+$ curl -fsSl https://kubevela.io/install.sh | bash
 ```
 
 **Windows**
 
-```
-powershell -Command "iwr -useb https://kubevela.io/install.ps1 | iex"
+```console
+$ powershell -Command "iwr -useb https://kubevela.io/install.ps1 | iex"
 ```
 
-### Download directly from releases
+#### **Download directly from releases**
 
 - Download the latest `vela` binary from the [releases page](https://github.com/oam-dev/kubevela/releases).
 - Unpack the `vela` binary and add it to `$PATH` to get started.
@@ -92,11 +100,15 @@ powershell -Command "iwr -useb https://kubevela.io/install.ps1 | iex"
 $ sudo mv ./vela /usr/local/bin/vela
 ```
 
+<!-- tabs:end -->
+
 > Known Issue(https://github.com/oam-dev/kubevela/issues/625): 
 > If you're using mac, it will report that “vela” cannot be opened because the developer cannot be verified.
 >
 > The new version of MacOS is stricter about running software you've downloaded that isn't signed with an Apple developer key. And we haven't supported that for KubeVela yet.  
 > You can open your 'System Preference' -> 'Security & Privacy' -> General, click the 'Allow Anyway' to temporarily fix it.
+
+
 
 ## 3. Initialize KubeVela
 
@@ -108,8 +120,10 @@ $ vela install
 
 This will install KubeVela server component and its dependency components.
 
-<details><summary>(Advanced) Verify Installation Manually</summary>
-  <p>
+<!-- tabs:start -->
+
+#### **(Advanced) Verify Installation Manually**
+
   Check Vela Helm Chart has been installed:
 
   ```console
@@ -130,11 +144,8 @@ This will install KubeVela server component and its dependency components.
   ```
 
   > We will introduce a `vela system health` command to check the dependencies in the future.
-  </p>
-</details>
 
-<details><summary>(Advanced) Customize Your Installation</summary>
-  <p>
+#### **(Advanced) Customize Your Installation**
   We have installed the following dependency components along with Vela server component:
 
   - [Prometheus Stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack)
@@ -171,8 +182,8 @@ This will install KubeVela server component and its dependency components.
   $ helm uninstall -n vela-system kubevela
   $ helm install -n vela-system kubevela
   ```
-  </p>
-</details>
+
+<!-- tabs:end -->
 
 ## 4. (Optional) Clean Up
 

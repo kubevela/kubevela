@@ -1,1 +1,0 @@
-- [Blog](/en/blog/README.md)
