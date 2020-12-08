@@ -57,7 +57,7 @@ metadata:
 spec:
   appliesToWorkloads:
     - webservice
-    - worke
+    - worker
   definitionRef:
     name: "null"
   extension:
@@ -79,7 +79,7 @@ metadata:
 spec:
   appliesToWorkloads:
     - webservice
-    - worke
+    - worker
   definitionRef:
     name: "null"
   extension:
