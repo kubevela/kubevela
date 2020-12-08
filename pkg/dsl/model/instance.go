@@ -137,8 +137,8 @@ func print(v cue.Value) (string, error) {
 	if err := format("", v.Syntax(syopts...)); err != nil {
 		return "", err
 	}
-	inst_str := w.String()
-	return inst_str, nil
+	instStr := w.String()
+	return instStr, nil
 }
 
 func toFile(n ast.Node) *ast.File {

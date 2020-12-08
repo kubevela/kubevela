@@ -9,13 +9,13 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/pkg/dsl/model"
-	"github.com/oam-dev/kubevela/pkg/dsl/processer"
+	"github.com/oam-dev/kubevela/pkg/dsl/process"
 )
 
 // Template defines Definition's Render interface
 type Template interface {
 	Params(params interface{}) Template
-	Complete(ctx processer.Context) error
+	Complete(ctx process.Context) error
 }
 
 type def struct {
@@ -32,8 +32,9 @@ type workloadDef struct {
 func NewWDTemplater(name, templ string) Template {
 	return &workloadDef{
 		def: def{
-			name:  name,
-			templ: templ,
+			name:   name,
+			templ:  templ,
+			params: nil,
 		},
 	}
 }
@@ -45,7 +46,7 @@ func (wd *workloadDef) Params(params interface{}) Template {
 }
 
 // Complete do workload definition's rendering
-func (wd *workloadDef) Complete(ctx processer.Context) error {
+func (wd *workloadDef) Complete(ctx process.Context) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := bi.AddFile("-", wd.templ); err != nil {
 		return err
@@ -96,7 +97,7 @@ func (td *traitDef) Params(params interface{}) Template {
 }
 
 // Complete do trait definition's rendering
-func (td *traitDef) Complete(ctx processer.Context) error {
+func (td *traitDef) Complete(ctx process.Context) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := bi.AddFile("-", td.templ); err != nil {
 		return err

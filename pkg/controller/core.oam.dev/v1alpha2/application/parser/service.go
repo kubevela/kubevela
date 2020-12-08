@@ -2,8 +2,9 @@ package parser
 
 import (
 	"fmt"
+
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
-	"github.com/oam-dev/kubevela/pkg/dsl/processer"
+	"github.com/oam-dev/kubevela/pkg/dsl/process"
 
 	"cuelang.org/go/cue"
 	cueJson "cuelang.org/go/pkg/encoding/json"
@@ -70,7 +71,7 @@ func (wl *Workload) Eval(render Render) (*v1alpha2.Component, error) {
 }
 
 // EvalContext eval workload template and set result to context
-func (wl *Workload) EvalContext(ctx processer.Context) error {
+func (wl *Workload) EvalContext(ctx process.Context) error {
 	return definition.NewWDTemplater("-", wl.template).Params(wl.params).Complete(ctx)
 }
 
@@ -128,7 +129,7 @@ func (trait *Trait) Eval(render Render) ([]v1alpha2.ComponentTrait, error) {
 }
 
 // EvalContext eval trait template and set result to context
-func (trait *Trait) EvalContext(ctx processer.Context) error {
+func (trait *Trait) EvalContext(ctx process.Context) error {
 	return definition.NewTDTemplater("-", trait.template).Params(trait.params).Complete(ctx)
 }
 

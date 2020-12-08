@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/oam-dev/kubevela/pkg/dsl/processer"
+	"github.com/oam-dev/kubevela/pkg/dsl/process"
 )
 
 func TestWDTemplate(t *testing.T) {
@@ -38,7 +38,7 @@ parameter: {
 	}
 
 	for _, v := range testCases {
-		ctx := processer.NewContext("test")
+		ctx := process.NewContext("test")
 		wt := NewWDTemplater("-", v.templ)
 		if err := wt.Params(v.params).Complete(ctx); err != nil {
 			t.Error(err)
@@ -73,7 +73,7 @@ parameter: {
 	replicas: *1 | int
 }
 `
-	ctx := processer.NewContext("test")
+	ctx := process.NewContext("test")
 	wt := NewWDTemplater("-", baseTemplate)
 	if err := wt.Params(map[string]interface{}{
 		"replicas": 2,

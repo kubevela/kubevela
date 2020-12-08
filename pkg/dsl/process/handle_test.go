@@ -1,4 +1,4 @@
-package processer
+package process
 
 import (
 	"testing"

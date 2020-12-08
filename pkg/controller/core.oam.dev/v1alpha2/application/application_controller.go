@@ -18,6 +18,7 @@ package application
 
 import (
 	"context"
+
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/go-logr/logr"
@@ -69,7 +70,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error
 	app.Status.Phase = v1alpha2.ApplicationRendering
 	handler := &reter{r, app, applog}
 
-	app.Status.Conditions=[]v1alpha1.Condition{}
+	app.Status.Conditions = []v1alpha1.Condition{}
 
 	applog.Info("parse template")
 	// parse template

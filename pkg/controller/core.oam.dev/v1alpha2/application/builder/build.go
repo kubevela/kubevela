@@ -1,15 +1,17 @@
 package builder
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
 	cueparser "cuelang.org/go/cue/parser"
-	"encoding/json"
-	"fmt"
-	"github.com/oam-dev/kubevela/pkg/dsl/processer"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/pkg/dsl/process"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/parser"
@@ -92,7 +94,7 @@ func (b *builder) CompleteWithContext(ns string) (*v1alpha2.ApplicationConfigura
 
 	componets := []*v1alpha2.Component{}
 	for _, wl := range b.app.Services() {
-		pCtx := processer.NewContext(wl.Name())
+		pCtx := process.NewContext(wl.Name())
 		if err := wl.EvalContext(pCtx); err != nil {
 			return nil, nil, err
 		}
@@ -122,7 +124,7 @@ func (b *builder) CompleteWithContext(ns string) (*v1alpha2.ApplicationConfigura
 	return appconfig, componets, nil
 }
 
-func generateOAM(pCtx processer.Context) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+func generateOAM(pCtx process.Context) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
 	base, assists := pCtx.Output()
 	componetWorkload, err := base.Object(nil)
 	if err != nil {

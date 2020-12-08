@@ -1,4 +1,4 @@
-package processer
+package process
 
 import (
 	"encoding/json"
@@ -75,9 +75,9 @@ func structMashal(v string) string {
 		if !skip {
 			if unicode.IsSpace(r) {
 				return true
-			} else {
-				skip = true
 			}
+			skip = true
+
 		}
 		return false
 	})
