@@ -1,14 +1,15 @@
 package builder
 
 import (
-	"encoding/json"
-	"fmt"
-
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
 	cueparser "cuelang.org/go/cue/parser"
+	"encoding/json"
+	"fmt"
+	"github.com/oam-dev/kubevela/pkg/dsl/processer"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/parser"
@@ -26,7 +27,7 @@ const (
 // Build template to applicationConfig & Component
 func Build(ns string, app *parser.Appfile) (*v1alpha2.ApplicationConfiguration, []*v1alpha2.Component, error) {
 	b := &builder{app}
-	return b.Complete(ns)
+	return b.CompleteWithContext(ns)
 }
 
 // Complete: builder complete rendering
@@ -44,7 +45,6 @@ func (b *builder) Complete(ns string) (*v1alpha2.ApplicationConfiguration, []*v1
 
 	componets := []*v1alpha2.Component{}
 	for _, wl := range b.app.Services() {
-
 		compCtx := map[string]string{"name": wl.Name()}
 
 		component, err := wl.Eval(newLoader(compCtx))
@@ -76,6 +76,75 @@ func (b *builder) Complete(ns string) (*v1alpha2.ApplicationConfiguration, []*v1
 		appconfig.Spec.Components = append(appconfig.Spec.Components, comp)
 	}
 	return appconfig, componets, nil
+}
+
+func (b *builder) CompleteWithContext(ns string) (*v1alpha2.ApplicationConfiguration, []*v1alpha2.Component, error) {
+	appconfig := &v1alpha2.ApplicationConfiguration{}
+	appconfig.SetGroupVersionKind(v1alpha2.ApplicationConfigurationGroupVersionKind)
+	appconfig.Name = b.app.Name()
+	appconfig.Namespace = ns
+	appconfig.Spec.Components = []v1alpha2.ApplicationConfigurationComponent{}
+
+	if appconfig.Labels == nil {
+		appconfig.Labels = map[string]string{}
+	}
+	appconfig.Labels[OamApplicationLabel] = b.app.Name()
+
+	componets := []*v1alpha2.Component{}
+	for _, wl := range b.app.Services() {
+		pCtx := processer.NewContext(wl.Name())
+		if err := wl.EvalContext(pCtx); err != nil {
+			return nil, nil, err
+		}
+		for _, tr := range wl.Traits() {
+			if err := tr.EvalContext(pCtx); err != nil {
+				return nil, nil, err
+			}
+		}
+		comp, acComp, err := generateOAM(pCtx)
+		if err != nil {
+			return nil, nil, err
+		}
+		comp.Name = wl.Name()
+		acComp.ComponentName = comp.Name
+
+		comp.Namespace = ns
+		if comp.Labels == nil {
+			comp.Labels = map[string]string{}
+		}
+		comp.Labels[OamApplicationLabel] = b.app.Name()
+		comp.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
+
+		componets = append(componets, comp)
+		appconfig.Spec.Components = append(appconfig.Spec.Components, *acComp)
+	}
+
+	return appconfig, componets, nil
+}
+
+func generateOAM(pCtx processer.Context) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+	base, assists := pCtx.Output()
+	componetWorkload, err := base.Object(nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	component := &v1alpha2.Component{}
+	component.Spec.Workload.Object = componetWorkload
+
+	acComponent := &v1alpha2.ApplicationConfigurationComponent{}
+	acComponent.Traits = []v1alpha2.ComponentTrait{}
+	for _, assist := range assists {
+		traitRef, err := assist.Object(nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		acComponent.Traits = append(acComponent.Traits, v1alpha2.ComponentTrait{
+			Trait: runtime.RawExtension{
+				Object: traitRef,
+			},
+		})
+	}
+	return component, acComponent, nil
 }
 
 type loader struct {

@@ -3,15 +3,13 @@ package processer
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/dsl/model"
 	"strings"
 	"unicode"
+
+	"github.com/oam-dev/kubevela/pkg/dsl/model"
 )
 
-type Processer interface {
-	Complete(ctx Context) error
-}
-
+// Context defines Rendering Context Interface
 type Context interface {
 	SetBase(base model.Instance)
 	PutAssistants(insts ...model.Instance)
@@ -26,6 +24,7 @@ type context struct {
 	assistants []model.Instance
 }
 
+// NewContext create render context
 func NewContext(name string) Context {
 	return &context{
 		name:       name,
@@ -34,14 +33,17 @@ func NewContext(name string) Context {
 	}
 }
 
+// SetBase set context base model
 func (ctx *context) SetBase(base model.Instance) {
 	ctx.base = base
 }
 
+// PutAssistants add Assist model to context
 func (ctx *context) PutAssistants(insts ...model.Instance) {
 	ctx.assistants = append(ctx.assistants, insts...)
 }
 
+// Compile return cue format string of context
 func (ctx *context) Compile(label string) string {
 	var buff string
 	buff += fmt.Sprintf("name: \"%s\"\n", ctx.name)
@@ -62,6 +64,7 @@ func (ctx *context) Compile(label string) string {
 	return buff
 }
 
+// Output return models of context
 func (ctx *context) Output() (model.Instance, []model.Instance) {
 	return ctx.base, ctx.assistants
 }

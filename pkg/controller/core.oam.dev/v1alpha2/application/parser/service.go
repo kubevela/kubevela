@@ -2,6 +2,8 @@ package parser
 
 import (
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/dsl/processer"
 
 	"cuelang.org/go/cue"
 	cueJson "cuelang.org/go/pkg/encoding/json"
@@ -67,6 +69,11 @@ func (wl *Workload) Eval(render Render) (*v1alpha2.Component, error) {
 	return component, nil
 }
 
+// EvalContext eval workload template and set result to context
+func (wl *Workload) EvalContext(ctx processer.Context) error {
+	return definition.NewWDTemplater("-", wl.template).Params(wl.params).Complete(ctx)
+}
+
 // Trait is ComponentTrait
 type Trait struct {
 	name     string
@@ -118,6 +125,11 @@ func (trait *Trait) Eval(render Render) ([]v1alpha2.ComponentTrait, error) {
 	}
 
 	return compTraits, nil
+}
+
+// EvalContext eval trait template and set result to context
+func (trait *Trait) EvalContext(ctx processer.Context) error {
+	return definition.NewTDTemplater("-", trait.template).Params(trait.params).Complete(ctx)
 }
 
 // Appfile describle application

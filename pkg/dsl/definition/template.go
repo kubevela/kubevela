@@ -1,15 +1,18 @@
 package definition
 
 import (
-	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/build"
 	"encoding/json"
 	"fmt"
+
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/build"
+	"github.com/pkg/errors"
+
 	"github.com/oam-dev/kubevela/pkg/dsl/model"
 	"github.com/oam-dev/kubevela/pkg/dsl/processer"
-	"github.com/pkg/errors"
 )
 
+// Template defines Definition's Render interface
 type Template interface {
 	Params(params interface{}) Template
 	Complete(ctx processer.Context) error
@@ -21,12 +24,11 @@ type def struct {
 	params interface{}
 }
 
-
-
 type workloadDef struct {
 	def
 }
 
+// NewWDTemplater create Workload Definition templater
 func NewWDTemplater(name, templ string) Template {
 	return &workloadDef{
 		def: def{
@@ -36,11 +38,13 @@ func NewWDTemplater(name, templ string) Template {
 	}
 }
 
+// Params set definition's params
 func (wd *workloadDef) Params(params interface{}) Template {
 	wd.params = params
 	return wd
 }
 
+// Complete do workload definition's rendering
 func (wd *workloadDef) Complete(ctx processer.Context) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := bi.AddFile("-", wd.templ); err != nil {
@@ -53,7 +57,7 @@ func (wd *workloadDef) Complete(ctx processer.Context) error {
 		}
 	}
 
-	if err := bi.AddFile("-",ctx.Compile("context")); err != nil {
+	if err := bi.AddFile("-", ctx.Compile("context")); err != nil {
 		return err
 	}
 	insts := cue.Build([]*build.Instance{bi})
@@ -75,6 +79,7 @@ type traitDef struct {
 	def
 }
 
+// NewTDTemplater create Trait Definition templater
 func NewTDTemplater(name, templ string) Template {
 	return &traitDef{
 		def: def{
@@ -84,11 +89,13 @@ func NewTDTemplater(name, templ string) Template {
 	}
 }
 
+// Params set definition's params
 func (td *traitDef) Params(params interface{}) Template {
 	td.params = params
 	return td
 }
 
+// Complete do trait definition's rendering
 func (td *traitDef) Complete(ctx processer.Context) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := bi.AddFile("-", td.templ); err != nil {
@@ -101,7 +108,7 @@ func (td *traitDef) Complete(ctx processer.Context) error {
 		}
 	}
 
-	if err := bi.AddFile("f",ctx.Compile("context")); err != nil {
+	if err := bi.AddFile("f", ctx.Compile("context")); err != nil {
 		return err
 	}
 	insts := cue.Build([]*build.Instance{bi})
@@ -144,7 +151,7 @@ func (td *traitDef) Complete(ctx processer.Context) error {
 			if err != nil {
 				return errors.WithMessagef(err, "traitDef %s patcher NewOther", td.name)
 			}
-			if err:=base.Unity(p);err!=nil{
+			if err := base.Unity(p); err != nil {
 				return err
 			}
 		}

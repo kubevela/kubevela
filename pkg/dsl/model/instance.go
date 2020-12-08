@@ -2,18 +2,22 @@ package model
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
+	"path/filepath"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/token"
-	"fmt"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"path/filepath"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
+// Instance defines Model Interface
 type Instance interface {
 	String() string
-	Object() (*unstructured.Unstructured, error)
+	Object(m *runtime.Scheme) (runtime.Object, error)
 	IsBase() bool
 	Unity(other Instance) error
 }
@@ -23,15 +27,18 @@ type instance struct {
 	base bool
 }
 
+// String return instance's cue format string
 func (inst *instance) String() string {
 	return inst.v
 }
 
+// IsBase indicate whether the instance is base model
 func (inst *instance) IsBase() bool {
 	return inst.base
 }
 
-func (inst *instance) Object() (*unstructured.Unstructured, error) {
+// Object convert to runtime.Object
+func (inst *instance) Object(m *runtime.Scheme) (runtime.Object, error) {
 	var r cue.Runtime
 	cueInst, err := r.Compile("-", inst.v)
 	if err != nil {
@@ -45,9 +52,24 @@ func (inst *instance) Object() (*unstructured.Unstructured, error) {
 	if err := o.UnmarshalJSON(jsonv); err != nil {
 		return nil, err
 	}
+
+	if m != nil {
+		object, err := m.New(o.GetObjectKind().GroupVersionKind())
+		if err == nil {
+			if err := json.Unmarshal(jsonv, object); err != nil {
+				return nil, err
+			}
+			return object, nil
+		}
+		if !runtime.IsNotRegisteredError(err) {
+			return nil, err
+		}
+	}
+
 	return o, nil
 }
 
+// Unity implement unity operations between instances
 func (inst *instance) Unity(other Instance) error {
 	var r cue.Runtime
 	raw, err := r.Compile("-", inst.v)
@@ -66,6 +88,7 @@ func (inst *instance) Unity(other Instance) error {
 	return nil
 }
 
+// NewBase create a base instance
 func NewBase(v cue.Value) (Instance, error) {
 	vs, err := openPrint(v)
 	if err != nil {
@@ -77,6 +100,7 @@ func NewBase(v cue.Value) (Instance, error) {
 	}, nil
 }
 
+// NewOther create a non-base instance
 func NewOther(v cue.Value) (Instance, error) {
 	vs, err := openPrint(v)
 	if err != nil {
