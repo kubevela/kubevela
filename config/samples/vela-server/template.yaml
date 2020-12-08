@@ -58,6 +58,8 @@ spec:
   appliesToWorkloads:
     - webservice
     - worke
+  definitionRef:
+    name: "null"
   extension:
     template: |-
       patch: {
@@ -78,6 +80,8 @@ spec:
   appliesToWorkloads:
     - webservice
     - worke
+  definitionRef:
+    name: "null"
   extension:
     template: |-
       _containers: context.input.spec.template.spec.containers+[parameter]
@@ -101,7 +105,7 @@ spec:
     - webservice
     - worker
   definitionRef:
-    name: service.v1
+    name: services
   extension:
     template: |-
       patch: {spec: template: metadata: labels: app: context.name}
@@ -122,4 +126,12 @@ spec:
       parameter: {
         http: [string]: int
       }
-
+---
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: services
+  namespace: default
+spec:
+  definitionRef:
+    name: services
