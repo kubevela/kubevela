@@ -5,6 +5,7 @@ output: {
 		parallelism: parameter.count
 		completions: parameter.count
 		template: spec: {
+			restartPolicy: parameter.restart
 			containers: [{
 				name:  context.name
 				image: parameter.image
@@ -24,6 +25,9 @@ parameter: {
 	// +usage=Which image would you like to use for your service
 	// +short=i
 	image: string
+
+	// +usage=Define the job restart policy, the value can only be Never or OnFailure. By default, it's Never.
+	restart: *"Never" | string
 
 	// +usage=Commands to run in the container
 	cmd?: [...string]
