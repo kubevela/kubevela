@@ -1,7 +1,8 @@
 name: testapp
 
 services:
-express-server:
+  express-server:
+  ...
 
   autoscale:
     min: 1

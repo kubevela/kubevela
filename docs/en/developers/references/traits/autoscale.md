@@ -12,7 +12,8 @@ List of all configuration options for a `Autoscale` trait.
 name: testapp
 
 services:
-express-server:
+  express-server:
+  ...
 
   autoscale:
     min: 1
