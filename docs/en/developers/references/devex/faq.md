@@ -1,5 +1,8 @@
 # FAQ
 
+- [Basic](#basic)
+  * [What is the difference between KubeVela and Helm?](#What-is-the-difference-between-KubeVela-and-Helm?)
+
 - [Install](#install)
   * [Error: unable to create new content in namespace cert-manager because it is being terminated](#error-unable-to-create-new-content-in-namespace-cert-manager-because-it-is-being-terminated)
   * [Error: ScopeDefinition exists](#error-scopedefinition-exists)
@@ -8,6 +11,18 @@
   * [Warning: Namespace cert-manager exists](#warning-namespace-cert-manager-exists)
   
   
+## Basic
+
+### What is the difference between KubeVela and Helm?
+
+KubeVela relies on tools like Helm to package k8s operator/controllers. However, Kubevela itself provides a lot more functionalities than merely packaging. Please refer to helm for more detailed descriptions.
+
+Here is a nutshell version.
+
+- Kubevela provides a standard model for applications which could comprise of multiple resources, each can come as a helm packaging
+- Kubevela relies on the Open Application Model to support application operational needs. This is beyond the day one application install that helm tool excels at.
+- Kubevela also provides a DevOps facing application model similar to the docker-compose files. This greatly simplified the way for users to run applications on Kubernetes.
+- Kubevela also provides a powerful extensible way for platform builders to natively incorporate any new capabilities in the Kubernetes ecosystem.
   
 ## Install
 
