@@ -69,13 +69,15 @@ Here are three ways to get KubeVela Cli:
 
 <!-- tabs:start -->
 
-#### **Homebrew**
+[comment]: <> (#### **Homebrew**)
 
-**macOS/Linux**
+[comment]: <> (**macOS/Linux**)
 
-```console
-$ brew install kubevela
-```
+[comment]: <> (```console)
+
+[comment]: <> ($ brew install kubevela)
+
+[comment]: <> (```)
 
 #### **Script**
 
@@ -100,14 +102,13 @@ $ powershell -Command "iwr -useb https://kubevela.io/install.ps1 | iex"
 $ sudo mv ./vela /usr/local/bin/vela
 ```
 
-<!-- tabs:end -->
-
 > Known Issue(https://github.com/oam-dev/kubevela/issues/625): 
 > If you're using mac, it will report that “vela” cannot be opened because the developer cannot be verified.
 >
 > The new version of MacOS is stricter about running software you've downloaded that isn't signed with an Apple developer key. And we haven't supported that for KubeVela yet.  
 > You can open your 'System Preference' -> 'Security & Privacy' -> General, click the 'Allow Anyway' to temporarily fix it.
 
+<!-- tabs:end -->
 
 
 ## 3. Initialize KubeVela
