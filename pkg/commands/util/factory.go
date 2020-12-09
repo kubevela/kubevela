@@ -23,7 +23,6 @@ var defaultCacheDir = filepath.Join(homedir.HomeDir(), ".kube", "http-cache")
 var _ genericclioptions.RESTClientGetter = &restConfigGetter{}
 
 // NewRestConfigGetter create config for helm client.
-// TODO(wonderflow): we should fix this hardcode client build,with restConfig as parameter.
 // The helm client never thought it could be used inside a cluster so it
 // took a dependency on the kube cli, we have to create a cli client getter from the rest.Config
 func NewRestConfigGetter(namespace string) genericclioptions.RESTClientGetter {
