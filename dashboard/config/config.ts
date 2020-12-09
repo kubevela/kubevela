@@ -1,8 +1,10 @@
 // https://umijs.org/config/
 import { defineConfig } from 'umi';
+
 import defaultSettings from './defaultSettings';
 import proxy from './proxy';
 import routes from './routes';
+import themeSettings from './themeSettings';
 
 const { REACT_APP_ENV } = process.env;
 
@@ -13,20 +15,23 @@ export default defineConfig({
     hmr: true,
   },
   layout: {
-    name: 'Ant Design Pro',
+    name: 'KubeVela',
     locale: true,
     siderWidth: 208,
     ...defaultSettings,
   },
   locale: {
-    // default zh-CN
-    default: 'zh-CN',
+    // default en-US
+    default: 'en-US',
     antd: true,
     // default true, when it is true, will use `navigator.language` overwrite default
     baseNavigator: true,
   },
   dynamicImport: {
     loading: '@ant-design/pro-layout/es/PageLoading',
+  },
+  nodeModulesTransform: {
+    type: 'none',
   },
   targets: {
     ie: 11,
@@ -36,6 +41,11 @@ export default defineConfig({
   // Theme for antd: https://ant.design/docs/react/customize-theme-cn
   theme: {
     'primary-color': defaultSettings.primaryColor,
+    'link-color': themeSettings.linkColor,
+    'link-hover-color': themeSettings.linkHoverColor,
+    'disabled-bg': themeSettings.disabledBg,
+    'disabled-color': themeSettings.disabledColor,
+    'btn-disable-color': themeSettings.btnDisableColor,
   },
   esbuild: {},
   title: false,
