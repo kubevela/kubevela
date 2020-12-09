@@ -5,4 +5,8 @@ module.exports = {
     page: true,
     REACT_APP_ENV: true,
   },
+  rules: {
+    'react/jsx-uses-react': 'off',
+    'react/react-in-jsx-scope': 'off',
+  },
 };

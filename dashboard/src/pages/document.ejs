@@ -3,15 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="keywords" content="kubevela,kubevela dashboard" />
+    <meta name="description" content="An kubevela dashboard." />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0"
     />
-    <title>Micro App Engine</title>
-    <!-- <link rel="icon" href="<%= context.config.publicPath +'favicon.png'%>" type="image/x-icon" /> -->
+    <title><%= context.config.layout.title%></title>
+    <link rel="icon" href="<%= context.config.publicPath +'favicon.ico'%>" type="image/x-icon" />
   </head>
   <body>
-    <noscript>Out-of-the-box mid-stage front/design solution!</noscript>
+    <noscript>Your browser does not support JavaScript!</noscript>
     <div id="root">
       <style>
         html,
@@ -27,34 +29,33 @@
           background-size: 100% auto;
         }
         .page-loading-warp {
-          padding: 98px;
           display: flex;
-          justify-content: center;
           align-items: center;
+          justify-content: center;
+          padding: 98px;
         }
         .ant-spin {
+          position: absolute;
+          display: none;
           -webkit-box-sizing: border-box;
           box-sizing: border-box;
           margin: 0;
           padding: 0;
           color: rgba(0, 0, 0, 0.65);
+          color: #1890ff;
           font-size: 14px;
           font-variant: tabular-nums;
           line-height: 1.5;
-          list-style: none;
-          -webkit-font-feature-settings: 'tnum';
-          font-feature-settings: 'tnum';
-          position: absolute;
-          display: none;
-          color: #1890ff;
           text-align: center;
-          vertical-align: middle;
+          list-style: none;
           opacity: 0;
           -webkit-transition: -webkit-transform 0.3s cubic-bezier(0.78, 0.14, 0.15, 0.86);
           transition: -webkit-transform 0.3s cubic-bezier(0.78, 0.14, 0.15, 0.86);
           transition: transform 0.3s cubic-bezier(0.78, 0.14, 0.15, 0.86);
           transition: transform 0.3s cubic-bezier(0.78, 0.14, 0.15, 0.86),
             -webkit-transform 0.3s cubic-bezier(0.78, 0.14, 0.15, 0.86);
+          -webkit-font-feature-settings: 'tnum';
+          font-feature-settings: 'tnum';
         }
 
         .ant-spin-spinning {
@@ -66,9 +67,9 @@
         .ant-spin-dot {
           position: relative;
           display: inline-block;
-          font-size: 20px;
           width: 20px;
           height: 20px;
+          font-size: 20px;
         }
 
         .ant-spin-dot-item {
@@ -85,7 +86,7 @@
           -ms-transform-origin: 50% 50%;
           transform-origin: 50% 50%;
           opacity: 0.3;
-          -webkit-animation: antSpinMove 1s infinite linear alternate;
+          -webkit-animation: antspinmove 1s infinite linear alternate;
           animation: antSpinMove 1s infinite linear alternate;
         }
 
@@ -119,14 +120,14 @@
           -webkit-transform: rotate(45deg);
           -ms-transform: rotate(45deg);
           transform: rotate(45deg);
-          -webkit-animation: antRotate 1.2s infinite linear;
+          -webkit-animation: antrotate 1.2s infinite linear;
           animation: antRotate 1.2s infinite linear;
         }
 
         .ant-spin-lg .ant-spin-dot {
-          font-size: 32px;
           width: 32px;
           height: 32px;
+          font-size: 32px;
         }
 
         .ant-spin-lg .ant-spin-dot i {
@@ -170,13 +171,14 @@
       <div
         style="
           display: flex;
-          justify-content: center;
-          align-items: center;
           flex-direction: column;
-          min-height: 420px;
+          align-items: center;
+          justify-content: center;
           height: 100%;
+          min-height: 420px;
         "
       >
+        <img src="<%= context.config.publicPath +'pro_icon.svg'%>" alt="logo" width="256" />
         <div class="page-loading-warp">
           <div class="ant-spin ant-spin-lg ant-spin-spinning">
             <span class="ant-spin-dot ant-spin-dot-spin"
@@ -184,6 +186,14 @@
               ><i class="ant-spin-dot-item"></i><i class="ant-spin-dot-item"></i
             ></span>
           </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: center">
+          <img
+            src="https://gw.alipayobjects.com/zos/rmsportal/KDpgvguMpGfqaHPjicRK.svg"
+            width="32"
+            style="margin-right: 8px"
+          />
+          <%= context.config.layout.title%>
         </div>
       </div>
     </div>
