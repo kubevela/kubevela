@@ -160,7 +160,7 @@ scaler   	Manually scale the app                                           	webs
         	                                                                 	worker
 ```
 
-### Step 3: Using the new extended trait
+## Step 3: Using the new extended trait
 
 Using the extended trait is just the same as the trait installed from Capability center, please [refer there to see how
 to use](../developers/cap-center.md#Use-the-newly-installed-capability).
