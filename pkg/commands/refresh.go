@@ -63,7 +63,8 @@ func RefreshDefinitions(ctx context.Context, c types.Args, ioStreams cmdutil.IOS
 // silent indicates whether output existing caps if no change occurs. If false, output all existing caps.
 func printRefreshReport(newCaps, oldCaps []types.Capability, io cmdutil.IOStreams, silent bool) {
 	report := refreshResultReport(newCaps, oldCaps)
-	table := uitable.New()
+	table := newUITable()
+	table.MaxColWidth = 80
 	table.AddRow("TYPE", "CATEGORY", "DESCRIPTION")
 
 	if len(report[added]) == 0 && len(report[updated]) == 0 && len(report[deleted]) == 0 {

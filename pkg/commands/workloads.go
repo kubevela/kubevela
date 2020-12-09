@@ -3,7 +3,6 @@ package commands
 import (
 	"context"
 
-	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -46,7 +45,7 @@ func NewWorkloadsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 }
 
 func printWorkloadList(workloadList []types.Capability, ioStreams cmdutil.IOStreams) error {
-	table := uitable.New()
+	table := newUITable()
 	table.AddRow("NAME", "DESCRIPTION")
 	for _, r := range workloadList {
 		table.AddRow(r.Name, r.Description)

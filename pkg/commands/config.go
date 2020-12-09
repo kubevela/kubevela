@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"strings"
 
-	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -75,8 +74,7 @@ func ListConfigs(ioStreams cmdutil.IOStreams, cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
-	table := uitable.New()
-	table.MaxColWidth = 60
+	table := newUITable()
 	table.AddRow("NAME")
 	cfgList, err := listConfigs(d)
 	if err != nil {

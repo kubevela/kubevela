@@ -39,8 +39,7 @@ func Test_printTraitList(t *testing.T) {
 		},
 	}
 	newTable := func() *uitable.Table {
-		table := uitable.New()
-		table.MaxColWidth = 60
+		table := newUITable()
 		table.AddRow("NAME", "DEFINITION", "APPLIES TO")
 		return table
 	}

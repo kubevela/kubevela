@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -46,7 +45,7 @@ func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 }
 
 func printTraitList(workloadName *string, ioStreams cmdutil.IOStreams) error {
-	table := uitable.New()
+	table := newUITable()
 	table.Wrap = true
 	traitDefinitionList, err := serverlib.ListTraitDefinitions(workloadName)
 	if err != nil {

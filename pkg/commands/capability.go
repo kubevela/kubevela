@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -184,7 +183,7 @@ func NewCapListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			table := uitable.New()
+			table := newUITable()
 			table.AddRow("NAME", "CENTER", "TYPE", "DEFINITION", "STATUS", "APPLIES-TO")
 
 			for _, c := range capabilityList {
@@ -226,7 +225,7 @@ func NewCapCenterRemoveCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 }
 
 func listCapCenters(ioStreams cmdutil.IOStreams) error {
-	table := uitable.New()
+	table := newUITable()
 	table.AddRow("NAME", "ADDRESS")
 	capabilityCenterList, err := serverlib.ListCapabilityCenters()
 	if err != nil {

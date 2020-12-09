@@ -8,11 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/briandowns/spinner"
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/fatih/color"
-	"github.com/gosuri/uitable"
-	"github.com/kyokomi/emoji"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
@@ -73,19 +70,6 @@ const (
 	ErrServiceNotFound   = "service %s not found in app"
 )
 
-var (
-	red    = color.New(color.FgRed)
-	green  = color.New(color.FgGreen)
-	yellow = color.New(color.FgYellow)
-	white  = color.New(color.Bold, color.FgWhite)
-)
-
-var (
-	emojiSucceed   = emoji.Sprint(":check_mark_button:")
-	emojiFail      = emoji.Sprint(":cross_mark:")
-	emojiLightBulb = emoji.Sprint(":light_bulb:")
-)
-
 const (
 	trackingInterval      time.Duration = 1 * time.Second
 	deployTimeout         time.Duration = 10 * time.Second
@@ -143,7 +127,7 @@ func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOSt
 	}
 
 	cmd.Printf("About:\n\n")
-	table := uitable.New()
+	table := newUITable()
 	table.AddRow("  Name:", appName)
 	table.AddRow("  Namespace:", namespace)
 	table.AddRow("  Created at:", app.CreateTime.String())
@@ -420,21 +404,6 @@ func getWorkloadStatusFromAppConfig(appConfig *v1alpha2.ApplicationConfiguration
 		}
 	}
 	return wlStatus, foundWlStatus
-}
-
-func newTrackingSpinner(suffix string) *spinner.Spinner {
-	suffixColor := color.New(color.Bold, color.FgGreen)
-	return spinner.New(
-		spinner.CharSets[14],
-		100*time.Millisecond,
-		spinner.WithColor("green"),
-		spinner.WithHiddenCursor(true),
-		spinner.WithSuffix(suffixColor.Sprintf(" %s", suffix)))
-}
-
-func applySpinnerNewSuffix(s *spinner.Spinner, suffix string) {
-	suffixColor := color.New(color.Bold, color.FgGreen)
-	s.Suffix = suffixColor.Sprintf(" %s", suffix)
 }
 
 func getHealthStatusColor(s HealthStatus) *color.Color {

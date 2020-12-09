@@ -6,7 +6,6 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"k8s.io/klog"
 
@@ -103,7 +102,7 @@ func NewCommand() *cobra.Command {
 // PrintHelpByTag print custom defined help message
 func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
 	cmd.Printf("  %s:\n\n", tag)
-	table := uitable.New()
+	table := newUITable()
 	for _, c := range all {
 		if val, ok := c.Annotations[types.TagCommandType]; ok && val == tag {
 			table.AddRow("    "+c.Use, c.Long)
