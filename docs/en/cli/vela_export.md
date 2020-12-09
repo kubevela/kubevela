@@ -1,26 +1,20 @@
-## vela init
+## vela export
 
-Create scaffold for an application
+Export deploy manifests from appfile
 
 ### Synopsis
 
-Create scaffold for an application
+Export deploy manifests from appfile
 
 ```
-vela init
-```
-
-### Examples
-
-```
-vela init
+vela export
 ```
 
 ### Options
 
 ```
-  -h, --help          help for init
-      --render-only   Rendering vela.yaml in current dir and do not deploy
+  -f, -- string   specify file path for appfile
+  -h, --help      help for export
 ```
 
 ### Options inherited from parent commands
