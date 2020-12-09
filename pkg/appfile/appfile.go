@@ -55,10 +55,10 @@ func NewAppFile() *AppFile {
 
 // Load will load appfile from default path
 func Load() (*AppFile, error) {
-	if _, err := os.Stat(DefaultAppfilePath); err != nil {
+	if _, err := os.Stat(DefaultAppfilePath); err == nil {
 		return LoadFromFile(DefaultAppfilePath)
 	}
-	if _, err := os.Stat(DefaultJSONAppfilePath); err != nil {
+	if _, err := os.Stat(DefaultJSONAppfilePath); err == nil {
 		return LoadFromFile(DefaultJSONAppfilePath)
 	}
 	return LoadFromFile(DefaultUnknowFormatAppfilePath)
