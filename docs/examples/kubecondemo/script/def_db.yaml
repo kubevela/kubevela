@@ -6,7 +6,7 @@ metadata:
     definition.oam.dev/description: "RDS on Ali Cloud"
 spec:
   definitionRef:
-    name: rds.apps
+    name: rdsinstances.database.alibaba.crossplane.io
   extension:
     template: |
       output: {
