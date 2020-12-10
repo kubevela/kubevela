@@ -17,7 +17,7 @@ For developers, KubeVela is an easy-to-use tool that enables them to describe an
 
 For platform builders, KubeVela serves as a framework that empowers them to create developer facing yet highly extensible platforms at ease.
 
-- Slack: [Discuss](https://cloud-native.slack.com/archives/C01BLQ3HTJA)
+- Slack:  [CNCF Slack](https://slack.cncf.io/) #kubevela channel
 - Gitter: [Community](https://gitter.im/oam-dev/community)
 
 > NOTE: KubeVela is still in early stage and iterating quickly. It's currently under preview release.
