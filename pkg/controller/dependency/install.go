@@ -77,7 +77,7 @@ func Install(kubecli client.Client) {
 	}
 }
 
-// nolint
+// Uninstall will uninstall kubevela helm release
 func Uninstall(kubecli client.Client) {
 	velaConfig, err := fetchVelaConfig(kubecli)
 	if err != nil {
@@ -89,7 +89,7 @@ func Uninstall(kubecli client.Client) {
 	for _, chart := range velaConfig.Data {
 		err := uninstallHelmChart([]byte(chart), log)
 		if err != nil {
-			log.Error(err, "failed to install helm chart")
+			log.Error(err, "failed to uninstall helm chart")
 		}
 	}
 }

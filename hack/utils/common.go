@@ -5,8 +5,8 @@ import (
 	"fmt"
 )
 
-// From https://github.com/rakyll/statik/blob/master/statik.go#L313
 // FprintZipData converts zip binary contents to a string literal.
+// From https://github.com/rakyll/statik/blob/master/statik.go#L313
 func FprintZipData(dest *bytes.Buffer, zipData []byte) {
 	for _, b := range zipData {
 		if b == '\n' {

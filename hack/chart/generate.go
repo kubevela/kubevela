@@ -20,10 +20,10 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error getting chart source:", err)
 		os.Exit(1)
 	}
-	PrintToFile(source)
+	printToFile(source)
 }
 
-func PrintToFile(data string) {
+func printToFile(data string) {
 	var buffer bytes.Buffer
 	buffer.WriteString(`package fake
 var ChartSource = "`)
