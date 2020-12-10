@@ -29,18 +29,21 @@ func GetCliBinary() string {
 	return path.Join(cwd, "../..", "./bin")
 }
 
+// Exec executes a command
 func Exec(cli string) (string, error) {
 	var output []byte
-	session, err := AsyncExec(cli)
+	session, err := asyncExec(cli)
 	if err != nil {
 		return string(output), err
 	}
 	s := session.Wait(30 * time.Second)
 	return string(s.Out.Contents()) + string(s.Err.Contents()), nil
 }
+
+// ExecAndTerminate executes a long-running command and terminate it after 3s
 func ExecAndTerminate(cli string) (string, error) {
 	var output []byte
-	session, err := AsyncExec(cli)
+	session, err := asyncExec(cli)
 	if err != nil {
 		return string(output), err
 	}
@@ -49,9 +52,10 @@ func ExecAndTerminate(cli string) (string, error) {
 	return string(s.Out.Contents()) + string(s.Err.Contents()), nil
 }
 
+// LongTimeExec executes a long-running command and wait it exits by itself
 func LongTimeExec(cli string, timeout time.Duration) (string, error) {
 	var output []byte
-	session, err := AsyncExec(cli)
+	session, err := asyncExec(cli)
 	if err != nil {
 		return string(output), err
 	}
@@ -59,7 +63,7 @@ func LongTimeExec(cli string, timeout time.Duration) (string, error) {
 	return string(s.Out.Contents()) + string(s.Err.Contents()), nil
 }
 
-func AsyncExec(cli string) (*gexec.Session, error) {
+func asyncExec(cli string) (*gexec.Session, error) {
 	c := strings.Fields(cli)
 	commandName := path.Join(rudrPath, c[0])
 	command := exec.Command(commandName, c[1:]...)
@@ -67,6 +71,7 @@ func AsyncExec(cli string) (*gexec.Session, error) {
 	return session, err
 }
 
+// InteractiveExec executes a command with interactive input
 func InteractiveExec(cli string, consoleFn func(*expect.Console)) (string, error) {
 	var output []byte
 	console, _, err := vt10x.NewVT10XConsole(expect.WithStdout(ginkgo.GinkgoWriter))

@@ -147,7 +147,7 @@ func (ref *ReferenceMarkdown) parseParameters(paraValue cue.Value, paramKey stri
 	case cue.StructKind:
 		arguments, err := paraValue.Struct()
 		if err != nil {
-			return errors.New(fmt.Sprintf("arguments not defined as struct %v", err))
+			return fmt.Errorf("arguments not defined as struct %w", err)
 		}
 		for i := 0; i < arguments.Len(); i++ {
 			var param Parameter
@@ -179,7 +179,7 @@ func (ref *ReferenceMarkdown) parseParameters(paraValue cue.Value, paramKey stri
 			case cue.ListKind:
 				elem, success := val.Elem()
 				if !success {
-					return errors.New(fmt.Sprintf("failed to get elements from %s", val))
+					return fmt.Errorf("failed to get elements from %s", val)
 				}
 				switch elem.Kind() {
 				case cue.StructKind:
@@ -228,15 +228,15 @@ func generateSpecification(capability string) (string, error) {
 	configurationPath, err := filepath.Abs(filepath.Join("hack/references/configurations",
 		fmt.Sprintf("%s.yaml", capability)))
 	if err != nil {
-		return "", errors.New(fmt.Sprintf("failed to get configuration path: %v", err))
+		return "", fmt.Errorf("failed to get configuration path: %w", err)
 	}
 	f, err := os.Open(configurationPath)
 	if err != nil {
-		return "", errors.New(fmt.Sprintf("failed to open configuration file: %v", err))
+		return "", fmt.Errorf("failed to open configuration file: %w", err)
 	}
 	spec, err := ioutil.ReadAll(f)
 	if err != nil {
-		return "", errors.New(fmt.Sprintf("failed to read configuration file: %v", err))
+		return "", fmt.Errorf("failed to read configuration file: %w", err)
 	}
 	return fmt.Sprintf("```yaml\n%s```", spec), nil
 }
