@@ -1,4 +1,5 @@
 export default {
   'menu.home': 'Home',
-  'menu.welcome': 'Welcome',
+  'menu.system': 'System',
+  'menu.system.environment': 'Environment',
 };

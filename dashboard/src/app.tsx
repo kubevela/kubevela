@@ -54,9 +54,9 @@ const codeMessage = {
 };
 
 const errorHandler = (error: ResponseError) => {
-  const { response } = error;
+  const { response, data } = error;
   if (response && response.status) {
-    const errorText = codeMessage[response.status] || response.statusText;
+    const errorText = data?.data || codeMessage[response.status] || response.statusText;
     const { status, url } = response;
 
     notification.error({

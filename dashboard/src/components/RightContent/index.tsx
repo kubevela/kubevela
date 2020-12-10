@@ -4,6 +4,7 @@ import { Space, Tag } from 'antd';
 import { SelectLang, useModel } from 'umi';
 
 import styles from './index.less';
+import WorkSpaceDropDown from './WorkSpaceDropDown';
 
 export type SiderTheme = 'light' | 'dark';
 
@@ -33,6 +34,7 @@ const GlobalHeaderRight: React.FC<{}> = () => {
           <Tag color={ENVTagColor[REACT_APP_ENV]}>{REACT_APP_ENV}</Tag>
         </span>
       )}
+      <WorkSpaceDropDown />
       <SelectLang className={styles.action} />
     </Space>
   );

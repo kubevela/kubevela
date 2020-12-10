@@ -1,13 +1,23 @@
 ﻿export default [
   {
-    path: '/welcome',
-    name: 'welcome',
-    icon: 'smile',
-    component: './Welcome',
+    path: '/',
+    redirect: `/System`,
   },
   {
-    path: '/',
-    redirect: '/welcome',
+    name: 'system',
+    icon: 'setting',
+    path: '/System',
+    routes: [
+      {
+        path: '/System',
+        redirect: `/System/Environment`,
+      },
+      {
+        name: 'environment',
+        path: '/System/Environment',
+        component: './System/Environment',
+      },
+    ],
   },
   {
     component: './404',
