@@ -1,5 +1,4 @@
-# Vela Server
-## example
+# Application Example
 
 In this Demo, Application application-sample will be converted to appconfig and component
 

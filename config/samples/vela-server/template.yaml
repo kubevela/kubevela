@@ -58,8 +58,6 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  definitionRef:
-    name: "null"
   extension:
     template: |-
       patch: {
@@ -80,8 +78,6 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  definitionRef:
-    name: "null"
   extension:
     template: |-
       _containers: context.input.spec.template.spec.containers+[parameter]

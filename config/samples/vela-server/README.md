@@ -1,5 +1,12 @@
 # Definition Docs
 
+## Reserved word
+### patch
+Perform the CUE AND operation with the content declared by 'patch' and workload cr
+
+### output
+Generate a new cr, which is generally associated with workload cr
+
 ## Workload Definition
 The following workload definition is to generate a deployment
 ```
@@ -38,10 +45,6 @@ spec:
       				}]
       			}
       		}
-
-      		selector:
-      			matchLabels:
-      				"app.oam.dev/component": context.name
       	}
       }
 
