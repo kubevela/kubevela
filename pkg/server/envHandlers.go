@@ -13,7 +13,6 @@ import (
 // CreateEnv creates an environment
 // @Tags environments
 // @ID createEnvironment
-// @Param body body apis.Environment true "body"
 // @Success 200 {object} apis.Response{code=int,data=string}
 // @Failure 500 {object} apis.Response{code=int,data=string}
 // @Router /envs/ [post]

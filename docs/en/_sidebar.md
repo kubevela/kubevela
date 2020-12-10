@@ -42,6 +42,7 @@
       - [Rollout](/en/developers/references/traits/rollout.md)
       - [Metrics](/en/developers/references/traits/metrics.md)
       - [Scaler](/en/developers/references/traits/scaler.md)
+  - [Restful API](/en/developers/references/restful-api.html)
   - CLI
     - General
       - [vela config](/en/cli/vela_config.md)

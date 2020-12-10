@@ -32,6 +32,15 @@ func (s *APIServer) GetApp(c *gin.Context) {
 }
 
 // ListApps requests a list of application by the namespace in the gin.Context
+// @tags app
+// @ID apps-get
+// @Summary list all applications
+// @Accept  application/json
+// @Produce  application/json
+// @Param   envName path string true "environment name"
+// @Success 200 {body} string  "response: json format"
+// @Failure 500 "response: json format"
+// @Router /envs/:envName [post]
 func (s *APIServer) ListApps(c *gin.Context) {
 	envName := c.Param("envName")
 	envMeta, err := env.GetEnvByName(envName)
