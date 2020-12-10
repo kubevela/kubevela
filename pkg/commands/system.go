@@ -168,7 +168,7 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 			"try running 'vela workloads' or 'vela traits' to check after a while, details %v", err)
 		return nil
 	}
-	if err := RefreshDefinitions(context.Background(), i.c, ioStreams, false); err != nil {
+	if err := RefreshDefinitions(context.Background(), i.c, ioStreams, false, true); err != nil {
 		return err
 	}
 	ioStreams.Info("- Finished successfully.")

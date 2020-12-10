@@ -397,6 +397,7 @@ func (p PeerHealthConditions) MergePeerWorkloadsConditions(basic *WorkloadHealth
 	// copy to keep idempotent
 	peerHCs := make(PeerHealthConditions, len(p))
 	copy(peerHCs, p)
+	//nolint:makezero
 	peerHCs = append(peerHCs, *basic.DeepCopy())
 
 	// sort by revision number in descending order
