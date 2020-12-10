@@ -221,3 +221,7 @@ CUE=$(GOBIN)/cue
 else
 CUE=$(shell which cue)
 endif
+
+start-dashboard:
+	go run pkg/server/main/startAPIServer.go &
+	cd dashboard && npm install --registry=https://registry.npm.taobao.org && npm start && cd ..
