@@ -114,11 +114,11 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 	if err != nil {
 		return err
 	}
+	o.Env = env
 	app, err := application.Load(env.Name, o.Args[0])
 	if err != nil {
 		return err
 	}
-	o.Env = env
 	o.App = app
 
 	cf := genericclioptions.NewConfigFlags(true)

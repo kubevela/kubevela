@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/assert"
@@ -135,4 +136,19 @@ services:
 		assert.NoError(t, err, caseName)
 		assert.Equal(t, c.ExpTraits, traits, caseName)
 	}
+}
+
+func TestLoadNotExistsApplication(t *testing.T) {
+	caseName := "load not exists application"
+
+	now := time.Now().Unix()
+	appName := fmt.Sprintf("test-app-%d", now)
+
+	app, err := Load(types.DefaultEnvName, appName)
+
+	assert.Nil(t, app, caseName)
+	assert.Error(t, err, caseName)
+
+	errString := fmt.Sprintf(`application "%s" not found`, appName)
+	assert.EqualError(t, err, errString, caseName)
 }

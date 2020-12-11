@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
@@ -9,9 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/kubectl/pkg/cmd/exec"
 	cmdtesting "k8s.io/kubectl/pkg/cmd/testing"
+	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -47,7 +50,8 @@ func TestExecCommand(t *testing.T) {
 		}),
 	}
 	err := o.Init(context.Background(), cmd, []string{"fakeApp"})
-	assert.NoError(t, err)
+	errString := fmt.Sprintf(`application "%s" not found`, "fakeApp")
+	assert.EqualError(t, err, errString)
 	fakeApp := &application.Application{
 		AppFile: &appfile.AppFile{
 			Name: "fakeApp",
@@ -57,6 +61,10 @@ func TestExecCommand(t *testing.T) {
 		},
 	}
 	o.App = fakeApp
+
+	cf := genericclioptions.NewConfigFlags(true)
+	cf.Namespace = &o.Env.Namespace
+	o.f = k8scmdutil.NewFactory(k8scmdutil.NewMatchVersionFlags(cf))
 	err = o.Complete()
 	assert.NoError(t, err)
 }

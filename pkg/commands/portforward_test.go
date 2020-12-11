@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
@@ -49,7 +50,8 @@ func TestPortForwardCommand(t *testing.T) {
 		VelaC:                fakeC,
 	}
 	err := o.Init(context.Background(), cmd, []string{"fakeApp", "8081:8080"})
-	assert.NoError(t, err)
+	errString := fmt.Sprintf(`application "%s" not found`, "fakeApp")
+	assert.EqualError(t, err, errString)
 }
 
 func TestNewPortForwardCommandPersistentPreRunE(t *testing.T) {
