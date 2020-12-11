@@ -65,8 +65,6 @@ spec:
             workloadRefPath:
               description: WorkloadRefPath indicates where/if a trait accepts a workloadRef object
               type: string
-          required:
-          - definitionRef
           type: object
       type: object
   version: v1alpha2
