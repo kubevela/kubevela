@@ -30,10 +30,11 @@ const (
 
 // VelaExecOptions creates options for `exec` command
 type VelaExecOptions struct {
-	Cmd   *cobra.Command
-	Args  []string
-	Stdin bool
-	TTY   bool
+	Cmd         *cobra.Command
+	Args        []string
+	Stdin       bool
+	TTY         bool
+	ServiceName string
 
 	context.Context
 	VelaC types.Args
@@ -101,6 +102,7 @@ func NewExecCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra.Comman
 	cmd.Flags().Duration(podRunningTimeoutFlag, defaultPodExecTimeout,
 		"The length of time (like 5s, 2m, or 3h, higher than zero) to wait until at least one pod is running",
 	)
+	cmd.Flags().StringVarP(&o.ServiceName, "svc", "s", "", "service name")
 	return cmd
 }
 
@@ -137,7 +139,7 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 
 // Complete loads data from the command environment
 func (o *VelaExecOptions) Complete() error {
-	compName, err := util.AskToChooseOneService(o.App.GetComponents())
+	compName, err := o.getComponentName()
 	if err != nil {
 		return err
 	}
@@ -154,6 +156,23 @@ func (o *VelaExecOptions) Complete() error {
 	// [podName, COMMAND...]
 	args[0] = podName
 	return o.kcExecOptions.Complete(o.f, o.Cmd, args, 1)
+}
+
+func (o *VelaExecOptions) getComponentName() (string, error) {
+	svcName := o.ServiceName
+
+	if svcName != "" {
+		if _, exist := o.App.Services[svcName]; exist {
+			return svcName, nil
+		}
+		o.Cmd.Printf("The service name '%s' is not valid\n", svcName)
+	}
+
+	compName, err := util.AskToChooseOneService(o.App.GetComponents())
+	if err != nil {
+		return "", err
+	}
+	return compName, nil
 }
 
 func (o *VelaExecOptions) getPodName(compName string) (string, error) {

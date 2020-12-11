@@ -67,3 +67,27 @@ func TestExecCommandPersistentPreRunE(t *testing.T) {
 	cmd := NewExecCommand(fakeC, io)
 	assert.Nil(t, cmd.PersistentPreRunE(new(cobra.Command), []string{}))
 }
+
+func TestGetComponent(t *testing.T) {
+	o := &VelaExecOptions{
+		App: &application.Application{
+			AppFile: &appfile.AppFile{
+				Name: "fakeApp",
+				Services: map[string]appfile.Service{
+					"fakeComp1": map[string]interface{}{},
+					"fakeComp2": map[string]interface{}{},
+				},
+			},
+		},
+	}
+
+	o.ServiceName = "fakeComp1"
+	svcName, err := o.getComponentName()
+	assert.NoError(t, err)
+	assert.Equal(t, o.ServiceName, svcName)
+
+	o.ServiceName = "fakeComp2"
+	svcName, err = o.getComponentName()
+	assert.NoError(t, err)
+	assert.Equal(t, o.ServiceName, svcName)
+}
