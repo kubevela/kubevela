@@ -49,6 +49,7 @@ build: fmt vet lint
 	@$(OK) build succeed
 
 vela-cli:
+	go run hack/chart/generate.go
 	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
 
 npm-build:
