@@ -26,11 +26,11 @@ jobs:
       - name: Use Node.js 10.x
         uses: actions/setup-node@v1
         with:
-          node-version: 10.x
-      - name: Run npm install
-        run: make npm-install
-      - name: Run npm build
-        run: make npm-build
+          node-version: 12.x
+      - name: Run dashboard install
+        run: make dashboard-install
+      - name: Run dashboard build
+        run: make dashboard-build
       - name: Tag helm chart image
         run:  |
           sed -i 's/latest/${{ steps.get_version.outputs.VERSION }}/g' charts/vela-core/values.yaml

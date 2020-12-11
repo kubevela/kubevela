@@ -52,11 +52,11 @@ vela-cli:
 	go run hack/chart/generate.go
 	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
 
-npm-build:
-	cd dashboard && npm run build && cd ./..
+dashboard-build:
+	cd dashboard && yarn build && cd ./..
 
-npm-install:
-	cd dashboard && npm install && cd ./..
+dashboard-install:
+	cd dashboard && yarn && cd ./..
 
 doc-gen:
 	rm -r docs/en/cli/*
@@ -225,4 +225,4 @@ endif
 
 start-dashboard:
 	go run pkg/server/main/startAPIServer.go &
-	cd dashboard && npm install --registry=https://registry.npm.taobao.org && npm start && cd ..
+	cd dashboard && yarn && yarn start && cd ..
