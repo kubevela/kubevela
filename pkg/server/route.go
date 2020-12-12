@@ -147,8 +147,11 @@ func (s *APIServer) setupRoute(staticPath string) http.Handler {
 	api.GET(util.VersionPath, s.GetVersion)
 
 	// swagger
-	url := ginSwagger.URL("/swagger/doc.json")
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, url))
+	swaggers := router.Group("/swagger")
+	{
+		url := ginSwagger.URL("/swagger/swagger.json")
+		swaggers.GET("/*any", s.SwaggerJSON, ginSwagger.WrapHandler(swaggerFiles.Handler, url))
+	}
 
 	// default
 	router.NoRoute(util.NoRoute())
