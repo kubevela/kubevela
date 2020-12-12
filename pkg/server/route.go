@@ -5,14 +5,23 @@ import (
 	"net/http"
 	"os"
 
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+
 	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 
+	// swagger json data
+	_ "github.com/oam-dev/kubevela/pkg/server/docs"
 	"github.com/oam-dev/kubevela/pkg/server/util"
 )
 
 // setup the gin http server handler
+// @title KubeVela API
+// @version 0.0.1
+// @description An KubeVela API.
 
+// @BasePath /api
 func (s *APIServer) setupRoute(staticPath string) http.Handler {
 	// if deploying static Dashboard, set the mode to `release`, or to `debug`
 	if staticPath != "" {
@@ -136,6 +145,11 @@ func (s *APIServer) setupRoute(staticPath string) http.Handler {
 
 	// version
 	api.GET(util.VersionPath, s.GetVersion)
+
+	// swagger
+	url := ginSwagger.URL("/swagger/doc.json")
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, url))
+
 	// default
 	router.NoRoute(util.NoRoute())
 

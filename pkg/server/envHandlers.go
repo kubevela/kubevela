@@ -11,6 +11,12 @@ import (
 )
 
 // CreateEnv creates an environment
+// @Tags environments
+// @ID createEnvironment
+// @Param body body apis.Environment true "body"
+// @Success 200 {object} apis.Response{code=int,data=string}
+// @Failure 500 {object} apis.Response{code=int,data=string}
+// @Router /envs/ [post]
 func (s *APIServer) CreateEnv(c *gin.Context) {
 	var environment apis.Environment
 	if err := c.ShouldBindJSON(&environment); err != nil {
@@ -36,6 +42,13 @@ func (s *APIServer) CreateEnv(c *gin.Context) {
 }
 
 // UpdateEnv updates an environment
+// @Tags environments
+// @ID updateEnvironment
+// @Param envName path string true "envName"
+// @Param body body apis.EnvironmentBody true "envName"
+// @Success 200 {object} apis.Response{code=int,data=string}
+// @Failure 500 {object} apis.Response{code=int,data=string}
+// @Router /envs/{envName} [put]
 func (s *APIServer) UpdateEnv(c *gin.Context) {
 	envName := c.Param("envName")
 	ctrl.Log.Info("Put a update environment request", "envName", envName)
@@ -50,6 +63,12 @@ func (s *APIServer) UpdateEnv(c *gin.Context) {
 }
 
 // GetEnv gets an environment
+// @Tags environments
+// @ID getEnvironment
+// @Param envName path string true "envName"
+// @Success 200 {object} apis.Response{code=int,data=[]apis.Environment}
+// @Failure 500 {object} apis.Response{code=int,data=string}
+// @Router /envs/{envName} [get]
 func (s *APIServer) GetEnv(c *gin.Context) {
 	envName := c.Param("envName")
 	ctrl.Log.Info("Get a get environment request", "envName", envName)
@@ -67,11 +86,24 @@ func (s *APIServer) GetEnv(c *gin.Context) {
 }
 
 // ListEnv lists all environments
+// @Tags environments
+// @ID listEnvironments
+// @Accept  json
+// @Produce  json
+// @success 200 {object} apis.Response{code=int,data=[]apis.Environment}
+// @Failure 500 {object} apis.Response{code=int,data=string}
+// @Router /envs/ [get]
 func (s *APIServer) ListEnv(c *gin.Context) {
 	s.GetEnv(c)
 }
 
-// DeleteEnv deltes an environment
+// DeleteEnv delete an environment
+// @Tags environments
+// @ID deleteEnvironment
+// @Param envName path string true "envName"
+// @Success 200 {object} apis.Response{code=int,data=string}
+// @Failure 500 {object} apis.Response{code=int,data=string}
+// @Router /envs/{envName} [delete]
 func (s *APIServer) DeleteEnv(c *gin.Context) {
 	envName := c.Param("envName")
 	ctrl.Log.Info("Delete a delete environment request", "envName", envName)
@@ -80,6 +112,12 @@ func (s *APIServer) DeleteEnv(c *gin.Context) {
 }
 
 // SetEnv sets an environment
+// @Tags environments
+// @ID setEnvironment
+// @Param envName path string true "envName"
+// @Success 200 {object} apis.Response{code=int,data=string}
+// @Failure 500 {object} apis.Response{code=int,data=string}
+// @Router /envs/{envName} [patch]
 func (s *APIServer) SetEnv(c *gin.Context) {
 	envName := c.Param("envName")
 	ctrl.Log.Info("Patch a set environment request", "envName", envName)
