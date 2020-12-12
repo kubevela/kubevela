@@ -25,7 +25,7 @@ type EnvironmentBody struct {
 // Response used for restful API response in dashboard server
 type Response struct {
 	Code int         `json:"code"`
-	Data interface{} `json:"data"`
+	Data interface{} `json:"data" swaggerignore:"true"`
 }
 
 // CommonFlag used for restful API flags in dashboard server

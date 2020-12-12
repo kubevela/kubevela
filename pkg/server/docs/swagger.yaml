@@ -1,0 +1,246 @@
+basePath: /api
+definitions:
+  apis.Environment:
+    properties:
+      current:
+        type: string
+      domain:
+        type: string
+      email:
+        type: string
+      envName:
+        type: string
+      namespace:
+        type: string
+    required:
+    - envName
+    - namespace
+    type: object
+  apis.EnvironmentBody:
+    properties:
+      namespace:
+        type: string
+    required:
+    - namespace
+    type: object
+  apis.Response:
+    properties:
+      code:
+        type: integer
+    type: object
+info:
+  contact: {}
+  description: An KubeVela API.
+  title: KubeVela API
+  version: 0.0.1
+paths:
+  /envs/:
+    get:
+      consumes:
+      - application/json
+      operationId: listEnvironments
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  items:
+                    $ref: '#/definitions/apis.Environment'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  type: string
+              type: object
+      tags:
+      - environments
+    post:
+      operationId: createEnvironment
+      parameters:
+      - description: body
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/apis.Environment'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  type: string
+              type: object
+      tags:
+      - environments
+  /envs/{envName}:
+    delete:
+      operationId: deleteEnvironment
+      parameters:
+      - description: envName
+        in: path
+        name: envName
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  type: string
+              type: object
+      tags:
+      - environments
+    get:
+      operationId: getEnvironment
+      parameters:
+      - description: envName
+        in: path
+        name: envName
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  items:
+                    $ref: '#/definitions/apis.Environment'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  type: string
+              type: object
+      tags:
+      - environments
+    patch:
+      operationId: setEnvironment
+      parameters:
+      - description: envName
+        in: path
+        name: envName
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  type: string
+              type: object
+      tags:
+      - environments
+    put:
+      operationId: updateEnvironment
+      parameters:
+      - description: envName
+        in: path
+        name: envName
+        required: true
+        type: string
+      - description: envName
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/apis.EnvironmentBody'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  type: string
+              type: object
+      tags:
+      - environments
+swagger: "2.0"

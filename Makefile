@@ -226,3 +226,6 @@ endif
 start-dashboard:
 	go run pkg/server/main/startAPIServer.go &
 	cd dashboard && yarn && yarn start && cd ..
+
+swagger-gen:
+	$(GOBIN)/swag init -g server/route.go -d pkg/ -o pkg/server/docs/
