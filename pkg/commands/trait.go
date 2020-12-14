@@ -97,10 +97,10 @@ func (o *commandOptions) Prepare(cmd *cobra.Command, args []string) error {
 	// get application
 	app, err := application.Load(o.Env.Name, o.appName)
 	if err != nil {
+		if application.IsNotFound(o.appName, err) {
+			return fmt.Errorf("the application %s doesn't exist in current env %s", o.appName, o.Env.Name)
+		}
 		return err
-	}
-	if len(app.Name) == 0 {
-		return fmt.Errorf("the application %s doesn't exist in current env %s", o.appName, o.Env.Name)
 	}
 
 	// get service name

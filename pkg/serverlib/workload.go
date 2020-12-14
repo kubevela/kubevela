@@ -37,8 +37,18 @@ func LoadIfExist(envName string, workloadName string, appGroup string) (*applica
 		appName = workloadName
 	}
 	app, err := application.Load(envName, appName)
-	if err != nil {
+
+	// can't handle
+	if err != nil && !application.IsNotFound(appName, err) {
 		return nil, err
+	}
+
+	// compatible application not found
+	if app == nil {
+		app, err = application.NewEmptyApplication()
+		if err != nil {
+			return nil, err
+		}
 	}
 	app.Name = appName
 

@@ -47,7 +47,7 @@ func LoadFromFile(fileName string) (*Application, error) {
 	_, err = os.Stat(fileName)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return newApplication(nil, tm), nil
+			return nil, err
 		}
 		return nil, err
 	}
@@ -60,13 +60,36 @@ func LoadFromFile(fileName string) (*Application, error) {
 	return app, app.Validate()
 }
 
+// NewEmptyApplication new empty application, only set tm
+func NewEmptyApplication() (*Application, error) {
+	tm, err := template.Load()
+	if err != nil {
+		return nil, err
+	}
+	return newApplication(nil, tm), nil
+}
+
+// IsNotFound is application not found error
+func IsNotFound(appName string, err error) bool {
+	return err != nil && err.Error() == fmt.Sprintf(`application "%s" not found`, appName)
+}
+
 // Load will load application with env and name from default vela home dir.
 func Load(envName, appName string) (*Application, error) {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
 		return nil, fmt.Errorf("get app dir from env %s err %w", envName, err)
 	}
-	return LoadFromFile(filepath.Join(appDir, appName+".yaml"))
+	app, err := LoadFromFile(filepath.Join(appDir, appName+".yaml"))
+
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf(`application "%s" not found`, appName)
+		}
+		return nil, err
+	}
+
+	return app, nil
 }
 
 // Delete will delete an app along with it's appfile.
