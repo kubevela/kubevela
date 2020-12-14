@@ -97,7 +97,7 @@ type WorkloadDefinitionList struct {
 // A TraitDefinitionSpec defines the desired state of a TraitDefinition.
 type TraitDefinitionSpec struct {
 	// Reference to the CustomResourceDefinition that defines this trait kind.
-	Reference DefinitionReference `json:"definitionRef"`
+	Reference DefinitionReference `json:"definitionRef,omitempty"`
 
 	// Revision indicates whether a trait is aware of component revision
 	// +optional

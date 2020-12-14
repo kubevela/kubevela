@@ -12,3 +12,9 @@ spec:
       - "1000"
       scaler:
         replicas: 10
+      sidercar:
+        name: "sidecar-test"
+        image: "nginx"
+      service:
+        http:
+          server: 80

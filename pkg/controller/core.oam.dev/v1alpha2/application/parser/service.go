@@ -11,6 +11,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/template"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/dsl/process"
 )
 
 // Render is cue render
@@ -67,6 +69,11 @@ func (wl *Workload) Eval(render Render) (*v1alpha2.Component, error) {
 	return component, nil
 }
 
+// EvalContext eval workload template and set result to context
+func (wl *Workload) EvalContext(ctx process.Context) error {
+	return definition.NewWDTemplater("-", wl.template).Params(wl.params).Complete(ctx)
+}
+
 // Trait is ComponentTrait
 type Trait struct {
 	name     string
@@ -118,6 +125,11 @@ func (trait *Trait) Eval(render Render) ([]v1alpha2.ComponentTrait, error) {
 	}
 
 	return compTraits, nil
+}
+
+// EvalContext eval trait template and set result to context
+func (trait *Trait) EvalContext(ctx process.Context) error {
+	return definition.NewTDTemplater("-", trait.template).Params(trait.params).Complete(ctx)
 }
 
 // Appfile describle application
