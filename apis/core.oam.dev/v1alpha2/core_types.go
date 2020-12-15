@@ -114,6 +114,18 @@ type TraitDefinitionSpec struct {
 	// +optional
 	AppliesToWorkloads []string `json:"appliesToWorkloads,omitempty"`
 
+	// ConflictsWith specifies the list of traits(CRD name, Definition name, CRD group)
+	// which could not apply to the same workloads with this trait.
+	// Traits that omit this field can work with any other traits.
+	// Example rules:
+	// "service" # Trait definition name
+	// "services.k8s.io" # API resource/crd name
+	// "*.networking.k8s.io" # API group
+	// "labelSelector:foo=bar" # label selector
+	// labelSelector format: https://pkg.go.dev/k8s.io/apimachinery/pkg/labels#Parse
+	// +optional
+	ConflictsWith []string `json:"conflictsWith,omitempty"`
+
 	// Extension is used for extension needs by OAM platform builders
 	// +optional
 	// +kubebuilder:pruning:PreserveUnknownFields

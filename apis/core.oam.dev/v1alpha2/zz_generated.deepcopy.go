@@ -1616,6 +1616,11 @@ func (in *TraitDefinitionSpec) DeepCopyInto(out *TraitDefinitionSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.ConflictsWith != nil {
+		in, out := &in.ConflictsWith, &out.ConflictsWith
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Extension != nil {
 		in, out := &in.Extension, &out.Extension
 		*out = new(runtime.RawExtension)

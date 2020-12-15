@@ -465,3 +465,138 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 		assert.Equal(t, tc.want, result, fmt.Sprintf("Test case: %q", tc.caseName))
 	}
 }
+
+func TestValidateTraitConflictFn(t *testing.T) {
+	compName := "testComp"
+	traitDefName1 := "testTraitDef1"
+	traitDefName2 := "testTraitDef2"
+	tests := []struct {
+		caseName      string
+		conflictRules []string
+		traitDef      v1alpha2.TraitDefinition
+		want          []error
+	}{
+		{
+			caseName:      "empty conflict rule (no conflict with any other trait)",
+			conflictRules: []string{},
+			traitDef: v1alpha2.TraitDefinition{
+				ObjectMeta: v1.ObjectMeta{
+					Name: traitDefName2,
+				},
+			},
+			want: []error{},
+		},
+		{
+			caseName:      "'*' conflict rule (conflict with all other trait)",
+			conflictRules: []string{"*"},
+			traitDef: v1alpha2.TraitDefinition{
+				ObjectMeta: v1.ObjectMeta{
+					Name: traitDefName2,
+				},
+			},
+			want: []error{fmt.Errorf(errFmtTraitConflictWithAll, traitDefName1, compName)},
+		},
+		{
+			caseName:      "'*' conflict rule (no conflict if only one trait)",
+			conflictRules: []string{"*"},
+			traitDef: v1alpha2.TraitDefinition{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "remove me",
+				},
+			},
+			want: []error{},
+		},
+		{
+			caseName:      "Trait group conflict",
+			conflictRules: []string{"*.example.com"},
+			traitDef: v1alpha2.TraitDefinition{
+				ObjectMeta: v1.ObjectMeta{
+					Name: traitDefName2,
+				},
+				Spec: v1alpha2.TraitDefinitionSpec{
+					Reference: v1alpha2.DefinitionReference{
+						Name: "foo.example.com",
+					},
+				},
+			},
+			want: []error{fmt.Errorf(errFmtTraitConflict, "*.example.com", traitDefName1, traitDefName2, compName)},
+		},
+		{
+			caseName:      "TraitDefinition name conflict",
+			conflictRules: []string{traitDefName2},
+			traitDef: v1alpha2.TraitDefinition{
+				ObjectMeta: v1.ObjectMeta{
+					Name: traitDefName2,
+				},
+			},
+			want: []error{fmt.Errorf(errFmtTraitConflict, traitDefName2, traitDefName1, traitDefName2, compName)},
+		},
+		{
+			caseName:      "CRD name conflict",
+			conflictRules: []string{"foo.example.com"},
+			traitDef: v1alpha2.TraitDefinition{
+				ObjectMeta: v1.ObjectMeta{
+					Name: traitDefName2,
+				},
+				Spec: v1alpha2.TraitDefinitionSpec{
+					Reference: v1alpha2.DefinitionReference{
+						Name: "foo.example.com",
+					},
+				},
+			},
+			want: []error{fmt.Errorf(errFmtTraitConflict, "foo.example.com", traitDefName1, traitDefName2, compName)},
+		},
+		{
+			caseName:      "LabelSelector conflict",
+			conflictRules: []string{"labelSelector:foo=bar"},
+			traitDef: v1alpha2.TraitDefinition{
+				ObjectMeta: v1.ObjectMeta{
+					Name:   traitDefName2,
+					Labels: map[string]string{"foo": "bar"},
+				},
+			},
+			want: []error{fmt.Errorf(errFmtTraitConflict, "labelSelector:foo=bar", traitDefName1, traitDefName2, compName)},
+		},
+		{
+			caseName:      "LabelSelector invalid error",
+			conflictRules: []string{"labelSelector:,,,"},
+			traitDef: v1alpha2.TraitDefinition{
+				ObjectMeta: v1.ObjectMeta{
+					Name:   traitDefName2,
+					Labels: map[string]string{"foo": "bar"},
+				},
+			},
+			want: []error{fmt.Errorf(errFmtInvalidLabelSelector, "labelSelector:,,,",
+				fmt.Errorf("found ',', expected: !, identifier, or 'end of string'"))},
+		},
+	}
+
+	for _, tc := range tests {
+		validatingAppConfig := ValidatingAppConfig{
+			validatingComps: []ValidatingComponent{
+				{
+					compName: compName,
+					validatingTraits: []ValidatingTrait{
+						{
+							traitDefinition: v1alpha2.TraitDefinition{
+								ObjectMeta: v1.ObjectMeta{Name: traitDefName1},
+								Spec: v1alpha2.TraitDefinitionSpec{
+									ConflictsWith: tc.conflictRules,
+								},
+							},
+						},
+						{traitDefinition: tc.traitDef},
+					},
+				},
+			},
+		}
+		if len(tc.conflictRules) > 0 && tc.conflictRules[0] == "*" &&
+			tc.traitDef.Name == "remove me" {
+			// for test case: '*' conflict rule, no conflict if only one trait
+			validatingAppConfig.validatingComps[0].validatingTraits =
+				validatingAppConfig.validatingComps[0].validatingTraits[:1]
+		}
+		result := ValidateTraitConflictFn(ctx, validatingAppConfig)
+		assert.Equal(t, tc.want, result, fmt.Sprintf("Test case: %q", tc.caseName))
+	}
+}

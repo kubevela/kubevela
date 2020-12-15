@@ -11,6 +11,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -28,6 +29,12 @@ const (
 	errFmtRevisionName = "componentName %q and revisionName %q are mutually exclusive, you can only specify one of them"
 
 	errFmtUnappliableTrait = "the trait %q cannot apply to workload %q of component %q (appliable: %q)"
+
+	errFmtTraitConflict = "conflict(rule: %q) between traits (%q and %q) of component %q is detected"
+
+	errFmtTraitConflictWithAll = "trait %q of component %q conflicts with all other traits"
+
+	errFmtInvalidLabelSelector = "labelSelector in conflict rule (%q) is invalid for %w"
 
 	// WorkloadNamePath indicates field path of workload name
 	WorkloadNamePath = "metadata.name"
@@ -210,6 +217,71 @@ func ValidateTraitAppliableToWorkloadFn(_ context.Context, v ValidatingAppConfig
 	return allErrs
 }
 
+// ValidateTraitConflictFn validates whether conflicting traits are applied to the same workload.
+// NOTE(roywang) It returns immediately if one conflict is detected
+// instead of returning after collecting ALL conflicts
+func ValidateTraitConflictFn(_ context.Context, v ValidatingAppConfig) []error {
+	klog.Info("validate trait conflicts ", "appconfig name:", v.appConfig.Name)
+	allErrs := make([]error, 0)
+	for _, comp := range v.validatingComps {
+		allConflictRules := map[string][]string{}
+		// collect conflicts rules of all traits applied to this workload
+		for _, trait := range comp.validatingTraits {
+			allConflictRules[trait.traitDefinition.Name] = trait.traitDefinition.Spec.ConflictsWith
+		}
+
+		for rulesOwner, rules := range allConflictRules {
+			if len(rules) == 0 {
+				// empty rules means this trait can work with any other ones
+				continue
+			}
+			for _, rule := range rules {
+				if rule == "*" && len(comp.validatingTraits) != 1 {
+					// '*' means this trait conflicts with all other ones
+					// validation fails unless there's only one trait
+					allErrs = append(allErrs, fmt.Errorf(errFmtTraitConflictWithAll, rulesOwner, comp.compName))
+					return allErrs
+				}
+			}
+			// validate each rule on each trait
+			for _, rule := range rules {
+				var ruleLabelSelector labels.Selector
+				var err error
+				if strings.HasPrefix(rule, "labelSelector:") {
+					ruleLabelSelector, err = labels.Parse(rule[len("labelSelector:"):])
+					if err != nil {
+						validationErr := fmt.Errorf(errFmtInvalidLabelSelector, rule, err)
+						allErrs = append(allErrs, validationErr)
+						return allErrs
+					}
+				}
+				for _, trait := range comp.validatingTraits {
+					traitDefName := trait.traitDefinition.Name
+					if traitDefName == rulesOwner {
+						// skip self-check
+						continue
+					}
+					// TODO(roywang) consider a CRD group could have multiple versions
+					// and maybe we need to specify the minimum version here in the future
+					// according to OAM convention, Spec.Reference.Name in traitDefinition is CRD name
+					traitCRDName := trait.traitDefinition.Spec.Reference.Name
+					traitGroup := schema.ParseGroupResource(traitCRDName).Group
+					traitLabelSet := labels.Set(trait.traitDefinition.Labels)
+					if (strings.HasPrefix(rule, "*.") && traitGroup == rule[2:]) || // API group conflict
+						traitCRDName == rule || // CRD name conflict
+						traitDefName == rule || // trait definition name conflict
+						(ruleLabelSelector != nil && ruleLabelSelector.Matches(traitLabelSet)) { // labels conflict
+						err := fmt.Errorf(errFmtTraitConflict, rule, rulesOwner, traitDefName, comp.compName)
+						allErrs = append(allErrs, err)
+						return allErrs
+					}
+				}
+			}
+		}
+	}
+	return allErrs
+}
+
 var _ inject.Client = &ValidatingHandler{}
 
 // InjectClient injects the client into the ValidatingHandler
@@ -240,6 +312,7 @@ func RegisterValidatingHandler(mgr manager.Manager) error {
 			AppConfigValidateFunc(ValidateRevisionNameFn),
 			AppConfigValidateFunc(ValidateWorkloadNameForVersioningFn),
 			AppConfigValidateFunc(ValidateTraitAppliableToWorkloadFn),
+			AppConfigValidateFunc(ValidateTraitConflictFn),
 			// TODO(wonderflow): Add more validation logic here.
 		},
 	}})
