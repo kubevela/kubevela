@@ -4,15 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"reflect"
 	"sort"
-	"strings"
-	"time"
 
-	"github.com/ghodss/yaml"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -21,9 +15,15 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/utils/env"
-	"github.com/oam-dev/kubevela/pkg/utils/system"
+	"github.com/oam-dev/kubevela/pkg/storage"
+	"github.com/oam-dev/kubevela/pkg/storage/driver"
 )
+
+var store *storage.Storage
+
+func init() {
+	store = storage.NewStorage("")
+}
 
 // Application is an implementation level object for Appfile, all vela commands will access AppFile from Appliction struct here.
 type Application struct {
@@ -36,28 +36,6 @@ func newApplication(f *appfile.AppFile, tm template.Manager) *Application {
 		f = appfile.NewAppFile()
 	}
 	return &Application{AppFile: f, tm: tm}
-}
-
-// LoadFromFile will load application from file
-func LoadFromFile(fileName string) (*Application, error) {
-	tm, err := template.Load()
-	if err != nil {
-		return nil, err
-	}
-	_, err = os.Stat(fileName)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, err
-		}
-		return nil, err
-	}
-
-	f, err := appfile.LoadFromFile(fileName)
-	if err != nil {
-		return nil, err
-	}
-	app := newApplication(f, tm)
-	return app, app.Validate()
 }
 
 // NewEmptyApplication new empty application, only set tm
@@ -76,52 +54,32 @@ func IsNotFound(appName string, err error) bool {
 
 // Load will load application with env and name from default vela home dir.
 func Load(envName, appName string) (*Application, error) {
-	appDir, err := getApplicationDir(envName)
+	respApp, err := store.Get(envName, appName)
 	if err != nil {
-		return nil, fmt.Errorf("get app dir from env %s err %w", envName, err)
-	}
-	app, err := LoadFromFile(filepath.Join(appDir, appName+".yaml"))
-
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, fmt.Errorf(`application "%s" not found`, appName)
-		}
 		return nil, err
 	}
-
-	return app, nil
+	app := newApplication(respApp.AppFile, respApp.Tm)
+	err = app.Validate()
+	return app, err
 }
 
 // Delete will delete an app along with it's appfile.
 func Delete(envName, appName string) error {
-	appDir, err := getApplicationDir(envName)
-	if err != nil {
-		return fmt.Errorf("get app dir from env %s err %w", envName, err)
-	}
-	return os.Remove(filepath.Join(appDir, appName+".yaml"))
+	return store.Delete(envName, appName)
 }
 
 // List will list all apps
 func List(envName string) ([]*Application, error) {
-	appDir, err := getApplicationDir(envName)
+	respApps, err := store.List(envName)
 	if err != nil {
-		return nil, fmt.Errorf("get app dir from env %s err %w", envName, err)
-	}
-	files, err := ioutil.ReadDir(appDir)
-	if err != nil {
-		return nil, fmt.Errorf("list apps from %s err %w", appDir, err)
+		return nil, err
 	}
 	var apps []*Application
-	for _, f := range files {
-		if f.IsDir() {
-			continue
-		}
-		if !strings.HasSuffix(f.Name(), ".yaml") {
-			continue
-		}
-		app, err := LoadFromFile(filepath.Join(appDir, f.Name()))
+	for _, resp := range respApps {
+		app := newApplication(resp.AppFile, resp.Tm)
+		err := app.Validate()
 		if err != nil {
-			return nil, fmt.Errorf("load application err %w", err)
+			return nil, err
 		}
 		apps = append(apps, app)
 	}
@@ -146,20 +104,7 @@ func MatchAppByComp(envName, compName string) (*Application, error) {
 
 // Save will save appfile into default dir.
 func (app *Application) Save(envName string) error {
-	appDir, err := getApplicationDir(envName)
-	if err != nil {
-		return fmt.Errorf("get app dir from env %s err %w", envName, err)
-	}
-	if app.CreateTime.IsZero() {
-		app.CreateTime = time.Now()
-	}
-	app.UpdateTime = time.Now()
-	out, err := yaml.Marshal(app)
-	if err != nil {
-		return err
-	}
-	//nolint:gosec
-	return ioutil.WriteFile(filepath.Join(appDir, app.Name+".yaml"), out, 0644)
+	return store.Save(&driver.RespApplication{AppFile: app.AppFile, Tm: app.tm}, envName)
 }
 
 // Validate will validate whether an Appfile is valid.
@@ -268,12 +213,6 @@ func (app *Application) OAM(env *types.EnvMeta, io cmdutil.IOStreams, silence bo
 		return nil, nil, nil, err
 	}
 	return comps, appConfig, scopes, nil
-}
-
-func getApplicationDir(envName string) (string, error) {
-	appDir := filepath.Join(env.GetEnvDirByName(envName), "applications")
-	_, err := system.CreateIfNotExist(appDir)
-	return appDir, err
 }
 
 // GetAppConfig will get AppConfig from K8s cluster.
