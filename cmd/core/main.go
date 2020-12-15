@@ -12,8 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/oam-dev/kubevela/version"
-
 	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/go-logr/logr"
@@ -42,6 +40,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/version"
 )
 
 const (
