@@ -1,7 +1,6 @@
 import React from 'react';
 
 import { Menu, message, Spin, Typography } from 'antd';
-import classNames from 'classnames';
 import { useModel } from 'umi';
 
 import { DownOutlined } from '@ant-design/icons';

@@ -4,6 +4,12 @@
     redirect: `/System`,
   },
   {
+    name: 'applications',
+    icon: 'appstore',
+    path: `/applications`,
+    component: './Application',
+  },
+  {
     name: 'system',
     icon: 'setting',
     path: '/System',

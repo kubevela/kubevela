@@ -8,7 +8,7 @@ declare namespace API {
     name: string;
     status?: string;
     components?: ComponentMeta[];
-    createdTime?: Date;
+    createdTime?: string;
   }
 
   export interface ComponentMeta {
@@ -19,7 +19,7 @@ declare namespace API {
     traits?: any[]; // ComponentTrait
     traitsNames?: string[];
     app: string;
-    createdTime?: Date;
+    createdTime?: string;
   }
 
   interface Environment {
@@ -32,5 +32,11 @@ declare namespace API {
 
   interface EnvironmentBody {
     namespace: string;
+  }
+
+  interface Application {
+    name: string;
+    status: string;
+    createdTime: string;
   }
 }

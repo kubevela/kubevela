@@ -98,7 +98,7 @@ export default (): React.ReactNode => {
               },
             },
             {
-              title: 'Operations',
+              title: 'Actions',
               dataIndex: 'current',
               render: (current, { envName, namespace }) => {
                 const active = current === '*';
@@ -113,7 +113,7 @@ export default (): React.ReactNode => {
                         switchCurrenrt({ envName });
                       }}
                     >
-                      switch
+                      Switch
                     </Button>
                     <Button
                       size="small"
@@ -128,7 +128,7 @@ export default (): React.ReactNode => {
                         })
                       }
                     >
-                      update
+                      Update
                     </Button>
                     {defaultEnv ? undefined : (
                       <Popconfirm
@@ -143,7 +143,7 @@ export default (): React.ReactNode => {
                         }}
                       >
                         <Button type="link" size="small" danger>
-                          remove
+                          Remove
                         </Button>
                       </Popconfirm>
                     )}

@@ -76,6 +76,10 @@ func ListApplications(ctx context.Context, c client.Client, opt Option) ([]apis.
 	}
 
 	for _, a := range appConfigList.Items {
+		// ignore the deleted resource
+		if a.GetDeletionGracePeriodSeconds() != nil {
+			continue
+		}
 		applicationMeta, err := RetrieveApplicationStatusByName(ctx, c, a.Name, a.Namespace)
 		if err != nil {
 			return applicationMetaList, nil
