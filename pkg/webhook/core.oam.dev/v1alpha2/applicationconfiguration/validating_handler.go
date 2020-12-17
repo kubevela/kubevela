@@ -89,6 +89,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
+		if !obj.ObjectMeta.DeletionTimestamp.IsZero() {
+			// skip validating the AppConfig being deleted
+			klog.Info("skip validating applicationConfiguration being deleted", " name: ", obj.Name,
+				" deletiongTimestamp: ", obj.GetDeletionTimestamp())
+			return admission.ValidationResponse(true, "")
+		}
 		vAppConfig := &ValidatingAppConfig{}
 		if err := vAppConfig.PrepareForValidation(ctx, h.Client, h.Mapper, obj); err != nil {
 			klog.Info("failed init appConfig before validation ", " name: ", obj.Name, " errMsg: ", err.Error())
