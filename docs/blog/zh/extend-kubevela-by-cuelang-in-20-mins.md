@@ -666,5 +666,7 @@ KubeVela 还对 cuelang 的注释做了一些扩展，方便自动生成文档�
 其中，`+usgae` 开头的注释会变成参数的说明，`+short` 开头的注释后面则是在 CLI 中使用的缩写。
 
 # 总结
+本文通过实际的案例和详细的讲述，为你介绍了在 KubeVela 中新增一个能力的详细过程与原理，以及能力模板的编写方法。
 
+这里你可能还有个疑问，平台管理员这样添加了一个新能力后，平台的用户又该怎么能知道这个能力怎么使用呢？其实，在 KubeVela 中，它不仅能方便的添加新能力，**它还能自动为“能力”生成 Markdown 格式的使用文档！** 不信，你可以看下 KubeVela 本身的官方网站，所有在 `References/Capabilities`目录下能力使用说明文档（比如[这个](https://kubevela.io/#/en/developers/references/workload-types/webservice)），全都是根据每个能力的模板自动生成的哦。
 最后，欢迎大家写一些有趣的扩展功能，提交到 KubeVela 的[社区仓库](https://github.com/oam-dev/catalog/tree/master/registry)中来。 
