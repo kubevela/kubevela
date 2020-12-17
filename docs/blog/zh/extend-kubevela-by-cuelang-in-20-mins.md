@@ -328,7 +328,7 @@ $ kubectl apply -f docs/examples/blog-extension/mydeploy.yaml
 workloaddefinition.core.oam.dev/mydeploy created
 ```
 
-本地刷新就能看到这个新功能
+一旦新能力 `kubectl apply` 到了 Kubernetes 中，不用重启，也不用更新，KubeVela 的用户可以立刻看到一个新的能力出现并且可以使用了：
 
 ```shell script
 $ vela worklaods
