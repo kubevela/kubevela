@@ -373,7 +373,7 @@ App has not been deployed, creating a new deployment...
   Service status: vela status my-extend-app --svc mysvc
 ```
 
-查看状态也能用，使用 kubectl 也能看到背后的 Deployment 已经创建起来：
+我们来查看一下应用的状态，已经正常运行起来了（`HEALTHY Ready: 1/1`）：
 
 ```shell script
 $ vela status my-extend-app
