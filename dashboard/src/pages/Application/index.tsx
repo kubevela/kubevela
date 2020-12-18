@@ -4,7 +4,6 @@ import { Button, Card, message, Popconfirm, Space, Table } from 'antd';
 import { Link, useModel, useRequest } from 'umi';
 
 import { deleteApplication, getApplications } from '@/services/application';
-import compatibleDayjs from '@/utils/compatibleDayjs';
 import { PlusOutlined } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-layout';
 
@@ -81,7 +80,7 @@ export default () => {
               dataIndex: 'createdTime',
               key: 'createdTime',
               render: (text) => {
-                return compatibleDayjs(text).format('YYYY-MM-DD HH:mm:ss');
+                return text;
               },
             },
             {
