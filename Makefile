@@ -51,6 +51,7 @@ build: fmt vet lint
 vela-cli:
 	go run hack/chart/generate.go
 	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
+	git checkout cmd/vela/fake/chart_source.go
 
 dashboard-build:
 	cd dashboard && yarn build && cd ./..

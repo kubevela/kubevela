@@ -1,0 +1,6 @@
+name: my-extend-app
+services:
+  mysvc:
+    type: mydeploy
+    image: crccheck/hello-world
+    name: mysvc
