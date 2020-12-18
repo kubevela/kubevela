@@ -53,6 +53,7 @@ const (
 	CapabilityPath         = "/capabilities"
 	CapabilityCenterPath   = "/capability-centers"
 	VersionPath            = "/version"
+	Definition             = "/definitions"
 )
 
 // NoRoute is a handler which is invoked when there is no route matches.

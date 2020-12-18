@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/plugins"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const BaseRefPath = "docs/en/developers/references"
@@ -70,7 +70,7 @@ func main() {
 			CapabilityType: capabilityType,
 		}
 
-		cueValue, err := getCUEParameterValue(c.CueTemplate)
+		cueValue, err := common.GetCUEParameterValue(c.CueTemplate)
 		if err != nil {
 			fmt.Printf("failed to retrieve `parameters` value from %s with err: %s", c.Name, err)
 			os.Exit(1)
@@ -112,35 +112,6 @@ func (ref *ReferenceMarkdown) prepareParameterTable(tableName string, parameterL
 		refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, p.Usage, p.PrintableType, p.Required, printableDefaultValue)
 	}
 	return refContent
-}
-
-// getCUEParameterValue converts definitions to cue format
-func getCUEParameterValue(cueStr string) (cue.Value, error) {
-	r := cue.Runtime{}
-	template, err := r.Compile("", cueStr+mycue.BaseTemplate)
-	if err != nil {
-		return cue.Value{}, err
-	}
-	tempStruct, err := template.Value().Struct()
-	if err != nil {
-		return cue.Value{}, err
-	}
-	// find the parameter definition
-	var paraDef cue.FieldInfo
-	var found bool
-	for i := 0; i < tempStruct.Len(); i++ {
-		paraDef = tempStruct.Field(i)
-		if paraDef.Name == "parameter" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return cue.Value{}, errors.New("arguments not exist")
-	}
-	arguments := paraDef.Value
-
-	return arguments, nil
 }
 
 // parseParameters parses every parameter

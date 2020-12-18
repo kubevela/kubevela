@@ -1,0 +1,1 @@
+{"properties":{"cmd":{"description":"Commands to run in the container","items":{"type":"string"},"title":"cmd","type":"array"},"cpu":{"title":"cpu","type":"string"},"image":{"description":"Which image would you like to use for your service","title":"image","type":"string"}},"required":["image"],"type":"object"}
