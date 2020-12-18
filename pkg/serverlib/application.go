@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
@@ -153,7 +154,7 @@ func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, appli
 	}
 	applicationMeta.Name = appConfig.Name
 	applicationMeta.Status = status
-	applicationMeta.CreatedTime = appConfig.CreationTimestamp.String()
+	applicationMeta.CreatedTime = appConfig.CreationTimestamp.Format(time.RFC3339)
 
 	for _, com := range appConfig.Spec.Components {
 		componentName := com.ComponentName
