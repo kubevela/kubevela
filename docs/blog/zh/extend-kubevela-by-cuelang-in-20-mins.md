@@ -182,6 +182,15 @@ spec:
     name: ingresses.networking.k8s.io
 ```
 
+除此之外，TraitDefinition 中还增加了一些其他功能模型层功能，如：
+
+* `appliesToWorkloads`: 表示这个 trait 可以作用于哪些 Workload 类型。
+* `conflictWith`： 表示这个 trait 和哪些其他类型的 trait 有冲突。
+* `workloadRefPath`： 表示这个 trait 包含的 workload 字段是哪个，KubeVela 在生成 trait 对象时会自动填充。
+... 
+
+这些功能都是可选的，本文中不涉及使用，在后续的其他文章中我们再给大家详细介绍。
+
 所以到这里，相信你已经掌握了一个不含 extensions 的基本扩展模式，而剩下部分就是围绕 [CUE](https://cuelang.org/) 的抽象模板。
 
 # 供 Appfile 使用的扩展模板（CUE Template）部分 
@@ -225,7 +234,7 @@ spec:
 output: {
 	apiVersion: "apps/v1"
 	kind:       "Deployment"
-    metadata: name: "mytest"
+	metadata: name: "mytest"
 	spec: {
 		selector: matchLabels: {
 			"app.oam.dev/component": "mytest"
@@ -283,7 +292,7 @@ output: {
 
 如上面的这个例子所示，KubeVela 中的模板参数就是通过 `parameter` 这个部分来完成的，而`parameter` 本质上就是作为引用，替换掉了 `output` 中的某些字段。
 
-## 完整的 Definition 以及在 Appfile 试用
+## 完整的 Definition 以及在 Appfile 使用
 
 事实上，经过上面两部分的组合，我们已经可以写出一个完整的 Definition 文件：
 
@@ -321,10 +330,63 @@ spec:
         }
 ```
 
-把这个 yaml 文件 apply 到 K8s 集群中。
+为了方便调试，一般情况下可以预先分为两个文件，一部分放前面的 yaml 部分，假设命名为 `def.yaml` 如：
 
 ```shell script
-$ kubectl apply -f docs/examples/blog-extension/mydeploy.yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: mydeploy
+spec:
+  definitionRef:
+    name: deployments.apps
+  extension:
+    template: |
+```
+
+另一个则放 cue 文件，假设命名为 `def.cue` ：
+
+```shell script
+parameter: {
+    name: string
+    image: string
+}
+output: {
+    apiVersion: "apps/v1"
+    kind:       "Deployment"
+    spec: {
+        selector: matchLabels: {
+            "app.oam.dev/component": parameter.name
+        }
+        template: {
+            metadata: labels: {
+                "app.oam.dev/component": parameter.name
+            }
+            spec: {
+                containers: [{
+                    name:  parameter.name
+                    image: parameter.image
+                }]
+            }}}
+}
+```
+
+先对 `def.cue` 做一个格式化，格式化的同时 cue 工具本身会做一些校验，也可以更深入的[通过 cue 命令做调试](https://wonderflow.info/posts/2020-12-15-cuelang-template/):
+
+```shell script
+cue fmt def.cue
+```
+
+调试完成后，可以通过脚本把这个 yaml 组装：
+
+```shell script
+./hack/vela-templates/mergedef.sh def.yaml def.cue > mydeploy.yaml
+```
+
+再把这个 yaml 文件 apply 到 K8s 集群中。
+
+```shell script
+$ kubectl apply -f mydeploy.yaml
 workloaddefinition.core.oam.dev/mydeploy created
 ```
 
