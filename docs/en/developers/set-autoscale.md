@@ -1,5 +1,7 @@
 # Automatically scale workloads by resource utilization metrics and cron
 
+Autoscale depends on metrics server, please [enable it in your Kubernetes cluster](./references/devex/faq.md#autoscale-how-to-enable-metrics-server-in-various-kubernetes-clusters) at the beginning.
+
 ## Setting cron auto-scaling policy
 Introduce how to automatically scale workloads by cron.
 
