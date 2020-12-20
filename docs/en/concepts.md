@@ -1,6 +1,6 @@
 # Concepts and Glossaries
 
-This document explains some technical terms that are widely used in KubeVela, such as `application`, `service`, `workload type`, `trait` etc., from application developer's perspective. The goal is to clarify them in the context of KubeVela.
+This document explains some technical terms that are widely used in KubeVela, such as `application`, `service`, `workload type`, `trait` etc., from user's perspective. The goal is to clarify them in the context of KubeVela.
 
 ## Overview
 
@@ -26,3 +26,10 @@ An application is defined by an `Appfile` (named `vela.yaml` by default) in Kube
 
 ## Environment
 Before releasing an application to production, it's important to test the code in testing/staging workspaces. In KubeVela, we describe these workspaces as "deployment environments" or "environments" for short. Each environment has its own configuration (e.g., domain, Kubernetes namespace, configuration data, access control policy etc.) to allow user to create different deployment environments such as "test" and "production".
+
+## What's Next
+
+Now that you have grasped the core ideas of KubeVela. Here are some recommended next steps:
+
+- Continue to try out [more tutorials](developers/learn-appfile.md)
+- Learn how to build platforms with KubeVela following its [platform builder guide](platform-engineers/overview.md)

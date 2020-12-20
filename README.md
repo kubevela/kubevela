@@ -9,22 +9,28 @@
 
 ![alt](docs/resources/KubeVela-03.png)
 
-*Make shipping applications more enjoyable.*
+*Shipping apps with joy, building platforms with smile.*
 
 # KubeVela
 
-For developers, KubeVela is an easy-to-use tool that enables them to describe and ship their applications to Kubernetes with minimal effort.
+For developers, KubeVela serves as an easy-to-use yet extensible platform that enables them to describe and ship applications to Kubernetes with minimal effort.
 
-For platform builders, KubeVela serves as a framework that empowers them to create developer facing yet highly extensible platforms at ease.
+For platform builders, KubeVela is the engine that empowers them to create such platforms at scale.
+
+## Community
 
 - Slack:  [CNCF Slack](https://slack.cncf.io/) #kubevela channel
-- Gitter: [Community](https://gitter.im/oam-dev/community)
+- Gitter: [Discussion](https://gitter.im/oam-dev/community)
 
 > NOTE: KubeVela is still in early stage and iterating quickly. It's currently under preview release.
 
-## Quick Start
+## User Guide
 
-Quick start guides are available on [this section](https://kubevela.io/#/en/quick-start).
+Quick start guides for developers are available on [this section](https://kubevela.io/#/en/quick-start).
+
+## Platform Builder Guide
+
+Tutorials for platform builders are available on [this section](https://kubevela.io/#/en/platform-engineers/overview).
 
 ## Documentation
 

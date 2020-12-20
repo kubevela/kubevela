@@ -2,7 +2,7 @@
   - [Introduction](/en/introduction.md)
   - [Getting Started](/en/quick-start.md)
 
-- Using KubeVela
+- User Guide
   - Appfile
     - [Learning Appfile](/en/developers/learn-appfile.md)
   - Operating
@@ -14,13 +14,14 @@
     - [Port Forwarding](/en/developers/port-forward.md)
     - [Check Application Logs](/en/developers/check-logs.md)
     - [Execute Commands in Container](/en/developers/exec-cmd.md)  
-  - Extensibility
+  - Extending
     - [Managing Capabilities](/en/developers/cap-center.md)
   - Configuring
     - [Setting Up Deployment Environment](/en/developers/config-enviroments.md)
     - [Configuring data/env in Application](/en/developers/config-app.md)
   - [Alternative Commands](/en/developers/alternative-cmd.md)
-- Extending KubeVela
+
+- Platform Builder Guide
   - [Add Workload Type](/en/platform-engineers/workload-type.md)
   - [Add Trait](/en/platform-engineers/trait.md)
   - [Add Cloud Services](/en/platform-engineers/cloud-services.md)
