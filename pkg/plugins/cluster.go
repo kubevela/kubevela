@@ -6,12 +6,14 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	util2 "github.com/oam-dev/kubevela/pkg/commands/util"
@@ -65,20 +67,8 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c types.Args
 			templateErrors = append(templateErrors, errors.Wrapf(err, "handle workload template `%s` failed", wd.Name))
 			continue
 		}
-		if tmp.Install != nil {
-			tmp.Source = &types.Source{ChartName: tmp.Install.Helm.Name}
-			ioStream := util2.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-			if err = helm.InstallHelmChart(ioStream, tmp.Install.Helm); err != nil {
-				return nil, nil, fmt.Errorf("unable to install helm chart dependency %s(%s from %s) for this workload '%s': %w ", tmp.Install.Helm.Name, tmp.Install.Helm.Version, tmp.Install.Helm.URL, wd.Name, err)
-			}
-		}
-		gvk, err := util.GetGVKFromDefinition(dm, wd.Spec.Reference)
-		if err != nil {
-			return nil, nil, fmt.Errorf("capability '%s' was not ready: %w ", wd.Name, err)
-		}
-		tmp.CrdInfo = &types.CRDInfo{
-			APIVersion: gvk.GroupVersion().String(),
-			Kind:       gvk.Kind,
+		if tmp, err = validateCapabilities(tmp, dm, wd.Name, wd.Spec.Reference); err != nil {
+			return nil, nil, err
 		}
 		templates = append(templates, tmp)
 	}
@@ -109,24 +99,39 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, s
 			templateErrors = append(templateErrors, errors.Wrapf(err, "handle trait template `%s` failed\n", td.Name))
 			continue
 		}
-		if tmp.Install != nil {
-			tmp.Source = &types.Source{ChartName: tmp.Install.Helm.Name}
-			ioStream := util2.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-			if err = helm.InstallHelmChart(ioStream, tmp.Install.Helm); err != nil {
-				return nil, nil, fmt.Errorf("unable to install helm chart dependency %s(%s from %s) for this trait '%s': %w ", tmp.Install.Helm.Name, tmp.Install.Helm.Version, tmp.Install.Helm.URL, td.Name, err)
-			}
-		}
-		gvk, err := util.GetGVKFromDefinition(dm, td.Spec.Reference)
-		if err != nil {
-			return nil, nil, fmt.Errorf("capability '%s' was not ready: %w ", td.Name, err)
-		}
-		tmp.CrdInfo = &types.CRDInfo{
-			APIVersion: gvk.GroupVersion().String(),
-			Kind:       gvk.Kind,
+		if tmp, err = validateCapabilities(tmp, dm, td.Name, td.Spec.Reference); err != nil {
+			return nil, nil, err
 		}
 		templates = append(templates, tmp)
 	}
 	return templates, templateErrors, nil
+}
+
+// validateCapabilities validates whether helm charts are successful installed, GVK are successfully retrieved.
+func validateCapabilities(tmp types.Capability, dm discoverymapper.DiscoveryMapper, definitionName string, reference v1alpha2.DefinitionReference) (types.Capability, error) {
+	var err error
+	if tmp.Install != nil {
+		tmp.Source = &types.Source{ChartName: tmp.Install.Helm.Name}
+		ioStream := util2.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+		if err = helm.InstallHelmChart(ioStream, tmp.Install.Helm); err != nil {
+			return tmp, fmt.Errorf("unable to install helm chart dependency %s(%s from %s) for this trait '%s': %w ", tmp.Install.Helm.Name, tmp.Install.Helm.Version, tmp.Install.Helm.URL, definitionName, err)
+		}
+	}
+	gvk, _ := util.GetGVKFromDefinition(dm, reference)
+	if err != nil {
+		errMsg := err.Error()
+		var substr = "no matches for "
+		if strings.Contains(errMsg, substr) {
+			err = fmt.Errorf("expected provider: %s", strings.Split(errMsg, substr)[1])
+		}
+		return tmp, fmt.Errorf("installing capability '%s'... %w", definitionName, err)
+	}
+	tmp.CrdInfo = &types.CRDInfo{
+		APIVersion: gvk.GroupVersion().String(),
+		Kind:       gvk.Kind,
+	}
+
+	return tmp, nil
 }
 
 // HandleDefinition will handle definition to capability

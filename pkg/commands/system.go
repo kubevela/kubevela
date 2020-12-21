@@ -165,7 +165,7 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 	}
 	if err = CheckCapabilityReady(context.Background(), i.c, waitDuration); err != nil {
 		ioStreams.Infof("- Vela-Core was installed successfully while some capabilities were still installing background, "+
-			"try running 'vela workloads' or 'vela traits' to check after a while, details %v", err)
+			"try running 'vela workloads' or 'vela traits' to check after a while, details: %v", err)
 		return nil
 	}
 	if err := RefreshDefinitions(context.Background(), i.c, ioStreams, false, true); err != nil {
@@ -184,8 +184,8 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 
 // CheckCapabilityReady waits unitl capability is installed successfully
 func CheckCapabilityReady(ctx context.Context, c types.Args, timeout time.Duration) error {
-	if timeout < 2*time.Minute {
-		timeout = 2 * time.Minute
+	if timeout < 5*time.Minute {
+		timeout = 5 * time.Minute
 	}
 	tmpdir, err := ioutil.TempDir(".", "tmpcap")
 	if err != nil {
@@ -205,7 +205,7 @@ func CheckCapabilityReady(ctx context.Context, c types.Args, timeout time.Durati
 			return nil
 		}
 		if time.Since(start) > timeout {
-			return fmt.Errorf("timeout checking capability ready: %w", err)
+			return fmt.Errorf("timeout when checking capability readiness: \nWarning: %w", err)
 		}
 		time.Sleep(5 * time.Second)
 	}
