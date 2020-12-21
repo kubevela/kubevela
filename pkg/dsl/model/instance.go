@@ -1,10 +1,8 @@
 package model
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
@@ -12,6 +10,8 @@ import (
 	"cuelang.org/go/cue/token"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/pkg/dsl/model/sets"
 )
 
 // Instance defines Model Interface
@@ -19,7 +19,7 @@ type Instance interface {
 	String() string
 	Object(m *runtime.Scheme) (runtime.Object, error)
 	IsBase() bool
-	Unity(other Instance) error
+	Unify(other Instance) error
 }
 
 type instance struct {
@@ -69,18 +69,9 @@ func (inst *instance) Object(m *runtime.Scheme) (runtime.Object, error) {
 	return o, nil
 }
 
-// Unity implement unity operations between instances
-func (inst *instance) Unity(other Instance) error {
-	var r cue.Runtime
-	raw, err := r.Compile("-", inst.v)
-	if err != nil {
-		return err
-	}
-	o, err := r.Compile("-", other.String())
-	if err != nil {
-		return err
-	}
-	pv, err := print(raw.Value().Unify(o.Value()))
+// Unify implement unity operations between instances
+func (inst *instance) Unify(other Instance) error {
+	pv, err := sets.StrategyUnify(inst.v, other.String())
 	if err != nil {
 		return err
 	}
@@ -111,36 +102,6 @@ func NewOther(v cue.Value) (Instance, error) {
 	}, nil
 }
 
-func print(v cue.Value) (string, error) {
-	v = v.Eval()
-	syopts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true)}
-
-	var w bytes.Buffer
-	useSep := false
-	format := func(name string, n ast.Node) error {
-		if name != "" {
-			// TODO: make this relative to DIR
-			fmt.Fprintf(&w, "// %s\n", filepath.Base(name))
-		} else if useSep {
-			fmt.Println("// ---")
-		}
-		useSep = true
-
-		b, err := format.Node(toFile(n))
-		if err != nil {
-			return err
-		}
-		_, err = w.Write(b)
-		return err
-	}
-
-	if err := format("", v.Syntax(syopts...)); err != nil {
-		return "", err
-	}
-	instStr := w.String()
-	return instStr, nil
-}
-
 func toFile(n ast.Node) *ast.File {
 	switch x := n.(type) {
 	case nil:
@@ -158,7 +119,7 @@ func toFile(n ast.Node) *ast.File {
 }
 
 func openPrint(v cue.Value) (string, error) {
-	sysopts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true)}
+	sysopts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true), cue.Docs(true)}
 	f := toFile(v.Syntax(sysopts...))
 	for _, decl := range f.Decls {
 		listOpen(decl)

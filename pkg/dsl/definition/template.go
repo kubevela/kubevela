@@ -152,7 +152,7 @@ func (td *traitDef) Complete(ctx process.Context) error {
 			if err != nil {
 				return errors.WithMessagef(err, "traitDef %s patcher NewOther", td.name)
 			}
-			if err := base.Unity(p); err != nil {
+			if err := base.Unify(p); err != nil {
 				return err
 			}
 		}

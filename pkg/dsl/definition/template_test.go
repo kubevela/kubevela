@@ -89,8 +89,8 @@ parameter: {
 		{
 			templ: `
 patch: {
-	 _containers: context.input.spec.template.spec.containers+[parameter]
-      sepc: template: spec: containers: _containers
+      // +patchKey=name
+      spec: template: spec: containers: [parameter]
 }
 
 parameter: {
@@ -119,6 +119,17 @@ parameter: {
 	assert.Equal(t, false, base == nil)
 	obj, err := base.Object(nil)
 	assert.Equal(t, nil, err)
-	expect := &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "apps/v1", "kind": "Deployment", "metadata": map[string]interface{}{"name": "test"}, "sepc": map[string]interface{}{"template": map[string]interface{}{"spec": map[string]interface{}{"containers": []interface{}{map[string]interface{}{"image": "website:0.1", "name": "main"}, map[string]interface{}{"image": "metrics-agent:0.2", "name": "sidecar"}}}}}, "spec": map[string]interface{}{"replicas": int64(2), "template": map[string]interface{}{"spec": map[string]interface{}{"containers": []interface{}{map[string]interface{}{"image": "website:0.1", "name": "main"}}}}}}}
+	expect := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata":   map[string]interface{}{"name": "test"},
+			"spec": map[string]interface{}{
+				"replicas": int64(2),
+				"template": map[string]interface{}{
+					"spec": map[string]interface{}{
+						"containers": []interface{}{map[string]interface{}{"image": "website:0.1", "name": "main"},
+							map[string]interface{}{"image": "metrics-agent:0.2", "name": "sidecar"}}}}},
+		}}
 	assert.Equal(t, expect, obj)
 }
