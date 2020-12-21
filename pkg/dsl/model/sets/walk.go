@@ -38,8 +38,8 @@ func (nwk *nodewalker) walk(node ast.Node) {
 
 	case *ast.Field:
 		if n.Value != nil {
-			origin := nwk.pos[:]
-			ori_tags := nwk.tags
+			origin := nwk.pos
+			oriTags := nwk.tags
 			nwk.pos = append(nwk.pos, labelStr(n.Label))
 			tags := findCommentTag(n.Comments())
 			for tk, tv := range tags {
@@ -47,15 +47,12 @@ func (nwk *nodewalker) walk(node ast.Node) {
 			}
 
 			nwk.walk(n.Value)
-			nwk.tags = ori_tags
+			nwk.tags = oriTags
 			nwk.pos = origin
 		}
 
 	case *ast.StructLit:
 		nwk.walkDeclList(n.Elts)
-
-	case *ast.TemplateLabel:
-		nwk.walk(n.Ident)
 
 	case *ast.Interpolation:
 
@@ -105,7 +102,7 @@ func (nwk *nodewalker) walk(node ast.Node) {
 
 func (nwk *nodewalker) walkExprList(list []ast.Expr) {
 	for i, x := range list {
-		origin := nwk.pos[:]
+		origin := nwk.pos
 		nwk.pos = append(nwk.pos, strconv.Itoa(i))
 		nwk.walk(x)
 		nwk.pos = origin

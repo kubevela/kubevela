@@ -32,7 +32,7 @@ func strategyListMerge(base cue.Value, r cue.Runtime) interceptor {
 				return
 			}
 			baselist, ok := baseNode.(*ast.ListLit)
-			if err != nil {
+			if !ok {
 				return
 			}
 
@@ -79,7 +79,8 @@ func strategyListMerge(base cue.Value, r cue.Runtime) interceptor {
 			for _, v := range kmaps {
 				nElts = append(nElts, v)
 			}
-			clist.Elts = append(nElts, &ast.Ellipsis{})
+			nElts = append(nElts, &ast.Ellipsis{})
+			clist.Elts = nElts
 		})
 		walker.walk(lnode)
 		inst, err := r.CompileFile(toFile(lnode))
@@ -90,6 +91,7 @@ func strategyListMerge(base cue.Value, r cue.Runtime) interceptor {
 	}
 }
 
+// StrategyUnify unify the objects by the strategy
 func StrategyUnify(base, other string) (string, error) {
 	var r cue.Runtime
 	raw, err := r.Compile("-", base)
