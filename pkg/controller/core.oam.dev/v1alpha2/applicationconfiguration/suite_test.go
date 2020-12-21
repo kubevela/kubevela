@@ -37,6 +37,7 @@ import (
 )
 
 var reconciler *OAMApplicationReconciler
+var componentHandler *ComponentHandler
 var mgrclose chan struct{}
 var testEnv *envtest.Environment
 var cfg *rest.Config
@@ -156,6 +157,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(mapping.Resource.Resource).Should(Equal("foo"))
 
 	reconciler = NewReconciler(mgr, dm, WithLogger(logging.NewLogrLogger(ctrl.Log.WithName("suit-test-appconfig"))))
+	componentHandler = &ComponentHandler{Client: k8sClient, RevisionLimit: 100, Logger: logging.NewLogrLogger(ctrl.Log.WithName("component-handler"))}
 
 	By("Creating workload definition and trait definition")
 	wd := v1alpha2.WorkloadDefinition{
@@ -178,10 +180,25 @@ var _ = BeforeSuite(func(done Done) {
 			},
 		},
 	}
+
+	rollout := v1alpha2.TraitDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "rollout-revision",
+		},
+		Spec: v1alpha2.TraitDefinitionSpec{
+			Reference: v1alpha2.DefinitionReference{
+				Name: "foo.example.com",
+			},
+			RevisionEnabled: true,
+		},
+	}
+
 	// For some reason, WorkloadDefinition is created as a Cluster scope object
 	Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	// For some reason, TraitDefinition is created as a Cluster scope object
 	Expect(k8sClient.Create(ctx, &td)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	// rollout trait is used for revisionEnable case test
+	Expect(k8sClient.Create(ctx, &rollout)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	close(done)
 }, 300)

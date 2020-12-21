@@ -13,14 +13,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Test Updating-apply trait in an ApplicationConfiguration", func() {
@@ -30,7 +28,7 @@ var _ = Describe("Test Updating-apply trait in an ApplicationConfiguration", fun
 		compName         = "example-comp"
 		fakeTraitCRDName = "bars.example.com"
 		fakeTraitGroup   = "example.com"
-		fakeTraiitKind   = "Bar"
+		fakeTraitKind    = "Bar"
 	)
 	var (
 		ctx          = context.Background()
@@ -124,7 +122,7 @@ var _ = Describe("Test Updating-apply trait in an ApplicationConfiguration", fun
 			Spec: crdv1.CustomResourceDefinitionSpec{
 				Group: fakeTraitGroup,
 				Names: crdv1.CustomResourceDefinitionNames{
-					Kind:     fakeTraiitKind,
+					Kind:     fakeTraitKind,
 					ListKind: "BarList",
 					Plural:   "bars",
 					Singular: "bar",
