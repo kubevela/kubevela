@@ -42,7 +42,7 @@
       - [Rollout](/en/developers/references/traits/rollout.md)
       - [Metrics](/en/developers/references/traits/metrics.md)
       - [Scaler](/en/developers/references/traits/scaler.md)
-  - [Restful API](/en/developers/references/restful-api.html)
+  - [Restful APi](/en/developers/references/restful-api/index.html ':ignore')
   - CLI
     - General
       - [vela config](/en/cli/vela_config.md)
@@ -76,5 +76,4 @@
       - [vela template](/en/cli/vela_template.md)
     - Extensibility
       - [vela cap](/en/cli/vela_cap.md)
-  - [Restful APi](/en/developers/references/restful-api/index.html ':ignore')
   - [FAQ](/en/developers/references/devex/faq.md)

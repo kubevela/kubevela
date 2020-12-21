@@ -1,5 +1,43 @@
 basePath: /api
 definitions:
+  apis.ApplicationMeta:
+    properties:
+      components:
+        items:
+          $ref: '#/definitions/apis.ComponentMeta'
+        type: array
+      createdTime:
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+    type: object
+  apis.ComponentMeta:
+    properties:
+      app:
+        type: string
+      createdTime:
+        type: string
+      name:
+        type: string
+      status:
+        type: string
+      traits:
+        items:
+          $ref: '#/definitions/v1alpha2.ComponentTrait'
+        type: array
+      traitsNames:
+        description: TraitNames for `vela comp ls`
+        items:
+          type: string
+        type: array
+      workload:
+        type: string
+      workloadName:
+        description: WorkloadName for `vela comp ls`
+        type: string
+    type: object
   apis.Environment:
     properties:
       current:
@@ -28,10 +66,386 @@ definitions:
       code:
         type: integer
     type: object
+  v1alpha2.ApplicationConfiguration:
+    properties:
+      spec:
+        $ref: '#/definitions/v1alpha2.ApplicationConfigurationSpec'
+        type: object
+      status:
+        $ref: '#/definitions/v1alpha2.ApplicationConfigurationStatus'
+        type: object
+    type: object
+  v1alpha2.ApplicationConfigurationComponent:
+    properties:
+      componentName:
+        description: |-
+          ComponentName specifies a component whose latest revision will be bind
+          with ApplicationConfiguration. When the spec of the referenced component
+          changes, ApplicationConfiguration will automatically migrate all trait
+          affect from the prior revision to the new one. This is mutually exclusive
+          with RevisionName.
+          +optional
+        type: string
+      dataInputs:
+        description: DataInputs specify the data input sinks into this component.
+        items:
+          $ref: '#/definitions/v1alpha2.DataInput'
+        type: array
+      dataOutputs:
+        description: DataOutputs specify the data output sources from this component.
+        items:
+          $ref: '#/definitions/v1alpha2.DataOutput'
+        type: array
+      parameterValues:
+        description: |-
+          ParameterValues specify values for the the specified component's
+          parameters. Any parameter required by the component must be specified.
+          +optional
+        items:
+          $ref: '#/definitions/v1alpha2.ComponentParameterValue'
+        type: array
+      revisionName:
+        description: |-
+          RevisionName of a specific component revision to which to bind
+          ApplicationConfiguration. This is mutually exclusive with componentName.
+          +optional
+        type: string
+      scopes:
+        description: |-
+          Scopes in which the specified component should exist.
+          +optional
+        items:
+          $ref: '#/definitions/v1alpha2.ComponentScope'
+        type: array
+      traits:
+        description: |-
+          Traits of the specified component.
+          +optional
+        items:
+          $ref: '#/definitions/v1alpha2.ComponentTrait'
+        type: array
+    type: object
+  v1alpha2.ApplicationConfigurationSpec:
+    properties:
+      components:
+        description: |-
+          Components of which this ApplicationConfiguration consists. Each
+          component will be used to instantiate a workload.
+        items:
+          $ref: '#/definitions/v1alpha2.ApplicationConfigurationComponent'
+        type: array
+    type: object
+  v1alpha2.ApplicationConfigurationStatus:
+    properties:
+      dependency:
+        $ref: '#/definitions/v1alpha2.DependencyStatus'
+        type: object
+      historyWorkloads:
+        description: HistoryWorkloads will record history but still working revision workloads.
+        items:
+          $ref: '#/definitions/v1alpha2.HistoryWorkload'
+        type: array
+      observedGeneration:
+        description: |-
+          The generation observed by the appConfig controller.
+          +optional
+        type: integer
+      status:
+        description: |-
+          Status is a place holder for a customized controller to fill
+          if it needs a single place to summarize the status of the entire application
+        type: string
+      workloads:
+        description: Workloads created by this ApplicationConfiguration.
+        items:
+          $ref: '#/definitions/v1alpha2.WorkloadStatus'
+        type: array
+    type: object
+  v1alpha2.Component:
+    properties:
+      spec:
+        $ref: '#/definitions/v1alpha2.ComponentSpec'
+        type: object
+      status:
+        $ref: '#/definitions/v1alpha2.ComponentStatus'
+        type: object
+    type: object
+  v1alpha2.ComponentParameter:
+    properties:
+      description:
+        description: |-
+          Description of this parameter.
+          +optional
+        type: string
+      fieldPaths:
+        description: |-
+          FieldPaths specifies an array of fields within this Component's workload
+          that will be overwritten by the value of this parameter. The type of the
+          parameter (e.g. int, string) is inferred from the type of these fields;
+          All fields must be of the same type. Fields are specified as JSON field
+          paths without a leading dot, for example 'spec.replicas'.
+        items:
+          type: string
+        type: array
+      name:
+        description: |-
+          Name of this parameter. OAM ApplicationConfigurations will specify
+          parameter values using this name.
+        type: string
+      required:
+        description: |-
+          +kubebuilder:default:=false
+          Required specifies whether or not a value for this parameter must be
+          supplied when authoring an ApplicationConfiguration.
+          +optional
+        type: boolean
+    type: object
+  v1alpha2.ComponentParameterValue:
+    properties:
+      name:
+        description: Name of the component parameter to set.
+        type: string
+      value:
+        description: Value to set.
+        type: string
+    type: object
+  v1alpha2.ComponentScope:
+    properties:
+      scopeRef:
+        description: A ScopeReference must refer to an OAM scope resource.
+        type: string
+    type: object
+  v1alpha2.ComponentSpec:
+    properties:
+      parameters:
+        description: |-
+          Parameters exposed by this component. ApplicationConfigurations that
+          reference this component may specify values for these parameters, which
+          will in turn be injected into the embedded workload.
+          +optional
+        items:
+          $ref: '#/definitions/v1alpha2.ComponentParameter'
+        type: array
+      workload:
+        description: |-
+          A Workload that will be created for each ApplicationConfiguration that
+          includes this Component. Workload is an instance of a workloadDefinition.
+          We either use the GVK info or a special "type" field in the workload to associate
+          the content of the workload with its workloadDefinition
+          +kubebuilder:validation:EmbeddedResource
+          +kubebuilder:pruning:PreserveUnknownFields
+        type: string
+    type: object
+  v1alpha2.ComponentStatus:
+    properties:
+      latestRevision:
+        $ref: '#/definitions/v1alpha2.Revision'
+        description: |-
+          LatestRevision of component
+          +optional
+        type: object
+      observedGeneration:
+        description: |-
+          The generation observed by the component controller.
+          +optional
+        type: integer
+    type: object
+  v1alpha2.ComponentTrait:
+    properties:
+      dataInputs:
+        description: |-
+          DataInputs specify the data input sinks into this trait.
+          +optional
+        items:
+          $ref: '#/definitions/v1alpha2.DataInput'
+        type: array
+      dataOutputs:
+        description: |-
+          DataOutputs specify the data output sources from this trait.
+          +optional
+        items:
+          $ref: '#/definitions/v1alpha2.DataOutput'
+        type: array
+      trait:
+        description: |-
+          A Trait that will be created for the component
+          +kubebuilder:validation:EmbeddedResource
+          +kubebuilder:pruning:PreserveUnknownFields
+        type: string
+    type: object
+  v1alpha2.ConditionRequirement:
+    properties:
+      fieldPath:
+        description: |-
+          +optional
+          FieldPath specifies got value from workload/trait object
+        type: string
+      op:
+        type: string
+      value:
+        description: |-
+          +optional
+          Value specifies an expected value
+          This is mutually exclusive with ValueFrom
+        type: string
+      valueFrom:
+        $ref: '#/definitions/v1alpha2.ValueFrom'
+        description: |-
+          +optional
+          ValueFrom specifies expected value from AppConfig
+          This is mutually exclusive with Value
+        type: object
+    type: object
+  v1alpha2.DataInput:
+    properties:
+      toFieldPaths:
+        description: ToFieldPaths specifies the field paths of an object to fill passed value.
+        items:
+          type: string
+        type: array
+      valueFrom:
+        $ref: '#/definitions/v1alpha2.DataInputValueFrom'
+        description: ValueFrom specifies the value source.
+        type: object
+    type: object
+  v1alpha2.DataInputValueFrom:
+    properties:
+      dataOutputName:
+        description: DataOutputName matches a name of a DataOutput in the same AppConfig.
+        type: string
+    type: object
+  v1alpha2.DataOutput:
+    properties:
+      conditions:
+        description: |-
+          Conditions specify the conditions that should be satisfied before emitting a data output.
+          Different conditions are AND-ed together.
+          If no conditions is specified, it is by default to check output value not empty.
+          +optional
+        items:
+          $ref: '#/definitions/v1alpha2.ConditionRequirement'
+        type: array
+      fieldPath:
+        description: FieldPath refers to the value of an object's field.
+        type: string
+      name:
+        description: Name is the unique name of a DataOutput in an ApplicationConfiguration.
+        type: string
+    type: object
+  v1alpha2.DependencyFromObject:
+    properties:
+      fieldPath:
+        type: string
+    type: object
+  v1alpha2.DependencyStatus:
+    properties:
+      unsatisfied:
+        items:
+          $ref: '#/definitions/v1alpha2.UnstaifiedDependency'
+        type: array
+    type: object
+  v1alpha2.DependencyToObject:
+    properties:
+      fieldPaths:
+        items:
+          type: string
+        type: array
+    type: object
+  v1alpha2.HistoryWorkload:
+    properties:
+      revision:
+        description: Revision of this workload
+        type: string
+      workloadRef:
+        description: Reference to running workload.
+        type: string
+    type: object
+  v1alpha2.Revision:
+    properties:
+      name:
+        type: string
+      revision:
+        type: integer
+    type: object
+  v1alpha2.UnstaifiedDependency:
+    properties:
+      from:
+        $ref: '#/definitions/v1alpha2.DependencyFromObject'
+        type: object
+      reason:
+        type: string
+      to:
+        $ref: '#/definitions/v1alpha2.DependencyToObject'
+        type: object
+    type: object
+  v1alpha2.ValueFrom:
+    properties:
+      fieldPath:
+        type: string
+    type: object
+  v1alpha2.WorkloadScope:
+    properties:
+      scopeRef:
+        description: Reference to a scope created by an ApplicationConfiguration.
+        type: string
+      status:
+        description: |-
+          Status is a place holder for a customized controller to fill
+          if it needs a single place to summarize the status of the scope
+        type: string
+    type: object
+  v1alpha2.WorkloadStatus:
+    properties:
+      componentName:
+        description: ComponentName that produced this workload.
+        type: string
+      componentRevisionName:
+        description: ComponentRevisionName of current component
+        type: string
+      scopes:
+        description: Scopes associated with this workload.
+        items:
+          $ref: '#/definitions/v1alpha2.WorkloadScope'
+        type: array
+      status:
+        description: |-
+          Status is a place holder for a customized controller to fill
+          if it needs a single place to summarize the entire status of the workload
+        type: string
+      traits:
+        description: Traits associated with this workload.
+        items:
+          $ref: '#/definitions/v1alpha2.WorkloadTrait'
+        type: array
+      workloadRef:
+        description: Reference to a workload created by an ApplicationConfiguration.
+        type: string
+    type: object
+  v1alpha2.WorkloadTrait:
+    properties:
+      message:
+        description: Message will allow controller to leave some additional information for this trait
+        type: string
+      status:
+        description: |-
+          Status is a place holder for a customized controller to fill
+          if it needs a single place to summarize the status of the trait
+        type: string
+      traitRef:
+        description: Reference to a trait created by an ApplicationConfiguration.
+        type: string
+    type: object
+host: 127.0.0.1:38081
 info:
-  contact: {}
-  description: An KubeVela API.
-  title: KubeVela API
+  contact:
+    email: zzxwill@gmail.com
+    name: 'Slack #kubevela'
+    url: https://kubevela.io
+  description: KubeVela OpenAPI for applications/workloads/operating
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  title: KubeVela Restful API
   version: 0.0.1
 paths:
   /envs/:
@@ -70,13 +484,6 @@ paths:
       - environments
     post:
       operationId: createEnvironment
-      parameters:
-      - description: body
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/apis.Environment'
       responses:
         "200":
           description: OK
@@ -243,4 +650,41 @@ paths:
               type: object
       tags:
       - environments
+  /envs/{envName}/apps:
+    get:
+      operationId: ListApplications
+      parameters:
+      - description: environment name
+        in: path
+        name: envName
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  items:
+                    $ref: '#/definitions/apis.ApplicationMeta'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  type: string
+              type: object
+      summary: list all applications
+      tags:
+      - applications
 swagger: "2.0"

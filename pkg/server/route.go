@@ -26,7 +26,7 @@ import (
 // @contact.email zzxwill@gmail.com
 // @license.name Apache 2.0
 // @license.url http://www.apache.org/licenses/LICENSE-2.0.html
-// @host https://kubevela.io
+// @host 127.0.0.1:38081
 // @BasePath /api
 func (s *APIServer) setupRoute(staticPath string) http.Handler {
 	// if deploying static Dashboard, set the mode to `release`, or to `debug`

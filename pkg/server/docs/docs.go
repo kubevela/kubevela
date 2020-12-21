@@ -18,7 +18,15 @@ var doc = `{
     "info": {
         "description": "{{.Description}}",
         "title": "{{.Title}}",
-        "contact": {},
+        "contact": {
+            "name": "Slack #kubevela",
+            "url": "https://kubevela.io",
+            "email": "zzxwill@gmail.com"
+        },
+        "license": {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        },
         "version": "{{.Version}}"
     },
     "host": "{{.Host}}",
@@ -89,17 +97,6 @@ var doc = `{
                     "environments"
                 ],
                 "operationId": "createEnvironment",
-                "parameters": [
-                    {
-                        "description": "body",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/apis.Environment"
-                        }
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -395,9 +392,131 @@ var doc = `{
                     }
                 }
             }
+        },
+        "/envs/{envName}/apps": {
+            "get": {
+                "tags": [
+                    "applications"
+                ],
+                "summary": "list all applications",
+                "operationId": "ListApplications",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "environment name",
+                        "name": "envName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/apis.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "code": {
+                                            "type": "integer"
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/apis.ApplicationMeta"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/apis.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "code": {
+                                            "type": "integer"
+                                        },
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
+        "apis.ApplicationMeta": {
+            "type": "object",
+            "properties": {
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/apis.ComponentMeta"
+                    }
+                },
+                "createdTime": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "apis.ComponentMeta": {
+            "type": "object",
+            "properties": {
+                "app": {
+                    "type": "string"
+                },
+                "createdTime": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "traits": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha2.ComponentTrait"
+                    }
+                },
+                "traitsNames": {
+                    "description": "TraitNames for ` + "`" + `vela comp ls` + "`" + `",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "workload": {
+                    "type": "string"
+                },
+                "workloadName": {
+                    "description": "WorkloadName for ` + "`" + `vela comp ls` + "`" + `",
+                    "type": "string"
+                }
+            }
+        },
         "apis.Environment": {
             "type": "object",
             "required": [
@@ -440,6 +559,432 @@ var doc = `{
                     "type": "integer"
                 }
             }
+        },
+        "v1alpha2.ApplicationConfiguration": {
+            "type": "object",
+            "properties": {
+                "spec": {
+                    "type": "object",
+                    "$ref": "#/definitions/v1alpha2.ApplicationConfigurationSpec"
+                },
+                "status": {
+                    "type": "object",
+                    "$ref": "#/definitions/v1alpha2.ApplicationConfigurationStatus"
+                }
+            }
+        },
+        "v1alpha2.ApplicationConfigurationComponent": {
+            "type": "object",
+            "properties": {
+                "componentName": {
+                    "description": "ComponentName specifies a component whose latest revision will be bind\nwith ApplicationConfiguration. When the spec of the referenced component\nchanges, ApplicationConfiguration will automatically migrate all trait\naffect from the prior revision to the new one. This is mutually exclusive\nwith RevisionName.\n+optional",
+                    "type": "string"
+                },
+                "dataInputs": {
+                    "description": "DataInputs specify the data input sinks into this component.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha2.DataInput"
+                    }
+                },
+                "dataOutputs": {
+                    "description": "DataOutputs specify the data output sources from this component.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha2.DataOutput"
+                    }
+                },
+                "parameterValues": {
+                    "description": "ParameterValues specify values for the the specified component's\nparameters. Any parameter required by the component must be specified.\n+optional",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha2.ComponentParameterValue"
+                    }
+                },
+                "revisionName": {
+                    "description": "RevisionName of a specific component revision to which to bind\nApplicationConfiguration. This is mutually exclusive with componentName.\n+optional",
+                    "type": "string"
+                },
+                "scopes": {
+                    "description": "Scopes in which the specified component should exist.\n+optional",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha2.ComponentScope"
+                    }
+                },
+                "traits": {
+                    "description": "Traits of the specified component.\n+optional",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha2.ComponentTrait"
+                    }
+                }
+            }
+        },
+        "v1alpha2.ApplicationConfigurationSpec": {
+            "type": "object",
+            "properties": {
+                "components": {
+                    "description": "Components of which this ApplicationConfiguration consists. Each\ncomponent will be used to instantiate a workload.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha2.ApplicationConfigurationComponent"
+                    }
+                }
+            }
+        },
+        "v1alpha2.ApplicationConfigurationStatus": {
+            "type": "object",
+            "properties": {
+                "dependency": {
+                    "type": "object",
+                    "$ref": "#/definitions/v1alpha2.DependencyStatus"
+                },
+                "historyWorkloads": {
+                    "description": "HistoryWorkloads will record history but still working revision workloads.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha2.HistoryWorkload"
+                    }
+                },
+                "observedGeneration": {
+                    "description": "The generation observed by the appConfig controller.\n+optional",
+                    "type": "integer"
+                },
+                "status": {
+                    "description": "Status is a place holder for a customized controller to fill\nif it needs a single place to summarize the status of the entire application",
+                    "type": "string"
+                },
+                "workloads": {
+                    "description": "Workloads created by this ApplicationConfiguration.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha2.WorkloadStatus"
+                    }
+                }
+            }
+        },
+        "v1alpha2.Component": {
+            "type": "object",
+            "properties": {
+                "spec": {
+                    "type": "object",
+                    "$ref": "#/definitions/v1alpha2.ComponentSpec"
+                },
+                "status": {
+                    "type": "object",
+                    "$ref": "#/definitions/v1alpha2.ComponentStatus"
+                }
+            }
+        },
+        "v1alpha2.ComponentParameter": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "description": "Description of this parameter.\n+optional",
+                    "type": "string"
+                },
+                "fieldPaths": {
+                    "description": "FieldPaths specifies an array of fields within this Component's workload\nthat will be overwritten by the value of this parameter. The type of the\nparameter (e.g. int, string) is inferred from the type of these fields;\nAll fields must be of the same type. Fields are specified as JSON field\npaths without a leading dot, for example 'spec.replicas'.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "description": "Name of this parameter. OAM ApplicationConfigurations will specify\nparameter values using this name.",
+                    "type": "string"
+                },
+                "required": {
+                    "description": "+kubebuilder:default:=false\nRequired specifies whether or not a value for this parameter must be\nsupplied when authoring an ApplicationConfiguration.\n+optional",
+                    "type": "boolean"
+                }
+            }
+        },
+        "v1alpha2.ComponentParameterValue": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "description": "Name of the component parameter to set.",
+                    "type": "string"
+                },
+                "value": {
+                    "description": "Value to set.",
+                    "type": "string"
+                }
+            }
+        },
+        "v1alpha2.ComponentScope": {
+            "type": "object",
+            "properties": {
+                "scopeRef": {
+                    "description": "A ScopeReference must refer to an OAM scope resource.",
+                    "type": "string"
+                }
+            }
+        },
+        "v1alpha2.ComponentSpec": {
+            "type": "object",
+            "properties": {
+                "parameters": {
+                    "description": "Parameters exposed by this component. ApplicationConfigurations that\nreference this component may specify values for these parameters, which\nwill in turn be injected into the embedded workload.\n+optional",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha2.ComponentParameter"
+                    }
+                },
+                "workload": {
+                    "description": "A Workload that will be created for each ApplicationConfiguration that\nincludes this Component. Workload is an instance of a workloadDefinition.\nWe either use the GVK info or a special \"type\" field in the workload to associate\nthe content of the workload with its workloadDefinition\n+kubebuilder:validation:EmbeddedResource\n+kubebuilder:pruning:PreserveUnknownFields",
+                    "type": "string"
+                }
+            }
+        },
+        "v1alpha2.ComponentStatus": {
+            "type": "object",
+            "properties": {
+                "latestRevision": {
+                    "description": "LatestRevision of component\n+optional",
+                    "type": "object",
+                    "$ref": "#/definitions/v1alpha2.Revision"
+                },
+                "observedGeneration": {
+                    "description": "The generation observed by the component controller.\n+optional",
+                    "type": "integer"
+                }
+            }
+        },
+        "v1alpha2.ComponentTrait": {
+            "type": "object",
+            "properties": {
+                "dataInputs": {
+                    "description": "DataInputs specify the data input sinks into this trait.\n+optional",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha2.DataInput"
+                    }
+                },
+                "dataOutputs": {
+                    "description": "DataOutputs specify the data output sources from this trait.\n+optional",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha2.DataOutput"
+                    }
+                },
+                "trait": {
+                    "description": "A Trait that will be created for the component\n+kubebuilder:validation:EmbeddedResource\n+kubebuilder:pruning:PreserveUnknownFields",
+                    "type": "string"
+                }
+            }
+        },
+        "v1alpha2.ConditionRequirement": {
+            "type": "object",
+            "properties": {
+                "fieldPath": {
+                    "description": "+optional\nFieldPath specifies got value from workload/trait object",
+                    "type": "string"
+                },
+                "op": {
+                    "type": "string"
+                },
+                "value": {
+                    "description": "+optional\nValue specifies an expected value\nThis is mutually exclusive with ValueFrom",
+                    "type": "string"
+                },
+                "valueFrom": {
+                    "description": "+optional\nValueFrom specifies expected value from AppConfig\nThis is mutually exclusive with Value",
+                    "type": "object",
+                    "$ref": "#/definitions/v1alpha2.ValueFrom"
+                }
+            }
+        },
+        "v1alpha2.DataInput": {
+            "type": "object",
+            "properties": {
+                "toFieldPaths": {
+                    "description": "ToFieldPaths specifies the field paths of an object to fill passed value.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "valueFrom": {
+                    "description": "ValueFrom specifies the value source.",
+                    "type": "object",
+                    "$ref": "#/definitions/v1alpha2.DataInputValueFrom"
+                }
+            }
+        },
+        "v1alpha2.DataInputValueFrom": {
+            "type": "object",
+            "properties": {
+                "dataOutputName": {
+                    "description": "DataOutputName matches a name of a DataOutput in the same AppConfig.",
+                    "type": "string"
+                }
+            }
+        },
+        "v1alpha2.DataOutput": {
+            "type": "object",
+            "properties": {
+                "conditions": {
+                    "description": "Conditions specify the conditions that should be satisfied before emitting a data output.\nDifferent conditions are AND-ed together.\nIf no conditions is specified, it is by default to check output value not empty.\n+optional",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha2.ConditionRequirement"
+                    }
+                },
+                "fieldPath": {
+                    "description": "FieldPath refers to the value of an object's field.",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name is the unique name of a DataOutput in an ApplicationConfiguration.",
+                    "type": "string"
+                }
+            }
+        },
+        "v1alpha2.DependencyFromObject": {
+            "type": "object",
+            "properties": {
+                "fieldPath": {
+                    "type": "string"
+                }
+            }
+        },
+        "v1alpha2.DependencyStatus": {
+            "type": "object",
+            "properties": {
+                "unsatisfied": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha2.UnstaifiedDependency"
+                    }
+                }
+            }
+        },
+        "v1alpha2.DependencyToObject": {
+            "type": "object",
+            "properties": {
+                "fieldPaths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "v1alpha2.HistoryWorkload": {
+            "type": "object",
+            "properties": {
+                "revision": {
+                    "description": "Revision of this workload",
+                    "type": "string"
+                },
+                "workloadRef": {
+                    "description": "Reference to running workload.",
+                    "type": "string"
+                }
+            }
+        },
+        "v1alpha2.Revision": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "revision": {
+                    "type": "integer"
+                }
+            }
+        },
+        "v1alpha2.UnstaifiedDependency": {
+            "type": "object",
+            "properties": {
+                "from": {
+                    "type": "object",
+                    "$ref": "#/definitions/v1alpha2.DependencyFromObject"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "to": {
+                    "type": "object",
+                    "$ref": "#/definitions/v1alpha2.DependencyToObject"
+                }
+            }
+        },
+        "v1alpha2.ValueFrom": {
+            "type": "object",
+            "properties": {
+                "fieldPath": {
+                    "type": "string"
+                }
+            }
+        },
+        "v1alpha2.WorkloadScope": {
+            "type": "object",
+            "properties": {
+                "scopeRef": {
+                    "description": "Reference to a scope created by an ApplicationConfiguration.",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Status is a place holder for a customized controller to fill\nif it needs a single place to summarize the status of the scope",
+                    "type": "string"
+                }
+            }
+        },
+        "v1alpha2.WorkloadStatus": {
+            "type": "object",
+            "properties": {
+                "componentName": {
+                    "description": "ComponentName that produced this workload.",
+                    "type": "string"
+                },
+                "componentRevisionName": {
+                    "description": "ComponentRevisionName of current component",
+                    "type": "string"
+                },
+                "scopes": {
+                    "description": "Scopes associated with this workload.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha2.WorkloadScope"
+                    }
+                },
+                "status": {
+                    "description": "Status is a place holder for a customized controller to fill\nif it needs a single place to summarize the entire status of the workload",
+                    "type": "string"
+                },
+                "traits": {
+                    "description": "Traits associated with this workload.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha2.WorkloadTrait"
+                    }
+                },
+                "workloadRef": {
+                    "description": "Reference to a workload created by an ApplicationConfiguration.",
+                    "type": "string"
+                }
+            }
+        },
+        "v1alpha2.WorkloadTrait": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "description": "Message will allow controller to leave some additional information for this trait",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Status is a place holder for a customized controller to fill\nif it needs a single place to summarize the status of the trait",
+                    "type": "string"
+                },
+                "traitRef": {
+                    "description": "Reference to a trait created by an ApplicationConfiguration.",
+                    "type": "string"
+                }
+            }
         }
     }
 }`
@@ -456,11 +1001,11 @@ type swaggerInfo struct {
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = swaggerInfo{
 	Version:     "0.0.1",
-	Host:        "",
+	Host:        "127.0.0.1:38081",
 	BasePath:    "/api",
 	Schemes:     []string{},
-	Title:       "KubeVela API",
-	Description: "An KubeVela API.",
+	Title:       "KubeVela Restful API",
+	Description: "KubeVela OpenAPI for applications/workloads/operating",
 }
 
 type s struct{}

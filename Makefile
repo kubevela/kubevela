@@ -67,7 +67,7 @@ doc-gen:
 api-gen:
 	swag init -g pkg/server/route.go --output pkg/server/docs
 	swagger-codegen generate -l html2 -i pkg/server/docs/swagger.yaml -o pkg/server/docs
-	mv pkg/server/docs/index.html docs/en/developers/references/restful-api.html
+	mv pkg/server/docs/index.html docs/en/developers/references/restful-api/
 
 generate-source:
 	go run hack/frontend/source.go
