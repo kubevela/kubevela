@@ -10,6 +10,8 @@
   * [You have reached your pull rate limit](#You-have-reached-your-pull-rate-limit)
   * [Warning: Namespace cert-manager exists](#warning-namespace-cert-manager-exists)
   
+- [Operating](#operating)
+  * [Autoscale: how to enable metrics server in various Kubernetes clusters?](#autoscale-how-to-enable-metrics-server-in-various-kubernetes-clusters)
   
 ## Basic
 
@@ -23,7 +25,8 @@ Here is a nutshell version.
 - Kubevela relies on the Open Application Model to support application operational needs. This is beyond the day one application install that helm tool excels at.
 - Kubevela also provides a DevOps facing application model similar to the docker-compose files. This greatly simplified the way for users to run applications on Kubernetes.
 - Kubevela also provides a powerful extensible way for platform builders to natively incorporate any new capabilities in the Kubernetes ecosystem.
-  
+
+
 ## Install
 
 ### Error: unable to create new content in namespace cert-manager because it is being terminated
@@ -236,3 +239,67 @@ route     	trait   	Configure route policy to the app
 scaler    	trait   	Manually scale the app
 - Finished successfully.
 ```
+
+## Operating
+
+### Autoscale: how to enable metrics server in various Kubernetes clusters?
+
+Operating Autoscale depends on metrics server, so it has to be enabled in various clusters. Please check whether metrics server
+is enabled with command `kubectl top nodes` or `kubectl top pods`.
+
+If the output is similar as below, the metrics is enabled.
+
+```shell
+$ kubectl top nodes
+NAME                     CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
+cn-hongkong.10.0.1.237   288m         7%     5378Mi          78%
+cn-hongkong.10.0.1.238   351m         8%     5113Mi          74%
+
+$ kubectl top pods
+NAME                          CPU(cores)   MEMORY(bytes)
+php-apache-65f444bf84-cjbs5   0m           1Mi
+wordpress-55c59ccdd5-lf59d    1m           66Mi
+```
+
+Or you have to manually enable metrics server in your Kubernetes cluster.
+
+- ACK (Alibaba Cloud Container Service for Kubernetes)
+
+Metrics server is already enabled.
+
+- ASK (Alibaba Cloud Serverless Kubernetes)
+
+Metrics server has to be enabled in `Operations/Add-ons` section of [Alibaba Cloud console](https://cs.console.aliyun.com/) as below.
+
+![](../../../../resources/install-metrics-server-in-ASK.jpg)
+
+Please refer to [metrics server debug guide](https://help.aliyun.com/document_detail/176515.html) if you hit more issue.
+
+- Kind
+
+Install metrics server as below, or you can install the [latest version](https://github.com/kubernetes-sigs/metrics-server#installation).
+
+```shell
+$ kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.3.7/components.yaml
+```
+
+Also add the following part under `.spec.template.spec.containers` in the yaml file loaded by `kubectl edit deploy -n kube-system metrics-server`.
+
+Noted: This is just a walk-around, not for production-level use.
+
+```
+command:
+- /metrics-server
+- --kubelet-insecure-tls
+```
+
+- MiniKube
+
+Enable it with following command.
+
+```shell
+$ minikube addons enable metrics-server
+```
+
+
+Have fun to [set autoscale](../../set-autoscale.md) on your application.
