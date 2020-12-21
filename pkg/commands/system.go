@@ -184,7 +184,7 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 
 // CheckCapabilityReady waits unitl capability is installed successfully
 func CheckCapabilityReady(ctx context.Context, c types.Args, timeout time.Duration) error {
-	if timeout < 2*time.Minute {
+	if timeout < 5*time.Minute {
 		timeout = 5 * time.Minute
 	}
 	tmpdir, err := ioutil.TempDir(".", "tmpcap")
