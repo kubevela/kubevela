@@ -12,18 +12,12 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/storage"
-	"github.com/oam-dev/kubevela/pkg/storage/driver"
 )
-
-var store *storage.Storage
-
-func init() {
-	store = storage.NewStorage("")
-}
 
 // Application is an implementation level object for Appfile, all vela commands will access AppFile from Appliction struct here.
 type Application struct {
@@ -54,7 +48,7 @@ func IsNotFound(appName string, err error) bool {
 
 // Load will load application with env and name from default vela home dir.
 func Load(envName, appName string) (*Application, error) {
-	respApp, err := store.Get(envName, appName)
+	respApp, err := storage.Store.Get(envName, appName)
 	if err != nil {
 		return nil, err
 	}
@@ -65,12 +59,12 @@ func Load(envName, appName string) (*Application, error) {
 
 // Delete will delete an app along with it's appfile.
 func Delete(envName, appName string) error {
-	return store.Delete(envName, appName)
+	return storage.Store.Delete(envName, appName)
 }
 
 // List will list all apps
 func List(envName string) ([]*Application, error) {
-	respApps, err := store.List(envName)
+	respApps, err := storage.Store.List(envName)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +98,7 @@ func MatchAppByComp(envName, compName string) (*Application, error) {
 
 // Save will save appfile into default dir.
 func (app *Application) Save(envName string) error {
-	return store.Save(&driver.RespApplication{AppFile: app.AppFile, Tm: app.tm}, envName)
+	return storage.Store.Save(&driver.RespApplication{AppFile: app.AppFile, Tm: app.tm}, envName)
 }
 
 // Validate will validate whether an Appfile is valid.

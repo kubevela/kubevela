@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/oam-dev/kubevela/pkg/storage/driver"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 )
 
 func TestNewStorage(t *testing.T) {

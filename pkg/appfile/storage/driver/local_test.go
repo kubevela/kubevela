@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ghodss/yaml"
+
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 )
@@ -29,33 +30,11 @@ func init() {
 		"image": "wordpress:php7.4-apache",
 		"port":  "80",
 		"cpu":   "1",
-		"route": nil,
+		"route": "",
 	}
 	afile.Services = svcs
 	out, _ := yaml.Marshal(afile)
 	_ = ioutil.WriteFile(filepath.Join(dir, appName+".yaml"), out, 0644)
-}
-
-func TestLocal_Delete(t *testing.T) {
-	type args struct {
-		envName string
-		appName string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		{"testLocalDelete1", args{envName: envName, appName: appName}, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			l := &Local{}
-			if err := l.Delete(tt.args.envName, tt.args.appName); (err != nil) != tt.wantErr {
-				t.Errorf("Delete() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
 }
 
 func TestLocal_Get(t *testing.T) {
@@ -81,6 +60,51 @@ func TestLocal_Get(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Get() got = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLocal_Delete(t *testing.T) {
+	type args struct {
+		envName string
+		appName string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{"testLocalDelete1", args{envName: envName, appName: appName}, false},
+		{"testLocalDelete2", args{envName: envName, appName: "test"}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := &Local{}
+			if err := l.Delete(tt.args.envName, tt.args.appName); (err != nil) != tt.wantErr {
+				t.Errorf("Delete() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestLocal_Save(t *testing.T) {
+	type args struct {
+		app     *RespApplication
+		envName string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{"TestLocal_Save1", args{&RespApplication{AppFile: afile, Tm: nil}, envName}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := &Local{}
+			if err := l.Save(tt.args.app, tt.args.envName); (err != nil) != tt.wantErr {
+				t.Errorf("Save() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
@@ -127,28 +151,6 @@ func TestLocal_Name(t *testing.T) {
 			l := &Local{}
 			if got := l.Name(); got != tt.want {
 				t.Errorf("Name() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestLocal_Save(t *testing.T) {
-	type args struct {
-		app     *RespApplication
-		envName string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		{"TestLocal_Save1", args{&RespApplication{AppFile: afile, Tm: nil}, envName}, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			l := &Local{}
-			if err := l.Save(tt.args.app, tt.args.envName); (err != nil) != tt.wantErr {
-				t.Errorf("Save() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
@@ -215,7 +217,7 @@ func Test_loadFromFile(t *testing.T) {
 				t.Errorf("loadFromFile() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
+			if got.Name != tt.want.Name {
 				t.Errorf("loadFromFile() got = %v, want %v", got, tt.want)
 			}
 		})

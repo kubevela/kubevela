@@ -1,8 +1,19 @@
 package storage
 
 import (
-	"github.com/oam-dev/kubevela/pkg/storage/driver"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 )
+
+// Store application store client
+var Store *Storage
+
+func init() {
+	// TODO support provide multiple ways:
+	// system environment
+	// system configfile
+	// startup arguments
+	Store = NewStorage(driver.LocalDriverName)
+}
 
 // Storage is common storage client，use it to get app and others resource
 type Storage struct {

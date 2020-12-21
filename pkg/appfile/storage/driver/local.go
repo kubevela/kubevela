@@ -37,7 +37,7 @@ func (l *Local) Name() string {
 func (l *Local) List(envName string) ([]*RespApplication, error) {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
-		return nil, fmt.Errorf("get app dir from env %s err %w", envName, err)
+		return nil, err
 	}
 	files, err := ioutil.ReadDir(appDir)
 	if err != nil {
@@ -64,7 +64,7 @@ func (l *Local) List(envName string) ([]*RespApplication, error) {
 func (l *Local) Save(app *RespApplication, envName string) error {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
-		return fmt.Errorf("get app dir from env %s err %w", envName, err)
+		return err
 	}
 	if app.CreateTime.IsZero() {
 		app.CreateTime = time.Now()
@@ -82,7 +82,7 @@ func (l *Local) Save(app *RespApplication, envName string) error {
 func (l *Local) Delete(envName, appName string) error {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
-		return fmt.Errorf("get app dir from env %s err %w", envName, err)
+		return err
 	}
 	return os.Remove(filepath.Join(appDir, appName+".yaml"))
 }
@@ -91,7 +91,7 @@ func (l *Local) Delete(envName, appName string) error {
 func (l *Local) Get(envName, appName string) (*RespApplication, error) {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
-		return nil, fmt.Errorf("get app dir from env %s err %w", envName, err)
+		return nil, err
 	}
 	app, err := loadFromFile(filepath.Join(appDir, appName+".yaml"))
 
@@ -108,6 +108,9 @@ func (l *Local) Get(envName, appName string) (*RespApplication, error) {
 func getApplicationDir(envName string) (string, error) {
 	appDir := filepath.Join(env.GetEnvDirByName(envName), "applications")
 	_, err := system.CreateIfNotExist(appDir)
+	if err != nil {
+		err = fmt.Errorf("Getting application directory from env %s failed, error: %w ", envName, err)
+	}
 	return appDir, err
 }
 
