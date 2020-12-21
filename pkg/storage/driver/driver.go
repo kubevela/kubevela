@@ -22,5 +22,5 @@ type Driver interface {
 // RespApplication will get  application from Storage client
 type RespApplication struct {
 	*appfile.AppFile `json:",inline"`
-	Tm               template.Manager
+	Tm               template.Manager `json:"-"`
 }

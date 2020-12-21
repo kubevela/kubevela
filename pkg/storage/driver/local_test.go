@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ghodss/yaml"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 )
@@ -21,7 +22,18 @@ func init() {
 	dir, _ = getApplicationDir(envName)
 	tm, _ = template.Load()
 	afile = appfile.NewAppFile()
-	_ = ioutil.WriteFile(filepath.Join(dir, appName+".yaml"), nil, 0644)
+	afile.Name = appName
+	svcs := make(map[string]appfile.Service, 0)
+	svcs["wordpress"] = map[string]interface{}{
+		"type":  "webservice",
+		"image": "wordpress:php7.4-apache",
+		"port":  "80",
+		"cpu":   "1",
+		"route": nil,
+	}
+	afile.Services = svcs
+	out, _ := yaml.Marshal(afile)
+	_ = ioutil.WriteFile(filepath.Join(dir, appName+".yaml"), out, 0644)
 }
 
 func TestLocal_Delete(t *testing.T) {
@@ -130,7 +142,7 @@ func TestLocal_Save(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-		{"TestLocal_Save1", args{&RespApplication{AppFile: afile, Tm: tm}, envName}, false},
+		{"TestLocal_Save1", args{&RespApplication{AppFile: afile, Tm: nil}, envName}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
