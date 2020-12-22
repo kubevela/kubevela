@@ -69,16 +69,6 @@ Here are three ways to get KubeVela Cli:
 
 <!-- tabs:start -->
 
-[comment]: <> (#### **Homebrew**)
-
-[comment]: <> (**macOS/Linux**)
-
-[comment]: <> (```console)
-
-[comment]: <> ($ brew install kubevela)
-
-[comment]: <> (```)
-
 #### **Script**
 
 **macOS/Linux**
@@ -91,6 +81,11 @@ $ curl -fsSl https://kubevela.io/install.sh | bash
 
 ```console
 $ powershell -Command "iwr -useb https://kubevela.io/install.ps1 | iex"
+```
+#### **Homebrew**
+**macOS/Linux**
+```console
+$ brew install kubevela
 ```
 
 #### **Download directly from releases**
