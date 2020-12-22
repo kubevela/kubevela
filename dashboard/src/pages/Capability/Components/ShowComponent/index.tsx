@@ -9,33 +9,21 @@ export default ({name, parameters}: ShowParameters) => {
 
   const {Paragraph, Text} = Typography;
 
-
-  const DEFAULT_DETAIL_STATE: ShowParameters = {
-    name: '',
-    parameters: [],
-  };
-
-  const [showTraits, setShowTraits] = useState<ShowParameters>({name,parameters})
-
   useEffect(() => {
     setLocalVisible(name !== "");
   }, [name, parameters]);
-
-  function onCancel() {
-    setShowTraits(DEFAULT_DETAIL_STATE);
-  }
 
   return (
     <Modal
       forceRender
       visible={localVisible}
-      onCancel={onCancel}
+      onCancel={() => setLocalVisible(false)}
       footer={null}
       width={1000}
       maskClosable
       destroyOnClose
     >
-      <h2>{`Type: ${showTraits.name}`}</h2>
+      <h2>{`Type: ${name}`}</h2>
       <Table columns={[
         {
           title: 'Name',
@@ -97,7 +85,7 @@ export default ({name, parameters}: ShowParameters) => {
           ]
         },
       ]}
-             dataSource={showTraits.parameters}
+             dataSource={parameters}
              rowKey={record => record.name}
              pagination={{pageSize: 5, size: "small", hideOnSinglePage: true}}
       />

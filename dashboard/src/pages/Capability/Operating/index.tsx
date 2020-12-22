@@ -1,9 +1,9 @@
-import React, {useEffect, useState} from 'react';
+import React, {useState} from 'react';
 
 import {Button, Card, Space, Tag, Typography} from 'antd';
 import {useModel} from 'umi';
 import {PageContainer} from '@ant-design/pro-layout';
-import {FileWordTwoTone,SnippetsTwoTone} from '@ant-design/icons';
+import {FileWordTwoTone, SnippetsTwoTone} from '@ant-design/icons';
 import ShowComponent from '../Components/ShowComponent'
 import ProList from "@ant-design/pro-list";
 import {ShowParameters} from "@/pages/Capability/Components/ShowComponent/types";
@@ -21,10 +21,6 @@ export default (): React.ReactNode => {
 
   const [showTraits, setShowTraits] = useState<ShowParameters>(DEFAULT_DETAIL_STATE)
 
-  useEffect(() => {
-    setShowTraits(DEFAULT_DETAIL_STATE);
-  });
-
   const showInfo = ({
                       traits,
                     }: {
@@ -38,7 +34,7 @@ export default (): React.ReactNode => {
       <ShowComponent name={showTraits.name} parameters={showTraits.parameters}/>
       <Card>
         <ProList<any>
-          rowKey="name"
+          rowKey={record => record.name}
           headerTitle="Type"
           pagination={{
             defaultPageSize: 5,
@@ -84,7 +80,7 @@ export default (): React.ReactNode => {
                 <Button
                   size="small"
                   type="link"
-                  icon={<SnippetsTwoTone />}
+                  icon={<SnippetsTwoTone/>}
                   onClick={() => showInfo({traits: row})}
                 >
                   details
