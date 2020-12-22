@@ -10,15 +10,14 @@ import (
 
 func TestPatch(t *testing.T) {
 
-
-	testCase:= []struct {
-		base string
-		patch string
+	testCase := []struct {
+		base   string
+		patch  string
 		result string
 	}{
 		{
-			base: `containers: [{name: "x1"},{name: "x2"},...]`,
-			patch: `containers: [{name: "x2"},{name: "x1"}]`,
+			base:   `containers: [{name: "x1"},{name: "x2"},...]`,
+			patch:  `containers: [{name: "x2"},{name: "x1"}]`,
 			result: "_|_\n",
 		},
 
@@ -125,7 +124,7 @@ containers: [{
 
 	for i, tcase := range testCase {
 		v, _ := StrategyUnify(tcase.base, tcase.patch)
-		assert.Equal(t,v,tcase.result,fmt.Sprintf("testPatch for case(no:%d)",i))
+		assert.Equal(t, v, tcase.result, fmt.Sprintf("testPatch for case(no:%d)", i))
 	}
 }
 

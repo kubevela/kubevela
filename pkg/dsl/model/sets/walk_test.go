@@ -11,17 +11,17 @@ import (
 func TestWalk(t *testing.T) {
 
 	testCases := []string{
-	`x: "124"`,
+		`x: "124"`,
 
-	`x: y: 124`,
+		`x: y: 124`,
 
-	`x: {y: 124}`,
+		`x: {y: 124}`,
 
-	`kind: "Deployment"
+		`kind: "Deployment"
     metadata: name: "test"
     spec: replicas: 12`,
 
-	`sidecar: {
+		`sidecar: {
 		name: "agent"
         image: "test.com/agent:0.1"
 	}
@@ -30,7 +30,6 @@ func TestWalk(t *testing.T) {
 		image: "webserver:0.2"
 	},sidecar]
 	`,
-
 	}
 
 	for _, src := range testCases {

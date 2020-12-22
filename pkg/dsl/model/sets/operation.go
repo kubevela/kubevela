@@ -123,7 +123,6 @@ func StrategyUnify(base, other string) (string, error) {
 		return rv, err
 	}
 
-
 	if err := doordog(rv); err != nil {
 		return rv, err
 	}
