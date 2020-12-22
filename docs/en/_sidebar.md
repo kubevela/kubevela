@@ -75,5 +75,4 @@
       - [vela template](/en/cli/vela_template.md)
     - Extensibility
       - [vela cap](/en/cli/vela_cap.md)
-  - [Restful API](/en/index.html ':ignore')  
   - [FAQ](/en/developers/references/devex/faq.md)
