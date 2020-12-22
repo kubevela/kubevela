@@ -19,7 +19,7 @@ type walkCtx interface {
 
 type walkProcess func(node ast.Node, ctx walkCtx)
 
-func newPatchWalker(process walkProcess) *nodewalker {
+func newWalker(process walkProcess) *nodewalker {
 	return &nodewalker{
 		pos:     []string{},
 		process: process,

@@ -18,7 +18,7 @@ func strategyListMerge(base cue.Value, r cue.Runtime) interceptor {
 	baseNode := convert2Node(base)
 	return func(value cue.Value) (cue.Value, error) {
 		lnode := convert2Node(value)
-		walker := newPatchWalker(func(node ast.Node, ctx walkCtx) {
+		walker := newWalker(func(node ast.Node, ctx walkCtx) {
 			clist, ok := node.(*ast.ListLit)
 			if !ok {
 				return
@@ -110,21 +110,22 @@ func StrategyUnify(base, other string) (string, error) {
 	}
 	ret := raw.Value().Unify(newOne).Eval()
 
-	if ret.Err() != nil {
-		return "", err
+	rv, err := print(ret)
+	if err != nil {
+		return rv, err
+	}
+
+	if err := ret.Err(); err != nil {
+		return rv, err
 	}
 
 	if err := ret.Validate(cue.All()); err != nil {
-
-		return "", err
+		return rv, err
 	}
 
-	rv, err := print(ret)
-	if err != nil {
-		return "", err
-	}
+
 	if err := doordog(rv); err != nil {
-		return "", err
+		return rv, err
 	}
 	return rv, nil
 }

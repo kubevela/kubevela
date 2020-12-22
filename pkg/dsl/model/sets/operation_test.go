@@ -1,57 +1,151 @@
 package sets
 
 import (
+	"fmt"
 	"testing"
 
+	"cuelang.org/go/cue"
 	"github.com/bmizerany/assert"
 )
 
 func TestPatch(t *testing.T) {
-	base := `
-containers: [{name: "x1"},{name: "x2", age: 13, envs: [{namex: "OPS1",value: string},...]},...]
-`
 
-	testcases := []struct {
-		patchBody    string
-		expectErr    bool
-		expectResult string
+
+	testCase:= []struct {
+		base string
+		patch string
+		result string
 	}{
 		{
-			patchBody: `
-// +patchKey=name
-containers: [{name: "x2",
-// +patchKey=namex
-envs: [{namex: "OPS",value: "OAM"}]}]
+			base: `containers: [{name: "x1"},{name: "x2"},...]`,
+			patch: `containers: [{name: "x2"},{name: "x1"}]`,
+			result: "_|_\n",
+		},
 
+		{
+			base: `containers: [{name: "x1"},{name: "x2"},...]`,
+			patch: `
+// +patchKey=name
+containers: [{name: "x2"},{name: "x1"}]`,
+			result: `// +patchKey=name
+containers: [{
+	name: "x1"
+}, {
+	name: "x2"
+}, ...]
 `,
-			expectResult: "// +patchKey=name\ncontainers: [{\n\tname: \"x1\"\n}, {\n\tname: \"x2\"\n\tage:  13\n\t// +patchKey=namex\n\tenvs: [{\n\t\tnamex: \"OPS1\"\n\t\tvalue: string\n\t}, {\n\t\tnamex: \"OPS\"\n\t\tvalue: \"OAM\"\n\t}, ...]\n}, ...]\n",
+		},
+
+		{
+			base: `containers: [{name: "x1"},{name: "x2"},...]`,
+			patch: `
+// +patchKey=name
+containers: [{name: "x3"},{name: "x1"}]`,
+			result: `// +patchKey=name
+containers: [{
+	name: "x1"
+}, {
+	name: "x2"
+}, {
+	name: "x3"
+}, ...]
+`,
+		},
+
+		{
+			base: `containers: [{name: "x1"},{name: "x2"},...]`,
+			patch: `
+// +patchKey=name
+containers: [{noname: "x3"},{name: "x1"}]`,
+			result: "_|_\n",
 		},
 		{
-			patchBody: `
+			base: `containers: [{name: "x1"},{name: "x2", envs:[ {name: "OPS",value: string},...]},...]`,
+			patch: `
 // +patchKey=name
+containers: [{name: "x2", envs: [{name: "OPS", value: "OAM"}]}]`,
+			result: `// +patchKey=name
 containers: [{
-name: "x2",
-envs: [{namex: "OPS",value: "OAM"}]}]
-
+	name: "x1"
+}, {
+	name: "x2"
+	envs: [{
+		name:  "OPS"
+		value: "OAM"
+	}, ...]
+}, ...]
 `,
-			expectResult: "",
-			expectErr:    true,
 		},
-		{
-			patchBody: `
-// +patchKey=name
-containers: [{
-name: "x2",
-envs: [{namex: "OPS1",value: "OAM"}]}]
 
+		{
+			base: `containers: [{name: "x1"},{name: "x2", envs:[ {name: "OPS",value: string},...]},...]`,
+			patch: `
+// +patchKey=name
+containers: [{name: "x2", envs: [{name: "USER", value: "DEV"},{name: "OPS", value: "OAM"}]}]`,
+			result: `// +patchKey=name
+containers: [{
+	name: "x1"
+}, {
+	name: "x2"
+	envs: [{
+		name:  "OPS"
+		value: "OAM"
+	}, {
+		name:  "USER"
+		value: "DEV"
+	}, ...]
+}, ...]
 `,
-			expectResult: "// +patchKey=name\ncontainers: [{\n\tname: \"x1\"\n}, {\n\tname: \"x2\"\n\tage:  13\n\tenvs: [{\n\t\tnamex: \"OPS1\"\n\t\tvalue: \"OAM\"\n\t}]\n}, ...]\n",
+		},
+
+		{
+			base: `containers: [{name: "x1"},{name: "x2", envs:[ {key: "OPS",value: string},...]},...]`,
+			patch: `
+// +patchKey=name
+containers: [{name: "x2", 
+// +patchKey=key
+envs: [{key: "USER", value: "DEV"},{key: "OPS", value: "OAM"}]}]`,
+			result: `// +patchKey=name
+containers: [{
+	name: "x1"
+}, {
+	name: "x2"
+	// +patchKey=key
+	envs: [{
+		key:   "OPS"
+		value: "OAM"
+	}, {
+		key:   "USER"
+		value: "DEV"
+	}, ...]
+}, ...]
+`,
 		},
 	}
 
-	for _, tcase := range testcases {
-		v, err := StrategyUnify(base, tcase.patchBody)
-		assert.Equal(t, err != nil, tcase.expectErr, v)
-		assert.Equal(t, v, tcase.expectResult)
+	for i, tcase := range testCase {
+		v, _ := StrategyUnify(tcase.base, tcase.patch)
+		assert.Equal(t,v,tcase.result,fmt.Sprintf("testPatch for case(no:%d)",i))
 	}
+}
+
+func TestParseCommentTags(t *testing.T) {
+	temp := `
+// +patchKey=name
+// +test1=value1
+// invalid=x
+x: null
+`
+
+	var r cue.Runtime
+	inst, err := r.Compile("-", temp)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	ms := findCommentTag(inst.Lookup("x").Doc())
+	assert.Equal(t, ms, map[string]string{
+		"patchKey": "name",
+		"test1":    "value1",
+	})
 }

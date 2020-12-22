@@ -1,55 +1,55 @@
 # Definition Docs
 
 ## Reserved word
-### patch
-Perform the CUE AND operation with the content declared by 'patch' and workload cr
-> #### strategy patch
-> can define the strategy of list merge through comments
-> ```
-> // base model
-> 
->containers: [{
->        name: "x1"
->}, {
->        name: "x2"
->        image:  string
->        envs: [{
->                name: "OPS"
->                value: string
->        }, ...]
->}, ...]
-> 
-> // patch model
-> 
-> // +patchKey=name
->containers: [{
->        name: "x2"
->        image:  "test-image"
->        envs: [{
->                name: "OPS1"
->                value: "V-OPS1"
->        },{
->                name: "OPS"
->                value: "V-OPS"
->        }, ...]
->}, ...]
-> 
-> // result model is follow
-> 
->containers: [{
->        name: "x1" 
-> },{
->        name: "x2"
->        image:  "test-image"
->        envs: [{
->                name: "OPS1"
->                value: "V-OPS1"
->        },{
->                name: "OPS"
->                value: "V-OPS"
->        }, ...]
->}, ...]
-> ```
+### Patch
+Perform the CUE AND operation with the content declared by 'patch' and workload cr,
+
+you can define the strategy of list merge through comments, example as follows
+
+base model
+ ```
+containers: [{
+        name: "x1"
+}, {
+        name: "x2"
+        image:  string
+        envs: [{
+                name: "OPS"
+                value: string
+        }, ...]
+}, ...]
+```
+define patch model
+```
+ // +patchKey=name
+containers: [{
+        name: "x2"
+        image:  "test-image"
+        envs: [{
+                name: "OPS1"
+                value: "V-OPS1"
+        },{
+                name: "OPS"
+                value: "V-OPS"
+        }, ...]
+}, ...]
+```
+and the result model after patch is follow
+```
+containers: [{
+        name: "x1" 
+ },{
+        name: "x2"
+        image:  "test-image"
+        envs: [{
+                name: "OPS1"
+                value: "V-OPS1"
+        },{
+                name: "OPS"
+                value: "V-OPS"
+        }, ...]
+}, ...]
+ ```
 
 
 ### output
