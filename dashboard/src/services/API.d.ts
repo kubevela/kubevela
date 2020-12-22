@@ -39,4 +39,18 @@ declare namespace API {
     status: string;
     createdTime: string;
   }
+
+  interface Workloads {
+    name: string;
+    parameters: Parameters[];
+  }
+
+  interface Parameters {
+    name: string;
+    short: string;
+    usage: string;
+    default: string;
+    required: boolean;
+  }
+
 }

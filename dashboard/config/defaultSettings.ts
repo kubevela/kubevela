@@ -15,7 +15,7 @@ const Settings: LayoutSettings & {
   colorWeak: false,
   title: 'KubeVela',
   pwa: false,
-  logo: 'https://gw.alipayobjects.com/zos/rmsportal/KDpgvguMpGfqaHPjicRK.svg',
+  logo: 'https://s4.aconvert.com/convert/p3r68-cdx67/ah3ui-ih2jp.svg',
   iconfontUrl: '',
 };
 

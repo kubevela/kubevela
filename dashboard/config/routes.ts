@@ -10,6 +10,27 @@
     component: './Application',
   },
   {
+    name: 'capability',
+    icon: 'AppstoreAddOutlined',
+    path: '/Capability',
+    routes: [
+      {
+        path: '/Capability',
+        redirect: `/Capability/Workloads`,
+      },
+      {
+        name: 'workloads',
+        path: '/Capability/Workloads',
+        component: './Capability/Workloads'
+      },
+      {
+        name: 'operating',
+        path: '/System/Environment',
+        component: './System/Environment',
+      },
+    ],
+  },
+  {
     name: 'system',
     icon: 'setting',
     path: '/System',
