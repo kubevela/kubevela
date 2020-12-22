@@ -3,12 +3,12 @@ import React, {useState} from 'react';
 import {Button, Card, Space, Tag} from 'antd';
 import {useModel} from 'umi';
 import {PageContainer} from '@ant-design/pro-layout';
-import {Workloads} from './types';
-import {SearchOutlined} from '@ant-design/icons';
-import ShowComponent from './Components/ShowComponent'
+import {FileWordTwoTone, SnippetsTwoTone} from '@ant-design/icons';
+import ShowComponent from '../Components/ShowComponent'
 import ProList from "@ant-design/pro-list";
+import {ShowParameters} from "@/pages/Capability/Components/ShowComponent/types";
 
-const DEFAULT_DETAIL_STATE: Workloads = {
+const DEFAULT_DETAIL_STATE: ShowParameters = {
   name: '',
   parameters: [],
 };
@@ -19,12 +19,12 @@ export default (): React.ReactNode => {
     workloadList,
   } = useModel('useWorkloadsModel');
 
-  const [showWorkload, setShowWorkload] = useState<Workloads>(DEFAULT_DETAIL_STATE)
+  const [showWorkload, setShowWorkload] = useState<ShowParameters>(DEFAULT_DETAIL_STATE)
 
   const showInfo = ({
                       workloads,
                     }: {
-    workloads: Workloads;
+    workloads: ShowParameters;
   }) => {
     setShowWorkload(workloads);
   };
@@ -38,7 +38,12 @@ export default (): React.ReactNode => {
           headerTitle="Type"
           loading={loading ? {delay: 300} : undefined}
           dataSource={workloadList ?? []}
-          // showActions="hover"
+          pagination={{
+            defaultPageSize: 5,
+            showSizeChanger: false,
+          }}
+          renderItem={(item) => item}
+          split
           metas={{
             title: {
               dataIndex: 'name',
@@ -59,14 +64,15 @@ export default (): React.ReactNode => {
                 <Button
                   size="small"
                   type="link"
+                  icon={<SnippetsTwoTone/>}
                   onClick={() => showInfo({workloads: row})}
                 >
-                  detail
+                  details
                 </Button>,
                 <Button
                   size="small"
                   type="link"
-                  icon={<SearchOutlined/>}
+                  icon={<FileWordTwoTone />}
                   href={`https://kubevela.io/#/en/developers/references/workload-types/${row.name}`}
                   target="view_window"
                 >

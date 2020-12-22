@@ -45,6 +45,26 @@ declare namespace API {
     parameters: Parameters[];
   }
 
+<<<<<<< HEAD
+=======
+  interface Traits {
+    name: string;
+    type: string;
+    template: string;
+    definition: string;
+    crdName: string;
+    description: string;
+    appliesTo: string[];
+    parameters: Parameters[];
+    crdInfo: crdInfo[];
+  }
+
+  interface crdInfo {
+    apiVersion: string;
+    kind: string;
+  }
+
+>>>>>>> d7003f6 (dashboard Operating)
   interface Parameters {
     name: string;
     short: string;

@@ -25,8 +25,8 @@
       },
       {
         name: 'operating',
-        path: '/System/Environment',
-        component: './System/Environment',
+        path: '/Capability/Operating',
+        component: './Capability/Operating',
       },
     ],
   },
