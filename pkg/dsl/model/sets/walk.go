@@ -33,9 +33,6 @@ func (nwk *nodewalker) walk(node ast.Node) {
 	}
 	switch n := node.(type) {
 
-	case *ast.Attribute:
-		// nothing to do
-
 	case *ast.Field:
 		if n.Value != nil {
 			origin := nwk.pos
@@ -63,20 +60,8 @@ func (nwk *nodewalker) walk(node ast.Node) {
 		nwk.walk(n.X)
 		nwk.walk(n.Y)
 
-	// Declarations
-	case *ast.ImportSpec:
-
-	case *ast.BadDecl:
-		// nothing to do
-
-	case *ast.ImportDecl:
-
 	case *ast.EmbedDecl:
 		nwk.walk(n.Expr)
-
-	case *ast.LetClause:
-
-	case *ast.Alias:
 
 	case *ast.Comprehension:
 		nwk.walk(n.Value)
