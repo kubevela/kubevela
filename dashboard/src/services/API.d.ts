@@ -45,8 +45,6 @@ declare namespace API {
     parameters: Parameters[];
   }
 
-<<<<<<< HEAD
-=======
   interface Traits {
     name: string;
     type: string;
@@ -64,7 +62,6 @@ declare namespace API {
     kind: string;
   }
 
->>>>>>> d7003f6 (dashboard Operating)
   interface Parameters {
     name: string;
     short: string;
