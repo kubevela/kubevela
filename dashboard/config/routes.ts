@@ -12,20 +12,20 @@
   {
     name: 'capability',
     icon: 'AppstoreAddOutlined',
-    path: '/Capability',
+    path: '/capabilities',
     routes: [
       {
-        path: '/Capability',
+        path: '/capabilities',
         redirect: `/Capability/Workloads`,
       },
       {
         name: 'workloads',
-        path: '/Capability/Workloads',
+        path: '/capabilities/workloads',
         component: './Capability/Workloads'
       },
       {
         name: 'operating',
-        path: '/Capability/Operating',
+        path: '/capabilities/operating',
         component: './Capability/Operating',
       },
     ],
