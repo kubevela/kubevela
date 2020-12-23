@@ -99,7 +99,6 @@ func strategyListMerge(baseNode ast.Node) interceptor {
 
 // StrategyUnify unify the objects by the strategy
 func StrategyUnify(base, patch string) (string, error) {
-	var r cue.Runtime
 	baseFile, err := parser.ParseFile("-", base, parser.ParseComments)
 	if err != nil {
 		return "", errors.WithMessage(err, "parse base")
@@ -109,12 +108,17 @@ func StrategyUnify(base, patch string) (string, error) {
 		return "", errors.WithMessage(err, "parse patch")
 	}
 
-	patchOptions := []interceptor{strategyListMerge(baseFile)}
-	for _, option := range patchOptions {
+	return strategyUnify(baseFile, patchFile, strategyListMerge(baseFile))
+}
+
+func strategyUnify(baseFile *ast.File, patchFile *ast.File, patchOpts ...interceptor) (string, error) {
+	for _, option := range patchOpts {
 		if _, err := option(patchFile); err != nil {
 			return "", errors.WithMessage(err, "process patchOption")
 		}
 	}
+
+	var r cue.Runtime
 
 	baseInst, err := r.CompileFile(baseFile)
 	if err != nil {
