@@ -39,12 +39,14 @@ containers: [{
 			base: `containers: [{name: "x1"},{name: "x2"},...]`,
 			patch: `
 // +patchKey=name
-containers: [{name: "x3"},{name: "x1"}]`,
+containers: [{name: "x4"},{name: "x3"},{name: "x1"}]`,
 			result: `// +patchKey=name
 containers: [{
 	name: "x1"
 }, {
 	name: "x2"
+}, {
+	name: "x4"
 }, {
 	name: "x3"
 }, ...]

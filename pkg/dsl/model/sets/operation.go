@@ -9,6 +9,7 @@ import (
 )
 
 const (
+	// TagPatchKey specify the primary key of the list items
 	TagPatchKey = "patchKey"
 )
 
