@@ -2,6 +2,7 @@ package sets
 
 import (
 	"strconv"
+	"strings"
 
 	"cuelang.org/go/cue/ast"
 )
@@ -34,6 +35,10 @@ func (nwk *nodewalker) walk(node ast.Node) {
 	switch n := node.(type) {
 
 	case *ast.Field:
+		label := labelStr(n.Label)
+		if label == "" || strings.HasPrefix(label, "#") {
+			return
+		}
 		if n.Value != nil {
 			origin := nwk.pos
 			oriTags := nwk.tags

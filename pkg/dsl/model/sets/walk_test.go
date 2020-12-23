@@ -3,6 +3,7 @@ package sets
 import (
 	"testing"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/parser"
 	"github.com/bmizerany/assert"
@@ -13,7 +14,7 @@ func TestWalk(t *testing.T) {
 	testCases := []string{
 		`x: "124"`,
 
-		`x: y: 124`,
+		`{ x: y: 124 }`,
 
 		`x: {y: 124}`,
 
@@ -30,16 +31,63 @@ func TestWalk(t *testing.T) {
 		image: "webserver:0.2"
 	},sidecar]
 	`,
+
+		`   x: 12
+		if x==12 {
+			y: "test string"
+		}
+	`,
+
+		`   item1: {
+			x: 12
+			if x==12 {
+				y: "test string"
+			}
+		}
+        output: [item1]
+	`,
+		`import "strings"
+
+		#User: {
+		    tags_str: string
+		    tags_map: {
+ 		        for k, v in strings.Split(tags_str, " ") {
+  		           "\(v)": string
+  		       	}
+  		       "{a}": string
+  		  	}
+		}
+
+		user: {
+		    #User
+		    tags_str: "b {c}"
+		}
+	`,
 	}
 
 	for _, src := range testCases {
-		f, err := parser.ParseFile("-", src)
+		var r cue.Runtime
+		inst, err := r.Compile("-", src)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		nsrc, err := print(inst.Value())
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		f, err := parser.ParseFile("-", nsrc)
 		if err != nil {
 			t.Error(err)
 			return
 		}
 
 		newWalker(func(node ast.Node, ctx walkCtx) {
+			if len(ctx.Pos()) == 0 {
+				return
+			}
 			if _, ok := node.(*ast.Field); ok {
 				return
 			}

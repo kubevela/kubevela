@@ -52,8 +52,11 @@ func lookField(node ast.Node, key string) ast.Node {
 }
 
 func labelStr(label ast.Label) string {
-	if ident, ok := label.(*ast.Ident); ok {
-		return ident.Name
+	switch v := label.(type) {
+	case *ast.Ident:
+		return v.Name
+	case *ast.BasicLit:
+		return v.Value
 	}
 	return ""
 }
