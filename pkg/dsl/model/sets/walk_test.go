@@ -14,7 +14,7 @@ func TestWalk(t *testing.T) {
 	testCases := []string{
 		`x: "124"`,
 
-		`{ x: y: 124 }`,
+		`{ x: y: string }`,
 
 		`x: {y: 124}`,
 
@@ -88,13 +88,19 @@ func TestWalk(t *testing.T) {
 			if len(ctx.Pos()) == 0 {
 				return
 			}
-			if _, ok := node.(*ast.Field); ok {
+
+			if _, ok := node.(ast.Expr); !ok {
 				return
 			}
+			if _, ok := node.(*ast.CallExpr); ok {
+				return
+			}
+
 			n, err := lookUp(f, ctx.Pos()...)
 			if err != nil {
 				t.Error(err)
 			}
+
 			assert.Equal(t, n, node)
 		}).walk(f)
 	}

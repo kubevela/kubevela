@@ -80,7 +80,12 @@ func (nwk *nodewalker) walk(node ast.Node) {
 	case *ast.ListComprehension:
 		nwk.walk(n.Expr)
 
-	case *ast.ForClause:
+	case *ast.CallExpr:
+		if it, ok := n.Fun.(*ast.Ident); ok && it.Name == "close" && len(n.Args) == 1 {
+			nwk.walk(n.Args[0])
+		} else {
+			nwk.walkExprList(n.Args)
+		}
 
 	case *ast.IfClause:
 

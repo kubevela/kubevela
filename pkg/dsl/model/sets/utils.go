@@ -38,6 +38,12 @@ func lookUp(node ast.Node, paths ...string) (ast.Node, error) {
 				return lookUp(nnode, paths[1:]...)
 			}
 		}
+	case *ast.CallExpr:
+		for index, arg := range x.Args {
+			if strconv.Itoa(index) == key {
+				return lookUp(arg, paths[1:]...)
+			}
+		}
 	}
 	return nil, notFoundErr
 }
@@ -45,6 +51,11 @@ func lookUp(node ast.Node, paths ...string) (ast.Node, error) {
 func lookField(node ast.Node, key string) ast.Node {
 	if field, ok := node.(*ast.Field); ok {
 		if labelStr(field.Label) == key {
+			if x, ok := field.Value.(*ast.CallExpr); ok && len(x.Args) == 1 {
+				if it, ok := x.Fun.(*ast.Ident); ok && it.Name == "close" {
+					return x.Args[0]
+				}
+			}
 			return field.Value
 		}
 	}
