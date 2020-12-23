@@ -8,6 +8,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	TagPatchKey = "patchKey"
+)
+
 var (
 	notFoundErr = errors.Errorf("not found")
 )
@@ -23,7 +27,7 @@ func strategyListMerge(base cue.Value, r cue.Runtime) interceptor {
 			if !ok {
 				return
 			}
-			key, ok := ctx.Tags()["patchKey"]
+			key, ok := ctx.Tags()[TagPatchKey]
 			if !ok {
 				return
 			}

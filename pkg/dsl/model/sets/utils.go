@@ -6,12 +6,11 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/pkg/errors"
-
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/token"
+	"github.com/pkg/errors"
 )
 
 func lookUp(node ast.Node, paths ...string) (ast.Node, error) {
