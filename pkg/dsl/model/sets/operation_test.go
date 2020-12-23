@@ -17,6 +17,17 @@ func TestPatch(t *testing.T) {
 	}{
 		{
 			base:   `containers: [{name: "x1"},{name: "x2"},...]`,
+			patch:  `containers: [{name: "x1"},{name: "x2"}]`,
+			result: `containers: [{
+	name: "x1"
+}, {
+	name: "x2"
+}]
+`,
+		},
+
+		{
+			base:   `containers: [{name: "x1"},{name: "x2"},...]`,
 			patch:  `containers: [{name: "x2"},{name: "x1"}]`,
 			result: "_|_\n",
 		},
@@ -139,6 +150,7 @@ func TestParseCommentTags(t *testing.T) {
 //    +testKey4 = testValue4
 // invalid=x
 // +invalid=x y
+// +invalid
 x: null
 `
 
