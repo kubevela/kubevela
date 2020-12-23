@@ -126,8 +126,3 @@ func toFile(n ast.Node) (*ast.File, error) {
 		return nil, errors.Errorf("Unsupported node type %T", x)
 	}
 }
-
-func convert2Node(value cue.Value) ast.Node {
-	syopts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true), cue.Docs(true)}
-	return value.Syntax(syopts...)
-}

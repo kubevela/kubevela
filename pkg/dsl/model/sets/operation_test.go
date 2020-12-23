@@ -133,8 +133,12 @@ containers: [{
 func TestParseCommentTags(t *testing.T) {
 	temp := `
 // +patchKey=name
-// +test1=value1
+// +testKey1=testValue1
+	// +testKey2=testValue2
+// +testKey3 =testValue3
+//    +testKey4 = testValue4
 // invalid=x
+// +invalid=x y
 x: null
 `
 
@@ -147,6 +151,9 @@ x: null
 	ms := findCommentTag(inst.Lookup("x").Doc())
 	assert.Equal(t, ms, map[string]string{
 		"patchKey": "name",
-		"test1":    "value1",
+		"testKey1": "testValue1",
+		"testKey2": "testValue2",
+		"testKey3": "testValue3",
+		"testKey4": "testValue4",
 	})
 }

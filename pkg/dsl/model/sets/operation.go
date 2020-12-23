@@ -5,6 +5,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/parser"
 	"github.com/pkg/errors"
 )
 
@@ -17,12 +18,10 @@ var (
 	notFoundErr = errors.Errorf("not found")
 )
 
-type interceptor func(value cue.Value) (cue.Value, error)
+type interceptor func(node ast.Node) (ast.Node, error)
 
-func strategyListMerge(base cue.Value, r cue.Runtime) interceptor {
-	baseNode := convert2Node(base)
-	return func(value cue.Value) (cue.Value, error) {
-		lnode := convert2Node(value)
+func strategyListMerge(baseNode ast.Node) interceptor {
+	return func(lnode ast.Node) (ast.Node, error) {
 		walker := newWalker(func(node ast.Node, ctx walkCtx) {
 			clist, ok := node.(*ast.ListLit)
 			if !ok {
@@ -94,53 +93,53 @@ func strategyListMerge(base cue.Value, r cue.Runtime) interceptor {
 			clist.Elts = nElts
 		})
 		walker.walk(lnode)
-		f, err := toFile(lnode)
-		if err != nil {
-			return cue.Value{}, err
-		}
-		inst, err := r.CompileFile(f)
-		if err != nil {
-			return cue.Value{}, err
-		}
-		return inst.Value(), nil
+		return lnode, nil
 	}
 }
 
 // StrategyUnify unify the objects by the strategy
 func StrategyUnify(base, patch string) (string, error) {
 	var r cue.Runtime
-	raw, err := r.Compile("-", base)
+	baseFile, err := parser.ParseFile("-", base, parser.ParseComments)
 	if err != nil {
-		return "", err
+		return "", errors.WithMessage(err, "parse base")
 	}
-	var lr cue.Runtime
-	o, err := lr.Compile("-", patch)
+	patchFile, err := parser.ParseFile("-", patch, parser.ParseComments)
 	if err != nil {
-		return "", err
+		return "", errors.WithMessage(err, "parse patch")
 	}
-	handle := strategyListMerge(raw.Value(), r)
-	newOne, err := handle(o.Value())
+
+	patchOptions := []interceptor{strategyListMerge(baseFile)}
+	for _, option := range patchOptions {
+		if _, err := option(patchFile); err != nil {
+			return "", errors.WithMessage(err, "process patchOption")
+		}
+	}
+
+	baseInst, err := r.CompileFile(baseFile)
 	if err != nil {
-		return "", err
+		return "", errors.WithMessage(err, "compileFile baseFile")
 	}
-	ret := raw.Value().Unify(newOne).Eval()
+	patchInst, err := r.CompileFile(patchFile)
+	if err != nil {
+		return "", errors.WithMessage(err, "compileFile patchFile")
+	}
+
+	ret := baseInst.Value().Unify(patchInst.Value())
 
 	rv, err := toString(ret)
 	if err != nil {
-		return rv, err
+		return rv, errors.WithMessage(err, "result toString")
 	}
 
 	if err := ret.Err(); err != nil {
-		return rv, err
+		return rv, errors.WithMessage(err, "result err")
 	}
 
 	if err := ret.Validate(cue.All()); err != nil {
-		return rv, err
+		return rv, errors.WithMessage(err, "result validate")
 	}
 
-	if err := doordog(rv); err != nil {
-		return rv, err
-	}
 	return rv, nil
 }
 
@@ -160,20 +159,13 @@ func findCommentTag(commentGroup []*ast.CommentGroup) map[string]string {
 			}
 			kv := strings.SplitN(line[len(marker):], "=", 2)
 			if len(kv) == 2 {
-				kval[kv[0]] = kv[1]
+				val := strings.TrimSpace(kv[1])
+				if len(strings.Fields(val)) > 1 {
+					continue
+				}
+				kval[strings.TrimSpace(kv[0])] = val
 			}
 		}
 	}
 	return kval
-}
-
-func doordog(v string) error {
-	lines := strings.Split(v, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.Contains(line, "_|_") && !strings.HasPrefix(line, "//") {
-			return errors.Errorf("bottom found <detail>: \n%s", v)
-		}
-	}
-	return nil
 }
