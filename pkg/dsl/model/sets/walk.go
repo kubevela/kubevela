@@ -56,8 +56,6 @@ func (nwk *nodewalker) walk(node ast.Node) {
 	case *ast.StructLit:
 		nwk.walkDeclList(n.Elts)
 
-	case *ast.Interpolation:
-
 	case *ast.ListLit:
 		nwk.walkExprList(n.Elts)
 
@@ -71,23 +69,20 @@ func (nwk *nodewalker) walk(node ast.Node) {
 	case *ast.Comprehension:
 		nwk.walk(n.Value)
 
-	// Files and packages
+	// Files
 	case *ast.File:
 		nwk.walkDeclList(n.Decls)
-
-	case *ast.Package:
 
 	case *ast.ListComprehension:
 		nwk.walk(n.Expr)
 
 	case *ast.CallExpr:
+		// close func need to be ignored
 		if it, ok := n.Fun.(*ast.Ident); ok && it.Name == "close" && len(n.Args) == 1 {
 			nwk.walk(n.Args[0])
 		} else {
 			nwk.walkExprList(n.Args)
 		}
-
-	case *ast.IfClause:
 
 	default:
 

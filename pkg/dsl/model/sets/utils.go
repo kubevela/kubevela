@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/pkg/errors"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
@@ -72,7 +74,7 @@ func labelStr(label ast.Label) string {
 	return ""
 }
 
-func print(v cue.Value) (string, error) {
+func toString(v cue.Value) (string, error) {
 	v = v.Eval()
 	syopts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true), cue.Docs(true)}
 
@@ -80,14 +82,17 @@ func print(v cue.Value) (string, error) {
 	useSep := false
 	format := func(name string, n ast.Node) error {
 		if name != "" {
-			// TODO: make this relative to DIR
 			fmt.Fprintf(&w, "// %s\n", filepath.Base(name))
 		} else if useSep {
 			fmt.Println("// ---")
 		}
 		useSep = true
 
-		b, err := format.Node(toFile(n))
+		f, err := toFile(n)
+		if err != nil {
+			return err
+		}
+		b, err := format.Node(f)
 		if err != nil {
 			return err
 		}
@@ -102,19 +107,24 @@ func print(v cue.Value) (string, error) {
 	return instStr, nil
 }
 
-func toFile(n ast.Node) *ast.File {
+// ToFile convert ast.Node to ast.File
+func ToFile(n ast.Node) (*ast.File, error) {
+	return toFile(n)
+}
+
+func toFile(n ast.Node) (*ast.File, error) {
 	switch x := n.(type) {
 	case nil:
-		return nil
+		return nil, nil
 	case *ast.StructLit:
-		return &ast.File{Decls: x.Elts}
+		return &ast.File{Decls: x.Elts}, nil
 	case ast.Expr:
 		ast.SetRelPos(x, token.NoSpace)
-		return &ast.File{Decls: []ast.Decl{&ast.EmbedDecl{Expr: x}}}
+		return &ast.File{Decls: []ast.Decl{&ast.EmbedDecl{Expr: x}}}, nil
 	case *ast.File:
-		return x
+		return x, nil
 	default:
-		panic(fmt.Sprintf("Unsupported node type %T", x))
+		return nil, errors.Errorf("Unsupported node type %T", x)
 	}
 }
 

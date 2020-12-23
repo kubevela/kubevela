@@ -72,7 +72,7 @@ func TestWalk(t *testing.T) {
 			t.Error(err)
 			return
 		}
-		nsrc, err := print(inst.Value())
+		nsrc, err := toString(inst.Value())
 		if err != nil {
 			t.Error(err)
 			return

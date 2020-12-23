@@ -2,12 +2,10 @@ package model
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
-	"cuelang.org/go/cue/token"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -102,28 +100,16 @@ func NewOther(v cue.Value) (Instance, error) {
 	}, nil
 }
 
-func toFile(n ast.Node) *ast.File {
-	switch x := n.(type) {
-	case nil:
-		return nil
-	case *ast.StructLit:
-		return &ast.File{Decls: x.Elts}
-	case ast.Expr:
-		ast.SetRelPos(x, token.NoSpace)
-		return &ast.File{Decls: []ast.Decl{&ast.EmbedDecl{Expr: x}}}
-	case *ast.File:
-		return x
-	default:
-		panic(fmt.Sprintf("Unsupported node type %T", x))
-	}
-}
-
 func openPrint(v cue.Value) (string, error) {
 	sysopts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true), cue.Docs(true)}
-	f := toFile(v.Syntax(sysopts...))
+	f, err := sets.ToFile(v.Syntax(sysopts...))
+	if err != nil {
+		return "", nil
+	}
 	for _, decl := range f.Decls {
 		listOpen(decl)
 	}
+
 	ret, err := format.Node(f)
 	return string(ret), err
 }
