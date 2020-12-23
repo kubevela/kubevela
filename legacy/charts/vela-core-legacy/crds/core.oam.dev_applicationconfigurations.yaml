@@ -50,6 +50,11 @@ spec:
                     items:
                       description: DataInput specifies a data input sink to an object. If input is array, it will be appended to the target field paths.
                       properties:
+                        strategyMergeKeys:
+                          description: StrategyMergeKeys specifies the merge key if the toFieldPaths target is an array. The StrategyMergeKeys is optional, by default, if the toFieldPaths target is an array, we will append. If StrategyMergeKeys specified, we will check the key in the target array. If any key exist, do update; if no key exist, append.
+                          items:
+                            type: string
+                          type: array
                         toFieldPaths:
                           description: ToFieldPaths specifies the field paths of an object to fill passed value.
                           items:
@@ -166,6 +171,11 @@ spec:
                           items:
                             description: DataInput specifies a data input sink to an object. If input is array, it will be appended to the target field paths.
                             properties:
+                              strategyMergeKeys:
+                                description: StrategyMergeKeys specifies the merge key if the toFieldPaths target is an array. The StrategyMergeKeys is optional, by default, if the toFieldPaths target is an array, we will append. If StrategyMergeKeys specified, we will check the key in the target array. If any key exist, do update; if no key exist, append.
+                                items:
+                                  type: string
+                                type: array
                               toFieldPaths:
                                 description: ToFieldPaths specifies the field paths of an object to fill passed value.
                                 items:

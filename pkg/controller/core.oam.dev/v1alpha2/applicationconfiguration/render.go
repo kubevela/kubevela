@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"strconv"
 	"strings"
 
@@ -503,40 +502,12 @@ func (r *components) handleDataInput(ctx context.Context, ins []v1alpha2.DataInp
 			return uds, nil
 		}
 
-		err = fillValue(obj, in.ToFieldPaths, val)
+		err = fillDataInputValue(obj, in.ToFieldPaths, val, in.StrategyMergeKeys)
 		if err != nil {
-			return nil, errors.Wrap(err, "fillValue failed")
+			return nil, errors.Wrap(err, "fillDataInputValue failed")
 		}
 	}
 	return uds, nil
-}
-
-func fillValue(obj *unstructured.Unstructured, fs []string, val interface{}) error {
-	paved := fieldpath.Pave(obj.Object)
-	for _, fp := range fs {
-		toSet := val
-
-		// Special case for slcie because we will append instead of rewriting.
-		if reflect.TypeOf(val).Kind() == reflect.Slice {
-			raw, err := paved.GetValue(fp)
-			if err != nil {
-				if fieldpath.IsNotFound(err) {
-					raw = make([]interface{}, 0)
-				} else {
-					return err
-				}
-			}
-			l := raw.([]interface{})
-			l = append(l, val.([]interface{})...)
-			toSet = l
-		}
-
-		err := paved.SetValue(fp, toSet)
-		if err != nil {
-			return errors.Wrap(err, "paved.SetValue() failed")
-		}
-	}
-	return nil
 }
 
 func (r *components) getDataInput(ctx context.Context, s *dagSource, ac *unstructured.Unstructured) (interface{}, bool, string, error) {

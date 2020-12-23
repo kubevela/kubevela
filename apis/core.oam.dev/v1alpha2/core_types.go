@@ -516,6 +516,12 @@ type DataInput struct {
 
 	// ToFieldPaths specifies the field paths of an object to fill passed value.
 	ToFieldPaths []string `json:"toFieldPaths,omitempty"`
+
+	// StrategyMergeKeys specifies the merge key if the toFieldPaths target is an array.
+	// The StrategyMergeKeys is optional, by default, if the toFieldPaths target is an array, we will append.
+	// If StrategyMergeKeys specified, we will check the key in the target array.
+	// If any key exist, do update; if no key exist, append.
+	StrategyMergeKeys []string `json:"strategyMergeKeys,omitempty"`
 }
 
 // DataInputValueFrom specifies the value source for a data input.
