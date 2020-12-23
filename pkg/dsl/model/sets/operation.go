@@ -20,7 +20,7 @@ var (
 
 type interceptor func(node ast.Node) (ast.Node, error)
 
-func strategyListMerge(baseNode ast.Node) interceptor {
+func listMergeByKey(baseNode ast.Node) interceptor {
 	return func(lnode ast.Node) (ast.Node, error) {
 		walker := newWalker(func(node ast.Node, ctx walkCtx) {
 			clist, ok := node.(*ast.ListLit)
@@ -108,7 +108,7 @@ func StrategyUnify(base, patch string) (string, error) {
 		return "", errors.WithMessage(err, "parse patch")
 	}
 
-	return strategyUnify(baseFile, patchFile, strategyListMerge(baseFile))
+	return strategyUnify(baseFile, patchFile, listMergeByKey(baseFile))
 }
 
 func strategyUnify(baseFile *ast.File, patchFile *ast.File, patchOpts ...interceptor) (string, error) {
