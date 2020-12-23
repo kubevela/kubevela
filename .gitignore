@@ -51,3 +51,6 @@ dashboard/package-lock.json
 dashboard/src/.umi/
 package-lock.json
 dashboard/src/.umi-production/
+
+# Swagger: generate Restful API
+pkg/server/docs/index.html

@@ -16,11 +16,17 @@ import (
 	"github.com/oam-dev/kubevela/pkg/server/util"
 )
 
-// setup the gin http server handler
-// @title KubeVela API
-// @version 0.0.1
+// setupRoute sets gin http server handler
+// @title KubeVela Restful API
 // @description An KubeVela API.
-
+// @version 0.0.1
+// @description KubeVela OpenAPI for applications/workloads/operating
+// @contact.name Slack #kubevela
+// @contact.url https://kubevela.io
+// @contact.email zzxwill@gmail.com
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+// @host 127.0.0.1:38081
 // @BasePath /api
 func (s *APIServer) setupRoute(staticPath string) http.Handler {
 	// if deploying static Dashboard, set the mode to `release`, or to `debug`

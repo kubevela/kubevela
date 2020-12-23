@@ -13,7 +13,7 @@ import (
 var DefaultDashboardPort = ":38081"
 
 // DefaultAPIServerPort refers to the default port number of APIServer
-const DefaultAPIServerPort = ":8081"
+const DefaultAPIServerPort = ":38081"
 
 // AssembleResponse assembles response data to return
 func AssembleResponse(c *gin.Context, data interface{}, err error) {

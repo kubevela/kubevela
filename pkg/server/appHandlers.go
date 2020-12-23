@@ -12,7 +12,7 @@ import (
 func (s *APIServer) UpdateApps(c *gin.Context) {
 }
 
-// GetApp requests an application by the namespacedname in the gin.Context
+// GetApp requests an application by the namespaced name in the gin.Context
 func (s *APIServer) GetApp(c *gin.Context) {
 	envName := c.Param("envName")
 	envMeta, err := env.GetEnvByName(envName)
@@ -32,6 +32,13 @@ func (s *APIServer) GetApp(c *gin.Context) {
 }
 
 // ListApps requests a list of application by the namespace in the gin.Context
+// @tags applications
+// @ID ListApplications
+// @Summary list all applications
+// @Param envName path string true "environment name"
+// @Success 200 {object} apis.Response{code=int,data=[]apis.ApplicationMeta}
+// @Failure 500 {object} apis.Response{code=int,data=string}
+// @Router /envs/{envName}/apps [get]
 func (s *APIServer) ListApps(c *gin.Context) {
 	envName := c.Param("envName")
 	envMeta, err := env.GetEnvByName(envName)
