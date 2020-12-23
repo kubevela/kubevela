@@ -16,12 +16,13 @@ func TestPatch(t *testing.T) {
 		result string
 	}{
 		{
-			base:   `containers: [{name: "x1"},{name: "x2"},...]`,
-			patch:  `containers: [{name: "x1"},{name: "x2"}]`,
+			base:  `containers: [{name: "x1"},{name: "x2"},...]`,
+			patch: `containers: [{name: "x1"},{name: "x2",image: "pause:0.1"}]`,
 			result: `containers: [{
 	name: "x1"
 }, {
-	name: "x2"
+	name:  "x2"
+	image: "pause:0.1"
 }]
 `,
 		},
@@ -29,6 +30,12 @@ func TestPatch(t *testing.T) {
 		{
 			base:   `containers: [{name: "x1"},{name: "x2"},...]`,
 			patch:  `containers: [{name: "x2"},{name: "x1"}]`,
+			result: "_|_\n",
+		},
+
+		{
+			base:   `containers: [{name: _|_},{name: "x2"},...]`,
+			patch:  `containers: [{name: _|_},{name: "x2"}]`,
 			result: "_|_\n",
 		},
 
