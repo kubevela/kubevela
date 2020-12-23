@@ -68,7 +68,7 @@ aside.nav.nothing {
     line-height: 1.6em;
 }
 
-@media screen and (max-width: 2100px) {
+@media screen and (max-width: 1800px) {
     .page_toc {
         position: relative;
         left: 0;
@@ -77,6 +77,7 @@ aside.nav.nothing {
         border: none;
         border-bottom: 1px solid #ddd;
         font-size: 1.0em;
+        display: none;
     }
     .page_toc a:before {
         content: "- ";
