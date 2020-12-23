@@ -145,7 +145,7 @@ var _ = BeforeSuite(func(done Done) {
 
 	// For some reason, workloadDefinition is created as a Cluster scope object
 	label := map[string]string{"workload": "containerized-workload"}
-	// create a workload definition
+	// create workload definition for 'containerizedworkload'
 	wd := v1alpha2.WorkloadDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   "containerizedworkloads.core.oam.dev",
@@ -169,6 +169,20 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	Expect(k8sClient.Create(context.Background(), &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	By("Created containerizedworkload.core.oam.dev")
+
+	// create workload definition for 'deployments'
+	wdDeploy := v1alpha2.WorkloadDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "deployments.apps",
+		},
+		Spec: v1alpha2.WorkloadDefinitionSpec{
+			Reference: v1alpha2.DefinitionReference{
+				Name: "deployments.apps",
+			},
+		},
+	}
+	Expect(k8sClient.Create(context.Background(), &wdDeploy)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+	By("Created deployments.apps")
 
 	exampleClusterRole := rbac.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{

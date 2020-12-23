@@ -3,11 +3,55 @@
 apiVersion: admissionregistration.k8s.io/v1beta1
 kind: MutatingWebhookConfiguration
 metadata:
-  name: mutating-webhook-configuration
+  name: kubevela-mutating-webhook-configuration
   namespace: {{ .Release.Namespace }}
   annotations:
     cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ .Values.certificate.certificateName }}
 webhooks:
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /mutating-core-oam-dev-v1alpha2-applicationconfigurations
+    failurePolicy: Fail
+    name: mutating.core.oam.dev.v1alpha2.applicationconfigurations
+    rules:
+      - apiGroups:
+          - core.oam.dev
+        apiVersions:
+          - v1alpha2
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - applicationconfigurations
+        scope: Namespaced
+    admissionReviewVersions: 
+      - v1beta1
+    timeoutSeconds: 5
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /mutating-core-oam-dev-v1alpha2-components
+    failurePolicy: Fail
+    name: mutating.core.oam-dev.v1alpha2.components
+    rules:
+      - apiGroups:
+          - core.oam.dev
+        apiVersions:
+          - v1alpha2
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - components
+        scope: Namespaced
+    admissionReviewVersions: 
+      - v1beta1
+    timeoutSeconds: 5
   - clientConfig:
       caBundle: Cg==
       service:
@@ -49,11 +93,55 @@ webhooks:
 apiVersion: admissionregistration.k8s.io/v1beta1
 kind: ValidatingWebhookConfiguration
 metadata:
-  name: validating-webhook-configuration
+  name: kubevela-validating-webhook-configuration
   namespace: {{ .Release.Namespace }}
   annotations:
     cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ .Values.certificate.certificateName }}
 webhooks:
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /validating-core-oam-dev-v1alpha2-applicationconfigurations
+    failurePolicy: Fail
+    name: validating.core.oam.dev.v1alpha2.applicationconfigurations
+    rules:
+      - apiGroups:
+          - core.oam.dev
+        apiVersions:
+          - v1alpha2
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - applicationconfigurations
+        scope: Namespaced
+    admissionReviewVersions: 
+      - v1beta1
+    timeoutSeconds: 5
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /validating-core-oam-dev-v1alpha2-components
+    failurePolicy: Fail
+    name: validating.core.oam.dev.v1alpha2.components
+    rules:
+      - apiGroups:
+          - core.oam.dev
+        apiVersions:
+          - v1alpha2
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - components
+        scope: Namespaced
+    admissionReviewVersions: 
+      - v1beta1
+    timeoutSeconds: 5
   - clientConfig:
       caBundle: Cg==
       service:
