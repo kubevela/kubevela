@@ -159,7 +159,13 @@ func TestAppConfigController(t *testing.T) {
 						},
 					}))
 
-				if err := c.Create(context.Background(), ac); err != nil {
+				if err := waitFor(context.Background(), 3*time.Second, func() (bool, error) {
+					// re-try because validating-webhook may fail for workloadDefinition is not found
+					if err := c.Create(context.Background(), ac); err != nil {
+						return false, err
+					}
+					return true, nil
+				}); err != nil {
 					return err
 				}
 
