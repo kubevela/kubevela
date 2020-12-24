@@ -3,10 +3,12 @@ aliases:
   - hongchaodeng
   - wonderflow
 
-  kubevela-dashboard:
+  kubevela-dashboard-approver:
   - zzxwill
-  - hanxie-crypto
   - hongchaodeng
+
+  kubevela-dashboard-reviewer:
+  - hanxie-crypto
 
   kubevela-controller:
   - resouer
@@ -19,7 +21,6 @@ aliases:
   oam-spec:                   # inherit from https://github.com/oam-dev/spec/blob/master/OWNERS.md
   - hongchaodeng
   - resouer
-  - vturecek
 
   community-collaborators:
   - Fei-Guo

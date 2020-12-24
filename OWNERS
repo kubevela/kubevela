@@ -1,8 +1,12 @@
 approvers:
 - kubevela-controller
 - kubevela-devex
+- kubevela-dashboard-approver
 
 reviewers:
 - kubevela-controller
-- kubevela-dashboard
 - oam-spec
+- kubevela-dashboard-reviewer
+
+members:
+- community-collaborators
