@@ -24,9 +24,9 @@
         component: './Capability/Workloads'
       },
       {
-        name: 'operating',
-        path: '/capabilities/operating',
-        component: './Capability/Operating',
+        name: 'traits',
+        path: '/capabilities/traits',
+        component: './Capability/Traits',
       },
     ],
   },

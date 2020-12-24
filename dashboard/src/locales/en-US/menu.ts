@@ -5,5 +5,5 @@ export default {
   'menu.applications': 'Applications',
   'menu.capability': 'Capability',
   'menu.capability.workloads': 'Workloads',
-  'menu.capability.operating': 'Operating',
+  'menu.capability.traits': 'Traits',
 };
