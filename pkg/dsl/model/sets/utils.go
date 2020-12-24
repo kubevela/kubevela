@@ -83,7 +83,7 @@ func toString(v cue.Value) (string, error) {
 		if name != "" {
 			fmt.Fprintf(&w, "// %s\n", filepath.Base(name))
 		} else if useSep {
-			fmt.Println("// ---")
+			fmt.Fprintf(&w, "// ---")
 		}
 		useSep = true
 

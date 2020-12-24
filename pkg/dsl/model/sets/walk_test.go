@@ -63,6 +63,13 @@ func TestWalk(t *testing.T) {
 		    tags_str: "b {c}"
 		}
 	`,
+		`import "strings"
+
+		b: string	
+		user: {
+		    tags_str: strings.Compare(b,"c")
+		}
+	`,
 	}
 
 	for _, src := range testCases {
@@ -77,7 +84,6 @@ func TestWalk(t *testing.T) {
 			t.Error(err)
 			return
 		}
-
 		f, err := parser.ParseFile("-", nsrc)
 		if err != nil {
 			t.Error(err)

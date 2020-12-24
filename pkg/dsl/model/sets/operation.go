@@ -101,11 +101,11 @@ func listMergeByKey(baseNode ast.Node) interceptor {
 func StrategyUnify(base, patch string) (string, error) {
 	baseFile, err := parser.ParseFile("-", base, parser.ParseComments)
 	if err != nil {
-		return "", errors.WithMessage(err, "parse base")
+		return "", errors.WithMessage(err, "invalid base cue file")
 	}
 	patchFile, err := parser.ParseFile("-", patch, parser.ParseComments)
 	if err != nil {
-		return "", errors.WithMessage(err, "parse patch")
+		return "", errors.WithMessage(err, "invalid patch cue file")
 	}
 
 	return strategyUnify(baseFile, patchFile, listMergeByKey(baseFile))
@@ -122,22 +122,22 @@ func strategyUnify(baseFile *ast.File, patchFile *ast.File, patchOpts ...interce
 
 	baseInst, err := r.CompileFile(baseFile)
 	if err != nil {
-		return "", errors.WithMessage(err, "compileFile baseFile")
+		return "", errors.WithMessage(err, "compile base file")
 	}
 	patchInst, err := r.CompileFile(patchFile)
 	if err != nil {
-		return "", errors.WithMessage(err, "compileFile patchFile")
+		return "", errors.WithMessage(err, "compile patch file")
 	}
 
 	ret := baseInst.Value().Unify(patchInst.Value())
 
 	rv, err := toString(ret)
 	if err != nil {
-		return rv, errors.WithMessage(err, "result toString")
+		return rv, errors.WithMessage(err, " format result toString")
 	}
 
 	if err := ret.Err(); err != nil {
-		return rv, errors.WithMessage(err, "result err")
+		return rv, errors.WithMessage(err, "result check err")
 	}
 
 	if err := ret.Validate(cue.All()); err != nil {
