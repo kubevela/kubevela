@@ -70,8 +70,8 @@ func Install(kubecli client.Client) {
 			log.Error(err, fmt.Sprintf("failed to install helm chart for %s", key))
 		}
 		if key == "servicemonitors.monitoring.coreos.com" {
-			if err = InstallPromethusInstance(kubecli); err != nil {
-				log.Error(err, "failed to install promethus Instance")
+			if err = InstallPrometheusInstance(kubecli); err != nil {
+				log.Error(err, "failed to install prometheus Instance")
 			}
 		}
 	}
