@@ -96,7 +96,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, s
 	for _, td := range traitDefs.Items {
 		tmp, err := HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Annotations, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads)
 		if err != nil {
-			templateErrors = append(templateErrors, errors.Wrapf(err, "handle trait template `%s` failed\n", td.Name))
+			templateErrors = append(templateErrors, errors.Wrapf(err, "handle trait template `%s` failed", td.Name))
 			continue
 		}
 		if tmp, err = validateCapabilities(tmp, dm, td.Name, td.Spec.Reference); err != nil {
