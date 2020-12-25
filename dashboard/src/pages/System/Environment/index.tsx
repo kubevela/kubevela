@@ -1,5 +1,3 @@
-import './index.less';
-
 import React, { useState } from 'react';
 
 import { Button, Card, message, Popconfirm, Space, Table, Tag, Tooltip } from 'antd';
