@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -30,7 +31,6 @@ import (
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	// +kubebuilder:scaffold:imports
@@ -126,12 +126,14 @@ var _ = BeforeSuite(func(done Done) {
 						Type: "object",
 						Properties: map[string]crdv1.JSONSchemaProps{
 							"spec": {
-								Type: "object",
+								Type:                   "object",
+								XPreserveUnknownFields: pointer.BoolPtr(true),
 								Properties: map[string]crdv1.JSONSchemaProps{
 									"key": {Type: "string"},
 								}},
 							"status": {
-								Type: "object",
+								Type:                   "object",
+								XPreserveUnknownFields: pointer.BoolPtr(true),
 								Properties: map[string]crdv1.JSONSchemaProps{
 									"key":      {Type: "string"},
 									"app-hash": {Type: "string"},

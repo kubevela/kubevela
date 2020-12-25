@@ -18,7 +18,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -81,7 +80,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 	AfterEach(func() {
 		logf.Log.Info("Clean up resources")
 		// delete the namespace with all its resources
-		Expect(k8sClient.Delete(ctx, in)).Should(BeNil())
+		Expect(k8sClient.Delete(ctx, in)).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
 		Expect(k8sClient.Delete(ctx, out)).Should(BeNil())
 	})
 
@@ -531,6 +530,196 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 			outdata, _, _ := unstructured.NestedString(inFoo.Object, "spec", "key")
 			return outdata
 		}()).Should(Equal("test-new"))
-
 	})
+
+	It("component depends on trait with complex merge keys", func() {
+		compName := "complex-comp-in"
+		infoo := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"spec": map[string]interface{}{
+					"complex1": []interface{}{
+						map[string]interface{}{
+							"name":  "key1",
+							"value": "value0",
+						},
+						map[string]interface{}{
+							"name":  "key2",
+							"value": "value2",
+						},
+					},
+					"complex2": []interface{}{
+						map[string]interface{}{
+							"configMapRef": map[string]interface{}{
+								"name": "mymap",
+							},
+						},
+						map[string]interface{}{
+							"secretRef": map[string]interface{}{
+								"name": "mysec1",
+							},
+						},
+					},
+				},
+			},
+		}
+		infoo.SetAPIVersion("example.com/v1")
+		infoo.SetKind("Foo")
+		infoo.SetNamespace(namespace)
+		infoo.SetName(compName)
+
+		compIn := v1alpha2.Component{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      compName,
+				Namespace: namespace,
+			},
+			Spec: v1alpha2.ComponentSpec{
+				Workload: runtime.RawExtension{
+					Object: infoo,
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, &compIn)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		label := map[string]string{"trait": "component"}
+		// Create application configuration
+		appConfigName := "appconfig-trait-comp-complex"
+		appConfig := v1alpha2.ApplicationConfiguration{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appConfigName,
+				Namespace: namespace,
+				Labels:    label,
+			},
+			Spec: v1alpha2.ApplicationConfigurationSpec{
+				Components: []v1alpha2.ApplicationConfigurationComponent{{
+					ComponentName: compName,
+					DataInputs: []v1alpha2.DataInput{{
+						ValueFrom: v1alpha2.DataInputValueFrom{
+							DataOutputName: "o1",
+						},
+						ToFieldPaths:      []string{"spec.complex1"},
+						StrategyMergeKeys: []string{"name"},
+					}, {
+						ValueFrom: v1alpha2.DataInputValueFrom{
+							DataOutputName: "o2",
+						},
+						ToFieldPaths:      []string{"spec.complex2"},
+						StrategyMergeKeys: []string{"configMapRef.name", "secretRef.name"},
+					}},
+					Traits: []v1alpha2.ComponentTrait{{
+						Trait: runtime.RawExtension{
+							Object: out,
+						},
+						DataOutputs: []v1alpha2.DataOutput{{
+							Name:      "o1",
+							FieldPath: "status.complex1",
+						}, {
+							Name:      "o2",
+							FieldPath: "status.complex2",
+						}}}}}}},
+		}
+		logf.Log.Info("Creating application config", "Name", appConfig.Name, "Namespace", appConfig.Namespace)
+		Expect(k8sClient.Create(ctx, &appConfig)).Should(BeNil())
+
+		appconfigKey := client.ObjectKey{
+			Name:      appConfigName,
+			Namespace: namespace,
+		}
+		By("Reconcile")
+		req := reconcile.Request{NamespacedName: appconfigKey}
+		reconcileRetry(reconciler, req)
+
+		outFooKey := client.ObjectKey{
+			Name:      outName,
+			Namespace: namespace,
+		}
+		outFoo := tempFoo.DeepCopy()
+		By(fmt.Sprintf("Checking that resource which provides(output) data is created, Key %s", outFoo))
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, outFooKey, outFoo)
+			if err != nil {
+				reconciler.Reconcile(req)
+			}
+			return err
+		}, time.Second, 300*time.Millisecond).Should(BeNil())
+
+		By("Get reconciled AppConfig the first time")
+		appconfig := &v1alpha2.ApplicationConfiguration{}
+		logf.Log.Info("Get appconfig", "Key", appconfigKey)
+		Expect(k8sClient.Get(ctx, appconfigKey, appconfig)).Should(BeNil())
+
+		By("Update output object")
+		// fill value to fieldPath
+		Expect(unstructured.SetNestedField(outFoo.Object, []interface{}{map[string]interface{}{
+			"name":  "key1",
+			"value": "value1",
+		}}, "status", "complex1")).Should(BeNil())
+
+		complex2 := []interface{}{map[string]interface{}{
+			"configMapRef": map[string]interface{}{
+				"name":  "mymap",
+				"value": "myvalue",
+			}}, map[string]interface{}{
+			"secretRef": map[string]interface{}{
+				"name": "mysec2",
+			}}}
+		Expect(unstructured.SetNestedField(outFoo.Object, complex2, "status", "complex2")).Should(BeNil())
+		Expect(k8sClient.Status().Update(ctx, outFoo)).Should(Succeed())
+		Eventually(func() []interface{} {
+			k8sClient.Get(ctx, outFooKey, outFoo)
+			data, _, _ := unstructured.NestedSlice(outFoo.Object, "status", "complex2")
+			return data
+		}, time.Second, 300*time.Millisecond).Should(BeEquivalentTo(complex2))
+
+		By("Reconcile")
+		reconcileRetry(reconciler, req)
+
+		By("Verify the appconfig's dependency is satisfied")
+		appconfig = &v1alpha2.ApplicationConfiguration{}
+		Eventually(func() []v1alpha2.UnstaifiedDependency {
+			reconciler.Reconcile(req)
+			k8sClient.Get(ctx, appconfigKey, appconfig)
+			return appconfig.Status.Dependency.Unsatisfied
+		}, 2*time.Second, 300*time.Millisecond).Should(BeNil())
+		// Verification after satisfying dependency
+		By("Checking that resource which accepts data is created now")
+		inFooKey := client.ObjectKey{
+			Name:      compName,
+			Namespace: namespace,
+		}
+
+		logf.Log.Info("Checking on resource that inputs data", "Key", inFooKey)
+		Expect(k8sClient.Get(ctx, inFooKey, infoo)).Should(Succeed())
+		Expect(infoo.Object["spec"]).Should(BeEquivalentTo(map[string]interface{}{
+
+			"complex1": []interface{}{
+				map[string]interface{}{
+					"name":  "key1",
+					"value": "value1",
+				},
+				map[string]interface{}{
+					"name":  "key2",
+					"value": "value2",
+				},
+			},
+			"complex2": []interface{}{
+				map[string]interface{}{
+					"configMapRef": map[string]interface{}{
+						"name":  "mymap",
+						"value": "myvalue",
+					},
+				},
+				map[string]interface{}{
+					"secretRef": map[string]interface{}{
+						"name": "mysec1",
+					},
+				},
+				map[string]interface{}{
+					"secretRef": map[string]interface{}{
+						"name": "mysec2",
+					},
+				},
+			},
+		}))
+	})
+
 })
