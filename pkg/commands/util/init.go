@@ -28,7 +28,7 @@ func DoesNamespaceExist(c client.Client, namespace string) (bool, error) {
 // NewNamespace create namespace
 func NewNamespace(c client.Client, namespace string) error {
 	ns := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace,
-		// marking a special label for promethus monitoring.
+		// marking a special label for prometheus monitoring.
 		Labels: OAMLabel}}
 	err := c.Create(context.Background(), ns)
 	if err != nil {
