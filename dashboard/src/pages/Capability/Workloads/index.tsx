@@ -1,12 +1,12 @@
-import React, {useState} from 'react';
+import React, { useState } from 'react';
 
-import {Button, Card, Space, Tag} from 'antd';
-import {useModel} from 'umi';
-import {PageContainer} from '@ant-design/pro-layout';
-import {FileWordTwoTone, SnippetsTwoTone} from '@ant-design/icons';
-import ShowComponent from '../Components/ShowComponent'
-import ProList from "@ant-design/pro-list";
-import {ShowParameters} from "@/pages/Capability/Components/ShowComponent/types";
+import { Button, Card, Space, Tag } from 'antd';
+import { useModel } from 'umi';
+import { PageContainer } from '@ant-design/pro-layout';
+import { FileWordTwoTone, SnippetsTwoTone } from '@ant-design/icons';
+import ProList from '@ant-design/pro-list';
+import { ShowParameters } from '@/pages/Capability/Components/ShowComponent/types';
+import ShowComponent from '../Components/ShowComponent';
 
 const DEFAULT_DETAIL_STATE: ShowParameters = {
   name: '',
@@ -14,29 +14,22 @@ const DEFAULT_DETAIL_STATE: ShowParameters = {
 };
 
 export default (): React.ReactNode => {
-  const {
-    loading,
-    workloadList,
-  } = useModel('useWorkloadsModel');
+  const { loading, workloadList } = useModel('useWorkloadsModel');
 
-  const [showWorkload, setShowWorkload] = useState<ShowParameters>(DEFAULT_DETAIL_STATE)
+  const [showWorkload, setShowWorkload] = useState<ShowParameters>(DEFAULT_DETAIL_STATE);
 
-  const showInfo = ({
-                      workloads,
-                    }: {
-    workloads: ShowParameters;
-  }) => {
+  const showInfo = ({ workloads }: { workloads: ShowParameters }) => {
     setShowWorkload(workloads);
   };
 
   return (
     <PageContainer>
-      <ShowComponent name={showWorkload.name} parameters={showWorkload.parameters}/>
+      <ShowComponent name={showWorkload.name} parameters={showWorkload.parameters} />
       <Card>
         <ProList<any>
           rowKey="name"
           headerTitle="Type"
-          loading={loading ? {delay: 300} : undefined}
+          loading={loading ? { delay: 300 } : undefined}
           dataSource={workloadList ?? []}
           pagination={{
             defaultPageSize: 5,
@@ -52,9 +45,7 @@ export default (): React.ReactNode => {
               render: (text, row) => {
                 return (
                   <Space size={0}>
-                    {!row.required ? undefined : (
-                      <Tag color="#5BD8A6">Required</Tag>
-                    )}
+                    {!row.required ? undefined : <Tag color="#5BD8A6">Required</Tag>}
                   </Space>
                 );
               },
@@ -64,8 +55,8 @@ export default (): React.ReactNode => {
                 <Button
                   size="small"
                   type="link"
-                  icon={<SnippetsTwoTone/>}
-                  onClick={() => showInfo({workloads: row})}
+                  icon={<SnippetsTwoTone />}
+                  onClick={() => showInfo({ workloads: row })}
                 >
                   details
                 </Button>,
@@ -77,7 +68,7 @@ export default (): React.ReactNode => {
                   target="view_window"
                 >
                   reference
-                </Button>
+                </Button>,
               ],
             },
           }}

@@ -7,6 +7,6 @@ interface Parameters {
   name: string;
   usage: string;
   default: string;
-  required: boolean
+  required: boolean;
   short: string;
 }

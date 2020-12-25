@@ -69,5 +69,4 @@ declare namespace API {
     default: string;
     required: boolean;
   }
-
 }

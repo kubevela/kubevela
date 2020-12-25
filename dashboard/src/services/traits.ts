@@ -8,4 +8,3 @@ const BASE_PATH = '/api/traits';
 export async function getTraits(): Promise<API.VelaResponse<API.Traits[]>> {
   return request(BASE_PATH);
 }
-
