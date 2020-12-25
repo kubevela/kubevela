@@ -39,4 +39,34 @@ declare namespace API {
     status: string;
     createdTime: string;
   }
+
+  interface Workloads {
+    name: string;
+    parameters: Parameters[];
+  }
+
+  interface Traits {
+    name: string;
+    type: string;
+    template: string;
+    definition: string;
+    crdName: string;
+    description: string;
+    appliesTo: string[];
+    parameters: Parameters[];
+    crdInfo: crdInfo[];
+  }
+
+  interface crdInfo {
+    apiVersion: string;
+    kind: string;
+  }
+
+  interface Parameters {
+    name: string;
+    short: string;
+    usage: string;
+    default: string;
+    required: boolean;
+  }
 }
