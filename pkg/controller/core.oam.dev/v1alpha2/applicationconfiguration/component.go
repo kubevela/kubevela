@@ -29,30 +29,33 @@ const ControllerRevisionComponentLabel = "controller.oam.dev/component"
 
 // ComponentHandler will watch component change and generate Revision automatically.
 type ComponentHandler struct {
-	Client        client.Client
-	Logger        logging.Logger
-	RevisionLimit int
+	Client           client.Client
+	Logger           logging.Logger
+	RevisionLimit    int
+	CustomWebHookURL string
 }
 
 // Create implements EventHandler
 func (c *ComponentHandler) Create(evt event.CreateEvent, q workqueue.RateLimitingInterface) {
-	if !c.createControllerRevision(evt.Meta, evt.Object) {
+	reqs, succeed := c.createControllerRevision(evt.Meta, evt.Object)
+	if !succeed {
 		// No revision created, return
 		return
 	}
-	for _, req := range c.getRelatedAppConfig(evt.Meta) {
+	for _, req := range reqs {
 		q.Add(req)
 	}
 }
 
 // Update implements EventHandler
 func (c *ComponentHandler) Update(evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
-	if !c.createControllerRevision(evt.MetaNew, evt.ObjectNew) {
+	reqs, succeed := c.createControllerRevision(evt.MetaNew, evt.ObjectNew)
+	if !succeed {
 		// No revision created, return
 		return
 	}
 	// Note(wonderflow): MetaOld => MetaNew, requeue once is enough
-	for _, req := range c.getRelatedAppConfig(evt.MetaNew) {
+	for _, req := range reqs {
 		q.Add(req)
 	}
 }
@@ -133,14 +136,22 @@ func newTrue() *bool {
 	return &b
 }
 
-func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtime.Object) bool {
+func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtime.Object) ([]reconcile.Request, bool) {
 	curComp := obj.(*v1alpha2.Component)
 	comp := curComp.DeepCopy()
 	diff, curRevision := c.IsRevisionDiff(mt, comp)
 	if !diff {
 		// No difference, no need to create new revision.
-		return false
+		return nil, false
 	}
+
+	reqs := c.getRelatedAppConfig(mt)
+	// Hook to custom revision service if exist
+	if err := c.customComponentRevisionHook(reqs, comp); err != nil {
+		c.Logger.Info(fmt.Sprintf("fail to hook from custom revision service(%s) %v", c.CustomWebHookURL, err), "componentName", mt.GetName())
+		return nil, false
+	}
+
 	nextRevision := curRevision + 1
 	revisionName := ConstructRevisionName(mt.GetName(), nextRevision)
 
@@ -177,13 +188,13 @@ func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtim
 	err := c.Client.Create(context.TODO(), &revision)
 	if err != nil {
 		c.Logger.Info(fmt.Sprintf("error create controllerRevision %v", err), "componentName", mt.GetName())
-		return false
+		return nil, false
 	}
 
 	err = c.Client.Status().Update(context.Background(), comp)
 	if err != nil {
 		c.Logger.Info(fmt.Sprintf("update component status latestRevision %s err %v", revisionName, err), "componentName", mt.GetName())
-		return false
+		return nil, false
 	}
 	c.Logger.Info(fmt.Sprintf("ControllerRevision %s created", revisionName))
 	if int64(c.RevisionLimit) < nextRevision {
@@ -191,7 +202,7 @@ func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtim
 			c.Logger.Info(fmt.Sprintf("failed to clean up revisions of Component %v.", err))
 		}
 	}
-	return true
+	return reqs, true
 }
 
 // get sorted controllerRevisions, prepare to delete controllerRevisions

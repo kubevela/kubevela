@@ -137,7 +137,10 @@ var _ = Describe("Test ApplicationConfiguration Component Revision Enabled trait
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: compName}, cmpV1)).Should(Succeed())
 
 		By("component handler will automatically create controller revision")
-		Expect(componentHandler.createControllerRevision(cmpV1, cmpV1)).Should(BeTrue())
+		Expect(func() bool {
+			_, ok := componentHandler.createControllerRevision(cmpV1, cmpV1)
+			return ok
+		}()).Should(BeTrue())
 		var crList v1.ControllerRevisionList
 		By("Check controller revision created successfully")
 		Eventually(func() error {
@@ -250,7 +253,7 @@ var _ = Describe("Test ApplicationConfiguration Component Revision Enabled trait
 		By("Update Component")
 		Expect(k8sClient.Update(ctx, cmpV2)).Should(Succeed())
 		By("component handler will automatically create a ne controller revision")
-		Expect(componentHandler.createControllerRevision(cmpV2, cmpV2)).Should(BeTrue())
+		Expect(func() bool { _, ok := componentHandler.createControllerRevision(cmpV2, cmpV2); return ok }()).Should(BeTrue())
 		By("Check controller revision created successfully")
 		Eventually(func() error {
 			labels := &metav1.LabelSelector{
