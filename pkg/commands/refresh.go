@@ -57,7 +57,7 @@ func RefreshDefinitions(ctx context.Context, c types.Args, ioStreams cmdutil.IOS
 	}
 	if len(templateErrors) > 0 {
 		for _, e := range templateErrors {
-			ioStreams.Infof("WARN: %v, you will unable to use this workload capability", e)
+			ioStreams.Infof("WARN: %v, you will unable to use this workload capability\n", e)
 		}
 	}
 	syncedTemplates = append(syncedTemplates, templates...)
@@ -69,7 +69,7 @@ func RefreshDefinitions(ctx context.Context, c types.Args, ioStreams cmdutil.IOS
 	}
 	if len(templateErrors) > 0 {
 		for _, e := range templateErrors {
-			ioStreams.Infof("WARN: %v, you will unable to use this trait capability", e)
+			ioStreams.Infof("WARN: %v, you will unable to use this trait capability\n", e)
 		}
 	}
 	syncedTemplates = append(syncedTemplates, templates...)
