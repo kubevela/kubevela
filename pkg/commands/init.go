@@ -14,6 +14,8 @@ import (
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
@@ -27,7 +29,7 @@ type appInitOptions struct {
 	cmdutil.IOStreams
 	Env *types.EnvMeta
 
-	app          *application.Application
+	app          *driver.Application
 	appName      string
 	workloadName string
 	workloadType string
@@ -70,7 +72,7 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err = o.Traits(); err != nil {
 				return err
 			}
-			comps, appconfig, scopes, err := o.app.OAM(o.Env, ioStreams, true)
+			comps, appconfig, scopes, err := application.OAM(o.app, o.Env, ioStreams, true)
 			if err != nil {
 				return err
 			}
@@ -90,7 +92,7 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			}
 
 			ctx := context.Background()
-			err = o.app.Run(ctx, o.client, appconfig, comps, scopes)
+			err = application.Run(ctx, o.client, appconfig, comps, scopes)
 			if err != nil {
 				return err
 			}

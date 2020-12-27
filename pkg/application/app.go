@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"sort"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/storage"
 	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
@@ -19,26 +17,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-// Application is an implementation level object for Appfile, all vela commands will access AppFile from Appliction struct here.
-type Application struct {
-	*appfile.AppFile `json:",inline"`
-	tm               template.Manager
-}
-
-func newApplication(f *appfile.AppFile, tm template.Manager) *Application {
-	if f == nil {
-		f = appfile.NewAppFile()
-	}
-	return &Application{AppFile: f, tm: tm}
-}
-
 // NewEmptyApplication new empty application, only set tm
-func NewEmptyApplication() (*Application, error) {
+func NewEmptyApplication() (*driver.Application, error) {
 	tm, err := template.Load()
 	if err != nil {
 		return nil, err
 	}
-	return newApplication(nil, tm), nil
+	return driver.NewApplication(nil, tm), nil
 }
 
 // IsNotFound is application not found error
@@ -47,12 +32,11 @@ func IsNotFound(appName string, err error) bool {
 }
 
 // Load will load application with env and name from default vela home dir.
-func Load(envName, appName string) (*Application, error) {
-	respApp, err := storage.Store.Get(envName, appName)
+func Load(envName, appName string) (*driver.Application, error) {
+	app, err := storage.Store.Get(envName, appName)
 	if err != nil {
 		return nil, err
 	}
-	app := newApplication(respApp.AppFile, respApp.Tm)
 	err = app.Validate()
 	return app, err
 }
@@ -63,14 +47,14 @@ func Delete(envName, appName string) error {
 }
 
 // List will list all apps
-func List(envName string) ([]*Application, error) {
+func List(envName string) ([]*driver.Application, error) {
 	respApps, err := storage.Store.List(envName)
 	if err != nil {
 		return nil, err
 	}
-	var apps []*Application
+	var apps []*driver.Application
 	for _, resp := range respApps {
-		app := newApplication(resp.AppFile, resp.Tm)
+		app := driver.NewApplication(resp.AppFile, resp.Tm)
 		err := app.Validate()
 		if err != nil {
 			return nil, err
@@ -81,13 +65,13 @@ func List(envName string) ([]*Application, error) {
 }
 
 // MatchAppByComp will get application with componentName without AppName.
-func MatchAppByComp(envName, compName string) (*Application, error) {
+func MatchAppByComp(envName, compName string) (*driver.Application, error) {
 	apps, err := List(envName)
 	if err != nil {
 		return nil, err
 	}
 	for _, subapp := range apps {
-		for _, v := range subapp.GetComponents() {
+		for _, v := range GetComponents(subapp) {
 			if v == compName {
 				return subapp, nil
 			}
@@ -97,32 +81,12 @@ func MatchAppByComp(envName, compName string) (*Application, error) {
 }
 
 // Save will save appfile into default dir.
-func (app *Application) Save(envName string) error {
-	return storage.Store.Save(&driver.RespApplication{AppFile: app.AppFile, Tm: app.tm}, envName)
-}
-
-// Validate will validate whether an Appfile is valid.
-func (app *Application) Validate() error {
-	if app.Name == "" {
-		return errors.New("name is required")
-	}
-	if len(app.Services) == 0 {
-		return errors.New("at least one service is required")
-	}
-	for name, svc := range app.Services {
-		for traitName, traitData := range svc.GetConfig() {
-			if app.tm.IsTrait(traitName) {
-				if _, ok := traitData.(map[string]interface{}); !ok {
-					return fmt.Errorf("trait %s in '%s' must be map", traitName, name)
-				}
-			}
-		}
-	}
-	return nil
+func Save(app *driver.Application, envName string) error {
+	return storage.Store.Save(app, envName)
 }
 
 // GetComponents will get oam components from Appfile.
-func (app *Application) GetComponents() []string {
+func GetComponents(app *driver.Application) []string {
 	var components []string
 	for name := range app.Services {
 		components = append(components, name)
@@ -132,7 +96,7 @@ func (app *Application) GetComponents() []string {
 }
 
 // GetServiceConfig will get service type and it's configuration
-func (app *Application) GetServiceConfig(componentName string) (string, map[string]interface{}) {
+func GetServiceConfig(app *driver.Application, componentName string) (string, map[string]interface{}) {
 	svc, ok := app.Services[componentName]
 	if !ok {
 		return "", make(map[string]interface{})
@@ -141,14 +105,14 @@ func (app *Application) GetServiceConfig(componentName string) (string, map[stri
 }
 
 // GetWorkload will get workload type and it's configuration
-func (app *Application) GetWorkload(componentName string) (string, map[string]interface{}) {
-	svcType, config := app.GetServiceConfig(componentName)
+func GetWorkload(app *driver.Application, componentName string) (string, map[string]interface{}) {
+	svcType, config := GetServiceConfig(app, componentName)
 	if svcType == "" {
 		return "", make(map[string]interface{})
 	}
 	workloadData := make(map[string]interface{})
 	for k, v := range config {
-		if app.tm.IsTrait(k) {
+		if app.Tm.IsTrait(k) {
 			continue
 		}
 		workloadData[k] = v
@@ -157,8 +121,8 @@ func (app *Application) GetWorkload(componentName string) (string, map[string]in
 }
 
 // GetTraitNames will list all traits attached to the specified component.
-func (app *Application) GetTraitNames(componentName string) ([]string, error) {
-	tt, err := app.GetTraits(componentName)
+func GetTraitNames(app *driver.Application, componentName string) ([]string, error) {
+	tt, err := GetTraits(app, componentName)
 	if err != nil {
 		return nil, err
 	}
@@ -170,11 +134,11 @@ func (app *Application) GetTraitNames(componentName string) ([]string, error) {
 }
 
 // GetTraits will list all traits and it's configurations attached to the specified component.
-func (app *Application) GetTraits(componentName string) (map[string]map[string]interface{}, error) {
-	_, config := app.GetServiceConfig(componentName)
+func GetTraits(app *driver.Application, componentName string) (map[string]map[string]interface{}, error) {
+	_, config := GetServiceConfig(app, componentName)
 	traitsData := make(map[string]map[string]interface{})
 	for k, v := range config {
-		if !app.tm.IsTrait(k) {
+		if !app.Tm.IsTrait(k) {
 			continue
 		}
 		newV, ok := v.(map[string]interface{})
@@ -187,7 +151,7 @@ func (app *Application) GetTraits(componentName string) (map[string]map[string]i
 }
 
 // GetTraitsByType will get trait configuration with specified component and trait type, we assume one type of trait can only attach to a component once.
-func (app *Application) GetTraitsByType(componentName, traitType string) (map[string]interface{}, error) {
+func GetTraitsByType(app *driver.Application, componentName, traitType string) (map[string]interface{}, error) {
 	service, ok := app.Services[componentName]
 	if !ok {
 		return nil, fmt.Errorf("service name (%s) doesn't exist", componentName)
@@ -201,8 +165,8 @@ func (app *Application) GetTraitsByType(componentName, traitType string) (map[st
 
 // OAM will convert an AppFile to OAM objects
 // TODO(wonderflow) add scope support here
-func (app *Application) OAM(env *types.EnvMeta, io cmdutil.IOStreams, silence bool) ([]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
-	comps, appConfig, scopes, err := app.BuildOAM(env.Namespace, io, app.tm, silence)
+func OAM(app *driver.Application, env *types.EnvMeta, io cmdutil.IOStreams, silence bool) ([]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
+	comps, appConfig, scopes, err := app.BuildOAM(env.Namespace, io, app.Tm, silence)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -210,7 +174,7 @@ func (app *Application) OAM(env *types.EnvMeta, io cmdutil.IOStreams, silence bo
 }
 
 // GetAppConfig will get AppConfig from K8s cluster.
-func GetAppConfig(ctx context.Context, c client.Client, app *Application, env *types.EnvMeta) (*v1alpha2.ApplicationConfiguration, error) {
+func GetAppConfig(ctx context.Context, c client.Client, app *driver.Application, env *types.EnvMeta) (*v1alpha2.ApplicationConfiguration, error) {
 	appConfig := &v1alpha2.ApplicationConfiguration{}
 	if err := c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: app.Name}, appConfig); err != nil {
 		return nil, err

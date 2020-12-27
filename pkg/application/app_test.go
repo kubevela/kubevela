@@ -9,6 +9,8 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 )
@@ -119,7 +121,7 @@ services:
 				Captype: types.TypeTrait,
 			}
 		}
-		app := newApplication(nil, tm)
+		app := driver.NewApplication(nil, tm)
 		err := yaml.Unmarshal([]byte(c.raw), &app)
 		assert.NoError(t, err, caseName)
 		err = app.Validate()
@@ -128,11 +130,11 @@ services:
 			continue
 		}
 		assert.Equal(t, c.ExpName, app.Name, caseName)
-		assert.Equal(t, c.ExpComponents, app.GetComponents(), caseName)
-		workloadType, workload := app.GetWorkload(c.WantWorkload)
+		assert.Equal(t, c.ExpComponents, GetComponents(app), caseName)
+		workloadType, workload := GetWorkload(app, c.WantWorkload)
 		assert.Equal(t, c.ExpWorkload, workload, caseName)
 		assert.Equal(t, c.ExpWorkloadType, workloadType, caseName)
-		traits, err := app.GetTraits(c.WantWorkload)
+		traits, err := GetTraits(app, c.WantWorkload)
 		assert.NoError(t, err, caseName)
 		assert.Equal(t, c.ExpTraits, traits, caseName)
 	}

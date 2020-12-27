@@ -9,6 +9,7 @@ const ConfigMapDriverName = "ConfigMap"
 
 // ConfigMap Storage
 type ConfigMap struct {
+	Driver
 }
 
 // NewConfigMapStorage get storage client of ConfigMap type
@@ -22,13 +23,13 @@ func (c *ConfigMap) Name() string {
 }
 
 // List applications from configmap storage
-func (c *ConfigMap) List(envName string) ([]*RespApplication, error) {
+func (c *ConfigMap) List(envName string) ([]*Application, error) {
 	// TODO support configmap storage
 	return nil, errors.New("not implement")
 }
 
 // Save applications from configmap storage
-func (c *ConfigMap) Save(app *RespApplication, envName string) error {
+func (c *ConfigMap) Save(app *Application, envName string) error {
 	// TODO support configmap storage
 	return errors.New("not implement")
 }
@@ -40,7 +41,7 @@ func (c *ConfigMap) Delete(envName, appName string) error {
 }
 
 // Get applications from configmap storage
-func (c *ConfigMap) Get(envName, appName string) (*RespApplication, error) {
+func (c *ConfigMap) Get(envName, appName string) (*Application, error) {
 	// TODO support configmap storage
 	return nil, errors.New("not implement")
 }

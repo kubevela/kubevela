@@ -21,6 +21,7 @@ const LocalDriverName = "Local"
 
 // Local Storage
 type Local struct {
+	Driver
 }
 
 // NewLocalStorage get storage client of Local type
@@ -34,7 +35,7 @@ func (l *Local) Name() string {
 }
 
 // List applications from local storage
-func (l *Local) List(envName string) ([]*RespApplication, error) {
+func (l *Local) List(envName string) ([]*Application, error) {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
 		return nil, err
@@ -43,7 +44,7 @@ func (l *Local) List(envName string) ([]*RespApplication, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list apps from %s err %w", appDir, err)
 	}
-	var apps []*RespApplication
+	var apps []*Application
 	for _, f := range files {
 		if f.IsDir() {
 			continue
@@ -61,7 +62,7 @@ func (l *Local) List(envName string) ([]*RespApplication, error) {
 }
 
 // Save application from local storage
-func (l *Local) Save(app *RespApplication, envName string) error {
+func (l *Local) Save(app *Application, envName string) error {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
 		return err
@@ -88,7 +89,7 @@ func (l *Local) Delete(envName, appName string) error {
 }
 
 // Get application from local storage
-func (l *Local) Get(envName, appName string) (*RespApplication, error) {
+func (l *Local) Get(envName, appName string) (*Application, error) {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
 		return nil, err
@@ -115,7 +116,7 @@ func getApplicationDir(envName string) (string, error) {
 }
 
 // LoadFromFile will load application from file
-func loadFromFile(fileName string) (*RespApplication, error) {
+func loadFromFile(fileName string) (*Application, error) {
 	tm, err := template.Load()
 	if err != nil {
 		return nil, err
@@ -129,6 +130,6 @@ func loadFromFile(fileName string) (*RespApplication, error) {
 	if err != nil {
 		return nil, err
 	}
-	app := &RespApplication{AppFile: f, Tm: tm}
+	app := &Application{AppFile: f, Tm: tm}
 	return app, nil
 }

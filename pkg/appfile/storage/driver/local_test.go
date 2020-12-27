@@ -45,10 +45,10 @@ func TestLocal_Get(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    *RespApplication
+		want    *Application
 		wantErr bool
 	}{
-		{"TestLocal_Get1", args{envName: envName, appName: appName}, &RespApplication{AppFile: afile, Tm: tm}, false},
+		{"TestLocal_Get1", args{envName: envName, appName: appName}, &Application{AppFile: afile, Tm: tm}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -90,7 +90,7 @@ func TestLocal_Delete(t *testing.T) {
 
 func TestLocal_Save(t *testing.T) {
 	type args struct {
-		app     *RespApplication
+		app     *Application
 		envName string
 	}
 	tests := []struct {
@@ -98,7 +98,7 @@ func TestLocal_Save(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-		{"TestLocal_Save1", args{&RespApplication{AppFile: afile, Tm: nil}, envName}, false},
+		{"TestLocal_Save1", args{&Application{AppFile: afile, Tm: nil}, envName}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -114,12 +114,12 @@ func TestLocal_List(t *testing.T) {
 	type args struct {
 		envName string
 	}
-	want := make([]*RespApplication, 0)
-	want = append(want, &RespApplication{afile, tm})
+	want := make([]*Application, 0)
+	want = append(want, &Application{afile, tm})
 	tests := []struct {
 		name    string
 		args    args
-		want    []*RespApplication
+		want    []*Application
 		wantErr bool
 	}{
 		{"TestLocal_List1", args{envName}, want, false},
@@ -205,10 +205,10 @@ func Test_loadFromFile(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    *RespApplication
+		want    *Application
 		wantErr bool
 	}{
-		{"testRespApp", args{fileName: filepath.Join(dir, appName+".yaml")}, &RespApplication{AppFile: afile, Tm: tm}, false},
+		{"testRespApp", args{fileName: filepath.Join(dir, appName+".yaml")}, &Application{AppFile: afile, Tm: tm}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -4,10 +4,11 @@ import (
 	"errors"
 
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 )
 
 // SetWorkload will set user workload for Appfile
-func (app *Application) SetWorkload(componentName, workloadType string, workloadData map[string]interface{}) error {
+func SetWorkload(app *driver.Application, componentName, workloadType string, workloadData map[string]interface{}) error {
 	if app == nil {
 		return errors.New("app is nil pointer")
 	}
@@ -25,7 +26,7 @@ func (app *Application) SetWorkload(componentName, workloadType string, workload
 }
 
 // SetTrait will set user trait for Appfile
-func (app *Application) SetTrait(componentName, traitType string, traitData map[string]interface{}) error {
+func SetTrait(app *driver.Application, componentName, traitType string, traitData map[string]interface{}) error {
 	if app == nil {
 		return errors.New("app is nil pointer")
 	}
@@ -52,7 +53,7 @@ func (app *Application) SetTrait(componentName, traitType string, traitData map[
 }
 
 // RemoveTrait will remove a trait from Appfile
-func (app *Application) RemoveTrait(componentName, traitType string) error {
+func RemoveTrait(app *driver.Application, componentName, traitType string) error {
 	if app == nil {
 		return errors.New("app is nil pointer")
 	}
@@ -66,7 +67,7 @@ func (app *Application) RemoveTrait(componentName, traitType string) error {
 }
 
 // RemoveComponent will remove component from Appfile
-func (app *Application) RemoveComponent(componentName string) error {
+func RemoveComponent(app *driver.Application, componentName string) error {
 	if app == nil {
 		return errors.New("app is nil pointer")
 	}

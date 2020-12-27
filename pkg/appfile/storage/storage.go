@@ -36,12 +36,12 @@ func NewStorage(driverName string) *Storage {
 }
 
 // List applications storage common implement
-func (s *Storage) List(envName string) ([]*driver.RespApplication, error) {
+func (s *Storage) List(envName string) ([]*driver.Application, error) {
 	return s.Driver.List(envName)
 }
 
 // Save application storage common implement
-func (s *Storage) Save(app *driver.RespApplication, envName string) error {
+func (s *Storage) Save(app *driver.Application, envName string) error {
 	return s.Driver.Save(app, envName)
 }
 
@@ -51,6 +51,6 @@ func (s *Storage) Delete(envName, appName string) error {
 }
 
 // Get application storage common implement
-func (s *Storage) Get(envName, appName string) (*driver.RespApplication, error) {
+func (s *Storage) Get(envName, appName string) (*driver.Application, error) {
 	return s.Driver.Get(envName, appName)
 }

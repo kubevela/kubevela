@@ -12,6 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -47,7 +49,7 @@ func GetChecker(traitType string, c client.Client) Checker {
 
 // Checker defines the interface of checker
 type Checker interface {
-	Check(ctx context.Context, reference runtimev1alpha1.TypedReference, compName string, appConfig *v1alpha2.ApplicationConfiguration, app *application.Application) (CheckStatus, string, error)
+	Check(ctx context.Context, reference runtimev1alpha1.TypedReference, compName string, appConfig *v1alpha2.ApplicationConfiguration, app *driver.Application) (CheckStatus, string, error)
 }
 
 // DefaultChecker defines the default checker
@@ -56,7 +58,7 @@ type DefaultChecker struct {
 }
 
 // Check default check object if exist and print the configs
-func (d *DefaultChecker) Check(ctx context.Context, reference runtimev1alpha1.TypedReference, compName string, appConfig *v1alpha2.ApplicationConfiguration, app *application.Application) (CheckStatus, string, error) {
+func (d *DefaultChecker) Check(ctx context.Context, reference runtimev1alpha1.TypedReference, compName string, appConfig *v1alpha2.ApplicationConfiguration, app *driver.Application) (CheckStatus, string, error) {
 	tr, err := GetUnstructured(ctx, d.c, appConfig.Namespace, reference)
 	if err != nil {
 		return StatusChecking, "", err
@@ -66,7 +68,7 @@ func (d *DefaultChecker) Check(ctx context.Context, reference runtimev1alpha1.Ty
 		message, err := GetStatusFromObject(tr)
 		return StatusDone, message, err
 	}
-	traitData, err := app.GetTraitsByType(compName, traitType)
+	traitData, err := application.GetTraitsByType(app, compName, traitType)
 	if err != nil {
 		return StatusDone, err.Error(), err
 	}
@@ -83,7 +85,7 @@ type MetricChecker struct {
 }
 
 // Check metrics
-func (d *MetricChecker) Check(ctx context.Context, reference runtimev1alpha1.TypedReference, _ string, appConfig *v1alpha2.ApplicationConfiguration, _ *application.Application) (CheckStatus, string, error) {
+func (d *MetricChecker) Check(ctx context.Context, reference runtimev1alpha1.TypedReference, _ string, appConfig *v1alpha2.ApplicationConfiguration, _ *driver.Application) (CheckStatus, string, error) {
 	metric := v1alpha1.MetricsTrait{}
 	if err := d.c.Get(ctx, client.ObjectKey{Namespace: appConfig.Namespace, Name: reference.Name}, &metric); err != nil {
 		return StatusChecking, "", err
@@ -110,7 +112,7 @@ type RouteChecker struct {
 }
 
 // Check understand route status
-func (d *RouteChecker) Check(ctx context.Context, reference runtimev1alpha1.TypedReference, _ string, appConfig *v1alpha2.ApplicationConfiguration, _ *application.Application) (CheckStatus, string, error) {
+func (d *RouteChecker) Check(ctx context.Context, reference runtimev1alpha1.TypedReference, _ string, appConfig *v1alpha2.ApplicationConfiguration, _ *driver.Application) (CheckStatus, string, error) {
 	route := v1alpha1.Route{}
 	if err := d.c.Get(ctx, client.ObjectKey{Namespace: appConfig.Namespace, Name: reference.Name}, &route); err != nil {
 		return StatusChecking, "", err
@@ -156,7 +158,7 @@ type AutoscalerChecker struct {
 }
 
 // Check should understand autoscale trait status
-func (d *AutoscalerChecker) Check(ctx context.Context, ref runtimev1alpha1.TypedReference, _ string, appConfig *v1alpha2.ApplicationConfiguration, _ *application.Application) (CheckStatus, string, error) {
+func (d *AutoscalerChecker) Check(ctx context.Context, ref runtimev1alpha1.TypedReference, _ string, appConfig *v1alpha2.ApplicationConfiguration, _ *driver.Application) (CheckStatus, string, error) {
 	traitName := ref.Name
 	var scaler v1alpha1.Autoscaler
 	if err := d.c.Get(ctx, client.ObjectKey{Namespace: appConfig.Namespace, Name: traitName}, &scaler); err != nil {

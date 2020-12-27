@@ -7,6 +7,8 @@ import (
 	ctypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -16,16 +18,16 @@ import (
 )
 
 // BuildRun will build OAM and deploy from Appfile
-func (app *Application) BuildRun(ctx context.Context, client client.Client, env *types.EnvMeta, io cmdutil.IOStreams) error {
-	components, appconfig, scopes, err := app.OAM(env, io, true)
+func BuildRun(ctx context.Context, app *driver.Application, client client.Client, env *types.EnvMeta, io cmdutil.IOStreams) error {
+	components, appconfig, scopes, err := OAM(app, env, io, true)
 	if err != nil {
 		return err
 	}
-	return app.Run(ctx, client, appconfig, components, scopes)
+	return Run(ctx, client, appconfig, components, scopes)
 }
 
 // Run will deploy OAM objects.
-func (app *Application) Run(ctx context.Context, client client.Client,
+func Run(ctx context.Context, client client.Client,
 	ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component, scopes []oam.Object) error {
 	for _, comp := range comps {
 		if err := CreateOrUpdateComponent(ctx, client, comp); err != nil {

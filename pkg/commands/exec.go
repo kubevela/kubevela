@@ -14,6 +14,8 @@ import (
 	cmdexec "k8s.io/kubectl/pkg/cmd/exec"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
+
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
@@ -39,7 +41,7 @@ type VelaExecOptions struct {
 	context.Context
 	VelaC types.Args
 	Env   *types.EnvMeta
-	App   *application.Application
+	App   *driver.Application
 
 	f             k8scmdutil.Factory
 	kcExecOptions *cmdexec.ExecOptions
@@ -168,7 +170,7 @@ func (o *VelaExecOptions) getComponentName() (string, error) {
 		o.Cmd.Printf("The service name '%s' is not valid\n", svcName)
 	}
 
-	compName, err := util.AskToChooseOneService(o.App.GetComponents())
+	compName, err := util.AskToChooseOneService(application.GetComponents(o.App))
 	if err != nil {
 		return "", err
 	}

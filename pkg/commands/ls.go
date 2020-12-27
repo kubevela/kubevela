@@ -81,13 +81,13 @@ func mergeStagingComponents(deployed []apis.ComponentMeta, env *types.EnvMeta, i
 	}
 	var all []apis.ComponentMeta
 	for _, app := range localApps {
-		comps, appConfig, _, err := app.OAM(env, ioStreams, true)
+		comps, appConfig, _, err := application.OAM(app, env, ioStreams, true)
 		if err != nil {
 			ioStreams.Errorf("convert app %s err %v\n", app.Name, err)
 			continue
 		}
 		for _, c := range comps {
-			traits, err := app.GetTraitNames(c.Name)
+			traits, err := application.GetTraitNames(app, c.Name)
 			if err != nil {
 				ioStreams.Errorf("get traits from app %s %s err %v\n", app.Name, c.Name, err)
 				continue

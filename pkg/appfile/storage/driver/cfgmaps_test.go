@@ -35,7 +35,7 @@ func TestConfigMap_Get(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    *RespApplication
+		want    *Application
 		wantErr bool
 	}{
 		// TODO: Add test cases.
@@ -62,7 +62,7 @@ func TestConfigMap_List(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    []*RespApplication
+		want    []*Application
 		wantErr bool
 	}{
 		// TODO: Add test cases.
@@ -101,7 +101,7 @@ func TestConfigMap_Name(t *testing.T) {
 
 func TestConfigMap_Save(t *testing.T) {
 	type args struct {
-		app     *RespApplication
+		app     *Application
 		envName string
 	}
 	tests := []struct {
