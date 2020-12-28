@@ -14,9 +14,8 @@ import (
 	cmdexec "k8s.io/kubectl/pkg/cmd/exec"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
-
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	velacmdutil "github.com/oam-dev/kubevela/pkg/commands/util"

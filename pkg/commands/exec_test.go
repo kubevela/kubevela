@@ -16,10 +16,9 @@ import (
 	cmdtesting "k8s.io/kubectl/pkg/cmd/testing"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
-
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )

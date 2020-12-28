@@ -12,15 +12,12 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	"github.com/oam-dev/kubevela/pkg/application"
 	autoscalers "github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/autoscaler"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // CheckStatus defines the type of checking status

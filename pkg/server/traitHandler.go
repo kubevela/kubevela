@@ -9,9 +9,8 @@ import (
 	"github.com/spf13/pflag"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
-
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	util2 "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
