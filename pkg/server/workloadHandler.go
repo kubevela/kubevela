@@ -87,9 +87,9 @@ func (s *APIServer) ListWorkload(c *gin.Context) {
 	}
 	for _, w := range workloads {
 		workloadDefinitionList = append(workloadDefinitionList, apis.WorkloadMeta{
-			Name:       w.Name,
-			Parameters: w.Parameters,
-			AppliesTo:  w.AppliesTo,
+			Name:        w.Name,
+			Parameters:  w.Parameters,
+			Description: w.Description,
 		})
 	}
 	util.AssembleResponse(c, workloadDefinitionList, err)

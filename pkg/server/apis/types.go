@@ -47,9 +47,9 @@ type WorkloadRunBody struct {
 
 // WorkloadMeta store workload metadata for dashboard restful API server
 type WorkloadMeta struct {
-	Name       string            `json:"name"`
-	Parameters []types.Parameter `json:"parameters,omitempty"`
-	AppliesTo  []string          `json:"appliesTo,omitempty"`
+	Name        string            `json:"name"`
+	Parameters  []types.Parameter `json:"parameters,omitempty"`
+	Description string            `json:"description,omitempty"`
 }
 
 // TraitBody used to present trait which is to be attached and, of which parameters are set
