@@ -13,9 +13,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
@@ -216,7 +216,7 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 
 // DeleteComponent will delete one component including server side.
 func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) (string, error) {
-	var app *application.Application
+	var app *driver.Application
 	var err error
 	if o.AppName != "" {
 		app, err = application.Load(o.Env.Name, o.AppName)
@@ -227,21 +227,21 @@ func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) (string, error) {
 		return "", err
 	}
 
-	if len(app.GetComponents()) <= 1 {
+	if len(application.GetComponents(app)) <= 1 {
 		return o.DeleteApp()
 	}
 
 	// Remove component from local appfile
-	if err := app.RemoveComponent(o.CompName); err != nil {
+	if err := application.RemoveComponent(app, o.CompName); err != nil {
 		return "", err
 	}
-	if err := app.Save(o.Env.Name); err != nil {
+	if err := application.Save(app, o.Env.Name); err != nil {
 		return "", err
 	}
 
 	// Remove component from appConfig in k8s cluster
 	ctx := context.Background()
-	if err := app.BuildRun(ctx, o.Client, o.Env, io); err != nil {
+	if err := application.BuildRun(ctx, app, o.Client, o.Env, io); err != nil {
 		return "", err
 	}
 
@@ -273,7 +273,7 @@ func chooseSvc(services []string) (string, error) {
 }
 
 // GetServicesWhenDescribingApplication gets the target services list either from cli `--svc` flag or from survey
-func GetServicesWhenDescribingApplication(cmd *cobra.Command, app *application.Application) ([]string, error) {
+func GetServicesWhenDescribingApplication(cmd *cobra.Command, app *driver.Application) ([]string, error) {
 	var svcFlag string
 	var svcFlagStatus string
 	// to store the value of flag `--svc` set in Cli, or selected value in survey

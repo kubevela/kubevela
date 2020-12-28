@@ -9,6 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
@@ -24,7 +25,7 @@ type commandOptions struct {
 
 	workloadName string
 	appName      string
-	app          *application.Application
+	app          *driver.Application
 	traitType    string
 	cmdutil.IOStreams
 }
@@ -104,7 +105,7 @@ func (o *commandOptions) Prepare(cmd *cobra.Command, args []string) error {
 	}
 
 	// get service name
-	serviceNames := app.GetComponents()
+	serviceNames := application.GetComponents(app)
 	if svcName := cmd.Flag(Service).Value.String(); svcName != "" {
 		for _, v := range serviceNames {
 			if v == svcName {
@@ -146,10 +147,10 @@ func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	var traitType = o.Template.Name
-	if err = o.app.RemoveTrait(o.workloadName, traitType); err != nil {
+	if err = application.RemoveTrait(o.app, o.workloadName, traitType); err != nil {
 		return err
 	}
-	return o.app.Save(o.Env.Name)
+	return application.Save(o.app, o.Env.Name)
 }
 
 // Run executes create/update/detach trait

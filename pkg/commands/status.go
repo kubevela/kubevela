@@ -17,6 +17,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -189,7 +190,7 @@ func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmduti
 	return nil
 }
 
-func traitCheckLoop(ctx context.Context, c client.Client, reference runtimev1alpha1.TypedReference, compName string, appConfig *v1alpha2.ApplicationConfiguration, app *application.Application, timeout time.Duration) (string, string, error) {
+func traitCheckLoop(ctx context.Context, c client.Client, reference runtimev1alpha1.TypedReference, compName string, appConfig *v1alpha2.ApplicationConfiguration, app *driver.Application, timeout time.Duration) (string, string, error) {
 	tr, err := oam2.GetUnstructured(ctx, c, appConfig.Namespace, reference)
 	if err != nil {
 		return "", "", err
@@ -371,8 +372,8 @@ func trackHealthCheckingStatus(ctx context.Context, c client.Client, compName, a
 	return compStatusHealthCheckDone, HealthStatusNotDiagnosed, statusInfo, nil
 }
 
-func getApp(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (*application.Application, *v1alpha2.ApplicationConfiguration, error) {
-	var app *application.Application
+func getApp(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (*driver.Application, *v1alpha2.ApplicationConfiguration, error) {
+	var app *driver.Application
 	var err error
 	if appName != "" {
 		app, err = application.Load(env.Name, appName)

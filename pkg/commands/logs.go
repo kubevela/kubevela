@@ -16,6 +16,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
@@ -68,7 +69,7 @@ type Args struct {
 	Output string
 	Env    *types.EnvMeta
 	C      types.Args
-	App    *application.Application
+	App    *driver.Application
 }
 
 // Run refer to the implementation at https://github.com/oam-dev/stern/blob/master/stern/main.go
@@ -78,7 +79,7 @@ func (l *Args) Run(ctx context.Context, ioStreams cmdutil.IOStreams) error {
 	if err != nil {
 		return err
 	}
-	compName, err := util.AskToChooseOneService(l.App.GetComponents())
+	compName, err := util.AskToChooseOneService(application.GetComponents(l.App))
 	if err != nil {
 		return err
 	}

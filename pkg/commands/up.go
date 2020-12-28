@@ -20,6 +20,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
@@ -202,8 +203,8 @@ func (o *AppfileOptions) Run(filePath string) error {
 }
 
 func (o *AppfileOptions) saveToAppDir(f *appfile.AppFile) error {
-	app := &application.Application{AppFile: f}
-	return app.Save(o.Env.Name)
+	app := &driver.Application{AppFile: f}
+	return application.Save(app, o.Env.Name)
 }
 
 // ApplyAppConfig applys config resources for the app.

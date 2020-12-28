@@ -24,6 +24,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	velacmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
@@ -39,7 +40,7 @@ type VelaPortForwardOptions struct {
 	context.Context
 	VelaC types.Args
 	Env   *types.EnvMeta
-	App   *application.Application
+	App   *driver.Application
 
 	f                    k8scmdutil.Factory
 	kcPortForwardOptions *cmdpf.PortForwardOptions
@@ -150,7 +151,7 @@ func getRouteServiceName(appconfig *v1alpha2.ApplicationConfiguration, svcName s
 
 // Complete will complete the config of port-forward
 func (o *VelaPortForwardOptions) Complete() error {
-	svcName, err := util.AskToChooseOneService(o.App.GetComponents())
+	svcName, err := util.AskToChooseOneService(application.GetComponents(o.App))
 	if err != nil {
 		return err
 	}
@@ -190,7 +191,7 @@ func (o *VelaPortForwardOptions) Complete() error {
 	}
 	if len(o.Args) < 2 {
 		var found bool
-		_, configs := o.App.GetServiceConfig(svcName)
+		_, configs := application.GetServiceConfig(o.App, svcName)
 		for k, v := range configs {
 			if k == "port" {
 				var val string

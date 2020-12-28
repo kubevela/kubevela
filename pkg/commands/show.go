@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/serverlib"
@@ -79,7 +80,7 @@ func showApplication(cmd *cobra.Command, env *types.EnvMeta, appName string) err
 }
 
 func showComponent(cmd *cobra.Command, env *types.EnvMeta, compName, appName string) error {
-	var app *application.Application
+	var app *driver.Application
 	var err error
 	if appName != "" {
 		app, err = application.Load(env.Name, appName)
@@ -94,7 +95,7 @@ func showComponent(cmd *cobra.Command, env *types.EnvMeta, compName, appName str
 		if cname != compName {
 			continue
 		}
-		wtype, data := app.GetWorkload(compName)
+		wtype, data := application.GetWorkload(app, compName)
 		table := newUITable()
 		table.AddRow("  - Name:", compName)
 		table.AddRow("    WorkloadType:", wtype)
@@ -105,7 +106,7 @@ func showComponent(cmd *cobra.Command, env *types.EnvMeta, compName, appName str
 			table.AddRow(fmt.Sprintf("      %s:        ", k), v)
 		}
 		cmd.Printf("%s", table.String())
-		traits, err := app.GetTraits(compName)
+		traits, err := application.GetTraits(app, compName)
 		if err != nil {
 			cmd.PrintErr(err)
 			continue

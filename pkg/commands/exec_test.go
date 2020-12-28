@@ -18,7 +18,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/application"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -52,7 +52,7 @@ func TestExecCommand(t *testing.T) {
 	err := o.Init(context.Background(), cmd, []string{"fakeApp"})
 	errString := fmt.Sprintf(`application "%s" not found`, "fakeApp")
 	assert.EqualError(t, err, errString)
-	fakeApp := &application.Application{
+	fakeApp := &driver.Application{
 		AppFile: &appfile.AppFile{
 			Name: "fakeApp",
 			Services: map[string]appfile.Service{
@@ -78,7 +78,7 @@ func TestExecCommandPersistentPreRunE(t *testing.T) {
 
 func TestGetComponent(t *testing.T) {
 	o := &VelaExecOptions{
-		App: &application.Application{
+		App: &driver.Application{
 			AppFile: &appfile.AppFile{
 				Name: "fakeApp",
 				Services: map[string]appfile.Service{
