@@ -4,7 +4,7 @@ kind: TraitDefinition
 metadata:
   name: autoscale
   annotations:
-    definition.oam.dev/description: "`Autoscale` is used to automatically scale workloads by resource utilization metrics or cron triggers."
+    definition.oam.dev/description: "Automatically scales workloads by resource utilization metrics or cron triggers."
 spec:
   appliesToWorkloads:
     - webservice

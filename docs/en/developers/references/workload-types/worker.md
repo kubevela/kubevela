@@ -2,7 +2,7 @@
 
 ## Description
 
-`Worker` is a workload type to describe long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic.
+Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic.
 
 ## Specification
 

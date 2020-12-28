@@ -2,7 +2,7 @@
 
 ## Description
 
-`Metrics` is used to configure monitoring metrics for your service.
+Configures monitoring metrics for your service.
 
 ## Specification
 

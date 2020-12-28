@@ -2,7 +2,7 @@
 
 ## Description
 
-`Webservice` is a workload type to describe long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers. If workload type is skipped for any service defined in Appfile, it will be defaulted to `Web Service` type.
+Describes long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers. If workload type is skipped for any service defined in Appfile, it will be defaulted to `webservice` type.
 
 ## Specification
 
@@ -61,4 +61,3 @@ Name | Description | Type | Required | Default
 ------------ | ------------- | ------------- | ------------- | ------------- 
  name | The name of the secret in the pod's namespace to select from | string | true |  
  key | The key of the secret to select from. Must be a valid secret key | string | true |  
-
