@@ -181,6 +181,14 @@ var _ = Describe("HealthScope", func() {
 		}
 		logf.Log.Info("Creating component", "Name", comp.Name, "Namespace", comp.Namespace)
 		Expect(k8sClient.Create(ctx, &comp)).Should(BeNil())
+
+		By("check component successfully created")
+		Eventually(
+			func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Name: componentName, Namespace: comp.Namespace}, &comp)
+			},
+			time.Second*5, time.Millisecond*100).Should(BeNil())
+
 		// Create application configuration
 		workloadInstanceName1 := "example-appconfig-healthscope-a"
 		workloadInstanceName2 := "example-appconfig-healthscope-b"

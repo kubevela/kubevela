@@ -95,7 +95,7 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: "service the app"
-  name: service
+  name: kservice
 spec:
   appliesToWorkloads:
     - webservice

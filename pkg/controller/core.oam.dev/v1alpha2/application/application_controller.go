@@ -76,12 +76,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error
 	// parse template
 	appParser := parser.NewParser(template.GetHanler(fclient.NewDefinitionClient(r.Client)))
 
-	expr, err := parser.DecodeJSONMarshaler(app.Spec)
-	if err != nil {
-		app.Status.SetConditions(errorCondition("Parsed", err))
-		return handler.Err(err)
-	}
-	appfile, err := appParser.Parse(app.Name, expr)
+	appfile, err := appParser.Parse(app.Name, app)
 
 	if err != nil {
 		app.Status.SetConditions(errorCondition("Parsed", err))

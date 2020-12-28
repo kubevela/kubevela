@@ -46,6 +46,31 @@ type AppStatus struct {
 	Phase ApplicationPhase `json:"status,omitempty"`
 }
 
+// ApplicationTrait defines the trait of application
+type ApplicationTrait struct {
+	Name string `json:"name"`
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Properties runtime.RawExtension `json:"properties"`
+}
+
+// ApplicationComponent describe the component of application
+type ApplicationComponent struct {
+	Name         string `json:"name"`
+	WorkloadType string `json:"type"`
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Settings runtime.RawExtension `json:"settings"`
+
+	// Traits define the trait of one component, the type must be array to keep the order.
+	Traits []ApplicationTrait `json:"traits,omitempty"`
+}
+
+// ApplicationSpec is the spec of Application
+type ApplicationSpec struct {
+	Components []ApplicationComponent `json:"components"`
+
+	// TODO(wonderflow): there should have scopes defined here
+}
+
 // +kubebuilder:object:root=true
 
 // Application is the Schema for the applications API
@@ -54,9 +79,8 @@ type Application struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Spec   runtime.RawExtension `json:"spec,omitempty"`
-	Status AppStatus            `json:"status,omitempty"`
+	Spec   ApplicationSpec `json:"spec,omitempty"`
+	Status AppStatus       `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true

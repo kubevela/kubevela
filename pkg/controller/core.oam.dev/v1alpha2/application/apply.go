@@ -66,7 +66,7 @@ func (ret *reter) apply(ac *v1alpha2.ApplicationConfiguration, comps ...*v1alpha
 	objs = append(objs, ac)
 
 	listOption := listObjs(client.MatchingLabels{
-		builder.OamApplicationLabel: ret.app.Name,
+		builder.OAMApplicationLabel: ret.app.Name,
 	}, client.InNamespace(ret.app.Namespace))
 
 	isController := true

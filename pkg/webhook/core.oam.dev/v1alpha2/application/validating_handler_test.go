@@ -38,28 +38,13 @@ var _ = Describe("Test Application Validater", func() {
 				Operation: admissionv1beta1.Create,
 				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
 				Object: runtime.RawExtension{
-					Raw: []byte(`{
-  "apiVersion": "core.oam.dev/v1alpha2",
-  "kind": "Application",
-  "metadata": {
-    "name": "application-sample"
-  },
-  "spec": {
-    "services": {
-      "myweb": {
-        "type": "worker",
-        "image": "busybox",
-        "cmd": [
-          "sleep",
-          "1000"
-        ],
-        "scaler": {
-          "replicas": 10
-        }
-      }
-    }
-  }
-}`),
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1alpha2",
+"kind":"Application",
+"metadata":{"name":"application-sample"},
+"spec":{"components":[{"name":"myweb","settings":{"cmd":["sleep","1000"],"image":"busybox"},
+"traits":[{"name":"scaler","properties":{"replicas":10}}],"type":"worker"}]}}
+`),
 				},
 			},
 		}
@@ -72,28 +57,11 @@ var _ = Describe("Test Application Validater", func() {
 				Operation: admissionv1beta1.Create,
 				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
 				Object: runtime.RawExtension{
-					Raw: []byte(`{
-  "apiVersion": "core.oam.dev/v1alpha2",
-  "kind": "Application",
-  "metadata": {
-    "name": "application-sample"
-  },
-  "spec": {
-    "services": {
-      "myweb": {
-        "type": "worker1",
-        "image": "busybox",
-        "cmd": [
-          "sleep",
-          "1000"
-        ],
-        "scaler": {
-          "replicas": 10
-        }
-      }
-    }
-  }
-}`),
+					Raw: []byte(`{"apiVersion":"core.oam.dev/v1alpha2",
+"kind":"Application",
+"metadata":{"name":"application-sample"},
+"spec":{"components":[{"name":"myweb","settings":{"cmd":["sleep","1000"],"image":"busybox"},
+"traits":[{"name":"scaler","properties":{"replicas":10}}],"type":"worker1"}]}}`),
 				},
 			},
 		}

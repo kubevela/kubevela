@@ -105,7 +105,7 @@ vet:
 lint: golangci
 	$(GOLANGCILINT) run  ./...
 
-reviewable: fmt vet lint manifests
+reviewable: manifests fmt vet lint
 	go mod tidy
 
 # Execute auto-gen code commands and ensure branch is clean.

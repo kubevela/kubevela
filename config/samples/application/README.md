@@ -112,13 +112,14 @@ kind: Application
 metadata:
   name: application-sample
 spec:
-  services:
-    myweb:
+  components:
+    - name: myweb
       type: worker
-      image: "busybox"
-      cmd:
-      - sleep
-      - "1000"
+      settings:
+        image: "busybox"
+        cmd:
+        - sleep
+        - "1000"
 ```
 we will get a deployment
 ```
@@ -149,7 +150,7 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: "service the app"
-  name: service
+  name: kservice
 spec:
   appliesToWorkloads:
     - webservice
@@ -185,16 +186,19 @@ kind: Application
 metadata:
   name: application-sample
 spec:
-  services:
-    myweb:
+  components:
+    - name: myweb
       type: worker
-      image: "busybox"
-      cmd:
-      - sleep
-      - "1000"
-      service:
-        http:
-          server: 80
+      settings:
+        image: "busybox"
+        cmd:
+        - sleep
+        - "1000"
+      traits:
+        - name: kservice
+          properties:
+            http:
+              server: 80
 ```
 
 we will get a new deployment and service
@@ -258,23 +262,22 @@ spec:
 ```
 If add scaler capability to the application, as follows
 ```
-apiVersion: core.oam.dev/v1alpha2
-kind: Application
-metadata:
-  name: application-sample
-spec:
-  services:
-    myweb:
+  components:
+    - name: myweb
       type: worker
-      image: "busybox"
-      cmd:
-      - sleep
-      - "1000"
-      service:
-        http:
-          server: 80
-      scaler:
-        replicas: 10     
+      settings:
+        image: "busybox"
+        cmd:
+        - sleep
+        - "1000"
+      traits:
+        - name: kservice
+          properties:
+            http:
+              server: 80           
+        - name: scaler
+          properties:
+            replicas: 10
 ```
 
 The deployment replicas will be scale to 10
@@ -336,21 +339,26 @@ kind: Application
 metadata:
   name: application-sample
 spec:
-  services:
-    myweb:
+  components:
+    - name: myweb
       type: worker
-      image: "busybox"
-      cmd:
-      - sleep
-      - "1000"
-      service:
-        http:
-          server: 80
-      scaler:
-        replicas: 10    
-      sidercar:
-        name: "sidecar-test"
-        image: "nginx"   
+      settings:
+        image: "busybox"
+        cmd:
+        - sleep
+        - "1000"
+      traits:
+        - name: scaler
+          properties:
+            replicas: 10
+        - name: sidercar
+          properties:
+            name: "sidecar-test"
+            image: "nginx"
+        - name: kservice
+          properties:
+            http:
+              server: 80
 ```
 The deployment updated as follows
 ```
