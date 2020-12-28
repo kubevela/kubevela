@@ -9,6 +9,7 @@
   * [Warning: capability rollout was not ready](#warning-capability-rollout-was-not-ready)
   * [You have reached your pull rate limit](#You-have-reached-your-pull-rate-limit)
   * [Warning: Namespace cert-manager exists](#warning-namespace-cert-manager-exists)
+  * [How to fix issue: MutatingWebhookConfiguration mutating-webhook-configuration exists?](#how-to-fix-issue-mutatingwebhookconfiguration-mutating-webhook-configuration-exists)
   
 - [Operating](#operating)
   * [Autoscale: how to enable metrics server in various Kubernetes clusters?](#autoscale-how-to-enable-metrics-server-in-various-kubernetes-clusters)
@@ -17,14 +18,14 @@
 
 ### What is the difference between KubeVela and Helm?
 
-KubeVela relies on tools like Helm to package k8s operator/controllers. However, Kubevela itself provides a lot more functionalities than merely packaging. Please refer to helm for more detailed descriptions.
+KubeVela relies on tools like Helm to package k8s operator/controllers. However, KubeVela itself provides a lot more functionalities than merely packaging. Please refer to helm for more detailed descriptions.
 
 Here is a nutshell version.
 
-- Kubevela provides a standard model for applications which could comprise of multiple resources, each can come as a helm packaging
-- Kubevela relies on the Open Application Model to support application operational needs. This is beyond the day one application install that helm tool excels at.
-- Kubevela also provides a DevOps facing application model similar to the docker-compose files. This greatly simplified the way for users to run applications on Kubernetes.
-- Kubevela also provides a powerful extensible way for platform builders to natively incorporate any new capabilities in the Kubernetes ecosystem.
+- KubeVela provides a standard model for applications which could compose of multiple resources, each can come as a helm packaging
+- KubeVela relies on the Open Application Model to support application operational needs. This is beyond the day one application install that helm tool excels at.
+- KubeVela also provides a DevOps facing application model similar to the docker-compose files. This greatly simplified the way for users to run applications on Kubernetes.
+- KubeVela also provides a powerful extensible way for platform builders to natively incorporate any new capabilities in the Kubernetes ecosystem.
 
 
 ## Install
@@ -239,6 +240,41 @@ route     	trait   	Configure route policy to the app
 scaler    	trait   	Manually scale the app
 - Finished successfully.
 ```
+
+### How to fix issue: MutatingWebhookConfiguration mutating-webhook-configuration exists?
+
+If you deploy some other services which will apply MutatingWebhookConfiguration mutating-webhook-configuration, installing
+KubeVela will hit the issue as below.
+
+```shell
+- Installing Vela Core Chart:
+install chart vela-core, version v0.2.1, desc : A Helm chart for Kube Vela core, contains 36 file
+Failed to install the chart with error: MutatingWebhookConfiguration "mutating-webhook-configuration" in namespace "" exists and cannot be imported into the current release: invalid ownership metadata; label validation error: missing key "app.kubernetes.io/managed-by": must be set to "Helm"; annotation validation error: missing key "meta.helm.sh/release-name": must be set to "kubevela"; annotation validation error: missing key "meta.helm.sh/release-namespace": must be set to "vela-system"
+rendered manifests contain a resource that already exists. Unable to continue with install
+helm.sh/helm/v3/pkg/action.(*Install).Run
+	/home/runner/go/pkg/mod/helm.sh/helm/v3@v3.2.4/pkg/action/install.go:274
+github.com/oam-dev/kubevela/pkg/commands.InstallOamRuntime
+	/home/runner/work/kubevela/kubevela/pkg/commands/system.go:259
+github.com/oam-dev/kubevela/pkg/commands.(*initCmd).run
+	/home/runner/work/kubevela/kubevela/pkg/commands/system.go:162
+github.com/oam-dev/kubevela/pkg/commands.NewInstallCommand.func2
+	/home/runner/work/kubevela/kubevela/pkg/commands/system.go:119
+github.com/spf13/cobra.(*Command).execute
+	/home/runner/go/pkg/mod/github.com/spf13/cobra@v1.1.1/command.go:850
+github.com/spf13/cobra.(*Command).ExecuteC
+	/home/runner/go/pkg/mod/github.com/spf13/cobra@v1.1.1/command.go:958
+github.com/spf13/cobra.(*Command).Execute
+	/home/runner/go/pkg/mod/github.com/spf13/cobra@v1.1.1/command.go:895
+main.main
+	/home/runner/work/kubevela/kubevela/cmd/vela/main.go:16
+runtime.main
+	/opt/hostedtoolcache/go/1.14.13/x64/src/runtime/proc.go:203
+runtime.goexit
+	/opt/hostedtoolcache/go/1.14.13/x64/src/runtime/asm_amd64.s:1373
+Error: rendered manifests contain a resource that already exists. Unable to continue with install: MutatingWebhookConfiguration "mutating-webhook-configuration" in namespace "" exists and cannot be imported into the current release: invalid ownership metadata; label validation error: missing key "app.kubernetes.io/managed-by": must be set to "Helm"; annotation validation error: missing key "meta.helm.sh/release-name": must be set to "kubevela"; annotation validation error: missing key "meta.helm.sh/release-namespace": must be set to "vela-system"
+```
+
+To fix this issue, please upgrade KubeVela Cli `vela` version to be higher than `v0.2.2` from [KubeVela releases](https://github.com/oam-dev/kubevela/releases).
 
 ## Operating
 
