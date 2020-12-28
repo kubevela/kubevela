@@ -3,7 +3,7 @@ kind: TraitDefinition
 metadata:
   name: route
   annotations:
-    definition.oam.dev/description: "`Route` is used to configure external access to your service."
+    definition.oam.dev/description: "Configures external access to your service."
 spec:
   appliesToWorkloads:
     - webservice

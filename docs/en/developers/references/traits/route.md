@@ -2,7 +2,7 @@
 
 ## Description
 
-`Route` is used to configure external access to your service.
+Configures external access to your service.
 
 ## Specification
 
@@ -37,4 +37,3 @@ Name | Description | Type | Required | Default
 ------------ | ------------- | ------------- | ------------- | ------------- 
  path |  | string | true |  
  rewriteTarget |  | string | true | empty 
- 

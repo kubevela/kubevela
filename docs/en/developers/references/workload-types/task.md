@@ -2,7 +2,7 @@
 
 ## Description
 
-`Task` is a workload type to describe jobs that run code or a script to completion.
+Describes jobs that run code or a script to completion.
 
 ## Specification
 

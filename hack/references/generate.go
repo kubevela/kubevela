@@ -60,6 +60,10 @@ func main() {
 			fmt.Printf("failed to open file %s: %s", filePath, err)
 			os.Exit(1)
 		}
+		if err = os.Truncate(filePath, 0); err != nil {
+			fmt.Printf("failed to truncate file %s: %s", filePath, err)
+			os.Exit(1)
+		}
 		capName := c.Name
 		ref := ReferenceMarkdown{
 			CapabilityName: capName,
