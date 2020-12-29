@@ -112,8 +112,15 @@ var _ = Describe("Test Application Controller", func() {
 			Name:      "application-sample",
 			Namespace: ns.Name,
 		},
-		Spec: runtime.RawExtension{
-			Raw: []byte("{\"services\":{\"myweb\":{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\",\"scaler\":{\"replicas\":10},\"type\":\"worker\"}}}")},
+		Spec: v1alpha2.ApplicationSpec{
+			Components: []v1alpha2.ApplicationComponent{
+				{
+					Name:         "myweb",
+					WorkloadType: "worker",
+					Settings:     runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
+				},
+			},
+		},
 	}
 
 	wd := &v1alpha2.WorkloadDefinition{}

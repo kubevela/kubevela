@@ -1,8 +1,6 @@
 package parser
 
 import (
-	"fmt"
-
 	"cuelang.org/go/cue"
 	cueJson "cuelang.org/go/pkg/encoding/json"
 	"github.com/pkg/errors"
@@ -94,8 +92,7 @@ func (trait *Trait) Eval(render Render) ([]v1alpha2.ComponentTrait, error) {
 		outputs := inst.Lookup("outputs")
 		iter, err := outputs.List()
 		if err != nil {
-			return nil, errors.Errorf("output|outputs not found in traitDef %s ", trait.name)
-			// return nil,errors.WithMessagef(err,"traitDef %s outputs must be list",trait.name)
+			return nil, errors.Errorf("'output' or 'outputs' not found in trait definition %s ", trait.name)
 		}
 		for iter.Next() {
 			cueValues = append(cueValues, iter.Value())
@@ -164,95 +161,71 @@ func NewParser(handler template.Handler) *Parser {
 }
 
 // Parse convert map to Appfile
-func (pser *Parser) Parse(name string, expr map[string]interface{}) (*Appfile, error) {
-	var svcs interface{}
-	for _, name := range []string{"Service", "Services", "service", "services"} {
-		if v, ok := expr[name]; ok {
-			svcs = v
-		}
-	}
-	if svcs == nil {
-		return nil, errors.Errorf("services require")
-	}
+func (pser *Parser) Parse(name string, app *v1alpha2.Application) (*Appfile, error) {
+
 	appfile := new(Appfile)
 	appfile.name = name
-	switch v := svcs.(type) {
-	case map[string]interface{}:
-		wds := []*Workload{}
-		for name, wi := range v {
-			wd, err := pser.parseWorkload(name, wi)
-			if err != nil {
-				return nil, err
-			}
-			wds = append(wds, wd)
+	var wds []*Workload
+	for _, comp := range app.Spec.Components {
+		wd, err := pser.parseWorkload(comp)
+		if err != nil {
+			return nil, err
 		}
-		appfile.services = wds
-	default:
-		return nil, errors.Errorf("services format invalid(must be map)")
+		wds = append(wds, wd)
 	}
+	appfile.services = wds
+
 	return appfile, nil
 }
 
-func (pser *Parser) parseWorkload(name string, expr interface{}) (*Workload, error) {
+func (pser *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload, error) {
 	workload := new(Workload)
 	workload.traits = []*Trait{}
-	workload.name = name
-	switch v := expr.(type) {
-	case map[string]interface{}:
-		_type, ok := v["type"]
-		if !ok {
-			return nil, errors.Errorf("type not specify")
+	workload.name = comp.Name
+	workload.typ = comp.WorkloadType
+	templ, kind, err := pser.templ(workload.typ)
+	if err != nil && !kerrors.IsNotFound(err) {
+		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
+	}
+	if kind != template.WorkloadKind {
+		return nil, errors.Errorf("%s type (%s) invalid", comp.Name, workload.typ)
+	}
+	workload.template = templ
+	settings, err := DecodeJSONMarshaler(comp.Settings)
+	if err != nil {
+		return nil, errors.Errorf("fail to parse settings for %s", comp.Name)
+	}
+	workload.params = settings
+	for _, traitValue := range comp.Traits {
+		properties, err := DecodeJSONMarshaler(traitValue.Properties)
+		if err != nil {
+			return nil, errors.Errorf("fail to parse properties of %s for %s", traitValue.Name, comp.Name)
 		}
-		workload.typ = fmt.Sprint(_type)
-		templ, kind, err := pser.templ(workload.typ)
-		if err != nil && !kerrors.IsNotFound(err) {
-			return nil, errors.WithMessagef(err, "fetch %s' type", name)
+		trait, err := pser.parseTrait(traitValue.Name, properties)
+		if err != nil {
+			return nil, errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Name)
 		}
-		if kind == template.Unkownkind || kind == template.TraitKind {
-			return nil, errors.Errorf("%s type (%s) invalid", name, workload.typ)
-		}
-		workload.template = templ
-		params := map[string]interface{}{}
-		for lable, value := range v {
-			if lable == "type" {
-				continue
-			}
-			trait, err := pser.parseTrait(lable, value)
-			if err != nil {
-				return nil, errors.WithMessagef(err, "service(%s) parse trait(%s)", name, lable)
-			}
-			if trait == nil {
-				params[lable] = value
-			} else {
-				workload.traits = append(workload.traits, trait)
-			}
-		}
-		workload.params = params
-	default:
-		return nil, errors.Errorf("service(%s) format invalid", name)
+
+		workload.traits = append(workload.traits, trait)
+
 	}
 
 	return workload, nil
 }
 
-func (pser *Parser) parseTrait(label string, expr interface{}) (*Trait, error) {
+func (pser *Parser) parseTrait(name string, properties map[string]interface{}) (*Trait, error) {
 
-	templ, kind, err := pser.templ(label)
+	templ, kind, err := pser.templ(name)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, err
 	}
 	if kind != template.TraitKind {
-		return nil, nil
+		return nil, errors.Errorf("kind of %s is not trait", name)
 	}
 	trait := new(Trait)
 	trait.template = templ
-	trait.name = label
-	switch v := expr.(type) {
-	case map[string]interface{}:
-		trait.params = v
-	default:
-		return nil, errors.Errorf("trait %s params must be map", label)
-	}
+	trait.name = name
+	trait.params = properties
 	return trait, nil
 }
 
@@ -310,7 +283,7 @@ var TestExceptApp = &Appfile{
 				{
 					name: "scaler",
 					params: map[string]interface{}{
-						"replicas": 10,
+						"replicas": float64(10),
 					},
 					template: `
       output: {

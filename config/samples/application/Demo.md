@@ -27,24 +27,26 @@ metadata:
   name: application-sample
   namespace: oam-test
 spec:
-  services:
-    myweb:
-      cmd:
-      - sleep
-      - "1000"
-      image: busybox
-      scaler:
-        replicas: 10
-      service:
-        http:
-          server: 80
-      sidecar:
-        command:
+  components:
+    - name: myweb
+      type: worker
+      settings:
+        image: "busybox"
+        cmd:
         - sleep
         - "1000"
-        image: busybox
-        name: test-sidecar
-      type: worker
+      traits:
+        - name: scaler
+          properties:
+            replicas: 10
+        - name: sidercar
+          properties:
+            name: "sidecar-test"
+            image: "nginx"
+        - name: kservice
+          properties:
+            http:
+              server: 80
 status:
   conditions:
   - lastTransitionTime: "2020-12-02T12:12:52Z"

@@ -6,8 +6,9 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue"
-	"gopkg.in/yaml.v3"
+	"github.com/ghodss/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/template"
 )
@@ -93,26 +94,33 @@ spec:
       }`)
 
 	const appfileYaml = `
-services:
-   myweb:
-     type: worker
-     image: "busybox"
-     cmd:
-     - sleep
-     - "1000"
-     scaler:
-        replicas: 10
+apiVersion: core.oam.dev/v1alpha2
+kind: Application
+metadata:
+  name: application-sample
+spec:
+  components:
+    - name: myweb
+      type: worker
+      settings:
+        image: "busybox"
+        cmd:
+        - sleep
+        - "1000"
+      traits:
+        - name: scaler
+          properties:
+            replicas: 10
 `
 
-	o := map[string]interface{}{}
+	o := v1alpha2.Application{}
 	yaml.Unmarshal([]byte(appfileYaml), &o)
 
-	appfile, err := NewParser(template.GetHanler(mock)).Parse("test", o)
+	appfile, err := NewParser(template.GetHanler(mock)).Parse("test", &o)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-
 	if !equal(TestExceptApp, appfile) {
 		t.Error("parser appfile wrong")
 	}

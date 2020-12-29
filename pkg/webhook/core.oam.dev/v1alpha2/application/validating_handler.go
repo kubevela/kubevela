@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
@@ -61,11 +60,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 
 	// try render to validate
 	appParser := parser.NewParser(template.GetHanler(fclient.NewDefinitionClient(h.Client)))
-	expr := map[string]interface{}{}
-	if err := json.Unmarshal(app.Spec.Raw, &expr); err != nil {
-		return admission.Denied(err.Error())
-	}
-	if _, err := appParser.Parse(app.Name, expr); err != nil {
+	if _, err := appParser.Parse(app.Name, app); err != nil {
 		return admission.Denied(err.Error())
 	}
 	return admission.ValidationResponse(true, "")

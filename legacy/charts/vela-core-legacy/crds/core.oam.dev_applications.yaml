@@ -30,8 +30,43 @@ spec:
         metadata:
           type: object
         spec:
+          description: ApplicationSpec is the spec of Application
+          properties:
+            components:
+              items:
+                description: ApplicationComponent describe the component of application
+                properties:
+                  name:
+                    type: string
+                  settings:
+                    type: object
+                    
+                  traits:
+                    description: Traits define the trait of one component, the type must be array to keep the order.
+                    items:
+                      description: ApplicationTrait defines the trait of application
+                      properties:
+                        name:
+                          type: string
+                        properties:
+                          type: object
+                          
+                      required:
+                      - name
+                      - properties
+                      type: object
+                    type: array
+                  type:
+                    type: string
+                required:
+                - name
+                - settings
+                - type
+                type: object
+              type: array
+          required:
+          - components
           type: object
-          
         status:
           description: AppStatus defines the observed state of Application
           properties:

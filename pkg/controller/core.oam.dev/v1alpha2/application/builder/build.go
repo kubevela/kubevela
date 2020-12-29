@@ -21,8 +21,8 @@ type builder struct {
 }
 
 const (
-	// OamApplicationLabel is application's metadata label
-	OamApplicationLabel = "application.oam.dev"
+	// OAMApplicationLabel is application's metadata label
+	OAMApplicationLabel = "application.oam.dev"
 )
 
 // Build template to applicationConfig & Component
@@ -42,9 +42,9 @@ func (b *builder) Complete(ns string) (*v1alpha2.ApplicationConfiguration, []*v1
 	if appconfig.Labels == nil {
 		appconfig.Labels = map[string]string{}
 	}
-	appconfig.Labels[OamApplicationLabel] = b.app.Name()
+	appconfig.Labels[OAMApplicationLabel] = b.app.Name()
 
-	componets := []*v1alpha2.Component{}
+	var componets []*v1alpha2.Component
 	for _, wl := range b.app.Services() {
 		compCtx := map[string]string{"name": wl.Name()}
 
@@ -58,7 +58,7 @@ func (b *builder) Complete(ns string) (*v1alpha2.ApplicationConfiguration, []*v1
 		if component.Labels == nil {
 			component.Labels = map[string]string{}
 		}
-		component.Labels[OamApplicationLabel] = b.app.Name()
+		component.Labels[OAMApplicationLabel] = b.app.Name()
 		component.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
 		componets = append(componets, component)
 
@@ -89,9 +89,9 @@ func (b *builder) CompleteWithContext(ns string) (*v1alpha2.ApplicationConfigura
 	if appconfig.Labels == nil {
 		appconfig.Labels = map[string]string{}
 	}
-	appconfig.Labels[OamApplicationLabel] = b.app.Name()
+	appconfig.Labels[OAMApplicationLabel] = b.app.Name()
 
-	componets := []*v1alpha2.Component{}
+	var components []*v1alpha2.Component
 	for _, wl := range b.app.Services() {
 		pCtx := process.NewContext(wl.Name())
 		if err := wl.EvalContext(pCtx); err != nil {
@@ -113,24 +113,24 @@ func (b *builder) CompleteWithContext(ns string) (*v1alpha2.ApplicationConfigura
 		if comp.Labels == nil {
 			comp.Labels = map[string]string{}
 		}
-		comp.Labels[OamApplicationLabel] = b.app.Name()
+		comp.Labels[OAMApplicationLabel] = b.app.Name()
 		comp.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
 
-		componets = append(componets, comp)
+		components = append(components, comp)
 		appconfig.Spec.Components = append(appconfig.Spec.Components, *acComp)
 	}
 
-	return appconfig, componets, nil
+	return appconfig, components, nil
 }
 
 func generateOAM(pCtx process.Context) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
 	base, assists := pCtx.Output()
-	componetWorkload, err := base.Object(nil)
+	componentWorkload, err := base.Object(nil)
 	if err != nil {
 		return nil, nil, err
 	}
 	component := &v1alpha2.Component{}
-	component.Spec.Workload.Object = componetWorkload
+	component.Spec.Workload.Object = componentWorkload
 
 	acComponent := &v1alpha2.ApplicationConfigurationComponent{}
 	acComponent.Traits = []v1alpha2.ComponentTrait{}
