@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-import { Button, Card, Space, Tag } from 'antd';
+import {Button, Card, Space, Tag, Typography} from 'antd';
 import { useModel } from 'umi';
 import { PageContainer } from '@ant-design/pro-layout';
 import { FileWordTwoTone, SnippetsTwoTone } from '@ant-design/icons';
@@ -12,7 +12,7 @@ const DEFAULT_DETAIL_STATE: ShowParameters = {
   name: '',
   parameters: [],
 };
-
+const { Paragraph } = Typography;
 export default (): React.ReactNode => {
   const { loading, workloadList } = useModel('useWorkloadsModel');
 
@@ -40,6 +40,15 @@ export default (): React.ReactNode => {
           metas={{
             title: {
               dataIndex: 'name',
+            },
+            description: {
+              render: (text, row) => {
+                return (
+                  <Paragraph ellipsis={{ rows: 1, expandable: true, symbol: 'more' }}>
+                    {row.description}
+                  </Paragraph>
+                );
+              },
             },
             subTitle: {
               render: (text, row) => {
