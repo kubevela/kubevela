@@ -180,7 +180,7 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 		return "", err
 	}
 	ctx := context.Background()
-	var app=new(corev1alpha2.Application)
+	var app = new(corev1alpha2.Application)
 	err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Env.Namespace}, app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
