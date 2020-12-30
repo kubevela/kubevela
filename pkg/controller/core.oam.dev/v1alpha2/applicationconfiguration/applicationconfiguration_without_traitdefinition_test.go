@@ -18,8 +18,14 @@ package applicationconfiguration
 
 import (
 	"context"
+	"fmt"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo"
@@ -101,7 +107,11 @@ spec:
             apiVersion: core.oam.dev/v1alpha2
             kind: ManualScalerTrait
             spec:
-              replicaCount: 3
+              replicaCount: 2
+              workloadRef:
+                apiVersion: core.oam.dev/v1alpha2
+                kind: ContainerizedWorkload
+                name: backend
 `
 
 		By("Create namespace")
@@ -123,6 +133,7 @@ spec:
 
 		By("Reconcile")
 		reconcileRetry(reconciler, req)
+		time.Sleep(5)
 
 		By("Check workload created successfully")
 		Eventually(func() error {
@@ -145,6 +156,72 @@ spec:
 			}
 			return string(appConfig.Status.Conditions[0].Reason)
 		}, 3*time.Second, 300*time.Millisecond).Should(BeEquivalentTo("ReconcileSuccess"))
+
+		By("Check trait CR is created")
+		var scaleName string
+		scaleList := v1alpha2.ManualScalerTraitList{}
+		labels := &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"app.oam.dev/component": componentName,
+			},
+		}
+		selector, _ := metav1.LabelSelectorAsSelector(labels)
+		err := k8sClient.List(ctx, &scaleList, &client.ListOptions{
+			Namespace:     namespace,
+			LabelSelector: selector,
+		})
+		Expect(err).Should(BeNil())
+		traitNamePrefix := fmt.Sprintf("%s-dummy-", componentName)
+		var traitExistFlag bool
+		for _, t := range scaleList.Items {
+			if strings.HasPrefix(t.Name, traitNamePrefix) {
+				traitExistFlag = true
+				scaleName = t.Name
+			}
+		}
+		Expect(traitExistFlag).Should(BeTrue())
+
+		By("Update ApplicationConfiguration by changing spec of trait")
+		newTrait := &v1alpha2.ManualScalerTrait{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "core.oam.dev/v1alpha2",
+				Kind:       "ManualScalerTrait",
+			},
+			Spec: v1alpha2.ManualScalerTraitSpec{
+				ReplicaCount: 3,
+				WorkloadReference: v1alpha1.TypedReference{
+					APIVersion: "core.oam.dev/v1alpha2",
+					Kind:       "ContainerizedWorkload",
+					Name:       componentName,
+				},
+			},
+		}
+		appConfig.Spec.Components[0].Traits = []v1alpha2.ComponentTrait{{Trait: runtime.RawExtension{Object: newTrait.DeepCopyObject()}}}
+		Expect(k8sClient.Update(ctx, &appConfig)).Should(BeNil())
+
+		By("Reconcile")
+		reconcileRetry(reconciler, req)
+
+		By("Check again that appConfig condition should not have error")
+		Eventually(func() string {
+			By("Reconcile again and should not have error")
+			reconcileRetry(reconciler, req)
+			err := k8sClient.Get(ctx, appConfigKey, &appConfig)
+			if err != nil {
+				return err.Error()
+			}
+			if len(appConfig.Status.Conditions) != 1 {
+				return "condition len should be 1 but now is " + strconv.Itoa(len(appConfig.Status.Conditions))
+			}
+			return string(appConfig.Status.Conditions[0].Reason)
+		}, 3*time.Second, 300*time.Millisecond).Should(BeEquivalentTo("ReconcileSuccess"))
+
+		By("Check new trait CR is applied")
+		scale := v1alpha2.ManualScalerTrait{}
+		scaleKey := client.ObjectKey{Name: scaleName, Namespace: namespace}
+		err = k8sClient.Get(ctx, scaleKey, &scale)
+		Expect(err).Should(BeNil())
+		Expect(scale.Spec.ReplicaCount).Should(Equal(int32(3)))
 	})
 
 	AfterEach(func() {
@@ -152,5 +229,4 @@ spec:
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).
 			Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
 	})
-
 })

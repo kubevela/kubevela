@@ -135,10 +135,7 @@ func GetDummyTraitDefinition(u *unstructured.Unstructured) *v1alpha2.TraitDefini
 			"kind":       u.GetKind(),
 			"name":       u.GetName(),
 		}},
-		Spec: v1alpha2.TraitDefinitionSpec{
-			Reference:       v1alpha2.DefinitionReference{Name: Dummy},
-			WorkloadRefPath: "spec.workloadRef",
-		},
+		Spec: v1alpha2.TraitDefinitionSpec{Reference: v1alpha2.DefinitionReference{Name: Dummy}},
 	}
 }
 
