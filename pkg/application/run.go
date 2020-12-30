@@ -14,13 +14,34 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-// BuildRun will build OAM and deploy from Appfile
+// BuildRun will build application and deploy from Appfile
 func BuildRun(ctx context.Context, app *driver.Application, client client.Client, env *types.EnvMeta, io cmdutil.IOStreams) error {
-	components, appconfig, scopes, err := OAM(app, env, io, true)
+	nApp, err := app.InitTasks(io)
 	if err != nil {
 		return err
 	}
-	return Run(ctx, client, appconfig, components, scopes)
+
+	o, err := nApp.Object(env.Namespace)
+	if err != nil {
+		return err
+	}
+
+	existApp := new(v1alpha2.Application)
+	if err := client.Get(ctx, ctypes.NamespacedName{Name: o.Name, Namespace: o.Namespace}, existApp); err != nil && !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	o.ResourceVersion = existApp.ResourceVersion
+	if o.ResourceVersion == "" {
+		if err := client.Create(ctx, o); err != nil {
+			return err
+		}
+	} else {
+		if err := client.Update(ctx, o); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Run will deploy OAM objects.

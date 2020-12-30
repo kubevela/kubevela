@@ -71,8 +71,8 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err = o.Traits(); err != nil {
 				return err
 			}
-			comps, appconfig, scopes, err := application.OAM(o.app, o.Env, ioStreams, true)
-			if err != nil {
+
+			if err := o.app.Validate(); err != nil {
 				return err
 			}
 
@@ -91,7 +91,7 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			}
 
 			ctx := context.Background()
-			err = application.Run(ctx, o.client, appconfig, comps, scopes)
+			err = application.BuildRun(ctx, o.app, o.client, o.Env, o.IOStreams)
 			if err != nil {
 				return err
 			}

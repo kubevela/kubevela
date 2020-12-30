@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	_ "github.com/oam-dev/kubevela/pkg/builtin/build"
 	"github.com/oam-dev/kubevela/pkg/commands"
 )
 

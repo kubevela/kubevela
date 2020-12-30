@@ -7,11 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 )
@@ -30,12 +28,7 @@ func TestUp(t *testing.T) {
 		Env:     &env,
 	}
 	appName := "app-up"
-	services := []*v1alpha2.Component{
-		{
-			TypeMeta: v1.TypeMeta{Kind: "Kind1", APIVersion: "v1"},
-		},
-	}
-	msg := o.Info(appName, services)
+	msg := o.Info(appName)
 	assert.Contains(t, msg, "App has been deployed")
 	assert.Contains(t, msg, fmt.Sprintf("App status: vela status %s", appName))
 }
