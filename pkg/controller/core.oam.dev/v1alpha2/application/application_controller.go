@@ -74,7 +74,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error
 
 	applog.Info("parse template")
 	// parse template
-	appParser := parser.NewParser(template.GetHanler(fclient.NewDefinitionClient(r.Client)))
+	appParser := parser.NewParser(template.GetHandler(fclient.NewDefinitionClient(r.Client)))
 
 	appfile, err := appParser.Parse(app.Name, app)
 

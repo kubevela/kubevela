@@ -59,7 +59,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	// try render to validate
-	appParser := parser.NewParser(template.GetHanler(fclient.NewDefinitionClient(h.Client)))
+	appParser := parser.NewParser(template.GetHandler(fclient.NewDefinitionClient(h.Client)))
 	if _, err := appParser.Parse(app.Name, app); err != nil {
 		return admission.Denied(err.Error())
 	}

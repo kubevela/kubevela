@@ -116,7 +116,7 @@ spec:
 	o := v1alpha2.Application{}
 	yaml.Unmarshal([]byte(appfileYaml), &o)
 
-	appfile, err := NewParser(template.GetHanler(mock)).Parse("test", &o)
+	appfile, err := NewParser(template.GetHandler(mock)).Parse("test", &o)
 	if err != nil {
 		t.Error(err)
 		return
