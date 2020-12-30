@@ -73,7 +73,7 @@ export default ({ name, parameters }: ShowParameters) => {
             responsive: ['md'],
             render: (text, row) => [
               <Space size="small" align="center">
-                {!row.default ? undefined : <Text code>{text}</Text>}
+                {!row.default ? undefined : <Text code>{text.toString()}</Text>}
               </Space>,
             ],
           },
