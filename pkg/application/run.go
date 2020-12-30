@@ -21,32 +21,17 @@ func BuildRun(ctx context.Context, app *driver.Application, client client.Client
 		return err
 	}
 
-	o, err := nApp.Object(env.Namespace)
+	o,scopes, err := nApp.Object(env.Namespace)
 	if err != nil {
 		return err
 	}
 
-	existApp := new(v1alpha2.Application)
-	if err := client.Get(ctx, ctypes.NamespacedName{Name: o.Name, Namespace: o.Namespace}, existApp); err != nil && !apierrors.IsNotFound(err) {
-		return err
-	}
-
-	o.ResourceVersion = existApp.ResourceVersion
-	if o.ResourceVersion == "" {
-		if err := client.Create(ctx, o); err != nil {
-			return err
-		}
-	} else {
-		if err := client.Update(ctx, o); err != nil {
-			return err
-		}
-	}
-	return nil
+	return Run(ctx, client, nil, nil, scopes, o)
 }
 
 // Run will deploy OAM objects.
 func Run(ctx context.Context, client client.Client,
-	ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component, scopes []oam.Object) error {
+	ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component, scopes []oam.Object, app *v1alpha2.Application) error {
 	for _, comp := range comps {
 		if err := CreateOrUpdateComponent(ctx, client, comp); err != nil {
 			return err
@@ -55,7 +40,17 @@ func Run(ctx context.Context, client client.Client,
 	if err := CreateScopes(ctx, client, scopes); err != nil {
 		return err
 	}
-	return CreateOrUpdateAppConfig(ctx, client, ac)
+	if ac != nil {
+		if err := CreateOrUpdateAppConfig(ctx, client, ac); err != nil {
+			return err
+		}
+	}
+	if app != nil {
+		if err := CreateOrUpdateApplication(ctx, client, app); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // CreateOrUpdateComponent will create if not exist and update if exists.
@@ -106,4 +101,22 @@ func CreateScopes(ctx context.Context, client client.Client, scopes []oam.Object
 		}
 	}
 	return nil
+}
+
+// CreateOrUpdateApplication will create if not exist and update if exists.
+func CreateOrUpdateApplication(ctx context.Context, client client.Client, app *v1alpha2.Application) error {
+	var geta v1alpha2.Application
+	key := ctypes.NamespacedName{Name: app.Name, Namespace: app.Namespace}
+	var exist = true
+	if err := client.Get(ctx, key, &geta); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+		exist = false
+	}
+	if !exist {
+		return client.Create(ctx, app)
+	}
+	app.ResourceVersion = geta.ResourceVersion
+	return client.Update(ctx, app)
 }

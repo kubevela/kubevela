@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -11,9 +12,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
-	ctypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -97,6 +96,7 @@ func saveRemoteAppfile(url string) (string, error) {
 type buildResult struct {
 	appFile     *appfile.AppFile
 	application *v1alpha2.Application
+	scopes      []oam.Object
 }
 
 func (o *AppfileOptions) export(filePath string, quiet bool) (*buildResult, []byte, error) {
@@ -121,7 +121,7 @@ func (o *AppfileOptions) export(filePath string, quiet bool) (*buildResult, []by
 	}
 
 	if !quiet {
-		o.IO.Info("Do Init tasks ...")
+		o.IO.Info("Load Template ...")
 	}
 
 	tm, err := template.Load()
@@ -135,7 +135,7 @@ func (o *AppfileOptions) export(filePath string, quiet bool) (*buildResult, []by
 		return nil, nil, err
 	}
 
-	retApplication, err := appHandler.Object(o.Env.Namespace)
+	retApplication, scopes, err := appHandler.Object(o.Env.Namespace)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -147,10 +147,21 @@ func (o *AppfileOptions) export(filePath string, quiet bool) (*buildResult, []by
 	if err != nil {
 		return nil, nil, fmt.Errorf("yaml encode application failed: %w", err)
 	}
+	w.WriteByte('\n')
+
+	for _, scope := range scopes {
+		w.WriteString("---\n")
+		err = enc.Encode(scope, &w)
+		if err != nil {
+			return nil, nil, fmt.Errorf("yaml encode scope (%s) failed: %w", scope.GetName(), err)
+		}
+		w.WriteByte('\n')
+	}
 
 	result := &buildResult{
 		appFile:     app,
 		application: retApplication,
+		scopes:      scopes,
 	}
 	return result, w.Bytes(), nil
 }
@@ -176,7 +187,7 @@ func (o *AppfileOptions) Run(filePath string) error {
 	}
 
 	o.IO.Infof("\nApplying application ...\n")
-	return o.apply(result.application)
+	return o.apply(result.application, result.scopes)
 }
 
 func (o *AppfileOptions) saveToAppDir(f *appfile.AppFile) error {
@@ -184,33 +195,25 @@ func (o *AppfileOptions) saveToAppDir(f *appfile.AppFile) error {
 	return application.Save(app, o.Env.Name)
 }
 
-func (o *AppfileOptions) apply(app *v1alpha2.Application) error {
-	ctx := context.TODO()
-	existApp := new(v1alpha2.Application)
-	if err := o.Kubecli.Get(ctx, ctypes.NamespacedName{Name: app.Name, Namespace: app.Namespace}, existApp); err != nil && !apierrors.IsNotFound(err) {
+func (o *AppfileOptions) apply(app *v1alpha2.Application, scopes []oam.Object) error {
+	if err := application.Run(context.TODO(), o.Kubecli, nil, nil, scopes, app); err != nil {
 		return err
 	}
-	app.ResourceVersion = existApp.ResourceVersion
-	if app.ResourceVersion == "" {
-		if err := o.Kubecli.Create(ctx, app); err != nil {
-			return err
-		}
-	} else {
-		if err := o.Kubecli.Update(ctx, app); err != nil {
-			return err
-		}
-	}
 
-	o.IO.Info(o.Info(app.Name))
+	o.IO.Info(o.Info(app))
 	return nil
 }
 
 // Info shows the status of each service in the Appfile
-func (o *AppfileOptions) Info(appName string) string {
+func (o *AppfileOptions) Info(app *v1alpha2.Application) string {
+	appName := app.Name
 	var appUpMessage = "✅ App has been deployed 🚀🚀🚀\n" +
 		fmt.Sprintf("    Port forward: vela port-forward %s\n", appName) +
 		fmt.Sprintf("             SSH: vela exec %s\n", appName) +
 		fmt.Sprintf("         Logging: vela logs %s\n", appName) +
 		fmt.Sprintf("      App status: vela status %s\n", appName)
+	for _, comp := range app.Spec.Components {
+		appUpMessage += fmt.Sprintf("  Service status: vela status %s --svc %s\n", appName, comp.Name)
+	}
 	return appUpMessage
 }
