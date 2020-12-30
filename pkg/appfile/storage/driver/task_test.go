@@ -108,7 +108,7 @@ func TestObject(t *testing.T) {
 	for _, tcase := range testCases {
 		tcase.expectApp.Namespace = expectNs
 		app := NewApplication(tcase.appFile, tm)
-		o, err := app.Object(expectNs)
+		o, _, err := app.Object(expectNs)
 		assert.Equal(t, nil, err)
 		assert.Equal(t, tcase.expectApp, o)
 	}

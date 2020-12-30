@@ -10,6 +10,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 )
@@ -27,10 +28,11 @@ func TestUp(t *testing.T) {
 		IO:      ioStream,
 		Env:     &env,
 	}
-	appName := "app-up"
-	msg := o.Info(appName)
+	app := &v1alpha2.Application{}
+	app.Name = "app-up"
+	msg := o.Info(app)
 	assert.Contains(t, msg, "App has been deployed")
-	assert.Contains(t, msg, fmt.Sprintf("App status: vela status %s", appName))
+	assert.Contains(t, msg, fmt.Sprintf("App status: vela status %s", app.Name))
 }
 
 func TestNewUpCommandPersistentPreRunE(t *testing.T) {

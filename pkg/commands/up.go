@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -22,6 +21,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 

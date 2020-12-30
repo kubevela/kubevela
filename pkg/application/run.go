@@ -21,7 +21,7 @@ func BuildRun(ctx context.Context, app *driver.Application, client client.Client
 		return err
 	}
 
-	o,scopes, err := nApp.Object(env.Namespace)
+	o, scopes, err := nApp.Object(env.Namespace)
 	if err != nil {
 		return err
 	}
