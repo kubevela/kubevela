@@ -218,16 +218,12 @@ func (l *loader) Complete() (*cue.Instance, error) {
 			return nil, errors.WithMessagef(err, "loader AddSyntax %s", fname)
 		}
 	}
-	insts := cue.Build([]*build.Instance{bi})
-
-	var ret *cue.Instance
-	for _, inst := range insts {
-		if err := inst.Value().Validate(cue.Concrete(true)); err != nil {
-			return nil, errors.WithMessagef(err, "loader cue-instance validate")
-		}
-		ret = inst
+	var r cue.Runtime
+	inst, err := r.Build(bi)
+	if err != nil {
+		return nil, errors.Wrap(err, "loader cue-instance validate")
 	}
-	return ret, nil
+	return inst, nil
 }
 
 func marshal(key string, v interface{}) string {
