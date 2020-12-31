@@ -2,7 +2,8 @@
 
 ## About KubeVela
 
-KubeVela project is initialized and maintained by the cloud native community since day 0 with [bootstrapping contributors from 8+ different organizations](https://github.com/oam-dev/kubevela/graphs/contributors). We intend for KubeVela to have a open governance since the very beginning and donate the project to neutral foundation as soon as it's released. 
+KubeVela project is initialized and maintained by the cloud native community since day 0 with [bootstrapping contributors from 8+ different organizations](https://github.com/oam-dev/kubevela/graphs/contributors).
+We intend for KubeVela to have an open governance since the very beginning and donate the project to neutral foundation as soon as it's released. 
 
 This doc explains how to set up a development environment, so you can get started
 contributing to `kubevela` or build a PoC (Proof of Concept). 
@@ -27,15 +28,22 @@ We also recommend you to learn about KubeVela's [design](docs/en/design.md) befo
 git clone git@github.com:oam-dev/kubevela.git
 ```
 
+KubeVela includes two parts, `vela core` and `vela cli`.
+
+- The `vela core` is actually a K8s controller, it will watch OAM Spec CRD and deploy resources.
+- The `vela cli` is a command line tool that can build, run apps(with the help of `vela core`).
+
+For local development, we probably need to build both of them.
+
 * Build Vela CLI
 
 ```shell script
 make
 ```
 
-* Configure vela to PATH
+After the vela cli built successfully, `make` command will create `vela` binary to `bin/` under the project.
 
-after build, make will create `vela` binary to `bin/`, Set this path to PATH.
+* Configure `vela` binary to System PATH
 
 ```shell script
 export PATH=$PATH:/your/path/to/project/kubevela/bin
@@ -51,7 +59,7 @@ make manager
 
 * Run Vela Core
 
-Firstly make sure your cluster has CRDs.
+Firstly make sure your cluster has CRDs, below is the command that can help install all CRDs.
 
 ```shell script
 make core-install
@@ -66,74 +74,19 @@ make core-run
 This command will run controller locally, it will use your local KubeConfig which means you need to have a k8s cluster
 locally. If you don't have a one, we suggest that you could setup up a cluster with [kind](https://kind.sigs.k8s.io/).
 
+When you're developing `vela-core`, make sure the controller installed by `vela install` is not running.
+Otherwise, it will conflict with your local running controller.
+
+You can check and uninstall it by using helm.
+
+```shell script
+helm list -A
+helm uninstall -n vela-system kubevela
+```
+
 ### Use
 
-* Create environment
- 
-```shell script
-vela env init myenv --namespace myenv --email my@email.com --domain kubevela.io 
-```
-
-* Create Component 
-
-For example, use the following command to create and run an application.
-
-```shell script
-$ vela svc deploy mysvc -t webservice --image crccheck/hello-world --port 8000 -a abc
-  App abc deployed
-```
-
-* Add Trait
-
-```shell script
-$ vela route abc
-  Adding route for app mysvc
-  ⠋ Deploying ...
-  ✅ Application Deployed Successfully!
-    - Name: mysvc
-      Type: webservice
-      HEALTHY Ready: 1/1
-      Last Deployment:
-        Created at: 2020-11-02 11:17:28 +0800 CST
-        Updated at: 2020-11-02T11:21:23+08:00
-      Routes:
-        - route: Visiting URL: http://abc.kubevela.io	IP: 47.242.68.137
-```
-
-* Check Status
-
-```
-$ vela status abc
-  About:
-  
-    Name:      	abc
-    Namespace: 	default
-    Created at:	2020-11-02 11:17:28.067738 +0800 CST
-    Updated at:	2020-11-02 11:28:13.490986 +0800 CST
-  
-  Services:
-  
-    - Name: mysvc
-      Type: webservice
-      HEALTHY Ready: 1/1
-      Last Deployment:
-        Created at: 2020-11-02 11:17:28 +0800 CST
-        Updated at: 2020-11-02T11:28:13+08:00
-      Routes:
-        - route: Visiting URL: http://abc.kubevela.io	IP: 47.242.68.137
-```
-
-* Delete App
-
-```shell script
-$ vela ls
-  SERVICE       	APP      	TYPE	TRAITS	STATUS  	CREATED-TIME
-  mysvc            	abc       	    	      	Deployed 	2020-11-02 11:17:28 +0800 CST
-
-$ vela delete abc
-  Deleting Application "abc"
-  delete apps succeed abc from default
-```
+You can try use your local built binaries follow [the documentation](https://kubevela.io/#/en/quick-start).
 
 ## Testing
 
@@ -158,7 +111,18 @@ make e2e-test
 ```
 
 ## Make a pull request
-Remember to write unit-test and e2e test before making a pull request.
+
+Remember to write unit-test and e2e-test after you have finished your code.
+ 
+Run following checks before making a pull request.
+
+```shell script
+make reviewable
+```
+
+The command will do some lint checks and clean code.
+
+After that, check in all changes and send a pull request.
 
 ## Merge Regulations
 
