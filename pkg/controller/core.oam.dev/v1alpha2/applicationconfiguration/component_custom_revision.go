@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 
@@ -36,7 +37,7 @@ type RevisionHookRequest struct {
 }
 
 func (c *ComponentHandler) customComponentRevisionHook(relatedApps []reconcile.Request, comp *v1alpha2.Component) error {
-	if c.CustomWebHookURL == "" {
+	if c.CustomRevisionHookURL == "" {
 		return nil
 	}
 	req := RevisionHookRequest{
@@ -47,7 +48,7 @@ func (c *ComponentHandler) customComponentRevisionHook(relatedApps []reconcile.R
 	if err != nil {
 		return err
 	}
-	httpRequest, err := http.NewRequestWithContext(context.Background(), http.MethodPost, c.CustomWebHookURL, bytes.NewBuffer(data))
+	httpRequest, err := http.NewRequestWithContext(context.Background(), http.MethodPost, c.CustomRevisionHookURL, bytes.NewBuffer(data))
 	if err != nil {
 		return err
 	}
@@ -61,6 +62,9 @@ func (c *ComponentHandler) customComponentRevisionHook(relatedApps []reconcile.R
 	respData, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
+	}
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("httpcode(%d) err: %s", resp.StatusCode, string(respData))
 	}
 	return json.Unmarshal(respData, comp)
 }

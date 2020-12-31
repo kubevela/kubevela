@@ -94,9 +94,10 @@ func Setup(mgr ctrl.Manager, args core.Args, l logging.Logger) error {
 		Named(name).
 		For(&v1alpha2.ApplicationConfiguration{}).
 		Watches(&source.Kind{Type: &v1alpha2.Component{}}, &ComponentHandler{
-			Client:        mgr.GetClient(),
-			Logger:        l,
-			RevisionLimit: args.RevisionLimit,
+			Client:                mgr.GetClient(),
+			Logger:                l,
+			RevisionLimit:         args.RevisionLimit,
+			CustomRevisionHookURL: args.CustomRevisionHookURL,
 		}).
 		Complete(NewReconciler(mgr, dm,
 			WithLogger(l.WithValues("controller", name)),
