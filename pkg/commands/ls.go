@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	runtimeoam "github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/serverlib"
 )
@@ -63,7 +61,13 @@ func printComponentList(ctx context.Context, c client.Client, appName string, en
 		ioStreams.Infof("listing services: %s\n", err)
 		return
 	}
-	all := mergeStagingComponents(deployedComponentList, env, ioStreams)
+
+	fetcher := func(name string) (*v1alpha2.Application, error) {
+		var app = new(v1alpha2.Application)
+		err := c.Get(ctx, client.ObjectKey{Name: name, Namespace: env.Namespace}, app)
+		return app, err
+	}
+	all := mergeStagingComponents(deployedComponentList, env, ioStreams, fetcher)
 	table := newUITable()
 	table.AddRow("SERVICE", "APP", "TYPE", "TRAITS", "STATUS", "CREATED-TIME")
 	for _, a := range all {
@@ -73,7 +77,7 @@ func printComponentList(ctx context.Context, c client.Client, appName string, en
 	ioStreams.Info(table.String())
 }
 
-func mergeStagingComponents(deployed []apis.ComponentMeta, env *types.EnvMeta, ioStreams cmdutil.IOStreams) []apis.ComponentMeta {
+func mergeStagingComponents(deployed []apis.ComponentMeta, env *types.EnvMeta, ioStreams cmdutil.IOStreams, fetcher func(name string) (*v1alpha2.Application, error)) []apis.ComponentMeta {
 	localApps, err := application.List(env.Name)
 	if err != nil {
 		ioStreams.Error("list application err", err)
@@ -81,23 +85,22 @@ func mergeStagingComponents(deployed []apis.ComponentMeta, env *types.EnvMeta, i
 	}
 	var all []apis.ComponentMeta
 	for _, app := range localApps {
-		comps, appConfig, _, err := application.OAM(app, env, ioStreams, true)
+		appl, err := fetcher(app.Name)
 		if err != nil {
-			ioStreams.Errorf("convert app %s err %v\n", app.Name, err)
+			ioStreams.Errorf("fetch app %s err %v\n", app.Name, err)
 			continue
 		}
-		for _, c := range comps {
-			traits, err := application.GetTraitNames(app, c.Name)
-			if err != nil {
-				ioStreams.Errorf("get traits from app %s %s err %v\n", app.Name, c.Name, err)
-				continue
+		for _, c := range appl.Spec.Components {
+			traits := []string{}
+			for _, t := range c.Traits {
+				traits = append(traits, t.Name)
 			}
 			compMeta, exist := GetCompMeta(deployed, app.Name, c.Name)
 			if !exist {
 				all = append(all, apis.ComponentMeta{
 					Name:         c.Name,
 					App:          app.Name,
-					WorkloadName: c.Labels[runtimeoam.WorkloadTypeLabel],
+					WorkloadName: c.WorkloadType,
 					TraitNames:   traits,
 					Status:       types.StatusStaging,
 					CreatedTime:  app.CreateTime.String(),
@@ -105,24 +108,8 @@ func mergeStagingComponents(deployed []apis.ComponentMeta, env *types.EnvMeta, i
 				continue
 			}
 			compMeta.TraitNames = traits
-			compMeta.WorkloadName = app.AppFile.Services[c.Name].GetType()
-			cspec := c.Spec.DeepCopy()
-			cspec.Workload.Raw, _ = cspec.Workload.MarshalJSON()
-			cspec.Workload.Object = nil
-			aspec := appConfig.Spec.DeepCopy()
-			for i, v := range aspec.Components {
-				for j, t := range v.Traits {
-					t.Trait.Raw, _ = t.Trait.MarshalJSON()
-					t.Trait.Object = nil
-					v.Traits[j] = t
-				}
-				aspec.Components[i] = v
-				if compMeta.AppConfig.Spec.Components[i].Traits == nil && len(v.Traits) == 0 {
-					compMeta.AppConfig.Spec.Components[i].Traits = make([]v1alpha2.ComponentTrait, 0)
-				}
-			}
-
-			if !gocmp.Equal(compMeta.Component.Spec, *cspec) || !gocmp.Equal(compMeta.AppConfig.Spec, *aspec) {
+			compMeta.WorkloadName = c.WorkloadType
+			if appl.Status.Phase != v1alpha2.ApplicationRunning {
 				compMeta.Status = types.StatusStaging
 			}
 			all = append(all, compMeta)
