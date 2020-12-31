@@ -11,7 +11,9 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
+	apitypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -187,7 +189,7 @@ func (o *AppfileOptions) Run(filePath string) error {
 	}
 
 	o.IO.Infof("\nApplying application ...\n")
-	return o.apply(result.application, result.scopes)
+	return o.ApplyApp(result.application, result.scopes)
 }
 
 func (o *AppfileOptions) saveToAppDir(f *appfile.AppFile) error {
@@ -195,12 +197,38 @@ func (o *AppfileOptions) saveToAppDir(f *appfile.AppFile) error {
 	return application.Save(app, o.Env.Name)
 }
 
+// ApplyApp applys config resources for the app.
+// It differs by create and update:
+// - for create, it displays app status along with information of url, metrics, ssh, logging.
+// - for update, it rolls out a canary deployment and prints its information. User can verify the canary deployment.
+//   This will wait for user approval. If approved, it continues upgrading the whole; otherwise, it would rollback.
+func (o *AppfileOptions) ApplyApp(app *v1alpha2.Application, scopes []oam.Object) error {
+	key := apitypes.NamespacedName{
+		Namespace: app.Namespace,
+		Name:      app.Name,
+	}
+	o.IO.Infof("Checking if app has been deployed...\n")
+	var tmpApp v1alpha2.Application
+	err := o.Kubecli.Get(context.TODO(), key, &tmpApp)
+	switch {
+	case apierrors.IsNotFound(err):
+		o.IO.Infof("App has not been deployed, creating a new deployment...\n")
+	case err == nil:
+		o.IO.Infof("App exists, updating existing deployment...\n")
+	default:
+		return err
+	}
+	if err := o.apply(app, scopes); err != nil {
+		return err
+	}
+	o.IO.Infof(o.Info(app))
+	return nil
+}
+
 func (o *AppfileOptions) apply(app *v1alpha2.Application, scopes []oam.Object) error {
 	if err := application.Run(context.TODO(), o.Kubecli, nil, nil, scopes, app); err != nil {
 		return err
 	}
-
-	o.IO.Info(o.Info(app))
 	return nil
 }
 
