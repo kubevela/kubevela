@@ -175,11 +175,11 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 
 			By("Modify workload spec & Apply changed workload")
 			cwObj.Spec.Containers[0].Image = image2
-			Expect(k8sClient.Apply(ctx, &cwObj)).Should(Succeed())
+			Expect(k8sClient.Patch(ctx, &cwObj, client.Merge)).Should(Succeed())
 
 			By("Modify trait spec & Apply changed trait")
 			unstructured.SetNestedField(fooObj.Object, traitSpecValue2, "spec", "key")
-			Expect(k8sClient.Apply(ctx, fooObj)).Should(Succeed())
+			Expect(k8sClient.Patch(ctx, fooObj, client.Merge)).Should(Succeed())
 
 			By("Get updated workload instance & Check workload spec")
 			updateCwObj := v1alpha2.ContainerizedWorkload{}

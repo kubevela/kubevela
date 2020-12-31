@@ -101,12 +101,6 @@ func TestAppConfigController(t *testing.T) {
 									Name: envVars[2],
 								},
 							},
-							Ports: []v1alpha2.ContainerPort{
-								{
-									Name: "http",
-									Port: 8080,
-								},
-							},
 						},
 					}),
 				)

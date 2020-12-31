@@ -10,7 +10,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,7 +40,7 @@ var componentHandler *ComponentHandler
 var mgrclose chan struct{}
 var testEnv *envtest.Environment
 var cfg *rest.Config
-var k8sClient resource.ClientApplicator
+var k8sClient client.Client
 var scheme = runtime.NewScheme()
 var crd crdv1.CustomResourceDefinition
 
@@ -81,19 +80,12 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(depSchemeBuilder.AddToScheme(scheme)).Should(BeNil())
 
 	By("Setting up kubernetes client")
-	c, err := client.New(cfg, client.Options{Scheme: scheme})
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	if err != nil {
 		logf.Log.Error(err, "failed to create a client")
 		Fail("setup failed")
 	}
-	k8sClient = resource.ClientApplicator{
-		Client:     c,
-		Applicator: resource.NewAPIUpdatingApplicator(c),
-	}
-	if err != nil {
-		logf.Log.Error(err, "failed to create k8sClient")
-		Fail("setup failed")
-	}
+	Expect(k8sClient).ShouldNot(BeNil())
 	By("Finished setting up test environment")
 
 	By("Creating Reconciler for appconfig")
