@@ -30,6 +30,8 @@ require (
 	github.com/gosuri/uitable v0.0.4
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
 	github.com/kyokomi/emoji v2.2.4+incompatible
+	github.com/labstack/echo v3.3.10+incompatible
+	github.com/labstack/gommon v0.3.0 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/mholt/archiver/v3 v3.3.0
 	github.com/mitchellh/hashstructure/v2 v2.0.1

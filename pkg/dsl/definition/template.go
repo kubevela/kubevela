@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/oam-dev/kubevela/pkg/dsl/task"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/build"
 	"github.com/pkg/errors"
@@ -117,6 +119,14 @@ func (td *traitDef) Complete(ctx process.Context) error {
 
 		if err := inst.Value().Err(); err != nil {
 			return errors.WithMessagef(err, "traitDef %s build", td.name)
+		}
+
+		processing := inst.Lookup("processing")
+		var err error
+		if processing.Exists() {
+			if inst, err = task.Process(inst); err != nil {
+				return errors.WithMessagef(err, "traitDef %s build", td.name)
+			}
 		}
 
 		output := inst.Lookup("output")
