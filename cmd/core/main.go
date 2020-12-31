@@ -95,7 +95,7 @@ func main() {
 	flag.BoolVar(&controllerArgs.ApplyOnceOnly, "apply-once-only", false,
 		"For the purpose of some production environment that workload or trait should not be affected if no spec change")
 	flag.StringVar(&controllerArgs.CustomRevisionHookURL, "custom-revision-hook-url", "",
-		"custom-revision-hook-url is a webhook url which will let oam-runtime to call with AC+Component info and return a customized component revision")
+		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
 	flag.StringVar(&disableCaps, "disable-caps", "", "To be disabled builtin capability list.")
 	flag.Parse()
 
