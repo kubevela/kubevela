@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-import { Button, Card, Space, Tag, Typography } from 'antd';
+import { Button, Card, Typography } from 'antd';
 import { useModel } from 'umi';
 import { PageContainer } from '@ant-design/pro-layout';
 import { FileWordTwoTone, SnippetsTwoTone } from '@ant-design/icons';
@@ -47,15 +47,6 @@ export default (): React.ReactNode => {
                   <Paragraph ellipsis={{ rows: 1, expandable: true, symbol: 'more' }}>
                     {row.description}
                   </Paragraph>
-                );
-              },
-            },
-            subTitle: {
-              render: (text, row) => {
-                return (
-                  <Space size={0}>
-                    {!row.required ? undefined : <Tag color="#5BD8A6">Required</Tag>}
-                  </Space>
                 );
               },
             },

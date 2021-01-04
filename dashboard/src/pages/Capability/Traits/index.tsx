@@ -27,13 +27,13 @@ export default (): React.ReactNode => {
       <ShowComponent name={showTraits.name} parameters={showTraits.parameters} />
       <Card>
         <ProList<any>
-          rowKey={(record) => record.name}
+          rowKey="name"
           headerTitle="Type"
           pagination={{
             defaultPageSize: 5,
             showSizeChanger: false,
           }}
-          loading={loading ? { delay: 300 } : undefined}
+          loading={loading ? { delay: 60 } : undefined}
           dataSource={traitsList ?? []}
           split
           metas={{
@@ -49,22 +49,15 @@ export default (): React.ReactNode => {
                 );
               },
             },
-            subTitle: {
-              render: (text, row) => {
-                return (
-                  <Space size={0}>
-                    <Tag color="green">{row.crdName}</Tag>
-                  </Space>
-                );
-              },
-            },
             content: {
               render: (text, row) => {
                 return (
                   <Space size={0}>
                     <Text strong>applies&nbsp;to:&nbsp;</Text>
                     {row.appliesTo.map((item: string) => (
-                      <Tag color="processing">{item}</Tag>
+                      <Tag key={item} color="processing">
+                        {item}
+                      </Tag>
                     ))}
                   </Space>
                 );
