@@ -28,40 +28,48 @@ func GetScopeGVK(cli client.Client, dm discoverymapper.DiscoveryMapper,
 }
 
 // LoadTemplate Get template according to key
-func LoadTemplate(cli client.Reader, key string, kd types.CapType) (string, string, error) {
+func LoadTemplate(cli client.Client, key string, kd types.CapType) (string, string, types.CapabilityCategory, error) {
 	switch kd {
 	case types.TypeWorkload:
 		wd, err := GetWorkloadDefinition(cli, key)
 		if err != nil {
-			return "", "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return "", "", "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+		}
+		var capabilityCategory = types.KubernetesCategory
+		if wd.Annotations["type"] == string(types.TerraformCategory) {
+			capabilityCategory = types.TerraformCategory
 		}
 		tmpl, health, err := getTemplAndHealth(wd.Spec.Extension.Raw)
 		if err != nil {
-			return "", "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return "", "", capabilityCategory, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
 		if tmpl == "" {
-			return "", "", errors.New("no template found in definition")
+			return "", "", capabilityCategory, errors.New("no template found in definition")
 		}
-		return tmpl, health, nil
+		return tmpl, health, capabilityCategory, nil
 
 	case types.TypeTrait:
 		td, err := GetTraitDefinition(cli, key)
 		if err != nil {
-			return "", "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return "", "", "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+		}
+		var capabilityCategory = types.KubernetesCategory
+		if td.Annotations["type"] == string(types.TerraformCategory) {
+			capabilityCategory = types.TerraformCategory
 		}
 		tmpl, health, err := getTemplAndHealth(td.Spec.Extension.Raw)
 		if err != nil {
-			return "", "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return "", "", capabilityCategory, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
 		if tmpl == "" {
-			return "", "", errors.New("no template found in definition")
+			return "", "", capabilityCategory, errors.New("no template found in definition")
 		}
-		return tmpl, health, nil
+		return tmpl, health, capabilityCategory, nil
 	case types.TypeScope:
 		// TODO: add scope template support
 	}
 
-	return "", "", fmt.Errorf("kind(%s) of %s not supported", kd, key)
+	return "", "", "", fmt.Errorf("kind(%s) of %s not supported", kd, key)
 }
 
 func getTemplAndHealth(raw []byte) (string, string, error) {

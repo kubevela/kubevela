@@ -4,14 +4,16 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/load"
-
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetCUEParameterValue(t *testing.T) {
@@ -205,4 +207,21 @@ func TestGenOpenAPI(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRealtimePrintCommandOutput(t *testing.T) {
+	cmd := exec.Command("bash", "-c", "date")
+	err := RealtimePrintCommandOutput(cmd, "")
+	assert.NoError(t, err)
+	cmd.Process.Kill()
+
+	var logFile = "terraform.log"
+	var hello = "Hello"
+	cmd = exec.Command("bash", "-c", fmt.Sprintf("echo \"%s\"", hello))
+	err = RealtimePrintCommandOutput(cmd, logFile)
+	assert.NoError(t, err)
+
+	data, _ := ioutil.ReadFile(logFile)
+	assert.Contains(t, string(data), hello)
+	os.Remove(logFile)
 }

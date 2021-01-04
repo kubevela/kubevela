@@ -87,7 +87,8 @@ spec:
 		},
 	}
 
-	temp, _, err := LoadTemplate(&tclient, "worker", types.TypeWorkload)
+	temp, _, _, err := LoadTemplate(&tclient, "worker", types.TypeWorkload)
+
 	if err != nil {
 		t.Error(err)
 		return

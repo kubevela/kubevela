@@ -88,6 +88,16 @@ const (
 	TypeScope CapType = "scope"
 )
 
+// CapabilityCategory defines the category of a capability
+type CapabilityCategory string
+
+const (
+	// KubernetesCategory means the capability is in Kubernetes format
+	KubernetesCategory CapabilityCategory = "kubernetes"
+	// TerraformCategory means the capability is in Terraform format
+	TerraformCategory CapabilityCategory = "terraform"
+)
+
 // Parameter defines a parameter for cli from capability template
 type Parameter struct {
 	Name     string      `json:"name"`
