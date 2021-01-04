@@ -15,6 +15,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/parser"
+	"github.com/oam-dev/kubevela/pkg/dsl/process"
 )
 
 func errorCondition(tpy string, err error) runtimev1alpha1.Condition {
@@ -69,6 +71,29 @@ func (ret *reter) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigurati
 		c.SetOwnerReferences(owners)
 	}
 	return ret.Sync(ctx, ac, comps)
+}
+
+func (ret *reter) healthCheck(appfile *parser.Appfile) error {
+	for _, wl := range appfile.Services {
+		pCtx := process.NewContext(wl.Name)
+		if err := wl.EvalContext(pCtx); err != nil {
+			return err
+		}
+		for _, tr := range wl.Traits {
+			if err := tr.EvalContext(pCtx); err != nil {
+				return err
+			}
+		}
+		if err := wl.EvalHealth(pCtx, ret.c, appfile.Name); err != nil {
+			return err
+		}
+		for _, trait := range wl.Traits {
+			if err := trait.EvalHealth(pCtx, ret.c, appfile.Name); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // CreateOrUpdateComponent will create if not exist and update if exists.

@@ -23,52 +23,56 @@ func GetHandler(cli defclient.DefinitionClient) Handler {
 }
 
 // Handler is template handler type
-type Handler func(key string, kind types.CapType) (string, error)
+type Handler func(key string, kind types.CapType) (string, string, error)
 
 // Kind is template kind
 type Kind = types.CapType
 
 // LoadTemplate Get template according to key
-func (m *manager) LoadTemplate(key string, kd types.CapType) (string, error) {
+func (m *manager) LoadTemplate(key string, kd types.CapType) (string, string, error) {
 	switch kd {
 	case types.TypeWorkload:
 		wd, err := m.GetWorkloadDefinition(key)
 		if err != nil {
-			return "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return "", "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
-		jsonRaw, err := getTemplate(wd.Spec.Extension.Raw)
+		tmpl, health, err := getTemplAndHealth(wd.Spec.Extension.Raw)
 		if err != nil {
-			return "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return "", "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
-		if jsonRaw == "" {
-			return "", errors.New("no template found in definition")
+		if tmpl == "" {
+			return "", "", errors.New("no template found in definition")
 		}
-		return jsonRaw, nil
+		return tmpl, health, nil
 
 	case types.TypeTrait:
 		td, err := m.GetTraitDefinition(key)
 		if err != nil {
-			return "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return "", "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
-		jsonRaw, err := getTemplate(td.Spec.Extension.Raw)
+		tmpl, health, err := getTemplAndHealth(td.Spec.Extension.Raw)
 		if err != nil {
-			return "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return "", "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
-		if jsonRaw == "" {
-			return "", errors.New("no template found in definition")
+		if tmpl == "" {
+			return "", "", errors.New("no template found in definition")
 		}
-		return jsonRaw, nil
+		return tmpl, health, nil
 	case types.TypeScope:
 		// TODO: add scope template support
 	}
 
-	return "", fmt.Errorf("kind(%s) of %s not supported", kd, key)
+	return "", "", fmt.Errorf("kind(%s) of %s not supported", kd, key)
 }
 
-func getTemplate(raw []byte) (string, error) {
+func getTemplAndHealth(raw []byte) (string, string, error) {
 	_tmp := map[string]interface{}{}
 	if err := json.Unmarshal(raw, &_tmp); err != nil {
-		return "", err
+		return "", "", err
 	}
-	return fmt.Sprint(_tmp["template"]), nil
+	var health string
+	if _, ok := _tmp["healthPolicy"]; ok {
+		health = fmt.Sprint(_tmp["healthPolicy"])
+	}
+	return fmt.Sprint(_tmp["template"]), health, nil
 }

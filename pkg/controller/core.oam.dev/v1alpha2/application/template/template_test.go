@@ -79,7 +79,7 @@ spec:
 	m := manager{
 		mock,
 	}
-	temp, err := m.LoadTemplate("worker", types.TypeWorkload)
+	temp, _, err := m.LoadTemplate("worker", types.TypeWorkload)
 	if err != nil {
 		t.Error(err)
 		return

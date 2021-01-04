@@ -108,6 +108,14 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	app.Status.SetConditions(readyCondition("Applied"))
 
+	applog.Info("check application health status")
+	// check application health status
+	if err := handler.healthCheck(appfile); err != nil {
+		app.Status.SetConditions(errorCondition("HealthCheck", err))
+		return handler.Err(err)
+	}
+
+	app.Status.SetConditions(readyCondition("HealthCheck"))
 	app.Status.Phase = v1alpha2.ApplicationRunning
 	// Gather status of components
 	var refComps []v1alpha1.TypedReference
