@@ -36,7 +36,7 @@ func Exec(cli string) (string, error) {
 	if err != nil {
 		return string(output), err
 	}
-	s := session.Wait(200 * time.Second)
+	s := session.Wait(30 * time.Second)
 	return string(s.Out.Contents()) + string(s.Err.Contents()), nil
 }
 
@@ -47,7 +47,7 @@ func ExecAndTerminate(cli string) (string, error) {
 	if err != nil {
 		return string(output), err
 	}
-	time.Sleep(30 * time.Second)
+	time.Sleep(3 * time.Second)
 	s := session.Terminate()
 	return string(s.Out.Contents()) + string(s.Err.Contents()), nil
 }

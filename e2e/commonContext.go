@@ -331,7 +331,7 @@ var (
 				var r apis.Response
 				err = json.Unmarshal(result, &r)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(http.StatusOK).Should(gomega.Equal(r.Code))
+				gomega.Expect(r.Code).Should(gomega.Equal(http.StatusOK))
 				gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring("created"))
 			})
 		})
