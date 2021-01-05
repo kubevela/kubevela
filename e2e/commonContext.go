@@ -209,20 +209,15 @@ var (
 				k8sclient, err := newK8sClient()
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
-				cli := fmt.Sprintf("kubectl -n %s get application %s -o yaml", envName, applicationName)
-				output, err := Exec(cli)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
-
 				ginkgo.By("check AppConfig reconciled ready")
 				gomega.Eventually(func() int {
 					appConfig := &corev1alpha2.ApplicationConfiguration{}
 					_ = k8sclient.Get(ctx.Background(), client.ObjectKey{Name: applicationName, Namespace: "default"}, appConfig)
 					return len(appConfig.Status.Workloads)
-				}, 200*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))
+				}, 1200*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))
 
-				cli = fmt.Sprintf("vela status %s", applicationName)
-				output, err = LongTimeExec(cli, 120*time.Second)
+				cli := fmt.Sprintf("vela status %s", applicationName)
+				output, err := LongTimeExec(cli, 120*time.Second)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("Checking health status"))
 				// TODO(zzxwill) need to check workloadType after app status is refined
