@@ -13,7 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/server/util"
 
@@ -210,6 +209,11 @@ var (
 				k8sclient, err := newK8sClient()
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
+				cli := fmt.Sprintf("kubectl -n %s get application %s -o yaml", envName, applicationName)
+				output, err := Exec(cli)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
+
 				ginkgo.By("check AppConfig reconciled ready")
 				gomega.Eventually(func() int {
 					appConfig := &corev1alpha2.ApplicationConfiguration{}
@@ -217,8 +221,8 @@ var (
 					return len(appConfig.Status.Workloads)
 				}, 200*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))
 
-				cli := fmt.Sprintf("vela status %s", applicationName)
-				output, err := LongTimeExec(cli, 120*time.Second)
+				cli = fmt.Sprintf("vela status %s", applicationName)
+				output, err = LongTimeExec(cli, 120*time.Second)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				gomega.Expect(output).To(gomega.ContainSubstring("Checking health status"))
 				// TODO(zzxwill) need to check workloadType after app status is refined
