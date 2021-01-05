@@ -54,7 +54,7 @@ const (
 )
 
 // Setup adds a controller that reconciles HealthScope.
-func Setup(mgr ctrl.Manager, args controller.Args, l logging.Logger) error {
+func Setup(mgr ctrl.Manager, _ controller.Args, l logging.Logger) error {
 	name := "oam/" + strings.ToLower(v1alpha2.HealthScopeGroupKind)
 
 	return ctrl.NewControllerManagedBy(mgr).

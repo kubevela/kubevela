@@ -25,4 +25,8 @@ type Args struct {
 	// ApplyOnceOnly indicates whether workloads and traits should be
 	// affected if no spec change is made in the ApplicationConfiguration.
 	ApplyOnceOnly bool
+
+	// CustomRevisionHookURL is a webhook which will let oam-runtime to call with AC+Component info
+	// The webhook server will return a customized component revision for oam-runtime
+	CustomRevisionHookURL string
 }
