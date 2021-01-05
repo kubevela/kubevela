@@ -94,6 +94,8 @@ func main() {
 	flag.StringVar(&healthAddr, "health-addr", ":9440", "The address the health endpoint binds to.")
 	flag.BoolVar(&controllerArgs.ApplyOnceOnly, "apply-once-only", false,
 		"For the purpose of some production environment that workload or trait should not be affected if no spec change")
+	flag.StringVar(&controllerArgs.CustomRevisionHookURL, "custom-revision-hook-url", "",
+		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
 	flag.StringVar(&disableCaps, "disable-caps", "", "To be disabled builtin capability list.")
 	flag.Parse()
 

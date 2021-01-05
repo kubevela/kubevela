@@ -226,11 +226,10 @@ func (r *components) renderTrait(ctx context.Context, ct v1alpha2.ComponentTrait
 	}
 	traitDef, err := util.FetchTraitDefinition(ctx, r.client, r.dm, t)
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			t.SetNamespace(ac.GetNamespace())
-			return t, util.GetDummyTraitDefinition(t), nil
+		if !apierrors.IsNotFound(err) {
+			return nil, nil, errors.Wrapf(err, errFmtGetTraitDefinition, t.GetAPIVersion(), t.GetKind(), t.GetName())
 		}
-		return nil, nil, errors.Wrapf(err, errFmtGetTraitDefinition, t.GetAPIVersion(), t.GetKind(), t.GetName())
+		traitDef = util.GetDummyTraitDefinition(t)
 	}
 	traitName := getTraitName(ac, componentName, &ct, t, traitDef)
 

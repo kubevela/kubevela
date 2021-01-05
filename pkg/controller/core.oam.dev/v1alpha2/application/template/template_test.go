@@ -5,6 +5,7 @@ import (
 
 	"cuelang.org/go/cue"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
 )
 
@@ -78,16 +79,11 @@ spec:
 	m := manager{
 		mock,
 	}
-	temp, kind, err := m.LoadTemplate("worker")
+	temp, err := m.LoadTemplate("worker", types.TypeWorkload)
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	if kind != WorkloadKind {
-		t.Errorf("template.LoadTemplate kind invalid")
-		return
-	}
-
 	var r cue.Runtime
 	inst, err := r.Compile("-", temp)
 	if err != nil {

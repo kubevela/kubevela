@@ -29,10 +29,10 @@ const ControllerRevisionComponentLabel = "controller.oam.dev/component"
 
 // ComponentHandler will watch component change and generate Revision automatically.
 type ComponentHandler struct {
-	Client           client.Client
-	Logger           logging.Logger
-	RevisionLimit    int
-	CustomWebHookURL string
+	Client                client.Client
+	Logger                logging.Logger
+	RevisionLimit         int
+	CustomRevisionHookURL string
 }
 
 // Create implements EventHandler
@@ -148,7 +148,7 @@ func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtim
 	reqs := c.getRelatedAppConfig(mt)
 	// Hook to custom revision service if exist
 	if err := c.customComponentRevisionHook(reqs, comp); err != nil {
-		c.Logger.Info(fmt.Sprintf("fail to hook from custom revision service(%s) %v", c.CustomWebHookURL, err), "componentName", mt.GetName())
+		c.Logger.Info(fmt.Sprintf("fail to hook from custom revision service(%s) %v", c.CustomRevisionHookURL, err), "componentName", mt.GetName())
 		return nil, false
 	}
 

@@ -31,14 +31,14 @@ export default ({ name, parameters }: ShowParameters) => {
             dataIndex: 'name',
             key: 'name',
             width: 200,
-            render: (text, row) => [
+            render: (text, row) => (
               <Paragraph copyable={{ text: row.name }}>
                 <Space size="small" align="center">
                   {row.name}
                   {!row.required ? undefined : <Tag color="geekblue">request</Tag>}
                 </Space>
-              </Paragraph>,
-            ],
+              </Paragraph>
+            ),
           },
           {
             title: 'Short',
@@ -46,11 +46,11 @@ export default ({ name, parameters }: ShowParameters) => {
             key: 'short',
             width: 100,
             responsive: ['md'],
-            render: (text, row) => [
+            render: (text, row) => (
               <Space size="small" align="center">
                 {!row.short ? undefined : <Tag color="magenta">{text}</Tag>}
-              </Space>,
-            ],
+              </Space>
+            ),
           },
           {
             title: 'Usage',
@@ -71,11 +71,11 @@ export default ({ name, parameters }: ShowParameters) => {
             key: 'default',
             width: 200,
             responsive: ['md'],
-            render: (text, row) => [
+            render: (text, row) => (
               <Space size="small" align="center">
-                {!row.default ? undefined : <Text code>{text}</Text>}
-              </Space>,
-            ],
+                {!row.default ? undefined : <Text code>{text.toString()}</Text>}
+              </Space>
+            ),
           },
         ]}
         dataSource={parameters}

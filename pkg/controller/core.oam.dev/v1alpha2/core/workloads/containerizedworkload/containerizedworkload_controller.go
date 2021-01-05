@@ -49,7 +49,7 @@ const (
 )
 
 // Setup adds a controller that reconciles ContainerizedWorkload.
-func Setup(mgr ctrl.Manager, args controller.Args, log logging.Logger) error {
+func Setup(mgr ctrl.Manager, _ controller.Args, _ logging.Logger) error {
 	reconciler := Reconciler{
 		Client: mgr.GetClient(),
 		log:    ctrl.Log.WithName("ContainerizedWorkload"),

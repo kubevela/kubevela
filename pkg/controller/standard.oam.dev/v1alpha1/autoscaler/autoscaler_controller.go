@@ -30,23 +30,21 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
-
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/controller/common"
 )
 
 // nolint:golint
 const (
-	SpecWarningTargetWorkloadNotSet                = "Spec.targetWorkload is not set"
-	SpecWarningStartAtTimeFormat                   = "startAt is not in the right format, which should be like `12:01`"
-	SpecWarningStartAtTimeRequired                 = "spec.triggers.condition.startAt: Required value"
-	SpecWarningDurationTimeRequired                = "spec.triggers.condition.duration: Required value"
-	SpecWarningReplicasRequired                    = "spec.triggers.condition.replicas: Required value"
-	SpecWarningDurationTimeNotInRightFormat        = "spec.triggers.condition.duration: not in the right format"
-	SpecWarningSumOfStartAndDurationMoreThan24Hour = "the sum of the start hour and the duration hour has to be less than 24 hours."
+	SpecWarningTargetWorkloadNotSet         = "Spec.targetWorkload is not set"
+	SpecWarningStartAtTimeFormat            = "startAt is not in the right format, which should be like `12:01`"
+	SpecWarningStartAtTimeRequired          = "spec.triggers.condition.startAt: Required value"
+	SpecWarningDurationTimeRequired         = "spec.triggers.condition.duration: Required value"
+	SpecWarningReplicasRequired             = "spec.triggers.condition.replicas: Required value"
+	SpecWarningDurationTimeNotInRightFormat = "spec.triggers.condition.duration: not in the right format"
 )
 
 // ReconcileWaitResult is the time to wait between reconciliation.

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/oam-dev/kubevela/apis/types"
+
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 
@@ -14,8 +16,8 @@ type manager struct {
 	defclient.DefinitionClient
 }
 
-// GetHanler  get template handler
-func GetHanler(cli defclient.DefinitionClient) Handler {
+// GetHandler  get template handler
+func GetHandler(cli defclient.DefinitionClient) Handler {
 	m := &manager{
 		DefinitionClient: cli,
 	}
@@ -23,51 +25,46 @@ func GetHanler(cli defclient.DefinitionClient) Handler {
 }
 
 // Handler is template handler type
-type Handler func(key string) (string, Kind, error)
+type Handler func(key string, kind types.CapType) (string, error)
 
 // Kind is template kind
-type Kind uint16
-
-const (
-	// WorkloadKind ...
-	WorkloadKind Kind = (1 << iota)
-	// TraitKind ...
-	TraitKind
-	// Unkownkind ...
-	Unkownkind
-)
+type Kind = types.CapType
 
 // LoadTemplate Get template according to key
-func (m *manager) LoadTemplate(key string) (string, Kind, error) {
-	wd, err := m.GetWorkloadDefinition(key)
-	if err != nil && !kerrors.IsNotFound(err) {
-		return "", Unkownkind, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
-	}
-	if wd != nil {
+func (m *manager) LoadTemplate(key string, kd types.CapType) (string, error) {
+	switch kd {
+	case types.TypeWorkload:
+		wd, err := m.GetWorkloadDefinition(key)
+		if err != nil {
+			return "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+		}
 		jsonRaw, err := getTemplate(wd.Spec.Extension.Raw)
 		if err != nil {
-			return "", Unkownkind, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
-		if jsonRaw != "" {
-			return jsonRaw, WorkloadKind, nil
+		if jsonRaw == "" {
+			return "", errors.New("no template found in definition")
 		}
-	}
-	td, err := m.GetTraitDefition(key)
-	if err != nil && !kerrors.IsNotFound(err) {
-		return "", Unkownkind, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
-	}
-	if td != nil {
+		return jsonRaw, nil
+
+	case types.TypeTrait:
+		td, err := m.GetTraitDefition(key)
+		if err != nil && !kerrors.IsNotFound(err) {
+			return "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+		}
 		jsonRaw, err := getTemplate(td.Spec.Extension.Raw)
 		if err != nil {
-			return "", Unkownkind, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
-
-		if jsonRaw != "" {
-			return jsonRaw, TraitKind, nil
+		if jsonRaw == "" {
+			return "", errors.New("no template found in definition")
 		}
-
+		return jsonRaw, nil
+	case types.TypeScope:
+		// TODO: add scope template support
 	}
-	return "", Unkownkind, nil
+
+	return "", fmt.Errorf("kind(%s) of %s not supported", kd, key)
 }
 
 func getTemplate(raw []byte) (string, error) {

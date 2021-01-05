@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/template"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
@@ -183,12 +184,9 @@ func (pser *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload
 	workload.traits = []*Trait{}
 	workload.name = comp.Name
 	workload.typ = comp.WorkloadType
-	templ, kind, err := pser.templ(workload.typ)
+	templ, err := pser.templ(workload.typ, types.TypeWorkload)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
-	}
-	if kind != template.WorkloadKind {
-		return nil, errors.Errorf("%s type (%s) invalid", comp.Name, workload.typ)
 	}
 	workload.template = templ
 	settings, err := DecodeJSONMarshaler(comp.Settings)
@@ -214,14 +212,14 @@ func (pser *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload
 }
 
 func (pser *Parser) parseTrait(name string, properties map[string]interface{}) (*Trait, error) {
-
-	templ, kind, err := pser.templ(name)
-	if err != nil && !kerrors.IsNotFound(err) {
+	templ, err := pser.templ(name, types.TypeTrait)
+	if kerrors.IsNotFound(err) {
+		return nil, errors.Errorf("trait definition of %s not found", name)
+	}
+	if err != nil {
 		return nil, err
 	}
-	if kind != template.TraitKind {
-		return nil, errors.Errorf("kind of %s is not trait", name)
-	}
+
 	trait := new(Trait)
 	trait.template = templ
 	trait.name = name
