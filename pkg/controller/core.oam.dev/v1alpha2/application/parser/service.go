@@ -75,7 +75,7 @@ func (wl *Workload) Eval(render Render) (*v1alpha2.Component, error) {
 
 // EvalContext eval workload template and set result to context
 func (wl *Workload) EvalContext(ctx process.Context) error {
-	return definition.NewWDTemplater("-", wl.template).Params(wl.params).Complete(ctx)
+	return definition.NewWDTemplater(wl.name, wl.template).Params(wl.params).Complete(ctx)
 }
 
 // Trait is ComponentTrait

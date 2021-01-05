@@ -125,7 +125,7 @@ func (td *traitDef) Complete(ctx process.Context) error {
 			if err != nil {
 				return errors.WithMessagef(err, "traitDef %s new Assist", td.name)
 			}
-			ctx.PutAssistants(other)
+			ctx.PutAssistants(process.Assistant{Ins: other, Type: td.name})
 		}
 
 		outputs := inst.Lookup("outputs")
@@ -140,7 +140,7 @@ func (td *traitDef) Complete(ctx process.Context) error {
 				if err != nil {
 					return errors.WithMessagef(err, "traitDef %s new Assists(%s)", td.name, fieldInfo.Name)
 				}
-				ctx.PutAssistants(other)
+				ctx.PutAssistants(process.Assistant{Ins: other, Type: td.name})
 			}
 
 		}

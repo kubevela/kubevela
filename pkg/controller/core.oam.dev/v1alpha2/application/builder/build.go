@@ -149,13 +149,15 @@ func generateOAM(pCtx process.Context) (*v1alpha2.Component, *v1alpha2.Applicati
 	acComponent := &v1alpha2.ApplicationConfigurationComponent{}
 	acComponent.Traits = []v1alpha2.ComponentTrait{}
 	for _, assist := range assists {
-		traitRef, err := assist.Object(nil)
+		traitRef, err := assist.Ins.Object(nil)
 		if err != nil {
 			return nil, nil, err
 		}
+		tr := traitRef.(*unstructured.Unstructured)
+		tr.SetLabels(map[string]string{oam.TraitTypeLabel: assist.Type})
 		acComponent.Traits = append(acComponent.Traits, v1alpha2.ComponentTrait{
 			Trait: runtime.RawExtension{
-				Object: traitRef,
+				Object: tr,
 			},
 		})
 	}

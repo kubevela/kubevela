@@ -12,16 +12,21 @@ import (
 // Context defines Rendering Context Interface
 type Context interface {
 	SetBase(base model.Instance)
-	PutAssistants(insts ...model.Instance)
-	Output() (model.Instance, []model.Instance)
+	PutAssistants(insts ...Assistant)
+	Output() (model.Instance, []Assistant)
 	Compile(label string) string
+}
+
+type Assistant struct {
+	Ins  model.Instance
+	Type string
 }
 
 type context struct {
 	name       string
 	configs    map[string]interface{}
 	base       model.Instance
-	assistants []model.Instance
+	assistants []Assistant
 }
 
 // NewContext create render context
@@ -29,7 +34,7 @@ func NewContext(name string) Context {
 	return &context{
 		name:       name,
 		configs:    map[string]interface{}{},
-		assistants: []model.Instance{},
+		assistants: []Assistant{},
 	}
 }
 
@@ -39,7 +44,7 @@ func (ctx *context) SetBase(base model.Instance) {
 }
 
 // PutAssistants add Assist model to context
-func (ctx *context) PutAssistants(insts ...model.Instance) {
+func (ctx *context) PutAssistants(insts ...Assistant) {
 	ctx.assistants = append(ctx.assistants, insts...)
 }
 
@@ -65,7 +70,7 @@ func (ctx *context) Compile(label string) string {
 }
 
 // Output return models of context
-func (ctx *context) Output() (model.Instance, []model.Instance) {
+func (ctx *context) Output() (model.Instance, []Assistant) {
 	return ctx.base, ctx.assistants
 }
 
