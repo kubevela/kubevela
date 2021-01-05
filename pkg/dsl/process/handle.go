@@ -49,7 +49,7 @@ func (ctx *context) Compile(label string) string {
 	buff += fmt.Sprintf("name: \"%s\"\n", ctx.name)
 
 	if ctx.base != nil {
-		buff += fmt.Sprintf("input: %s\n", structMashal(ctx.base.String()))
+		buff += fmt.Sprintf("input: %s\n", structMarshal(ctx.base.String()))
 	}
 
 	if len(ctx.configs) > 0 {
@@ -58,7 +58,7 @@ func (ctx *context) Compile(label string) string {
 	}
 
 	if label != "" {
-		buff = fmt.Sprintf("%s: %s", label, structMashal(buff))
+		buff = fmt.Sprintf("%s: %s", label, structMarshal(buff))
 	}
 
 	return buff
@@ -69,7 +69,7 @@ func (ctx *context) Output() (model.Instance, []model.Instance) {
 	return ctx.base, ctx.assistants
 }
 
-func structMashal(v string) string {
+func structMarshal(v string) string {
 	skip := false
 	v = strings.TrimFunc(v, func(r rune) bool {
 		if !skip {

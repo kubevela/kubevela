@@ -31,6 +31,11 @@ type Workload struct {
 	traits   []*Trait
 }
 
+// Type export workload's type
+func (wl *Workload) Type() string {
+	return wl.typ
+}
+
 // Name export workload's name
 func (wl *Workload) Name() string {
 	return wl.name
@@ -127,7 +132,7 @@ func (trait *Trait) Eval(render Render) ([]v1alpha2.ComponentTrait, error) {
 
 // EvalContext eval trait template and set result to context
 func (trait *Trait) EvalContext(ctx process.Context) error {
-	return definition.NewTDTemplater("-", trait.template).Params(trait.params).Complete(ctx)
+	return definition.NewTDTemplater(trait.name, trait.template).Params(trait.params).Complete(ctx)
 }
 
 // Appfile describle application

@@ -4,6 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
@@ -108,6 +112,16 @@ func (b *builder) CompleteWithContext(ns string) (*v1alpha2.ApplicationConfigura
 		}
 		comp.Name = wl.Name()
 		acComp.ComponentName = comp.Name
+
+		workloadType := wl.Type()
+		workloadObject := comp.Spec.Workload.Object.(*unstructured.Unstructured)
+		labels := workloadObject.GetLabels()
+		if labels == nil {
+			labels = map[string]string{oam.WorkloadTypeLabel: workloadType}
+		} else {
+			labels[oam.WorkloadTypeLabel] = workloadType
+		}
+		workloadObject.SetLabels(labels)
 
 		comp.Namespace = ns
 		if comp.Labels == nil {
