@@ -26,5 +26,5 @@ parameter: {
 		path:          string
 		rewriteTarget: *"" | string
 	}]
-	provider: *"" | string
+	provider?: string
 }
