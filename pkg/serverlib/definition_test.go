@@ -159,12 +159,30 @@ func TestAppendCueReference(t *testing.T) {
 }
 
 func TestFixOpenAPISchema(t *testing.T) {
-	swagger, _ := openapi3.NewSwaggerLoader().LoadSwaggerFromFile(filepath.Join(TestDir, "webservice.json"))
-	schema := swagger.Components.Schemas["parameter"].Value
-	fixOpenAPISchema("", schema)
-	fixedSchema, _ := schema.MarshalJSON()
-	expectedSchema, _ := ioutil.ReadFile(filepath.Join(TestDir, "webserviceFixed.json"))
-	assert.Equal(t, fixedSchema, expectedSchema)
+	cases := map[string]struct {
+		inputFile string
+		fixedFile string
+	}{
+		"StandardWorkload": {
+			inputFile: "webservice.json",
+			fixedFile: "webserviceFixed.json",
+		},
+		"ShortTagJson": {
+			inputFile: "shortTagSchema.json",
+			fixedFile: "shortTagSchemaFixed.json",
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			swagger, _ := openapi3.NewSwaggerLoader().LoadSwaggerFromFile(filepath.Join(TestDir, tc.inputFile))
+			schema := swagger.Components.Schemas["parameter"].Value
+			fixOpenAPISchema("", schema)
+			fixedSchema, _ := schema.MarshalJSON()
+			expectedSchema, _ := ioutil.ReadFile(filepath.Join(TestDir, tc.fixedFile))
+			assert.Equal(t, fixedSchema, expectedSchema)
+		})
+	}
 }
 
 func TestGetParameterItemName(t *testing.T) {
