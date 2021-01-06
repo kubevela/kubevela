@@ -17,7 +17,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-// Service defines the service spec for AppFile, it will contain all information a service realted including OAM component, traits, source to image, etc...
+// Service defines the service spec for AppFile, it will contain all related information including OAM component, traits, source to image, etc...
 type Service map[string]interface{}
 
 // DefaultWorkloadType defines the default service type if no type specified in Appfile

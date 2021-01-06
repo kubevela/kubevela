@@ -15,11 +15,11 @@ require (
 	github.com/deckarep/golang-set v1.7.1
 	github.com/fatih/color v1.9.0
 	github.com/gertd/go-pluralize v0.1.7
+	github.com/getkin/kin-openapi v0.34.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/gin-contrib/static v0.0.0-20200815103939-31fb0c56a3d1
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-logr/logr v0.1.0
-	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.19.5 // indirect
 	github.com/go-openapi/spec v0.19.8 // indirect
 	github.com/go-openapi/swag v0.19.11 // indirect

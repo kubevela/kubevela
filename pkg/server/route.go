@@ -149,6 +149,12 @@ func (s *APIServer) setupRoute(staticPath string) http.Handler {
 		caps.GET("", s.ListCapabilities)
 	}
 
+	// Definition related api
+	defs := api.Group(util.Definition)
+	{
+		defs.GET("/:name", s.GetDefinition)
+	}
+
 	// version
 	api.GET(util.VersionPath, s.GetVersion)
 
