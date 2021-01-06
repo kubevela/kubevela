@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/oam-dev/kubevela/pkg/appfile/config"
+
 	"cuelang.org/go/cue"
 	cueJson "cuelang.org/go/pkg/encoding/json"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -73,9 +75,60 @@ func (s Service) GetBuild() *Build {
 	return build
 }
 
+func (s Service) RenderServiceToApplicationComponent(tm template.Manager, serviceName string) (v1alpha2.ApplicationComponent, error) {
+
+	// sort out configs by workload/trait
+	workloadKeys := map[string]interface{}{}
+	var traits []v1alpha2.ApplicationTrait
+
+	wtype := s.GetType()
+
+	comp := v1alpha2.ApplicationComponent{
+		Name:         serviceName,
+		WorkloadType: wtype,
+	}
+
+	for k, v := range s.GetConfig() {
+		if tm.IsTrait(k) {
+			trait := v1alpha2.ApplicationTrait{
+				Name: k,
+			}
+			pts := &runtime.RawExtension{}
+			jt, err := json.Marshal(v)
+			if err != nil {
+				return comp, err
+			}
+			if err := pts.UnmarshalJSON(jt); err != nil {
+				return comp, err
+			}
+			trait.Properties = *pts
+			traits = append(traits, trait)
+			continue
+		}
+		workloadKeys[k] = v
+	}
+
+	// Handle workloadKeys to settings
+	settings := &runtime.RawExtension{}
+	pt, err := json.Marshal(workloadKeys)
+	if err != nil {
+		return comp, err
+	}
+	if err := settings.UnmarshalJSON(pt); err != nil {
+		return comp, err
+	}
+	comp.Settings = *settings
+
+	if len(traits) > 0 {
+		comp.Traits = traits
+	}
+
+	return comp, nil
+}
+
 // RenderService render all capabilities of a service to CUE values of a Component.
 // It outputs a Component which will be marshaled as standalone Component and also returned AppConfig Component section.
-func (s Service) RenderService(tm template.Manager, name, ns string, cg configGetter) (*v1alpha2.ApplicationConfigurationComponent, *v1alpha2.Component, error) {
+func (s Service) RenderService(tm template.Manager, name, ns string, cg config.Store) (*v1alpha2.ApplicationConfigurationComponent, *v1alpha2.Component, error) {
 
 	// sort out configs by workload/trait
 	workloadKeys := map[string]interface{}{}
@@ -109,6 +162,9 @@ func (s Service) RenderService(tm template.Manager, name, ns string, cg configGe
 		}
 		ctxData["config"] = data
 	}
+
+	// = ======= 以上 Merged ==================
+
 	u, err := evalComponent(tm, wtype, ctxData, intifyValues(workloadKeys))
 	if err != nil {
 		return nil, nil, fmt.Errorf("eval service failed: %w", err)
@@ -145,44 +201,6 @@ func (s Service) RenderService(tm template.Manager, name, ns string, cg configGe
 // GetServices will get all services defined in AppFile
 func (af *AppFile) GetServices() map[string]Service {
 	return af.Services
-}
-
-func isIntegral(val float64) bool {
-	return val == float64(int(val))
-}
-
-// JSON marshalling of user values will put integer into float,
-// we have to change it back so that CUE check will succeed.
-func intifyValues(raw interface{}) interface{} {
-	switch v := raw.(type) {
-	case map[string]interface{}:
-		return intifyMap(v)
-	case []interface{}:
-		return intifyList(v)
-	case float64:
-		if isIntegral(v) {
-			return int(v)
-		}
-		return v
-	default:
-		return raw
-	}
-}
-
-func intifyList(l []interface{}) interface{} {
-	l2 := make([]interface{}, 0, len(l))
-	for _, v := range l {
-		l2 = append(l2, intifyValues(v))
-	}
-	return l2
-}
-
-func intifyMap(m map[string]interface{}) interface{} {
-	m2 := make(map[string]interface{}, len(m))
-	for k, v := range m {
-		m2[k] = intifyValues(v)
-	}
-	return m2
 }
 
 func getValueStruct(raw string, ctxValues, userValues interface{}) (*cue.Struct, error) {

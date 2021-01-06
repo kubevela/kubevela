@@ -132,12 +132,13 @@ func (o *AppfileOptions) export(filePath string, quiet bool) (*buildResult, []by
 	}
 
 	appHandler := driver.NewApplication(app, tm)
-	appHandler, err = appHandler.InitTasks(o.IO)
+	appHandler, err = application.InitTasks(appHandler, o.IO)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	retApplication, scopes, err := appHandler.Object(o.Env.Namespace)
+	// new
+	retApplication, scopes, err := appHandler.BuildOAMApplication(o.Env, o.IO, appHandler.Tm, quiet)
 	if err != nil {
 		return nil, nil, err
 	}

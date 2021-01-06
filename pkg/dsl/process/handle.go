@@ -13,6 +13,7 @@ import (
 type Context interface {
 	SetBase(base model.Instance)
 	PutAssistants(insts ...Assistant)
+	SetConfigs(configs []map[string]string)
 	Output() (model.Instance, []Assistant)
 	Compile(label string) string
 }
@@ -24,7 +25,7 @@ type Assistant struct {
 
 type context struct {
 	name       string
-	configs    map[string]interface{}
+	configs    []map[string]string
 	base       model.Instance
 	assistants []Assistant
 }
@@ -33,9 +34,14 @@ type context struct {
 func NewContext(name string) Context {
 	return &context{
 		name:       name,
-		configs:    map[string]interface{}{},
+		configs:    []map[string]string{},
 		assistants: []Assistant{},
 	}
+}
+
+// SetBase set context base model
+func (ctx *context) SetConfigs(configs []map[string]string) {
+	ctx.configs = configs
 }
 
 // SetBase set context base model
@@ -59,7 +65,7 @@ func (ctx *context) Compile(label string) string {
 
 	if len(ctx.configs) > 0 {
 		bt, _ := json.Marshal(ctx.configs)
-		buff += "configs: " + string(bt)
+		buff += "config: " + string(bt)
 	}
 
 	if label != "" {

@@ -8,13 +8,38 @@ import (
 
 	"github.com/pkg/errors"
 
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-
 	"github.com/oam-dev/kubevela/pkg/builtin"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
 func init() {
-	builtin.RegisterTask("build", handle)
+	builtin.RegisterTask("build", ImageBuildHandler)
+}
+
+func ImageBuildHandler(ctx builtin.CallCtx, params interface{}) error {
+	pm, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	b := new(Build)
+	if err := json.Unmarshal(pm, b); err != nil {
+		return err
+	}
+	v, err := ctx.LookUp("image")
+	if err != nil {
+		return err
+	}
+	image, ok := v.(string)
+	if !ok {
+		return errors.New("image must be 'string'")
+	}
+	if err := b.buildImage(ctx.IO(), image); err != nil {
+		return err
+	}
+	if err := b.pushImage(ctx.IO(), image); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Build defines the build section of AppFile
@@ -54,32 +79,6 @@ func asyncLog(reader io.Reader, stream cmdutil.IOStreams) {
 			break
 		}
 	}
-}
-
-func handle(ctx builtin.CallCtx, params interface{}) error {
-	pm, err := json.Marshal(params)
-	if err != nil {
-		return err
-	}
-	b := new(Build)
-	if err := json.Unmarshal(pm, b); err != nil {
-		return err
-	}
-	v, err := ctx.LookUp("image")
-	if err != nil {
-		return err
-	}
-	image, ok := v.(string)
-	if !ok {
-		return errors.New("image must be string")
-	}
-	if err := b.buildImage(ctx.IO(), image); err != nil {
-		return err
-	}
-	if err := b.pushImage(ctx.IO(), image); err != nil {
-		return err
-	}
-	return nil
 }
 
 // buildImage will build a image with name and context.

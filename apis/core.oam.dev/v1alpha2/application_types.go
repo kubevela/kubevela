@@ -62,13 +62,18 @@ type ApplicationComponent struct {
 
 	// Traits define the trait of one component, the type must be array to keep the order.
 	Traits []ApplicationTrait `json:"traits,omitempty"`
+
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// scopes in ApplicationComponent defines the component level scopes
+	// the format is <key:value> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
+	Scopes runtime.RawExtension `json:"scopes"`
 }
 
 // ApplicationSpec is the spec of Application
 type ApplicationSpec struct {
 	Components []ApplicationComponent `json:"components"`
 
-	// TODO(wonderflow): there should have scopes defined here
+	// TODO(wonderflow): we should have application level scopes supported here
 }
 
 // +kubebuilder:object:root=true

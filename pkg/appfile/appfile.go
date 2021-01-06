@@ -8,6 +8,12 @@ import (
 	"path/filepath"
 	"time"
 
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/apis/types"
+
+	"github.com/oam-dev/kubevela/pkg/appfile/config"
+
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/ghodss/yaml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,7 +45,7 @@ type AppFile struct {
 	Services   map[string]Service `json:"services"`
 	Secrets    map[string]string  `json:"secrets,omitempty"`
 
-	configGetter configGetter
+	configGetter config.Store
 }
 
 // NewAppFile init an empty AppFile struct
@@ -47,7 +53,7 @@ func NewAppFile() *AppFile {
 	return &AppFile{
 		Services:     make(map[string]Service),
 		Secrets:      make(map[string]string),
-		configGetter: defaultConfigGetter{},
+		configGetter: config.Local{},
 	}
 }
 
@@ -108,6 +114,45 @@ func (app *AppFile) BuildOAM(ns string, io cmdutil.IOStreams, tm template.Manage
 	return app.buildOAM(ns, io, tm, slience)
 }
 
+// BuildOAMApplication generate v1alpha2.Application and scopes
+func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams, tm template.Manager, silence bool) (*v1alpha2.Application, []oam.Object, error) {
+	// assistantObjects currently include OAM Scope Custom Resources and ConfigMaps
+	var assistantObjects []oam.Object
+	servApp := new(v1alpha2.Application)
+	servApp.SetNamespace(env.Namespace)
+	servApp.SetName(app.Name)
+	servApp.Spec.Components = []v1alpha2.ApplicationComponent{}
+	for serviceName, svc := range app.GetServices() {
+		if !silence {
+			io.Infof("\nRendering configs for service (%s)...\n", serviceName)
+		}
+		configname := svc.GetUserConfigName()
+		if configname != "" {
+			configData, err := app.configGetter.GetConfigData(configname, env.Name)
+			if err != nil {
+				return nil, nil, err
+			}
+			decodedData, err := config.DecodeConfigFormat(configData)
+			if err != nil {
+				return nil, nil, err
+			}
+			cm, err := config.ToConfigMap(app.configGetter, config.GenConfigMapName(app.Name, serviceName, configname), env.Name, decodedData)
+			if err != nil {
+				return nil, nil, err
+			}
+			assistantObjects = append(assistantObjects, cm)
+		}
+		comp, err := svc.RenderServiceToApplicationComponent(tm, serviceName)
+		if err != nil {
+			return nil, nil, err
+		}
+		servApp.Spec.Components = append(servApp.Spec.Components, comp)
+	}
+	servApp.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind("Application"))
+	assistantObjects = append(assistantObjects, addDefaultHealthScopeToApplication(servApp))
+	return servApp, assistantObjects, nil
+}
+
 func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, tm template.Manager, silence bool) (
 	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
 
@@ -121,6 +166,8 @@ func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, tm template.Manage
 	var comps []*v1alpha2.Component
 
 	for sname, svc := range app.GetServices() {
+
+		// Image 这块已经用 task 的模式替代了==== 以下 ==
 		var image string
 		v, ok := svc["image"]
 		if ok {
@@ -136,6 +183,8 @@ func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, tm template.Manage
 				return nil, nil, nil, err
 			}
 		}
+		// Image 这块已经用 task 的模式替代了==== 以上 ==
+
 		if !silence {
 			io.Infof("\nRendering configs for service (%s)...\n", sname)
 		}
@@ -164,6 +213,23 @@ func addWorkloadTypeLabel(comps []*v1alpha2.Component, services map[string]Servi
 		}
 		workloadObject.SetLabels(labels)
 	}
+}
+
+func addDefaultHealthScopeToApplication(app *v1alpha2.Application) *v1alpha2.HealthScope {
+	health := &v1alpha2.HealthScope{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: v1alpha2.HealthScopeGroupVersionKind.GroupVersion().String(),
+			Kind:       v1alpha2.HealthScopeKind,
+		},
+	}
+	health.Name = FormatDefaultHealthScopeName(app.Name)
+	health.Namespace = app.Namespace
+	health.Spec.WorkloadReferences = make([]v1alpha1.TypedReference, 0)
+	for i := range app.Spec.Components {
+		data, _ := json.Marshal(map[string]string{"healthscopes.core.oam.dev": health.Name})
+		app.Spec.Components[i].Scopes = runtime.RawExtension{Raw: data}
+	}
+	return health
 }
 
 func addHealthScope(appConfig *v1alpha2.ApplicationConfiguration) *v1alpha2.HealthScope {

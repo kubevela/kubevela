@@ -4,6 +4,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/appfile/config"
+
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/assert"
@@ -384,7 +386,7 @@ outputs: ingress: {
 	for caseName, c := range cases {
 		t.Run(caseName, func(t *testing.T) {
 			app := NewAppFile()
-			app.configGetter = &fakeConfigGetter{
+			app.configGetter = &config.Fake{
 				Data: fakeConfigData2,
 			}
 			err := yaml.Unmarshal([]byte(c.args.appfileData), app)

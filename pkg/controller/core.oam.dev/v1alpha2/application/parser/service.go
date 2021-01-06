@@ -2,10 +2,11 @@ package parser
 
 import (
 	"cuelang.org/go/cue"
-	cueJson "cuelang.org/go/pkg/encoding/json"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -13,6 +14,8 @@ import (
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 )
+
+const AppfileBuiltinConfig = "config"
 
 // Render is cue render
 type Render interface {
@@ -29,6 +32,23 @@ type Workload struct {
 	params   map[string]interface{}
 	template string
 	traits   []*Trait
+	scopes   []Scope
+}
+
+// GetUserConfigName get user config from AppFile, it will contain config file in it.
+func (wl *Workload) GetUserConfigName() string {
+	if wl.params == nil {
+		return ""
+	}
+	t, ok := wl.params[AppfileBuiltinConfig]
+	if !ok {
+		return ""
+	}
+	ts, ok := t.(string)
+	if !ok {
+		return ""
+	}
+	return ts
 }
 
 // Type export workload's type
@@ -46,31 +66,9 @@ func (wl *Workload) Traits() []*Trait {
 	return wl.traits
 }
 
-// Eval convert template to Component
-func (wl *Workload) Eval(render Render) (*v1alpha2.Component, error) {
-	inst, err := render.WithParams(wl.params).WithTemplate(wl.template).Complete()
-	if err != nil {
-		return nil, errors.WithMessagef(err, "component %s eval", wl.name)
-	}
-	output := inst.Lookup("output")
-	if !output.Exists() {
-		return nil, errors.Errorf("output not found in component %s ", wl.name)
-	}
-
-	data, err := cueJson.Marshal(output)
-	if err != nil {
-		return nil, errors.WithMessagef(err, "component %s marshal", wl.name)
-	}
-
-	componentRef := &unstructured.Unstructured{}
-	if err := componentRef.UnmarshalJSON([]byte(data)); err != nil {
-		return nil, errors.WithMessagef(err, "component %s UnmarshalJSON to unstructured", wl.name)
-	}
-
-	component := new(v1alpha2.Component)
-
-	component.Spec.Workload.Object = componentRef
-	return component, nil
+// Scopes export workload's traits
+func (wl *Workload) Scopes() []Scope {
+	return wl.scopes
 }
 
 // EvalContext eval workload template and set result to context
@@ -78,56 +76,16 @@ func (wl *Workload) EvalContext(ctx process.Context) error {
 	return definition.NewWDTemplater(wl.name, wl.template).Params(wl.params).Complete(ctx)
 }
 
+type Scope struct {
+	Name string
+	GVK  schema.GroupVersionKind
+}
+
 // Trait is ComponentTrait
 type Trait struct {
 	name     string
 	params   map[string]interface{}
 	template string
-}
-
-// Eval convert template to ComponentTrait
-func (trait *Trait) Eval(render Render) ([]v1alpha2.ComponentTrait, error) {
-	inst, err := render.WithParams(trait.params).WithTemplate(trait.template).Complete()
-	if err != nil {
-		return nil, errors.WithMessagef(err, "traitDef %s eval", trait.name)
-	}
-	cueValues := []cue.Value{}
-	output := inst.Lookup("output")
-	if !output.Exists() {
-
-		outputs := inst.Lookup("outputs")
-		iter, err := outputs.List()
-		if err != nil {
-			return nil, errors.Errorf("'output' or 'outputs' not found in trait definition %s ", trait.name)
-		}
-		for iter.Next() {
-			cueValues = append(cueValues, iter.Value())
-		}
-
-	} else {
-		cueValues = append(cueValues, output)
-	}
-
-	if len(cueValues) == 0 {
-		return nil, errors.Errorf("output|outputs not found in traitDef %s ", trait.name)
-	}
-
-	compTraits := []v1alpha2.ComponentTrait{}
-	for _, cv := range cueValues {
-		data, err := cueJson.Marshal(cv)
-		if err != nil {
-			return nil, errors.WithMessagef(err, "traitDef %s marshal", trait.name)
-		}
-		traitRef := &unstructured.Unstructured{}
-		if err := traitRef.UnmarshalJSON([]byte(data)); err != nil {
-			return nil, errors.WithMessagef(err, "traitDef %s UnmarshalJSON to unstructured", trait.name)
-		}
-		compTrait := v1alpha2.ComponentTrait{}
-		compTrait.Trait.Object = traitRef
-		compTraits = append(compTraits, compTrait)
-	}
-
-	return compTraits, nil
 }
 
 // EvalContext eval trait template and set result to context
@@ -159,11 +117,12 @@ func (af *Appfile) Name() string {
 // Parser is appfile parser
 type Parser struct {
 	templ template.Handler
+	cli   defclient.DefinitionClient
 }
 
 // NewParser create appfile parser
-func NewParser(handler template.Handler) *Parser {
-	return &Parser{templ: handler}
+func NewParser(cli defclient.DefinitionClient) *Parser {
+	return &Parser{templ: template.GetHandler(cli)}
 }
 
 // Parse convert map to Appfile
@@ -196,7 +155,7 @@ func (pser *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload
 	workload.template = templ
 	settings, err := DecodeJSONMarshaler(comp.Settings)
 	if err != nil {
-		return nil, errors.Errorf("fail to parse settings for %s", comp.Name)
+		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
 	}
 	workload.params = settings
 	for _, traitValue := range comp.Traits {
@@ -210,9 +169,25 @@ func (pser *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload
 		}
 
 		workload.traits = append(workload.traits, trait)
-
 	}
-
+	scopeSettings, err := DecodeJSONMarshaler(comp.Scopes)
+	if err != nil {
+		return nil, errors.WithMessagef(err, "fail to parse scopes for %s", comp.Name)
+	}
+	for healthType, instanceName := range scopeSettings {
+		name, ok := instanceName.(string)
+		if !ok {
+			return nil, errors.Errorf("name of scope %s for %s must be string", healthType, comp.Name)
+		}
+		gvk, err := pser.cli.GetScopeGVK(healthType)
+		if err != nil {
+			return nil, err
+		}
+		workload.scopes = append(workload.scopes, Scope{
+			Name: name,
+			GVK:  gvk,
+		})
+	}
 	return workload, nil
 }
 

@@ -3,6 +3,8 @@ package application
 import (
 	"context"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -29,15 +31,15 @@ func BuildRun(ctx context.Context, app *driver.Application, client client.Client
 	return Run(ctx, client, nil, nil, scopes, o)
 }
 
-// Run will deploy OAM objects.
+// Run will deploy OAM objects and other assistant K8s Objects including ConfigMap, OAM Scope Custom Resource.
 func Run(ctx context.Context, client client.Client,
-	ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component, scopes []oam.Object, app *v1alpha2.Application) error {
+	ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component, assistantObjects []oam.Object, app *v1alpha2.Application) error {
 	for _, comp := range comps {
 		if err := CreateOrUpdateComponent(ctx, client, comp); err != nil {
 			return err
 		}
 	}
-	if err := CreateScopes(ctx, client, scopes); err != nil {
+	if err := CreateOrUpdateObjects(ctx, client, assistantObjects); err != nil {
 		return err
 	}
 	if ac != nil {
@@ -85,13 +87,16 @@ func CreateOrUpdateAppConfig(ctx context.Context, client client.Client, appConfi
 	return client.Update(ctx, appConfig)
 }
 
-// CreateScopes will create all scopes
-func CreateScopes(ctx context.Context, client client.Client, scopes []oam.Object) error {
-	for _, obj := range scopes {
+// CreateOrUpdateObjects will create all scopes
+func CreateOrUpdateObjects(ctx context.Context, client client.Client, objects []oam.Object) error {
+	for _, obj := range objects {
 		key := ctypes.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
-		err := client.Get(ctx, key, obj)
+		u := &unstructured.Unstructured{}
+		u.SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
+		err := client.Get(ctx, key, u)
 		if err == nil {
-			return nil
+			obj.SetResourceVersion(u.GetResourceVersion())
+			return client.Update(ctx, obj)
 		}
 		if !apierrors.IsNotFound(err) {
 			return err

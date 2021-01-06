@@ -38,7 +38,7 @@ func (ctx *callContext) LookUp(paths ...string) (interface{}, error) {
 	for _, path := range paths {
 		walkData = lookup(walkData, path)
 		if walkData == nil {
-			return nil, errors.Errorf("lookup %s : not found", strings.Join(paths, "."))
+			return nil, errors.Errorf("lookup field '%s' : not found", strings.Join(paths, "."))
 		}
 	}
 	return walkData, nil

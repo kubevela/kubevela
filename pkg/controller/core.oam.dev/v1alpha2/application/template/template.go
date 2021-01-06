@@ -47,7 +47,7 @@ func (m *manager) LoadTemplate(key string, kd types.CapType) (string, error) {
 		return jsonRaw, nil
 
 	case types.TypeTrait:
-		td, err := m.GetTraitDefition(key)
+		td, err := m.GetTraitDefinition(key)
 		if err != nil {
 			return "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}

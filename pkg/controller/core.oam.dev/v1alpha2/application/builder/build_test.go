@@ -13,7 +13,7 @@ import (
 )
 
 func TestBuild(t *testing.T) {
-	ac, componets, err := Build("default", parser.TestExceptApp)
+	ac, componets, err := Build("default", parser.TestExceptApp, nil)
 	if err != nil {
 		t.Error(err)
 	}
