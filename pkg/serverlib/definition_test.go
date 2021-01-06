@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/getkin/kin-openapi/openapi3"
+
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -156,10 +158,13 @@ func TestAppendCueReference(t *testing.T) {
 	os.RemoveAll(temporaryDir)
 }
 
-func TestAddTitleField(t *testing.T) {
-	got := addTitleField("    \"description\": \"cpu core\"", "cpu")
-	title := "    \"title\": \"cpu\",\n"
-	assert.Equal(t, title, got)
+func TestFixOpenAPISchema(t *testing.T) {
+	swagger, _ := openapi3.NewSwaggerLoader().LoadSwaggerFromFile(filepath.Join(TestDir, "webservice.json"))
+	schema := swagger.Components.Schemas["parameter"].Value
+	fixOpenAPISchema("", schema)
+	fixedSchema, _ := schema.MarshalJSON()
+	expectedSchema, _ := ioutil.ReadFile(filepath.Join(TestDir, "webserviceFixed.json"))
+	assert.Equal(t, fixedSchema, expectedSchema)
 }
 
 func TestGetParameterItemName(t *testing.T) {
