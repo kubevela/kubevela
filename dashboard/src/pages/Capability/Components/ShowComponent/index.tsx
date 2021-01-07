@@ -4,15 +4,16 @@ import { Modal, Space, Table, Tag, Tooltip, Typography } from 'antd';
 
 import { ShowParameters } from './types';
 
-export default ({ name, parameters }: ShowParameters) => {
+export default (props: ShowParameters) => {
   const [localVisible, setLocalVisible] = useState(false);
 
   const { Paragraph, Text } = Typography;
 
   useEffect(() => {
-    setLocalVisible(name !== '');
-  }, [name, parameters]);
+    setLocalVisible(props.name !== '');
+  }, [props]);
 
+  const { name, parameters } = props;
   return (
     <Modal
       forceRender

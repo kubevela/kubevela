@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 
 import { Button, Card, Space, Tag, Typography } from 'antd';
 import { useModel } from 'umi';
-import { PageContainer } from '@ant-design/pro-layout';
-import { FileWordTwoTone, SnippetsTwoTone } from '@ant-design/icons';
-import ProList from '@ant-design/pro-list';
+
 import { ShowParameters } from '@/pages/Capability/Components/ShowComponent/types';
+import { FileWordTwoTone, SnippetsTwoTone } from '@ant-design/icons';
+import { PageContainer } from '@ant-design/pro-layout';
+import ProList from '@ant-design/pro-list';
+
 import ShowComponent from '../Components/ShowComponent';
 
 const DEFAULT_DETAIL_STATE: ShowParameters = {
@@ -19,14 +21,14 @@ export default (): React.ReactNode => {
   const [showTraits, setShowTraits] = useState<ShowParameters>(DEFAULT_DETAIL_STATE);
 
   const showInfo = ({ traits }: { traits: ShowParameters }) => {
-    setShowTraits(traits);
+    setShowTraits({ ...traits });
   };
 
   return (
     <PageContainer>
       <ShowComponent name={showTraits.name} parameters={showTraits.parameters} />
       <Card>
-        <ProList<any>
+        <ProList<API.Traits>
           rowKey="name"
           headerTitle="Type"
           pagination={{
@@ -41,7 +43,7 @@ export default (): React.ReactNode => {
               dataIndex: 'name',
             },
             description: {
-              render: (text, row) => {
+              render: (_, row) => {
                 return (
                   <Paragraph ellipsis={{ rows: 1, expandable: true, symbol: 'more' }}>
                     {row.description}
@@ -50,7 +52,7 @@ export default (): React.ReactNode => {
               },
             },
             content: {
-              render: (text, row) => {
+              render: (_, row) => {
                 return (
                   <Space size={0}>
                     <Text strong>applies&nbsp;to:&nbsp;</Text>
@@ -64,7 +66,7 @@ export default (): React.ReactNode => {
               },
             },
             actions: {
-              render: (text, row) => [
+              render: (_, row) => [
                 <Button
                   size="small"
                   type="link"
