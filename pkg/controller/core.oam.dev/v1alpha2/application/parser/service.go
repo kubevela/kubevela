@@ -125,7 +125,7 @@ type Parser struct {
 
 // NewParser create appfile parser
 func NewParser(cli defclient.DefinitionClient) *Parser {
-	return &Parser{templ: template.GetHandler(cli)}
+	return &Parser{templ: template.GetHandler(cli), cli: cli}
 }
 
 // Parse convert map to Appfile
