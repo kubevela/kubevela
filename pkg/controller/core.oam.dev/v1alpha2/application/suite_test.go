@@ -23,6 +23,11 @@ import (
 	"testing"
 	"time"
 
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationconfiguration"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -148,7 +153,7 @@ var _ = Describe("Test Application Controller", func() {
 		reconciler := &Reconciler{
 			Client: k8sClient,
 			Log:    ctrl.Log.WithName("Application"),
-			Scheme: scheme.Scheme,
+			Scheme: testScheme,
 		}
 		appKey := client.ObjectKey{
 			Name:      app.Name,
@@ -172,6 +177,34 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: app.Namespace,
 			Name:      "myweb",
 		}, component)).Should(BeNil())
+
+		dm, err := discoverymapper.New(cfg)
+		Expect(err).Should(BeNil())
+		decoder, err := admission.NewDecoder(testScheme)
+		Expect(err).Should(BeNil())
+		handler := applicationconfiguration.ValidatingHandler{
+			Client:  k8sClient,
+			Mapper:  dm,
+			Decoder: decoder,
+			Validators: []applicationconfiguration.AppConfigValidator{
+				applicationconfiguration.AppConfigValidateFunc(applicationconfiguration.ValidateTraitObjectFn),
+				applicationconfiguration.AppConfigValidateFunc(applicationconfiguration.ValidateRevisionNameFn),
+				applicationconfiguration.AppConfigValidateFunc(applicationconfiguration.ValidateWorkloadNameForVersioningFn),
+				applicationconfiguration.AppConfigValidateFunc(applicationconfiguration.ValidateTraitAppliableToWorkloadFn),
+				applicationconfiguration.AppConfigValidateFunc(applicationconfiguration.ValidateTraitConflictFn),
+				// TODO(wonderflow): Add more validation logic here.
+			},
+		}
+
+		vAppConfig := &applicationconfiguration.ValidatingAppConfig{}
+		if err := vAppConfig.PrepareForValidation(ctx, k8sClient, dm, appConfig); err != nil {
+			Expect(err).Should(BeNil())
+		}
+		for _, validator := range handler.Validators {
+			allErrs := validator.Validate(ctx, *vAppConfig)
+			Expect(len(allErrs)).Should(BeEquivalentTo(0))
+		}
+
 	})
 
 })

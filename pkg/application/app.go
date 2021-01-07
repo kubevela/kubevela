@@ -118,19 +118,6 @@ func GetWorkload(app *driver.Application, componentName string) (string, map[str
 	return svcType, workloadData
 }
 
-// GetTraitNames will list all traits attached to the specified component.
-func GetTraitNames(app *driver.Application, componentName string) ([]string, error) {
-	tt, err := GetTraits(app, componentName)
-	if err != nil {
-		return nil, err
-	}
-	var names []string
-	for k := range tt {
-		names = append(names, k)
-	}
-	return names, nil
-}
-
 // GetTraits will list all traits and it's configurations attached to the specified component.
 func GetTraits(app *driver.Application, componentName string) (map[string]map[string]interface{}, error) {
 	_, config := GetServiceConfig(app, componentName)
