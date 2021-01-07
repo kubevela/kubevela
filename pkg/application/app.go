@@ -17,7 +17,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // NewEmptyApplication new empty application, only set tm
@@ -164,16 +163,6 @@ func GetTraitsByType(app *driver.Application, componentName, traitType string) (
 		return make(map[string]interface{}), nil
 	}
 	return t.(map[string]interface{}), nil
-}
-
-// OAM will convert an AppFile to OAM objects
-// TODO(wonderflow) add scope support here
-func OAM(app *driver.Application, env *types.EnvMeta, io cmdutil.IOStreams, silence bool) ([]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
-	comps, appConfig, scopes, err := app.BuildOAM(env.Namespace, io, app.Tm, silence)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return comps, appConfig, scopes, nil
 }
 
 // GetAppConfig will get AppConfig from K8s cluster.

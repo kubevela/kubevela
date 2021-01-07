@@ -4,8 +4,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/oam-dev/kubevela/pkg/appfile/config"
-
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/assert"
@@ -16,6 +14,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
@@ -407,7 +406,7 @@ outputs: ingress: {
 				}
 			}
 
-			comps, ac, _, err := app.BuildOAM("default", io, tm, false)
+			comps, ac, _, err := app.BuildOAMApplication("default", io, tm, false)
 			if err != nil {
 				assert.Equal(t, c.want.err, err)
 				return

@@ -18,12 +18,12 @@ import (
 
 // BuildRun will build application and deploy from Appfile
 func BuildRun(ctx context.Context, app *driver.Application, client client.Client, env *types.EnvMeta, io cmdutil.IOStreams) error {
-	nApp, err := app.InitTasks(io)
+	nApp, err := InitTasks(app, io)
 	if err != nil {
 		return err
 	}
 
-	o, scopes, err := nApp.Object(env.Namespace)
+	o, scopes, err := nApp.BuildOAMApplication(env, io, nApp.Tm, true)
 	if err != nil {
 		return err
 	}
