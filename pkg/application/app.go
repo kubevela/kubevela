@@ -6,9 +6,6 @@ import (
 	"reflect"
 	"sort"
 
-	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/builtin"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -16,7 +13,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/storage"
 	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
 // NewEmptyApplication new empty application, only set tm
@@ -172,19 +168,4 @@ func GetAppConfig(ctx context.Context, c client.Client, app *driver.Application,
 		return nil, err
 	}
 	return appConfig, nil
-}
-
-// InitTasks will execute built-in tasks(such as image builder, etc.) and generate locally executed application
-func InitTasks(app *driver.Application, io cmdutil.IOStreams) (*driver.Application, error) {
-	appFile := *app.AppFile
-	newApp := driver.Application{AppFile: &appFile, Tm: app.Tm}
-	newApp.Services = map[string]appfile.Service{}
-	for name, svc := range app.Services {
-		newSvc, err := builtin.DoTasks(svc, io)
-		if err != nil {
-			return nil, err
-		}
-		newApp.Services[name] = newSvc
-	}
-	return &newApp, nil
 }

@@ -21,6 +21,7 @@ func isIntegral(val float64) bool {
 	return val == float64(int(val))
 }
 
+// IntifyValues will make values to int.
 // JSON marshalling of user values will put integer into float,
 // we have to change it back so that CUE check will succeed.
 func IntifyValues(raw interface{}) interface{} {

@@ -7,6 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -15,6 +16,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 )
 
+// AppfileBuiltinConfig defines the built-in config variable
 const AppfileBuiltinConfig = "config"
 
 // Render is cue render
@@ -76,6 +78,7 @@ func (wl *Workload) EvalContext(ctx process.Context) error {
 	return definition.NewWDTemplater(wl.name, wl.template).Params(wl.params).Complete(ctx)
 }
 
+// Scope defines the scope of workload
 type Scope struct {
 	Name string
 	GVK  schema.GroupVersionKind
@@ -153,13 +156,13 @@ func (pser *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
 	}
 	workload.template = templ
-	settings, err := DecodeJSONMarshaler(comp.Settings)
+	settings, err := util.RawExtension2Map(&comp.Settings)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
 	}
 	workload.params = settings
 	for _, traitValue := range comp.Traits {
-		properties, err := DecodeJSONMarshaler(traitValue.Properties)
+		properties, err := util.RawExtension2Map(&traitValue.Properties)
 		if err != nil {
 			return nil, errors.Errorf("fail to parse properties of %s for %s", traitValue.Name, comp.Name)
 		}
@@ -170,7 +173,7 @@ func (pser *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload
 
 		workload.traits = append(workload.traits, trait)
 	}
-	scopeSettings, err := DecodeJSONMarshaler(comp.Scopes)
+	scopeSettings, err := util.RawExtension2Map(comp.Scopes)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse scopes for %s", comp.Name)
 	}

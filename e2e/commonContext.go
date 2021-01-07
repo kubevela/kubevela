@@ -214,7 +214,7 @@ var (
 					appConfig := &corev1alpha2.ApplicationConfiguration{}
 					_ = k8sclient.Get(ctx.Background(), client.ObjectKey{Name: applicationName, Namespace: "default"}, appConfig)
 					return len(appConfig.Status.Workloads)
-				}, 1200*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))
+				}, 90*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))
 
 				cli := fmt.Sprintf("vela status %s", applicationName)
 				output, err := LongTimeExec(cli, 120*time.Second)
@@ -246,7 +246,7 @@ var (
 					output, err := Exec(cli)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
 					return output
-				}, 200*time.Second, 5*time.Second).Should(gomega.ContainSubstring("bin"))
+				}, 90*time.Second, 5*time.Second).Should(gomega.ContainSubstring("bin"))
 			})
 		})
 	}

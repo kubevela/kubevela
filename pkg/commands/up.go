@@ -132,10 +132,6 @@ func (o *AppfileOptions) export(filePath string, quiet bool) (*buildResult, []by
 	}
 
 	appHandler := driver.NewApplication(app, tm)
-	appHandler, err = application.InitTasks(appHandler, o.IO)
-	if err != nil {
-		return nil, nil, err
-	}
 
 	// new
 	retApplication, scopes, err := appHandler.BuildOAMApplication(o.Env, o.IO, appHandler.Tm, quiet)
@@ -227,7 +223,7 @@ func (o *AppfileOptions) ApplyApp(app *v1alpha2.Application, scopes []oam.Object
 }
 
 func (o *AppfileOptions) apply(app *v1alpha2.Application, scopes []oam.Object) error {
-	if err := application.Run(context.TODO(), o.Kubecli, nil, nil, scopes, app); err != nil {
+	if err := application.Run(context.TODO(), o.Kubecli, app, scopes); err != nil {
 		return err
 	}
 	return nil

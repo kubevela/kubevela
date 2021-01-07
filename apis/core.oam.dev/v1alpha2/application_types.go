@@ -66,7 +66,7 @@ type ApplicationComponent struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// scopes in ApplicationComponent defines the component level scopes
 	// the format is <key:value> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
-	Scopes runtime.RawExtension `json:"scopes"`
+	Scopes *runtime.RawExtension `json:"scopes,omitempty"`
 }
 
 // ApplicationSpec is the spec of Application

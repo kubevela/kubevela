@@ -8,15 +8,15 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/oam-dev/kubevela/pkg/builtin"
+	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
 func init() {
-	builtin.RegisterTask("build", ImageBuildHandler)
+	registry.RegisterTask("build", ImageBuildHandler)
 }
 
-func ImageBuildHandler(ctx builtin.CallCtx, params interface{}) error {
+func ImageBuildHandler(ctx registry.CallCtx, params interface{}) error {
 	pm, err := json.Marshal(params)
 	if err != nil {
 		return err

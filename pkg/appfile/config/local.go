@@ -24,12 +24,15 @@ import (
 	env2 "github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
+// TypeLocal defines the local config store type
 const TypeLocal = "local"
 
+// Local is the local implementation of config store
 type Local struct{}
 
 var _ Store = &Local{}
 
+// GetConfigData will return config data from local
 func (l *Local) GetConfigData(configName, envName string) ([]map[string]string, error) {
 	cfgData, err := config.ReadConfig(envName, configName)
 	if err != nil {
@@ -47,6 +50,7 @@ func (l *Local) GetConfigData(configName, envName string) ([]map[string]string, 
 	return data, nil
 }
 
+// Namespace return namespace from env
 func (l *Local) Namespace(envName string) (string, error) {
 	env, err := env2.GetEnvByName(envName)
 	if err != nil {
@@ -55,6 +59,7 @@ func (l *Local) Namespace(envName string) (string, error) {
 	return env.Namespace, nil
 }
 
+// Type returns the type of this config store implementation
 func (l *Local) Type() string {
 	return TypeLocal
 }

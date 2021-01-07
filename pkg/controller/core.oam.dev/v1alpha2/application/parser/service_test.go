@@ -9,7 +9,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/template"
 )
 
 func TestParser(t *testing.T) {
@@ -115,7 +114,7 @@ spec:
 	o := v1alpha2.Application{}
 	yaml.Unmarshal([]byte(appfileYaml), &o)
 
-	appfile, err := NewParser(template.GetHandler(mock)).Parse("test", &o)
+	appfile, err := NewParser(mock).Parse("test", &o)
 	if err != nil {
 		t.Error(err)
 		return

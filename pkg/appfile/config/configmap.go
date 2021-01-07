@@ -20,15 +20,15 @@ import (
 	"context"
 	"strings"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-
 	v1 "k8s.io/api/core/v1"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	Splitter      = "-"
+	// Splitter is a splitter for configmap name generation
+	Splitter = "-"
+
+	// TypeConfigMap defines the type of Configmap
 	TypeConfigMap = "configmap"
 )
 
@@ -46,21 +46,6 @@ func ToConfigMap(s Store, name, envName string, configData map[string]string) (*
 	return &cm, nil
 }
 
-// CreateOrUpdateConfigMap will create if not exist, will update if exist
-func CreateOrUpdateConfigMap(c client.Client, cm *v1.ConfigMap) error {
-	var existing = &v1.ConfigMap{}
-	err := c.Get(context.Background(), client.ObjectKey{Name: cm.Name, Namespace: cm.Namespace}, existing)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return c.Create(context.Background(), cm)
-		}
-		return err
-	}
-	existing.Data = cm.Data
-	existing.BinaryData = cm.BinaryData
-	return c.Update(context.Background(), existing)
-}
-
 // GenConfigMapName is a fixed way to name the configmap name for appfile config
 func GenConfigMapName(appName, serviceName, configName string) string {
 	return strings.Join([]string{"kubevela", appName, serviceName, configName}, Splitter)
@@ -68,10 +53,12 @@ func GenConfigMapName(appName, serviceName, configName string) string {
 
 var _ Store = &Configmap{}
 
+// Configmap is the configmap implementation of config store
 type Configmap struct {
 	Client client.Client
 }
 
+// GetConfigData will get config data from configmap
 func (f *Configmap) GetConfigData(name, envName string) ([]map[string]string, error) {
 
 	namespace, err := f.Namespace(envName)
@@ -91,11 +78,13 @@ func (f *Configmap) GetConfigData(name, envName string) ([]map[string]string, er
 	return data, nil
 }
 
+// Namespace returns the namespace of the config store from env
 func (f *Configmap) Namespace(envName string) (string, error) {
 	// TODO(wonderflow): now we regard env as namespace, it should be fixed when env is store serverside as configmap
 	return envName, nil
 }
 
+// Type returns the type of the config store
 func (Configmap) Type() string {
 	return TypeConfigMap
 }

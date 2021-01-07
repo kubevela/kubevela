@@ -3,7 +3,7 @@ package builder
 import (
 	"testing"
 
-	"github.com/bmizerany/assert"
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -25,23 +25,25 @@ func TestBuild(t *testing.T) {
 		}, ObjectMeta: v1.ObjectMeta{
 			Name:      "test",
 			Namespace: "default",
-			SelfLink:  "", UID: "",
-			ResourceVersion: "",
-			Generation:      0,
-			Labels:          map[string]string{"application.oam.dev": "test"},
+			Labels:    map[string]string{"application.oam.dev": "test"},
 		},
 		Spec: v1alpha2.ApplicationConfigurationSpec{
 			Components: []v1alpha2.ApplicationConfigurationComponent{
-				v1alpha2.ApplicationConfigurationComponent{
+				{
 					ComponentName: "myweb",
 					Traits: []v1alpha2.ComponentTrait{
-						v1alpha2.ComponentTrait{
+						{
 							Trait: runtime.RawExtension{
 								Object: &unstructured.Unstructured{
 									Object: map[string]interface{}{
 										"apiVersion": "core.oam.dev/v1alpha2",
 										"kind":       "ManualScalerTrait",
-										"spec":       map[string]interface{}{"replicaCount": int64(10)},
+										"metadata": map[string]interface{}{
+											"labels": map[string]interface{}{
+												"trait.oam.dev/type": "scaler",
+											},
+										},
+										"spec": map[string]interface{}{"replicaCount": int64(10)},
 									},
 								},
 							}},
@@ -66,6 +68,11 @@ func TestBuild(t *testing.T) {
 					Object: map[string]interface{}{
 						"apiVersion": "apps/v1",
 						"kind":       "Deployment",
+						"metadata": map[string]interface{}{
+							"labels": map[string]interface{}{
+								"workload.oam.dev/type": "worker",
+							},
+						},
 						"spec": map[string]interface{}{
 							"selector": map[string]interface{}{
 								"matchLabels": map[string]interface{}{
@@ -87,6 +94,6 @@ func TestBuild(t *testing.T) {
 			},
 		},
 	}
-	assert.Equal(t, 1, len(componets), " built componets length must be 1")
+	assert.Equal(t, 1, len(componets), " built components' length must be 1")
 	assert.Equal(t, expectComponent, componets[0])
 }

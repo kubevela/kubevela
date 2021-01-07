@@ -18,6 +18,7 @@ type Context interface {
 	Compile(label string) string
 }
 
+// Assistant are objects rendered by definition template.
 type Assistant struct {
 	Ins  model.Instance
 	Type string

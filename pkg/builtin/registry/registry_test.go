@@ -1,4 +1,4 @@
-package builtin
+package registry
 
 import (
 	"testing"
@@ -8,7 +8,7 @@ import (
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
-func mockTask(ctx CallCtx, params interface{}) error {
+func mockTask(_ CallCtx, _ interface{}) error {
 	return nil
 }
 
@@ -57,7 +57,7 @@ func TestDoTasks(t *testing.T) {
 	}
 
 	for _, tcase := range testCases {
-		ret, _ := DoTasks(tcase.input, cmdutil.IOStreams{})
+		ret, _ := Run(tcase.input, cmdutil.IOStreams{})
 		assert.Equal(t, tcase.expect, ret)
 	}
 }
@@ -73,8 +73,7 @@ func TestRegisterTask(t *testing.T) {
 		"mock1",
 		"mock2",
 	}
-
-	assert.Equal(t, len(expectTasks), len(tasks))
+	tasks := GetTasks()
 	for _, eTask := range expectTasks {
 		if _, ok := tasks[eTask]; !ok {
 			t.Errorf("task %s not register", eTask)

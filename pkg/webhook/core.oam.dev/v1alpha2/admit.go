@@ -10,8 +10,9 @@ import (
 
 // Add will be called in main and register all validation handlers
 func Add(mgr manager.Manager) error {
-	application.RegisterValidatingHandler(mgr)
-
+	if err := application.RegisterValidatingHandler(mgr); err != nil {
+		return err
+	}
 	if err := applicationconfiguration.RegisterValidatingHandler(mgr); err != nil {
 		return err
 	}

@@ -6,7 +6,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/oam-dev/kubevela/pkg/builtin"
 
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -46,6 +49,7 @@ type AppFile struct {
 	Secrets    map[string]string  `json:"secrets,omitempty"`
 
 	configGetter config.Store
+	initialized  bool
 }
 
 // NewAppFile init an empty AppFile struct
@@ -53,7 +57,7 @@ func NewAppFile() *AppFile {
 	return &AppFile{
 		Services:     make(map[string]Service),
 		Secrets:      make(map[string]string),
-		configGetter: config.Local{},
+		configGetter: &config.Local{},
 	}
 }
 
@@ -108,8 +112,30 @@ func LoadFromFile(filename string) (*AppFile, error) {
 	return af, nil
 }
 
+// InitTasks will execute built-in tasks(such as image builder, etc.) and generate locally executed application
+func (app *AppFile) InitTasks(io cmdutil.IOStreams) error {
+	if app.initialized {
+		return nil
+	}
+	for name, svc := range app.Services {
+		newSvc, err := builtin.DoTasks(svc, io)
+		if err != nil {
+			return err
+		}
+		app.Services[name] = newSvc
+	}
+	app.initialized = true
+	return nil
+}
+
 // BuildOAMApplication renders Appfile into Application, Scopes and other K8s Resources.
 func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams, tm template.Manager, silence bool) (*v1alpha2.Application, []oam.Object, error) {
+	if err := app.InitTasks(io); err != nil {
+		if strings.Contains(err.Error(), "'image' : not found") {
+			return nil, nil, ErrImageNotDefined
+		}
+		return nil, nil, err
+	}
 	// assistantObjects currently include OAM Scope Custom Resources and ConfigMaps
 	var assistantObjects []oam.Object
 	servApp := new(v1alpha2.Application)
@@ -174,7 +200,7 @@ func addDefaultHealthScopeToApplication(app *v1alpha2.Application) *v1alpha2.Hea
 	for i := range app.Spec.Components {
 		// FIXME(wonderflow): the hardcode health scope should be fixed.
 		data, _ := json.Marshal(map[string]string{"healthscopes.core.oam.dev": health.Name})
-		app.Spec.Components[i].Scopes = runtime.RawExtension{Raw: data}
+		app.Spec.Components[i].Scopes = &runtime.RawExtension{Raw: data}
 	}
 	return health
 }

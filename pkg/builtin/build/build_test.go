@@ -5,7 +5,7 @@ import (
 
 	"github.com/bmizerany/assert"
 
-	"github.com/oam-dev/kubevela/pkg/builtin"
+	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
@@ -33,7 +33,7 @@ func TestBuild(t *testing.T) {
 			},
 		},
 		{
-			expectErr: "do task build: lookup image : not found",
+			expectErr: "do task build: lookup field 'image' : not found",
 			input: map[string]interface{}{
 				"build": map[string]interface{}{
 					"docker": map[string]interface{}{
@@ -47,7 +47,7 @@ func TestBuild(t *testing.T) {
 			},
 		},
 		{
-			expectErr: "do task build: image must be string",
+			expectErr: "do task build: image must be 'string'",
 			input: map[string]interface{}{
 				"image": 1000,
 				"build": map[string]interface{}{
@@ -64,7 +64,7 @@ func TestBuild(t *testing.T) {
 	}
 
 	for _, tcase := range errTestCase {
-		_, err := builtin.DoTasks(tcase.input, cmdutil.IOStreams{})
+		_, err := registry.Run(tcase.input, cmdutil.IOStreams{})
 		assert.Equal(t, err != nil, true)
 		assert.Equal(t, tcase.expectErr, err.Error())
 	}

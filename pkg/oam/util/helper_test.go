@@ -9,8 +9,6 @@ import (
 	"reflect"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/resource/fake"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -20,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -1316,4 +1315,33 @@ func TestNamespacedDefinition(t *testing.T) {
 	nn := util.GenNamespacedDefinitionName(n)
 	assert.Equal(t, nn.Namespace, ns)
 	assert.Equal(t, nn.Name, n)
+}
+
+func TestRawExtension2Map(t *testing.T) {
+	r1 := runtime.RawExtension{
+		Raw:    []byte(`{"a":{"c":"d"},"b":1}`),
+		Object: nil,
+	}
+	exp1 := map[string]interface{}{
+		"a": map[string]interface{}{
+			"c": "d",
+		},
+		"b": float64(1),
+	}
+	got1, err := util.RawExtension2Map(&r1)
+	assert.NoError(t, err)
+	assert.Equal(t, exp1, got1)
+
+	r2 := runtime.RawExtension{
+		Raw: nil,
+		Object: &unstructured.Unstructured{Object: map[string]interface{}{
+			"a": map[string]interface{}{
+				"c": "d",
+			},
+			"b": float64(1),
+		}},
+	}
+	got2, err := util.RawExtension2Map(&r2)
+	assert.NoError(t, err)
+	assert.Equal(t, exp1, got2)
 }

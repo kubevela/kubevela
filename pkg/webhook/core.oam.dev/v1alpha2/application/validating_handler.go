@@ -75,4 +75,5 @@ func RegisterValidatingHandler(mgr manager.Manager) error {
 	}
 	server := mgr.GetWebhookServer()
 	server.Register("/validating-core-oam-dev-v1alpha2-applications", &webhook.Admission{Handler: &ValidatingHandler{dm: mapper}})
+	return nil
 }

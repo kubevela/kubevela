@@ -7,6 +7,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/assert"
+	v12 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -17,9 +18,116 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-func TestBuildOAM(t *testing.T) {
+func TestBuildOAMApplication2(t *testing.T) {
+	expectNs := "test-ns"
+
+	tm := template.NewFakeTemplateManager()
+	tm.Templates = map[string]*template.Template{
+		"containerWorkload": &template.Template{
+			Captype: types.TypeWorkload,
+			Raw:     `{parameters : {image: string} }`,
+		},
+		"scaler": &template.Template{
+			Captype: types.TypeTrait,
+			Raw:     `{parameters : {relicas: int} }`,
+		},
+	}
+
+	testCases := []struct {
+		appFile   *AppFile
+		expectApp *v1alpha2.Application
+	}{
+		{
+			appFile: &AppFile{
+				Name: "test",
+				Services: map[string]Service{
+					"webapp": map[string]interface{}{
+						"type":  "containerWorkload",
+						"image": "busybox",
+					},
+				},
+			},
+			expectApp: &v1alpha2.Application{
+				TypeMeta: v1.TypeMeta{
+					Kind:       "Application",
+					APIVersion: "core.oam.dev/v1alpha2",
+				}, ObjectMeta: v1.ObjectMeta{
+					Name: "test",
+				},
+				Spec: v1alpha2.ApplicationSpec{
+					Components: []v1alpha2.ApplicationComponent{
+						{
+							Name:         "webapp",
+							WorkloadType: "containerWorkload",
+							Settings: runtime.RawExtension{
+								Raw: []byte("{\"image\":\"busybox\"}"),
+							},
+							Scopes: &runtime.RawExtension{Raw: []byte(`{"healthscopes.core.oam.dev":"test-default-health"}`)},
+						},
+					},
+				},
+			},
+		},
+		{
+			appFile: &AppFile{
+				Name: "test",
+				Services: map[string]Service{
+					"webapp": map[string]interface{}{
+						"type":  "containerWorkload",
+						"image": "busybox",
+						"scaler": map[string]interface{}{
+							"replicas": 10,
+						},
+					},
+				},
+			},
+			expectApp: &v1alpha2.Application{
+				TypeMeta: v1.TypeMeta{
+					Kind:       "Application",
+					APIVersion: "core.oam.dev/v1alpha2",
+				}, ObjectMeta: v1.ObjectMeta{
+					Name: "test",
+				},
+				Spec: v1alpha2.ApplicationSpec{
+					Components: []v1alpha2.ApplicationComponent{
+						{
+							Name:         "webapp",
+							WorkloadType: "containerWorkload",
+							Settings: runtime.RawExtension{
+								Raw: []byte("{\"image\":\"busybox\"}"),
+							},
+							Scopes: &runtime.RawExtension{Raw: []byte(`{"healthscopes.core.oam.dev":"test-default-health"}`)},
+							Traits: []v1alpha2.ApplicationTrait{
+								{
+									Name: "scaler",
+									Properties: runtime.RawExtension{
+										Raw: []byte("{\"replicas\":10}"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tcase := range testCases {
+		tcase.expectApp.Namespace = expectNs
+		o, _, err := tcase.appFile.BuildOAMApplication(&types.EnvMeta{Namespace: expectNs}, cmdutil.IOStreams{
+			In:  os.Stdin,
+			Out: os.Stdout,
+		}, tm, false)
+		assert.Equal(t, nil, err)
+		assert.Equal(t, tcase.expectApp, o)
+	}
+}
+
+func TestBuildOAMApplication(t *testing.T) {
 	yamlOneService := `name: myapp
 services:
   express-server:
@@ -157,169 +265,80 @@ outputs: ingress: {
   }
 }
 `
-	ac1 := &v1alpha2.ApplicationConfiguration{
+	ac1 := &v1alpha2.Application{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Application",
+			APIVersion: "core.oam.dev/v1alpha2",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "myapp",
 			Namespace: "default",
 		},
-		Spec: v1alpha2.ApplicationConfigurationSpec{
-			Components: []v1alpha2.ApplicationConfigurationComponent{{
-				ComponentName: "express-server",
-				Scopes: []v1alpha2.ComponentScope{{
-					ScopeReference: v1alpha1.TypedReference{
-						APIVersion: "core.oam.dev/v1alpha2",
-						Kind:       "HealthScope",
-						Name:       "myapp-default-health",
+		Spec: v1alpha2.ApplicationSpec{
+			Components: []v1alpha2.ApplicationComponent{{
+				WorkloadType: "webservice",
+				Name:         "express-server",
+				Scopes:       &runtime.RawExtension{Raw: []byte(`{"healthscopes.core.oam.dev":"myapp-default-health"}`)},
+				Settings: runtime.RawExtension{
+					Raw: []byte(`{"image": "oamdev/testapp:v1", "cmd": ["node", "server.js"]}`),
+				},
+				Traits: []v1alpha2.ApplicationTrait{{
+					Name: "route",
+					Properties: runtime.RawExtension{
+						Raw: []byte(`{"domain": "example.com", "http":{"/": 8080}}`),
 					},
-				}},
-				Traits: []v1alpha2.ComponentTrait{{
-					Trait: runtime.RawExtension{
-						Object: &unstructured.Unstructured{
-							Object: map[string]interface{}{
-								"apiVersion": "v1",
-								"kind":       "Service",
-								"metadata": map[string]interface{}{
-									"name": "express-server",
-								},
-								"spec": map[string]interface{}{
-									"selector": map[string]interface{}{
-										"app": "express-server",
-									},
-									"ports": []interface{}{
-										map[string]interface{}{
-											"port":       float64(8080),
-											"targetPort": float64(8080),
-										},
-									},
-								},
-							},
-						},
-					},
-				}, {
-					Trait: runtime.RawExtension{
-						Object: &unstructured.Unstructured{
-							Object: map[string]interface{}{
-								"apiVersion": "networking.k8s.io/v1beta1",
-								"kind":       "Ingress",
-								"spec": map[string]interface{}{
-									"rules": []interface{}{
-										map[string]interface{}{
-											"http": map[string]interface{}{
-												"paths": []interface{}{
-													map[string]interface{}{
-														"path": "/",
-														"backend": map[string]interface{}{
-															"serviceName": "express-server",
-															"servicePort": float64(8080),
-														},
-													},
-												},
-											},
-											"host": "example.com",
-										},
-									},
-								},
-							},
-						},
-					},
-				}},
+				},
+				},
 			}},
 		},
 	}
 	ac2 := ac1.DeepCopy()
-	ac2.Spec.Components = append(ac2.Spec.Components, v1alpha2.ApplicationConfigurationComponent{
-		ComponentName: "mongodb",
-		Traits:        []v1alpha2.ComponentTrait{},
-		Scopes: []v1alpha2.ComponentScope{{
-			ScopeReference: v1alpha1.TypedReference{
-				APIVersion: "core.oam.dev/v1alpha2",
-				Kind:       "HealthScope",
-				Name:       "myapp-default-health",
-			},
-		}},
+	ac2.Spec.Components = append(ac2.Spec.Components, v1alpha2.ApplicationComponent{
+		Name:         "mongodb",
+		WorkloadType: "backend",
+		Settings: runtime.RawExtension{
+			Raw: []byte(`{"image":"bitnami/mongodb:3.6.20","cmd": ["mongodb"]}`),
+		},
+		Traits: []v1alpha2.ApplicationTrait{},
+		Scopes: &runtime.RawExtension{Raw: []byte(`{"healthscopes.core.oam.dev":"myapp-default-health"}`)},
 	})
 
-	comp1 := &v1alpha2.Component{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "express-server",
-			Namespace: "default",
-		},
-		Spec: v1alpha2.ComponentSpec{
-			Workload: runtime.RawExtension{
-				Object: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"apiVersion": "test.oam.dev/v1",
-						"kind":       "WebService",
-						"metadata": map[string]interface{}{
-							"name": "express-server",
-							"labels": map[string]interface{}{
-								"workload.oam.dev/type": "webservice",
-							},
-						},
-						"spec": map[string]interface{}{
-							"image":   "oamdev/testapp:v1",
-							"command": []interface{}{"node", "server.js"},
-						},
-					},
-				},
-			},
-		},
-	}
+	ac3 := ac1.DeepCopy()
+	ac3.Spec.Components[0].WorkloadType = "withconfig"
 
-	comp2 := &v1alpha2.Component{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "mongodb",
-			Namespace: "default",
-		},
-		Spec: v1alpha2.ComponentSpec{
-			Workload: runtime.RawExtension{
-				Object: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"apiVersion": "test.oam.dev/v1",
-						"kind":       "Worker",
-						"metadata": map[string]interface{}{
-							"name": "mongodb",
-							"labels": map[string]interface{}{
-								"workload.oam.dev/type": "backend",
-							},
-						},
-						"spec": map[string]interface{}{
-							"image":   "bitnami/mongodb:3.6.20",
-							"command": []interface{}{"mongodb"},
-						},
-					},
-				},
-			},
-		},
-	}
+	// TODO application 那边补测试:
+	// 2. 1对多的情况，多对1 的情况
 
-	compWithConfig := comp1.DeepCopy()
 	fakeConfigData2 := []map[string]string{{
 		"name":  "test",
 		"value": "test-value",
 	}}
-	// for deepCopy. Otherwise deepcopy will panic in SetNestedField.
-	fakeConfigData := []interface{}{map[string]interface{}{
-		"name":  "test",
-		"value": "test-value",
-	}}
-	if err := unstructured.SetNestedField(
-		compWithConfig.Spec.Workload.Object.(*unstructured.Unstructured).UnstructuredContent(),
-		fakeConfigData, "spec", "env"); err != nil {
-		t.Fatal(err)
-	}
-	compWithConfig.Spec.Workload.Object.(*unstructured.Unstructured).SetLabels(
-		map[string]string{"workload.oam.dev/type": "withconfig"})
 
+	ac3cm := &v12.ConfigMap{
+		Data: map[string]string{
+			"test": "test-value",
+		},
+	}
+	ac3cm.SetName("kubevela-myapp-express-server-test")
+
+	health := &v1alpha2.HealthScope{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: v1alpha2.HealthScopeGroupVersionKind.GroupVersion().String(),
+			Kind:       v1alpha2.HealthScopeKind,
+		},
+	}
+	health.Name = FormatDefaultHealthScopeName("myapp")
+	health.Namespace = "default"
+	health.Spec.WorkloadReferences = make([]v1alpha1.TypedReference, 0)
 	type args struct {
 		appfileData       string
 		workloadTemplates map[string]string
 		traitTemplates    map[string]string
 	}
 	type want struct {
-		components []*v1alpha2.Component
-		appConfig  *v1alpha2.ApplicationConfiguration
-		err        error
+		objs []oam.Object
+		app  *v1alpha2.Application
+		err  error
 	}
 	cases := map[string]struct {
 		args args
@@ -336,8 +355,8 @@ outputs: ingress: {
 				},
 			},
 			want: want{
-				appConfig:  ac1,
-				components: []*v1alpha2.Component{comp1},
+				app:  ac1,
+				objs: []oam.Object{health},
 			},
 		},
 		"two services should generate two components and one appconfig": {
@@ -352,8 +371,8 @@ outputs: ingress: {
 				},
 			},
 			want: want{
-				appConfig:  ac2,
-				components: []*v1alpha2.Component{comp1, comp2},
+				app:  ac2,
+				objs: []oam.Object{health},
 			},
 		},
 		"no image should fail": {
@@ -364,7 +383,7 @@ outputs: ingress: {
 				err: ErrImageNotDefined,
 			},
 		},
-		"config data should be set": {
+		"config data should be set, add return configmap objects": {
 			args: args{
 				appfileData: yamlWithConfig,
 				workloadTemplates: map[string]string{
@@ -375,8 +394,8 @@ outputs: ingress: {
 				},
 			},
 			want: want{
-				appConfig:  ac1,
-				components: []*v1alpha2.Component{compWithConfig},
+				app:  ac3,
+				objs: []oam.Object{ac3cm, health},
 			},
 		},
 	}
@@ -384,6 +403,7 @@ outputs: ingress: {
 	io := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	for caseName, c := range cases {
 		t.Run(caseName, func(t *testing.T) {
+
 			app := NewAppFile()
 			app.configGetter = &config.Fake{
 				Data: fakeConfigData2,
@@ -406,42 +426,44 @@ outputs: ingress: {
 				}
 			}
 
-			comps, ac, _, err := app.BuildOAMApplication("default", io, tm, false)
-			if err != nil {
+			application, objects, err := app.BuildOAMApplication(&types.EnvMeta{Namespace: "default"}, io, tm, false)
+			if c.want.err != nil {
 				assert.Equal(t, c.want.err, err)
 				return
 			}
-
-			assert.Equal(t, ac.ObjectMeta, c.want.appConfig.ObjectMeta)
-
-			for _, cp1 := range c.want.appConfig.Spec.Components {
-				found := false
-				for _, cp2 := range ac.Spec.Components {
-					if cp1.ComponentName != cp2.ComponentName {
+			assert.Equal(t, c.want.app.ObjectMeta, application.ObjectMeta)
+			for _, comp := range application.Spec.Components {
+				var found bool
+				for idx, expcomp := range c.want.app.Spec.Components {
+					if comp.Name != expcomp.Name {
 						continue
 					}
-					assert.Equal(t, cp1, cp2)
 					found = true
-					break
-				}
-				if !found {
-					t.Errorf("ac component (%s) not found", cp1.ComponentName)
-				}
-			}
-			for _, cp1 := range c.want.components {
-				found := false
-				for _, cp2 := range comps {
-					if cp1.Name != cp2.Name {
-						continue
+					assert.Equal(t, comp.WorkloadType, c.want.app.Spec.Components[idx].WorkloadType)
+					assert.Equal(t, comp.Name, c.want.app.Spec.Components[idx].Name)
+					assert.Equal(t, comp.Scopes, c.want.app.Spec.Components[idx].Scopes)
+
+					got, err := util.RawExtension2Map(&comp.Settings)
+					assert.NoError(t, err)
+					exp, err := util.RawExtension2Map(&c.want.app.Spec.Components[idx].Settings)
+					assert.NoError(t, err)
+					assert.Equal(t, exp, got)
+					for tidx, tr := range comp.Traits {
+						assert.Equal(t, tr.Name, c.want.app.Spec.Components[idx].Traits[tidx].Name)
+
+						got, err := util.RawExtension2Map(&tr.Properties)
+						assert.NoError(t, err)
+						exp, err := util.RawExtension2Map(&c.want.app.Spec.Components[idx].Traits[tidx].Properties)
+						assert.NoError(t, err)
+						assert.Equal(t, exp, got)
 					}
-					assert.Equal(t, cp1.Spec.Workload.Object, cp2.Spec.Workload.Object)
-					found = true
-					break
 				}
-				if !found {
-					t.Errorf("component (%s) not found", cp1.Name)
-				}
+				assert.Equal(t, true, found, "no component found for %s", comp.Name)
 			}
+			for idx, v := range objects {
+				assert.Equal(t, c.want.objs[idx], v)
+			}
+
 		})
 	}
 }
