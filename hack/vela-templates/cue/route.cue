@@ -13,6 +13,8 @@ output: {
 		if parameter["rules"] != _|_ {
 			rules: parameter.rules
 		}
+
+		provider: *"nginx" | parameter.provider
 	}
 }
 parameter: {
@@ -24,4 +26,5 @@ parameter: {
 		path:          string
 		rewriteTarget: *"" | string
 	}]
+	provider?: string
 }

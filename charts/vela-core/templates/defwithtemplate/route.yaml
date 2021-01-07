@@ -28,6 +28,8 @@ spec:
       		if parameter["rules"] != _|_ {
       			rules: parameter.rules
       		}
+      
+      		provider: *"nginx" | parameter.provider
       	}
       }
       parameter: {
@@ -39,5 +41,6 @@ spec:
       		path:          string
       		rewriteTarget: *"" | string
       	}]
+      	provider?: string
       }
       
