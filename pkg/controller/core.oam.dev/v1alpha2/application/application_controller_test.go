@@ -21,15 +21,15 @@ import (
 	"encoding/json"
 	"time"
 
-	"k8s.io/utils/pointer"
-
-	v1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -42,20 +42,13 @@ import (
 var _ = Describe("Test Application Controller", func() {
 	ctx := context.Background()
 
-	ns := corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "vela-test",
-		},
-	}
-
 	appwithNoTrait := &v1alpha2.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
 			APIVersion: "core.oam.dev/v1alpha2",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "app-with-no-trait",
-			Namespace: ns.Name,
+			Name: "app-with-no-trait",
 		},
 		Spec: v1alpha2.ApplicationSpec{
 			Components: []v1alpha2.ApplicationComponent{
@@ -100,10 +93,21 @@ var _ = Describe("Test Application Controller", func() {
 	appWithTrait.Spec.Components[0].Traits = []v1alpha2.ApplicationTrait{
 		{
 			Name:       "scaler",
-			Properties: runtime.RawExtension{Raw: []byte(`{"replica":2}`)},
+			Properties: runtime.RawExtension{Raw: []byte(`{"replicas":2}`)},
 		},
 	}
-
+	expectScalerTrait := unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "core.oam.dev/v1alpha2",
+		"kind":       "ManualScalerTrait",
+		"metadata": map[string]interface{}{
+			"labels": map[string]interface{}{
+				"trait.oam.dev/type": "scaler",
+			},
+		},
+		"spec": map[string]interface{}{
+			"replicaCount": int64(2),
+		},
+	}}
 	appWithTraitAndScope := appWithTrait.DeepCopy()
 	appWithTraitAndScope.SetName("app-with-trait-and-scope")
 	appWithTraitAndScope.Spec.Components[0].Scopes = &runtime.RawExtension{Raw: []byte(`{"scopes.core.oam.dev":"appWithTraitAndScope-default-health"}`)}
@@ -115,27 +119,25 @@ var _ = Describe("Test Application Controller", func() {
 	tDDefJson, _ := yaml.YAMLToJSON([]byte(tDDefYaml))
 
 	BeforeEach(func() {
+
 		Expect(json.Unmarshal(wDDefJson, wd)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, wd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, td)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, td.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		Eventually(
-			func() error {
-				return k8sClient.Create(ctx, &ns)
-			},
-			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	})
 	AfterEach(func() {
-		Eventually(
-			func() error {
-				return k8sClient.Delete(ctx, &ns)
-			},
-			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil()))
 	})
 
-	It("appwithNoTrait will only create workload", func() {
+	It("app-without-trait will only create workload", func() {
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test",
+			},
+		}
+		appwithNoTrait.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, appwithNoTrait.DeepCopyObject())).Should(BeNil())
 		reconciler := &Reconciler{
 			Client: k8sClient,
@@ -147,17 +149,19 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: appwithNoTrait.Namespace,
 		}
 		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
-
+		By("Check Application Created")
 		checkApp := &v1alpha2.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
 
+		By("Check ApplicationConfiguration Created")
 		appConfig := &v1alpha2.ApplicationConfiguration{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: appwithNoTrait.Namespace,
 			Name:      appwithNoTrait.Name,
 		}, appConfig)).Should(BeNil())
 
+		By("Check Component Created with the expected workload spec")
 		component := &v1alpha2.Component{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: appwithNoTrait.Namespace,
@@ -172,7 +176,63 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(json.Unmarshal(component.Spec.Workload.Raw, &gotD)).Should(BeNil())
 		Expect(gotD).Should(BeEquivalentTo(expDeployment))
 
+		By("Delete Application, clean the resource")
 		Expect(k8sClient.Delete(ctx, appwithNoTrait)).Should(BeNil())
+	})
+
+	It("app-with-trait will create workload and trait", func() {
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-with-trait",
+			},
+		}
+		appWithTrait.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		app := appWithTrait.DeepCopy()
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		reconciler := &Reconciler{
+			Client: k8sClient,
+			Log:    ctrl.Log.WithName("Application"),
+			Scheme: testScheme,
+		}
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check App running successfully")
+		checkApp := &v1alpha2.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+
+		By("Check AppConfig and trait created as expected")
+		appConfig := &v1alpha2.ApplicationConfiguration{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      app.Name,
+		}, appConfig)).Should(BeNil())
+
+		gotTrait := unstructured.Unstructured{}
+		Expect(json.Unmarshal(appConfig.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
+		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait))
+
+		By("Check component created as expected")
+		component := &v1alpha2.Component{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      "myweb",
+		}, component)).Should(BeNil())
+		Expect(component.ObjectMeta.Labels).Should(BeEquivalentTo(map[string]string{"application.oam.dev": "app-with-trait"}))
+		Expect(component.ObjectMeta.OwnerReferences[0].Name).Should(BeEquivalentTo("app-with-trait"))
+		Expect(component.ObjectMeta.OwnerReferences[0].Kind).Should(BeEquivalentTo("Application"))
+		Expect(component.ObjectMeta.OwnerReferences[0].APIVersion).Should(BeEquivalentTo("core.oam.dev/v1alpha2"))
+		Expect(component.ObjectMeta.OwnerReferences[0].Controller).Should(BeEquivalentTo(pointer.BoolPtr(true)))
+		gotD := v1.Deployment{}
+		Expect(json.Unmarshal(component.Spec.Workload.Raw, &gotD)).Should(BeNil())
+		Expect(gotD).Should(BeEquivalentTo(expDeployment))
+
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 
 })

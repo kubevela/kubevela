@@ -207,7 +207,7 @@ var _ = Describe("Test ApplicationConfiguration Component Revision Enabled trait
 		Eventually(func() error {
 			var workloadKey = client.ObjectKey{Namespace: namespace, Name: compName + "-v1"}
 			return k8sClient.Get(ctx, workloadKey, &wr)
-		}, time.Second, 300*time.Millisecond).Should(BeNil())
+		}, 3*time.Second, 300*time.Millisecond).Should(BeNil())
 		By("Check workload should only have 1 generation")
 		Expect(wr.GetGeneration()).Should(BeEquivalentTo(1))
 
