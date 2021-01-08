@@ -42,7 +42,8 @@ declare namespace API {
 
   interface Workloads {
     name: string;
-    parameters: Parameters[];
+    parameters?: Parameters[];
+    description?: string;
   }
 
   interface Traits {
