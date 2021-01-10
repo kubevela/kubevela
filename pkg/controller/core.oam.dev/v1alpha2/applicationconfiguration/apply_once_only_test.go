@@ -11,14 +11,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Test apply (workloads/traits) once only", func() {
@@ -162,7 +160,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			cwObj := v1alpha2.ContainerizedWorkload{}
 			Eventually(func() error {
 				return k8sClient.Get(ctx, client.ObjectKey{Name: compName, Namespace: namespace}, &cwObj)
-			}, 3*time.Second, time.Second).Should(BeNil())
+			}, 5*time.Second, time.Second).Should(BeNil())
 			Expect(cwObj.Spec.Containers[0].Image).Should(Equal(image1))
 
 			By("Get trait instance & Check trait spec")

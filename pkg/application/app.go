@@ -99,7 +99,7 @@ func GetServiceConfig(app *driver.Application, componentName string) (string, ma
 	if !ok {
 		return "", make(map[string]interface{})
 	}
-	return svc.GetType(), svc.GetConfig()
+	return svc.GetType(), svc.GetApplicationConfig()
 }
 
 // GetWorkload will get workload type and it's configuration

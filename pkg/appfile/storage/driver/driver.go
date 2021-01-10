@@ -31,7 +31,7 @@ func (app *Application) Validate() error {
 		return errors.New("at least one service is required")
 	}
 	for name, svc := range app.Services {
-		for traitName, traitData := range svc.GetConfig() {
+		for traitName, traitData := range svc.GetApplicationConfig() {
 			if app.Tm.IsTrait(traitName) {
 				if _, ok := traitData.(map[string]interface{}); !ok {
 					return fmt.Errorf("trait %s in '%s' must be map", traitName, name)

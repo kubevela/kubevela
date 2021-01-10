@@ -47,7 +47,7 @@ parameter: {
 		base, assists := ctx.Output()
 		assert.Equal(t, 0, len(assists))
 		assert.Equal(t, false, base == nil)
-		baseObj, err := base.Object(nil)
+		baseObj, err := base.Unstructured()
 		assert.Equal(t, nil, err)
 		assert.Equal(t, v.expectObj, baseObj)
 
@@ -117,7 +117,7 @@ parameter: {
 	base, assists := ctx.Output()
 	assert.Equal(t, 0, len(assists))
 	assert.Equal(t, false, base == nil)
-	obj, err := base.Object(nil)
+	obj, err := base.Unstructured()
 	assert.Equal(t, nil, err)
 	expect := &unstructured.Unstructured{
 		Object: map[string]interface{}{

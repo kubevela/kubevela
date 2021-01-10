@@ -1,13 +1,10 @@
 package model
 
 import (
-	"encoding/json"
-
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/pkg/dsl/model/sets"
 )
@@ -15,7 +12,7 @@ import (
 // Instance defines Model Interface
 type Instance interface {
 	String() string
-	Object(m *runtime.Scheme) (runtime.Object, error)
+	Unstructured() (*unstructured.Unstructured, error)
 	IsBase() bool
 	Unify(other Instance) error
 }
@@ -35,36 +32,31 @@ func (inst *instance) IsBase() bool {
 	return inst.base
 }
 
-// Object convert to runtime.Object
-func (inst *instance) Object(m *runtime.Scheme) (runtime.Object, error) {
+func (inst *instance) compile() ([]byte, error) {
 	var r cue.Runtime
 	cueInst, err := r.Compile("-", inst.v)
 	if err != nil {
 		return nil, err
 	}
-	o := new(unstructured.Unstructured)
-	jsonv, err := cueInst.Value().MarshalJSON()
+
+	return cueInst.Value().MarshalJSON()
+}
+
+// Unstructured convert cue values to unstructured.Unstructured
+// TODO(wonderflow): will it be better if we try to decode it to concrete object(such as K8s Deployment) by using runtime.Schema?ß
+func (inst *instance) Unstructured() (*unstructured.Unstructured, error) {
+	jsonv, err := inst.compile()
 	if err != nil {
 		return nil, err
 	}
+
+	o := &unstructured.Unstructured{}
+
 	if err := o.UnmarshalJSON(jsonv); err != nil {
 		return nil, err
 	}
-
-	if m != nil {
-		object, err := m.New(o.GetObjectKind().GroupVersionKind())
-		if err == nil {
-			if err := json.Unmarshal(jsonv, object); err != nil {
-				return nil, err
-			}
-			return object, nil
-		}
-		if !runtime.IsNotRegisteredError(err) {
-			return nil, err
-		}
-	}
-
 	return o, nil
+
 }
 
 // Unify implement unity operations between instances

@@ -33,8 +33,8 @@ func (s Service) GetUserConfigName() string {
 	return t.(string)
 }
 
-// GetConfig will get OAM workload and trait information exclude inner section('build','type' and 'config')
-func (s Service) GetConfig() map[string]interface{} {
+// GetApplicationConfig will get OAM workload and trait information exclude inner section('build','type' and 'config')
+func (s Service) GetApplicationConfig() map[string]interface{} {
 	config := make(map[string]interface{})
 outerLoop:
 	for k, v := range s {
@@ -61,7 +61,7 @@ func (s Service) RenderServiceToApplicationComponent(tm template.Manager, servic
 		WorkloadType: wtype,
 	}
 
-	for k, v := range s.GetConfig() {
+	for k, v := range s.GetApplicationConfig() {
 		if tm.IsTrait(k) {
 			trait := v1alpha2.ApplicationTrait{
 				Name: k,

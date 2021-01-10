@@ -29,20 +29,20 @@ type Render interface {
 
 // Workload is component
 type Workload struct {
-	name     string
-	typ      string
-	params   map[string]interface{}
-	template string
-	traits   []*Trait
-	scopes   []Scope
+	Name     string
+	Type     string
+	Params   map[string]interface{}
+	Template string
+	Traits   []*Trait
+	Scopes   []Scope
 }
 
 // GetUserConfigName get user config from AppFile, it will contain config file in it.
 func (wl *Workload) GetUserConfigName() string {
-	if wl.params == nil {
+	if wl.Params == nil {
 		return ""
 	}
-	t, ok := wl.params[AppfileBuiltinConfig]
+	t, ok := wl.Params[AppfileBuiltinConfig]
 	if !ok {
 		return ""
 	}
@@ -53,29 +53,9 @@ func (wl *Workload) GetUserConfigName() string {
 	return ts
 }
 
-// Type export workload's type
-func (wl *Workload) Type() string {
-	return wl.typ
-}
-
-// Name export workload's name
-func (wl *Workload) Name() string {
-	return wl.name
-}
-
-// Traits export workload's traits
-func (wl *Workload) Traits() []*Trait {
-	return wl.traits
-}
-
-// Scopes export workload's traits
-func (wl *Workload) Scopes() []Scope {
-	return wl.scopes
-}
-
 // EvalContext eval workload template and set result to context
 func (wl *Workload) EvalContext(ctx process.Context) error {
-	return definition.NewWDTemplater(wl.name, wl.template).Params(wl.params).Complete(ctx)
+	return definition.NewWDTemplater(wl.Name, wl.Template).Params(wl.Params).Complete(ctx)
 }
 
 // Scope defines the scope of workload
@@ -86,35 +66,25 @@ type Scope struct {
 
 // Trait is ComponentTrait
 type Trait struct {
-	name     string
-	params   map[string]interface{}
-	template string
+	Name     string
+	Params   map[string]interface{}
+	Template string
 }
 
 // EvalContext eval trait template and set result to context
 func (trait *Trait) EvalContext(ctx process.Context) error {
-	return definition.NewTDTemplater(trait.name, trait.template).Params(trait.params).Complete(ctx)
+	return definition.NewTDTemplater(trait.Name, trait.Template).Params(trait.Params).Complete(ctx)
 }
 
-// Appfile describle application
+// Appfile describes application
 type Appfile struct {
-	name     string
-	services []*Workload
+	Name     string
+	Services []*Workload
 }
 
 // TemplateValidate validate Template format
 func (af *Appfile) TemplateValidate() error {
 	return nil
-}
-
-// Services export Services
-func (af *Appfile) Services() []*Workload {
-	return af.services
-}
-
-// Name export appfile name
-func (af *Appfile) Name() string {
-	return af.name
 }
 
 // Parser is appfile parser
@@ -132,7 +102,7 @@ func NewParser(cli defclient.DefinitionClient) *Parser {
 func (pser *Parser) Parse(name string, app *v1alpha2.Application) (*Appfile, error) {
 
 	appfile := new(Appfile)
-	appfile.name = name
+	appfile.Name = name
 	var wds []*Workload
 	for _, comp := range app.Spec.Components {
 		wd, err := pser.parseWorkload(comp)
@@ -141,26 +111,26 @@ func (pser *Parser) Parse(name string, app *v1alpha2.Application) (*Appfile, err
 		}
 		wds = append(wds, wd)
 	}
-	appfile.services = wds
+	appfile.Services = wds
 
 	return appfile, nil
 }
 
 func (pser *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload, error) {
 	workload := new(Workload)
-	workload.traits = []*Trait{}
-	workload.name = comp.Name
-	workload.typ = comp.WorkloadType
-	templ, err := pser.templ(workload.typ, types.TypeWorkload)
+	workload.Traits = []*Trait{}
+	workload.Name = comp.Name
+	workload.Type = comp.WorkloadType
+	templ, err := pser.templ(workload.Type, types.TypeWorkload)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
 	}
-	workload.template = templ
+	workload.Template = templ
 	settings, err := util.RawExtension2Map(&comp.Settings)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
 	}
-	workload.params = settings
+	workload.Params = settings
 	for _, traitValue := range comp.Traits {
 		properties, err := util.RawExtension2Map(&traitValue.Properties)
 		if err != nil {
@@ -171,22 +141,22 @@ func (pser *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload
 			return nil, errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Name)
 		}
 
-		workload.traits = append(workload.traits, trait)
+		workload.Traits = append(workload.Traits, trait)
 	}
 	scopeSettings, err := util.RawExtension2Map(comp.Scopes)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse scopes for %s", comp.Name)
 	}
-	for healthType, instanceName := range scopeSettings {
+	for scopeType, instanceName := range scopeSettings {
 		name, ok := instanceName.(string)
 		if !ok {
-			return nil, errors.Errorf("name of scope %s for %s must be string", healthType, comp.Name)
+			return nil, errors.Errorf("name of scope %s for %s must be string", scopeType, comp.Name)
 		}
-		gvk, err := pser.cli.GetScopeGVK(healthType)
+		gvk, err := pser.cli.GetScopeGVK(scopeType)
 		if err != nil {
 			return nil, err
 		}
-		workload.scopes = append(workload.scopes, Scope{
+		workload.Scopes = append(workload.Scopes, Scope{
 			Name: name,
 			GVK:  gvk,
 		})
@@ -203,25 +173,25 @@ func (pser *Parser) parseTrait(name string, properties map[string]interface{}) (
 		return nil, err
 	}
 
-	trait := new(Trait)
-	trait.template = templ
-	trait.name = name
-	trait.params = properties
-	return trait, nil
+	return &Trait{
+		Name:     name,
+		Params:   properties,
+		Template: templ,
+	}, nil
 }
 
 // TestExceptApp is test data
 var TestExceptApp = &Appfile{
-	name: "test",
-	services: []*Workload{
+	Name: "test",
+	Services: []*Workload{
 		{
-			name: "myweb",
-			typ:  "worker",
-			params: map[string]interface{}{
+			Name: "myweb",
+			Type: "worker",
+			Params: map[string]interface{}{
 				"image": "busybox",
 				"cmd":   []interface{}{"sleep", "1000"},
 			},
-			template: `
+			Template: `
       output: {
         apiVersion: "apps/v1"
       	kind:       "Deployment"
@@ -260,13 +230,13 @@ var TestExceptApp = &Appfile{
       
       	cmd?: [...string]
       }`,
-			traits: []*Trait{
+			Traits: []*Trait{
 				{
-					name: "scaler",
-					params: map[string]interface{}{
+					Name: "scaler",
+					Params: map[string]interface{}{
 						"replicas": float64(10),
 					},
-					template: `
+					Template: `
       output: {
       	apiVersion: "core.oam.dev/v1alpha2"
       	kind:       "ManualScalerTrait"

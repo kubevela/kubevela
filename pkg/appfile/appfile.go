@@ -9,21 +9,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/builtin"
-
-	"k8s.io/apimachinery/pkg/runtime"
-
-	"github.com/oam-dev/kubevela/apis/types"
-
-	"github.com/oam-dev/kubevela/pkg/appfile/config"
-
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/ghodss/yaml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
+	"github.com/oam-dev/kubevela/pkg/builtin"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -112,13 +107,13 @@ func LoadFromFile(filename string) (*AppFile, error) {
 	return af, nil
 }
 
-// InitTasks will execute built-in tasks(such as image builder, etc.) and generate locally executed application
-func (app *AppFile) InitTasks(io cmdutil.IOStreams) error {
+// ExecuteAppfileTasks will execute built-in tasks(such as image builder, etc.) and generate locally executed application
+func (app *AppFile) ExecuteAppfileTasks(io cmdutil.IOStreams) error {
 	if app.initialized {
 		return nil
 	}
 	for name, svc := range app.Services {
-		newSvc, err := builtin.DoTasks(svc, io)
+		newSvc, err := builtin.RunBuildInTasks(svc, io)
 		if err != nil {
 			return err
 		}
@@ -130,14 +125,14 @@ func (app *AppFile) InitTasks(io cmdutil.IOStreams) error {
 
 // BuildOAMApplication renders Appfile into Application, Scopes and other K8s Resources.
 func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams, tm template.Manager, silence bool) (*v1alpha2.Application, []oam.Object, error) {
-	if err := app.InitTasks(io); err != nil {
+	if err := app.ExecuteAppfileTasks(io); err != nil {
 		if strings.Contains(err.Error(), "'image' : not found") {
 			return nil, nil, ErrImageNotDefined
 		}
 		return nil, nil, err
 	}
-	// assistantObjects currently include OAM Scope Custom Resources and ConfigMaps
-	var assistantObjects []oam.Object
+	// auxiliaryObjects currently include OAM Scope Custom Resources and ConfigMaps
+	var auxiliaryObjects []oam.Object
 	servApp := new(v1alpha2.Application)
 	servApp.SetNamespace(env.Namespace)
 	servApp.SetName(app.Name)
@@ -160,7 +155,7 @@ func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams
 			if err != nil {
 				return nil, nil, err
 			}
-			assistantObjects = append(assistantObjects, cm)
+			auxiliaryObjects = append(auxiliaryObjects, cm)
 		}
 		comp, err := svc.RenderServiceToApplicationComponent(tm, serviceName)
 		if err != nil {
@@ -169,22 +164,8 @@ func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams
 		servApp.Spec.Components = append(servApp.Spec.Components, comp)
 	}
 	servApp.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind("Application"))
-	assistantObjects = append(assistantObjects, addDefaultHealthScopeToApplication(servApp))
-	return servApp, assistantObjects, nil
-}
-
-func addWorkloadTypeLabel(comps []*v1alpha2.Component, services map[string]Service) {
-	for _, comp := range comps {
-		workloadType := services[comp.Name].GetType()
-		workloadObject := comp.Spec.Workload.Object.(*unstructured.Unstructured)
-		labels := workloadObject.GetLabels()
-		if labels == nil {
-			labels = map[string]string{oam.WorkloadTypeLabel: workloadType}
-		} else {
-			labels[oam.WorkloadTypeLabel] = workloadType
-		}
-		workloadObject.SetLabels(labels)
-	}
+	auxiliaryObjects = append(auxiliaryObjects, addDefaultHealthScopeToApplication(servApp))
+	return servApp, auxiliaryObjects, nil
 }
 
 func addDefaultHealthScopeToApplication(app *v1alpha2.Application) *v1alpha2.HealthScope {

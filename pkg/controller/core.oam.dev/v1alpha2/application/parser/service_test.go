@@ -126,25 +126,25 @@ spec:
 }
 
 func equal(af, dest *Appfile) bool {
-	if af.name != dest.name || len(af.services) != len(dest.services) {
+	if af.Name != dest.Name || len(af.Services) != len(dest.Services) {
 		return false
 	}
-	for i, wd := range af.Services() {
-		destWd := dest.services[i]
-		if wd.name != destWd.name || len(wd.traits) != len(destWd.traits) {
+	for i, wd := range af.Services {
+		destWd := dest.Services[i]
+		if wd.Name != destWd.Name || len(wd.Traits) != len(destWd.Traits) {
 			return false
 		}
-		if !reflect.DeepEqual(wd.params, destWd.params) {
-			fmt.Printf("%#v | %#v\n", wd.params, destWd.params)
+		if !reflect.DeepEqual(wd.Params, destWd.Params) {
+			fmt.Printf("%#v | %#v\n", wd.Params, destWd.Params)
 			return false
 		}
-		for j, td := range wd.Traits() {
-			destTd := destWd.traits[j]
-			if td.name != destTd.name {
+		for j, td := range wd.Traits {
+			destTd := destWd.Traits[j]
+			if td.Name != destTd.Name {
 				return false
 			}
-			if !reflect.DeepEqual(td.params, destTd.params) {
-				fmt.Printf("%#v | %#v\n", td.params, destTd.params)
+			if !reflect.DeepEqual(td.Params, destTd.Params) {
+				fmt.Printf("%#v | %#v\n", td.Params, destTd.Params)
 				return false
 			}
 
