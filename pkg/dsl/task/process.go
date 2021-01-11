@@ -2,32 +2,22 @@ package task
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/errors"
+
+	"github.com/oam-dev/kubevela/pkg/builtin"
+	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 )
 
 // Process processing the http task
 func Process(inst *cue.Instance) (*cue.Instance, error) {
-	processing, err := inst.Value().FieldByName("processing", true)
-	if err != nil {
-		return nil, err
+	taskVal := inst.Lookup("processing", "http")
+	if !taskVal.Exists() {
+		return inst, errors.New("there is no http in processing")
 	}
-	if err := processing.Value.Validate(cue.Concrete(true), cue.Final()); err != nil {
-		errList := errors.Errors(err)
-		for _, e := range errList {
-			fmt.Println(e.Error())
-		}
-		return nil, err
-	}
-
-	taskVal, err := processing.Value.FieldByName("http", true)
-	if err != nil {
-		return nil, fmt.Errorf("fail to fetch task from processing, %w", err)
-	}
-
-	resp, err := exec(taskVal.Value)
+	resp, err := exec(taskVal)
 	if err != nil {
 		return nil, fmt.Errorf("fail to exec http task, %w", err)
 	}
@@ -40,16 +30,18 @@ func Process(inst *cue.Instance) (*cue.Instance, error) {
 }
 
 func exec(v cue.Value) (map[string]interface{}, error) {
-	htask := Lookup("http")
-	runner, err := htask(cue.Value{})
+	got, err := builtin.RunTaskByKey("http", cue.Value{}, &registry.Meta{Obj: v})
 	if err != nil {
 		return nil, err
 	}
-	got, err := runner.Run(&Context{Obj: v})
-	if err != nil {
-		return nil, err
+	gotMap, ok := got.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("fail to convert got to map")
 	}
-	body := (got.(map[string]interface{}))["body"].(string)
+	body, ok := gotMap["body"].(string)
+	if !ok {
+		return nil, fmt.Errorf("fail to convert body to string")
+	}
 	resp := make(map[string]interface{})
 	if err := json.Unmarshal([]byte(body), &resp); err != nil {
 		return nil, err

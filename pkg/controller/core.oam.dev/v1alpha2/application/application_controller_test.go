@@ -20,6 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -524,6 +527,55 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
+
+	It("app-with-trait will create workload and trait with http task", func() {
+		s := NewMock()
+		defer s.Close()
+		expectScalerTrait.Object["spec"].(map[string]interface{})["token"] = "test-token"
+
+		By("change trait definition with http task")
+		ntd, otd := &v1alpha2.TraitDefinition{}, &v1alpha2.TraitDefinition{}
+		tDDefJson, _ := yaml.YAMLToJSON([]byte(tdDefYamlWithHttp))
+		Expect(json.Unmarshal(tDDefJson, ntd)).Should(BeNil())
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "scaler"}, otd)).Should(BeNil())
+		ntd.ResourceVersion = otd.ResourceVersion
+		Expect(k8sClient.Update(ctx, ntd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-with-trait-http",
+			},
+		}
+		appWithTrait.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		app := appWithTrait.DeepCopy()
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check App running successfully")
+		checkApp := &v1alpha2.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+
+		By("Check AppConfig and trait created as expected")
+		appConfig := &v1alpha2.ApplicationConfiguration{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      app.Name,
+		}, appConfig)).Should(BeNil())
+
+		gotTrait := unstructured.Unstructured{}
+		Expect(json.Unmarshal(appConfig.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
+		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait))
+
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
+
 })
 
 func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
@@ -635,4 +687,70 @@ spec:
       }
 
 `
+	tdDefYamlWithHttp = `
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "Manually scale the app"
+  name: scaler
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  definitionRef:
+    name: manualscalertraits.core.oam.dev
+  workloadRefPath: spec.workloadRef
+  extension:
+    template: |-
+      output: {
+      	apiVersion: "core.oam.dev/v1alpha2"
+      	kind:       "ManualScalerTrait"
+      	spec: {
+          replicaCount: parameter.replicas
+          token: processing.output.token
+      	}
+      }
+      parameter: {
+      	//+short=r
+        replicas: *1 | int
+        serviceURL: *"http://127.0.0.1:8090/api/v1/token?val=test-token" | string
+      }
+      processing: {
+        output: {
+          token ?: string
+        }
+        http: {
+          method: *"GET" | string
+          url: parameter.serviceURL
+          request: {
+              body ?: bytes
+              header: {}
+              trailer: {}
+          }
+        }
+      }
+`
 )
+
+func NewMock() *httptest.Server {
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			fmt.Printf("Expected 'GET' request, got '%s'", r.Method)
+		}
+		if r.URL.EscapedPath() != "/api/v1/token" {
+			fmt.Printf("Expected request to '/person', got '%s'", r.URL.EscapedPath())
+		}
+		r.ParseForm()
+		token := r.Form.Get("val")
+		tokenBytes, _ := json.Marshal(map[string]interface{}{"token": token})
+
+		w.WriteHeader(http.StatusOK)
+		w.Write(tokenBytes)
+	}))
+	l, _ := net.Listen("tcp", "127.0.0.1:8090")
+	ts.Listener.Close()
+	ts.Listener = l
+	ts.Start()
+	return ts
+}

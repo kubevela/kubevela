@@ -1,4 +1,4 @@
-package task
+package http
 
 import (
 	"context"
@@ -7,10 +7,12 @@ import (
 	"net/http"
 
 	"cuelang.org/go/cue"
+
+	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 )
 
 func init() {
-	Register("http", newHTTPCmd)
+	registry.RegisterRunner("http", newHTTPCmd)
 }
 
 // HTTPCmd provides methods for http task
@@ -18,20 +20,20 @@ type HTTPCmd struct {
 	*http.Client
 }
 
-func newHTTPCmd(v cue.Value) (Runner, error) {
+func newHTTPCmd(v cue.Value) (registry.Runner, error) {
 	client := http.DefaultClient
 	return &HTTPCmd{client}, nil
 }
 
-// Run exec the actual http logic
-func (c *HTTPCmd) Run(ctx *Context) (res interface{}, err error) {
+// Run exec the actual http logic, and res represent the result of http task
+func (c *HTTPCmd) Run(meta *registry.Meta) (res interface{}, err error) {
 	var header, trailer http.Header
 	var (
-		method = ctx.String("method")
-		u      = ctx.String("url")
+		method = meta.String("method")
+		u      = meta.String("url")
 	)
 	var r io.Reader
-	if obj := ctx.Obj.Lookup("request"); obj.Exists() {
+	if obj := meta.Obj.Lookup("request"); obj.Exists() {
 		if v := obj.Lookup("body"); v.Exists() {
 			r, err = v.Reader()
 			if err != nil {
@@ -48,8 +50,8 @@ func (c *HTTPCmd) Run(ctx *Context) (res interface{}, err error) {
 	if header == nil {
 		header.Set("Content-Type", "application/json")
 	}
-	if ctx.Err != nil {
-		return nil, ctx.Err
+	if meta.Err != nil {
+		return nil, meta.Err
 	}
 
 	req, err := http.NewRequestWithContext(context.Background(), method, u, r)

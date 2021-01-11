@@ -1,4 +1,4 @@
-package task
+package http
 
 import (
 	"encoding/json"
@@ -9,61 +9,50 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue"
-	cueJson "cuelang.org/go/pkg/encoding/json"
 	"github.com/bmizerany/assert"
+
+	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 )
 
-const TaskTemplate = `
-parameter: {
-  serviceURL: string
-}
-
-processing: {
-  output: {
-    token ?: string
-  }
-  http: {
-    method: *"GET" | string
-    url: parameter.serviceURL
-    request: {
-        body ?: bytes
-        header: {}
-        trailer: {}
+const Req = `
+{
+  method: *"GET" | string
+  url: "http://127.0.0.1:8090/api/v1/token?val=test-token"
+  request: {
+    body ?: bytes
+    header: {
+    "Accept-Language": "en,nl"
+    }
+    trailer: {
+    "Accept-Language": "en,nl"
+    User: "foo"
     }
   }
 }
-
-patch: {
-  data: token: processing.output.token
-}
-
-output: {
-  data: processing.output.token
-}
 `
 
-func TestProcess(t *testing.T) {
+func TestHTTPCmd_Run(t *testing.T) {
 	s := NewMock()
 	defer s.Close()
 
 	r := cue.Runtime{}
-	taskTemplate, err := r.Compile("", TaskTemplate)
+	reqInst, err := r.Compile("", Req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	taskTemplate, _ = taskTemplate.Fill(map[string]interface{}{
-		"serviceURL": "http://127.0.0.1:8090/api/v1/token?val=test-token",
-	}, "parameter")
 
-	inst, err := Process(taskTemplate)
+	runner, _ := newHTTPCmd(cue.Value{})
+	got, err := runner.Run(&registry.Meta{Obj: reqInst.Value()})
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
-	output := inst.Lookup("output")
-	data, _ := cueJson.Marshal(output)
-	assert.Equal(t, "{\"data\":\"test-token\"}", data)
+	body := (got.(map[string]interface{}))["body"].(string)
+
+	assert.Equal(t, "{\"token\":\"test-token\"}", body)
+
 }
 
+// NewMock mock the http server
 func NewMock() *httptest.Server {
 	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
