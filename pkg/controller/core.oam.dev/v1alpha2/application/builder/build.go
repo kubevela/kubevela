@@ -101,7 +101,6 @@ func generateOAM(pCtx process.Context, wl *parser.Workload) (*v1alpha2.Component
 		return nil, nil, err
 	}
 	workloadType := wl.Type
-
 	labels := componentWorkload.GetLabels()
 	if labels == nil {
 		labels = map[string]string{oam.WorkloadTypeLabel: workloadType}

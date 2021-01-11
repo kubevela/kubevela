@@ -20,6 +20,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+
+	ctrl "sigs.k8s.io/controller-runtime"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -42,6 +46,7 @@ var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var testScheme = runtime.NewScheme()
+var reconciler *Reconciler
 
 func TestAPIs(t *testing.T) {
 
@@ -75,7 +80,14 @@ var _ = BeforeSuite(func(done Done) {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
-
+	dm, err := discoverymapper.New(cfg)
+	Expect(err).To(BeNil())
+	reconciler = &Reconciler{
+		Client: k8sClient,
+		Log:    ctrl.Log.WithName("Application"),
+		Scheme: testScheme,
+		dm:     dm,
+	}
 	close(done)
 }, 60)
 

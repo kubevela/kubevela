@@ -101,6 +101,14 @@ var (
 	HealthScopeGroupVersionKind = SchemeGroupVersion.WithKind(HealthScopeKind)
 )
 
+// Application type metadata.
+var (
+	ApplicationKind            = reflect.TypeOf(Application{}).Name()
+	ApplicationGroupKind       = schema.GroupKind{Group: Group, Kind: ApplicationKind}.String()
+	ApplicationKindAPIVersion  = ApplicationKind + "." + SchemeGroupVersion.String()
+	ApplicationKindVersionKind = SchemeGroupVersion.WithKind(ApplicationKind)
+)
+
 func init() {
 	SchemeBuilder.Register(&WorkloadDefinition{}, &WorkloadDefinitionList{})
 	SchemeBuilder.Register(&TraitDefinition{}, &TraitDefinitionList{})
@@ -110,5 +118,6 @@ func init() {
 	SchemeBuilder.Register(&ContainerizedWorkload{}, &ContainerizedWorkloadList{})
 	SchemeBuilder.Register(&ManualScalerTrait{}, &ManualScalerTraitList{})
 	SchemeBuilder.Register(&HealthScope{}, &HealthScopeList{})
+	SchemeBuilder.Register(&Application{}, &ApplicationList{})
 	SchemeBuilder.Register(&ApplicationDeployment{}, &ApplicationDeploymentList{})
 }

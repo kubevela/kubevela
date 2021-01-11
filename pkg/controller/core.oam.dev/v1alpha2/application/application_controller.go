@@ -49,7 +49,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications/status,verbs=get;update;patch
 
 // Reconcile process app event
-func (r *Reconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error) {
+func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	ctx := context.Background()
 	applog := r.Log.WithValues("application", req.NamespacedName)
@@ -71,7 +71,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error
 	applog.Info("Start Rendering")
 
 	app.Status.Phase = v1alpha2.ApplicationRendering
-	handler := &reter{r, app, applog}
+	handler := &reter{r.Client, app, applog}
 
 	app.Status.Conditions = []v1alpha1.Condition{}
 
@@ -81,6 +81,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error
 
 	appfile, err := appParser.Parse(app.Name, app)
 	if err != nil {
+		handler.l.Error(err, "[Handle Parse]")
 		app.Status.SetConditions(errorCondition("Parsed", err))
 		return handler.Err(err)
 	}
@@ -91,6 +92,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error
 	// build template to applicationconfig & component
 	ac, comps, err := builder.Build(app.Namespace, appfile, r.Client)
 	if err != nil {
+		handler.l.Error(err, "[Handle Build]")
 		app.Status.SetConditions(errorCondition("Built", err))
 		return handler.Err(err)
 	}
@@ -99,7 +101,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error
 
 	applog.Info("apply applicationconfig & component to the cluster")
 	// apply applicationconfig & component to the cluster
-	if err := handler.apply(ac, comps...); err != nil {
+	if err := handler.apply(ctx, ac, comps); err != nil {
+		handler.l.Error(err, "[Handle apply]")
 		app.Status.SetConditions(errorCondition("Applied", err))
 		return handler.Err(err)
 	}
@@ -107,6 +110,17 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error
 	app.Status.SetConditions(readyCondition("Applied"))
 
 	app.Status.Phase = v1alpha2.ApplicationRunning
+	// Gather status of components
+	var refComps []v1alpha1.TypedReference
+	for _, comp := range comps {
+		refComps = append(refComps, v1alpha1.TypedReference{
+			APIVersion: comp.APIVersion,
+			Kind:       comp.Kind,
+			Name:       comp.Name,
+			UID:        app.UID,
+		})
+	}
+	app.Status.Components = refComps
 	return ctrl.Result{}, r.Status().Update(ctx, app)
 }
 
