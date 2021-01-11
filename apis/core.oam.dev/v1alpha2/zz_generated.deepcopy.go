@@ -81,8 +81,10 @@ func (in *ApplicationComponent) DeepCopyInto(out *ApplicationComponent) {
 	}
 	if in.Scopes != nil {
 		in, out := &in.Scopes, &out.Scopes
-		*out = new(runtime.RawExtension)
-		(*in).DeepCopyInto(*out)
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
 	}
 }
 

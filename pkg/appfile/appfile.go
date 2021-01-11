@@ -12,7 +12,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/ghodss/yaml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -180,8 +179,7 @@ func addDefaultHealthScopeToApplication(app *v1alpha2.Application) *v1alpha2.Hea
 	health.Spec.WorkloadReferences = make([]v1alpha1.TypedReference, 0)
 	for i := range app.Spec.Components {
 		// FIXME(wonderflow): the hardcode health scope should be fixed.
-		data, _ := json.Marshal(map[string]string{"healthscopes.core.oam.dev": health.Name})
-		app.Spec.Components[i].Scopes = &runtime.RawExtension{Raw: data}
+		app.Spec.Components[i].Scopes = map[string]string{"healthscopes.core.oam.dev": health.Name}
 	}
 	return health
 }

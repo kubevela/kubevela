@@ -143,21 +143,13 @@ func (pser *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload
 
 		workload.Traits = append(workload.Traits, trait)
 	}
-	scopeSettings, err := util.RawExtension2Map(comp.Scopes)
-	if err != nil {
-		return nil, errors.WithMessagef(err, "fail to parse scopes for %s", comp.Name)
-	}
-	for scopeType, instanceName := range scopeSettings {
-		name, ok := instanceName.(string)
-		if !ok {
-			return nil, errors.Errorf("name of scope %s for %s must be string", scopeType, comp.Name)
-		}
+	for scopeType, instanceName := range comp.Scopes {
 		gvk, err := pser.cli.GetScopeGVK(scopeType)
 		if err != nil {
 			return nil, err
 		}
 		workload.Scopes = append(workload.Scopes, Scope{
-			Name: name,
+			Name: instanceName,
 			GVK:  gvk,
 		})
 	}

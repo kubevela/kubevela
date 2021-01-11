@@ -64,9 +64,9 @@ type ApplicationComponent struct {
 	Traits []ApplicationTrait `json:"traits,omitempty"`
 
 	// +kubebuilder:pruning:PreserveUnknownFields
-	// scopes in ApplicationComponent defines the component level scopes
-	// the format is <key:value> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
-	Scopes *runtime.RawExtension `json:"scopes,omitempty"`
+	// scopes in ApplicationComponent defines the component-level scopes
+	// the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
+	Scopes map[string]string `json:"scopes,omitempty"`
 }
 
 // ApplicationSpec is the spec of Application

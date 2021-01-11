@@ -109,7 +109,7 @@ var _ = Describe("Test Application Controller", func() {
 	}}
 	appWithTraitAndScope := appWithTrait.DeepCopy()
 	appWithTraitAndScope.SetName("app-with-trait-and-scope")
-	appWithTraitAndScope.Spec.Components[0].Scopes = &runtime.RawExtension{Raw: []byte(`{"scopes.core.oam.dev":"appWithTraitAndScope-default-health"}`)}
+	appWithTraitAndScope.Spec.Components[0].Scopes = map[string]string{"scopes.core.oam.dev": "appWithTraitAndScope-default-health"}
 
 	wd := &v1alpha2.WorkloadDefinition{}
 	wDDefJson, _ := yaml.YAMLToJSON([]byte(wDDefYaml))

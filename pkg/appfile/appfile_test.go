@@ -65,7 +65,7 @@ func TestBuildOAMApplication2(t *testing.T) {
 							Settings: runtime.RawExtension{
 								Raw: []byte("{\"image\":\"busybox\"}"),
 							},
-							Scopes: &runtime.RawExtension{Raw: []byte(`{"healthscopes.core.oam.dev":"test-default-health"}`)},
+							Scopes: map[string]string{"healthscopes.core.oam.dev": "test-default-health"},
 						},
 					},
 				},
@@ -99,7 +99,7 @@ func TestBuildOAMApplication2(t *testing.T) {
 							Settings: runtime.RawExtension{
 								Raw: []byte("{\"image\":\"busybox\"}"),
 							},
-							Scopes: &runtime.RawExtension{Raw: []byte(`{"healthscopes.core.oam.dev":"test-default-health"}`)},
+							Scopes: map[string]string{"healthscopes.core.oam.dev": "test-default-health"},
 							Traits: []v1alpha2.ApplicationTrait{
 								{
 									Name: "scaler",
@@ -277,7 +277,7 @@ outputs: ingress: {
 			Components: []v1alpha2.ApplicationComponent{{
 				WorkloadType: "webservice",
 				Name:         "express-server",
-				Scopes:       &runtime.RawExtension{Raw: []byte(`{"healthscopes.core.oam.dev":"myapp-default-health"}`)},
+				Scopes:       map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
 				Settings: runtime.RawExtension{
 					Raw: []byte(`{"image": "oamdev/testapp:v1", "cmd": ["node", "server.js"]}`),
 				},
@@ -299,7 +299,7 @@ outputs: ingress: {
 			Raw: []byte(`{"image":"bitnami/mongodb:3.6.20","cmd": ["mongodb"]}`),
 		},
 		Traits: []v1alpha2.ApplicationTrait{},
-		Scopes: &runtime.RawExtension{Raw: []byte(`{"healthscopes.core.oam.dev":"myapp-default-health"}`)},
+		Scopes: map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
 	})
 
 	ac3 := ac1.DeepCopy()
