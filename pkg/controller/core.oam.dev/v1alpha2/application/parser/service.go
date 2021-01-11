@@ -6,14 +6,13 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/template"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // AppfileBuiltinConfig defines the built-in config variable
@@ -170,79 +169,4 @@ func (pser *Parser) parseTrait(name string, properties map[string]interface{}) (
 		Params:   properties,
 		Template: templ,
 	}, nil
-}
-
-// TestExceptApp is test data
-var TestExceptApp = &Appfile{
-	Name: "test",
-	Services: []*Workload{
-		{
-			Name: "myweb",
-			Type: "worker",
-			Params: map[string]interface{}{
-				"image": "busybox",
-				"cmd":   []interface{}{"sleep", "1000"},
-			},
-			Template: `
-      output: {
-        apiVersion: "apps/v1"
-      	kind:       "Deployment"
-      	spec: {
-      		selector: matchLabels: {
-      			"app.oam.dev/component": context.name
-      		}
-      
-      		template: {
-      			metadata: labels: {
-      				"app.oam.dev/component": context.name
-      			}
-      
-      			spec: {
-      				containers: [{
-      					name:  context.name
-      					image: parameter.image
-      
-      					if parameter["cmd"] != _|_ {
-      						command: parameter.cmd
-      					}
-      				}]
-      			}
-      		}
-      
-      		selector:
-      			matchLabels:
-      				"app.oam.dev/component": context.name
-      	}
-      }
-      
-      parameter: {
-      	// +usage=Which image would you like to use for your service
-      	// +short=i
-      	image: string
-      
-      	cmd?: [...string]
-      }`,
-			Traits: []*Trait{
-				{
-					Name: "scaler",
-					Params: map[string]interface{}{
-						"replicas": float64(10),
-					},
-					Template: `
-      output: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }
-`,
-				},
-			},
-		},
-	},
 }

@@ -44,6 +44,9 @@ type AppStatus struct {
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
 
 	Phase ApplicationPhase `json:"status,omitempty"`
+
+	// Components record the related Components created by Application Controller
+	Components []runtimev1alpha1.TypedReference `json:"components,omitempty"`
 }
 
 // ApplicationTrait defines the trait of application
@@ -95,8 +98,4 @@ type ApplicationList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Application `json:"items"`
-}
-
-func init() {
-	SchemeBuilder.Register(&Application{}, &ApplicationList{})
 }
