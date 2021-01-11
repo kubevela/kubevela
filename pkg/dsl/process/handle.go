@@ -12,25 +12,37 @@ import (
 // Context defines Rendering Context Interface
 type Context interface {
 	SetBase(base model.Instance)
-	PutAssistants(insts ...model.Instance)
-	Output() (model.Instance, []model.Instance)
+	PutAssistants(insts ...Assistant)
+	SetConfigs(configs []map[string]string)
+	Output() (model.Instance, []Assistant)
 	Compile(label string) string
+}
+
+// Assistant are objects rendered by definition template.
+type Assistant struct {
+	Ins  model.Instance
+	Type string
 }
 
 type context struct {
 	name       string
-	configs    map[string]interface{}
+	configs    []map[string]string
 	base       model.Instance
-	assistants []model.Instance
+	assistants []Assistant
 }
 
 // NewContext create render context
 func NewContext(name string) Context {
 	return &context{
 		name:       name,
-		configs:    map[string]interface{}{},
-		assistants: []model.Instance{},
+		configs:    []map[string]string{},
+		assistants: []Assistant{},
 	}
+}
+
+// SetBase set context base model
+func (ctx *context) SetConfigs(configs []map[string]string) {
+	ctx.configs = configs
 }
 
 // SetBase set context base model
@@ -39,7 +51,7 @@ func (ctx *context) SetBase(base model.Instance) {
 }
 
 // PutAssistants add Assist model to context
-func (ctx *context) PutAssistants(insts ...model.Instance) {
+func (ctx *context) PutAssistants(insts ...Assistant) {
 	ctx.assistants = append(ctx.assistants, insts...)
 }
 
@@ -49,27 +61,27 @@ func (ctx *context) Compile(label string) string {
 	buff += fmt.Sprintf("name: \"%s\"\n", ctx.name)
 
 	if ctx.base != nil {
-		buff += fmt.Sprintf("input: %s\n", structMashal(ctx.base.String()))
+		buff += fmt.Sprintf("input: %s\n", structMarshal(ctx.base.String()))
 	}
 
 	if len(ctx.configs) > 0 {
 		bt, _ := json.Marshal(ctx.configs)
-		buff += "configs: " + string(bt)
+		buff += "config: " + string(bt)
 	}
 
 	if label != "" {
-		buff = fmt.Sprintf("%s: %s", label, structMashal(buff))
+		buff = fmt.Sprintf("%s: %s", label, structMarshal(buff))
 	}
 
 	return buff
 }
 
 // Output return models of context
-func (ctx *context) Output() (model.Instance, []model.Instance) {
+func (ctx *context) Output() (model.Instance, []Assistant) {
 	return ctx.base, ctx.assistants
 }
 
-func structMashal(v string) string {
+func structMarshal(v string) string {
 	skip := false
 	v = strings.TrimFunc(v, func(r rune) bool {
 		if !skip {

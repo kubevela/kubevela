@@ -2,10 +2,12 @@ package parser
 
 import (
 	"cuelang.org/go/cue"
-	cueJson "cuelang.org/go/pkg/encoding/json"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -13,6 +15,9 @@ import (
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 )
+
+// AppfileBuiltinConfig defines the built-in config variable
+const AppfileBuiltinConfig = "config"
 
 // Render is cue render
 type Render interface {
@@ -24,116 +29,57 @@ type Render interface {
 
 // Workload is component
 type Workload struct {
-	name     string
-	typ      string
-	params   map[string]interface{}
-	template string
-	traits   []*Trait
+	Name     string
+	Type     string
+	Params   map[string]interface{}
+	Template string
+	Traits   []*Trait
+	Scopes   []Scope
 }
 
-// Name export workload's name
-func (wl *Workload) Name() string {
-	return wl.name
-}
-
-// Traits export workload's traits
-func (wl *Workload) Traits() []*Trait {
-	return wl.traits
-}
-
-// Eval convert template to Component
-func (wl *Workload) Eval(render Render) (*v1alpha2.Component, error) {
-	inst, err := render.WithParams(wl.params).WithTemplate(wl.template).Complete()
-	if err != nil {
-		return nil, errors.WithMessagef(err, "component %s eval", wl.name)
+// GetUserConfigName get user config from AppFile, it will contain config file in it.
+func (wl *Workload) GetUserConfigName() string {
+	if wl.Params == nil {
+		return ""
 	}
-	output := inst.Lookup("output")
-	if !output.Exists() {
-		return nil, errors.Errorf("output not found in component %s ", wl.name)
+	t, ok := wl.Params[AppfileBuiltinConfig]
+	if !ok {
+		return ""
 	}
-
-	data, err := cueJson.Marshal(output)
-	if err != nil {
-		return nil, errors.WithMessagef(err, "component %s marshal", wl.name)
+	ts, ok := t.(string)
+	if !ok {
+		return ""
 	}
-
-	componentRef := &unstructured.Unstructured{}
-	if err := componentRef.UnmarshalJSON([]byte(data)); err != nil {
-		return nil, errors.WithMessagef(err, "component %s UnmarshalJSON to unstructured", wl.name)
-	}
-
-	component := new(v1alpha2.Component)
-
-	component.Spec.Workload.Object = componentRef
-	return component, nil
+	return ts
 }
 
 // EvalContext eval workload template and set result to context
 func (wl *Workload) EvalContext(ctx process.Context) error {
-	return definition.NewWDTemplater("-", wl.template).Params(wl.params).Complete(ctx)
+	return definition.NewWDTemplater(wl.Name, wl.Template).Params(wl.Params).Complete(ctx)
+}
+
+// Scope defines the scope of workload
+type Scope struct {
+	Name string
+	GVK  schema.GroupVersionKind
 }
 
 // Trait is ComponentTrait
 type Trait struct {
-	name     string
-	params   map[string]interface{}
-	template string
-}
-
-// Eval convert template to ComponentTrait
-func (trait *Trait) Eval(render Render) ([]v1alpha2.ComponentTrait, error) {
-	inst, err := render.WithParams(trait.params).WithTemplate(trait.template).Complete()
-	if err != nil {
-		return nil, errors.WithMessagef(err, "traitDef %s eval", trait.name)
-	}
-	cueValues := []cue.Value{}
-	output := inst.Lookup("output")
-	if !output.Exists() {
-
-		outputs := inst.Lookup("outputs")
-		iter, err := outputs.List()
-		if err != nil {
-			return nil, errors.Errorf("'output' or 'outputs' not found in trait definition %s ", trait.name)
-		}
-		for iter.Next() {
-			cueValues = append(cueValues, iter.Value())
-		}
-
-	} else {
-		cueValues = append(cueValues, output)
-	}
-
-	if len(cueValues) == 0 {
-		return nil, errors.Errorf("output|outputs not found in traitDef %s ", trait.name)
-	}
-
-	compTraits := []v1alpha2.ComponentTrait{}
-	for _, cv := range cueValues {
-		data, err := cueJson.Marshal(cv)
-		if err != nil {
-			return nil, errors.WithMessagef(err, "traitDef %s marshal", trait.name)
-		}
-		traitRef := &unstructured.Unstructured{}
-		if err := traitRef.UnmarshalJSON([]byte(data)); err != nil {
-			return nil, errors.WithMessagef(err, "traitDef %s UnmarshalJSON to unstructured", trait.name)
-		}
-		compTrait := v1alpha2.ComponentTrait{}
-		compTrait.Trait.Object = traitRef
-		compTraits = append(compTraits, compTrait)
-	}
-
-	return compTraits, nil
+	Name     string
+	Params   map[string]interface{}
+	Template string
 }
 
 // EvalContext eval trait template and set result to context
 func (trait *Trait) EvalContext(ctx process.Context) error {
-	return definition.NewTDTemplater("-", trait.template).Params(trait.params).Complete(ctx)
+	return definition.NewTDTemplater(trait.Name, trait.Template).Params(trait.Params).Complete(ctx)
 }
 
-// Appfile describle application
+// Appfile describes application
 type Appfile struct {
-	name     string
-	services []*Workload
+	Name     string
+	Services []*Workload
 }
 
 // TemplateValidate validate Template format
@@ -141,31 +87,22 @@ func (af *Appfile) TemplateValidate() error {
 	return nil
 }
 
-// Services export Services
-func (af *Appfile) Services() []*Workload {
-	return af.services
-}
-
-// Name export appfile name
-func (af *Appfile) Name() string {
-	return af.name
-}
-
 // Parser is appfile parser
 type Parser struct {
 	templ template.Handler
+	cli   defclient.DefinitionClient
 }
 
 // NewParser create appfile parser
-func NewParser(handler template.Handler) *Parser {
-	return &Parser{templ: handler}
+func NewParser(cli defclient.DefinitionClient) *Parser {
+	return &Parser{templ: template.GetHandler(cli), cli: cli}
 }
 
 // Parse convert map to Appfile
 func (pser *Parser) Parse(name string, app *v1alpha2.Application) (*Appfile, error) {
 
 	appfile := new(Appfile)
-	appfile.name = name
+	appfile.Name = name
 	var wds []*Workload
 	for _, comp := range app.Spec.Components {
 		wd, err := pser.parseWorkload(comp)
@@ -174,28 +111,28 @@ func (pser *Parser) Parse(name string, app *v1alpha2.Application) (*Appfile, err
 		}
 		wds = append(wds, wd)
 	}
-	appfile.services = wds
+	appfile.Services = wds
 
 	return appfile, nil
 }
 
 func (pser *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload, error) {
 	workload := new(Workload)
-	workload.traits = []*Trait{}
-	workload.name = comp.Name
-	workload.typ = comp.WorkloadType
-	templ, err := pser.templ(workload.typ, types.TypeWorkload)
+	workload.Traits = []*Trait{}
+	workload.Name = comp.Name
+	workload.Type = comp.WorkloadType
+	templ, err := pser.templ(workload.Type, types.TypeWorkload)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
 	}
-	workload.template = templ
-	settings, err := DecodeJSONMarshaler(comp.Settings)
+	workload.Template = templ
+	settings, err := util.RawExtension2Map(&comp.Settings)
 	if err != nil {
-		return nil, errors.Errorf("fail to parse settings for %s", comp.Name)
+		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
 	}
-	workload.params = settings
+	workload.Params = settings
 	for _, traitValue := range comp.Traits {
-		properties, err := DecodeJSONMarshaler(traitValue.Properties)
+		properties, err := util.RawExtension2Map(&traitValue.Properties)
 		if err != nil {
 			return nil, errors.Errorf("fail to parse properties of %s for %s", traitValue.Name, comp.Name)
 		}
@@ -204,10 +141,18 @@ func (pser *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload
 			return nil, errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Name)
 		}
 
-		workload.traits = append(workload.traits, trait)
-
+		workload.Traits = append(workload.Traits, trait)
 	}
-
+	for scopeType, instanceName := range comp.Scopes {
+		gvk, err := pser.cli.GetScopeGVK(scopeType)
+		if err != nil {
+			return nil, err
+		}
+		workload.Scopes = append(workload.Scopes, Scope{
+			Name: instanceName,
+			GVK:  gvk,
+		})
+	}
 	return workload, nil
 }
 
@@ -220,25 +165,25 @@ func (pser *Parser) parseTrait(name string, properties map[string]interface{}) (
 		return nil, err
 	}
 
-	trait := new(Trait)
-	trait.template = templ
-	trait.name = name
-	trait.params = properties
-	return trait, nil
+	return &Trait{
+		Name:     name,
+		Params:   properties,
+		Template: templ,
+	}, nil
 }
 
 // TestExceptApp is test data
 var TestExceptApp = &Appfile{
-	name: "test",
-	services: []*Workload{
+	Name: "test",
+	Services: []*Workload{
 		{
-			name: "myweb",
-			typ:  "worker",
-			params: map[string]interface{}{
+			Name: "myweb",
+			Type: "worker",
+			Params: map[string]interface{}{
 				"image": "busybox",
 				"cmd":   []interface{}{"sleep", "1000"},
 			},
-			template: `
+			Template: `
       output: {
         apiVersion: "apps/v1"
       	kind:       "Deployment"
@@ -277,13 +222,13 @@ var TestExceptApp = &Appfile{
       
       	cmd?: [...string]
       }`,
-			traits: []*Trait{
+			Traits: []*Trait{
 				{
-					name: "scaler",
-					params: map[string]interface{}{
+					Name: "scaler",
+					Params: map[string]interface{}{
 						"replicas": float64(10),
 					},
-					template: `
+					Template: `
       output: {
       	apiVersion: "core.oam.dev/v1alpha2"
       	kind:       "ManualScalerTrait"

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/runtime"
+
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-logr/logr"
@@ -351,6 +353,23 @@ func Object2Map(obj interface{}) (map[string]interface{}, error) {
 	}
 	err = json.Unmarshal(bts, &res)
 	return res, err
+}
+
+// RawExtension2Map will convert rawExtension to map
+func RawExtension2Map(raw *runtime.RawExtension) (map[string]interface{}, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	data, err := raw.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	var ret map[string]interface{}
+	err = json.Unmarshal(data, &ret)
+	if err != nil {
+		return nil, err
+	}
+	return ret, err
 }
 
 // GenTraitName generate trait name

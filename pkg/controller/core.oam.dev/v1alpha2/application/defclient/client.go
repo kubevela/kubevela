@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -15,18 +19,21 @@ import (
 // DefinitionClient is a interface
 type DefinitionClient interface {
 	GetWorkloadDefinition(name string) (*v1alpha2.WorkloadDefinition, error)
-	GetTraitDefition(name string) (*v1alpha2.TraitDefinition, error)
+	GetTraitDefinition(name string) (*v1alpha2.TraitDefinition, error)
+	GetScopeGVK(name string) (schema.GroupVersionKind, error)
 }
 
 // Factory can get wd|td|app
 type Factory struct {
 	client client.Client
+	dm     discoverymapper.DiscoveryMapper
 }
 
 // NewDefinitionClient generate definition fetcher
-func NewDefinitionClient(cli client.Client) *Factory {
+func NewDefinitionClient(cli client.Client, dm discoverymapper.DiscoveryMapper) *Factory {
 	f := &Factory{
 		client: cli,
+		dm:     dm,
 	}
 	return f
 }
@@ -43,8 +50,8 @@ func (f *Factory) GetWorkloadDefinition(name string) (*v1alpha2.WorkloadDefiniti
 	return wd, nil
 }
 
-// GetTraitDefition Get TraitDefition
-func (f *Factory) GetTraitDefition(name string) (*v1alpha2.TraitDefinition, error) {
+// GetTraitDefinition Get TraitDefinition
+func (f *Factory) GetTraitDefinition(name string) (*v1alpha2.TraitDefinition, error) {
 
 	td := new(v1alpha2.TraitDefinition)
 	if err := f.client.Get(context.Background(), client.ObjectKey{
@@ -55,10 +62,25 @@ func (f *Factory) GetTraitDefition(name string) (*v1alpha2.TraitDefinition, erro
 	return td, nil
 }
 
+// GetScopeGVK Get ScopeDefinition
+func (f *Factory) GetScopeGVK(name string) (schema.GroupVersionKind, error) {
+	var gvk schema.GroupVersionKind
+	sd := new(v1alpha2.ScopeDefinition)
+	if err := f.client.Get(context.Background(), client.ObjectKey{
+		Name: name,
+	}, sd); err != nil {
+		return gvk, err
+	}
+	return util.GetGVKFromDefinition(f.dm, sd.Spec.Reference)
+}
+
+var _ DefinitionClient = &MockClient{}
+
 // MockClient simulate the behavior of client
 type MockClient struct {
-	wds []*v1alpha2.WorkloadDefinition
-	tds []*v1alpha2.TraitDefinition
+	wds  []*v1alpha2.WorkloadDefinition
+	tds  []*v1alpha2.TraitDefinition
+	gvks map[string]schema.GroupVersionKind
 }
 
 // GetWorkloadDefinition  Get WorkloadDefinition
@@ -74,8 +96,8 @@ func (mock *MockClient) GetWorkloadDefinition(name string) (*v1alpha2.WorkloadDe
 	}, name)
 }
 
-// GetTraitDefition Get TraitDefition
-func (mock *MockClient) GetTraitDefition(name string) (*v1alpha2.TraitDefinition, error) {
+// GetTraitDefinition Get TraitDefinition
+func (mock *MockClient) GetTraitDefinition(name string) (*v1alpha2.TraitDefinition, error) {
 	for _, td := range mock.tds {
 		if td.Name == name {
 			return td, nil
@@ -85,6 +107,20 @@ func (mock *MockClient) GetTraitDefition(name string) (*v1alpha2.TraitDefinition
 		Group:    v1alpha2.Group,
 		Resource: "TraitDefinition",
 	}, name)
+}
+
+// GetScopeGVK return gvk
+func (mock *MockClient) GetScopeGVK(name string) (schema.GroupVersionKind, error) {
+	return mock.gvks[name], nil
+}
+
+// AddGVK  add gvk to Mock Manager
+func (mock *MockClient) AddGVK(name string, gvk schema.GroupVersionKind) error {
+	if mock.gvks == nil {
+		mock.gvks = make(map[string]schema.GroupVersionKind)
+	}
+	mock.gvks[name] = gvk
+	return nil
 }
 
 // AddWD  add workload definition to Mock Manager
@@ -105,7 +141,7 @@ func (mock *MockClient) AddWD(s string) error {
 	return nil
 }
 
-// AddTD add triat definition to Mock Manager
+// AddTD add trait definition to Mock Manager
 func (mock *MockClient) AddTD(s string) error {
 	td := &v1alpha2.TraitDefinition{}
 	_body, err := kyaml.YAMLToJSON([]byte(s))

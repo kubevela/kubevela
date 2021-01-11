@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -29,15 +28,11 @@ func TestUp(t *testing.T) {
 		IO:      ioStream,
 		Env:     &env,
 	}
-	appName := "app-up"
-	services := []*v1alpha2.Component{
-		{
-			TypeMeta: v1.TypeMeta{Kind: "Kind1", APIVersion: "v1"},
-		},
-	}
-	msg := o.Info(appName, services)
+	app := &v1alpha2.Application{}
+	app.Name = "app-up"
+	msg := o.Info(app)
 	assert.Contains(t, msg, "App has been deployed")
-	assert.Contains(t, msg, fmt.Sprintf("App status: vela status %s", appName))
+	assert.Contains(t, msg, fmt.Sprintf("App status: vela status %s", app.Name))
 }
 
 func TestNewUpCommandPersistentPreRunE(t *testing.T) {

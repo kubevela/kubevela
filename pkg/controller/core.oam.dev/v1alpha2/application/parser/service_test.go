@@ -5,12 +5,10 @@ import (
 	"reflect"
 	"testing"
 
-	"cuelang.org/go/cue"
 	"github.com/ghodss/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/template"
 )
 
 func TestParser(t *testing.T) {
@@ -116,7 +114,7 @@ spec:
 	o := v1alpha2.Application{}
 	yaml.Unmarshal([]byte(appfileYaml), &o)
 
-	appfile, err := NewParser(template.GetHandler(mock)).Parse("test", &o)
+	appfile, err := NewParser(mock).Parse("test", &o)
 	if err != nil {
 		t.Error(err)
 		return
@@ -127,108 +125,26 @@ spec:
 
 }
 
-func TestEval(t *testing.T) {
-
-	traitDef := `
-output: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: 10
-      	}
-}`
-	trait := &Trait{
-		template: traitDef,
-	}
-
-	trs, err := trait.Eval(&mockRender{})
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	if len(trs) != 1 {
-		t.Errorf("output means there is only one trait")
-	}
-
-	workloadDef := `
-output: {
-      	apiVersion: "apps/v1"
-      	kind:       "Deployment"
-      	spec: {
-      		selector: matchLabels: {
-      			"app.oam.dev/component": "test"
-      		}
-      
-      		template: {
-      			metadata: labels: {
-      				"app.oam.dev/component": "test"
-      			}
-      
-      			spec: {
-      				containers: [{
-      					name:  "test"
-      					image: "parameter.image"
-      				}]
-      			}
-      		}
-      
-      		selector:
-      			matchLabels:
-      				"app.oam.dev/component": "test"
-      	}
-}`
-	workload := &Workload{
-		template: workloadDef,
-	}
-
-	if _, err := workload.Eval(&mockRender{}); err != nil {
-		t.Error(err)
-	}
-
-}
-
-type mockRender struct {
-	body string
-}
-
-// WithParams Mock Fill Params
-func (mr *mockRender) WithParams(params interface{}) Render {
-	return mr
-}
-
-// WithTemplate Mock Fill Params
-func (mr *mockRender) WithTemplate(raw string) Render {
-	mr.body = raw
-	return mr
-}
-
-// Complete generate cue instance
-func (mr *mockRender) Complete() (*cue.Instance, error) {
-	var r cue.Runtime
-	return r.Compile("-", mr.body)
-}
-
 func equal(af, dest *Appfile) bool {
-	if af.name != dest.name || len(af.services) != len(dest.services) {
+	if af.Name != dest.Name || len(af.Services) != len(dest.Services) {
 		return false
 	}
-	for i, wd := range af.Services() {
-		destWd := dest.services[i]
-		if wd.name != destWd.name || len(wd.traits) != len(destWd.traits) {
+	for i, wd := range af.Services {
+		destWd := dest.Services[i]
+		if wd.Name != destWd.Name || len(wd.Traits) != len(destWd.Traits) {
 			return false
 		}
-		if !reflect.DeepEqual(wd.params, destWd.params) {
-			fmt.Printf("%#v | %#v\n", wd.params, destWd.params)
+		if !reflect.DeepEqual(wd.Params, destWd.Params) {
+			fmt.Printf("%#v | %#v\n", wd.Params, destWd.Params)
 			return false
 		}
-		for j, td := range wd.Traits() {
-			destTd := destWd.traits[j]
-			if td.name != destTd.name {
+		for j, td := range wd.Traits {
+			destTd := destWd.Traits[j]
+			if td.Name != destTd.Name {
 				return false
 			}
-			if !reflect.DeepEqual(td.params, destTd.params) {
-				fmt.Printf("%#v | %#v\n", td.params, destTd.params)
+			if !reflect.DeepEqual(td.Params, destTd.Params) {
+				fmt.Printf("%#v | %#v\n", td.Params, destTd.Params)
 				return false
 			}
 

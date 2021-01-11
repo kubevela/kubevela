@@ -49,6 +49,9 @@ func NewDashboardCommand(c types.Args, ioStreams cmdutil.IOStreams, frontendSour
 			if err != nil {
 				return err
 			}
+			if o.skipcheck {
+				return SetupAPIServer(c, cmd, o)
+			}
 			runtimeReady, err := CheckVelaRuntimeInstalledAndReady(ioStreams, newClient)
 			if err != nil {
 				return err
@@ -68,6 +71,7 @@ func NewDashboardCommand(c types.Args, ioStreams cmdutil.IOStreams, frontendSour
 	cmd.Flags().BoolVar(&o.development, "development", true, "Development mode.")
 	cmd.Flags().StringVar(&o.staticPath, "static", "", "specify local static file directory")
 	cmd.Flags().StringVar(&o.port, "port", util.DefaultDashboardPort, "specify port for dashboard")
+	cmd.Flags().BoolVar(&o.skipcheck, "skip-check", false, "skip check vela core status and run directly")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
@@ -81,6 +85,7 @@ type Options struct {
 	staticPath     string
 	port           string
 	frontendSource string
+	skipcheck      bool
 }
 
 // GetStaticPath gets the path of front-end directory

@@ -14,13 +14,14 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	fclient "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/parser"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/template"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
 var _ admission.Handler = &ValidatingHandler{}
 
 // ValidatingHandler handles application
 type ValidatingHandler struct {
+	dm     discoverymapper.DiscoveryMapper
 	Client client.Client
 	// Decoder decodes objects
 	Decoder *admission.Decoder
@@ -59,7 +60,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	// try render to validate
-	appParser := parser.NewParser(template.GetHandler(fclient.NewDefinitionClient(h.Client)))
+	appParser := parser.NewParser(fclient.NewDefinitionClient(h.Client, h.dm))
 	if _, err := appParser.Parse(app.Name, app); err != nil {
 		return admission.Denied(err.Error())
 	}
@@ -67,7 +68,12 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 }
 
 // RegisterValidatingHandler will regsiter application validate handler to the webhook
-func RegisterValidatingHandler(mgr manager.Manager) {
+func RegisterValidatingHandler(mgr manager.Manager) error {
+	mapper, err := discoverymapper.New(mgr.GetConfig())
+	if err != nil {
+		return err
+	}
 	server := mgr.GetWebhookServer()
-	server.Register("/validating-core-oam-dev-v1alpha2-applications", &webhook.Admission{Handler: &ValidatingHandler{}})
+	server.Register("/validating-core-oam-dev-v1alpha2-applications", &webhook.Admission{Handler: &ValidatingHandler{dm: mapper}})
+	return nil
 }

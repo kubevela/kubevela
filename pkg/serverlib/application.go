@@ -14,7 +14,6 @@ import (
 
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
@@ -181,34 +180,18 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 		return "", err
 	}
 	ctx := context.Background()
-	var appConfig corev1alpha2.ApplicationConfiguration
-	err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Env.Namespace}, &appConfig)
+	var app = new(corev1alpha2.Application)
+	err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Env.Namespace}, app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return fmt.Sprintf("app %s already deleted", o.AppName), nil
 		}
 		return "", fmt.Errorf("delete appconfig err %w", err)
 	}
-	for _, comp := range appConfig.Spec.Components {
-		var c corev1alpha2.Component
-		// TODO(wonderflow): what if we use componentRevision here?
-		c.Name = comp.ComponentName
-		c.Namespace = o.Env.Namespace
-		err = o.Client.Delete(ctx, &c)
-		if err != nil && !apierrors.IsNotFound(err) {
-			return "", fmt.Errorf("delete service err: %w", err)
-		}
-	}
-	err = o.Client.Delete(ctx, &appConfig)
+
+	err = o.Client.Delete(ctx, app)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return "", fmt.Errorf("delete application err %w", err)
-	}
-	var healthScope corev1alpha2.HealthScope
-	healthScope.Name = appfile.FormatDefaultHealthScopeName(o.AppName)
-	healthScope.Namespace = o.Env.Namespace
-	err = o.Client.Delete(ctx, &healthScope)
-	if err != nil && !apierrors.IsNotFound(err) {
-		return "", fmt.Errorf("delete health scope %s err %w", healthScope.Name, err)
 	}
 
 	return fmt.Sprintf("delete apps succeed %s from %s", o.AppName, o.Env.Name), nil

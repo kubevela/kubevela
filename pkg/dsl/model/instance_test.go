@@ -37,7 +37,7 @@ metadata: name: "test"
 			t.Error(err)
 			return
 		}
-		baseObj, err := base.Object(nil)
+		baseObj, err := base.Unstructured()
 		if err != nil {
 			t.Error(err)
 			return
@@ -51,7 +51,7 @@ metadata: name: "test"
 			t.Error(err)
 			return
 		}
-		otherObj, err := other.Object(nil)
+		otherObj, err := other.Unstructured()
 		if err != nil {
 			t.Error(err)
 			return

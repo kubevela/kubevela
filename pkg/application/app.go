@@ -13,8 +13,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/storage"
 	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // NewEmptyApplication new empty application, only set tm
@@ -101,7 +99,7 @@ func GetServiceConfig(app *driver.Application, componentName string) (string, ma
 	if !ok {
 		return "", make(map[string]interface{})
 	}
-	return svc.GetType(), svc.GetConfig()
+	return svc.GetType(), svc.GetApplicationConfig()
 }
 
 // GetWorkload will get workload type and it's configuration
@@ -118,19 +116,6 @@ func GetWorkload(app *driver.Application, componentName string) (string, map[str
 		workloadData[k] = v
 	}
 	return svcType, workloadData
-}
-
-// GetTraitNames will list all traits attached to the specified component.
-func GetTraitNames(app *driver.Application, componentName string) ([]string, error) {
-	tt, err := GetTraits(app, componentName)
-	if err != nil {
-		return nil, err
-	}
-	var names []string
-	for k := range tt {
-		names = append(names, k)
-	}
-	return names, nil
 }
 
 // GetTraits will list all traits and it's configurations attached to the specified component.
@@ -161,16 +146,6 @@ func GetTraitsByType(app *driver.Application, componentName, traitType string) (
 		return make(map[string]interface{}), nil
 	}
 	return t.(map[string]interface{}), nil
-}
-
-// OAM will convert an AppFile to OAM objects
-// TODO(wonderflow) add scope support here
-func OAM(app *driver.Application, env *types.EnvMeta, io cmdutil.IOStreams, silence bool) ([]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
-	comps, appConfig, scopes, err := app.BuildOAM(env.Namespace, io, app.Tm, silence)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return comps, appConfig, scopes, nil
 }
 
 // GetAppConfig will get AppConfig from K8s cluster.

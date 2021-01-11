@@ -7,4 +7,4 @@ spec:
   workloadRefsPath: spec.workloadRefs
   allowComponentOverlap: true
   definitionRef:
-    name: healthscope.core.oam.dev
+    name: healthscopes.core.oam.dev

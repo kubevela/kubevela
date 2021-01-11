@@ -13,7 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/server/util"
 
@@ -215,7 +214,7 @@ var (
 					appConfig := &corev1alpha2.ApplicationConfiguration{}
 					_ = k8sclient.Get(ctx.Background(), client.ObjectKey{Name: applicationName, Namespace: "default"}, appConfig)
 					return len(appConfig.Status.Workloads)
-				}, 90*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))
+				}, 200*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))
 
 				cli := fmt.Sprintf("vela status %s", applicationName)
 				output, err := LongTimeExec(cli, 120*time.Second)
@@ -331,7 +330,7 @@ var (
 				var r apis.Response
 				err = json.Unmarshal(result, &r)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(http.StatusOK).Should(gomega.Equal(r.Code))
+				gomega.Expect(r.Code).Should(gomega.Equal(http.StatusOK))
 				gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring("created"))
 			})
 		})

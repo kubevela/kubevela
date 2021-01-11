@@ -7,7 +7,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 
 	"github.com/pkg/errors"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
 )
@@ -48,8 +47,8 @@ func (m *manager) LoadTemplate(key string, kd types.CapType) (string, error) {
 		return jsonRaw, nil
 
 	case types.TypeTrait:
-		td, err := m.GetTraitDefition(key)
-		if err != nil && !kerrors.IsNotFound(err) {
+		td, err := m.GetTraitDefinition(key)
+		if err != nil {
 			return "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
 		jsonRaw, err := getTemplate(td.Spec.Extension.Raw)

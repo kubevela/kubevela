@@ -1,13 +1,46 @@
-package appfile
+package build
 
 import (
-	"errors"
+	"encoding/json"
 	"io"
 	"os/exec"
 	"strings"
 
+	"github.com/pkg/errors"
+
+	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
+
+func init() {
+	registry.RegisterTask("build", ImageBuildHandler)
+}
+
+func ImageBuildHandler(ctx registry.CallCtx, params interface{}) error {
+	pm, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	b := new(Build)
+	if err := json.Unmarshal(pm, b); err != nil {
+		return err
+	}
+	v, err := ctx.LookUp("image")
+	if err != nil {
+		return err
+	}
+	image, ok := v.(string)
+	if !ok {
+		return errors.New("image must be 'string'")
+	}
+	if err := b.buildImage(ctx.IO(), image); err != nil {
+		return err
+	}
+	if err := b.pushImage(ctx.IO(), image); err != nil {
+		return err
+	}
+	return nil
+}
 
 // Build defines the build section of AppFile
 type Build struct {
@@ -48,8 +81,8 @@ func asyncLog(reader io.Reader, stream cmdutil.IOStreams) {
 	}
 }
 
-// BuildImage will build a image with name and context.
-func (b *Build) BuildImage(io cmdutil.IOStreams, image string) error {
+// buildImage will build a image with name and context.
+func (b *Build) buildImage(io cmdutil.IOStreams, image string) error {
 	//nolint:gosec
 	// TODO(hongchaodeng): remove this dependency by using go lib
 	cmd := exec.Command("docker", "build", "-t", image, "-f", b.Docker.File, b.Docker.Context)

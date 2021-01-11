@@ -18,6 +18,9 @@ package application
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
@@ -32,11 +35,11 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/builder"
 	fclient "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/parser"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/template"
 )
 
 // Reconciler reconciles a Application object
 type Reconciler struct {
+	dm discoverymapper.DiscoveryMapper
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
@@ -74,10 +77,9 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error
 
 	applog.Info("parse template")
 	// parse template
-	appParser := parser.NewParser(template.GetHandler(fclient.NewDefinitionClient(r.Client)))
+	appParser := parser.NewParser(fclient.NewDefinitionClient(r.Client, r.dm))
 
 	appfile, err := appParser.Parse(app.Name, app)
-
 	if err != nil {
 		app.Status.SetConditions(errorCondition("Parsed", err))
 		return handler.Err(err)
@@ -87,7 +89,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (result ctrl.Result, gerr error
 
 	applog.Info("build template")
 	// build template to applicationconfig & component
-	ac, comps, err := builder.Build(app.Namespace, appfile)
+	ac, comps, err := builder.Build(app.Namespace, appfile, r.Client)
 	if err != nil {
 		app.Status.SetConditions(errorCondition("Built", err))
 		return handler.Err(err)
@@ -118,10 +120,15 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Setup adds a controller that reconciles ApplicationDeployment.
 func Setup(mgr ctrl.Manager, _ core.Args, _ logging.Logger) error {
+	dm, err := discoverymapper.New(mgr.GetConfig())
+	if err != nil {
+		return fmt.Errorf("create discovery dm fail %w", err)
+	}
 	reconciler := Reconciler{
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("Application"),
 		Scheme: mgr.GetScheme(),
+		dm:     dm,
 	}
 	return reconciler.SetupWithManager(mgr)
 }

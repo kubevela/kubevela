@@ -6,15 +6,18 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/ghodss/yaml"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
+	"github.com/oam-dev/kubevela/pkg/builtin"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -39,7 +42,8 @@ type AppFile struct {
 	Services   map[string]Service `json:"services"`
 	Secrets    map[string]string  `json:"secrets,omitempty"`
 
-	configGetter configGetter
+	configGetter config.Store
+	initialized  bool
 }
 
 // NewAppFile init an empty AppFile struct
@@ -47,7 +51,7 @@ func NewAppFile() *AppFile {
 	return &AppFile{
 		Services:     make(map[string]Service),
 		Secrets:      make(map[string]string),
-		configGetter: defaultConfigGetter{},
+		configGetter: &config.Local{},
 	}
 }
 
@@ -102,89 +106,80 @@ func LoadFromFile(filename string) (*AppFile, error) {
 	return af, nil
 }
 
-// BuildOAM renders Appfile into AppConfig, Components. It also builds images for services if defined.
-func (app *AppFile) BuildOAM(ns string, io cmdutil.IOStreams, tm template.Manager, slience bool) (
-	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
-	return app.buildOAM(ns, io, tm, slience)
-}
-
-func (app *AppFile) buildOAM(ns string, io cmdutil.IOStreams, tm template.Manager, silence bool) (
-	[]*v1alpha2.Component, *v1alpha2.ApplicationConfiguration, []oam.Object, error) {
-
-	appConfig := &v1alpha2.ApplicationConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      app.Name,
-			Namespace: ns,
-		},
+// ExecuteAppfileTasks will execute built-in tasks(such as image builder, etc.) and generate locally executed application
+func (app *AppFile) ExecuteAppfileTasks(io cmdutil.IOStreams) error {
+	if app.initialized {
+		return nil
 	}
-
-	var comps []*v1alpha2.Component
-
-	for sname, svc := range app.GetServices() {
-		var image string
-		v, ok := svc["image"]
-		if ok {
-			image = v.(string)
-		}
-
-		if b := svc.GetBuild(); b != nil {
-			if image == "" {
-				return nil, nil, nil, ErrImageNotDefined
-			}
-			io.Infof("\nBuilding service (%s)...\n", sname)
-			if err := b.BuildImage(io, image); err != nil {
-				return nil, nil, nil, err
-			}
-		}
-		if !silence {
-			io.Infof("\nRendering configs for service (%s)...\n", sname)
-		}
-		acComp, comp, err := svc.RenderService(tm, sname, ns, app.configGetter)
+	for name, svc := range app.Services {
+		newSvc, err := builtin.RunBuildInTasks(svc, io)
 		if err != nil {
-			return nil, nil, nil, err
+			return err
 		}
-		appConfig.Spec.Components = append(appConfig.Spec.Components, *acComp)
-		comps = append(comps, comp)
+		app.Services[name] = newSvc
 	}
-
-	addWorkloadTypeLabel(comps, app.Services)
-	health := addHealthScope(appConfig)
-	return comps, appConfig, []oam.Object{health}, nil
+	app.initialized = true
+	return nil
 }
 
-func addWorkloadTypeLabel(comps []*v1alpha2.Component, services map[string]Service) {
-	for _, comp := range comps {
-		workloadType := services[comp.Name].GetType()
-		workloadObject := comp.Spec.Workload.Object.(*unstructured.Unstructured)
-		labels := workloadObject.GetLabels()
-		if labels == nil {
-			labels = map[string]string{oam.WorkloadTypeLabel: workloadType}
-		} else {
-			labels[oam.WorkloadTypeLabel] = workloadType
+// BuildOAMApplication renders Appfile into Application, Scopes and other K8s Resources.
+func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams, tm template.Manager, silence bool) (*v1alpha2.Application, []oam.Object, error) {
+	if err := app.ExecuteAppfileTasks(io); err != nil {
+		if strings.Contains(err.Error(), "'image' : not found") {
+			return nil, nil, ErrImageNotDefined
 		}
-		workloadObject.SetLabels(labels)
+		return nil, nil, err
 	}
+	// auxiliaryObjects currently include OAM Scope Custom Resources and ConfigMaps
+	var auxiliaryObjects []oam.Object
+	servApp := new(v1alpha2.Application)
+	servApp.SetNamespace(env.Namespace)
+	servApp.SetName(app.Name)
+	servApp.Spec.Components = []v1alpha2.ApplicationComponent{}
+	for serviceName, svc := range app.GetServices() {
+		if !silence {
+			io.Infof("\nRendering configs for service (%s)...\n", serviceName)
+		}
+		configname := svc.GetUserConfigName()
+		if configname != "" {
+			configData, err := app.configGetter.GetConfigData(configname, env.Name)
+			if err != nil {
+				return nil, nil, err
+			}
+			decodedData, err := config.DecodeConfigFormat(configData)
+			if err != nil {
+				return nil, nil, err
+			}
+			cm, err := config.ToConfigMap(app.configGetter, config.GenConfigMapName(app.Name, serviceName, configname), env.Name, decodedData)
+			if err != nil {
+				return nil, nil, err
+			}
+			auxiliaryObjects = append(auxiliaryObjects, cm)
+		}
+		comp, err := svc.RenderServiceToApplicationComponent(tm, serviceName)
+		if err != nil {
+			return nil, nil, err
+		}
+		servApp.Spec.Components = append(servApp.Spec.Components, comp)
+	}
+	servApp.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind("Application"))
+	auxiliaryObjects = append(auxiliaryObjects, addDefaultHealthScopeToApplication(servApp))
+	return servApp, auxiliaryObjects, nil
 }
 
-func addHealthScope(appConfig *v1alpha2.ApplicationConfiguration) *v1alpha2.HealthScope {
+func addDefaultHealthScopeToApplication(app *v1alpha2.Application) *v1alpha2.HealthScope {
 	health := &v1alpha2.HealthScope{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: v1alpha2.HealthScopeGroupVersionKind.GroupVersion().String(),
 			Kind:       v1alpha2.HealthScopeKind,
 		},
 	}
-	health.Name = FormatDefaultHealthScopeName(appConfig.Name)
-	health.Namespace = appConfig.Namespace
+	health.Name = FormatDefaultHealthScopeName(app.Name)
+	health.Namespace = app.Namespace
 	health.Spec.WorkloadReferences = make([]v1alpha1.TypedReference, 0)
-	for i := range appConfig.Spec.Components {
-		// TODO(wonderflow): Temporarily we add health scope here, should change to use scope framework
-		appConfig.Spec.Components[i].Scopes = append(appConfig.Spec.Components[i].Scopes, v1alpha2.ComponentScope{
-			ScopeReference: v1alpha1.TypedReference{
-				APIVersion: v1alpha2.SchemeGroupVersion.String(),
-				Kind:       v1alpha2.HealthScopeKind,
-				Name:       health.Name,
-			},
-		})
+	for i := range app.Spec.Components {
+		// FIXME(wonderflow): the hardcode health scope should be fixed.
+		app.Spec.Components[i].Scopes = map[string]string{"healthscopes.core.oam.dev": health.Name}
 	}
 	return health
 }
