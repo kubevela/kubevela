@@ -6,22 +6,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.4
   creationTimestamp: null
-  name: applicationdeployments.core.oam.dev
+  name: rollouttraits.standard.oam.dev
 spec:
-  group: core.oam.dev
+  group: standard.oam.dev
   names:
-    categories:
-    - oam
-    kind: ApplicationDeployment
-    listKind: ApplicationDeploymentList
-    plural: applicationdeployments
-    singular: applicationdeployment
+    kind: RolloutTrait
+    listKind: RolloutTraitList
+    plural: rollouttraits
+    singular: rollouttrait
   scope: Namespaced
   subresources:
     status: {}
   validation:
     openAPIV3Schema:
-      description: ApplicationDeployment is the Schema for the ApplicationDeployment API
+      description: RolloutTrait is the Schema for the RolloutTrait API
       properties:
         apiVersion:
           description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
@@ -32,13 +30,8 @@ spec:
         metadata:
           type: object
         spec:
-          description: ApplicationDeploymentSpec defines how to describe an upgrade between different application
+          description: RolloutTraitSpec defines the desired state of RolloutTrait
           properties:
-            componentList:
-              description: 'The list of component to upgrade in the application. We only support single component application so far TODO: (RZ) Support multiple components in an application'
-              items:
-                type: string
-              type: array
             rolloutPlan:
               description: RolloutPlan is the details on how to rollout the resources
               properties:
@@ -247,16 +240,52 @@ spec:
                   format: int32
                   type: integer
               type: object
-            sourceApplicationName:
-              description: SourceApplicationName contains the name of the application that we need to upgrade from.
-              type: string
-            targetApplicationName:
-              description: TargetApplicationName contains the name of the application that we need to upgrade to. We assume that an application is immutable, thus the name alone is suffice
-              type: string
+            sourceRef:
+              description: SourceRef references the list of resources that contains the older version of the software. We assume that it's the first time to deploy when we cannot find any source.
+              items:
+                description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
+                properties:
+                  apiVersion:
+                    description: APIVersion of the referenced object.
+                    type: string
+                  kind:
+                    description: Kind of the referenced object.
+                    type: string
+                  name:
+                    description: Name of the referenced object.
+                    type: string
+                  uid:
+                    description: UID of the referenced object.
+                    type: string
+                required:
+                - apiVersion
+                - kind
+                - name
+                type: object
+              type: array
+            targetRef:
+              description: TargetRef references a target resource that contains the newer version of the software. We assumed that new resource already exists. This is the only resource we work on if the resource is a stateful resource (cloneset/statefulset)
+              properties:
+                apiVersion:
+                  description: APIVersion of the referenced object.
+                  type: string
+                kind:
+                  description: Kind of the referenced object.
+                  type: string
+                name:
+                  description: Name of the referenced object.
+                  type: string
+                uid:
+                  description: UID of the referenced object.
+                  type: string
+              required:
+              - apiVersion
+              - kind
+              - name
+              type: object
           required:
           - rolloutPlan
-          - sourceApplicationName
-          - targetApplicationName
+          - targetRef
           type: object
         status:
           description: RolloutStatus defines the observed state of Rollout
@@ -322,9 +351,9 @@ spec:
           - upgradedReplicas
           type: object
       type: object
-  version: v1alpha2
+  version: v1alpha1
   versions:
-  - name: v1alpha2
+  - name: v1alpha1
     served: true
     storage: true
 status:

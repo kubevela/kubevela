@@ -6,22 +6,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.4
   creationTimestamp: null
-  name: applicationdeployments.core.oam.dev
+  name: rollouts.standard.oam.dev
 spec:
-  group: core.oam.dev
+  group: standard.oam.dev
   names:
-    categories:
-    - oam
-    kind: ApplicationDeployment
-    listKind: ApplicationDeploymentList
-    plural: applicationdeployments
-    singular: applicationdeployment
+    kind: Rollout
+    listKind: RolloutList
+    plural: rollouts
+    singular: rollout
   scope: Namespaced
   subresources:
     status: {}
   validation:
     openAPIV3Schema:
-      description: ApplicationDeployment is the Schema for the ApplicationDeployment API
+      description: Rollout is the Schema for the rollouts API
       properties:
         apiVersion:
           description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
@@ -32,13 +30,8 @@ spec:
         metadata:
           type: object
         spec:
-          description: ApplicationDeploymentSpec defines how to describe an upgrade between different application
+          description: RolloutSpec defines the desired state of Rollout
           properties:
-            componentList:
-              description: 'The list of component to upgrade in the application. We only support single component application so far TODO: (RZ) Support multiple components in an application'
-              items:
-                type: string
-              type: array
             rolloutPlan:
               description: RolloutPlan is the details on how to rollout the resources
               properties:
@@ -208,9 +201,6 @@ spec:
                         x-kubernetes-int-or-string: true
                     type: object
                   type: array
-                rolloutStrategy:
-                  description: RolloutStrategy defines strategies for the rollout plan
-                  type: string
                 rolloutWebhooks:
                   description: RolloutWebhooks provides a way for the rollout to interact with an external process
                   items:
@@ -247,16 +237,49 @@ spec:
                   format: int32
                   type: integer
               type: object
-            sourceApplicationName:
-              description: SourceApplicationName contains the name of the application that we need to upgrade from.
-              type: string
-            targetApplicationName:
-              description: TargetApplicationName contains the name of the application that we need to upgrade to. We assume that an application is immutable, thus the name alone is suffice
-              type: string
+            sourceRef:
+              description: SourceRef references the source resource that contains the older version of the software. We assume that it's the first time to deploy when we cannot find the source.
+              properties:
+                apiVersion:
+                  description: APIVersion of the referenced object.
+                  type: string
+                kind:
+                  description: Kind of the referenced object.
+                  type: string
+                name:
+                  description: Name of the referenced object.
+                  type: string
+                uid:
+                  description: UID of the referenced object.
+                  type: string
+              required:
+              - apiVersion
+              - kind
+              - name
+              type: object
+            targetRef:
+              description: TargetRef references a target resource that contains the newer version of the software. We assumed that new resource already exists. This is the only resource we work on if the resource is a stateful resource (cloneset/statefulset)
+              properties:
+                apiVersion:
+                  description: APIVersion of the referenced object.
+                  type: string
+                kind:
+                  description: Kind of the referenced object.
+                  type: string
+                name:
+                  description: Name of the referenced object.
+                  type: string
+                uid:
+                  description: UID of the referenced object.
+                  type: string
+              required:
+              - apiVersion
+              - kind
+              - name
+              type: object
           required:
           - rolloutPlan
-          - sourceApplicationName
-          - targetApplicationName
+          - targetRef
           type: object
         status:
           description: RolloutStatus defines the observed state of Rollout
@@ -265,31 +288,28 @@ spec:
               description: BatchRollingState only meaningful when the Status is rolling
               type: string
             conditions:
-              description: Conditions of the resource.
+              description: Conditions represents the latest available observations of a CloneSet's current state.
               items:
-                description: A Condition that may apply to a resource.
+                description: RolloutCondition is the condition of the rollout
                 properties:
+                  batchRollingState:
+                    description: BatchRollingState only meaningful when the Status is rolling
+                    type: string
                   lastTransitionTime:
-                    description: LastTransitionTime is the last time this condition transitioned from one status to another.
+                    description: Last time the condition transitioned to this state
                     format: date-time
                     type: string
                   message:
-                    description: A Message containing details about this condition's last transition from one status to another, if any.
+                    description: A human readable message indicating details about the transition.
                     type: string
                   reason:
-                    description: A Reason for this condition's last transition from one status to another.
+                    description: The reason for the condition's last transition.
                     type: string
-                  status:
-                    description: Status of this condition; is it currently True, False, or Unknown?
-                    type: string
-                  type:
-                    description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
+                  rollingState:
+                    description: RollingState is the Rollout Status
                     type: string
                 required:
-                - lastTransitionTime
-                - reason
-                - status
-                - type
+                - rollingState
                 type: object
               type: array
             currentBatch:
@@ -305,12 +325,8 @@ spec:
             targetGeneration:
               description: The target resource generation
               type: string
-            upgradedReadyReplicas:
-              description: UpgradedReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
-              format: int32
-              type: integer
             upgradedReplicas:
-              description: UpgradedReplicas is the number of Pods upgraded by the rollout controller
+              description: UpgradedReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
               format: int32
               type: integer
           required:
@@ -318,13 +334,12 @@ spec:
           - rollingState
           - sourceGeneration
           - targetGeneration
-          - upgradedReadyReplicas
           - upgradedReplicas
           type: object
       type: object
-  version: v1alpha2
+  version: v1alpha1
   versions:
-  - name: v1alpha2
+  - name: v1alpha1
     served: true
     storage: true
 status:
