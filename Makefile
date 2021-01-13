@@ -128,6 +128,12 @@ e2e-setup:
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
 	bin/vela dashboard &
 
+e2e-api-test:
+	# Run e2e test
+	ginkgo -v -skipPackage capability,setup,apiserver,application -r e2e
+	ginkgo -v -r e2e/apiserver
+	ginkgo -v -r e2e/application
+
 e2e-test:
 	# Run e2e test
 	ginkgo -v ./test/e2e-test
@@ -135,11 +141,6 @@ e2e-test:
 	CGO_ENABLED=0 go test -timeout 1h -count=1 -v -tags 'integration' ./test/integration
 	@$(OK) tests pass
 
-e2e-api-test:
-	# Run e2e test
-	ginkgo -v -skipPackage capability,setup,apiserver,application -r e2e
-	ginkgo -v -r e2e/apiserver
-	ginkgo -v -r e2e/application
 
 e2e-cleanup:
 	# Clean up
