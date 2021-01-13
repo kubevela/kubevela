@@ -113,15 +113,15 @@ type RolloutPlan struct {
 
 // RolloutBatch is used to describe how the each batch rollout should be
 type RolloutBatch struct {
-	// Replica is the number of pods to upgrade in this batch
+	// Replicas is the number of pods to upgrade in this batch
 	// it can be an absolute number (ex: 5) or a percentage of total pods
 	// +optional
 	// it is mutually exclusive with the PodList field
-	Replica intstr.IntOrString `json:"replica,omitempty"`
+	Replicas intstr.IntOrString `json:"replicas,omitempty"`
 
 	// The list of Pods to get upgraded
 	// +optional
-	// it is mutually exclusive with the Replica field
+	// it is mutually exclusive with the Replicas field
 	PodList []string `json:"podList,omitempty"`
 
 	// MaxUnavailable is the max allowed number of pods that is unavailable

@@ -189,15 +189,15 @@ spec:
                         description: MaxUnavailable is the max allowed number of pods that is unavailable during the upgrade. We will mark the batch as ready as long as there are less or equal number of pods unavailable than this number. default = 0
                         x-kubernetes-int-or-string: true
                       podList:
-                        description: The list of Pods to get upgraded it is mutually exclusive with the Replica field
+                        description: The list of Pods to get upgraded it is mutually exclusive with the Replicas field
                         items:
                           type: string
                         type: array
-                      replica:
+                      replicas:
                         anyOf:
                         - type: integer
                         - type: string
-                        description: 'Replica is the number of pods to upgrade in this batch it can be an absolute number (ex: 5) or a percentage of total pods it is mutually exclusive with the PodList field'
+                        description: 'Replicas is the number of pods to upgrade in this batch it can be an absolute number (ex: 5) or a percentage of total pods it is mutually exclusive with the PodList field'
                         x-kubernetes-int-or-string: true
                     type: object
                   type: array
