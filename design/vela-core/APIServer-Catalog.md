@@ -311,7 +311,7 @@ Vela APIServer aggregates package information from multiple catalog servers. To 
 
 In our future roadmap, we will build a catalog controller for each k8s cluster. Then we will add API endpoint to install the package in APIServer which basically creates a CR to trigger the controller to reconcile package installation into the cluster. We choose this instead of APIServer installing the package because in this way we can bypass the APIServer in the package data transfer path and avoid APIServer becoming single point of failure.
 
-## Alternatives
+## Considerations
 
 ### Package dependency
 
@@ -319,4 +319,8 @@ Instead of having multiple definitions in one package, we could define that one 
 
 To provide a bundle of definitions, we could define package dependency. So a parent package could depend on multiple atomic packages to provide a full-fledged capability.
 
-Package dependency solution will simplify the structure and provide more atomic packages. But this is not a simple problem and beyond the current scope. We might revisit this on future roadmap.
+Package dependency solution will simplify the structure and provide more atomic packages. But this is not a simple problem and beyond the current scope. We will add this on future roadmap.
+
+### Multi-tenancy
+
+For initial version we plan to implement APIServer without multi-tenancy. But as an applicatio platform we expect multi-tenancy is a necessary part of Vela. We will keep API compatibility and might add some sort of auth token (e.g. JWT) as a query parameter in the future.
