@@ -195,7 +195,7 @@ func CheckCapabilityReady(ctx context.Context, c types.Args, timeout time.Durati
 	defer os.RemoveAll(tmpdir)
 
 	start := time.Now()
-	spiner := newTrackingSpinner("Waiting Capability ready to install ...")
+	spiner := newTrackingSpinnerWithDelay("Waiting Capability ready to install ...", 10*time.Second)
 	spiner.Start()
 	defer spiner.Stop()
 
@@ -288,7 +288,7 @@ func PrintTrackVelaRuntimeStatus(ctx context.Context, c client.Client, ioStreams
 
 	ioStreams.Info("\nIt may take 1-2 minutes before KubeVela runtime is ready.")
 	start := time.Now()
-	spiner := newTrackingSpinner("Waiting KubeVela runtime ready to serve ...")
+	spiner := newTrackingSpinnerWithDelay("Waiting KubeVela runtime ready to serve ...", 5*time.Second)
 	spiner.Start()
 	defer spiner.Stop()
 

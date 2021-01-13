@@ -130,7 +130,6 @@ e2e-setup:
 
 e2e-test:
 	# Run e2e test
-	ginkgo -v -skipPackage capability,setup,apiserver -r e2e
 	ginkgo -v ./test/e2e-test
 	# integration test will clean environment, please don't put test behind it.
 	CGO_ENABLED=0 go test -timeout 1h -count=1 -v -tags 'integration' ./test/integration
@@ -138,7 +137,9 @@ e2e-test:
 
 e2e-api-test:
 	# Run e2e test
+	ginkgo -v -skipPackage capability,setup,apiserver,application -r e2e
 	ginkgo -v -r e2e/apiserver
+	ginkgo -v -r e2e/application
 
 e2e-cleanup:
 	# Clean up

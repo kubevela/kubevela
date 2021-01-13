@@ -261,7 +261,7 @@ func tryGetWorkloadStatus(ctx context.Context, c client.Client, ns string, wlRef
 }
 
 func printTrackingDeployStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, compName, appName string, env *types.EnvMeta) (CompStatus, error) {
-	sDeploy := newTrackingSpinner("Checking Status ...")
+	sDeploy := newTrackingSpinnerWithDelay("Checking Status ...", trackingInterval)
 	sDeploy.Start()
 	defer sDeploy.Stop()
 TrackDeployLoop:
