@@ -58,6 +58,7 @@ func NewCommand() *cobra.Command {
 		NewInitCommand(commandArgs, ioStream),
 		NewUpCommand(commandArgs, ioStream),
 		NewExportCommand(commandArgs, ioStream),
+		NewReferencesCommand(commandArgs, ioStream),
 
 		// Apps
 		NewListCommand(commandArgs, ioStream),

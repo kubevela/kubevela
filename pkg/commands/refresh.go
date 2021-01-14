@@ -49,33 +49,14 @@ func RefreshDefinitions(ctx context.Context, c types.Args, ioStreams cmdutil.IOS
 		return nil
 	}
 
-	var syncedTemplates []types.Capability
-
-	templates, templateErrors, err := plugins.GetWorkloadsFromCluster(ctx, types.DefaultKubeVelaNS, c, dir, nil)
+	syncedTemplates, warnings, err := plugins.SyncDefinitionToLocal(ctx, c, dir)
 	if err != nil {
 		return err
 	}
-	if len(templateErrors) > 0 {
-		for _, e := range templateErrors {
-			ioStreams.Infof("WARN: %v, you will unable to use this workload capability\n", e)
-		}
+	for _, w := range warnings {
+		ioStreams.Infof(w)
 	}
-	syncedTemplates = append(syncedTemplates, templates...)
-	plugins.SinkTemp2Local(templates, dir)
-
-	templates, templateErrors, err = plugins.GetTraitsFromCluster(ctx, types.DefaultKubeVelaNS, c, dir, nil)
-	if err != nil {
-		return err
-	}
-	if len(templateErrors) > 0 {
-		for _, e := range templateErrors {
-			ioStreams.Infof("WARN: %v, you will unable to use this trait capability\n", e)
-		}
-	}
-	syncedTemplates = append(syncedTemplates, templates...)
-	plugins.SinkTemp2Local(templates, dir)
 	plugins.RemoveLegacyTemps(syncedTemplates, dir)
-
 	printRefreshReport(syncedTemplates, oldCaps, ioStreams, silentOutput, false)
 	return nil
 }

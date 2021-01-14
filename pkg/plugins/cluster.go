@@ -198,3 +198,34 @@ func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Capab
 	}
 	return tmp, nil
 }
+
+// SyncDefinitionToLocal sync definitions to local
+func SyncDefinitionToLocal(ctx context.Context, c types.Args, localDefinitionDir string) ([]types.Capability, []string, error) {
+	var syncedTemplates []types.Capability
+	var warnings []string
+
+	templates, templateErrors, err := GetWorkloadsFromCluster(ctx, types.DefaultKubeVelaNS, c, localDefinitionDir, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(templateErrors) > 0 {
+		for _, e := range templateErrors {
+			warnings = append(warnings, fmt.Sprintf("WARN: %v, you will unable to use this workload capability\n", e))
+		}
+	}
+	syncedTemplates = append(syncedTemplates, templates...)
+	SinkTemp2Local(templates, localDefinitionDir)
+
+	templates, templateErrors, err = GetTraitsFromCluster(ctx, types.DefaultKubeVelaNS, c, localDefinitionDir, nil)
+	if err != nil {
+		return nil, warnings, err
+	}
+	if len(templateErrors) > 0 {
+		for _, e := range templateErrors {
+			warnings = append(warnings, fmt.Sprintf("WARN: %v, you will unable to use this trait capability\n", e))
+		}
+	}
+	syncedTemplates = append(syncedTemplates, templates...)
+	SinkTemp2Local(templates, localDefinitionDir)
+	return syncedTemplates, warnings, nil
+}
