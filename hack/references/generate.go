@@ -15,7 +15,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-const BaseRefPath = "docs/en/developers/references"
+const (
+	BaseRefPath   = "docs/en/developers/references"
+	ReferencePath = "hack/references"
+)
 
 type ReferenceMarkdown struct {
 	CapabilityName string `json:"capabilityName"`
@@ -92,7 +95,13 @@ func main() {
 			os.Exit(1)
 		}
 		specification := fmt.Sprintf("\n\n## Specification\n\n%s\n\n%s", specificationIntro, specificationContent)
-		refContent = title + description + specification + refContent
+
+		conflictWithAndMoreSection, err := generateConflictWithAndMore(capName)
+		if err != nil {
+			fmt.Printf(err.Error())
+			os.Exit(1)
+		}
+		refContent = title + description + specification + refContent + conflictWithAndMoreSection
 		f.WriteString(refContent)
 		f.Close()
 	}
@@ -200,18 +209,28 @@ func getPrintableDefaultValue(v interface{}) string {
 
 // generateSpecification generates Specification part for reference docs
 func generateSpecification(capability string) (string, error) {
-	configurationPath, err := filepath.Abs(filepath.Join("hack/references/configurations",
-		fmt.Sprintf("%s.yaml", capability)))
+	configurationPath, err := filepath.Abs(filepath.Join(ReferencePath, "configurations", fmt.Sprintf("%s.yaml", capability)))
 	if err != nil {
 		return "", fmt.Errorf("failed to get configuration path: %w", err)
 	}
-	f, err := os.Open(configurationPath)
+
+	spec, err := ioutil.ReadFile(configurationPath)
+	// skip if Configuration usage of a capability doesn't exist.
 	if err != nil {
-		return "", fmt.Errorf("failed to open configuration file: %w", err)
+		spec = nil
 	}
-	spec, err := ioutil.ReadAll(f)
+	return fmt.Sprintf("```yaml\n%s```", string(spec)), nil
+}
+
+// generateConflictWithAndMore generates Section `Conflicts With` and more like `How xxx works` in reference docs
+func generateConflictWithAndMore(capabilityName string) (string, error) {
+	conflictWithFile, err := filepath.Abs(filepath.Join(ReferencePath, "conflictsWithAndMore", fmt.Sprintf("%s.md", capabilityName)))
 	if err != nil {
-		return "", fmt.Errorf("failed to read configuration file: %w", err)
+		return "", fmt.Errorf("failed to locate conflictWith file: %w", err)
 	}
-	return fmt.Sprintf("```yaml\n%s```", spec), nil
+	data, err := ioutil.ReadFile(conflictWithFile)
+	if err != nil {
+		return "", nil
+	}
+	return "\n" + string(data), nil
 }
