@@ -21,6 +21,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -286,7 +288,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(len(components)).To(BeEquivalentTo(1))
 		Expect(components[0].ObjectMeta).To(BeEquivalentTo(expectComponent.ObjectMeta))
 		Expect(components[0].TypeMeta).To(BeEquivalentTo(expectComponent.TypeMeta))
-		Expect(components[0].Spec.Workload.Object).To(BeEquivalentTo(expectComponent.Spec.Workload.Object))
+		Expect(cmp.Diff(components[0].Spec.Workload.Object, expectComponent.Spec.Workload.Object)).To(BeEquivalentTo(""))
 	})
 
 })
