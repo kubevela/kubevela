@@ -24,9 +24,6 @@ var (
 	appbasicJsonAppFile         = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","port":80}}}`
 	appbasicAddTraitJsonAppFile = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","port":80,"scaler":{"replicas":2}}}}`
 )
-var _ = ginkgo.Describe("Test Vela Init", func() {
-	ApplicationInitIntercativeCliContext("init", appNameForInit, workloadType)
-})
 
 var _ = ginkgo.Describe("Test Vela Application", func() {
 	e2e.JsonAppFileContext("json appfile apply", jsonAppFile)
@@ -43,6 +40,8 @@ var _ = ginkgo.Describe("Test Vela Application", func() {
 	ApplicationExecContext("exec -- COMMAND", applicationName)
 	ApplicationPortForwardContext("port-forward", applicationName)
 	e2e.WorkloadDeleteContext("delete", applicationName)
+
+	ApplicationInitIntercativeCliContext("test vela init app", appNameForInit, workloadType)
 	e2e.WorkloadDeleteContext("delete", appNameForInit)
 })
 
