@@ -15,13 +15,14 @@ import (
 )
 
 var (
-	envName             = "env-application"
-	workloadType        = "webservice"
-	applicationName     = "app-basic"
-	traitAlias          = "scaler"
-	appNameForInit      = "initmyapp"
-	jsonAppFile         = `{"name":"nginx-vela","services":{"nginx":{"type":"webservice","image":"nginx:1.9.4","port":80}}}`
-	appbasicJsonAppFile = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","port":80}}}`
+	envName                     = "env-application"
+	workloadType                = "webservice"
+	applicationName             = "app-basic"
+	traitAlias                  = "scaler"
+	appNameForInit              = "initmyapp"
+	jsonAppFile                 = `{"name":"nginx-vela","services":{"nginx":{"type":"webservice","image":"nginx:1.9.4","port":80}}}`
+	appbasicJsonAppFile         = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","port":80}}}`
+	appbasicAddTraitJsonAppFile = `{"name":"app-basic","services":{"app-basic":{"type":"webservice","image":"nginx:1.9.4","port":80,"scaler":{"replicas":2}}}}`
 )
 var _ = ginkgo.Describe("Test Vela Init", func() {
 	ApplicationInitIntercativeCliContext("init", appNameForInit, workloadType)
@@ -34,7 +35,7 @@ var _ = ginkgo.Describe("Test Vela Application", func() {
 	e2e.EnvInitContext("env init", envName)
 	e2e.EnvSetContext("env set", envName)
 	e2e.JsonAppFileContext("deploy app-basic", appbasicJsonAppFile)
-	e2e.TraitManualScalerAttachContext("vela attach scaler trait", traitAlias, applicationName)
+	e2e.JsonAppFileContext("update app-basic, add scaler trait with replicas 2", appbasicAddTraitJsonAppFile)
 	e2e.ComponentListContext("ls", applicationName, workloadType, traitAlias)
 	ApplicationShowContext("show", applicationName, workloadType)
 	ApplicationStatusContext("status", applicationName, workloadType)
