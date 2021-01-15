@@ -164,8 +164,7 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 					_, err = c.SendLine(qa.a)
 					gomega.Expect(err).NotTo(gomega.HaveOccurred())
 				}
-				_, err := c.ExpectEOF()
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				c.ExpectEOF()
 			})
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("Checking Status"))
