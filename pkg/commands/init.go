@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"strconv"
@@ -156,6 +157,32 @@ func (o *appInitOptions) CheckEnv() error {
 	return nil
 }
 
+func formatAndGetUsage(p *types.Parameter) string {
+	usage := p.Usage
+	if usage == "" {
+		usage = "what would you configure for parameter '" + color.New(color.FgCyan).Sprintf("%s", p.Name) + "'"
+	}
+	if p.Required {
+		usage += " (required): "
+	} else {
+		defaultValue := fmt.Sprintf("%v", p.Default)
+		if defaultValue != "" {
+			usage += fmt.Sprintf(" (optional, default is %s): ", defaultValue)
+		} else {
+			usage += " (optional): "
+		}
+		if val, ok := p.Default.(json.Number); ok {
+			if p.Type == cue.NumberKind || p.Type == cue.FloatKind {
+				p.Default, _ = val.Float64()
+			}
+			if p.Type == cue.IntKind {
+				p.Default, _ = val.Int64()
+			}
+		}
+	}
+	return usage
+}
+
 // Workload asks user to choose workload type from installed workloads
 func (o *appInitOptions) Workload() error {
 	workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
@@ -191,20 +218,7 @@ func (o *appInitOptions) Workload() error {
 		if p.Name == "name" {
 			continue
 		}
-		usage := p.Usage
-		if usage == "" {
-			usage = "what would you configure for parameter '" + color.New(color.FgCyan).Sprintf("%s", p.Name) + "'"
-		}
-		if p.Required {
-			usage += " (required): "
-		} else {
-			defaultValue := fmt.Sprintf("%v", p.Default)
-			if defaultValue != "" {
-				usage += fmt.Sprintf(" (optional, default is %s): ", defaultValue)
-			} else {
-				usage += " (optional): "
-			}
-		}
+		usage := formatAndGetUsage(&p)
 		// nolint:exhaustive
 		switch p.Type {
 		case cue.StringKind:
@@ -242,8 +256,12 @@ func (o *appInitOptions) Workload() error {
 			if err != nil {
 				return fmt.Errorf("read param %s err %w", p.Name, err)
 			}
-			val, _ := strconv.ParseFloat(data, 64)
-			fs.Float64(p.Name, val, p.Usage)
+			if data == "" {
+				fs.Float64(p.Name, p.Default.(float64), p.Usage)
+			} else {
+				val, _ := strconv.ParseFloat(data, 64)
+				fs.Float64(p.Name, val, p.Usage)
+			}
 		case cue.IntKind:
 			var data string
 			prompt := &survey.Input{
@@ -265,8 +283,12 @@ func (o *appInitOptions) Workload() error {
 			if err != nil {
 				return fmt.Errorf("read param %s err %w", p.Name, err)
 			}
-			val, _ := strconv.ParseInt(data, 10, 64)
-			fs.Int64(p.Name, val, p.Usage)
+			if data == "" {
+				fs.Int64(p.Name, p.Default.(int64), p.Usage)
+			} else {
+				val, _ := strconv.ParseInt(data, 10, 64)
+				fs.Int64(p.Name, val, p.Usage)
+			}
 		case cue.BoolKind:
 			var data bool
 			prompt := &survey.Confirm{

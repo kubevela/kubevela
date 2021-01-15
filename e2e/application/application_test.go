@@ -152,7 +152,7 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 					},
 					{
 						q: "Which port do you want customer traffic sent to ",
-						a: "8080",
+						a: "",
 					},
 					{
 						q: "Number of CPU units for the service, like `0.5` (0.5 CPU core), `1` (1 CPU core) (optional):",
