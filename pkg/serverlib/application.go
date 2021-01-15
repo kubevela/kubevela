@@ -194,7 +194,7 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 		return "", fmt.Errorf("delete application err %w", err)
 	}
 
-	//TODO(wonderflow): delete the default health scope here
+	// TODO(wonderflow): delete the default health scope here
 	return fmt.Sprintf("delete apps succeed %s from %s", o.AppName, o.Env.Name), nil
 }
 
