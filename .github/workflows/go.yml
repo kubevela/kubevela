@@ -68,6 +68,11 @@ jobs:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
 
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
       - name: Get dependencies
         run: |
           go get -v -t -d ./...
@@ -103,10 +108,11 @@ jobs:
         run: |
           timeout 60 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' localhost:38081/api/workloads)" != "200" ]]; do sleep 5; done' || false
 
+      - name: Run api e2e tests
+        run: make e2e-api-test
+
       - name: Run e2e tests
-        run: |
-          make e2e-api-test
-          make e2e-test
+        run: make e2e-test
 
   lint:
     runs-on: ubuntu-20.04
@@ -153,6 +159,9 @@ jobs:
           path: .work/pkg
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-pkg-
+
+      - name: Check code formatting
+        run: go install golang.org/x/tools/cmd/goimports && make fmt
 
       - name: Check Diff
         run: make check-diff

@@ -20,8 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/go-logr/logr"
@@ -35,6 +33,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/builder"
 	fclient "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/parser"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
 // Reconciler reconciles a Application object
@@ -126,9 +125,10 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 // SetupWithManager install to manager
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// TODO(wonderflow): Own(ApplicationConfiguration), Own(Component) removed.
+	// If Application Own these two child objects, AC status change will notify application controller and recursively update AC again, and trigger application event again...
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha2.Application{}).
-		Owns(&v1alpha2.ApplicationConfiguration{}).Owns(&v1alpha2.Component{}).
 		Complete(r)
 }
 

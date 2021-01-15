@@ -12,7 +12,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -147,7 +146,7 @@ func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOSt
 }
 
 func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, compName, appName string, env *types.EnvMeta) error {
-	app, appConfig, err := getApp(ctx, c, compName, appName, env)
+	app, appConfig, err := getAppConfig(ctx, c, compName, appName, env)
 	if err != nil {
 		return err
 	}
@@ -261,7 +260,7 @@ func tryGetWorkloadStatus(ctx context.Context, c client.Client, ns string, wlRef
 }
 
 func printTrackingDeployStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, compName, appName string, env *types.EnvMeta) (CompStatus, error) {
-	sDeploy := newTrackingSpinner("Checking Status ...")
+	sDeploy := newTrackingSpinnerWithDelay("Checking Status ...", trackingInterval)
 	sDeploy.Start()
 	defer sDeploy.Stop()
 TrackDeployLoop:
@@ -290,33 +289,33 @@ TrackDeployLoop:
 
 // TrackDeployStatus will only check AppConfig is deployed successfully,
 func TrackDeployStatus(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (CompStatus, string, error) {
-	app, appConfig, err := getApp(ctx, c, compName, appName, env)
+	app, appObj, err := getApp(ctx, c, compName, appName, env)
 	if err != nil {
 		return compStatusUnknown, "", err
 	}
-	if app == nil || appConfig == nil {
+	if app == nil || appObj == nil {
 		return compStatusUnknown, "", errors.New(ErrNotLoadAppConfig)
 	}
-	condition := appConfig.Status.Conditions
+	condition := appObj.Status.Conditions
 	if len(condition) < 1 {
 		return compStatusDeploying, "", nil
 	}
 
 	// If condition is true, we can regard appConfig is deployed successfully
-	if condition[0].Status == corev1.ConditionTrue {
+	if appObj.Status.Phase == v1alpha2.ApplicationRunning {
 		return compStatusDeployed, "", nil
 	}
 
 	// if not found workload status in AppConfig
 	// then use age to check whether the workload controller is running
-	if time.Since(appConfig.GetCreationTimestamp().Time) > deployTimeout {
+	if time.Since(appObj.GetCreationTimestamp().Time) > deployTimeout {
 		return compStatusDeployFail, condition[0].Message, nil
 	}
 	return compStatusDeploying, "", nil
 }
 
 func trackHealthCheckingStatus(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (CompStatus, HealthStatus, string, error) {
-	app, appConfig, err := getApp(ctx, c, compName, appName, env)
+	app, appConfig, err := getAppConfig(ctx, c, compName, appName, env)
 	if err != nil {
 		return compStatusUnknown, HealthStatusNotDiagnosed, "", err
 	}
@@ -327,6 +326,10 @@ func trackHealthCheckingStatus(ctx context.Context, c client.Client, compName, a
 	wlStatus, foundWlStatus := getWorkloadStatusFromAppConfig(appConfig, compName)
 	// make sure component already initilized
 	if !foundWlStatus {
+		if len(appConfig.Status.Conditions) < 1 {
+			// still reconciling
+			return compStatusUnknown, HealthStatusUnknown, "", nil
+		}
 		appConfigConditionMsg := appConfig.Status.GetCondition(runtimev1alpha1.TypeSynced).Message
 		return compStatusUnknown, HealthStatusUnknown, "", fmt.Errorf(ErrFmtNotInitialized, appConfigConditionMsg)
 	}
@@ -372,7 +375,7 @@ func trackHealthCheckingStatus(ctx context.Context, c client.Client, compName, a
 	return compStatusHealthCheckDone, HealthStatusNotDiagnosed, statusInfo, nil
 }
 
-func getApp(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (*driver.Application, *v1alpha2.ApplicationConfiguration, error) {
+func getAppConfig(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (*driver.Application, *v1alpha2.ApplicationConfiguration, error) {
 	var app *driver.Application
 	var err error
 	if appName != "" {
@@ -389,6 +392,25 @@ func getApp(ctx context.Context, c client.Client, compName, appName string, env 
 		return nil, nil, err
 	}
 	return app, appConfig, nil
+}
+
+func getApp(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (*driver.Application, *v1alpha2.Application, error) {
+	var app *driver.Application
+	var err error
+	if appName != "" {
+		app, err = application.Load(env.Name, appName)
+	} else {
+		app, err = application.MatchAppByComp(env.Name, compName)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+
+	appObj, err := application.GetApplication(ctx, c, app, env)
+	if err != nil {
+		return nil, nil, err
+	}
+	return app, appObj, nil
 }
 
 func getWorkloadStatusFromAppConfig(appConfig *v1alpha2.ApplicationConfiguration, compName string) (v1alpha2.WorkloadStatus, bool) {

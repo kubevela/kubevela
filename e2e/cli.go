@@ -12,11 +12,10 @@ import (
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
-
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 )
@@ -91,7 +90,7 @@ func InteractiveExec(cli string, consoleFn func(*expect.Console)) (string, error
 	command.Stdin = console.Tty()
 
 	session, err := gexec.Start(command, console.Tty(), console.Tty())
-	s := session.Wait(180 * time.Second)
+	s := session.Wait(300 * time.Second)
 	console.Tty().Close()
 	<-doneC
 	if err != nil {
@@ -100,12 +99,7 @@ func InteractiveExec(cli string, consoleFn func(*expect.Console)) (string, error
 	return string(s.Out.Contents()) + string(s.Err.Contents()), nil
 }
 
-func BeforeSuit() {
-	// sync capabilities from cluster into local
-	_, _ = Exec("vela workloads")
-}
-
-func newK8sClient() (client.Client, error) {
+func NewK8sClient() (client.Client, error) {
 	conf, err := config.GetConfig()
 	if err != nil {
 		return nil, err
@@ -123,4 +117,9 @@ func newK8sClient() (client.Client, error) {
 		return nil, err
 	}
 	return k8sclient, nil
+}
+
+func BeforeSuit() {
+	// sync capabilities from cluster into local
+	_, _ = Exec("vela workloads")
 }

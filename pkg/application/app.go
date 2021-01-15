@@ -156,3 +156,12 @@ func GetAppConfig(ctx context.Context, c client.Client, app *driver.Application,
 	}
 	return appConfig, nil
 }
+
+// GetApplication will get Application from K8s cluster.
+func GetApplication(ctx context.Context, c client.Client, app *driver.Application, env *types.EnvMeta) (*v1alpha2.Application, error) {
+	appl := &v1alpha2.Application{}
+	if err := c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: app.Name}, appl); err != nil {
+		return nil, err
+	}
+	return appl, nil
+}

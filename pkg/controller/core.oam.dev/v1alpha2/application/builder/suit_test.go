@@ -18,12 +18,15 @@ package builder
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -286,7 +289,8 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(len(components)).To(BeEquivalentTo(1))
 		Expect(components[0].ObjectMeta).To(BeEquivalentTo(expectComponent.ObjectMeta))
 		Expect(components[0].TypeMeta).To(BeEquivalentTo(expectComponent.TypeMeta))
-		Expect(components[0].Spec.Workload.Object).To(BeEquivalentTo(expectComponent.Spec.Workload.Object))
+		Expect(assert.ObjectsAreEqual(components[0].Spec.Workload.Object, expectComponent.Spec.Workload.Object)).To(BeEquivalentTo(true))
+		fmt.Println(cmp.Diff(components[0].Spec.Workload.Object, expectComponent.Spec.Workload.Object))
 	})
 
 })
