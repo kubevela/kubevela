@@ -46,7 +46,7 @@ spec:
 ### Workload & Trait
 Each service in the application is modeled by two sections: workload settings and trait properties.
 
-The workload settings section represents the characteristics that runtime infrastructure should take into account to instantiated and deploy this service. Typical workload types including "long running service" and "one-time off task".
+The workload settings section represents the characteristics that runtime infrastructure should take into account to instantiate and deploy this service. Typical workload types include "long running service" and "one-time off task".
 
 The trait properties section represents optional configurations that attaches to an instance of given workload type. Traits augment a workload instance with operational features such as load balancing policy, network ingress routing, circuit breaking, rate limiting, auto-scaling policies, upgrade strategies, and many more.
 
