@@ -8,7 +8,8 @@ import (
 )
 
 func main() {
-	if err := plugins.GenerateReferenceDocs(); err != nil {
+	ref := &plugins.MarkdownReference{}
+	if err := ref.GenerateReferenceDocs(plugins.BaseRefPath); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}

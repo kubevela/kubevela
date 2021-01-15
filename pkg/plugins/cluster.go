@@ -199,8 +199,8 @@ func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Capab
 	return tmp, nil
 }
 
-// SyncDefinitionToLocal sync definitions to local
-func SyncDefinitionToLocal(ctx context.Context, c types.Args, localDefinitionDir string) ([]types.Capability, []string, error) {
+// SyncDefinitionsToLocal sync definitions to local
+func SyncDefinitionsToLocal(ctx context.Context, c types.Args, localDefinitionDir string) ([]types.Capability, []string, error) {
 	var syncedTemplates []types.Capability
 	var warnings []string
 
@@ -228,4 +228,42 @@ func SyncDefinitionToLocal(ctx context.Context, c types.Args, localDefinitionDir
 	syncedTemplates = append(syncedTemplates, templates...)
 	SinkTemp2Local(templates, localDefinitionDir)
 	return syncedTemplates, warnings, nil
+}
+
+// SyncDefinitionToLocal sync definitions to local
+func SyncDefinitionToLocal(ctx context.Context, c types.Args, localDefinitionDir string, capabilityName string) (*types.Capability, error) {
+	var foundCapability bool
+
+	newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+	if err != nil {
+		return nil, err
+	}
+	var workloadDef corev1alpha2.WorkloadDefinition
+	err = newClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: capabilityName}, &workloadDef)
+	if err == nil {
+		// return nil, fmt.Errorf("get WorkloadDefinition err: %w", err)
+		foundCapability = true
+	}
+	if foundCapability {
+		template, err := HandleDefinition(capabilityName, localDefinitionDir, workloadDef.Spec.Reference.Name,
+			workloadDef.Annotations, workloadDef.Spec.Extension, types.TypeWorkload, nil)
+		if err == nil {
+			return &template, nil
+		}
+	}
+
+	foundCapability = false
+	var traitDef corev1alpha2.TraitDefinition
+	err = newClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: capabilityName}, &traitDef)
+	if err == nil {
+		foundCapability = true
+	}
+	if foundCapability {
+		template, err := HandleDefinition(capabilityName, localDefinitionDir, traitDef.Spec.Reference.Name,
+			traitDef.Annotations, traitDef.Spec.Extension, types.TypeTrait, nil)
+		if err == nil {
+			return &template, nil
+		}
+	}
+	return nil, nil
 }

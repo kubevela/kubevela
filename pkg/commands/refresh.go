@@ -49,7 +49,7 @@ func RefreshDefinitions(ctx context.Context, c types.Args, ioStreams cmdutil.IOS
 		return nil
 	}
 
-	syncedTemplates, warnings, err := plugins.SyncDefinitionToLocal(ctx, c, dir)
+	syncedTemplates, warnings, err := plugins.SyncDefinitionsToLocal(ctx, c, dir)
 	if err != nil {
 		return err
 	}

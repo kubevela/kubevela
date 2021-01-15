@@ -4,16 +4,17 @@ import (
 	"context"
 	"fmt"
 
+	"cuelang.org/go/cue"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"cuelang.org/go/cue"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/oam-dev/kubevela/apis/types"
 )
+
+const TestDir = "testdata"
 
 var _ = Describe("DefinitionFiles", func() {
 	route := types.Capability{
