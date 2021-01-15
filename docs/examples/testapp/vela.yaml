@@ -47,5 +47,6 @@ services:
     #     timezone: "America/Los_Angeles"
 
   # pi:
+  #   type: task
   #   image: perl 
   #   cmd: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]

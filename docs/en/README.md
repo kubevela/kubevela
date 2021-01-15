@@ -4,19 +4,28 @@
 
 # KubeVela
 
-For developers, KubeVela is an easy-to-use tool that enables them to describe and ship their applications to Kubernetes with minimal effort.
+For developers, KubeVela is an easy-to-use yet extensible platform that enables them to design and ship applications with minimal effort.
 
-For platform builders, KubeVela serves as a framework that empowers them to create developer facing yet highly extensible platforms at ease.
+For platform builders, KubeVela is the core engine that empowers them to create above platform with ease.
 
-- Slack: [Discuss](https://cloud-native.slack.com/archives/C01BLQ3HTJA)
-- Gitter: [Community](https://gitter.im/oam-dev/community)
+## Community
+
+- Slack:  [CNCF Slack](https://slack.cncf.io/) #kubevela channel
+- Gitter: [Discussion](https://gitter.im/oam-dev/community)
 
 > NOTE: KubeVela is still in early stage and iterating quickly. It's currently under preview release.
 
+## How It Works?
+
+![alt](../resources/how-it-works.png)
+
 ## Quick Start
 
-Quick start guides are available on [this section](/en/quick-start).
+Quick start tutorials for developers are available on [this section](/en/quick-start).
 
+## Platform Builder Guide
+
+Detailed guides for platform teams are available on [this section](/en/platform-engineers/overview).
 
 ## Contributing
 Check out [CONTRIBUTING](https://github.com/oam-dev/kubevela/blob/master/CONTRIBUTING.md) to see how to develop with KubeVela.

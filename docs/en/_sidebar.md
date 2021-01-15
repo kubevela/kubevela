@@ -1,8 +1,14 @@
 - Overview
   - [Introduction](/en/introduction.md)
   - [Getting Started](/en/quick-start.md)
+  - [Concepts and Glossaries](/en/concepts.md)
 
-- User Guide
+- Platform Team Guide
+  - [Register Workload Type](/en/platform-engineers/workload-type.md)
+  - [Register Trait](/en/platform-engineers/trait.md)
+  - [Register Cloud Services](/en/platform-engineers/cloud-services.md)
+
+- End User Guide
   - Appfile
     - [Learning Appfile](/en/developers/learn-appfile.md)
   - Operating
@@ -21,16 +27,10 @@
     - [Configuring data/env in Application](/en/developers/config-app.md)
   - [Alternative Commands](/en/developers/alternative-cmd.md)
 
-- Platform Builder Guide
-  - [Add Workload Type](/en/platform-engineers/workload-type.md)
-  - [Add Trait](/en/platform-engineers/trait.md)
-  - [Add Cloud Services](/en/platform-engineers/cloud-services.md)
-
 - Roadmap
   - [KubeVela Roadmap](/en/roadmap.md)
 
 - References
-  - [Concepts and Glossaries](/en/concepts.md)
   - [Appfile](/en/developers/references/devex/appfile.md)
   - Capabilities
     - Workload Types

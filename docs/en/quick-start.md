@@ -73,8 +73,8 @@ Hello World
 
 Congratulations! You have just deployed an app using KubeVela. Here are some recommended next steps:
 
-- Try out more [tutorials](developers/learn-appfile.md)
-- Learn about KubeVela's [core concepts](https://kubevela.io/#/en/concepts) in detail
-- Join our community [Slack](https://cloud-native.slack.com/archives/C01BLQ3HTJA) and/or [Gitter](https://gitter.im/oam-dev/community)
+- Try out more [end user guides](developers/learn-appfile.md)
+- Learn about KubeVela in detail starting from its [core concepts](concepts)
+- Join `#kubevela` channel in CNCF [Slack](https://cloud-native.slack.com) and/or [Gitter](https://gitter.im/oam-dev/community)
 
 Welcome onboard and sail Vela!

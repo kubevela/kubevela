@@ -86,11 +86,10 @@ Keywords: _self-service_, _on-demand_, _fast-feedback_
 
 In the server side, KubeVela components are essentially the [Control Plane Objects](https://github.com/oam-dev/spec/blob/master/2.overview_and_terminology.md#control-plane-objects) defined in OAM specification. On top of those, KubeVela creates a lightweight user facing layer with the following goals:
 
-- Lower the learning curve of new developers. Most of the capabilities in Kubernetes are developed by
-companies that run complex workloads. The Kubevela user facing layer provides a much simpler path for on-boarding these capabilities.
-- Developers can describe their applications and the behaviors of their components without relying on Kubernetes APIs. For instance, a developer will be able to model the auto-scaling requirements without referring to the underline auto-scaler CRD.
-- Provide a single source of truth of the application description. The user facing layer allows developers to work with a single artifact to capture the application definition. It simplifies administrative tasks and also serves as an anchor to avoid configuration drifts during operation.
-- To be highly extensible. For example, when a new workload type or trait is installed, the end users could access this new capability directly from the user interface layer, no recompilation or redeployment of KubeVela is required.
+- Provide a single source of truth of the application description.
+- Lower the learning curve of new developers. 
+- With abstraction, i.e. developers can describe their applications and the behaviors of their components without relying on Kubernetes APIs. 
+- No abstraction lock.
 
 #### Solution
 

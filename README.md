@@ -9,13 +9,13 @@
 
 ![alt](docs/resources/KubeVela-03.png)
 
-*Shipping apps with joy, building platforms with smile.*
+*Make shipping applications more enjoyable.*
 
 # KubeVela
 
-For developers, KubeVela serves as an easy-to-use yet extensible platform that enables them to describe and ship applications to Kubernetes with minimal effort.
+For developers, KubeVela is an easy-to-use yet extensible platform that enables them to design and ship applications with minimal effort.
 
-For platform builders, KubeVela is the engine that empowers them to create such platforms at scale.
+For platform builders, KubeVela is the core engine that empowers them to create above platform with ease.
 
 ## Community
 
@@ -24,13 +24,17 @@ For platform builders, KubeVela is the engine that empowers them to create such 
 
 > NOTE: KubeVela is still in early stage and iterating quickly. It's currently under preview release.
 
-## User Guide
+## How It Works?
+
+![alt](docs/resources/how-it-works.png)
+
+## Quick Start
 
 Quick start guides for developers are available on [this section](https://kubevela.io/#/en/quick-start).
 
 ## Platform Builder Guide
 
-Tutorials for platform builders are available on [this section](https://kubevela.io/#/en/platform-engineers/overview).
+Detailed guides for platform teams are available on [this section](https://kubevela.io/#/en/platform-engineers/overview).
 
 ## Documentation
 
