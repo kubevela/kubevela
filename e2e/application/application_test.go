@@ -70,7 +70,7 @@ var ApplicationStatusDeeplyContext = func(context string, applicationName, workl
 				appConfig := &v1alpha2.ApplicationConfiguration{}
 				_ = k8sclient.Get(context2.Background(), client.ObjectKey{Name: applicationName, Namespace: "default"}, appConfig)
 				return len(appConfig.Status.Workloads)
-			}, 90*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))
+			}, 180*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))
 
 			cli := fmt.Sprintf("vela status %s", applicationName)
 			output, err := e2e.LongTimeExec(cli, 120*time.Second)
