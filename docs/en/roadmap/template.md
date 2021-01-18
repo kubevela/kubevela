@@ -31,7 +31,7 @@ Date: 2021-01-01 to 2021-03-30
 - Test infrastructure
   - CI (Github Actions) and hosts
   - codecov
-- Unit/e2e test scripts and go code
+- Unit/e2e test cases
 
 ## Project elevation
 

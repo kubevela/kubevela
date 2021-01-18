@@ -1,13 +1,13 @@
 # Roadmap
 
-Date: 2020-10-01 to 2021-12-31
+Date: 2020-10-01 to 2020-12-31
 
 ## Core Platform
 
 - [Merge CUE based abstraction into OAM user facing objects](https://github.com/oam-dev/kubevela/projects/1#card-48198530).
 - [Compatibility checking between workload types and traits](https://github.com/oam-dev/kubevela/projects/1#card-48199349) and [`conflictsWith` feature](https://github.com/oam-dev/kubevela/projects/1#card-48199465)
 - [Simplify revision mechanism in kubevela core](https://github.com/oam-dev/kubevela/projects/1#card-48199829)
-- [Capability Center (i.e. ddon registry)](https://github.com/oam-dev/kubevela/projects/1#card-48203470)
+- [Capability Center (i.e. addon registry)](https://github.com/oam-dev/kubevela/projects/1#card-48203470)
 - [CRD registry to manage the third-party dependencies easier](https://github.com/oam-dev/kubevela/projects/1#card-48200758)
 - [Dapr trait as built-in capability](https://github.com/oam-dev/kubevela/projects/1#card-49368484)
 
