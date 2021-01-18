@@ -130,6 +130,11 @@ spec:
 		By("Create ApplicationConfiguration")
 		Expect(yaml.Unmarshal([]byte(appConfigStr), &appConfig)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, &appConfig)).Should(Succeed())
+		By("Check AppConfig created successfully")
+		ac := &v1alpha2.ApplicationConfiguration{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appName}, ac)
+		}, 3*time.Second, 300*time.Millisecond).Should(BeNil())
 
 		By("Reconcile")
 		reconcileRetry(reconciler, req)
