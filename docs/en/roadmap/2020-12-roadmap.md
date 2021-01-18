@@ -1,6 +1,6 @@
 # Roadmap
 
-Date: 2020-10-01 to 2021-12-30
+Date: 2020-10-01 to 2021-12-31
 
 ## Core Platform
 
