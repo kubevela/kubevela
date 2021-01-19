@@ -39,7 +39,7 @@ parameter: {
 
 	for _, v := range testCases {
 		ctx := process.NewContext("test")
-		wt := NewWDTemplater("-", v.templ)
+		wt := NewWDTemplater("-", v.templ, "")
 		if err := wt.Params(v.params).Complete(ctx); err != nil {
 			t.Error(err)
 			return
@@ -74,7 +74,7 @@ parameter: {
 }
 `
 	ctx := process.NewContext("test")
-	wt := NewWDTemplater("-", baseTemplate)
+	wt := NewWDTemplater("-", baseTemplate, "")
 	if err := wt.Params(map[string]interface{}{
 		"replicas": 2,
 	}).Complete(ctx); err != nil {
@@ -107,7 +107,7 @@ parameter: {
 	}
 
 	for _, v := range tds {
-		td := NewTDTemplater("-", v.templ)
+		td := NewTDTemplater("-", v.templ, "")
 		if err := td.Params(v.params).Complete(ctx); err != nil {
 			t.Error(err)
 			return

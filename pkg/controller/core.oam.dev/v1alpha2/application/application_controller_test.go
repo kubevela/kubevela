@@ -25,9 +25,8 @@ import (
 	"net/http/httptest"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
@@ -41,6 +40,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -576,6 +576,86 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 
+	It("app with health policy for workload", func() {
+		By("change workload and trait definition with health policy")
+		nwd, owd := &v1alpha2.WorkloadDefinition{}, &v1alpha2.WorkloadDefinition{}
+		wDDefJson, _ := yaml.YAMLToJSON([]byte(wDDefWithHealthYaml))
+		Expect(json.Unmarshal(wDDefJson, nwd)).Should(BeNil())
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "worker"}, owd)).Should(BeNil())
+		nwd.ResourceVersion = owd.ResourceVersion
+		Expect(k8sClient.Update(ctx, nwd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		ntd, otd := &v1alpha2.TraitDefinition{}, &v1alpha2.TraitDefinition{}
+		tDDefJson, _ := yaml.YAMLToJSON([]byte(tDDefWithHealthYaml))
+		Expect(json.Unmarshal(tDDefJson, ntd)).Should(BeNil())
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "scaler"}, otd)).Should(BeNil())
+		ntd.ResourceVersion = otd.ResourceVersion
+		Expect(k8sClient.Update(ctx, ntd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		expDeployment := getExpDeployment("myweb6")
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-with-health",
+			},
+		}
+		appWithTrait.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		app := appWithTrait.DeepCopy()
+		expDeployment.Name = app.Name
+		expDeployment.Namespace = ns.Name
+		expDeployment.Labels[oam.LabelAppName] = app.Name
+		Expect(k8sClient.Create(ctx, expDeployment)).Should(BeNil())
+		expectScalerTrait.SetName(app.Name)
+		expectScalerTrait.SetNamespace(app.Namespace)
+		expectScalerTrait.SetLabels(map[string]string{
+			oam.LabelAppName:     app.Name,
+			"trait.oam.dev/type": "scaler",
+		})
+		(expectScalerTrait.Object["spec"].(map[string]interface{}))["workloadRef"] = map[string]interface{}{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"name":       app.Name,
+		}
+		Expect(k8sClient.Create(ctx, &expectScalerTrait)).Should(BeNil())
+
+		By("enrich the status of deployment and scaler trait")
+		expDeployment.Status.Replicas = 1
+		expDeployment.Status.ReadyReplicas = 1
+		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
+		got := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      app.Name,
+		}, got)).Should(BeNil())
+		expectScalerTrait.Object["status"] = v1alpha1.ConditionedStatus{
+			Conditions: []v1alpha1.Condition{{
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: metav1.Now(),
+			}},
+		}
+		Expect(k8sClient.Status().Update(ctx, &expectScalerTrait)).Should(BeNil())
+		tGot := &unstructured.Unstructured{}
+		tGot.SetAPIVersion("core.oam.dev/v1alpha2")
+		tGot.SetKind("ManualScalerTrait")
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      app.Name,
+		}, tGot)).Should(BeNil())
+
+		By("apply appfile")
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check App running successfully")
+		checkApp := &v1alpha2.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
 })
 
 func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
@@ -655,8 +735,67 @@ spec:
 
           cmd?: [...string]
       }
+`
+	wDDefWithHealthYaml = `
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: worker
+  annotations:
+    definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
+spec:
+  definitionRef:
+    name: deployments.apps
+  extension:
+    healthPolicy: |
+      isHealth: output.status.readyReplicas == output.status.replicas 
+    template: |
+      output: {
+          apiVersion: "apps/v1"
+          kind:       "Deployment"
+          metadata: {
+              annotations: {
+                  if context["config"] != _|_ {
+                      for _, v in context.config {
+                          "\(v.name)" : v.value
+                      }
+                  }
+              }
+          }
+          spec: {
+              selector: matchLabels: {
+                  "app.oam.dev/component": context.name
+              }
+              template: {
+                  metadata: labels: {
+                      "app.oam.dev/component": context.name
+                  }
 
-      
+                  spec: {
+                      containers: [{
+                          name:  context.name
+                          image: parameter.image
+
+                          if parameter["cmd"] != _|_ {
+                              command: parameter.cmd
+                          }
+                      }]
+                  }
+              }
+
+              selector:
+                  matchLabels:
+                      "app.oam.dev/component": context.name
+          }
+      }
+
+      parameter: {
+          // +usage=Which image would you like to use for your service
+          // +short=i
+          image: string
+
+          cmd?: [...string]
+      }
 `
 	tDDefYaml = `
 apiVersion: core.oam.dev/v1alpha2
@@ -729,6 +868,36 @@ spec:
               trailer: {}
           }
         }
+      }
+`
+	tDDefWithHealthYaml = `
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "Manually scale the app"
+  name: scaler
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  definitionRef:
+    name: manualscalertraits.core.oam.dev
+  workloadRefPath: spec.workloadRef
+  extension:
+    healthPolicy: |
+      isHealth: output.status.conditions[0].status == "True"
+    template: |-
+      output: {
+      	apiVersion: "core.oam.dev/v1alpha2"
+      	kind:       "ManualScalerTrait"
+      	spec: {
+      		replicaCount: parameter.replicas
+      	}
+      }
+      parameter: {
+      	//+short=r
+      	replicas: *1 | int
       }
 `
 )
