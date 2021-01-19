@@ -97,9 +97,9 @@ type RolloutPlan struct {
 	// +optional
 	BatchPartition *int32 `json:"lastBatchToRollout,omitempty"`
 
-	// Stopped the rollout, default is false
+	// Paused the rollout, default is false
 	// +optional
-	Stopped bool `json:"stopped,omitempty"`
+	Paused bool `json:"paused,omitempty"`
 
 	// RolloutWebhooks provides a way for the rollout to interact with an external process
 	// +optional

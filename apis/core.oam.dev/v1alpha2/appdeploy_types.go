@@ -39,6 +39,11 @@ type ApplicationDeploymentSpec struct {
 
 	// RolloutPlan is the details on how to rollout the resources
 	RolloutPlan v1alpha1.RolloutPlan `json:"rolloutPlan"`
+
+	// RevertOnDelete revert the rollout when the rollout CR is deleted, default is false
+	// It will remove the target application from the kubernetes
+	// +optional
+	RevertOnDelete bool `json:"revertOnDelete,omitempty"`
 }
 
 // ApplicationDeployment is the Schema for the ApplicationDeployment API
