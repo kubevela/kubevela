@@ -11,6 +11,7 @@
 - End User Guide
   - Appfile
     - [Learning Appfile](/en/developers/learn-appfile.md)
+    - [Writing-Appfile](./developers/writing-appfile.md)
   - Operating
     - [Setting Routes](/en/developers/set-route.md)
     - [Setting Auto-scaling Policy](/en/developers/set-autoscale.md)
@@ -32,7 +33,7 @@
 
 - References
   - [Appfile](/en/developers/references/devex/appfile.md)
-  - [Capabilities](/en/developers/references/README.md)
+  - [Capabilities](./developers/references/README.md)
     - Workload Types
       - [Webservice](/en/developers/references/workload-types/webservice.md)
       - [Task](/en/developers/references/workload-types/task.md)

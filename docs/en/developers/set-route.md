@@ -16,7 +16,7 @@ services:
           rewriteTarget: /
 ```
 
-> The full specification of `route` could be found [here](references/traits/route.md)
+> The full specification of `route` could show up by `vela show route` or be found on [kubevela.io](references/traits/route.md)
 
 Apply again:
 

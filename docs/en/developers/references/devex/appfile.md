@@ -43,3 +43,5 @@ services:
     ...
   
 ```
+
+To set properties for the Workload types and Traits above, please refer to [Writing Appfile](../../writing-appfile.md).

@@ -1,8 +1,15 @@
 # Capability Documentation
 
-> Note: All the contents under this directory are designed to be referenced by other documentations as the full schema or usage of specific workload types or traits. 
+Learning the detailed schema of every workload type and trait supported in KubeVela.
 
-Learning the detailed schema of every [workload type](https://github.com/oam-dev/kubevela/tree/master/docs/en/developers/references/workload-types)
-and [trait](https://github.com/oam-dev/kubevela/tree/master/docs/en/developers/references/traits) supported in KubeVela.
+## Workload Types
+- [webservice](workload-types/webservice.md)
+- [task](workload-types/task.md)
+- [worker](workload-types/worker.md)
 
-> In the upcoming releases, we plan to auto-generate all these reference documentations from the CUE templates in KubeVela's definition objects, and developers could read them by simply `$ vela show <trait_name>`.
+## Traits
+- [route](traits/route.md)
+- [autoscale](traits/autoscale.md)
+- [rollout](traits/rollout.md)
+- [metrics](traits/metrics.md)
+- [scaler](traits/scaler.md)
