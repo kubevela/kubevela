@@ -32,7 +32,7 @@
 
 - References
   - [Appfile](/en/developers/references/devex/appfile.md)
-  - Capabilities
+  - [Capabilities](/en/developers/references/README.md)
     - Workload Types
       - [Webservice](/en/developers/references/workload-types/webservice.md)
       - [Task](/en/developers/references/workload-types/task.md)
