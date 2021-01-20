@@ -38,8 +38,8 @@ import (
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/dependency"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	velawebhook "github.com/oam-dev/kubevela/pkg/webhook"
-	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2"
+	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
+	velawebhook "github.com/oam-dev/kubevela/pkg/webhook/standard.oam.dev"
 	"github.com/oam-dev/kubevela/version"
 )
 
@@ -154,7 +154,7 @@ func main() {
 
 	if useWebhook {
 		setupLog.Info("vela webhook enabled, will serving at :" + strconv.Itoa(webhookPort))
-		if err = oamwebhook.Add(mgr); err != nil {
+		if err = oamwebhook.Register(mgr); err != nil {
 			setupLog.Error(err, "unable to setup oam runtime webhook")
 			os.Exit(1)
 		}

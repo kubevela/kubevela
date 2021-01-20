@@ -5,9 +5,9 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	"github.com/go-logr/logr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -19,28 +19,26 @@ import (
 // Reconciler reconciles a PodSpecWorkload object
 type Reconciler struct {
 	client.Client
-	log    logr.Logger
 	record event.Recorder
 	Scheme *runtime.Scheme
 }
 
-// Reconcile is the main logci of applicationdeployment controller
+// Reconcile is the main logic of applicationdeployment controller
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applicationdeployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applicationdeployments/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applicationconfigurations,verbs=get;list;watch;create;update;patch;delete
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
-	log := r.log.WithValues("applicationdeployments", req.NamespacedName)
-	log.Info("Reconcile applicationdeployment")
+	klog.Info("Reconcile applicationdeployment")
 
 	var appdeploy v1alpha2.ApplicationDeployment
 	if err := r.Get(ctx, req.NamespacedName, &appdeploy); err != nil {
 		if apierrors.IsNotFound(err) {
-			log.Info("applicationdeployment is deleted")
+			klog.Info("applicationdeployment is deleted")
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	log.Info("Get the applicationdeployment", "apiVersion", appdeploy.APIVersion, "kind", appdeploy.Kind)
+	klog.InfoS("Get the applicationdeployment", "apiVersion", appdeploy.APIVersion, "kind", appdeploy.Kind)
 
 	// TODO add reconcile logic here
 
@@ -61,7 +59,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 func Setup(mgr ctrl.Manager, _ controller.Args, _ logging.Logger) error {
 	reconciler := Reconciler{
 		Client: mgr.GetClient(),
-		log:    ctrl.Log.WithName("ApplicationDeployment"),
 		Scheme: mgr.GetScheme(),
 	}
 	return reconciler.SetupWithManager(mgr)

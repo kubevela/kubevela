@@ -1,15 +1,16 @@
-package v1alpha2
+package core_oam_dev
 
 import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationconfiguration"
+	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationdeployment"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/component"
 )
 
-// Add will be called in main and register all validation handlers
-func Add(mgr manager.Manager) error {
+// Register will be called in main and register all validation handlers
+func Register(mgr manager.Manager) error {
 	if err := application.RegisterValidatingHandler(mgr); err != nil {
 		return err
 	}
@@ -17,6 +18,7 @@ func Add(mgr manager.Manager) error {
 		return err
 	}
 	applicationconfiguration.RegisterMutatingHandler(mgr)
+	applicationdeployment.RegisterMutatingHandler(mgr)
 	if err := component.RegisterMutatingHandler(mgr); err != nil {
 		return err
 	}
