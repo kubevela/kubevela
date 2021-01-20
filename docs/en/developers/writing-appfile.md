@@ -107,16 +107,9 @@ services:
         timezone: "America/Los_Angeles"
 ```
 
-## Look up the reference doc in a [kubevela.io](https://kubevela.io/#/en/developers/references/)
-
-> Platform team extended Workload type or Trait currently could not display in KubeVela official site. 
-
-If you just want to look up KubeVela built-in Workload types and Traits, directly visiting the official site [https://kubevela.io/#/en/developers/references/](./references/README.md)
-is also recommended.
-
 ## Show up the properties reference on the Cli console
 
-If you prefer to show the properties reference on the Cli console, just add flag `--no-website` to command `vela show`.
+If you can't invoke a browser and just want to see the properties reference on the terminal console, just add flag `--no-website` to command `vela show`.
 
 ```shell
 $ vela show webservice --no-website
@@ -159,10 +152,19 @@ $ vela show webservice --no-website
 +------+------------------------------------------------------------------+--------+----------+---------+
 ```
 
+
+## Look up the reference doc in a [kubevela.io](https://kubevela.io/#/en/developers/references/)
+
+> Platform team extended Workload type or Trait currently could not display in KubeVela official site. 
+
+If you just want to look up KubeVela built-in Workload types and Traits, directly visiting the official site [https://kubevela.io/#/en/developers/references/](./references/README.md)
+is also recommended.
+
+
 # Comparation
 
 Properties reference | Access | Support built-in capability? | Support extended capability? | Include Appfile sample
 ------------ | ------------- | ------------- | ------------- | ------------- |
 Locally hosted website | `vela show ${workloadType}/${trait}` | Yes | Yes | Yes
+Cli console | `vela show ${workloadType}/${trait} --no-website` | Yes | Yes | No
 Official site | [https://kubevela.io/#/en/developers/references/](https://kubevela.io/#/en/developers/references/)  | Yes | No | Yes
-Cli console | `vela show ${workloadType}/${trait} --no-website` | Yes | Yes | No 
