@@ -3,11 +3,12 @@ package plugins
 import (
 	"context"
 	"fmt"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	"os"
+	"path/filepath"
 
 	"cuelang.org/go/cue"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -15,9 +16,16 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 )
 
+const (
+	TestDir        = "testdata"
+	RouteName      = "routes.test"
+	DeployName     = "deployments.testapps"
+	WebserviceName = "webservice.testapps"
+)
+
 var _ = Describe("DefinitionFiles", func() {
 	route := types.Capability{
-		Name: "routes.test",
+		Name: RouteName,
 		Type: types.TypeTrait,
 		Parameters: []types.Parameter{
 			{
@@ -36,7 +44,7 @@ var _ = Describe("DefinitionFiles", func() {
 	}
 
 	deployment := types.Capability{
-		Name:        "deployments.testapps",
+		Name:        DeployName,
 		Type:        types.TypeWorkload,
 		CrdName:     "deployments.apps",
 		Description: "description not defined",
@@ -68,7 +76,7 @@ var _ = Describe("DefinitionFiles", func() {
 	}
 
 	websvc := types.Capability{
-		Name:        "webservice.testapps",
+		Name:        WebserviceName,
 		Type:        types.TypeWorkload,
 		Description: "description not defined",
 		Parameters: []types.Parameter{{
@@ -138,5 +146,52 @@ var _ = Describe("DefinitionFiles", func() {
 		}
 		Expect(alldef).Should(Equal([]types.Capability{deployment, websvc, route}))
 	})
+	It("SyncDefinitionsToLocal", func() {
+		localDefinitionDir := "testdata/capabilities"
+		if _, err := os.Stat(localDefinitionDir); err != nil && os.IsNotExist(err) {
+			os.MkdirAll(localDefinitionDir, 0750)
+		}
+		syncedTemplates, _, err := SyncDefinitionsToLocal(context.Background(),
+			types.Args{Config: cfg, Schema: scheme}, localDefinitionDir)
 
+		var containRoute, containDeploy, containWebservice bool
+		for _, t := range syncedTemplates {
+			switch t.Name {
+			case RouteName:
+				containRoute = true
+			case DeployName:
+				containDeploy = true
+			case WebserviceName:
+				containWebservice = true
+			}
+		}
+		Expect(containRoute).Should(Equal(true))
+		Expect(containDeploy).Should(Equal(true))
+		Expect(containWebservice).Should(Equal(true))
+		Expect(err).Should(BeNil())
+		_, err = os.Stat(filepath.Join(localDefinitionDir, "workloads", DeployName))
+		Expect(err).Should(BeNil())
+		_, err = os.Stat(filepath.Join(localDefinitionDir, "workloads", WebserviceName))
+		Expect(err).Should(BeNil())
+		_, err = os.Stat(filepath.Join(localDefinitionDir, "traits", RouteName))
+		Expect(err).Should(BeNil())
+		if _, err := os.Stat(localDefinitionDir); err == nil {
+			os.RemoveAll(localDefinitionDir)
+		}
+	})
+	It("SyncDefinitionToLocal", func() {
+		localDefinitionDir := "testdata/capabilities"
+		if _, err := os.Stat(localDefinitionDir); err != nil && os.IsNotExist(err) {
+			os.MkdirAll(localDefinitionDir, 0750)
+		}
+		template, err := SyncDefinitionToLocal(context.Background(),
+			types.Args{Config: cfg, Schema: scheme}, localDefinitionDir, RouteName)
+		Expect(err).Should(BeNil())
+		Expect(template.Name).Should(Equal(RouteName))
+		_, err = os.Stat(filepath.Join(localDefinitionDir, fmt.Sprintf("%s.cue", RouteName)))
+		Expect(err).Should(BeNil())
+		if _, err := os.Stat(localDefinitionDir); err == nil {
+			os.RemoveAll(localDefinitionDir)
+		}
+	})
 })

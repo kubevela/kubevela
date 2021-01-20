@@ -29,6 +29,7 @@ Name | Description | Type | Required | Default
  domain |  Domain name | string | true | empty 
  issuer |  | string | true | empty 
  rules |  | [[]rules](#rules) | false |  
+ provider |  | string | false |  
 
 
 ### rules

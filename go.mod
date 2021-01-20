@@ -34,6 +34,7 @@ require (
 	github.com/mholt/archiver/v3 v3.3.0
 	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/oam-dev/trait-injector v0.0.0-20200331033130-0a27b176ffc4
+	github.com/olekukonko/tablewriter v0.0.2
 	github.com/onsi/ginkgo v1.13.0
 	github.com/onsi/gomega v1.10.3
 	github.com/openservicemesh/osm v0.3.0

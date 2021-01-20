@@ -62,7 +62,7 @@ func NewCommand() *cobra.Command {
 		// Apps
 		NewListCommand(commandArgs, ioStream),
 		NewDeleteCommand(commandArgs, ioStream),
-		NewAppShowCommand(ioStream),
+		NewAppShowCommand(commandArgs, ioStream),
 		NewAppStatusCommand(commandArgs, ioStream),
 		NewExecCommand(commandArgs, ioStream),
 		NewPortForwardCommand(commandArgs, ioStream),
