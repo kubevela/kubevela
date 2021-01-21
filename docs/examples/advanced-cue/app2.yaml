@@ -1,0 +1,20 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: Application
+metadata:
+  name: testapp
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      settings:
+        cmd:
+          - node
+          - server.js
+        image: oamdev/testapp:v1
+        port: 8080
+      traits:
+        - name: my-svc
+          properties:
+            http:
+              myservice1: 8080
+              myservice2: 8081
