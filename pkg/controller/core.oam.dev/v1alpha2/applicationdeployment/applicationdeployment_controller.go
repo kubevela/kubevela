@@ -2,6 +2,7 @@ package applicationdeployment
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
@@ -14,11 +15,13 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
 // Reconciler reconciles a PodSpecWorkload object
 type Reconciler struct {
 	client.Client
+	dm     discoverymapper.DiscoveryMapper
 	record event.Recorder
 	Scheme *runtime.Scheme
 }
@@ -29,8 +32,6 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applicationconfigurations,verbs=get;list;watch;create;update;patch;delete
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
-	klog.Info("Reconcile applicationdeployment")
-
 	var appdeploy v1alpha2.ApplicationDeployment
 	if err := r.Get(ctx, req.NamespacedName, &appdeploy); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -38,7 +39,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	klog.InfoS("Get the applicationdeployment", "apiVersion", appdeploy.APIVersion, "kind", appdeploy.Kind)
+	klog.InfoS("Start to reconcile ", "application deployment", klog.KObj(&appdeploy))
 
 	// TODO add reconcile logic here
 
@@ -51,14 +52,19 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		WithAnnotations("controller", "ApplicationDeployment")
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha2.ApplicationDeployment{}).
-		Owns(&corev1alpha2.ApplicationConfiguration{}).
+		Owns(&corev1alpha2.Application{}).
 		Complete(r)
 }
 
 // Setup adds a controller that reconciles ApplicationDeployment.
 func Setup(mgr ctrl.Manager, _ controller.Args, _ logging.Logger) error {
+	dm, err := discoverymapper.New(mgr.GetConfig())
+	if err != nil {
+		return fmt.Errorf("create discovery dm fail %w", err)
+	}
 	reconciler := Reconciler{
 		Client: mgr.GetClient(),
+		dm:     dm,
 		Scheme: mgr.GetScheme(),
 	}
 	return reconciler.SetupWithManager(mgr)

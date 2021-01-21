@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
@@ -38,7 +39,9 @@ func TestMapper(t *testing.T) {
 
 var _ = BeforeSuite(func(done Done) {
 	By("Bootstrapping test environment")
-	testEnv = &envtest.Environment{}
+	testEnv = &envtest.Environment{
+		UseExistingCluster: pointer.BoolPtr(false),
+	}
 	var err error
 	cfg, err = testEnv.Start()
 	Expect(err).ToNot(HaveOccurred())

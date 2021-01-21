@@ -1,7 +1,6 @@
-package parser
+package application
 
 import (
-	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -9,23 +8,14 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/template"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // AppfileBuiltinConfig defines the built-in config variable
 const AppfileBuiltinConfig = "config"
-
-// Render is cue render
-type Render interface {
-	// WithContext(ctx interface{}) Render
-	WithParams(params interface{}) Render
-	WithTemplate(raw string) Render
-	Complete() (*cue.Instance, error)
-}
 
 // Workload is component
 type Workload struct {
@@ -90,8 +80,8 @@ func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, name s
 
 // Appfile describes application
 type Appfile struct {
-	Name     string
-	Services []*Workload
+	Name      string
+	Workloads []*Workload
 }
 
 // TemplateValidate validate Template format
@@ -99,41 +89,43 @@ func (af *Appfile) TemplateValidate() error {
 	return nil
 }
 
-// Parser is appfile parser
+// Parser is an application parser
 type Parser struct {
-	templ template.Handler
-	cli   defclient.DefinitionClient
+	client client.Client
+	dm     discoverymapper.DiscoveryMapper
 }
 
-// NewParser create appfile parser
-func NewParser(cli defclient.DefinitionClient) *Parser {
-	return &Parser{templ: template.GetHandler(cli), cli: cli}
+// NewApplicationParser create appfile parser
+func NewApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper) *Parser {
+	return &Parser{
+		client: cli,
+		dm:     dm,
+	}
 }
 
-// Parse convert map to Appfile
-func (pser *Parser) Parse(name string, app *v1alpha2.Application) (*Appfile, error) {
-
+// GenerateAppFile converts an application to an Appfile
+func (p *Parser) GenerateAppFile(name string, app *v1alpha2.Application) (*Appfile, error) {
 	appfile := new(Appfile)
 	appfile.Name = name
 	var wds []*Workload
 	for _, comp := range app.Spec.Components {
-		wd, err := pser.parseWorkload(comp)
+		wd, err := p.parseWorkload(comp)
 		if err != nil {
 			return nil, err
 		}
 		wds = append(wds, wd)
 	}
-	appfile.Services = wds
+	appfile.Workloads = wds
 
 	return appfile, nil
 }
 
-func (pser *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload, error) {
+func (p *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload, error) {
 	workload := new(Workload)
 	workload.Traits = []*Trait{}
 	workload.Name = comp.Name
 	workload.Type = comp.WorkloadType
-	templ, health, err := pser.templ(workload.Type, types.TypeWorkload)
+	templ, health, err := util.LoadTemplate(p.client, workload.Type, types.TypeWorkload)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
 	}
@@ -149,7 +141,7 @@ func (pser *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload
 		if err != nil {
 			return nil, errors.Errorf("fail to parse properties of %s for %s", traitValue.Name, comp.Name)
 		}
-		trait, err := pser.parseTrait(traitValue.Name, properties)
+		trait, err := p.parseTrait(traitValue.Name, properties)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Name)
 		}
@@ -157,7 +149,7 @@ func (pser *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload
 		workload.Traits = append(workload.Traits, trait)
 	}
 	for scopeType, instanceName := range comp.Scopes {
-		gvk, err := pser.cli.GetScopeGVK(scopeType)
+		gvk, err := util.GetScopeGVK(p.client, p.dm, scopeType)
 		if err != nil {
 			return nil, err
 		}
@@ -169,8 +161,8 @@ func (pser *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload
 	return workload, nil
 }
 
-func (pser *Parser) parseTrait(name string, properties map[string]interface{}) (*Trait, error) {
-	templ, health, err := pser.templ(name, types.TypeTrait)
+func (p *Parser) parseTrait(name string, properties map[string]interface{}) (*Trait, error) {
+	templ, health, err := util.LoadTemplate(p.client, name, types.TypeTrait)
 	if kerrors.IsNotFound(err) {
 		return nil, errors.Errorf("trait definition of %s not found", name)
 	}

@@ -1,57 +1,46 @@
-package builder
+package application
 
 import (
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/parser"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
-
-type builder struct {
-	app *parser.Appfile
-	c   client.Client
-}
 
 const (
 	// OAMApplicationLabel is application's metadata label
 	OAMApplicationLabel = "application.oam.dev"
 )
 
-// Build template to applicationConfig & Component
-func Build(ns string, app *parser.Appfile, c client.Client) (*v1alpha2.ApplicationConfiguration, []*v1alpha2.Component, error) {
-	b := &builder{app: app, c: c}
-	return b.CompleteWithContext(ns)
-}
-
-func (b *builder) CompleteWithContext(ns string) (*v1alpha2.ApplicationConfiguration, []*v1alpha2.Component, error) {
+// GenerateApplicationConfiguration converts an appFile to applicationConfig & Components
+func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1alpha2.ApplicationConfiguration,
+	[]*v1alpha2.Component, error) {
 	appconfig := &v1alpha2.ApplicationConfiguration{}
 	appconfig.SetGroupVersionKind(v1alpha2.ApplicationConfigurationGroupVersionKind)
-	appconfig.Name = b.app.Name
+	appconfig.Name = app.Name
 	appconfig.Namespace = ns
 	appconfig.Spec.Components = []v1alpha2.ApplicationConfigurationComponent{}
 
 	if appconfig.Labels == nil {
 		appconfig.Labels = map[string]string{}
 	}
-	appconfig.Labels[OAMApplicationLabel] = b.app.Name
+	appconfig.Labels[OAMApplicationLabel] = app.Name
 
 	var components []*v1alpha2.Component
-	for _, wl := range b.app.Services {
+	for _, wl := range app.Workloads {
 
 		pCtx := process.NewContext(wl.Name)
 		userConfig := wl.GetUserConfigName()
 		if userConfig != "" {
-			cg := config.Configmap{Client: b.c}
+			cg := config.Configmap{Client: p.client}
 
 			// TODO(wonderflow): envName should not be namespace when we have serverside env
 			var envName = ns
 
-			data, err := cg.GetConfigData(config.GenConfigMapName(b.app.Name, wl.Name, userConfig), envName)
+			data, err := cg.GetConfigData(config.GenConfigMapName(app.Name, wl.Name, userConfig), envName)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -66,7 +55,7 @@ func (b *builder) CompleteWithContext(ns string) (*v1alpha2.ApplicationConfigura
 				return nil, nil, err
 			}
 		}
-		comp, acComp, err := generateOAM(pCtx, wl)
+		comp, acComp, err := evalWorkloadWithContext(pCtx, wl)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -85,7 +74,7 @@ func (b *builder) CompleteWithContext(ns string) (*v1alpha2.ApplicationConfigura
 		if comp.Labels == nil {
 			comp.Labels = map[string]string{}
 		}
-		comp.Labels[OAMApplicationLabel] = b.app.Name
+		comp.Labels[OAMApplicationLabel] = app.Name
 		comp.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
 
 		components = append(components, comp)
@@ -94,7 +83,8 @@ func (b *builder) CompleteWithContext(ns string) (*v1alpha2.ApplicationConfigura
 	return appconfig, components, nil
 }
 
-func generateOAM(pCtx process.Context, wl *parser.Workload) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+// evalWorkloadWithContext evaluate the workload's template to generate component and ACComponent
+func evalWorkloadWithContext(pCtx process.Context, wl *Workload) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
 	base, assists := pCtx.Output()
 	componentWorkload, err := base.Unstructured()
 	if err != nil {

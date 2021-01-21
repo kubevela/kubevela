@@ -14,18 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package builder
+package application
 
 import (
 	"context"
 	"fmt"
-	"path/filepath"
-	"testing"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/google/go-cmp/cmp"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,16 +32,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/parser"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	// +kubebuilder:scaffold:imports
 )
@@ -50,58 +41,11 @@ import (
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
-var cfg *rest.Config
-var k8sClient client.Client
-var testEnv *envtest.Environment
-var testScheme = runtime.NewScheme()
-
-func TestAPIs(t *testing.T) {
-
-	RegisterFailHandler(Fail)
-
-	RunSpecsWithDefaultAndCustomReporters(t,
-		"Controller Suite",
-		[]Reporter{printer.NewlineReporter{}})
-}
-
-var _ = BeforeSuite(func(done Done) {
-	logf.SetLogger(zap.LoggerTo(GinkgoWriter, true))
-
-	By("bootstrapping test environment")
-	testEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{filepath.Join("../../../../..", "charts", "vela-core", "crds")},
-	}
-
-	var err error
-	cfg, err = testEnv.Start()
-	Expect(err).ToNot(HaveOccurred())
-	Expect(cfg).ToNot(BeNil())
-
-	err = v1alpha2.SchemeBuilder.AddToScheme(testScheme)
-	Expect(err).NotTo(HaveOccurred())
-
-	err = scheme.AddToScheme(testScheme)
-	Expect(err).NotTo(HaveOccurred())
-	// +kubebuilder:scaffold:scheme
-
-	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
-	Expect(err).ToNot(HaveOccurred())
-	Expect(k8sClient).ToNot(BeNil())
-
-	close(done)
-}, 60)
-
-var _ = AfterSuite(func() {
-	By("tearing down the test environment")
-	err := testEnv.Stop()
-	Expect(err).ToNot(HaveOccurred())
-})
-
-var _ = Describe("Test Application Controller", func() {
+var _ = Describe("Test appFile parser", func() {
 	// TestApp is test data
-	var TestApp = &parser.Appfile{
+	var TestApp = &Appfile{
 		Name: "test",
-		Services: []*parser.Workload{
+		Workloads: []*Workload{
 			{
 				Name: "myweb",
 				Type: "worker",
@@ -110,7 +54,7 @@ var _ = Describe("Test Application Controller", func() {
 					"cmd":    []interface{}{"sleep", "1000"},
 					"config": "myconfig",
 				},
-				Scopes: []parser.Scope{
+				Scopes: []Scope{
 					{Name: "test-scope", GVK: schema.GroupVersionKind{
 						Group:   "core.oam.dev",
 						Version: "v1alpha2",
@@ -159,7 +103,7 @@ var _ = Describe("Test Application Controller", func() {
       
       	cmd?: [...string]
       }`,
-				Traits: []*parser.Trait{
+				Traits: []*Trait{
 					{
 						Name: "scaler",
 						Params: map[string]interface{}{
@@ -188,12 +132,9 @@ var _ = Describe("Test Application Controller", func() {
 		Data:       map[string]string{"c1": "v1", "c2": "v2"},
 	}
 
-	BeforeEach(func() {})
-	AfterEach(func() {})
-
 	It("app-without-trait will only create workload", func() {
 		Expect(k8sClient.Create(context.Background(), cm.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		ac, components, err := Build("default", TestApp, k8sClient)
+		ac, components, err := NewApplicationParser(k8sClient, nil).GenerateApplicationConfiguration(TestApp, "default")
 		Expect(err).To(BeNil())
 		expectAppConfig := &v1alpha2.ApplicationConfiguration{
 			TypeMeta: v1.TypeMeta{

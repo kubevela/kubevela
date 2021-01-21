@@ -6,6 +6,9 @@ import (
 	"github.com/onsi/gomega/format"
 	"github.com/onsi/gomega/types"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 )
 
 // JSONMarshal returns the JSON encoding
@@ -123,4 +126,30 @@ func (matcher ErrorMatcher) NegatedFailureMessage(actual interface{}) (message s
 	}
 
 	return format.Message(actual, "not to equal", expectedError)
+}
+
+// UnMarshalStringToWorkloadDefinition parse a string to a workloadDefinition object
+func UnMarshalStringToWorkloadDefinition(s string) (*v1alpha2.WorkloadDefinition, error) {
+	obj := &v1alpha2.WorkloadDefinition{}
+	_body, err := yaml.YAMLToJSON([]byte(s))
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(_body, obj); err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
+// UnMarshalStringToTraitDefinition parse a string to a traitDefinition object
+func UnMarshalStringToTraitDefinition(s string) (*v1alpha2.TraitDefinition, error) {
+	obj := &v1alpha2.TraitDefinition{}
+	_body, err := yaml.YAMLToJSON([]byte(s))
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(_body, obj); err != nil {
+		return nil, err
+	}
+	return obj, nil
 }
