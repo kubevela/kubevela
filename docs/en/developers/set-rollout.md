@@ -21,7 +21,7 @@ services:
       domain: "example.com"
 ```
 
-> The full specification of `rollout` could be found [here](references/traits/rollout.md)
+> The full specification of `rollout` could show up by `vela show rollout` or be found on [kubevela.io](references/traits/rollout.md)
 
 Apply this `appfile.yaml`:
 

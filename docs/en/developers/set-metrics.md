@@ -26,6 +26,8 @@ The app will emit random latencies as metrics.
     EOF
   ```
 
+> The full specification of `metrics` could show up by `vela show metrics` or be found on [kubevela.io](references/traits/metrics.md)
+
 2. Deploy the application:
 
   ```bash

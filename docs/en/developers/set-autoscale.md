@@ -29,6 +29,8 @@ Introduce how to automatically scale workloads by cron.
           timezone: "America/Los_Angeles"
   ```
 
+> The full specification of `autoscale` could show up by `vela show autoscale` or be found on [kubevela.io](references/traits/autoscale.md)
+
 2. Deploy an application
   
   ```
