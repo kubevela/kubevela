@@ -12,10 +12,12 @@ KubeVela follows a workflow with separate of concerns as below:
 
 
 ## Application
-An *application* in KubeVela is an abstraction that allows developers to work with a single artifact to capture the complete application definition. It simplifies administrative tasks and serves as an anchor to avoid configuration drifts during operation, and also provides a much simpler path for on-boarding Kubernetes capabilities without relying on low level details. For example, a developer will be able to model the "web service" in Kubernetes without defining detailed Deployment + Service combo each time, or claim the auto-scaling requirements without referring to the underlying KEDA ScaleObject.
+An *application* in KubeVela is an abstraction that allows developers to work with a single artifact to capture the complete application definition.
+
+This is important to simplify administrative tasks and can serve as an anchor to avoid configuration drifts during operation. Also, as an abstraction object, `Application` provided a much simpler path for on-boarding Kubernetes capabilities without relying on low level details. For example, a developer will be able to model a "web service" without defining detailed Kubernetes Deployment + Service combo each time, or claim the auto-scaling requirements without referring to the underlying KEDA ScaleObject.
 
 
-An application is composed of a collection of components. For instance, a `website` application with two components (i.e. `frontend` and `backend`) could be modeled as below:
+An example of `website` application with two components (i.e. `frontend` and `backend`) could be modeled as below:
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -54,9 +56,11 @@ For each of the components, its `.type` field represents the runtime characteris
 
 Optionally, each component has a `.traits` section that augments its workload instance with operational features such as load balancing policy, network ingress routing, auto-scaling policies, or upgrade strategies, etc. Its `.name` field references the specific trait definition, and `.properties` sets detailed configuration values of the given trait.
 
+We also reference workload type and trait as "capabilities" in KubeVela.
+
 ## Definitions
 
-Both the schemas of workload settings and trait properties in `Application` are enforced by modularized capability templates that are pre-defined separately by platform team. The platform team is responsible for registering and managing definitions in the cluster following [workload definition](https://github.com/oam-dev/spec/blob/master/4.workload_definitions.md) and [trait definition](https://github.com/oam-dev/spec/blob/master/6.traits.md) specifications in Open Application Model (OAM). 
+Both the schemas of workload settings and trait properties in `Application` are enforced by capability templates that are pre-defined separately by platform team in a set of definition objects. The platform team is responsible for registering and managing definitions in the cluster following [workload definition](https://github.com/oam-dev/spec/blob/master/4.workload_definitions.md) and [trait definition](https://github.com/oam-dev/spec/blob/master/6.traits.md) specifications in Open Application Model (OAM). 
 
 For example, a `worker` workload type could be defined by a `WorkloadDefinition` as below:
 
