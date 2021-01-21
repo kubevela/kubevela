@@ -4,9 +4,12 @@
   - [Concepts and Glossaries](/en/concepts.md)
 
 - Platform Team Guide
-  - [Register Workload Type](/en/platform-engineers/workload-type.md)
-  - [Register Trait](/en/platform-engineers/trait.md)
-  - [Register Cloud Services](/en/platform-engineers/cloud-services.md)
+  - [Overview](/en/platform-engineers/overview.md)
+  <!-- - [Define Environments](TBD) -->
+  - Register Capability Modules
+    - [Workload Type](/en/platform-engineers/workload-type.md)
+    - [Trait](/en/platform-engineers/trait.md)
+    - [Cloud Services](/en/platform-engineers/cloud-services.md)
 
 - End User Guide
   - Appfile
