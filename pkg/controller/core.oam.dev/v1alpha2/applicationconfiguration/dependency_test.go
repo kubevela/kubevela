@@ -152,6 +152,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 		}()).Should(Equal(depStatus))
 
 		// fill value to fieldPath
+		Expect(k8sClient.Get(ctx, outFooKey, outFoo)).Should(Succeed())
 		Expect(unstructured.SetNestedField(outFoo.Object, "test", "status", "key")).Should(BeNil())
 		Expect(k8sClient.Status().Update(ctx, outFoo)).Should(Succeed())
 		Eventually(func() string {

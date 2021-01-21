@@ -55,7 +55,7 @@ func callWebhook(webhook string, payload interface{}, timeout string) error {
 
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return fmt.Errorf("error reading body: %s", err.Error())
+		return fmt.Errorf("error reading body: %w", err)
 	}
 
 	if r.StatusCode > 202 {

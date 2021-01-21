@@ -44,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 const (
@@ -196,11 +197,9 @@ func NewReconciler(m ctrl.Manager, dm discoverymapper.DiscoveryMapper, o ...Reco
 			trait:    ResourceRenderFn(renderTrait),
 		},
 		workloads: &workloads{
-			// NOTE(roywang) PatchingApplicator@v0.10.0 only use "application/merge-patch+json" type patch
-			patchingClient: resource.NewAPIPatchingApplicator(m.GetClient()),
-			updatingClient: resource.NewAPIUpdatingApplicator(m.GetClient()),
-			rawClient:      m.GetClient(),
-			dm:             dm,
+			applicator: apply.NewAPIApplicator(m.GetClient()),
+			rawClient:  m.GetClient(),
+			dm:         dm,
 		},
 		gc:        GarbageCollectorFn(eligible),
 		log:       logging.NewNopLogger(),
@@ -298,7 +297,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 	log.Debug("Successfully rendered components", "workloads", len(workloads))
 	r.record.Event(ac, event.Normal(reasonRenderComponents, "Successfully rendered components", "workloads", strconv.Itoa(len(workloads))))
 
-	applyOpts := []resource.ApplyOption{resource.MustBeControllableBy(ac.GetUID())}
+	applyOpts := []apply.ApplyOption{apply.MustBeControllableBy(ac.GetUID())}
 	if r.applyOnceOnly {
 		applyOpts = append(applyOpts, applyOnceOnly())
 	}
@@ -578,8 +577,11 @@ func (e *GenerationUnchanged) Error() string {
 		"Please ignore this error in other logic.")
 }
 
-func applyOnceOnly() resource.ApplyOption {
+func applyOnceOnly() apply.ApplyOption {
 	return func(ctx context.Context, current, desired runtime.Object) error {
+		if current == nil {
+			return nil
+		}
 		// ApplyOption only works for update/patch operation and will be ignored
 		// if the object doesn't exist before.
 		c, _ := current.(metav1.Object)

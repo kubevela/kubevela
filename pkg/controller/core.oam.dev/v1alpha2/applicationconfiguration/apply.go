@@ -22,7 +22,6 @@ import (
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
-	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -32,6 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 // Reconcile error strings.
@@ -52,7 +52,7 @@ const (
 // A WorkloadApplicator creates or updates or finalizes workloads and their traits.
 type WorkloadApplicator interface {
 	// Apply a workload and its traits.
-	Apply(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload, ao ...resource.ApplyOption) error
+	Apply(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload, ao ...apply.ApplyOption) error
 
 	// Finalize implements pre-delete hooks on workloads
 	Finalize(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) error
@@ -60,12 +60,14 @@ type WorkloadApplicator interface {
 
 // A WorkloadApplyFns creates or updates or finalizes workloads and their traits.
 type WorkloadApplyFns struct {
-	ApplyFn    func(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload, ao ...resource.ApplyOption) error
+	ApplyFn    func(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload, ao ...apply.ApplyOption) error
 	FinalizeFn func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) error
 }
 
-// Apply a workload and its traits.
-func (fn WorkloadApplyFns) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload, ao ...resource.ApplyOption) error {
+// Apply a workload and its traits. It employes the same mechanism as `kubectl apply`, that is, for each resource being applied,
+// computing a three-way diff merge in client side based on its current state, modified stated and last-applied-state which is
+// tracked through an specific annotaion. If the resource doesn't exist before, Apply will create it.
+func (fn WorkloadApplyFns) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload, ao ...apply.ApplyOption) error {
 	return fn.ApplyFn(ctx, status, w, ao...)
 }
 
@@ -75,24 +77,18 @@ func (fn WorkloadApplyFns) Finalize(ctx context.Context, ac *v1alpha2.Applicatio
 }
 
 type workloads struct {
-	// use patching-apply for creating/updating Workload
-	patchingClient resource.Applicator
-	// use updating-apply for creating/updating Trait
-	updatingClient resource.Applicator
-	rawClient      client.Client
-	dm             discoverymapper.DiscoveryMapper
+	applicator apply.Applicator
+	rawClient  client.Client
+	dm         discoverymapper.DiscoveryMapper
 }
 
-//nolint:errorlint
-func (a *workloads) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload, ao ...resource.ApplyOption) error {
+func (a *workloads) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload, ao ...apply.ApplyOption) error {
 	// they are all in the same namespace
 	var namespace = w[0].Workload.GetNamespace()
 	for _, wl := range w {
 		if !wl.HasDep {
-			err := a.patchingClient.Apply(ctx, wl.Workload, ao...)
-			if err != nil {
-				// TODO(roywang) use errors.As() instead of type assertion on error
-				if _, ok := err.(*GenerationUnchanged); !ok {
+			if err := a.applicator.Apply(ctx, wl.Workload, ao...); err != nil {
+				if !errors.Is(err, &GenerationUnchanged{}) {
 					// GenerationUnchanged only aborts applying current workload
 					// but not blocks the whole reconciliation through returning an error
 					return errors.Wrapf(err, errFmtApplyWorkload, wl.Workload.GetName())
@@ -104,9 +100,8 @@ func (a *workloads) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus,
 				continue
 			}
 			t := trait.Object
-			if err := a.updatingClient.Apply(ctx, &trait.Object, ao...); err != nil {
-				// TODO(roywang) use errors.As() instead of type assertion on error
-				if _, ok := err.(*GenerationUnchanged); !ok {
+			if err := a.applicator.Apply(ctx, &trait.Object, ao...); err != nil {
+				if !errors.Is(err, &GenerationUnchanged{}) {
 					// GenerationUnchanged only aborts applying current trait
 					// but not blocks the whole reconciliation through returning an error
 					return errors.Wrapf(err, errFmtApplyTrait, t.GetAPIVersion(), t.GetKind(), t.GetName())

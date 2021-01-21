@@ -23,7 +23,6 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
@@ -37,7 +36,16 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
+
+// ApplyFn mocks apply.Applicator for test convenience.
+type ApplyFn func(context.Context, runtime.Object, ...apply.ApplyOption) error
+
+// Apply implements apply.Applicator
+func (fn ApplyFn) Apply(ctx context.Context, o runtime.Object, ao ...apply.ApplyOption) error {
+	return fn(ctx, o, ao...)
+}
 
 func TestApplyWorkloads(t *testing.T) {
 	errBoom := errors.New("boom")
@@ -124,23 +132,21 @@ func TestApplyWorkloads(t *testing.T) {
 	}
 
 	cases := map[string]struct {
-		reason         string
-		client         resource.Applicator
-		updatingClient resource.Applicator
-		rawClient      client.Client
-		args           args
-		want           error
+		reason     string
+		applicator apply.Applicator
+		rawClient  client.Client
+		args       args
+		want       error
 	}{
 		"ApplyWorkloadError": {
 			reason: "Errors applying a workload should be reflected as a status condition",
-			client: resource.ApplyFn(func(_ context.Context, o runtime.Object, _ ...resource.ApplyOption) error {
+			applicator: ApplyFn(func(_ context.Context, o runtime.Object, _ ...apply.ApplyOption) error {
 				if w, ok := o.(*unstructured.Unstructured); ok && w.GetUID() == workload.GetUID() {
 					return errBoom
 				}
 				return nil
 			}),
-			updatingClient: resource.ApplyFn(func(_ context.Context, o runtime.Object, _ ...resource.ApplyOption) error { return nil }),
-			rawClient:      nil,
+			rawClient: nil,
 			args: args{
 				w:  []Workload{{Workload: workload, Traits: []*Trait{{Object: *trait}}}},
 				ws: []v1alpha2.WorkloadStatus{}},
@@ -148,8 +154,7 @@ func TestApplyWorkloads(t *testing.T) {
 		},
 		"ApplyTraitError": {
 			reason: "Errors applying a trait should be reflected as a status condition",
-			client: resource.ApplyFn(func(_ context.Context, o runtime.Object, _ ...resource.ApplyOption) error { return nil }),
-			updatingClient: resource.ApplyFn(func(_ context.Context, o runtime.Object, _ ...resource.ApplyOption) error {
+			applicator: ApplyFn(func(_ context.Context, o runtime.Object, _ ...apply.ApplyOption) error {
 				if t, ok := o.(*unstructured.Unstructured); ok && t.GetUID() == trait.GetUID() {
 					return errBoom
 				}
@@ -163,8 +168,7 @@ func TestApplyWorkloads(t *testing.T) {
 		},
 		"Success": {
 			reason: "Applied workloads and traits should be returned as a set of UIDs.",
-			client: resource.ApplyFn(func(_ context.Context, o runtime.Object, _ ...resource.ApplyOption) error { return nil }),
-			updatingClient: resource.ApplyFn(func(_ context.Context, o runtime.Object, _ ...resource.ApplyOption) error {
+			applicator: ApplyFn(func(_ context.Context, o runtime.Object, _ ...apply.ApplyOption) error {
 				if o.GetObjectKind().GroupVersionKind().Kind == trait.GetKind() {
 					// check that the trait should not have a workload ref since we didn't return a special traitDefinition
 					obj, _ := util.Object2Map(o)
@@ -181,9 +185,8 @@ func TestApplyWorkloads(t *testing.T) {
 			},
 		},
 		"SuccessWithScope": {
-			reason:         "Applied workloads refs to scopes.",
-			client:         resource.ApplyFn(func(_ context.Context, o runtime.Object, _ ...resource.ApplyOption) error { return nil }),
-			updatingClient: resource.ApplyFn(func(_ context.Context, o runtime.Object, _ ...resource.ApplyOption) error { return nil }),
+			reason:     "Applied workloads refs to scopes.",
+			applicator: ApplyFn(func(_ context.Context, o runtime.Object, _ ...apply.ApplyOption) error { return nil }),
 			rawClient: &test.MockClient{
 				MockGet: func(_ context.Context, key client.ObjectKey, obj runtime.Object) error {
 					if scopeDef, ok := obj.(*v1alpha2.ScopeDefinition); ok {
@@ -223,9 +226,8 @@ func TestApplyWorkloads(t *testing.T) {
 			},
 		},
 		"SuccessWithScopeNoOp": {
-			reason:         "Scope already has workloadRef.",
-			client:         resource.ApplyFn(func(_ context.Context, o runtime.Object, _ ...resource.ApplyOption) error { return nil }),
-			updatingClient: resource.ApplyFn(func(_ context.Context, o runtime.Object, _ ...resource.ApplyOption) error { return nil }),
+			reason:     "Scope already has workloadRef.",
+			applicator: ApplyFn(func(_ context.Context, o runtime.Object, _ ...apply.ApplyOption) error { return nil }),
 			rawClient: &test.MockClient{
 				MockGet: func(_ context.Context, key client.ObjectKey, obj runtime.Object) error {
 					if scopeDef, ok := obj.(*v1alpha2.ScopeDefinition); ok {
@@ -265,9 +267,8 @@ func TestApplyWorkloads(t *testing.T) {
 			},
 		},
 		"SuccessRemoving": {
-			reason:         "Removes workload refs from scopes.",
-			client:         resource.ApplyFn(func(_ context.Context, o runtime.Object, _ ...resource.ApplyOption) error { return nil }),
-			updatingClient: resource.ApplyFn(func(_ context.Context, o runtime.Object, _ ...resource.ApplyOption) error { return nil }),
+			reason:     "Removes workload refs from scopes.",
+			applicator: ApplyFn(func(_ context.Context, o runtime.Object, _ ...apply.ApplyOption) error { return nil }),
 			rawClient: &test.MockClient{
 				MockGet: func(_ context.Context, key client.ObjectKey, obj runtime.Object) error {
 					if key.Name == scope.GetName() {
@@ -328,8 +329,7 @@ func TestApplyWorkloads(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			mapper := mock.NewMockDiscoveryMapper()
-
-			w := workloads{patchingClient: tc.client, updatingClient: tc.updatingClient, rawClient: tc.rawClient, dm: mapper}
+			w := workloads{applicator: tc.applicator, rawClient: tc.rawClient, dm: mapper}
 			err := w.Apply(tc.args.ctx, tc.args.ws, tc.args.w)
 
 			if diff := cmp.Diff(tc.want, err, test.EquateErrors()); diff != "" {
@@ -415,14 +415,14 @@ func TestFinalizeWorkloadScopes(t *testing.T) {
 
 	cases := []struct {
 		caseName       string
-		client         resource.Applicator
+		applicator     apply.Applicator
 		rawClient      client.Client
 		wantErr        error
 		wantFinalizers []string
 	}{
 		{
-			caseName: "Finalization successes",
-			client:   resource.ApplyFn(func(_ context.Context, o runtime.Object, _ ...resource.ApplyOption) error { return nil }),
+			caseName:   "Finalization successes",
+			applicator: ApplyFn(func(_ context.Context, o runtime.Object, _ ...apply.ApplyOption) error { return nil }),
 			rawClient: &test.MockClient{
 				MockGet: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
 					if key.Name == scope.GetName() {
@@ -457,8 +457,8 @@ func TestFinalizeWorkloadScopes(t *testing.T) {
 			wantFinalizers: []string{},
 		},
 		{
-			caseName: "Finalization fails for error",
-			client:   resource.ApplyFn(func(_ context.Context, o runtime.Object, _ ...resource.ApplyOption) error { return nil }),
+			caseName:   "Finalization fails for error",
+			applicator: ApplyFn(func(_ context.Context, o runtime.Object, _ ...apply.ApplyOption) error { return nil }),
 			rawClient: &test.MockClient{
 				MockGet: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
 					return errMock
@@ -475,7 +475,7 @@ func TestFinalizeWorkloadScopes(t *testing.T) {
 		t.Run(tc.caseName, func(t *testing.T) {
 			acTest := ac
 			mapper := mock.NewMockDiscoveryMapper()
-			w := workloads{patchingClient: tc.client, rawClient: tc.rawClient, dm: mapper}
+			w := workloads{applicator: tc.applicator, rawClient: tc.rawClient, dm: mapper}
 			err := w.Finalize(ctx, &acTest)
 
 			if diff := cmp.Diff(tc.wantErr, err, test.EquateErrors()); diff != "" {

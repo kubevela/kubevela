@@ -44,4 +44,8 @@ const (
 const (
 	// AnnotationAppGeneration records the generation of AppConfig
 	AnnotationAppGeneration = "app.oam.dev/generation"
+
+	// AnnotationLastAppliedConfig records the previous configuration of a
+	// resource for use in a three way diff during a patching apply
+	AnnotationLastAppliedConfig = "app.oam.dev/last-applied-configuration"
 )

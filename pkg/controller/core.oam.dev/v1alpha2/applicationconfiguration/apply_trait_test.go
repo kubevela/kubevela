@@ -14,14 +14,13 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-var _ = Describe("Test Updating-apply trait in an ApplicationConfiguration", func() {
+var _ = Describe("Test apply changes to trait", func() {
 	const (
 		namespace        = "update-apply-trait-test"
 		appName          = "example-app"
@@ -36,16 +35,12 @@ var _ = Describe("Test Updating-apply trait in an ApplicationConfiguration", fun
 		component    v1alpha2.Component
 		traitDef     v1alpha2.TraitDefinition
 		appConfig    v1alpha2.ApplicationConfiguration
+		fakeTratiCRD crdv1.CustomResourceDefinition
 		appConfigKey = client.ObjectKey{
 			Name:      appName,
 			Namespace: namespace,
 		}
 		req = reconcile.Request{NamespacedName: appConfigKey}
-		ns  = corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: namespace,
-			},
-		}
 	)
 
 	BeforeEach(func() {
@@ -94,19 +89,12 @@ var _ = Describe("Test Updating-apply trait in an ApplicationConfiguration", fun
 			},
 		}
 
-		logf.Log.Info("Start to run a test, clean up previous resources")
-		// delete the namespace with all its resources
-		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).
-			Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
-		logf.Log.Info("make sure all the resources are removed")
-		Eventually(
-			// gomega has a bug that can't take nil as the actual input, so has to make it a func
-			func() error {
-				return k8sClient.Get(ctx, client.ObjectKey{Name: namespace}, &corev1.Namespace{})
-			},
-			time.Second*120, time.Millisecond*500).Should(&util.NotFoundMatcher{})
-
 		By("Create namespace")
+		ns := corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: namespace,
+			},
+		}
 		Eventually(
 			func() error {
 				return k8sClient.Create(ctx, &ns)
@@ -114,7 +102,7 @@ var _ = Describe("Test Updating-apply trait in an ApplicationConfiguration", fun
 			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("Create a CRD used as fake trait")
-		crd = crdv1.CustomResourceDefinition{
+		fakeTratiCRD = crdv1.CustomResourceDefinition{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:   fakeTraitCRDName,
 				Labels: map[string]string{"crd": namespace},
@@ -147,10 +135,10 @@ var _ = Describe("Test Updating-apply trait in an ApplicationConfiguration", fun
 				Scope: crdv1.NamespaceScoped,
 			},
 		}
-		Expect(k8sClient.Create(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(context.Background(), &fakeTratiCRD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("Create Component")
-		Expect(k8sClient.Create(ctx, &component)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, &component)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		cmpV1 := &v1alpha2.Component{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: compName}, cmpV1)).Should(Succeed())
 
@@ -203,16 +191,18 @@ spec:
 	})
 
 	AfterEach(func() {
-		logf.Log.Info("delete all cluster-scoped resources")
-		By("Delete CRD used as fake trait")
-		Expect(k8sClient.Delete(context.Background(), &crd)).Should(BeNil())
-		By("Delete fake TraitDefinition ")
-		Expect(k8sClient.Delete(context.Background(), &traitDef)).Should(BeNil())
+		Expect(k8sClient.DeleteAllOf(ctx, &appConfig, client.InNamespace(namespace))).Should(Succeed())
+		Expect(k8sClient.DeleteAllOf(ctx, &cw, client.InNamespace(namespace))).Should(Succeed())
+		Expect(k8sClient.DeleteAllOf(ctx, &component, client.InNamespace(namespace))).Should(Succeed())
+		var deleteTrait unstructured.Unstructured
+		deleteTrait.SetAPIVersion("example.com/v1")
+		deleteTrait.SetKind("Bar")
+		Expect(k8sClient.DeleteAllOf(ctx, &deleteTrait, client.InNamespace(namespace))).Should(Succeed())
 	})
 
-	When("update an ApplicationConfiguration with Traits changed", func() {
-		It("should updating-apply the changed trait", func() {
-			By("Update the ApplicationConfiguration")
+	When("update an ApplicationConfiguration with traits changed", func() {
+		It("should apply all changes(add/reset/remove fields) to the trait", func() {
+			By("Modify the ApplicationConfiguration")
 			appConfigYAMLUpdated := `
 apiVersion: core.oam.dev/v1alpha2
 kind: ApplicationConfiguration
@@ -229,12 +219,16 @@ spec:
               unchanged: bar
               valueChanged: foo
               added: bar`
+			// remove metadata.labels
+			// change a field (valueChanged: bar ==> foo)
+			// added a field
+			// removed a field
 			appConfigUpdated := v1alpha2.ApplicationConfiguration{}
 			Expect(yaml.Unmarshal([]byte(appConfigYAMLUpdated), &appConfigUpdated)).Should(BeNil())
 			appConfigUpdated.SetNamespace(namespace)
 
 			By("Apply appConfig & check successfully")
-			Expect(k8sClient.Apply(ctx, &appConfigUpdated)).Should(Succeed())
+			Expect(k8sClient.Patch(ctx, &appConfigUpdated, client.Merge)).Should(Succeed())
 			Eventually(func() int64 {
 				if err := k8sClient.Get(ctx, appConfigKey, &appConfig); err != nil {
 					return 0
@@ -255,7 +249,7 @@ spec:
 				return appConfig.Status.Workloads[0].Traits[0].Reference.Name
 			}, 3*time.Second, time.Second).ShouldNot(BeEmpty())
 
-			By("Get updated trait object")
+			By("Get changed trait object")
 			traitName := appConfig.Status.Workloads[0].Traits[0].Reference.Name
 			var traitObj unstructured.Unstructured
 			traitObj.SetAPIVersion("example.com/v1")
@@ -280,11 +274,149 @@ spec:
 			By("Check added field")
 			v, _, _ = unstructured.NestedString(traitObj.UnstructuredContent(), "spec", "added")
 			Expect(v).Should(Equal("bar"))
-			// if use patching trait, this field will not be removed
 			By("Check removed field")
 			_, found, _ = unstructured.NestedString(traitObj.UnstructuredContent(), "spec", "removed")
 			Expect(found).Should(Equal(false))
 		})
 	})
 
+	// others means anything except AppConfig controller
+	// e.g. trait controllers
+	When("trait instance is changed by others", func() {
+		// if others make changes on the fields managed by AppConfig controller
+		// these changes will reverted but not retained.
+		It("should retain changes by others, even after AppConfig spec is changed", func() {
+			By("Get the trait newly created")
+			Eventually(func() string {
+				if err := k8sClient.Get(ctx, appConfigKey, &appConfig); err != nil {
+					return ""
+				}
+				if appConfig.Status.Workloads == nil {
+					reconcileRetry(reconciler, req)
+					return ""
+				}
+				return appConfig.Status.Workloads[0].Traits[0].Reference.Name
+			}, 5*time.Second, time.Second).ShouldNot(BeEmpty())
+			traitName := appConfig.Status.Workloads[0].Traits[0].Reference.Name
+			var traitObj unstructured.Unstructured
+			traitObj.SetAPIVersion("example.com/v1")
+			traitObj.SetKind("Bar")
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: traitName}, &traitObj)).Should(Succeed())
+
+			By("Others change the trait")
+			// add a field
+			unstructured.SetNestedField(traitObj.Object, "bar", "spec", "added")
+			Expect(k8sClient.Patch(ctx, &traitObj, client.Merge)).Should(Succeed())
+
+			By("Check the change works")
+			var changedTrait unstructured.Unstructured
+			changedTrait.SetAPIVersion("example.com/v1")
+			changedTrait.SetKind("Bar")
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: traitName}, &changedTrait)).Should(Succeed())
+			v, _, _ := unstructured.NestedString(changedTrait.UnstructuredContent(), "spec", "added")
+			Expect(v).Should(Equal("bar"))
+
+			By("Reconcile")
+			reconcileRetry(reconciler, req)
+
+			By("Check others' change is retained")
+			changedTrait = unstructured.Unstructured{}
+			changedTrait.SetAPIVersion("example.com/v1")
+			changedTrait.SetKind("Bar")
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: traitName}, &changedTrait)).Should(Succeed())
+			v, _, _ = unstructured.NestedString(changedTrait.UnstructuredContent(), "spec", "added")
+			Expect(v).Should(Equal("bar"))
+
+			By("Modify AppConfig without touching the field changed by others")
+			appConfigYAMLUpdated := `
+apiVersion: core.oam.dev/v1alpha2
+kind: ApplicationConfiguration
+metadata:
+  name: example-app
+spec:
+  components:
+    - componentName: example-comp
+      traits:
+        - trait:
+            apiVersion: example.com/v1
+            kind: Bar
+            spec:
+              unchanged: bar
+              valueChanged: foo`
+			appConfigUpdated := v1alpha2.ApplicationConfiguration{}
+			Expect(yaml.Unmarshal([]byte(appConfigYAMLUpdated), &appConfigUpdated)).Should(BeNil())
+			appConfigUpdated.SetNamespace(namespace)
+
+			By("Apply appConfig & check successfully")
+			Expect(k8sClient.Patch(ctx, &appConfigUpdated, client.Merge)).Should(Succeed())
+			Eventually(func() int64 {
+				if err := k8sClient.Get(ctx, appConfigKey, &appConfig); err != nil {
+					return 0
+				}
+				return appConfig.GetGeneration()
+			}, time.Second, 300*time.Millisecond).Should(Equal(int64(2)))
+			By("Reconcile")
+			reconcileRetry(reconciler, req)
+
+			changedTrait = unstructured.Unstructured{}
+			changedTrait.SetAPIVersion("example.com/v1")
+			changedTrait.SetKind("Bar")
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: traitName}, &changedTrait)).Should(Succeed())
+			By("Check AppConfig's change works")
+			// changed a field
+			v, _, _ = unstructured.NestedString(changedTrait.UnstructuredContent(), "spec", "valueChanged")
+			Expect(v).Should(Equal("foo"))
+			// removed a field
+			_, found, _ := unstructured.NestedString(changedTrait.UnstructuredContent(), "spec", "removed")
+			Expect(found).Should(Equal(false))
+
+			By("Check others' change is still retained")
+			v, _, _ = unstructured.NestedString(changedTrait.UnstructuredContent(), "spec", "added")
+			Expect(v).Should(Equal("bar"))
+		})
+
+		It("should override others' changes on fields rendered from AppConfig", func() {
+			By("Get the trait newly created")
+			Eventually(func() string {
+				if err := k8sClient.Get(ctx, appConfigKey, &appConfig); err != nil {
+					return ""
+				}
+				if appConfig.Status.Workloads == nil {
+					reconcileRetry(reconciler, req)
+					return ""
+				}
+				return appConfig.Status.Workloads[0].Traits[0].Reference.Name
+			}, 5*time.Second, time.Second).ShouldNot(BeEmpty())
+			traitName := appConfig.Status.Workloads[0].Traits[0].Reference.Name
+			var traitObj unstructured.Unstructured
+			traitObj.SetAPIVersion("example.com/v1")
+			traitObj.SetKind("Bar")
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: traitName}, &traitObj)).Should(Succeed())
+
+			By("Others change the field which should be rendered from AppConfig")
+			// unchanged: bar ==> foo
+			unstructured.SetNestedField(traitObj.Object, "foo", "spec", "unchanged")
+			Expect(k8sClient.Patch(ctx, &traitObj, client.Merge)).Should(Succeed())
+
+			By("Check the change works")
+			var changedTrait unstructured.Unstructured
+			changedTrait.SetAPIVersion("example.com/v1")
+			changedTrait.SetKind("Bar")
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: traitName}, &changedTrait)).Should(Succeed())
+			v, _, _ := unstructured.NestedString(changedTrait.UnstructuredContent(), "spec", "unchanged")
+			Expect(v).Should(Equal("foo"))
+
+			By("Reconcile")
+			reconcileRetry(reconciler, req)
+
+			By("Check others' change is overrided(reset)")
+			changedTrait = unstructured.Unstructured{}
+			changedTrait.SetAPIVersion("example.com/v1")
+			changedTrait.SetKind("Bar")
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: traitName}, &changedTrait)).Should(Succeed())
+			v, _, _ = unstructured.NestedString(changedTrait.UnstructuredContent(), "spec", "unchanged")
+			// unchanged: foo ==> bar
+			Expect(v).Should(Equal("bar"))
+		})
+	})
 })
