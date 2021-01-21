@@ -141,7 +141,6 @@ e2e-test:
 	CGO_ENABLED=0 go test -timeout 1h -count=1 -v -tags 'integration' ./test/integration
 	@$(OK) tests pass
 
-
 e2e-cleanup:
 	# Clean up
 	rm -rf ~/.vela

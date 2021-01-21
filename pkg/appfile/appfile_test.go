@@ -26,11 +26,11 @@ func TestBuildOAMApplication2(t *testing.T) {
 
 	tm := template.NewFakeTemplateManager()
 	tm.Templates = map[string]*template.Template{
-		"containerWorkload": &template.Template{
+		"containerWorkload": {
 			Captype: types.TypeWorkload,
 			Raw:     `{parameters : {image: string} }`,
 		},
-		"scaler": &template.Template{
+		"scaler": {
 			Captype: types.TypeTrait,
 			Raw:     `{parameters : {relicas: int} }`,
 		},

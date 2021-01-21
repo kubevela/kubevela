@@ -1,20 +1,26 @@
-package parser
+package application
 
 import (
+	"context"
 	"fmt"
 	"reflect"
-	"testing"
 
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
+	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/ghodss/yaml"
 
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-// TestExceptApp is test data
-var TestExceptApp = &Appfile{
+var expectedExceptApp = &Appfile{
 	Name: "test",
-	Services: []*Workload{
+	Workloads: []*Workload{
 		{
 			Name: "myweb",
 			Type: "worker",
@@ -86,9 +92,7 @@ var TestExceptApp = &Appfile{
 	},
 }
 
-func TestParser(t *testing.T) {
-	mock := &defclient.MockClient{}
-	mock.AddTD(`
+const traitDefinition = `
 apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata:
@@ -114,8 +118,9 @@ spec:
       parameter: {
       	//+short=r
       	replicas: *1 | int
-      }`)
-	mock.AddWD(`
+      }`
+
+const workloadDefinition = `
 apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
@@ -134,39 +139,39 @@ spec:
       		selector: matchLabels: {
       			"app.oam.dev/component": context.name
       		}
-      
+
       		template: {
       			metadata: labels: {
       				"app.oam.dev/component": context.name
       			}
-      
+
       			spec: {
       				containers: [{
       					name:  context.name
       					image: parameter.image
-      
+
       					if parameter["cmd"] != _|_ {
       						command: parameter.cmd
       					}
       				}]
       			}
       		}
-      
+
       		selector:
       			matchLabels:
       				"app.oam.dev/component": context.name
       	}
       }
-      
+
       parameter: {
       	// +usage=Which image would you like to use for your service
       	// +short=i
       	image: string
-      
-      	cmd?: [...string]
-      }`)
 
-	const appfileYaml = `
+      	cmd?: [...string]
+      }`
+
+const appfileYaml = `
 apiVersion: core.oam.dev/v1alpha2
 kind: Application
 metadata:
@@ -186,26 +191,46 @@ spec:
             replicas: 10
 `
 
-	o := v1alpha2.Application{}
-	yaml.Unmarshal([]byte(appfileYaml), &o)
+var _ = Describe("Test application parser", func() {
+	It("Test we can parse an application to an appFile", func() {
+		o := v1alpha2.Application{}
+		err := yaml.Unmarshal([]byte(appfileYaml), &o)
+		Expect(err).ShouldNot(HaveOccurred())
 
-	appfile, err := NewParser(mock).Parse("test", &o)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	if !equal(TestExceptApp, appfile) {
-		t.Error("parser appfile wrong")
-	}
+		// Create mock client
+		tclient := test.MockClient{
+			MockGet: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+				switch o := obj.(type) {
+				case *v1alpha2.WorkloadDefinition:
+					wd, err := util.UnMarshalStringToWorkloadDefinition(workloadDefinition)
+					if err != nil {
+						return err
+					}
+					*o = *wd
+				case *v1alpha2.TraitDefinition:
+					td, err := util.UnMarshalStringToTraitDefinition(traitDefinition)
+					if err != nil {
+						return err
+					}
+					*o = *td
+				}
+				return nil
+			},
+		}
 
-}
+		appfile, err := NewApplicationParser(&tclient, nil).GenerateAppFile("test", &o)
+		Expect(err).ShouldNot(HaveOccurred())
+
+		Expect(equal(expectedExceptApp, appfile)).Should(BeTrue())
+	})
+})
 
 func equal(af, dest *Appfile) bool {
-	if af.Name != dest.Name || len(af.Services) != len(dest.Services) {
+	if af.Name != dest.Name || len(af.Workloads) != len(dest.Workloads) {
 		return false
 	}
-	for i, wd := range af.Services {
-		destWd := dest.Services[i]
+	for i, wd := range af.Workloads {
+		destWd := dest.Workloads[i]
 		if wd.Name != destWd.Name || len(wd.Traits) != len(destWd.Traits) {
 			return false
 		}

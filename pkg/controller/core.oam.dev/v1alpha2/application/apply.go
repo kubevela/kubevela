@@ -15,7 +15,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/parser"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 )
 
@@ -73,8 +72,8 @@ func (ret *reter) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigurati
 	return ret.Sync(ctx, ac, comps)
 }
 
-func (ret *reter) healthCheck(appfile *parser.Appfile) error {
-	for _, wl := range appfile.Services {
+func (ret *reter) healthCheck(appfile *Appfile) error {
+	for _, wl := range appfile.Workloads {
 		pCtx := process.NewContext(wl.Name)
 		if err := wl.EvalContext(pCtx); err != nil {
 			return err

@@ -1,20 +1,19 @@
-package template
+package util
 
 import (
+	"context"
 	"testing"
 
 	"cuelang.org/go/cue"
+	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"k8s.io/apimachinery/pkg/runtime"
+	ktypes "k8s.io/apimachinery/pkg/types"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application/defclient"
 )
 
 func TestTemplate(t *testing.T) {
-
-	var (
-		mock = &defclient.MockClient{}
-	)
-
 	cueTemplate := `
       context: {
          name: "test"
@@ -59,7 +58,7 @@ func TestTemplate(t *testing.T) {
       }
       `
 
-	if err := mock.AddWD(`
+	var workloadDefintion = `
 apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
@@ -71,15 +70,24 @@ spec:
     name: deployments.apps
   extension:
     template: |
-` + cueTemplate); err != nil {
-		t.Error(err)
-		return
+` + cueTemplate
+
+	// Create mock client
+	tclient := test.MockClient{
+		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj runtime.Object) error {
+			switch o := obj.(type) {
+			case *v1alpha2.WorkloadDefinition:
+				wd, err := UnMarshalStringToWorkloadDefinition(workloadDefintion)
+				if err != nil {
+					return err
+				}
+				*o = *wd
+			}
+			return nil
+		},
 	}
 
-	m := manager{
-		mock,
-	}
-	temp, _, err := m.LoadTemplate("worker", types.TypeWorkload)
+	temp, _, err := LoadTemplate(&tclient, "worker", types.TypeWorkload)
 	if err != nil {
 		t.Error(err)
 		return
