@@ -298,6 +298,15 @@ definitions:
     type: object
   v1alpha2.DataInput:
     properties:
+      strategyMergeKeys:
+        description: |-
+          StrategyMergeKeys specifies the merge key if the toFieldPaths target is an array.
+          The StrategyMergeKeys is optional, by default, if the toFieldPaths target is an array, we will append.
+          If StrategyMergeKeys specified, we will check the key in the target array.
+          If any key exist, do update; if no key exist, append.
+        items:
+          type: string
+        type: array
       toFieldPaths:
         description: ToFieldPaths specifies the field paths of an object to fill passed value.
         items:
@@ -438,7 +447,7 @@ definitions:
 host: 127.0.0.1:38081
 info:
   contact:
-    email: zzxwill@gmail.com
+    email: NA
     name: 'Slack #kubevela'
     url: https://kubevela.io
   description: KubeVela OpenAPI for applications/workloads/operating
@@ -448,6 +457,41 @@ info:
   title: KubeVela Restful API
   version: 0.0.1
 paths:
+  /definitions/{definitionName}:
+    get:
+      operationId: GetDefinition
+      parameters:
+      - description: name of workload type or trait
+        in: path
+        name: definitionName
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  type: string
+              type: object
+      summary: gets OpenAPI schema from Cue section of a WorkloadDefinition/TraitDefinition
+      tags:
+      - definitions
   /envs/:
     get:
       consumes:
