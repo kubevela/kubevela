@@ -73,7 +73,7 @@ type RolloutPlan struct {
 
 	// RolloutStrategy defines strategies for the rollout plan
 	// +optional
-	RolloutStrategy RolloutStrategyType `json:"rolloutStrategy,omitempty"`
+	RolloutStrategy *RolloutStrategyType `json:"rolloutStrategy,omitempty"`
 
 	// The size of the target resource. The default is the same
 	// as the size of the source resource.
@@ -97,9 +97,9 @@ type RolloutPlan struct {
 	// +optional
 	BatchPartition *int32 `json:"lastBatchToRollout,omitempty"`
 
-	// Stopped the rollout, default is false
+	// Paused the rollout, default is false
 	// +optional
-	Stopped bool `json:"stopped,omitempty"`
+	Paused bool `json:"paused,omitempty"`
 
 	// RolloutWebhooks provides a way for the rollout to interact with an external process
 	// +optional

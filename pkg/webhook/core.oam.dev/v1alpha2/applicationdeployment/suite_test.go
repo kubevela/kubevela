@@ -1,4 +1,4 @@
-package applicationconfiguration
+package applicationdeployment
 
 import (
 	"os"
@@ -83,7 +83,8 @@ var _ = BeforeSuite(func(done Done) {
 		},
 	}
 	By("Prepare for the admission resource")
-	reqResource = metav1.GroupVersionResource{Group: v1alpha2.Group, Version: v1alpha2.Version, Resource: "applicationconfigurations"}
+	reqResource = metav1.GroupVersionResource{Group: v1alpha2.Group, Version: v1alpha2.Version,
+		Resource: "applicationconfigurations"}
 	By("Prepare for the admission decoder")
 	decoder, err = admission.NewDecoder(scheme)
 	Expect(err).Should(BeNil())

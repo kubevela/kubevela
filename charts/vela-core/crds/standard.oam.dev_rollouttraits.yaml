@@ -94,6 +94,9 @@ spec:
                     description: The number of batches, default = 1 mutually exclusive to RolloutBatches
                     format: int32
                     type: integer
+                  paused:
+                    description: Paused the rollout, default is false
+                    type: boolean
                   rolloutBatches:
                     description: The exact distribution among batches. mutually exclusive to NumBatches
                     items:
@@ -232,9 +235,6 @@ spec:
                       - url
                       type: object
                     type: array
-                  stopped:
-                    description: Stopped the rollout, default is false
-                    type: boolean
                   targetSize:
                     description: The size of the target resource. The default is the same as the size of the source resource.
                     format: int32

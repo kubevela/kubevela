@@ -109,6 +109,14 @@ var (
 	ApplicationKindVersionKind = SchemeGroupVersion.WithKind(ApplicationKind)
 )
 
+// Application type metadata.
+var (
+	ApplicationDeploymentKind            = reflect.TypeOf(ApplicationDeployment{}).Name()
+	ApplicationDeploymentGroupKind       = schema.GroupKind{Group: Group, Kind: ApplicationDeploymentKind}.String()
+	ApplicationDeploymentKindAPIVersion  = ApplicationKind + "." + SchemeGroupVersion.String()
+	ApplicationDeploymentKindVersionKind = SchemeGroupVersion.WithKind(ApplicationDeploymentKind)
+)
+
 func init() {
 	SchemeBuilder.Register(&WorkloadDefinition{}, &WorkloadDefinitionList{})
 	SchemeBuilder.Register(&TraitDefinition{}, &TraitDefinitionList{})

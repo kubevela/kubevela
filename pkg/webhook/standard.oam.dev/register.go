@@ -1,4 +1,4 @@
-package webhook
+package standard_oam_dev
 
 import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
