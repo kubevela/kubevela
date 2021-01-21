@@ -1,60 +1,136 @@
 # Concepts and Glossaries
 
-This document explains some technical terms that are widely used in KubeVela, such as `application`, `appfile`, `workload types` and `traits`. The goal is to clarify them for platform builders in the context of KubeVela.
+This document explains some technical terms that are widely used in KubeVela. The goal is to clarify them for platform builders in the context of KubeVela.
 
-## Overview
+## Separate of Concerns
 
-![alt](../resources/concepts.png)
+KubeVela follows a workflow with separate of concerns as below:
+- Platform team: defining reusable templates for such as deployment environments and capabilities, and registering those templates into the cluster.
+- End users: choose a deployment environment, model the app with available capability templates, and deploy the app to target environment.
+
+![alt](../resources/how-it-works.png)
+
 
 ## Application
-An application in KubeVela is composed by a collection of components named "services". For instance, a "website" application which is composed of two services: "frontend" and "backend".
+An *application* in KubeVela is an abstraction that allows developers to work with a single artifact to capture the complete application definition. It simplifies administrative tasks and serves as an anchor to avoid configuration drifts during operation, and also provides a much simpler path for on-boarding Kubernetes capabilities without relying on low level details. For example, a developer will be able to model the "web service" in Kubernetes without defining detailed Deployment + Service combo each time, or claim the auto-scaling requirements without referring to the underlying KEDA ScaleObject.
 
-Under the hood, KubeVela introduced a Kubernetes [Custom Resource Definition (CRD)](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) named `Application` to capture all needed information to define an app. A simple `application-sample` is as below:
+
+An application is composed of a collection of components. For instance, a `website` application with two components (i.e. `frontend` and `backend`) could be modeled as below:
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
 kind: Application
 metadata:
-  name: application-sample
+  name: website
 spec:
-  components: # defines two services in this app
-    - name: backend # 1st service
-      type: worker 
+  components:
+    - name: backend
+      type: worker
       settings:
-        image: "busybox"
+        image: busybox
         cmd:
-        - sleep
-        - "1000"
-      traits:
-        - name: autoscaler
-          properties:
-            min: 1
-            max: 10
-    - name: frontend # 2nd service
+          - sleep
+          - '1000'
+    - name: frontend
       type: webservice
       settings:
-        image: "nginx"
-```  
+        image: nginx
+        traits:
+          - name: autoscaler
+            properties:
+              min: 1
+              max: 10
+          - name: sidecar
+            properties:
+              name: "sidecar-test"
+              image: "fluentd"
+```
 
-### Why Application?
+### Workload Type
 
-- Provide a single source of truth of the application description.
-  - The `Application` object allows developers to work with a single artifact to capture the application definition. It simplifies administrative tasks and also serves as an anchor to avoid configuration drifts during operation. This is extremely useful in application delivery workflow as well as GitOps.
-- Lower the learning curve of developers. 
-  - The `Application` as a abstraction layer provides a much simpler path for on-boarding Kubernetes capabilities without relying on low level details. For instance, a developer will be able to model the auto-scaling requirements without referring to the underlying [KEDA ScaleObject](https://keda.sh/docs/2.0/concepts/scaling-deployments/#scaledobject-spec).
+For each of the components, its `.type` field represents the runtime characteristic of its workload (i.e. workload type) and `.settings` claims the configurations to initialize its workload instance. Some typical workload types are *Long Running Web Service* or *One-time Off Task*.
 
-### Workload & Trait
-Each service in the application is modeled by two sections: workload settings and trait properties.
+### Trait
 
-The workload settings section represents the characteristics that runtime infrastructure should take into account to instantiate and deploy this service. Typical workload types include "long running service" and "one-time off task".
+Optionally, each component has a `.traits` section that augments its workload instance with operational features such as load balancing policy, network ingress routing, auto-scaling policies, or upgrade strategies, etc. Its `.name` field references the specific trait definition, and `.properties` sets detailed configuration values of the given trait.
 
-The trait properties section represents optional configurations that attaches to an instance of given workload type. Traits augment a workload instance with operational features such as load balancing policy, network ingress routing, circuit breaking, rate limiting, auto-scaling policies, upgrade strategies, and many more.
+## Definitions
 
-Note that the schema of both workload settings and trait properties are enforced by modularized capability providers, not by the schema of `Application` CRD. This will be detailed explained in `Capability Modules` section.
+Both the schemas of workload settings and trait properties in `Application` are enforced by modularized capability templates that are pre-defined separately by platform team. The platform team is responsible for registering and managing definitions in the cluster following [workload definition](https://github.com/oam-dev/spec/blob/master/4.workload_definitions.md) and [trait definition](https://github.com/oam-dev/spec/blob/master/6.traits.md) specifications in Open Application Model (OAM). 
+
+For example, a `worker` workload type could be defined by a `WorkloadDefinition` as below:
+
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: worker
+  annotations:
+    definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
+spec:
+  definitionRef:
+    name: deployments.apps
+  extension:
+    template: |
+      output: {
+        apiVersion: "apps/v1"
+        kind:       "Deployment"
+        spec: {
+          selector: matchLabels: {
+            "app.oam.dev/component": context.name
+          }
+
+          template: {
+            metadata: labels: {
+              "app.oam.dev/component": context.name
+            }
+
+            spec: {
+              containers: [{
+                name:  context.name
+                image: parameter.image
+
+                if parameter["cmd"] != _|_ {
+                  command: parameter.cmd
+                }
+              }]
+            }
+          }
+        }
+      }
+
+      parameter: {
+        // +usage=Which image would you like to use for your service
+        // +short=i
+        image: string
+
+        cmd?: [...string]
+      }
+```
+
+Once this definition is applied to the cluster, the end users will be able to claim a component with workload type of `worker`, and fill in the properties as below:
+
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: Application
+metadata:
+  name: website
+spec:
+  components:
+    - name: backend
+      type: worker
+      settings:
+        image: busybox
+        cmd:
+          - sleep
+          - '1000'
+```
+
+Currently, KubeVela supports [CUE](https://github.com/cuelang/cue) as the templating language in definitions. In the upcoming releases, it will also support referencing Helm chart as workload/trait definition. In this case, the chart's `values.yaml` will be exposed as application properties directly.
 
 ## Appfile
 
-KubeVela provided a client-side tool named `Appfile` to help developers design and describe an application with ease. A simple `Appfile` sample is as below:
+To help developers design and describe an application with ease, KubeVela also provided a client-side tool named `Appfile` to render the `Application` resource. A simple `Appfile` sample is as below:
 
 ```yaml
 name: testapp
@@ -83,17 +159,20 @@ services:
     cmd: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
 ```
 
-It's by design that `Appfile` is a developer facing tool to render `Application` as well as any other needed Kubernetes resources to ship this app, for example `Secret` and `ConfigMap`. This also means `Appfile` is a superset of `Application`, for example, developers can define a `build` section in `Appfile` which is not part of `Application` CRD.
+Note that `Appfile` as a developer tool is designed as a "superset" of `Application`, for example, developers can define a `build` section in `Appfile` which is not part of `Application` CRD. For full schema of `Appfile`, please check its [ reference documentation](developers/references/devex/appfile.md) for more detail.
 
-For full schema of `Appfile`, please check its [ reference documentation](developers/references/devex/appfile.md) for more detail.
-
-## Capability Modules
-A capability is a functionality provided by the runtime infrastructure (i.e. Kubernetes) that can support your application management requirements. Both `workload types` and `traits` are common capabilities used in KubeVela.
-
-The capabilities are designed as pluggable modules named "capability definitions", for example, [workload definition](https://github.com/oam-dev/spec/blob/master/4.workload_definitions.md) and [trait definition](https://github.com/oam-dev/spec/blob/master/6.traits.md). KubeVela as the platform builder tool will be responsible for registering, discovering and managing these capabilities following OAM specification.
 
 ## Environment
 Before releasing an application to production, it's important to test the code in testing/staging workspaces. In KubeVela, we describe these workspaces as "deployment environments" or "environments" for short. Each environment has its own configuration (e.g., domain, Kubernetes cluster and namespace, configuration data, access control policy etc.) to allow user to create different deployment environments such as "test" and "production".
+
+Currently, a KubeVela `environment` only maps to a Kubernetes namespace, while the cluster level environment is on the way.
+
+## Summary
+
+The relationship of the main concepts in KubeVela could be shown as below:
+
+![alt](../resources/concepts.png)
+
 
 ## What's Next
 
