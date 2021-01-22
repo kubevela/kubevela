@@ -794,10 +794,7 @@
       "type" : "integer"
     },
     "data" : {
-      "type" : "array",
-      "items" : {
-        "$ref" : "#/components/schemas/apis.Environment"
-      }
+      "type" : "string"
     }
   }
 };
@@ -813,12 +810,12 @@
     "data" : {
       "type" : "array",
       "items" : {
-        "$ref" : "#/components/schemas/apis.ApplicationMeta"
+        "$ref" : "#/components/schemas/apis.Environment"
       }
     }
   }
 };
-            defs["inline_response_500"] = {
+            defs["inline_response_200_2"] = {
   "type" : "object",
   "properties" : {
     "apis.Response" : {
@@ -828,7 +825,10 @@
       "type" : "integer"
     },
     "data" : {
-      "type" : "string"
+      "type" : "array",
+      "items" : {
+        "$ref" : "#/components/schemas/apis.ApplicationMeta"
+      }
     }
   }
 };
@@ -1063,6 +1063,13 @@
             defs["v1alpha2.DataInput"] = {
   "type" : "object",
   "properties" : {
+    "strategyMergeKeys" : {
+      "type" : "array",
+      "description" : "StrategyMergeKeys specifies the merge key if the toFieldPaths target is an array.\nThe StrategyMergeKeys is optional, by default, if the toFieldPaths target is an array, we will append.\nIf StrategyMergeKeys specified, we will check the key in the target array.\nIf any key exist, do update; if no key exist, append.",
+      "items" : {
+        "type" : "string"
+      }
+    },
     "toFieldPaths" : {
       "type" : "array",
       "description" : "ToFieldPaths specifies the field paths of an object to fill passed value.",
@@ -1265,6 +1272,10 @@
                     <li data-group="Applications" data-name="listApplications" class="">
                       <a href="#api-Applications-listApplications">listApplications</a>
                     </li>
+                  <li class="nav-header" data-group="Definitions"><a href="#api-Definitions">API Methods - Definitions</a></li>
+                    <li data-group="Definitions" data-name="getDefinition" class="">
+                      <a href="#api-Definitions-getDefinition">getDefinition</a>
+                    </li>
                   <li class="nav-header" data-group="Environments"><a href="#api-Environments">API Methods - Environments</a></li>
                     <li data-group="Environments" data-name="createEnvironment" class="">
                       <a href="#api-Environments-createEnvironment">createEnvironment</a>
@@ -1357,7 +1368,7 @@ public class ApplicationsApiExample {
         ApplicationsApi apiInstance = new ApplicationsApi();
         String envName = envName_example; // String | environment name
         try {
-            inline_response_200_1 result = apiInstance.listApplications(envName);
+            inline_response_200_2 result = apiInstance.listApplications(envName);
             System.out.println(result);
         } catch (ApiException e) {
             System.err.println("Exception when calling ApplicationsApi#listApplications");
@@ -1376,7 +1387,7 @@ public class ApplicationsApiExample {
         ApplicationsApi apiInstance = new ApplicationsApi();
         String envName = envName_example; // String | environment name
         try {
-            inline_response_200_1 result = apiInstance.listApplications(envName);
+            inline_response_200_2 result = apiInstance.listApplications(envName);
             System.out.println(result);
         } catch (ApiException e) {
             System.err.println("Exception when calling ApplicationsApi#listApplications");
@@ -1396,7 +1407,7 @@ ApplicationsApi *apiInstance = [[ApplicationsApi alloc] init];
 
 // list all applications
 [apiInstance listApplicationsWith:envName
-              completionHandler: ^(inline_response_200_1 output, NSError* error) {
+              completionHandler: ^(inline_response_200_2 output, NSError* error) {
                             if (output) {
                                 NSLog(@"%@", output);
                             }
@@ -1447,7 +1458,7 @@ namespace Example
             try
             {
                 // list all applications
-                inline_response_200_1 result = apiInstance.listApplications(envName);
+                inline_response_200_2 result = apiInstance.listApplications(envName);
                 Debug.WriteLine(result);
             }
             catch (Exception e)
@@ -1569,7 +1580,7 @@ except ApiException as e:
   "content" : {
     "*/*" : {
       "schema" : {
-        "$ref" : "#/components/schemas/inline_response_200_1"
+        "$ref" : "#/components/schemas/inline_response_200_2"
       }
     }
   }
@@ -1617,7 +1628,7 @@ except ApiException as e:
   "content" : {
     "*/*" : {
       "schema" : {
-        "$ref" : "#/components/schemas/inline_response_500"
+        "$ref" : "#/components/schemas/inline_response_200"
       }
     }
   }
@@ -1643,6 +1654,353 @@ except ApiException as e:
                                     </script>
                                   </div>
                                   <input id='responses-listApplications-500-schema-data' type='hidden' value=''></input>
+                                </div>
+                            </div>
+
+                        </article>
+                      </div>
+                      <hr>
+                  </section>
+                <section id="api-Definitions">
+                  <h1>Definitions</h1>
+                    <div id="api-Definitions-getDefinition">
+                      <article id="api-Definitions-getDefinition-0" data-group="User" data-name="getDefinition" data-version="0">
+                        <div class="pull-left">
+                          <h1>getDefinition</h1>
+                          <p>gets OpenAPI schema from Cue section of a WorkloadDefinition/TraitDefinition</p>
+                        </div>
+                        <div class="pull-right"></div>
+                        <div class="clearfix"></div>
+                        <p></p>
+                        <p class="marked"></p>
+                        <p></p>
+                        <br />
+                        <pre class="prettyprint language-html prettyprinted" data-type="get"><code><span class="pln">/definitions/{definitionName}</span></code></pre>
+                        <p>
+                          <h3>Usage and SDK Samples</h3>
+                        </p>
+                        <ul class="nav nav-tabs nav-tabs-examples">
+                          <li class="active"><a href="#examples-Definitions-getDefinition-0-curl">Curl</a></li>
+                          <li class=""><a href="#examples-Definitions-getDefinition-0-java">Java</a></li>
+                          <li class=""><a href="#examples-Definitions-getDefinition-0-android">Android</a></li>
+                          <!--<li class=""><a href="#examples-Definitions-getDefinition-0-groovy">Groovy</a></li>-->
+                          <li class=""><a href="#examples-Definitions-getDefinition-0-objc">Obj-C</a></li>
+                          <li class=""><a href="#examples-Definitions-getDefinition-0-javascript">JavaScript</a></li>
+                          <!--<li class=""><a href="#examples-Definitions-getDefinition-0-angular">Angular</a></li>-->
+                          <li class=""><a href="#examples-Definitions-getDefinition-0-csharp">C#</a></li>
+                          <li class=""><a href="#examples-Definitions-getDefinition-0-php">PHP</a></li>
+                          <li class=""><a href="#examples-Definitions-getDefinition-0-perl">Perl</a></li>
+                          <li class=""><a href="#examples-Definitions-getDefinition-0-python">Python</a></li>
+                        </ul>
+
+                        <div class="tab-content">
+                          <div class="tab-pane active" id="examples-Definitions-getDefinition-0-curl">
+                           <pre class="prettyprint"><code class="language-bsh">curl -X GET\
+-H "Accept: */*"\
+"//127.0.0.1:38081/api/definitions/{definitionName}"</code></pre>
+                          </div>
+                          <div class="tab-pane" id="examples-Definitions-getDefinition-0-java">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.*;
+import io.swagger.client.auth.*;
+import io.swagger.client.model.*;
+import io.swagger.client.api.DefinitionsApi;
+
+import java.io.File;
+import java.util.*;
+
+public class DefinitionsApiExample {
+
+    public static void main(String[] args) {
+        
+        DefinitionsApi apiInstance = new DefinitionsApi();
+        String definitionName = definitionName_example; // String | name of workload type or trait
+        try {
+            inline_response_200 result = apiInstance.getDefinition(definitionName);
+            System.out.println(result);
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefinitionsApi#getDefinition");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+
+                          <div class="tab-pane" id="examples-Definitions-getDefinition-0-android">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.api.DefinitionsApi;
+
+public class DefinitionsApiExample {
+
+    public static void main(String[] args) {
+        DefinitionsApi apiInstance = new DefinitionsApi();
+        String definitionName = definitionName_example; // String | name of workload type or trait
+        try {
+            inline_response_200 result = apiInstance.getDefinition(definitionName);
+            System.out.println(result);
+        } catch (ApiException e) {
+            System.err.println("Exception when calling DefinitionsApi#getDefinition");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+  <!--
+  <div class="tab-pane" id="examples-Definitions-getDefinition-0-groovy">
+  <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+  </div> -->
+                            <div class="tab-pane" id="examples-Definitions-getDefinition-0-objc">
+                              <pre class="prettyprint"><code class="language-cpp">String *definitionName = definitionName_example; // name of workload type or trait
+
+DefinitionsApi *apiInstance = [[DefinitionsApi alloc] init];
+
+// gets OpenAPI schema from Cue section of a WorkloadDefinition/TraitDefinition
+[apiInstance getDefinitionWith:definitionName
+              completionHandler: ^(inline_response_200 output, NSError* error) {
+                            if (output) {
+                                NSLog(@"%@", output);
+                            }
+                            if (error) {
+                                NSLog(@"Error: %@", error);
+                            }
+                        }];
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Definitions-getDefinition-0-javascript">
+                              <pre class="prettyprint"><code class="language-js">var KubeVelaRestfulApi = require('kube_vela_restful_api');
+
+var api = new KubeVelaRestfulApi.DefinitionsApi()
+var definitionName = definitionName_example; // {{String}} name of workload type or trait
+
+var callback = function(error, data, response) {
+  if (error) {
+    console.error(error);
+  } else {
+    console.log('API called successfully. Returned data: ' + data);
+  }
+};
+api.getDefinition(definitionName, callback);
+</code></pre>
+                            </div>
+
+                            <!--<div class="tab-pane" id="examples-Definitions-getDefinition-0-angular">
+              <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+            </div>-->
+                            <div class="tab-pane" id="examples-Definitions-getDefinition-0-csharp">
+                              <pre class="prettyprint"><code class="language-cs">using System;
+using System.Diagnostics;
+using IO.Swagger.Api;
+using IO.Swagger.Client;
+using IO.Swagger.Model;
+
+namespace Example
+{
+    public class getDefinitionExample
+    {
+        public void main()
+        {
+
+            var apiInstance = new DefinitionsApi();
+            var definitionName = definitionName_example;  // String | name of workload type or trait
+
+            try
+            {
+                // gets OpenAPI schema from Cue section of a WorkloadDefinition/TraitDefinition
+                inline_response_200 result = apiInstance.getDefinition(definitionName);
+                Debug.WriteLine(result);
+            }
+            catch (Exception e)
+            {
+                Debug.Print("Exception when calling DefinitionsApi.getDefinition: " + e.Message );
+            }
+        }
+    }
+}
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Definitions-getDefinition-0-php">
+                              <pre class="prettyprint"><code class="language-php"><&#63;php
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$api_instance = new Swagger\Client\ApiDefinitionsApi();
+$definitionName = definitionName_example; // String | name of workload type or trait
+
+try {
+    $result = $api_instance->getDefinition($definitionName);
+    print_r($result);
+} catch (Exception $e) {
+    echo 'Exception when calling DefinitionsApi->getDefinition: ', $e->getMessage(), PHP_EOL;
+}
+?></code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Definitions-getDefinition-0-perl">
+                              <pre class="prettyprint"><code class="language-perl">use Data::Dumper;
+use WWW::SwaggerClient::Configuration;
+use WWW::SwaggerClient::DefinitionsApi;
+
+my $api_instance = WWW::SwaggerClient::DefinitionsApi->new();
+my $definitionName = definitionName_example; # String | name of workload type or trait
+
+eval { 
+    my $result = $api_instance->getDefinition(definitionName => $definitionName);
+    print Dumper($result);
+};
+if ($@) {
+    warn "Exception when calling DefinitionsApi->getDefinition: $@\n";
+}</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Definitions-getDefinition-0-python">
+                              <pre class="prettyprint"><code class="language-python">from __future__ import print_statement
+import time
+import swagger_client
+from swagger_client.rest import ApiException
+from pprint import pprint
+
+# create an instance of the API class
+api_instance = swagger_client.DefinitionsApi()
+definitionName = definitionName_example # String | name of workload type or trait
+
+try: 
+    # gets OpenAPI schema from Cue section of a WorkloadDefinition/TraitDefinition
+    api_response = api_instance.get_definition(definitionName)
+    pprint(api_response)
+except ApiException as e:
+    print("Exception when calling DefinitionsApi->getDefinition: %s\n" % e)</code></pre>
+                            </div>
+                          </div>
+
+                          <h2>Parameters</h2>
+
+                            <div class="methodsubtabletitle">Path parameters</div>
+                            <table id="methodsubtable">
+                                <tr>
+                                  <th width="150px">Name</th>
+                                  <th>Description</th>
+                                </tr>
+                                  <tr><td style="width:150px;">definitionName*</td>
+                                  <td>
+                                  
+                                  
+                                      <div id="d2e199_getDefinition_definitionName">
+                                          <div class="json-schema-view">
+                                              <div class="primitive">
+                                                  <span class="type">
+                                                      String
+                                                  </span>
+                                  
+                                                      <div class="inner description">
+                                                          name of workload type or trait
+                                                      </div>
+                                              </div>
+                                                  <div class="inner required">
+                                                      Required
+                                                  </div>
+                                          </div>
+                                      </div>
+                                  </td>
+                                  </tr>
+                            </table>
+
+
+
+
+
+                          <h2>Responses</h2>
+                            <h3> Status: 200 - OK </h3>
+
+                            <ul class="nav nav-tabs nav-tabs-examples" >
+                                <li class="active">
+                                  <a data-toggle="tab" href="#responses-getDefinition-200-schema">Schema</a>
+                                </li>
+
+                            </ul>
+
+                            <div class="tab-content" style='margin-bottom: 10px;'>
+                                <div class="tab-pane active" id="responses-getDefinition-200-schema">
+                                  <div id='responses-getDefinition-200-schema-200' style="padding: 30px; border-left: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee;">
+                                    <script>
+                                      $(document).ready(function() {
+                                        var schemaWrapper = {
+  "description" : "OK",
+  "content" : {
+    "*/*" : {
+      "schema" : {
+        "$ref" : "#/components/schemas/inline_response_200"
+      }
+    }
+  }
+};
+                                        var schema = schemaWrapper.content["*/*"].schema;
+                                        if (schema.$ref != null) {
+                                          schema = defsParser.$refs.get(schema.$ref);
+                                        } else {
+                                          schemaWrapper.components = {};
+                                          schemaWrapper.components.schemas = Object.assign({}, defs);
+                                          $RefParser.dereference(schemaWrapper).catch(function(err) {
+                                            console.log(err);
+                                          });
+                                        }
+
+                                        //console.log(JSON.stringify(schema));
+                                        var view = new JSONSchemaView(schema, 3);
+                                        $('#responses-getDefinition-200-schema-data').val(stringify(schema));
+                                        var result = $('#responses-getDefinition-200-schema-200');
+                                        result.empty();
+                                        result.append(view.render());
+                                      });
+                                    </script>
+                                  </div>
+                                  <input id='responses-getDefinition-200-schema-data' type='hidden' value=''></input>
+                                </div>
+                            </div>
+
+                            <h3> Status: 500 - Internal Server Error </h3>
+
+                            <ul class="nav nav-tabs nav-tabs-examples" >
+                                <li class="active">
+                                  <a data-toggle="tab" href="#responses-getDefinition-500-schema">Schema</a>
+                                </li>
+
+                            </ul>
+
+                            <div class="tab-content" style='margin-bottom: 10px;'>
+                                <div class="tab-pane active" id="responses-getDefinition-500-schema">
+                                  <div id='responses-getDefinition-500-schema-500' style="padding: 30px; border-left: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee;">
+                                    <script>
+                                      $(document).ready(function() {
+                                        var schemaWrapper = {
+  "description" : "Internal Server Error",
+  "content" : {
+    "*/*" : {
+      "schema" : {
+        "$ref" : "#/components/schemas/inline_response_200"
+      }
+    }
+  }
+};
+                                        var schema = schemaWrapper.content["*/*"].schema;
+                                        if (schema.$ref != null) {
+                                          schema = defsParser.$refs.get(schema.$ref);
+                                        } else {
+                                          schemaWrapper.components = {};
+                                          schemaWrapper.components.schemas = Object.assign({}, defs);
+                                          $RefParser.dereference(schemaWrapper).catch(function(err) {
+                                            console.log(err);
+                                          });
+                                        }
+
+                                        //console.log(JSON.stringify(schema));
+                                        var view = new JSONSchemaView(schema, 3);
+                                        $('#responses-getDefinition-500-schema-data').val(stringify(schema));
+                                        var result = $('#responses-getDefinition-500-schema-500');
+                                        result.empty();
+                                        result.append(view.render());
+                                      });
+                                    </script>
+                                  </div>
+                                  <input id='responses-getDefinition-500-schema-data' type='hidden' value=''></input>
                                 </div>
                             </div>
 
@@ -1703,7 +2061,7 @@ public class EnvironmentsApiExample {
         
         EnvironmentsApi apiInstance = new EnvironmentsApi();
         try {
-            inline_response_500 result = apiInstance.createEnvironment();
+            inline_response_200 result = apiInstance.createEnvironment();
             System.out.println(result);
         } catch (ApiException e) {
             System.err.println("Exception when calling EnvironmentsApi#createEnvironment");
@@ -1721,7 +2079,7 @@ public class EnvironmentsApiExample {
     public static void main(String[] args) {
         EnvironmentsApi apiInstance = new EnvironmentsApi();
         try {
-            inline_response_500 result = apiInstance.createEnvironment();
+            inline_response_200 result = apiInstance.createEnvironment();
             System.out.println(result);
         } catch (ApiException e) {
             System.err.println("Exception when calling EnvironmentsApi#createEnvironment");
@@ -1739,7 +2097,7 @@ public class EnvironmentsApiExample {
 EnvironmentsApi *apiInstance = [[EnvironmentsApi alloc] init];
 
 [apiInstance createEnvironmentWithCompletionHandler: 
-              ^(inline_response_500 output, NSError* error) {
+              ^(inline_response_200 output, NSError* error) {
                             if (output) {
                                 NSLog(@"%@", output);
                             }
@@ -1786,7 +2144,7 @@ namespace Example
 
             try
             {
-                inline_response_500 result = apiInstance.createEnvironment();
+                inline_response_200 result = apiInstance.createEnvironment();
                 Debug.WriteLine(result);
             }
             catch (Exception e)
@@ -1875,7 +2233,7 @@ except ApiException as e:
   "content" : {
     "*/*" : {
       "schema" : {
-        "$ref" : "#/components/schemas/inline_response_500"
+        "$ref" : "#/components/schemas/inline_response_200"
       }
     }
   }
@@ -1923,7 +2281,7 @@ except ApiException as e:
   "content" : {
     "*/*" : {
       "schema" : {
-        "$ref" : "#/components/schemas/inline_response_500"
+        "$ref" : "#/components/schemas/inline_response_200"
       }
     }
   }
@@ -2007,7 +2365,7 @@ public class EnvironmentsApiExample {
         EnvironmentsApi apiInstance = new EnvironmentsApi();
         String envName = envName_example; // String | envName
         try {
-            inline_response_500 result = apiInstance.deleteEnvironment(envName);
+            inline_response_200 result = apiInstance.deleteEnvironment(envName);
             System.out.println(result);
         } catch (ApiException e) {
             System.err.println("Exception when calling EnvironmentsApi#deleteEnvironment");
@@ -2026,7 +2384,7 @@ public class EnvironmentsApiExample {
         EnvironmentsApi apiInstance = new EnvironmentsApi();
         String envName = envName_example; // String | envName
         try {
-            inline_response_500 result = apiInstance.deleteEnvironment(envName);
+            inline_response_200 result = apiInstance.deleteEnvironment(envName);
             System.out.println(result);
         } catch (ApiException e) {
             System.err.println("Exception when calling EnvironmentsApi#deleteEnvironment");
@@ -2045,7 +2403,7 @@ public class EnvironmentsApiExample {
 EnvironmentsApi *apiInstance = [[EnvironmentsApi alloc] init];
 
 [apiInstance deleteEnvironmentWith:envName
-              completionHandler: ^(inline_response_500 output, NSError* error) {
+              completionHandler: ^(inline_response_200 output, NSError* error) {
                             if (output) {
                                 NSLog(@"%@", output);
                             }
@@ -2095,7 +2453,7 @@ namespace Example
 
             try
             {
-                inline_response_500 result = apiInstance.deleteEnvironment(envName);
+                inline_response_200 result = apiInstance.deleteEnvironment(envName);
                 Debug.WriteLine(result);
             }
             catch (Exception e)
@@ -2216,7 +2574,7 @@ except ApiException as e:
   "content" : {
     "*/*" : {
       "schema" : {
-        "$ref" : "#/components/schemas/inline_response_500"
+        "$ref" : "#/components/schemas/inline_response_200"
       }
     }
   }
@@ -2264,7 +2622,7 @@ except ApiException as e:
   "content" : {
     "*/*" : {
       "schema" : {
-        "$ref" : "#/components/schemas/inline_response_500"
+        "$ref" : "#/components/schemas/inline_response_200"
       }
     }
   }
@@ -2348,7 +2706,7 @@ public class EnvironmentsApiExample {
         EnvironmentsApi apiInstance = new EnvironmentsApi();
         String envName = envName_example; // String | envName
         try {
-            inline_response_200 result = apiInstance.getEnvironment(envName);
+            inline_response_200_1 result = apiInstance.getEnvironment(envName);
             System.out.println(result);
         } catch (ApiException e) {
             System.err.println("Exception when calling EnvironmentsApi#getEnvironment");
@@ -2367,7 +2725,7 @@ public class EnvironmentsApiExample {
         EnvironmentsApi apiInstance = new EnvironmentsApi();
         String envName = envName_example; // String | envName
         try {
-            inline_response_200 result = apiInstance.getEnvironment(envName);
+            inline_response_200_1 result = apiInstance.getEnvironment(envName);
             System.out.println(result);
         } catch (ApiException e) {
             System.err.println("Exception when calling EnvironmentsApi#getEnvironment");
@@ -2386,7 +2744,7 @@ public class EnvironmentsApiExample {
 EnvironmentsApi *apiInstance = [[EnvironmentsApi alloc] init];
 
 [apiInstance getEnvironmentWith:envName
-              completionHandler: ^(inline_response_200 output, NSError* error) {
+              completionHandler: ^(inline_response_200_1 output, NSError* error) {
                             if (output) {
                                 NSLog(@"%@", output);
                             }
@@ -2436,7 +2794,7 @@ namespace Example
 
             try
             {
-                inline_response_200 result = apiInstance.getEnvironment(envName);
+                inline_response_200_1 result = apiInstance.getEnvironment(envName);
                 Debug.WriteLine(result);
             }
             catch (Exception e)
@@ -2557,7 +2915,7 @@ except ApiException as e:
   "content" : {
     "*/*" : {
       "schema" : {
-        "$ref" : "#/components/schemas/inline_response_200"
+        "$ref" : "#/components/schemas/inline_response_200_1"
       }
     }
   }
@@ -2605,7 +2963,7 @@ except ApiException as e:
   "content" : {
     "*/*" : {
       "schema" : {
-        "$ref" : "#/components/schemas/inline_response_500"
+        "$ref" : "#/components/schemas/inline_response_200"
       }
     }
   }
@@ -2688,7 +3046,7 @@ public class EnvironmentsApiExample {
         
         EnvironmentsApi apiInstance = new EnvironmentsApi();
         try {
-            inline_response_200 result = apiInstance.listEnvironments();
+            inline_response_200_1 result = apiInstance.listEnvironments();
             System.out.println(result);
         } catch (ApiException e) {
             System.err.println("Exception when calling EnvironmentsApi#listEnvironments");
@@ -2706,7 +3064,7 @@ public class EnvironmentsApiExample {
     public static void main(String[] args) {
         EnvironmentsApi apiInstance = new EnvironmentsApi();
         try {
-            inline_response_200 result = apiInstance.listEnvironments();
+            inline_response_200_1 result = apiInstance.listEnvironments();
             System.out.println(result);
         } catch (ApiException e) {
             System.err.println("Exception when calling EnvironmentsApi#listEnvironments");
@@ -2724,7 +3082,7 @@ public class EnvironmentsApiExample {
 EnvironmentsApi *apiInstance = [[EnvironmentsApi alloc] init];
 
 [apiInstance listEnvironmentsWithCompletionHandler: 
-              ^(inline_response_200 output, NSError* error) {
+              ^(inline_response_200_1 output, NSError* error) {
                             if (output) {
                                 NSLog(@"%@", output);
                             }
@@ -2771,7 +3129,7 @@ namespace Example
 
             try
             {
-                inline_response_200 result = apiInstance.listEnvironments();
+                inline_response_200_1 result = apiInstance.listEnvironments();
                 Debug.WriteLine(result);
             }
             catch (Exception e)
@@ -2860,7 +3218,7 @@ except ApiException as e:
   "content" : {
     "application/json" : {
       "schema" : {
-        "$ref" : "#/components/schemas/inline_response_200"
+        "$ref" : "#/components/schemas/inline_response_200_1"
       }
     }
   }
@@ -2908,7 +3266,7 @@ except ApiException as e:
   "content" : {
     "application/json" : {
       "schema" : {
-        "$ref" : "#/components/schemas/inline_response_500"
+        "$ref" : "#/components/schemas/inline_response_200"
       }
     }
   }
@@ -2992,7 +3350,7 @@ public class EnvironmentsApiExample {
         EnvironmentsApi apiInstance = new EnvironmentsApi();
         String envName = envName_example; // String | envName
         try {
-            inline_response_500 result = apiInstance.setEnvironment(envName);
+            inline_response_200 result = apiInstance.setEnvironment(envName);
             System.out.println(result);
         } catch (ApiException e) {
             System.err.println("Exception when calling EnvironmentsApi#setEnvironment");
@@ -3011,7 +3369,7 @@ public class EnvironmentsApiExample {
         EnvironmentsApi apiInstance = new EnvironmentsApi();
         String envName = envName_example; // String | envName
         try {
-            inline_response_500 result = apiInstance.setEnvironment(envName);
+            inline_response_200 result = apiInstance.setEnvironment(envName);
             System.out.println(result);
         } catch (ApiException e) {
             System.err.println("Exception when calling EnvironmentsApi#setEnvironment");
@@ -3030,7 +3388,7 @@ public class EnvironmentsApiExample {
 EnvironmentsApi *apiInstance = [[EnvironmentsApi alloc] init];
 
 [apiInstance setEnvironmentWith:envName
-              completionHandler: ^(inline_response_500 output, NSError* error) {
+              completionHandler: ^(inline_response_200 output, NSError* error) {
                             if (output) {
                                 NSLog(@"%@", output);
                             }
@@ -3080,7 +3438,7 @@ namespace Example
 
             try
             {
-                inline_response_500 result = apiInstance.setEnvironment(envName);
+                inline_response_200 result = apiInstance.setEnvironment(envName);
                 Debug.WriteLine(result);
             }
             catch (Exception e)
@@ -3201,7 +3559,7 @@ except ApiException as e:
   "content" : {
     "*/*" : {
       "schema" : {
-        "$ref" : "#/components/schemas/inline_response_500"
+        "$ref" : "#/components/schemas/inline_response_200"
       }
     }
   }
@@ -3249,7 +3607,7 @@ except ApiException as e:
   "content" : {
     "*/*" : {
       "schema" : {
-        "$ref" : "#/components/schemas/inline_response_500"
+        "$ref" : "#/components/schemas/inline_response_200"
       }
     }
   }
@@ -3335,7 +3693,7 @@ public class EnvironmentsApiExample {
         Apis.EnvironmentBody body = ; // Apis.EnvironmentBody | envName
         String envName = envName_example; // String | envName
         try {
-            inline_response_500 result = apiInstance.updateEnvironment(body, envName);
+            inline_response_200 result = apiInstance.updateEnvironment(body, envName);
             System.out.println(result);
         } catch (ApiException e) {
             System.err.println("Exception when calling EnvironmentsApi#updateEnvironment");
@@ -3355,7 +3713,7 @@ public class EnvironmentsApiExample {
         Apis.EnvironmentBody body = ; // Apis.EnvironmentBody | envName
         String envName = envName_example; // String | envName
         try {
-            inline_response_500 result = apiInstance.updateEnvironment(body, envName);
+            inline_response_200 result = apiInstance.updateEnvironment(body, envName);
             System.out.println(result);
         } catch (ApiException e) {
             System.err.println("Exception when calling EnvironmentsApi#updateEnvironment");
@@ -3376,7 +3734,7 @@ EnvironmentsApi *apiInstance = [[EnvironmentsApi alloc] init];
 
 [apiInstance updateEnvironmentWith:body
     envName:envName
-              completionHandler: ^(inline_response_500 output, NSError* error) {
+              completionHandler: ^(inline_response_200 output, NSError* error) {
                             if (output) {
                                 NSLog(@"%@", output);
                             }
@@ -3428,7 +3786,7 @@ namespace Example
 
             try
             {
-                inline_response_500 result = apiInstance.updateEnvironment(body, envName);
+                inline_response_200 result = apiInstance.updateEnvironment(body, envName);
                 Debug.WriteLine(result);
             }
             catch (Exception e)
@@ -3596,7 +3954,7 @@ except ApiException as e:
   "content" : {
     "*/*" : {
       "schema" : {
-        "$ref" : "#/components/schemas/inline_response_500"
+        "$ref" : "#/components/schemas/inline_response_200"
       }
     }
   }
@@ -3644,7 +4002,7 @@ except ApiException as e:
   "content" : {
     "*/*" : {
       "schema" : {
-        "$ref" : "#/components/schemas/inline_response_500"
+        "$ref" : "#/components/schemas/inline_response_200"
       }
     }
   }
@@ -3682,7 +4040,7 @@ except ApiException as e:
             <div id="api-_footer">
               <p>Suggestions, contact, support and error reporting;
                   <div class="app-desc">Information URL: <a href="https://kubevela.io">https://kubevela.io</a></div>
-                  <div class="app-desc">Contact Info: <a href="zzxwill@gmail.com">zzxwill@gmail.com</a></div>
+                  <div class="app-desc">Contact Info: <a href="NA">NA</a></div>
               </p>
                 <div class="license-info">Apache 2.0</div>
                 <div class="license-url">http://www.apache.org/licenses/LICENSE-2.0.html</div>

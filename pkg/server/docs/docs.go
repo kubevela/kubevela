@@ -21,7 +21,7 @@ var doc = `{
         "contact": {
             "name": "Slack #kubevela",
             "url": "https://kubevela.io",
-            "email": "zzxwill@gmail.com"
+            "email": "NA"
         },
         "license": {
             "name": "Apache 2.0",
@@ -32,6 +32,68 @@ var doc = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/definitions/{definitionName}": {
+            "get": {
+                "tags": [
+                    "definitions"
+                ],
+                "summary": "gets OpenAPI schema from Cue section of a WorkloadDefinition/TraitDefinition",
+                "operationId": "GetDefinition",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "name of workload type or trait",
+                        "name": "definitionName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/apis.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "code": {
+                                            "type": "integer"
+                                        },
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/apis.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "code": {
+                                            "type": "integer"
+                                        },
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/envs/": {
             "get": {
                 "consumes": [
@@ -800,6 +862,13 @@ var doc = `{
         "v1alpha2.DataInput": {
             "type": "object",
             "properties": {
+                "strategyMergeKeys": {
+                    "description": "StrategyMergeKeys specifies the merge key if the toFieldPaths target is an array.\nThe StrategyMergeKeys is optional, by default, if the toFieldPaths target is an array, we will append.\nIf StrategyMergeKeys specified, we will check the key in the target array.\nIf any key exist, do update; if no key exist, append.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "toFieldPaths": {
                     "description": "ToFieldPaths specifies the field paths of an object to fill passed value.",
                     "type": "array",

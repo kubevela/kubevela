@@ -23,7 +23,7 @@ import (
 // @description KubeVela OpenAPI for applications/workloads/operating
 // @contact.name Slack #kubevela
 // @contact.url https://kubevela.io
-// @contact.email zzxwill@gmail.com
+// @contact.email NA
 // @license.name Apache 2.0
 // @license.url http://www.apache.org/licenses/LICENSE-2.0.html
 // @host 127.0.0.1:38081
