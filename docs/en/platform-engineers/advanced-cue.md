@@ -625,6 +625,73 @@ spec:
             initMountPath: "/work-dir"
 ```
 
-### Node affinity
+### Node affinity and anti-affinity
 
-Node affinity trait is also a good example for patch trait:
+Node affinity and anti-affinity is also common trait:
+
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "affinity specify node affinity and toleration"
+  name: affinity
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  extension:
+    template: |-
+      patch: {
+      	spec: template: spec: {
+      		if parameter.affinity != _|_ {
+      			affinity: nodeAffinity: requiredDuringSchedulingIgnoredDuringExecution: nodeSelectorTerms: [{
+      				matchExpressions: [
+      					for k, v in parameter.affinity {
+      						key:      k
+      						operator: "In"
+      						values:   v
+      					},
+      				]}]
+      		}
+      		if parameter.tolerations != _|_ {
+      			tolerations: [
+      				for k, v in parameter.tolerations {
+      					effect:   "NoSchedule"
+      					key:      k
+      					operator: "Equal"
+      					value:    v
+      				}]
+      		}
+      	}
+      }
+
+      parameter: {
+      	affinity?: [string]: [...string]
+      	tolerations?: [string]: string
+      }
+```
+
+You can use it like:
+
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: Application
+metadata:
+  name: testapp
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      settings:
+        image: oamdev/testapp:v1
+      traits:
+        - name: "affinity"
+          properties:
+            affinity:
+              server-owner: ["owner1","owner2"]
+              resource-pool: ["pool1","pool2","pool3"]
+            tolerations:
+              resource-pool: "broken-pool1"
+              server-owner: "old-owner"
+```
