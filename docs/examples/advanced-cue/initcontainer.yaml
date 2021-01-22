@@ -34,7 +34,7 @@ spec:
       		// +patchKey=name
       		volumes: [{
       			name:     parameter.mountName
-      			emptyDir: "{}"
+      			emptyDir: {}
       		}]
       	}
       }

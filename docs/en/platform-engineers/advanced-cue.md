@@ -69,7 +69,7 @@ spec:
 Apply this newly defined TraitDefinition into our system:
 
 ```shell script
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/advanced-cue/combo.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/advanced-cue/newroute.yaml
 ```
 
 You can check it by using the application object like below:
@@ -366,7 +366,7 @@ spec:
 
 Patch trait can be powerful, let me show more interesting use cases for you.
 
-### Common labels
+### Add labels
 
 When you want to add some common labels into the pod template, for example, use the label as a virtual group.
 
@@ -417,7 +417,7 @@ spec:
 
 In this example, different type will use different label key.
 
-### Common Annotation
+### Add Annotations
 
 Similar to common labels, you may want to add some information into the controller for some extension.
 
@@ -452,9 +452,49 @@ spec:
       }
 ```
 
+### Add Pod Env
+
+Inject some system environments into pod is also very common use case.
+
+The example could be like below, this case rely on strategy merge patch, so don't forget add `+patchKey=name` like below:
+
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "add env into your pods"
+  name: podenv
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  extension:
+    template: |-
+      patch: {
+      	spec: template: spec: {
+      		// +patchKey=name
+      		containers: [{
+      			name: context.name
+      			// +patchKey=name
+      			env: [
+      				for k, v in parameter.env {
+      					name:  k
+      					value: v
+      				},
+      			]
+      		}]
+      	}
+      }
+
+      parameter: {
+      	env: [string]: string
+      }
+```
+
 ### Dynamically Pod Service Account
 
-In this example, the serviceaccount was dynamically requested from an authentication service and patched into the service.
+In this example, the service account was dynamically requested from an authentication service and patched into the service.
 
 This example put uid token in http header, you can also use request body.
 You may refer to [processing](#Processing-Trait) section for more details.
@@ -501,9 +541,89 @@ spec:
 A more general way to do some logic before the real business logic is to use init container.
 You can define any operations in an image and run it as init container, after that use a shared volume to mount into the pod.
 
-Here is an example for this use case.
+Here is an example for this use case, it's same with the [K8s init container demo](https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-initialization/#create-a-pod-that-has-an-init-container)
 
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "add an init container and use shared volume with pod"
+  name: init-container
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  extension:
+    template: |-
+      patch: {
+      	spec: template: spec: {
+      		// +patchKey=name
+      		containers: [{
+      			name: context.name
+      			// +patchKey=name
+      			volumeMounts: [{
+      				name:      parameter.mountName
+      				mountPath: parameter.appMountPath
+      			}]
+      		}]
+      		initContainers: [{
+      			name:    parameter.name
+      			image:   parameter.image
+      			command: parameter.command
+      			// +patchKey=name
+      			volumeMounts: [{
+      				name:      parameter.mountName
+      				mountPath: parameter.initMountPath
+      			}]
+      		}]
+      		// +patchKey=name
+      		volumes: [{
+      			name:     parameter.mountName
+      			emptyDir: {}
+      		}]
+      	}
+      }
 
+      parameter: {
+      	name:  string
+      	image: string
+      	command?: [...string]
+      	mountName:     *"workdir" | string
+      	appMountPath:  string
+      	initMountPath: string
+      }
+```
+
+This case must rely on the strategy merge patch, for every array list, we add a `// +patchKey=name` annotation to avoid conflict.
+
+The usage could be:
+
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: Application
+metadata:
+  name: testapp
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      settings:
+        image: oamdev/testapp:v1
+      traits:
+        - name: "init-container"
+          properties:
+            name:  "install-container"
+            image: "busybox"
+            command:
+            - wget
+            - "-O"
+            - "/work-dir/index.html"
+            - http://info.cern.ch
+            mountName: "workdir"
+            appMountPath:  "/usr/share/nginx/html"
+            initMountPath: "/work-dir"
+```
 
 ### Node affinity
 

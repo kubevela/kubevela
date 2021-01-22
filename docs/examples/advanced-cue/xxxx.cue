@@ -4,38 +4,16 @@ patch: {
 		containers: [{
 			name: context.name
 			// +patchKey=name
-			volumeMounts: [{
-				name:      parameter.mountName
-				mountPath: parameter.appMountPath
-			}]
-		}]
-		initContainers: [{
-			name:    parameter.name
-			image:   parameter.image
-			command: parameter.command
-			// +patchKey=name
-			volumeMounts: [{
-				name:      parameter.mountName
-				mountPath: parameter.initMountPath
-			}]
-		}]
-		// +patchKey=name
-		volumes: [{
-			name:     parameter.mountName
-			emptyDir: "{}"
+			env: [
+				for k, v in parameter.env {
+					name:  k
+					value: v
+				},
+			]
 		}]
 	}
 }
 
 parameter: {
-	name:  string
-	image: string
-	command?: [...string]
-	mountName:     *"workdir" | string
-	appMountPath:  string
-	initMountPath: string
-}
-
-parameter: {
-	command: ["wget", "-O", "/work-dir/index.html", "http://info.cern.ch"]
+	env: [string]: string
 }
