@@ -13,7 +13,15 @@ spec:
         image: oamdev/testapp:v1
         port: 8080
       traits:
-        - name: kautoscale
+        - name: "init-container"
           properties:
-            min: 2
-            max: 4
+            name:  "install-container"
+            image: "busybox"
+            command:
+            - wget
+            - "-O"
+            - "/work-dir/index.html"
+            - http://info.cern.ch
+            mountName: "workdir"
+            appMountPath:  "/usr/share/nginx/html"
+            initMountPath: "/work-dir"

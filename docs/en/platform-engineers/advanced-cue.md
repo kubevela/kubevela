@@ -415,11 +415,13 @@ spec:
             type: "cluster"
 ```
 
+In this example, different type will use different label key.
+
 ### Common Annotation
 
 Similar to common labels, you may want to add some information into the controller for some extension.
 
-Below is an example that represents auto scale bound by using annotation. 
+Below is an example that represents auto scale bound by using annotation. The annotation value will be a json string.
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -453,6 +455,9 @@ spec:
 ### Dynamically Pod Service Account
 
 In this example, the serviceaccount was dynamically requested from an authentication service and patched into the service.
+
+This example put uid token in http header, you can also use request body.
+You may refer to [processing](#Processing-Trait) section for more details.
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -490,6 +495,14 @@ spec:
       	serviceURL: string
       }
 ```
+
+### Add init container and share volume
+
+A more general way to do some logic before the real business logic is to use init container.
+You can define any operations in an image and run it as init container, after that use a shared volume to mount into the pod.
+
+Here is an example for this use case.
+
 
 
 ### Node affinity

@@ -1,22 +1,41 @@
-processing: {
-	output: {
-		credentials?: string
-	}
-	http: {
-		method: *"GET" | string
-		url:    parameter.serviceURL
-		request: {
-			header: {
-				"authorization.token": parameter.uidtoken
-			}
-		}
-	}
-}
 patch: {
-	spec: template: spec: serviceAccountName: processing.output.credentials
+	spec: template: spec: {
+		// +patchKey=name
+		containers: [{
+			name: context.name
+			// +patchKey=name
+			volumeMounts: [{
+				name:      parameter.mountName
+				mountPath: parameter.appMountPath
+			}]
+		}]
+		initContainers: [{
+			name:    parameter.name
+			image:   parameter.image
+			command: parameter.command
+			// +patchKey=name
+			volumeMounts: [{
+				name:      parameter.mountName
+				mountPath: parameter.initMountPath
+			}]
+		}]
+		// +patchKey=name
+		volumes: [{
+			name:     parameter.mountName
+			emptyDir: "{}"
+		}]
+	}
 }
 
 parameter: {
-	uidtoken:   string
-	serviceURL: string
+	name:  string
+	image: string
+	command?: [...string]
+	mountName:     *"workdir" | string
+	appMountPath:  string
+	initMountPath: string
+}
+
+parameter: {
+	command: ["wget", "-O", "/work-dir/index.html", "http://info.cern.ch"]
 }
