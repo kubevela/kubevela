@@ -291,8 +291,10 @@ The structure of one package version contains:
         repo: https://kubernetes.github.io/ingress-nginx
         name: ingress-nginx
   - terraform:
-      source: terraform-aws-modules/rds/aws
-      version: "~> 2.0"
+      path: ./tf_modules/rds/ # local path in this package
+      remote:
+        source: terraform-aws-modules/rds/aws
+        version: "~> 2.0"
   ```
 
 #### Register a catalog in APIServer
