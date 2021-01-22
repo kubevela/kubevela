@@ -45,7 +45,7 @@ func NewDryRunCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 				return err
 			}
 
-			app, err := readfile(o.applicationFile)
+			app, err := readApplicationFromFile(o.applicationFile)
 			if err != nil {
 				return errors.WithMessagef(err, "read application file: %s", o.applicationFile)
 			}
@@ -74,9 +74,6 @@ func NewDryRunCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 			o.Info(string(result))
 			return nil
 		},
-		Annotations: map[string]string{
-			types.TagCommandType: types.TypeSystem,
-		},
 	}
 
 	cmd.Flags().StringVarP(&o.applicationFile, "file", "f", "./app.yaml", "application file name")
@@ -84,7 +81,7 @@ func NewDryRunCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 	return cmd
 }
 
-func readfile(filename string) (*corev1alpha2.Application, error) {
+func readApplicationFromFile(filename string) (*corev1alpha2.Application, error) {
 
 	fileContent, err := ioutil.ReadFile(filepath.Clean(filename))
 	if err != nil {
