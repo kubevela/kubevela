@@ -5,6 +5,7 @@ metadata:
 spec:
   components:
     - name: express-server
+      type: webservice
       settings:
         cmd:
           - node
@@ -12,9 +13,7 @@ spec:
         image: oamdev/testapp:v1
         port: 8080
       traits:
-        - name: new-route
+        - name: kautoscale
           properties:
-            domain: test.my.domain
-            http:
-              "/api": 8080
-      type: webservice
+            min: 2
+            max: 4

@@ -313,4 +313,185 @@ spec:
       parameter: {
         http: [string]: int
       }
-``` 
+```
+
+## Processing Trait
+
+A KubeVela trait can also help you to do some processing job. Currently, we have supported http request.
+
+The keyword is `processing`, inside the `processing`, there are two keywords `output` and `http`.
+
+You can define http request `method`, `url`, `body`, `header` and `trailer` in the `http` section.
+KubeVela will send a request using this information, the requested server shall output a **json result**.
+
+The `output` section will used to match with the `json result`, correlate fields by name will be automatically filled into it.
+Then you can use the requested data from `processing.output` into `patch` or `output/outputs`.
+
+Below is an example:
+
+```yaml
+apiVersion: core.oam.dev/v1alpha1
+kind: Trait
+metadata:
+  name: auth-service
+spec:
+  template: |
+    parameter: {
+        serviceURL: string
+    }
+
+    processing: {
+      output: {
+        token?: string
+      }
+      # task shall output a json result and output will correlate fields by name.
+      http: {
+        method: *"GET" | string
+        url: parameter.serviceURL
+        request: {
+            body ?: bytes
+            header: {}
+            trailer: {}
+        }
+      }
+    }
+
+    patch: {
+      data: token: processing.output.token
+    }
+```
+
+
+## More Useful Trait Use Cases
+
+Patch trait can be powerful, let me show more interesting use cases for you.
+
+### Common labels
+
+When you want to add some common labels into the pod template, for example, use the label as a virtual group.
+
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "Add virtual group labels"
+  name: virtualgroup
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  extension:
+    template: |-
+      patch: {
+      	spec: template: {
+      		metadata: labels: {
+      			if parameter.type == "namespace" {
+      				"app.namespace.virtual.group": parameter.group
+      			}
+      			if parameter.type == "cluster" {
+      				"app.cluster.virtual.group": parameter.group
+      			}
+      		}
+      	}
+      }
+      parameter: {
+      	group: *"default" | string
+      	type:  *"namespace" | string
+      }
+```
+
+Then it could be used like:
+
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: Application
+spec:
+  ...
+      traits:
+        - name: virtualgroup
+          properties:
+            group: "my-group1"
+            type: "cluster"
+```
+
+### Common Annotation
+
+Similar to common labels, you may want to add some information into the controller for some extension.
+
+Below is an example that represents auto scale bound by using annotation. 
+
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "Specify auto scale by annotation"
+  name: kautoscale
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  extension:
+    template: |-
+      import "encoding/json"
+
+      patch: {
+      	metadata: annotations: {
+      		"my.custom.autoscale.annotation": json.Marshal({
+      			"minReplicas": parameter.min
+      			"maxReplicas": parameter.max
+      		})
+      	}
+      }
+      parameter: {
+      	min: *1 | int
+      	max: *3 | int
+      }
+```
+
+### Dynamically Pod Service Account
+
+In this example, the serviceaccount was dynamically requested from an authentication service and patched into the service.
+
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "dynamically specify service account"
+  name: serviceacc
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  extension:
+    template: |-
+      processing: {
+      	output: {
+      		credentials?: string
+      	}
+      	http: {
+      		method: *"GET" | string
+      		url:    parameter.serviceURL
+      		request: {
+      			header: {
+      				"authorization.token": parameter.uidtoken
+      			}
+      		}
+      	}
+      }
+      patch: {
+      	spec: template: spec: serviceAccountName: processing.output.credentials
+      }
+
+      parameter: {
+      	uidtoken:   string
+      	serviceURL: string
+      }
+```
+
+
+### Node affinity
+
+Node affinity trait is also a good example for patch trait:
