@@ -13,6 +13,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 )
 
 func TestUp(t *testing.T) {
@@ -23,7 +24,7 @@ func TestUp(t *testing.T) {
 		Namespace: "env-up",
 		Issuer:    "up",
 	}
-	o := AppfileOptions{
+	o := serverlib.AppfileOptions{
 		Kubecli: client,
 		IO:      ioStream,
 		Env:     &env,
