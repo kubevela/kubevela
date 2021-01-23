@@ -64,6 +64,7 @@ func SystemCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command
 			types.TagCommandType: types.TypeSystem,
 		},
 	}
+	cmd.AddCommand(NewDryRunCommand(c, ioStream))
 	cmd.AddCommand(NewAdminInfoCommand(ioStream))
 	return cmd
 }
