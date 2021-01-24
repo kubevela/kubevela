@@ -7,6 +7,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationconfiguration"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationdeployment"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/component"
+	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/traitdefinition"
 )
 
 // Register will be called in main and register all validation handlers
@@ -15,6 +16,9 @@ func Register(mgr manager.Manager) error {
 		return err
 	}
 	if err := applicationconfiguration.RegisterValidatingHandler(mgr); err != nil {
+		return err
+	}
+	if err := traitdefinition.RegisterValidatingHandler(mgr); err != nil {
 		return err
 	}
 	applicationconfiguration.RegisterMutatingHandler(mgr)
