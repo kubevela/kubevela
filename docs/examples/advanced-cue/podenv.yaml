@@ -3,7 +3,7 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: "add env into your pods"
-  name: podenv
+  name: env
 spec:
   appliesToWorkloads:
     - webservice

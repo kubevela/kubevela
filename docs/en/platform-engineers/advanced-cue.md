@@ -11,13 +11,13 @@ With the help of CUE template, we can combine multiple K8s resources into one tr
  
 You can use the keyword `outputs` to create multiple K8s objects. The format MUST be `outputs:<unique-name>:<k8s-object>`.
 
-Let's look at an example, assume you hope to make a combo for K8s service and ingress, naming it as `new-route`.
+Let's look at an example, assume you hope to make a combo for K8s service and ingress, naming it as `ingress`.
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata:
-  name: new-route
+  name: ingress
 spec:
   extension:
     template: |
@@ -91,7 +91,7 @@ spec:
         image: oamdev/testapp:v1
         port: 8080
       traits:
-        - name: new-route
+        - name: ingress
           properties:
             domain: test.my.domain
             http:
@@ -105,7 +105,7 @@ Apply it:
 kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/advanced-cue/app1.yaml
 ```
 
-Then you will see the deployment behind webservice along with the K8s service and ingress behind the new-route trait created.
+Then you will see the deployment behind webservice along with the K8s service and ingress behind the ingress trait created.
 
 ### Generate multiple resources by using for loop
 
@@ -119,7 +119,7 @@ Below is an example that will generate multiple K8s services in one trait:
 apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata:
-  name: my-svc
+  name: expose
 spec:
   extension:
     template: |
@@ -170,7 +170,7 @@ spec:
         image: oamdev/testapp:v1
         port: 8080
       traits:
-        - name: my-svc
+        - name: expose
           properties:
             http:
               myservice1: 8080
@@ -331,7 +331,7 @@ Below is an example:
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha1
-kind: Trait
+kind: TraitDefinition
 metadata:
   name: auth-service
 spec:
@@ -464,7 +464,7 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: "add env into your pods"
-  name: podenv
+  name: env
 spec:
   appliesToWorkloads:
     - webservice
@@ -505,7 +505,7 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: "dynamically specify service account"
-  name: serviceacc
+  name: service-account
 spec:
   appliesToWorkloads:
     - webservice
@@ -635,7 +635,7 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: "affinity specify node affinity and toleration"
-  name: affinity
+  name: node-affinity
 spec:
   appliesToWorkloads:
     - webservice
@@ -686,7 +686,7 @@ spec:
       settings:
         image: oamdev/testapp:v1
       traits:
-        - name: "affinity"
+        - name: "node-affinity"
           properties:
             affinity:
               server-owner: ["owner1","owner2"]

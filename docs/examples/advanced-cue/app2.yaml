@@ -13,7 +13,7 @@ spec:
         image: oamdev/testapp:v1
         port: 8080
       traits:
-        - name: my-svc
+        - name: expose
           properties:
             http:
               myservice1: 8080

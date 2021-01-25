@@ -6,8 +6,7 @@ metadata:
   name: kautoscale
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - webservice # this should be some knative like workload
   extension:
     template: |-
       import "encoding/json"

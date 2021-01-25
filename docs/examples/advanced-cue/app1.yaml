@@ -12,7 +12,7 @@ spec:
         image: oamdev/testapp:v1
         port: 8080
       traits:
-        - name: new-route
+        - name: ingress
           properties:
             domain: test.my.domain
             http:

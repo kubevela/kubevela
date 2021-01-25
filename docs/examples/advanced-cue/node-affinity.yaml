@@ -3,7 +3,7 @@ kind: TraitDefinition
 metadata:
   annotations:
     definition.oam.dev/description: "affinity specify node affinity and toleration"
-  name: affinity
+  name: node-affinity
 spec:
   appliesToWorkloads:
     - webservice
