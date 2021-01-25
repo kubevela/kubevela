@@ -6,10 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/appfile/api"
-
-	"github.com/oam-dev/kubevela/pkg/appfile"
-
 	"github.com/spf13/cobra"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -19,6 +15,8 @@ import (
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	velacmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"

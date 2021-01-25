@@ -8,10 +8,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/appfile/api"
-
-	"github.com/oam-dev/kubevela/pkg/appfile"
-
 	"github.com/fatih/color"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -20,6 +16,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )

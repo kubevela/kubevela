@@ -8,10 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/appfile/api"
-
-	"github.com/oam-dev/kubevela/pkg/appfile"
-
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/fatih/color"
 	"github.com/pkg/errors"
@@ -20,6 +16,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oam2 "github.com/oam-dev/kubevela/pkg/serverlib"

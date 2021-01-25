@@ -5,14 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/oam-dev/kubevela/pkg/appfile/api"
-
-	"github.com/oam-dev/kubevela/pkg/appfile"
-
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"

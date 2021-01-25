@@ -3,11 +3,9 @@ package model
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
 	"cuelang.org/go/cue"
+	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 

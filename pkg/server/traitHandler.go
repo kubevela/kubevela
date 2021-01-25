@@ -5,13 +5,12 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/oam-dev/kubevela/pkg/appfile/api"
-
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/pflag"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	util2 "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
