@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+{{- if .Values.installCertManager -}}
+{{- if .Values.useWebhook -}}
+---
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -1080,4 +1082,6 @@ webhooks:
     resources:
     - '*/*'
   sideEffects: None
-
+---
+{{- end -}}
+{{- end -}}

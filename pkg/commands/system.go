@@ -48,6 +48,7 @@ type chartArgs struct {
 	imageRepo       string
 	imageTag        string
 	imagePullPolicy string
+	more            []string
 }
 
 type infoCmd struct {
@@ -130,6 +131,7 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 	flag.StringVarP(&i.chartArgs.imageRepo, "image-repo", "", "", "vela core image repo, this will align to chart value image.repo")
 	flag.StringVarP(&i.chartArgs.imageTag, "image-tag", "", "", "vela core image repo, this will align to chart value image.tag")
 	flag.StringVarP(&i.waitReady, "wait", "w", "0s", "wait until vela-core is ready to serve, default will not wait")
+	flag.StringSliceVarP(&i.chartArgs.more, "set", "s", []string{}, "arguments for installing vela-core chart")
 
 	return cmd
 }
@@ -225,7 +227,7 @@ func (i *initCmd) resolveValues() (map[string]interface{}, error) {
 	if i.chartArgs.imagePullPolicy != "" {
 		valuesConfig = append(valuesConfig, fmt.Sprintf("image.pullPolicy=%s", i.chartArgs.imagePullPolicy))
 	}
-	// TODO(wonderflow) values here could give more arguments in command line
+	valuesConfig = append(valuesConfig, i.chartArgs.more...)
 
 	for _, val := range valuesConfig {
 		// parses Helm strvals line and merges into a map for the final overrides for values.yaml

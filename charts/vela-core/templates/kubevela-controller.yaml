@@ -145,11 +145,13 @@ spec:
               name: tls-cert-vol
               readOnly: true
           {{ end }}
+      {{ if .Values.useWebhook }}
       volumes:
         - name: tls-cert-vol
           secret:
             defaultMode: 420
             secretName: {{ .Values.certificate.secretName | quote }}
+      {{ end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
       {{- toYaml . | nindent 8 }}

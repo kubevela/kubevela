@@ -208,6 +208,8 @@ metadata:
 spec:
   selfSigned: {}
 
+# The following Certificate will generate a secret for vela-core
+# This rely on the system has a installed cert-manager in it.
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
