@@ -9,6 +9,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
+
+	"github.com/oam-dev/kubevela/pkg/appfile"
+
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,8 +28,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
-	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	velacmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -40,7 +42,7 @@ type VelaPortForwardOptions struct {
 	context.Context
 	VelaC types.Args
 	Env   *types.EnvMeta
-	App   *driver.Application
+	App   *api.Application
 
 	f                    k8scmdutil.Factory
 	kcPortForwardOptions *cmdpf.PortForwardOptions
@@ -114,7 +116,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	}
 	o.Env = env
 
-	app, err := application.Load(env.Name, o.Args[0])
+	app, err := appfile.LoadApplication(env.Name, o.Args[0])
 	if err != nil {
 		return err
 	}
@@ -151,12 +153,12 @@ func getRouteServiceName(appconfig *v1alpha2.ApplicationConfiguration, svcName s
 
 // Complete will complete the config of port-forward
 func (o *VelaPortForwardOptions) Complete() error {
-	svcName, err := util.AskToChooseOneService(application.GetComponents(o.App))
+	svcName, err := util.AskToChooseOneService(appfile.GetComponents(o.App))
 	if err != nil {
 		return err
 	}
 	if o.routeTrait {
-		appconfig, err := application.GetAppConfig(o.Context, o.Client, o.App, o.Env)
+		appconfig, err := appfile.GetAppConfig(o.Context, o.Client, o.App, o.Env)
 		if err != nil {
 			return err
 		}
@@ -191,7 +193,7 @@ func (o *VelaPortForwardOptions) Complete() error {
 	}
 	if len(o.Args) < 2 {
 		var found bool
-		_, configs := application.GetServiceConfig(o.App, svcName)
+		_, configs := appfile.GetServiceConfig(o.App, svcName)
 		for k, v := range configs {
 			if k == "port" {
 				var val string

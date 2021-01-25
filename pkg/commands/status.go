@@ -8,6 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
+
+	"github.com/oam-dev/kubevela/pkg/appfile"
+
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/fatih/color"
 	"github.com/pkg/errors"
@@ -16,8 +20,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
-	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oam2 "github.com/oam-dev/kubevela/pkg/serverlib"
@@ -115,7 +117,7 @@ func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 }
 
 func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta, cmd *cobra.Command) error {
-	app, err := application.Load(env.Name, appName)
+	app, err := appfile.LoadApplication(env.Name, appName)
 	if err != nil {
 		return err
 	}
@@ -189,7 +191,7 @@ func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmduti
 	return nil
 }
 
-func traitCheckLoop(ctx context.Context, c client.Client, reference runtimev1alpha1.TypedReference, compName string, appConfig *v1alpha2.ApplicationConfiguration, app *driver.Application, timeout time.Duration) (string, string, error) {
+func traitCheckLoop(ctx context.Context, c client.Client, reference runtimev1alpha1.TypedReference, compName string, appConfig *v1alpha2.ApplicationConfiguration, app *api.Application, timeout time.Duration) (string, string, error) {
 	tr, err := oam2.GetUnstructured(ctx, c, appConfig.Namespace, reference)
 	if err != nil {
 		return "", "", err
@@ -375,38 +377,38 @@ func trackHealthCheckingStatus(ctx context.Context, c client.Client, compName, a
 	return compStatusHealthCheckDone, HealthStatusNotDiagnosed, statusInfo, nil
 }
 
-func getAppConfig(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (*driver.Application, *v1alpha2.ApplicationConfiguration, error) {
-	var app *driver.Application
+func getAppConfig(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (*api.Application, *v1alpha2.ApplicationConfiguration, error) {
+	var app *api.Application
 	var err error
 	if appName != "" {
-		app, err = application.Load(env.Name, appName)
+		app, err = appfile.LoadApplication(env.Name, appName)
 	} else {
-		app, err = application.MatchAppByComp(env.Name, compName)
+		app, err = appfile.MatchAppByComp(env.Name, compName)
 	}
 	if err != nil {
 		return nil, nil, err
 	}
 
-	appConfig, err := application.GetAppConfig(ctx, c, app, env)
+	appConfig, err := appfile.GetAppConfig(ctx, c, app, env)
 	if err != nil {
 		return nil, nil, err
 	}
 	return app, appConfig, nil
 }
 
-func getApp(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (*driver.Application, *v1alpha2.Application, error) {
-	var app *driver.Application
+func getApp(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (*api.Application, *v1alpha2.Application, error) {
+	var app *api.Application
 	var err error
 	if appName != "" {
-		app, err = application.Load(env.Name, appName)
+		app, err = appfile.LoadApplication(env.Name, appName)
 	} else {
-		app, err = application.MatchAppByComp(env.Name, compName)
+		app, err = appfile.MatchAppByComp(env.Name, compName)
 	}
 	if err != nil {
 		return nil, nil, err
 	}
 
-	appObj, err := application.GetApplication(ctx, c, app, env)
+	appObj, err := appfile.GetApplication(ctx, c, app, env)
 	if err != nil {
 		return nil, nil, err
 	}

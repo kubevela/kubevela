@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"strconv"
 
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
+
 	"cuelang.org/go/cue"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
@@ -16,8 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
-	"github.com/oam-dev/kubevela/pkg/application"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/serverlib"
@@ -29,7 +30,7 @@ type appInitOptions struct {
 	cmdutil.IOStreams
 	Env *types.EnvMeta
 
-	app          *driver.Application
+	app          *api.Application
 	appName      string
 	workloadName string
 	workloadType string
@@ -73,7 +74,7 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 				return err
 			}
 
-			if err := o.app.Validate(); err != nil {
+			if err := appfile.Validate(o.app); err != nil {
 				return err
 			}
 
@@ -92,7 +93,7 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			}
 
 			ctx := context.Background()
-			err = application.BuildRun(ctx, o.app, o.client, o.Env, o.IOStreams)
+			err = appfile.BuildRun(ctx, o.app, o.client, o.Env, o.IOStreams)
 			if err != nil {
 				return err
 			}

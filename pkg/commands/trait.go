@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
+
+	"github.com/oam-dev/kubevela/pkg/appfile"
+
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
-	"github.com/oam-dev/kubevela/pkg/application"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
@@ -25,7 +27,7 @@ type commandOptions struct {
 
 	workloadName string
 	appName      string
-	app          *driver.Application
+	app          *api.Application
 	traitType    string
 	cmdutil.IOStreams
 }
@@ -96,16 +98,16 @@ func (o *commandOptions) Prepare(cmd *cobra.Command, args []string) error {
 	}
 	o.appName = args[0]
 	// get application
-	app, err := application.Load(o.Env.Name, o.appName)
+	app, err := appfile.LoadApplication(o.Env.Name, o.appName)
 	if err != nil {
-		if application.IsNotFound(o.appName, err) {
+		if appfile.IsNotFound(o.appName, err) {
 			return fmt.Errorf("the application %s doesn't exist in current env %s", o.appName, o.Env.Name)
 		}
 		return err
 	}
 
 	// get service name
-	serviceNames := application.GetComponents(app)
+	serviceNames := appfile.GetComponents(app)
 	if svcName := cmd.Flag(Service).Value.String(); svcName != "" {
 		for _, v := range serviceNames {
 			if v == svcName {
@@ -147,10 +149,10 @@ func (o *commandOptions) DetachTrait(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	var traitType = o.Template.Name
-	if err = application.RemoveTrait(o.app, o.workloadName, traitType); err != nil {
+	if err = appfile.RemoveTrait(o.app, o.workloadName, traitType); err != nil {
 		return err
 	}
-	return application.Save(o.app, o.Env.Name)
+	return appfile.Save(o.app, o.Env.Name)
 }
 
 // Run executes create/update/detach trait

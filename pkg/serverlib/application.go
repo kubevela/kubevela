@@ -7,6 +7,10 @@ import (
 	"sort"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
+
+	"github.com/oam-dev/kubevela/pkg/appfile"
+
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -14,8 +18,6 @@ import (
 
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
-	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 )
@@ -176,7 +178,7 @@ func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, appli
 
 // DeleteApp will delete app including server side
 func (o *DeleteOptions) DeleteApp() (string, error) {
-	if err := application.Delete(o.Env.Name, o.AppName); err != nil && !os.IsNotExist(err) {
+	if err := appfile.Delete(o.Env.Name, o.AppName); err != nil && !os.IsNotExist(err) {
 		return "", err
 	}
 	ctx := context.Background()
@@ -200,32 +202,32 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 
 // DeleteComponent will delete one component including server side.
 func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) (string, error) {
-	var app *driver.Application
+	var app *api.Application
 	var err error
 	if o.AppName != "" {
-		app, err = application.Load(o.Env.Name, o.AppName)
+		app, err = appfile.LoadApplication(o.Env.Name, o.AppName)
 	} else {
-		app, err = application.MatchAppByComp(o.Env.Name, o.CompName)
+		app, err = appfile.MatchAppByComp(o.Env.Name, o.CompName)
 	}
 	if err != nil {
 		return "", err
 	}
 
-	if len(application.GetComponents(app)) <= 1 {
+	if len(appfile.GetComponents(app)) <= 1 {
 		return o.DeleteApp()
 	}
 
 	// Remove component from local appfile
-	if err := application.RemoveComponent(app, o.CompName); err != nil {
+	if err := appfile.RemoveComponent(app, o.CompName); err != nil {
 		return "", err
 	}
-	if err := application.Save(app, o.Env.Name); err != nil {
+	if err := appfile.Save(app, o.Env.Name); err != nil {
 		return "", err
 	}
 
 	// Remove component from appConfig in k8s cluster
 	ctx := context.Background()
-	if err := application.BuildRun(ctx, app, o.Client, o.Env, io); err != nil {
+	if err := appfile.BuildRun(ctx, app, o.Client, o.Env, io); err != nil {
 		return "", err
 	}
 
@@ -257,7 +259,7 @@ func chooseSvc(services []string) (string, error) {
 }
 
 // GetServicesWhenDescribingApplication gets the target services list either from cli `--svc` flag or from survey
-func GetServicesWhenDescribingApplication(cmd *cobra.Command, app *driver.Application) ([]string, error) {
+func GetServicesWhenDescribingApplication(cmd *cobra.Command, app *api.Application) ([]string, error) {
 	var svcFlag string
 	var svcFlagStatus string
 	// to store the value of flag `--svc` set in Cli, or selected value in survey

@@ -1,4 +1,4 @@
-package application
+package appfile
 
 import (
 	"errors"
@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 )
 
@@ -120,10 +119,10 @@ services:
 				Captype: types.TypeTrait,
 			}
 		}
-		app := driver.NewApplication(nil, tm)
+		app := NewApplication(nil, tm)
 		err := yaml.Unmarshal([]byte(c.raw), &app)
 		assert.NoError(t, err, caseName)
-		err = app.Validate()
+		err = Validate(app)
 		if c.InValid {
 			assert.Equal(t, c.InvalidReason, err)
 			continue
@@ -145,7 +144,7 @@ func TestLoadNotExistsApplication(t *testing.T) {
 	now := time.Now().Unix()
 	appName := fmt.Sprintf("test-app-%d", now)
 
-	app, err := Load(types.DefaultEnvName, appName)
+	app, err := LoadApplication(types.DefaultEnvName, appName)
 
 	assert.Nil(t, app, caseName)
 	assert.Error(t, err, caseName)

@@ -1,4 +1,4 @@
-package appfile
+package api
 
 import (
 	"testing"

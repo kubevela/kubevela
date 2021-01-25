@@ -1,10 +1,10 @@
-package storage
+package appfile
 
 import (
 	"os"
 	"testing"
 
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
+	"github.com/oam-dev/kubevela/pkg/appfile/driver"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 

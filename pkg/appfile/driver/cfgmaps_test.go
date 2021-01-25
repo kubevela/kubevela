@@ -3,6 +3,8 @@ package driver
 import (
 	"reflect"
 	"testing"
+
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
 )
 
 func TestConfigMap_Delete(t *testing.T) {
@@ -35,7 +37,7 @@ func TestConfigMap_Get(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    *Application
+		want    *api.Application
 		wantErr bool
 	}{
 		// TODO: Add test cases.
@@ -62,7 +64,7 @@ func TestConfigMap_List(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    []*Application
+		want    []*api.Application
 		wantErr bool
 	}{
 		// TODO: Add test cases.
@@ -101,7 +103,7 @@ func TestConfigMap_Name(t *testing.T) {
 
 func TestConfigMap_Save(t *testing.T) {
 	type args struct {
-		app     *Application
+		app     *api.Application
 		envName string
 	}
 	tests := []struct {

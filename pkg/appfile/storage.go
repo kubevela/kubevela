@@ -1,9 +1,10 @@
-package storage
+package appfile
 
 import (
 	"os"
 
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
+	"github.com/oam-dev/kubevela/pkg/appfile/driver"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
@@ -12,7 +13,7 @@ var store *Storage
 
 // Storage is common storage client，use it to get app and others resource
 type Storage struct {
-	driver.Driver
+	api.Driver
 }
 
 // GetStorage will create storage driver from the system environment of "STORAGE_DRIVER"
@@ -33,12 +34,12 @@ func GetStorage() *Storage {
 }
 
 // List applications storage common implement
-func (s *Storage) List(envName string) ([]*driver.Application, error) {
+func (s *Storage) List(envName string) ([]*api.Application, error) {
 	return s.Driver.List(envName)
 }
 
 // Save application storage common implement
-func (s *Storage) Save(app *driver.Application, envName string) error {
+func (s *Storage) Save(app *api.Application, envName string) error {
 	return s.Driver.Save(app, envName)
 }
 
@@ -48,6 +49,6 @@ func (s *Storage) Delete(envName, appName string) error {
 }
 
 // Get application storage common implement
-func (s *Storage) Get(envName, appName string) (*driver.Application, error) {
+func (s *Storage) Get(envName, appName string) (*api.Application, error) {
 	return s.Driver.Get(envName, appName)
 }
