@@ -2,7 +2,7 @@
 
 ## Summary
 
-In KubeVela, APIServer provides the RESTful API for external systems (e.g. UI) to manage Vela abstractions like Applications, Definitions; Catalog stores templates to install common-off-the-shell (COTS) applications on Kubernetes.
+In KubeVela, APIServer provides the RESTful API for external systems (e.g. UI) to manage Vela abstractions like Applications, Definitions; Catalog stores templates to install common-off-the-shell (COTS) capabilities on Kubernetes.
 
 This doc provides a top-down architecture design for Vela APIServer and Catalog. It clarifies the API interfaces for platform builders to build integration solutions, and describes the architecture design in details for incoming roadmap. Some of the interfaces might have not been implemented yet, but we will follow this design in the future project roadmap.
 
@@ -15,7 +15,11 @@ This design is based on and tries to resolve the following use cases:
 1. The management data can be stored in a cloud database like MySQL instead of k8s control plane.
     1. Because there aren't control logic for those data. This is unlike other Vela resources stored as CR in K8s control plane.
     1. It is more expensive to host a k8s control plane than MySQL database on cloud.
-1. Users want to manage OTS applications via a well-defined, standard Catalog API interface and Package format.
+1. Users want to manage third-party capabilities via a well-defined, standard Catalog API interface and Package format.
+1. Here is the workflow of creating an application:
+    - The user chooses an environment
+    - The user chooses one or more clusters in the environment
+    - The user configures the service deployment configuration such as replica count, instance labels, container image, domain name, port number, etc.
 
 ## Proposal
 
@@ -25,15 +29,15 @@ The overall architecture diagram:
 
 ![alt](../../docs/resources/apiserver-arch.jpg)
 
-Here is the workflow:
+Here's some explanation of the diagram:
 
 - UI requests APIServer for data to render the dashboard.
 - Vela APIServer aggregates data from different kinds of sources.
   - Vela APIServer can sync with multiple k8s clusters.
   - Vela APIServer can sync with multiple catalog servers.
-  - For those data not in k8s or catalog servers, Vela APIServer stores them in MySQL database.
+  - For those data not in k8s or catalog servers, Vela APIServer syncs them in MySQL database.
 
-Here is what a full platform deployment would look like:
+The above architecture implies that the Vela APIServer could be used to multiple k8s clusters and catalogs. Below is what a deployment of Vela platform would look like:
 
 ![alt](../../docs/resources/api-workflow.png)
 
@@ -64,16 +68,14 @@ Environment is a collection of configurations of the application and dependent r
     ```json
     {
       "id": "env-1",
+
+       // The clusters bound to this environment
       "clusters": [
         {
           "id": "cluster-1"
         }
       ],
-      "applications": [
-        {
-          "id": "app-1"
-        }
-      ],
+
       "config": {
         "foo": "bar"
       }
@@ -82,7 +84,7 @@ Environment is a collection of configurations of the application and dependent r
 
 #### Application API
 
-Application is a global unit to manage cross-cluster, cross-namespace application deployment. An application can only belong to one environment.
+Application is a global unit to manage cross-cluster, cross-namespace application deployment.
 
 - `/applications`
   - Description: List all applications
@@ -91,16 +93,34 @@ Application is a global unit to manage cross-cluster, cross-namespace applicatio
     ```json
     {
       "id": "app-1",
-      "clusters": [
+
+      "configuration": {
+        "services": {
+          "testsvc": {
+            "type": "webservice",
+            "image": "crccheck/hello-world"
+          }
+        }
+      },
+
+      // An application could be deployed to multiple environments
+      "environments": [
         {
-          "id": "cluster-1",
-          "deployments": [
+          "id": "env-1",
+          // In each env it could deploy to multiple clusters
+          "clusters": [
             {
-              "id": "deploy-1"
+              "id": "cluster-1",
+              "deployments": [
+                {
+                  "id": "deploy-1",
+                  "namespace": "ns-1"
+                }
+              ]
             }
           ]
         }
-      ],
+      ]
     }
     ```
 
@@ -113,19 +133,17 @@ Application is a global unit to manage cross-cluster, cross-namespace applicatio
     ```json
     {
       "id": "cluster-1",
-      "applications": [
-        {
-          "id": "app-1",
-          "deployments": [
-            {
-              "id": "deploy-1"
-            }
-          ]
-        }
-      ],
+
+      // The definitions indicate the capabilties enabled in this cluster
       "definitions": [
         {
           "id": "def-1"
+        }
+      ],
+
+      "deployments": [
+        {
+          "id": "deploy-1"
         }
       ]
     }
@@ -139,12 +157,8 @@ Application is a global unit to manage cross-cluster, cross-namespace applicatio
     {
       "id": "deploy-1",
       "namespace": "ns-1",
-      "services": {
-        "testsvc": {
-          "type": "webservice",
-          "image": "crccheck/hello-world"
-        }
-      }
+      "resources": {},
+      "status": {},
     }
     ```
 
@@ -168,19 +182,19 @@ Application is a global unit to manage cross-cluster, cross-namespace applicatio
 - `/catalogs`
   - Description: List all catalogs.
 - `/catalogs/<catalog>`
+  - Description: CRUD operations of a catalog.
     ```json
     {
       "namespace": "ns-1",
-      "name": "pkg-1",
+      "name": "catalog-1",
       "address": "example.com:8080",
       "protocols": {
         "git": {
-          "root": "catalog"
+          "root_dir": "catalog/"
         }
       }
     }
     ```
-  - Description: CRUD operations of a catalog.
 - `/catalogs/<catalog>/sync`
   - Description: Sync this catalog.
 - `/catalogs/<catalog>/packages`
@@ -194,33 +208,32 @@ Application is a global unit to manage cross-cluster, cross-namespace applicatio
 
 ### 3. Catalog Design
 
-This section will provide the design of the catalog repo file structure and its interaction with APIServer and users.
+This section will describe the design of the catalog structure, how it interacts with APIServer, and the workflow users install packages.
 
-#### Catalog repo structure
+#### Catalog structure
 
-All packages are put within `/catalog/` dir (This is configurable). Under `/catalog/` dir the package files obey the following structure:
+All packages are put under `/catalog/` dir (this is configurable). The directory structure follows a predefined format:
 
 ```bash
-/catalog/
+/catalog/ # a catalog consists of multiple packages 
 |-- <package>
-    |-- v1.0
+    |-- v1.0 # a package consists of multiple versions
         |-- metadata.yaml
         |-- definitions/
             |-- xxx-workload.yaml
             |-- xxx-trait.yaml
-        |-- parameters.yaml
         |-- conditions/
             |-- check-crd.yaml
         |-- hooks/
             |-- pre-install.yaml
-        |-- chart/
+        |-- modules.yaml
     |-- v2.0
 |-- <package>
 ```
 
-A catalog contains multiple packages, and a package contains multiple versions. Below we will explain the format of each package version:
+The structure of one package version contains:
 
-- `metadata.yaml` defines the metadata of the package.
+- `metadata.yaml`: the metadata of the package.
 
   ```yaml
   name: "foo"
@@ -233,33 +246,11 @@ A catalog contains multiple packages, and a package contains multiple versions. 
   url: "https://..."
   label:
     category: foo
-  # use existing Helm Chart as the manifest source for this package
-  chart:
-    # choose either local path or remote repo
-    path: ./chart/
-    remote:
-      repo: https://charts.bitnami.com/bitnami
-      name: redis
   ```
 
-  Note that we choose to integrate with existing community solutions instead of inventing another packaging solution (e.g. Helm, Terraform). In this way we can adopt the reservoir of community resources and also be extensible to more packaing formats.
+- `definitions`: definition files that describe the capabilities from this package to enable on a cluster. Note that these definitions will compared against a cluster on APIServer side to see if a cluster can install or upgrade this package.
 
-- Each package could expose multiple workload and trait definitions under `definitions/`. These definitions will be parsed on APIServer side to check if a cluster needs install or upgrade this package by comparing definitions.
-
-- The parameters of this package are defined in `parameters.yaml` . It will be used as the values to render the manifest source (e.g. Helm Chart).
-
-  ```yaml
-  parameters:
-  - name: foo
-    type: string
-    description: |
-      More details about the parameter
-    default: "bar"
-  - name: bar
-    type: integer
-  ```
-
-- `conditions/` contains the conditional checks before deploy. For example, check if a CRD with specific version exist, if not then the deployment should fail.
+- `conditions/`: definingg conditional checks before deploying this package. For example, check if a CRD with specific version exist, if not then the deployment should fail.
 
   ```yaml
   # check-crd.yaml
@@ -273,7 +264,7 @@ A catalog contains multiple packages, and a package contains multiple versions. 
     value: "v1"
   ```
 
-- `hooks/` contains manifests of lifecycle hooks which are the k8s jobs. It consists of pre-install, post-install, pre-uninstall, post-uninstall.
+- `hooks/`:lifecycle hooks on deploying this package. These are the k8s jobs, and consists of pre-install, post-install, pre-uninstall, post-uninstall.
 
   ```yaml
   # pre-install.yaml
@@ -290,6 +281,21 @@ A catalog contains multiple packages, and a package contains multiple versions. 
               command: ["/bin/pre-install"]
   ```
 
+- `modules.yaml`: defining the modules that contain the actual resources, e.g. Helm Charts or Terraform modules. Note that we choose to integrate with existing community solutions instead of inventing our own format. In this way we can adopt the reservoir of community efforts and make the design extensible to more in-house formats as we have observed.
+
+  ```yaml
+  modules:
+  - chart:
+      path: ./charts/ingress-nginx/ # local path in this package
+      remote:
+        repo: https://kubernetes.github.io/ingress-nginx
+        name: ingress-nginx
+  - terraform:
+      path: ./tf_modules/rds/ # local path in this package
+      remote:
+        source: terraform-aws-modules/rds/aws
+        version: "~> 2.0"
+  ```
 
 #### Register a catalog in APIServer
 
@@ -311,7 +317,13 @@ Vela APIServer aggregates package information from multiple catalog servers. To 
 
 In our future roadmap, we will build a catalog controller for each k8s cluster. Then we will add API endpoint to install the package in APIServer which basically creates a CR to trigger the controller to reconcile package installation into the cluster. We choose this instead of APIServer installing the package because in this way we can bypass the APIServer in the package data transfer path and avoid APIServer becoming single point of failure.
 
+## Examples
+
 ## Considerations
+
+### Package parameters
+
+We can parse the schema of parameters from Helm Chart or Terraform. For example, Helm supports [value schema file](https://www.arthurkoziel.com/validate-helm-chart-values-with-json-schemas/) for input validation and there is an [automation tool](https://github.com/karuppiah7890/helm-schema-gen] to generate the schema.
 
 ### Package dependency
 
