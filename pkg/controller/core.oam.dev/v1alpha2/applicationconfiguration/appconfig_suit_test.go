@@ -22,7 +22,7 @@ import (
 
 var _ = Describe("CRD without definition can run in an ApplicationConfiguration", func() {
 	ctx := context.Background()
-	It("run workload and trait without CRD", func() {
+	It("create an application without CRD", func() {
 
 		By("Creating CRD foo.crdtest1.com")
 		// Create a crd for appconfig dependency test

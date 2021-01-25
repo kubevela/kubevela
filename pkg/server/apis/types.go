@@ -34,17 +34,6 @@ type CommonFlag struct {
 	Value string `json:"value"`
 }
 
-// WorkloadRunBody used for restful API arguments for run workload for dashboard restful API server
-type WorkloadRunBody struct {
-	EnvName      string       `json:"envName"`
-	WorkloadType string       `json:"workloadType"`
-	WorkloadName string       `json:"workloadName"`
-	AppName      string       `json:"appName,omitempty"`
-	Flags        []CommonFlag `json:"flags"`
-	Staging      bool         `json:"staging,omitempty"`
-	Traits       []TraitBody  `json:"traits,omitempty"`
-}
-
 // WorkloadMeta store workload metadata for dashboard restful API server
 type WorkloadMeta struct {
 	Name        string            `json:"name"`
