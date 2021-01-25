@@ -218,7 +218,6 @@ func (td *traitDef) Complete(ctx process.Context) error {
 				}
 				ctx.PutAssistants(process.Assistant{Ins: other, Type: td.name})
 			}
-
 		}
 
 		patcher := inst.Lookup("patch")
@@ -232,7 +231,6 @@ func (td *traitDef) Complete(ctx process.Context) error {
 				return err
 			}
 		}
-
 	}
 	return nil
 }

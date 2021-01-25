@@ -1,0 +1,50 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: ingress
+spec:
+  extension:
+    template: |
+      parameter: {
+        domain: string
+        http: [string]: int
+      }
+
+      // trait template can have multiple outputs in one trait
+      outputs: service: {
+        apiVersion: "v1"
+        kind: "Service"
+        spec: {
+          selector:
+            app: context.name
+          ports: [
+            for k, v in parameter.http {
+              port: v
+              targetPort: v
+            }
+          ]
+        }
+      }
+
+      outputs: ingress: {
+        apiVersion: "networking.k8s.io/v1beta1"
+        kind: "Ingress"
+        metadata:
+          name: context.name
+        spec: {
+          rules: [{
+            host: parameter.domain
+            http: {
+              paths: [
+                for k, v in parameter.http {
+                  path: k
+                  backend: {
+                    serviceName: context.name
+                    servicePort: v
+                  }
+                }
+              ]
+            }
+          }]
+        }
+      }

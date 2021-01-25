@@ -1,0 +1,24 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "Specify auto scale by annotation"
+  name: kautoscale
+spec:
+  appliesToWorkloads:
+    - webservice # this should be some knative like workload
+  extension:
+    template: |-
+      import "encoding/json"
+      patch: {
+      	metadata: annotations: {
+      		"my.autoscale.ann": json.Marshal({
+      			"minReplicas": parameter.min
+      			"maxReplicas": parameter.max
+      		})
+      	}
+      }
+      parameter: {
+      	min: *1 | int
+      	max: *3 | int
+      }
