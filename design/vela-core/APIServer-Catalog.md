@@ -321,6 +321,10 @@ In our future roadmap, we will build a catalog controller for each k8s cluster. 
 
 ## Considerations
 
+### Package parameters
+
+We can parse the schema of parameters from Helm Chart or Terraform. For example, Helm supports [value schema file](https://www.arthurkoziel.com/validate-helm-chart-values-with-json-schemas/) for input validation and there is an [automation tool](https://github.com/karuppiah7890/helm-schema-gen] to generate the schema.
+
 ### Package dependency
 
 Instead of having multiple definitions in one package, we could define that one package correlates to one definition only. But some users will need a bundle of definitions instead of one. For example, a full-observability trait might include a prometheus package, a grafana package, a loki package, and a jaeger package. This is what we call "package bundling".
