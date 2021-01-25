@@ -1,29 +1,27 @@
 package storage
 
 import (
-	"reflect"
+	"os"
 	"testing"
 
 	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
-func TestNewStorage(t *testing.T) {
-	type args struct {
-		driverName string
-	}
+func TestGetStorage(t *testing.T) {
+	_ = os.Setenv(system.StorageDriverEnv, driver.ConfigMapDriverName)
+
+	store := &Storage{driver.NewConfigMapStorage()}
 	tests := []struct {
 		name string
-		args args
 		want *Storage
 	}{
-		{"TestNewStorage_Local1", args{""}, &Storage{driver.NewLocalStorage()}},
-		{"TestNewStorage_Local2", args{driver.LocalDriverName}, &Storage{driver.NewLocalStorage()}},
-		{"TestNewStorage_ConfigMap", args{driver.ConfigMapDriverName}, &Storage{driver.NewConfigMapStorage()}},
+		{name: "TestGetStorage_ConfigMap", want: store},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NewStorage(tt.args.driverName); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewStorage() = %v, want %v", got, tt.want)
+			if got := GetStorage(); got.Name() != tt.want.Name() {
+				t.Errorf("GetStorage() = %v, want %v", got, tt.want)
 			}
 		})
 	}

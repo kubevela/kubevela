@@ -11,8 +11,12 @@ import (
 
 const defaultVelaHome = ".vela"
 
-// VelaHomeEnv defines vela home system env
-const VelaHomeEnv = "VELA_HOME"
+const (
+	// VelaHomeEnv defines vela home system env
+	VelaHomeEnv = "VELA_HOME"
+	// StorageDriverEnv defines vela storage driver env
+	StorageDriverEnv = "STORAGE_DRIVER"
+)
 
 // GetVelaHomeDir return vela home dir
 func GetVelaHomeDir() (string, error) {

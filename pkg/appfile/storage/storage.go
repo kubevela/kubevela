@@ -1,38 +1,35 @@
 package storage
 
 import (
+	"os"
+
 	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
 // Store application store client
-var Store *Storage
-
-func init() {
-	// TODO support provide multiple ways:
-	// system environment
-	// system configfile
-	// startup arguments
-	Store = NewStorage(driver.LocalDriverName)
-}
+var store *Storage
 
 // Storage is common storage client，use it to get app and others resource
 type Storage struct {
 	driver.Driver
 }
 
-// NewStorage form driver type
-func NewStorage(driverName string) *Storage {
-	// TODO remove driverName param ,should use environment get it
-	// FIXME use env to get user storageDriver
-	switch driverName {
-	// TODO mutli implement Storage
-	case driver.ConfigMapDriverName:
-		return &Storage{driver.NewConfigMapStorage()}
-	case driver.LocalDriverName:
-		return &Storage{driver.NewLocalStorage()}
-	default:
-		return &Storage{driver.NewLocalStorage()}
+// GetStorage will create storage driver from the system environment of "STORAGE_DRIVER"
+func GetStorage() *Storage {
+	driverName := os.Getenv(system.StorageDriverEnv)
+	if store == nil || store.Name() != driverName {
+		switch driverName {
+		// TODO mutli implement Storage
+		case driver.ConfigMapDriverName:
+			store = &Storage{driver.NewConfigMapStorage()}
+		case driver.LocalDriverName:
+			store = &Storage{driver.NewLocalStorage()}
+		default:
+			store = &Storage{driver.NewLocalStorage()}
+		}
 	}
+	return store
 }
 
 // List applications storage common implement

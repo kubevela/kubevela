@@ -33,11 +33,13 @@ import (
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	velacore "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	velacontroller "github.com/oam-dev/kubevela/pkg/controller"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/dependency"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook/standard.oam.dev"
 	"github.com/oam-dev/kubevela/version"
@@ -76,6 +78,7 @@ func main() {
 	var controllerArgs oamcontroller.Args
 	var healthAddr string
 	var disableCaps string
+	var storageDriver string
 
 	flag.BoolVar(&useWebhook, "use-webhook", false, "Enable Admission Webhook")
 	flag.BoolVar(&useTraitInjector, "use-trait-injector", false, "Enable TraitInjector")
@@ -97,6 +100,7 @@ func main() {
 	flag.StringVar(&controllerArgs.CustomRevisionHookURL, "custom-revision-hook-url", "",
 		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
 	flag.StringVar(&disableCaps, "disable-caps", "", "To be disabled builtin capability list.")
+	flag.StringVar(&storageDriver, "storage-driver", driver.LocalDriverName, "Application file save to the storage driver")
 	flag.Parse()
 
 	// setup logging
@@ -174,6 +178,15 @@ func main() {
 		setupLog.Error(err, "unable to setup the vela core controller")
 		os.Exit(1)
 	}
+	if driver := os.Getenv(system.StorageDriverEnv); len(driver) == 0 {
+		// first use system environment,
+		err := os.Setenv(system.StorageDriverEnv, storageDriver)
+		if err != nil {
+			setupLog.Error(err, "unable to setup the vela core controller")
+			os.Exit(1)
+		}
+	}
+	setupLog.Info("use storage driver", "storageDriver", os.Getenv(system.StorageDriverEnv))
 
 	if useTraitInjector {
 		// register all service injectors

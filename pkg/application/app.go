@@ -31,7 +31,7 @@ func IsNotFound(appName string, err error) bool {
 
 // Load will load application with env and name from default vela home dir.
 func Load(envName, appName string) (*driver.Application, error) {
-	app, err := storage.Store.Get(envName, appName)
+	app, err := storage.GetStorage().Get(envName, appName)
 	if err != nil {
 		return nil, err
 	}
@@ -41,12 +41,12 @@ func Load(envName, appName string) (*driver.Application, error) {
 
 // Delete will delete an app along with it's appfile.
 func Delete(envName, appName string) error {
-	return storage.Store.Delete(envName, appName)
+	return storage.GetStorage().Delete(envName, appName)
 }
 
 // List will list all apps
 func List(envName string) ([]*driver.Application, error) {
-	respApps, err := storage.Store.List(envName)
+	respApps, err := storage.GetStorage().List(envName)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func MatchAppByComp(envName, compName string) (*driver.Application, error) {
 
 // Save will save appfile into default dir.
 func Save(app *driver.Application, envName string) error {
-	return storage.Store.Save(app, envName)
+	return storage.GetStorage().Save(app, envName)
 }
 
 // GetComponents will get oam components from Appfile.
