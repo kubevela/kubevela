@@ -14,28 +14,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
-// GetWorkloadDefinition  Get WorkloadDefinition
-func GetWorkloadDefinition(cli client.Client, workitemName string) (*v1alpha2.WorkloadDefinition, error) {
-	wd := new(v1alpha2.WorkloadDefinition)
-	if err := cli.Get(context.Background(), client.ObjectKey{
-		Name: workitemName,
-	}, wd); err != nil {
-		return nil, err
-	}
-	return wd, nil
-}
-
-// GetTraitDefinition Get TraitDefinition
-func GetTraitDefinition(cli client.Client, traitName string) (*v1alpha2.TraitDefinition, error) {
-	td := new(v1alpha2.TraitDefinition)
-	if err := cli.Get(context.Background(), client.ObjectKey{
-		Name: traitName,
-	}, td); err != nil {
-		return nil, err
-	}
-	return td, nil
-}
-
 // GetScopeGVK Get ScopeDefinition
 func GetScopeGVK(cli client.Client, dm discoverymapper.DiscoveryMapper,
 	name string) (schema.GroupVersionKind, error) {
@@ -50,7 +28,7 @@ func GetScopeGVK(cli client.Client, dm discoverymapper.DiscoveryMapper,
 }
 
 // LoadTemplate Get template according to key
-func LoadTemplate(cli client.Client, key string, kd types.CapType) (string, string, error) {
+func LoadTemplate(cli client.Reader, key string, kd types.CapType) (string, string, error) {
 	switch kd {
 	case types.TypeWorkload:
 		wd, err := GetWorkloadDefinition(cli, key)

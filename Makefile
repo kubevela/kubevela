@@ -186,7 +186,7 @@ manifests:
 	go generate $(foreach t,pkg apis,./$(t)/...)
 	./hack/vela-templates/gen_definitions.sh
 
-GOLANGCILINT_VERSION ?= v1.29.0
+GOLANGCILINT_VERSION ?= v1.31.0
 HOSTOS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 HOSTARCH := $(shell uname -m)
 ifeq ($(HOSTARCH),x86_64)

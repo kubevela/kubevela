@@ -20,11 +20,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -132,7 +133,7 @@ var _ = Describe("Test appFile parser", func() {
 		Data:       map[string]string{"c1": "v1", "c2": "v2"},
 	}
 
-	It("app-without-trait will only create workload", func() {
+	It("application without-trait will only create appfile with workload", func() {
 		Expect(k8sClient.Create(context.Background(), cm.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		ac, components, err := NewApplicationParser(k8sClient, nil).GenerateApplicationConfiguration(TestApp, "default")
 		Expect(err).To(BeNil())
@@ -230,8 +231,9 @@ var _ = Describe("Test appFile parser", func() {
 		Expect(len(components)).To(BeEquivalentTo(1))
 		Expect(components[0].ObjectMeta).To(BeEquivalentTo(expectComponent.ObjectMeta))
 		Expect(components[0].TypeMeta).To(BeEquivalentTo(expectComponent.TypeMeta))
-		fmt.Println(cmp.Diff(components[0].Spec.Workload.Object, expectComponent.Spec.Workload.Object))
-		Expect(assert.ObjectsAreEqual(components[0].Spec.Workload.Object, expectComponent.Spec.Workload.Object)).To(BeEquivalentTo(true))
+		logf.Log.Info(fmt.Sprintf("diff %+v", cmp.Diff(components[0].Spec.Workload.Object,
+			expectComponent.Spec.Workload.Object)))
+		Expect(assert.ObjectsAreEqual(components[0].Spec.Workload.Object, expectComponent.Spec.Workload.Object)).To(BeTrue())
 	})
 
 })

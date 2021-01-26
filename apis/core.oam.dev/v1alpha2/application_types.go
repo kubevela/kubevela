@@ -99,3 +99,13 @@ type ApplicationList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Application `json:"items"`
 }
+
+// GetComponent get the component from the application based on its workload type
+func (app *Application) GetComponent(workloadType string) *ApplicationComponent {
+	for _, c := range app.Spec.Components {
+		if c.WorkloadType == workloadType {
+			return &c
+		}
+	}
+	return nil
+}
