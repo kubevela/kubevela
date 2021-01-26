@@ -35,7 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
-const rollout_reconcile_wait_time = time.Second * 30
+const rolloutReconcileWaitTime = time.Second * 30
 
 // Reconciler reconciles a Application object
 type Reconciler struct {
@@ -64,12 +64,12 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// Check if the oam rollout annotation exists
-	if _, exist := app.ObjectMeta.GetAnnotations()[oam.AnnotationAppRollout]; exist {
+	if _, exist := app.GetAnnotations()[oam.AnnotationAppRollout]; exist {
 		applog.Info("The application is still in the process of rolling out")
 		app.Status.Phase = v1alpha2.ApplicationRollingOut
 		app.Status.SetConditions(readyCondition("Rolling"))
 		// do not process apps still in rolling out
-		return ctrl.Result{RequeueAfter: rollout_reconcile_wait_time}, r.Status().Update(ctx, app)
+		return ctrl.Result{RequeueAfter: rolloutReconcileWaitTime}, r.Status().Update(ctx, app)
 	}
 
 	if app.DeletionTimestamp != nil {
