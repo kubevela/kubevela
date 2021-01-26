@@ -117,7 +117,7 @@ func validateCapabilities(tmp types.Capability, dm discoverymapper.DiscoveryMapp
 			return tmp, fmt.Errorf("unable to install helm chart dependency %s(%s from %s) for this trait '%s': %w ", tmp.Install.Helm.Name, tmp.Install.Helm.Version, tmp.Install.Helm.URL, definitionName, err)
 		}
 	}
-	gvk, _ := util.GetGVKFromDefinition(dm, reference)
+	gvk, err := util.GetGVKFromDefinition(dm, reference)
 	if err != nil {
 		errMsg := err.Error()
 		var substr = "no matches for "
