@@ -181,10 +181,9 @@ func FetchTraitDefinition(ctx context.Context, r client.Reader, dm discoverymapp
 	if err != nil {
 		return nil, err
 	}
-	nn := GenNamespacedDefinitionName(trName)
 	// Fetch the corresponding traitDefinition CR
-	traitDefinition := &v1alpha2.TraitDefinition{}
-	if err := r.Get(ctx, nn, traitDefinition); err != nil {
+	traitDefinition, err := GetTraitDefinition(r, trName)
+	if err != nil {
 		return nil, err
 	}
 	return traitDefinition, nil
@@ -198,10 +197,9 @@ func FetchWorkloadDefinition(ctx context.Context, r client.Reader, dm discoverym
 	if err != nil {
 		return nil, err
 	}
-	nn := GenNamespacedDefinitionName(wldName)
 	// Fetch the corresponding workloadDefinition CR
-	workloadDefinition := &v1alpha2.WorkloadDefinition{}
-	if err := r.Get(ctx, nn, workloadDefinition); err != nil {
+	workloadDefinition, err := GetWorkloadDefinition(r, wldName)
+	if err != nil {
 		return nil, err
 	}
 	return workloadDefinition, nil
@@ -213,6 +211,24 @@ func GenNamespacedDefinitionName(dn string) types.NamespacedName {
 		return types.NamespacedName{Name: dn, Namespace: dns}
 	}
 	return types.NamespacedName{Name: dn}
+}
+
+// GetWorkloadDefinition  Get WorkloadDefinition
+func GetWorkloadDefinition(cli client.Reader, workitemName string) (*v1alpha2.WorkloadDefinition, error) {
+	wd := new(v1alpha2.WorkloadDefinition)
+	if err := cli.Get(context.Background(), GenNamespacedDefinitionName(workitemName), wd); err != nil {
+		return nil, err
+	}
+	return wd, nil
+}
+
+// GetTraitDefinition Get TraitDefinition
+func GetTraitDefinition(cli client.Reader, traitName string) (*v1alpha2.TraitDefinition, error) {
+	td := new(v1alpha2.TraitDefinition)
+	if err := cli.Get(context.Background(), GenNamespacedDefinitionName(traitName), td); err != nil {
+		return nil, err
+	}
+	return td, nil
 }
 
 // FetchWorkloadChildResources fetch corresponding child resources given a workload
@@ -331,6 +347,26 @@ func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef v1al
 		}
 	}
 	return kinds[0], nil
+}
+
+// GetObjectGivenGVKAndName fetches the kubernetes object given its gvk and name
+func GetObjectGivenGVKAndName(ctx context.Context, client client.Reader,
+	gvk schema.GroupVersionKind, namespace, name string) (*unstructured.Unstructured, error) {
+	obj := &unstructured.Unstructured{}
+	apiVersion := metav1.GroupVersion{
+		Group:   gvk.Group,
+		Version: gvk.Version,
+	}.String()
+	obj.SetAPIVersion(apiVersion)
+	obj.SetKind(gvk.Kind)
+	err := client.Get(ctx, types.NamespacedName{
+		Namespace: namespace,
+		Name:      name},
+		obj)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to get obj %s with gvk %+v ", name, gvk))
+	}
+	return obj, nil
 }
 
 // Object2Unstructured convert an object to an unstructured struct

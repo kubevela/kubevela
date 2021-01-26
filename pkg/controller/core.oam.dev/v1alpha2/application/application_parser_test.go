@@ -171,7 +171,7 @@ spec:
       	cmd?: [...string]
       }`
 
-const appfileYaml = `
+const applicationYaml = `
 apiVersion: core.oam.dev/v1alpha2
 kind: Application
 metadata:
@@ -194,7 +194,7 @@ spec:
 var _ = Describe("Test application parser", func() {
 	It("Test we can parse an application to an appFile", func() {
 		o := v1alpha2.Application{}
-		err := yaml.Unmarshal([]byte(appfileYaml), &o)
+		err := yaml.Unmarshal([]byte(applicationYaml), &o)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// Create mock client
