@@ -852,6 +852,12 @@ func TestGenTraitName(t *testing.T) {
 			exp:            "simple-trait-67b8949f8d",
 		},
 		{
+			name:           "service",
+			template:       &v1alpha2.ComponentTrait{},
+			definitionName: "dummy",
+			exp:            "service-trait-67b8949f8d",
+		},
+		{
 			name: "simple",
 			template: &v1alpha2.ComponentTrait{
 				Trait: runtime.RawExtension{
