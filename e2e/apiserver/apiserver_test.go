@@ -11,7 +11,7 @@ import (
 	"github.com/onsi/gomega"
 
 	"github.com/oam-dev/kubevela/e2e"
-	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/server/util"
 )
@@ -35,16 +35,16 @@ var (
 	applicationName = "app-e2e-api-hello"
 	svcName         = "svc-e2e-api-hello"
 
-	applicationCreationBodyWithoutImageFlag = appfile.AppFile{
+	applicationCreationBodyWithoutImageFlag = api.AppFile{
 		Name: applicationName,
-		Services: map[string]appfile.Service{
+		Services: map[string]api.Service{
 			svcName: map[string]interface{}{},
 		},
 	}
 
-	applicationCreationBody = appfile.AppFile{
+	applicationCreationBody = api.AppFile{
 		Name: applicationName,
-		Services: map[string]appfile.Service{
+		Services: map[string]api.Service{
 			svcName: map[string]interface{}{
 				"type":  workloadType,
 				"image": "wordpress:php7.4-apache",
