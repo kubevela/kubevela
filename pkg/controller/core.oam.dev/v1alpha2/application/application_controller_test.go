@@ -383,6 +383,9 @@ var _ = Describe("Test Application Controller", func() {
 		expectServiceTrait := unstructured.Unstructured{Object: map[string]interface{}{
 			"apiVersion": "v1",
 			"kind":       "Service",
+			"metadata": map[string]interface{}{
+				"labels": map[string]interface{}{"trait.oam.dev/type": "AuxiliaryWorkload"},
+			},
 			"spec": map[string]interface{}{
 				"ports": []interface{}{
 					map[string]interface{}{"port": int64(80), "targetPort": int64(80)},

@@ -30,9 +30,9 @@ const (
 )
 
 const (
-	// ExtraWorkloadObj defines the extra workload obj from a workloadDefinition,
-	// e.g. a workload composed by deployment and service, the service will be marked as ExtraWorkloadObj
-	ExtraWorkloadObj = "ExtraWorkloadObj"
+	// AuxiliaryWorkload defines the extra workload obj from a workloadDefinition,
+	// e.g. a workload composed by deployment and service, the service will be marked as AuxiliaryWorkload
+	AuxiliaryWorkload = "AuxiliaryWorkload"
 )
 
 var (
@@ -119,8 +119,7 @@ func (wd *workloadDef) Complete(ctx process.Context) error {
 				if err != nil {
 					return errors.WithMessagef(err, "parse WorkloadDefinition %s outputs(%s)", wd.name, fieldInfo.Name)
 				}
-				// extra workload CR object will not have type
-				ctx.PutAssistants(process.Assistant{Ins: other, Type: ExtraWorkloadObj})
+				ctx.PutAssistants(process.Assistant{Ins: other, Type: AuxiliaryWorkload})
 			}
 		}
 	}
