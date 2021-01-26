@@ -136,13 +136,13 @@ func (p *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload, e
 	workload.Traits = []*Trait{}
 	workload.Name = comp.Name
 	workload.Type = comp.WorkloadType
-	templ, health, capabilityCategory, err := util.LoadTemplate(p.client, workload.Type, types.TypeWorkload)
+	templ, err := util.LoadTemplate(p.client, workload.Type, types.TypeWorkload)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
 	}
-	workload.CapabilityCategory = capabilityCategory
-	workload.Template = templ
-	workload.Health = health
+	workload.CapabilityCategory = templ.CapabilityCategory
+	workload.Template = templ.TemplateStr
+	workload.Health = templ.Health
 	settings, err := util.RawExtension2Map(&comp.Settings)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
@@ -174,7 +174,7 @@ func (p *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload, e
 }
 
 func (p *Parser) parseTrait(name string, properties map[string]interface{}) (*Trait, error) {
-	templ, health, capabilityCategory, err := util.LoadTemplate(p.client, name, types.TypeTrait)
+	templ, err := util.LoadTemplate(p.client, name, types.TypeTrait)
 	if kerrors.IsNotFound(err) {
 		return nil, errors.Errorf("trait definition of %s not found", name)
 	}
@@ -184,10 +184,10 @@ func (p *Parser) parseTrait(name string, properties map[string]interface{}) (*Tr
 
 	return &Trait{
 		Name:               name,
-		CapabilityCategory: capabilityCategory,
+		CapabilityCategory: templ.CapabilityCategory,
 		Params:             properties,
-		Template:           templ,
-		Health:             health,
+		Template:           templ.TemplateStr,
+		Health:             templ.Health,
 	}, nil
 }
 

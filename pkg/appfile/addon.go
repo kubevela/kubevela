@@ -55,8 +55,6 @@ func ApplyTerraform(app *v1alpha2.Application, k8sClient client.Client, ioStream
 
 	for i, wl := range appFile.Workloads {
 		switch wl.CapabilityCategory {
-		case types.KubernetesCategory:
-			nativeVelaComponents = append(nativeVelaComponents, app.Spec.Components[i])
 		case types.TerraformCategory:
 			name := wl.Name
 			ioStream.Infof("\nApplying cloud resources %s\n", name)
@@ -91,7 +89,10 @@ func ApplyTerraform(app *v1alpha2.Application, k8sClient client.Client, ioStream
 			if err := generateSecretFromTerraformOutput(k8sClient, outputList, name, namespace); err != nil {
 				return nil, err
 			}
+		default:
+			nativeVelaComponents = append(nativeVelaComponents, app.Spec.Components[i])
 		}
+
 	}
 	return nativeVelaComponents, nil
 }

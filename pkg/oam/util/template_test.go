@@ -87,14 +87,14 @@ spec:
 		},
 	}
 
-	temp, _, _, err := LoadTemplate(&tclient, "worker", types.TypeWorkload)
+	temp, err := LoadTemplate(&tclient, "worker", types.TypeWorkload)
 
 	if err != nil {
 		t.Error(err)
 		return
 	}
 	var r cue.Runtime
-	inst, err := r.Compile("-", temp)
+	inst, err := r.Compile("-", temp.TemplateStr)
 	if err != nil {
 		t.Error(err)
 		return

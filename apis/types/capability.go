@@ -92,8 +92,6 @@ const (
 type CapabilityCategory string
 
 const (
-	// KubernetesCategory means the capability is in Kubernetes format
-	KubernetesCategory CapabilityCategory = "kubernetes"
 	// TerraformCategory means the capability is in Terraform format
 	TerraformCategory CapabilityCategory = "terraform"
 )
