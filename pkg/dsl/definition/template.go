@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/oam-dev/kubevela/pkg/dsl/task"
-
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/build"
 	"github.com/pkg/errors"
@@ -18,7 +16,17 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/dsl/model"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
+	"github.com/oam-dev/kubevela/pkg/dsl/task"
 	"github.com/oam-dev/kubevela/pkg/oam"
+)
+
+const (
+	// OutputFieldName is the name of the struct contains the CR data
+	OutputFieldName = "output"
+	// OutputsFieldName is the name of the struct contains the map[string]CR data
+	OutputsFieldName = "outputs"
+	// PatchFieldName is the name of the struct contains the patch of CR data
+	PatchFieldName = "patch"
 )
 
 var (
@@ -85,7 +93,7 @@ func (wd *workloadDef) Complete(ctx process.Context) error {
 		if err := inst.Value().Err(); err != nil {
 			return errors.WithMessagef(err, "workloadDef %s eval", wd.name)
 		}
-		output := inst.Lookup("output")
+		output := inst.Lookup(OutputFieldName)
 		base, err := model.NewBase(output)
 		if err != nil {
 			return errors.WithMessagef(err, "workloadDef %s new base", wd.name)
@@ -121,7 +129,7 @@ func (wd *workloadDef) HealthCheck() error {
 	}
 	if wd.output != nil {
 		bt, _ := json.Marshal(wd.output)
-		if err := bi.AddFile("output", fmt.Sprintf("output: %s", string(bt))); err != nil {
+		if err := bi.AddFile(OutputFieldName, fmt.Sprintf("output: %s", string(bt))); err != nil {
 			return err
 		}
 	} else {
@@ -195,7 +203,7 @@ func (td *traitDef) Complete(ctx process.Context) error {
 			}
 		}
 
-		output := inst.Lookup("output")
+		output := inst.Lookup(OutputFieldName)
 		if output.Exists() {
 			other, err := model.NewOther(output)
 			if err != nil {
@@ -204,7 +212,7 @@ func (td *traitDef) Complete(ctx process.Context) error {
 			ctx.PutAssistants(process.Assistant{Ins: other, Type: td.name})
 		}
 
-		outputs := inst.Lookup("outputs")
+		outputs := inst.Lookup(OutputsFieldName)
 		st, err := outputs.Struct()
 		if err == nil {
 			for i := 0; i < st.Len(); i++ {
@@ -220,7 +228,7 @@ func (td *traitDef) Complete(ctx process.Context) error {
 			}
 		}
 
-		patcher := inst.Lookup("patch")
+		patcher := inst.Lookup(PatchFieldName)
 		if patcher.Exists() {
 			base, _ := ctx.Output()
 			p, err := model.NewOther(patcher)

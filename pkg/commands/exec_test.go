@@ -6,6 +6,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
+
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -17,8 +19,6 @@ import (
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -52,10 +52,10 @@ func TestExecCommand(t *testing.T) {
 	err := o.Init(context.Background(), cmd, []string{"fakeApp"})
 	errString := fmt.Sprintf(`application "%s" not found`, "fakeApp")
 	assert.EqualError(t, err, errString)
-	fakeApp := &driver.Application{
-		AppFile: &appfile.AppFile{
+	fakeApp := &api.Application{
+		AppFile: &api.AppFile{
 			Name: "fakeApp",
-			Services: map[string]appfile.Service{
+			Services: map[string]api.Service{
 				"fakeComp": map[string]interface{}{},
 			},
 		},
@@ -78,10 +78,10 @@ func TestExecCommandPersistentPreRunE(t *testing.T) {
 
 func TestGetComponent(t *testing.T) {
 	o := &VelaExecOptions{
-		App: &driver.Application{
-			AppFile: &appfile.AppFile{
+		App: &api.Application{
+			AppFile: &api.AppFile{
 				Name: "fakeApp",
-				Services: map[string]appfile.Service{
+				Services: map[string]api.Service{
 					"fakeComp1": map[string]interface{}{},
 					"fakeComp2": map[string]interface{}{},
 				},

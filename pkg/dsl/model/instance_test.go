@@ -4,7 +4,8 @@ import (
 	"testing"
 
 	"cuelang.org/go/cue"
-	"github.com/bmizerany/assert"
+	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -60,4 +61,66 @@ metadata: name: "test"
 		assert.Equal(t, v.gvk, otherObj.GetObjectKind().GroupVersionKind())
 		assert.Equal(t, false, other.IsBase())
 	}
+}
+
+func TestIncompleteError(t *testing.T) {
+	base := `parameter: {
+	name: string
+	// +usage=Which image would you like to use for your service
+	// +short=i
+	image: string
+	// +usage=Which port do you want customer traffic sent to
+	// +short=p
+	port: *8080 | int
+	env: [...{
+		name:  string
+		value: string
+	}]
+	cpu?: string
+}
+output: {
+	apiVersion: "apps/v1"
+	kind:       "Deployment"
+	metadata: name: parameter.name
+	spec: {
+		selector:
+			matchLabels:
+				app: parameter.name
+		template: {
+			metadata:
+				labels:
+					app: parameter.name
+			spec: containers: [{
+				image: parameter.image
+				name:  parameter.name
+				env:   parameter.env
+				ports: [{
+					containerPort: parameter.port
+					protocol:      "TCP"
+					name:          "default"
+				}]
+				if parameter["cpu"] != _|_ {
+					resources: {
+						limits:
+							cpu: parameter.cpu
+						requests:
+							cpu: parameter.cpu
+					}
+				}
+			}]
+	}
+	}
+}
+`
+
+	var r cue.Runtime
+	inst, err := r.Compile("-", base)
+	assert.NoError(t, err)
+	newbase, err := NewBase(inst.Value())
+	assert.NoError(t, err)
+	data, err := newbase.Unstructured()
+	assert.Error(t, err)
+	var expnil *unstructured.Unstructured
+	assert.Equal(t, expnil, data)
+
 }

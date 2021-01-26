@@ -9,22 +9,22 @@ import (
 
 	"github.com/ghodss/yaml"
 
-	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 )
 
 var dir string
 var tm template.Manager
-var afile *appfile.AppFile
+var afile *api.AppFile
 var appName = "testsvc"
 var envName = "default"
 
 func init() {
 	dir, _ = getApplicationDir(envName)
 	tm, _ = template.Load()
-	afile = appfile.NewAppFile()
+	afile = api.NewAppFile()
 	afile.Name = appName
-	svcs := make(map[string]appfile.Service, 0)
+	svcs := make(map[string]api.Service, 0)
 	svcs["wordpress"] = map[string]interface{}{
 		"type":  "webservice",
 		"image": "wordpress:php7.4-apache",
@@ -45,10 +45,10 @@ func TestLocal_Get(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    *Application
+		want    *api.Application
 		wantErr bool
 	}{
-		{"TestLocal_Get1", args{envName: envName, appName: appName}, &Application{AppFile: afile, Tm: tm}, false},
+		{"TestLocal_Get1", args{envName: envName, appName: appName}, &api.Application{AppFile: afile, Tm: tm}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -90,7 +90,7 @@ func TestLocal_Delete(t *testing.T) {
 
 func TestLocal_Save(t *testing.T) {
 	type args struct {
-		app     *Application
+		app     *api.Application
 		envName string
 	}
 	tests := []struct {
@@ -98,7 +98,7 @@ func TestLocal_Save(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-		{"TestLocal_Save1", args{&Application{AppFile: afile, Tm: nil}, envName}, false},
+		{"TestLocal_Save1", args{&api.Application{AppFile: afile, Tm: nil}, envName}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -114,12 +114,12 @@ func TestLocal_List(t *testing.T) {
 	type args struct {
 		envName string
 	}
-	want := make([]*Application, 0)
-	want = append(want, &Application{afile, tm})
+	want := make([]*api.Application, 0)
+	want = append(want, &api.Application{AppFile: afile, Tm: tm})
 	tests := []struct {
 		name    string
 		args    args
-		want    []*Application
+		want    []*api.Application
 		wantErr bool
 	}{
 		{"TestLocal_List1", args{envName}, want, false},
@@ -205,10 +205,10 @@ func Test_loadFromFile(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    *Application
+		want    *api.Application
 		wantErr bool
 	}{
-		{"testRespApp", args{fileName: filepath.Join(dir, appName+".yaml")}, &Application{AppFile: afile, Tm: tm}, false},
+		{"testRespApp", args{fileName: filepath.Join(dir, appName+".yaml")}, &api.Application{AppFile: afile, Tm: tm}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

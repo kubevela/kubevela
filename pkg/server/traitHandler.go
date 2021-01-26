@@ -10,7 +10,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	util2 "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
@@ -91,7 +91,7 @@ func (s *APIServer) DetachTrait(c *gin.Context) {
 // DoAttachTrait executes attaching trait operation
 func (s *APIServer) DoAttachTrait(c context.Context, body apis.TraitBody) (string, error) {
 	// Prepare
-	var appObj *driver.Application
+	var appObj *api.Application
 	fs := pflag.NewFlagSet("trait", pflag.ContinueOnError)
 	for _, f := range body.Flags {
 		fs.String(f.Name, f.Value, "")
@@ -125,7 +125,7 @@ func (s *APIServer) DoAttachTrait(c context.Context, body apis.TraitBody) (strin
 
 // DoDetachTrait executes detaching trait operation
 func (s *APIServer) DoDetachTrait(c context.Context, envName string, traitType string, componentName string, appName string, staging bool) (string, error) {
-	var appObj *driver.Application
+	var appObj *api.Application
 	var err error
 	if appName == "" {
 		appName = componentName

@@ -38,7 +38,10 @@ func (inst *instance) compile() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	// compiled object should be final and concrete value
+	if err := cueInst.Value().Validate(cue.Concrete(true), cue.Final()); err != nil {
+		return nil, err
+	}
 	return cueInst.Value().MarshalJSON()
 }
 

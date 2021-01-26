@@ -11,8 +11,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
-	"github.com/oam-dev/kubevela/pkg/application"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
@@ -23,30 +23,30 @@ type RunOptions struct {
 	Env          *types.EnvMeta
 	WorkloadName string
 	KubeClient   client.Client
-	App          *driver.Application
+	App          *api.Application
 	AppName      string
 	Staging      bool
 	util.IOStreams
 }
 
 // LoadIfExist will load Application from local dir
-func LoadIfExist(envName string, workloadName string, appGroup string) (*driver.Application, error) {
+func LoadIfExist(envName string, workloadName string, appGroup string) (*api.Application, error) {
 	var appName string
 	if appGroup != "" {
 		appName = appGroup
 	} else {
 		appName = workloadName
 	}
-	app, err := application.Load(envName, appName)
+	app, err := appfile.LoadApplication(envName, appName)
 
 	// can't handle
-	if err != nil && !application.IsNotFound(appName, err) {
+	if err != nil && !appfile.IsNotFound(appName, err) {
 		return nil, err
 	}
 
 	// compatible application not found
 	if app == nil {
-		app, err = application.NewEmptyApplication()
+		app, err = appfile.NewEmptyApplication()
 		if err != nil {
 			return nil, err
 		}
@@ -57,12 +57,12 @@ func LoadIfExist(envName string, workloadName string, appGroup string) (*driver.
 }
 
 // BaseComplete will construct an Application from cli parameters.
-func BaseComplete(envName string, workloadName string, appName string, flagSet *pflag.FlagSet, workloadType string) (*driver.Application, error) {
+func BaseComplete(envName string, workloadName string, appName string, flagSet *pflag.FlagSet, workloadType string) (*api.Application, error) {
 	app, err := LoadIfExist(envName, workloadName, appName)
 	if err != nil {
 		return nil, err
 	}
-	tp, workloadData := application.GetWorkload(app, workloadName)
+	tp, workloadData := appfile.GetWorkload(app, workloadName)
 	if tp == "" {
 		if workloadType == "" {
 			return nil, fmt.Errorf("must specify workload type for application %s", workloadName)
@@ -127,18 +127,18 @@ func BaseComplete(envName string, workloadName string, appName string, flagSet *
 			return nil, fmt.Errorf("get flag(s) \"%s\" err %w", v.Name, err)
 		}
 	}
-	if err = application.SetWorkload(app, workloadName, tp, workloadData); err != nil {
+	if err = appfile.SetWorkload(app, workloadName, tp, workloadData); err != nil {
 		return app, err
 	}
-	return app, application.Save(app, envName)
+	return app, appfile.Save(app, envName)
 }
 
 // BaseRun will check if it's a stating operation before run
-func BaseRun(staging bool, app *driver.Application, kubeClient client.Client, env *types.EnvMeta, io cmdutil.IOStreams) (string, error) {
+func BaseRun(staging bool, app *api.Application, kubeClient client.Client, env *types.EnvMeta, io cmdutil.IOStreams) (string, error) {
 	if staging {
 		return "Staging saved", nil
 	}
-	if err := application.BuildRun(context.Background(), app, kubeClient, env, io); err != nil {
+	if err := appfile.BuildRun(context.Background(), app, kubeClient, env, io); err != nil {
 		err = fmt.Errorf("create app err: %w", err)
 		return "", err
 	}

@@ -1,32 +1,31 @@
-package application
+package appfile
 
 import (
 	"errors"
 
-	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
 )
 
 // SetWorkload will set user workload for Appfile
-func SetWorkload(app *driver.Application, componentName, workloadType string, workloadData map[string]interface{}) error {
+func SetWorkload(app *api.Application, componentName, workloadType string, workloadData map[string]interface{}) error {
 	if app == nil {
 		return errors.New("app is nil pointer")
 	}
 
 	s, ok := app.Services[componentName]
 	if !ok {
-		s = appfile.Service{}
+		s = api.Service{}
 	}
 	s["type"] = workloadType
 	for k, v := range workloadData {
 		s[k] = v
 	}
 	app.Services[componentName] = s
-	return app.Validate()
+	return Validate(app)
 }
 
 // SetTrait will set user trait for Appfile
-func SetTrait(app *driver.Application, componentName, traitType string, traitData map[string]interface{}) error {
+func SetTrait(app *api.Application, componentName, traitType string, traitData map[string]interface{}) error {
 	if app == nil {
 		return errors.New("app is nil pointer")
 	}
@@ -36,7 +35,7 @@ func SetTrait(app *driver.Application, componentName, traitType string, traitDat
 
 	s, ok := app.Services[componentName]
 	if !ok {
-		s = appfile.Service{}
+		s = api.Service{}
 	}
 
 	t, ok := s[traitType]
@@ -49,11 +48,11 @@ func SetTrait(app *driver.Application, componentName, traitType string, traitDat
 	}
 	s[traitType] = t
 	app.Services[componentName] = s
-	return app.Validate()
+	return Validate(app)
 }
 
 // RemoveTrait will remove a trait from Appfile
-func RemoveTrait(app *driver.Application, componentName, traitType string) error {
+func RemoveTrait(app *api.Application, componentName, traitType string) error {
 	if app == nil {
 		return errors.New("app is nil pointer")
 	}
@@ -67,7 +66,7 @@ func RemoveTrait(app *driver.Application, componentName, traitType string) error
 }
 
 // RemoveComponent will remove component from Appfile
-func RemoveComponent(app *driver.Application, componentName string) error {
+func RemoveComponent(app *api.Application, componentName string) error {
 	if app == nil {
 		return errors.New("app is nil pointer")
 	}

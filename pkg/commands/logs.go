@@ -16,8 +16,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
-	"github.com/oam-dev/kubevela/pkg/application"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
@@ -45,7 +45,7 @@ func NewLogsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		app, err := application.Load(env.Name, args[0])
+		app, err := appfile.LoadApplication(env.Name, args[0])
 		if err != nil {
 			return err
 		}
@@ -69,7 +69,7 @@ type Args struct {
 	Output string
 	Env    *types.EnvMeta
 	C      types.Args
-	App    *driver.Application
+	App    *api.Application
 }
 
 // Run refer to the implementation at https://github.com/oam-dev/stern/blob/master/stern/main.go
@@ -79,7 +79,7 @@ func (l *Args) Run(ctx context.Context, ioStreams cmdutil.IOStreams) error {
 	if err != nil {
 		return err
 	}
-	compName, err := util.AskToChooseOneService(application.GetComponents(l.App))
+	compName, err := util.AskToChooseOneService(appfile.GetComponents(l.App))
 	if err != nil {
 		return err
 	}

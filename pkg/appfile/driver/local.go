@@ -10,7 +10,7 @@ import (
 
 	"github.com/ghodss/yaml"
 
-	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
@@ -21,7 +21,7 @@ const LocalDriverName = "Local"
 
 // Local Storage
 type Local struct {
-	Driver
+	api.Driver
 }
 
 // NewLocalStorage get storage client of Local type
@@ -35,7 +35,7 @@ func (l *Local) Name() string {
 }
 
 // List applications from local storage
-func (l *Local) List(envName string) ([]*Application, error) {
+func (l *Local) List(envName string) ([]*api.Application, error) {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
 		return nil, err
@@ -44,7 +44,7 @@ func (l *Local) List(envName string) ([]*Application, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list apps from %s err %w", appDir, err)
 	}
-	var apps []*Application
+	var apps []*api.Application
 	for _, f := range files {
 		if f.IsDir() {
 			continue
@@ -62,7 +62,7 @@ func (l *Local) List(envName string) ([]*Application, error) {
 }
 
 // Save application from local storage
-func (l *Local) Save(app *Application, envName string) error {
+func (l *Local) Save(app *api.Application, envName string) error {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func (l *Local) Delete(envName, appName string) error {
 }
 
 // Get application from local storage
-func (l *Local) Get(envName, appName string) (*Application, error) {
+func (l *Local) Get(envName, appName string) (*api.Application, error) {
 	appDir, err := getApplicationDir(envName)
 	if err != nil {
 		return nil, err
@@ -116,7 +116,7 @@ func getApplicationDir(envName string) (string, error) {
 }
 
 // LoadFromFile will load application from file
-func loadFromFile(fileName string) (*Application, error) {
+func loadFromFile(fileName string) (*api.Application, error) {
 	tm, err := template.Load()
 	if err != nil {
 		return nil, err
@@ -126,10 +126,10 @@ func loadFromFile(fileName string) (*Application, error) {
 		return nil, err
 	}
 
-	f, err := appfile.LoadFromFile(fileName)
+	f, err := api.LoadFromFile(fileName)
 	if err != nil {
 		return nil, err
 	}
-	app := &Application{AppFile: f, Tm: tm}
+	app := &api.Application{AppFile: f, Tm: tm}
 	return app, nil
 }

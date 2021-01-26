@@ -1,7 +1,6 @@
 package cue
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -9,54 +8,12 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
-	cueJson "cuelang.org/go/pkg/encoding/json"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/apis/types"
 )
 
-// OutputFieldName is the name of the struct contains the CR data
-const OutputFieldName = "output"
-
 // para struct contains the parameter
 const specValue = "parameter"
-
-// Eval evaluates the spec with the parameter values
-func Eval(templatePath string, value map[string]interface{}) (*unstructured.Unstructured, error) {
-	r := cue.Runtime{}
-	b, err := ioutil.ReadFile(filepath.Clean(templatePath))
-	if err != nil {
-		return nil, err
-	}
-	template, err := r.Compile("", string(b)+BaseTemplate)
-	if err != nil {
-		return nil, fmt.Errorf("compile %s err %w", templatePath, err)
-	}
-	// fill in the parameter values and evaluate
-	tempValue := template.Value()
-	appValue, err := tempValue.Fill(value, specValue).Eval().Struct()
-	if err != nil {
-		return nil, fmt.Errorf("fill value to template err %w", err)
-	}
-	// fetch the spec struct content
-	final, err := appValue.FieldByName(OutputFieldName, true)
-	if err != nil {
-		return nil, fmt.Errorf("get template %s err %w", OutputFieldName, err)
-	}
-	if err := final.Value.Validate(cue.Concrete(true), cue.Final()); err != nil {
-		return nil, err
-	}
-	data, err := cueJson.Marshal(final.Value)
-	if err != nil {
-		return nil, fmt.Errorf("marshal final value err %w", err)
-	}
-	// need to unmarshal it to a map to get rid of the outer spec name
-	obj := make(map[string]interface{})
-	if err = json.Unmarshal([]byte(data), &obj); err != nil {
-		return nil, err
-	}
-	return &unstructured.Unstructured{Object: obj}, nil
-}
 
 // GetParameters get parameter from cue template
 func GetParameters(templatePath string) ([]types.Parameter, error) {

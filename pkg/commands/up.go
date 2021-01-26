@@ -19,9 +19,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
-	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -96,13 +95,13 @@ func saveRemoteAppfile(url string) (string, error) {
 }
 
 type buildResult struct {
-	appFile     *appfile.AppFile
+	appFile     *api.AppFile
 	application *v1alpha2.Application
 	scopes      []oam.Object
 }
 
 func (o *AppfileOptions) export(filePath string, quiet bool) (*buildResult, []byte, error) {
-	var app *appfile.AppFile
+	var app *api.AppFile
 	var err error
 	if !quiet {
 		o.IO.Info("Parsing vela appfile ...")
@@ -114,9 +113,9 @@ func (o *AppfileOptions) export(filePath string, quiet bool) (*buildResult, []by
 				return nil, nil, err
 			}
 		}
-		app, err = appfile.LoadFromFile(filePath)
+		app, err = api.LoadFromFile(filePath)
 	} else {
-		app, err = appfile.Load()
+		app, err = api.Load()
 	}
 	if err != nil {
 		return nil, nil, err
@@ -131,7 +130,7 @@ func (o *AppfileOptions) export(filePath string, quiet bool) (*buildResult, []by
 		return nil, nil, err
 	}
 
-	appHandler := driver.NewApplication(app, tm)
+	appHandler := appfile.NewApplication(app, tm)
 
 	// new
 	retApplication, scopes, err := appHandler.BuildOAMApplication(o.Env, o.IO, appHandler.Tm, quiet)
@@ -189,9 +188,9 @@ func (o *AppfileOptions) Run(filePath string) error {
 	return o.ApplyApp(result.application, result.scopes)
 }
 
-func (o *AppfileOptions) saveToAppDir(f *appfile.AppFile) error {
-	app := &driver.Application{AppFile: f}
-	return application.Save(app, o.Env.Name)
+func (o *AppfileOptions) saveToAppDir(f *api.AppFile) error {
+	app := &api.Application{AppFile: f}
+	return appfile.Save(app, o.Env.Name)
 }
 
 // ApplyApp applys config resources for the app.
@@ -223,7 +222,7 @@ func (o *AppfileOptions) ApplyApp(app *v1alpha2.Application, scopes []oam.Object
 }
 
 func (o *AppfileOptions) apply(app *v1alpha2.Application, scopes []oam.Object) error {
-	if err := application.Run(context.TODO(), o.Kubecli, app, scopes); err != nil {
+	if err := appfile.Run(context.TODO(), o.Kubecli, app, scopes); err != nil {
 		return err
 	}
 	return nil

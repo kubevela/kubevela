@@ -15,8 +15,8 @@ import (
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
-	"github.com/oam-dev/kubevela/pkg/application"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	velacmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -40,7 +40,7 @@ type VelaExecOptions struct {
 	context.Context
 	VelaC types.Args
 	Env   *types.EnvMeta
-	App   *driver.Application
+	App   *api.Application
 
 	f             k8scmdutil.Factory
 	kcExecOptions *cmdexec.ExecOptions
@@ -118,7 +118,7 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 		return err
 	}
 	o.Env = env
-	app, err := application.Load(env.Name, o.Args[0])
+	app, err := appfile.LoadApplication(env.Name, o.Args[0])
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func (o *VelaExecOptions) getComponentName() (string, error) {
 		o.Cmd.Printf("The service name '%s' is not valid\n", svcName)
 	}
 
-	compName, err := util.AskToChooseOneService(application.GetComponents(o.App))
+	compName, err := util.AskToChooseOneService(appfile.GetComponents(o.App))
 	if err != nil {
 		return "", err
 	}

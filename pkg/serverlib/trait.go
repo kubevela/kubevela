@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
+
+	"github.com/oam-dev/kubevela/pkg/appfile"
+
 	"cuelang.org/go/cue"
 	plur "github.com/gertd/go-pluralize"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/appfile/storage/driver"
-	"github.com/oam-dev/kubevela/pkg/application"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 )
@@ -147,7 +149,7 @@ func ValidateAndMutateForCore(traitType, workloadName string, flags *pflag.FlagS
 }
 
 // AddOrUpdateTrait attach trait to workload
-func AddOrUpdateTrait(env *types.EnvMeta, appName string, componentName string, flagSet *pflag.FlagSet, template types.Capability) (*driver.Application, error) {
+func AddOrUpdateTrait(env *types.EnvMeta, appName string, componentName string, flagSet *pflag.FlagSet, template types.Capability) (*api.Application, error) {
 	err := ValidateAndMutateForCore(template.Name, componentName, flagSet, env)
 	if err != nil {
 		return nil, err
@@ -155,12 +157,12 @@ func AddOrUpdateTrait(env *types.EnvMeta, appName string, componentName string, 
 	if appName == "" {
 		appName = componentName
 	}
-	app, err := application.Load(env.Name, appName)
+	app, err := appfile.LoadApplication(env.Name, appName)
 	if err != nil {
 		return app, err
 	}
 	traitAlias := template.Name
-	traitData, err := application.GetTraitsByType(app, componentName, traitAlias)
+	traitData, err := appfile.GetTraitsByType(app, componentName, traitAlias)
 	if err != nil {
 		return app, err
 	}
@@ -188,19 +190,19 @@ func AddOrUpdateTrait(env *types.EnvMeta, appName string, componentName string, 
 			return nil, fmt.Errorf("get flag(s) \"%s\" err %w", name, err)
 		}
 	}
-	if err = application.SetTrait(app, componentName, traitAlias, traitData); err != nil {
+	if err = appfile.SetTrait(app, componentName, traitAlias, traitData); err != nil {
 		return app, err
 	}
-	return app, application.Save(app, env.Name)
+	return app, appfile.Save(app, env.Name)
 }
 
 // TraitOperationRun will check if it's a stage operation before run
-func TraitOperationRun(ctx context.Context, c client.Client, env *types.EnvMeta, appObj *driver.Application,
+func TraitOperationRun(ctx context.Context, c client.Client, env *types.EnvMeta, appObj *api.Application,
 	staging bool, io cmdutil.IOStreams) (string, error) {
 	if staging {
 		return "Staging saved", nil
 	}
-	err := application.BuildRun(ctx, appObj, c, env, io)
+	err := appfile.BuildRun(ctx, appObj, c, env, io)
 	if err != nil {
 		return "", err
 	}
@@ -208,18 +210,18 @@ func TraitOperationRun(ctx context.Context, c client.Client, env *types.EnvMeta,
 }
 
 // PrepareDetachTrait will detach trait in local AppFile
-func PrepareDetachTrait(envName string, traitType string, componentName string, appName string) (*driver.Application, error) {
-	var appObj *driver.Application
+func PrepareDetachTrait(envName string, traitType string, componentName string, appName string) (*api.Application, error) {
+	var appObj *api.Application
 	var err error
 	if appName == "" {
 		appName = componentName
 	}
-	if appObj, err = application.Load(envName, appName); err != nil {
+	if appObj, err = appfile.LoadApplication(envName, appName); err != nil {
 		return appObj, err
 	}
 
-	if err = application.RemoveTrait(appObj, componentName, traitType); err != nil {
+	if err = appfile.RemoveTrait(appObj, componentName, traitType); err != nil {
 		return appObj, err
 	}
-	return appObj, application.Save(appObj, envName)
+	return appObj, appfile.Save(appObj, envName)
 }
