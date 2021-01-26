@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
@@ -653,6 +654,37 @@ var _ = Describe("Test Application Controller", func() {
 		checkApp := &v1alpha2.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
+
+	FIt("app with rolling out annotation", func() {
+		By("crreat application with rolling out annotation")
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-test-with-rollout",
+			},
+		}
+		appWithTrait.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		app := appWithTrait.DeepCopy()
+		app.SetAnnotations(map[string]string{
+			oam.AnnotationAppRollout: "true",
+		})
+
+		By("apply appfile")
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		result, err := reconciler.Reconcile(reconcile.Request{NamespacedName: appKey})
+		Expect(result).To(BeIdenticalTo(ctrl.Result{RequeueAfter: rollout_reconcile_wait_time}))
+		Expect(err).ToNot(HaveOccurred())
+		By("Check App status is rollingout")
+		checkApp := &v1alpha2.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRollingOut))
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})

@@ -19,7 +19,7 @@ package v1alpha2
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	v1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
 // ApplicationDeploymentSpec defines how to describe an upgrade between different application

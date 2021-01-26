@@ -136,26 +136,25 @@ type RolloutPlan struct {
 ```
 
 ## User Experience Workflow
-OAM rollout experience is different from flagger in a few different ways and here are the
+OAM rollout experience is different from flagger in some key areas and here are the
  implications on its impact on the user experience.
-- We assume that the resources it refers to are **_immutable_**. In contrast, flagger watches over a
+- We assume that the resources it refers to are **immutable**. In contrast, flagger watches over a
   target resource and reacts whenever the target's specification changes.
     - The trait version of the controller refers to componentRevision.
     - The application version of the controller refers to immutable application. 
-- The rollout logic **_works only once_** and stops after it reaches a terminal state. One can
+- The rollout logic **works only once** and stops after it reaches a terminal state. One can
   still change the rollout plan in the middle of the rollout as long as it does not change the
   pods that are already updated. 
-- The applicationDeployment controller only works with applications with 1 component for now.
-- Users should rely on the rollout CR to do the actual rollout which means they
+- The applicationDeployment controller only rollout one component in the applications for now.
+- Users in general should rely on the rollout CR to do the actual rollout which means they
  shall set the `replicas` or `partition` field of the new resources to the starting value
  indicated in the [detailed rollout plan design](#rollout-plan-work-with-different-type-of-workloads).
-- 
     
  
 ## Notable implementation level details
-Here are some high level implementation decisions
+Here are some high level implementation details based on the 
 
-### Rollout on different resources
+### Rollout workflows
 As we mentioned in the introduction section, we will implement two rollout controllers that work
 on different levels. At the end, they both emit an in-memory rollout plan object which includes
 references to the target and source kubernetes resources that the rollout planner will execute
@@ -165,26 +164,38 @@ upon. For example, the applicationDeployment controller will get the component f
  With that said, two controllers operate differently to extract the real workload. Here are the
   high level descriptions of how each works. 
  
-#### ApplicationDeployment takes control of the application during rolling out phase
-When an appDeployment is used to do application level rollout, **_one should apply the
- appDeployment CR before the application itself_**. This is to try to make sure that the
-  appDeployment controll has full control of the new application from the beginning.
- However, there is no kubernetes systematic way of acquiring a distributed lock for a controller.  
-- The appDeployment controller will make sure it marks itself as the owner of the
- application and changes the appDeployment CR state to be initialized. The application controller
-  can be aware of appDeployment and have build-in logics in case.
-- The appDeployment controller can change the application fields. For example, it can remove all
- the conflict traits, such as HPA, during the upgrade period. 
-- Upon a successful rollout, the appDeployment controller can remove all the traits in the old
-  application and leave no pods in the workload.
-- Upon a failed rollout, the condition is not determined, it could result in an unstable state.
+#### ApplicationDeployment workflow 
+When an appDeployment is used to do application level rollout, **the target application
+is not reconciled by the application controller yet**. This is to make sure  the
+appDeployment controller has the full control of the new application from the beginning.
+We will use a pre-defined annotation "app.oam.dev/rollout" that equals to "true" to facilitate
+ that. We expect any system uses an appDeployment object to follow this rule.
+- Upon creation, the appDeployment controller marks itself as the owner of the application. The
+ application controller will have built-in logic to ignore any applications that has the
+ "app.oam.dev/rollout" annotation set to true.
+- The appDeployment controller can change the target application fields. For example, 
+   - It might remove all the conflict traits, such as HPA during upgrade. 
+   - It might modify the label selectors fields in the services to make sure there are ways to
+    differentiate traffic routing to the old and new application resources.
+- The appDeployment controller will return the control of the new application back to the
+ application controller after it makes the initial adjustment of the application by removing the
+  annotation.
+  - We will use a webhook to ensure that the "rollout" annotation cannot be added back once removed.
+- Upon a successful rollout, the appDeployment controller leaves no pods running for the old
+ application.
+- Upon a failed rollout, the condition is not determined, it could result in an unstable state
+ since both the old and new applications have been modified. 
 - Thus, we introduced a `revertOnDelete` field so that a user can delete the appDeployment and
-  expect the old application to be intact.  
+  expect the old application to be intact, and the new application takes no effect.
 
-#### Rollout trait works with componentRevision only
+#### Rollout trait workflow
 The rollout traits controller only works with componentRevision.
-- The component controller emits the new component revision when a new component is created
-- The application Configuration controller emits the new component and get its componentRevision
+- The component controller emits the new component revision when a new component is created or
+ updated.
+- The application configuration controller emits the new component and assign the
+ componentRevision as the source and target of rollout trait. 
+- We assume that there is no other scalar related traits deployed at the same time. We will use
+ `conflict-with` fields in the traitDefinition and webhooks to enforce that.
 - Upon a successful rollout, the rollout trait will keep the old component revision with no
  pod left.
 - Upon a failed rollout,the rollout trait will just stop and leaves the resource mixed. This
@@ -193,53 +204,44 @@ The rollout traits controller only works with componentRevision.
 ### Rollout plan work with different type of workloads
 The rollout plan part of the rollout logic is shared between all rollout controller. It comes
  with references to the target and source workload. The controller is responsible for fetching
-the different revisions of the resources. Deployment and cloneset represents the two major types
- of resources in that cloneset can contain both the new and old revisions at a stable state while
+the different revisions of the resources. Deployment and Cloneset represents the two major types
+ of resources in that Cloneset can contain both the new and old revisions at a stable state while
  deployment only contains one version when it's stable.
  
 #### Rollout plan works with deployment
 It's pretty straightforward for the outer controller to create the in-memory target and source
  deployment object since they are just a copy of the kubernetes resources.
-- The deployment workload should set the `replicas` field to be zero in the beginning by the user.
-- Another options is for it to leave `replicas` field as optional. Since the
- default of `replicas` field is one, this  means the target deployment is created with one pod
- . While not ideal, this cannot be avoided. However, the deployment workload handler can check
-  the health of the target before rolling it out.
-- We assume that there is no other scalar related traits deployed at the same time. We will use
- `conflict-with` fields in the traitDefinition and webhooks to enforce that.
+- The deployment workload should set the **`Paused` field to be true** by the user in the
+ appDeployment case.
+- Another options is for the user to leave the `replicas` field as 0 if the rollout does not have
+ access to that field.
 - If the rollout is successful, the source deployment `replicas` field will be zero and the
  target deployment will be the same as the original source.
-- If the rollout failed, we will leave the state as it is
+- If the rollout failed, we will leave the state as it is.
 - If the rollout failed and `revertOnDelete` is `true` and the rollout CR is deleted, then the
  source deployment `replicas` field will be turned back to before rollout and the target deployment's `replicas` field will
  be zero.
 
 #### Rollout plan works with cloneset
 The outer controller creates the in-memory target and source cloneset object with different image
- ids. The source is only used when we do need to do rollback. 
-- The user should set the cloneset workload's **_`partition` field the same as its
- `replicas` field_** before the rollout. This is the only way for the rollout controller to control
-  the entire rollout phase.
-- The rollout plan mostly just adjusts the  `partition` field in the cloneset and leaves the rest
- of the rollout logic to the cloneset controller.
+ ids. The source is only used when we do need to do rollback.
+- The user should set the Cloneset workload's **`Paused` field to be true** by the user in the
+  appDeployment case.
+- Another options is for the user to leave the `partition` field in a value that effectively stop
+ upgrade if the rollout does not have access to that field.
+- The rollout plan mostly just adjusts the  `partition` field in the Cloneset and leaves the rest
+ of the rollout logic to the Cloneset controller.
 - If the rollout is successful, the `partition` field will be zero
 - If the rollout failed, we will leave the `partition` field as the last time we touch it.
 - If the rollout failed and `revertOnDelete` is `true` and the rollout CR is deleted, we will
- perform a revert on the cloneset.  Since the cloneset controller doesn't do rollback when one
- increases the `partition`, the rollout plan can only revert it by replacing the entire
- target cloneset spec with the source spec and `partition` as zero.
+ perform a revert on the Cloneset. Note that only the latest Cloneset controller allows rollback
+ when one increases the `partition` field.
 
-### Each rollout plan is an eventual consistency type of logic called in a continues loop goroutine.
-- Each loop call basically drives the state of the rollout to a terminal state based on the
-     current state of the resource/canary. 
-- its state won't move after reaching a terminal state unless the target ref changes. 
-
-### The rollout controller use a finalizer
-- revert the rollout if the revertOnDelete field is true, and the rollout status is not
- succeeded.
-- return the control back to the application controller.
-
-### We import the implementation of notifiers from flagger through go mod
+### Operational features
+- We will use the same service mesh model as flagger in the sense that user needs to provide the
+ service mesh provider type and give us the reference to an ingress object. 
+    - We plan to directly import the various flagger mesh implementation.
+- We plan to import the implementation of notifiers from flagger too
 - We can consider adding an alert rule in the rollout Plan api in the future
 
 ### We use webhook to validate whether the change to the rollout CRD is valid.
@@ -253,7 +255,7 @@ the following fields:
  loop which will resume the rollout operation based on the rollout and its resources status which
   follows the pre-determined state machine transition.
 
-#### The controller have extension points setup for the following plug-ins:
+### The controller have extension points setup for the following plug-ins:
 - workloads. Each workload handler needs to implement the following operations:
     - scale the resources
     - determine the health of the workload
@@ -262,6 +264,43 @@ the following fields:
 - (future) service mesh provider. Each mesh provider needs to implement the following operations:
      - direct certain percent of the traffic to the source/target workload
      - fetch the current traffic split
+
+## State Transition
+Here are the various top-level states of the rollout 
+```go
+	// Verifying verifies that the rollout setting is valid and the controller can locate both the
+	// target and the source
+	Verifying
+	// Initializing rollout is initializing all the new resources
+	Initializing
+	// Rolling rolling out
+	Rolling
+	// Finalising finalize the rolling, possibly clean up the old resources, adjust traffic
+	Finalising
+	// Succeed rollout successfully completed to match the desired target state
+	Succeed
+	// Failed rollout is failed, the target replica is not reached
+	// we can not move forward anymore
+	// we will let the client to decide when or whether to revert
+	Failed
+)
+```
+
+These are the sub-states of the rollout when its in the rolling state.
+```go
+	// BatchRolling still rolling the batch, the batch rolling is not completed yet
+	BatchRolling
+	// BatchStopped rollout is stopped, the batch rolling is not completed
+	BatchStopped
+	// BatchReady the pods in the batch are ready. Wait for auto or manual verification.
+	BatchReady
+	// BatchVerifying verifying if the application is ready to roll. This happens when it's either manual or
+	// automatic with analysis
+	BatchVerifying
+	// BatchAvailable one batch is ready, we could move to the batch
+	BatchAvailable 
+)
+```
 
 ## Future work
 The applicationDeployment should also work on traits. For example, if someone plans to update the
