@@ -2,9 +2,10 @@ package commands
 
 import (
 	"bytes"
-	"github.com/oam-dev/kubevela/pkg/serverlib"
 	"os"
 	"testing"
+
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
