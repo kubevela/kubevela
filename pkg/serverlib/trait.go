@@ -73,9 +73,7 @@ func convertAllAppliyToList(traits []types.Capability, workloads []types.Capabil
 func ConvertApplyTo(applyTo []string, workloads []types.Capability) []string {
 	var converted []string
 	if in(applyTo, "*") {
-		for _, w := range workloads {
-			converted = append(converted, w.Name)
-		}
+		converted = append(converted, "*")
 	} else {
 		for _, v := range applyTo {
 			newName, exist := check(v, workloads)

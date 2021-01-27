@@ -100,6 +100,11 @@ func TestNewTraitsCommandPersistentPreRunE(t *testing.T) {
 }
 
 func TestTraitsAppliedToAllWorkloads(t *testing.T) {
+	trait := types.Capability{
+		Name:      "route",
+		CrdName:   "routes.oam.dev",
+		AppliesTo: []string{"*"},
+	}
 	workloads := []types.Capability{
 		{
 			Name:    "deployment",
@@ -110,6 +115,5 @@ func TestTraitsAppliedToAllWorkloads(t *testing.T) {
 			CrdName: "clonsets.alibaba",
 		},
 	}
-	appliedTo := []string{"*"}
-	assert.Equal(t, []string{"deployment", "clonset"}, serverlib.ConvertApplyTo(appliedTo, workloads))
+	assert.Equal(t, []string{"*"}, serverlib.ConvertApplyTo(trait.AppliesTo, workloads))
 }
