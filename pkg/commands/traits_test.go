@@ -5,14 +5,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/oam-dev/kubevela/pkg/serverlib"
-
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 )
 
 func Test_printTraitList(t *testing.T) {
