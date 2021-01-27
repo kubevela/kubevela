@@ -42,12 +42,12 @@ jobs:
       - name: Install ossutil
         run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
       - name: Configure Alibaba Cloud OSSUTIL
-        run: ./ossutil config -i ${ACCESS_KEY} -k ${ACCESS_KEY_SECRET} -e ${ENDPOINT} -c .ossutilconfig
+        run: ./ossutil --config-file .ossutilconfig config -i ${ACCESS_KEY} -k ${ACCESS_KEY_SECRET} -e ${ENDPOINT} -c .ossutilconfig
       - name: sync cloud to local
-        run: ./ossutil sync oss://kubevelacharts/core .oss/
+        run: ./ossutil --config-file .ossutilconfig sync oss://kubevelacharts/core .oss/
       - name: Package helm charts
         run: |
           helm package charts/vela-core --destination .oss/
           helm repo index .oss/
       - name: sync local to cloud
-        run: ./ossutil sync .oss/ oss://kubevelacharts/core
+        run: ./ossutil --config-file .ossutilconfig sync .oss/ oss://kubevelacharts/core
