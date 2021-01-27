@@ -12,9 +12,8 @@ env:
   ACCESS_KEY: ${{ secrets.OSS_ACCESS_KEY }}
   ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
 
-
 jobs:
-  update:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
@@ -48,6 +47,6 @@ jobs:
       - name: Package helm charts
         run: |
           helm package charts/vela-core --destination .oss/
-          helm repo index .oss/
+          helm repo index --url https://kubevelacharts.oss-cn-hangzhou.aliyuncs.com/core .oss/
       - name: sync local to cloud
         run: ./ossutil --config-file .ossutilconfig sync .oss/ oss://kubevelacharts/core
