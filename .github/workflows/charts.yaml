@@ -14,7 +14,7 @@ env:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@master
       - name: Get the version
@@ -36,8 +36,10 @@ jobs:
           version: v3.4.0
       - name: Tag helm chart image
         run:  |
-          sed -i 's/latest/${{ steps.get_version.outputs.VERSION }}/g' charts/vela-core/values.yaml
-          sed -i 's/0.1.0/${{ steps.get_version.outputs.VERSION }}/g' charts/vela-core/Chart.yaml
+          version=${{ steps.get_version.outputs.VERSION }}
+          number=${version#"v"}
+          sed -i "s/latest/$number/g" charts/vela-core/values.yaml
+          sed -i "s/0.1.0/$number/g" charts/vela-core/Chart.yaml
       - name: Install ossutil
         run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
       - name: Configure Alibaba Cloud OSSUTIL
