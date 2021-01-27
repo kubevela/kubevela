@@ -107,11 +107,11 @@ func validateComponent(componentList []string, targetApp, sourceApp *v1alpha2.Ap
 }
 
 // ValidateUpdate validates the ApplicationDeployment on update
-func (h *ValidatingHandler) ValidateUpdate(new *v1alpha2.ApplicationDeployment, prev *v1alpha2.ApplicationDeployment) field.ErrorList {
+func (h *ValidatingHandler) ValidateUpdate(new, old *v1alpha2.ApplicationDeployment) field.ErrorList {
 	klog.InfoS("validate update", "name", new.Name)
 	errList := h.ValidateCreate(new)
 	if len(errList) > 0 {
 		return errList
 	}
-	return rollout.ValidateUpdate(&new.Spec.RolloutPlan, &prev.Spec.RolloutPlan)
+	return rollout.ValidateUpdate(&new.Spec.RolloutPlan, &old.Spec.RolloutPlan)
 }

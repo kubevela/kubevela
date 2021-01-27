@@ -30,6 +30,8 @@ import (
 type ApplicationPhase string
 
 const (
+	// ApplicationRollingOut means the app is in the middle of rolling out
+	ApplicationRollingOut ApplicationPhase = "rollingOut"
 	// ApplicationRendering means the app is rendering
 	ApplicationRendering ApplicationPhase = "rendering"
 	// ApplicationRunning means the app finished rendering and applied result to the cluster

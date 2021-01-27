@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-var _ = Describe("Test Application Validater", func() {
+var _ = Describe("Test Application Validator", func() {
 	ctx := context.Background()
 	handler := &ValidatingHandler{}
 
@@ -20,7 +20,7 @@ var _ = Describe("Test Application Validater", func() {
 		Expect(handler.InjectDecoder(decoder)).Should(BeNil())
 	})
 
-	It("Test Application Validater [bad request]", func() {
+	It("Test Application Validator [bad request]", func() {
 		req := admission.Request{
 			AdmissionRequest: admissionv1beta1.AdmissionRequest{
 				Operation: admissionv1beta1.Create,
@@ -32,7 +32,7 @@ var _ = Describe("Test Application Validater", func() {
 		Expect(resp.Allowed).Should(BeFalse())
 	})
 
-	It("Test Application Validater [Allow]", func() {
+	It("Test Application Validator [Allow]", func() {
 		req := admission.Request{
 			AdmissionRequest: admissionv1beta1.AdmissionRequest{
 				Operation: admissionv1beta1.Create,
@@ -51,6 +51,7 @@ var _ = Describe("Test Application Validater", func() {
 		resp := handler.Handle(ctx, req)
 		Expect(resp.Allowed).Should(BeTrue())
 	})
+
 	It("Test Application Validater [Error]", func() {
 		req := admission.Request{
 			AdmissionRequest: admissionv1beta1.AdmissionRequest{
@@ -62,6 +63,35 @@ var _ = Describe("Test Application Validater", func() {
 "metadata":{"name":"application-sample"},
 "spec":{"components":[{"name":"myweb","settings":{"cmd":["sleep","1000"],"image":"busybox"},
 "traits":[{"name":"scaler","properties":{"replicas":10}}],"type":"worker1"}]}}`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+	})
+
+	It("Test Application Validator Forbid rollout annotation", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1beta1.AdmissionRequest{
+				Operation: admissionv1beta1.Update,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1alpha2",
+"kind":"Application",
+"metadata":{"name":"application-sample", "annotations": {"app.oam.dev/rollout" : "true"},}
+"spec":{"components":[{"name":"myweb","settings":{"cmd":["sleep","1000"],"image":"busybox"},
+"traits":[{"name":"scaler","properties":{"replicas":10}}],"type":"worker"}]}}
+`),
+				},
+				OldObject: runtime.RawExtension{
+					Raw: []byte(`
+{"apiVersion":"core.oam.dev/v1alpha2",
+"kind":"Application",
+"metadata":{"name":"application-sample"},
+"spec":{"components":[{"name":"myweb","settings":{"cmd":["sleep","1000"],"image":"busybox"},
+"traits":[{"name":"scaler","properties":{"replicas":10}}],"type":"worker"}]}}
+`),
 				},
 			},
 		}

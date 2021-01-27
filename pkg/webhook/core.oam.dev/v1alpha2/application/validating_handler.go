@@ -12,7 +12,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
@@ -54,14 +53,23 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	if err := h.Decoder.Decode(req, app); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	if req.Operation == admissionv1beta1.Delete || app.DeletionTimestamp != nil {
-		return admission.ValidationResponse(true, "")
-	}
 
-	// try render to validate
-	appParser := application.NewApplicationParser(h.Client, h.dm)
-	if _, err := appParser.GenerateAppFile(app.Name, app); err != nil {
-		return admission.Denied(err.Error())
+	switch req.Operation {
+	case admissionv1beta1.Create:
+		if allErrs := h.ValidateCreate(app); len(allErrs) > 0 {
+			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
+		}
+	case admissionv1beta1.Update:
+		oldApp := &v1alpha2.Application{}
+		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldApp); err != nil {
+			return admission.Errored(http.StatusBadRequest, err)
+		}
+
+		if allErrs := h.ValidateUpdate(app, oldApp); len(allErrs) > 0 {
+			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
+		}
+	default:
+		// Do nothing for DELETE and CONNECT
 	}
 	return admission.ValidationResponse(true, "")
 }
