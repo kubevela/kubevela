@@ -49,4 +49,4 @@ jobs:
           helm package charts/vela-core --destination .oss/
           helm repo index --url https://kubevelacharts.oss-cn-hangzhou.aliyuncs.com/core .oss/
       - name: sync local to cloud
-        run: ./ossutil --config-file .ossutilconfig sync .oss/ oss://kubevelacharts/core
+        run: ./ossutil --config-file .ossutilconfig sync .oss/ oss://kubevelacharts/core -f
