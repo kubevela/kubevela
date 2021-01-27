@@ -29,7 +29,8 @@ spec:
       			rules: parameter.rules
       		}
       
-      		provider: *"nginx" | parameter.provider
+      		provider:     *"nginx" | parameter.provider
+      		ingressClass: *"nginx" | parameter.ingressClass
       	}
       }
       parameter: {
@@ -41,6 +42,7 @@ spec:
       		path:          string
       		rewriteTarget: *"" | string
       	}]
-      	provider?: string
+      	provider?:     string
+      	ingressClass?: string
       }
       

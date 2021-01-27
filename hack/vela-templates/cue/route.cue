@@ -14,7 +14,8 @@ output: {
 			rules: parameter.rules
 		}
 
-		provider: *"nginx" | parameter.provider
+		provider:     *"nginx" | parameter.provider
+		ingressClass: *"nginx" | parameter.ingressClass
 	}
 }
 parameter: {
@@ -26,5 +27,6 @@ parameter: {
 		path:          string
 		rewriteTarget: *"" | string
 	}]
-	provider?: string
+	provider?:     string
+	ingressClass?: string
 }

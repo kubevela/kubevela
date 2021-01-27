@@ -29,6 +29,9 @@ type RouteSpec struct {
    
     // Provider indicate which ingress controller implementation the route trait will use, by default it's nginx-ingress
 	Provider string `json:"provider,omitempty"`
+
+	// IngressClass indicate which ingress class the route trait will use, by default it's nginx
+	IngressClass string `json:"provider,omitempty"`
 }
 
 // Rule defines to route rule
@@ -92,7 +95,8 @@ Besides `workloadRef`, one Route will have only one `host` and many rules. `host
 It's required and will be used to generate mTLS secrets.
 
 Route Trait designed to be compatible with different ingress controller implementations, the `provider` field will allow
-you to give a specified ingress controller type. Currently, only nginx-ingress is supported. 
+you to give a specified ingress controller type. The `ingressClass` field will allow you to set the ingressClass. 
+Currently, only nginx-ingress is supported.
 
 The `tls` field allow you to specify a TLS for this route with an IssuerName, the IssuerName pointing to an [Issuer Object](https://cert-manager.io/docs/concepts/issuer/)
 created by cert-manager. Cert-manager and ingress controller will handle certificate creation and binding.
