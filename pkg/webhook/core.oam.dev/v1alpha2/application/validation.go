@@ -21,12 +21,13 @@ func (h *ValidatingHandler) ValidateCreate(app *v1alpha2.Application) field.Erro
 
 // ValidateUpdate validates the Application on update
 func (h *ValidatingHandler) ValidateUpdate(newApp, oldApp *v1alpha2.Application) field.ErrorList {
+	// check if the newApp is valid
 	componentErrs := h.ValidateCreate(newApp)
 	// one can't add a rollout annotation to an existing application
 	if _, exist := oldApp.GetAnnotations()[oam.AnnotationAppRollout]; !exist {
 		if _, exist := newApp.GetAnnotations()[oam.AnnotationAppRollout]; exist {
-			componentErrs = append(componentErrs, field.Forbidden(field.NewPath("meta"),
-				"cannot add a rollout annotation"))
+			componentErrs = append(componentErrs, field.Forbidden(field.NewPath("meta").Child("annotation"),
+				"cannot add a rollout annotation on an existing application"))
 		}
 	}
 	return componentErrs

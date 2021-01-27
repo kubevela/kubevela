@@ -151,8 +151,9 @@ OAM rollout experience is different from flagger in some key areas and here are 
  indicated in the [detailed rollout plan design](#rollout-plan-work-with-different-type-of-workloads).
     
  
-## Notable implementation level details
-Here are some high level implementation details based on the 
+## Notable implementation level design decisions
+Here are some high level implementation design decisions that will impact the user experience of
+ rolling out.
 
 ### Rollout workflows
 As we mentioned in the introduction section, we will implement two rollout controllers that work
@@ -169,7 +170,8 @@ When an appDeployment is used to do application level rollout, **the target appl
 is not reconciled by the application controller yet**. This is to make sure  the
 appDeployment controller has the full control of the new application from the beginning.
 We will use a pre-defined annotation "app.oam.dev/rollout" that equals to "true" to facilitate
- that. We expect any system uses an appDeployment object to follow this rule.
+ that. We expect any system, such as the [kubevela apiserver](APIServer-Catalog.md), that
+  utilizes an appDeployment object to follow this rule.
 - Upon creation, the appDeployment controller marks itself as the owner of the application. The
  application controller will have built-in logic to ignore any applications that has the
  "app.oam.dev/rollout" annotation set to true.

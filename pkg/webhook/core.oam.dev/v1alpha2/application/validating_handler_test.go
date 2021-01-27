@@ -70,7 +70,7 @@ var _ = Describe("Test Application Validator", func() {
 		Expect(resp.Allowed).Should(BeFalse())
 	})
 
-	FIt("Test Application Validator Forbid rollout annotation", func() {
+	It("Test Application Validator Forbid rollout annotation", func() {
 		req := admission.Request{
 			AdmissionRequest: admissionv1beta1.AdmissionRequest{
 				Operation: admissionv1beta1.Update,

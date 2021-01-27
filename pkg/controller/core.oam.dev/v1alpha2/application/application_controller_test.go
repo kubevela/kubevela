@@ -658,7 +658,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 
-	FIt("app with rolling out annotation", func() {
+	It("app with rolling out annotation", func() {
 		By("crreat application with rolling out annotation")
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{

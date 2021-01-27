@@ -63,6 +63,11 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
+	// TODO: check finalizer
+	if app.DeletionTimestamp != nil {
+		return ctrl.Result{}, nil
+	}
+
 	// Check if the oam rollout annotation exists
 	if _, exist := app.GetAnnotations()[oam.AnnotationAppRollout]; exist {
 		applog.Info("The application is still in the process of rolling out")
@@ -70,10 +75,6 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		app.Status.SetConditions(readyCondition("Rolling"))
 		// do not process apps still in rolling out
 		return ctrl.Result{RequeueAfter: rolloutReconcileWaitTime}, r.Status().Update(ctx, app)
-	}
-
-	if app.DeletionTimestamp != nil {
-		return ctrl.Result{}, nil
 	}
 
 	applog.Info("Start Rendering")

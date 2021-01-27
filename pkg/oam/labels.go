@@ -49,6 +49,7 @@ const (
 	// resource for use in a three way diff during a patching apply
 	AnnotationLastAppliedConfig = "app.oam.dev/last-applied-configuration"
 
-	// AnnotationAppRollout indicates that the application is rolling out
-	AnnotationAppRollout = "app.oam.dev/rollout"
+	// AnnotationAppRollout indicates that the application is still rolling out
+	// the application controller will not reconcile it yet
+	AnnotationAppRollout = "app.oam.dev/rollout-template"
 )
