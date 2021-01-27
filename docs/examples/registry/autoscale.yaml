@@ -13,6 +13,12 @@ spec:
   definitionRef:
     name: autoscalers.standard.oam.dev
   extension:
+    install:
+      helm:
+        repo: kedacore
+        name: keda
+        url: https://kedacore.github.io/charts
+        version: 2.0.0-rc3
     template: |
       import "strconv"
       

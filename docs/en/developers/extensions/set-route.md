@@ -1,5 +1,9 @@
 # Setting Routes
 
+> Note: route is one of the extension capabilities [installed from cap center](../cap-center.md),
+> please install it if you can't find it in `vela traits`.
+
+
 The `route` section is used to configure the access to your app.
 
 Add routing config under `express-server`:
@@ -16,7 +20,7 @@ services:
           rewriteTarget: /
 ```
 
-> The full specification of `route` could show up by `$ vela show route` or be found on [its reference documentation](references/traits/route.md)
+> The full specification of `route` could show up by `$ vela show route` or be found on [its reference documentation](../references/traits/route.md)
 
 Apply again:
 

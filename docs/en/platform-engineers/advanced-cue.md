@@ -69,7 +69,7 @@ spec:
 Apply this newly defined TraitDefinition into our system:
 
 ```shell script
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/advanced-cue/newroute.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/registry/ingress.yaml
 ```
 
 You can check it by using the application object like below:
@@ -149,7 +149,7 @@ spec:
 Apply this newly defined TraitDefinition into our system:
 
 ```shell script
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/advanced-cue/for-loop.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/registry/for-loop.yaml
 ```
 
 Use the newly created trait like below:

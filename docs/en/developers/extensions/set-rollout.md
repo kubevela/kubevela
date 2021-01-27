@@ -1,5 +1,8 @@
 # Setting Rollout Strategy
 
+> Note: rollout is one of the extension capabilities [installed from cap center](../cap-center.md),
+> please install it if you can't find it in `vela traits`.
+
 The `rollout` section is used to configure Canary strategy to release your app.
 
 Add rollout config under `express-server` along with a `route`.
@@ -21,7 +24,7 @@ services:
       domain: "example.com"
 ```
 
-> The full specification of `rollout` could show up by `$ vela show rollout` or be found on [its reference documentation](references/traits/rollout.md)
+> The full specification of `rollout` could show up by `$ vela show rollout` or be found on [its reference documentation](../references/traits/rollout.md)
 
 Apply this `appfile.yaml`:
 
@@ -134,4 +137,4 @@ $ curl -H "Host:example.com" http://<your-ingress-ip-address>/
 Hello World -- This is rolling 02
 ```
 
-> NOTE: please check the [detailed documentation](references/traits/rollout.md#how-rollout-works) for `Rollout` trait to fully understand how canary release strategy works in KubeVela.
+> NOTE: please check the [detailed documentation](../references/traits/rollout.md#how-rollout-works) for `Rollout` trait to fully understand how canary release strategy works in KubeVela.

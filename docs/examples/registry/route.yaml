@@ -12,6 +12,12 @@ spec:
   definitionRef:
     name: routes.standard.oam.dev
   extension:
+    install:
+      helm:
+        repo: stable
+        name: nginx-ingress
+        url: https://kubernetes-charts.storage.googleapis.com/
+        version: 1.41.2
     template: |
       output: {
       	apiVersion: "standard.oam.dev/v1alpha1"

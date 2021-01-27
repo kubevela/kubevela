@@ -1,5 +1,8 @@
 # Monitoring Application
 
+> Note: metrics is one of the extension capabilities [installed from cap center](../cap-center.md),
+> please install it if you can't find it in `vela traits`.
+
 If your application has exposed metrics, you can easily tell the platform how to collect the metrics data from your app with `metrics` capability.
 
 Let's run [`christianhxc/gorandom:1.0`](https://github.com/christianhxc/prometheus-tutorial) as an example app.
@@ -26,7 +29,7 @@ The app will emit random latencies as metrics.
     EOF
   ```
 
-> The full specification of `metrics` could show up by `$ vela show metrics` or be found on [its reference documentation](references/traits/metrics.md)
+> The full specification of `metrics` could show up by `$ vela show metrics` or be found on [its reference documentation](../references/traits/metrics.md)
 
 2. Deploy the application:
 
@@ -73,6 +76,6 @@ kubectl --namespace monitoring port-forward `kubectl -n monitoring get pods -l p
 
 Then access the Prometheus dashboard via http://localhost:9090/targets
 
-![Prometheus Dashboard](../../resources/metrics.jpg)
+![Prometheus Dashboard](../../../resources/metrics.jpg)
 
 </details>

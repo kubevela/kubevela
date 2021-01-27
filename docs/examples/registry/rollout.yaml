@@ -13,6 +13,13 @@ spec:
   workloadRefPath: spec.targetRef
   revisionEnabled: true
   extension:
+    install:
+      helm:
+        repo: oam-flagger
+        name: flagger
+        namespace: vela-system
+        url: https://oam.dev/flagger/archives/
+        version: 1.1.0
     template: |-
       output: {
       	apiVersion: "flagger.app/v1beta1"

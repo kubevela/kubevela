@@ -338,4 +338,4 @@ $ minikube addons enable metrics-server
 ```
 
 
-Have fun to [set autoscale](../../set-autoscale.md) on your application.
+Have fun to [set autoscale](../../extensions/set-autoscale.md) on your application.
