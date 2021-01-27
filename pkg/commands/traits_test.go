@@ -2,6 +2,7 @@ package commands
 
 import (
 	"bytes"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 	"os"
 	"testing"
 
@@ -96,4 +97,19 @@ func TestNewTraitsCommandPersistentPreRunE(t *testing.T) {
 	fakeC := types.Args{}
 	cmd := NewTraitsCommand(fakeC, io)
 	assert.Nil(t, cmd.PersistentPreRunE(new(cobra.Command), []string{}))
+}
+
+func TestTraitsAppliedToAllWorkloads(t *testing.T) {
+	workloads := []types.Capability{
+		{
+			Name:    "deployment",
+			CrdName: "deployments.apps",
+		},
+		{
+			Name:    "clonset",
+			CrdName: "clonsets.alibaba",
+		},
+	}
+	appliedTo := []string{"*"}
+	assert.Equal(t, []string{"deployment", "clonset"}, serverlib.ConvertApplyTo(appliedTo, workloads))
 }
