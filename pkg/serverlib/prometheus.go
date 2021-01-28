@@ -1,4 +1,4 @@
-package dependency
+package serverlib
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// InstallPrometheusInstance will install prometheus instance for vela-core
+// InstallPrometheusInstance will install prometheus instance when the Capability is 'metrics'
 func InstallPrometheusInstance(kubecli client.Client) error {
 	var promIns = monitoring.Prometheus{}
 	err := kubecli.Get(context.Background(), types.NamespacedName{Namespace: "monitoring", Name: "oam"}, &promIns)
