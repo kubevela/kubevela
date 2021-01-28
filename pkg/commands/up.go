@@ -45,7 +45,7 @@ func NewUpCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return o.Run(filePath)
+			return o.Run(filePath, c.Config)
 		},
 	}
 	cmd.SetOut(ioStream.Out)

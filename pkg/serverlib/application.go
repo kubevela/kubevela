@@ -17,6 +17,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	apitypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -27,6 +28,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -411,16 +413,20 @@ func (o *AppfileOptions) Export(filePath string, quiet bool) (*BuildResult, []by
 }
 
 // Run starts an application according to Appfile
-func (o *AppfileOptions) Run(filePath string) error {
+func (o *AppfileOptions) Run(filePath string, config *rest.Config) error {
 	result, data, err := o.Export(filePath, false)
 	if err != nil {
 		return err
 	}
-	return o.BaseAppFileRun(result, data)
+	dm, err := discoverymapper.New(config)
+	if err != nil {
+		return err
+	}
+	return o.BaseAppFileRun(result, data, dm)
 }
 
 // BaseAppFileRun starts an application according to Appfile
-func (o *AppfileOptions) BaseAppFileRun(result *BuildResult, data []byte) error {
+func (o *AppfileOptions) BaseAppFileRun(result *BuildResult, data []byte, dm discoverymapper.DiscoveryMapper) error {
 	deployFilePath := ".vela/deploy.yaml"
 	o.IO.Infof("Writing deploy config to (%s)\n", deployFilePath)
 	if err := os.MkdirAll(filepath.Dir(deployFilePath), 0700); err != nil {
@@ -434,6 +440,12 @@ func (o *AppfileOptions) BaseAppFileRun(result *BuildResult, data []byte) error 
 	if err := o.saveToAppDir(result.appFile); err != nil {
 		return errors.Wrap(err, "save to app dir failed")
 	}
+
+	kubernetesComponent, err := appfile.ApplyTerraform(result.application, o.Kubecli, o.IO, o.Env.Namespace, dm)
+	if err != nil {
+		return err
+	}
+	result.application.Spec.Components = kubernetesComponent
 
 	o.IO.Infof("\nApplying application ...\n")
 	return o.ApplyApp(result.application, result.scopes)

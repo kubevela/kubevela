@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"cuelang.org/go/cue"
@@ -122,4 +124,28 @@ func GenOpenAPIFromFile(filePath string, fileName string) ([]byte, error) {
 		return nil, inst.Err
 	}
 	return GenOpenAPI(inst)
+}
+
+// RealtimePrintCommandOutput prints command output in real time
+// If logFile is "", it will prints the stdout, or it will write to local file
+func RealtimePrintCommandOutput(cmd *exec.Cmd, logFile string) error {
+	var writer io.Writer
+	if logFile == "" {
+		writer = io.MultiWriter(os.Stdout)
+	} else {
+		if _, err := os.Stat(filepath.Dir(logFile)); err != nil {
+			return err
+		}
+		f, err := os.Create(filepath.Clean(logFile))
+		if err != nil {
+			return err
+		}
+		writer = io.MultiWriter(f)
+	}
+	cmd.Stdout = writer
+	cmd.Stderr = writer
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	return nil
 }

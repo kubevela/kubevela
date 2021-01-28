@@ -113,7 +113,7 @@ func (s *APIServer) CreateApplication(c *gin.Context) {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
 	}
-	err = o.BaseAppFileRun(buildResult, data)
+	err = o.BaseAppFileRun(buildResult, data, s.dm)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return

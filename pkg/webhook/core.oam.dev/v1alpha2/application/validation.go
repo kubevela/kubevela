@@ -4,7 +4,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -12,7 +12,7 @@ import (
 func (h *ValidatingHandler) ValidateCreate(app *v1alpha2.Application) field.ErrorList {
 	var componentErrs field.ErrorList
 	// try to generate an app file
-	appParser := application.NewApplicationParser(h.Client, h.dm)
+	appParser := appfile.NewApplicationParser(h.Client, h.dm)
 	if _, err := appParser.GenerateAppFile(app.Name, app); err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), app, err.Error()))
 	}

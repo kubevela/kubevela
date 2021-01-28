@@ -1,0 +1,38 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: aliyun-oss
+  annotations:
+    definition.oam.dev/description: Terraform files for Aliyun OSS object
+    type: terraform             # To mark this WorkloadDefinition is Terraform module/manifests
+spec:
+  definitionRef:
+    name: deployments.apps      # "NULL" temporary set to `deployments.apps` to let `vela workloads` work
+  extension:
+    template: |
+      output: {
+      	{
+         "resource": {
+           "alicloud_oss_bucket": {
+             "bucket-acl": {
+               "bucket": "${var.bucket}",
+               "acl": "private"
+             }
+           }
+         },
+         "output": {
+           "BUCKET_NAME": {
+             "value": "${alicloud_oss_bucket.bucket-acl.bucket}.${alicloud_oss_bucket.bucket-acl.extranet_endpoint}"
+           }
+         },
+         "variable": {
+           "bucket": {
+             "default": parameter.bucket
+           }
+         }
+       }
+      }
+
+      parameter: {
+      	bucket:         string
+      }

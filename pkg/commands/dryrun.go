@@ -5,16 +5,16 @@ import (
 	"io/ioutil"
 	"path/filepath"
 
-	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/apis/types"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	appCtr "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
+
+	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
 type dryRunOptions struct {
@@ -50,7 +50,7 @@ func NewDryRunCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 				return errors.WithMessagef(err, "read application file: %s", o.applicationFile)
 			}
 
-			parser := appCtr.NewApplicationParser(newClient, dm)
+			parser := appfile.NewApplicationParser(newClient, dm)
 
 			appFile, err := parser.GenerateAppFile(app.Name, app)
 			if err != nil {
