@@ -81,8 +81,6 @@ func NewCommand() *cobra.Command {
 		NewDashboardCommand(commandArgs, ioStream, fake.FrontendSource),
 		NewCompletionCommand(),
 		NewVersionCommand(),
-
-		AddCompCommands(commandArgs, ioStream),
 	)
 
 	// Traits
