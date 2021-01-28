@@ -2,6 +2,8 @@
 
 ## 1. Setup Kubernetes cluster
 
+> Note: This should be prepared by platform builder
+
 Requirements:
 - Kubernetes cluster >= v1.15.0
 - kubectl installed and configured
@@ -63,7 +65,54 @@ $ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/ma
 
 <!-- tabs:end -->
 
-## 2. Get KubeVela
+## 2. Install KubeVela Controller
+
+> Note: This should be prepared by platform builder
+
+This step will install KubeVela controller and its dependency.
+
+1. Install cert-manager
+
+    KubeVela rely on [cert-manager](https://cert-manager.io/docs/) to create certificates for webhook, if you want to
+    enable webhook, please refer to [cert-manager installation doc](https://cert-manager.io/docs/installation/kubernetes/)
+    to install one. If you already have a cert-manager in your system or just want to have a try, you can ignore this step.
+
+2. Add helm chart repo for KubeVela
+    ```
+    helm repo add kubevela https://kubevelacharts.oss-cn-hangzhou.aliyuncs.com/core
+    ```
+
+3. Update the chart repo
+    ```
+    helm repo update
+    ```
+   
+4. Create Namespace for KubeVela controller
+    ```shell script
+    kubectl create namespace vela-system 
+    ```
+
+5. Install KubeVela
+    ```shell script
+    helm install -n vela-system kubevela kubevela/vela-core
+    ```
+    By default, it will enable webhook, you must have a cert-manager installed.
+    You can add an argument `--set useWebhook=false` after the command to disable the webhook, so you don't rely on cert-manager.
+    ```shell script
+    helm install -n vela-system kubevela kubevela/vela-core --set useWebhook=false
+    ```
+    You can also install the built-in cert-manager by adding the argument `--set installCertManager=true`.
+    ```shell script
+    helm install -n vela-system kubevela kubevela/vela-core --set installCertManager=true
+    ```
+    If you want to try the latest master branch, try the following command:
+    ```shell script
+    helm install -n vela-system kubevela  https://kubevelacharts.oss-cn-hangzhou.aliyuncs.com/core/vela-core-latest.tgz --set useWebhook=false
+    ```
+
+## 3. Get KubeVela CLI
+
+> Note: This should be used by end user
 
 Here are three ways to get KubeVela Cli:
 
@@ -106,82 +155,9 @@ $ sudo mv ./vela /usr/local/bin/vela
 <!-- tabs:end -->
 
 
-## 3. Initialize KubeVela
-
-Run:
-
-```bash
-$ vela install
-```
-
-This will install KubeVela server component and its dependency components.
-
-<!-- tabs:start -->
-
-#### **(Advanced) Verify Installation Manually**
-
-  Check Vela Helm Chart has been installed:
-
-  ```console
-  $ helm list -n vela-system
-  NAME      NAMESPACE   REVISION  ...
-  kubevela  vela-system 1         ...
-  ```
-
-  Later on, check that all dependency components has been installed (they will need 5-10 minutes to show up):
-
-  ```console
-  $ helm list --all-namespaces
-  NAME                  NAMESPACE   REVISION  UPDATED                               STATUS    CHART                       APP VERSION
-  flagger               vela-system 1         2020-11-10 18:47:14.0829416 +0000 UTC deployed  flagger-1.1.0               1.1.0
-  keda                  keda        1         2020-11-10 18:45:15.6981827 +0000 UTC deployed  keda-2.0.0-rc3              2.0.0-rc2
-  kube-prometheus-stack monitoring  1         2020-11-10 18:45:37.9608079 +0000 UTC deployed  kube-prometheus-stack-9.4.4 0.38.1
-  kubevela              vela-system 1         2020-11-10 10:44:20.663582 -0800 PST  deployed
-  ```
-
-  > We will introduce a `vela system health` command to check the dependencies in the future.
-
-#### **(Advanced) Customize Your Installation**
-  We have installed the following dependency components along with Vela server component:
-
-  - [Prometheus Stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack)
-  - [Cert-manager](https://cert-manager.io/)
-  - [Flagger](https://flagger.app/)
-  - [KEDA](https://keda.sh/)
-
-  The config has been saved in a ConfigMap in "vela-system/vela-config":
-
-  ```console
-  $ kubectl -n vela-system get cm vela-config -o yaml
-  apiVersion: v1
-  data:
-    certificates.cert-manager.io: |
-      {
-        "repo": "jetstack",
-        "urL": "https://charts.jetstack.io",
-        "name": "cert-manager",
-        "namespace": "cert-manager",
-        "version": "1.0.3"
-      }
-    flagger.app: |
-    ...
-  kind: ConfigMap
-  ```
-
-  User can specify their own dependencies by editing the `vela-config` ConfigMap.
-  Currently adding new chart or updating existing chart requires redeploying Vela:
-
-  ```console
-  $ kubectl -n vela-system edit cm vela-config
-  ...
-
-  $ helm uninstall -n vela-system kubevela
-  $ helm install -n vela-system kubevela
-  ```
-
-<!-- tabs:end -->
-
 ## 4. (Optional) Clean Up
+
+> Note: This should be used by platform builder
 
 <details>
 
@@ -202,21 +178,15 @@ $ kubectl delete crd \
   applicationconfigurations.core.oam.dev \
   applicationdeployments.core.oam.dev \
   autoscalers.standard.oam.dev \
-  certificaterequests.cert-manager.io \
-  certificates.cert-manager.io \
-  challenges.acme.cert-manager.io \
-  clusterissuers.cert-manager.io \
   components.core.oam.dev \
   containerizedworkloads.core.oam.dev \
   healthscopes.core.oam.dev \
   issuers.cert-manager.io \
   manualscalertraits.core.oam.dev \
   metricstraits.standard.oam.dev \
-  orders.acme.cert-manager.io \
   podspecworkloads.standard.oam.dev \
   routes.standard.oam.dev \
   scopedefinitions.core.oam.dev \
-  servicemonitors.monitoring.coreos.com \
   traitdefinitions.core.oam.dev \
   workloaddefinitions.core.oam.dev
 ```
