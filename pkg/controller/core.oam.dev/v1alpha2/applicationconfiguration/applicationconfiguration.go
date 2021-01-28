@@ -33,7 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
@@ -473,7 +472,7 @@ func (w Workload) Status() v1alpha2.WorkloadStatus {
 	acw := v1alpha2.WorkloadStatus{
 		ComponentName:         w.ComponentName,
 		ComponentRevisionName: w.ComponentRevisionName,
-		Reference: runtimev1alpha1.TypedReference{
+		Reference: v1alpha1.TypedReference{
 			APIVersion: w.Workload.GetAPIVersion(),
 			Kind:       w.Workload.GetKind(),
 			Name:       w.Workload.GetName(),
@@ -485,14 +484,14 @@ func (w Workload) Status() v1alpha2.WorkloadStatus {
 		if tr.Definition.Name == util.Dummy && tr.Definition.Spec.Reference.Name == util.Dummy {
 			acw.Traits[i].Message = util.DummyTraitMessage
 		}
-		acw.Traits[i].Reference = runtimev1alpha1.TypedReference{
+		acw.Traits[i].Reference = v1alpha1.TypedReference{
 			APIVersion: w.Traits[i].Object.GetAPIVersion(),
 			Kind:       w.Traits[i].Object.GetKind(),
 			Name:       w.Traits[i].Object.GetName(),
 		}
 	}
 	for i, s := range w.Scopes {
-		acw.Scopes[i].Reference = runtimev1alpha1.TypedReference{
+		acw.Scopes[i].Reference = v1alpha1.TypedReference{
 			APIVersion: s.GetAPIVersion(),
 			Kind:       s.GetKind(),
 			Name:       s.GetName(),
@@ -523,16 +522,16 @@ func IsRevisionWorkload(status v1alpha2.WorkloadStatus) bool {
 }
 
 func eligible(namespace string, ws []v1alpha2.WorkloadStatus, w []Workload) []unstructured.Unstructured {
-	applied := make(map[runtimev1alpha1.TypedReference]bool)
+	applied := make(map[v1alpha1.TypedReference]bool)
 	for _, wl := range w {
-		r := runtimev1alpha1.TypedReference{
+		r := v1alpha1.TypedReference{
 			APIVersion: wl.Workload.GetAPIVersion(),
 			Kind:       wl.Workload.GetKind(),
 			Name:       wl.Workload.GetName(),
 		}
 		applied[r] = true
 		for _, t := range wl.Traits {
-			r := runtimev1alpha1.TypedReference{
+			r := v1alpha1.TypedReference{
 				APIVersion: t.Object.GetAPIVersion(),
 				Kind:       t.Object.GetKind(),
 				Name:       t.Object.GetName(),

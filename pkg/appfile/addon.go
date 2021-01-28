@@ -125,7 +125,7 @@ func generateSecretFromTerraformOutput(k8sClient client.Client, outputList []str
 	for _, i := range outputList {
 		line := strings.Split(i, "=")
 		if len(line) != 2 {
-			return fmt.Errorf("Terraform output isn't in the right format")
+			return fmt.Errorf("terraform output isn't in the right format")
 		}
 		k := strings.TrimSpace(line[0])
 		v := strings.TrimSpace(line[1])

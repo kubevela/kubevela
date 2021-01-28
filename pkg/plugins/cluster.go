@@ -13,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	util2 "github.com/oam-dev/kubevela/pkg/commands/util"
@@ -25,7 +24,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
-// nolint
+// DescriptionUndefined indicates the description is not defined
 const DescriptionUndefined = "description not defined"
 
 // GetCapabilitiesFromCluster will get capability from K8s cluster
@@ -108,7 +107,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, s
 }
 
 // validateCapabilities validates whether helm charts are successful installed, GVK are successfully retrieved.
-func validateCapabilities(tmp types.Capability, dm discoverymapper.DiscoveryMapper, definitionName string, reference v1alpha2.DefinitionReference) (types.Capability, error) {
+func validateCapabilities(tmp types.Capability, dm discoverymapper.DiscoveryMapper, definitionName string, reference corev1alpha2.DefinitionReference) (types.Capability, error) {
 	var err error
 	if tmp.Install != nil {
 		tmp.Source = &types.Source{ChartName: tmp.Install.Helm.Name}

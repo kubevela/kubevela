@@ -46,6 +46,6 @@ var _ = Describe("Test generateSecretFromTerraformOutput", func() {
 	It("invalid output list", func() {
 		outputList := []string{"name"}
 		err := generateSecretFromTerraformOutput(k8sClient, outputList, name, addonNamespace)
-		Expect(err).Should(Equal(fmt.Errorf("Terraform output isn't in the right format")))
+		Expect(err).Should(Equal(fmt.Errorf("terraform output isn't in the right format")))
 	})
 })

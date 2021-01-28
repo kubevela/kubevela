@@ -213,6 +213,9 @@ func TestGetParameterFromOpenAPISchema(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			rawFile := filepath.Join(tc.fileDir, tc.fileName)
 			raw, err := ioutil.ReadFile(rawFile)
+			if err != nil {
+				t.Errorf("%s\ngetParameterFromOpenAPISchema(...): raw file %s could not be read: %s", tc.reason, rawFile, err)
+			}
 			got, err := getParameterFromOpenAPISchema(raw)
 			if (err == nil && tc.want != nil) || (err != nil && tc.want == nil) {
 				t.Errorf("%s\ngetParameterFromOpenAPISchema(...): -want %s, +got %s", tc.reason, tc.want, err)

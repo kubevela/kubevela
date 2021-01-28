@@ -18,7 +18,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
-	velacmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -48,7 +47,7 @@ type VelaExecOptions struct {
 }
 
 // NewExecCommand creates `exec` command
-func NewExecCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra.Command {
+func NewExecCommand(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 	o := &VelaExecOptions{
 		kcExecOptions: &cmdexec.ExecOptions{
 			StreamOptions: cmdexec.StreamOptions{

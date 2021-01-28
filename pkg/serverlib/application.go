@@ -20,7 +20,6 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -54,7 +53,7 @@ type AppfileOptions struct {
 // BuildResult is the export struct from AppFile yaml or AppFile object
 type BuildResult struct {
 	appFile     *api.AppFile
-	application *v1alpha2.Application
+	application *corev1alpha2.Application
 	scopes      []oam.Object
 }
 
@@ -461,13 +460,13 @@ func (o *AppfileOptions) saveToAppDir(f *api.AppFile) error {
 // - for create, it displays app status along with information of url, metrics, ssh, logging.
 // - for update, it rolls out a canary deployment and prints its information. User can verify the canary deployment.
 //   This will wait for user approval. If approved, it continues upgrading the whole; otherwise, it would rollback.
-func (o *AppfileOptions) ApplyApp(app *v1alpha2.Application, scopes []oam.Object) error {
+func (o *AppfileOptions) ApplyApp(app *corev1alpha2.Application, scopes []oam.Object) error {
 	key := apitypes.NamespacedName{
 		Namespace: app.Namespace,
 		Name:      app.Name,
 	}
 	o.IO.Infof("Checking if app has been deployed...\n")
-	var tmpApp v1alpha2.Application
+	var tmpApp corev1alpha2.Application
 	err := o.Kubecli.Get(context.TODO(), key, &tmpApp)
 	switch {
 	case apierrors.IsNotFound(err):
@@ -484,7 +483,7 @@ func (o *AppfileOptions) ApplyApp(app *v1alpha2.Application, scopes []oam.Object
 	return nil
 }
 
-func (o *AppfileOptions) apply(app *v1alpha2.Application, scopes []oam.Object) error {
+func (o *AppfileOptions) apply(app *corev1alpha2.Application, scopes []oam.Object) error {
 	if err := appfile.Run(context.TODO(), o.Kubecli, app, scopes); err != nil {
 		return err
 	}
@@ -492,7 +491,7 @@ func (o *AppfileOptions) apply(app *v1alpha2.Application, scopes []oam.Object) e
 }
 
 // Info shows the status of each service in the Appfile
-func (o *AppfileOptions) Info(app *v1alpha2.Application) string {
+func (o *AppfileOptions) Info(app *corev1alpha2.Application) string {
 	appName := app.Name
 	var appUpMessage = "✅ App has been deployed 🚀🚀🚀\n" +
 		fmt.Sprintf("    Port forward: vela port-forward %s\n", appName) +

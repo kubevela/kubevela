@@ -20,7 +20,7 @@ type Meta struct {
 	Err     error
 }
 
-// LookupRunner fetch the value of context by filed
+// Lookup fetches the value of context by filed
 func (m *Meta) Lookup(field string) cue.Value {
 	f := m.Obj.Lookup(field)
 	if !f.Exists() {

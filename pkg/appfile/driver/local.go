@@ -110,7 +110,7 @@ func getApplicationDir(envName string) (string, error) {
 	appDir := filepath.Join(env.GetEnvDirByName(envName), "applications")
 	_, err := system.CreateIfNotExist(appDir)
 	if err != nil {
-		err = fmt.Errorf("Getting application directory from env %s failed, error: %w ", envName, err)
+		err = fmt.Errorf("getting application directory from env %s failed, error: %w ", envName, err)
 	}
 	return appDir, err
 }

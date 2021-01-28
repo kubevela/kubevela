@@ -10,7 +10,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/apps/v1"
 	v12 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -112,7 +111,7 @@ func TestComponentHandler(t *testing.T) {
 	}
 	comp := &v1alpha2.Component{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "biz", Name: "comp1", Generation: 1},
-		Spec:       v1alpha2.ComponentSpec{Workload: runtime.RawExtension{Object: &v1.Deployment{Spec: v1.DeploymentSpec{Template: v12.PodTemplateSpec{Spec: v12.PodSpec{Containers: []v12.Container{{Image: "nginx:v1"}}}}}}}},
+		Spec:       v1alpha2.ComponentSpec{Workload: runtime.RawExtension{Object: &appsv1.Deployment{Spec: appsv1.DeploymentSpec{Template: v12.PodTemplateSpec{Spec: v12.PodSpec{Containers: []v12.Container{{Image: "nginx:v1"}}}}}}}},
 	}
 
 	// ============ Test Create Event Start ===================
@@ -148,7 +147,7 @@ func TestComponentHandler(t *testing.T) {
 	comp2 := &v1alpha2.Component{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "biz", Name: "comp1"},
 		// change image
-		Spec: v1alpha2.ComponentSpec{Workload: runtime.RawExtension{Object: &v1.Deployment{Spec: v1.DeploymentSpec{Template: v12.PodTemplateSpec{Spec: v12.PodSpec{Containers: []v12.Container{{Image: "nginx:v2"}}}}}}}},
+		Spec: v1alpha2.ComponentSpec{Workload: runtime.RawExtension{Object: &appsv1.Deployment{Spec: appsv1.DeploymentSpec{Template: v12.PodTemplateSpec{Spec: v12.PodSpec{Containers: []v12.Container{{Image: "nginx:v2"}}}}}}}},
 	}
 	curComp.Status.DeepCopyInto(&comp2.Status)
 	updateEvt := event.UpdateEvent{
@@ -185,7 +184,7 @@ func TestComponentHandler(t *testing.T) {
 	// test no changes with component spec
 	comp3 := &v1alpha2.Component{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "biz", Name: "comp1", Labels: map[string]string{"bar": "foo"}},
-		Spec:       v1alpha2.ComponentSpec{Workload: runtime.RawExtension{Object: &v1.Deployment{Spec: v1.DeploymentSpec{Template: v12.PodTemplateSpec{Spec: v12.PodSpec{Containers: []v12.Container{{Image: "nginx:v2"}}}}}}}},
+		Spec:       v1alpha2.ComponentSpec{Workload: runtime.RawExtension{Object: &appsv1.Deployment{Spec: appsv1.DeploymentSpec{Template: v12.PodTemplateSpec{Spec: v12.PodSpec{Containers: []v12.Container{{Image: "nginx:v2"}}}}}}}},
 	}
 	curComp.Status.DeepCopyInto(&comp3.Status)
 	updateEvt = event.UpdateEvent{
@@ -204,7 +203,7 @@ func TestComponentHandler(t *testing.T) {
 	// test clean revision
 	comp4 := &v1alpha2.Component{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "biz", Name: "comp1", Labels: map[string]string{"bar": "foo"}},
-		Spec:       v1alpha2.ComponentSpec{Workload: runtime.RawExtension{Object: &v1.Deployment{Spec: v1.DeploymentSpec{Template: v12.PodTemplateSpec{Spec: v12.PodSpec{Containers: []v12.Container{{Image: "nginx:v3"}}}}}}}},
+		Spec:       v1alpha2.ComponentSpec{Workload: runtime.RawExtension{Object: &appsv1.Deployment{Spec: appsv1.DeploymentSpec{Template: v12.PodTemplateSpec{Spec: v12.PodSpec{Containers: []v12.Container{{Image: "nginx:v3"}}}}}}}},
 	}
 	curComp.Status.DeepCopyInto(&comp4.Status)
 	updateEvt = event.UpdateEvent{

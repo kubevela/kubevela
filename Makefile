@@ -37,12 +37,12 @@ endif
 all: build
 
 # Run tests
-test: vet lint
+test: vet lint staticcheck
 	go test -race -coverprofile=coverage.txt -covermode=atomic ./pkg/... ./cmd/...
 	@$(OK) unit-tests pass
 
 # Build manager binary
-build: fmt vet lint
+build: fmt vet lint staticcheck
 	go run hack/chart/generate.go
 	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
 	git checkout cmd/vela/fake/chart_source.go
@@ -102,10 +102,13 @@ fmt: goimports installcue
 vet:
 	go vet ./...
 
+staticcheck: staticchecktool
+	$(STATICCHECK) ./...
+
 lint: golangci
 	$(GOLANGCILINT) run  ./...
 
-reviewable: manifests fmt vet lint
+reviewable: manifests fmt vet lint staticcheck
 	go mod tidy
 
 # Execute auto-gen code commands and ensure branch is clean.
@@ -204,6 +207,19 @@ ifeq (, $(shell which golangci-lint))
 GOLANGCILINT=$(GOBIN)/golangci-lint
 else
 GOLANGCILINT=$(shell which golangci-lint)
+endif
+
+.PHONY: staticchecktool
+staticchecktool:
+ifeq (, $(shell which staticcheck))
+	@{ \
+	set -e ;\
+	echo 'installing honnef.co/go/tools/cmd/staticcheck ' ;\
+	GO111MODULE=off go get honnef.co/go/tools/cmd/staticcheck ;\
+	}
+STATICCHECK=$(GOBIN)/staticcheck
+else
+STATICCHECK=$(shell which staticcheck)
 endif
 
 .PHONY: goimports

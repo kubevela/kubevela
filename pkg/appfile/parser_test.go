@@ -30,7 +30,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -372,10 +371,10 @@ var _ = Describe("Test appFile parser", func() {
 		ac, components, err := NewApplicationParser(k8sClient, nil).GenerateApplicationConfiguration(TestApp, "default")
 		Expect(err).To(BeNil())
 		expectAppConfig := &v1alpha2.ApplicationConfiguration{
-			TypeMeta: v1.TypeMeta{
+			TypeMeta: metav1.TypeMeta{
 				Kind:       "ApplicationConfiguration",
 				APIVersion: "core.oam.dev/v1alpha2",
-			}, ObjectMeta: v1.ObjectMeta{
+			}, ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
 				Namespace: "default",
 				Labels:    map[string]string{"application.oam.dev": "test"},
@@ -417,10 +416,10 @@ var _ = Describe("Test appFile parser", func() {
 		Expect(ac).To(BeEquivalentTo(expectAppConfig))
 
 		expectComponent := &v1alpha2.Component{
-			TypeMeta: v1.TypeMeta{
+			TypeMeta: metav1.TypeMeta{
 				Kind:       "Component",
 				APIVersion: "core.oam.dev/v1alpha2",
-			}, ObjectMeta: v1.ObjectMeta{
+			}, ObjectMeta: metav1.ObjectMeta{
 				Name:      "myweb",
 				Namespace: "default",
 				Labels:    map[string]string{"application.oam.dev": "test"},
