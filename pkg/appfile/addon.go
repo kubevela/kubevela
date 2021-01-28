@@ -33,9 +33,7 @@ func ApplyTerraform(app *v1alpha2.Application, k8sClient client.Client, ioStream
 	// TODO(zzxwill) Need to check whether authentication credentials of a specific cloud provider are exported as environment variables, like `ALICLOUD_ACCESS_KEY`
 	var nativeVelaComponents []v1alpha2.ApplicationComponent
 	// parse template
-
 	appParser := NewApplicationParser(k8sClient, dm)
-
 	appFile, err := appParser.GenerateAppFile(app.Name, app)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse appfile: %w", err)
@@ -43,7 +41,6 @@ func ApplyTerraform(app *v1alpha2.Application, k8sClient client.Client, ioStream
 	if appFile == nil {
 		return nil, fmt.Errorf("failed to parse appfile")
 	}
-
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, err

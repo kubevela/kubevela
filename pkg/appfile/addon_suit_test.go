@@ -39,7 +39,6 @@ var addonNamespace = "test-addon"
 
 func TestAppFile(t *testing.T) {
 	RegisterFailHandler(Fail)
-
 	RunSpecsWithDefaultAndCustomReporters(t,
 		"Cli Suite",
 		[]Reporter{printer.NewlineReporter{}})

@@ -51,6 +51,13 @@ type AppfileOptions struct {
 	Env     *types.EnvMeta
 }
 
+// BuildResult is the export struct from AppFile yaml or AppFile object
+type BuildResult struct {
+	appFile     *api.AppFile
+	application *v1alpha2.Application
+	scopes      []oam.Object
+}
+
 func (comps componentMetaList) Len() int {
 	return len(comps)
 }
@@ -335,41 +342,6 @@ func saveRemoteAppfile(url string) (string, error) {
 	return dest, ioutil.WriteFile(dest, body, 0644)
 }
 
-// BuildResult is the export struct from AppFile yaml or AppFile object
-type BuildResult struct {
-	appFile     *api.AppFile
-	application *v1alpha2.Application
-	scopes      []oam.Object
-}
-
-// Export export Application object from the path of Appfile
-func (o *AppfileOptions) Export(filePath string, quiet bool) (*BuildResult, []byte, error) {
-	var app *api.AppFile
-	var err error
-	if !quiet {
-		o.IO.Info("Parsing vela appfile ...")
-	}
-	if filePath != "" {
-		if strings.HasPrefix(filePath, "https://") || strings.HasPrefix(filePath, "http://") {
-			filePath, err = saveRemoteAppfile(filePath)
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-		app, err = api.LoadFromFile(filePath)
-	} else {
-		app, err = api.Load()
-	}
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if !quiet {
-		o.IO.Info("Load Template ...")
-	}
-	return o.ExportFromAppFile(app, quiet)
-}
-
 // ExportFromAppFile exports Application from appfile object
 func (o *AppfileOptions) ExportFromAppFile(app *api.AppFile, quiet bool) (*BuildResult, []byte, error) {
 	tm, err := template.Load()
@@ -410,6 +382,34 @@ func (o *AppfileOptions) ExportFromAppFile(app *api.AppFile, quiet bool) (*Build
 		scopes:      scopes,
 	}
 	return result, w.Bytes(), nil
+}
+
+// Export export Application object from the path of Appfile
+func (o *AppfileOptions) Export(filePath string, quiet bool) (*BuildResult, []byte, error) {
+	var app *api.AppFile
+	var err error
+	if !quiet {
+		o.IO.Info("Parsing vela appfile ...")
+	}
+	if filePath != "" {
+		if strings.HasPrefix(filePath, "https://") || strings.HasPrefix(filePath, "http://") {
+			filePath, err = saveRemoteAppfile(filePath)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
+		app, err = api.LoadFromFile(filePath)
+	} else {
+		app, err = api.Load()
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !quiet {
+		o.IO.Info("Load Template ...")
+	}
+	return o.ExportFromAppFile(app, quiet)
 }
 
 // Run starts an application according to Appfile
