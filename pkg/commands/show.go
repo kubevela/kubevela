@@ -38,7 +38,7 @@ const (
 	Port = ":18081"
 )
 
-var noWebSite bool
+var webSite bool
 
 // NewAppShowCommand shows the reference doc for a workload type or trait
 func NewAppShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
@@ -56,16 +56,17 @@ func NewAppShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			}
 			ctx := context.Background()
 			capabilityName := args[0]
-			if noWebSite {
-				return showReferenceConsole(ctx, c, ioStreams, capabilityName)
+			if webSite {
+				return startReferenceDocsSite(ctx, c, ioStreams, capabilityName)
 			}
-			return startReferenceDocsSite(ctx, c, ioStreams, capabilityName)
+			return showReferenceConsole(ctx, c, ioStreams, capabilityName)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
 		},
 	}
-	cmd.Flags().BoolVarP(&noWebSite, "no-website", "", false, "do not start web doc site")
+
+	cmd.Flags().BoolVarP(&webSite, "web", "", false, " start web doc site")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }

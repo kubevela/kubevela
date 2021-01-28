@@ -265,5 +265,5 @@ func SyncDefinitionToLocal(ctx context.Context, c types.Args, localDefinitionDir
 			return &template, nil
 		}
 	}
-	return nil, nil
+	return nil, fmt.Errorf("%s is not a valid workload type or trait", capabilityName)
 }
