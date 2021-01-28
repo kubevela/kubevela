@@ -66,7 +66,7 @@ func NewAppShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		},
 	}
 	// cmd.Flags().BoolVarP(&noWebSite, "no-website", "", false, "do not start web doc site")
-	cmd.Flags().BoolVarP(&webSite, "web", "", false, "do not start web doc site")
+	cmd.Flags().BoolVarP(&webSite, "web", "", false, " start web doc site")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
