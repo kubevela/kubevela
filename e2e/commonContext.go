@@ -150,9 +150,7 @@ var (
 			ginkgo.It("should sync capabilities from cluster before listing trait capabilities", func() {
 				output, err := Exec("vela traits")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("metrics"))
-				gomega.Expect(output).To(gomega.ContainSubstring("rollout"))
-				gomega.Expect(output).To(gomega.ContainSubstring("route"))
+				gomega.Expect(output).To(gomega.ContainSubstring("scaler"))
 			})
 		})
 	}

@@ -14,6 +14,13 @@ spec:
     name: metricstraits.standard.oam.dev
   workloadRefPath: spec.workloadRef
   extension:
+    install:
+      helm:
+        repo: prometheus-community
+        name: kube-prometheus-stack
+        namespace: monitoring
+        url: https://prometheus-community.github.io/helm-charts
+        version: 9.4.4
     template: |-
       output: {
       	apiVersion: "standard.oam.dev/v1alpha1"

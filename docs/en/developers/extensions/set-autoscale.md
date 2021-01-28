@@ -1,6 +1,9 @@
 # Automatically scale workloads by resource utilization metrics and cron
 
-Autoscale depends on metrics server, please [enable it in your Kubernetes cluster](./references/devex/faq.md#autoscale-how-to-enable-metrics-server-in-various-kubernetes-clusters) at the beginning.
+> Note: autoscale is one of the extension capabilities [installed from cap center](../cap-center.md),
+> please install it if you can't find it in `vela traits`.
+
+Autoscale depends on metrics server, please [enable it in your Kubernetes cluster](../references/devex/faq.md#autoscale-how-to-enable-metrics-server-in-various-kubernetes-clusters) at the beginning.
 
 ## Setting cron auto-scaling policy
 Introduce how to automatically scale workloads by cron.
@@ -29,7 +32,7 @@ Introduce how to automatically scale workloads by cron.
           timezone: "America/Los_Angeles"
   ```
 
-> The full specification of `autoscale` could show up by `$ vela show autoscale` or be found on [its reference documentation](references/traits/autoscale.md)
+> The full specification of `autoscale` could show up by `$ vela show autoscale` or be found on [its reference documentation](../references/traits/autoscale.md)
 
 2. Deploy an application
   
