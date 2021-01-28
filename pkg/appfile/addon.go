@@ -12,7 +12,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -30,14 +29,11 @@ const (
 )
 
 // ApplyTerraform deploys addon resources
-func ApplyTerraform(app *v1alpha2.Application, k8sClient client.Client, ioStream util.IOStreams, namespace string, restConfig *rest.Config) ([]v1alpha2.ApplicationComponent, error) {
+func ApplyTerraform(app *v1alpha2.Application, k8sClient client.Client, ioStream util.IOStreams, namespace string, dm discoverymapper.DiscoveryMapper) ([]v1alpha2.ApplicationComponent, error) {
 	// TODO(zzxwill) Need to check whether authentication credentials of a specific cloud provider are exported as environment variables, like `ALICLOUD_ACCESS_KEY`
 	var nativeVelaComponents []v1alpha2.ApplicationComponent
 	// parse template
-	dm, err := discoverymapper.New(restConfig)
-	if err != nil {
-		return nil, err
-	}
+
 	appParser := NewApplicationParser(k8sClient, dm)
 
 	appFile, err := appParser.GenerateAppFile(app.Name, app)

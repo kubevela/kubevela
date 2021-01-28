@@ -11,6 +11,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
 var _ = It("Test ApplyTerraform", func() {
@@ -24,9 +25,9 @@ var _ = It("Test ApplyTerraform", func() {
 		}},
 	}
 	ioStream := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	_, err := ApplyTerraform(app, k8sClient, ioStream, addonNamespace, cfg)
+	dm, _ := discoverymapper.New(cfg)
+	_, err := ApplyTerraform(app, k8sClient, ioStream, addonNamespace, dm)
 	Expect(err.Error()).Should(Equal("exit status 1"))
-
 })
 
 var _ = Describe("Test generateSecretFromTerraformOutput", func() {
@@ -47,5 +48,4 @@ var _ = Describe("Test generateSecretFromTerraformOutput", func() {
 		err := generateSecretFromTerraformOutput(k8sClient, outputList, name, addonNamespace)
 		Expect(err).Should(Equal(fmt.Errorf("Terraform output isn't in the right format")))
 	})
-
 })
