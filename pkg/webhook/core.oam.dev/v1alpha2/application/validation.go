@@ -3,9 +3,8 @@ package application
 import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/oam-dev/kubevela/pkg/appfile"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
