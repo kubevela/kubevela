@@ -18,8 +18,6 @@ package commands
 
 // constants used in `svc` command
 const (
-	Staging     = "staging"
-	App         = "app"
-	TraitDetach = "detach"
-	Service     = "svc"
+	App     = "app"
+	Service = "svc"
 )
