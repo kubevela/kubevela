@@ -22,10 +22,6 @@ output: {
 				}]
 			}
 		}
-
-		selector:
-			matchLabels:
-				"app.oam.dev/component": context.name
 	}
 }
 

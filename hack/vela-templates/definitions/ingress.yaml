@@ -1,0 +1,10 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: ingress
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  extension:
+    template: |
