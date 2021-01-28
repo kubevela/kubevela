@@ -31,7 +31,7 @@ type RouteSpec struct {
 	Provider string `json:"provider,omitempty"`
 
 	// IngressClass indicate which ingress class the route trait will use, by default it's nginx
-	IngressClass string `json:"provider,omitempty"`
+	IngressClass string `json:"ingressClass,omitempty"`
 }
 
 // Rule defines to route rule
@@ -152,4 +152,3 @@ route trait will check `WorkloadDefinition` for podSpec field, with the `podSpec
   - 2.2 Use ChildResource: If No `PodSpecable` mechanism found in workload, we will continue discovery child resources of workload. If there
   is a valid `PodTemplate` structure in child resource, we will regard it as discovery target, use the same strategy like
   `workload.oam.dev/podspecable: true` but no `podSpecPath`.
-
