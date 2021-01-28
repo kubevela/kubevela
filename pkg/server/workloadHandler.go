@@ -1,64 +1,13 @@
 package server
 
 import (
-	"os"
-
 	"github.com/gin-gonic/gin"
-	"github.com/spf13/pflag"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/server/util"
-	"github.com/oam-dev/kubevela/pkg/serverlib"
-	env2 "github.com/oam-dev/kubevela/pkg/utils/env"
 )
-
-// CreateWorkload creates a workload
-func (s *APIServer) CreateWorkload(c *gin.Context) {
-	var body apis.WorkloadRunBody
-	if err := c.ShouldBindJSON(&body); err != nil {
-		util.HandleError(c, util.InvalidArgument, "the workload run request body is invalid")
-		return
-	}
-	fs := pflag.NewFlagSet("workload", pflag.ContinueOnError)
-	for _, f := range body.Flags {
-		fs.String(f.Name, f.Value, "")
-	}
-	envName := body.EnvName
-
-	appObj, err := serverlib.BaseComplete(envName, body.WorkloadName, body.AppName, fs, body.WorkloadType)
-	if err != nil {
-		util.HandleError(c, util.StatusInternalServerError, err.Error())
-		return
-	}
-	env, err := env2.GetEnvByName(envName)
-	if err != nil {
-		util.HandleError(c, util.StatusInternalServerError, err.Error())
-		return
-	}
-	io := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	msg, err := serverlib.BaseRun(body.Staging, appObj, s.KubeClient, env, io)
-	if err != nil {
-		util.HandleError(c, util.StatusInternalServerError, err.Error())
-		return
-	}
-	if len(body.Traits) == 0 {
-		util.AssembleResponse(c, msg, err)
-		return
-	}
-	for _, t := range body.Traits {
-		t.AppName = body.AppName
-		t.ComponentName = body.WorkloadName
-		msg, err = s.DoAttachTrait(c, t)
-		if err != nil {
-			util.HandleError(c, util.StatusInternalServerError, err.Error())
-			return
-		}
-	}
-	util.AssembleResponse(c, msg, err)
-}
 
 // UpdateWorkload updates a workload
 func (s *APIServer) UpdateWorkload(c *gin.Context) {
