@@ -104,7 +104,7 @@ These steps will install KubeVela controller and its dependency.
     helm install -n vela-system kubevela kubevela/vela-core --set useWebhook=false
     ```
    
-    You can also use the built-in cert-manager by adding the argument `--set installCertManager=true`.
+    You can also install cert-manager via kubevela chart by adding the argument `--set installCertManager=true`.
     ```shell script
     helm install -n vela-system kubevela kubevela/vela-core --set installCertManager=true
     ```
