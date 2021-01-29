@@ -134,6 +134,9 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 				return err
 			}
 		}
+		if err = HackForStandardTrait(tp, client); err != nil {
+			return err
+		}
 		gvk, err := util.GetGVKFromDefinition(mapper, td.Spec.Reference)
 		if err != nil {
 			return err
@@ -152,6 +155,25 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 	success := plugins.SinkTemp2Local([]types.Capability{tp}, defDir)
 	if success == 1 {
 		ioStreams.Infof("Successfully installed capability %s from %s\n", capabilityName, centerName)
+	}
+	return nil
+}
+
+// HackForStandardTrait will do some hack install for standard capability
+func HackForStandardTrait(tp types.Capability, client client.Client) error {
+	switch tp.Name {
+	case "metrics":
+		// metrics trait will rely on a Prometheus instance to be installed
+		// make sure the chart is a prometheus operator
+		if tp.Install == nil {
+			break
+		}
+		if tp.Install.Helm.Namespace == "monitoring" && tp.Install.Helm.Name == "kube-prometheus-stack" {
+			if err := InstallPrometheusInstance(client); err != nil {
+				return err
+			}
+		}
+	default:
 	}
 	return nil
 }
