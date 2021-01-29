@@ -19,6 +19,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/serverlib"
 	"github.com/oam-dev/kubevela/pkg/utils/env"
@@ -103,8 +104,12 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if deployStatus != compStatusDeployed {
 				return nil
 			}
+			dm, err := discoverymapper.New(c.Config)
+			if err != nil {
+				return err
+			}
 
-			return printComponentStatus(context.Background(), o.client, o.IOStreams, o.workloadName, o.appName, o.Env)
+			return printAppStatus(context.Background(), newClient, dm, ioStreams, o.appName, o.Env, cmd)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,

@@ -19,7 +19,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oam2 "github.com/oam-dev/kubevela/pkg/serverlib"
 )
 
@@ -103,7 +103,11 @@ func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 			if err != nil {
 				return err
 			}
-			return printAppStatus(ctx, newClient, ioStreams, appName, env, cmd)
+			dm, err := discoverymapper.New(c.Config)
+			if err != nil {
+				return err
+			}
+			return printAppStatus(ctx, newClient, dm, ioStreams, appName, env, cmd)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
@@ -114,17 +118,12 @@ func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	return cmd
 }
 
-func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta, cmd *cobra.Command) error {
+func printAppStatus(ctx context.Context, c client.Client, dm discoverymapper.DiscoveryMapper, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta, cmd *cobra.Command) error {
 	app, err := appfile.LoadApplication(env.Name, appName)
 	if err != nil {
 		return err
 	}
-	namespace := env.Name
-
-	targetServices, err := oam2.GetServicesWhenDescribingApplication(cmd, app)
-	if err != nil {
-		return err
-	}
+	namespace := env.Namespace
 
 	cmd.Printf("About:\n\n")
 	table := newUITable()
@@ -136,16 +135,36 @@ func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOSt
 
 	cmd.Printf("Services:\n\n")
 
-	for _, svcName := range targetServices {
-		if err := printComponentStatus(ctx, c, ioStreams, svcName, appName, env); err != nil {
-			return err
-		}
+	remoteApp, err := loadRemoteApplication(c, namespace, appName)
+	if err != nil {
+		return err
 	}
 
-	return nil
+	parser := appfile.NewApplicationParser(c, dm)
+	appFile, err := parser.GenerateAppFile(appName, remoteApp)
+	if err != nil {
+		return err
+	}
+	return appfile.PrintApplicationComponents(appFile, c, namespace, componentPrinter(ctx, c, ioStreams, env))
 }
 
-func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, compName, appName string, env *types.EnvMeta) error {
+func loadRemoteApplication(c client.Client, ns string, name string) (*v1alpha2.Application, error) {
+	app := new(v1alpha2.Application)
+	err := c.Get(context.Background(), client.ObjectKey{
+		Namespace: ns,
+		Name:      name,
+	}, app)
+
+	return app, err
+}
+
+func componentPrinter(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, env *types.EnvMeta) func(compName string, appName string, traitsStatus map[string]string) error {
+	return func(compName string, appName string, traitsStatus map[string]string) error {
+		return printComponentStatus(ctx, c, ioStreams, compName, appName, env, traitsStatus)
+	}
+}
+
+func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, compName string, appName string, env *types.EnvMeta, traitsStatus map[string]string) error {
 	app, appConfig, err := getAppConfig(ctx, c, compName, appName, env)
 	if err != nil {
 		return err
@@ -173,57 +192,15 @@ func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmduti
 
 	// workload Must found
 	ioStreams.Infof("    Traits:\n")
-	workloadStatus, _ := getWorkloadStatusFromAppConfig(appConfig, compName)
-	for _, tr := range workloadStatus.Traits {
-		traitType, traitInfo, err := traitCheckLoop(ctx, c, tr.Reference, compName, appConfig, app, 60*time.Second)
-		if err != nil {
-			ioStreams.Infof("      - %s%s: %s, err: %v", emojiFail, white.Sprint(traitType), traitInfo, err)
-			continue
-		}
-		ioStreams.Infof("      - %s%s: %s", emojiSucceed, white.Sprint(traitType), traitInfo)
+
+	for traitType, traitInfo := range traitsStatus {
+		ioStreams.Infof("      - %s: %s", white.Sprint(traitType), traitInfo)
 	}
 	ioStreams.Info("")
 	ioStreams.Infof("    Last Deployment:\n")
 	ioStreams.Infof("      Created at: %v\n", appConfig.CreationTimestamp)
 	ioStreams.Infof("      Updated at: %v\n", app.UpdateTime.Format(time.RFC3339))
 	return nil
-}
-
-func traitCheckLoop(ctx context.Context, c client.Client, reference runtimev1alpha1.TypedReference, compName string, appConfig *v1alpha2.ApplicationConfiguration, app *api.Application, timeout time.Duration) (string, string, error) {
-	tr, err := oam2.GetUnstructured(ctx, c, appConfig.Namespace, reference)
-	if err != nil {
-		return "", "", err
-	}
-	traitType, ok := tr.GetLabels()[oam.TraitTypeLabel]
-	if !ok {
-		message, err := oam2.GetStatusFromObject(tr)
-		return traitType, message, err
-	}
-
-	checker := oam2.GetChecker(traitType, c)
-
-	// Health Check Loop For Trait
-	var message string
-	sHealthCheck := newTrackingSpinner(fmt.Sprintf("Checking %s status ...", traitType))
-	sHealthCheck.Start()
-	defer sHealthCheck.Stop()
-CheckLoop:
-	for {
-		time.Sleep(trackingInterval)
-		var check oam2.CheckStatus
-		check, message, err = checker.Check(ctx, reference, compName, appConfig, app)
-		if err != nil {
-			message = red.Sprintf("%s check failed!", traitType)
-			return traitType, message, err
-		}
-		if check == oam2.StatusDone {
-			break CheckLoop
-		}
-		if time.Since(tr.GetCreationTimestamp().Time) >= timeout {
-			return traitType, fmt.Sprintf("Checking timeout: %s", message), nil
-		}
-	}
-	return traitType, message, nil
 }
 
 func healthCheckLoop(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (HealthStatus, string, error) {

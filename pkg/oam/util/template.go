@@ -18,6 +18,7 @@ import (
 type Template struct {
 	TemplateStr        string
 	Health             string
+	CustomStatus       string
 	CapabilityCategory types.CapabilityCategory
 }
 
@@ -46,7 +47,7 @@ func LoadTemplate(cli client.Reader, key string, kd types.CapType) (*Template, e
 		if wd.Annotations["type"] == string(types.TerraformCategory) {
 			capabilityCategory = types.TerraformCategory
 		}
-		tmpl, err := getTemplAndHealth(wd.Spec.Extension.Raw)
+		tmpl, err := getTempl(wd.Spec.Extension.Raw)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
@@ -65,7 +66,7 @@ func LoadTemplate(cli client.Reader, key string, kd types.CapType) (*Template, e
 		if td.Annotations["type"] == string(types.TerraformCategory) {
 			capabilityCategory = types.TerraformCategory
 		}
-		tmpl, err := getTemplAndHealth(td.Spec.Extension.Raw)
+		tmpl, err := getTempl(td.Spec.Extension.Raw)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
@@ -81,15 +82,23 @@ func LoadTemplate(cli client.Reader, key string, kd types.CapType) (*Template, e
 	return nil, fmt.Errorf("kind(%s) of %s not supported", kd, key)
 }
 
-func getTemplAndHealth(raw []byte) (*Template, error) {
+func getTempl(raw []byte) (*Template, error) {
 	_tmp := map[string]interface{}{}
 	if err := json.Unmarshal(raw, &_tmp); err != nil {
 		return nil, err
 	}
-	var health string
+	var (
+		health string
+		status string
+	)
 	if _, ok := _tmp["healthPolicy"]; ok {
 		health = fmt.Sprint(_tmp["healthPolicy"])
 	}
-	return &Template{TemplateStr: fmt.Sprint(_tmp["template"]),
-		Health: health}, nil
+	if _, ok := _tmp["customStatus"]; ok {
+		status = fmt.Sprint(_tmp["customStatus"])
+	}
+	return &Template{
+		TemplateStr:  fmt.Sprint(_tmp["template"]),
+		Health:       health,
+		CustomStatus: status}, nil
 }

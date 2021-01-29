@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/build"
@@ -25,6 +26,8 @@ const (
 	OutputFieldName = "output"
 	// OutputsFieldName is the name of the struct contains the map[string]CR data
 	OutputsFieldName = "outputs"
+	// OutputObjectPath is the path of output object in template
+	OutputObjectPath = "path"
 	// PatchFieldName is the name of the struct contains the patch of CR data
 	PatchFieldName = "patch"
 )
@@ -45,6 +48,7 @@ type Template interface {
 	Complete(ctx process.Context) error
 	Output(ctx process.Context, client client.Client, name string) Template
 	HealthCheck() error
+	Status(ctx process.Context, cli client.Client, ns string, handleTempl string) (string, error)
 }
 
 type def struct {
@@ -174,6 +178,11 @@ func (wd *workloadDef) HealthCheck() error {
 	return nil
 }
 
+// Status get workload status
+func (wd *workloadDef) Status(ctx process.Context, cli client.Client, ns string, handleTempl string) (string, error) {
+	return "", nil
+}
+
 type traitDef struct {
 	def
 }
@@ -232,6 +241,7 @@ func (td *traitDef) Complete(ctx process.Context) error {
 			if err != nil {
 				return errors.WithMessagef(err, "traitDef %s new Assist", td.name)
 			}
+			other.SetTag(OutputObjectPath, OutputFieldName)
 			ctx.PutAssistants(process.Assistant{Ins: other, Type: td.name})
 		}
 
@@ -247,6 +257,7 @@ func (td *traitDef) Complete(ctx process.Context) error {
 				if err != nil {
 					return errors.WithMessagef(err, "traitDef %s new Assists(%s)", td.name, fieldInfo.Name)
 				}
+				other.SetTag(OutputObjectPath, strings.Join([]string{OutputsFieldName, fieldInfo.Name}, "."))
 				ctx.PutAssistants(process.Assistant{Ins: other, Type: td.name})
 			}
 		}
@@ -264,6 +275,49 @@ func (td *traitDef) Complete(ctx process.Context) error {
 		}
 	}
 	return nil
+}
+
+// Status get trait status by handleTempl
+func (td *traitDef) Status(ctx process.Context, cli client.Client, ns string, handleTempl string) (string, error) {
+	_, assists := ctx.Output()
+	var root = map[string]interface{}{}
+	for _, assist := range assists {
+		if assist.Type != td.name {
+			continue
+		}
+		traitRef, err := assist.Ins.Unstructured()
+		if err != nil {
+			return "", err
+		}
+
+		if err := cli.Get(context.Background(), client.ObjectKey{
+			Namespace: ns,
+			Name:      traitRef.GetName(),
+		}, traitRef); err != nil {
+			return "", err
+		}
+
+		paths := strings.Split(assist.Ins.GetTag(OutputObjectPath), ".")
+
+		x := traitRef.Object
+		for i := len(paths) - 1; i >= 0; i-- {
+			x = map[string]interface{}{paths[i]: x}
+		}
+		for k, v := range x {
+			root[k] = v
+		}
+	}
+
+	bt, _ := json.Marshal(root)
+	var buff = "context: " + string(bt)
+
+	buff += "\n" + handleTempl
+	var r cue.Runtime
+	inst, err := r.Compile("-", buff)
+	if err != nil {
+		return "", err
+	}
+	return inst.Lookup("output").String()
 }
 
 // Output fetch the trait cr and set result to context

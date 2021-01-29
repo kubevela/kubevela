@@ -77,11 +77,17 @@ type Trait struct {
 	Params             map[string]interface{}
 	Template           string
 	Health             string
+	Status             string
 }
 
 // EvalContext eval trait template and set result to context
 func (trait *Trait) EvalContext(ctx process.Context) error {
 	return definition.NewTDTemplater(trait.Name, trait.Template, "").Params(trait.Params).Complete(ctx)
+}
+
+// EvalStatus eval trait status
+func (trait *Trait) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
+	return definition.NewTDTemplater(trait.Name, "", "").Status(ctx, cli, ns, trait.Status)
 }
 
 // EvalHealth eval trait health check
@@ -188,6 +194,7 @@ func (p *Parser) parseTrait(name string, properties map[string]interface{}) (*Tr
 		Params:             properties,
 		Template:           templ.TemplateStr,
 		Health:             templ.Health,
+		Status:             templ.CustomStatus,
 	}, nil
 }
 
@@ -242,6 +249,37 @@ func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1a
 		appconfig.Spec.Components = append(appconfig.Spec.Components, *acComp)
 	}
 	return appconfig, components, nil
+}
+
+// PrintApplicationComponents print appComponent status for application
+func PrintApplicationComponents(app *Appfile, cli client.Client, ns string,
+	printer func(compName string, appName string, traitsStatus map[string]string) error) error {
+
+	for _, wl := range app.Workloads {
+		traitsStatus := map[string]string{}
+		pCtx, err := PrepareProcessContext(cli, wl, app.Name, ns)
+		if err != nil {
+			return err
+		}
+		for _, tr := range wl.Traits {
+			if err := tr.EvalContext(pCtx); err != nil {
+				return err
+			}
+		}
+
+		for _, tr := range wl.Traits {
+			status, err := tr.EvalStatus(pCtx, cli, ns)
+			if err != nil {
+				return errors.WithMessagef(err, "[%s.%s] eval error", wl.Name, tr.Name)
+			}
+
+			traitsStatus[tr.Name] = status
+		}
+		if err := printer(wl.Name, app.Name, traitsStatus); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // evalWorkloadWithContext evaluate the workload's template to generate component and ACComponent
