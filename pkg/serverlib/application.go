@@ -211,18 +211,18 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 	err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Env.Namespace}, app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return fmt.Sprintf("app %s already deleted", o.AppName), nil
+			return fmt.Sprintf("app \"%s\" already deleted", o.AppName), nil
 		}
-		return "", fmt.Errorf("delete appconfig err %w", err)
+		return "", fmt.Errorf("delete appconfig err: %w", err)
 	}
 
 	err = o.Client.Delete(ctx, app)
 	if err != nil && !apierrors.IsNotFound(err) {
-		return "", fmt.Errorf("delete application err %w", err)
+		return "", fmt.Errorf("delete application err: %w", err)
 	}
 
 	// TODO(wonderflow): delete the default health scope here
-	return fmt.Sprintf("delete apps succeed %s from %s", o.AppName, o.Env.Name), nil
+	return fmt.Sprintf("app \"%s\" deleted from env \"%s\"", o.AppName, o.Env.Name), nil
 }
 
 // DeleteComponent will delete one component including server side.
@@ -265,7 +265,7 @@ func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) (string, error) {
 		return "", fmt.Errorf("delete component err: %w", err)
 	}
 
-	return fmt.Sprintf("delete component succeed %s from %s", o.CompName, o.AppName), nil
+	return fmt.Sprintf("component \"%s\" deleted from \"%s\"", o.CompName, o.AppName), nil
 }
 
 func chooseSvc(services []string) (string, error) {

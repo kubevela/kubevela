@@ -237,7 +237,7 @@ var _ = ginkgo.Describe("API", func() {
 			err = json.Unmarshal(result, &r)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(http.StatusOK).To(gomega.Equal(r.Code))
-			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring("delete apps succeed"))
+			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring("deleted from env"))
 		})
 	})
 })
