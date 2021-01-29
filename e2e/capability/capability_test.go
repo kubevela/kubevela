@@ -26,6 +26,11 @@ var (
 		Name: "routes.test",
 		Type: types.TypeTrait,
 	}
+
+	ingressCapability = types.Capability{
+		Name: "ingress.test",
+		Type: types.TypeTrait,
+	}
 )
 
 // TODO: chagne this into a mock UT to avoid remote call.
@@ -59,6 +64,16 @@ var _ = ginkgo.Describe("Capability", func() {
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			expectedSubStr1 := fmt.Sprintf("Installing %s capability", scaleCapability.Type)
 			expectedSubStr2 := fmt.Sprintf("Successfully installed capability %s from %s", scaleCapability.Name, capabilityCenterBasic.Name)
+			gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr1))
+			gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr2))
+		})
+
+		ginkgo.It("install a trait without definition reference to cluster", func() {
+			cli := fmt.Sprintf("vela cap add %s/%s", capabilityCenterBasic.Name, ingressCapability.Name)
+			output, err := e2e.Exec(cli)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			expectedSubStr1 := fmt.Sprintf("Installing %s capability", ingressCapability.Type)
+			expectedSubStr2 := fmt.Sprintf("Successfully installed capability %s from %s", ingressCapability.Name, capabilityCenterBasic.Name)
 			gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr1))
 			gomega.Expect(output).To(gomega.ContainSubstring(expectedSubStr2))
 		})

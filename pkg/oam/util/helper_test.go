@@ -792,6 +792,22 @@ func TestGetGVKFromDef(t *testing.T) {
 		Version: "v2",
 		Kind:    "Abc",
 	}, gvk)
+
+	gvk, err = util.GetGVKFromDefinition(mapper, v1alpha2.DefinitionReference{})
+	assert.NoError(t, err)
+	assert.Equal(t, schema.GroupVersionKind{
+		Group:   "",
+		Version: "",
+		Kind:    "",
+	}, gvk)
+
+	gvk, err = util.GetGVKFromDefinition(mapper, v1alpha2.DefinitionReference{Name: "dummy"})
+	assert.NoError(t, err)
+	assert.Equal(t, schema.GroupVersionKind{
+		Group:   "",
+		Version: "",
+		Kind:    "",
+	}, gvk)
 }
 
 func TestGenTraitName(t *testing.T) {
