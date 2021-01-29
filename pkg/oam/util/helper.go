@@ -51,7 +51,7 @@ const (
 	Dummy = "dummy"
 
 	// DummyTraitMessage is a message for trait which don't have definition found
-	DummyTraitMessage = "No valid TraitDefinition found, all framework capabilities will work as default or disabled"
+	DummyTraitMessage = "No TraitDefinition found, all framework capabilities will work as default"
 
 	// DefinitionNamespaceEnv is env key for specifying a namespace to fetch definition
 	DefinitionNamespaceEnv = "DEFINITION_NAMESPACE"
@@ -417,7 +417,7 @@ func RawExtension2Map(raw *runtime.RawExtension) (map[string]interface{}, error)
 // GenTraitName generate trait name
 func GenTraitName(componentName string, ct *v1alpha2.ComponentTrait, traitType string) string {
 	var traitMiddleName = TraitPrefixKey
-	if traitType != "" {
+	if traitType != "" && traitType != Dummy {
 		traitMiddleName = strings.ToLower(traitType)
 	}
 	return fmt.Sprintf("%s-%s-%s", componentName, traitMiddleName, ComputeHash(ct))
