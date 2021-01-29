@@ -2,8 +2,6 @@
 
 ## 1. Setup Kubernetes cluster
 
-> Note: This should be prepared by platform builder
-
 Requirements:
 - Kubernetes cluster >= v1.15.0
 - kubectl installed and configured
@@ -67,8 +65,6 @@ $ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/ma
 
 ## 2. Install KubeVela Controller
 
-> Note: This should be prepared by platform builder
-
 These steps will install KubeVela controller and its dependency.
 
 1. Add helm chart repo for KubeVela
@@ -116,8 +112,6 @@ These steps will install KubeVela controller and its dependency.
 
 ## 3. Get KubeVela CLI
 
-> Note: This should be used by end user
-
 Here are three ways to get KubeVela Cli:
 
 <!-- tabs:start -->
@@ -160,8 +154,6 @@ $ sudo mv ./vela /usr/local/bin/vela
 
 
 ## 4. (Optional) Clean Up
-
-> Note: This should be used by platform builder
 
 <details>
 
