@@ -15,7 +15,7 @@ func FindCommonComponent(targetApp, sourceApp *v1alpha2.Application) []string {
 		return commonComponents
 	}
 	// find the common components in both the source and target application
-	// write an O(N) algorithm just for fun, totally doesn't worth the extra effort
+	// write an O(N) algorithm just for fun, totally doesn't worth the extra space
 	targetComponents := make(map[string]bool)
 	for _, comp := range targetApp.Spec.Components {
 		targetComponents[comp.WorkloadType] = true
@@ -26,5 +26,4 @@ func FindCommonComponent(targetApp, sourceApp *v1alpha2.Application) []string {
 		}
 	}
 	return commonComponents
-
 }

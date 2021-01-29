@@ -38,7 +38,7 @@ func GetScopeGVK(cli client.Client, dm discoverymapper.DiscoveryMapper,
 func LoadTemplate(cli client.Reader, key string, kd types.CapType) (*Template, error) {
 	switch kd {
 	case types.TypeWorkload:
-		wd, err := GetWorkloadDefinition(cli, key)
+		wd, err := GetWorkloadDefinition(context.TODO(), cli, key)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
@@ -57,7 +57,7 @@ func LoadTemplate(cli client.Reader, key string, kd types.CapType) (*Template, e
 		return tmpl, nil
 
 	case types.TypeTrait:
-		td, err := GetTraitDefinition(cli, key)
+		td, err := GetTraitDefinition(context.TODO(), cli, key)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
