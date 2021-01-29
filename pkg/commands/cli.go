@@ -81,15 +81,7 @@ func NewCommand() *cobra.Command {
 		NewDashboardCommand(commandArgs, ioStream, fake.FrontendSource),
 		NewCompletionCommand(),
 		NewVersionCommand(),
-
-		AddCompCommands(commandArgs, ioStream),
 	)
-
-	// Traits
-	if err := AddTraitCommands(cmds, commandArgs, ioStream); err != nil {
-		fmt.Println("Add trait commands from traitDefinition err", err)
-		os.Exit(1)
-	}
 
 	// this is for mute klog
 	fset := flag.NewFlagSet("logs", flag.ContinueOnError)
