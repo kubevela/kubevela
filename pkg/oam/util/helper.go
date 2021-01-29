@@ -334,6 +334,11 @@ func GetDefinitionName(dm discoverymapper.DiscoveryMapper, u *unstructured.Unstr
 
 // GetGVKFromDefinition help get Group Version Kind from DefinitionReference
 func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef v1alpha2.DefinitionReference) (schema.GroupVersionKind, error) {
+	// if given definitionRef is empty or it's a dummy definition, return an empty GVK
+	// NOTE currently, only TraitDefinition is allowed to omit definitionRef conditionally.
+	if len(definitionRef.Name) < 1 || definitionRef.Name == Dummy {
+		return schema.EmptyObjectKind.GroupVersionKind(), nil
+	}
 	var gvk schema.GroupVersionKind
 	groupResource := schema.ParseGroupResource(definitionRef.Name)
 	gvr := schema.GroupVersionResource{Group: groupResource.Group, Resource: groupResource.Resource, Version: definitionRef.Version}
