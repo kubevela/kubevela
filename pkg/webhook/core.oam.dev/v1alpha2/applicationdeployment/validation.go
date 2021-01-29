@@ -39,12 +39,12 @@ func (h *ValidatingHandler) ValidateCreate(appDeploy *v1alpha2.ApplicationDeploy
 		return allErrs
 	}
 	sourceAppName := appDeploy.Spec.SourceApplicationName
-	if sourceAppName != nil {
-		if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appDeploy.Namespace, Name: *sourceAppName},
+	if sourceAppName != "" {
+		if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appDeploy.Namespace, Name: sourceAppName},
 			&sourceApp); err != nil {
 			klog.ErrorS(err, "cannot locate source application", "source application",
-				klog.KRef(appDeploy.Namespace, *sourceAppName))
-			allErrs = append(allErrs, field.NotFound(fldPath.Child("sourceApplicationName"), *sourceAppName))
+				klog.KRef(appDeploy.Namespace, sourceAppName))
+			allErrs = append(allErrs, field.NotFound(fldPath.Child("sourceApplicationName"), sourceAppName))
 		}
 	}
 

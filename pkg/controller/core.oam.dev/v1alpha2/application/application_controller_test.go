@@ -679,7 +679,7 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: app.Namespace,
 		}
 		result, err := reconciler.Reconcile(reconcile.Request{NamespacedName: appKey})
-		Expect(result).To(BeIdenticalTo(ctrl.Result{RequeueAfter: rolloutReconcileWaitTime}))
+		Expect(result).To(BeIdenticalTo(ctrl.Result{RequeueAfter: RolloutReconcileWaitTime}))
 		Expect(err).ToNot(HaveOccurred())
 		By("Check App status is rollingout")
 		checkApp := &v1alpha2.Application{}

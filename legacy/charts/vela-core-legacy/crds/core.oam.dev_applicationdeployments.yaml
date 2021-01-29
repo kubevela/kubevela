@@ -251,13 +251,14 @@ spec:
                   type: integer
               type: object
             sourceApplicationName:
-              description: SourceApplicationName contains the name of the application that we need to upgrade from. it can be omitted only when it's the first time to deploy the application
+              description: SourceApplicationName contains the name of the application that we need to upgrade from. it can be empty only when it's the first time to deploy the application
               type: string
             targetApplicationName:
               description: TargetApplicationName contains the name of the application that we need to upgrade to. We assume that an application is immutable, thus the name alone is suffice
               type: string
           required:
           - rolloutPlan
+          - sourceApplicationName
           - targetApplicationName
           type: object
         status:

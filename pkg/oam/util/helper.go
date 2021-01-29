@@ -182,7 +182,7 @@ func FetchTraitDefinition(ctx context.Context, r client.Reader, dm discoverymapp
 		return nil, err
 	}
 	// Fetch the corresponding traitDefinition CR
-	traitDefinition, err := GetTraitDefinition(r, trName)
+	traitDefinition, err := GetTraitDefinition(ctx, r, trName)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +198,7 @@ func FetchWorkloadDefinition(ctx context.Context, r client.Reader, dm discoverym
 		return nil, err
 	}
 	// Fetch the corresponding workloadDefinition CR
-	workloadDefinition, err := GetWorkloadDefinition(r, wldName)
+	workloadDefinition, err := GetWorkloadDefinition(ctx, r, wldName)
 	if err != nil {
 		return nil, err
 	}
@@ -214,18 +214,19 @@ func GenNamespacedDefinitionName(dn string) types.NamespacedName {
 }
 
 // GetWorkloadDefinition  Get WorkloadDefinition
-func GetWorkloadDefinition(cli client.Reader, workitemName string) (*v1alpha2.WorkloadDefinition, error) {
+func GetWorkloadDefinition(ctx context.Context, cli client.Reader,
+	workitemName string) (*v1alpha2.WorkloadDefinition, error) {
 	wd := new(v1alpha2.WorkloadDefinition)
-	if err := cli.Get(context.Background(), GenNamespacedDefinitionName(workitemName), wd); err != nil {
+	if err := cli.Get(ctx, GenNamespacedDefinitionName(workitemName), wd); err != nil {
 		return nil, err
 	}
 	return wd, nil
 }
 
 // GetTraitDefinition Get TraitDefinition
-func GetTraitDefinition(cli client.Reader, traitName string) (*v1alpha2.TraitDefinition, error) {
+func GetTraitDefinition(ctx context.Context, cli client.Reader, traitName string) (*v1alpha2.TraitDefinition, error) {
 	td := new(v1alpha2.TraitDefinition)
-	if err := cli.Get(context.Background(), GenNamespacedDefinitionName(traitName), td); err != nil {
+	if err := cli.Get(ctx, GenNamespacedDefinitionName(traitName), td); err != nil {
 		return nil, err
 	}
 	return td, nil

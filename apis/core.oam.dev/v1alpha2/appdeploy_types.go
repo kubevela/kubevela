@@ -29,8 +29,8 @@ type ApplicationDeploymentSpec struct {
 	TargetApplicationName string `json:"targetApplicationName"`
 
 	// SourceApplicationName contains the name of the application that we need to upgrade from.
-	// it can be omitted only when it's the first time to deploy the application
-	SourceApplicationName *string `json:"sourceApplicationName,omitempty"`
+	// it can be empty only when it's the first time to deploy the application
+	SourceApplicationName string `json:"sourceApplicationName"`
 
 	// The list of component to upgrade in the application.
 	// We only support single component application so far

@@ -3,6 +3,7 @@ package applicationdeployment
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
@@ -15,11 +16,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
-const appDeployfinalizer = "finalizers.applicationdeployment.oam.dev"
+const appDeployFinalizer = "finalizers.applicationdeployment.oam.dev"
+const reconcileTimeOut = 10 * time.Second
 
 // Reconciler reconciles an ApplicationDeployment object
 type Reconciler struct {
@@ -29,13 +34,16 @@ type Reconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// Reconcile is the main logic of applicationdeployment controller
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applicationdeployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applicationdeployments/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=core.oam.dev,resources=applicationconfigurations,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core.oam.dev,resources=applications,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core.oam.dev,resources=applications/status,verbs=get;update;patch
+
+// Reconcile is the main logic of applicationdeployment controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
 	var appDeploy corev1alpha2.ApplicationDeployment
+	ctx, cancel := context.WithTimeout(context.TODO(), reconcileTimeOut)
+	defer cancel()
 	if err := r.Get(ctx, req.NamespacedName, &appDeploy); err != nil {
 		if apierrors.IsNotFound(err) {
 			klog.InfoS("application deployment does not exist", "appDeploy", klog.KRef(req.Namespace, req.Name))
@@ -47,7 +55,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	r.handleFinalizer(&appDeploy)
 
 	// Get the target application
-	var targetApp, sourceApp corev1alpha2.Application
+	var targetApp corev1alpha2.Application
+	var sourceApp *corev1alpha2.Application
 	targetAppName := appDeploy.Spec.TargetApplicationName
 	if err := r.Get(ctx, ktypes.NamespacedName{Namespace: req.Namespace, Name: targetAppName},
 		&targetApp); err != nil {
@@ -55,37 +64,66 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			klog.KRef(req.Namespace, targetAppName))
 		return ctrl.Result{}, err
 	}
+
 	// Get the source application
 	sourceAppName := appDeploy.Spec.SourceApplicationName
-	if sourceAppName == nil {
+	if sourceAppName == "" {
 		klog.Info("source app fields not filled, we assume it is deployed for the first time")
-	} else if err := r.Get(ctx, ktypes.NamespacedName{Namespace: req.Namespace, Name: *sourceAppName},
-		&sourceApp); err != nil {
+	} else if err := r.Get(ctx, ktypes.NamespacedName{Namespace: req.Namespace, Name: sourceAppName}, sourceApp); err != nil {
 		klog.ErrorS(err, "cannot locate source application", "source application", klog.KRef(req.Namespace,
-			*sourceAppName))
+			sourceAppName))
 		return ctrl.Result{}, err
 	}
 	// Get the kubernetes workloads to upgrade from the application
-	targetWorkload, sourceWorkload, err := r.extractWorkload(appDeploy.Spec.ComponentList, &targetApp, &sourceApp)
+	workloadType, workloadGVK, err := r.extractWorkloadTypeAndGVK(ctx,
+		appDeploy.Spec.ComponentList, &targetApp, sourceApp)
 	if err != nil {
-		klog.Error(err, "cannot locate the workloads object")
+		klog.ErrorS(err, "cannot extract the workloadType and GVK",
+			"component list", appDeploy.Spec.ComponentList, "target app", klog.KObj(&targetApp))
 		return ctrl.Result{}, err
 	}
+
+	targetWorkload, sourceWorkload, err := r.fetchWorkloads(ctx, &targetApp, sourceApp, workloadType, workloadGVK)
+	if err != nil {
+		klog.ErrorS(err, "cannot fetch the workloads to upgrade", "workload Type", workloadType,
+			"workload GVK", *workloadGVK, "target application", klog.KRef(req.Namespace, targetAppName),
+			"source application", klog.KRef(req.Namespace, sourceAppName))
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
 	klog.InfoS("get the target workload we need to work on", "targetWorkload", klog.KObj(targetWorkload))
+
+	// check if the target application is still in rolling
+	if _, exist := targetApp.GetAnnotations()[oam.AnnotationAppRollout]; exist {
+		// adjust the target workload if it's still a template
+		if err := r.adjustTargetApplicationTemplate(ctx, targetWorkload, &targetApp); err != nil {
+			klog.ErrorS(err, "cannot adjust the target workload", "target workload", klog.KObj(targetWorkload))
+			return ctrl.Result{}, err
+		}
+		// requeue it to process hopefully after the application controller takes over
+		return ctrl.Result{RequeueAfter: 2 * application.RolloutReconcileWaitTime}, nil
+	}
+
 	if sourceWorkload != nil {
 		klog.InfoS("get the source workload we need to work on", "sourceWorkload", klog.KObj(sourceWorkload))
 	}
-	// TODO: pass these two object to the rollout plan
+
+	// reconcile the rollout part of the spec given the target and source workload
+	err = rollout.ReconcileRolloutPlan(ctx, r, &appDeploy.Spec.RolloutPlan, targetWorkload, sourceWorkload)
+	if err != nil {
+		klog.ErrorS(err, "cannot reconcile the rollout plan", "rollout spec", appDeploy.Spec.RolloutPlan)
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 
 func (r *Reconciler) handleFinalizer(appDeploy *corev1alpha2.ApplicationDeployment) {
 	if appDeploy.DeletionTimestamp.IsZero() {
-		if !slice.ContainsString(appDeploy.Finalizers, appDeployfinalizer, nil) {
+		if !slice.ContainsString(appDeploy.Finalizers, appDeployFinalizer, nil) {
 			// TODO: add finalizer
 			klog.Info("add finalizer")
 		}
-	} else if slice.ContainsString(appDeploy.Finalizers, appDeployfinalizer, nil) {
+	} else if slice.ContainsString(appDeploy.Finalizers, appDeployFinalizer, nil) {
 		// TODO: perform finalize
 		klog.Info("perform clean up")
 	}

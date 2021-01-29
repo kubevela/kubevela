@@ -174,7 +174,7 @@ We will use a pre-defined annotation "app.oam.dev/rollout" that equals to "true"
   utilizes an appDeployment object to follow this rule.
 - Upon creation, the appDeployment controller marks itself as the owner of the application. The
  application controller will have built-in logic to ignore any applications that has the
- "app.oam.dev/rollout" annotation set to true.
+ "app.oam.dev/rollout-template" annotation set to true.
 - The appDeployment controller can change the target application fields. For example, 
    - It might remove all the conflict traits, such as HPA during upgrade. 
    - It might modify the label selectors fields in the services to make sure there are ways to
