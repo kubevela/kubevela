@@ -1,4 +1,4 @@
-name: Publish to Registry
+name: Registry
 on:
   push:
     branches:
