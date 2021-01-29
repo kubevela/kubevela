@@ -22,7 +22,7 @@ Hence, the encapsulation engine of KubeVela is designed to help to make building
 
 #### Build Extensible Abstraction
 
-First of all, with KubeVela, you will never create monolithic abstraction which is restricted and can't be extended. In detail, the encapsulation engine introduced a extensible app-centric model behind the abstraction, this makes the abstraction is essentially assembled by components (workload modules) and traits (operational modules), a example is like below:
+First of all, with KubeVela, you will never create monolithic abstraction which is restricted and can't be extended. In detail, the encapsulation engine introduced an extensible app-centric model behind the abstraction, this makes the abstraction is essentially assembled by components (workload modules) and traits (operational modules), an example is like below:
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -86,15 +86,15 @@ In KubeVela, the encapsulation engine is intended to be implemented in a [Kubern
 
 #### No "Juggling" Approach to Manage Kubernetes Objects
 
-A typical use case is, as the platform team, we want to leverage `Istio` as the Service Mesh layer to control the traffic to certain `Deployment` instances. But this could be really painful today because we have to enforce end users to define and manage a set of Kubernetes resources in a "juggling" approach. For example, in a simple canary rollout case, the end users have to carefully manage a primary `Deployment`, a primary `Service`, a `root Service`, a canary `Deployment`, a canary `Service`, and have to probably rename the `Deployment` instance after canary promotion (this is actually dangerous in production because renaming will lead to the app restart). While the more painful part it, we have to expect the users properly set the labels and selectors on those objects carefully because they are the key to ensure proper accessibility of every app instance and it's also the only revision mechanism our Istio controller could count on.
+A typical use case is, as the platform team, we want to leverage `Istio` as the Service Mesh layer to control the traffic to certain `Deployment` instances. But this could be really painful today because we have to enforce end users to define and manage a set of Kubernetes resources in a "juggling" approach. For example, in a simple canary rollout case, the end users have to carefully manage a primary `Deployment`, a primary `Service`, a `root Service`, a canary `Deployment`, a canary `Service`, and have to probably rename the `Deployment` instance after canary promotion (this is actually unacceptable in production because renaming will lead to the app restart). What's worse, we have to expect the users properly set the labels and selectors on those objects carefully because they are the key to ensure proper accessibility of every app instance and the only revision mechanism our Istio controller could count on.
 
-The issue above could be even painful if the workload instance is not `Deployment`, but `StatefulSet` or your custom workload type which doesn't follow the pattern of `Deployment`. For example, normally it doesn't make sense to replicate a `StatefulSet` instance to two copies during rollout, which means the users have to maintain the name, revision, label, selector, app instancs in a totally different approach from `Deployment`.
+The issue above could be even painful if the workload instance is not `Deployment`, but `StatefulSet` or custom workload type. For example, normally it doesn't make sense to replicate a `StatefulSet` instance during rollout, this means the users have to maintain the name, revision, label, selector, app instances in a totally different approach from `Deployment`.
 
 ##### Standard Contract Behind The Abstraction
 
-The encapsulation engine in KubeVela is designed to relieve such burden of managing versionized Kubernetes resources by hand, especially in the scenario of rollout or traffic splitting. In nutshell, all the needed Kubernetes resources are now encapsulated in a single abstraction, and KubeVela will maintain the instance name, revision, labels and selector by the battle tested reconcile loop automation, not by human hand. At the meantime, the existence of definition objects allow the platform team to customize the behavior of how to do revision, the details about all above metadata behind the abstraction.
+The encapsulation engine in KubeVela is designed to relieve such burden of managing versionized Kubernetes resources manually. In nutshell, all the needed Kubernetes resources for an app are now encapsulated in a single abstraction, and KubeVela will maintain the instance name, revisions, labels and selector by the battle tested reconcile loop automation, not by human hand. At the meantime, the existence of definition objects allow the platform team to customize the details of all above metadata behind the abstraction, even control the behavior of how to do revision.
 
-Thus, all those metadata including instance names, labels, selectors, revisions, etc now become the automatically maintained information and a standard contract that any day 2 operation controller such as Istio and rollout can rely on. This is the key to ensure our platform could provide user friendly experience but keep "transparent" to all the following operation behaviors.
+Thus, all those metadata now become a standard contract that any day 2 operation controller such as Istio or rollout can rely on. This is the key to ensure our platform could provide user friendly experience but keep "transparent" to the operational behaviors.
 
 ### Deployment Engine
 
