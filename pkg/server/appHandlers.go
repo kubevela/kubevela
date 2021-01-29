@@ -11,7 +11,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/server/util"
 	"github.com/oam-dev/kubevela/pkg/serverlib"
 	"github.com/oam-dev/kubevela/pkg/utils/env"
-	env2 "github.com/oam-dev/kubevela/pkg/utils/env"
 )
 
 // UpdateApps is placeholder for updating applications
@@ -97,7 +96,7 @@ func (s *APIServer) CreateApplication(c *gin.Context) {
 		util.HandleError(c, util.InvalidArgument, "the application creation request body is invalid")
 		return
 	}
-	env, err := env2.GetEnvByName(c.Param("envName"))
+	env, err := env.GetEnvByName(c.Param("envName"))
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return

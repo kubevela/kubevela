@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
@@ -506,7 +505,7 @@ func TestRenderComponents(t *testing.T) {
 									oam.LabelAppComponentRevision: revisionName,
 									oam.LabelOAMResourceType:      oam.ResourceTypeTrait,
 								})
-								workloadRef := runtimev1alpha1.TypedReference{
+								workloadRef := v1alpha1.TypedReference{
 									APIVersion: "traitApiVersion",
 									Kind:       "traitKind",
 									Name:       componentName,

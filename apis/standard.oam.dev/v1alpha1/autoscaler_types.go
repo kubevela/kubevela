@@ -18,7 +18,6 @@ package v1alpha1
 
 import (
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -91,7 +90,7 @@ type AutoscalerSpec struct {
 	TargetWorkload TargetWorkload `json:"targetWorkload,omitempty"`
 
 	// WorkloadReference marks the owner of the workload
-	WorkloadReference runtimev1alpha1.TypedReference `json:"workloadRef,omitempty"`
+	WorkloadReference v1alpha1.TypedReference `json:"workloadRef,omitempty"`
 }
 
 // TargetWorkload holds the a reference to the scale target Object
@@ -105,7 +104,7 @@ type TargetWorkload struct {
 
 // AutoscalerStatus defines the observed state of Autoscaler
 type AutoscalerStatus struct {
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	v1alpha1.ConditionedStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true

@@ -25,7 +25,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -59,7 +58,7 @@ var _ = Describe("HealthScope Controller Reconcile Test", func() {
 		WithChecker(MockHealthyChecker),
 	)
 
-	hs := v1alpha2.HealthScope{Spec: corev1alpha2.HealthScopeSpec{WorkloadReferences: []v1alpha1.TypedReference{
+	hs := v1alpha2.HealthScope{Spec: v1alpha2.HealthScopeSpec{WorkloadReferences: []v1alpha1.TypedReference{
 		// add one wlRef to trigger mockChecker
 		{
 			APIVersion: "mock",
@@ -155,14 +154,14 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 	hs := v1alpha2.HealthScope{}
 
 	var cwRef, deployRef, svcRef v1alpha1.TypedReference
-	cwRef.SetGroupVersionKind(corev1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
+	cwRef.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
 	cwRef.Name = "cw"
 	deployRef.SetGroupVersionKind(appsv1.SchemeGroupVersion.WithKind(kindDeployment))
 	deployRef.Name = "deploy"
 	svcRef.SetGroupVersionKind(appsv1.SchemeGroupVersion.WithKind(kindService))
 
-	cw := corev1alpha2.ContainerizedWorkload{}
-	cw.SetGroupVersionKind(corev1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
+	cw := v1alpha2.ContainerizedWorkload{}
+	cw.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
 	cw.Status.Resources = []v1alpha1.TypedReference{deployRef, svcRef}
 
 	hDeploy := appsv1.Deployment{
@@ -210,7 +209,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 				caseName:       "2 supportted workloads(cw,deploy)",
 				hsWorkloadRefs: []v1alpha1.TypedReference{cwRef, deployRef},
 				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
-					if o, ok := obj.(*corev1alpha2.ContainerizedWorkload); ok {
+					if o, ok := obj.(*v1alpha2.ContainerizedWorkload); ok {
 						*o = cw
 					}
 					if o, ok := obj.(*appsv1.Deployment); ok {
@@ -253,7 +252,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 				hsWorkloadRefs: []v1alpha1.TypedReference{cwRef, deployRef},
 				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
 					switch o := obj.(type) {
-					case *corev1alpha2.ContainerizedWorkload:
+					case *v1alpha2.ContainerizedWorkload:
 						*o = cw
 					case *appsv1.Deployment:
 						*o = hDeploy
@@ -279,7 +278,7 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 				hsWorkloadRefs: []v1alpha1.TypedReference{cwRef, uhGeneralRef},
 				mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
 					switch o := obj.(type) {
-					case *corev1alpha2.ContainerizedWorkload:
+					case *v1alpha2.ContainerizedWorkload:
 						*o = cw
 					case *appsv1.Deployment:
 						*o = hDeploy

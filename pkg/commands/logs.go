@@ -19,11 +19,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 )
 
 // NewLogsCommand creates `logs` command to tail logs of application
-func NewLogsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewLogsCommand(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 	largs := &Args{C: c}
 	cmd := &cobra.Command{}
 	cmd.Use = "logs"
@@ -73,7 +72,7 @@ type Args struct {
 }
 
 // Run refer to the implementation at https://github.com/oam-dev/stern/blob/master/stern/main.go
-func (l *Args) Run(ctx context.Context, ioStreams cmdutil.IOStreams) error {
+func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 
 	clientSet, err := kubernetes.NewForConfig(l.C.Config)
 	if err != nil {

@@ -27,7 +27,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
-	velacmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -35,7 +34,7 @@ import (
 type VelaPortForwardOptions struct {
 	Cmd       *cobra.Command
 	Args      []string
-	ioStreams velacmdutil.IOStreams
+	ioStreams util.IOStreams
 
 	context.Context
 	VelaC types.Args
@@ -50,7 +49,7 @@ type VelaPortForwardOptions struct {
 }
 
 // NewPortForwardCommand is vela port-forward command
-func NewPortForwardCommand(c types.Args, ioStreams velacmdutil.IOStreams) *cobra.Command {
+func NewPortForwardCommand(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 	o := &VelaPortForwardOptions{
 		ioStreams: ioStreams,
 		kcPortForwardOptions: &cmdpf.PortForwardOptions{
@@ -268,7 +267,7 @@ func splitPort(port string) (local, remote string) {
 }
 
 type defaultPortForwarder struct {
-	velacmdutil.IOStreams
+	util.IOStreams
 }
 
 func (f *defaultPortForwarder) ForwardPorts(method string, url *url.URL, opts cmdpf.PortForwardOptions) error {

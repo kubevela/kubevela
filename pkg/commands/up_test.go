@@ -7,8 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -17,7 +15,6 @@ import (
 )
 
 func TestUp(t *testing.T) {
-	client := fake.NewFakeClientWithScheme(scheme.Scheme)
 	ioStream := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	env := types.EnvMeta{
 		Name:      "up",
@@ -25,9 +22,8 @@ func TestUp(t *testing.T) {
 		Issuer:    "up",
 	}
 	o := serverlib.AppfileOptions{
-		Kubecli: client,
-		IO:      ioStream,
-		Env:     &env,
+		IO:  ioStream,
+		Env: &env,
 	}
 	app := &v1alpha2.Application{}
 	app.Name = "app-up"

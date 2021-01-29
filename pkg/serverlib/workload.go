@@ -14,7 +14,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 )
 
@@ -134,7 +133,7 @@ func BaseComplete(envName string, workloadName string, appName string, flagSet *
 }
 
 // BaseRun will check if it's a stating operation before run
-func BaseRun(staging bool, app *api.Application, kubeClient client.Client, env *types.EnvMeta, io cmdutil.IOStreams) (string, error) {
+func BaseRun(staging bool, app *api.Application, kubeClient client.Client, env *types.EnvMeta, io util.IOStreams) (string, error) {
 	if staging {
 		return "Staging saved", nil
 	}
