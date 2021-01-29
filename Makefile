@@ -8,7 +8,7 @@ VELA_GITVERSION_VAR := github.com/oam-dev/kubevela/version.GitRevision
 LDFLAGS             ?= "-X $(VELA_VERSION_VAR)=$(VELA_VERSION) -X $(VELA_GITVERSION_VAR)=$(GIT_COMMIT)"
 
 GOX         = go run github.com/mitchellh/gox
-TARGETS     := darwin/amd64 linux/amd64 windows/amd64
+TARGETS     := darwin/amd64 linux/amd64 windows/amd64 linux/arm64
 DIST_DIRS   := find * -type d -exec
 
 TIME_LONG	= `date +%Y-%m-%d' '%H:%M:%S`
@@ -74,7 +74,7 @@ generate-source:
 
 cross-build:
 	go run hack/chart/generate.go
-	GO111MODULE=on CGO_ENABLED=0 $(GOX) -ldflags $(LDFLAGS) -parallel=3 -output="_bin/{{.OS}}-{{.Arch}}/vela" -osarch='$(TARGETS)' ./cmd/vela/
+	GO111MODULE=on CGO_ENABLED=0 $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/{{.OS}}-{{.Arch}}/vela" -osarch='$(TARGETS)' ./cmd/vela/
 
 compress:
 	( \
