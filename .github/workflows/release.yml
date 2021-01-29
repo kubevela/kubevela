@@ -7,8 +7,7 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  build:
-    name: Build
+  publish-cli:
     runs-on: ubuntu-latest
     env:
       VELA_VERSION: ${{ github.ref }}
