@@ -69,42 +69,46 @@ $ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/ma
 
 > Note: This should be prepared by platform builder
 
-This step will install KubeVela controller and its dependency.
+These steps will install KubeVela controller and its dependency.
 
-1. Install cert-manager
-
-    KubeVela rely on [cert-manager](https://cert-manager.io/docs/) to create certificates for webhook, if you want to
-    enable webhook, please refer to [cert-manager installation doc](https://cert-manager.io/docs/installation/kubernetes/)
-    to install one. If you already have a cert-manager in your system or just want to have a try, you can ignore this step.
-
-2. Add helm chart repo for KubeVela
+1. Add helm chart repo for KubeVela
     ```
     helm repo add kubevela https://kubevelacharts.oss-cn-hangzhou.aliyuncs.com/core
     ```
 
-3. Update the chart repo
+2. Update the chart repo
     ```
     helm repo update
     ```
    
-4. Create Namespace for KubeVela controller
+3. Create Namespace for KubeVela controller
     ```shell script
     kubectl create namespace vela-system 
     ```
 
-5. Install KubeVela
+    
+
+
+4. Install KubeVela
     ```shell script
     helm install -n vela-system kubevela kubevela/vela-core
     ```
-    By default, it will enable webhook, you must have a cert-manager installed.
-    You can add an argument `--set useWebhook=false` after the command to disable the webhook, so you don't rely on cert-manager.
+    By default, it will enable webhook. KubeVela rely on [cert-manager](https://cert-manager.io/docs/)
+    to create certificates for webhook, you must have cert-manager installed.
+    Please refer to [cert-manager installation doc](https://cert-manager.io/docs/installation/kubernetes/) to install
+    if not.
+    
+    You can add an argument `--set useWebhook=false` after the command to disable the webhook,
+    if you don't want to rely on cert-manager. This can also work if you just want to have a try.
     ```shell script
     helm install -n vela-system kubevela kubevela/vela-core --set useWebhook=false
     ```
-    You can also install the built-in cert-manager by adding the argument `--set installCertManager=true`.
+   
+    You can also use the built-in cert-manager by adding the argument `--set installCertManager=true`.
     ```shell script
     helm install -n vela-system kubevela kubevela/vela-core --set installCertManager=true
     ```
+   
     If you want to try the latest master branch, try the following command:
     ```shell script
     helm install -n vela-system kubevela  https://kubevelacharts.oss-cn-hangzhou.aliyuncs.com/core/vela-core-latest.tgz --set useWebhook=false
