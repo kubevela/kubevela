@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
@@ -42,6 +43,7 @@ type Reconciler struct {
 // Reconcile is the main logic of applicationdeployment controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	var appDeploy corev1alpha2.ApplicationDeployment
+	requeueAfterTime := 5 * time.Second
 	ctx, cancel := context.WithTimeout(context.TODO(), reconcileTimeOut)
 	defer cancel()
 	if err := r.Get(ctx, req.NamespacedName, &appDeploy); err != nil {
@@ -52,6 +54,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 	klog.InfoS("Start to reconcile ", "application deployment", klog.KObj(&appDeploy))
 
+	// TODO: check if the target/source has changed
 	r.handleFinalizer(&appDeploy)
 
 	// Get the target application
@@ -88,7 +91,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.ErrorS(err, "cannot fetch the workloads to upgrade", "workload Type", workloadType,
 			"workload GVK", *workloadGVK, "target application", klog.KRef(req.Namespace, targetAppName),
 			"source application", klog.KRef(req.Namespace, sourceAppName))
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{RequeueAfter: requeueAfterTime}, client.IgnoreNotFound(err)
 	}
 	klog.InfoS("get the target workload we need to work on", "targetWorkload", klog.KObj(targetWorkload))
 
@@ -108,13 +111,20 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// reconcile the rollout part of the spec given the target and source workload
-	err = rollout.ReconcileRolloutPlan(ctx, r, &appDeploy.Spec.RolloutPlan, targetWorkload, sourceWorkload)
+	rolloutStatus, err := rollout.ReconcileRolloutPlan(ctx, r, &appDeploy.Spec.RolloutPlan, targetWorkload,
+		sourceWorkload, &appDeploy.Status)
 	if err != nil {
 		klog.ErrorS(err, "cannot reconcile the rollout plan", "rollout spec", appDeploy.Spec.RolloutPlan)
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{}, nil
+	appDeploy.Status = rolloutStatus
+	if rolloutStatus.RollingState == v1alpha1.RolloutFailedState ||
+		rolloutStatus.RollingState == v1alpha1.RolloutSucceedState {
+		// we don't need to keep checking the rollout too frequently if the rollout is at a terminal state
+		requeueAfterTime = 30 * time.Second
+	}
+	return ctrl.Result{RequeueAfter: requeueAfterTime}, r.Update(ctx, &appDeploy)
 }
 
 func (r *Reconciler) handleFinalizer(appDeploy *corev1alpha2.ApplicationDeployment) {
