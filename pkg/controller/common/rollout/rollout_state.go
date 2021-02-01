@@ -43,6 +43,9 @@ const (
 	// this events comes after we have examine the pod readiness check and traffic shifting if needed
 	oneBatchAvailableEvent rolloutEvent = "OneBatchAvailable"
 
+	// batchRolloutContinueEvent indicates that we need to continue to upgrade the pods in the batch
+	batchRolloutContinueEvent rolloutEvent = "batchRolloutContinueEvent"
+
 	// batchRolloutWaitingEvent indicates that we are waiting for the approval of resume one batch
 	batchRolloutWaitingEvent rolloutEvent = "batchWaitRolloutEvent"
 
@@ -60,11 +63,10 @@ const invalidRollingStateTransition = "the rollout state transition from `%s` st
 
 const invalidBatchRollingStateTransition = "the batch rolling state transition from `%s` state  with `%s` is invalid"
 
-// StateTransition is the center place to do rollout state transition
+// StateMachineTransition is the center place to do rollout state transition
 // it returns an error if the transition is invalid
 // it changes the coming rollout state if it's valid
-// nolint: gocyclo
-func StateTransition(rolloutStatus *v1alpha1.RolloutStatus, event rolloutEvent) error {
+func StateMachineTransition(rolloutStatus *v1alpha1.RolloutStatus, event rolloutEvent) error {
 	rollingState := rolloutStatus.RollingState
 	batchRollingState := rolloutStatus.BatchRollingState
 	defer klog.InfoS("try to execute a rollout state transition",
@@ -109,58 +111,7 @@ func StateTransition(rolloutStatus *v1alpha1.RolloutStatus, event rolloutEvent) 
 		return fmt.Errorf(invalidBatchRollingStateTransition, rollingState, event)
 
 	case v1alpha1.RollingInBatchesState:
-		switch batchRollingState {
-		case v1alpha1.BatchInitializingState:
-			if event == initializedOneBatchEvent {
-				rolloutStatus.BatchRollingState = v1alpha1.BatchInRollingState
-				return nil
-			}
-			return fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event)
-
-		case v1alpha1.BatchInRollingState:
-			if event == batchRolloutWaitingEvent {
-				rolloutStatus.BatchRollingState = v1alpha1.BatchVerifyingState
-				return nil
-			}
-			if event == batchRolloutApprovedEvent {
-				rolloutStatus.BatchRollingState = v1alpha1.BatchReadyState
-				return nil
-			}
-			return fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event)
-
-		case v1alpha1.BatchVerifyingState:
-			if event == batchRolloutApprovedEvent {
-				rolloutStatus.BatchRollingState = v1alpha1.BatchReadyState
-				return nil
-			}
-			if event == batchRolloutFailedEvent {
-				rolloutStatus.BatchRollingState = v1alpha1.BatchVerifyFailedState
-				rolloutStatus.RollingState = v1alpha1.RolloutFailedState
-				return nil
-			}
-			return fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event)
-
-		case v1alpha1.BatchReadyState:
-			if event == oneBatchAvailableEvent {
-				rolloutStatus.BatchRollingState = v1alpha1.BatchAvailableState
-				return nil
-			}
-			return fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event)
-
-		case v1alpha1.BatchAvailableState:
-			if event == finishedOneBatchEvent {
-				rolloutStatus.BatchRollingState = v1alpha1.BatchInitializingState
-				return nil
-			}
-			if event == allBatchFinishedEvent {
-				// transition out of the batch loop
-				rolloutStatus.RollingState = v1alpha1.FinalisingState
-				return nil
-			}
-			return fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event)
-		default:
-			return fmt.Errorf("invalid batch rolling state %s", batchRollingState)
-		}
+		return batchStateTransition(rolloutStatus, batchRollingState, event)
 
 	case v1alpha1.FinalisingState:
 		if event == rollingFinalizedEvent {
@@ -193,5 +144,67 @@ func StateTransition(rolloutStatus *v1alpha1.RolloutStatus, event rolloutEvent) 
 
 	default:
 		return fmt.Errorf("invalid rolling state %s", rollingState)
+	}
+}
+
+// batchStateTransition handles the state transition when the rollout is in action
+func batchStateTransition(rolloutStatus *v1alpha1.RolloutStatus,
+	batchRollingState v1alpha1.BatchRollingState, event rolloutEvent) error {
+	switch batchRollingState {
+	case v1alpha1.BatchInitializingState:
+		if event == initializedOneBatchEvent {
+			rolloutStatus.BatchRollingState = v1alpha1.BatchInRollingState
+			return nil
+		}
+		return fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event)
+
+	case v1alpha1.BatchInRollingState:
+		if event == batchRolloutWaitingEvent {
+			rolloutStatus.BatchRollingState = v1alpha1.BatchVerifyingState
+			return nil
+		}
+		if event == batchRolloutContinueEvent {
+			// no op
+			return nil
+		}
+		if event == batchRolloutApprovedEvent {
+			rolloutStatus.BatchRollingState = v1alpha1.BatchReadyState
+			return nil
+		}
+		return fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event)
+
+	case v1alpha1.BatchVerifyingState:
+		if event == batchRolloutApprovedEvent {
+			rolloutStatus.BatchRollingState = v1alpha1.BatchReadyState
+			return nil
+		}
+		if event == batchRolloutFailedEvent {
+			rolloutStatus.BatchRollingState = v1alpha1.BatchVerifyFailedState
+			rolloutStatus.RollingState = v1alpha1.RolloutFailedState
+			return nil
+		}
+		return fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event)
+
+	case v1alpha1.BatchReadyState:
+		if event == oneBatchAvailableEvent {
+			rolloutStatus.BatchRollingState = v1alpha1.BatchAvailableState
+			return nil
+		}
+		return fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event)
+
+	case v1alpha1.BatchAvailableState:
+		if event == finishedOneBatchEvent {
+			rolloutStatus.BatchRollingState = v1alpha1.BatchInitializingState
+			return nil
+		}
+		if event == allBatchFinishedEvent {
+			// transition out of the batch loop
+			rolloutStatus.RollingState = v1alpha1.FinalisingState
+			return nil
+		}
+		return fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event)
+
+	default:
+		return fmt.Errorf("invalid batch rolling state %s", batchRollingState)
 	}
 }
