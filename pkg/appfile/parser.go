@@ -22,7 +22,7 @@ const (
 	// AppfileBuiltinConfig defines the built-in config variable
 	AppfileBuiltinConfig = "config"
 
-	// OAMApplicationLabel is application's metadata label
+	// OAMApplicationLabel is application's metadata label tagged on AC and Component
 	OAMApplicationLabel = "application.oam.dev"
 )
 
@@ -32,10 +32,12 @@ type Workload struct {
 	Type               string
 	CapabilityCategory types.CapabilityCategory
 	Params             map[string]interface{}
-	Template           string
-	Health             string
 	Traits             []*Trait
 	Scopes             []Scope
+
+	Template           string
+	HealthCheckPolicy  string
+	CustomStatusFormat string
 }
 
 // GetUserConfigName get user config from AppFile, it will contain config file in it.
@@ -56,12 +58,17 @@ func (wl *Workload) GetUserConfigName() string {
 
 // EvalContext eval workload template and set result to context
 func (wl *Workload) EvalContext(ctx process.Context) error {
-	return definition.NewWDTemplater(wl.Name, wl.Template, "").Params(wl.Params).Complete(ctx)
+	return definition.NewWorkloadAbstractEngine(wl.Name).Params(wl.Params).Complete(ctx, wl.Template)
+}
+
+// EvalStatus eval workload status
+func (wl *Workload) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
+	return definition.NewTraitAbstractEngine(wl.Name).Status(ctx, cli, ns, wl.CustomStatusFormat)
 }
 
 // EvalHealth eval workload health check
-func (wl *Workload) EvalHealth(ctx process.Context, client client.Client, name string) error {
-	return definition.NewWDTemplater(wl.Name, "", wl.Health).Output(ctx, client, name).HealthCheck()
+func (wl *Workload) EvalHealth(ctx process.Context, client client.Client, namespace string) (bool, error) {
+	return definition.NewWorkloadAbstractEngine(wl.Name).HealthCheck(ctx, client, namespace, wl.HealthCheckPolicy)
 }
 
 // Scope defines the scope of workload
@@ -72,27 +79,29 @@ type Scope struct {
 
 // Trait is ComponentTrait
 type Trait struct {
+	// The Name is name of TraitDefinition, actually it's a type of the trait instance
 	Name               string
 	CapabilityCategory types.CapabilityCategory
 	Params             map[string]interface{}
+
 	Template           string
-	Health             string
-	Status             string
+	HealthCheckPolicy  string
+	CustomStatusFormat string
 }
 
 // EvalContext eval trait template and set result to context
 func (trait *Trait) EvalContext(ctx process.Context) error {
-	return definition.NewTDTemplater(trait.Name, trait.Template, "").Params(trait.Params).Complete(ctx)
+	return definition.NewTraitAbstractEngine(trait.Name).Params(trait.Params).Complete(ctx, trait.Template)
 }
 
 // EvalStatus eval trait status
 func (trait *Trait) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
-	return definition.NewTDTemplater(trait.Name, "", "").Status(ctx, cli, ns, trait.Status)
+	return definition.NewTraitAbstractEngine(trait.Name).Status(ctx, cli, ns, trait.CustomStatusFormat)
 }
 
 // EvalHealth eval trait health check
-func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, name string) error {
-	return definition.NewTDTemplater(trait.Name, "", trait.Health).Output(ctx, client, name).HealthCheck()
+func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, namespace string) (bool, error) {
+	return definition.NewTraitAbstractEngine(trait.Name).HealthCheck(ctx, client, namespace, trait.HealthCheckPolicy)
 }
 
 // Appfile describes application
@@ -148,7 +157,8 @@ func (p *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload, e
 	}
 	workload.CapabilityCategory = templ.CapabilityCategory
 	workload.Template = templ.TemplateStr
-	workload.Health = templ.Health
+	workload.HealthCheckPolicy = templ.Health
+	workload.CustomStatusFormat = templ.CustomStatus
 	settings, err := util.RawExtension2Map(&comp.Settings)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
@@ -193,8 +203,8 @@ func (p *Parser) parseTrait(name string, properties map[string]interface{}) (*Tr
 		CapabilityCategory: templ.CapabilityCategory,
 		Params:             properties,
 		Template:           templ.TemplateStr,
-		Health:             templ.Health,
-		Status:             templ.CustomStatus,
+		HealthCheckPolicy:  templ.Health,
+		CustomStatusFormat: templ.CustomStatus,
 	}, nil
 }
 
@@ -223,7 +233,7 @@ func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1a
 				return nil, nil, err
 			}
 		}
-		comp, acComp, err := evalWorkloadWithContext(pCtx, wl)
+		comp, acComp, err := evalWorkloadWithContext(pCtx, wl, app.Name, wl.Name)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -251,52 +261,20 @@ func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1a
 	return appconfig, components, nil
 }
 
-// PrintApplicationComponents print appComponent status for application
-func PrintApplicationComponents(app *Appfile, cli client.Client, ns string,
-	printer func(compName string, appName string, traitsStatus map[string]string) error) error {
-
-	for _, wl := range app.Workloads {
-		traitsStatus := map[string]string{}
-		pCtx, err := PrepareProcessContext(cli, wl, app.Name, ns)
-		if err != nil {
-			return err
-		}
-		for _, tr := range wl.Traits {
-			if err := tr.EvalContext(pCtx); err != nil {
-				return err
-			}
-		}
-
-		for _, tr := range wl.Traits {
-			status, err := tr.EvalStatus(pCtx, cli, ns)
-			if err != nil {
-				return errors.WithMessagef(err, "[%s.%s] eval error", wl.Name, tr.Name)
-			}
-
-			traitsStatus[tr.Name] = status
-		}
-		if err := printer(wl.Name, app.Name, traitsStatus); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // evalWorkloadWithContext evaluate the workload's template to generate component and ACComponent
-func evalWorkloadWithContext(pCtx process.Context, wl *Workload) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compName string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
 	base, assists := pCtx.Output()
 	componentWorkload, err := base.Unstructured()
 	if err != nil {
 		return nil, nil, err
 	}
-	workloadType := wl.Type
-	labels := componentWorkload.GetLabels()
-	if labels == nil {
-		labels = map[string]string{oam.WorkloadTypeLabel: workloadType}
-	} else {
-		labels[oam.WorkloadTypeLabel] = workloadType
+
+	labels := map[string]string{
+		oam.WorkloadTypeLabel: wl.Type,
+		oam.LabelAppName:      appName,
+		oam.LabelAppComponent: compName,
 	}
-	componentWorkload.SetLabels(labels)
+	util.AddLabels(componentWorkload, labels)
 
 	component := &v1alpha2.Component{}
 	component.Spec.Workload.Object = componentWorkload
@@ -308,7 +286,15 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload) (*v1alpha2.Comp
 		if err != nil {
 			return nil, nil, err
 		}
-		tr.SetLabels(map[string]string{oam.TraitTypeLabel: assist.Type})
+		labels := map[string]string{
+			oam.TraitTypeLabel:    assist.Type,
+			oam.LabelAppName:      appName,
+			oam.LabelAppComponent: compName,
+		}
+		if assist.Name != "" {
+			labels[oam.TraitResource] = assist.Name
+		}
+		util.AddLabels(tr, labels)
 		acComponent.Traits = append(acComponent.Traits, v1alpha2.ComponentTrait{
 			Trait: runtime.RawExtension{
 				Object: tr,
@@ -320,7 +306,7 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload) (*v1alpha2.Comp
 
 // PrepareProcessContext prepares a DSL process Context
 func PrepareProcessContext(k8sClient client.Client, wl *Workload, applicationName string, namespace string) (process.Context, error) {
-	pCtx := process.NewContext(wl.Name)
+	pCtx := process.NewContext(wl.Name, applicationName)
 	userConfig := wl.GetUserConfigName()
 	if userConfig != "" {
 		cg := config.Configmap{Client: k8sClient}

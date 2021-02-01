@@ -16,14 +16,11 @@ type Instance interface {
 	IsBase() bool
 	Unify(other Instance) error
 	Compile() ([]byte, error)
-	SetTag(k, v string)
-	GetTag(k string) string
 }
 
 type instance struct {
 	v    string
 	base bool
-	tags map[string]string
 }
 
 // String return instance's cue format string
@@ -34,16 +31,6 @@ func (inst *instance) String() string {
 // IsBase indicate whether the instance is base model
 func (inst *instance) IsBase() bool {
 	return inst.base
-}
-
-// SetTag add or update tag for model
-func (inst *instance) SetTag(k, v string) {
-	inst.tags[k] = v
-}
-
-// GetTag get the tag of model by key
-func (inst *instance) GetTag(k string) string {
-	return inst.tags[k]
 }
 
 func (inst *instance) Compile() ([]byte, error) {
@@ -95,7 +82,6 @@ func NewBase(v cue.Value) (Instance, error) {
 	return &instance{
 		v:    vs,
 		base: true,
-		tags: map[string]string{},
 	}, nil
 }
 
@@ -106,8 +92,7 @@ func NewOther(v cue.Value) (Instance, error) {
 		return nil, err
 	}
 	return &instance{
-		v:    vs,
-		tags: map[string]string{},
+		v: vs,
 	}, nil
 }
 

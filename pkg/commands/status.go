@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 	"time"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+
 	"github.com/fatih/color"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -19,8 +19,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	oam2 "github.com/oam-dev/kubevela/pkg/serverlib"
 )
 
 // HealthStatus represents health status strings.
@@ -45,10 +43,6 @@ type WorkloadHealthCondition = v1alpha2.WorkloadHealthCondition
 
 // ScopeHealthCondition holds health condition of a scope
 type ScopeHealthCondition = v1alpha2.ScopeHealthCondition
-
-var (
-	kindHealthScope = reflect.TypeOf(v1alpha2.HealthScope{}).Name()
-)
 
 // CompStatus represents the status of a component during "vela init"
 type CompStatus int
@@ -103,11 +97,7 @@ func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 			if err != nil {
 				return err
 			}
-			dm, err := discoverymapper.New(c.Config)
-			if err != nil {
-				return err
-			}
-			return printAppStatus(ctx, newClient, dm, ioStreams, appName, env, cmd)
+			return printAppStatus(ctx, newClient, ioStreams, appName, env, cmd)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
@@ -118,7 +108,7 @@ func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	return cmd
 }
 
-func printAppStatus(ctx context.Context, c client.Client, dm discoverymapper.DiscoveryMapper, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta, cmd *cobra.Command) error {
+func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta, cmd *cobra.Command) error {
 	app, err := appfile.LoadApplication(env.Name, appName)
 	if err != nil {
 		return err
@@ -134,18 +124,7 @@ func printAppStatus(ctx context.Context, c client.Client, dm discoverymapper.Dis
 	cmd.Printf("%s\n\n", table.String())
 
 	cmd.Printf("Services:\n\n")
-
-	remoteApp, err := loadRemoteApplication(c, namespace, appName)
-	if err != nil {
-		return err
-	}
-
-	parser := appfile.NewApplicationParser(c, dm)
-	appFile, err := parser.GenerateAppFile(appName, remoteApp)
-	if err != nil {
-		return err
-	}
-	return appfile.PrintApplicationComponents(appFile, c, namespace, componentPrinter(ctx, c, ioStreams, env))
+	return loopCheckStatus(ctx, c, ioStreams, appName, env)
 }
 
 func loadRemoteApplication(c client.Client, ns string, name string) (*v1alpha2.Application, error) {
@@ -154,52 +133,62 @@ func loadRemoteApplication(c client.Client, ns string, name string) (*v1alpha2.A
 		Namespace: ns,
 		Name:      name,
 	}, app)
-
 	return app, err
 }
 
-func componentPrinter(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, env *types.EnvMeta) func(compName string, appName string, traitsStatus map[string]string) error {
-	return func(compName string, appName string, traitsStatus map[string]string) error {
-		return printComponentStatus(ctx, c, ioStreams, compName, appName, env, traitsStatus)
-	}
-}
-
-func printComponentStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, compName string, appName string, env *types.EnvMeta, traitsStatus map[string]string) error {
-	app, appConfig, err := getAppConfig(ctx, c, compName, appName, env)
+func loopCheckStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta) error {
+	remoteApp, err := loadRemoteApplication(c, env.Namespace, appName)
 	if err != nil {
 		return err
 	}
-	if app == nil || appConfig == nil {
-		return errors.New(ErrNotLoadAppConfig)
-	}
-	svc, ok := app.Services[compName]
-	if !ok {
-		return fmt.Errorf(ErrServiceNotFound, compName)
-	}
-	workloadType := svc.GetType()
+	for _, comp := range remoteApp.Spec.Components {
+		compName := comp.Name
 
-	healthStatus, healthInfo, err := healthCheckLoop(ctx, c, compName, appName, env)
-	if err != nil {
-		ioStreams.Info(healthInfo)
-		return err
+		healthStatus, healthInfo, err := healthCheckLoop(ctx, c, compName, appName, env)
+		if err != nil {
+			ioStreams.Info(healthInfo)
+			return err
+		}
+		ioStreams.Infof(white.Sprintf("  - Name: %s\n", compName))
+		ioStreams.Infof("    Type: %s\n", comp.WorkloadType)
+
+		healthColor := getHealthStatusColor(healthStatus)
+		healthInfo = strings.ReplaceAll(healthInfo, "\n", "\n\t") // format healthInfo output
+		ioStreams.Infof("    %s %s\n", healthColor.Sprint(healthStatus), healthColor.Sprint(healthInfo))
+
+		// load it again after health check
+		remoteApp, err = loadRemoteApplication(c, env.Namespace, appName)
+		if err != nil {
+			return err
+		}
+		// workload Must found
+		ioStreams.Infof("    Traits:\n")
+		workloadStatus, _ := getWorkloadStatusFromApp(remoteApp, compName)
+		for _, tr := range workloadStatus.Traits {
+			if tr.Message != "" {
+				if tr.Healthy {
+					ioStreams.Infof("      - %s%s: %s", emojiSucceed, white.Sprint(tr.Type), tr.Message)
+				} else {
+					ioStreams.Infof("      - %s%s: %s", emojiFail, white.Sprint(tr.Type), tr.Message)
+				}
+				continue
+			}
+			var message string
+			for _, v := range comp.Traits {
+				if v.Name == tr.Type {
+					traitData, _ := util.RawExtension2Map(&v.Properties)
+					for k, v := range traitData {
+						message += fmt.Sprintf("%v=%v\n\t\t", k, v)
+					}
+					break
+				}
+			}
+			ioStreams.Infof("      - %s%s: %s", emojiSucceed, white.Sprint(tr.Type), message)
+		}
+		ioStreams.Info("")
+		ioStreams.Infof("    Last Deployment:\n")
+		ioStreams.Infof("      Created at: %v\n", remoteApp.CreationTimestamp)
 	}
-	ioStreams.Infof(white.Sprintf("  - Name: %s\n", compName))
-	ioStreams.Infof("    Type: %s\n", workloadType)
-
-	healthColor := getHealthStatusColor(healthStatus)
-	healthInfo = strings.ReplaceAll(healthInfo, "\n", "\n\t") // format healthInfo output
-	ioStreams.Infof("    %s %s\n", healthColor.Sprint(healthStatus), healthColor.Sprint(healthInfo))
-
-	// workload Must found
-	ioStreams.Infof("    Traits:\n")
-
-	for traitType, traitInfo := range traitsStatus {
-		ioStreams.Infof("      - %s: %s", white.Sprint(traitType), traitInfo)
-	}
-	ioStreams.Info("")
-	ioStreams.Infof("    Last Deployment:\n")
-	ioStreams.Infof("      Created at: %v\n", appConfig.CreationTimestamp)
-	ioStreams.Infof("      Updated at: %v\n", app.UpdateTime.Format(time.RFC3339))
 	return nil
 }
 
@@ -226,14 +215,6 @@ HealthCheckLoop:
 		}
 	}
 	return healthStatus, healthInfo, nil
-}
-
-func tryGetWorkloadStatus(ctx context.Context, c client.Client, ns string, wlRef runtimev1alpha1.TypedReference) (string, error) {
-	workload, err := oam2.GetUnstructured(ctx, c, ns, wlRef)
-	if err != nil {
-		return "", err
-	}
-	return oam2.GetStatusFromObject(workload)
 }
 
 func printTrackingDeployStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, compName, appName string, env *types.EnvMeta) (CompStatus, error) {
@@ -291,30 +272,22 @@ func TrackDeployStatus(ctx context.Context, c client.Client, compName, appName s
 	return compStatusDeploying, "", nil
 }
 
+// trackHealthCheckingStatus will check health status from health scope
 func trackHealthCheckingStatus(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (CompStatus, HealthStatus, string, error) {
-	app, appConfig, err := getAppConfig(ctx, c, compName, appName, env)
+	app, err := loadRemoteApplication(c, appName, env.Namespace)
 	if err != nil {
 		return compStatusUnknown, HealthStatusNotDiagnosed, "", err
 	}
-	if app == nil || appConfig == nil {
-		return compStatusUnknown, HealthStatusNotDiagnosed, "", errors.New(ErrNotLoadAppConfig)
-	}
 
-	wlStatus, foundWlStatus := getWorkloadStatusFromAppConfig(appConfig, compName)
-	// make sure component already initilized
-	if !foundWlStatus {
-		if len(appConfig.Status.Conditions) < 1 {
-			// still reconciling
-			return compStatusUnknown, HealthStatusUnknown, "", nil
-		}
-		appConfigConditionMsg := appConfig.Status.GetCondition(runtimev1alpha1.TypeSynced).Message
-		return compStatusUnknown, HealthStatusUnknown, "", fmt.Errorf(ErrFmtNotInitialized, appConfigConditionMsg)
+	if len(app.Status.Conditions) < 1 {
+		// still reconciling
+		return compStatusUnknown, HealthStatusUnknown, "", nil
 	}
 	// check whether referenced a HealthScope
 	var healthScopeName string
-	for _, v := range wlStatus.Scopes {
-		if v.Reference.Kind == kindHealthScope {
-			healthScopeName = v.Reference.Name
+	for _, v := range app.Spec.Components {
+		if len(v.Scopes) > 0 {
+			healthScopeName = v.Scopes[api.DefaultHealthScopeKey]
 		}
 	}
 	var healthStatus HealthStatus
@@ -337,38 +310,14 @@ func trackHealthCheckingStatus(ctx context.Context, c client.Client, compName, a
 			return compStatusHealthCheckDone, healthStatus, wlhc.Diagnosis, nil
 		}
 		if healthStatus == HealthStatusUnhealthy {
-			cTime := appConfig.GetCreationTimestamp()
+			cTime := app.GetCreationTimestamp()
 			if time.Since(cTime.Time) <= healthCheckBufferTime {
 				return compStatusHealthChecking, HealthStatusUnknown, "", nil
 			}
 			return compStatusHealthCheckDone, healthStatus, wlhc.Diagnosis, nil
 		}
 	}
-	// No health scope specified or health status is unknown , try get status from workload
-	statusInfo, err := tryGetWorkloadStatus(ctx, c, env.Namespace, wlStatus.Reference)
-	if err != nil {
-		return compStatusUnknown, HealthStatusUnknown, "", err
-	}
-	return compStatusHealthCheckDone, HealthStatusNotDiagnosed, statusInfo, nil
-}
-
-func getAppConfig(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (*api.Application, *v1alpha2.ApplicationConfiguration, error) {
-	var app *api.Application
-	var err error
-	if appName != "" {
-		app, err = appfile.LoadApplication(env.Name, appName)
-	} else {
-		app, err = appfile.MatchAppByComp(env.Name, compName)
-	}
-	if err != nil {
-		return nil, nil, err
-	}
-
-	appConfig, err := appfile.GetAppConfig(ctx, c, app, env)
-	if err != nil {
-		return nil, nil, err
-	}
-	return app, appConfig, nil
+	return compStatusHealthCheckDone, HealthStatusNotDiagnosed, "", nil
 }
 
 func getApp(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (*api.Application, *v1alpha2.Application, error) {
@@ -390,14 +339,14 @@ func getApp(ctx context.Context, c client.Client, compName, appName string, env 
 	return app, appObj, nil
 }
 
-func getWorkloadStatusFromAppConfig(appConfig *v1alpha2.ApplicationConfiguration, compName string) (v1alpha2.WorkloadStatus, bool) {
+func getWorkloadStatusFromApp(app *v1alpha2.Application, compName string) (v1alpha2.ApplicationComponentStatus, bool) {
 	foundWlStatus := false
-	wlStatus := v1alpha2.WorkloadStatus{}
-	if appConfig == nil {
+	wlStatus := v1alpha2.ApplicationComponentStatus{}
+	if app == nil {
 		return wlStatus, foundWlStatus
 	}
-	for _, v := range appConfig.Status.Workloads {
-		if v.ComponentName == compName {
+	for _, v := range app.Status.Services {
+		if v.Name == compName {
 			wlStatus = v
 			foundWlStatus = true
 			break

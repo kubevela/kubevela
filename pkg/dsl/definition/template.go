@@ -4,21 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/build"
 	"github.com/pkg/errors"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/pkg/dsl/model"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/dsl/task"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (
@@ -26,10 +23,12 @@ const (
 	OutputFieldName = "output"
 	// OutputsFieldName is the name of the struct contains the map[string]CR data
 	OutputsFieldName = "outputs"
-	// OutputObjectPath is the path of output object in template
-	OutputObjectPath = "path"
 	// PatchFieldName is the name of the struct contains the patch of CR data
 	PatchFieldName = "patch"
+	// CustomMessage defines the custom message in definition template
+	CustomMessage = "message"
+	// HealthCheckPolicy defines the health check policy in definition template
+	HealthCheckPolicy = "isHealth"
 )
 
 const (
@@ -38,54 +37,43 @@ const (
 	AuxiliaryWorkload = "AuxiliaryWorkload"
 )
 
-var (
-	metadataAccessor = meta.NewAccessor()
-)
-
-// Template defines Definition's Render interface
-type Template interface {
-	Params(params interface{}) Template
-	Complete(ctx process.Context) error
-	Output(ctx process.Context, client client.Client, name string) Template
-	HealthCheck() error
-	Status(ctx process.Context, cli client.Client, ns string, handleTempl string) (string, error)
+// AbstractEngine defines Definition's Render interface
+type AbstractEngine interface {
+	Params(params interface{}) AbstractEngine
+	Complete(ctx process.Context, abstractTemplate string) error
+	HealthCheck(ctx process.Context, cli client.Client, ns string, healthPolicyTemplate string) (bool, error)
+	Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string) (string, error)
 }
 
 type def struct {
 	name   string
-	templ  string
-	health string
 	params interface{}
-	output map[string]interface{}
 }
 
 type workloadDef struct {
 	def
 }
 
-// NewWDTemplater create Workload Definition templater
-func NewWDTemplater(name, templ, health string) Template {
+// NewWorkloadAbstractEngine create Workload Definition AbstractEngine
+func NewWorkloadAbstractEngine(name string) AbstractEngine {
 	return &workloadDef{
 		def: def{
 			name:   name,
-			templ:  templ,
-			health: health,
 			params: nil,
-			output: nil,
 		},
 	}
 }
 
 // Params set definition's params
-func (wd *workloadDef) Params(params interface{}) Template {
+func (wd *workloadDef) Params(params interface{}) AbstractEngine {
 	wd.params = params
 	return wd
 }
 
 // Complete do workload definition's rendering
-func (wd *workloadDef) Complete(ctx process.Context) error {
+func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string) error {
 	bi := build.NewContext().NewInstance("", nil)
-	if err := bi.AddFile("-", wd.templ); err != nil {
+	if err := bi.AddFile("-", abstractTemplate); err != nil {
 		return err
 	}
 	if wd.params != nil {
@@ -95,7 +83,7 @@ func (wd *workloadDef) Complete(ctx process.Context) error {
 		}
 	}
 
-	if err := bi.AddFile("-", ctx.Compile("context")); err != nil {
+	if err := bi.AddFile("-", ctx.BaseContextFile()); err != nil {
 		return err
 	}
 	insts := cue.Build([]*build.Instance{bi})
@@ -123,91 +111,146 @@ func (wd *workloadDef) Complete(ctx process.Context) error {
 				if err != nil {
 					return errors.WithMessagef(err, "parse WorkloadDefinition %s outputs(%s)", wd.name, fieldInfo.Name)
 				}
-				ctx.PutAssistants(process.Assistant{Ins: other, Type: AuxiliaryWorkload})
+				ctx.PutAuxiliaries(process.Auxiliary{Ins: other, Type: AuxiliaryWorkload, Name: fieldInfo.Name, IsOutputs: true})
 			}
 		}
 	}
 	return nil
 }
 
-// Output fetch the workload cr and set result to context
-func (wd *workloadDef) Output(ctx process.Context, client client.Client, name string) Template {
-	base, _ := ctx.Output()
+func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader, ns string) (map[string]interface{}, error) {
+
+	var commonLabels = map[string]string{}
+	var root = map[string]interface{}{}
+	for k, v := range ctx.BaseContextLabels() {
+		root[k] = v
+		switch k {
+		case "appName":
+			commonLabels[oam.LabelAppName] = v
+		case "name":
+			commonLabels[oam.LabelAppComponent] = v
+		}
+	}
+
+	base, assists := ctx.Output()
 	componentWorkload, err := base.Unstructured()
 	if err != nil {
-		return wd
+		return nil, err
 	}
-	workloadCr, err := getObj(client, componentWorkload, name)
+	// workload main resource will have a unique label("app.oam.dev/resourceType"="WORKLOAD") in per component/app level
+	object, err := getResourceFromObj(componentWorkload, cli, ns, util.MergeMapOverrideWithDst(map[string]string{
+		oam.LabelOAMResourceType: oam.ResourceTypeWorkload,
+	}, commonLabels), "")
 	if err != nil {
-		return wd
+		return nil, err
 	}
-	wd.output = workloadCr
-	return wd
+	root[OutputFieldName] = object
+
+	for _, assist := range assists {
+		if assist.Type != AuxiliaryWorkload {
+			continue
+		}
+		if assist.Name == "" {
+			return nil, errors.New("the auxiliary of workload must have a name with format 'outputs.<my-name>'")
+		}
+		traitRef, err := assist.Ins.Unstructured()
+		if err != nil {
+			return nil, err
+		}
+		// AuxiliaryWorkload will have a unique label("trait.oam.dev/resource"="name of outputs") in per component/app level
+		object, err := getResourceFromObj(traitRef, cli, ns, util.MergeMapOverrideWithDst(map[string]string{
+			oam.TraitTypeLabel: AuxiliaryWorkload,
+		}, commonLabels), assist.Name)
+		if err != nil {
+			return nil, err
+		}
+		root[OutputsFieldName] = map[string]interface{}{
+			assist.Name: object,
+		}
+	}
+	return root, nil
 }
 
 // HealthCheck address health check for workload
-func (wd *workloadDef) HealthCheck() error {
-	if wd.health == "" {
-		return nil
+func (wd *workloadDef) HealthCheck(ctx process.Context, cli client.Client, ns string, healthPolicyTemplate string) (bool, error) {
+	if healthPolicyTemplate == "" {
+		return true, nil
 	}
-	bi := build.NewContext().NewInstance("", nil)
-	if err := bi.AddFile("-", wd.health); err != nil {
-		return err
+	templateContext, err := wd.getTemplateContext(ctx, cli, ns)
+	if err != nil {
+		return false, errors.WithMessage(err, "get template context")
 	}
-	if wd.output != nil {
-		bt, _ := json.Marshal(wd.output)
-		if err := bi.AddFile(OutputFieldName, fmt.Sprintf("output: %s", string(bt))); err != nil {
-			return err
-		}
-	} else {
-		return errors.WithMessagef(errors.New("there is no workload output cr for health check"), "workload %s health check", wd.name)
-	}
-	insts := cue.Build([]*build.Instance{bi})
-	for _, inst := range insts {
-		if err := inst.Value().Err(); err != nil {
-			return errors.WithMessagef(err, "workload %s check", wd.name)
-		}
-		isHealthVal := inst.Lookup("isHealth")
-		if isHealthVal.Exists() {
-			healthRs := isHealthVal.Eval()
-			if isHealth, err := healthRs.Bool(); err != nil || !isHealth {
-				return errors.WithMessage(err, "the workload is unhealthy")
-			}
-		}
-	}
-	return nil
+	return checkHealth(templateContext, healthPolicyTemplate)
 }
 
-// Status get workload status
-func (wd *workloadDef) Status(ctx process.Context, cli client.Client, ns string, handleTempl string) (string, error) {
-	return "", nil
+func checkHealth(templateContext map[string]interface{}, healthPolicyTemplate string) (bool, error) {
+	bt, err := json.Marshal(templateContext)
+	if err != nil {
+		return false, errors.WithMessage(err, "json marshal template context")
+	}
+
+	var buff = "context: " + string(bt) + "\n" + healthPolicyTemplate
+	var r cue.Runtime
+	inst, err := r.Compile("-", buff)
+	if err != nil {
+		return false, errors.WithMessage(err, "compile health template")
+	}
+	healthy, err := inst.Lookup(HealthCheckPolicy).Bool()
+	if err != nil {
+		return false, errors.WithMessage(err, "evaluate health status")
+	}
+	return healthy, nil
+}
+
+// Status get workload status by customStatusTemplate
+func (wd *workloadDef) Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string) (string, error) {
+	if customStatusTemplate == "" {
+		return "", nil
+	}
+	templateContext, err := wd.getTemplateContext(ctx, cli, ns)
+	if err != nil {
+		return "", errors.WithMessage(err, "get template context")
+	}
+	return getStatusMessage(templateContext, customStatusTemplate)
+}
+
+func getStatusMessage(templateContext map[string]interface{}, customStatusTemplate string) (string, error) {
+	bt, err := json.Marshal(templateContext)
+	if err != nil {
+		return "", errors.WithMessage(err, "json marshal template context")
+	}
+	var buff = "context: " + string(bt) + "\n" + customStatusTemplate
+	var r cue.Runtime
+	inst, err := r.Compile("-", buff)
+	if err != nil {
+		return "", err
+	}
+	return inst.Lookup(CustomMessage).String()
 }
 
 type traitDef struct {
 	def
 }
 
-// NewTDTemplater create Trait Definition templater
-func NewTDTemplater(name, templ, health string) Template {
+// NewTraitAbstractEngine create Trait Definition AbstractEngine
+func NewTraitAbstractEngine(name string) AbstractEngine {
 	return &traitDef{
 		def: def{
-			name:   name,
-			templ:  templ,
-			health: health,
+			name: name,
 		},
 	}
 }
 
 // Params set definition's params
-func (td *traitDef) Params(params interface{}) Template {
+func (td *traitDef) Params(params interface{}) AbstractEngine {
 	td.params = params
 	return td
 }
 
 // Complete do trait definition's rendering
-func (td *traitDef) Complete(ctx process.Context) error {
+func (td *traitDef) Complete(ctx process.Context, abstractTemplate string) error {
 	bi := build.NewContext().NewInstance("", nil)
-	if err := bi.AddFile("-", td.templ); err != nil {
+	if err := bi.AddFile("-", abstractTemplate); err != nil {
 		return err
 	}
 	if td.params != nil {
@@ -217,7 +260,7 @@ func (td *traitDef) Complete(ctx process.Context) error {
 		}
 	}
 
-	if err := bi.AddFile("f", ctx.Compile("context")); err != nil {
+	if err := bi.AddFile("f", ctx.BaseContextFile()); err != nil {
 		return err
 	}
 	insts := cue.Build([]*build.Instance{bi})
@@ -241,8 +284,7 @@ func (td *traitDef) Complete(ctx process.Context) error {
 			if err != nil {
 				return errors.WithMessagef(err, "traitDef %s new Assist", td.name)
 			}
-			other.SetTag(OutputObjectPath, OutputFieldName)
-			ctx.PutAssistants(process.Assistant{Ins: other, Type: td.name})
+			ctx.PutAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, IsOutputs: false})
 		}
 
 		outputs := inst.Lookup(OutputsFieldName)
@@ -257,8 +299,7 @@ func (td *traitDef) Complete(ctx process.Context) error {
 				if err != nil {
 					return errors.WithMessagef(err, "traitDef %s new Assists(%s)", td.name, fieldInfo.Name)
 				}
-				other.SetTag(OutputObjectPath, strings.Join([]string{OutputsFieldName, fieldInfo.Name}, "."))
-				ctx.PutAssistants(process.Assistant{Ins: other, Type: td.name})
+				ctx.PutAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, Name: fieldInfo.Name, IsOutputs: true})
 			}
 		}
 
@@ -277,124 +318,91 @@ func (td *traitDef) Complete(ctx process.Context) error {
 	return nil
 }
 
-// Status get trait status by handleTempl
-func (td *traitDef) Status(ctx process.Context, cli client.Client, ns string, handleTempl string) (string, error) {
-	_, assists := ctx.Output()
+func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, ns string) (map[string]interface{}, error) {
 	var root = map[string]interface{}{}
+	var commonLabels = map[string]string{}
+	for k, v := range ctx.BaseContextLabels() {
+		root[k] = v
+		switch k {
+		case "appName":
+			commonLabels[oam.LabelAppName] = v
+		case "name":
+			commonLabels[oam.LabelAppComponent] = v
+		}
+	}
+	_, assists := ctx.Output()
 	for _, assist := range assists {
 		if assist.Type != td.name {
 			continue
 		}
 		traitRef, err := assist.Ins.Unstructured()
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
-		if err := cli.Get(context.Background(), client.ObjectKey{
-			Namespace: ns,
-			Name:      traitRef.GetName(),
-		}, traitRef); err != nil {
-			return "", err
+		object, err := getResourceFromObj(traitRef, cli, ns, util.MergeMapOverrideWithDst(map[string]string{
+			oam.TraitTypeLabel: assist.Type,
+		}, commonLabels), assist.Name)
+		if err != nil {
+			return nil, err
 		}
-
-		paths := strings.Split(assist.Ins.GetTag(OutputObjectPath), ".")
-
-		x := traitRef.Object
-		for i := len(paths) - 1; i >= 0; i-- {
-			x = map[string]interface{}{paths[i]: x}
-		}
-		for k, v := range x {
-			root[k] = v
+		if assist.IsOutputs {
+			root[OutputsFieldName] = map[string]interface{}{
+				assist.Name: object,
+			}
+		} else {
+			root[OutputFieldName] = object
 		}
 	}
-
-	bt, _ := json.Marshal(root)
-	var buff = "context: " + string(bt)
-
-	buff += "\n" + handleTempl
-	var r cue.Runtime
-	inst, err := r.Compile("-", buff)
-	if err != nil {
-		return "", err
-	}
-	return inst.Lookup("output").String()
+	return root, nil
 }
 
-// Output fetch the trait cr and set result to context
-func (td *traitDef) Output(ctx process.Context, client client.Client, name string) Template {
-	_, assists := ctx.Output()
-	for _, assist := range assists {
-		if assist.Type != td.name {
-			continue
-		}
-		traitRef, err := assist.Ins.Unstructured()
-		if err != nil {
-			return td
-		}
-		traitCr, err := getObj(client, traitRef, name)
-		if err != nil {
-			return td
-		}
-		td.output = traitCr
-		return td
+// Status get trait status by customStatusTemplate
+func (td *traitDef) Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string) (string, error) {
+	if customStatusTemplate == "" {
+		return "", nil
 	}
-	return td
+	templateContext, err := td.getTemplateContext(ctx, cli, ns)
+	if err != nil {
+		return "", errors.WithMessage(err, "get template context")
+	}
+	return getStatusMessage(templateContext, customStatusTemplate)
 }
 
 // HealthCheck address health check for trait
-func (td *traitDef) HealthCheck() error {
-	if td.health == "" {
-		return nil
+func (td *traitDef) HealthCheck(ctx process.Context, cli client.Client, ns string, healthPolicyTemplate string) (bool, error) {
+	if healthPolicyTemplate == "" {
+		return true, nil
 	}
-	bi := build.NewContext().NewInstance("", nil)
-	if err := bi.AddFile("-", td.health); err != nil {
-		return err
+	templateContext, err := td.getTemplateContext(ctx, cli, ns)
+	if err != nil {
+		return false, errors.WithMessage(err, "get template context")
 	}
-	if td.output != nil {
-		bt, _ := json.Marshal(td.output)
-		if err := bi.AddFile("output", fmt.Sprintf("output: %s", string(bt))); err != nil {
-			return err
-		}
-	} else {
-		return errors.WithMessagef(errors.New("there is no trait output cr for health check"), "trait %s health check", td.name)
-	}
-	insts := cue.Build([]*build.Instance{bi})
-	for _, inst := range insts {
-		if err := inst.Value().Err(); err != nil {
-			return errors.WithMessagef(err, "trait %s check", td.name)
-		}
-		isHealthVal := inst.Lookup("isHealth")
-		if isHealthVal.Exists() {
-			if isHealth, err := isHealthVal.Bool(); err != nil || !isHealth {
-				return errors.WithMessage(err, "the trait is unhealthy")
-			}
-		}
-	}
-	return nil
+	return checkHealth(templateContext, healthPolicyTemplate)
 }
 
-func getObj(cli client.Client, obj runtime.Object, name string) (map[string]interface{}, error) {
-	var kind, apiVersion string
-	var err error
-	kind, err = metadataAccessor.Kind(obj)
-	if err != nil {
-		return nil, fmt.Errorf("cannot access object kind")
+func getResourceFromObj(obj *unstructured.Unstructured, client client.Reader, namespace string, labels map[string]string, outputsResource string) (map[string]interface{}, error) {
+	if outputsResource != "" {
+		labels[oam.TraitResource] = outputsResource
 	}
-	apiVersion, err = metadataAccessor.APIVersion(obj)
-	if err != nil {
-		return nil, fmt.Errorf("cannot access object kind")
-	}
-	unList := &unstructured.UnstructuredList{}
-	unList.SetKind(kind)
-	unList.SetAPIVersion(apiVersion)
-	if err := cli.List(context.Background(), unList, client.MatchingLabels{oam.LabelAppName: name}); err != nil {
-		if kerrors.IsNotFound(err) {
-			return nil, nil
+	if obj.GetName() != "" {
+		u, err := util.GetObjectGivenGVKAndName(context.Background(), client, obj.GroupVersionKind(), namespace, obj.GetName())
+		if err != nil {
+			return nil, err
 		}
+		return u.Object, nil
+	}
+	list, err := util.GetObjectsGivenGVKAndLabels(context.Background(), client, obj.GroupVersionKind(), namespace, labels)
+	if err != nil {
 		return nil, err
 	}
-	if len(unList.Items) == 0 {
-		return nil, nil
+	if len(list.Items) == 1 {
+		return list.Items[0].Object, nil
 	}
-	return unList.Items[0].Object, nil
+	for _, v := range list.Items {
+		if v.GetLabels()[oam.TraitResource] == outputsResource {
+			return v.Object, nil
+		}
+	}
+	return nil, errors.Errorf("no resources found gvk(%v) labels(%v)", obj.GroupVersionKind(), labels)
 }

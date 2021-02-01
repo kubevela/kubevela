@@ -25,12 +25,11 @@ import (
 	"net/http/httptest"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -87,7 +86,7 @@ var _ = Describe("Test Application Controller", func() {
 		},
 	}
 
-	var getExpDeployment = func(compName string) *v1.Deployment {
+	var getExpDeployment = func(compName, appName string) *v1.Deployment {
 		return &v1.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Deployment",
@@ -96,6 +95,8 @@ var _ = Describe("Test Application Controller", func() {
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					"workload.oam.dev/type": "worker",
+					"app.oam.dev/component": compName,
+					"app.oam.dev/name":      appName,
 				},
 			},
 			Spec: v1.DeploymentSpec{
@@ -125,18 +126,23 @@ var _ = Describe("Test Application Controller", func() {
 		},
 	}
 	appWithTrait.Spec.Components[0].Name = "myweb3"
-	expectScalerTrait := unstructured.Unstructured{Object: map[string]interface{}{
-		"apiVersion": "core.oam.dev/v1alpha2",
-		"kind":       "ManualScalerTrait",
-		"metadata": map[string]interface{}{
-			"labels": map[string]interface{}{
-				"trait.oam.dev/type": "scaler",
+	expectScalerTrait := func(compName, appName string) unstructured.Unstructured {
+		return unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "core.oam.dev/v1alpha2",
+			"kind":       "ManualScalerTrait",
+			"metadata": map[string]interface{}{
+				"labels": map[string]interface{}{
+					"trait.oam.dev/type":    "scaler",
+					"app.oam.dev/component": compName,
+					"app.oam.dev/name":      appName,
+				},
 			},
-		},
-		"spec": map[string]interface{}{
-			"replicaCount": int64(2),
-		},
-	}}
+			"spec": map[string]interface{}{
+				"replicaCount": int64(2),
+			},
+		}}
+	}
+
 	appWithTraitAndScope := appWithTrait.DeepCopy()
 	appWithTraitAndScope.SetName("app-with-trait-and-scope")
 	appWithTraitAndScope.Spec.Components[0].Scopes = map[string]string{"healthscopes.core.oam.dev": "appWithTraitAndScope-default-health"}
@@ -189,7 +195,7 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("app-without-trait will only create workload", func() {
-		expDeployment := getExpDeployment("myweb2")
+		expDeployment := getExpDeployment("myweb2", appwithNoTrait.Name)
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "vela-test",
@@ -230,13 +236,14 @@ var _ = Describe("Test Application Controller", func() {
 		gotD := &v1.Deployment{}
 
 		Expect(json.Unmarshal(component.Spec.Workload.Raw, gotD)).Should(BeNil())
-		Expect(gotD).Should(BeEquivalentTo(expDeployment))
+		fmt.Println(cmp.Diff(expDeployment, gotD))
+		Expect(assert.ObjectsAreEqual(expDeployment, gotD)).Should(BeEquivalentTo(true))
 		By("Delete Application, clean the resource")
 		Expect(k8sClient.Delete(ctx, appwithNoTrait)).Should(BeNil())
 	})
 
 	It("app-with-config will create workload with config data", func() {
-		expConfigDeployment := getExpDeployment("myweb1")
+		expConfigDeployment := getExpDeployment("myweb1", appwithConfig.Name)
 		expConfigDeployment.SetAnnotations(map[string]string{"c1": "v1", "c2": "v2"})
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -283,7 +290,7 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("app-with-trait will create workload and trait", func() {
-		expDeployment := getExpDeployment("myweb3")
+		expDeployment := getExpDeployment("myweb3", appWithTrait.Name)
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "vela-test-with-trait",
@@ -314,7 +321,7 @@ var _ = Describe("Test Application Controller", func() {
 
 		gotTrait := unstructured.Unstructured{}
 		Expect(json.Unmarshal(appConfig.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
-		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait))
+		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb3", app.Name)))
 
 		By("Check component created as expected")
 		component := &v1alpha2.Component{}
@@ -336,13 +343,14 @@ var _ = Describe("Test Application Controller", func() {
 
 	It("app-with-composedworkload-trait will create workload and trait", func() {
 		compName := "myweb-composed-3"
-		expDeployment := getExpDeployment(compName)
+		var appname = "app-with-composedworkload-trait"
+		expDeployment := getExpDeployment(compName, appname)
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "vela-test-with-composedworkload-trait",
 			},
 		}
-		var appname = "app-with-composedworkload-trait"
+
 		appWithComposedWorkload := appwithNoTrait.DeepCopy()
 		appWithComposedWorkload.Spec.Components[0].WorkloadType = "webserver"
 		appWithComposedWorkload.SetName(appname)
@@ -384,7 +392,12 @@ var _ = Describe("Test Application Controller", func() {
 			"apiVersion": "v1",
 			"kind":       "Service",
 			"metadata": map[string]interface{}{
-				"labels": map[string]interface{}{"trait.oam.dev/type": "AuxiliaryWorkload"},
+				"labels": map[string]interface{}{
+					"trait.oam.dev/type":     "AuxiliaryWorkload",
+					"app.oam.dev/name":       "app-with-composedworkload-trait",
+					"app.oam.dev/component":  "myweb-composed-3",
+					"trait.oam.dev/resource": "service",
+				},
 			},
 			"spec": map[string]interface{}{
 				"ports": []interface{}{
@@ -402,7 +415,7 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check the second trait should be scaler")
 		gotTrait = unstructured.Unstructured{}
 		Expect(json.Unmarshal(appConfig.Spec.Components[0].Traits[1].Trait.Raw, &gotTrait)).Should(BeNil())
-		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait))
+		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb-composed-3", app.Name)))
 
 		By("Check component created as expected")
 		component := &v1alpha2.Component{}
@@ -426,7 +439,7 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("app-with-trait-and-scope will create workload, trait and scope", func() {
-		expDeployment := getExpDeployment("myweb4")
+		expDeployment := getExpDeployment("myweb4", appWithTraitAndScope.Name)
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "vela-test-with-trait-scope",
@@ -457,7 +470,7 @@ var _ = Describe("Test Application Controller", func() {
 
 		gotTrait := unstructured.Unstructured{}
 		Expect(json.Unmarshal(appConfig.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
-		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait))
+		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb4", app.Name)))
 
 		Expect(appConfig.Spec.Components[0].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
 			APIVersion: "core.oam.dev/v1alpha2",
@@ -484,7 +497,7 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	It("app with two components and update", func() {
-		expDeployment := getExpDeployment("myweb5")
+		expDeployment := getExpDeployment("myweb5", appWithTwoComp.Name)
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "app-with-two-comps",
@@ -519,7 +532,7 @@ var _ = Describe("Test Application Controller", func() {
 
 		gotTrait := unstructured.Unstructured{}
 		Expect(json.Unmarshal(appConfig.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
-		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait))
+		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb5", app.Name)))
 
 		Expect(appConfig.Spec.Components[0].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
 			APIVersion: "core.oam.dev/v1alpha2",
@@ -543,7 +556,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(json.Unmarshal(component5.Spec.Workload.Raw, gotD)).Should(BeNil())
 		Expect(gotD).Should(BeEquivalentTo(expDeployment))
 
-		expDeployment6 := getExpDeployment("myweb6")
+		expDeployment6 := getExpDeployment("myweb6", app.Name)
 		expDeployment6.SetAnnotations(map[string]string{"c1": "v1", "c2": "v2"})
 		expDeployment6.Spec.Template.Spec.Containers[0].Image = "busybox2"
 		component6 := &v1alpha2.Component{}
@@ -586,7 +599,7 @@ var _ = Describe("Test Application Controller", func() {
 		}, appConfig)).Should(BeNil())
 
 		Expect(json.Unmarshal(appConfig.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
-		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait))
+		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb5", app.Name)))
 
 		Expect(appConfig.Spec.Components[0].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
 			APIVersion: "core.oam.dev/v1alpha2",
@@ -608,7 +621,7 @@ var _ = Describe("Test Application Controller", func() {
 		expDeployment.Spec.Template.Spec.Containers[0].Image = "busybox3"
 		Expect(gotD).Should(BeEquivalentTo(expDeployment))
 
-		expDeployment7 := getExpDeployment("myweb7")
+		expDeployment7 := getExpDeployment("myweb7", app.Name)
 		component7 := &v1alpha2.Component{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: app.Namespace,
@@ -631,7 +644,8 @@ var _ = Describe("Test Application Controller", func() {
 	It("app-with-trait will create workload and trait with http task", func() {
 		s := NewMock()
 		defer s.Close()
-		expectScalerTrait.Object["spec"].(map[string]interface{})["token"] = "test-token"
+		expTrait := expectScalerTrait(appWithTrait.Spec.Components[0].Name, appWithTrait.Name)
+		expTrait.Object["spec"].(map[string]interface{})["token"] = "test-token"
 
 		By("change trait definition with http task")
 		ntd, otd := &v1alpha2.TraitDefinition{}, &v1alpha2.TraitDefinition{}
@@ -671,7 +685,7 @@ var _ = Describe("Test Application Controller", func() {
 
 		gotTrait := unstructured.Unstructured{}
 		Expect(json.Unmarshal(appConfig.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
-		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait))
+		Expect(gotTrait).Should(BeEquivalentTo(expTrait))
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
@@ -690,8 +704,10 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "scaler"}, otd)).Should(BeNil())
 		ntd.ResourceVersion = otd.ResourceVersion
 		Expect(k8sClient.Update(ctx, ntd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		compName := "myweb-health"
+		expDeployment := getExpDeployment(compName, appWithTrait.Name)
 
-		expDeployment := getExpDeployment("myweb6")
+		By("create the new namespace")
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "vela-test-with-health",
@@ -699,23 +715,29 @@ var _ = Describe("Test Application Controller", func() {
 		}
 		appWithTrait.SetNamespace(ns.Name)
 		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+
 		app := appWithTrait.DeepCopy()
+		app.Spec.Components[0].Name = compName
 		expDeployment.Name = app.Name
 		expDeployment.Namespace = ns.Name
 		expDeployment.Labels[oam.LabelAppName] = app.Name
+		expDeployment.Labels[oam.LabelAppComponent] = compName
+		expDeployment.Labels["app.oam.dev/resourceType"] = "WORKLOAD"
 		Expect(k8sClient.Create(ctx, expDeployment)).Should(BeNil())
-		expectScalerTrait.SetName(app.Name)
-		expectScalerTrait.SetNamespace(app.Namespace)
-		expectScalerTrait.SetLabels(map[string]string{
-			oam.LabelAppName:     app.Name,
-			"trait.oam.dev/type": "scaler",
+		expTrait := expectScalerTrait(compName, app.Name)
+		expTrait.SetName(app.Name)
+		expTrait.SetNamespace(app.Namespace)
+		expTrait.SetLabels(map[string]string{
+			oam.LabelAppName:        app.Name,
+			"trait.oam.dev/type":    "scaler",
+			"app.oam.dev/component": "myweb-health",
 		})
-		(expectScalerTrait.Object["spec"].(map[string]interface{}))["workloadRef"] = map[string]interface{}{
+		(expTrait.Object["spec"].(map[string]interface{}))["workloadRef"] = map[string]interface{}{
 			"apiVersion": "apps/v1",
 			"kind":       "Deployment",
 			"name":       app.Name,
 		}
-		Expect(k8sClient.Create(ctx, &expectScalerTrait)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, &expTrait)).Should(BeNil())
 
 		By("enrich the status of deployment and scaler trait")
 		expDeployment.Status.Replicas = 1
@@ -726,13 +748,13 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: app.Namespace,
 			Name:      app.Name,
 		}, got)).Should(BeNil())
-		expectScalerTrait.Object["status"] = v1alpha1.ConditionedStatus{
+		expTrait.Object["status"] = v1alpha1.ConditionedStatus{
 			Conditions: []v1alpha1.Condition{{
 				Status:             corev1.ConditionTrue,
 				LastTransitionTime: metav1.Now(),
 			}},
 		}
-		Expect(k8sClient.Status().Update(ctx, &expectScalerTrait)).Should(BeNil())
+		Expect(k8sClient.Status().Update(ctx, &expTrait)).Should(BeNil())
 		tGot := &unstructured.Unstructured{}
 		tGot.SetAPIVersion("core.oam.dev/v1alpha2")
 		tGot.SetKind("ManualScalerTrait")
@@ -750,15 +772,28 @@ var _ = Describe("Test Application Controller", func() {
 		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
-		checkApp := &v1alpha2.Application{}
-		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+
+		Eventually(func() string {
+			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: appKey})
+			if err != nil {
+				return err.Error()
+			}
+			checkApp := &v1alpha2.Application{}
+			err = k8sClient.Get(ctx, appKey, checkApp)
+			if err != nil {
+				return err.Error()
+			}
+			if checkApp.Status.Phase != v1alpha2.ApplicationRunning {
+				fmt.Println(checkApp.Status.Conditions)
+			}
+			return string(checkApp.Status.Phase)
+		}(), 5*time.Second, time.Second).Should(BeEquivalentTo(v1alpha2.ApplicationRunning))
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 
 	It("app with rolling out annotation", func() {
-		By("crreat application with rolling out annotation")
+		By("create application with rolling out annotation")
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "app-test-with-rollout",
@@ -792,6 +827,9 @@ var _ = Describe("Test Application Controller", func() {
 func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
 	Eventually(func() error {
 		_, err := r.Reconcile(req)
+		if err != nil {
+			fmt.Println("reconcile err: ", err)
+		}
 		return err
 	}, 3*time.Second, time.Second).Should(BeNil())
 }
@@ -970,7 +1008,7 @@ spec:
     name: deployments.apps
   extension:
     healthPolicy: |
-      isHealth: output.status.readyReplicas == output.status.replicas 
+      isHealth: context.output.status.readyReplicas == context.output.status.replicas 
     template: |
       output: {
           apiVersion: "apps/v1"
@@ -1108,7 +1146,7 @@ spec:
   workloadRefPath: spec.workloadRef
   extension:
     healthPolicy: |
-      isHealth: output.status.conditions[0].status == "True"
+      isHealth: context.output.status.conditions[0].status == "True"
     template: |-
       output: {
       	apiVersion: "core.oam.dev/v1alpha2"

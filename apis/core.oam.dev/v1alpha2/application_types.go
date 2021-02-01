@@ -36,6 +36,8 @@ const (
 	ApplicationRendering ApplicationPhase = "rendering"
 	// ApplicationRunning means the app finished rendering and applied result to the cluster
 	ApplicationRunning ApplicationPhase = "running"
+	// ApplicationHealthChecking means the app finished rendering and applied result to the cluster, but still unhealthy
+	ApplicationHealthChecking ApplicationPhase = "healthChecking"
 )
 
 // AppStatus defines the observed state of Application
@@ -49,6 +51,24 @@ type AppStatus struct {
 
 	// Components record the related Components created by Application Controller
 	Components []runtimev1alpha1.TypedReference `json:"components,omitempty"`
+
+	// Services record the status of the application services
+	Services []ApplicationComponentStatus `json:"services,omitempty"`
+}
+
+// ApplicationComponentStatus record the health status of App component
+type ApplicationComponentStatus struct {
+	Name    string                   `json:"name"`
+	Healthy bool                     `json:"healthy"`
+	Message string                   `json:"message,omitempty"`
+	Traits  []ApplicationTraitStatus `json:"traits,omitempty"`
+}
+
+// ApplicationTraitStatus records the trait health status
+type ApplicationTraitStatus struct {
+	Type    string `json:"type"`
+	Healthy bool   `json:"healthy"`
+	Message string `json:"message,omitempty"`
 }
 
 // ApplicationTrait defines the trait of application

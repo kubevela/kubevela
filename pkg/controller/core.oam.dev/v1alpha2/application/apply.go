@@ -6,6 +6,7 @@ import (
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,13 +39,13 @@ func readyCondition(tpy string) runtimev1alpha1.Condition {
 	}
 }
 
-type reter struct {
+type appHandler struct {
 	c   client.Client
 	app *v1alpha2.Application
 	l   logr.Logger
 }
 
-func (ret *reter) Err(err error) (ctrl.Result, error) {
+func (ret *appHandler) Err(err error) (ctrl.Result, error) {
 	nerr := ret.c.Status().Update(context.Background(), ret.app)
 	if err == nil && nerr == nil {
 		return ctrl.Result{}, nil
@@ -57,8 +58,8 @@ func (ret *reter) Err(err error) (ctrl.Result, error) {
 	}, nil
 }
 
-func (ret *reter) apply(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) error {
-	// set ownerReference for ApplicationConfiguration and Components created by Application
+// apply will set ownerReference for ApplicationConfiguration and Components created by Application
+func (ret *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) error {
 	owners := []metav1.OwnerReference{{
 		APIVersion: v1alpha2.SchemeGroupVersion.String(),
 		Kind:       v1alpha2.ApplicationKind,
@@ -73,27 +74,60 @@ func (ret *reter) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigurati
 	return ret.Sync(ctx, ac, comps)
 }
 
-func (ret *reter) healthCheck(appfile *appfile.Appfile) error {
+func (ret *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.ApplicationComponentStatus, bool, error) {
+	var appStatus []v1alpha2.ApplicationComponentStatus
+	var healthy = true
 	for _, wl := range appfile.Workloads {
-		pCtx := process.NewContext(wl.Name)
+		var status = v1alpha2.ApplicationComponentStatus{
+			Name: wl.Name,
+		}
+		pCtx := process.NewContext(wl.Name, appfile.Name)
 		if err := wl.EvalContext(pCtx); err != nil {
-			return err
+			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate context error", appfile.Name, wl.Name)
 		}
 		for _, tr := range wl.Traits {
 			if err := tr.EvalContext(pCtx); err != nil {
-				return err
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate context error", appfile.Name, wl.Name, tr.Name)
 			}
 		}
-		if err := wl.EvalHealth(pCtx, ret.c, appfile.Name); err != nil {
-			return err
+
+		workloadHealth, err := wl.EvalHealth(pCtx, ret.c, ret.app.Namespace)
+		if err != nil {
+			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appfile.Name, wl.Name)
 		}
+		if !workloadHealth {
+			// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
+			status.Healthy = false
+			healthy = false
+		}
+		status.Message, err = wl.EvalStatus(pCtx, ret.c, ret.app.Namespace)
+		if err != nil {
+			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appfile.Name, wl.Name)
+		}
+		var traitStatusList []v1alpha2.ApplicationTraitStatus
 		for _, trait := range wl.Traits {
-			if err := trait.EvalHealth(pCtx, ret.c, appfile.Name); err != nil {
-				return err
+			var traitStatus = v1alpha2.ApplicationTraitStatus{
+				Type: trait.Name,
 			}
+			traitHealth, err := trait.EvalHealth(pCtx, ret.c, ret.app.Namespace)
+			if err != nil {
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, check health error", appfile.Name, wl.Name, trait.Name)
+			}
+			if !traitHealth {
+				// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
+				traitStatus.Healthy = false
+				healthy = false
+			}
+			traitStatus.Message, err = trait.EvalStatus(pCtx, ret.c, ret.app.Namespace)
+			if err != nil {
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appfile.Name, wl.Name, trait.Name)
+			}
+			traitStatusList = append(traitStatusList, traitStatus)
 		}
+		status.Traits = traitStatusList
+		appStatus = append(appStatus, status)
 	}
-	return nil
+	return appStatus, healthy, nil
 }
 
 // CreateOrUpdateComponent will create if not exist and update if exists.
@@ -129,7 +163,7 @@ func CreateOrUpdateAppConfig(ctx context.Context, client client.Client, appConfi
 }
 
 // Sync perform synchronization operations
-func (ret *reter) Sync(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) error {
+func (ret *appHandler) Sync(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) error {
 	for _, comp := range comps {
 		if err := CreateOrUpdateComponent(ctx, ret.c, comp.DeepCopy()); err != nil {
 			return err

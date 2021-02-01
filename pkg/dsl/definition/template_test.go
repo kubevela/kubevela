@@ -3,7 +3,7 @@ package definition
 import (
 	"testing"
 
-	"github.com/bmizerany/assert"
+	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -38,9 +38,9 @@ parameter: {
 	}
 
 	for _, v := range testCases {
-		ctx := process.NewContext("test")
-		wt := NewWDTemplater("-", v.templ, "")
-		if err := wt.Params(v.params).Complete(ctx); err != nil {
+		ctx := process.NewContext("test", "myapp")
+		wt := NewWorkloadAbstractEngine("-")
+		if err := wt.Params(v.params).Complete(ctx, v.templ); err != nil {
 			t.Error(err)
 			return
 		}
@@ -73,11 +73,11 @@ parameter: {
 	replicas: *1 | int
 }
 `
-	ctx := process.NewContext("test")
-	wt := NewWDTemplater("-", baseTemplate, "")
+	ctx := process.NewContext("test", "myapp")
+	wt := NewWorkloadAbstractEngine("-")
 	if err := wt.Params(map[string]interface{}{
 		"replicas": 2,
-	}).Complete(ctx); err != nil {
+	}).Complete(ctx, baseTemplate); err != nil {
 		t.Error(err)
 		return
 	}
@@ -107,8 +107,8 @@ parameter: {
 	}
 
 	for _, v := range tds {
-		td := NewTDTemplater("-", v.templ, "")
-		if err := td.Params(v.params).Complete(ctx); err != nil {
+		td := NewTraitAbstractEngine("-")
+		if err := td.Params(v.params).Complete(ctx, v.templ); err != nil {
 			t.Error(err)
 			return
 		}
@@ -132,4 +132,55 @@ parameter: {
 							map[string]interface{}{"image": "metrics-agent:0.2", "name": "sidecar"}}}}},
 		}}
 	assert.Equal(t, expect, obj)
+}
+
+func TestCheckHealth(t *testing.T) {
+	cases := map[string]struct {
+		tpContext  map[string]interface{}
+		healthTemp string
+		exp        bool
+	}{
+		"normal-equal": {
+			tpContext: map[string]interface{}{
+				"output": map[string]interface{}{
+					"status": map[string]interface{}{
+						"readyReplicas": 4,
+						"replicas":      4,
+					},
+				},
+			},
+			healthTemp: "isHealth:  context.output.status.readyReplicas == context.output.status.replicas",
+			exp:        true,
+		},
+		"normal-false": {
+			tpContext: map[string]interface{}{
+				"output": map[string]interface{}{
+					"status": map[string]interface{}{
+						"readyReplicas": 4,
+						"replicas":      5,
+					},
+				},
+			},
+			healthTemp: "isHealth: context.output.status.readyReplicas == context.output.status.replicas",
+			exp:        false,
+		},
+		"array-case-equal": {
+			tpContext: map[string]interface{}{
+				"output": map[string]interface{}{
+					"status": map[string]interface{}{
+						"conditions": []interface{}{
+							map[string]interface{}{"status": "True"},
+						},
+					},
+				},
+			},
+			healthTemp: `isHealth: context.output.status.conditions[0].status == "True"`,
+			exp:        true,
+		},
+	}
+	for message, ca := range cases {
+		healthy, err := checkHealth(ca.tpContext, ca.healthTemp)
+		assert.NoError(t, err, message)
+		assert.Equal(t, ca.exp, healthy)
+	}
 }
