@@ -22,7 +22,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
-var mgrclose chan struct{}
 var testEnv *envtest.Environment
 var cfg *rest.Config
 var rawClient client.Client

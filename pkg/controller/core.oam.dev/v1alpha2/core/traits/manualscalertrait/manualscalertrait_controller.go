@@ -125,6 +125,10 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 	// Scale the child resources that we know how to scale
 	result, err := r.scaleResources(ctx, mLog, manualScalar, resources)
+	// the scaleResources function will patch error message and should return here to prevent the condition override by the following patch.
+	if result == util.ReconcileWaitResult {
+		return result, err
+	}
 	if err != nil {
 		r.record.Event(eventObj, event.Warning(errScaleResource, err))
 		return result, err

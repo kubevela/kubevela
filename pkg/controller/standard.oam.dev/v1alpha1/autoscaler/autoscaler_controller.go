@@ -34,7 +34,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // nolint:golint
@@ -88,13 +87,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// Fetch the instance to which the trait refers to
-	workload, err := oamutil.FetchWorkload(ctx, r, log, &scaler)
+	workload, err := util.FetchWorkload(ctx, r, log, &scaler)
 	if err != nil {
 		log.Error(err, "Error while fetching the workload", "workload reference",
 			scaler.GetWorkloadReference())
 		r.record.Event(&scaler, event.Warning(common.ErrLocatingWorkload, err))
-		return oamutil.ReconcileWaitResult,
-			oamutil.PatchCondition(ctx, r, &scaler,
+		return util.ReconcileWaitResult,
+			util.PatchCondition(ctx, r, &scaler,
 				cpv1alpha1.ReconcileError(errors.Wrap(err, common.ErrLocatingWorkload)))
 	}
 

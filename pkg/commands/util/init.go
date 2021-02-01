@@ -4,7 +4,6 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,7 +26,7 @@ func DoesNamespaceExist(c client.Client, namespace string) (bool, error) {
 
 // NewNamespace create namespace
 func NewNamespace(c client.Client, namespace string) error {
-	ns := &v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace,
+	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace,
 		// marking a special label for prometheus monitoring.
 		Labels: OAMLabel}}
 	err := c.Create(context.Background(), ns)

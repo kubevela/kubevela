@@ -784,6 +784,38 @@
     }
   }
 };
+            defs["appfile.AppFile"] = {
+  "type" : "object",
+  "properties" : {
+    "createTime" : {
+      "type" : "string"
+    },
+    "name" : {
+      "type" : "string"
+    },
+    "secrets" : {
+      "type" : "object",
+      "additionalProperties" : {
+        "type" : "string"
+      }
+    },
+    "services" : {
+      "type" : "object",
+      "additionalProperties" : {
+        "$ref" : "#/components/schemas/appfile.Service"
+      }
+    },
+    "updateTime" : {
+      "type" : "string"
+    }
+  }
+};
+            defs["appfile.Service"] = {
+  "type" : "object"
+};
+            defs["config.Store"] = {
+  "type" : "object"
+};
             defs["inline_response_200"] = {
   "type" : "object",
   "properties" : {
@@ -1269,6 +1301,9 @@
             <li class="nav-fixed nav-header active" data-group="_"><a href="#api-_">API Summary</a></li>
 
                   <li class="nav-header" data-group="Applications"><a href="#api-Applications">API Methods - Applications</a></li>
+                    <li data-group="Applications" data-name="createApplication" class="">
+                      <a href="#api-Applications-createApplication">createApplication</a>
+                    </li>
                     <li data-group="Applications" data-name="listApplications" class="">
                       <a href="#api-Applications-listApplications">listApplications</a>
                     </li>
@@ -1316,6 +1351,404 @@
         <div id="sections">
                 <section id="api-Applications">
                   <h1>Applications</h1>
+                    <div id="api-Applications-createApplication">
+                      <article id="api-Applications-createApplication-0" data-group="User" data-name="createApplication" data-version="0">
+                        <div class="pull-left">
+                          <h1>createApplication</h1>
+                          <p>creates an application</p>
+                        </div>
+                        <div class="pull-right"></div>
+                        <div class="clearfix"></div>
+                        <p></p>
+                        <p class="marked"></p>
+                        <p></p>
+                        <br />
+                        <pre class="prettyprint language-html prettyprinted" data-type="post"><code><span class="pln">/envs/{envName}/apps</span></code></pre>
+                        <p>
+                          <h3>Usage and SDK Samples</h3>
+                        </p>
+                        <ul class="nav nav-tabs nav-tabs-examples">
+                          <li class="active"><a href="#examples-Applications-createApplication-0-curl">Curl</a></li>
+                          <li class=""><a href="#examples-Applications-createApplication-0-java">Java</a></li>
+                          <li class=""><a href="#examples-Applications-createApplication-0-android">Android</a></li>
+                          <!--<li class=""><a href="#examples-Applications-createApplication-0-groovy">Groovy</a></li>-->
+                          <li class=""><a href="#examples-Applications-createApplication-0-objc">Obj-C</a></li>
+                          <li class=""><a href="#examples-Applications-createApplication-0-javascript">JavaScript</a></li>
+                          <!--<li class=""><a href="#examples-Applications-createApplication-0-angular">Angular</a></li>-->
+                          <li class=""><a href="#examples-Applications-createApplication-0-csharp">C#</a></li>
+                          <li class=""><a href="#examples-Applications-createApplication-0-php">PHP</a></li>
+                          <li class=""><a href="#examples-Applications-createApplication-0-perl">Perl</a></li>
+                          <li class=""><a href="#examples-Applications-createApplication-0-python">Python</a></li>
+                        </ul>
+
+                        <div class="tab-content">
+                          <div class="tab-pane active" id="examples-Applications-createApplication-0-curl">
+                           <pre class="prettyprint"><code class="language-bsh">curl -X POST\
+-H "Accept: */*"\
+-H "Content-Type: */*"\
+"//127.0.0.1:38081/api/envs/{envName}/apps"</code></pre>
+                          </div>
+                          <div class="tab-pane" id="examples-Applications-createApplication-0-java">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.*;
+import io.swagger.client.auth.*;
+import io.swagger.client.model.*;
+import io.swagger.client.api.ApplicationsApi;
+
+import java.io.File;
+import java.util.*;
+
+public class ApplicationsApiExample {
+
+    public static void main(String[] args) {
+        
+        ApplicationsApi apiInstance = new ApplicationsApi();
+        Appfile.AppFile body = ; // Appfile.AppFile | application parameters
+        String envName = envName_example; // String | environment name
+        try {
+            inline_response_200 result = apiInstance.createApplication(body, envName);
+            System.out.println(result);
+        } catch (ApiException e) {
+            System.err.println("Exception when calling ApplicationsApi#createApplication");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+
+                          <div class="tab-pane" id="examples-Applications-createApplication-0-android">
+                            <pre class="prettyprint"><code class="language-java">import io.swagger.client.api.ApplicationsApi;
+
+public class ApplicationsApiExample {
+
+    public static void main(String[] args) {
+        ApplicationsApi apiInstance = new ApplicationsApi();
+        Appfile.AppFile body = ; // Appfile.AppFile | application parameters
+        String envName = envName_example; // String | environment name
+        try {
+            inline_response_200 result = apiInstance.createApplication(body, envName);
+            System.out.println(result);
+        } catch (ApiException e) {
+            System.err.println("Exception when calling ApplicationsApi#createApplication");
+            e.printStackTrace();
+        }
+    }
+}</code></pre>
+                          </div>
+  <!--
+  <div class="tab-pane" id="examples-Applications-createApplication-0-groovy">
+  <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+  </div> -->
+                            <div class="tab-pane" id="examples-Applications-createApplication-0-objc">
+                              <pre class="prettyprint"><code class="language-cpp">Appfile.AppFile *body = ; // application parameters
+String *envName = envName_example; // environment name
+
+ApplicationsApi *apiInstance = [[ApplicationsApi alloc] init];
+
+// creates an application
+[apiInstance createApplicationWith:body
+    envName:envName
+              completionHandler: ^(inline_response_200 output, NSError* error) {
+                            if (output) {
+                                NSLog(@"%@", output);
+                            }
+                            if (error) {
+                                NSLog(@"Error: %@", error);
+                            }
+                        }];
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Applications-createApplication-0-javascript">
+                              <pre class="prettyprint"><code class="language-js">var KubeVelaRestfulApi = require('kube_vela_restful_api');
+
+var api = new KubeVelaRestfulApi.ApplicationsApi()
+var body = ; // {{Appfile.AppFile}} application parameters
+var envName = envName_example; // {{String}} environment name
+
+var callback = function(error, data, response) {
+  if (error) {
+    console.error(error);
+  } else {
+    console.log('API called successfully. Returned data: ' + data);
+  }
+};
+api.createApplication(bodyenvName, callback);
+</code></pre>
+                            </div>
+
+                            <!--<div class="tab-pane" id="examples-Applications-createApplication-0-angular">
+              <pre class="prettyprint language-json prettyprinted" data-type="json"><code>Coming Soon!</code></pre>
+            </div>-->
+                            <div class="tab-pane" id="examples-Applications-createApplication-0-csharp">
+                              <pre class="prettyprint"><code class="language-cs">using System;
+using System.Diagnostics;
+using IO.Swagger.Api;
+using IO.Swagger.Client;
+using IO.Swagger.Model;
+
+namespace Example
+{
+    public class createApplicationExample
+    {
+        public void main()
+        {
+
+            var apiInstance = new ApplicationsApi();
+            var body = new Appfile.AppFile(); // Appfile.AppFile | application parameters
+            var envName = envName_example;  // String | environment name
+
+            try
+            {
+                // creates an application
+                inline_response_200 result = apiInstance.createApplication(body, envName);
+                Debug.WriteLine(result);
+            }
+            catch (Exception e)
+            {
+                Debug.Print("Exception when calling ApplicationsApi.createApplication: " + e.Message );
+            }
+        }
+    }
+}
+</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Applications-createApplication-0-php">
+                              <pre class="prettyprint"><code class="language-php"><&#63;php
+require_once(__DIR__ . '/vendor/autoload.php');
+
+$api_instance = new Swagger\Client\ApiApplicationsApi();
+$body = ; // Appfile.AppFile | application parameters
+$envName = envName_example; // String | environment name
+
+try {
+    $result = $api_instance->createApplication($body, $envName);
+    print_r($result);
+} catch (Exception $e) {
+    echo 'Exception when calling ApplicationsApi->createApplication: ', $e->getMessage(), PHP_EOL;
+}
+?></code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Applications-createApplication-0-perl">
+                              <pre class="prettyprint"><code class="language-perl">use Data::Dumper;
+use WWW::SwaggerClient::Configuration;
+use WWW::SwaggerClient::ApplicationsApi;
+
+my $api_instance = WWW::SwaggerClient::ApplicationsApi->new();
+my $body = WWW::SwaggerClient::Object::Appfile.AppFile->new(); # Appfile.AppFile | application parameters
+my $envName = envName_example; # String | environment name
+
+eval { 
+    my $result = $api_instance->createApplication(body => $body, envName => $envName);
+    print Dumper($result);
+};
+if ($@) {
+    warn "Exception when calling ApplicationsApi->createApplication: $@\n";
+}</code></pre>
+                            </div>
+
+                            <div class="tab-pane" id="examples-Applications-createApplication-0-python">
+                              <pre class="prettyprint"><code class="language-python">from __future__ import print_statement
+import time
+import swagger_client
+from swagger_client.rest import ApiException
+from pprint import pprint
+
+# create an instance of the API class
+api_instance = swagger_client.ApplicationsApi()
+body =  # Appfile.AppFile | application parameters
+envName = envName_example # String | environment name
+
+try: 
+    # creates an application
+    api_response = api_instance.create_application(body, envName)
+    pprint(api_response)
+except ApiException as e:
+    print("Exception when calling ApplicationsApi->createApplication: %s\n" % e)</code></pre>
+                            </div>
+                          </div>
+
+                          <h2>Parameters</h2>
+
+                            <div class="methodsubtabletitle">Path parameters</div>
+                            <table id="methodsubtable">
+                                <tr>
+                                  <th width="150px">Name</th>
+                                  <th>Description</th>
+                                </tr>
+                                  <tr><td style="width:150px;">envName*</td>
+                                  <td>
+                                  
+                                  
+                                      <div id="d2e199_createApplication_envName">
+                                          <div class="json-schema-view">
+                                              <div class="primitive">
+                                                  <span class="type">
+                                                      String
+                                                  </span>
+                                  
+                                                      <div class="inner description">
+                                                          environment name
+                                                      </div>
+                                              </div>
+                                                  <div class="inner required">
+                                                      Required
+                                                  </div>
+                                          </div>
+                                      </div>
+                                  </td>
+                                  </tr>
+                            </table>
+
+
+                            <div class="methodsubtabletitle">Body parameters</div>
+                            <table id="methodsubtable">
+                              <tr>
+                                <th width="150px">Name</th>
+                                <th>Description</th>
+                              </tr>
+                                <tr><td style="width:150px;">body <span style="color:red;">*</span></td>
+                                <td>
+                                
+                                
+                                <script>
+                                $(document).ready(function() {
+                                  var schemaWrapper = {
+  "description" : "application parameters",
+  "content" : {
+    "*/*" : {
+      "schema" : {
+        "$ref" : "#/components/schemas/appfile.AppFile"
+      }
+    }
+  },
+  "required" : true
+};
+                                  var schema = schemaWrapper.content["*/*"].schema;
+                                  if (schema.$ref != null) {
+                                    schema = defsParser.$refs.get(schema.$ref);
+                                  } else {
+                                    schemaWrapper.components = {};
+                                    schemaWrapper.components.schemas = Object.assign({}, defs);
+                                    $RefParser.dereference(schemaWrapper).catch(function(err) {
+                                      console.log(err);
+                                    });
+                                  }
+                                
+                                  var view = new JSONSchemaView(schema,2,{isBodyParam: true});
+                                  var result = $('#d2e199_createApplication_body');
+                                  result.empty();
+                                  result.append(view.render());
+                                });
+                                </script>
+                                <div id="d2e199_createApplication_body"></div>
+                                </td>
+                                </tr>
+                            </table>
+
+
+
+                          <h2>Responses</h2>
+                            <h3> Status: 200 - OK </h3>
+
+                            <ul class="nav nav-tabs nav-tabs-examples" >
+                                <li class="active">
+                                  <a data-toggle="tab" href="#responses-createApplication-200-schema">Schema</a>
+                                </li>
+
+                            </ul>
+
+                            <div class="tab-content" style='margin-bottom: 10px;'>
+                                <div class="tab-pane active" id="responses-createApplication-200-schema">
+                                  <div id='responses-createApplication-200-schema-200' style="padding: 30px; border-left: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee;">
+                                    <script>
+                                      $(document).ready(function() {
+                                        var schemaWrapper = {
+  "description" : "OK",
+  "content" : {
+    "*/*" : {
+      "schema" : {
+        "$ref" : "#/components/schemas/inline_response_200"
+      }
+    }
+  }
+};
+                                        var schema = schemaWrapper.content["*/*"].schema;
+                                        if (schema.$ref != null) {
+                                          schema = defsParser.$refs.get(schema.$ref);
+                                        } else {
+                                          schemaWrapper.components = {};
+                                          schemaWrapper.components.schemas = Object.assign({}, defs);
+                                          $RefParser.dereference(schemaWrapper).catch(function(err) {
+                                            console.log(err);
+                                          });
+                                        }
+
+                                        //console.log(JSON.stringify(schema));
+                                        var view = new JSONSchemaView(schema, 3);
+                                        $('#responses-createApplication-200-schema-data').val(stringify(schema));
+                                        var result = $('#responses-createApplication-200-schema-200');
+                                        result.empty();
+                                        result.append(view.render());
+                                      });
+                                    </script>
+                                  </div>
+                                  <input id='responses-createApplication-200-schema-data' type='hidden' value=''></input>
+                                </div>
+                            </div>
+
+                            <h3> Status: 500 - Internal Server Error </h3>
+
+                            <ul class="nav nav-tabs nav-tabs-examples" >
+                                <li class="active">
+                                  <a data-toggle="tab" href="#responses-createApplication-500-schema">Schema</a>
+                                </li>
+
+                            </ul>
+
+                            <div class="tab-content" style='margin-bottom: 10px;'>
+                                <div class="tab-pane active" id="responses-createApplication-500-schema">
+                                  <div id='responses-createApplication-500-schema-500' style="padding: 30px; border-left: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee;">
+                                    <script>
+                                      $(document).ready(function() {
+                                        var schemaWrapper = {
+  "description" : "Internal Server Error",
+  "content" : {
+    "*/*" : {
+      "schema" : {
+        "$ref" : "#/components/schemas/inline_response_200"
+      }
+    }
+  }
+};
+                                        var schema = schemaWrapper.content["*/*"].schema;
+                                        if (schema.$ref != null) {
+                                          schema = defsParser.$refs.get(schema.$ref);
+                                        } else {
+                                          schemaWrapper.components = {};
+                                          schemaWrapper.components.schemas = Object.assign({}, defs);
+                                          $RefParser.dereference(schemaWrapper).catch(function(err) {
+                                            console.log(err);
+                                          });
+                                        }
+
+                                        //console.log(JSON.stringify(schema));
+                                        var view = new JSONSchemaView(schema, 3);
+                                        $('#responses-createApplication-500-schema-data').val(stringify(schema));
+                                        var result = $('#responses-createApplication-500-schema-500');
+                                        result.empty();
+                                        result.append(view.render());
+                                      });
+                                    </script>
+                                  </div>
+                                  <input id='responses-createApplication-500-schema-data' type='hidden' value=''></input>
+                                </div>
+                            </div>
+
+                        </article>
+                      </div>
+                      <hr>
                     <div id="api-Applications-listApplications">
                       <article id="api-Applications-listApplications-0" data-group="User" data-name="listApplications" data-version="0">
                         <div class="pull-left">

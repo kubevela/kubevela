@@ -185,7 +185,7 @@ func setDisplayFormat(format string) {
 func (ref *MarkdownReference) GenerateReferenceDocs(baseRefPath string) error {
 	caps, err := LoadAllInstalledCapability()
 	if err != nil {
-		return fmt.Errorf("failed to generate reference docs for all capabilities: %s", err)
+		return fmt.Errorf("failed to generate reference docs for all capabilities: %w", err)
 	}
 	if baseRefPath == "" {
 		baseRefPath = BaseRefPath
@@ -221,16 +221,16 @@ func (ref *MarkdownReference) CreateMarkdown(caps []types.Capability, baseRefPat
 		markdownFile := filepath.Join(baseRefPath, capabilityType, fileName)
 		f, err := os.OpenFile(filepath.Clean(markdownFile), os.O_WRONLY|os.O_CREATE, 0600)
 		if err != nil {
-			return fmt.Errorf("failed to open file %s: %s", markdownFile, err)
+			return fmt.Errorf("failed to open file %s: %w", markdownFile, err)
 		}
 		if err = os.Truncate(markdownFile, 0); err != nil {
-			return fmt.Errorf("failed to truncate file %s: %s", markdownFile, err)
+			return fmt.Errorf("failed to truncate file %s: %w", markdownFile, err)
 		}
 		capName := c.Name
 
 		cueValue, err := common.GetCUEParameterValue(c.CueTemplate)
 		if err != nil {
-			return fmt.Errorf("failed to retrieve `parameters` value from %s with err: %s", c.Name, err)
+			return fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
 		}
 		refContent = ""
 		var defaultDepth = 0
@@ -407,7 +407,7 @@ func (ref *ConsoleReference) GenerateCapabilityProperties(capability *types.Capa
 
 	cueValue, err := common.GetCUEParameterValue(capability.CueTemplate)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve `parameters` value from %s with err: %s", capName, err)
+		return nil, fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", capName, err)
 	}
 	var defaultDepth = 0
 	recurseDepth = &defaultDepth

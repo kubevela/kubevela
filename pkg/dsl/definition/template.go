@@ -29,6 +29,12 @@ const (
 	PatchFieldName = "patch"
 )
 
+const (
+	// AuxiliaryWorkload defines the extra workload obj from a workloadDefinition,
+	// e.g. a workload composed by deployment and service, the service will be marked as AuxiliaryWorkload
+	AuxiliaryWorkload = "AuxiliaryWorkload"
+)
+
 var (
 	metadataAccessor = meta.NewAccessor()
 )
@@ -99,6 +105,23 @@ func (wd *workloadDef) Complete(ctx process.Context) error {
 			return errors.WithMessagef(err, "workloadDef %s new base", wd.name)
 		}
 		ctx.SetBase(base)
+
+		// we will support outputs for workload composition, and it will become trait in AppConfig.
+		outputs := inst.Lookup(OutputsFieldName)
+		st, err := outputs.Struct()
+		if err == nil {
+			for i := 0; i < st.Len(); i++ {
+				fieldInfo := st.Field(i)
+				if fieldInfo.IsDefinition || fieldInfo.IsHidden || fieldInfo.IsOptional {
+					continue
+				}
+				other, err := model.NewOther(fieldInfo.Value)
+				if err != nil {
+					return errors.WithMessagef(err, "parse WorkloadDefinition %s outputs(%s)", wd.name, fieldInfo.Name)
+				}
+				ctx.PutAssistants(process.Assistant{Ins: other, Type: AuxiliaryWorkload})
+			}
+		}
 	}
 	return nil
 }

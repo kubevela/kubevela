@@ -7,12 +7,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/oam-dev/kubevela/e2e"
-	"github.com/oam-dev/kubevela/pkg/server/apis"
-	"github.com/oam-dev/kubevela/pkg/server/util"
-
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
+
+	"github.com/oam-dev/kubevela/e2e"
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
+	"github.com/oam-dev/kubevela/pkg/server/apis"
+	"github.com/oam-dev/kubevela/pkg/server/util"
 )
 
 var (
@@ -30,20 +31,27 @@ var (
 		Namespace: "env-e2e-world-modified",
 	}
 
-	workloadType = "webservice"
-	workloadName = "app-e2e-api-hello"
+	workloadType    = "webservice"
+	applicationName = "app-e2e-api-hello"
+	svcName         = "svc-e2e-api-hello"
 
-	workloadRunBodyWithoutImageFlag = apis.WorkloadRunBody{
-		EnvName:      envHelloMeta.EnvName,
-		WorkloadName: workloadName,
-		WorkloadType: workloadType,
-		Flags:        []apis.CommonFlag{{Name: "port", Value: "80"}},
+	applicationCreationBodyWithoutImageFlag = api.AppFile{
+		Name: applicationName,
+		Services: map[string]api.Service{
+			svcName: map[string]interface{}{},
+		},
 	}
-	workloadRunBody = apis.WorkloadRunBody{
-		EnvName:      envHelloMeta.EnvName,
-		WorkloadName: workloadName,
-		WorkloadType: workloadType,
-		Flags:        []apis.CommonFlag{{Name: "image", Value: "nginx:1.9.4"}, {Name: "port", Value: "80"}},
+
+	applicationCreationBody = api.AppFile{
+		Name: applicationName,
+		Services: map[string]api.Service{
+			svcName: map[string]interface{}{
+				"type":  workloadType,
+				"image": "wordpress:php7.4-apache",
+				"port":  "80",
+				"cpu":   "1",
+			},
+		},
 	}
 )
 
@@ -165,10 +173,11 @@ var _ = ginkgo.Describe("API", func() {
 	})
 
 	ginkgo.Context("Workloads", func() {
-		ginkgo.It("run workload", func() {
-			data, err := json.Marshal(&workloadRunBody)
+		ginkgo.It("create an application", func() {
+			data, err := json.Marshal(&applicationCreationBody)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			resp, err := http.Post(util.URL("/workloads/"), "application/json", strings.NewReader(string(data)))
+			url := fmt.Sprintf("/envs/%s/apps/", envHelloMeta.EnvName)
+			resp, err := http.Post(util.URL(url), "application/json", strings.NewReader(string(data)))
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			defer resp.Body.Close()
 			result, err := ioutil.ReadAll(resp.Body)
@@ -177,14 +186,16 @@ var _ = ginkgo.Describe("API", func() {
 			err = json.Unmarshal(result, &r)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(http.StatusOK).Should(gomega.Equal(r.Code), string(result))
-			output := fmt.Sprintf("App %s deployed", workloadName)
+			output := fmt.Sprintf("application %s is successfully created", applicationName)
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(output))
 		})
 
-		ginkgo.It("run workload without compulsory flag", func() {
-			data, err := json.Marshal(&workloadRunBodyWithoutImageFlag)
+		ginkgo.It("create an application without compulsory flag of a service", func() {
+			data, err := json.Marshal(&applicationCreationBodyWithoutImageFlag)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			resp, err := http.Post(util.URL("/workloads/"), "application/json", strings.NewReader(string(data)))
+			url := fmt.Sprintf("/envs/%s/apps/", envHelloMeta.EnvName)
+			resp, err := http.Post(util.URL(url), "application/json", strings.NewReader(string(data)))
+			// TODO(zzxwill) revise the check process if we need to work on https://github.com/oam-dev/kubevela/discussions/933
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			defer resp.Body.Close()
 			result, err := ioutil.ReadAll(resp.Body)
@@ -192,8 +203,8 @@ var _ = ginkgo.Describe("API", func() {
 			var r apis.Response
 			err = json.Unmarshal(result, &r)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			gomega.Expect(http.StatusInternalServerError).Should(gomega.Equal(r.Code))
-			output := "required flag(s) \"image\" not set"
+			gomega.Expect(http.StatusOK).Should(gomega.Equal(r.Code), string(result))
+			output := fmt.Sprintf("application %s is successfully created", applicationName)
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(output))
 		})
 
@@ -215,7 +226,7 @@ var _ = ginkgo.Describe("API", func() {
 		})
 
 		ginkgo.It("should delete an application", func() {
-			req, err := http.NewRequest("DELETE", util.URL("/envs/"+envHelloMeta.EnvName+"/apps/"+workloadRunBody.WorkloadName), nil)
+			req, err := http.NewRequest("DELETE", util.URL("/envs/"+envHelloMeta.EnvName+"/apps/"+applicationName), nil)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			resp, err := http.DefaultClient.Do(req)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
@@ -226,7 +237,7 @@ var _ = ginkgo.Describe("API", func() {
 			err = json.Unmarshal(result, &r)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(http.StatusOK).To(gomega.Equal(r.Code))
-			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring("delete apps succeed"))
+			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring("deleted from env"))
 		})
 	})
 })

@@ -1,0 +1,301 @@
+package appfile
+
+import (
+	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/pkg/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile/config"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/dsl/process"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+)
+
+const (
+	// AppfileBuiltinConfig defines the built-in config variable
+	AppfileBuiltinConfig = "config"
+
+	// OAMApplicationLabel is application's metadata label
+	OAMApplicationLabel = "application.oam.dev"
+)
+
+// Workload is component
+type Workload struct {
+	Name               string
+	Type               string
+	CapabilityCategory types.CapabilityCategory
+	Params             map[string]interface{}
+	Template           string
+	Health             string
+	Traits             []*Trait
+	Scopes             []Scope
+}
+
+// GetUserConfigName get user config from AppFile, it will contain config file in it.
+func (wl *Workload) GetUserConfigName() string {
+	if wl.Params == nil {
+		return ""
+	}
+	t, ok := wl.Params[AppfileBuiltinConfig]
+	if !ok {
+		return ""
+	}
+	ts, ok := t.(string)
+	if !ok {
+		return ""
+	}
+	return ts
+}
+
+// EvalContext eval workload template and set result to context
+func (wl *Workload) EvalContext(ctx process.Context) error {
+	return definition.NewWDTemplater(wl.Name, wl.Template, "").Params(wl.Params).Complete(ctx)
+}
+
+// EvalHealth eval workload health check
+func (wl *Workload) EvalHealth(ctx process.Context, client client.Client, name string) error {
+	return definition.NewWDTemplater(wl.Name, "", wl.Health).Output(ctx, client, name).HealthCheck()
+}
+
+// Scope defines the scope of workload
+type Scope struct {
+	Name string
+	GVK  schema.GroupVersionKind
+}
+
+// Trait is ComponentTrait
+type Trait struct {
+	Name               string
+	CapabilityCategory types.CapabilityCategory
+	Params             map[string]interface{}
+	Template           string
+	Health             string
+}
+
+// EvalContext eval trait template and set result to context
+func (trait *Trait) EvalContext(ctx process.Context) error {
+	return definition.NewTDTemplater(trait.Name, trait.Template, "").Params(trait.Params).Complete(ctx)
+}
+
+// EvalHealth eval trait health check
+func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, name string) error {
+	return definition.NewTDTemplater(trait.Name, "", trait.Health).Output(ctx, client, name).HealthCheck()
+}
+
+// Appfile describes application
+type Appfile struct {
+	Name      string
+	Workloads []*Workload
+}
+
+// TemplateValidate validate Template format
+func (af *Appfile) TemplateValidate() error {
+	return nil
+}
+
+// Parser is an application parser
+type Parser struct {
+	client client.Client
+	dm     discoverymapper.DiscoveryMapper
+}
+
+// NewApplicationParser create appfile parser
+func NewApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper) *Parser {
+	return &Parser{
+		client: cli,
+		dm:     dm,
+	}
+}
+
+// GenerateAppFile converts an application to an Appfile
+func (p *Parser) GenerateAppFile(name string, app *v1alpha2.Application) (*Appfile, error) {
+	appfile := new(Appfile)
+	appfile.Name = name
+	var wds []*Workload
+	for _, comp := range app.Spec.Components {
+		wd, err := p.parseWorkload(comp)
+		if err != nil {
+			return nil, err
+		}
+		wds = append(wds, wd)
+	}
+	appfile.Workloads = wds
+
+	return appfile, nil
+}
+
+func (p *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload, error) {
+	workload := new(Workload)
+	workload.Traits = []*Trait{}
+	workload.Name = comp.Name
+	workload.Type = comp.WorkloadType
+	templ, err := util.LoadTemplate(p.client, workload.Type, types.TypeWorkload)
+	if err != nil && !kerrors.IsNotFound(err) {
+		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
+	}
+	workload.CapabilityCategory = templ.CapabilityCategory
+	workload.Template = templ.TemplateStr
+	workload.Health = templ.Health
+	settings, err := util.RawExtension2Map(&comp.Settings)
+	if err != nil {
+		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
+	}
+	workload.Params = settings
+	for _, traitValue := range comp.Traits {
+		properties, err := util.RawExtension2Map(&traitValue.Properties)
+		if err != nil {
+			return nil, errors.Errorf("fail to parse properties of %s for %s", traitValue.Name, comp.Name)
+		}
+		trait, err := p.parseTrait(traitValue.Name, properties)
+		if err != nil {
+			return nil, errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Name)
+		}
+
+		workload.Traits = append(workload.Traits, trait)
+	}
+	for scopeType, instanceName := range comp.Scopes {
+		gvk, err := util.GetScopeGVK(p.client, p.dm, scopeType)
+		if err != nil {
+			return nil, err
+		}
+		workload.Scopes = append(workload.Scopes, Scope{
+			Name: instanceName,
+			GVK:  gvk,
+		})
+	}
+	return workload, nil
+}
+
+func (p *Parser) parseTrait(name string, properties map[string]interface{}) (*Trait, error) {
+	templ, err := util.LoadTemplate(p.client, name, types.TypeTrait)
+	if kerrors.IsNotFound(err) {
+		return nil, errors.Errorf("trait definition of %s not found", name)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return &Trait{
+		Name:               name,
+		CapabilityCategory: templ.CapabilityCategory,
+		Params:             properties,
+		Template:           templ.TemplateStr,
+		Health:             templ.Health,
+	}, nil
+}
+
+// GenerateApplicationConfiguration converts an appFile to applicationConfig & Components
+func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1alpha2.ApplicationConfiguration,
+	[]*v1alpha2.Component, error) {
+	appconfig := &v1alpha2.ApplicationConfiguration{}
+	appconfig.SetGroupVersionKind(v1alpha2.ApplicationConfigurationGroupVersionKind)
+	appconfig.Name = app.Name
+	appconfig.Namespace = ns
+	appconfig.Spec.Components = []v1alpha2.ApplicationConfigurationComponent{}
+
+	if appconfig.Labels == nil {
+		appconfig.Labels = map[string]string{}
+	}
+	appconfig.Labels[OAMApplicationLabel] = app.Name
+
+	var components []*v1alpha2.Component
+	for _, wl := range app.Workloads {
+		pCtx, err := PrepareProcessContext(p.client, wl, app.Name, ns)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, tr := range wl.Traits {
+			if err := tr.EvalContext(pCtx); err != nil {
+				return nil, nil, err
+			}
+		}
+		comp, acComp, err := evalWorkloadWithContext(pCtx, wl)
+		if err != nil {
+			return nil, nil, err
+		}
+		comp.Name = wl.Name
+		acComp.ComponentName = comp.Name
+
+		for _, sc := range wl.Scopes {
+			acComp.Scopes = append(acComp.Scopes, v1alpha2.ComponentScope{ScopeReference: v1alpha1.TypedReference{
+				APIVersion: sc.GVK.GroupVersion().String(),
+				Kind:       sc.GVK.Kind,
+				Name:       sc.Name,
+			}})
+		}
+
+		comp.Namespace = ns
+		if comp.Labels == nil {
+			comp.Labels = map[string]string{}
+		}
+		comp.Labels[OAMApplicationLabel] = app.Name
+		comp.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
+
+		components = append(components, comp)
+		appconfig.Spec.Components = append(appconfig.Spec.Components, *acComp)
+	}
+	return appconfig, components, nil
+}
+
+// evalWorkloadWithContext evaluate the workload's template to generate component and ACComponent
+func evalWorkloadWithContext(pCtx process.Context, wl *Workload) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+	base, assists := pCtx.Output()
+	componentWorkload, err := base.Unstructured()
+	if err != nil {
+		return nil, nil, err
+	}
+	workloadType := wl.Type
+	labels := componentWorkload.GetLabels()
+	if labels == nil {
+		labels = map[string]string{oam.WorkloadTypeLabel: workloadType}
+	} else {
+		labels[oam.WorkloadTypeLabel] = workloadType
+	}
+	componentWorkload.SetLabels(labels)
+
+	component := &v1alpha2.Component{}
+	component.Spec.Workload.Object = componentWorkload
+
+	acComponent := &v1alpha2.ApplicationConfigurationComponent{}
+	acComponent.Traits = []v1alpha2.ComponentTrait{}
+	for _, assist := range assists {
+		tr, err := assist.Ins.Unstructured()
+		if err != nil {
+			return nil, nil, err
+		}
+		tr.SetLabels(map[string]string{oam.TraitTypeLabel: assist.Type})
+		acComponent.Traits = append(acComponent.Traits, v1alpha2.ComponentTrait{
+			Trait: runtime.RawExtension{
+				Object: tr,
+			},
+		})
+	}
+	return component, acComponent, nil
+}
+
+// PrepareProcessContext prepares a DSL process Context
+func PrepareProcessContext(k8sClient client.Client, wl *Workload, applicationName string, namespace string) (process.Context, error) {
+	pCtx := process.NewContext(wl.Name)
+	userConfig := wl.GetUserConfigName()
+	if userConfig != "" {
+		cg := config.Configmap{Client: k8sClient}
+		// TODO(wonderflow): envName should not be namespace when we have serverside env
+		var envName = namespace
+		data, err := cg.GetConfigData(config.GenConfigMapName(applicationName, wl.Name, userConfig), envName)
+		if err != nil {
+			return nil, err
+		}
+		pCtx.SetConfigs(data)
+	}
+	if err := wl.EvalContext(pCtx); err != nil {
+		return nil, err
+	}
+	return pCtx, nil
+}

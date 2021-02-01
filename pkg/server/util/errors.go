@@ -58,8 +58,8 @@ func ConstructError(ec Code, a ...interface{}) error {
 	case a == nil && c > 0 ||
 		a != nil && (c != len(a) || a[0] == nil):
 		{
-			ctrl.Log.Error(fmt.Errorf("Args '%v' do not match placeholders in the msg '%s'", a, ec.Message()),
-				"Invalid error message argument")
+			ctrl.Log.Error(fmt.Errorf("args '%v' do not match placeholders in the msg '%s'", a, ec.Message()),
+				"invalid error message argument")
 		}
 	case len(a) == 0 || a[0] == nil:
 		{

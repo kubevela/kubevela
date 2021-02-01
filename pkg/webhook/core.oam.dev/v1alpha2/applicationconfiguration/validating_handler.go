@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	errFmtWorkloadNameNotEmpty = "versioning-enabled component's workload name MUST NOT be assigned, expect workload name %q to be empty."
+	errFmtWorkloadNameNotEmpty = "versioning-enabled component's workload name MUST NOT be assigned, expect workload name %q to be empty"
 
 	errFmtRevisionName = "componentName %q and revisionName %q are mutually exclusive, you can only specify one of them"
 

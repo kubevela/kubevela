@@ -103,13 +103,13 @@ services:
     type: webservice
     image: oamdev/testapp:v1
 
-    route:
+    ingress:
       domain: example.com
       http: # match the longest prefix
         "/": 8080
  ```
 
-This `appfile` is composed of a `frontend` component including workload type of `Web Service` and a `route` trait. Developer fills in the values based on the independent schema documentations for such workload type and trait. KubeVela will check the corresponding definition objects in OAM Kubernetes runtime to validate and generate the final Kubernetes resources. This is how we make the user interface of KubeVela highly extensible.
+This `appfile` is composed of a `frontend` component including workload type of `Web Service` and a `ingress` trait. Developer fills in the values based on the independent schema documentations for such workload type and trait. KubeVela will check the corresponding definition objects in OAM Kubernetes runtime to validate and generate the final Kubernetes resources. This is how we make the user interface of KubeVela highly extensible.
 
 In order to make building such high level abstractions easier, we adopted [CUElang](https://github.com/cuelang/cue) in the OAM Kubernetes runtime for creating the "last mile" abstractions (i.e., eliminating non user facing fields or merging multiple objects into one). All the abstractions in `appfile` are essentially defined by the CUE templates saved in the OAM Control Plane Objects. The platform builders can modify those templates at any time. The updates will take effect immediately in the schema of the `appfile`.
 

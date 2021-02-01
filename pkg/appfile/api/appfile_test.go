@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	v12 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -51,10 +50,10 @@ func TestBuildOAMApplication2(t *testing.T) {
 				},
 			},
 			expectApp: &v1alpha2.Application{
-				TypeMeta: v1.TypeMeta{
+				TypeMeta: metav1.TypeMeta{
 					Kind:       "Application",
 					APIVersion: "core.oam.dev/v1alpha2",
-				}, ObjectMeta: v1.ObjectMeta{
+				}, ObjectMeta: metav1.ObjectMeta{
 					Name: "test",
 				},
 				Spec: v1alpha2.ApplicationSpec{
@@ -85,10 +84,10 @@ func TestBuildOAMApplication2(t *testing.T) {
 				},
 			},
 			expectApp: &v1alpha2.Application{
-				TypeMeta: v1.TypeMeta{
+				TypeMeta: metav1.TypeMeta{
 					Kind:       "Application",
 					APIVersion: "core.oam.dev/v1alpha2",
-				}, ObjectMeta: v1.ObjectMeta{
+				}, ObjectMeta: metav1.ObjectMeta{
 					Name: "test",
 				},
 				Spec: v1alpha2.ApplicationSpec{

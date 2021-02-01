@@ -4,10 +4,10 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch: {}
 
 jobs:
-  build:
-    name: Build
+  publish-cli:
     runs-on: ubuntu-latest
     env:
       VELA_VERSION: ${{ github.ref }}
@@ -41,58 +41,69 @@ jobs:
         run: make cross-build
       - name: Run compress binary
         run: make compress
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-      - name: Upload Linux tar.gz
+      - name: Get release
+        id: get_release
+        uses: bruceadams/get-release@v1.2.2
+      - name: Upload Linux amd64 tar.gz
         uses: actions/upload-release-asset@v1.0.2
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
           asset_path: ./_bin/vela-linux-amd64.tar.gz
           asset_name: vela-${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz
           asset_content_type: binary/octet-stream
-      - name: Upload Linux zip
+      - name: Upload Linux amd64 zip
         uses: actions/upload-release-asset@v1.0.2
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
           asset_path: ./_bin/vela-linux-amd64.zip
           asset_name: vela-${{ steps.get_version.outputs.VERSION }}-linux-amd64.zip
+          asset_content_type: binary/octet-stream
+      - name: Upload Linux arm64 tar.gz
+        uses: actions/upload-release-asset@v1.0.2
+        with:
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          asset_path: ./_bin/vela-linux-arm64.tar.gz
+          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-linux-arm64.tar.gz
+          asset_content_type: binary/octet-stream
+      - name: Upload Linux arm64 zip
+        uses: actions/upload-release-asset@v1.0.2
+        with:
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          asset_path: ./_bin/vela-linux-arm64.zip
+          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-linux-arm64.zip
           asset_content_type: binary/octet-stream
       - name: Upload MacOS tar.gz
         uses: actions/upload-release-asset@v1.0.2
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
           asset_path: ./_bin/vela-darwin-amd64.tar.gz
           asset_name: vela-${{ steps.get_version.outputs.VERSION }}-darwin-amd64.tar.gz
           asset_content_type: binary/octet-stream
       - name: Upload MacOS zip
         uses: actions/upload-release-asset@v1.0.2
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
           asset_path: ./_bin/vela-darwin-amd64.zip
           asset_name: vela-${{ steps.get_version.outputs.VERSION }}-darwin-amd64.zip
           asset_content_type: binary/octet-stream
       - name: Upload Windows tar.gz
         uses: actions/upload-release-asset@v1.0.2
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
           asset_path: ./_bin/vela-windows-amd64.tar.gz
           asset_name: vela-${{ steps.get_version.outputs.VERSION }}-windows-amd64.tar.gz
           asset_content_type: binary/octet-stream
       - name: Upload Windows zip
         uses: actions/upload-release-asset@v1.0.2
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
           asset_path: ./_bin/vela-windows-amd64.zip
           asset_name: vela-${{ steps.get_version.outputs.VERSION }}-windows-amd64.zip
           asset_content_type: binary/octet-stream
       - name: Upload Checksums
         uses: actions/upload-release-asset@v1.0.2
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
           asset_path: ./_bin/sha256sums.txt
           asset_name: sha256sums.txt
           asset_content_type: text/plain

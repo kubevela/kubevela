@@ -24,7 +24,7 @@ func init() {
 	tm, _ = template.Load()
 	afile = api.NewAppFile()
 	afile.Name = appName
-	svcs := make(map[string]api.Service, 0)
+	svcs := make(map[string]api.Service)
 	svcs["wordpress"] = map[string]interface{}{
 		"type":  "webservice",
 		"image": "wordpress:php7.4-apache",

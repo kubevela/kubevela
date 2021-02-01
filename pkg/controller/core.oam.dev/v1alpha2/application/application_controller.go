@@ -30,12 +30,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
-const rolloutReconcileWaitTime = time.Second * 30
+// RolloutReconcileWaitTime is the time to wait before reconcile again an application still in rollout phase
+const RolloutReconcileWaitTime = time.Second * 3
 
 // Reconciler reconciles a Application object
 type Reconciler struct {
@@ -74,7 +76,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		app.Status.Phase = v1alpha2.ApplicationRollingOut
 		app.Status.SetConditions(readyCondition("Rolling"))
 		// do not process apps still in rolling out
-		return ctrl.Result{RequeueAfter: rolloutReconcileWaitTime}, r.Status().Update(ctx, app)
+		return ctrl.Result{RequeueAfter: RolloutReconcileWaitTime}, r.Status().Update(ctx, app)
 	}
 
 	applog.Info("Start Rendering")
@@ -86,7 +88,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	applog.Info("parse template")
 	// parse template
-	appParser := NewApplicationParser(r.Client, r.dm)
+	appParser := appfile.NewApplicationParser(r.Client, r.dm)
 
 	appfile, err := appParser.GenerateAppFile(app.Name, app)
 	if err != nil {

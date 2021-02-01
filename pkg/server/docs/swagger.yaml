@@ -66,6 +66,28 @@ definitions:
       code:
         type: integer
     type: object
+  appfile.AppFile:
+    properties:
+      createTime:
+        type: string
+      name:
+        type: string
+      secrets:
+        additionalProperties:
+          type: string
+        type: object
+      services:
+        additionalProperties:
+          $ref: '#/definitions/appfile.Service'
+        type: object
+      updateTime:
+        type: string
+    type: object
+  appfile.Service:
+    additionalProperties: true
+    type: object
+  config.Store:
+    type: object
   v1alpha2.ApplicationConfiguration:
     properties:
       spec:
@@ -729,6 +751,46 @@ paths:
                   type: string
               type: object
       summary: list all applications
+      tags:
+      - applications
+    post:
+      operationId: CreateApplication
+      parameters:
+      - description: environment name
+        in: path
+        name: envName
+        required: true
+        type: string
+      - description: application parameters
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/appfile.AppFile'
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/apis.Response'
+            - properties:
+                code:
+                  type: integer
+                data:
+                  type: string
+              type: object
+      summary: creates an application
       tags:
       - applications
 swagger: "2.0"

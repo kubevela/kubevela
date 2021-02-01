@@ -84,6 +84,7 @@ func newCallCtx(io util.IOStreams, data map[string]interface{}) CallCtx {
 	}
 }
 
+// Run executes tasks
 // Deprecated: Run is deprecated, you should use DoTasks is builtin package, it will automatically register all internal functions
 func Run(spec map[string]interface{}, io util.IOStreams) (map[string]interface{}, error) {
 	var (

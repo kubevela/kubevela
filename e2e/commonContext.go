@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
@@ -16,19 +15,6 @@ import (
 )
 
 var (
-	// SystemInitContext used for test install
-	SystemInitContext = func(context string) bool {
-		return ginkgo.Context(context, func() {
-			ginkgo.It("Install OAM runtime and vela builtin capabilities.", func() {
-				output, err := LongTimeExec("vela install --wait", 180*time.Second)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("- Installing OAM Kubernetes Runtime"))
-				gomega.Expect(output).To(gomega.ContainSubstring("- Installing builtin capabilities"))
-				gomega.Expect(output).To(gomega.ContainSubstring("Successful applied"))
-				gomega.Expect(output).To(gomega.ContainSubstring("Waiting KubeVela runtime ready to serve"))
-			})
-		})
-	}
 
 	// EnvInitContext used for test Env
 	EnvInitContext = func(context string, envName string) bool {
@@ -113,24 +99,13 @@ var (
 		})
 	}
 
-	//WorkloadRunContext used for test vela svc deploy
-	WorkloadRunContext = func(context string, cli string) bool {
-		return ginkgo.Context(context, func() {
-			ginkgo.It("should print successful creation information", func() {
-				output, err := Exec(cli)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("deployed"))
-			})
-		})
-	}
-
 	WorkloadDeleteContext = func(context string, applicationName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should print successful deletion information", func() {
 				cli := fmt.Sprintf("vela delete %s", applicationName)
 				output, err := Exec(cli)
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("delete apps succeed"))
+				gomega.Expect(output).To(gomega.ContainSubstring("deleted from env"))
 			})
 		})
 	}
@@ -150,21 +125,7 @@ var (
 			ginkgo.It("should sync capabilities from cluster before listing trait capabilities", func() {
 				output, err := Exec("vela traits")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("metrics"))
-				gomega.Expect(output).To(gomega.ContainSubstring("rollout"))
-				gomega.Expect(output).To(gomega.ContainSubstring("route"))
-			})
-		})
-	}
-	// TraitManualScalerAttachContext used for test trait attach success
-	TraitManualScalerAttachContext = func(context string, traitAlias string, applicationName string) bool {
-		return ginkgo.Context(context, func() {
-			ginkgo.It("should print successful attached information", func() {
-				cli := fmt.Sprintf("vela %s %s", traitAlias, applicationName)
-				output, err := LongTimeExec(cli, 180*time.Second)
-				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("Adding " + traitAlias + " for app"))
-				gomega.Expect(output).To(gomega.ContainSubstring("Checking Status"))
+				gomega.Expect(output).To(gomega.ContainSubstring("scaler"))
 			})
 		})
 	}

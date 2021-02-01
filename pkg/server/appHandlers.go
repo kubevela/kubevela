@@ -1,11 +1,16 @@
 package server
 
 import (
+	"fmt"
+	"os"
+
+	"github.com/gin-gonic/gin"
+
+	"github.com/oam-dev/kubevela/pkg/appfile/api"
+	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/server/util"
 	"github.com/oam-dev/kubevela/pkg/serverlib"
 	"github.com/oam-dev/kubevela/pkg/utils/env"
-
-	"github.com/gin-gonic/gin"
 )
 
 // UpdateApps is placeholder for updating applications
@@ -57,7 +62,7 @@ func (s *APIServer) ListApps(c *gin.Context) {
 	util.AssembleResponse(c, applicationMetaList, nil)
 }
 
-// DeleteApps deletes an application by the namespacedname in the gin.Context
+// DeleteApps deletes an application by the namespaced name in the gin.Context
 func (s *APIServer) DeleteApps(c *gin.Context) {
 	envName := c.Param("envName")
 	envMeta, err := env.GetEnvByName(envName)
@@ -74,4 +79,44 @@ func (s *APIServer) DeleteApps(c *gin.Context) {
 	}
 	message, err := o.DeleteApp()
 	util.AssembleResponse(c, message, err)
+}
+
+// CreateApplication creates an application
+// @tags applications
+// @ID CreateApplication
+// @Summary creates an application
+// @Param envName path string true "environment name"
+// @Param body body appfile.AppFile true "application parameters"
+// @Success 200 {object} apis.Response{code=int,data=string}
+// @Failure 500 {object} apis.Response{code=int,data=string}
+// @Router /envs/{envName}/apps [post]
+func (s *APIServer) CreateApplication(c *gin.Context) {
+	var body api.AppFile
+	if err := c.ShouldBindJSON(&body); err != nil {
+		util.HandleError(c, util.InvalidArgument, "the application creation request body is invalid")
+		return
+	}
+	env, err := env.GetEnvByName(c.Param("envName"))
+	if err != nil {
+		util.HandleError(c, util.StatusInternalServerError, err.Error())
+		return
+	}
+	ioStream := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
+	o := &serverlib.AppfileOptions{
+		Kubecli: s.KubeClient,
+		IO:      ioStream,
+		Env:     env,
+	}
+	buildResult, data, err := o.ExportFromAppFile(&body, false)
+	if err != nil {
+		util.HandleError(c, util.StatusInternalServerError, err.Error())
+		return
+	}
+	err = o.BaseAppFileRun(buildResult, data, s.dm)
+	if err != nil {
+		util.HandleError(c, util.StatusInternalServerError, err.Error())
+		return
+	}
+	msg := fmt.Sprintf("application %s is successfully created", body.Name)
+	util.AssembleResponse(c, msg, nil)
 }

@@ -14,7 +14,6 @@ import (
 
 	monitoring "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	"github.com/go-logr/logr"
 	injectorv1alpha1 "github.com/oam-dev/trait-injector/api/v1alpha1"
 	injectorcontroller "github.com/oam-dev/trait-injector/controllers"
 	"github.com/oam-dev/trait-injector/pkg/injector"
@@ -27,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -37,7 +35,6 @@ import (
 	velacontroller "github.com/oam-dev/kubevela/pkg/controller"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/controller/dependency"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
@@ -126,14 +123,6 @@ func main() {
 	setupLog.Info(fmt.Sprintf("KubeVela Version: %s, GIT Revision: %s.", version.VelaVersion, version.GitRevision))
 	setupLog.Info(fmt.Sprintf("Disable Capabilities: %s.", disableCaps))
 
-	// install dependency charts first
-	k8sClient, err := client.New(ctrl.GetConfigOrDie(), client.Options{Scheme: scheme})
-	if err != nil {
-		setupLog.Error(err, "unable to create a kubernetes client")
-		os.Exit(1)
-	}
-	go dependency.Install(k8sClient)
-
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                  scheme,
 		MetricsBindAddress:      metricsAddr,
@@ -215,7 +204,7 @@ func main() {
 	if controllerArgs.ApplyOnceOnly {
 		setupLog.Info("applyOnceOnly is enabled that means workload or trait only apply once if no spec change even they are changed by others")
 	}
-	if err := mgr.Start(makeSignalHandler(setupLog, k8sClient)); err != nil {
+	if err := mgr.Start(makeSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
@@ -279,8 +268,7 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 	}
 }
 
-//nolint:unparam
-func makeSignalHandler(log logr.Logger, kubecli client.Client) (stopCh <-chan struct{}) {
+func makeSignalHandler() (stopCh <-chan struct{}) {
 	stop := make(chan struct{})
 	c := make(chan os.Signal, 2)
 
@@ -288,10 +276,6 @@ func makeSignalHandler(log logr.Logger, kubecli client.Client) (stopCh <-chan st
 
 	go func() {
 		<-c
-		// Do not uninstall when vela-core terminating.
-		// When running on K8s, old pod will terminate after new pod running, it will cause charts uninstalled.
-		// https://github.com/oam-dev/kubevela/issues/499
-		// dependency.Uninstall(kubecli)
 		close(stop)
 
 		// second signal. Exit directly.

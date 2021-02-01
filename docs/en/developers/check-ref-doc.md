@@ -11,14 +11,14 @@ Actually, as a important part of its "extensibility" design, KubeVela will alway
 Thus, as an end user, the only thing you need to do is:
 
 ```console
-$ vela show WORKLOAD_TYPE or TRAIT
+$ vela show WORKLOAD_TYPE or TRAIT --web
 ```
 
 This command will automatically open the reference documentation for given workload type or trait in your default browser.
 
 ### For Workload Types
 
-Let's take `$ vela show webservice` as example. The detailed schema documentation for `Web Service` workload type will show up immediately as below:
+Let's take `$ vela show webservice --web` as example. The detailed schema documentation for `Web Service` workload type will show up immediately as below:
 
 ![](../../resources/vela_show_webservice.jpg)
 
@@ -26,7 +26,7 @@ Note that there's in the section named `Specification`, it even provides you wit
 
 ### For Traits
 
-Similarly, we can also do `$ vela show autoscale`:
+Similarly, we can also do `$ vela show autoscale --web`:
 
 ![](../../resources/vela_show_autoscale.jpg)
 
@@ -58,7 +58,7 @@ services:
 This reference doc feature also works for terminal-only case. For example:
 
 ```shell
-$ vela show webservice --no-website
+$ vela show webservice
 # Properties
 +-------+----------------------------------------------------------------------------------+---------------+----------+---------+
 | NAME  |                                   DESCRIPTION                                    |     TYPE      | REQUIRED | DEFAULT |
