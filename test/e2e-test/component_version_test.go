@@ -12,7 +12,6 @@ import (
 
 	"github.com/ghodss/yaml"
 	appsv1 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -496,10 +495,10 @@ var _ = Describe("Component revision", func() {
 	namespace := "default"
 	componentName := "revision-component"
 	appConfigName := "revision-app"
-	workload := v1.Deployment{
+	workload := appsv1.Deployment{
 		TypeMeta:   metav1.TypeMeta{APIVersion: "apps/v1", Kind: "Deployment"},
 		ObjectMeta: metav1.ObjectMeta{Namespace: namespace},
-		Spec: v1.DeploymentSpec{
+		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"app": "nginx",
@@ -579,7 +578,7 @@ var _ = Describe("Component revision", func() {
 			Expect(k8sClient.Create(ctx, &appConfig)).Should(Succeed())
 
 			By("check workload")
-			var deploy v1.Deployment
+			var deploy appsv1.Deployment
 			Eventually(
 				func() error {
 					return k8sClient.Get(ctx, workloadObjKey, &deploy)
@@ -594,11 +593,11 @@ var _ = Describe("Component revision", func() {
 
 			By("check current workload exists")
 			time.Sleep(3 * time.Second)
-			var currentDeploy v1.Deployment
+			var currentDeploy appsv1.Deployment
 			Expect(k8sClient.Get(ctx, workloadObjKey, &currentDeploy)).Should(BeNil())
 
 			By("check version 1 workload doesn't exist")
-			var v1Deploy v1.Deployment
+			var v1Deploy appsv1.Deployment
 			workloadObjKey := client.ObjectKey{Name: componentName + "-v1", Namespace: namespace}
 			Expect(k8sClient.Get(ctx, workloadObjKey, &v1Deploy)).Should(SatisfyAny(&util.NotFoundMatcher{}))
 		})

@@ -25,6 +25,8 @@ import (
 	"net/http/httptest"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
@@ -35,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
@@ -153,6 +156,9 @@ var _ = Describe("Test Application Controller", func() {
 	wd := &v1alpha2.WorkloadDefinition{}
 	wDDefJson, _ := yaml.YAMLToJSON([]byte(wDDefYaml))
 
+	webserverwd := &v1alpha2.WorkloadDefinition{}
+	webserverwdJson, _ := yaml.YAMLToJSON([]byte(webserverYaml))
+
 	td := &v1alpha2.TraitDefinition{}
 	tDDefJson, _ := yaml.YAMLToJSON([]byte(tDDefYaml))
 
@@ -174,6 +180,9 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(json.Unmarshal(sdDefJson, sd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, sd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		Expect(json.Unmarshal(webserverwdJson, webserverwd)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, webserverwd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	})
 	AfterEach(func() {
@@ -320,6 +329,97 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(component.ObjectMeta.OwnerReferences[0].Controller).Should(BeEquivalentTo(pointer.BoolPtr(true)))
 		gotD := &v1.Deployment{}
 		Expect(json.Unmarshal(component.Spec.Workload.Raw, gotD)).Should(BeNil())
+		Expect(gotD).Should(BeEquivalentTo(expDeployment))
+
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
+
+	It("app-with-composedworkload-trait will create workload and trait", func() {
+		compName := "myweb-composed-3"
+		expDeployment := getExpDeployment(compName)
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-with-composedworkload-trait",
+			},
+		}
+		var appname = "app-with-composedworkload-trait"
+		appWithComposedWorkload := appwithNoTrait.DeepCopy()
+		appWithComposedWorkload.Spec.Components[0].WorkloadType = "webserver"
+		appWithComposedWorkload.SetName(appname)
+		appWithComposedWorkload.Spec.Components[0].Traits = []v1alpha2.ApplicationTrait{
+			{
+				Name:       "scaler",
+				Properties: runtime.RawExtension{Raw: []byte(`{"replicas":2}`)},
+			},
+		}
+		appWithComposedWorkload.Spec.Components[0].Name = compName
+		appWithComposedWorkload.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		app := appWithComposedWorkload.DeepCopy()
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check App running successfully")
+		checkApp := &v1alpha2.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+
+		By("Check AppConfig and trait created as expected")
+		appConfig := &v1alpha2.ApplicationConfiguration{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      app.Name,
+		}, appConfig)).Should(BeNil())
+
+		Expect(len(appConfig.Spec.Components[0].Traits)).Should(BeEquivalentTo(2))
+
+		gotTrait := unstructured.Unstructured{}
+		By("Check the first trait should be service")
+		expectServiceTrait := unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Service",
+			"metadata": map[string]interface{}{
+				"labels": map[string]interface{}{"trait.oam.dev/type": "AuxiliaryWorkload"},
+			},
+			"spec": map[string]interface{}{
+				"ports": []interface{}{
+					map[string]interface{}{"port": int64(80), "targetPort": int64(80)},
+				},
+				"selector": map[string]interface{}{
+					"app.oam.dev/component": compName,
+				},
+			},
+		}}
+		Expect(json.Unmarshal(appConfig.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
+		fmt.Println(cmp.Diff(expectServiceTrait, gotTrait))
+		Expect(assert.ObjectsAreEqual(expectServiceTrait, gotTrait)).Should(BeTrue())
+
+		By("Check the second trait should be scaler")
+		gotTrait = unstructured.Unstructured{}
+		Expect(json.Unmarshal(appConfig.Spec.Components[0].Traits[1].Trait.Raw, &gotTrait)).Should(BeNil())
+		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait))
+
+		By("Check component created as expected")
+		component := &v1alpha2.Component{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      compName,
+		}, component)).Should(BeNil())
+		Expect(component.ObjectMeta.Labels).Should(BeEquivalentTo(map[string]string{"application.oam.dev": appname}))
+		Expect(component.ObjectMeta.OwnerReferences[0].Name).Should(BeEquivalentTo(appname))
+		Expect(component.ObjectMeta.OwnerReferences[0].Kind).Should(BeEquivalentTo("Application"))
+		Expect(component.ObjectMeta.OwnerReferences[0].APIVersion).Should(BeEquivalentTo("core.oam.dev/v1alpha2"))
+		Expect(component.ObjectMeta.OwnerReferences[0].Controller).Should(BeEquivalentTo(pointer.BoolPtr(true)))
+		gotD := &v1.Deployment{}
+		expDeployment.ObjectMeta.Labels["workload.oam.dev/type"] = "webserver"
+		expDeployment.Spec.Template.Spec.Containers[0].Ports = []corev1.ContainerPort{{ContainerPort: 80}}
+		Expect(json.Unmarshal(component.Spec.Workload.Raw, gotD)).Should(BeNil())
+		fmt.Println(cmp.Diff(expDeployment, gotD))
 		Expect(gotD).Should(BeEquivalentTo(expDeployment))
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
@@ -656,6 +756,37 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
+
+	It("app with rolling out annotation", func() {
+		By("crreat application with rolling out annotation")
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "app-test-with-rollout",
+			},
+		}
+		appWithTrait.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		app := appWithTrait.DeepCopy()
+		app.SetAnnotations(map[string]string{
+			oam.AnnotationAppRollout: "true",
+		})
+
+		By("apply appfile")
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		result, err := reconciler.Reconcile(reconcile.Request{NamespacedName: appKey})
+		Expect(result).To(BeIdenticalTo(ctrl.Result{RequeueAfter: RolloutReconcileWaitTime}))
+		Expect(err).ToNot(HaveOccurred())
+		By("Check App status is rollingout")
+		checkApp := &v1alpha2.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRollingOut))
+
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
 })
 
 func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
@@ -735,6 +866,97 @@ spec:
 
           cmd?: [...string]
       }
+`
+
+	webserverYaml = `apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: webserver
+  annotations:
+    definition.oam.dev/description: "webserver was composed by deployment and service"
+spec:
+  definitionRef:
+    name: deployments.apps
+  extension:
+    template: |
+      output: {
+      	apiVersion: "apps/v1"
+      	kind:       "Deployment"
+      	spec: {
+      		selector: matchLabels: {
+      			"app.oam.dev/component": context.name
+      		}
+      		template: {
+      			metadata: labels: {
+      				"app.oam.dev/component": context.name
+      			}
+      			spec: {
+      				containers: [{
+      					name:  context.name
+      					image: parameter.image
+
+      					if parameter["cmd"] != _|_ {
+      						command: parameter.cmd
+      					}
+
+      					if parameter["env"] != _|_ {
+      						env: parameter.env
+      					}
+
+      					if context["config"] != _|_ {
+      						env: context.config
+      					}
+
+      					ports: [{
+      						containerPort: parameter.port
+      					}]
+
+      					if parameter["cpu"] != _|_ {
+      						resources: {
+      							limits:
+      								cpu: parameter.cpu
+      							requests:
+      								cpu: parameter.cpu
+      						}
+      					}
+      				}]
+      		}
+      		}
+      	}
+      }
+      // workload can have extra object composition by using 'outputs' keyword
+      outputs: service: {
+      	apiVersion: "v1"
+      	kind:       "Service"
+      	spec: {
+      		selector: {
+      			"app.oam.dev/component": context.name
+      		}
+      		ports: [
+      			{
+      				port:       parameter.port
+      				targetPort: parameter.port
+      			},
+      		]
+      	}
+      }
+      parameter: {
+      	image: string
+      	cmd?: [...string]
+      	port: *80 | int
+      	env?: [...{
+      		name:   string
+      		value?: string
+      		valueFrom?: {
+      			secretKeyRef: {
+      				name: string
+      				key:  string
+      			}
+      		}
+      	}]
+      	cpu?: string
+      }
+
 `
 	wDDefWithHealthYaml = `
 apiVersion: core.oam.dev/v1alpha2

@@ -14,6 +14,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
+// Template includes its string, health and its category
+type Template struct {
+	TemplateStr        string
+	Health             string
+	CapabilityCategory types.CapabilityCategory
+}
+
 // GetScopeGVK Get ScopeDefinition
 func GetScopeGVK(cli client.Client, dm discoverymapper.DiscoveryMapper,
 	name string) (schema.GroupVersionKind, error) {
@@ -28,50 +35,61 @@ func GetScopeGVK(cli client.Client, dm discoverymapper.DiscoveryMapper,
 }
 
 // LoadTemplate Get template according to key
-func LoadTemplate(cli client.Reader, key string, kd types.CapType) (string, string, error) {
+func LoadTemplate(cli client.Reader, key string, kd types.CapType) (*Template, error) {
 	switch kd {
 	case types.TypeWorkload:
-		wd, err := GetWorkloadDefinition(cli, key)
+		wd, err := GetWorkloadDefinition(context.TODO(), cli, key)
 		if err != nil {
-			return "", "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
-		tmpl, health, err := getTemplAndHealth(wd.Spec.Extension.Raw)
+		var capabilityCategory types.CapabilityCategory
+		if wd.Annotations["type"] == string(types.TerraformCategory) {
+			capabilityCategory = types.TerraformCategory
+		}
+		tmpl, err := getTemplAndHealth(wd.Spec.Extension.Raw)
 		if err != nil {
-			return "", "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
-		if tmpl == "" {
-			return "", "", errors.New("no template found in definition")
+		if tmpl == nil {
+			return nil, errors.New("no template found in definition")
 		}
-		return tmpl, health, nil
+		tmpl.CapabilityCategory = capabilityCategory
+		return tmpl, nil
 
 	case types.TypeTrait:
-		td, err := GetTraitDefinition(cli, key)
+		td, err := GetTraitDefinition(context.TODO(), cli, key)
 		if err != nil {
-			return "", "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
-		tmpl, health, err := getTemplAndHealth(td.Spec.Extension.Raw)
+		var capabilityCategory types.CapabilityCategory
+		if td.Annotations["type"] == string(types.TerraformCategory) {
+			capabilityCategory = types.TerraformCategory
+		}
+		tmpl, err := getTemplAndHealth(td.Spec.Extension.Raw)
 		if err != nil {
-			return "", "", errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
-		if tmpl == "" {
-			return "", "", errors.New("no template found in definition")
+		if tmpl == nil {
+			return nil, errors.New("no template found in definition")
 		}
-		return tmpl, health, nil
+		tmpl.CapabilityCategory = capabilityCategory
+		return tmpl, nil
 	case types.TypeScope:
 		// TODO: add scope template support
 	}
 
-	return "", "", fmt.Errorf("kind(%s) of %s not supported", kd, key)
+	return nil, fmt.Errorf("kind(%s) of %s not supported", kd, key)
 }
 
-func getTemplAndHealth(raw []byte) (string, string, error) {
+func getTemplAndHealth(raw []byte) (*Template, error) {
 	_tmp := map[string]interface{}{}
 	if err := json.Unmarshal(raw, &_tmp); err != nil {
-		return "", "", err
+		return nil, err
 	}
 	var health string
 	if _, ok := _tmp["healthPolicy"]; ok {
 		health = fmt.Sprint(_tmp["healthPolicy"])
 	}
-	return fmt.Sprint(_tmp["template"]), health, nil
+	return &Template{TemplateStr: fmt.Sprint(_tmp["template"]),
+		Health: health}, nil
 }

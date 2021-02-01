@@ -100,13 +100,7 @@ $ kubectl create ns vela-system
 $ kubectl apply -f charts/vela-core/templates/cert-manager.yaml
 ```
 
-5. Install Vela Dependency ConfigMap
-
-```shell script
-$ kubectl apply -f charts/vela-core/templates/velaConfig.yaml
-```
-
-6. Delete your old oam-runtime deployment
+5. Delete your old oam-runtime deployment
 
 Find the running deployment.
 
@@ -122,13 +116,13 @@ Delete the deployment found.
 $ kubectl -n oam-system delete deployment oam-kubernetes-runtime-oam
 ```
 
-7. Install Certificate and Webhook for the new controller
+6. Install Certificate and Webhook for the new controller
 
 ```shell script
 $ helm template --release-name kubevela -n vela-system -s templates/webhook.yaml charts/vela-core/ | kubectl apply -f -
 ```
 
-8. Install the new controller
+7. Install the new controller
 
 ```shell script
 $ helm template --release-name kubevela -n vela-system -s templates/kubevela-controller.yaml charts/vela-core/ | kubectl apply -f -

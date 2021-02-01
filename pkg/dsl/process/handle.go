@@ -20,7 +20,9 @@ type Context interface {
 
 // Assistant are objects rendered by definition template.
 type Assistant struct {
-	Ins  model.Instance
+	Ins model.Instance
+	// Type will be used to mark definition label for OAM runtime to get the CRD
+	// It's now required for trait and main workload object. Extra workload CR object will not have the type.
 	Type string
 }
 

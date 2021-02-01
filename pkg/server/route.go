@@ -80,6 +80,7 @@ func (s *APIServer) setupRoute(staticPath string) http.Handler {
 			apps.GET("/", s.ListApps)
 			apps.GET("", s.ListApps)
 			apps.DELETE("/:appName", s.DeleteApps)
+			apps.POST("/", s.CreateApplication)
 
 			// component related operation
 			components := apps.Group("/:appName/components")
@@ -101,7 +102,6 @@ func (s *APIServer) setupRoute(staticPath string) http.Handler {
 	// workload related api
 	workload := api.Group(util.WorkloadDefinitionPath)
 	{
-		workload.POST("/", s.CreateWorkload)
 		workload.GET("/:workloadName", s.GetWorkload)
 		workload.PUT("/:workloadName", s.UpdateWorkload)
 		workload.GET("/", s.ListWorkload)

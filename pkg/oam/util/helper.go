@@ -51,7 +51,7 @@ const (
 	Dummy = "dummy"
 
 	// DummyTraitMessage is a message for trait which don't have definition found
-	DummyTraitMessage = "No valid TraitDefinition found, all framework capabilities will work as default or disabled"
+	DummyTraitMessage = "No TraitDefinition found, all framework capabilities will work as default"
 
 	// DefinitionNamespaceEnv is env key for specifying a namespace to fetch definition
 	DefinitionNamespaceEnv = "DEFINITION_NAMESPACE"
@@ -182,7 +182,7 @@ func FetchTraitDefinition(ctx context.Context, r client.Reader, dm discoverymapp
 		return nil, err
 	}
 	// Fetch the corresponding traitDefinition CR
-	traitDefinition, err := GetTraitDefinition(r, trName)
+	traitDefinition, err := GetTraitDefinition(ctx, r, trName)
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +198,7 @@ func FetchWorkloadDefinition(ctx context.Context, r client.Reader, dm discoverym
 		return nil, err
 	}
 	// Fetch the corresponding workloadDefinition CR
-	workloadDefinition, err := GetWorkloadDefinition(r, wldName)
+	workloadDefinition, err := GetWorkloadDefinition(ctx, r, wldName)
 	if err != nil {
 		return nil, err
 	}
@@ -214,18 +214,19 @@ func GenNamespacedDefinitionName(dn string) types.NamespacedName {
 }
 
 // GetWorkloadDefinition  Get WorkloadDefinition
-func GetWorkloadDefinition(cli client.Reader, workitemName string) (*v1alpha2.WorkloadDefinition, error) {
+func GetWorkloadDefinition(ctx context.Context, cli client.Reader,
+	workitemName string) (*v1alpha2.WorkloadDefinition, error) {
 	wd := new(v1alpha2.WorkloadDefinition)
-	if err := cli.Get(context.Background(), GenNamespacedDefinitionName(workitemName), wd); err != nil {
+	if err := cli.Get(ctx, GenNamespacedDefinitionName(workitemName), wd); err != nil {
 		return nil, err
 	}
 	return wd, nil
 }
 
 // GetTraitDefinition Get TraitDefinition
-func GetTraitDefinition(cli client.Reader, traitName string) (*v1alpha2.TraitDefinition, error) {
+func GetTraitDefinition(ctx context.Context, cli client.Reader, traitName string) (*v1alpha2.TraitDefinition, error) {
 	td := new(v1alpha2.TraitDefinition)
-	if err := cli.Get(context.Background(), GenNamespacedDefinitionName(traitName), td); err != nil {
+	if err := cli.Get(ctx, GenNamespacedDefinitionName(traitName), td); err != nil {
 		return nil, err
 	}
 	return td, nil
@@ -334,6 +335,11 @@ func GetDefinitionName(dm discoverymapper.DiscoveryMapper, u *unstructured.Unstr
 
 // GetGVKFromDefinition help get Group Version Kind from DefinitionReference
 func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef v1alpha2.DefinitionReference) (schema.GroupVersionKind, error) {
+	// if given definitionRef is empty or it's a dummy definition, return an empty GVK
+	// NOTE currently, only TraitDefinition is allowed to omit definitionRef conditionally.
+	if len(definitionRef.Name) < 1 || definitionRef.Name == Dummy {
+		return schema.EmptyObjectKind.GroupVersionKind(), nil
+	}
 	var gvk schema.GroupVersionKind
 	groupResource := schema.ParseGroupResource(definitionRef.Name)
 	gvr := schema.GroupVersionResource{Group: groupResource.Group, Resource: groupResource.Resource, Version: definitionRef.Version}
@@ -411,7 +417,7 @@ func RawExtension2Map(raw *runtime.RawExtension) (map[string]interface{}, error)
 // GenTraitName generate trait name
 func GenTraitName(componentName string, ct *v1alpha2.ComponentTrait, traitType string) string {
 	var traitMiddleName = TraitPrefixKey
-	if traitType != "" {
+	if traitType != "" && traitType != Dummy {
 		traitMiddleName = strings.ToLower(traitType)
 	}
 	return fmt.Sprintf("%s-%s-%s", componentName, traitMiddleName, ComputeHash(ct))

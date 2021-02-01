@@ -19,6 +19,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
@@ -29,9 +30,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
+
+// RolloutReconcileWaitTime is the time to wait before reconcile again an application still in rollout phase
+const RolloutReconcileWaitTime = time.Second * 3
 
 // Reconciler reconciles a Application object
 type Reconciler struct {
@@ -46,7 +52,6 @@ type Reconciler struct {
 
 // Reconcile process app event
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-
 	ctx := context.Background()
 	applog := r.Log.WithValues("application", req.NamespacedName)
 	app := new(v1alpha2.Application)
@@ -60,8 +65,18 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
+	// TODO: check finalizer
 	if app.DeletionTimestamp != nil {
 		return ctrl.Result{}, nil
+	}
+
+	// Check if the oam rollout annotation exists
+	if _, exist := app.GetAnnotations()[oam.AnnotationAppRollout]; exist {
+		applog.Info("The application is still in the process of rolling out")
+		app.Status.Phase = v1alpha2.ApplicationRollingOut
+		app.Status.SetConditions(readyCondition("Rolling"))
+		// do not process apps still in rolling out
+		return ctrl.Result{RequeueAfter: RolloutReconcileWaitTime}, r.Status().Update(ctx, app)
 	}
 
 	applog.Info("Start Rendering")
@@ -73,7 +88,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	applog.Info("parse template")
 	// parse template
-	appParser := NewApplicationParser(r.Client, r.dm)
+	appParser := appfile.NewApplicationParser(r.Client, r.dm)
 
 	appfile, err := appParser.GenerateAppFile(app.Name, app)
 	if err != nil {

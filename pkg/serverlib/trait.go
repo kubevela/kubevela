@@ -72,13 +72,17 @@ func convertAllAppliyToList(traits []types.Capability, workloads []types.Capabil
 // ConvertApplyTo will convert applyTo slice to workload capability name if CRD matches
 func ConvertApplyTo(applyTo []string, workloads []types.Capability) []string {
 	var converted []string
-	for _, v := range applyTo {
-		newName, exist := check(v, workloads)
-		if !exist {
-			continue
-		}
-		if !in(converted, newName) {
-			converted = append(converted, newName)
+	if in(applyTo, "*") {
+		converted = append(converted, "*")
+	} else {
+		for _, v := range applyTo {
+			newName, exist := check(v, workloads)
+			if !exist {
+				continue
+			}
+			if !in(converted, newName) {
+				converted = append(converted, newName)
+			}
 		}
 	}
 	return converted

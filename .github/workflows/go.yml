@@ -114,6 +114,25 @@ jobs:
       - name: Run e2e tests
         run: make e2e-test
 
+  staticcheck:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: Cache Go Dependencies
+        uses: actions/cache@v2
+        with:
+          path: .work/pkg
+          key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-pkg-
+
+      - name: Static Check
+        run: go run honnef.co/go/tools/cmd/staticcheck -- ./...
+
   lint:
     runs-on: ubuntu-20.04
 

@@ -5,6 +5,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 )
 
 // NewExportCommand will create command for exporting deploy manifests from an AppFile
@@ -18,7 +19,7 @@ func NewExportCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 			types.TagCommandType: types.TypeStart,
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			o := &AppfileOptions{
+			o := &serverlib.AppfileOptions{
 				IO:  ioStream,
 				Env: &types.EnvMeta{},
 			}
@@ -26,7 +27,7 @@ func NewExportCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			_, data, err := o.export(filePath, true)
+			_, data, err := o.Export(filePath, true)
 			if err != nil {
 				return err
 			}

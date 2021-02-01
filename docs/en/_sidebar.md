@@ -14,17 +14,16 @@
 - End User Guide
   - Appfile
     - [Learning Appfile](/en/developers/learn-appfile.md)
-  - Operating
-    - [Setting Routes](/en/developers/set-route.md)
-    - [Setting Auto-scaling Policy](/en/developers/set-autoscale.md)
-    - [Setting Rollout Strategy](/en/developers/set-rollout.md)
-    - [Setting Monitoring Policy](/en/developers/set-metrics.md)
   - Debugging
     - [Port Forwarding](/en/developers/port-forward.md)
     - [Check Application Logs](/en/developers/check-logs.md)
     - [Execute Commands in Container](/en/developers/exec-cmd.md)  
   - Extending
     - [Managing Capabilities](/en/developers/cap-center.md)
+    - [Setting Routes](/en/developers/extensions/set-route.md)
+    - [Setting Auto-scaling Policy](/en/developers/extensions/set-autoscale.md)
+    - [Setting Rollout Strategy](/en/developers/extensions/set-rollout.md)
+    - [Setting Monitoring Policy](/en/developers/extensions/set-metrics.md)
   - Configuring
     - [Setting Up Deployment Environment](/en/developers/config-enviroments.md)
     - [Configuring data/env in Application](/en/developers/config-app.md)

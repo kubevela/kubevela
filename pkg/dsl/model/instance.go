@@ -15,6 +15,7 @@ type Instance interface {
 	Unstructured() (*unstructured.Unstructured, error)
 	IsBase() bool
 	Unify(other Instance) error
+	Compile() ([]byte, error)
 }
 
 type instance struct {
@@ -32,7 +33,7 @@ func (inst *instance) IsBase() bool {
 	return inst.base
 }
 
-func (inst *instance) compile() ([]byte, error) {
+func (inst *instance) Compile() ([]byte, error) {
 	var r cue.Runtime
 	cueInst, err := r.Compile("-", inst.v)
 	if err != nil {
@@ -48,7 +49,7 @@ func (inst *instance) compile() ([]byte, error) {
 // Unstructured convert cue values to unstructured.Unstructured
 // TODO(wonderflow): will it be better if we try to decode it to concrete object(such as K8s Deployment) by using runtime.Schema?ß
 func (inst *instance) Unstructured() (*unstructured.Unstructured, error) {
-	jsonv, err := inst.compile()
+	jsonv, err := inst.Compile()
 	if err != nil {
 		return nil, err
 	}

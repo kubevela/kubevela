@@ -518,6 +518,75 @@ var doc = `{
                         }
                     }
                 }
+            },
+            "post": {
+                "tags": [
+                    "applications"
+                ],
+                "summary": "creates an application",
+                "operationId": "CreateApplication",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "environment name",
+                        "name": "envName",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "application parameters",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/appfile.AppFile"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/apis.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "code": {
+                                            "type": "integer"
+                                        },
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/apis.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "code": {
+                                            "type": "integer"
+                                        },
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
             }
         }
     },
@@ -621,6 +690,39 @@ var doc = `{
                     "type": "integer"
                 }
             }
+        },
+        "appfile.AppFile": {
+            "type": "object",
+            "properties": {
+                "createTime": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "secrets": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "services": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/appfile.Service"
+                    }
+                },
+                "updateTime": {
+                    "type": "string"
+                }
+            }
+        },
+        "appfile.Service": {
+            "type": "object",
+            "additionalProperties": true
+        },
+        "config.Store": {
+            "type": "object"
         },
         "v1alpha2.ApplicationConfiguration": {
             "type": "object",

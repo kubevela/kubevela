@@ -35,7 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
 
@@ -65,7 +64,7 @@ const (
 )
 
 var (
-	kindContainerizedWorkload = corev1alpha2.ContainerizedWorkloadKind
+	kindContainerizedWorkload = v1alpha2.ContainerizedWorkloadKind
 	kindDeployment            = reflect.TypeOf(apps.Deployment{}).Name()
 	kindService               = reflect.TypeOf(core.Service{}).Name()
 	kindStatefulSet           = reflect.TypeOf(apps.StatefulSet{}).Name()
@@ -119,7 +118,7 @@ func (fn WorkloadHealthCheckFn) Check(ctx context.Context, c client.Client, tr r
 
 // CheckContainerziedWorkloadHealth check health condition of ContainerizedWorkload
 func CheckContainerziedWorkloadHealth(ctx context.Context, c client.Client, ref runtimev1alpha1.TypedReference, namespace string) *WorkloadHealthCondition {
-	if ref.GroupVersionKind() != corev1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload) {
+	if ref.GroupVersionKind() != v1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload) {
 		return nil
 	}
 	r := &WorkloadHealthCondition{
@@ -127,8 +126,8 @@ func CheckContainerziedWorkloadHealth(ctx context.Context, c client.Client, ref 
 		TargetWorkload: ref,
 	}
 
-	cwObj := corev1alpha2.ContainerizedWorkload{}
-	cwObj.SetGroupVersionKind(corev1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
+	cwObj := v1alpha2.ContainerizedWorkload{}
+	cwObj.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
 	if err := c.Get(ctx, types.NamespacedName{Namespace: namespace, Name: ref.Name}, &cwObj); err != nil {
 		r.HealthStatus = StatusUnhealthy
 		r.Diagnosis = errors.Wrap(err, errHealthCheck).Error()

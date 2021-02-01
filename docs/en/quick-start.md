@@ -45,8 +45,9 @@ Services:
     Last Deployment:
       Created at: ...
       Updated at: ...
-    Routes:
-      - route:  Visiting URL: http://testsvc.example.com  IP: localhost
+    Traits:
+      - ✅ ingress: domain=testsvc.example.com
+	    	http=map[/:8000]
 ```
 
 **In [kind cluster setup](./install.md#kind)**, you can visit the service via localhost. In other setups, replace localhost with ingress address accordingly.

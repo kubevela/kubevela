@@ -11,6 +11,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/serverlib"
 )
 
 func Test_printTraitList(t *testing.T) {
@@ -96,4 +97,23 @@ func TestNewTraitsCommandPersistentPreRunE(t *testing.T) {
 	fakeC := types.Args{}
 	cmd := NewTraitsCommand(fakeC, io)
 	assert.Nil(t, cmd.PersistentPreRunE(new(cobra.Command), []string{}))
+}
+
+func TestTraitsAppliedToAllWorkloads(t *testing.T) {
+	trait := types.Capability{
+		Name:      "route",
+		CrdName:   "routes.oam.dev",
+		AppliesTo: []string{"*"},
+	}
+	workloads := []types.Capability{
+		{
+			Name:    "deployment",
+			CrdName: "deployments.apps",
+		},
+		{
+			Name:    "clonset",
+			CrdName: "clonsets.alibaba",
+		},
+	}
+	assert.Equal(t, []string{"*"}, serverlib.ConvertApplyTo(trait.AppliesTo, workloads))
 }

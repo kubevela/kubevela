@@ -39,12 +39,12 @@ func (h *ValidatingHandler) ValidateCreate(appDeploy *v1alpha2.ApplicationDeploy
 		return allErrs
 	}
 	sourceAppName := appDeploy.Spec.SourceApplicationName
-	if sourceAppName != nil {
-		if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appDeploy.Namespace, Name: *sourceAppName},
+	if sourceAppName != "" {
+		if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appDeploy.Namespace, Name: sourceAppName},
 			&sourceApp); err != nil {
 			klog.ErrorS(err, "cannot locate source application", "source application",
-				klog.KRef(appDeploy.Namespace, *sourceAppName))
-			allErrs = append(allErrs, field.NotFound(fldPath.Child("sourceApplicationName"), *sourceAppName))
+				klog.KRef(appDeploy.Namespace, sourceAppName))
+			allErrs = append(allErrs, field.NotFound(fldPath.Child("sourceApplicationName"), sourceAppName))
 		}
 	}
 
@@ -107,11 +107,11 @@ func validateComponent(componentList []string, targetApp, sourceApp *v1alpha2.Ap
 }
 
 // ValidateUpdate validates the ApplicationDeployment on update
-func (h *ValidatingHandler) ValidateUpdate(new *v1alpha2.ApplicationDeployment, prev *v1alpha2.ApplicationDeployment) field.ErrorList {
+func (h *ValidatingHandler) ValidateUpdate(new, old *v1alpha2.ApplicationDeployment) field.ErrorList {
 	klog.InfoS("validate update", "name", new.Name)
 	errList := h.ValidateCreate(new)
 	if len(errList) > 0 {
 		return errList
 	}
-	return rollout.ValidateUpdate(&new.Spec.RolloutPlan, &prev.Spec.RolloutPlan)
+	return rollout.ValidateUpdate(&new.Spec.RolloutPlan, &old.Spec.RolloutPlan)
 }

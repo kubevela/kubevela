@@ -19,7 +19,7 @@ package v1alpha2
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	v1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
 // ApplicationDeploymentSpec defines how to describe an upgrade between different application
@@ -29,8 +29,8 @@ type ApplicationDeploymentSpec struct {
 	TargetApplicationName string `json:"targetApplicationName"`
 
 	// SourceApplicationName contains the name of the application that we need to upgrade from.
-	// it can be omitted only when it's the first time to deploy the application
-	SourceApplicationName *string `json:"sourceApplicationName,omitempty"`
+	// it can be empty only when it's the first time to deploy the application
+	SourceApplicationName string `json:"sourceApplicationName"`
 
 	// The list of component to upgrade in the application.
 	// We only support single component application so far

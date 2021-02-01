@@ -175,7 +175,7 @@ spec:
 			LabelSelector: selector,
 		})
 		Expect(err).Should(BeNil())
-		traitNamePrefix := fmt.Sprintf("%s-dummy-", componentName)
+		traitNamePrefix := fmt.Sprintf("%s-trait-", componentName)
 		var traitExistFlag bool
 		for _, t := range scaleList.Items {
 			if strings.HasPrefix(t.Name, traitNamePrefix) {

@@ -8,7 +8,7 @@ VELA_GITVERSION_VAR := github.com/oam-dev/kubevela/version.GitRevision
 LDFLAGS             ?= "-X $(VELA_VERSION_VAR)=$(VELA_VERSION) -X $(VELA_GITVERSION_VAR)=$(GIT_COMMIT)"
 
 GOX         = go run github.com/mitchellh/gox
-TARGETS     := darwin/amd64 linux/amd64 windows/amd64
+TARGETS     := darwin/amd64 linux/amd64 windows/amd64 linux/arm64
 DIST_DIRS   := find * -type d -exec
 
 TIME_LONG	= `date +%Y-%m-%d' '%H:%M:%S`
@@ -37,12 +37,12 @@ endif
 all: build
 
 # Run tests
-test: vet lint
+test: vet lint staticcheck
 	go test -race -coverprofile=coverage.txt -covermode=atomic ./pkg/... ./cmd/...
 	@$(OK) unit-tests pass
 
 # Build manager binary
-build: fmt vet lint
+build: fmt vet lint staticcheck
 	go run hack/chart/generate.go
 	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
 	git checkout cmd/vela/fake/chart_source.go
@@ -74,7 +74,7 @@ generate-source:
 
 cross-build:
 	go run hack/chart/generate.go
-	GO111MODULE=on CGO_ENABLED=0 $(GOX) -ldflags $(LDFLAGS) -parallel=3 -output="_bin/{{.OS}}-{{.Arch}}/vela" -osarch='$(TARGETS)' ./cmd/vela/
+	GO111MODULE=on CGO_ENABLED=0 $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/{{.OS}}-{{.Arch}}/vela" -osarch='$(TARGETS)' ./cmd/vela/
 
 compress:
 	( \
@@ -102,10 +102,13 @@ fmt: goimports installcue
 vet:
 	go vet ./...
 
+staticcheck: staticchecktool
+	$(STATICCHECK) ./...
+
 lint: golangci
 	$(GOLANGCILINT) run  ./...
 
-reviewable: manifests fmt vet lint
+reviewable: manifests fmt vet lint staticcheck
 	go mod tidy
 
 # Execute auto-gen code commands and ensure branch is clean.
@@ -122,7 +125,7 @@ docker-push:
 	docker push ${IMG}
 
 e2e-setup:
-	bin/vela install --image-pull-policy IfNotPresent --image-repo vela-core-test --image-tag $(GIT_COMMIT)
+	bin/vela install --set installCertManager=true --image-pull-policy IfNotPresent --image-repo vela-core-test --image-tag $(GIT_COMMIT)
 	ginkgo version
 	ginkgo -v -r e2e/setup
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
@@ -204,6 +207,19 @@ ifeq (, $(shell which golangci-lint))
 GOLANGCILINT=$(GOBIN)/golangci-lint
 else
 GOLANGCILINT=$(shell which golangci-lint)
+endif
+
+.PHONY: staticchecktool
+staticchecktool:
+ifeq (, $(shell which staticcheck))
+	@{ \
+	set -e ;\
+	echo 'installing honnef.co/go/tools/cmd/staticcheck ' ;\
+	GO111MODULE=off go get honnef.co/go/tools/cmd/staticcheck ;\
+	}
+STATICCHECK=$(GOBIN)/staticcheck
+else
+STATICCHECK=$(shell which staticcheck)
 endif
 
 .PHONY: goimports

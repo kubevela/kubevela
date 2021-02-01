@@ -9,16 +9,16 @@ import (
 
 var _ discoverymapper.DiscoveryMapper = &DiscoveryMapper{}
 
-// nolint
+// GetMapper is func type for mock convenience
 type GetMapper func() (meta.RESTMapper, error)
 
-// nolint
+// Refresh is func type for mock convenience
 type Refresh func() (meta.RESTMapper, error)
 
-// nolint
+// RESTMapping is func type for mock convenience
 type RESTMapping func(gk schema.GroupKind, versions ...string) (*meta.RESTMapping, error)
 
-// nolint
+// KindsFor is func type for mock convenience
 type KindsFor func(input schema.GroupVersionResource) ([]schema.GroupVersionKind, error)
 
 // NewMockDiscoveryMapper for unit test only

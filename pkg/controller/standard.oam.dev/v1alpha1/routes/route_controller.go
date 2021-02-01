@@ -29,7 +29,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/routes/ingress"
 
-	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/go-logr/logr"
@@ -98,13 +97,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		r.record.Event(eventObj, event.Warning(common.ErrLocatingWorkload, err))
 		return oamutil.ReconcileWaitResult,
 			oamutil.PatchCondition(ctx, r, &routeTrait,
-				cpv1alpha1.ReconcileError(errors.Wrap(err, common.ErrLocatingWorkload)))
+				runtimev1alpha1.ReconcileError(errors.Wrap(err, common.ErrLocatingWorkload)))
 	}
 	var svc *runtimev1alpha1.TypedReference
 	if NeedDiscovery(&routeTrait) {
 		if svc, err = r.discoveryAndFillBackend(ctx, mLog, eventObj, workload, &routeTrait); err != nil {
 			return oamutil.ReconcileWaitResult, oamutil.PatchCondition(ctx, r, &routeTrait,
-				cpv1alpha1.ReconcileError(err))
+				runtimev1alpha1.ReconcileError(err))
 		}
 	}
 
@@ -125,7 +124,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			r.record.Event(eventObj, event.Warning(errApplyNginxIngress, err))
 			return oamutil.ReconcileWaitResult,
 				oamutil.PatchCondition(ctx, r, &routeTrait,
-					cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyNginxIngress)))
+					runtimev1alpha1.ReconcileError(errors.Wrap(err, errApplyNginxIngress)))
 		}
 		r.record.Event(eventObj, event.Normal("nginx ingress patched",
 			fmt.Sprintf("successfully server side patched a route trait `%s`", routeTrait.Name)))

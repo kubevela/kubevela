@@ -4,5 +4,7 @@ services:
     type: webservice
     image: crccheck/hello-world
     port: 8000
-    route:
+    ingress:
       domain: testsvc.example.com
+      http:
+        "/": 8000
