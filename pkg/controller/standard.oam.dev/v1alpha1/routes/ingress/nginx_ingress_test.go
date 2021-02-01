@@ -46,6 +46,7 @@ func TestConstruct(t *testing.T) {
 							},
 						},
 					},
+					IngressClass: "nginx-private",
 				},
 			},
 			exp: []*v1beta1.Ingress{
@@ -57,7 +58,7 @@ func TestConstruct(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "trait-test-myrule1",
 						Annotations: map[string]string{
-							"kubernetes.io/ingress.class": "nginx",
+							"kubernetes.io/ingress.class": "nginx-private",
 							"cert-manager.io/issuer":      "test-issuer",
 						},
 						OwnerReferences: []metav1.OwnerReference{
