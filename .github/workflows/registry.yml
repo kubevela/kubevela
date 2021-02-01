@@ -86,8 +86,8 @@ jobs:
       - name: Tag helm chart image
         run:  |
           version=${{ steps.get_version.outputs.VERSION }}
+          sed -i "s/latest/$version/g" charts/vela-core/values.yaml
           number=${version#"v"}
-          sed -i "s/latest/$number/g" charts/vela-core/values.yaml
           sed -i "s/0.1.0/$number/g" charts/vela-core/Chart.yaml
       - name: Install ossutil
         run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
