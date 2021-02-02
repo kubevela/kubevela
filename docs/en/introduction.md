@@ -8,7 +8,7 @@ The trend of cloud-native technology is moving towards pursuing consistent appli
 
 On the other hand, abstracting Kubernetes to serve developers' requirements is a highly opinionated process, and the resultant abstractions would only make sense had the decision makers been the platform builders. Unfortunately, the platform builders today face the following dilemma:
 
-*There is no tool or framework for them to easily build user friendly yet highly extensible platforms*. 
+*There is no tool or framework for them to easily build user friendly yet highly extensible abstractions*. 
 
 Thus, many platforms today are essentially restricted abstractions with in-house add-on mechanisms despite the extensibility of Kubernetes. This makes extending such platforms for developers' requirements or to wider scenarios almost impossible, not to mention taking the full advantage of the rich Kubernetes ecosystems.
 
