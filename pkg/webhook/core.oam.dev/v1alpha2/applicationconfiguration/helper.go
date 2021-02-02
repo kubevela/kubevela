@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -21,6 +22,7 @@ const (
 	errFmtUnmarshalWorkload     = "cannot unmarshal workload of component %q"
 	errFmtUnmarshalTrait        = "cannot unmarshal trait of component %q"
 	errFmtGetWorkloadDefinition = "cannot get workload definition of component %q"
+	errFmtCheckTrait            = "failed checking trait of component %q"
 )
 
 // ValidatingAppConfig is used for validating ApplicationConfiguration
@@ -91,23 +93,43 @@ func (v *ValidatingAppConfig) PrepareForValidation(ctx context.Context, c client
 			tmpT := ValidatingTrait{}
 			tmpT.componentTrait = t
 			// get trait content from raw
-			var tContentObject map[string]interface{}
-			if err := json.Unmarshal(t.Trait.Raw, &tContentObject); err != nil {
+			tContent := unstructured.Unstructured{}
+			if err := json.Unmarshal(t.Trait.Raw, &tContent.Object); err != nil {
 				return errors.Wrapf(err, errFmtUnmarshalTrait, tmp.compName)
 			}
-			tContent := unstructured.Unstructured{
-				Object: tContentObject,
+
+			if err := checkTraitObj(&tContent); err != nil {
+				return errors.Wrapf(err, errFmtCheckTrait, tmp.compName)
 			}
+
 			// get trait definition
 			tDef, err := util.FetchTraitDefinition(ctx, c, dm, &tContent)
 			if err != nil {
-				return errors.Wrapf(err, errFmtGetTraitDefinition, tmp.compName)
+				if !k8serrors.IsNotFound(err) {
+					return errors.Wrapf(err, errFmtGetTraitDefinition, tmp.compName)
+				}
+				tDef = util.GetDummyTraitDefinition(&tContent)
 			}
 			tmpT.traitContent = tContent
 			tmpT.traitDefinition = *tDef
 			tmp.validatingTraits = append(tmp.validatingTraits, tmpT)
 		}
 		v.validatingComps = append(v.validatingComps, tmp)
+	}
+	return nil
+}
+
+// checkTraitObj checks trait whether it's muated correctly and has GVK.
+// Further validation on traits should provieded by validators but not here.
+func checkTraitObj(t *unstructured.Unstructured) error {
+	if t.Object[TraitTypeField] != nil {
+		return errors.New("the trait contains 'name' info that should be mutated to GVK")
+	}
+	if t.Object[TraitSpecField] != nil {
+		return errors.New("the trait contains 'properties' info that should be mutated to spec")
+	}
+	if len(t.GetAPIVersion()) == 0 || len(t.GetKind()) == 0 {
+		return errors.New("the trait data missing GVK")
 	}
 	return nil
 }

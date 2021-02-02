@@ -11,7 +11,6 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -72,61 +71,6 @@ func TestValidateRevisionNameFn(t *testing.T) {
 	for _, tc := range tests {
 		result := ValidateRevisionNameFn(ctx, tc.validatingAppConfig)
 		assert.Equal(t, tc.want, result, fmt.Sprintf("Test case: %q", tc.caseName))
-	}
-}
-
-func TestValidateTraitObjectFn(t *testing.T) {
-	traitWithName := unstructured.Unstructured{
-		Object: make(map[string]interface{}),
-	}
-	unstructured.SetNestedField(traitWithName.Object, "test", TraitTypeField)
-
-	traitWithProperties := unstructured.Unstructured{
-		Object: make(map[string]interface{}),
-	}
-	unstructured.SetNestedField(traitWithProperties.Object, "test", TraitSpecField)
-
-	traitWithoutGVK := unstructured.Unstructured{}
-	traitWithoutGVK.SetAPIVersion("")
-	traitWithoutGVK.SetKind("")
-
-	tests := []struct {
-		caseName     string
-		traitContent unstructured.Unstructured
-		want         string
-	}{
-		{
-			caseName:     "the trait contains 'name' info that should be mutated to GVK",
-			traitContent: traitWithName,
-			want:         "the trait contains 'name' info",
-		},
-		{
-			caseName:     "the trait contains 'properties' info that should be mutated to spec",
-			traitContent: traitWithProperties,
-			want:         "the trait contains 'properties' info",
-		},
-		{
-			caseName:     "the trait data missing GVK",
-			traitContent: traitWithoutGVK,
-			want:         "the trait data missing GVK",
-		},
-	}
-
-	for _, tc := range tests {
-		vAppConfig := ValidatingAppConfig{
-			validatingComps: []ValidatingComponent{
-				{
-					validatingTraits: []ValidatingTrait{
-						{
-							traitContent: tc.traitContent,
-						},
-					},
-				},
-			},
-		}
-		allErrs := ValidateTraitObjectFn(ctx, vAppConfig)
-		result := utilerrors.NewAggregate(allErrs).Error()
-		assert.Contains(t, result, tc.want, fmt.Sprintf("Test case: %q", tc.caseName))
 	}
 }
 
