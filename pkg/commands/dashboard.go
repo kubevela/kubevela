@@ -224,8 +224,9 @@ func CheckVelaRuntimeInstalledAndReady(ioStreams cmdutil.IOStreams, c client.Cli
 		ioStreams.Info(fmt.Sprintf("\n%s %s%s or %s",
 			emojiLightBulb,
 			"Please use this command to install: ",
-			white.Sprint("vela install -w"),
-			white.Sprint("vela install --help")))
+			white.Sprint("helm repo add kubevela https://kubevelacharts.oss-cn-hangzhou.aliyuncs.com/core && helm repo update"),
+			white.Sprint("kubectl create namespace vela-system"),
+			white.Sprint("helm install -n vela-system kubevela kubevela/vela-core")))
 		return false, nil
 	}
 	return PrintTrackVelaRuntimeStatus(context.Background(), c, ioStreams, 5*time.Minute)
