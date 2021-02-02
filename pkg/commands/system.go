@@ -283,7 +283,7 @@ func GetOAMReleaseVersion(ns string) (string, error) {
 			return result.Chart.AppVersion(), nil
 		}
 	}
-	return "", errors.New("oam-kubernetes-runtime not found in your kubernetes cluster, try `helm install -n vela-system kubevela kubevela/vela-core` to install")
+	return "", errors.New("kubevela chart not found in your kubernetes cluster,  refer to 'https://kubevela.io/#/en/install' for installation")
 }
 
 // PrintTrackVelaRuntimeStatus prints status of installing vela-core runtime
