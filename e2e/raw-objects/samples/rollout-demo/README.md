@@ -11,7 +11,7 @@ helm install -n flagger rollout charts/flagger/
 ## Install Vela core
 ```shell script
 make
-helm install -n vela-system kubevela charts/vela-core 
+bin/vela install	
 ```
 
 ## Run ApplicationConfiguration V1
