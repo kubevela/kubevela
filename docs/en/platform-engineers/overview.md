@@ -51,7 +51,7 @@ spec:
       bucket: "xxxxx"
 ```
 
-Every `component` and `trait` in above abstraction is defined by platform team via `Definition` objects. For example, [`WorkloadDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#workload-definition) and [`TraitDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#scaler-trait-definition). As the end user, they only need to assemble these modules into an application. Also, if end user has any requirement, the platform team could customize module template in definitions by any time.
+Every `component` and `trait` in above abstraction is defined by platform team via `Definition` objects. For example, [`WorkloadDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#workload-definition) and [`TraitDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#scaler-trait-definition). As the end user, they only need to assemble these modules into an application. Also, if end user has any new requirements, the platform team could customize the module template in definitions by any time.
 
 #### A Unified Abstraction For All
 
