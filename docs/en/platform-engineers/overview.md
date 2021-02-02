@@ -80,7 +80,7 @@ Hence, it's straightforward that you could use KubeVela to create unified abstra
 
 Many of the existing modules today are defined by client side Infrastructure-as-Code (IaC) tools and even Kubernetes tool like Helm sits at client side as well. So in the nutshell, KubeVela encapsulation engine can just be implemented at client side which would be easier to be adopted.
 
-But client side abstractions, though light-weighted, always lead to a issue called infrastructure/configuration drift, i.e. the generated component instances are not in line with the expected configuration. This could be caused by incomplete coverage, less-than-perfect processes or emergency changes.
+But client side abstractions, though light-weighted, always lead to an issue called infrastructure/configuration drift, i.e. the generated component instances are not in line with the expected configuration. This could be caused by incomplete coverage, less-than-perfect processes or emergency changes.
 
 In KubeVela, the encapsulation engine is intended to be implemented in a [Kubernetes Control Loop](https://kubernetes.io/docs/concepts/architecture/controller/). This is the key for KubeVela to eliminate the issue of configuration drifting but still keeps the simplicity and software delivery velocity enabled by IaC (and Helm) modules.
 
