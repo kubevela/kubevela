@@ -98,7 +98,7 @@ jobs:
         run: ./ossutil --config-file .ossutilconfig sync oss://kubevelacharts/core .oss/
       - name: add artifacthub stuff to the repo
         run: |
-          rsync docs/en/install.md ./oss
+          rsync docs/en/install.md charts/vela-core/README.md
           sed -i '' "s/ARTIFACT_HUB_REPOSITORY_ID/$ARTIFACT_HUB_REPOSITORY_ID/g" hack/artifacthub/artifacthub-repo.yml
           rsync hack/artifacthub/artifacthub-repo.yml ./oss
       - name: Package helm charts
