@@ -9,7 +9,7 @@
 * Install Crossplane(later)
 * Download KubeVela release from [release page](https://github.com/oam-dev/kubevela/releases/tag/v0.0.9)
 * Unpack the package and add it to `PATH` by running `sudo mv ./vela /usr/local/bin/vela`
-* Run `vela install`
+* Run `helm install`
 
 ## Lab 1: Use vela to deploy a simple application
 

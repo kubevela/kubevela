@@ -123,6 +123,7 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
 		},
+		Deprecated: "This flag is DEPRECATED and we will remove this command after Kubevela 1.0.Use helm instead",
 	}
 
 	flag := cmd.Flags()
@@ -282,7 +283,7 @@ func GetOAMReleaseVersion(ns string) (string, error) {
 			return result.Chart.AppVersion(), nil
 		}
 	}
-	return "", errors.New("oam-kubernetes-runtime not found in your kubernetes cluster, try `vela install` to install")
+	return "", errors.New("oam-kubernetes-runtime not found in your kubernetes cluster, try `helm install -n vela-system kubevela kubevela/vela-core` to install")
 }
 
 // PrintTrackVelaRuntimeStatus prints status of installing vela-core runtime
