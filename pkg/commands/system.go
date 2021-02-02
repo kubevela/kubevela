@@ -123,7 +123,7 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
 		},
-		Deprecated: "This flag is DEPRECATED and we will remove this command after Kubevela 1.0.Use helm instead",
+		Deprecated: "vela install is DEPRECATED and we will remove it after Kubevela 1.0. Please use helm chart instead",
 	}
 
 	flag := cmd.Flags()
