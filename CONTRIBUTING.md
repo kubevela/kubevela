@@ -74,7 +74,7 @@ make core-run
 This command will run controller locally, it will use your local KubeConfig which means you need to have a k8s cluster
 locally. If you don't have a one, we suggest that you could setup up a cluster with [kind](https://kind.sigs.k8s.io/).
 
-When you're developing `vela-core`, make sure the controller installed by `helm install` is not running.
+When you're developing `vela-core`, make sure the controller installed by helm chart is not running.
 Otherwise, it will conflict with your local running controller.
 
 You can check and uninstall it by using helm.
