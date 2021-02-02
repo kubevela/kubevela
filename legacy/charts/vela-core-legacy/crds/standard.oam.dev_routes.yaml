@@ -37,6 +37,9 @@ spec:
             host:
               description: Host is the host of the route
               type: string
+            ingressClass:
+              description: IngressClass indicate which ingress class the route trait will use, by default it's nginx
+              type: string
             provider:
               description: Provider indicate which ingress controller implementation the route trait will use, by default it's nginx-ingress
               type: string
