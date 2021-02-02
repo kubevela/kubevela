@@ -48,7 +48,7 @@ spec:
             image: "nginx"
     - name: bar
       type: aliyun-oss # component type
-      bucket: "xxxxx"
+      bucket: "my-bucket"
 ```
 
 Every `component` and `trait` in above abstraction is defined by platform team via `Definition` objects. For example, [`WorkloadDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#workload-definition) and [`TraitDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#scaler-trait-definition). As the end user, they only need to assemble these modules into an application. Also, if end user has any new requirements, the platform team could customize the module template in definitions by any time.
