@@ -51,6 +51,7 @@
       - [vela config](/en/cli/vela_config.md)
       - [vela env](/en/cli/vela_env.md)
       - [vela init](/en/cli/vela_init.md)
+      - [vela install](/en/cli/vela_install.md)
       - [vela up](/en/cli/vela_up.md)
       - [vela version](/en/cli/vela_version.md)
     - Applications
