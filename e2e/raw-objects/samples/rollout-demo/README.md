@@ -11,7 +11,7 @@ helm install -n flagger rollout charts/flagger/
 ## Install Vela core
 ```shell script
 make
-bin/vela install	
+bin/vela install
 ```
 
 ## Run ApplicationConfiguration V1
