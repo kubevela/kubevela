@@ -94,7 +94,7 @@ func (i *infoCmd) run(ioStreams cmdutil.IOStreams) error {
 		return fmt.Errorf("fail to get cluster chartPath: %w", err)
 	}
 	ioStreams.Info("Versions:")
-	ioStreams.Infof("oam-kubernetes-runtime: %s \n", clusterVersion)
+	ioStreams.Infof("kubevela: %s \n", clusterVersion)
 	// TODO(wonderflow): we should print all helm charts installed by vela, including plugins
 
 	return nil
