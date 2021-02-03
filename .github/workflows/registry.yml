@@ -68,6 +68,7 @@ jobs:
       HELM_CHARTS_DIR: charts
       HELM_CHART: charts/vela-core
       LEGACY_HELM_CHART: legacy/charts/vela-core-legacy
+      LOCAL_OSS_DIRECTORY: .oss/
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@master
@@ -105,19 +106,17 @@ jobs:
       - name: Configure Alibaba Cloud OSSUTIL
         run: ./ossutil --config-file .ossutilconfig config -i ${ACCESS_KEY} -k ${ACCESS_KEY_SECRET} -e ${ENDPOINT} -c .ossutilconfig
       - name: sync cloud to local
-        run: ./ossutil --config-file .ossutilconfig sync oss://$BUCKET/core .oss/
+        run: ./ossutil --config-file .ossutilconfig sync oss://$BUCKET/core $LOCAL_OSS_DIRECTORY
       - name: add artifacthub stuff to the repo
         run: |
           rsync docs/en/install.md $HELM_CHART/README.md
           rsync docs/en/install.md $LEGACY_HELM_CHART/README.md
           sed -i "s/ARTIFACT_HUB_REPOSITORY_ID/$ARTIFACT_HUB_REPOSITORY_ID/g" hack/artifacthub/artifacthub-repo.yml
-          ls -lat ./oss/
-          cp hack/artifacthub/artifacthub-repo.yml ./oss/
-          ls -lat ./oss/
+          rsync hack/artifacthub/artifacthub-repo.yml $LOCAL_OSS_DIRECTORY
       - name: Package helm charts
         run: |
-          helm package $HELM_CHART --destination .oss/
-          helm package $LEGACY_HELM_CHART --destination .oss/
-          helm repo index --url https://$BUCKET.$ENDPOINT/core .oss/
+          helm package $HELM_CHART --destination $LOCAL_OSS_DIRECTORY
+          helm package $LEGACY_HELM_CHART --destination $LOCAL_OSS_DIRECTORY
+          helm repo index --url https://$BUCKET.$ENDPOINT/core $LOCAL_OSS_DIRECTORY
       - name: sync local to cloud
-        run: ./ossutil --config-file .ossutilconfig sync .oss/ oss://$BUCKET/core -f
+        run: ./ossutil --config-file .ossutilconfig sync $LOCAL_OSS_DIRECTORY oss://$BUCKET/core -f
