@@ -226,6 +226,7 @@ func NewCapCenterRemoveCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 
 func listCapCenters(ioStreams cmdutil.IOStreams) error {
 	table := newUITable()
+	table.MaxColWidth = 80
 	table.AddRow("NAME", "ADDRESS")
 	capabilityCenterList, err := serverlib.ListCapabilityCenters()
 	if err != nil {

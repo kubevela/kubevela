@@ -247,9 +247,9 @@ func (g *GithubCenter) SyncCapabilityFromCenter() error {
 			continue
 		}
 		//nolint:gosec
-		err = ioutil.WriteFile(filepath.Join(repoDir, tmp.CrdName+".yaml"), data, 0644)
+		err = ioutil.WriteFile(filepath.Join(repoDir, tmp.Name+".yaml"), data, 0644)
 		if err != nil {
-			fmt.Printf("write definition %s to %s err %v\n", tmp.CrdName+".yaml", repoDir, err)
+			fmt.Printf("write definition %s to %s err %v\n", tmp.Name+".yaml", repoDir, err)
 			continue
 		}
 		success++
