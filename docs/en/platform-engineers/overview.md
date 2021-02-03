@@ -1,4 +1,4 @@
-# KubeVela for Platform Builders
+# KubeVela Under The Hood
 
 This documentation explains how KubeVela works in perspective of platform team.
 
@@ -51,30 +51,11 @@ spec:
       bucket: "my-bucket"
 ```
 
-Every `component` and `trait` in above abstraction is defined by platform team via `Definition` objects. For example, [`WorkloadDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#workload-definition) and [`TraitDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#scaler-trait-definition). As the end user, they only need to assemble these modules into an application. Also, if end user has any new requirements, the platform team could customize the module template in definitions by any time.
+Every `component` and `trait` in above abstraction is defined by platform team via `Definition` objects. For example, [`WorkloadDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#workload-definition) and [`TraitDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#scaler-trait-definition). As the end user, they only need to assemble these modules into an application. Also, if end user has any new requirements, the platform team could customize the template in definitions by any time.
 
 #### A Unified Abstraction For All
 
-KubeVela intends to support any possible module type by natural, for example `CUE`, `Terraform`, `Helm`, etc and of course by a plain `Kubernetes CRD`. In order to define modules and parameters orgnized, we also introduced a [`catalog` structure](https://github.com/oam-dev/kubevela/blob/master/design/vela-core/APIServer-Catalog.md#catalog-structure). KubeVela will load such catalog via Git repo URL.
-
-```console
-/catalog/ # a catalog consists of multiple packages 
-|-- <package>
-    |-- v1.0 # a package consists of multiple versions
-        |-- metadata.yaml
-        |-- definitions/
-            |-- xxx-workload.yaml
-            |-- xxx-trait.yaml
-        |-- conditions/
-            |-- check-crd.yaml
-        |-- hooks/
-            |-- pre-install.yaml
-        |-- modules.yaml # could be helm, terraform, etc.
-    |-- v2.0
-|-- <package>
-```
-
-Hence, it's straightforward that you could use KubeVela to create unified abstraction that can deploy any kind of resource, including cloud services, as long as they could be encapsulated by a module and placed in the catalog above. Actually, in the `application-sample` above it defined a OSS bucket on Alibaba Cloud for the other component to consume, this is powered by Terraform module.
+KubeVela intends to support any possible module types as possible, for example `CUE`, `Terraform`, `Helm`, etc or just a plain Kubernetes CRD. This enables platform team to create unified abstraction that can model and deploy any kind of resource with ease, including cloud services, as long as they could be encapsulated by a supported module type. In the `application-sample` above, it defines a OSS bucket on Alibaba Cloud as a component which is powered by a Terraform module behind the scenes.
 
 #### No Configuration Drift
 
@@ -95,7 +76,3 @@ The issue above could be even painful if the workload instance is not `Deploymen
 The encapsulation engine in KubeVela is designed to relieve such burden of managing versionized Kubernetes resources manually. In nutshell, all the needed Kubernetes resources for an app are now encapsulated in a single abstraction, and KubeVela will maintain the instance name, revisions, labels and selector by the battle tested reconcile loop automation, not by human hand. At the meantime, the existence of definition objects allow the platform team to customize the details of all above metadata behind the abstraction, even control the behavior of how to do revision.
 
 Thus, all those metadata now become a standard contract that any day 2 operation controller such as Istio or rollout can rely on. This is the key to ensure our platform could provide user friendly experience but keep "transparent" to the operational behaviors.
-
-### Deployment Engine
-
-The deployment engine is one of the operation controllers provided by KubeVela to handle progressive rollout of the application. More contents about it will come later.
