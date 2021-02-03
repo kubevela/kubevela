@@ -74,45 +74,52 @@ func (wd *workloadDef) Params(params interface{}) AbstractEngine {
 func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := bi.AddFile("-", abstractTemplate); err != nil {
-		return err
+		return errors.WithMessagef(err, "invalid cue template of workload %s", wd.name)
 	}
 	if wd.params != nil {
-		bt, _ := json.Marshal(wd.params)
+		bt, err := json.Marshal(wd.params)
+		if err != nil {
+			return errors.WithMessagef(err, "marshal parameter of workload %s", wd.name)
+		}
 		if err := bi.AddFile("parameter", fmt.Sprintf("parameter: %s", string(bt))); err != nil {
-			return err
+			return errors.WithMessagef(err, "invalid parameter of workload %s", wd.name)
 		}
 	}
 
 	if err := bi.AddFile("-", ctx.BaseContextFile()); err != nil {
 		return err
 	}
-	insts := cue.Build([]*build.Instance{bi})
-	for _, inst := range insts {
+	instances := cue.Build([]*build.Instance{bi})
+	for _, inst := range instances {
 		if err := inst.Value().Err(); err != nil {
-			return errors.WithMessagef(err, "workloadDef %s eval", wd.name)
+			return errors.WithMessagef(err, "invalid cue template of workload %s after merge parameter and context", wd.name)
 		}
 		output := inst.Lookup(OutputFieldName)
 		base, err := model.NewBase(output)
 		if err != nil {
-			return errors.WithMessagef(err, "workloadDef %s new base", wd.name)
+			return errors.WithMessagef(err, "invalid output of workload %s", wd.name)
 		}
 		ctx.SetBase(base)
 
 		// we will support outputs for workload composition, and it will become trait in AppConfig.
 		outputs := inst.Lookup(OutputsFieldName)
+		if !outputs.Exists() {
+			continue
+		}
 		st, err := outputs.Struct()
-		if err == nil {
-			for i := 0; i < st.Len(); i++ {
-				fieldInfo := st.Field(i)
-				if fieldInfo.IsDefinition || fieldInfo.IsHidden || fieldInfo.IsOptional {
-					continue
-				}
-				other, err := model.NewOther(fieldInfo.Value)
-				if err != nil {
-					return errors.WithMessagef(err, "parse WorkloadDefinition %s outputs(%s)", wd.name, fieldInfo.Name)
-				}
-				ctx.PutAuxiliaries(process.Auxiliary{Ins: other, Type: AuxiliaryWorkload, Name: fieldInfo.Name, IsOutputs: true})
+		if err != nil {
+			return errors.WithMessagef(err, "invalid outputs of workload %s", wd.name)
+		}
+		for i := 0; i < st.Len(); i++ {
+			fieldInfo := st.Field(i)
+			if fieldInfo.IsDefinition || fieldInfo.IsHidden || fieldInfo.IsOptional {
+				continue
 			}
+			other, err := model.NewOther(fieldInfo.Value)
+			if err != nil {
+				return errors.WithMessagef(err, "invalid outputs(%s) of workload %s", fieldInfo.Name, wd.name)
+			}
+			ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: AuxiliaryWorkload, Name: fieldInfo.Name, IsOutputs: true})
 		}
 	}
 	return nil
@@ -145,7 +152,7 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 		return nil, err
 	}
 	root[OutputFieldName] = object
-
+	outputs := make(map[string]interface{})
 	for _, assist := range assists {
 		if assist.Type != AuxiliaryWorkload {
 			continue
@@ -164,9 +171,10 @@ func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader
 		if err != nil {
 			return nil, err
 		}
-		root[OutputsFieldName] = map[string]interface{}{
-			assist.Name: object,
-		}
+		outputs[assist.Name] = object
+	}
+	if len(outputs) > 0 {
+		root[OutputsFieldName] = outputs
 	}
 	return root, nil
 }
@@ -223,9 +231,13 @@ func getStatusMessage(templateContext map[string]interface{}, customStatusTempla
 	var r cue.Runtime
 	inst, err := r.Compile("-", buff)
 	if err != nil {
-		return "", err
+		return "", errors.WithMessage(err, "compile customStatus template")
 	}
-	return inst.Lookup(CustomMessage).String()
+	message, err := inst.Lookup(CustomMessage).String()
+	if err != nil {
+		return "", errors.WithMessage(err, "evaluate customStatus.message")
+	}
+	return message, nil
 }
 
 type traitDef struct {
@@ -251,30 +263,31 @@ func (td *traitDef) Params(params interface{}) AbstractEngine {
 func (td *traitDef) Complete(ctx process.Context, abstractTemplate string) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := bi.AddFile("-", abstractTemplate); err != nil {
-		return err
+		return errors.WithMessagef(err, "invalid template of trait %s", td.name)
 	}
 	if td.params != nil {
-		bt, _ := json.Marshal(td.params)
+		bt, err := json.Marshal(td.params)
+		if err != nil {
+			return errors.WithMessagef(err, "marshal parameter of trait %s", td.name)
+		}
 		if err := bi.AddFile("parameter", fmt.Sprintf("parameter: %s", string(bt))); err != nil {
-			return err
+			return errors.WithMessagef(err, "invalid parameter of trait %s", td.name)
 		}
 	}
 
-	if err := bi.AddFile("f", ctx.BaseContextFile()); err != nil {
-		return err
+	if err := bi.AddFile("context", ctx.BaseContextFile()); err != nil {
+		return errors.WithMessagef(err, "invalid context of trait %s", td.name)
 	}
-	insts := cue.Build([]*build.Instance{bi})
-	for _, inst := range insts {
-
+	instances := cue.Build([]*build.Instance{bi})
+	for _, inst := range instances {
 		if err := inst.Value().Err(); err != nil {
-			return errors.WithMessagef(err, "traitDef %s build", td.name)
+			return errors.WithMessagef(err, "invalid template of trait %s after merge with parameter and context", td.name)
 		}
-
 		processing := inst.Lookup("processing")
 		var err error
 		if processing.Exists() {
 			if inst, err = task.Process(inst); err != nil {
-				return errors.WithMessagef(err, "traitDef %s build", td.name)
+				return errors.WithMessagef(err, "invalid process of trait %s", td.name)
 			}
 		}
 
@@ -282,14 +295,16 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string) error
 		if output.Exists() {
 			other, err := model.NewOther(output)
 			if err != nil {
-				return errors.WithMessagef(err, "traitDef %s new Assist", td.name)
+				return errors.WithMessagef(err, "invalid output of trait %s", td.name)
 			}
-			ctx.PutAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, IsOutputs: false})
+			ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, IsOutputs: false})
 		}
-
 		outputs := inst.Lookup(OutputsFieldName)
-		st, err := outputs.Struct()
-		if err == nil {
+		if outputs.Exists() {
+			st, err := outputs.Struct()
+			if err != nil {
+				return errors.WithMessagef(err, "invalid outputs of trait %s", td.name)
+			}
 			for i := 0; i < st.Len(); i++ {
 				fieldInfo := st.Field(i)
 				if fieldInfo.IsDefinition || fieldInfo.IsHidden || fieldInfo.IsOptional {
@@ -297,9 +312,9 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string) error
 				}
 				other, err := model.NewOther(fieldInfo.Value)
 				if err != nil {
-					return errors.WithMessagef(err, "traitDef %s new Assists(%s)", td.name, fieldInfo.Name)
+					return errors.WithMessagef(err, "invalid outputs(resource=%s) of trait %s", fieldInfo.Name, td.name)
 				}
-				ctx.PutAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, Name: fieldInfo.Name, IsOutputs: true})
+				ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, Name: fieldInfo.Name, IsOutputs: true})
 			}
 		}
 
@@ -308,10 +323,10 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string) error
 			base, _ := ctx.Output()
 			p, err := model.NewOther(patcher)
 			if err != nil {
-				return errors.WithMessagef(err, "traitDef %s patcher NewOther", td.name)
+				return errors.WithMessagef(err, "invalid patch of trait %s", td.name)
 			}
 			if err := base.Unify(p); err != nil {
-				return err
+				return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
 			}
 		}
 	}
@@ -331,6 +346,7 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, n
 		}
 	}
 	_, assists := ctx.Output()
+	outputs := make(map[string]interface{})
 	for _, assist := range assists {
 		if assist.Type != td.name {
 			continue
@@ -339,7 +355,6 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, n
 		if err != nil {
 			return nil, err
 		}
-
 		object, err := getResourceFromObj(traitRef, cli, ns, util.MergeMapOverrideWithDst(map[string]string{
 			oam.TraitTypeLabel: assist.Type,
 		}, commonLabels), assist.Name)
@@ -347,12 +362,13 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, n
 			return nil, err
 		}
 		if assist.IsOutputs {
-			root[OutputsFieldName] = map[string]interface{}{
-				assist.Name: object,
-			}
+			outputs[assist.Name] = object
 		} else {
 			root[OutputFieldName] = object
 		}
+	}
+	if len(outputs) > 0 {
+		root[OutputsFieldName] = outputs
 	}
 	return root, nil
 }

@@ -63,7 +63,7 @@ func (wl *Workload) EvalContext(ctx process.Context) error {
 
 // EvalStatus eval workload status
 func (wl *Workload) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
-	return definition.NewTraitAbstractEngine(wl.Name).Status(ctx, cli, ns, wl.CustomStatusFormat)
+	return definition.NewWorkloadAbstractEngine(wl.Name).Status(ctx, cli, ns, wl.CustomStatusFormat)
 }
 
 // EvalHealth eval workload health check

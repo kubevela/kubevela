@@ -79,7 +79,8 @@ func (ret *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.App
 	var healthy = true
 	for _, wl := range appfile.Workloads {
 		var status = v1alpha2.ApplicationComponentStatus{
-			Name: wl.Name,
+			Name:    wl.Name,
+			Healthy: true,
 		}
 		pCtx := process.NewContext(wl.Name, appfile.Name)
 		if err := wl.EvalContext(pCtx); err != nil {
@@ -107,7 +108,8 @@ func (ret *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.App
 		var traitStatusList []v1alpha2.ApplicationTraitStatus
 		for _, trait := range wl.Traits {
 			var traitStatus = v1alpha2.ApplicationTraitStatus{
-				Type: trait.Name,
+				Type:    trait.Name,
+				Healthy: true,
 			}
 			traitHealth, err := trait.EvalHealth(pCtx, ret.c, ret.app.Namespace)
 			if err != nil {

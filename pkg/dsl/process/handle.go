@@ -12,7 +12,7 @@ import (
 // Context defines Rendering Context Interface
 type Context interface {
 	SetBase(base model.Instance)
-	PutAuxiliaries(insts ...Auxiliary)
+	AppendAuxiliaries(auxiliaries ...Auxiliary)
 	SetConfigs(configs []map[string]string)
 	Output() (model.Instance, []Auxiliary)
 	BaseContextFile() string
@@ -68,8 +68,8 @@ func (ctx *templateContext) SetBase(base model.Instance) {
 	ctx.base = base
 }
 
-// PutAuxiliaries add Assist model to templateContext
-func (ctx *templateContext) PutAuxiliaries(auxiliaries ...Auxiliary) {
+// AppendAuxiliaries add Assist model to templateContext
+func (ctx *templateContext) AppendAuxiliaries(auxiliaries ...Auxiliary) {
 	ctx.auxiliaries = append(ctx.auxiliaries, auxiliaries...)
 }
 

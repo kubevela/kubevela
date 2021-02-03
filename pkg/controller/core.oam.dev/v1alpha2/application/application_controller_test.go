@@ -822,6 +822,108 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
+
+	It("app with health policy and custom status for workload", func() {
+		By("change workload and trait definition with health policy")
+		nwd, owd := &v1alpha2.WorkloadDefinition{}, &v1alpha2.WorkloadDefinition{}
+		wDDefJson, _ := yaml.YAMLToJSON([]byte(wDDefWithHealthYaml))
+		Expect(json.Unmarshal(wDDefJson, nwd)).Should(BeNil())
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "worker"}, owd)).Should(BeNil())
+		nwd.ResourceVersion = owd.ResourceVersion
+		Expect(k8sClient.Update(ctx, nwd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		ntd, otd := &v1alpha2.TraitDefinition{}, &v1alpha2.TraitDefinition{}
+		tDDefJson, _ := yaml.YAMLToJSON([]byte(tDDefWithHealthYaml))
+		Expect(json.Unmarshal(tDDefJson, ntd)).Should(BeNil())
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "scaler"}, otd)).Should(BeNil())
+		ntd.ResourceVersion = otd.ResourceVersion
+		Expect(k8sClient.Update(ctx, ntd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		compName := "myweb-health"
+		expDeployment := getExpDeployment(compName, appWithTrait.Name)
+
+		By("create the new namespace")
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-with-health",
+			},
+		}
+		appWithTrait.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+
+		app := appWithTrait.DeepCopy()
+		app.Spec.Components[0].Name = compName
+		expDeployment.Name = app.Name
+		expDeployment.Namespace = ns.Name
+		expDeployment.Labels[oam.LabelAppName] = app.Name
+		expDeployment.Labels[oam.LabelAppComponent] = compName
+		expDeployment.Labels["app.oam.dev/resourceType"] = "WORKLOAD"
+		Expect(k8sClient.Create(ctx, expDeployment)).Should(BeNil())
+		expTrait := expectScalerTrait(compName, app.Name)
+		expTrait.SetName(app.Name)
+		expTrait.SetNamespace(app.Namespace)
+		expTrait.SetLabels(map[string]string{
+			oam.LabelAppName:        app.Name,
+			"trait.oam.dev/type":    "scaler",
+			"app.oam.dev/component": "myweb-health",
+		})
+		(expTrait.Object["spec"].(map[string]interface{}))["workloadRef"] = map[string]interface{}{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"name":       app.Name,
+		}
+		Expect(k8sClient.Create(ctx, &expTrait)).Should(BeNil())
+
+		By("enrich the status of deployment and scaler trait")
+		expDeployment.Status.Replicas = 1
+		expDeployment.Status.ReadyReplicas = 1
+		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
+		got := &v1.Deployment{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      app.Name,
+		}, got)).Should(BeNil())
+		expTrait.Object["status"] = v1alpha1.ConditionedStatus{
+			Conditions: []v1alpha1.Condition{{
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: metav1.Now(),
+			}},
+		}
+		Expect(k8sClient.Status().Update(ctx, &expTrait)).Should(BeNil())
+		tGot := &unstructured.Unstructured{}
+		tGot.SetAPIVersion("core.oam.dev/v1alpha2")
+		tGot.SetKind("ManualScalerTrait")
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      app.Name,
+		}, tGot)).Should(BeNil())
+
+		By("apply appfile")
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+
+		By("Check App running successfully")
+
+		Eventually(func() string {
+			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: appKey})
+			if err != nil {
+				return err.Error()
+			}
+			checkApp := &v1alpha2.Application{}
+			err = k8sClient.Get(ctx, appKey, checkApp)
+			if err != nil {
+				return err.Error()
+			}
+			if checkApp.Status.Phase != v1alpha2.ApplicationRunning {
+				fmt.Println(checkApp.Status.Conditions)
+			}
+			return string(checkApp.Status.Phase)
+		}(), 5*time.Second, time.Second).Should(BeEquivalentTo(v1alpha2.ApplicationRunning))
+
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+	})
 })
 
 func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {

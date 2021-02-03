@@ -111,7 +111,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	app.Status.SetConditions(readyCondition("Built"))
 	applog.Info("apply applicationconfig & component to the cluster")
-	// apply applicationconfig & component to the cluster
+	// apply appConfig & component to the cluster
 	if err := handler.apply(ctx, ac, comps); err != nil {
 		handler.l.Error(err, "[Handle apply]")
 		app.Status.SetConditions(errorCondition("Applied", err))
@@ -135,7 +135,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		// unhealthy will check again after 10s
 		return ctrl.Result{RequeueAfter: time.Second * 10}, r.Status().Update(ctx, app)
 	}
-
+	app.Status.Services = appCompStatus
 	app.Status.SetConditions(readyCondition("HealthCheck"))
 	app.Status.Phase = v1alpha2.ApplicationRunning
 	// Gather status of components
