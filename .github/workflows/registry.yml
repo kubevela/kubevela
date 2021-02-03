@@ -88,17 +88,18 @@ jobs:
         uses: azure/setup-helm@v1
         with:
           version: v3.4.0
-      - name: Tag helm chart image
-        run:  |
-          version=${{ steps.get_version.outputs.VERSION }}
-          sed -i "s/latest/$version/g" $HELM_CHART/values.yaml
-          number=${version#"v"}
-          sed -i "s/0.1.0/$number/g" $HELM_CHART/Chart.yaml
-          sed -i "s/0.1.0/$number/g" $LEGACY_HELM_CHART/Chart.yaml
       - name: Prepare legacy chart
         run: |
           rsync -r $LEGACY_HELM_CHART $HELM_CHARTS_DIR
           rsync -r $HELM_CHART/* $LEGACY_HELM_CHART --exclude=Chart.yaml --exclude=crds
+      - name: Tag helm chart image
+        run:  |
+          version=${{ steps.get_version.outputs.VERSION }}
+          sed -i "s/latest/$version/g" $HELM_CHART/values.yaml
+          sed -i "s/latest/$version/g" $LEGACY_HELM_CHART/values.yaml
+          number=${version#"v"}
+          sed -i "s/0.1.0/$number/g" $HELM_CHART/Chart.yaml
+          sed -i "s/0.1.0/$number/g" $LEGACY_HELM_CHART/Chart.yaml
       - name: Install ossutil
         run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
       - name: Configure Alibaba Cloud OSSUTIL
