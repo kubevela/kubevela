@@ -98,12 +98,6 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			}
 
 			parser := appfile.NewApplicationParser(newClient, dm, pd)
-			//parser := appfile.NewApplicationParser(newClient, dm)
-			//
-			//velaEnv, err := GetEnv(context.Background(), newClient, cmd.Flag("env").Value.String())
-			//if err != nil {
-			//	return err
-			//}
 
 			ctx := oamutil.SetNamespaceInCtx(context.Background(), velaEnv.Namespace)
 
