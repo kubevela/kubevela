@@ -72,14 +72,6 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@master
-      - name: Get the version
-        id: get_version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          if [[ ${GITHUB_REF} == "refs/heads/master" ]]; then
-            VERSION=latest
-          fi
-          echo ::set-output name=VERSION::${VERSION}
       - name: Get git revision
         id: vars
         shell: bash
@@ -93,14 +85,24 @@ jobs:
         run: |
           rsync -r $LEGACY_HELM_CHART $HELM_CHARTS_DIR
           rsync -r $HELM_CHART/* $LEGACY_HELM_CHART --exclude=Chart.yaml --exclude=crds
+      - uses: oprypin/find-latest-tag@v1
+        with:
+          repository: oam-dev/kubevela
+          releases-only: true
+        id: latest_tag
       - name: Tag helm chart image
         run:  |
-          version=${{ steps.get_version.outputs.VERSION }}
-          sed -i "s/latest/$version/g" $HELM_CHART/values.yaml
-          sed -i "s/latest/$version/g" $LEGACY_HELM_CHART/values.yaml
-          number=${version#"v"}
-          sed -i "s/0.1.0/$number/g" $HELM_CHART/Chart.yaml
-          sed -i "s/0.1.0/$number/g" $LEGACY_HELM_CHART/Chart.yaml
+          latest_tag=${{ steps.latest_tag.outputs.tag }}
+          tag=${GITHUB_REF#refs/tags/}
+          chart_version=${tag#"v"}
+          if [[ ${GITHUB_REF} == "refs/heads/master" ]]; then
+            tag=latest
+            chart_version=${latest_tag#"v"}-latest
+          fi
+          sed -i "s/latest/${tag}/g" $HELM_CHART/values.yaml
+          sed -i "s/latest/$tag/g" $LEGACY_HELM_CHART/values.yaml
+          sed -i "s/0.1.0/$chart_version/g" $HELM_CHART/Chart.yaml
+          sed -i "s/0.1.0/$chart_version/g" $LEGACY_HELM_CHART/Chart.yaml
       - name: Install ossutil
         run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
       - name: Configure Alibaba Cloud OSSUTIL
