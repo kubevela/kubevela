@@ -23,16 +23,16 @@ $ helm install -n vela-system vela-core-legacy kubevela/vela-core-legacy
 
 If you'd like to install an older version of the legacy chart, use `helm search` to choose a proper chart version.
 ```
-$ helm search repo vela-core-legacy --devel -l
+$ helm search repo vela-core-legacy -l
   NAME                     	CHART VERSION	APP VERSION	DESCRIPTION
   kubevela/vela-core-legacy	0.2          	0.2        	A Helm chart for legacy KubeVela core Controlle...
   kubevela/vela-core-legacy	0.0.1        	0.1        	A Helm chart for legacy KubeVela core Controlle...
 
-$ helm install -n vela-system kubevela-legacy kubevela/vela-core-legacy --version 0.0.1 --devel
+$ helm install -n vela-system kubevela-legacy kubevela/vela-core-legacy --version 0.0.1
 ```
 
 Install the legacy chart as below if you want a nightly version.
 
 ```
-$ helm install -n vela-system vela-core-legacy kubevela/vela-core-legacy --set image.tag=master --devel
+$ helm install -n vela-system vela-core-legacy kubevela/vela-core-legacy --set image.tag=master
 ```
