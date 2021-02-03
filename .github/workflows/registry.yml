@@ -111,7 +111,9 @@ jobs:
           rsync docs/en/install.md $HELM_CHART/README.md
           rsync docs/en/install.md $LEGACY_HELM_CHART/README.md
           sed -i "s/ARTIFACT_HUB_REPOSITORY_ID/$ARTIFACT_HUB_REPOSITORY_ID/g" hack/artifacthub/artifacthub-repo.yml
-          rsync hack/artifacthub/artifacthub-repo.yml ./oss
+          ls -lat ./oss/
+          cp hack/artifacthub/artifacthub-repo.yml ./oss/
+          ls -lat ./oss/
       - name: Package helm charts
         run: |
           helm package $HELM_CHART --destination .oss/
