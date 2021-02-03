@@ -323,7 +323,7 @@ In our future roadmap, we will build a catalog controller for each k8s cluster. 
 
 ### Package parameters
 
-We can parse the schema of parameters from Helm Chart or Terraform. For example, Helm supports [value schema file](https://www.arthurkoziel.com/validate-helm-chart-values-with-json-schemas/) for input validation and there is an [automation tool](https://github.com/karuppiah7890/helm-schema-gen] to generate the schema.
+We can parse the schema of parameters from Helm Chart or Terraform. For example, Helm supports [value schema file](https://www.arthurkoziel.com/validate-helm-chart-values-with-json-schemas/) for input validation and there is an [automation tool](https://github.com/karuppiah7890/helm-schema-gen) to generate the schema.
 
 ### Package dependency
 
