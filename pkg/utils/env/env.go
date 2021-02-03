@@ -18,13 +18,12 @@ package env
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/types"
+
+	"github.com/pkg/errors"
 	acmev1 "github.com/wonderflow/cert-manager-api/pkg/apis/acme/v1"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	v1 "github.com/wonderflow/cert-manager-api/pkg/apis/meta/v1"
@@ -34,43 +33,35 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
-// ProductionACMEServer is the production ACME Server from let's encrypt
-const ProductionACMEServer = "https://acme-v02.api.letsencrypt.org/directory"
+const (
+	// CurrentEnvLabel is the current using environment
+	CurrentEnvLabel = "env.core.oam.dev/is-default"
 
-// GetEnvDirByName will get env dir from name
-func GetEnvDirByName(name string) string {
-	envdir, _ := system.GetEnvDir()
-	return filepath.Join(envdir, name)
-}
+	// ProductionACMEServer is the production ACME Server from let's encrypt
+	ProductionACMEServer = "https://acme-v02.api.letsencrypt.org/directory"
+)
 
 // GetEnvByName will get env info by name
-func GetEnvByName(name string) (*types.EnvMeta, error) {
-	data, err := ioutil.ReadFile(filepath.Join(GetEnvDirByName(name), system.EnvConfigName))
+func GetEnvByName(ctx context.Context, c client.Client, name string) (*types.EnvMeta, error) {
+	var env v1alpha2.Environment
+	err := c.Get(ctx, client.ObjectKey{Name: name}, &env)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if apierrors.IsNotFound(err) {
 			return nil, fmt.Errorf("env %s not exist", name)
 		}
 		return nil, err
 	}
-	var meta types.EnvMeta
-	if err = json.Unmarshal(data, &meta); err != nil {
-		return nil, err
-	}
-	return &meta, nil
+	return convertEnvironmenttoEnvMeta(env), nil
 }
 
 // CreateOrUpdateEnv will create or update env.
 // If it does not exist, create it and set to the new env.
 // If it exists, update it and set to the new env.
-func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, envArgs *types.EnvMeta) (string, error) {
-
+func CreateOrUpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvMeta) (string, error) {
 	createOrUpdated := "created"
-	old, err := GetEnvByName(envName)
+	old, err := GetEnvByName(ctx, c, envArgs.Name)
 	if err == nil {
 		createOrUpdated = "updated"
 		if envArgs.Domain == "" {
@@ -84,6 +75,9 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 		}
 		if envArgs.Namespace == "" {
 			envArgs.Namespace = old.Namespace
+		}
+		if envArgs.Current == "" {
+			envArgs.Current = old.Current
 		}
 	}
 
@@ -129,181 +123,184 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 		}
 		envArgs.Issuer = issuerName
 	}
-
-	data, err := json.Marshal(envArgs)
-	if err != nil {
-		return message, err
-	}
-	envdir, err := system.GetEnvDir()
-	if err != nil {
-		return message, err
-	}
-	subEnvDir := filepath.Join(envdir, envName)
-	if _, err = system.CreateIfNotExist(subEnvDir); err != nil {
-		return message, err
-	}
-	// nolint:gosec
-	if err = ioutil.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
-		return message, err
-	}
-	curEnvPath, err := system.GetCurrentEnvPath()
-	if err != nil {
-		return message, err
-	}
-	// nolint:gosec
-	if err = ioutil.WriteFile(curEnvPath, []byte(envName), 0644); err != nil {
-		return message, err
+	if createOrUpdated == "created" {
+		if _, err = CreateEnv(ctx, c, envArgs); err != nil {
+			return message, err
+		}
+	} else {
+		if _, err = UpdateEnv(ctx, c, envArgs); err != nil {
+			return message, err
+		}
 	}
 
-	message = fmt.Sprintf("environment %s %s, Namespace: %s", envName, createOrUpdated, envArgs.Namespace)
+	message = fmt.Sprintf("environment %s %s, Namespace: %s", envArgs.Name, createOrUpdated, envArgs.Namespace)
 	if envArgs.Email != "" {
 		message += fmt.Sprintf(", Email: %s", envArgs.Email)
+	}
+	if _, err := SetEnv(ctx, c, envArgs.Name); err != nil {
+		return message, err
 	}
 	return message, nil
 }
 
 // CreateEnv will only create. If env already exists, return error
-func CreateEnv(ctx context.Context, c client.Client, envName string, envArgs *types.EnvMeta) (string, error) {
-	_, err := GetEnvByName(envName)
-	if err == nil {
-		message := fmt.Sprintf("Env %s already exist", envName)
-		return message, errors.New(message)
+func CreateEnv(ctx context.Context, c client.Client, envArgs *types.EnvMeta) (string, error) {
+	err := c.Create(ctx, convertEnvMetatoEnvironment(*envArgs))
+	if err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			message := fmt.Sprintf("Env %s already exist", envArgs.Name)
+			return message, err
+		}
+		return err.Error(), err
 	}
-	return CreateOrUpdateEnv(ctx, c, envName, envArgs)
+	return fmt.Sprintf("environment %s created, Namespace: %s", envArgs.Name, envArgs.Namespace), nil
 }
 
 // UpdateEnv will update Env, if env does not exist, return error
-func UpdateEnv(ctx context.Context, c client.Client, envName string, namespace string) (string, error) {
-	var message = ""
-	envMeta, err := GetEnvByName(envName)
-	if err != nil {
+func UpdateEnv(ctx context.Context, c client.Client, envArgs *types.EnvMeta) (string, error) {
+	if err := c.Patch(ctx, convertEnvMetatoEnvironment(*envArgs), client.Merge); err != nil {
 		return err.Error(), err
 	}
-	if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envMeta.Namespace}}); err != nil && !apierrors.IsAlreadyExists(err) {
-		return message, err
-	}
-	envMeta.Namespace = namespace
-	data, err := json.Marshal(envMeta)
-	if err != nil {
-		return message, err
-	}
-	envdir, err := system.GetEnvDir()
-	if err != nil {
-		return message, err
-	}
-	subEnvDir := filepath.Join(envdir, envName)
-	// nolint:gosec
-	if err = ioutil.WriteFile(filepath.Join(subEnvDir, system.EnvConfigName), data, 0644); err != nil {
-		return message, err
-	}
-	message = "Update env succeed"
-	return message, err
+	return "Update env succeed", nil
 }
 
 // ListEnvs will list all envs
-func ListEnvs(envName string) ([]*types.EnvMeta, error) {
+func ListEnvs(ctx context.Context, c client.Client, envName string) ([]*types.EnvMeta, error) {
 	var envList []*types.EnvMeta
 	if envName != "" {
-		env, err := GetEnvByName(envName)
+		env, err := GetEnvByName(ctx, c, envName)
 		if err != nil {
-			if os.IsNotExist(err) {
-				err = fmt.Errorf("env %s not exist", envName)
-			}
 			return envList, err
 		}
 		envList = append(envList, env)
 		return envList, err
 	}
-	envDir, err := system.GetEnvDir()
+	var environmentList v1alpha2.EnvironmentList
+	err := c.List(context.Background(), &environmentList)
 	if err != nil {
-		return envList, err
+		return nil, err
 	}
-	files, err := ioutil.ReadDir(envDir)
-	if err != nil {
-		return envList, err
-	}
-	curEnv, err := GetCurrentEnvName()
-	if err != nil {
-		curEnv = types.DefaultEnvName
-	}
-	for _, f := range files {
-		if !f.IsDir() {
-			continue
-		}
-		data, err := ioutil.ReadFile(filepath.Clean(filepath.Join(envDir, f.Name(), system.EnvConfigName)))
-		if err != nil {
-			continue
-		}
-		var envMeta types.EnvMeta
-		if err = json.Unmarshal(data, &envMeta); err != nil {
-			continue
-		}
-		if curEnv == f.Name() {
-			envMeta.Current = "*"
-		}
-		envList = append(envList, &envMeta)
+	for _, item := range environmentList.Items {
+		envList = append(envList, convertEnvironmenttoEnvMeta(item))
 	}
 	return envList, nil
 }
 
-// GetCurrentEnvName will get current env name
-func GetCurrentEnvName() (string, error) {
-	currentEnvPath, err := system.GetCurrentEnvPath()
+// GetCurrentEnv will get current env name
+func GetCurrentEnv(ctx context.Context, c client.Client) (*types.EnvMeta, error) {
+	currentEnv, err := getCurrentEnv(ctx, c)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	data, err := ioutil.ReadFile(filepath.Clean(currentEnvPath))
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
+	return convertEnvironmenttoEnvMeta(*currentEnv), nil
 }
 
 // DeleteEnv will delete env locally
-func DeleteEnv(envName string) (string, error) {
+func DeleteEnv(ctx context.Context, c client.Client, envName string) (string, error) {
 	var message string
-	var err error
-	curEnv, err := GetCurrentEnvName()
+	curEnv, err := GetCurrentEnv(ctx, c)
 	if err != nil {
 		return message, err
 	}
-	if envName == curEnv {
-		err = fmt.Errorf("you can't delete current using environment %s", curEnv)
+	if envName == curEnv.Name {
+		err = fmt.Errorf("you can't delete current using environment %s", curEnv.Name)
 		return message, err
 	}
-	envdir, err := system.GetEnvDir()
+	err = c.Delete(ctx, &v1alpha2.Environment{ObjectMeta: metav1.ObjectMeta{
+		Name: envName,
+	}})
 	if err != nil {
 		return message, err
 	}
-	envPath := filepath.Join(envdir, envName)
-	if _, err := os.Stat(envPath); err != nil {
-		if os.IsNotExist(err) {
-			err = fmt.Errorf("%s does not exist", envName)
-			return message, err
-		}
-	}
-	if err = os.RemoveAll(envPath); err != nil {
-		return message, err
-	}
-	message = envName + " deleted"
-	return message, err
+	return fmt.Sprintf("environment %s deleted", envName), nil
 }
 
 // SetEnv will set the current env to the specified one
-func SetEnv(envName string) (string, error) {
+func SetEnv(ctx context.Context, c client.Client, envName string) (string, error) {
 	var msg string
-	currentEnvPath, err := system.GetCurrentEnvPath()
+	var env v1alpha2.Environment
+	if err := c.Get(ctx, client.ObjectKey{Name: envName}, &env); err != nil {
+		return msg, err
+	}
+
+	currentEnv, err := getCurrentEnv(ctx, c)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return msg, err
+	}
+	if currentEnv != nil && currentEnv.Name != envName {
+		labels := currentEnv.GetLabels()
+		delete(labels, CurrentEnvLabel)
+		currentEnv.SetLabels(labels)
+		err := c.Update(ctx, currentEnv)
+		if err != nil {
+			return msg, err
+		}
+	}
+	labels := env.GetLabels()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[CurrentEnvLabel] = "true"
+	env.SetLabels(labels)
+	err = c.Update(ctx, &env)
 	if err != nil {
 		return msg, err
 	}
-	envMeta, err := GetEnvByName(envName)
-	if err != nil {
-		return msg, err
-	}
-	//nolint:gosec
-	if err = ioutil.WriteFile(currentEnvPath, []byte(envName), 0644); err != nil {
-		return msg, err
-	}
-	msg = fmt.Sprintf("Set environment succeed, current environment is " + envName + ", namespace is " + envMeta.Namespace)
+
+	msg = fmt.Sprintf("Set environment succeed, current environment is " + envName + ", namespace is " + env.Spec.Namespace)
 	return msg, nil
+}
+
+// InitDefaultEnv create env if not exits
+func InitDefaultEnv(ctx context.Context, c client.Client) error {
+	if _, err := getCurrentEnv(ctx, c); err == nil {
+		return nil
+	}
+	_, err := CreateOrUpdateEnv(ctx, c, &types.EnvMeta{
+		Name:      types.DefaultEnvName,
+		Namespace: types.DefaultAppNamespace,
+		Current:   "*",
+	})
+	return err
+}
+
+func convertEnvironmenttoEnvMeta(env v1alpha2.Environment) *types.EnvMeta {
+	meta := types.EnvMeta{
+		Name:      env.Name,
+		Namespace: env.Spec.Namespace,
+		Email:     env.Spec.Email,
+		Domain:    env.Spec.Domain,
+		Issuer:    env.Spec.Issuer,
+	}
+	if _, ok := env.ObjectMeta.Labels[CurrentEnvLabel]; ok {
+		meta.Current = "*"
+	}
+	return &meta
+}
+
+func convertEnvMetatoEnvironment(meta types.EnvMeta) *v1alpha2.Environment {
+	labels := make(map[string]string)
+	if meta.Current == "*" {
+		labels[CurrentEnvLabel] = "true"
+	}
+	env := v1alpha2.Environment{
+		ObjectMeta: metav1.ObjectMeta{Name: meta.Name, Labels: labels},
+		Spec: v1alpha2.EnvironmentSpec{
+			Namespace:      meta.Namespace,
+			Email:          meta.Email,
+			Domain:         meta.Domain,
+			Issuer:         meta.Issuer,
+			CapabilityList: []string{},
+		},
+	}
+	return &env
+}
+
+func getCurrentEnv(ctx context.Context, c client.Client) (*v1alpha2.Environment, error) {
+	var envList v1alpha2.EnvironmentList
+	_ = c.List(ctx, &envList, client.MatchingLabels{CurrentEnvLabel: "true"})
+	if len(envList.Items) == 0 {
+		return nil, errors.New("current env not set")
+	}
+	return &envList.Items[0], nil
 }

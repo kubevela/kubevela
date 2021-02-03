@@ -53,11 +53,15 @@ func NewLogsCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 		return nil
 	}
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		newClient, err := c.GetClient()
+		if err != nil {
+			return err
+		}
 		if len(args) < 1 {
 			ioStreams.Errorf("please specify app name")
 			return nil
 		}
-		env, err := GetEnv(cmd)
+		env, err := GetEnv(context.Background(), newClient, cmd.Flag("env").Value.String())
 		if err != nil {
 			return err
 		}

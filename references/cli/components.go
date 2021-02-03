@@ -17,6 +17,7 @@ limitations under the License.
 package cli
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -41,7 +42,11 @@ func NewComponentsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, err := GetEnv(cmd)
+			newClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			env, err := GetEnv(context.Background(), newClient, cmd.Flag("env").Value.String())
 			if err != nil {
 				return err
 			}

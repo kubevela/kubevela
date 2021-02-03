@@ -17,12 +17,8 @@ limitations under the License.
 package system
 
 import (
-	"encoding/json"
-	"io/ioutil"
 	"os"
 	"path/filepath"
-
-	"github.com/oam-dev/kubevela/apis/types"
 )
 
 const defaultVelaHome = ".vela"
@@ -82,22 +78,13 @@ func GetCapabilityDir() (string, error) {
 	return filepath.Join(home, "capabilities"), nil
 }
 
-// GetEnvDir return KubeVela environments dir
-func GetEnvDir() (string, error) {
+// GetEnvDirByName will get env dir from name
+func GetEnvDirByName(name string) string {
 	homedir, err := GetVelaHomeDir()
 	if err != nil {
-		return "", err
+		return ""
 	}
-	return filepath.Join(homedir, "envs"), nil
-}
-
-// GetCurrentEnvPath return current env config
-func GetCurrentEnvPath() (string, error) {
-	homedir, err := GetVelaHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(homedir, "curenv"), nil
+	return filepath.Join(homedir, "envs", name)
 }
 
 // InitDirs create dir if not exits
@@ -106,9 +93,6 @@ func InitDirs() error {
 		return err
 	}
 	if err := InitCapCenterDir(); err != nil {
-		return err
-	}
-	if err := InitDefaultEnv(); err != nil {
 		return err
 	}
 	return nil
@@ -132,39 +116,6 @@ func InitCapabilityDir() error {
 	}
 	_, err = CreateIfNotExist(dir)
 	return err
-}
-
-// EnvConfigName defines config
-const EnvConfigName = "config.json"
-
-// InitDefaultEnv create dir if not exits
-func InitDefaultEnv() error {
-	envDir, err := GetEnvDir()
-	if err != nil {
-		return err
-	}
-	defaultEnvDir := filepath.Join(envDir, types.DefaultEnvName)
-	exist, err := CreateIfNotExist(defaultEnvDir)
-	if err != nil {
-		return err
-	}
-	if exist {
-		return nil
-	}
-	data, _ := json.Marshal(&types.EnvMeta{Namespace: types.DefaultAppNamespace, Name: types.DefaultEnvName})
-	//nolint:gosec
-	if err = ioutil.WriteFile(filepath.Join(defaultEnvDir, EnvConfigName), data, 0644); err != nil {
-		return err
-	}
-	curEnvPath, err := GetCurrentEnvPath()
-	if err != nil {
-		return err
-	}
-	//nolint:gosec
-	if err = ioutil.WriteFile(curEnvPath, []byte(types.DefaultEnvName), 0644); err != nil {
-		return err
-	}
-	return nil
 }
 
 // CreateIfNotExist create dir if not exist

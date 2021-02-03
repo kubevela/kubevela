@@ -95,6 +95,11 @@ func NewPortForwardCommand(c common.Args, ioStreams util.IOStreams) *cobra.Comma
 				return err
 			}
 			o.Client = newClient
+			env, err := GetEnv(context.Background(), newClient, cmd.Flag("env").Value.String())
+			if err != nil {
+				return err
+			}
+			o.Env = env
 			if err := o.Init(context.Background(), cmd, args); err != nil {
 				return err
 			}
@@ -124,13 +129,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	o.Cmd = cmd
 	o.Args = argsIn
 
-	env, err := GetEnv(o.Cmd)
-	if err != nil {
-		return err
-	}
-	o.Env = env
-
-	app, err := appfile.LoadApplication(env.Namespace, o.Args[0], o.VelaC)
+	app, err := appfile.LoadApplication(o.Env.Namespace, o.Args[0], o.VelaC)
 	if err != nil {
 		return err
 	}

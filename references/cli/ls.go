@@ -44,11 +44,11 @@ func NewListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			env, err := GetEnv(cmd)
+			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
-			newClient, err := c.GetClient()
+			env, err := GetEnv(context.Background(), newClient, cmd.Flag("env").Value.String())
 			if err != nil {
 				return err
 			}

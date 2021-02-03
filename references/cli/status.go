@@ -100,19 +100,19 @@ func NewAppStatusCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			newClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
 			argsLength := len(args)
 			if argsLength == 0 {
 				ioStreams.Errorf("Hint: please specify an application")
 				os.Exit(1)
 			}
 			appName := args[0]
-			env, err := GetEnv(cmd)
+			env, err := GetEnv(context.Background(), newClient, cmd.Flag("env").Value.String())
 			if err != nil {
 				ioStreams.Errorf("Error: failed to get Env: %s", err)
-				return err
-			}
-			newClient, err := c.GetClient()
-			if err != nil {
 				return err
 			}
 			return printAppStatus(ctx, newClient, ioStreams, appName, env, cmd, c)

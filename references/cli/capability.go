@@ -17,6 +17,7 @@ limitations under the License.
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -154,7 +155,7 @@ func NewCapUninstallCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.
 				}
 				name = l[1]
 			}
-			env, err := GetEnv(cmd)
+			env, err := GetEnv(context.Background(), newClient, cmd.Flag("env").Value.String())
 			if err != nil {
 				return err
 			}
@@ -194,12 +195,19 @@ func NewCapListCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 		Short:   "List capabilities from cap-center",
 		Long:    "List capabilities from cap-center",
 		Example: `vela cap ls`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var repoName string
 			if len(args) > 0 {
 				repoName = args[0]
 			}
-			env, err := GetEnv(cmd)
+			newClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			env, err := GetEnv(context.Background(), newClient, cmd.Flag("env").Value.String())
 			if err != nil {
 				return err
 			}

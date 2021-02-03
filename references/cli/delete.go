@@ -17,6 +17,7 @@ limitations under the License.
 package cli
 
 import (
+	"context"
 	"errors"
 
 	"github.com/spf13/cobra"
@@ -54,7 +55,7 @@ func NewDeleteCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comman
 			C: c,
 		}
 		o.Client = newClient
-		o.Env, err = GetEnv(cmd)
+		o.Env, err = GetEnv(context.Background(), newClient, cmd.Flag("env").Value.String())
 		if err != nil {
 			return err
 		}

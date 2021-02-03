@@ -36,7 +36,7 @@ func (s *APIServer) UpdateApps(c *gin.Context) {
 // GetApp requests an application by the namespaced name in the gin.Context
 func (s *APIServer) GetApp(c *gin.Context) {
 	envName := c.Param("envName")
-	envMeta, err := env.GetEnvByName(envName)
+	envMeta, err := env.GetEnvByName(util.GetContext(c), s.KubeClient, envName)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
@@ -62,7 +62,7 @@ func (s *APIServer) GetApp(c *gin.Context) {
 // @Router /envs/{envName}/apps [get]
 func (s *APIServer) ListApps(c *gin.Context) {
 	envName := c.Param("envName")
-	envMeta, err := env.GetEnvByName(envName)
+	envMeta, err := env.GetEnvByName(util.GetContext(c), s.KubeClient, envName)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
@@ -81,7 +81,7 @@ func (s *APIServer) ListApps(c *gin.Context) {
 // DeleteApps deletes an application by the namespaced name in the gin.Context
 func (s *APIServer) DeleteApps(c *gin.Context) {
 	envName := c.Param("envName")
-	envMeta, err := env.GetEnvByName(envName)
+	envMeta, err := env.GetEnvByName(util.GetContext(c), s.KubeClient, envName)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
@@ -112,7 +112,7 @@ func (s *APIServer) CreateApplication(c *gin.Context) {
 		util.HandleError(c, util.InvalidArgument, "the application creation request body is invalid")
 		return
 	}
-	env, err := env.GetEnvByName(c.Param("envName"))
+	env, err := env.GetEnvByName(util.GetContext(c), s.KubeClient, c.Param("envName"))
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return

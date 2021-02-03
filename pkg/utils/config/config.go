@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/utils/env"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
 // ReadConfigLine will read config from line
@@ -45,7 +45,7 @@ func ReadConfigLine(line string) (string, string, error) {
 
 // GetConfigsDir will get config from dir
 func GetConfigsDir(envName string) (string, error) {
-	cfgDir := filepath.Join(env.GetEnvDirByName(envName), "configs")
+	cfgDir := filepath.Join(system.GetEnvDirByName(envName), "configs")
 	err := os.MkdirAll(cfgDir, 0700)
 	return cfgDir, err
 }

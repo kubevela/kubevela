@@ -141,6 +141,14 @@ var (
 	ApplicationRevisionGroupVersionKind = SchemeGroupVersion.WithKind(ApplicationRevisionKind)
 )
 
+// Environment type metadata.
+var (
+	EnvironmentKind            = reflect.TypeOf(Environment{}).Name()
+	EnvironmentGroupKind       = schema.GroupKind{Group: Group, Kind: EnvironmentKind}.String()
+	EnvironmentKindAPIVersion  = EnvironmentKind + "." + SchemeGroupVersion.String()
+	EnvironmentKindVersionKind = SchemeGroupVersion.WithKind(EnvironmentKind)
+)
+
 func init() {
 	SchemeBuilder.Register(&ComponentDefinition{}, &ComponentDefinitionList{})
 	SchemeBuilder.Register(&WorkloadDefinition{}, &WorkloadDefinitionList{})
@@ -155,4 +163,5 @@ func init() {
 	SchemeBuilder.Register(&AppRollout{}, &AppRolloutList{})
 	SchemeBuilder.Register(&ApplicationRevision{}, &ApplicationRevisionList{})
 	SchemeBuilder.Register(&ApplicationContext{}, &ApplicationContextList{})
+	SchemeBuilder.Register(&Environment{}, &EnvironmentList{})
 }

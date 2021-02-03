@@ -29,6 +29,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	cmdexec "k8s.io/kubectl/pkg/cmd/exec"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -89,6 +90,10 @@ func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			newClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
 			if len(args) < 1 {
 				ioStreams.Error("Please specify an application name.")
 				return nil
@@ -103,7 +108,7 @@ func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 				return nil
 			}
 
-			if err := o.Init(context.Background(), cmd, args); err != nil {
+			if err := o.Init(context.Background(), newClient, cmd, args); err != nil {
 				return err
 			}
 			if err := o.Complete(); err != nil {
@@ -128,12 +133,12 @@ func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 }
 
 // Init prepares the arguments accepted by the Exec command
-func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []string) error {
+func (o *VelaExecOptions) Init(ctx context.Context, newClient client.Client, c *cobra.Command, argsIn []string) error {
 	o.Context = ctx
 	o.Cmd = c
 	o.Args = argsIn
 
-	env, err := GetEnv(o.Cmd)
+	env, err := GetEnv(ctx, newClient, c.Flag("env").Value.String())
 	if err != nil {
 		return err
 	}

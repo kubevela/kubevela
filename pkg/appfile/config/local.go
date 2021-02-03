@@ -19,9 +19,14 @@ package config
 import (
 	"bufio"
 	"bytes"
+	"context"
 
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/config"
 	env2 "github.com/oam-dev/kubevela/pkg/utils/env"
+
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	config2 "sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
 // TypeLocal defines the local config store type
@@ -52,7 +57,15 @@ func (l *Local) GetConfigData(configName, envName string) ([]map[string]string, 
 
 // Namespace return namespace from env
 func (l *Local) Namespace(envName string) (string, error) {
-	env, err := env2.GetEnvByName(envName)
+	conf, err := config2.GetConfig()
+	if err != nil {
+		return "", err
+	}
+	cli, err := client.New(conf, client.Options{Scheme: common.Scheme})
+	if err != nil {
+		return "", err
+	}
+	env, err := env2.GetEnvByName(context.Background(), cli, envName)
 	if err != nil {
 		return "", err
 	}

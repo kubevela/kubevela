@@ -19,14 +19,17 @@ package cli
 import (
 	"bufio"
 	"bytes"
+	"context"
 	b64 "encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/config"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -36,7 +39,7 @@ import (
 // The format is the same as k8s Secret.Data field with value base64 encoded.
 
 // NewConfigCommand will create command for config management for AppFile
-func NewConfigCommand(io cmdutil.IOStreams) *cobra.Command {
+func NewConfigCommand(c common.Args, io cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "config",
 		DisableFlagsInUseLine: true,
@@ -48,16 +51,16 @@ func NewConfigCommand(io cmdutil.IOStreams) *cobra.Command {
 	}
 	cmd.SetOut(io.Out)
 	cmd.AddCommand(
-		NewConfigListCommand(io),
-		NewConfigGetCommand(io),
-		NewConfigSetCommand(io),
-		NewConfigDeleteCommand(io),
+		NewConfigListCommand(c, io),
+		NewConfigGetCommand(c, io),
+		NewConfigSetCommand(c, io),
+		NewConfigDeleteCommand(c, io),
 	)
 	return cmd
 }
 
 // NewConfigListCommand list all created configs
-func NewConfigListCommand(io cmdutil.IOStreams) *cobra.Command {
+func NewConfigListCommand(c common.Args, io cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "ls",
 		Aliases:               []string{"list"},
@@ -65,8 +68,15 @@ func NewConfigListCommand(io cmdutil.IOStreams) *cobra.Command {
 		Short:                 "List configs",
 		Long:                  "List all configs",
 		Example:               `vela config ls`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return ListConfigs(io, cmd)
+			newClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			return ListConfigs(context.Background(), newClient, cmd.Flag("env").Value.String(), io)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -76,8 +86,8 @@ func NewConfigListCommand(io cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func getConfigDir(cmd *cobra.Command) (string, error) {
-	e, err := GetEnv(cmd)
+func getConfigDir(ctx context.Context, c client.Client, envName string) (string, error) {
+	e, err := GetEnv(ctx, c, envName)
 	if err != nil {
 		return "", err
 	}
@@ -85,8 +95,8 @@ func getConfigDir(cmd *cobra.Command) (string, error) {
 }
 
 // ListConfigs will list all configs
-func ListConfigs(ioStreams cmdutil.IOStreams, cmd *cobra.Command) error {
-	d, err := getConfigDir(cmd)
+func ListConfigs(ctx context.Context, c client.Client, envName string, ioStreams cmdutil.IOStreams) error {
+	d, err := getConfigDir(ctx, c, envName)
 	if err != nil {
 		return err
 	}
@@ -118,7 +128,7 @@ func listConfigs(dir string) ([]string, error) {
 }
 
 // NewConfigGetCommand get config from local
-func NewConfigGetCommand(io cmdutil.IOStreams) *cobra.Command {
+func NewConfigGetCommand(c common.Args, io cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "get",
 		Aliases:               []string{"get"},
@@ -126,8 +136,15 @@ func NewConfigGetCommand(io cmdutil.IOStreams) *cobra.Command {
 		Short:                 "Get data for a config",
 		Long:                  "Get data for a config",
 		Example:               `vela config get <config-name>`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return getConfig(args, io, cmd)
+			newClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			return getConfig(context.Background(), newClient, cmd.Flag("env").Value.String(), args, io)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -137,8 +154,8 @@ func NewConfigGetCommand(io cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func getConfig(args []string, io cmdutil.IOStreams, cmd *cobra.Command) error {
-	e, err := GetEnv(cmd)
+func getConfig(ctx context.Context, c client.Client, envName string, args []string, io cmdutil.IOStreams) error {
+	e, err := GetEnv(ctx, c, envName)
 	if err != nil {
 		return err
 	}
@@ -163,7 +180,7 @@ func getConfig(args []string, io cmdutil.IOStreams, cmd *cobra.Command) error {
 }
 
 // NewConfigSetCommand set a config data in local
-func NewConfigSetCommand(io cmdutil.IOStreams) *cobra.Command {
+func NewConfigSetCommand(c common.Args, io cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "set",
 		Aliases:               []string{"set"},
@@ -171,8 +188,15 @@ func NewConfigSetCommand(io cmdutil.IOStreams) *cobra.Command {
 		Short:                 "Set data for a config",
 		Long:                  "Set data for a config",
 		Example:               `vela config set <config-name> KEY=VALUE K2=V2`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return setConfig(args, io, cmd)
+			newClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			return getConfig(context.Background(), newClient, cmd.Flag("env").Value.String(), args, io)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -182,12 +206,11 @@ func NewConfigSetCommand(io cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func setConfig(args []string, io cmdutil.IOStreams, cmd *cobra.Command) error {
-	e, err := GetEnv(cmd)
+func setConfig(ctx context.Context, c client.Client, envName string, args []string, io cmdutil.IOStreams) error {
+	e, err := GetEnv(ctx, c, envName)
 	if err != nil {
 		return err
 	}
-	envName := e.Name
 
 	if len(args) < 1 {
 		return fmt.Errorf("must specify config name, vela config set <name> KEY=VALUE")
@@ -208,7 +231,7 @@ func setConfig(args []string, io cmdutil.IOStreams, cmd *cobra.Command) error {
 		input[k] = v
 	}
 
-	cfgData, err := config.ReadConfig(envName, configName)
+	cfgData, err := config.ReadConfig(e.Name, configName)
 	if err != nil {
 		return err
 	}
@@ -228,7 +251,7 @@ func setConfig(args []string, io cmdutil.IOStreams, cmd *cobra.Command) error {
 		vEnc := b64.StdEncoding.EncodeToString([]byte(v))
 		out.WriteString(fmt.Sprintf("%s: %s\n", k, vEnc))
 	}
-	err = config.WriteConfig(envName, configName, out.Bytes())
+	err = config.WriteConfig(e.Name, configName, out.Bytes())
 	if err != nil {
 		return err
 	}
@@ -237,7 +260,7 @@ func setConfig(args []string, io cmdutil.IOStreams, cmd *cobra.Command) error {
 }
 
 // NewConfigDeleteCommand delete a config from local
-func NewConfigDeleteCommand(io cmdutil.IOStreams) *cobra.Command {
+func NewConfigDeleteCommand(c common.Args, io cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "del",
 		Aliases:               []string{"del"},
@@ -245,8 +268,15 @@ func NewConfigDeleteCommand(io cmdutil.IOStreams) *cobra.Command {
 		Short:                 "Delete config",
 		Long:                  "Delete config",
 		Example:               `vela config del <config-name>`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return c.SetConfig()
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return deleteConfig(args, io, cmd)
+			newClient, err := c.GetClient()
+			if err != nil {
+				return err
+			}
+			return deleteConfig(context.Background(), newClient, cmd.Flag("env").Value.String(), args, io)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -256,8 +286,8 @@ func NewConfigDeleteCommand(io cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func deleteConfig(args []string, io cmdutil.IOStreams, cmd *cobra.Command) error {
-	e, err := GetEnv(cmd)
+func deleteConfig(ctx context.Context, c client.Client, envName string, args []string, io cmdutil.IOStreams) error {
+	e, err := GetEnv(ctx, c, envName)
 	if err != nil {
 		return err
 	}
