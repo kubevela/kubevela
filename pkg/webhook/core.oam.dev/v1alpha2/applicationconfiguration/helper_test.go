@@ -6,10 +6,54 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 )
+
+func TestCheckTraitObj(t *testing.T) {
+	traitWithName := unstructured.Unstructured{
+		Object: make(map[string]interface{}),
+	}
+	unstructured.SetNestedField(traitWithName.Object, "test", TraitTypeField)
+
+	traitWithProperties := unstructured.Unstructured{
+		Object: make(map[string]interface{}),
+	}
+	unstructured.SetNestedField(traitWithProperties.Object, "test", TraitSpecField)
+
+	traitWithoutGVK := unstructured.Unstructured{}
+	traitWithoutGVK.SetAPIVersion("")
+	traitWithoutGVK.SetKind("")
+
+	tests := []struct {
+		caseName     string
+		traitContent unstructured.Unstructured
+		want         string
+	}{
+		{
+			caseName:     "the trait contains 'name' info that should be mutated to GVK",
+			traitContent: traitWithName,
+			want:         "the trait contains 'name' info",
+		},
+		{
+			caseName:     "the trait contains 'properties' info that should be mutated to spec",
+			traitContent: traitWithProperties,
+			want:         "the trait contains 'properties' info",
+		},
+		{
+			caseName:     "the trait data missing GVK",
+			traitContent: traitWithoutGVK,
+			want:         "the trait data missing GVK",
+		},
+	}
+
+	for _, tc := range tests {
+		result := checkTraitObj(&tc.traitContent)
+		assert.Contains(t, result.Error(), tc.want, fmt.Sprintf("Test case: %q", tc.caseName))
+	}
+}
 
 func TestCheckParams(t *testing.T) {
 	wlNameValue := "wlName"
