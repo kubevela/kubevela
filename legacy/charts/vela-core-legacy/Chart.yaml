@@ -1,6 +1,6 @@
-apiVersion: v2
-name: vela-core
-description: A Helm chart for KubeVela core
+apiVersion: v1
+name: vela-core-legacy
+description: A Helm chart for legacy KubeVela Core Controller, targeted on Kubernetes v1.14 and v1.15
 
 # A chart can be either an 'application' or a 'library' chart.
 #

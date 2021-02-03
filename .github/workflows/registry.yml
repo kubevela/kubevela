@@ -64,6 +64,10 @@ jobs:
             docker.io/oamdev/vela-core:${{ steps.get_version.outputs.VERSION }}
 
   publish-charts:
+    env:
+      HELM_CHARTS_DIR: charts
+      HELM_CHART: charts/vela-core
+      LEGACY_HELM_CHART: legacy/charts/vela-core-legacy
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@master
@@ -84,26 +88,34 @@ jobs:
         uses: azure/setup-helm@v1
         with:
           version: v3.4.0
+      - name: Prepare legacy chart
+        run: |
+          rsync -r $LEGACY_HELM_CHART $HELM_CHARTS_DIR
+          rsync -r $HELM_CHART/* $LEGACY_HELM_CHART --exclude=Chart.yaml --exclude=crds
       - name: Tag helm chart image
         run:  |
           version=${{ steps.get_version.outputs.VERSION }}
-          sed -i "s/latest/$version/g" charts/vela-core/values.yaml
+          sed -i "s/latest/$version/g" $HELM_CHART/values.yaml
+          sed -i "s/latest/$version/g" $LEGACY_HELM_CHART/values.yaml
           number=${version#"v"}
-          sed -i "s/0.1.0/$number/g" charts/vela-core/Chart.yaml
+          sed -i "s/0.1.0/$number/g" $HELM_CHART/Chart.yaml
+          sed -i "s/0.1.0/$number/g" $LEGACY_HELM_CHART/Chart.yaml
       - name: Install ossutil
         run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
       - name: Configure Alibaba Cloud OSSUTIL
         run: ./ossutil --config-file .ossutilconfig config -i ${ACCESS_KEY} -k ${ACCESS_KEY_SECRET} -e ${ENDPOINT} -c .ossutilconfig
       - name: sync cloud to local
-        run: ./ossutil --config-file .ossutilconfig sync oss://kubevelacharts/core .oss/
+        run: ./ossutil --config-file .ossutilconfig sync oss://$BUCKET/core .oss/
       - name: add artifacthub stuff to the repo
         run: |
-          rsync docs/en/install.md charts/vela-core/README.md
-          sed -i '' "s/ARTIFACT_HUB_REPOSITORY_ID/$ARTIFACT_HUB_REPOSITORY_ID/g" hack/artifacthub/artifacthub-repo.yml
+          rsync docs/en/install.md $HELM_CHART/README.md
+          rsync docs/en/install.md $LEGACY_HELM_CHART/README.md
+          sed -i "s/ARTIFACT_HUB_REPOSITORY_ID/$ARTIFACT_HUB_REPOSITORY_ID/g" hack/artifacthub/artifacthub-repo.yml
           rsync hack/artifacthub/artifacthub-repo.yml ./oss
       - name: Package helm charts
         run: |
-          helm package charts/vela-core --destination .oss/
-          helm repo index --url https://kubevelacharts.oss-cn-hangzhou.aliyuncs.com/core .oss/
+          helm package $HELM_CHART --destination .oss/
+          helm package $LEGACY_HELM_CHART --destination .oss/
+          helm repo index --url https://$BUCKET.$ENDPOINT/core .oss/
       - name: sync local to cloud
-        run: ./ossutil --config-file .ossutilconfig sync .oss/ oss://kubevelacharts/core -f
+        run: ./ossutil --config-file .ossutilconfig sync .oss/ oss://$BUCKET/core -f
