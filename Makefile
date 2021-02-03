@@ -125,7 +125,7 @@ docker-push:
 	docker push ${IMG}
 
 e2e-setup:
-	bin/vela install --set installCertManager=true --image-pull-policy IfNotPresent --image-repo vela-core-test --image-tag $(GIT_COMMIT)
+	bin/vela install --set certmanager.enabled=true --image-pull-policy IfNotPresent --image-repo vela-core-test --image-tag $(GIT_COMMIT)
 	ginkgo version
 	ginkgo -v -r e2e/setup
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s

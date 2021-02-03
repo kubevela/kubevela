@@ -3,7 +3,6 @@
 # Declare variables to be passed into your templates.
 
 replicaCount: 1
-installCertManager: false
 useWebhook: true
 # By default, don't disable any builtin capabilities
 disableCaps: ""
@@ -82,3 +81,8 @@ certificate:
   secretName: webhook-server-cert
   mountPath: /etc/k8s-webhook-certs
   caBundle: replace-me
+
+# enabled if cert-manager is not already installed in the cluster
+certmanager:
+  enabled: false
+  installCRDs: true
