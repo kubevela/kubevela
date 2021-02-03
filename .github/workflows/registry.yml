@@ -71,6 +71,11 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@master
+      - uses: oprypin/find-latest-tag@v1
+          with:
+            repository: oam-dev/kubevela
+            releases-only: true
+          id: latest_tag
       - name: Get the version
         id: get_version
         run: |
@@ -78,7 +83,7 @@ jobs:
           if [[ ${GITHUB_REF} == "refs/heads/master" ]]; then
             VERSION=latest
           fi
-          echo ::set-output name=VERSION::${VERSION}
+          echo ::set-output name=VERSION::${{ steps.latest_tag.outputs.tag }}-${VERSION}
       - name: Get git revision
         id: vars
         shell: bash
