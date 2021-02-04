@@ -337,6 +337,37 @@ func TestGetStatus(t *testing.T) {
 			statusTemp: `message: "type: " + context.outputs.service.spec.type + " clusterIP:" + context.outputs.service.spec.clusterIP + " ports:" + "\(context.outputs.service.spec.ports[0].port)" + " domain:" + context.outputs.ingress.rules[0].host`,
 			expMessage: "type: NodePort clusterIP:10.0.0.1 ports:80 domain:example.com",
 		},
+		"complex status": {
+			tpContext: map[string]interface{}{
+				"outputs": map[string]interface{}{
+					"ingress": map[string]interface{}{
+						"spec": map[string]interface{}{
+							"rules": []interface{}{
+								map[string]interface{}{
+									"host": "example.com",
+								},
+							},
+						},
+						"status": map[string]interface{}{
+							"loadBalancer": map[string]interface{}{
+								"ingress": []interface{}{
+									map[string]interface{}{
+										"ip": "10.0.0.1",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			statusTemp: `if len(context.outputs.ingress.status.loadBalancer.ingress) > 0 {
+	message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + context.outputs.ingress.status.loadBalancer.ingress[0].ip
+}
+if len(context.outputs.ingress.status.loadBalancer.ingress) == 0 {
+	message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + " --route'\n"
+}`,
+			expMessage: "Visiting URL: example.com, IP: 10.0.0.1",
+		},
 	}
 	for message, ca := range cases {
 		gotMessage, err := getStatusMessage(ca.tpContext, ca.statusTemp)

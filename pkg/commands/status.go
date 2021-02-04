@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
 	"github.com/fatih/color"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -19,6 +17,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // HealthStatus represents health status strings.
@@ -274,7 +273,7 @@ func TrackDeployStatus(ctx context.Context, c client.Client, compName, appName s
 
 // trackHealthCheckingStatus will check health status from health scope
 func trackHealthCheckingStatus(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (CompStatus, HealthStatus, string, error) {
-	app, err := loadRemoteApplication(c, appName, env.Namespace)
+	app, err := loadRemoteApplication(c, env.Namespace, appName)
 	if err != nil {
 		return compStatusUnknown, HealthStatusNotDiagnosed, "", err
 	}

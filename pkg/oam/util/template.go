@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -47,7 +48,7 @@ func LoadTemplate(cli client.Reader, key string, kd types.CapType) (*Template, e
 		if wd.Annotations["type"] == string(types.TerraformCategory) {
 			capabilityCategory = types.TerraformCategory
 		}
-		tmpl, err := getTemplate(wd.Spec.Extension.Raw)
+		tmpl, err := NewTemplate(wd.Spec.Extension, wd.Spec.Status)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
@@ -66,7 +67,7 @@ func LoadTemplate(cli client.Reader, key string, kd types.CapType) (*Template, e
 		if td.Annotations["type"] == string(types.TerraformCategory) {
 			capabilityCategory = types.TerraformCategory
 		}
-		tmpl, err := getTemplate(td.Spec.Extension.Raw)
+		tmpl, err := NewTemplate(td.Spec.Extension, td.Spec.Status)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
@@ -82,24 +83,18 @@ func LoadTemplate(cli client.Reader, key string, kd types.CapType) (*Template, e
 	return nil, fmt.Errorf("kind(%s) of %s not supported", kd, key)
 }
 
-func getTemplate(raw []byte) (*Template, error) {
-	_tmp := map[string]interface{}{}
-	if err := json.Unmarshal(raw, &_tmp); err != nil {
+// NewTemplate will create CUE template for inner AbstractEngine using.
+func NewTemplate(raw *runtime.RawExtension, status *v1alpha2.Status) (*Template, error) {
+	extension := map[string]interface{}{}
+	if err := json.Unmarshal(raw.Raw, &extension); err != nil {
 		return nil, err
 	}
-	var (
-		health string
-		status string
-	)
-	if _, ok := _tmp["healthPolicy"]; ok {
-		health = fmt.Sprint(_tmp["healthPolicy"])
+	tmp := &Template{
+		TemplateStr: fmt.Sprint(extension["template"]),
 	}
-	if _, ok := _tmp["customStatus"]; ok {
-		status = fmt.Sprint(_tmp["customStatus"])
+	if status != nil {
+		tmp.CustomStatus = status.CustomStatus
+		tmp.Health = status.HealthPolicy
 	}
-	return &Template{
-		TemplateStr:  fmt.Sprint(_tmp["template"]),
-		Health:       health,
-		CustomStatus: status,
-	}, nil
+	return tmp, nil
 }

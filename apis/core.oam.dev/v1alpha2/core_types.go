@@ -64,10 +64,24 @@ type WorkloadDefinitionSpec struct {
 	// +optional
 	PodSpecPath string `json:"podSpecPath,omitempty"`
 
+	// Status defines the custom health policy and status message for workload
+	// +optional
+	Status *Status `json:"status,omitempty"`
+
 	// Extension is used for extension needs by OAM platform builders
 	// +optional
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Extension *runtime.RawExtension `json:"extension,omitempty"`
+}
+
+// Status defines the loop back status of the abstraction by using CUE template
+type Status struct {
+	// CustomStatus defines the custom status message that could display to user
+	// +optional
+	CustomStatus string `json:"customStatus,omitempty"`
+	// HealthPolicy defines the health check policy for the abstraction
+	// +optional
+	HealthPolicy string `json:"healthPolicy,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -125,6 +139,10 @@ type TraitDefinitionSpec struct {
 	// labelSelector format: https://pkg.go.dev/k8s.io/apimachinery/pkg/labels#Parse
 	// +optional
 	ConflictsWith []string `json:"conflictsWith,omitempty"`
+
+	// Status defines the custom health policy and status message for trait
+	// +optional
+	Status *Status `json:"status,omitempty"`
 
 	// Extension is used for extension needs by OAM platform builders
 	// +optional

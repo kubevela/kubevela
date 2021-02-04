@@ -6,6 +6,16 @@ metadata:
     Please use route trait in cap center for advanced usage."
   name: ingress
 spec:
+  status:
+    customStatus: |-
+      if len(context.outputs.ingress.status.loadBalancer.ingress) > 0 {
+      	message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + context.outputs.ingress.status.loadBalancer.ingress[0].ip
+      }
+      if len(context.outputs.ingress.status.loadBalancer.ingress) == 0 {
+      	message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + " --route'\n"
+      }
+    healthPolicy: |
+      isHealth: len(context.outputs.service.spec.clusterIP) > 0
   appliesToWorkloads:
     - webservice
     - worker

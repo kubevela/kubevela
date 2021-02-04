@@ -825,54 +825,110 @@ var _ = Describe("Test Application Controller", func() {
 
 	It("app with health policy and custom status for workload", func() {
 		By("change workload and trait definition with health policy")
-		nwd, owd := &v1alpha2.WorkloadDefinition{}, &v1alpha2.WorkloadDefinition{}
-		wDDefJson, _ := yaml.YAMLToJSON([]byte(wDDefWithHealthYaml))
+		nwd := &v1alpha2.WorkloadDefinition{}
+		wDDefJson, _ := yaml.YAMLToJSON([]byte(wdDefWithHealthStatusYaml))
 		Expect(json.Unmarshal(wDDefJson, nwd)).Should(BeNil())
-		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "worker"}, owd)).Should(BeNil())
-		nwd.ResourceVersion = owd.ResourceVersion
-		Expect(k8sClient.Update(ctx, nwd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		ntd, otd := &v1alpha2.TraitDefinition{}, &v1alpha2.TraitDefinition{}
-		tDDefJson, _ := yaml.YAMLToJSON([]byte(tDDefWithHealthYaml))
+		Expect(k8sClient.Create(ctx, nwd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		ntd := &v1alpha2.TraitDefinition{}
+		tDDefJson, _ := yaml.YAMLToJSON([]byte(tDDefWithHealthStatusYaml))
 		Expect(json.Unmarshal(tDDefJson, ntd)).Should(BeNil())
-		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "scaler"}, otd)).Should(BeNil())
-		ntd.ResourceVersion = otd.ResourceVersion
-		Expect(k8sClient.Update(ctx, ntd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		compName := "myweb-health"
-		expDeployment := getExpDeployment(compName, appWithTrait.Name)
+		Expect(k8sClient.Create(ctx, ntd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		compName := "myweb-health-status"
+		appWithTraitHealthStatus := appWithTrait.DeepCopy()
+		appWithTraitHealthStatus.Name = "app-trait-health-status"
+		expDeployment := getExpDeployment(compName, appWithTraitHealthStatus.Name)
 
 		By("create the new namespace")
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "vela-test-with-health",
+				Name: "vela-test-with-health-status",
 			},
 		}
-		appWithTrait.SetNamespace(ns.Name)
+		appWithTraitHealthStatus.SetNamespace(ns.Name)
 		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
 
-		app := appWithTrait.DeepCopy()
+		app := appWithTraitHealthStatus.DeepCopy()
 		app.Spec.Components[0].Name = compName
+		app.Spec.Components[0].WorkloadType = "nworker"
+		app.Spec.Components[0].Settings = runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox3","lives":"3","enemies":"alain"}`)}
+		app.Spec.Components[0].Traits[0].Name = "ingress"
+		app.Spec.Components[0].Traits[0].Properties = runtime.RawExtension{Raw: []byte(`{"domain":"example.com","http":{"/":80}}`)}
+
 		expDeployment.Name = app.Name
 		expDeployment.Namespace = ns.Name
 		expDeployment.Labels[oam.LabelAppName] = app.Name
 		expDeployment.Labels[oam.LabelAppComponent] = compName
 		expDeployment.Labels["app.oam.dev/resourceType"] = "WORKLOAD"
 		Expect(k8sClient.Create(ctx, expDeployment)).Should(BeNil())
-		expTrait := expectScalerTrait(compName, app.Name)
-		expTrait.SetName(app.Name)
+
+		expWorkloadTrait := unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata": map[string]interface{}{
+				"labels": map[string]interface{}{
+					"trait.oam.dev/type":     "AuxiliaryWorkload",
+					"app.oam.dev/component":  compName,
+					"app.oam.dev/name":       app.Name,
+					"trait.oam.dev/resource": "gameconfig",
+				},
+			},
+			"data": map[string]interface{}{
+				"enemies": "alien",
+				"lives":   "3",
+			},
+		}}
+		expWorkloadTrait.SetName("myweb-health-statusgame-config")
+		expWorkloadTrait.SetNamespace(app.Namespace)
+		Expect(k8sClient.Create(ctx, &expWorkloadTrait)).Should(BeNil())
+
+		expTrait := unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "networking.k8s.io/v1beta1",
+			"kind":       "Ingress",
+			"metadata": map[string]interface{}{
+				"labels": map[string]interface{}{
+					"trait.oam.dev/type":     "ingress",
+					"trait.oam.dev/resource": "ingress",
+					"app.oam.dev/component":  compName,
+					"app.oam.dev/name":       app.Name,
+				},
+			},
+			"spec": map[string]interface{}{
+				"rules": []interface{}{
+					map[string]interface{}{
+						"host": "example.com",
+					},
+				},
+			},
+		}}
+		expTrait.SetName(compName)
 		expTrait.SetNamespace(app.Namespace)
-		expTrait.SetLabels(map[string]string{
-			oam.LabelAppName:        app.Name,
-			"trait.oam.dev/type":    "scaler",
-			"app.oam.dev/component": "myweb-health",
-		})
-		(expTrait.Object["spec"].(map[string]interface{}))["workloadRef"] = map[string]interface{}{
-			"apiVersion": "apps/v1",
-			"kind":       "Deployment",
-			"name":       app.Name,
-		}
 		Expect(k8sClient.Create(ctx, &expTrait)).Should(BeNil())
 
-		By("enrich the status of deployment and scaler trait")
+		expTrait2 := unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Service",
+			"metadata": map[string]interface{}{
+				"labels": map[string]interface{}{
+					"trait.oam.dev/type":     "ingress",
+					"trait.oam.dev/resource": "service",
+					"app.oam.dev/component":  compName,
+					"app.oam.dev/name":       app.Name,
+				},
+			},
+			"spec": map[string]interface{}{
+				"clusterIP": "10.0.0.4",
+				"ports": []interface{}{
+					map[string]interface{}{
+						"port": 80,
+					},
+				},
+			},
+		}}
+		expTrait2.SetName(app.Name)
+		expTrait2.SetNamespace(app.Namespace)
+		Expect(k8sClient.Create(ctx, &expTrait2)).Should(BeNil())
+
+		By("enrich the status of deployment and ingress trait")
 		expDeployment.Status.Replicas = 1
 		expDeployment.Status.ReadyReplicas = 1
 		Expect(k8sClient.Status().Update(ctx, expDeployment)).Should(BeNil())
@@ -881,20 +937,6 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: app.Namespace,
 			Name:      app.Name,
 		}, got)).Should(BeNil())
-		expTrait.Object["status"] = v1alpha1.ConditionedStatus{
-			Conditions: []v1alpha1.Condition{{
-				Status:             corev1.ConditionTrue,
-				LastTransitionTime: metav1.Now(),
-			}},
-		}
-		Expect(k8sClient.Status().Update(ctx, &expTrait)).Should(BeNil())
-		tGot := &unstructured.Unstructured{}
-		tGot.SetAPIVersion("core.oam.dev/v1alpha2")
-		tGot.SetKind("ManualScalerTrait")
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      app.Name,
-		}, tGot)).Should(BeNil())
 
 		By("apply appfile")
 		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
@@ -905,13 +947,12 @@ var _ = Describe("Test Application Controller", func() {
 		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
 
 		By("Check App running successfully")
-
+		checkApp := &v1alpha2.Application{}
 		Eventually(func() string {
 			_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: appKey})
 			if err != nil {
 				return err.Error()
 			}
-			checkApp := &v1alpha2.Application{}
 			err = k8sClient.Get(ctx, appKey, checkApp)
 			if err != nil {
 				return err.Error()
@@ -921,7 +962,20 @@ var _ = Describe("Test Application Controller", func() {
 			}
 			return string(checkApp.Status.Phase)
 		}(), 5*time.Second, time.Second).Should(BeEquivalentTo(v1alpha2.ApplicationRunning))
-
+		Expect(checkApp.Status.Services).Should(BeEquivalentTo([]v1alpha2.ApplicationComponentStatus{
+			{
+				Name:    compName,
+				Healthy: true,
+				Message: "type: busybox,\t enemies:alien",
+				Traits: []v1alpha2.ApplicationTraitStatus{
+					{
+						Type:    "ingress",
+						Healthy: true,
+						Message: "type: ClusterIP,\t clusterIP:10.0.0.4,\t ports:80,\t domainexample.com",
+					},
+				},
+			},
+		}))
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 })
@@ -1159,6 +1213,73 @@ spec:
           cmd?: [...string]
       }
 `
+	wdDefWithHealthStatusYaml = `apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: nworker
+  annotations:
+    definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic."
+spec:
+  definitionRef:
+    name: deployments.apps
+  status:
+    healthPolicy: |
+      isHealth: (context.output.status.readyReplicas > 0) && (context.output.status.readyReplicas == context.output.status.replicas)
+    customStatus: |-
+      message: "type: " + context.output.spec.template.spec.containers[0].image + ",\t enemies:" + context.outputs.gameconfig.data.enemies
+  extension:
+    template: |
+      output: {
+      	apiVersion: "apps/v1"
+      	kind:       "Deployment"
+      	spec: {
+      		selector: matchLabels: {
+      			"app.oam.dev/component": context.name
+      		}
+
+      		template: {
+      			metadata: labels: {
+      				"app.oam.dev/component": context.name
+      			}
+
+      			spec: {
+      				containers: [{
+      					name:  context.name
+      					image: parameter.image
+      					envFrom: [{
+      						configMapRef: name: context.name + "game-config"
+      					}]
+      					if parameter["cmd"] != _|_ {
+      						command: parameter.cmd
+      					}
+      				}]
+      			}
+      		}
+      	}
+      }
+
+      outputs: gameconfig: {
+      	apiVersion: "v1"
+      	kind:       "ConfigMap"
+      	metadata: {
+      		name: context.name + "game-config"
+      	}
+      	data: {
+      		enemies: parameter.enemies
+      		lives:   parameter.lives
+      	}
+      }
+
+      parameter: {
+      	// +usage=Which image would you like to use for your service
+      	// +short=i
+      	image: string
+      	// +usage=Commands to run in the container
+      	cmd?: [...string]
+      	lives:   string
+      	enemies: string
+      }
+`
 	tDDefYaml = `
 apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
@@ -1262,6 +1383,60 @@ spec:
       	replicas: *1 | int
       }
 `
+
+	tDDefWithHealthStatusYaml = `apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: ingress
+spec:
+  status:
+    customStatus: |-
+      message: "type: "+ context.outputs.service.spec.type +",\t clusterIP:"+ context.outputs.service.spec.clusterIP+",\t ports:"+ "\(context.outputs.service.spec.ports[0].port)"+",\t domain"+context.outputs.ingress.spec.rules[0].host
+    healthPolicy: |
+      isHealth: len(context.outputs.service.spec.clusterIP) > 0
+  extension:
+    template: |
+      parameter: {
+        domain: string
+        http: [string]: int
+      }
+      // trait template can have multiple outputs in one trait
+      outputs: service: {
+        apiVersion: "v1"
+        kind: "Service"
+        spec: {
+          selector:
+            app: context.name
+          ports: [
+            for k, v in parameter.http {
+              port: v
+              targetPort: v
+            }
+          ]
+        }
+      }
+      outputs: ingress: {
+        apiVersion: "networking.k8s.io/v1beta1"
+        kind: "Ingress"
+        metadata:
+          name: context.name
+        spec: {
+          rules: [{
+            host: parameter.domain
+            http: {
+              paths: [
+                for k, v in parameter.http {
+                  path: k
+                  backend: {
+                    serviceName: context.name
+                    servicePort: v
+                  }
+                }
+              ]
+            }
+          }]
+        }
+      }`
 )
 
 func NewMock() *httptest.Server {

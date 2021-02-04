@@ -110,7 +110,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	app.Status.SetConditions(readyCondition("Built"))
-	applog.Info("apply applicationconfig & component to the cluster")
+	applog.Info("apply appConfig & component to the cluster")
 	// apply appConfig & component to the cluster
 	if err := handler.apply(ctx, ac, comps); err != nil {
 		handler.l.Error(err, "[Handle apply]")
