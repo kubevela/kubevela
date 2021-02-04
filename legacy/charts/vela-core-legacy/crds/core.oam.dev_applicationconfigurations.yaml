@@ -386,6 +386,10 @@ spec:
                   componentRevisionName:
                     description: ComponentRevisionName of current component
                     type: string
+                  observedGeneration:
+                    description: ObservedGeneration indicates the generation observed by the appconfig controller. The same field is also recorded in the annotations of workloads. A workload is possible to be deleted from cluster after created. This field is useful to track the observed generation of workloads after they are deleted.
+                    format: int64
+                    type: integer
                   scopes:
                     description: Scopes associated with this workload.
                     items:
