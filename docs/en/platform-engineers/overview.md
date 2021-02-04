@@ -1,28 +1,20 @@
-# KubeVela Under The Hood
+# What is KubeVela?
 
-This documentation explains how KubeVela works in perspective of platform team.
+This documentation explains "what KubeVela can do for you" in perspective of platform team.
 
-## KubeVela Runtime
+## Overview
 
-The KubeVela runtime is the core component of KubeVela, it is a Kubernetes addon composed by several parts.
-
-The first part of this runtime is "encapsulation engine". This component supports various of encapsulation modules to create a single user facing abstraction named `Application` that allows end user to fill in parameters to instantiate the module. At the meantime, it also provides a set of interfaces for platform team to define and customize the module (i.e. CUE, Helm, or Terraform modules, etc). The implementation of abstraction engine is powered by Open Application Model.
-
-The second part is "deployment engine", it is responsible for progressive rollout of the application following given rollout strategy (e.g. canary, blue-green, etc) claimed in `AppDeployment`.
+KubeVela provides several independent building blocks to help you create application platforms easily.
 
 ![alt](../../resources/kubevela-runtime.png)
 
-### Encapsulation Engine
+### 1. Application Encapsulation
 
-As a platform builder, the encapsulation engine is essential to create any end user facing platform with Kubernetes, i.e. we want to lower the bar for end users by creating higher level abstractions. 
+The encapsulation engine enables you to define an `Application` abstraction that encapsulates all the needed resources composed your app.
 
-One typical example is we will want to encapsulate a Kubernetes `Deployment` and `Service` into a module probably named *Web Service*, and let end users to instantiate this module by simply filling in the needed parameters (e.g. `image`, `replicas` and `ports`). For example, the [`web-service.ts` ](https://github.com/awslabs/cdk8s/blob/master/examples/typescript/web-service/web-service.ts) lib in cdk8s, the [`kube.cue`](https://github.com/cuelang/cue/blob/b8b489251a3f9ea318830788794c1b4a753031c0/doc/tutorial/kubernetes/quick/services/kube.cue#L70) lib in CUE, and this widely used [Deployment + Service](https://docs.bitnami.com/tutorials/create-your-first-helm-chart/) Helm chart. Of course, some teams with great frontend engineers will choose to build a GUI console for creating such abstraction.
+One typical use case is we want to encapsulate a Kubernetes `Deployment` and a `Service` into a module probably named *Web Service*, and let end users to instantiate this module by simply filling in the parameters (e.g. `image`, `replicas` and `ports`). For example, the [`web-service.ts` ](https://github.com/awslabs/cdk8s/blob/master/examples/typescript/web-service/web-service.ts) lib in cdk8s, the [`kube.cue`](https://github.com/cuelang/cue/blob/b8b489251a3f9ea318830788794c1b4a753031c0/doc/tutorial/kubernetes/quick/services/kube.cue#L70) lib in CUE, and this widely used [Deployment + Service](https://docs.bitnami.com/tutorials/create-your-first-helm-chart/) Helm chart. Of course, some teams with great frontend engineers will choose to build a GUI console to create such abstraction.
 
-Hence, the encapsulation engine of KubeVela is designed to help to make building abstractions easy, in a highly extensible approach. 
-
-#### Build Extensible Abstraction
-
-First of all, with KubeVela, you will never create monolithic abstraction which is restricted and can't be extended. In detail, the encapsulation engine introduced an extensible app-centric model behind the abstraction, this makes the abstraction is essentially assembled by components (workload modules) and traits (operational modules), an example is like below:
+The `Application` abstraction supports all the scenarios above. From end user's view, an `Application` is assembled by components (workload specifications) and traits (operational behaviors), for example:
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -51,9 +43,11 @@ spec:
       bucket: "my-bucket"
 ```
 
-Every `component` and `trait` in above abstraction is defined by platform team via `Definition` objects. For example, [`WorkloadDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#workload-definition) and [`TraitDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#scaler-trait-definition). As the end user, they only need to assemble these modules into an application. Also, if end user has any new requirements, the platform team could customize the template in definitions by any time.
+In detail, every `component` and `trait` in above abstraction is defined by platform team via `Definition` objects. For example, [`WorkloadDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#workload-definition) and [`TraitDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#scaler-trait-definition). As the end user, they only need to assemble these modules into an application. Also, if end user has any new requirements, the platform team could customize the template in definitions by any time.
 
-#### A Unified Abstraction For All
+Besides this extensibility, there are several other benefits that the encapsulation engine can bring to you.
+
+#### Unified Abstraction
 
 KubeVela intends to support any possible module types as possible, for example `CUE`, `Terraform`, `Helm`, etc or just a plain Kubernetes CRD. This enables platform team to create unified abstraction that can model and deploy any kind of resource with ease, including cloud services, as long as they could be encapsulated by a supported module type. In the `application-sample` above, it defines a OSS bucket on Alibaba Cloud as a component which is powered by a Terraform module behind the scenes.
 
@@ -71,8 +65,14 @@ A typical use case is, as the platform team, we want to leverage `Istio` as the 
 
 The issue above could be even painful if the workload instance is not `Deployment`, but `StatefulSet` or custom workload type. For example, normally it doesn't make sense to replicate a `StatefulSet` instance during rollout, this means the users have to maintain the name, revision, label, selector, app instances in a totally different approach from `Deployment`.
 
-##### Standard Contract Behind The Abstraction
+#### Standard Contract Behind The Abstraction
 
 The encapsulation engine in KubeVela is designed to relieve such burden of managing versionized Kubernetes resources manually. In nutshell, all the needed Kubernetes resources for an app are now encapsulated in a single abstraction, and KubeVela will maintain the instance name, revisions, labels and selector by the battle tested reconcile loop automation, not by human hand. At the meantime, the existence of definition objects allow the platform team to customize the details of all above metadata behind the abstraction, even control the behavior of how to do revision.
 
 Thus, all those metadata now become a standard contract that any day 2 operation controller such as Istio or rollout can rely on. This is the key to ensure our platform could provide user friendly experience but keep "transparent" to the operational behaviors.
+
+### 2. Progressive Rollout
+
+The deployment engine is responsible for progressive rollout of your app following given rollout strategy (e.g. canary, blue-green, etc).
+
+> More information about this section is still work in progress.

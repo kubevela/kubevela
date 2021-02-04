@@ -4,8 +4,7 @@
   - [Concepts and Glossaries](/en/concepts.md)
 
 - Platform Team Guide
-  - [Overview](/en/platform-engineers/overview.md)
-  <!-- - [Define Environments](TBD) -->
+  - [What is KubeVela?](/en/platform-engineers/overview.md)
   - Register Capability Modules
     - [Workload Type](/en/platform-engineers/workload-type.md)
     - [Trait](/en/platform-engineers/trait.md)
