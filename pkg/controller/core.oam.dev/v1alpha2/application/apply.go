@@ -40,13 +40,13 @@ func readyCondition(tpy string) runtimev1alpha1.Condition {
 }
 
 type appHandler struct {
-	c   client.Client
+	r   *Reconciler
 	app *v1alpha2.Application
 	l   logr.Logger
 }
 
 func (ret *appHandler) Err(err error) (ctrl.Result, error) {
-	nerr := ret.c.Status().Update(context.Background(), ret.app)
+	nerr := ret.r.UpdateStatus(context.Background(), ret.app)
 	if err == nil && nerr == nil {
 		return ctrl.Result{}, nil
 	}
@@ -92,7 +92,7 @@ func (ret *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.App
 			}
 		}
 
-		workloadHealth, err := wl.EvalHealth(pCtx, ret.c, ret.app.Namespace)
+		workloadHealth, err := wl.EvalHealth(pCtx, ret.r, ret.app.Namespace)
 		if err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appfile.Name, wl.Name)
 		}
@@ -101,7 +101,7 @@ func (ret *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.App
 			status.Healthy = false
 			healthy = false
 		}
-		status.Message, err = wl.EvalStatus(pCtx, ret.c, ret.app.Namespace)
+		status.Message, err = wl.EvalStatus(pCtx, ret.r, ret.app.Namespace)
 		if err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appfile.Name, wl.Name)
 		}
@@ -111,7 +111,7 @@ func (ret *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.App
 				Type:    trait.Name,
 				Healthy: true,
 			}
-			traitHealth, err := trait.EvalHealth(pCtx, ret.c, ret.app.Namespace)
+			traitHealth, err := trait.EvalHealth(pCtx, ret.r, ret.app.Namespace)
 			if err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, check health error", appfile.Name, wl.Name, trait.Name)
 			}
@@ -120,7 +120,7 @@ func (ret *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.App
 				traitStatus.Healthy = false
 				healthy = false
 			}
-			traitStatus.Message, err = trait.EvalStatus(pCtx, ret.c, ret.app.Namespace)
+			traitStatus.Message, err = trait.EvalStatus(pCtx, ret.r, ret.app.Namespace)
 			if err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appfile.Name, wl.Name, trait.Name)
 			}
@@ -167,12 +167,12 @@ func CreateOrUpdateAppConfig(ctx context.Context, client client.Client, appConfi
 // Sync perform synchronization operations
 func (ret *appHandler) Sync(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) error {
 	for _, comp := range comps {
-		if err := CreateOrUpdateComponent(ctx, ret.c, comp.DeepCopy()); err != nil {
+		if err := CreateOrUpdateComponent(ctx, ret.r, comp.DeepCopy()); err != nil {
 			return err
 		}
 	}
 
-	if err := CreateOrUpdateAppConfig(ctx, ret.c, ac); err != nil {
+	if err := CreateOrUpdateAppConfig(ctx, ret.r, ac); err != nil {
 		return err
 	}
 
@@ -191,7 +191,7 @@ func (ret *appHandler) Sync(ctx context.Context, ac *v1alpha2.ApplicationConfigu
 		}
 		// Component not exits in current Application, should be deleted
 		var oldC = &v1alpha2.Component{ObjectMeta: metav1.ObjectMeta{Name: comp.Name, Namespace: ac.Namespace}}
-		if err := ret.c.Delete(ctx, oldC); err != nil {
+		if err := ret.r.Delete(ctx, oldC); err != nil {
 			return err
 		}
 	}

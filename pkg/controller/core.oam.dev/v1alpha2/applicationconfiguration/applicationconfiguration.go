@@ -27,6 +27,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -244,7 +246,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 				"error", err, "requeue-after", result.RequeueAfter)
 			r.record.Event(ac, event.Warning(reasonCannotFinalizeWorkloads, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errFinalizeWorkloads)))
-			return reconcile.Result{}, errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 		}
 		return reconcile.Result{}, errors.Wrap(r.client.Update(ctx, ac), errUpdateAppConfigStatus)
 	}
@@ -259,12 +261,12 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 				r.record.Event(ac, event.Warning(reasonCannotExecutePosthooks, err))
 				ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errExecutePosthooks)))
 				result = exeResult
-				returnErr = errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+				returnErr = errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 				return
 			}
 			r.record.Event(ac, event.Normal(reasonExecutePosthook, "Successfully executed a posthook", "posthook name", name))
 		}
-		returnErr = errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+		returnErr = errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 
 		// Make sure if error occurs, reconcile will not happen too frequency
 		if returnErr != nil && result.RequeueAfter < shortWait {
@@ -279,7 +281,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 			log.Debug("Failed to execute pre-hooks", "hook name", name, "error", err, "requeue-after", result.RequeueAfter)
 			r.record.Event(ac, event.Warning(reasonCannotExecutePrehooks, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errExecutePrehooks)))
-			return result, errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+			return result, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 		}
 		r.record.Event(ac, event.Normal(reasonExecutePrehook, "Successfully executed a prehook", "prehook name ", name))
 	}
@@ -291,7 +293,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		log.Info("Cannot render components", "error", err, "requeue-after", time.Now().Add(shortWait))
 		r.record.Event(ac, event.Warning(reasonCannotRenderComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errRenderComponents)))
-		return errResult, errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+		return errResult, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 	}
 	log.Debug("Successfully rendered components", "workloads", len(workloads))
 	r.record.Event(ac, event.Normal(reasonRenderComponents, "Successfully rendered components", "workloads", strconv.Itoa(len(workloads))))
@@ -304,7 +306,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		log.Debug("Cannot apply components", "error", err, "requeue-after", time.Now().Add(shortWait))
 		r.record.Event(ac, event.Warning(reasonCannotApplyComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyComponents)))
-		return errResult, errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+		return errResult, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 	}
 	log.Debug("Successfully applied components", "workloads", len(workloads))
 	r.record.Event(ac, event.Normal(reasonApplyComponents, "Successfully applied components", "workloads", strconv.Itoa(len(workloads))))
@@ -324,7 +326,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 			log.Debug("Cannot garbage collect component", "error", err, "requeue-after", time.Now().Add(shortWait))
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGCComponent)))
-			return errResult, errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+			return errResult, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 		}
 		log.Debug("Garbage collected resource")
 		record.Event(ac, event.Normal(reasonGGComponent, "Successfully garbage collected component"))
@@ -342,6 +344,18 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 
 	// the posthook function will do the final status update
 	return reconcile.Result{RequeueAfter: waitTime}, nil
+}
+
+// UpdateStatus updates v1alpha2.ApplicationConfiguration's Status with retry.RetryOnConflict
+func (r *OAMApplicationReconciler) UpdateStatus(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, opts ...client.UpdateOption) error {
+	status := ac.DeepCopy().Status
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+		if err = r.client.Get(ctx, types.NamespacedName{Namespace: ac.Namespace, Name: ac.Name}, ac); err != nil {
+			return
+		}
+		ac.Status = status
+		return r.client.Status().Update(ctx, ac, opts...)
+	})
 }
 
 func (r *OAMApplicationReconciler) updateStatus(ctx context.Context, ac, acPatch *v1alpha2.ApplicationConfiguration, workloads []Workload) {

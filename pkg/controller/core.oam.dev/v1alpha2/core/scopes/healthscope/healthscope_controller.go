@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -172,7 +174,7 @@ func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) 
 	hs.Status.ScopeHealthCondition = scopeCondition
 	hs.Status.WorkloadHealthConditions = wlConditions
 
-	return reconcile.Result{RequeueAfter: interval - elapsed}, errors.Wrap(r.client.Status().Update(ctx, hs), errUpdateHealthScopeStatus)
+	return reconcile.Result{RequeueAfter: interval - elapsed}, errors.Wrap(r.UpdateStatus(ctx, hs), errUpdateHealthScopeStatus)
 }
 
 // GetScopeHealthStatus get the status of the healthscope based on workload resources.
@@ -256,4 +258,16 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 	scopeCondition.UnknownWorkloads = unknownCount
 
 	return scopeCondition, workloadHealthConditions
+}
+
+// UpdateStatus updates v1alpha2.HealthScope's Status with retry.RetryOnConflict
+func (r *Reconciler) UpdateStatus(ctx context.Context, hs *v1alpha2.HealthScope, opts ...client.UpdateOption) error {
+	status := hs.DeepCopy().Status
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+		if err = r.client.Get(ctx, types.NamespacedName{Namespace: hs.Namespace, Name: hs.Name}, hs); err != nil {
+			return
+		}
+		hs.Status = status
+		return r.client.Status().Update(ctx, hs, opts...)
+	})
 }

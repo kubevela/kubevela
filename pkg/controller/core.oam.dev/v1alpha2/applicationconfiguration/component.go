@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -191,7 +192,7 @@ func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtim
 		return nil, false
 	}
 
-	err = c.Client.Status().Update(context.Background(), comp)
+	err = c.UpdateStatus(context.Background(), comp)
 	if err != nil {
 		c.Logger.Info(fmt.Sprintf("update component status latestRevision %s err %v", revisionName, err), "componentName", mt.GetName())
 		return nil, false
@@ -275,6 +276,18 @@ func (c *ComponentHandler) cleanupControllerRevision(curComp *v1alpha2.Component
 		toKill--
 	}
 	return nil
+}
+
+// UpdateStatus updates v1alpha2.Component's Status with retry.RetryOnConflict
+func (c *ComponentHandler) UpdateStatus(ctx context.Context, comp *v1alpha2.Component, opts ...client.UpdateOption) error {
+	status := comp.DeepCopy().Status
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+		if err = c.Client.Get(ctx, types.NamespacedName{Namespace: comp.Namespace, Name: comp.Name}, comp); err != nil {
+			return
+		}
+		comp.Status = status
+		return c.Client.Status().Update(ctx, comp, opts...)
+	})
 }
 
 // ConstructRevisionName will generate revisionName from componentName
