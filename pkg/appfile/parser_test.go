@@ -401,7 +401,9 @@ var _ = Describe("Test appFile parser", func() {
 											"kind":       "ManualScalerTrait",
 											"metadata": map[string]interface{}{
 												"labels": map[string]interface{}{
-													"trait.oam.dev/type": "scaler",
+													"app.oam.dev/component": "myweb",
+													"app.oam.dev/name":      "test",
+													"trait.oam.dev/type":    "scaler",
 												},
 											},
 											"spec": map[string]interface{}{"replicaCount": int64(10)},
@@ -413,7 +415,8 @@ var _ = Describe("Test appFile parser", func() {
 				},
 			},
 		}
-		Expect(ac).To(BeEquivalentTo(expectAppConfig))
+		fmt.Println(cmp.Diff(expectAppConfig, ac))
+		Expect(assert.ObjectsAreEqual(expectAppConfig, ac)).To(Equal(true))
 
 		expectComponent := &v1alpha2.Component{
 			TypeMeta: metav1.TypeMeta{
@@ -432,6 +435,8 @@ var _ = Describe("Test appFile parser", func() {
 							"metadata": map[string]interface{}{
 								"labels": map[string]interface{}{
 									"workload.oam.dev/type": "worker",
+									"app.oam.dev/component": "myweb",
+									"app.oam.dev/name":      "test",
 								},
 							},
 							"spec": map[string]interface{}{
@@ -464,8 +469,7 @@ var _ = Describe("Test appFile parser", func() {
 		Expect(len(components)).To(BeEquivalentTo(1))
 		Expect(components[0].ObjectMeta).To(BeEquivalentTo(expectComponent.ObjectMeta))
 		Expect(components[0].TypeMeta).To(BeEquivalentTo(expectComponent.TypeMeta))
-		logf.Log.Info(fmt.Sprintf("diff %+v", cmp.Diff(components[0].Spec.Workload.Object,
-			expectComponent.Spec.Workload.Object)))
+		logf.Log.Info(cmp.Diff(components[0].Spec.Workload.Object, expectComponent.Spec.Workload.Object))
 		Expect(assert.ObjectsAreEqual(components[0].Spec.Workload.Object, expectComponent.Spec.Workload.Object)).To(BeTrue())
 	})
 

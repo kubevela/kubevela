@@ -24,6 +24,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -82,7 +83,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	applog.Info("Start Rendering")
 
 	app.Status.Phase = v1alpha2.ApplicationRendering
-	handler := &reter{r.Client, app, applog}
+	handler := &appHandler{r.Client, app, applog}
 
 	app.Status.Conditions = []v1alpha1.Condition{}
 
@@ -109,9 +110,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	app.Status.SetConditions(readyCondition("Built"))
-
-	applog.Info("apply applicationconfig & component to the cluster")
-	// apply applicationconfig & component to the cluster
+	applog.Info("apply appConfig & component to the cluster")
+	// apply appConfig & component to the cluster
 	if err := handler.apply(ctx, ac, comps); err != nil {
 		handler.l.Error(err, "[Handle apply]")
 		app.Status.SetConditions(errorCondition("Applied", err))
@@ -120,13 +120,22 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	app.Status.SetConditions(readyCondition("Applied"))
 
+	app.Status.Phase = v1alpha2.ApplicationHealthChecking
 	applog.Info("check application health status")
 	// check application health status
-	if err := handler.healthCheck(appfile); err != nil {
+	appCompStatus, healthy, err := handler.statusAggregate(appfile)
+	if err != nil {
 		app.Status.SetConditions(errorCondition("HealthCheck", err))
 		return handler.Err(err)
 	}
+	if !healthy {
+		app.Status.SetConditions(errorCondition("HealthCheck", errors.New("not healthy")))
 
+		app.Status.Services = appCompStatus
+		// unhealthy will check again after 10s
+		return ctrl.Result{RequeueAfter: time.Second * 10}, r.Status().Update(ctx, app)
+	}
+	app.Status.Services = appCompStatus
 	app.Status.SetConditions(readyCondition("HealthCheck"))
 	app.Status.Phase = v1alpha2.ApplicationRunning
 	// Gather status of components

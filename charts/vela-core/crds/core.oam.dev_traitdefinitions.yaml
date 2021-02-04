@@ -68,6 +68,16 @@ spec:
               revisionEnabled:
                 description: Revision indicates whether a trait is aware of component revision
                 type: boolean
+              status:
+                description: Status defines the custom health policy and status message for trait
+                properties:
+                  customStatus:
+                    description: CustomStatus defines the custom status message that could display to user
+                    type: string
+                  healthPolicy:
+                    description: HealthPolicy defines the health check policy for the abstraction
+                    type: string
+                type: object
               workloadRefPath:
                 description: WorkloadRefPath indicates where/if a trait accepts a workloadRef object
                 type: string

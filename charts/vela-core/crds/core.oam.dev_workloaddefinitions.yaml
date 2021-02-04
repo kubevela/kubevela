@@ -82,6 +82,16 @@ spec:
               revisionLabel:
                 description: RevisionLabel indicates which label for underlying resources(e.g. pods) of this workload can be used by trait to create resource selectors(e.g. label selector for pods).
                 type: string
+              status:
+                description: Status defines the custom health policy and status message for workload
+                properties:
+                  customStatus:
+                    description: CustomStatus defines the custom status message that could display to user
+                    type: string
+                  healthPolicy:
+                    description: HealthPolicy defines the health check policy for the abstraction
+                    type: string
+                type: object
             required:
             - definitionRef
             type: object

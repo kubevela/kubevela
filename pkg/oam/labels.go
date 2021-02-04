@@ -32,6 +32,8 @@ const (
 	WorkloadTypeLabel = "workload.oam.dev/type"
 	// TraitTypeLabel indicates the type of the traitDefinition
 	TraitTypeLabel = "trait.oam.dev/type"
+	// TraitResource indicates which resource it is when a trait is composed by multiple resources in KubeVela
+	TraitResource = "trait.oam.dev/resource"
 )
 
 const (

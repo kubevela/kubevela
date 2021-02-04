@@ -34,6 +34,11 @@ const (
 	DefaultUnknowFormatAppfilePath = "./Appfile"
 )
 
+const (
+	// DefaultHealthScopeKey is the key in application for default health scope
+	DefaultHealthScopeKey = "healthscopes.core.oam.dev"
+)
+
 // AppFile defines the spec of KubeVela Appfile
 type AppFile struct {
 	Name       string             `json:"name"`
@@ -179,7 +184,7 @@ func addDefaultHealthScopeToApplication(app *v1alpha2.Application) *v1alpha2.Hea
 	health.Spec.WorkloadReferences = make([]v1alpha1.TypedReference, 0)
 	for i := range app.Spec.Components {
 		// FIXME(wonderflow): the hardcode health scope should be fixed.
-		app.Spec.Components[i].Scopes = map[string]string{"healthscopes.core.oam.dev": health.Name}
+		app.Spec.Components[i].Scopes = map[string]string{DefaultHealthScopeKey: health.Name}
 	}
 	return health
 }

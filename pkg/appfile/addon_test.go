@@ -27,7 +27,7 @@ var _ = It("Test ApplyTerraform", func() {
 	ioStream := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	dm, _ := discoverymapper.New(cfg)
 	_, err := ApplyTerraform(app, k8sClient, ioStream, addonNamespace, dm)
-	Expect(err.Error()).Should(Equal("exit status 1"))
+	Expect(err).ShouldNot(BeNil())
 })
 
 var _ = Describe("Test generateSecretFromTerraformOutput", func() {
