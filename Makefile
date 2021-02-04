@@ -42,16 +42,19 @@ test: vet lint staticcheck
 	@$(OK) unit-tests pass
 
 # Build manager binary
-build: fmt vet lint staticcheck
+build: fmt vet lint staticcheck helm-dependencies
 	go run hack/chart/generate.go
 	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
 	git checkout cmd/vela/fake/chart_source.go
 	@$(OK) build succeed
 
-vela-cli:
+vela-cli: helm-dependencies
 	go run hack/chart/generate.go
 	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
 	git checkout cmd/vela/fake/chart_source.go
+
+helm-dependencies:
+	cd charts/vela-core && helm dependency update
 
 dashboard-build:
 	cd dashboard && yarn build && cd ./..

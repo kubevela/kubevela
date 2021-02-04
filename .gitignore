@@ -57,3 +57,5 @@ pkg/server/docs/index.html
 
 # Chart dependencies
 /charts/*/charts
+/e2e/application/vela.yaml
+/e2e/application/vela.json
