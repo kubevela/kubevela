@@ -71,7 +71,8 @@ var _ = BeforeSuite(func(done Done) {
 	useExistCluster := false
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("../../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
+			filepath.Join("../../../../..", "charts/vela-core/crds"), // this has all the required oam CRDs,
+			filepath.Join("..", "testdata/crds"),
 		},
 		UseExistingCluster: &useExistCluster,
 	}

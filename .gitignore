@@ -54,3 +54,6 @@ dashboard/src/.umi-production/
 
 # Swagger: generate Restful API
 pkg/server/docs/index.html
+
+# Chart dependencies
+/charts/*/charts

@@ -125,7 +125,7 @@ docker-push:
 	docker push ${IMG}
 
 e2e-setup:
-	bin/vela install --set certmanager.enabled=true --image-pull-policy IfNotPresent --image-repo vela-core-test --image-tag $(GIT_COMMIT)
+	helm install --replace --create-namespace --set certManager.enabled=true --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set image.tag=$(GIT_COMMIT) -n vela-system kubevela ./charts/vela-core
 	ginkgo version
 	ginkgo -v -r e2e/setup
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
@@ -146,7 +146,10 @@ e2e-test:
 
 e2e-cleanup:
 	# Clean up
+	helm del kubevela -n vela-system
+	kubectl delete ns vela-system
 	rm -rf ~/.vela
+
 
 # load docker image to the kind cluster
 kind-load:

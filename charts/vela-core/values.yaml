@@ -83,6 +83,6 @@ certificate:
   caBundle: replace-me
 
 # enabled if cert-manager is not already installed in the cluster
-certmanager:
+certManager:
   enabled: false
   installCRDs: true
