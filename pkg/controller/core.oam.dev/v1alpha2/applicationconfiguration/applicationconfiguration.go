@@ -466,6 +466,12 @@ type Workload struct {
 
 	// Scopes associated with this workload.
 	Scopes []unstructured.Unstructured
+
+	// Record the DataOutputs of this workload, key is name of DataOutput.
+	DataOutputs map[string]v1alpha2.DataOutput
+
+	// Record the DataInputs of this workload.
+	DataInputs []v1alpha2.DataInput
 }
 
 // A Trait produced by an OAM ApplicationConfiguration.
@@ -477,6 +483,12 @@ type Trait struct {
 
 	// Definition indicates the trait's definition
 	Definition v1alpha2.TraitDefinition
+
+	// Record the DataOutputs of this trait, key is name of DataOutput.
+	DataOutputs map[string]v1alpha2.DataOutput
+
+	// Record the DataInputs of this trait.
+	DataInputs []v1alpha2.DataInput
 }
 
 // Status produces the status of this workload and its traits, suitable for use

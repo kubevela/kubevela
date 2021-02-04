@@ -18,11 +18,18 @@ package applicationconfiguration
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"reflect"
+	"strings"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/pkg/resource"
+	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/pkg/errors"
+	"github.com/tidwall/gjson"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -46,7 +53,17 @@ const (
 	errFmtApplyTrait               = "cannot apply trait %q %q %q"
 	errFmtApplyScope               = "cannot apply scope %q %q %q"
 
-	workloadScopeFinalizer = "scope.finalizer.core.oam.dev"
+	workloadScopeFinalizer      = "scope.finalizer.core.oam.dev"
+	dot                    byte = '.'
+	slash                  byte = '/'
+	dQuotes                byte = '"'
+)
+
+var (
+	// ErrInvaildOperationType describes the error that Operator of DataOperation is not in defined DataOperator
+	ErrInvaildOperationType = errors.New("invaild type in operation")
+	// ErrInvaildOperationValueAndValueFrom describes the error that both value and valueFrom in DataOperation are empty
+	ErrInvaildOperationValueAndValueFrom = errors.New("invaild value and valueFrom in operation: both are empty")
 )
 
 // A WorkloadApplicator creates or updates or finalizes workloads and their traits.
@@ -87,6 +104,10 @@ func (a *workloads) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus,
 	var namespace = w[0].Workload.GetNamespace()
 	for _, wl := range w {
 		if !wl.HasDep {
+			// Apply the DataInputs to this workload
+			if err := a.ApplyInputRef(ctx, wl.Workload, wl.DataInputs, namespace, ao...); err != nil {
+				return err
+			}
 			if err := a.applicator.Apply(ctx, wl.Workload, ao...); err != nil {
 				if !errors.Is(err, &GenerationUnchanged{}) {
 					// GenerationUnchanged only aborts applying current workload
@@ -95,17 +116,26 @@ func (a *workloads) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus,
 				}
 			}
 		}
+		// Apply the ready DatatOutputs of this workload
+		if err := a.ApplyOutputRef(ctx, wl.Workload, wl.DataOutputs, namespace, ao...); err != nil {
+			return err
+		}
 		for _, trait := range wl.Traits {
-			if trait.HasDep {
-				continue
-			}
-			t := trait.Object
-			if err := a.applicator.Apply(ctx, &trait.Object, ao...); err != nil {
-				if !errors.Is(err, &GenerationUnchanged{}) {
-					// GenerationUnchanged only aborts applying current trait
-					// but not blocks the whole reconciliation through returning an error
-					return errors.Wrapf(err, errFmtApplyTrait, t.GetAPIVersion(), t.GetKind(), t.GetName())
+			if !trait.HasDep {
+				if err := a.ApplyInputRef(ctx, &trait.Object, trait.DataInputs, namespace, ao...); err != nil {
+					return err
 				}
+				t := trait.Object
+				if err := a.applicator.Apply(ctx, &trait.Object, ao...); err != nil {
+					if !errors.Is(err, &GenerationUnchanged{}) {
+						// GenerationUnchanged only aborts applying current trait
+						// but not blocks the whole reconciliation through returning an error
+						return errors.Wrapf(err, errFmtApplyTrait, t.GetAPIVersion(), t.GetKind(), t.GetName())
+					}
+				}
+			}
+			if err := a.ApplyOutputRef(ctx, &trait.Object, trait.DataOutputs, namespace, ao...); err != nil {
+				return err
 			}
 		}
 		workloadRef := runtimev1alpha1.TypedReference{
@@ -121,6 +151,120 @@ func (a *workloads) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus,
 	}
 
 	return a.dereferenceScope(ctx, namespace, status, w)
+}
+func (a *workloads) ApplyOutputRef(ctx context.Context, w *unstructured.Unstructured, outputs map[string]v1alpha2.DataOutput, namespace string, ao ...apply.ApplyOption) error {
+	for _, output := range outputs {
+		if reflect.DeepEqual(output, v1alpha2.DataOutput{}) || reflect.DeepEqual(output.OutputStore, v1alpha2.StoreReference{}) {
+			continue
+		}
+		// Get the running workload
+		runningW := &unstructured.Unstructured{}
+		runningW.SetAPIVersion(w.GetAPIVersion())
+		runningW.SetKind(w.GetKind())
+		key := types.NamespacedName{
+			Namespace: w.GetNamespace(),
+			Name:      w.GetName(),
+		}
+		if err := a.rawClient.Get(ctx, key, runningW); err != nil {
+			return err
+		}
+		// Get the outputRef object
+		ref := &unstructured.Unstructured{}
+		ref.SetAPIVersion(output.OutputStore.APIVersion)
+		ref.SetKind(output.OutputStore.Kind)
+		key = types.NamespacedName{
+			Namespace: namespace,
+			Name:      output.OutputStore.Name,
+		}
+		if err := a.rawClient.Get(ctx, key, ref); err != nil {
+			if resource.IgnoreNotFound(err) != nil {
+				return err
+			}
+			// Create the outputRef object if it doesn't exist
+			ref.SetNamespace(namespace)
+			ref.SetName(output.OutputStore.Name)
+			ref.SetOwnerReferences(runningW.GetOwnerReferences())
+			if err := a.applicator.Apply(ctx, ref, ao...); err != nil {
+				return err
+			}
+			if err = a.rawClient.Get(ctx, key, ref); err != nil {
+				return err
+			}
+		}
+		for _, oper := range output.OutputStore.Operations {
+			if err := operationProcess(ref, runningW, oper); err != nil {
+				return err
+			}
+		}
+		if err := a.applicator.Apply(ctx, ref, ao...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (a *workloads) ApplyInputRef(ctx context.Context, w *unstructured.Unstructured, inputs []v1alpha2.DataInput, namespace string, ao ...apply.ApplyOption) error {
+	for _, input := range inputs {
+		if reflect.DeepEqual(input, v1alpha2.DataInput{}) || reflect.DeepEqual(input.InputStore, v1alpha2.StoreReference{}) {
+			continue
+		}
+		ref := &unstructured.Unstructured{}
+		ref.SetAPIVersion(input.InputStore.APIVersion)
+		ref.SetKind(input.InputStore.Kind)
+		key := types.NamespacedName{
+			Namespace: namespace,
+			Name:      input.InputStore.Name,
+		}
+		if err := a.rawClient.Get(ctx, key, ref); err != nil {
+			return err
+		}
+		for _, oper := range input.InputStore.Operations {
+			if err := operationProcess(w, ref, oper); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+func operationProcess(inputObj *unstructured.Unstructured, outputObj *unstructured.Unstructured, oper v1alpha2.DataOperation) error {
+	switch oper.Type {
+	case "jsonPatch":
+		jsonBytes, err := json.Marshal(inputObj)
+		if err != nil {
+			return err
+		}
+		targetJSON := []byte(gjson.GetBytes(jsonBytes, oper.ToFieldPath).String())
+		value := ""
+		switch {
+		case len(oper.Value) != 0:
+			value = oper.Value
+		case len(oper.ValueFrom.FieldPath) != 0:
+			v, err := getValueFromPath(outputObj, oper.ValueFrom.FieldPath)
+			if err != nil {
+				return err
+			}
+			vJSON, err := json.Marshal(v)
+			if err != nil {
+				return err
+			}
+			value = string(vJSON)
+		default:
+			return ErrInvaildOperationValueAndValueFrom
+		}
+		targetJSON, err = jsonOperation(targetJSON, oper.Operator, oper.ToDataPath, value, oper.ToDataPath)
+		if err != nil {
+			return err
+		}
+		jsonBytes, err = jsonOperation(jsonBytes, v1alpha2.ReplaceOperator, oper.ToFieldPath, string(targetJSON), oper.ToDataPath)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(jsonBytes, inputObj); err != nil {
+			return errors.Wrap(err, errUnmarshalWorkload)
+		}
+		return nil
+	default:
+		return ErrInvaildOperationType
+	}
 }
 
 func (a *workloads) Finalize(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) error {
@@ -291,4 +435,43 @@ func (a *workloads) applyScopeRemoval(ctx context.Context, namespace string, wr 
 			scopeObject.GetAPIVersion(), scopeObject.GetKind(), scopeObject.GetName(), workloadRefsPath)
 	}
 	return nil
+}
+
+func getValueFromPath(w *unstructured.Unstructured, path string) (interface{}, error) {
+	paved := fieldpath.Pave(w.UnstructuredContent())
+	rawval, err := paved.GetValue(path)
+	if err != nil {
+		if fieldpath.IsNotFound(err) {
+			return nil, fmt.Errorf("%s not found in object", path)
+		}
+		err = fmt.Errorf("failed to get field value (%s) in object (%s:%s): %w", path, w.GetNamespace(), w.GetName(), err)
+		return nil, err
+	}
+	return rawval, nil
+}
+
+func jsonOperation(jsonBytes []byte, op v1alpha2.DataOperator, path, value, toDataPath string) ([]byte, error) {
+	if len(jsonBytes) == 0 || len(path) == 0 {
+		return []byte(value), nil
+	}
+	patchJSON := []byte(`[{"op": "` + string(op) + `", "path": "`)
+	// \. is used to escape dot, @@@DOTDOTDOT@@@ is used to avoid replacement of dot in following operation
+	path = strings.ReplaceAll(path, `\.`, `@@@DOTDOTDOT@@@`)
+	path = strings.ReplaceAll(path, string(dot), string(slash))
+	path = strings.ReplaceAll(path, `@@@DOTDOTDOT@@@`, `.`)
+	if path[0] != slash {
+		patchJSON = append(patchJSON, slash)
+	}
+	value = strings.ReplaceAll(strings.ReplaceAll(value, `\"`, `"`), `\\`, `\`)
+	if len(value) > 1 && value[0] == dQuotes && value[len(value)-1] == dQuotes {
+		value = string(dQuotes) + strings.ReplaceAll(strings.ReplaceAll(value[1:len(value)-1], `\`, `\\`), `"`, `\"`) + string(dQuotes)
+	} else if len(toDataPath) > 0 {
+		value = string(dQuotes) + strings.ReplaceAll(strings.ReplaceAll(value, `\`, `\\`), `"`, `\"`) + string(dQuotes)
+	}
+	patchJSON = append(patchJSON, []byte(path+`", "value": `+value+`}]`)...)
+	patch, err := jsonpatch.DecodePatch(patchJSON)
+	if err != nil {
+		return nil, err
+	}
+	return patch.Apply(jsonBytes)
 }
