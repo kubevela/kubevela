@@ -2,9 +2,10 @@ package traitdefinition
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
 	"k8s.io/klog"
@@ -123,17 +124,11 @@ func ValidateDefinitionReference(_ context.Context, td v1alpha2.TraitDefinition)
 	if len(td.Spec.Reference.Name) > 0 {
 		return nil
 	}
-
-	if td.Spec.Extension == nil || len(td.Spec.Extension.Raw) < 1 {
-		return errors.New(failInfoDefRefOmitted)
-	}
-
-	tmp := map[string]interface{}{}
-	if err := json.Unmarshal(td.Spec.Extension.Raw, &tmp); err != nil {
+	tmp, err := util.NewTemplate(td.Spec.Template, td.Spec.Status, td.Spec.Extension)
+	if err != nil {
 		return errors.Wrap(err, errValidateDefRef)
 	}
-	template, ok := tmp["template"]
-	if !ok || len(fmt.Sprint(template)) < 1 {
+	if len(tmp.TemplateStr) == 0 {
 		return errors.New(failInfoDefRefOmitted)
 	}
 	return nil

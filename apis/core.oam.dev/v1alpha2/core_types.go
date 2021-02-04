@@ -68,6 +68,16 @@ type WorkloadDefinitionSpec struct {
 	// +optional
 	Status *Status `json:"status,omitempty"`
 
+	// Template defines the abstraction template data of the workload, it will replace the old template in extension field.
+	// the data format depends on templateType, by default it's CUE
+	// +optional
+	Template string `json:"template,omitempty"`
+
+	// TemplateType defines the data format of the template, by default it's CUE format
+	// Terraform HCL, Helm Chart will also be candidates in the near future.
+	// +optional
+	TemplateType string `json:"templateType,omitempty"`
+
 	// Extension is used for extension needs by OAM platform builders
 	// +optional
 	// +kubebuilder:pruning:PreserveUnknownFields
@@ -139,6 +149,16 @@ type TraitDefinitionSpec struct {
 	// labelSelector format: https://pkg.go.dev/k8s.io/apimachinery/pkg/labels#Parse
 	// +optional
 	ConflictsWith []string `json:"conflictsWith,omitempty"`
+
+	// Template defines the abstraction template data of the workload, it will replace the old template in extension field.
+	// the data format depends on templateType, by default it's CUE
+	// +optional
+	Template string `json:"template,omitempty"`
+
+	// TemplateType defines the data format of the template, by default it's CUE format
+	// Terraform HCL, Helm Chart will also be candidates in the near future.
+	// +optional
+	TemplateType string `json:"templateType,omitempty"`
 
 	// Status defines the custom health policy and status message for trait
 	// +optional

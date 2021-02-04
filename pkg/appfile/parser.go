@@ -230,7 +230,7 @@ func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1a
 		}
 		for _, tr := range wl.Traits {
 			if err := tr.EvalContext(pCtx); err != nil {
-				return nil, nil, err
+				return nil, nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
 			}
 		}
 		comp, acComp, err := evalWorkloadWithContext(pCtx, wl, app.Name, wl.Name)
@@ -266,7 +266,7 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compNa
 	base, assists := pCtx.Output()
 	componentWorkload, err := base.Unstructured()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", compName, appName)
 	}
 
 	labels := map[string]string{
@@ -284,7 +284,7 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compNa
 	for _, assist := range assists {
 		tr, err := assist.Ins.Unstructured()
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, errors.Wrapf(err, "evaluate trait=%s template for component=%s app=%s", assist.Name, compName, appName)
 		}
 		labels := map[string]string{
 			oam.TraitTypeLabel:    assist.Type,
@@ -314,12 +314,12 @@ func PrepareProcessContext(k8sClient client.Client, wl *Workload, applicationNam
 		var envName = namespace
 		data, err := cg.GetConfigData(config.GenConfigMapName(applicationName, wl.Name, userConfig), envName)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrapf(err, "get config=%s for app=%s in namespace=%s", userConfig, applicationName, namespace)
 		}
 		pCtx.SetConfigs(data)
 	}
 	if err := wl.EvalContext(pCtx); err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", applicationName, namespace)
 	}
 	return pCtx, nil
 }
