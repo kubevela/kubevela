@@ -13,9 +13,11 @@ func DefaultRolloutPlan(rollout *v1alpha1.RolloutPlan) {
 
 // ValidateCreate validate the rollout plan
 func ValidateCreate(rollout *v1alpha1.RolloutPlan) field.ErrorList {
-	// 1. The total number of replicas in the batches match the current target resource pod size
+	var allErrs field.ErrorList
+	// 1. The total number of num in the batches match the current target resource pod size
 	// 2. The TargetSize and NumBatches are mutually exclusive to RolloutBatches
-	return nil
+
+	return allErrs
 }
 
 // ValidateUpdate validate if one can change the rollout plan from the previous psec

@@ -30,7 +30,7 @@ type ApplicationDeploymentSpec struct {
 
 	// SourceApplicationName contains the name of the application that we need to upgrade from.
 	// it can be empty only when it's the first time to deploy the application
-	SourceApplicationName string `json:"sourceApplicationName"`
+	SourceApplicationName string `json:"sourceApplicationName,omitempty"`
 
 	// The list of component to upgrade in the application.
 	// We only support single component application so far
@@ -47,6 +47,19 @@ type ApplicationDeploymentSpec struct {
 	RevertOnDelete *bool `json:"revertOnDelete,omitempty"`
 }
 
+// ApplicationDeploymentStatus defines the observed state of ApplicationDeployment
+type ApplicationDeploymentStatus struct {
+	v1alpha1.RolloutStatus `json:",inline"`
+
+	// LastTargetApplicationName contains the name of the application that we upgraded to
+	// We will restart the rollout if this is not the same as the spec
+	LastTargetApplicationName string `json:"lastTargetApplicationName"`
+
+	// LastSourceApplicationName contains the name of the application that we need to upgrade from.
+	// We will restart the rollout if this is not the same as the spec
+	LastSourceApplicationName string `json:"lastSourceApplicationName,omitempty"`
+}
+
 // ApplicationDeployment is the Schema for the ApplicationDeployment API
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:categories={oam}
@@ -55,8 +68,8 @@ type ApplicationDeployment struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ApplicationDeploymentSpec `json:"spec,omitempty"`
-	Status v1alpha1.RolloutStatus    `json:"status,omitempty"`
+	Spec   ApplicationDeploymentSpec   `json:"spec,omitempty"`
+	Status ApplicationDeploymentStatus `json:"status,omitempty"`
 }
 
 // ApplicationDeploymentList contains a list of ApplicationDeployment

@@ -11,13 +11,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
-)
 
-// An Object is a Kubernetes object.
-type Object interface {
-	metav1.Object
-	runtime.Object
-}
+	"github.com/oam-dev/kubevela/pkg/oam"
+)
 
 // Applicator applies new state to an object or create it if not exist.
 // It employes the same mechanism as `kubectl apply`, that is, for each resource being applied,
@@ -93,7 +89,7 @@ func (a *APIApplicator) Apply(ctx context.Context, desired runtime.Object, ao ..
 // createOrGetExisting will create the object if it does not exist
 // or get and return the existing object
 func createOrGetExisting(ctx context.Context, c client.Client, desired runtime.Object, ao ...ApplyOption) (runtime.Object, error) {
-	m, ok := desired.(Object)
+	m, ok := desired.(oam.Object)
 	if !ok {
 		return nil, errors.New("cannot access object metadata")
 	}
