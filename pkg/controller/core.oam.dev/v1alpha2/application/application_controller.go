@@ -18,6 +18,7 @@ package application
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"time"
 
@@ -38,7 +39,9 @@ import (
 )
 
 // RolloutReconcileWaitTime is the time to wait before reconcile again an application still in rollout phase
-const RolloutReconcileWaitTime = time.Second * 3
+var (
+	RolloutReconcileWaitTime = *flag.Duration("rollout-reconcile-wait-time", time.Second*3, "rollout-reconcile-wait-time is the time to wait before reconcile again an application still in rollout phase")
+)
 
 // Reconciler reconciles a Application object
 type Reconciler struct {
