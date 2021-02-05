@@ -5,6 +5,8 @@
 
 - Platform Team Guide
   - [What is KubeVela?](/en/platform-engineers/overview.md)
+  - Designing Abstraction
+    - [Application CRD](/en/platform-engineers/application.md)
   - Register Capability Modules
     - [Workload Type](/en/platform-engineers/workload-type.md)
     - [Trait](/en/platform-engineers/trait.md)

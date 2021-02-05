@@ -37,15 +37,15 @@ spec:
       type: webservice
       settings:
         image: nginx
-        traits:
-          - name: autoscaler
-            properties:
-              min: 1
-              max: 10
-          - name: sidecar
-            properties:
-              name: "sidecar-test"
-              image: "fluentd"
+      traits:
+        - name: autoscaler
+          properties:
+            min: 1
+            max: 10
+        - name: sidecar
+          properties:
+            name: "sidecar-test"
+            image: "fluentd"
 ```
 
 ### Workload Type
@@ -74,42 +74,39 @@ metadata:
 spec:
   definitionRef:
     name: deployments.apps
-  extension:
-    template: |
-      output: {
-        apiVersion: "apps/v1"
-        kind:       "Deployment"
-        spec: {
-          selector: matchLabels: {
-            "app.oam.dev/component": context.name
-          }
+  template: |
+    output: {
+    	apiVersion: "apps/v1"
+    	kind:       "Deployment"
+    	spec: {
+    		selector: matchLabels: {
+    			"app.oam.dev/component": context.name
+    		}
+    		template: {
+    			metadata: labels: {
+    				"app.oam.dev/component": context.name
+    			}
+    			spec: {
+    				containers: [{
+    					name:  context.name
+    					image: parameter.image
 
-          template: {
-            metadata: labels: {
-              "app.oam.dev/component": context.name
-            }
+    					if parameter["cmd"] != _|_ {
+    						command: parameter.cmd
+    					}
+    				}]
+    			}
+    		}
+    	}
+    }
 
-            spec: {
-              containers: [{
-                name:  context.name
-                image: parameter.image
+    parameter: {
+    	// +usage=Which image would you like to use for your service
+    	// +short=i
+    	image: string
 
-                if parameter["cmd"] != _|_ {
-                  command: parameter.cmd
-                }
-              }]
-            }
-          }
-        }
-      }
-
-      parameter: {
-        // +usage=Which image would you like to use for your service
-        // +short=i
-        image: string
-
-        cmd?: [...string]
-      }
+    	cmd?: [...string]
+    }
 ```
 
 Once this definition is applied to the cluster, the end users will be able to claim a component with workload type of `worker`, and fill in the properties as below:
