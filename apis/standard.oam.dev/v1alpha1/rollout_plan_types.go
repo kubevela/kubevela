@@ -60,14 +60,13 @@ const (
 	// BatchInRollingState still rolling the batch, the batch rolling is not completed yet
 	BatchInRollingState BatchRollingState = "batchInRolling"
 	// BatchVerifyingState verifying if the application is ready to roll.
-	// This happens when it's either manual or automatic with analysis
 	BatchVerifyingState BatchRollingState = "batchVerifying"
 	// BatchRolloutFailedState indicates that the batch didn't get the manual or automatic approval
 	BatchRolloutFailedState BatchRollingState = "batchVerifyFailed"
+	// BatchFinalizingState indicates that all the pods in the are available, we can move on to the next batch
+	BatchFinalizingState BatchRollingState = "batchFinalizing"
 	// BatchReadyState indicates that all the pods in the are upgraded and its state is ready
 	BatchReadyState BatchRollingState = "batchReady"
-	// BatchFinalizeState indicates that all the pods in the are available, we can move on to the next batch
-	BatchFinalizeState BatchRollingState = "batchFinalize"
 )
 
 // RolloutPlan fines the details of the rollout plan
@@ -88,7 +87,10 @@ type RolloutPlan struct {
 	NumBatches *int32 `json:"numBatches,omitempty"`
 
 	// The exact distribution among batches.
-	// mutually exclusive to NumBatches
+	// mutually exclusive to NumBatches.
+	// The total number cannot exceed the targetSize or the size of the source resource
+	// We will IGNORE the last batch's replica field if it's a percentage since round errors can lead to inaccurate sum
+	// We highly recommend to leave the last batch's replica field empty
 	// +optional
 	RolloutBatches []RolloutBatch `json:"rolloutBatches,omitempty"`
 
@@ -103,7 +105,7 @@ type RolloutPlan struct {
 	// +optional
 	Paused bool `json:"paused,omitempty"`
 
-	// RolloutWebhooks provides a way for the rollout to interact with an external process
+	// RolloutWebhooks provide a way for the rollout to interact with an external process
 	// +optional
 	RolloutWebhooks []RolloutWebhook `json:"rolloutWebhooks,omitempty"`
 
@@ -117,6 +119,7 @@ type RolloutPlan struct {
 type RolloutBatch struct {
 	// Replicas is the number of pods to upgrade in this batch
 	// it can be an absolute number (ex: 5) or a percentage of total pods
+	// we will ignore the percentage of the last batch to just fill the gap
 	// +optional
 	// it is mutually exclusive with the PodList field
 	Replicas intstr.IntOrString `json:"replicas,omitempty"`

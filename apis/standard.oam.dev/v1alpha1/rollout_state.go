@@ -49,7 +49,7 @@ const (
 	// this events comes after we have examine the pod readiness check and traffic shifting if needed
 	OneBatchAvailableEvent RolloutEvent = "OneBatchAvailable"
 
-	// BatchRolloutApprovedEvent indicates that we are waiting for the approval of the
+	// BatchRolloutApprovedEvent indicates that we got the approval manually
 	BatchRolloutApprovedEvent RolloutEvent = "BatchRolloutApprovedEvent"
 
 	// BatchRolloutFailedEvent indicates that we are waiting for the approval of the
@@ -59,7 +59,7 @@ const (
 	WorkloadModifiedEvent RolloutEvent = "WorkloadModifiedEvent"
 )
 
-// These are valid conditions of pod.
+// These are valid conditions of the rollout.
 const (
 	// RolloutSpecVerified indicates that the rollout spec matches the resource we have in the cluster
 	RolloutSpecVerified runtimev1alpha1.ConditionType = "RolloutSpecVerified"
@@ -69,6 +69,18 @@ const (
 	RolloutInProgress runtimev1alpha1.ConditionType = "Ready"
 	// RolloutSucceed means that the rollout is done.
 	RolloutSucceed runtimev1alpha1.ConditionType = "Succeed"
+	// BatchInitialized
+	BatchInitialized runtimev1alpha1.ConditionType = "BatchInitialized"
+	// BatchInRolled
+	BatchInRolled runtimev1alpha1.ConditionType = "BatchInRolled"
+	// BatchVerified
+	BatchVerified runtimev1alpha1.ConditionType = "BatchVerified"
+	// BatchRolloutFailed
+	BatchRolloutFailed runtimev1alpha1.ConditionType = "BatchRolloutFailed"
+	// BatchFinalized
+	BatchFinalized runtimev1alpha1.ConditionType = "BatchFinalized"
+	// BatchReady
+	BatchReady runtimev1alpha1.ConditionType = "BatchReady"
 )
 
 // NewPositiveCondition creates a positive condition type
@@ -104,7 +116,22 @@ func (r *RolloutStatus) getRolloutConditionType() runtimev1alpha1.ConditionType 
 		return RolloutInitialized
 
 	case RollingInBatchesState:
-		return RolloutInProgress
+		switch r.BatchRollingState {
+		case BatchInitializingState:
+			return BatchInitialized
+
+		case BatchVerifyingState:
+			return BatchVerified
+
+		case BatchFinalizingState:
+			return BatchFinalized
+
+		case BatchReadyState:
+			return BatchReady
+
+		default:
+			return RolloutInProgress
+		}
 
 	case FinalisingState:
 		return RolloutSucceed
@@ -148,6 +175,7 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 	case VerifyingState:
 		if event == RollingSpecVerifiedEvent {
 			r.RollingState = InitializingState
+			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
@@ -155,6 +183,7 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 	case InitializingState:
 		if event == RollingInitializedEvent {
 			r.RollingState = RollingInBatchesState
+			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
@@ -166,6 +195,7 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 	case FinalisingState:
 		if event == RollingFinalizedEvent {
 			r.RollingState = RolloutSucceedState
+			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
@@ -173,6 +203,7 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 	case RolloutSucceedState:
 		if event == WorkloadModifiedEvent {
 			r.RollingState = VerifyingState
+			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		if event == RollingFinalizedEvent {
@@ -184,6 +215,7 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 	case RolloutFailedState:
 		if event == WorkloadModifiedEvent {
 			r.RollingState = VerifyingState
+			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		if event == RollingFailedEvent {
@@ -203,6 +235,7 @@ func (r *RolloutStatus) batchStateTransition(event RolloutEvent) {
 	if event == BatchRolloutFailedEvent {
 		r.BatchRollingState = BatchRolloutFailedState
 		r.RollingState = RolloutFailedState
+		r.SetConditions(NewNegativeCondition(r.getRolloutConditionType(), "failed"))
 		return
 	}
 	switch batchRollingState {
@@ -220,13 +253,15 @@ func (r *RolloutStatus) batchStateTransition(event RolloutEvent) {
 		}
 		if event == BatchRolloutVerifyingEvent {
 			r.BatchRollingState = BatchVerifyingState
+			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		panic(fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event))
 
 	case BatchVerifyingState:
 		if event == OneBatchAvailableEvent {
-			r.BatchRollingState = BatchReadyState
+			r.BatchRollingState = BatchFinalizingState
+			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		if event == BatchRolloutVerifyingEvent {
@@ -235,21 +270,24 @@ func (r *RolloutStatus) batchStateTransition(event RolloutEvent) {
 		}
 		panic(fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event))
 
-	case BatchReadyState:
-		if event == BatchRolloutApprovedEvent {
-			r.BatchRollingState = BatchFinalizeState
-			return
-		}
-		panic(fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event))
-
-	case BatchFinalizeState:
+	case BatchFinalizingState:
 		if event == FinishedOneBatchEvent {
-			r.BatchRollingState = BatchInitializingState
+			r.BatchRollingState = BatchReadyState
+			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		if event == AllBatchFinishedEvent {
 			// transition out of the batch loop
 			r.RollingState = FinalisingState
+			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
+			return
+		}
+		panic(fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event))
+
+	case BatchReadyState:
+		if event == BatchRolloutApprovedEvent {
+			r.BatchRollingState = BatchInitializingState
+			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		panic(fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event))

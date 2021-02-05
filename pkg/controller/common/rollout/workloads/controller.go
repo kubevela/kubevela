@@ -30,6 +30,10 @@ type WorkloadController interface {
 	// it returns the number of pods upgraded in this round
 	CheckOneBatchPods(ctx context.Context) *v1alpha1.RolloutStatus
 
+	// FinalizeOneBatch makes sure that the rollout can start the next batch
+	// it also needs to handle the corner cases around the very last batch
+	FinalizeOneBatch(ctx context.Context) *v1alpha1.RolloutStatus
+
 	// Finalize makes sure the resources are in a good final state.
 	// For example, we may remove the source object to prevent scalar traits to ever work
 	// and we will call the finalize rollout web hooks
