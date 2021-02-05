@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/common/rollout/workloads"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -79,7 +80,7 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 		}
 	}()
 
-	wc, err := r.GetWorkloadController()
+	workloadController, err := r.GetWorkloadController()
 	if err != nil {
 		r.rolloutStatus.RolloutFailed(err.Error())
 		r.recorder.Event(r.parentController, event.Warning("Unsupported workload", err))
@@ -88,18 +89,18 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 
 	switch r.rolloutStatus.RollingState {
 	case v1alpha1.VerifyingState:
-		status = *wc.Verify(ctx)
+		status = *workloadController.Verify(ctx)
 
 	case v1alpha1.InitializingState:
 		// TODO: call the pre-rollout webhooks
-		status = *wc.Initialize(ctx)
+		status = *workloadController.Initialize(ctx)
 
 	case v1alpha1.RollingInBatchesState:
-		status = r.reconcileBatchInRolling(ctx, wc)
+		status = r.reconcileBatchInRolling(ctx, workloadController)
 
 	case v1alpha1.FinalisingState:
 		// TODO: call the post-rollout webhooks
-		status = *wc.Finalize(ctx)
+		status = *workloadController.Finalize(ctx)
 
 	case v1alpha1.RolloutSucceedState:
 		// Nothing to do
@@ -115,7 +116,7 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 }
 
 // reconcile logic when we are in the middle of rollout
-func (r *Controller) reconcileBatchInRolling(ctx context.Context, wc workloads.WorkloadController) (
+func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadController workloads.WorkloadController) (
 	status v1alpha1.RolloutStatus) {
 
 	if r.rolloutSpec.Paused {
@@ -125,7 +126,7 @@ func (r *Controller) reconcileBatchInRolling(ctx context.Context, wc workloads.W
 	}
 
 	// makes sure that the current batch and replica count in the status are validate
-	replicas, err := wc.Size(ctx)
+	replicas, err := workloadController.Size(ctx)
 	if err != nil {
 		r.rolloutStatus.RolloutRetry(err.Error())
 		return r.rolloutStatus
@@ -138,27 +139,58 @@ func (r *Controller) reconcileBatchInRolling(ctx context.Context, wc workloads.W
 
 	case v1alpha1.BatchInRollingState:
 		//  still rolling the batch, the batch rolling is not completed yet
-		status = *wc.RolloutOneBatchPods(ctx)
+		status = *workloadController.RolloutOneBatchPods(ctx)
 
 	case v1alpha1.BatchVerifyingState:
-		// verifying if the application is ready to roll.
-		// This happens when it's either manual or automatic with analysis
-		// TODO: call the post-batch webhooks if there are any
+		// verifying if the application is ready to roll
+		// need to check if they meet the availability requirements in the rollout spec.
+		// TODO: evaluate any metrics/analysis
+		status = *workloadController.CheckOneBatchPods(ctx)
+
+	case v1alpha1.BatchFinalizingState:
+		// all the pods in the are available
+		r.finalizeOneBatch()
 
 	case v1alpha1.BatchReadyState:
-		// all the pods in the are upgraded and its state is ready
-		// need to check if they meet the availability requirements in the rollout spec
-		status = *wc.CheckOneBatchPods(ctx)
-
-	case v1alpha1.BatchFinalizeState:
-		// indicates that all the pods in the are available, we can move on to the next batch
-		r.rolloutStatus.CurrentBatch++
+		// all the pods in the are upgraded and their state are ready
+		// wait to move to the next batch if there are any
+		r.tryMovingToNextBatch()
 
 	default:
 		panic(fmt.Sprintf("illegal status %+v", r.rolloutStatus))
 	}
 
 	return status
+}
+
+// check if we can move to the next batch
+func (r *Controller) tryMovingToNextBatch() {
+	if r.rolloutSpec.BatchPartition == nil || *r.rolloutSpec.BatchPartition > r.rolloutStatus.CurrentBatch {
+		klog.InfoS("ready to rollout the next batch", "current batch", r.rolloutStatus.CurrentBatch)
+		r.rolloutStatus.CurrentBatch++
+		r.rolloutStatus.StateTransition(v1alpha1.BatchRolloutApprovedEvent)
+	} else {
+		klog.V(common.LogDebug).InfoS("the current batch is waiting to move on", "current batch",
+			r.rolloutStatus.CurrentBatch)
+	}
+}
+
+func (r *Controller) finalizeOneBatch() {
+	// TODO: call the post-batch webhooks if there are any
+	currentBatch := int(r.rolloutStatus.CurrentBatch)
+	if currentBatch == len(r.rolloutSpec.RolloutBatches)-1 {
+		// this is the last batch, mark the rollout finalized
+		r.rolloutStatus.StateTransition(v1alpha1.AllBatchFinishedEvent)
+		r.recorder.Event(r.parentController, event.Normal("all batches rolled out",
+			fmt.Sprintf("upgrade pod = %d, total ready pod = %d", r.rolloutStatus.UpgradedReplicas,
+				r.rolloutStatus.UpgradedReadyReplicas)))
+	} else {
+		klog.InfoS("finished one batch rollout", "current batch", r.rolloutStatus.CurrentBatch)
+		// th
+		r.recorder.Event(r.parentController, event.Normal("Batch finalized",
+			fmt.Sprintf("the batch num = %d is ready", r.rolloutStatus.CurrentBatch)))
+		r.rolloutStatus.StateTransition(v1alpha1.FinishedOneBatchEvent)
+	}
 }
 
 // verify that the upgradedReplicas and current batch in the status are valid according to the spec
@@ -187,9 +219,14 @@ func (r *Controller) validateRollingBatchStatus(totalSize int) bool {
 		return false
 	}
 	// calculate the upper bound with the current batch
-	batchSize, _ := intstr.GetValueFromIntOrPercent(&spec.RolloutBatches[currentBatch].Replicas,
-		totalSize, true)
-	podCount += batchSize
+	if currentBatch == len(spec.RolloutBatches)-1 {
+		// avoid round up problems
+		podCount = totalSize
+	} else {
+		batchSize, _ := intstr.GetValueFromIntOrPercent(&spec.RolloutBatches[currentBatch].Replicas,
+			totalSize, true)
+		podCount += batchSize
+	}
 	// the recorded number should be not as much as the all the pods including the active batch
 	if podCount < upgradedReplicas {
 		klog.ErrorS(fmt.Errorf("the upgraded replica in the status is too large"), "upgraded num status",
