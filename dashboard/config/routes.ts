@@ -9,6 +9,12 @@
     path: `/applications`,
     component: './Application',
   },
+  /* Application Create should be moved to /Application */
+  {
+    name: 'create_application',
+    path: '/applications/create',
+    component: './CreateApplication'
+  },
   {
     name: 'capability',
     icon: 'AppstoreAddOutlined',
