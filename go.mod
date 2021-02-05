@@ -37,6 +37,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.2
 	github.com/onsi/ginkgo v1.13.0
 	github.com/onsi/gomega v1.10.3
+	github.com/openkruise/kruise-api v0.7.0
 	github.com/openservicemesh/osm v0.3.0
 	github.com/pkg/errors v0.9.1
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
@@ -79,7 +80,6 @@ require (
 
 replace (
 	github.com/Azure/go-autorest => github.com/Azure/go-autorest v12.2.0+incompatible // https://github.com/kubernetes/client-go/issues/628
-	github.com/Sirupsen/logrus v1.7.0 => github.com/sirupsen/logrus v1.7.0
 	// fix build issue https://github.com/docker/distribution/issues/2406
 	github.com/docker/distribution => github.com/docker/distribution v0.0.0-20191216044856-a8371794149d
 	github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible

@@ -258,11 +258,10 @@ spec:
               type: string
           required:
           - rolloutPlan
-          - sourceApplicationName
           - targetApplicationName
           type: object
         status:
-          description: RolloutStatus defines the observed state of Rollout
+          description: ApplicationDeploymentStatus defines the observed state of ApplicationDeployment
           properties:
             batchRollingState:
               description: BatchRollingState only meaningful when the Status is rolling
@@ -296,17 +295,23 @@ spec:
                 type: object
               type: array
             currentBatch:
-              description: The current batch the rollout is working on/blocked
+              description: The current batch the rollout is working on/blocked it starts from 0
               format: int32
               type: integer
+            lastAppliedPodTemplateIdentifier:
+              description: lastAppliedPodTemplateIdentifier is a string that uniquely represent the last pod template each workload type could use different ways to identify that so we cannot compare between resources We update this field only after a successful rollout
+              type: string
+            lastSourceApplicationName:
+              description: LastSourceApplicationName contains the name of the application that we need to upgrade from. We will restart the rollout if this is not the same as the spec
+              type: string
+            lastTargetApplicationName:
+              description: LastTargetApplicationName contains the name of the application that we upgraded to We will restart the rollout if this is not the same as the spec
+              type: string
             rollingState:
               description: RollingState is the Rollout State
               type: string
-            sourceGeneration:
-              description: The source resource generation
-              type: string
             targetGeneration:
-              description: The target resource generation
+              description: NewPodTemplateIdentifier is a string that uniquely represent the new pod template each workload type could use different ways to identify that so we cannot compare between resources
               type: string
             upgradedReadyReplicas:
               description: UpgradedReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
@@ -318,9 +323,8 @@ spec:
               type: integer
           required:
           - currentBatch
+          - lastTargetApplicationName
           - rollingState
-          - sourceGeneration
-          - targetGeneration
           - upgradedReadyReplicas
           - upgradedReplicas
           type: object
