@@ -19,5 +19,4 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  extension:
-    template: |
+  template: |
