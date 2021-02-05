@@ -7,7 +7,7 @@ import { deleteApplication, getApplications } from '@/services/application';
 import { PlusOutlined } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-layout';
 // @ts-ignore
-import { Link as ReactLink } from "react-router-dom";
+import { Link as ReactLink } from 'react-router-dom';
 
 export default () => {
   const { currentEnvironment } = useModel('useEnvironmentModel');
@@ -45,7 +45,6 @@ export default () => {
           <Space>
             <Button type="primary" icon={<PlusOutlined />}>
               <ReactLink to="/applications/create"> Create</ReactLink>
-
             </Button>
           </Space>
         </div>

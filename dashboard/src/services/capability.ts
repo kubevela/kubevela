@@ -1,13 +1,11 @@
 import { request } from 'umi';
 
-
 /*
  * workload type list: get /api/workloads/
  */
 export async function getWorkloads(): Promise<API.VelaResponse<API.Workloads[]>> {
-  return request( '/api/workloads');
+  return request('/api/workloads');
 }
-
 
 /*
  * trait list: get /api/traits/
