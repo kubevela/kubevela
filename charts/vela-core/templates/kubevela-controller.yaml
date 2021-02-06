@@ -113,6 +113,7 @@ spec:
             - "--webhook-cert-dir={{ .Values.certificate.mountPath }}"
             {{ end }}
             - "--health-addr=:{{ .Values.healthCheck.port }}"
+            - "--apply-once-only={{ .Values.applyOnceOnly }}"
             {{ if ne .Values.disableCaps "" }}
             - "--disable-caps={{ .Values.disableCaps }}"
             {{ end }}
