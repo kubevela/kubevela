@@ -4,94 +4,103 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"strconv"
-	"time"
+
+	"k8s.io/client-go/util/retry"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 )
 
-func callWebhook(webhook string, payload interface{}, timeout string) error {
+// issue an http call to the an end ponit
+func makeHTTPRequest(ctx context.Context, webhookEndPoint string, payload interface{}) ([]byte, int, error) {
 	payloadBin, err := json.Marshal(payload)
 	if err != nil {
-		return err
+		return nil, http.StatusInternalServerError, err
 	}
 
-	hook, err := url.Parse(webhook)
+	hook, err := url.Parse(webhookEndPoint)
 	if err != nil {
-		return err
+		return nil, http.StatusInternalServerError, err
 	}
 
 	req, err := http.NewRequestWithContext(context.Background(), "POST", hook.String(), bytes.NewBuffer(payloadBin))
 	if err != nil {
-		return err
+		return nil, http.StatusInternalServerError, err
 	}
-
 	req.Header.Set("Content-Type", "application/json")
 
-	if timeout == "" {
-		timeout = "10s"
-	}
+	// issue request with retry
+	var r *http.Response
+	var body []byte
+	err = retry.OnError(retry.DefaultBackoff,
+		func(error) bool {
+			// not sure what not to retry on
+			return true
+		}, func() error {
+			var requestErr error
+			r, requestErr = http.DefaultClient.Do(req.WithContext(ctx))
+			defer func() {
+				_ = r.Body.Close()
+			}()
+			if requestErr != nil {
+				return requestErr
+			}
+			body, requestErr = ioutil.ReadAll(r.Body)
+			if requestErr != nil {
+				return requestErr
+			}
+			return requestErr
+		})
 
-	t, err := time.ParseDuration(timeout)
+	// failed even with retry
 	if err != nil {
-		return err
+		return nil, http.StatusInternalServerError, err
 	}
-
-	ctx, cancel := context.WithTimeout(req.Context(), t)
-	defer cancel()
-
-	r, err := http.DefaultClient.Do(req.WithContext(ctx))
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = r.Body.Close()
-	}()
-
-	b, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return fmt.Errorf("error reading body: %w", err)
-	}
-
-	if r.StatusCode > 202 {
-		return errors.New(string(b))
-	}
-
-	return nil
+	return body, r.StatusCode, nil
 }
 
-// CallWebhook does a HTTP POST to an external service and
+// callWebhook does a HTTP POST to an external service and
 // returns an error if the response status code is non-2xx
-func CallWebhook(name string, namespace string, phase v1alpha1.RollingState, w v1alpha1.RolloutWebhook) error {
-	payload := v1alpha1.RolloutWebhookPayload{}
+func callWebhook(ctx context.Context, resource klog.KMetadata, phase v1alpha1.RollingState,
+	w v1alpha1.RolloutWebhook) error {
+	payload := v1alpha1.RolloutWebhookPayload{
+		Name:      resource.GetName(),
+		Namespace: resource.GetNamespace(),
+		Phase:     phase,
+	}
 
 	if w.Metadata != nil {
 		payload.Metadata = *w.Metadata
 	}
-
-	if len(w.Timeout) < 2 {
-		w.Timeout = "10s"
+	// make the http request
+	_, status, err := makeHTTPRequest(ctx, w.URL, payload)
+	if err != nil {
+		return err
 	}
-
-	return callWebhook(w.URL, payload, w.Timeout)
-}
-
-// CallEventWebhook does a HTTP POST to an external service with meta data
-func CallEventWebhook(r *v1alpha1.RolloutTrait, webhookURL, message, eventtype string) error {
-	t := time.Now()
-
-	payload := v1alpha1.RolloutWebhookPayload{
-		Metadata: map[string]string{
-			"eventMessage": message,
-			"eventType":    eventtype,
-			"timestamp":    strconv.FormatInt(t.UnixNano()/1000000, 10),
-		},
+	if len(w.ExpectedStatus) == 0 {
+		if status > http.StatusAccepted {
+			err := fmt.Errorf("we fail the webhook request based on status, http status = %d", status)
+			return err
+		}
+		return nil
 	}
-
-	return callWebhook(webhookURL, payload, "5s")
+	// check if the returned status is expected
+	accepted := false
+	for _, es := range w.ExpectedStatus {
+		if es == status {
+			accepted = true
+			break
+		}
+	}
+	if !accepted {
+		err := fmt.Errorf("http request to the webhook not accepeted, http status = %d", status)
+		klog.V(common.LogDebug).InfoS("the status is not expected", "expected status", w.ExpectedStatus)
+		return err
+	}
+	return nil
 }
