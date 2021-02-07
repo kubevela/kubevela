@@ -221,11 +221,13 @@ func OpenBrowser(url string) error {
 func CheckVelaRuntimeInstalledAndReady(ioStreams cmdutil.IOStreams, c client.Client) (bool, error) {
 	if !helm.IsHelmReleaseRunning(types.DefaultKubeVelaReleaseName, types.DefaultKubeVelaChartName, types.DefaultKubeVelaNS, ioStreams) {
 		ioStreams.Info(fmt.Sprintf("\n%s %s", emojiFail, "KubeVela runtime is not installed yet."))
-		ioStreams.Info(fmt.Sprintf("\n%s %s%s or %s",
+		ioStreams.Info(fmt.Sprintf("\n%s %s%s",
 			emojiLightBulb,
 			"Please use this command to install: ",
-			white.Sprint("vela install -w"),
-			white.Sprint("vela install --help")))
+			white.Sprint("helm repo add kubevela https://kubevelacharts.oss-cn-hangzhou.aliyuncs.com/core && "+
+				"helm repo update \n kubectl create namespace vela-system \n "+
+				"helm install -n vela-system kubevela kubevela/vela-core"),
+		))
 		return false, nil
 	}
 	return PrintTrackVelaRuntimeStatus(context.Background(), c, ioStreams, 5*time.Minute)

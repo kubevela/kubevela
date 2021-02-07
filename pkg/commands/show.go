@@ -40,8 +40,8 @@ const (
 
 var webSite bool
 
-// NewAppShowCommand shows the reference doc for a workload type or trait
-func NewAppShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+// NewCapabilityShowCommand shows the reference doc for a workload type or trait
+func NewCapabilityShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "show",
 		Short:   "Show the reference doc for a workload type or trait",

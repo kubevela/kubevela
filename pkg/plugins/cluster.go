@@ -61,7 +61,7 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c types.Args
 
 	var templateErrors []error
 	for _, wd := range workloadDefs.Items {
-		tmp, err := HandleDefinition(wd.Name, syncDir, wd.Spec.Reference.Name, wd.Annotations, wd.Spec.Extension, types.TypeWorkload, nil)
+		tmp, err := HandleDefinition(wd.Name, syncDir, wd.Spec.Reference.Name, wd.Annotations, wd.Spec.Extension, types.TypeWorkload, nil, wd.Spec.Template)
 		if err != nil {
 			templateErrors = append(templateErrors, errors.Wrapf(err, "handle workload template `%s` failed", wd.Name))
 			continue
@@ -93,7 +93,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, s
 
 	var templateErrors []error
 	for _, td := range traitDefs.Items {
-		tmp, err := HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Annotations, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads)
+		tmp, err := HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Annotations, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads, td.Spec.Template)
 		if err != nil {
 			templateErrors = append(templateErrors, errors.Wrapf(err, "handle trait template `%s` failed", td.Name))
 			continue
@@ -134,9 +134,9 @@ func validateCapabilities(tmp types.Capability, dm discoverymapper.DiscoveryMapp
 }
 
 // HandleDefinition will handle definition to capability
-func HandleDefinition(name, syncDir, crdName string, annotation map[string]string, extension *runtime.RawExtension, tp types.CapType, applyTo []string) (types.Capability, error) {
+func HandleDefinition(name, syncDir, crdName string, annotation map[string]string, extension *runtime.RawExtension, tp types.CapType, applyTo []string, template string) (types.Capability, error) {
 	var tmp types.Capability
-	tmp, err := HandleTemplate(extension, name, syncDir)
+	tmp, err := HandleTemplate(extension, template, name, syncDir)
 	if err != nil {
 		return types.Capability{}, err
 	}
@@ -162,31 +162,31 @@ func GetDescription(annotation map[string]string) string {
 }
 
 // HandleTemplate will handle definition template to capability
-func HandleTemplate(in *runtime.RawExtension, name, syncDir string) (types.Capability, error) {
-	tmp, err := types.ConvertTemplateJSON2Object(in)
+func HandleTemplate(in *runtime.RawExtension, specTemplate, name, syncDir string) (types.Capability, error) {
+	tmp, err := util.ConvertTemplateJSON2Object(in, specTemplate)
 	if err != nil {
 		return types.Capability{}, err
 	}
 	tmp.Name = name
-
-	var cueTemplate string
+	// if spec.template is not empty it should has the highest priority
+	if specTemplate != "" {
+		tmp.CueTemplate = specTemplate
+		tmp.CueTemplateURI = ""
+	}
 	if tmp.CueTemplateURI != "" {
 		b, err := common.HTTPGet(context.Background(), tmp.CueTemplateURI)
 		if err != nil {
 			return types.Capability{}, err
 		}
-		cueTemplate = string(b)
-		tmp.CueTemplate = cueTemplate
-	} else {
-		if tmp.CueTemplate == "" {
-			return types.Capability{}, errors.New("template not exist in definition")
-		}
-		cueTemplate = tmp.CueTemplate
+		tmp.CueTemplate = string(b)
+	}
+	if tmp.CueTemplate == "" {
+		return types.Capability{}, errors.New("template not exist in definition")
 	}
 	_, _ = system.CreateIfNotExist(syncDir)
 	filePath := filepath.Join(syncDir, name+".cue")
 	//nolint:gosec
-	err = ioutil.WriteFile(filePath, []byte(cueTemplate), 0644)
+	err = ioutil.WriteFile(filePath, []byte(tmp.CueTemplate), 0644)
 	if err != nil {
 		return types.Capability{}, err
 	}
@@ -245,7 +245,7 @@ func SyncDefinitionToLocal(ctx context.Context, c types.Args, localDefinitionDir
 	}
 	if foundCapability {
 		template, err := HandleDefinition(capabilityName, localDefinitionDir, workloadDef.Spec.Reference.Name,
-			workloadDef.Annotations, workloadDef.Spec.Extension, types.TypeWorkload, nil)
+			workloadDef.Annotations, workloadDef.Spec.Extension, types.TypeWorkload, nil, workloadDef.Spec.Template)
 		if err == nil {
 			return &template, nil
 		}
@@ -259,7 +259,7 @@ func SyncDefinitionToLocal(ctx context.Context, c types.Args, localDefinitionDir
 	}
 	if foundCapability {
 		template, err := HandleDefinition(capabilityName, localDefinitionDir, traitDef.Spec.Reference.Name,
-			traitDef.Annotations, traitDef.Spec.Extension, types.TypeTrait, nil)
+			traitDef.Annotations, traitDef.Spec.Extension, types.TypeTrait, nil, workloadDef.Spec.Template)
 		if err == nil {
 			return &template, nil
 		}

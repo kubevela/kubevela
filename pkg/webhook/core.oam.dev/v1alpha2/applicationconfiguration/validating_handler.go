@@ -10,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -96,7 +95,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		}
 		vAppConfig := &ValidatingAppConfig{}
 		if err := vAppConfig.PrepareForValidation(ctx, h.Client, h.Mapper, obj); err != nil {
-			klog.Info("failed init appConfig before validation ", " name: ", obj.Name, " errMsg: ", err.Error())
+			klog.Info("failed preparing information before validation ", " name: ", obj.Name, " errMsg: ", err.Error())
 			return admission.Denied(err.Error())
 		}
 		for _, validator := range h.Validators {
@@ -108,35 +107,6 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		}
 	}
 	return admission.ValidationResponse(true, "")
-}
-
-// ValidateTraitObjectFn validates the ApplicationConfiguration on creation/update
-func ValidateTraitObjectFn(_ context.Context, v ValidatingAppConfig) []error {
-	klog.Info("validate applicationConfiguration", "name", v.appConfig.Name)
-	var allErrs field.ErrorList
-	for cidx, comp := range v.validatingComps {
-		for idx, tr := range comp.validatingTraits {
-			fldPath := field.NewPath("spec").Child("components").Index(cidx).Child("traits").Index(idx).Child("trait")
-			content := tr.traitContent.Object
-			if content[TraitTypeField] != nil {
-				allErrs = append(allErrs, field.Invalid(fldPath, string(tr.componentTrait.Trait.Raw),
-					"the trait contains 'name' info that should be mutated to GVK"))
-			}
-			if content[TraitSpecField] != nil {
-				allErrs = append(allErrs, field.Invalid(fldPath, string(tr.componentTrait.Trait.Raw),
-					"the trait contains 'properties' info that should be mutated to spec"))
-			}
-			if len(tr.traitContent.GetAPIVersion()) == 0 || len(tr.traitContent.GetKind()) == 0 {
-				allErrs = append(allErrs, field.Invalid(fldPath, content,
-					fmt.Sprintf("the trait data missing GVK, api = %s, kind = %s,",
-						tr.traitContent.GetAPIVersion(), tr.traitContent.GetKind())))
-			}
-		}
-	}
-	if len(allErrs) > 0 {
-		return allErrs.ToAggregate().Errors()
-	}
-	return nil
 }
 
 // ValidateRevisionNameFn validates revisionName and componentName are assigned both.
@@ -313,7 +283,6 @@ func RegisterValidatingHandler(mgr manager.Manager) error {
 	server.Register("/validating-core-oam-dev-v1alpha2-applicationconfigurations", &webhook.Admission{Handler: &ValidatingHandler{
 		Mapper: mapper,
 		Validators: []AppConfigValidator{
-			AppConfigValidateFunc(ValidateTraitObjectFn),
 			AppConfigValidateFunc(ValidateRevisionNameFn),
 			AppConfigValidateFunc(ValidateWorkloadNameForVersioningFn),
 			AppConfigValidateFunc(ValidateTraitAppliableToWorkloadFn),

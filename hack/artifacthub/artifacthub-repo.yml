@@ -1,0 +1,23 @@
+# Artifact Hub repository metadata file
+#
+# Some settings like the verified publisher flag or the ignored packages won't
+# be applied until the next time the repository is processed. Please keep in
+# mind that the repository won't be processed if it has not changed since the
+# last time it was processed. Depending on the repository kind, this is checked
+# in a different way. For Helm http based repositories, we consider it has
+# changed if the `index.yaml` file changes. For git based repositories, it does
+# when the hash of the last commit in the branch you set up changes. This does
+# NOT apply to ownership claim operations, which are processed immediately.
+#
+repositoryID: ARTIFACT_HUB_REPOSITORY_ID
+owners:
+  - name: Lei Zhang (Harry)
+    email: resouer@gmail.com
+  - name: Jianbo Sun
+    email: wonderflow.sun@gmail.com
+  - name: Ryan Zhang
+    email: yangzhangrice@hotmail.com
+  - name: Hongchao Deng
+    email: hongchaodeng1@gmail.com
+  - name: Zheng Xi Zhou
+    email: zzxwill@gmail.com

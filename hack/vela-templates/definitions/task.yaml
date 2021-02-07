@@ -7,5 +7,4 @@ metadata:
 spec:
   definitionRef:
     name: jobs.batch
-  extension:
-    template: |
+  template: |

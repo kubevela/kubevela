@@ -64,10 +64,34 @@ type WorkloadDefinitionSpec struct {
 	// +optional
 	PodSpecPath string `json:"podSpecPath,omitempty"`
 
+	// Status defines the custom health policy and status message for workload
+	// +optional
+	Status *Status `json:"status,omitempty"`
+
+	// Template defines the abstraction template data of the workload, it will replace the old template in extension field.
+	// the data format depends on templateType, by default it's CUE
+	// +optional
+	Template string `json:"template,omitempty"`
+
+	// TemplateType defines the data format of the template, by default it's CUE format
+	// Terraform HCL, Helm Chart will also be candidates in the near future.
+	// +optional
+	TemplateType string `json:"templateType,omitempty"`
+
 	// Extension is used for extension needs by OAM platform builders
 	// +optional
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Extension *runtime.RawExtension `json:"extension,omitempty"`
+}
+
+// Status defines the loop back status of the abstraction by using CUE template
+type Status struct {
+	// CustomStatus defines the custom status message that could display to user
+	// +optional
+	CustomStatus string `json:"customStatus,omitempty"`
+	// HealthPolicy defines the health check policy for the abstraction
+	// +optional
+	HealthPolicy string `json:"healthPolicy,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -125,6 +149,20 @@ type TraitDefinitionSpec struct {
 	// labelSelector format: https://pkg.go.dev/k8s.io/apimachinery/pkg/labels#Parse
 	// +optional
 	ConflictsWith []string `json:"conflictsWith,omitempty"`
+
+	// Template defines the abstraction template data of the workload, it will replace the old template in extension field.
+	// the data format depends on templateType, by default it's CUE
+	// +optional
+	Template string `json:"template,omitempty"`
+
+	// TemplateType defines the data format of the template, by default it's CUE format
+	// Terraform HCL, Helm Chart will also be candidates in the near future.
+	// +optional
+	TemplateType string `json:"templateType,omitempty"`
+
+	// Status defines the custom health policy and status message for trait
+	// +optional
+	Status *Status `json:"status,omitempty"`
 
 	// Extension is used for extension needs by OAM platform builders
 	// +optional
@@ -400,6 +438,13 @@ type WorkloadStatus struct {
 
 	// ComponentRevisionName of current component
 	ComponentRevisionName string `json:"componentRevisionName,omitempty"`
+
+	// ObservedGeneration indicates the generation observed by the appconfig controller.
+	// The same field is also recorded in the annotations of workloads.
+	// A workload is possible to be deleted from cluster after created.
+	// This field is useful to track the observed generation of workloads after they are
+	// deleted.
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
 	// Reference to a workload created by an ApplicationConfiguration.
 	Reference runtimev1alpha1.TypedReference `json:"workloadRef,omitempty"`

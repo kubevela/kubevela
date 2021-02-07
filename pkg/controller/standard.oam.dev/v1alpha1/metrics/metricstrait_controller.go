@@ -31,7 +31,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -163,7 +165,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	r.gcOrphanServiceMonitor(ctx, mLog, &metricsTrait)
 	(&metricsTrait).SetConditions(cpv1alpha1.ReconcileSuccess())
-	return ctrl.Result{}, errors.Wrap(r.Status().Update(ctx, &metricsTrait), common.ErrUpdateStatus)
+	return ctrl.Result{}, errors.Wrap(r.UpdateStatus(ctx, &metricsTrait), common.ErrUpdateStatus)
 }
 
 // fetch the label of the service that is associated with the workload
@@ -334,6 +336,18 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&v1alpha1.MetricsTrait{}).
 		Owns(&monitoring.ServiceMonitor{}).
 		Complete(r)
+}
+
+// UpdateStatus updates v1alpha1.MetricsTrait's Status with retry.RetryOnConflict
+func (r *Reconciler) UpdateStatus(ctx context.Context, mt *v1alpha1.MetricsTrait, opts ...client.UpdateOption) error {
+	status := mt.DeepCopy().Status
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+		if err = r.Get(ctx, types.NamespacedName{Namespace: mt.Namespace, Name: mt.Name}, mt); err != nil {
+			return
+		}
+		mt.Status = status
+		return r.Status().Update(ctx, mt, opts...)
+	})
 }
 
 // Setup adds a controller that reconciles MetricsTrait.

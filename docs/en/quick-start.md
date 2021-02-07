@@ -46,8 +46,7 @@ Services:
       Created at: ...
       Updated at: ...
     Traits:
-      - ✅ ingress: domain=testsvc.example.com
-	    	http=map[/:8000]
+      - ✅ ingress: Visiting URL: testsvc.example.com, IP: <your IP address>
 ```
 
 **In [kind cluster setup](./install.md#kind)**, you can visit the service via localhost. In other setups, replace localhost with ingress address accordingly.

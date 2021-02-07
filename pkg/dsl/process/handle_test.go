@@ -26,9 +26,9 @@ image: "myserver"
 		return
 	}
 
-	ctx := NewContext("myctx")
+	ctx := NewContext("mycomp", "myapp")
 	ctx.SetBase(base)
-	ctxInst, err := r.Compile("-", ctx.Compile("context"))
+	ctxInst, err := r.Compile("-", ctx.BaseContextFile())
 	if err != nil {
 		t.Error(err)
 		return
@@ -36,7 +36,11 @@ image: "myserver"
 
 	gName, err := ctxInst.Lookup("context", "name").String()
 	assert.Equal(t, nil, err)
-	assert.Equal(t, "myctx", gName)
+	assert.Equal(t, "mycomp", gName)
+
+	myAppName, err := ctxInst.Lookup("context", "appName").String()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "myapp", myAppName)
 	inputJs, err := ctxInst.Lookup("context", "input").MarshalJSON()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, `{"image":"myserver"}`, string(inputJs))

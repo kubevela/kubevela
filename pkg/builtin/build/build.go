@@ -106,7 +106,7 @@ func (b *Build) buildImage(io cmdutil.IOStreams, image string) error {
 		io.Errorf("BuildImage wait for command execution error:%s", err.Error())
 		return err
 	}
-	return b.pushImage(io, image)
+	return nil
 }
 
 func (b *Build) pushImage(io cmdutil.IOStreams, image string) error {

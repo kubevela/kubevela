@@ -53,7 +53,7 @@ func (h *ValidatingHandler) ValidateCreate(appDeploy *v1alpha2.ApplicationDeploy
 		fldPath.Child("componentList"))...)
 
 	// validate the rollout plan spec
-	allErrs = append(allErrs, rollout.ValidateCreate(&appDeploy.Spec.RolloutPlan)...)
+	allErrs = append(allErrs, rollout.ValidateCreate(&appDeploy.Spec.RolloutPlan, fldPath.Child("rolloutPlan"))...)
 	return allErrs
 }
 
@@ -113,5 +113,6 @@ func (h *ValidatingHandler) ValidateUpdate(new, old *v1alpha2.ApplicationDeploym
 	if len(errList) > 0 {
 		return errList
 	}
-	return rollout.ValidateUpdate(&new.Spec.RolloutPlan, &old.Spec.RolloutPlan)
+	fldPath := field.NewPath("spec").Child("rolloutPlan")
+	return rollout.ValidateUpdate(&new.Spec.RolloutPlan, &old.Spec.RolloutPlan, fldPath)
 }

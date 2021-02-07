@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	injectorcontroller "github.com/oam-dev/trait-injector/controllers"
 	"github.com/oam-dev/trait-injector/pkg/injector"
 	"github.com/oam-dev/trait-injector/pkg/plugin"
+	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	kedav1alpha1 "github.com/wonderflow/keda-api/api/v1alpha1"
 	"go.uber.org/zap/zapcore"
@@ -62,6 +64,7 @@ func init() {
 	_ = injectorv1alpha1.AddToScheme(scheme)
 	_ = certmanager.AddToScheme(scheme)
 	_ = kedav1alpha1.AddToScheme(scheme)
+	_ = kruise.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -77,6 +80,7 @@ func main() {
 	var disableCaps string
 	var storageDriver string
 	var syncPeriod time.Duration
+	var applyOnceOnly string
 
 	flag.BoolVar(&useWebhook, "use-webhook", false, "Enable Admission Webhook")
 	flag.BoolVar(&useTraitInjector, "use-trait-injector", false, "Enable TraitInjector")
@@ -93,8 +97,8 @@ func main() {
 	flag.IntVar(&controllerArgs.RevisionLimit, "revision-limit", 50,
 		"RevisionLimit is the maximum number of revisions that will be maintained. The default value is 50.")
 	flag.StringVar(&healthAddr, "health-addr", ":9440", "The address the health endpoint binds to.")
-	flag.BoolVar(&controllerArgs.ApplyOnceOnly, "apply-once-only", false,
-		"For the purpose of some production environment that workload or trait should not be affected if no spec change")
+	flag.StringVar(&applyOnceOnly, "apply-once-only", "false",
+		"For the purpose of some production environment that workload or trait should not be affected if no spec change, available options: on, off, force.")
 	flag.StringVar(&controllerArgs.CustomRevisionHookURL, "custom-revision-hook-url", "",
 		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
 	flag.StringVar(&disableCaps, "disable-caps", "", "To be disabled builtin capability list.")
@@ -162,6 +166,23 @@ func main() {
 		}
 	}
 
+	switch strings.ToLower(applyOnceOnly) {
+	case "", "false", string(oamcontroller.ApplyOnceOnlyOff):
+		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyOff
+		setupLog.Info("ApplyOnceOnly is disabled")
+	case "true", string(oamcontroller.ApplyOnceOnlyOn):
+		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyOn
+		setupLog.Info("ApplyOnceOnly is enabled, that means workload or trait only apply once if no spec change even they are changed by others")
+	case string(oamcontroller.ApplyOnceOnlyForce):
+		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyForce
+		setupLog.Info("ApplyOnceOnlyForce is enabled, that means workload or trait only apply once if no spec change even they are changed or deleted by others")
+	default:
+		setupLog.Error(fmt.Errorf("invalid apply-once-only value: %s", applyOnceOnly),
+			"unable to setup the vela core controller",
+			"valid apply-once-only value:", "on/off/force, by default it's off")
+		os.Exit(1)
+	}
+
 	if err = oamv1alpha2.Setup(mgr, controllerArgs, logging.NewLogrLogger(setupLog)); err != nil {
 		setupLog.Error(err, "unable to setup the oam core controller")
 		os.Exit(1)
@@ -201,9 +222,6 @@ func main() {
 
 	setupLog.Info("starting the vela controller manager")
 
-	if controllerArgs.ApplyOnceOnly {
-		setupLog.Info("applyOnceOnly is enabled that means workload or trait only apply once if no spec change even they are changed by others")
-	}
 	if err := mgr.Start(makeSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)

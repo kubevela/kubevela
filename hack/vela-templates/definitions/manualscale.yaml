@@ -11,5 +11,4 @@ spec:
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
-  extension:
-    template: |-
+  template: |

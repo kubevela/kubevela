@@ -23,11 +23,10 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
-
 	standardv1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/routes/ingress"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
@@ -39,7 +38,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -146,9 +147,9 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	routeTrait.Status.Status, conditions = routeIngress.CheckStatus(&routeTrait)
 	routeTrait.Status.Conditions = conditions
 	if routeTrait.Status.Status != ingress.StatusReady {
-		return ctrl.Result{RequeueAfter: requeueNotReady}, r.Status().Update(ctx, &routeTrait)
+		return ctrl.Result{RequeueAfter: requeueNotReady}, r.UpdateStatus(ctx, &routeTrait)
 	}
-	err = r.Status().Update(ctx, &routeTrait)
+	err = r.UpdateStatus(ctx, &routeTrait)
 	if err != nil {
 		return oamutil.ReconcileWaitResult, err
 	}
@@ -245,6 +246,18 @@ func (r *Reconciler) fillBackendByCreatedService(ctx context.Context, mLog logr.
 		Name:       oamService.Name,
 		UID:        routeTrait.UID,
 	}, nil
+}
+
+// UpdateStatus updates standardv1alpha1.Route's Status with retry.RetryOnConflict
+func (r *Reconciler) UpdateStatus(ctx context.Context, route *standardv1alpha1.Route, opts ...client.UpdateOption) error {
+	status := route.DeepCopy().Status
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+		if err = r.Get(ctx, types.NamespacedName{Namespace: route.Namespace, Name: route.Name}, route); err != nil {
+			return
+		}
+		route.Status = status
+		return r.Status().Update(ctx, route, opts...)
+	})
 }
 
 // DiscoverPortsLabel assume the workload or it's childResource will always having spec.template as PodTemplate if discoverable

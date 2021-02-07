@@ -3,65 +3,61 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
 func main() {
-	dir, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
+	var crds []string
+	args := os.Args
+	if len(args) <= 1 {
+		fmt.Println("no CRDs is specified")
+		os.Exit(1)
 	}
-	if len(os.Args) > 1 {
-		dir = os.Args[1]
-	}
-	err = FixNewSchemaValidationCheck(dir)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "error getting chart source:", err)
+	crds = args[1:]
+	if err := fixNewSchemaValidationCheck(crds); err != nil {
+		fmt.Println(err)
 		os.Exit(1)
 	}
 }
 
-// FixNewSchemaValidationCheck temporarily corrects spec.validation.openAPIV3Schema issue, and it would be removed
-// after this issue was fixed https://github.com/oam-dev/kubevela/issues/284.
-func FixNewSchemaValidationCheck(chartPath string) error {
-	err := filepath.Walk(chartPath, func(path string, info os.FileInfo, err error) error {
+func fixNewSchemaValidationCheck(crds []string) error {
+	for _, crd := range crds {
+		data, err := ioutil.ReadFile(crd)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "failed to list the content of", path)
+			fmt.Fprintf(os.Stderr, "reading CRD file %s hit an issue: %s\n", crd, err)
 			return err
 		}
-		if info.IsDir() {
-			return nil
-		}
+		var newData []string
+		// temporarily corrects spec.validation.openAPIV3Schema issue https://github.com/kubernetes/kubernetes/issues/91395
+		if strings.HasSuffix(crd, "charts/vela-core/crds/standard.oam.dev_podspecworkloads.yaml") {
+			var previousLine string
+			for _, line := range strings.Split(string(data), "\n") {
+				if strings.Contains(previousLine, "protocol:") &&
+					strings.Contains(line, "description: Protocol for port. Must be UDP, TCP,") {
+					tmp := strings.Split(line, "description")
 
-		if info.Name() != "standard.oam.dev_podspecworkloads.yaml" {
-			return nil
-		}
-		data, err := ioutil.ReadFile(path)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "open path err", path, err)
-			return err
-		}
-		var newdata []string
-		var previousLine string
-		for _, line := range strings.Split(string(data), "\n") {
-			if strings.Contains(previousLine, "protocol:") &&
-				strings.Contains(line, "description: Protocol for port. Must be UDP, TCP,") {
-				tmp := strings.Split(line, "description")
-
-				if len(tmp) > 0 {
-					blanks := tmp[0]
-					defaultStr := blanks + "default: TCP"
-					newdata = append(newdata, defaultStr)
+					if len(tmp) > 0 {
+						blanks := tmp[0]
+						defaultStr := blanks + "default: TCP"
+						newData = append(newData, defaultStr)
+					}
 				}
+				newData = append(newData, line)
+				previousLine = line
 			}
-			newdata = append(newdata, line)
-			previousLine = line
+			ioutil.WriteFile(crd, []byte(strings.Join(newData, "\n")), 0644)
 		}
-
-		return ioutil.WriteFile(path, []byte(strings.Join(newdata, "\n")), info.Mode())
-	})
-	return err
+		// fix issue https://github.com/oam-dev/kubevela/issues/993
+		if strings.HasSuffix(crd, "legacy/charts/vela-core-legacy/crds/standard.oam.dev_routes.yaml") {
+			for _, line := range strings.Split(string(data), "\n") {
+				if strings.Contains(line, "default: Issuer") {
+					continue
+				}
+				newData = append(newData, line)
+			}
+			ioutil.WriteFile(crd, []byte(strings.Join(newData, "\n")), 0644)
+		}
+	}
+	return nil
 }

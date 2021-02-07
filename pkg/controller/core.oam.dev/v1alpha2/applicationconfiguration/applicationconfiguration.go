@@ -27,6 +27,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -102,22 +104,22 @@ func Setup(mgr ctrl.Manager, args core.Args, l logging.Logger) error {
 		Complete(NewReconciler(mgr, dm,
 			WithLogger(l.WithValues("controller", name)),
 			WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
-			WithApplyOnceOnly(args.ApplyOnceOnly)))
+			WithApplyOnceOnlyMode(args.ApplyMode)))
 }
 
 // An OAMApplicationReconciler reconciles OAM ApplicationConfigurations by rendering and
 // instantiating their Components and Traits.
 type OAMApplicationReconciler struct {
-	client        client.Client
-	components    ComponentRenderer
-	workloads     WorkloadApplicator
-	gc            GarbageCollector
-	scheme        *runtime.Scheme
-	log           logging.Logger
-	record        event.Recorder
-	preHooks      map[string]ControllerHooks
-	postHooks     map[string]ControllerHooks
-	applyOnceOnly bool
+	client            client.Client
+	components        ComponentRenderer
+	workloads         WorkloadApplicator
+	gc                GarbageCollector
+	scheme            *runtime.Scheme
+	log               logging.Logger
+	record            event.Recorder
+	preHooks          map[string]ControllerHooks
+	postHooks         map[string]ControllerHooks
+	applyOnceOnlyMode core.ApplyOnceOnlyMode
 }
 
 // A ReconcilerOption configures a Reconciler.
@@ -174,11 +176,11 @@ func WithPosthook(name string, hook ControllerHooks) ReconcilerOption {
 	}
 }
 
-// WithApplyOnceOnly indicates whether workloads and traits should be
+// WithApplyOnceOnlyMode indicates whether workloads and traits should be
 // affected if no spec change is made in the ApplicationConfiguration.
-func WithApplyOnceOnly(applyOnceOnly bool) ReconcilerOption {
+func WithApplyOnceOnlyMode(mode core.ApplyOnceOnlyMode) ReconcilerOption {
 	return func(r *OAMApplicationReconciler) {
-		r.applyOnceOnly = applyOnceOnly
+		r.applyOnceOnlyMode = mode
 	}
 }
 
@@ -200,11 +202,12 @@ func NewReconciler(m ctrl.Manager, dm discoverymapper.DiscoveryMapper, o ...Reco
 			rawClient:  m.GetClient(),
 			dm:         dm,
 		},
-		gc:        GarbageCollectorFn(eligible),
-		log:       logging.NewNopLogger(),
-		record:    event.NewNopRecorder(),
-		preHooks:  make(map[string]ControllerHooks),
-		postHooks: make(map[string]ControllerHooks),
+		gc:                GarbageCollectorFn(eligible),
+		log:               logging.NewNopLogger(),
+		record:            event.NewNopRecorder(),
+		preHooks:          make(map[string]ControllerHooks),
+		postHooks:         make(map[string]ControllerHooks),
+		applyOnceOnlyMode: core.ApplyOnceOnlyOff,
 	}
 
 	for _, ro := range o {
@@ -244,7 +247,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 				"error", err, "requeue-after", result.RequeueAfter)
 			r.record.Event(ac, event.Warning(reasonCannotFinalizeWorkloads, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errFinalizeWorkloads)))
-			return reconcile.Result{}, errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 		}
 		return reconcile.Result{}, errors.Wrap(r.client.Update(ctx, ac), errUpdateAppConfigStatus)
 	}
@@ -259,12 +262,12 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 				r.record.Event(ac, event.Warning(reasonCannotExecutePosthooks, err))
 				ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errExecutePosthooks)))
 				result = exeResult
-				returnErr = errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+				returnErr = errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 				return
 			}
 			r.record.Event(ac, event.Normal(reasonExecutePosthook, "Successfully executed a posthook", "posthook name", name))
 		}
-		returnErr = errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+		returnErr = errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 
 		// Make sure if error occurs, reconcile will not happen too frequency
 		if returnErr != nil && result.RequeueAfter < shortWait {
@@ -279,7 +282,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 			log.Debug("Failed to execute pre-hooks", "hook name", name, "error", err, "requeue-after", result.RequeueAfter)
 			r.record.Event(ac, event.Warning(reasonCannotExecutePrehooks, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errExecutePrehooks)))
-			return result, errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+			return result, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 		}
 		r.record.Event(ac, event.Normal(reasonExecutePrehook, "Successfully executed a prehook", "prehook name ", name))
 	}
@@ -291,20 +294,17 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		log.Info("Cannot render components", "error", err, "requeue-after", time.Now().Add(shortWait))
 		r.record.Event(ac, event.Warning(reasonCannotRenderComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errRenderComponents)))
-		return errResult, errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+		return errResult, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 	}
 	log.Debug("Successfully rendered components", "workloads", len(workloads))
 	r.record.Event(ac, event.Normal(reasonRenderComponents, "Successfully rendered components", "workloads", strconv.Itoa(len(workloads))))
 
-	applyOpts := []apply.ApplyOption{apply.MustBeControllableBy(ac.GetUID())}
-	if r.applyOnceOnly {
-		applyOpts = append(applyOpts, applyOnceOnly())
-	}
+	applyOpts := []apply.ApplyOption{apply.MustBeControllableBy(ac.GetUID()), applyOnceOnly(ac, r.applyOnceOnlyMode)}
 	if err := r.workloads.Apply(ctx, ac.Status.Workloads, workloads, applyOpts...); err != nil {
 		log.Debug("Cannot apply components", "error", err, "requeue-after", time.Now().Add(shortWait))
 		r.record.Event(ac, event.Warning(reasonCannotApplyComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyComponents)))
-		return errResult, errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+		return errResult, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 	}
 	log.Debug("Successfully applied components", "workloads", len(workloads))
 	r.record.Event(ac, event.Normal(reasonApplyComponents, "Successfully applied components", "workloads", strconv.Itoa(len(workloads))))
@@ -324,7 +324,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 			log.Debug("Cannot garbage collect component", "error", err, "requeue-after", time.Now().Add(shortWait))
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGCComponent)))
-			return errResult, errors.Wrap(r.client.Status().Update(ctx, ac), errUpdateAppConfigStatus)
+			return errResult, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 		}
 		log.Debug("Garbage collected resource")
 		record.Event(ac, event.Normal(reasonGGComponent, "Successfully garbage collected component"))
@@ -344,11 +344,24 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 	return reconcile.Result{RequeueAfter: waitTime}, nil
 }
 
+// UpdateStatus updates v1alpha2.ApplicationConfiguration's Status with retry.RetryOnConflict
+func (r *OAMApplicationReconciler) UpdateStatus(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, opts ...client.UpdateOption) error {
+	status := ac.DeepCopy().Status
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+		if err = r.client.Get(ctx, types.NamespacedName{Namespace: ac.Namespace, Name: ac.Name}, ac); err != nil {
+			return
+		}
+		ac.Status = status
+		return r.client.Status().Update(ctx, ac, opts...)
+	})
+}
+
 func (r *OAMApplicationReconciler) updateStatus(ctx context.Context, ac, acPatch *v1alpha2.ApplicationConfiguration, workloads []Workload) {
 	ac.Status.Workloads = make([]v1alpha2.WorkloadStatus, len(workloads))
 	historyWorkloads := make([]v1alpha2.HistoryWorkload, 0)
 	for i, w := range workloads {
 		ac.Status.Workloads[i] = workloads[i].Status()
+		ac.Status.Workloads[i].ObservedGeneration = ac.GetGeneration()
 		if !w.RevisionEnabled {
 			continue
 		}
@@ -576,36 +589,87 @@ func (e *GenerationUnchanged) Error() string {
 		"Please ignore this error in other logic.")
 }
 
-func applyOnceOnly() apply.ApplyOption {
-	return func(ctx context.Context, current, desired runtime.Object) error {
-		if current == nil {
+// applyOnceOnly is an ApplyOption that controls the applying mechanism for workload and trait.
+// More detail refers to the ApplyOnceOnlyMode type annotation
+func applyOnceOnly(ac *v1alpha2.ApplicationConfiguration, mode core.ApplyOnceOnlyMode) apply.ApplyOption {
+	return func(_ context.Context, existing, desired runtime.Object) error {
+		if mode == core.ApplyOnceOnlyOff {
 			return nil
 		}
-		// ApplyOption only works for update/patch operation and will be ignored
-		// if the object doesn't exist before.
-		c, _ := current.(metav1.Object)
+
 		d, _ := desired.(metav1.Object)
-		if c == nil || d == nil {
-			return errors.Errorf("invalid object being applied: %q ",
+		if d == nil {
+			return errors.Errorf("cannot access metadata of object being applied: %q",
 				desired.GetObjectKind().GroupVersionKind())
 		}
-		cLabels, dLabels := c.GetLabels(), d.GetLabels()
-		if dLabels[oam.LabelOAMResourceType] == oam.ResourceTypeWorkload ||
-			dLabels[oam.LabelOAMResourceType] == oam.ResourceTypeTrait {
-			// check whether spec changes occur on the workload or trait,
-			// according to annotations and lables
-			if c.GetAnnotations()[oam.AnnotationAppGeneration] !=
-				d.GetAnnotations()[oam.AnnotationAppGeneration] {
-				return nil
-			}
-			if cLabels[oam.LabelAppComponentRevision] != dLabels[oam.LabelAppComponentRevision] ||
-				cLabels[oam.LabelAppComponent] != dLabels[oam.LabelAppComponent] ||
-				cLabels[oam.LabelAppName] != dLabels[oam.LabelAppName] {
-				return nil
-			}
-			// return an error to abort current apply
-			return &GenerationUnchanged{}
+		dLabels := d.GetLabels()
+		dAnnots := d.GetAnnotations()
+		if dLabels[oam.LabelOAMResourceType] != oam.ResourceTypeWorkload &&
+			dLabels[oam.LabelOAMResourceType] != oam.ResourceTypeTrait {
+			// this ApplyOption only works for workload and trait
+			// skip if the resource is not workload nor trait, e.g., scope
+			return nil
 		}
-		return nil
+
+		// the resource doesn't exist (maybe not created before, or created but deleted by others)
+		if existing == nil {
+			if mode != core.ApplyOnceOnlyForce {
+				// non-force mode will always create the resource if not exist.
+				return nil
+			}
+
+			createdBefore := false
+			for _, w := range ac.Status.Workloads {
+				// traverse recorded workloads to find the one matching applied resource
+				if w.Reference.GetObjectKind().GroupVersionKind() == desired.GetObjectKind().GroupVersionKind() &&
+					w.Reference.Name == d.GetName() {
+					// the workload matches applied resource
+					createdBefore = true
+				}
+				if !createdBefore {
+					// the workload is not matched, then traverse its traits to find matching one
+					for _, t := range w.Traits {
+						if t.Reference.GetObjectKind().GroupVersionKind() == desired.GetObjectKind().GroupVersionKind() &&
+							t.Reference.Name == d.GetName() {
+							// the trait matches applied resource
+							createdBefore = true
+						}
+					}
+				}
+				// don't use if-else here because it will miss the case that the resource is a trait
+				if createdBefore {
+					// the resource was created before and appconfig status recorded the resource version applied
+					// if recored ObservedGeneration and ComponentRevisionName both equal to the applied resource's,
+					// that means its spec is not changed
+					if (strconv.Itoa(int(w.ObservedGeneration)) != dAnnots[oam.AnnotationAppGeneration]) ||
+						(w.ComponentRevisionName != dLabels[oam.LabelAppComponentRevision]) {
+						// its spec is changed, so re-create the resource
+						return nil
+					}
+					// its spec is not changed, so return an error to abort creating it
+					return &GenerationUnchanged{}
+				}
+			}
+			// no recorded workloads nor traits matches the applied resource
+			// that means the resource is not created before, so create it
+			return nil
+		}
+
+		// the resource already exists
+		e, _ := existing.(metav1.Object)
+		if e == nil {
+			return errors.Errorf("cannot access metadata of existing object: %q",
+				existing.GetObjectKind().GroupVersionKind())
+		}
+		eLabels := e.GetLabels()
+		// if existing reource's (observed)AppConfigGeneration and ComponentRevisionName both equal to the applied one's,
+		// that means its spec is not changed
+		if (e.GetAnnotations()[oam.AnnotationAppGeneration] != dAnnots[oam.AnnotationAppGeneration]) ||
+			(eLabels[oam.LabelAppComponentRevision] != dLabels[oam.LabelAppComponentRevision]) {
+			// its spec is changed, so apply new configuration to it
+			return nil
+		}
+		// its spec is not changed, return an error to abort applying it
+		return &GenerationUnchanged{}
 	}
 }
