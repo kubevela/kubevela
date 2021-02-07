@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import * as api from '@/services/traits';
+import * as api from '@/services/capability';
 
 interface State {
   loading?: boolean;
