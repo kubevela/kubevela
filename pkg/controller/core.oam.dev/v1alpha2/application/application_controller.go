@@ -27,6 +27,8 @@ import (
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -77,13 +79,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		app.Status.Phase = v1alpha2.ApplicationRollingOut
 		app.Status.SetConditions(readyCondition("Rolling"))
 		// do not process apps still in rolling out
-		return ctrl.Result{RequeueAfter: RolloutReconcileWaitTime}, r.Status().Update(ctx, app)
+		return ctrl.Result{RequeueAfter: RolloutReconcileWaitTime}, r.UpdateStatus(ctx, app)
 	}
 
 	applog.Info("Start Rendering")
 
 	app.Status.Phase = v1alpha2.ApplicationRendering
-	handler := &appHandler{r.Client, app, applog}
+	handler := &appHandler{r, app, applog}
 
 	app.Status.Conditions = []v1alpha1.Condition{}
 
@@ -149,7 +151,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		})
 	}
 	app.Status.Components = refComps
-	return ctrl.Result{}, r.Status().Update(ctx, app)
+	return ctrl.Result{}, r.UpdateStatus(ctx, app)
 }
 
 // SetupWithManager install to manager
@@ -158,6 +160,18 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha2.Application{}).
 		Complete(r)
+}
+
+// UpdateStatus updates v1alpha2.Application's Status with retry.RetryOnConflict
+func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1alpha2.Application, opts ...client.UpdateOption) error {
+	status := app.DeepCopy().Status
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+		if err = r.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: app.Name}, app); err != nil {
+			return
+		}
+		app.Status = status
+		return r.Status().Update(ctx, app, opts...)
+	})
 }
 
 // Setup adds a controller that reconciles ApplicationDeployment.
