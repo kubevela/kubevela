@@ -92,17 +92,23 @@ jobs:
         id: latest_tag
       - name: Tag helm chart image
         run:  |
-          latest_tag=${{ steps.latest_tag.outputs.tag }}
-          tag=${GITHUB_REF#refs/tags/}
-          chart_version=${tag#"v"}
+          latest_repo_tag=${{ steps.latest_tag.outputs.tag }}
+          sub="."
+          major="$(cut -d"$sub" -f1 <<<"$latest_repo_tag")"
+          minor="$(cut -d"$sub" -f2 <<<"$latest_repo_tag")"
+          patch="0"
+          next_repo_tag="$major.$(($minor + 1)).$patch"
+          image_tag=${GITHUB_REF#refs/tags/}
+          chart_version=$latest_repo_tag
           if [[ ${GITHUB_REF} == "refs/heads/master" ]]; then
-            tag=latest
-            chart_version=${latest_tag#"v"}-latest
+            image_tag=latest
+            chart_version=${next_repo_tag}-rc-master
           fi
-          sed -i "s/latest/${tag}/g" $HELM_CHART/values.yaml
-          sed -i "s/latest/$tag/g" $LEGACY_HELM_CHART/values.yaml
-          sed -i "s/0.1.0/$chart_version/g" $HELM_CHART/Chart.yaml
-          sed -i "s/0.1.0/$chart_version/g" $LEGACY_HELM_CHART/Chart.yaml
+          sed -i "s/latest/${image_tag}/g" $HELM_CHART/values.yaml
+          sed -i "s/latest/image_tag/g" $LEGACY_HELM_CHART/values.yaml
+          chart_smever=${chart_version#"v"}
+          sed -i "s/0.1.0/$chart_smever/g" $HELM_CHART/Chart.yaml
+          sed -i "s/0.1.0/$chart_smever/g" $LEGACY_HELM_CHART/Chart.yaml
       - name: Install ossutil
         run: wget http://gosspublic.alicdn.com/ossutil/1.7.0/ossutil64 && chmod +x ossutil64 && mv ossutil64 ossutil
       - name: Configure Alibaba Cloud OSSUTIL
