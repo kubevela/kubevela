@@ -2,6 +2,7 @@ package serverlib
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -114,6 +115,10 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 			APIVersion: gvk.GroupVersion().String(),
 			Kind:       gvk.Kind,
 		}
+		err = addSourceIntoExtension(wd.Spec.Extension, tp.Source)
+		if err != nil {
+			return err
+		}
 		if err = client.Create(context.Background(), &wd); err != nil && !apierrors.IsAlreadyExists(err) {
 			return err
 		}
@@ -144,6 +149,10 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 		tp.CrdInfo = &types.CRDInfo{
 			APIVersion: gvk.GroupVersion().String(),
 			Kind:       gvk.Kind,
+		}
+		err = addSourceIntoExtension(td.Spec.Extension, tp.Source)
+		if err != nil {
+			return err
 		}
 		if err = client.Create(context.Background(), &td); err != nil && !apierrors.IsAlreadyExists(err) {
 			return err
@@ -420,4 +429,19 @@ func checkInstallStatus(repoName string, tmp types.Capability) string {
 		}
 	}
 	return status
+}
+
+func addSourceIntoExtension(in *runtime.RawExtension, source *types.Source) error {
+	var extension map[string]interface{}
+	err := json.Unmarshal(in.Raw, &extension)
+	if err != nil {
+		return err
+	}
+	extension["source"] = source
+	data, err := json.Marshal(extension)
+	if err != nil {
+		return err
+	}
+	in.Raw = data
+	return nil
 }
