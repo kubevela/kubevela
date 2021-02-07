@@ -355,13 +355,19 @@ spec:
 				}
 				return appConfig.GetGeneration()
 			}, time.Second, 300*time.Millisecond).Should(Equal(int64(2)))
-			By("Reconcile")
-			reconcileRetry(reconciler, req)
 
-			changedTrait = unstructured.Unstructured{}
-			changedTrait.SetAPIVersion("example.com/v1")
-			changedTrait.SetKind("Bar")
-			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: traitName}, &changedTrait)).Should(Succeed())
+			Eventually(func() int64 {
+				By("Reconcile")
+				reconcileRetry(reconciler, req)
+				changedTrait = unstructured.Unstructured{}
+				changedTrait.SetAPIVersion("example.com/v1")
+				changedTrait.SetKind("Bar")
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: traitName}, &changedTrait); err != nil {
+					return 0
+				}
+				return changedTrait.GetGeneration()
+			}, 5*time.Second, time.Second).Should(Equal(int64(3)))
+
 			By("Check AppConfig's change works")
 			// changed a field
 			v, _, _ = unstructured.NestedString(changedTrait.UnstructuredContent(), "spec", "valueChanged")
