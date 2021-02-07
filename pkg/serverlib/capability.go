@@ -191,7 +191,7 @@ func GetCapabilityFromCenter(repoName, addonName string) (types.Capability, erro
 			return t, nil
 		}
 	}
-	return types.Capability{}, fmt.Errorf("%s/%s not exist, try vela cap:center:sync %s to sync from remote", repoName, addonName, repoName)
+	return types.Capability{}, fmt.Errorf("%s/%s not exist, try 'vela cap center sync %s' to sync from remote", repoName, addonName, repoName)
 }
 
 // ListCapabilityCenters will list all capabilities from center
