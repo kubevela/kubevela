@@ -2,10 +2,12 @@ package serverlib
 
 import (
 	"encoding/json"
-	"github.com/oam-dev/kubevela/apis/types"
-	"k8s.io/apimachinery/pkg/runtime"
 	"reflect"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 func TestAddSourceIntoDefinition(t *testing.T) {
