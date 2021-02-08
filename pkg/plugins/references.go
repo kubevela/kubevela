@@ -297,10 +297,6 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 		if err != nil {
 			return fmt.Errorf("arguments not defined as struct %w", err)
 		}
-		if arguments.Len() == 0 {
-			v, _ := paraValue.Fields()
-			fmt.Println(v)
-		}
 		for i := 0; i < arguments.Len(); i++ {
 			var param ReferenceParameter
 			fi := arguments.Field(i)
