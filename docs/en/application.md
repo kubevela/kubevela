@@ -1,11 +1,11 @@
 # Application CRD
 
-Application CRD is the single source of truth of the application description.
-It allows developers to work with a single artifact to capture the complete application definition and
-serves as an anchor to avoid configuration drifts during operation. 
+Application CRD describes the components and configurations of an application deployment.
+It captures all of the definitions of an application in a single object and acts as a declarative anchor to
+avoid configuration-drift.
 
-Application CRD is also an abstraction object that provides a much simpler path for on-boarding Kubernetes capabilities
-without relying on low level details. For instance, a developer will be able to model the "web service" workloads
+Application CRD provides an abstraction layer on top of infrastructure (e.g. Kubernetes) capabilities to
+simplify APIs by hiding low level details. For instance, it enables developers to model the "web service" workload
 without defining detailed `Deployment` + `Service` combo each time, or claim the auto-scaling requirements
 without referring to the underlying [KEDA](https://keda.sh/) ScaleObject.
 

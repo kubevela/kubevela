@@ -169,3 +169,233 @@ output: {
 
 Finally, you can put the whole CUE template into the `template` field of WorkloadDefinition object. That's all you need
 to know to create a basic KubeVela capability.
+
+## More Advanced Usage of CUE Grammar in Definition
+
+In this section, we will introduce some more advanced CUE grammar to use in KubeVela.  
+
+### Structural parameter
+
+If you have some complex type of parameters in your template, and want to define a struct or embed struct as parameters,
+then you could use structural parameter.
+
+1. Define a struct type in, it includes a struct, a string and an integer.
+    ```
+    #Config: {
+     name:  string
+     value: int
+     other: {
+       key: string
+       value: string
+     }
+    }
+    ```
+
+2. Use the struct defined in the `parameter` keyword, and use it as an array list.
+    ```
+    parameter: {
+     name: string
+     image: string
+     configSingle: #Config
+     config: [...#Config]
+    }
+    ```
+
+3. In `output` keyword, it's referenced the same way with other normal field s.
+    ```
+    output: {
+       ...
+             spec: {
+                 containers: [{
+                     name:  parameter.name
+                     image: parameter.image
+                     env: parameter.config
+                 }]
+             }
+        ...
+    }
+    ```
+
+4. The structural field `config` can be easily used in Application like below:
+    ```
+    apiVersion: core.oam.dev/v1alpha2
+    kind: Application
+    metadata:
+      name: website
+    spec:
+      components:
+        - name: backend
+          type: mydeploy
+          settings:
+            image: crccheck/hello-world
+            name: mysvc
+            config:
+             - name: a
+               value: 1
+               other:
+                 key: mykey
+                 value: myvalue
+    ```
+    
+### Conditional Parameter
+
+Conditional parameter can be used to decide template condition logic. 
+Below is an example that when `useENV=true`, it will render env section, otherwise, it will not.
+
+```
+parameter: {
+    name:   string
+    image:  string
+    useENV: bool
+}
+output: {
+    ...
+    spec: {
+        containers: [{
+            name:  parameter.name
+            image: parameter.image
+            if parameter.useENV == true {
+                env: [{name: "my-env", value: "my-value"}]
+            }
+        }]
+    }
+    ...
+}
+```
+
+### Optional Parameter and Default Value
+
+Optional parameter can be optional, that usually works with conditional logic. If some field does not exit, the CUE
+grammar is `if _variable_ != _|_`, the example is like below:
+
+```
+parameter: {
+    name: string
+    image: string
+    config?: [...#Config]
+}
+output: {
+    ...
+    spec: {
+        containers: [{
+            name:  parameter.name
+            image: parameter.image
+            if parameter.config != _|_ {
+                config: parameter.config
+            }
+        }]
+    }
+    ...
+}
+```
+
+Default Value is marked with a `*` prefix. It's used like 
+
+```
+parameter: {
+    name: string
+    image: *"nginx:v1" | string
+    port: *80 | int
+    number: *123.4 | float
+}
+output: {
+    ...
+    spec: {
+        containers: [{
+            name:  parameter.name
+            image: parameter.image
+        }]
+    }
+    ...
+}
+```
+
+So if a parameter field is neither a parameter with default value nor a conditional field, it's a required value.
+
+### Loop 
+
+#### Loop for map type
+
+```cue
+parameter: {
+    name:  string
+    image: string
+    env: [string]: string
+}
+output: {
+    spec: {
+        containers: [{
+            name:  parameter.name
+            image: parameter.image
+            env: [
+                for k, v in parameter.env {
+                    name:  k
+                    value: v
+                },
+            ]
+        }]
+    }
+}
+```
+
+#### Loop for slice
+
+```cue
+parameter: {
+    name:  string
+    image: string
+    env: [...{name:string,value:string}]
+}
+output: {
+  ...
+     spec: {
+        containers: [{
+            name:  parameter.name
+            image: parameter.image
+            env: [
+                for _, v in parameter.env {
+                    name:  v.name
+                    value: v.value
+                },
+            ]
+        }]
+    }
+}
+```
+
+### Import CUE internal packages
+
+CUE has [lots of internal packages](https://pkg.go.dev/cuelang.org/go@v0.2.2/pkg) which also can be used in KubeVela.
+
+Below is an example that use `strings.Join` to concat string list to one string. 
+
+```cue
+import ("strings")
+
+parameter: {
+	outputs: [{ip: "1.1.1.1", hostname: "xxx.com"}, {ip: "2.2.2.2", hostname: "yyy.com"}]
+}
+output: {
+	spec: {
+		if len(parameter.outputs) > 0 {
+			_x: [ for _, v in parameter.outputs {
+				"\(v.ip) \(v.hostname)"
+			}]
+			message: "Visiting URL: " + strings.Join(_x, "")
+		}
+	}
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
