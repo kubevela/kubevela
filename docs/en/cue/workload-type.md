@@ -122,6 +122,8 @@ K8s Deployment and Service.
 The main workload resource MUST be defined in keyword `output` while the auxiliary workload resources MUST be defined
 in keyword `outputs` with a resource name inside.
 
+The format MUST be `outputs:<unique-name>:<k8s-object>`.
+
 In the underlying OAM model, the `output` resource will become the `workload` object while the `outputs` resources will
 become traits. 
 

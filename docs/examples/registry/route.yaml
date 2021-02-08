@@ -19,7 +19,7 @@ spec:
         url: https://kubernetes-charts.storage.googleapis.com/
         version: 1.41.2
     template: |
-      output: {
+      outputs: route: {
       	apiVersion: "standard.oam.dev/v1alpha1"
       	kind:       "Route"
       	spec: {

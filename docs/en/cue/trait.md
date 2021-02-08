@@ -1,17 +1,17 @@
 # Using CUE to Extend Trait in advanced way
 
-> WARNINIG: you are now reading a platform builder/administrator oriented documentation.
+In this section we will introduce how to define a Trait with CUE template.
 
-In the following tutorial, you will learn how to add a trait in a more advanced way without writing any CRD controller.
-In general, the advanced way can help you build abstraction by composition or decomposition.
-
-## Trait generate multiple resources
-
-With the help of CUE template, we can combine multiple K8s resources into one trait.
+## Basic Usage
  
-You can use the keyword `outputs` to create multiple K8s objects. The format MUST be `outputs:<unique-name>:<k8s-object>`.
+Defining a Trait with CUE template is a little different from Workload Type.
+The different part is a trait must use `outputs` keyword instead of `output` to define resources that will be generated.
 
-Let's look at an example, assume you hope to make a combo for K8s service and ingress, naming it as `ingress`.
+With the help of CUE template, it is very nature to compose multiple K8s resources in one trait.
+ 
+The format MUST be `outputs:<unique-name>:<k8s-object>`.
+
+Below is an example that make a combo for K8s service and ingress, naming this trait as `ingress`.
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -66,13 +66,7 @@ spec:
       }
 ```
 
-Apply this newly defined TraitDefinition into our system:
-
-```shell script
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/registry/ingress.yaml
-```
-
-You can check it by using the application object like below:
+It can be used in the application object like below:
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -82,8 +76,6 @@ metadata:
 spec:
   components:
     - name: express-server
-      scopes:
-        healthscopes.core.oam.dev: testapp-default-health
       settings:
         cmd:
           - node
@@ -99,13 +91,8 @@ spec:
       type: webservice
 ```
 
-Apply it:
-
-```shell script
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/advanced-cue/app1.yaml
-```
-
-Then you will see the deployment behind webservice along with the K8s service and ingress behind the ingress trait created.
+After the application deployed, you will see the deployment(belong to webservice) along with the K8s service and
+ingress(belong to ingress trait) created.
 
 ### Generate multiple resources by using for loop
 
@@ -145,14 +132,7 @@ spec:
       }
 ```
 
-
-Apply this newly defined TraitDefinition into our system:
-
-```shell script
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/registry/for-loop.yaml
-```
-
-Use the newly created trait like below:
+The usage of this trait could be:
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -164,11 +144,7 @@ spec:
     - name: express-server
       type: webservice
       settings:
-        cmd:
-          - node
-          - server.js
-        image: oamdev/testapp:v1
-        port: 8080
+        ...
       traits:
         - name: expose
           properties:
@@ -177,25 +153,15 @@ spec:
               myservice2: 8081
 ```
 
-Apply it:
-
-```shell script
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/advanced-cue/app2.yaml
-```
-
-Then you will see the deployment behind webservice along with two K8s services created.
-
-
 ## Patch Trait
 
-For the purpose of separate of concerns, we usually won't do decomposition some fields out as trait from the underlying workload.
+For the purpose of separate of concerns, we usually want to decompose some fields out as trait from the underlying workload.
 
-For example the [webservice workload] is implemented by K8s Deployment, but the workload doesn't care about the `replicas` field.
-In this case, you can write a [ManualScalerTrait](https://github.com/oam-dev/kubevela/tree/master/pkg/controller/core.oam.dev/v1alpha2/core/traits/manualscalertrait)
-CRD controller to control the `replicas` field after the deployment created.
- 
-But now, you are more encouraged to use patch trait in KubeVela. With the help of patch trait, you don't need to write CRD
-controller for this case anymore.
+For example the [webservice workload] is implemented by K8s Deployment, but the workload doesn't care about the node affinity related fields.
+
+Users should be able to run this app without node affinity and they can add it as a trait later when they want.
+This is exactly what patch trait do.
+With the help of CUE template, you don't need to write a CRD controller for this case.
 
 The keyword is `patch`, object describe after the keyword will be patched into the workload.
  
@@ -206,8 +172,8 @@ apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "Manually scale the app"
-  name: scaler
+    definition.oam.dev/description: "affinity specify node affinity and toleration"
+  name: node-affinity
 spec:
   appliesToWorkloads:
     - webservice
@@ -215,33 +181,82 @@ spec:
   extension:
     template: |-
       patch: {
-         spec: replicas: parameter.replicas
+      	spec: template: spec: {
+      		if parameter.affinity != _|_ {
+      			affinity: nodeAffinity: requiredDuringSchedulingIgnoredDuringExecution: nodeSelectorTerms: [{
+      				matchExpressions: [
+      					for k, v in parameter.affinity {
+      						key:      k
+      						operator: "In"
+      						values:   v
+      					},
+      				]}]
+      		}
+      		if parameter.tolerations != _|_ {
+      			tolerations: [
+      				for k, v in parameter.tolerations {
+      					effect:   "NoSchedule"
+      					key:      k
+      					operator: "Equal"
+      					value:    v
+      				}]
+      		}
+      	}
       }
+
       parameter: {
-      	replicas: *1 | int
+      	affinity?: [string]: [...string]
+      	tolerations?: [string]: string
       }
 ```
 
-The patch trait rely on the workload object will always match the structure `spec.replicas` and the type of the field.
-So we usually use it with the field `appliesToWorkloads` which can limit the trait can only be used by these specified workloads.
+You can use it like:
+
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: Application
+metadata:
+  name: testapp
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      settings:
+        image: oamdev/testapp:v1
+      traits:
+        - name: "node-affinity"
+          properties:
+            affinity:
+              server-owner: ["owner1","owner2"]
+              resource-pool: ["pool1","pool2","pool3"]
+            tolerations:
+              resource-pool: "broken-pool1"
+              server-owner: "old-owner"
+```
+
+The patch trait rely on the workload object will always match the structure `spec.template.spec.affinity` and
+the type of these fields.
+So we usually use it with the field `appliesToWorkloads` which can limit the trait only to be used
+by these specified workloads.
 
 By default, the patch implemented in KubeVela relies on the CUE merge operation. It has these constraints:
 
 * New field will be added only when the schema doesn't conflict with each other, and the value not finalized.  
 
-For example, if the workload already define the `spec.replicas` is `5`, then the patch trait replicas value `1` will fail to patch.
+For example, if a field already has a final value `replicas=5`, then the patch trait will conflict when patches `replicas=1`.
+It only works when `replica` is not finalized before patch.
 
 * Array list in the patch will be merged into the workload by the order of index, you need to use strategy patch.
 
 
 ### Strategy Patch Trait
 
-`strategy patch` is a special patch logic for patching array list supported in KubeVela, it's not native CUElang feature,
-so you need to write annotation for using it.
+`strategy patch` is a special patch logic for patching array list supported **only** in KubeVela,
+it's not native CUE feature, so you need to write annotation for using it.
 
-The annotation keyword is `//+patchKey=<key_name>`.
+The annotation grammar is `//+patchKey=<key_name>`.
 
-By adding this annotation, merging logic of two array list will not follow the CUE rule, instead of that, it will
+By adding this annotation, merging logic of two lists will not follow the CUE rule, instead of that, it will
 regard the element type of the array list will always be object, and compare the object field with the specified key name.
 If the value of the key name equal, then the patch data will merge into that, if no equal found, the patch will append into the array list.
 
@@ -277,7 +292,7 @@ with same name, it will be a sidecar container append into the `spec.template.sp
 
 ### Patch works with output
 
-Patch can also work with output, if patch and output both exist in one trait, the patch part will execute first and then 
+Patch can also work with outputs, if patch and outputs both exist in one trait, the patch part will execute first and then 
 the output object will be rendered out. 
 
 ```yaml
@@ -296,7 +311,7 @@ spec:
   extension:
     template: |-
       patch: {spec: template: metadata: labels: app: context.name}
-      output: {
+      outputs: service: {
         apiVersion: "v1"
         kind: "Service"
         metadata: name: context.name
@@ -623,75 +638,4 @@ spec:
             mountName: "workdir"
             appMountPath:  "/usr/share/nginx/html"
             initMountPath: "/work-dir"
-```
-
-### Node affinity and anti-affinity
-
-Node affinity and anti-affinity is also common trait:
-
-```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: TraitDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: "affinity specify node affinity and toleration"
-  name: node-affinity
-spec:
-  appliesToWorkloads:
-    - webservice
-    - worker
-  extension:
-    template: |-
-      patch: {
-      	spec: template: spec: {
-      		if parameter.affinity != _|_ {
-      			affinity: nodeAffinity: requiredDuringSchedulingIgnoredDuringExecution: nodeSelectorTerms: [{
-      				matchExpressions: [
-      					for k, v in parameter.affinity {
-      						key:      k
-      						operator: "In"
-      						values:   v
-      					},
-      				]}]
-      		}
-      		if parameter.tolerations != _|_ {
-      			tolerations: [
-      				for k, v in parameter.tolerations {
-      					effect:   "NoSchedule"
-      					key:      k
-      					operator: "Equal"
-      					value:    v
-      				}]
-      		}
-      	}
-      }
-
-      parameter: {
-      	affinity?: [string]: [...string]
-      	tolerations?: [string]: string
-      }
-```
-
-You can use it like:
-
-```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: Application
-metadata:
-  name: testapp
-spec:
-  components:
-    - name: express-server
-      type: webservice
-      settings:
-        image: oamdev/testapp:v1
-      traits:
-        - name: "node-affinity"
-          properties:
-            affinity:
-              server-owner: ["owner1","owner2"]
-              resource-pool: ["pool1","pool2","pool3"]
-            tolerations:
-              resource-pool: "broken-pool1"
-              server-owner: "old-owner"
 ```

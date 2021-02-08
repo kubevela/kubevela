@@ -10,6 +10,7 @@
     - CUE
       - [CUE Basic](/en/cue/basic.md)
       - [Workload Type](/en/cue/workload-type.md)
+      - [Trait](/en/cue/trait.md)
   - Register Capability Modules
     - [Workload Type](/en/platform-engineers/workload-type.md)
     - [Trait](/en/platform-engineers/trait.md)
