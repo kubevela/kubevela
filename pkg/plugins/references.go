@@ -320,7 +320,7 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 						// In the future we could recursive call to surpport complex map-value(struct or list)
 						param.PrintableType = fmt.Sprintf("map[string]%s", mapValue.IncompleteKind().String())
 					} else {
-						return fmt.Errorf("failed to got mapValue kind from %s", param.Name)
+						return fmt.Errorf("failed to got Map kind from %s", param.Name)
 					}
 				} else {
 					if err := ref.parseParameters(val, name, depth); err != nil {
