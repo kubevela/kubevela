@@ -5,6 +5,13 @@
 
 - Platform Team Guide
   - [What is KubeVela?](/en/platform-engineers/overview.md)
+  - Designing Abstraction
+    - [Application CRD](/en/application.md)
+    - CUE
+      - [CUE Basic](/en/cue/basic.md)
+      - [Workload Type](/en/cue/workload-type.md)
+      - [Trait](/en/cue/trait.md)
+      - [Status](/en/cue/status.md)
   - Register Capability Modules
     - [Workload Type](/en/platform-engineers/workload-type.md)
     - [Trait](/en/platform-engineers/trait.md)

@@ -22,7 +22,7 @@ spec:
     template: |
       import "strconv"
       
-      output: {
+      outputs: autoscaler: {
       	apiVersion: "standard.oam.dev/v1alpha1"
       	kind:       "Autoscaler"
       	spec: {
