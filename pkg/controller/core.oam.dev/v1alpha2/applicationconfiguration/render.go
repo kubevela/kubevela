@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -440,17 +441,29 @@ func (r *components) handleDependency(ctx context.Context, w *Workload, acc v1al
 	if err != nil {
 		return nil, errors.Wrapf(err, "handleDataInput by convert AppConfig (%s) to unstructured object failed", ac.Name)
 	}
-	unsatisfied, err := r.handleDataInput(ctx, acc.DataInputs, dag, w.Workload, unstructuredAC)
+	// Record the dataOutput with ready conditions
+	var unsatisfied []v1alpha2.UnstaifiedDependency
+	unsatisfied, w.DataOutputs = r.handleDataOutput(ctx, acc.DataOutputs, dag, unstructuredAC)
+	if len(unsatisfied) != 0 {
+		uds = append(uds, unsatisfied...)
+	}
+	unsatisfied, err = r.handleDataInput(ctx, acc.DataInputs, dag, w.Workload, unstructuredAC)
 	if err != nil {
 		return nil, errors.Wrapf(err, "handleDataInput for workload (%s/%s) failed", w.Workload.GetNamespace(), w.Workload.GetName())
 	}
 	if len(unsatisfied) != 0 {
 		uds = append(uds, unsatisfied...)
 		w.HasDep = true
+	} else {
+		w.DataInputs = acc.DataInputs
 	}
 
 	for i, ct := range acc.Traits {
 		trait := w.Traits[i]
+		unsatisfied, trait.DataOutputs = r.handleDataOutput(ctx, ct.DataOutputs, dag, unstructuredAC)
+		if len(unsatisfied) != 0 {
+			uds = append(uds, unsatisfied...)
+		}
 		unsatisfied, err := r.handleDataInput(ctx, ct.DataInputs, dag, &trait.Object, unstructuredAC)
 		if err != nil {
 			return nil, errors.Wrapf(err, "handleDataInput for trait (%s/%s) failed", trait.Object.GetNamespace(), trait.Object.GetName())
@@ -458,12 +471,14 @@ func (r *components) handleDependency(ctx context.Context, w *Workload, acc v1al
 		if len(unsatisfied) != 0 {
 			uds = append(uds, unsatisfied...)
 			trait.HasDep = true
+		} else {
+			trait.DataInputs = ct.DataInputs
 		}
 	}
 	return uds, nil
 }
 
-func makeUnsatisfiedDependency(obj *unstructured.Unstructured, s *dagSource, in v1alpha2.DataInput, reason string) v1alpha2.UnstaifiedDependency {
+func makeUnsatisfiedDependency(obj *unstructured.Unstructured, s *dagSource, toPaths []string, reason string) v1alpha2.UnstaifiedDependency {
 	return v1alpha2.UnstaifiedDependency{
 		Reason: reason,
 		From: v1alpha2.DependencyFromObject{
@@ -480,45 +495,189 @@ func makeUnsatisfiedDependency(obj *unstructured.Unstructured, s *dagSource, in 
 				Kind:       obj.GetKind(),
 				Name:       obj.GetName(),
 			},
-			FieldPaths: in.ToFieldPaths,
+			FieldPaths: toPaths,
 		},
 	}
+}
+
+func (r *components) handleDataOutput(ctx context.Context, outputs []v1alpha2.DataOutput, dag *dag, ac *unstructured.Unstructured) ([]v1alpha2.UnstaifiedDependency, map[string]v1alpha2.DataOutput) {
+	uds := make([]v1alpha2.UnstaifiedDependency, 0)
+	outputMap := make(map[string]v1alpha2.DataOutput)
+	for _, out := range outputs {
+		if reflect.DeepEqual(out.OutputStore, v1alpha2.StoreReference{}) {
+			continue
+		}
+		s, ok := dag.Sources[out.Name]
+		if !ok {
+			continue
+		}
+		// the outputStore is considered ready when all conditions are ready
+		allConditionsReady := true
+		for _, oper := range out.OutputStore.Operations {
+			newS := &dagSource{
+				ObjectRef: &corev1.ObjectReference{
+					APIVersion: s.ObjectRef.APIVersion,
+					Kind:       s.ObjectRef.Kind,
+					Name:       s.ObjectRef.Name,
+					Namespace:  ac.GetNamespace(),
+					FieldPath:  oper.ValueFrom.FieldPath,
+				},
+				Conditions: oper.Conditions,
+			}
+			_, ready, reason, err := r.getDataInput(ctx, newS, ac, false)
+			if err != nil || !ready {
+				if err == nil {
+					outObj := &unstructured.Unstructured{}
+					outObj.SetGroupVersionKind(out.OutputStore.TypedReference.GroupVersionKind())
+					outObj.SetName(out.OutputStore.TypedReference.Name)
+					toPath := oper.ToFieldPath
+					if len(oper.ToDataPath) != 0 {
+						toPath = toPath + "(" + oper.ToDataPath + ")"
+					}
+					uds = append(uds, makeUnsatisfiedDependency(outObj, newS, []string{toPath}, reason))
+				}
+				allConditionsReady = false
+				break
+			}
+		}
+		if allConditionsReady {
+			outputMap[out.Name] = out
+		}
+	}
+	return uds, outputMap
 }
 
 func (r *components) handleDataInput(ctx context.Context, ins []v1alpha2.DataInput, dag *dag, obj, ac *unstructured.Unstructured) ([]v1alpha2.UnstaifiedDependency, error) {
 	uds := make([]v1alpha2.UnstaifiedDependency, 0)
 	for _, in := range ins {
-		s, ok := dag.Sources[in.ValueFrom.DataOutputName]
-		if !ok {
-			return nil, errors.Wrapf(ErrDataOutputNotExist, "DataOutputName (%s)", in.ValueFrom.DataOutputName)
+		if !reflect.DeepEqual(in.ValueFrom, v1alpha2.DataInputValueFrom{}) && len(strings.TrimSpace(in.ValueFrom.DataOutputName)) != 0 {
+			dep, err := r.handleDataOutputConds(ctx, in, dag, obj, ac)
+			if dep != nil {
+				uds = append(uds, *dep)
+				return uds, err
+			}
+			if err != nil {
+				return nil, err
+			}
 		}
-		val, ready, reason, err := r.getDataInput(ctx, s, ac)
-		if err != nil {
-			return nil, errors.Wrap(err, "getDataInput failed")
-		}
-		if !ready {
-			uds = append(uds, makeUnsatisfiedDependency(obj, s, in, reason))
-			return uds, nil
+		if !reflect.DeepEqual(in.InputStore, v1alpha2.StoreReference{}) {
+			dep, err := r.handleDataStoreConds(ctx, in, obj, ac)
+			if dep != nil {
+				uds = append(uds, *dep)
+				return uds, err
+			}
+			if err != nil {
+				return nil, err
+			}
 		}
 
-		err = fillDataInputValue(obj, in.ToFieldPaths, val, in.StrategyMergeKeys)
-		if err != nil {
-			return nil, errors.Wrap(err, "fillDataInputValue failed")
+		if len(in.Conditions) != 0 {
+			dep, err := r.handleDataInputConds(ctx, in, dag, obj, ac)
+			if dep != nil {
+				uds = append(uds, *dep)
+				return uds, err
+			}
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	return uds, nil
 }
 
-func (r *components) getDataInput(ctx context.Context, s *dagSource, ac *unstructured.Unstructured) (interface{}, bool, string, error) {
+func (r *components) handleDataOutputConds(ctx context.Context, in v1alpha2.DataInput, dag *dag, obj, ac *unstructured.Unstructured) (*v1alpha2.UnstaifiedDependency, error) {
+	s, ok := dag.Sources[in.ValueFrom.DataOutputName]
+	if !ok {
+		return nil, errors.Wrapf(ErrDataOutputNotExist, "DataOutputName (%s)", in.ValueFrom.DataOutputName)
+	}
+	val, ready, reason, err := r.getDataInput(ctx, s, ac, false)
+	if err != nil {
+		return nil, errors.Wrap(err, "getDataInput failed")
+	}
+	if !ready {
+		dep := makeUnsatisfiedDependency(obj, s, in.ToFieldPaths, reason)
+		return &dep, nil
+	}
+	err = fillDataInputValue(obj, in.ToFieldPaths, val, in.StrategyMergeKeys)
+	if err != nil {
+		return nil, errors.Wrap(err, "fillDataInputValue failed")
+	}
+	return nil, nil
+}
+
+func (r *components) handleDataStoreConds(ctx context.Context, in v1alpha2.DataInput, obj, ac *unstructured.Unstructured) (*v1alpha2.UnstaifiedDependency, error) {
+	for _, oper := range in.InputStore.Operations {
+		s := &dagSource{
+			ObjectRef: &corev1.ObjectReference{
+				APIVersion: in.InputStore.APIVersion,
+				Kind:       in.InputStore.Kind,
+				Name:       in.InputStore.Name,
+				// according current implementation, outputRef use the namespace of workload which is set with the namespace of ac. So it's ok to use ac.GetNamespace() here.
+				// obj.GetNamespace() may be empty when obj has not been created.
+				Namespace: ac.GetNamespace(),
+				FieldPath: oper.ValueFrom.FieldPath,
+			},
+			Conditions: oper.Conditions,
+		}
+		_, ready, reason, err := r.getDataInput(ctx, s, ac, false)
+		if err != nil {
+			return nil, errors.Wrap(err, "getDataInput failed")
+		}
+		if !ready {
+			toPath := oper.ToFieldPath
+			if len(oper.ToDataPath) != 0 {
+				toPath = toPath + "(" + oper.ToDataPath + ")"
+			}
+			dep := makeUnsatisfiedDependency(obj, s, []string{toPath}, reason)
+			return &dep, nil
+		}
+	}
+	return nil, nil
+}
+func (r *components) handleDataInputConds(ctx context.Context, in v1alpha2.DataInput, dag *dag, obj, ac *unstructured.Unstructured) (*v1alpha2.UnstaifiedDependency, error) {
+	_, ok := dag.Sources[in.ValueFrom.DataOutputName]
+	if !ok {
+		return nil, errors.Wrapf(ErrDataOutputNotExist, "DataOutputName (%s)", in.ValueFrom.DataOutputName)
+	}
+	s := &dagSource{
+		ObjectRef: &corev1.ObjectReference{
+			APIVersion: obj.GetAPIVersion(),
+			Kind:       obj.GetKind(),
+			Name:       obj.GetName(),
+			// according current implementation, outputRef use the namespace of workload which is set with the namespace of ac. So it's ok to use ac.GetNamespace() here.
+			// obj.GetNamespace() may be empty when obj has not been created.
+			Namespace: ac.GetNamespace(),
+		},
+		Conditions: in.Conditions,
+	}
+	_, ready, reason, err := r.getDataInput(ctx, s, ac, true)
+	if err != nil {
+		return nil, errors.Wrap(err, "getDataInput failed")
+	}
+	if !ready {
+		dep := makeUnsatisfiedDependency(obj, dag.Sources[in.ValueFrom.DataOutputName], in.ToFieldPaths, "DataInputs Conditions: "+reason)
+		return &dep, nil
+	}
+	return nil, nil
+}
+
+func (r *components) getDataInput(ctx context.Context, s *dagSource, ac *unstructured.Unstructured, ignoreNotFound bool) (interface{}, bool, string, error) {
 	obj := s.ObjectRef
 	key := types.NamespacedName{
 		Namespace: obj.Namespace,
 		Name:      obj.Name,
 	}
+	// If obj.FieldPath is empty and the length of dagSource's Conditions is 0, return true
+	if len(obj.FieldPath) == 0 && len(s.Conditions) == 0 {
+		return nil, true, "", nil
+	}
 	u := &unstructured.Unstructured{}
 	u.SetGroupVersionKind(obj.GroupVersionKind())
 	err := r.client.Get(ctx, key, u)
 	if err != nil {
+		if resource.IgnoreNotFound(err) == nil && ignoreNotFound {
+			return nil, true, "", nil
+		}
 		reason := fmt.Sprintf("failed to get object (%s)", key.String())
 		return nil, false, reason, errors.Wrap(resource.IgnoreNotFound(err), reason)
 	}

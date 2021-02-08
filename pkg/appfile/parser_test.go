@@ -34,7 +34,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -426,37 +425,33 @@ var _ = Describe("Test appFile parser", func() {
 				Name:      "myweb",
 				Namespace: "default",
 				Labels:    map[string]string{"application.oam.dev": "test"},
-			}, Spec: v1alpha2.ComponentSpec{
-				Workload: runtime.RawExtension{
-					Object: &unstructured.Unstructured{
-						Object: map[string]interface{}{
-							"apiVersion": "apps/v1",
-							"kind":       "Deployment",
-							"metadata": map[string]interface{}{
-								"labels": map[string]interface{}{
-									"workload.oam.dev/type": "worker",
-									"app.oam.dev/component": "myweb",
-									"app.oam.dev/name":      "test",
-								},
-							},
-							"spec": map[string]interface{}{
-								"selector": map[string]interface{}{
-									"matchLabels": map[string]interface{}{
-										"app.oam.dev/component": "myweb"}},
-								"template": map[string]interface{}{
-									"metadata": map[string]interface{}{"labels": map[string]interface{}{"app.oam.dev/component": "myweb"}},
-									"spec": map[string]interface{}{
-										"containers": []interface{}{
-											map[string]interface{}{
-												"command": []interface{}{"sleep", "1000"},
-												"image":   "busybox",
-												"name":    "myweb",
-												"env": []interface{}{
-													map[string]interface{}{"name": "c1", "value": "v1"},
-													map[string]interface{}{"name": "c2", "value": "v2"},
-												},
-											},
-										},
+			}}
+		expectWorkload := &unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						"workload.oam.dev/type": "worker",
+						"app.oam.dev/component": "myweb",
+						"app.oam.dev/name":      "test",
+					},
+				},
+				"spec": map[string]interface{}{
+					"selector": map[string]interface{}{
+						"matchLabels": map[string]interface{}{
+							"app.oam.dev/component": "myweb"}},
+					"template": map[string]interface{}{
+						"metadata": map[string]interface{}{"labels": map[string]interface{}{"app.oam.dev/component": "myweb"}},
+						"spec": map[string]interface{}{
+							"containers": []interface{}{
+								map[string]interface{}{
+									"command": []interface{}{"sleep", "1000"},
+									"image":   "busybox",
+									"name":    "myweb",
+									"env": []interface{}{
+										map[string]interface{}{"name": "c1", "value": "v1"},
+										map[string]interface{}{"name": "c2", "value": "v2"},
 									},
 								},
 							},
@@ -465,12 +460,30 @@ var _ = Describe("Test appFile parser", func() {
 				},
 			},
 		}
+		// assertion util cannot compare slices embedded in map correctly while slice order is not required
+		// e.g., .containers[0].env in this case
+		// as a workaround, prepare two expected targets covering all possible slice order
+		// if any one is satisfied, the equal assertion pass
+		expectWorkloadOptional := expectWorkload.DeepCopy()
+		unstructured.SetNestedSlice(expectWorkloadOptional.Object, []interface{}{
+			map[string]interface{}{
+				"command": []interface{}{"sleep", "1000"},
+				"image":   "busybox",
+				"name":    "myweb",
+				"env": []interface{}{
+					map[string]interface{}{"name": "c2", "value": "v2"},
+					map[string]interface{}{"name": "c1", "value": "v1"},
+				},
+			},
+		}, "spec", "template", "spec", "containers")
+
 		By(" built components' length must be 1")
 		Expect(len(components)).To(BeEquivalentTo(1))
 		Expect(components[0].ObjectMeta).To(BeEquivalentTo(expectComponent.ObjectMeta))
 		Expect(components[0].TypeMeta).To(BeEquivalentTo(expectComponent.TypeMeta))
-		logf.Log.Info(cmp.Diff(components[0].Spec.Workload.Object, expectComponent.Spec.Workload.Object))
-		Expect(assert.ObjectsAreEqual(components[0].Spec.Workload.Object, expectComponent.Spec.Workload.Object)).To(BeTrue())
+		Expect(components[0].Spec.Workload.Object).Should(SatisfyAny(
+			BeEquivalentTo(expectWorkload),
+			BeEquivalentTo(expectWorkloadOptional)))
 	})
 
 })

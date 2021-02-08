@@ -54,6 +54,7 @@
     "@umijs/route-utils": "^1.0.33",
     "antd": "^4.9.4",
     "classnames": "^2.2.6",
+    "form-render": "^0.9.0",
     "dayjs": "^1.9.7",
     "lodash": "^4.17.11",
     "moment": "^2.25.3",
@@ -63,6 +64,7 @@
     "react-dev-inspector": "^1.1.1",
     "react-dom": "^17.0.0",
     "react-helmet-async": "^1.0.4",
+    "react-router-dom": "^5.2.0",
     "umi": "^3.2.14",
     "umi-request": "^1.0.8",
     "use-merge-value": "^1.0.1"
@@ -100,7 +102,8 @@
     "pro-download": "1.0.1",
     "puppeteer-core": "^5.0.0",
     "stylelint": "^13.0.0",
-    "typescript": "^4.1.2"
+    "typescript": "^4.1.2",
+    "webpack-plugin-fr-theme": "^0.2.0"
   },
   "engines": {
     "node": ">=10.0.0"
