@@ -71,12 +71,31 @@ export default (): React.ReactNode => {
     if (valid.length > 0) {
       alert(`invalid：${valid.toString()}`);
     }
-
     const servicesDict = {}
     servicesDict[serviceName] = {
       type: workloadType,
-      formData,
     }
+
+    Object.entries(formData).forEach((([key, value]) => {
+      // eslint-disable-next-line default-case
+      switch (typeof value) {
+        case "number":
+          servicesDict[serviceName][key] = value
+          break
+        case "string":
+          if ((value === null) || (value === "")){
+            break
+          }
+          servicesDict[serviceName][key] = value
+          break
+        case "object":
+          if ((Array.isArray(value) && value.length)) {
+            servicesDict[serviceName][key] = value
+            break
+          }
+      }
+    }))
+
     const appFile = {
       name: applicationName,
       services: servicesDict,
