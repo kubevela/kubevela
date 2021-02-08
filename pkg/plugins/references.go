@@ -320,13 +320,11 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 			case cue.StructKind:
 				depth := *recurseDepth
 				if subField, _ := val.Struct(); subField.Len() == 0 { // err cannot be not nil,so ignore it
-					if mapValue, ok := val.Elem(); ok && mapValue.Kind() != cue.StructKind && mapValue.Kind() != cue.ListKind {
+					if mapValue, ok := val.Elem(); ok {
+						// In the future we could recursive call to surpport complex map-value(struct or list)
 						param.PrintableType = fmt.Sprintf("map[string]%s", mapValue.IncompleteKind().String())
-					} else if !ok {
-						return fmt.Errorf("failed to got mapValue kind from %s", param.Name)
 					} else {
-						//In the future we could surpport complex map-value(struct or list)
-						param.PrintableType = fmt.Sprintf("map[string]%s", mapValue.IncompleteKind().String())
+						return fmt.Errorf("failed to got mapValue kind from %s", param.Name)
 					}
 				} else {
 					if err := ref.parseParameters(val, name, depth); err != nil {
