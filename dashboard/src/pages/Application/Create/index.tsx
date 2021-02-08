@@ -1,11 +1,15 @@
-import React, { useState } from 'react';
-import { Input, Dropdown, Menu, Button, Divider, Row, Col } from 'antd';
-import { useModel } from '@@/plugin-model/useModel';
-import { DownOutlined, UserOutlined } from '@ant-design/icons';
-import FormRender from 'form-render/lib/antd';
-import { getCapabilityOpenAPISchema } from '@/services/capability';
 // prevent Ant design style from being overridden
 import 'antd/dist/antd.css';
+
+import React, { useState } from 'react';
+
+import { Button, Col, Divider, Dropdown, Input, Menu, Row } from 'antd';
+import FormRender from 'form-render/lib/antd';
+
+import { getCapabilityOpenAPISchema } from '@/services/capability';
+import { useModel } from '@@/plugin-model/useModel';
+import { DownOutlined, UserOutlined } from '@ant-design/icons';
+import { PageContainer } from '@ant-design/pro-layout';
 
 export default (): React.ReactNode => {
   // @ts-ignore
@@ -68,7 +72,7 @@ export default (): React.ReactNode => {
   };
 
   return (
-    <div style={{ maxWidth: 600 }}>
+    <PageContainer>
       <Row>
         <Col span="4">Application</Col>
         <Col span="20" />
@@ -169,6 +173,6 @@ export default (): React.ReactNode => {
         </Col>
         <Col span="8" />
       </Row>
-    </div>
+    </PageContainer>
   );
 };

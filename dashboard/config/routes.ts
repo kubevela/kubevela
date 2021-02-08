@@ -7,13 +7,18 @@
     name: 'applications',
     icon: 'appstore',
     path: `/applications`,
-    component: './Application',
-  },
-  /* Application Create should be moved to /Application */
-  {
-    name: 'create_application',
-    path: '/applications/create',
-    component: './CreateApplication'
+    routes: [
+      {
+        path: '/applications',
+        component: './Application',
+      },
+      {
+        name: 'create',
+        path: '/applications/create',
+        component: './Application/Create',
+        hideInMenu: true,
+      },
+    ],
   },
   {
     name: 'capability',
@@ -27,7 +32,7 @@
       {
         name: 'workloads',
         path: '/capabilities/workloads',
-        component: './Capability/Workloads'
+        component: './Capability/Workloads',
       },
       {
         name: 'traits',
