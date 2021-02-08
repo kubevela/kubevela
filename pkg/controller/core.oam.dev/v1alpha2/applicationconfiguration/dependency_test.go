@@ -80,8 +80,23 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 	AfterEach(func() {
 		logf.Log.Info("Clean up resources")
 		// delete the namespace with all its resources
-		Expect(k8sClient.Delete(ctx, in)).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
-		Expect(k8sClient.Delete(ctx, out)).Should(BeNil())
+		ac := &v1alpha2.ApplicationConfiguration{}
+		Expect(k8sClient.DeleteAllOf(ctx, ac, client.InNamespace(namespace))).Should(Succeed())
+		cm := &corev1.ConfigMap{}
+		Expect(k8sClient.DeleteAllOf(ctx, cm, client.InNamespace(namespace))).Should(Succeed())
+		foo := &unstructured.Unstructured{}
+		foo.SetAPIVersion("example.com/v1")
+		foo.SetKind("Foo")
+		Expect(k8sClient.DeleteAllOf(ctx, foo, client.InNamespace(namespace))).Should(Succeed())
+		Eventually(func() bool {
+			l := &unstructured.UnstructuredList{}
+			l.SetAPIVersion("example.com/v1")
+			l.SetKind("Foo")
+			if err := k8sClient.List(ctx, l, client.InNamespace(namespace)); err != nil {
+				return false
+			}
+			return len(l.Items) == 0
+		}, 3*time.Second, time.Second).Should(BeTrue())
 	})
 
 	// common function for verification
@@ -114,11 +129,11 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 		Eventually(func() error {
 			err := k8sClient.Get(ctx, outFooKey, outFoo)
 			if err != nil {
-				// Try 3 (= 1s/300ms) times
+				// Try 3 (= 3s/1s) times
 				reconciler.Reconcile(req)
 			}
 			return err
-		}, time.Second, 300*time.Millisecond).Should(BeNil())
+		}, 3*time.Second, time.Second).Should(BeNil())
 
 		By("Reconcile")
 		reconcileRetry(reconciler, req)
@@ -159,7 +174,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 			k8sClient.Get(ctx, outFooKey, outFoo)
 			data, _, _ := unstructured.NestedString(outFoo.Object, "status", "key")
 			return data
-		}, time.Second, 300*time.Millisecond).Should(Equal("test"))
+		}, 3*time.Second, time.Second).Should(Equal("test"))
 
 		By("Reconcile")
 		reconcileRetry(reconciler, req)
@@ -175,7 +190,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 			reconciler.Reconcile(req)
 			k8sClient.Get(ctx, appconfigKey, appconfig)
 			return appconfig.Status.Dependency.Unsatisfied
-		}, 2*time.Second, 300*time.Millisecond).Should(BeNil())
+		}, 3*time.Second, time.Second).Should(BeNil())
 	}
 
 	It("trait depends on another trait", func() {
@@ -372,7 +387,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 		Expect(k8sClient.Create(ctx, &appConfig)).Should(Succeed())
 		Eventually(func() error {
 			return k8sClient.Get(ctx, appconfigKey, &appConfig)
-		}, time.Second, 300*time.Millisecond).Should(BeNil())
+		}, 3*time.Second, time.Second).Should(BeNil())
 
 		By("Reconcile")
 		reconcileRetry(reconciler, req)
@@ -399,11 +414,11 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 		Eventually(func() error {
 			err := k8sClient.Get(ctx, outFooKey, outFoo)
 			if err != nil {
-				// Try 3 (= 1s/300ms) times
+				// Try 3 (= 3s/1s) times
 				reconciler.Reconcile(req)
 			}
 			return err
-		}, time.Second, 300*time.Millisecond).Should(BeNil())
+		}, 3*time.Second, time.Second).Should(BeNil())
 
 		err := unstructured.SetNestedField(outFoo.Object, "test", "status", "key")
 		Expect(err).Should(BeNil())
@@ -423,11 +438,11 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 			err = k8sClient.Get(ctx, appconfigKey, tempApp)
 			tempApp.DeepCopyInto(newAppConfig)
 			if err != nil || tempApp.Status.Dependency.Unsatisfied != nil {
-				// Try 3 (= 1s/300ms) times
+				// Try 3 (= 3s/1s) times
 				reconciler.Reconcile(req)
 			}
 			return tempApp.Status.Dependency.Unsatisfied
-		}(), time.Second, 300*time.Millisecond).Should(BeNil())
+		}(), 3*time.Second, time.Second).Should(BeNil())
 
 		By("Checking that resource which accepts data is created now")
 		logf.Log.Info("Checking on resource that inputs data", "Key", inFooKey)
@@ -436,11 +451,11 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 		Eventually(func() error {
 			err := k8sClient.Get(ctx, outFooKey, outFoo)
 			if err != nil {
-				// Try 3 (= 1s/300ms) times
+				// Try 3 (= 3s/1s) times
 				reconciler.Reconcile(req)
 			}
 			return err
-		}, time.Second, 300*time.Millisecond).Should(BeNil())
+		}, 3*time.Second, time.Second).Should(BeNil())
 		err = unstructured.SetNestedField(outFoo.Object, "test", "status", "key")
 		Expect(err).Should(BeNil())
 		err = unstructured.SetNestedField(outFoo.Object, "hash-v1", "status", "app-hash")
@@ -453,7 +468,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 			}
 			s, _, _ := unstructured.NestedString(outFoo.Object, "status", "key")
 			return s == "test"
-		}, time.Second, 300*time.Millisecond).Should(BeTrue())
+		}, 3*time.Second, time.Second).Should(BeTrue())
 
 		newAppConfig.Labels["app-hash"] = "hash-v2"
 		By("Update newAppConfig & check successfully")
@@ -464,10 +479,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 				return false
 			}
 			return newAppConfig.Labels["app-hash"] == "hash-v2"
-		}, time.Second, 300*time.Millisecond).Should(BeTrue())
-
-		By("Reconcile")
-		reconcileRetry(reconciler, req)
+		}, 3*time.Second, time.Second).Should(BeTrue())
 
 		By("Verify the appconfig's dependency should be unsatisfied, because requirementCondition valueFrom not match")
 		depStatus := v1alpha2.DependencyStatus{
@@ -492,9 +504,11 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 					}}}},
 		}
 		Eventually(func() v1alpha2.DependencyStatus {
+			By("Reconcile")
+			reconcileRetry(reconciler, req)
 			k8sClient.Get(ctx, appconfigKey, newAppConfig)
 			return newAppConfig.Status.Dependency
-		}, time.Second, 300*time.Millisecond).Should(Equal(depStatus))
+		}, 3*time.Second, time.Second).Should(Equal(depStatus))
 
 		By("Update trait resource to meet the requirement")
 		Expect(k8sClient.Get(ctx, outFooKey, outFoo)).Should(BeNil()) // Get the latest before update
@@ -508,7 +522,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 			}
 			s, _, _ := unstructured.NestedString(outFoo.Object, "status", "key")
 			return s == "test-new"
-		}, time.Second, 300*time.Millisecond).Should(BeTrue())
+		}, 3*time.Second, time.Second).Should(BeTrue())
 
 		By("Reconcile")
 		reconcileRetry(reconciler, req)
@@ -519,11 +533,11 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 				tempAppConfig := &v1alpha2.ApplicationConfiguration{}
 				err := k8sClient.Get(ctx, appconfigKey, tempAppConfig)
 				if err != nil || tempAppConfig.Status.Dependency.Unsatisfied != nil {
-					// Try 3 (= 1s/300ms) times
+					// Try 3 (= 3s/1s) times
 					reconciler.Reconcile(req)
 				}
 				return tempAppConfig.Status.Dependency.Unsatisfied
-			}(), time.Second, 300*time.Millisecond).Should(BeNil())
+			}(), 3*time.Second, time.Second).Should(BeNil())
 
 		By("Checking that resource which accepts data is updated")
 		Expect(func() string {
@@ -625,6 +639,9 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 			Name:      appConfigName,
 			Namespace: namespace,
 		}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, appconfigKey, &v1alpha2.ApplicationConfiguration{})
+		}, 3*time.Second, time.Second).Should(Succeed())
 		By("Reconcile")
 		req := reconcile.Request{NamespacedName: appconfigKey}
 		reconcileRetry(reconciler, req)
@@ -641,7 +658,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 				reconciler.Reconcile(req)
 			}
 			return err
-		}, time.Second, 300*time.Millisecond).Should(BeNil())
+		}, 3*time.Second, time.Second).Should(BeNil())
 
 		By("Get reconciled AppConfig the first time")
 		appconfig := &v1alpha2.ApplicationConfiguration{}
@@ -669,7 +686,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 			k8sClient.Get(ctx, outFooKey, outFoo)
 			data, _, _ := unstructured.NestedSlice(outFoo.Object, "status", "complex2")
 			return data
-		}, time.Second, 300*time.Millisecond).Should(BeEquivalentTo(complex2))
+		}, 3*time.Second, time.Second).Should(BeEquivalentTo(complex2))
 
 		By("Reconcile")
 		reconcileRetry(reconciler, req)
@@ -680,7 +697,7 @@ var _ = Describe("Resource Dependency in an ApplicationConfiguration", func() {
 			reconciler.Reconcile(req)
 			k8sClient.Get(ctx, appconfigKey, appconfig)
 			return appconfig.Status.Dependency.Unsatisfied
-		}, 2*time.Second, 300*time.Millisecond).Should(BeNil())
+		}, 2*3*time.Second, time.Second).Should(BeNil())
 		// Verification after satisfying dependency
 		By("Checking that resource which accepts data is created now")
 		inFooKey := client.ObjectKey{

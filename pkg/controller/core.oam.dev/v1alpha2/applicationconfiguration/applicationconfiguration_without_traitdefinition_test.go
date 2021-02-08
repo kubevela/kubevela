@@ -136,13 +136,12 @@ spec:
 			return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appName}, ac)
 		}, 3*time.Second, 300*time.Millisecond).Should(BeNil())
 
-		By("Reconcile")
-		reconcileRetry(reconciler, req)
-
 		By("Check workload created successfully")
 		Eventually(func() error {
+			By("Reconcile")
+			reconcileRetry(reconciler, req)
 			return k8sClient.Get(ctx, workloadKey, &workload)
-		}, 5*time.Second, 300*time.Millisecond).Should(BeNil())
+		}, 5*time.Second, time.Second).Should(BeNil())
 
 		By("Check reconcile again and no error will happen")
 		reconcileRetry(reconciler, req)
@@ -223,9 +222,14 @@ spec:
 		By("Check new trait CR is applied")
 		scale := v1alpha2.ManualScalerTrait{}
 		scaleKey := client.ObjectKey{Name: scaleName, Namespace: namespace}
-		err = k8sClient.Get(ctx, scaleKey, &scale)
-		Expect(err).Should(BeNil())
-		Expect(scale.Spec.ReplicaCount).Should(Equal(int32(3)))
+		Eventually(func() int32 {
+			By("Reconcile")
+			reconcileRetry(reconciler, req)
+			if err := k8sClient.Get(ctx, scaleKey, &scale); err != nil {
+				return 0
+			}
+			return scale.Spec.ReplicaCount
+		}, 5*time.Second, time.Second).Should(Equal(int32(3)))
 	})
 
 	AfterEach(func() {
