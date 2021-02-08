@@ -54,10 +54,7 @@ vela-cli:
 	git checkout cmd/vela/fake/chart_source.go
 
 dashboard-build:
-	cd dashboard && yarn build && cd ./..
-
-dashboard-install:
-	cd dashboard && yarn && cd ./..
+	cd dashboard && npm install && cd ..
 
 doc-gen:
 	rm -r docs/en/cli/*

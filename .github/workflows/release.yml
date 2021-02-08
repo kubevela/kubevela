@@ -27,8 +27,6 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: 12.x
-      - name: Run dashboard install
-        run: make dashboard-install
       - name: Run dashboard build
         run: make dashboard-build
       - name: Tag helm chart image
