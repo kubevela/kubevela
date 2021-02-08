@@ -6,14 +6,18 @@ import FormRender from 'form-render/lib/antd';
 import { getCapabilityOpenAPISchema } from '@/services/capability';
 // prevent Ant design style from being overridden
 import 'antd/dist/antd.css';
+import {createApplication} from "@/services/application";
 
 export default (): React.ReactNode => {
+  const  { currentEnvironment } = useModel('useEnvironmentModel');
   // @ts-ignore
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { workloadsLoading, workloadList } = useModel('useWorkloadsModel');
   // @ts-ignore
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { traitsLoading, traitsList } = useModel('useTraitsModel');
+
+  const [workloadType, setWorkloadType] = useState("");
 
   const workloadMenuList = workloadList?.map((i) => (
     <Menu.Item
@@ -39,6 +43,9 @@ export default (): React.ReactNode => {
 
   const traitsMenu = <Menu>{traitMenuList}</Menu>;
 
+  const [applicationName, setApplicationName] = useState("");
+  const [serviceName, setServiceName] = useState("");
+
   // Capability parameters form render
   const [formData, setData] = useState({});
   // schema is OpenAPI Schema JSON data
@@ -51,6 +58,7 @@ export default (): React.ReactNode => {
     getCapabilityOpenAPISchema(capabilityName).then((result) => {
       const data = JSON.parse(result.data);
       if (capabilityType === 'workload_type') {
+        setWorkloadType(capabilityName)
         setWorkloadSchema(data);
       } else if (capabilityType === 'trait') {
         setTraitSchema(data);
@@ -62,9 +70,23 @@ export default (): React.ReactNode => {
     // valid == 0: validation passed
     if (valid.length > 0) {
       alert(`invalid：${valid.toString()}`);
-    } else {
-      alert(JSON.stringify(formData, null, 2));
     }
+
+    const servicesDict = {}
+    servicesDict[serviceName] = {
+      type: workloadType,
+      formData,
+    }
+    const appFile = {
+      name: applicationName,
+      services: servicesDict,
+    }
+
+    if (currentEnvironment?.envName == null) {
+      alert("could not get current environment name")
+      return
+    }
+    createApplication(currentEnvironment.envName, appFile).then(r => {alert(r.data)});
   };
 
   return (
@@ -77,7 +99,11 @@ export default (): React.ReactNode => {
       <Row>
         <Col span="4">Name:</Col>
         <Col span="8">
-          <Input placeholder="Basic usage" />
+          <Input placeholder="Basic usage" onChange={(e) => {
+            const v = e.target.value
+            setApplicationName(v)
+          }
+          }/>
         </Col>
         <Col span="12" />
       </Row>
@@ -96,7 +122,11 @@ export default (): React.ReactNode => {
       <Row>
         <Col span="4">Name:</Col>
         <Col span="8">
-          <Input placeholder="Basic usage" />
+          <Input placeholder="Basic usage" onChange={(e) => {
+            const v = e.target.value
+            setServiceName(v)
+          }
+          }/>
         </Col>
         <Col span="12" />
       </Row>
@@ -105,9 +135,9 @@ export default (): React.ReactNode => {
         <Col span="4">Type:</Col>
         <Col span="20">
           <Dropdown overlay={workloadsMenu}>
-            <a className="ant-dropdown-link">
+            <Button>
               Select <DownOutlined />
-            </a>
+            </Button>
           </Dropdown>
         </Col>
       </Row>
