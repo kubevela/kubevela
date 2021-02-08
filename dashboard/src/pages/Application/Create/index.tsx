@@ -3,176 +3,152 @@ import 'antd/dist/antd.css';
 
 import React, { useState } from 'react';
 
-import { Button, Col, Divider, Dropdown, Input, Menu, Row } from 'antd';
+import { Alert, Button, Form, Input, Space } from 'antd';
 import FormRender from 'form-render/lib/antd';
+import { history } from 'umi';
 
-import { getCapabilityOpenAPISchema } from '@/services/capability';
-import { useModel } from '@@/plugin-model/useModel';
-import { DownOutlined, UserOutlined } from '@ant-design/icons';
-import { PageContainer } from '@ant-design/pro-layout';
+import { CloseOutlined, SaveOutlined } from '@ant-design/icons';
+import { FooterToolbar, PageContainer } from '@ant-design/pro-layout';
+
+import CapabilityFormItem, { CapabilityFormItemData } from './components/CapabilityFormItem';
+import FormGroup from './components/FormGroup';
+import TraitsFrom from './components/TraitsFrom';
+
+interface App {
+  name: string;
+  workload: { name: string; capabilityType: string; data: object };
+  traits: { [type: string]: object };
+}
 
 export default (): React.ReactNode => {
-  // @ts-ignore
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { workloadsLoading, workloadList } = useModel('useWorkloadsModel');
-  // @ts-ignore
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { traitsLoading, traitsList } = useModel('useTraitsModel');
+  const [data, setData] = useState<{
+    workloadData?: CapabilityFormItemData;
+    traitsData: { [key: string]: object };
+  }>({ traitsData: {} });
 
-  const workloadMenuList = workloadList?.map((i) => (
-    <Menu.Item
-      key={i.name}
-      icon={<UserOutlined />}
-      onClick={() => handleMenuClick('workload_type', i.name)}
-    >
-      {i.name}
-    </Menu.Item>
-  ));
+  const [errorFields, setErrorFields] = useState<{ [key: string]: any }>({});
+  const [showError, setShowError] = useState<boolean>(false);
 
-  const traitMenuList = traitsList?.map((i) => (
-    <Menu.Item
-      key={i.name}
-      icon={<UserOutlined />}
-      onClick={() => handleMenuClick('trait', i.name)}
-    >
-      {i.name}
-    </Menu.Item>
-  ));
-
-  const workloadsMenu = <Menu>{workloadMenuList}</Menu>;
-
-  const traitsMenu = <Menu>{traitMenuList}</Menu>;
-
-  // Capability parameters form render
-  const [formData, setData] = useState({});
-  // schema is OpenAPI Schema JSON data
-  const [workloadSchema, setWorkloadSchema] = useState({});
-  const [traitSchema, setTraitSchema] = useState({});
-  const [valid, setValid] = useState([]);
-
-  function handleMenuClick(capabilityType: string, capabilityName: string) {
-    console.log('click', capabilityName);
-    getCapabilityOpenAPISchema(capabilityName).then((result) => {
-      const data = JSON.parse(result.data);
-      if (capabilityType === 'workload_type') {
-        setWorkloadSchema(data);
-      } else if (capabilityType === 'trait') {
-        setTraitSchema(data);
-      }
-    });
-  }
-
-  const onSubmit = () => {
-    // valid == 0: validation passed
-    if (valid.length > 0) {
-      alert(`invalid：${valid.toString()}`);
-    } else {
-      alert(JSON.stringify(formData, null, 2));
-    }
+  const saveApp = (app: App) => {
+    /* todo: request api server */
+    console.info(app);
   };
 
   return (
     <PageContainer>
-      <Row>
-        <Col span="4">Application</Col>
-        <Col span="20" />
-      </Row>
+      {showError ? (
+        <Alert
+          showIcon
+          type="error"
+          message="The following fields failed validation:"
+          description={
+            <ul>
+              {Object.keys(errorFields).map((f) =>
+                errorFields[f] == null
+                  ? null
+                  : Object.entries(errorFields[f]).map((ff) => (
+                      <li key={ff[0]}>
+                        - {f}.{ff[0]}
+                      </li>
+                    )),
+              )}
+            </ul>
+          }
+        />
+      ) : null}
+      <Form
+        labelCol={{ span: 4 }}
+        onFinish={(values) => {
+          Object.keys(errorFields).forEach((f) => {
+            if (errorFields[f] == null) {
+              delete errorFields[f];
+            }
+          });
+          if (Object.keys(errorFields).length > 0) {
+            setShowError(true);
+            return;
+          }
 
-      <Row>
-        <Col span="4">Name:</Col>
-        <Col span="8">
-          <Input placeholder="Basic usage" />
-        </Col>
-        <Col span="12" />
-      </Row>
+          const {
+            name,
+            service: { name: serviceName },
+          } = values;
 
-      <Row>
-        <Col span="24">
-          <Divider />
-        </Col>
-      </Row>
+          // build app data by form
+          const app = {
+            name,
+            workload: {
+              name: serviceName,
+              ...data.workloadData,
+            } as any,
+            traits: { ...data.traitsData },
+          };
+          if (app.workload.capabilityType == null) {
+            errorFields.workload = { serviceType: '' };
+            setShowError(true);
+            return;
+          }
+          setShowError(false);
 
-      <Row>
-        <Col span="4">Services</Col>
-        <Col span="20" />
-      </Row>
-
-      <Row>
-        <Col span="4">Name:</Col>
-        <Col span="8">
-          <Input placeholder="Basic usage" />
-        </Col>
-        <Col span="12" />
-      </Row>
-
-      <Row>
-        <Col span="4">Type:</Col>
-        <Col span="20">
-          <Dropdown overlay={workloadsMenu}>
-            <a className="ant-dropdown-link">
-              Select <DownOutlined />
-            </a>
-          </Dropdown>
-        </Col>
-      </Row>
-
-      <Row>
-        <Col span="4">Settings:</Col>
-        <Col span="20">
-          <FormRender
-            schema={workloadSchema}
-            formData={formData}
-            onChange={setData}
-            onValidate={setValid}
-            displayType="column"
-          />
-        </Col>
-      </Row>
-
-      <Row>
-        <Col span="24">
-          <Divider />
-        </Col>
-      </Row>
-
-      <Row>
-        <Col span="4">Traits</Col>
-        <Col span="20" />
-      </Row>
-
-      <Row>
-        <Col span="4">Type:</Col>
-        <Col span="20">
-          <Dropdown overlay={traitsMenu}>
-            <a className="ant-dropdown-link" onClick={(e) => e.preventDefault()}>
-              Select <DownOutlined />
-            </a>
-          </Dropdown>
-        </Col>
-      </Row>
-
-      <Row>
-        <Col span="4">Properties:</Col>
-        <Col span="20">
-          <FormRender
-            schema={traitSchema}
-            formData={formData}
-            onChange={setData}
-            onValidate={setValid}
-            displayType="column"
-          />
-        </Col>
-      </Row>
-
-      <Row>
-        <Col span="8" />
-        <Col span="8">
-          <Button onClick={onSubmit} type="primary">
-            Submit
+          saveApp(app);
+        }}
+      >
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <FormGroup title="Basic">
+            <Form.Item
+              name="name"
+              label="Application Name"
+              required
+              rules={[{ required: true, max: 200 }]}
+            >
+              <Input placeholder="Application name" />
+            </Form.Item>
+          </FormGroup>
+          <FormGroup title="Service">
+            <Form.Item
+              name={['service', 'name']}
+              label="Service Name"
+              required
+              rules={[{ required: true, max: 200 }]}
+            >
+              <Input placeholder="Service name" />
+            </Form.Item>
+            <Form.Item label="Service Type" required>
+              <CapabilityFormItem
+                capability="workloads"
+                onChange={(wd) => setData({ ...data, workloadData: wd })}
+                onValidate={(errors) => {
+                  setErrorFields({
+                    ...errorFields,
+                    workload: Object.keys(errors).length > 0 ? { ...errors } : undefined,
+                  });
+                }}
+              />
+            </Form.Item>
+          </FormGroup>
+          <FormGroup title="Operations">
+            <Form.Item label="Traits">
+              <TraitsFrom
+                onChange={(td) => setData({ ...data, traitsData: td })}
+                onValidate={(errors) => {
+                  setErrorFields({
+                    ...errorFields,
+                    traits: Object.keys(errors).length > 0 ? { ...errors } : undefined,
+                  });
+                }}
+              />
+            </Form.Item>
+          </FormGroup>
+        </Space>
+        <FooterToolbar>
+          <Button icon={<CloseOutlined />} onClick={() => history.push('/applications')}>
+            Cancel
           </Button>
-        </Col>
-        <Col span="8" />
-      </Row>
+          <Button type="primary" icon={<SaveOutlined />} htmlType="submit">
+            Save
+          </Button>
+        </FooterToolbar>
+      </Form>
     </PageContainer>
   );
 };
