@@ -306,8 +306,6 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  definitionRef:
-    name: services
   extension:
     template: |-
       patch: {spec: template: metadata: labels: app: context.name}
