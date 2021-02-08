@@ -13,6 +13,7 @@ require (
 	github.com/crossplane/crossplane-runtime v0.10.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.7.1
+	github.com/evanphx/json-patch v4.5.0+incompatible
 	github.com/fatih/color v1.9.0
 	github.com/gertd/go-pluralize v0.1.7
 	github.com/getkin/kin-openapi v0.34.0
@@ -47,6 +48,7 @@ require (
 	github.com/swaggo/files v0.0.0-20190704085106-630677cd5c14
 	github.com/swaggo/gin-swagger v1.3.0
 	github.com/swaggo/swag v1.6.7
+	github.com/tidwall/gjson v1.6.8
 	github.com/ugorji/go v1.2.1 // indirect
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.3

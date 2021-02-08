@@ -19,6 +19,7 @@ package applicationconfiguration
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"testing"
 	"time"
 
@@ -889,12 +890,92 @@ func TestDependency(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	refConfigMap := &unstructured.Unstructured{}
+	refConfigMap.SetAPIVersion("v1")
+	refConfigMap.SetKind("ConfigMap")
+	refConfigMap.SetNamespace("test-ns")
+	refConfigMap.SetName("ref-configmap")
+
+	err = unstructured.SetNestedField(refConfigMap.Object, "test", "status", "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	readyDataPassingOutput := v1alpha2.DataOutput{
+		Name: "test-ready-dataoutput",
+		OutputStore: v1alpha2.StoreReference{
+			TypedReference: runtimev1alpha1.TypedReference{
+				APIVersion: refConfigMap.GetAPIVersion(),
+				Kind:       refConfigMap.GetKind(),
+				Name:       refConfigMap.GetName(),
+			},
+			Operations: []v1alpha2.DataOperation{{
+				Conditions: []v1alpha2.ConditionRequirement{{
+					Operator:  v1alpha2.ConditionNotEqual,
+					Value:     "",
+					FieldPath: "status.key",
+				}},
+			}},
+		},
+	}
+	unreadyDataPassingOutput := v1alpha2.DataOutput{
+		Name: "test-unready-dataoutput",
+		OutputStore: v1alpha2.StoreReference{
+			TypedReference: runtimev1alpha1.TypedReference{
+				APIVersion: refConfigMap.GetAPIVersion(),
+				Kind:       refConfigMap.GetKind(),
+				Name:       refConfigMap.GetName(),
+			},
+			Operations: []v1alpha2.DataOperation{{
+				Conditions: []v1alpha2.ConditionRequirement{{
+					Operator:  v1alpha2.ConditionEqual,
+					Value:     "",
+					FieldPath: "status.key",
+				}},
+			}},
+		},
+	}
+
+	readyDataPassingInput := v1alpha2.DataInput{
+		InputStore: v1alpha2.StoreReference{
+			TypedReference: runtimev1alpha1.TypedReference{
+				APIVersion: refConfigMap.GetAPIVersion(),
+				Kind:       refConfigMap.GetKind(),
+				Name:       refConfigMap.GetName(),
+			},
+			Operations: []v1alpha2.DataOperation{{
+				Conditions: []v1alpha2.ConditionRequirement{{
+					Operator:  v1alpha2.ConditionNotEqual,
+					Value:     "",
+					FieldPath: "status.key",
+				}},
+			}},
+		},
+	}
+	unreadyDataPassingInput := v1alpha2.DataInput{
+		InputStore: v1alpha2.StoreReference{
+			TypedReference: runtimev1alpha1.TypedReference{
+				APIVersion: refConfigMap.GetAPIVersion(),
+				Kind:       refConfigMap.GetKind(),
+				Name:       refConfigMap.GetName(),
+			},
+			Operations: []v1alpha2.DataOperation{{
+				Conditions: []v1alpha2.ConditionRequirement{{
+					Operator:  v1alpha2.ConditionEqual,
+					Value:     "",
+					FieldPath: "status.key",
+				}},
+			}},
+		},
+	}
+
 	mapper := mock.NewMockDiscoveryMapper()
 
 	type args struct {
 		components []v1alpha2.ApplicationConfigurationComponent
 		wl         *unstructured.Unstructured
 		trait      *unstructured.Unstructured
+		refObj     *unstructured.Unstructured
 	}
 	type want struct {
 		err             error
@@ -1296,6 +1377,153 @@ func TestDependency(t *testing.T) {
 				},
 				depStatus: &v1alpha2.DependencyStatus{}},
 		},
+		// add test cases for data passing in oam
+		"DataOutputs with both ready and unready conditions": {
+			args: args{
+				components: []v1alpha2.ApplicationConfigurationComponent{{
+					ComponentName: "test-component-sink",
+					DataInputs:    []v1alpha2.DataInput{},
+				}, {
+					ComponentName: "test-component-source",
+					DataOutputs:   []v1alpha2.DataOutput{unreadyDataPassingOutput, readyDataPassingOutput},
+				}},
+				wl:    readyWorkload.DeepCopy(),
+				trait: readyTrait.DeepCopy(),
+			},
+			want: want{
+				verifyWorkloads: func(ws []Workload) {
+					var wl Workload
+					for i := range ws {
+						if ws[i].ComponentName == "test-component-source" {
+							wl = ws[i]
+						}
+					}
+					if len(wl.DataOutputs) != 1 {
+						t.Error("DataOutputs of workload should only contain readyDataPassingOutput")
+					}
+					if !reflect.DeepEqual(wl.DataOutputs[readyDataPassingOutput.Name], readyDataPassingOutput) {
+						t.Error("DataOutputs of workload should contain readyDataPassingOutput")
+					}
+				},
+				depStatus: &v1alpha2.DependencyStatus{
+					Unsatisfied: []v1alpha2.UnstaifiedDependency{{
+						Reason: "got(test) expected to be ",
+						From: v1alpha2.DependencyFromObject{
+							TypedReference: runtimev1alpha1.TypedReference{
+								APIVersion: readyWorkload.GetAPIVersion(),
+								Kind:       readyWorkload.GetKind(),
+								Name:       readyWorkload.GetName(),
+							},
+							FieldPath: "",
+						},
+						To: v1alpha2.DependencyToObject{
+							TypedReference: runtimev1alpha1.TypedReference{
+								APIVersion: refConfigMap.GetAPIVersion(),
+								Kind:       refConfigMap.GetKind(),
+								Name:       refConfigMap.GetName(),
+							},
+							FieldPaths: []string{""},
+						},
+					}},
+				},
+			},
+		},
+		"DataInputs with only ready conditions": {
+			args: args{
+				components: []v1alpha2.ApplicationConfigurationComponent{{
+					ComponentName: "test-component-sink",
+					DataInputs:    []v1alpha2.DataInput{readyDataPassingInput},
+				}, {
+					ComponentName: "test-component-source",
+					DataOutputs:   []v1alpha2.DataOutput{unreadyDataPassingOutput, readyDataPassingOutput},
+				}},
+				wl:     readyWorkload.DeepCopy(),
+				trait:  readyTrait.DeepCopy(),
+				refObj: refConfigMap.DeepCopy(),
+			},
+			want: want{
+				verifyWorkloads: func(ws []Workload) {
+					var wl Workload
+					for i := range ws {
+						if ws[i].ComponentName == "test-component-sink" {
+							wl = ws[i]
+						}
+					}
+					if !reflect.DeepEqual(wl.DataInputs, []v1alpha2.DataInput{readyDataPassingInput}) {
+						t.Error("DataInputs of workload should contain readyDataPassingInput")
+					}
+				},
+				depStatus: &v1alpha2.DependencyStatus{
+					Unsatisfied: []v1alpha2.UnstaifiedDependency{{
+						Reason: "got(test) expected to be ",
+						From: v1alpha2.DependencyFromObject{
+							TypedReference: runtimev1alpha1.TypedReference{
+								APIVersion: readyWorkload.GetAPIVersion(),
+								Kind:       readyWorkload.GetKind(),
+								Name:       readyWorkload.GetName(),
+							},
+							FieldPath: "",
+						},
+						To: v1alpha2.DependencyToObject{
+							TypedReference: runtimev1alpha1.TypedReference{
+								APIVersion: refConfigMap.GetAPIVersion(),
+								Kind:       refConfigMap.GetKind(),
+								Name:       refConfigMap.GetName(),
+							},
+							FieldPaths: []string{""},
+						},
+					}},
+				},
+			},
+		},
+		"DataInputs with both ready and unready conditions": {
+			args: args{
+				components: []v1alpha2.ApplicationConfigurationComponent{{
+					ComponentName: "test-component-sink",
+					DataInputs:    []v1alpha2.DataInput{unreadyDataPassingInput, readyDataPassingInput},
+				}, {
+					ComponentName: "test-component-source",
+					DataOutputs:   []v1alpha2.DataOutput{readyDataPassingOutput},
+				}},
+				wl:     readyWorkload.DeepCopy(),
+				trait:  readyTrait.DeepCopy(),
+				refObj: refConfigMap.DeepCopy(),
+			},
+			want: want{
+				verifyWorkloads: func(ws []Workload) {
+					var wl Workload
+					for i := range ws {
+						if ws[i].ComponentName == "test-component-sink" {
+							wl = ws[i]
+						}
+					}
+					if len(wl.DataInputs) != 0 {
+						t.Error("DataInputs of workload should contain no DataInput")
+					}
+				},
+				depStatus: &v1alpha2.DependencyStatus{
+					Unsatisfied: []v1alpha2.UnstaifiedDependency{{
+						Reason: "got(test) expected to be ",
+						From: v1alpha2.DependencyFromObject{
+							TypedReference: runtimev1alpha1.TypedReference{
+								APIVersion: refConfigMap.GetAPIVersion(),
+								Kind:       refConfigMap.GetKind(),
+								Name:       refConfigMap.GetName(),
+							},
+							FieldPath: "",
+						},
+						To: v1alpha2.DependencyToObject{
+							TypedReference: runtimev1alpha1.TypedReference{
+								APIVersion: readyWorkload.GetAPIVersion(),
+								Kind:       readyWorkload.GetKind(),
+								Name:       readyWorkload.GetName(),
+							},
+							FieldPaths: []string{""},
+						},
+					}},
+				},
+			},
+		},
 	}
 
 	for name, tc := range cases {
@@ -1316,6 +1544,16 @@ func TestDependency(t *testing.T) {
 						}
 						if obj.GetObjectKind().GroupVersionKind().Kind == "Trait" {
 							b, err := json.Marshal(tc.args.trait)
+							if err != nil {
+								t.Fatal(err)
+							}
+							err = json.Unmarshal(b, obj)
+							if err != nil {
+								t.Fatal(err)
+							}
+						}
+						if obj.GetObjectKind().GroupVersionKind().Kind == "ConfigMap" {
+							b, err := json.Marshal(tc.args.refObj)
 							if err != nil {
 								t.Fatal(err)
 							}

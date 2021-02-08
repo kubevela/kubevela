@@ -18,6 +18,7 @@ package applicationconfiguration
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -487,4 +488,259 @@ func TestFinalizeWorkloadScopes(t *testing.T) {
 		})
 	}
 
+}
+
+func TestApplyOutputRef(t *testing.T) {
+	workload := &unstructured.Unstructured{}
+	workload.SetAPIVersion("v1")
+	workload.SetKind("Workload")
+	workload.SetNamespace("test-ns")
+	workload.SetName("test-workload")
+
+	runningW := workload.DeepCopy()
+	err := unstructured.SetNestedField(runningW.Object, "value-in-workload", "status", "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	refConfigMap := &unstructured.Unstructured{}
+	refConfigMap.SetAPIVersion("v1")
+	refConfigMap.SetKind("ConfigMap")
+	refConfigMap.SetNamespace("test-ns")
+	refConfigMap.SetName("ref-configmap")
+	err = unstructured.SetNestedField(refConfigMap.Object, "value-in-configmap", "status", "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type args struct {
+		workload *unstructured.Unstructured
+		trait    *unstructured.Unstructured
+		outputs  map[string]v1alpha2.DataOutput
+	}
+	jsonPatchOper := "jsonPatch"
+
+	cases := map[string]struct {
+		args args
+		want func(*unstructured.Unstructured) *unstructured.Unstructured
+	}{
+		"configmap with jsonPath operations": {
+			args: args{
+				workload: runningW,
+				outputs: map[string]v1alpha2.DataOutput{
+					"test": {
+						OutputStore: v1alpha2.StoreReference{
+							TypedReference: v1alpha1.TypedReference{
+								APIVersion: refConfigMap.GetAPIVersion(),
+								Kind:       refConfigMap.GetKind(),
+								Name:       refConfigMap.GetName(),
+							},
+							Operations: []v1alpha2.DataOperation{{
+								Type:        jsonPatchOper,
+								Operator:    v1alpha2.AddOperator,
+								ToFieldPath: "status.key",
+								Value:       `"{}"`,
+							}, {
+								Type:        jsonPatchOper,
+								Operator:    v1alpha2.AddOperator,
+								ToFieldPath: "status.key",
+								ToDataPath:  "value",
+								ValueFrom:   v1alpha2.ValueFrom{FieldPath: "status.key"},
+								Conditions: []v1alpha2.ConditionRequirement{{
+									Operator:  v1alpha2.ConditionNotEqual,
+									Value:     "",
+									FieldPath: "status.key",
+								}},
+							}},
+						},
+					}},
+			},
+			want: func(outRef *unstructured.Unstructured) *unstructured.Unstructured {
+				expect := outRef.DeepCopy()
+				err := unstructured.SetNestedField(expect.Object, `{"value":"value-in-workload"}`, "status", "key")
+				if err != nil {
+					t.Fatal(err)
+					return nil
+				}
+				return expect
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			wl := workloads{
+				rawClient: &test.MockClient{
+					MockGet: test.MockGetFn(func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+						if obj.GetObjectKind().GroupVersionKind().Kind == "Workload" {
+							b, err := json.Marshal(tc.args.workload)
+							if err != nil {
+								t.Fatal(err)
+							}
+							err = json.Unmarshal(b, obj)
+							if err != nil {
+								t.Fatal(err)
+							}
+						}
+						if obj.GetObjectKind().GroupVersionKind().Kind == "Trait" {
+							b, err := json.Marshal(tc.args.trait)
+							if err != nil {
+								t.Fatal(err)
+							}
+							err = json.Unmarshal(b, obj)
+							if err != nil {
+								t.Fatal(err)
+							}
+						}
+						if obj.GetObjectKind().GroupVersionKind().Kind == "ConfigMap" {
+							b, err := json.Marshal(refConfigMap)
+							if err != nil {
+								t.Fatal(err)
+							}
+							err = json.Unmarshal(b, obj)
+							if err != nil {
+								t.Fatal(err)
+							}
+						}
+						return nil
+					}),
+				},
+				applicator: ApplyFn(func(_ context.Context, o runtime.Object, _ ...apply.ApplyOption) error {
+					if diff := cmp.Diff(o, tc.want(refConfigMap)); diff != "" {
+						return errors.New(diff)
+					}
+					return nil
+				}),
+			}
+			err = wl.ApplyOutputRef(context.Background(), workload, tc.args.outputs, tc.args.workload.GetNamespace())
+			if err != nil {
+				t.Error(err)
+				return
+			}
+		})
+	}
+}
+func TestApplyInputRef(t *testing.T) {
+	workload := &unstructured.Unstructured{}
+	workload.SetAPIVersion("v1")
+	workload.SetKind("Workload")
+	workload.SetNamespace("test-ns")
+	workload.SetName("test-workload")
+	err := unstructured.SetNestedField(workload.Object, "test", "status", "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	refConfigMap := &unstructured.Unstructured{}
+	refConfigMap.SetAPIVersion("v1")
+	refConfigMap.SetKind("ConfigMap")
+	refConfigMap.SetNamespace("test-ns")
+	refConfigMap.SetName("ref-configmap")
+	err = unstructured.SetNestedField(refConfigMap.Object, "value-in-configmap", "status", "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	type args struct {
+		workload *unstructured.Unstructured
+		trait    *unstructured.Unstructured
+		inputs   []v1alpha2.DataInput
+	}
+	jsonPatchOper := "jsonPatch"
+
+	cases := map[string]struct {
+		args args
+		want func(*unstructured.Unstructured) *unstructured.Unstructured
+	}{
+		"jsonPatch add operation": {
+			args: args{
+				workload: workload.DeepCopy(),
+				inputs: []v1alpha2.DataInput{{
+					InputStore: v1alpha2.StoreReference{
+						TypedReference: v1alpha1.TypedReference{
+							APIVersion: refConfigMap.GetAPIVersion(),
+							Kind:       refConfigMap.GetKind(),
+							Name:       refConfigMap.GetName(),
+						},
+						Operations: []v1alpha2.DataOperation{{
+							Type:        jsonPatchOper,
+							Operator:    v1alpha2.AddOperator,
+							ToFieldPath: "status.key",
+							Value:       `"{}"`,
+						}, {
+							Type:        jsonPatchOper,
+							Operator:    v1alpha2.AddOperator,
+							ToFieldPath: "status.key",
+							ToDataPath:  "value",
+							ValueFrom:   v1alpha2.ValueFrom{FieldPath: "status.key"},
+							Conditions: []v1alpha2.ConditionRequirement{{
+								Operator:  v1alpha2.ConditionNotEqual,
+								Value:     "",
+								FieldPath: "status.key",
+							}},
+						}},
+					},
+				}},
+			},
+			want: func(workload *unstructured.Unstructured) *unstructured.Unstructured {
+				expectWorkload := workload.DeepCopy()
+				err := unstructured.SetNestedField(expectWorkload.Object, `{"value":"value-in-configmap"}`, "status", "key")
+				if err != nil {
+					t.Fatal(err)
+					return nil
+				}
+				return expectWorkload
+			},
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			wl := workloads{
+				rawClient: &test.MockClient{
+					MockGet: test.MockGetFn(func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+						if obj.GetObjectKind().GroupVersionKind().Kind == "Workload" {
+							b, err := json.Marshal(tc.args.workload)
+							if err != nil {
+								t.Fatal(err)
+							}
+							err = json.Unmarshal(b, obj)
+							if err != nil {
+								t.Fatal(err)
+							}
+						}
+						if obj.GetObjectKind().GroupVersionKind().Kind == "Trait" {
+							b, err := json.Marshal(tc.args.trait)
+							if err != nil {
+								t.Fatal(err)
+							}
+							err = json.Unmarshal(b, obj)
+							if err != nil {
+								t.Fatal(err)
+							}
+						}
+						if obj.GetObjectKind().GroupVersionKind().Kind == "ConfigMap" {
+							b, err := json.Marshal(refConfigMap)
+							if err != nil {
+								t.Fatal(err)
+							}
+							err = json.Unmarshal(b, obj)
+							if err != nil {
+								t.Fatal(err)
+							}
+						}
+						return nil
+					}),
+				},
+			}
+			err = wl.ApplyInputRef(context.Background(), tc.args.workload, tc.args.inputs, tc.args.workload.GetNamespace())
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			if diff := cmp.Diff(tc.args.workload, tc.want(workload)); diff != "" {
+				t.Error(diff)
+				return
+			}
+		})
+	}
 }
