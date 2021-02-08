@@ -200,11 +200,10 @@ var _ = Describe("Test ApplicationConfiguration Component Revision Enabled trait
 			return k8sClient.Get(ctx, appConfigKey, &appConfig)
 		}, time.Second, 300*time.Millisecond).Should(BeNil())
 
-		By("Reconcile")
-		reconcileRetry(reconciler, req)
-
 		By("Check workload created successfully")
 		Eventually(func() error {
+			By("Reconcile")
+			reconcileRetry(reconciler, req)
 			var workloadKey = client.ObjectKey{Namespace: namespace, Name: compName + "-v1"}
 			return k8sClient.Get(ctx, workloadKey, &wr)
 		}, 3*time.Second, 300*time.Millisecond).Should(BeNil())
@@ -295,11 +294,11 @@ var _ = Describe("Test ApplicationConfiguration Component Revision Enabled trait
 		Eventually(func() error {
 			return k8sClient.Get(ctx, appConfigKey, &appConfig)
 		}, time.Second, 300*time.Millisecond).Should(BeNil())
-		By("Reconcile for new revision")
-		reconcileRetry(reconciler, req)
 
 		By("Check new revision workload created successfully")
 		Eventually(func() error {
+			By("Reconcile for new revision")
+			reconcileRetry(reconciler, req)
 			var workloadKey = client.ObjectKey{Namespace: namespace, Name: compName + "-v2"}
 			return k8sClient.Get(ctx, workloadKey, &wr)
 		}, time.Second, 300*time.Millisecond).Should(BeNil())
