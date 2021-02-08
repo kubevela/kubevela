@@ -297,6 +297,10 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 		if err != nil {
 			return fmt.Errorf("arguments not defined as struct %w", err)
 		}
+		if arguments.Len() == 0 {
+			v, _ := paraValue.Fields()
+			fmt.Println(v)
+		}
 		for i := 0; i < arguments.Len(); i++ {
 			var param ReferenceParameter
 			fi := arguments.Field(i)
@@ -315,9 +319,15 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 			switch val.IncompleteKind() {
 			case cue.StructKind:
 				depth := *recurseDepth
-				// TODO(zzxwill) this case not processed  `selector?: [string]: string`
-				if name == "selector" {
-					param.PrintableType = "map[string]string"
+				if subField, _ := val.Struct(); subField.Len() == 0 { // err cannot be not nil,so ignore it
+					if mapValue, ok := val.Elem(); ok && mapValue.Kind() != cue.StructKind && mapValue.Kind() != cue.ListKind {
+						param.PrintableType = fmt.Sprintf("map[string]%s", mapValue.IncompleteKind().String())
+					} else if !ok {
+						return fmt.Errorf("failed to got mapValue kind from %s", param.Name)
+					} else {
+						//In the future we could surpport complex map-value(struct or list)
+						param.PrintableType = fmt.Sprintf("map[string]%s", mapValue.IncompleteKind().String())
+					}
 				} else {
 					if err := ref.parseParameters(val, name, depth); err != nil {
 						return err
