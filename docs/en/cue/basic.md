@@ -1,6 +1,6 @@
 # CUE Basic
 
-This article will explain how to use [CUE](https://cuelang.org/) as templating module in KubeVela. Please make sure you have already learned about `Application` custom resource and how it leverage templating modules for application encapsulation and abstraction. 
+This document will explain how to use [CUE](https://cuelang.org/) as templating module in KubeVela. Please make sure you have already learned about `Application` custom resource and how it leverage templating modules for application encapsulation and abstraction. 
 
 ## Why CUE? 
 
