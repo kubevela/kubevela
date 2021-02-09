@@ -1,23 +1,23 @@
 - Overview
   - [Introduction](/en/introduction.md)
-  - [Getting Started](/en/quick-start.md)
+  - [Quick Start](/en/quick-start.md)
   - [Concepts and Glossaries](/en/concepts.md)
 
-- Platform Team Guide
-  - [What is KubeVela?](/en/platform-engineers/overview.md)
-  - Designing Abstraction
-    - [Application CRD](/en/application.md)
-    - CUE
-      - [CUE Basic](/en/cue/basic.md)
-      - [Workload Type](/en/cue/workload-type.md)
-      - [Trait](/en/cue/trait.md)
-      - [Status](/en/cue/status.md)
-  - Register Capability Modules
-    - [Workload Type](/en/platform-engineers/workload-type.md)
-    - [Trait](/en/platform-engineers/trait.md)
-    - [Cloud Services](/en/platform-engineers/cloud-services.md)
+- For Platform Builder
+  - [Application Encapsulation](/en/platform-engineers/overview.md)
+    - [Designing Application](/en/application.md)
+    - Managing Template Modules
+      - Definitions
+        - [Workload Type](/en/platform-engineers/workload-type.md)
+        - [Trait](/en/platform-engineers/trait.md)
+        - [Cloud Services](/en/platform-engineers/cloud-services.md)
+      - CUE
+        - [CUE Basic](/en/cue/basic.md)
+        - [Workload Type](/en/cue/workload-type.md)
+        - [Trait](/en/cue/trait.md)
+        - [Advanced Features](/en/cue/status.md)
 
-- End User Guide
+- For End User
   - Appfile
     - [Learning Appfile](/en/developers/learn-appfile.md)
   - Debugging
