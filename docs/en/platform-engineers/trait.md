@@ -116,7 +116,7 @@ Platform builders only need to declare this info here once, then the OAM framewo
       }
  ```
 
-This is a CUE based template to define end user abstraction for this workload type. We will explain this in detailed in the following CUE section.
+This is a CUE based template to define end user abstraction for this workload type. Please check the [templating documentation](../cue/trait.md) for more detail.
 
 Note that in this example, we only need to give the webhook url as parameter for using KubeWatch.
 

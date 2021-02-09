@@ -12,7 +12,7 @@
         - [Trait](/en/platform-engineers/trait.md)
         - [Cloud Services](/en/platform-engineers/cloud-services.md)
       - CUE
-        - [CUE Basic](/en/cue/basic.md)
+        - [Basic](/en/cue/basic.md)
         - [Workload Type](/en/cue/workload-type.md)
         - [Trait](/en/cue/trait.md)
         - [Advanced Features](/en/cue/status.md)

@@ -1,4 +1,4 @@
-# Define Traits with CUE
+# Templating Traits with CUE
 
 In this section we will introduce how to define a Trait with CUE template.
 

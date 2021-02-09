@@ -1,4 +1,4 @@
-# Define Workload Types with CUE
+# Templating Workload Types with CUE
 
 In the [CUE basic section](./basic.md), we have explained how CUE works as template module in KubeVela.
 

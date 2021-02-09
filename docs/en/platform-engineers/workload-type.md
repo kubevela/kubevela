@@ -67,7 +67,7 @@ The `extension.install` field is used by KubeVela to automatically install the d
       }
  ```
 
-This is a CUE based template to define end user abstraction for this workload type. We will explain this in detailed in the following CUE section.
+This is a CUE based template to define end user abstraction for this workload type. Please check the [templating documentation](../cue/workload-type.md) for more detail.
 
 Note that OpenFaaS also requires a namespace and secret configured before first-time usage:
 
