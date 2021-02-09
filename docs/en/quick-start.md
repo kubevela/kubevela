@@ -71,10 +71,11 @@ Hello World
 
 ## What's Next
 
-Congratulations! You have just deployed an app using KubeVela. Here are some recommended next steps:
+Congratulations! You have just deployed an app using KubeVela.
 
-- Learn about KubeVela in detail starting from its [core concepts](concepts)
-- Try out more [end user guides](developers/learn-appfile.md)
+Here are some recommended next steps:
+
+- Learn about KubeVela in detail starting from its [core concepts](/en/concepts.md)
 - Join `#kubevela` channel in CNCF [Slack](https://cloud-native.slack.com) and/or [Gitter](https://gitter.im/oam-dev/community)
 
 Welcome onboard and sail Vela!

@@ -1,9 +1,6 @@
-# Status Loop Back
+# Status Write Back
 
-In the previous sections, we use CUE as template to render K8s resources. After an application deployed, the status
-loop back can also use CUE.
-
-KubeVela use CUE to define health check and custom status message for an application in workload type and trait.
+We can also define status write back in the CUE template of workload types and traits.
 
 ## Health Check
 
@@ -12,8 +9,7 @@ The spec of health check is `spec.status.healthPolicy`, they are the same for bo
 If not defined, the health result will always be `true`.
 
 The keyword in CUE is `isHealth`, the result of CUE expression must be `bool` type.
-Application CRD controller will evaluate the CUE expression periodically until it
-becomes healthy. Every time the controller will get all the K8s resources and fill them into the context field.
+KubeVela runtime will evaluate the CUE expression periodically until it becomes healthy. Every time the controller will get all the Kubernetes resources and fill them into the context field.
 
 So the context will contain following information:
 
@@ -53,9 +49,9 @@ spec:
    ...
 ```
 
-Refer to [this doc](https://github.com/oam-dev/kubevela/blob/master/config/samples/app-with-status/template.yaml) for the complete example.
+> Please refer to [this doc](https://github.com/oam-dev/kubevela/blob/master/config/samples/app-with-status/template.yaml) for the complete example.
 
-The health check result will be recorded into the Application CRD resource.
+The health check result will be recorded into the `Application` resource.
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -116,7 +112,7 @@ context:{
 Trait will not have the `context.ouput`, other fields are the same.
 
 
-Refer to [this doc](https://github.com/oam-dev/kubevela/blob/master/config/samples/app-with-status/template.yaml) for the complete example.
+Please refer to [this doc](https://github.com/oam-dev/kubevela/blob/master/config/samples/app-with-status/template.yaml) for the complete example.
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
