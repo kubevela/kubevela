@@ -81,6 +81,7 @@ func NewCommand() *cobra.Command {
 		NewDashboardCommand(commandArgs, ioStream, fake.FrontendSource),
 		NewCompletionCommand(),
 		NewVersionCommand(),
+		NewHelpCommand(),
 	)
 
 	// this is for mute klog
@@ -89,19 +90,6 @@ func NewCommand() *cobra.Command {
 	_ = fset.Set("v", "-1")
 
 	return cmds
-}
-
-// PrintHelpByTag print custom defined help message
-func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
-	cmd.Printf("  %s:\n\n", tag)
-	table := newUITable()
-	for _, c := range all {
-		if val, ok := c.Annotations[types.TagCommandType]; ok && val == tag {
-			table.AddRow("    "+c.Use, c.Long)
-		}
-	}
-	cmd.Println(table.String())
-	cmd.Println()
 }
 
 // NewVersionCommand print client version
