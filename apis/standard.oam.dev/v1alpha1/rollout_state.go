@@ -274,6 +274,7 @@ func (r *RolloutStatus) batchStateTransition(event RolloutEvent) {
 	case BatchReadyState:
 		if event == BatchRolloutApprovedEvent {
 			r.BatchRollingState = BatchInitializingState
+			r.CurrentBatch++
 			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}

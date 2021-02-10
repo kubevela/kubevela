@@ -218,7 +218,6 @@ func (r *Controller) gatherAllWebhooks() []v1alpha1.RolloutWebhook {
 func (r *Controller) tryMovingToNextBatch() {
 	if r.rolloutSpec.BatchPartition == nil || *r.rolloutSpec.BatchPartition > r.rolloutStatus.CurrentBatch {
 		klog.InfoS("ready to rollout the next batch", "current batch", r.rolloutStatus.CurrentBatch)
-		r.rolloutStatus.CurrentBatch++
 		r.rolloutStatus.StateTransition(v1alpha1.BatchRolloutApprovedEvent)
 	} else {
 		klog.V(common.LogDebug).InfoS("the current batch is waiting to move on", "current batch",

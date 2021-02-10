@@ -95,7 +95,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	appfile, err := appParser.GenerateAppFile(app.Name, app)
 	if err != nil {
-		handler.l.Error(err, "[Handle Parse]")
+		applog.Error(err, "[Handle Parse]")
 		app.Status.SetConditions(errorCondition("Parsed", err))
 		return handler.Err(err)
 	}
@@ -106,7 +106,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// build template to applicationconfig & component
 	ac, comps, err := appParser.GenerateApplicationConfiguration(appfile, app.Namespace)
 	if err != nil {
-		handler.l.Error(err, "[Handle GenerateApplicationConfiguration]")
+		applog.Error(err, "[Handle GenerateApplicationConfiguration]")
 		app.Status.SetConditions(errorCondition("Built", err))
 		return handler.Err(err)
 	}
@@ -115,7 +115,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	applog.Info("apply appConfig & component to the cluster")
 	// apply appConfig & component to the cluster
 	if err := handler.apply(ctx, ac, comps); err != nil {
-		handler.l.Error(err, "[Handle apply]")
+		applog.Error(err, "[Handle apply]")
 		app.Status.SetConditions(errorCondition("Applied", err))
 		return handler.Err(err)
 	}

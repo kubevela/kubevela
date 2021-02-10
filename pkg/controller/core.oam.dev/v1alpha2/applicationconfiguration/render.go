@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -125,7 +126,7 @@ func (r *components) Render(ctx context.Context, ac *v1alpha2.ApplicationConfigu
 
 func (r *components) renderComponent(ctx context.Context, acc v1alpha2.ApplicationConfigurationComponent, ac *v1alpha2.ApplicationConfiguration, dag *dag) (*Workload, error) {
 	if acc.RevisionName != "" {
-		acc.ComponentName = ExtractComponentName(acc.RevisionName)
+		acc.ComponentName = common.ExtractComponentName(acc.RevisionName)
 	}
 	c, componentRevisionName, err := util.GetComponent(ctx, r.client, acc, ac.GetNamespace())
 	if err != nil {
@@ -267,10 +268,15 @@ func setTraitProperties(t *unstructured.Unstructured, traitName, namespace strin
 func SetWorkloadInstanceName(traitDefs []v1alpha2.TraitDefinition, w *unstructured.Unstructured, c *v1alpha2.Component,
 	existingWorkload *unstructured.Unstructured) error {
 	// Don't override the specified name
+	// TODO: revisit this, we might need to ban this type of naming since we have no control over it
 	if w.GetName() != "" {
 		return nil
 	}
 	pv := fieldpath.Pave(w.UnstructuredContent())
+	// TODO: revisit this logic
+	// the name of the workload should depend on the workload type and if we are rolling or replacing upgrade
+	// i.e Cloneset type of workload just use the component name while deployment type of workload will have revision
+	// if we are doing rolling upgrades. We can just override if we are replacing the deployment.
 	if isRevisionEnabled(traitDefs) {
 		if c.Status.LatestRevision == nil {
 			return fmt.Errorf(errFmtCompRevision, c.Name)

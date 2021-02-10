@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
-	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,8 +19,9 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 
-	util "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // ControllerRevisionComponentLabel indicate which component the revision belong to
@@ -154,7 +154,7 @@ func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtim
 	}
 
 	nextRevision := curRevision + 1
-	revisionName := ConstructRevisionName(mt.GetName(), nextRevision)
+	revisionName := common.ConstructRevisionName(mt.GetName(), nextRevision)
 
 	if comp.Status.ObservedGeneration != comp.Generation {
 		comp.Status.ObservedGeneration = comp.Generation
@@ -288,18 +288,6 @@ func (c *ComponentHandler) UpdateStatus(ctx context.Context, comp *v1alpha2.Comp
 		comp.Status = status
 		return c.Client.Status().Update(ctx, comp, opts...)
 	})
-}
-
-// ConstructRevisionName will generate revisionName from componentName
-// will be <componentName>-v<RevisionNumber>, for example: comp-v1
-func ConstructRevisionName(componentName string, revision int64) string {
-	return strings.Join([]string{componentName, fmt.Sprintf("v%d", revision)}, "-")
-}
-
-// ExtractComponentName will extract componentName from revisionName
-func ExtractComponentName(revisionName string) string {
-	splits := strings.Split(revisionName, "-")
-	return strings.Join(splits[0:len(splits)-1], "-")
 }
 
 // historiesByRevision sort controllerRevision by revision

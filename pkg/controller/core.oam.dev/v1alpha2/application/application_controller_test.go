@@ -25,10 +25,11 @@ import (
 	"net/http/httptest"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"

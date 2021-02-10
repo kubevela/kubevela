@@ -54,6 +54,10 @@ func makeHTTPRequest(ctx context.Context, webhookEndPoint string, payload interf
 			if requestErr != nil {
 				return requestErr
 			}
+			if r.StatusCode == http.StatusInternalServerError ||
+				r.StatusCode == http.StatusServiceUnavailable {
+				requestErr = fmt.Errorf("internal server error, status code = %d", r.StatusCode)
+			}
 			return requestErr
 		})
 

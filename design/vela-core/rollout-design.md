@@ -165,16 +165,39 @@ upon. For example, the applicationDeployment controller will get the component f
  With that said, two controllers operate differently to extract the real workload. Here are the
   high level descriptions of how each works. 
  
+ #### Application inplace upgrade workflow 
+ The most natural way to upgrade an application is to upgrade it in-place which means the users
+just change the application, and the system will pick up the change, then apply to the runtime
+. The implementation of this type of upgrade looks like this:
+- The application controller compute a hash value of the applicationConfiguration. The
+ application controller **always** use the component revision name in the AC it generates. This
+  guaranteed that the AC also changes when the component changes.
+- The application controller creates the applicationConfiguration with a new name (with a suffix
+) upon changing of its hash value and with a pre-determined annotation 
+ "app.oam.dev/appconfig-rollout" set to true. 
+- The AC controller have special handle logic in the apply part of the logic. The exact logic
+ depends on the workload type and we will list each in the 
+ [rollout with different workload](#Rollout plan work with different type of workloads) section
+ . This special AC logic is also the real magic for the other rollout scenario to work as AC
+  controller is the only entity that is directly responsible for emiting the workload to the k8s.
+   
+   
 #### ApplicationDeployment workflow 
 When an appDeployment is used to do application level rollout, **the target application
 is not reconciled by the application controller yet**. This is to make sure  the
 appDeployment controller has the full control of the new application from the beginning.
-We will use a pre-defined annotation "app.oam.dev/rollout" that equals to "true" to facilitate
+We will use a pre-defined annotation "app.oam.dev/rollout-template" that equals to "true" to facilitate
  that. We expect any system, such as the [kubevela apiserver](APIServer-Catalog.md), that
   utilizes an appDeployment object to follow this rule.
 - Upon creation, the appDeployment controller marks itself as the owner of the application. The
  application controller will have built-in logic to ignore any applications that has the
  "app.oam.dev/rollout-template" annotation set to true.
+- the appDeployment controller will also add another annotation "app.oam.dev/creating" to the
+ application to be passed down to the ApplicationConfiguration CR it generates to mark 
+ that the AC is reconciled for the first time.
+- The ApplicationConfiguration controller recognizes this annotation, and it will see if there is
+ anything it needs to do before emitting the workload to the k8s. The AC controller removes this
+  annotation at the end of a successful reconcile.
 - The appDeployment controller can change the target application fields. For example, 
    - It might remove all the conflict traits, such as HPA during upgrade. 
    - It might modify the label selectors fields in the services to make sure there are ways to
