@@ -1,7 +1,5 @@
 # Learning Appfile Step by Step
 
-Appfile is the main user interface to configure application deployment on Vela.
-
 In this tutorial, we will build and deploy an example NodeJS app under [examples/testapp/](https://github.com/oam-dev/kubevela/tree/master/docs/examples/testapp).
 
 ## Prerequisites

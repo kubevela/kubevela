@@ -8,6 +8,8 @@ Make sure you have finished and verified the installation following [this guide]
 
 ## Step 2: Deploy Your First Application
 
+Define your application in [Appfile](https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/vela.yaml), and ship it with `$ vela up`:
+
 ```bash
 $ vela up -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/vela.yaml
 Parsing vela.yaml ...
@@ -75,7 +77,7 @@ Congratulations! You have just deployed an app using KubeVela.
 
 Here are some recommended next steps:
 
-- Learn about KubeVela in detail starting from its [core concepts](/en/concepts.md)
+- Learn about KubeVela in detail from its [core concepts](/en/concepts.md)
 - Join `#kubevela` channel in CNCF [Slack](https://cloud-native.slack.com) and/or [Gitter](https://gitter.im/oam-dev/community)
 
 Welcome onboard and sail Vela!

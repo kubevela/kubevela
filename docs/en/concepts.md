@@ -1,22 +1,34 @@
 # Concepts and Glossaries
 
-With great end user experience, KubeVela itself is built for *platform builders*. More accurately, it's a framework to help platform team create easy-to-use yet highly extensible application management experience showed in the [Quick Start](en/quick-start.md) guide.
+In the previous [Quick Start](en/quick-start.md) guide, we showed the end user experience KubeVela based platforms can provide.
 
-This document explains some technical terms that are widely used in KubeVela and clarify them in the context of platform builders.
+However, the KubeVela project itself, is for *platform builders*. More accurately, KubeVela is as a framework to help platform team create such easy-to-use yet highly extensible application management experience to their end users. 
+
+In following documentation, we will explain more about the idea of KubeVela and clarify some technical terms that are widely used in the project.
+
+## Separate of Concerns
+
+First of all, KubeVela introduces a workflow with separate of concerns as below:
+- **Platform Team**: defining reusable templates for such as deployment environments and capabilities, and registering those templates into the cluster.
+- **End Users**: choose a deployment environment, model the app with available capability templates, and deploy the app to target environment.
+
+![alt](../resources/how-it-works.png)
+
+Let's start from the *end users*!
 
 ## Appfile
 
-In the [Quick Start](en/quick-start.md) guide, we showed how to use a docker-compose style YAML file to define and deploy the application. This YAML file is a client-side tool named `Appfile` to render custom resources of KubeVela. The alternative of `Appfile` could be GUI console, DSL, or any other developer friendly tool that can generate Kubernetes objects. We **highly recommend** platform builders to provide such tools to your end users instead of exposing Kubernetes and explain how KubeVela made this effort super easy step by step.
+For end users, we expect them to use simple and client-side tools to define the application with pre-defined templates. For example, GUI console, DSL, or any other developer friendly tool that can generate Kubernetes resources.
 
-A simple `Appfile` sample is as below:
+The `Appfile` we showed in the Quick Start guide is a demo purpose tool for this. A sample `Appfile` is as below:
 
 ```yaml
 name: testapp
 
 services:
   frontend: # 1st service
-    image: oamdev/testapp:v1
 
+    image: oamdev/testapp:v1
     build:
       docker:
         file: Dockerfile
@@ -25,29 +37,21 @@ services:
     cmd: ["node", "server.js"]
     port: 8080
 
-    route: # a route trait
+    route: # trait
       domain: example.com
       rules:
         - path: /testapp
           rewriteTarget: /
 
   backend: # 2nd service
-    type: task
+    type: task # workload type
     image: perl 
     cmd: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
 ```
 
-Note that `Appfile` as a developer tool is designed as a "superset" of `Application`, for example, developers can define a `build` section in `Appfile` which is not part of `Application` CRD.
+Under the hood, `Appfile` will generate an `Application` custom resource which is the main abstraction KubeVela exposed to end users.
 
-> For full schema of `Appfile`, please check its [reference documentation](developers/references/devex/appfile.md).
-
-## Separate of Concerns
-
-KubeVela follows a workflow with separate of concerns as below:
-- Platform team: defining reusable templates for such as deployment environments and capabilities, and registering those templates into the cluster.
-- End users: choose a deployment environment, model the app with available capability templates, and deploy the app to target environment.
-
-![alt](../resources/how-it-works.png)
+> We generally consider *Appfile* out of the core scope of KubeVela and have no intention to promote it alone. But we *highly recommend* platform builders to provide such tool to your end users. For full schema of *Appfile*, please check its [reference documentation](developers/references/devex/appfile.md).
 
 ## Application
 The *Application* is the core API of KubeVela. It is an abstraction that allows developers to work with a single artifact to capture the complete application definition.
@@ -85,13 +89,15 @@ spec:
             image: "fluentd"
 ```
 
-The design of `Application` adopts Open Application Model (OAM).
+The design of `Application` is based on Open Application Model (OAM), we will explain it detail in below.
 
-### Workload Type
+> Note that *Appfile* as a developer tool is designed to be a "superset" of *Application*. For example, the `build` section is *Appfile* specific.
 
-For each of the components, its `.type` field represents the runtime characteristic of its workload (i.e. workload type) and `.settings` claims the configurations to initialize its workload instance. Some typical workload types are *Long Running Web Service* or *One-time Off Task*.
+### Workload Types
 
-### Trait
+For each of the components in `Application`, its `.type` field represents the runtime characteristic of its workload (i.e. workload type) and `.settings` claims the configurations to initialize its workload instance. Some typical workload types are *Long Running Web Service* or *One-time Off Task*.
+
+### Traits
 
 Optionally, each component has a `.traits` section that augments its workload instance with operational behaviors such as load balancing policy, network ingress routing, auto-scaling policies, or upgrade strategies, etc. Its `.name` field references the specific trait definition, and `.properties` sets detailed configuration values of the given trait.
 
@@ -192,4 +198,4 @@ The deployment engine (*currently WIP*) is responsible for progressive rollout o
 
 ## What's Next
 
-Now that you have grasped the core ideas of KubeVela. Let's learn more about KubeVela start from its [Application Definition and Encapsulation](platform-engineers/overview.md).
+Now that you have grasped the core ideas of KubeVela, let's learn more details about its [Application Definition and Encapsulation](platform-engineers/overview.md) feature.
