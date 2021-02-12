@@ -1,13 +1,87 @@
-# Learning Appfile Step by Step
+# Appfile
 
-In this tutorial, we will build and deploy an example NodeJS app under [examples/testapp/](https://github.com/oam-dev/kubevela/tree/master/docs/examples/testapp).
+A sample `Appfile` is as below:
 
-## Prerequisites
+```yaml
+name: testapp
+
+services:
+  frontend: # 1st service
+
+    image: oamdev/testapp:v1
+    build:
+      docker:
+        file: Dockerfile
+        context: .
+
+    cmd: ["node", "server.js"]
+    port: 8080
+
+    route: # trait
+      domain: example.com
+      rules:
+        - path: /testapp
+          rewriteTarget: /
+
+  backend: # 2nd service
+    type: task # workload type
+    image: perl 
+    cmd: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+```
+
+Under the hood, `Appfile` will build the image from source code, and then generate `Application` resource with the image name.
+
+## Schema
+
+> Before learning about Appfile's detailed schema, we recommend you to get familiar with [core concepts](../../../concepts.md) in KubeVela.
+
+
+```yaml
+name: _app-name_
+
+services:
+  _service-name_:
+    # If `build` section exists, this field will be used as the name to build image. Otherwise, KubeVela will try to pull the image with given name directly.
+    image: oamdev/testapp:v1
+
+    build:
+      docker:
+        file: _Dockerfile_path_ # relative path is supported, e.g. "./Dockerfile"
+        context: _build_context_path_ # relative path is supported, e.g. "."
+
+      push:
+        local: kind # optionally push to local KinD cluster instead of remote registry
+
+    type: webservice (default) | worker | task
+
+    # detailed configurations of workload
+    ... properties of the specified workload  ...
+
+    _trait_1_:
+      # properties of trait 1
+
+    _trait_2_:
+      # properties of trait 2
+
+    ... more traits and their properties ...
+  
+  _another_service_name_: # more services can be defined
+    ...
+  
+```
+
+> To learn about how to set the properties of specific workload type or trait, please check the [reference documentation guide](../../check-ref-doc.md).
+
+## Example Workflow
+
+In the following workflow, we will build and deploy an example NodeJS app under [examples/testapp/](https://github.com/oam-dev/kubevela/tree/master/docs/examples/testapp).
+
+### Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) installed on the host
 - [KubeVela](../install.md) installed and configured
 
-## 1. Download test app code
+### 1. Download test app code
 
 git clone and go to the testapp directory:
 
@@ -18,7 +92,7 @@ $ cd kubevela/docs/examples/testapp
 
 The example contains NodeJS app code, Dockerfile to build the app.
 
-## 2. Deploy app in one command
+### 2. Deploy app in one command
 
 In the directory there is a [vela.yaml](https://github.com/oam-dev/kubevela/tree/master/docs/examples/testapp/vela.yaml) which follows Appfile format supported by Vela.
 We are going to use it to build and deploy the app.
@@ -83,7 +157,7 @@ $ vela status testapp
 
 ```
 
-### Alternative: Local testing without pushing image remotely
+#### Alternative: Local testing without pushing image remotely
 
 If you have local [kind](../install.md) cluster running, you may try the local push option. No remote container registry is needed in this case.
 
@@ -143,7 +217,7 @@ spec:
 ```
 </details>
 
-## [Optional] Configure another workload type
+### [Optional] Configure another workload type
 
 By now we have deployed a *[Web Service](references/workload-types/webservice.md)*, which is the default workload type in KubeVela. We can also add another service of *[Task](references/workload-types/task.md)* type in the same app:
 
@@ -164,13 +238,11 @@ Then deploy Appfile again to update the application:
 $ vela up
 ```
 
-> Interested in the more details of Appfile? [Learn Full Schema of Appfile](references/devex/appfile.md)
+Congratulations! You have just deployed an app using `Appfile`.
 
 ## What's Next?
 
-Congratulations! You have just deployed an app using Vela.
-
-Some tips that you can have more play with your app:
+Play more with your app:
 - [Check Application Logs](./check-logs.md)
 - [Execute Commands in Application Container](./exec-cmd.md)
 - [Access Application via Route](./port-forward.md)

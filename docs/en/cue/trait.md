@@ -1,4 +1,4 @@
-# Templating Traits with CUE
+# Defining Traits
 
 In this section we will introduce how to define a Trait with CUE template.
 
@@ -147,7 +147,7 @@ spec:
 
 ## Patch Trait
 
-You could also use keyword `patch` to patch data to the workload instance (before the resource is applied) and claim this behavior as a trait.
+You could also use keyword `patch` to patch data to the component instance (before the resource is applied) and claim this behavior as a trait.
  
 Below is an example for `node-affinity` trait:
 
@@ -218,7 +218,7 @@ spec:
               server-owner: "old-owner"
 ```
 
-The patch trait above assumes the workload instance have `spec.template.spec.affinity` schema. Hence we need to use it with the field `appliesToWorkloads` which can enforce the trait only to be used by these specified workload types.
+The patch trait above assumes the component instance have `spec.template.spec.affinity` schema. Hence we need to use it with the field `appliesToWorkloads` which can enforce the trait only to be used by these specified workload types.
 
 By default, the patch trait in KubeVela relies on the CUE `merge` operation. It has following known constraints:
 

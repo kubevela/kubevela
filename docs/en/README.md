@@ -21,11 +21,7 @@ For platform builders, KubeVela is the core engine that empowers them to create 
 
 ## Quick Start
 
-Quick start tutorials for developers are available on [this section](/en/quick-start).
-
-## Platform Builder Guide
-
-Detailed guides for platform teams are available on [this section](/en/platform-engineers/overview).
+Quick start tutorials are available on [this section](/en/quick-start).
 
 ## Contributing
 Check out [CONTRIBUTING](https://github.com/oam-dev/kubevela/blob/master/CONTRIBUTING.md) to see how to develop with KubeVela.

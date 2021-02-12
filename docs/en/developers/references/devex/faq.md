@@ -1,9 +1,9 @@
 # FAQ
 
-- [Basic](#basic)
+- [Compare to X](#Compare-to-X)
   * [What is the difference between KubeVela and Helm?](#What-is-the-difference-between-KubeVela-and-Helm?)
 
-- [Install](#install)
+- [Issues](#iissues)
   * [Error: unable to create new content in namespace cert-manager because it is being terminated](#error-unable-to-create-new-content-in-namespace-cert-manager-because-it-is-being-terminated)
   * [Error: ScopeDefinition exists](#error-scopedefinition-exists)
   * [Warning: capability rollout was not ready](#warning-capability-rollout-was-not-ready)
@@ -13,22 +13,16 @@
   
 - [Operating](#operating)
   * [Autoscale: how to enable metrics server in various Kubernetes clusters?](#autoscale-how-to-enable-metrics-server-in-various-kubernetes-clusters)
-  
-## Basic
+
+## Compare to X
 
 ### What is the difference between KubeVela and Helm?
 
-KubeVela relies on tools like Helm to package k8s operator/controllers. However, KubeVela itself provides a lot more functionalities than merely packaging. Please refer to helm for more detailed descriptions.
+KubeVela is a platform builder tool to create easy-to-use yet extensible app delivery/management systems with Kubernetes. KubeVela relies on Helm as templating engine and package format for apps. But Helm is not the only templating module that KubeVela supports. Another first-class supported approach is CUE. 
 
-Here is a nutshell version.
+Also, KubeVela is by design a Kubernetes controller (i.e. works on server side), even for its Helm part, a Helm operator will be installed.
 
-- KubeVela provides a standard model for applications which could compose of multiple resources, each can come as a helm packaging
-- KubeVela relies on the Open Application Model to support application operational needs. This is beyond the day one application install that helm tool excels at.
-- KubeVela also provides a DevOps facing application model similar to the docker-compose files. This greatly simplified the way for users to run applications on Kubernetes.
-- KubeVela also provides a powerful extensible way for platform builders to natively incorporate any new capabilities in the Kubernetes ecosystem.
-
-
-## Install
+## Issues
 
 ### Error: unable to create new content in namespace cert-manager because it is being terminated
 
