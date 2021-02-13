@@ -170,10 +170,10 @@ func main() {
 	case "", "false", string(oamcontroller.ApplyOnceOnlyOff):
 		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyOff
 		setupLog.Info("ApplyOnceOnly is disabled")
-	case "true", string(oamcontroller.ApplyOnceOnlyOn):
+	case "true", oamcontroller.ApplyOnceOnlyOn:
 		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyOn
 		setupLog.Info("ApplyOnceOnly is enabled, that means workload or trait only apply once if no spec change even they are changed by others")
-	case string(oamcontroller.ApplyOnceOnlyForce):
+	case oamcontroller.ApplyOnceOnlyForce:
 		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyForce
 		setupLog.Info("ApplyOnceOnlyForce is enabled, that means workload or trait only apply once if no spec change even they are changed or deleted by others")
 	default:
@@ -235,7 +235,7 @@ func registerHealthChecks(mgr ctrl.Manager) error {
 	if err := mgr.AddReadyzCheck("ping", healthz.Ping); err != nil {
 		return err
 	}
-
+	// TODO: change the health check to be different from readiness check
 	if err := mgr.AddHealthzCheck("ping", healthz.Ping); err != nil {
 		return err
 	}

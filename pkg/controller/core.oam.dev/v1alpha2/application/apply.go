@@ -8,6 +8,7 @@ import (
 	"time"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/go-logr/logr"
 	"github.com/mitchellh/hashstructure/v2"
 	"github.com/pkg/errors"
@@ -15,13 +16,14 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -47,25 +49,29 @@ func readyCondition(tpy string) runtimev1alpha1.Condition {
 }
 
 type appHandler struct {
-	r   *Reconciler
-	app *v1alpha2.Application
-	l   logr.Logger
+	r      *Reconciler
+	app    *v1alpha2.Application
+	logger logr.Logger
 }
 
-func (h *appHandler) Err(err error) (ctrl.Result, error) {
+func (h *appHandler) handleErr(err error) (ctrl.Result, error) {
 	nerr := h.r.UpdateStatus(context.Background(), h.app)
 	if err == nil && nerr == nil {
 		return ctrl.Result{}, nil
 	}
 	if nerr != nil {
-		h.l.Error(nerr, "[Update] application")
+		h.logger.Error(nerr, "[Update] application")
 	}
 	return ctrl.Result{
 		RequeueAfter: time.Second * 10,
 	}, nil
 }
 
-// apply will set ownerReference for ApplicationConfiguration and Components created by Application
+// apply will
+// 1. set ownerReference for ApplicationConfiguration and Components
+// 2. update AC's components using the component revision name
+// 3. update or create the AC with new revision and remember it in the application status
+// 4. garbage collect unused components
 func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) error {
 	owners := []metav1.OwnerReference{{
 		APIVersion: v1alpha2.SchemeGroupVersion.String(),
@@ -75,11 +81,63 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 		Controller: pointer.BoolPtr(true),
 	}}
 	ac.SetOwnerReferences(owners)
-	for _, c := range comps {
-		c.SetOwnerReferences(owners)
+	hasRolloutLogic := false
+	// Check if we are doing rolling out
+	if _, exist := h.app.GetAnnotations()[oam.AnnotationAppRollout]; exist || h.app.Spec.RolloutPlan != nil {
+		h.logger.Info("The application rolling out is controlled by a rollout plan")
+		hasRolloutLogic = true
 	}
 
-	return h.Sync(ctx, ac, comps)
+	for _, comp := range comps {
+		comp.SetOwnerReferences(owners)
+		newComp := comp.DeepCopy()
+		// newComp will be updated and return the revision name instead of the component name
+		revisionName, newRevision, err := h.createOrUpdateComponent(ctx, newComp)
+		if err != nil {
+			return err
+		}
+		if newRevision && hasRolloutLogic {
+			// set the annotation on ac to point out which component is newly changed
+			// TODO: handle multiple components
+			ac.SetAnnotations(oamutil.MergeMapOverrideWithDst(ac.GetAnnotations(), map[string]string{
+				oam.AnnotationNewComponent: revisionName,
+			}))
+		}
+		// find the ACC that contains this component
+		for i := 0; i < len(ac.Spec.Components); i++ {
+			// update the AC using the component revision instead of component name
+			// we have to make AC immutable including the component it's pointing to
+			if ac.Spec.Components[i].ComponentName == newComp.Name {
+				ac.Spec.Components[i].RevisionName = revisionName
+				ac.Spec.Components[i].ComponentName = ""
+			}
+		}
+	}
+
+	if err := h.createOrUpdateAppConfig(ctx, ac); err != nil {
+		return err
+	}
+
+	// Garbage Collection for no used Components.
+	// There's no need to ApplicationConfiguration Garbage Collection, it has the same name with Application.
+	for _, comp := range h.app.Status.Components {
+		var exist = false
+		for _, cc := range comps {
+			if comp.Name == cc.Name {
+				exist = true
+				break
+			}
+		}
+		if exist {
+			continue
+		}
+		// Component not exits in current Application, should be deleted
+		var oldC = &v1alpha2.Component{ObjectMeta: metav1.ObjectMeta{Name: comp.Name, Namespace: ac.Namespace}}
+		if err := h.r.Delete(ctx, oldC); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.ApplicationComponentStatus, bool, error) {
@@ -140,33 +198,100 @@ func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.Appli
 	return appStatus, healthy, nil
 }
 
-// createOrUpdateComponent will create if not exist and update if exists.
-func createOrUpdateComponent(ctx context.Context, client client.Client, comp *v1alpha2.Component) error {
-	var getc v1alpha2.Component
+// createOrUpdateComponent creates a component if not exist and update if exists.
+// it returns the corresponding component revisionName and if a new component revision is created
+func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2.Component) (string, bool, error) {
+	curComp := &v1alpha2.Component{}
 	key := ctypes.NamespacedName{Name: comp.Name, Namespace: comp.Namespace}
-	if err := client.Get(ctx, key, &getc); err != nil {
+	var preRevisionName, curRevisionName string
+	err := h.r.Get(ctx, key, curComp)
+	if err != nil {
 		if !apierrors.IsNotFound(err) {
-			return err
+			return "", false, err
 		}
-		return client.Create(ctx, comp)
+		if err = h.r.Create(ctx, comp); err != nil {
+			return "", false, err
+		}
+		h.logger.Info("Created a new component", "component name", comp.GetName())
+	} else {
+		// remember the revision if there is a previous component
+		if curComp.Status.LatestRevision != nil {
+			preRevisionName = curComp.Status.LatestRevision.Name
+		}
+		comp.ResourceVersion = curComp.ResourceVersion
+		if err := h.r.Update(ctx, comp); err != nil {
+			return "", false, err
+		}
+		h.logger.Info("Updated a component", "component name", comp.GetName())
 	}
-	comp.ResourceVersion = getc.ResourceVersion
-	return client.Update(ctx, comp)
+	// remove the object before we can compare with the existing componentRevision whose object is
+	// persisted as Raw data after going through api server
+	comp.Spec.Workload.Object = nil
+	curComp = comp.DeepCopy()
+	// get the name of the revision that comp generates so we can replace the componentName
+	// in the applicationConfiguration
+	if curComp.Status.LatestRevision != nil {
+		// set the curRevisionName if the component has a revision
+		curRevisionName = curComp.Status.LatestRevision.Name
+	}
+	if len(curRevisionName) != 0 {
+		needNewRevision, err := common.CompareWithRevision(ctx, h.r,
+			logging.NewLogrLogger(h.logger), curComp.GetName(), curComp.GetNamespace(), curRevisionName, &curComp.Spec)
+		if err != nil {
+			return "", false, errors.Wrap(err, fmt.Sprintf("compare with existing controllerRevision %s failed",
+				curRevisionName))
+		}
+		if !needNewRevision {
+			h.logger.Info("no need to wait for a new component revision", "component name", curComp.GetName(),
+				"revision", curRevisionName)
+			// the revision name is set after a component is updated/created and persisted in the etcd
+			// it's not clear with the informer's cache whether it's possible to get the new revision back
+			// in the update/create call so just to play safe, we compare the pre and cur revision name
+			return curRevisionName, preRevisionName != curRevisionName, nil
+		}
+	}
+	h.logger.Info("wait for a new component revision", "component name", curComp.GetName(),
+		"current revision", curRevisionName)
+	// get the new component revision name of the component with retry
+	checkForRevision := func() (bool, error) {
+		if err := h.r.Get(ctx, key, curComp); err != nil {
+			return apierrors.IsNotFound(err), nil
+		}
+		if curComp.Status.LatestRevision == nil || curComp.Status.LatestRevision.Name == curRevisionName {
+			return false, nil
+		}
+		return true, nil
+	}
+	if err := wait.ExponentialBackoff(utils.DefaultBackoff, checkForRevision); err != nil {
+		return "", true, err
+	}
+	return curComp.Status.LatestRevision.Name, true, nil
 }
 
-// CreateOrUpdateAppConfig will create if not exist and update if exists.
-func (h *appHandler) CreateOrUpdateAppConfig(ctx context.Context, appConfig *v1alpha2.ApplicationConfiguration) error {
+// createOrUpdateAppConfig will find the latest revision of the AC according
+// it will create a new revision if the appConfig is different from the existing one
+func (h *appHandler) createOrUpdateAppConfig(ctx context.Context, appConfig *v1alpha2.ApplicationConfiguration) error {
 	var curAppConfig v1alpha2.ApplicationConfiguration
 	// initialized
 	if h.app.Status.LatestRevision == nil {
-		revisionName := common.ConstructRevisionName(appConfig.Name, 0)
+		revisionName := common.ConstructRevisionName(h.app.Name, 0)
 		h.app.Status.LatestRevision = &v1alpha2.Revision{
 			Name:     revisionName,
 			Revision: 0,
 		}
 	}
+	// compute a hash value of the appConfig spec
+	specHash, err := hashstructure.Hash(appConfig.Spec, hashstructure.FormatV2, nil)
+	if err != nil {
+		return err
+	}
+	appConfig.SetLabels(oamutil.MergeMapOverrideWithDst(appConfig.GetLabels(),
+		map[string]string{
+			oam.LabelAppConfigHash: strconv.FormatUint(specHash, 16),
+		}))
+
 	// get the AC with the last revision name stored in the application
-	key := ctypes.NamespacedName{Name: h.app.Status.LatestRevision.Name, Namespace: appConfig.Namespace}
+	key := ctypes.NamespacedName{Name: h.app.Status.LatestRevision.Name, Namespace: h.app.Namespace}
 	var exist = true
 	if err := h.r.Get(ctx, key, &curAppConfig); err != nil {
 		if !apierrors.IsNotFound(err) {
@@ -177,92 +302,38 @@ func (h *appHandler) CreateOrUpdateAppConfig(ctx context.Context, appConfig *v1a
 	if !exist {
 		return h.createNewAppConfig(ctx, appConfig)
 	}
-	// compute a hash value of the appConfig spec
-	specHash, err := hashstructure.Hash(appConfig.Spec, hashstructure.FormatV2, nil)
-	if err != nil {
-		return err
-	}
-	acLabels := map[string]string{
-		oam.LabelAppConfigHash: strconv.FormatUint(specHash, 16),
-	}
-	appConfig.SetLabels(oamutil.MergeMapOverrideWithDst(appConfig.GetLabels(), acLabels))
 
 	// check if the old AC has the same HASH value
 	if curAppConfig.GetLabels()[oam.LabelAppConfigHash] == appConfig.GetLabels()[oam.LabelAppConfigHash] {
 		// Just to be safe that it's not because of a random Hash collision
 		if reflect.DeepEqual(curAppConfig.Spec, appConfig.Spec) {
 			// same spec, no need to create another AC
-			appConfig.ResourceVersion = curAppConfig.ResourceVersion
-			return h.r.Update(ctx, appConfig)
+			return nil
 		}
 	}
 	// create the next version
 	return h.createNewAppConfig(ctx, appConfig)
 }
 
-// create a new appConfig revision
+// create a new appConfig given the latest revision in the application
 func (h *appHandler) createNewAppConfig(ctx context.Context, appConfig *v1alpha2.ApplicationConfiguration) error {
 	nextRevision := h.app.Status.LatestRevision.Revision + 1
-	revisionName := common.ConstructRevisionName(appConfig.Name, nextRevision)
+	revisionName := common.ConstructRevisionName(h.app.Name, nextRevision)
 	// update the next revision in the application's status
 	h.app.Status.LatestRevision = &v1alpha2.Revision{
 		Name:     revisionName,
 		Revision: nextRevision,
 	}
-	acLabels := map[string]string{
-		oam.AnnotationNewAppConfig: "true",
-	}
-	appConfig.SetLabels(oamutil.MergeMapOverrideWithDst(appConfig.GetLabels(), acLabels))
 	appConfig.Name = revisionName
-	if err := h.r.Create(ctx, appConfig); err != nil {
+	// indicate that the application is new, the appConfig controller should remove this after first reconcile
+	appConfig.SetAnnotations(oamutil.MergeMapOverrideWithDst(appConfig.GetAnnotations(), map[string]string{
+		oam.AnnotationNewAppConfig: "true",
+	}))
+	// record that last appConfig we created first in the app's status
+	// make sure that we persist the latest revision first
+	if err := h.r.UpdateStatus(ctx, h.app); err != nil {
 		return err
 	}
-	// record that last appConfig we created
-	return h.r.UpdateStatus(ctx, h.app)
-}
-
-// Sync perform synchronization operations
-func (h *appHandler) Sync(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) error {
-	for _, comp := range comps {
-		newComp := comp.DeepCopy()
-		// newComp will be updated
-		if err := createOrUpdateComponent(ctx, h.r, newComp); err != nil {
-			return err
-		}
-		// update the AC using the component revision instead of component name
-		for i := 0; i < len(ac.Spec.Components); i++ {
-			if ac.Spec.Components[i].ComponentName == newComp.Name {
-				if newComp.Status.LatestRevision == nil {
-					return fmt.Errorf("can not find the component revision for component %s", comp.Name)
-				}
-				// set the revision
-				ac.Spec.Components[i].RevisionName = newComp.Status.LatestRevision.Name
-			}
-		}
-	}
-
-	if err := h.CreateOrUpdateAppConfig(ctx, ac); err != nil {
-		return err
-	}
-
-	// Garbage Collection for no used Components.
-	// There's no need to ApplicationConfiguration Garbage Collection, it has the same name with Application.
-	for _, comp := range h.app.Status.Components {
-		var exist = false
-		for _, cc := range comps {
-			if comp.Name == cc.Name {
-				exist = true
-				break
-			}
-		}
-		if exist {
-			continue
-		}
-		// Component not exits in current Application, should be deleted
-		var oldC = &v1alpha2.Component{ObjectMeta: metav1.ObjectMeta{Name: comp.Name, Namespace: ac.Namespace}}
-		if err := h.r.Delete(ctx, oldC); err != nil {
-			return err
-		}
-	}
-	return nil
+	// it ok if the create failed, we will create again in  the next loop
+	return h.r.Create(ctx, appConfig)
 }

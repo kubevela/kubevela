@@ -57,7 +57,13 @@ const (
 	// the application controller should not reconcile it yet
 	AnnotationAppRollout = "app.oam.dev/rollout-template"
 
-	// AnnotationNewAppConfig indicates that the application configuration is rolling out
-	// the application configuration controller has special logics handling this
-	AnnotationNewAppConfig = "app.oam.dev/appconfig-rollout"
+	// AnnotationNewAppConfig indicates that the application configuration is new
+	// this is to enable the applicationConfiguration controller to handle the
+	// first reconcile logic differently similar to what "finalize" field
+	AnnotationNewAppConfig = "app.oam.dev/new-appConfig"
+
+	// AnnotationNewComponent indicates that the component is new
+	// this is to enable any concerned controllers to handle the first component apply logic differently
+	// the value of the annotation is name of the component revision
+	AnnotationNewComponent = "app.oam.dev/new-component"
 )

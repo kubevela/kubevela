@@ -412,6 +412,21 @@ func Object2Map(obj interface{}) (map[string]interface{}, error) {
 	return res, err
 }
 
+// Object2RawExtension converts an object to a rawExtension
+func Object2RawExtension(obj interface{}) (*runtime.RawExtension, error) {
+	objMap, err := Object2Map(obj)
+	if err != nil {
+		return nil, err
+	}
+	bts, err := json.Marshal(objMap)
+	if err != nil {
+		return nil, err
+	}
+	return &runtime.RawExtension{
+		Raw: bts,
+	}, nil
+}
+
 // RawExtension2Map will convert rawExtension to map
 func RawExtension2Map(raw *runtime.RawExtension) (map[string]interface{}, error) {
 	if raw == nil {
@@ -464,7 +479,8 @@ func DeepHashObject(hasher hash.Hash, objectToWrite interface{}) {
 }
 
 // GetComponent will get Component and RevisionName by AppConfigComponent
-func GetComponent(ctx context.Context, client client.Reader, acc v1alpha2.ApplicationConfigurationComponent, namespace string) (*v1alpha2.Component, string, error) {
+func GetComponent(ctx context.Context, client client.Reader, acc v1alpha2.ApplicationConfigurationComponent,
+	namespace string) (*v1alpha2.Component, string, error) {
 	c := &v1alpha2.Component{}
 	var revisionName string
 	if acc.RevisionName != "" {

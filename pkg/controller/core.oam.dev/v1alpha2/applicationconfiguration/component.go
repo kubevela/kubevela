@@ -3,7 +3,6 @@ package applicationconfiguration
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"sort"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -12,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -20,8 +20,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
-
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // ControllerRevisionComponentLabel indicate which component the revision belong to
@@ -104,32 +102,23 @@ func (c *ComponentHandler) getRelatedAppConfig(object metav1.Object) []reconcile
 }
 
 // IsRevisionDiff check whether there's any different between two component revision
-func (c *ComponentHandler) IsRevisionDiff(mt metav1.Object, curComp *v1alpha2.Component) (bool, int64) {
+func (c *ComponentHandler) IsRevisionDiff(mt klog.KMetadata, curComp *v1alpha2.Component) (bool, int64) {
 	if curComp.Status.LatestRevision == nil {
 		return true, 0
 	}
 
 	// client in controller-runtime will use infoermer cache
 	// use client will be more efficient
-	oldRev := &appsv1.ControllerRevision{}
-	if err := c.Client.Get(context.TODO(), client.ObjectKey{Namespace: mt.GetNamespace(), Name: curComp.Status.LatestRevision.Name}, oldRev); err != nil {
-		c.Logger.Info(fmt.Sprintf("get old controllerRevision %s error %v, will create new revision", curComp.Status.LatestRevision.Name, err), "componentName", mt.GetName())
-		return true, curComp.Status.LatestRevision.Revision
-	}
-	if oldRev.Name == "" {
-		c.Logger.Info(fmt.Sprintf("Not found controllerRevision %s", curComp.Status.LatestRevision.Name), "componentName", mt.GetName())
-		return true, curComp.Status.LatestRevision.Revision
-	}
-	oldComp, err := util.UnpackRevisionData(oldRev)
+	needNewRevision, err := common.CompareWithRevision(context.TODO(), c.Client, c.Logger, mt.GetName(), mt.GetNamespace(),
+		curComp.Status.LatestRevision.Name, &curComp.Spec)
+	// TODO: this might be a bug that we treat all errors getting from k8s as a new revision
+	// but the client go event handler doesn't handle an error so we have to handle it here
 	if err != nil {
-		c.Logger.Info(fmt.Sprintf("Unmarshal old controllerRevision %s error %v, will create new revision", curComp.Status.LatestRevision.Name, err), "componentName", mt.GetName())
-		return true, oldRev.Revision
+		c.Logger.Info(fmt.Sprintf("Failed to compare the component with its latest revision with err = %+v", err),
+			"component", mt.GetName(), "latest revision", curComp.Status.LatestRevision.Name)
+		return true, curComp.Status.LatestRevision.Revision
 	}
-
-	if reflect.DeepEqual(curComp.Spec, oldComp.Spec) {
-		return false, oldRev.Revision
-	}
-	return true, oldRev.Revision
+	return needNewRevision, curComp.Status.LatestRevision.Revision
 }
 
 func newTrue() *bool {

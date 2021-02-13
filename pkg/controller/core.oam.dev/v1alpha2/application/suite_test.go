@@ -17,11 +17,16 @@ limitations under the License.
 package application
 
 import (
+	"math/rand"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -36,6 +41,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	// +kubebuilder:scaffold:imports
 )
@@ -46,8 +52,9 @@ var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var testScheme = runtime.NewScheme()
-
 var reconciler *Reconciler
+var stop = make(chan struct{})
+var ctlManager ctrl.Manager
 
 func TestAPIs(t *testing.T) {
 
@@ -58,9 +65,18 @@ func TestAPIs(t *testing.T) {
 		[]Reporter{printer.NewlineReporter{}})
 }
 
+type NoOpReconciler struct {
+	Log logr.Logger
+}
+
+func (r *NoOpReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+	r.Log.Info("received a request", "object name", req.Name)
+	return ctrl.Result{}, nil
+}
+
 var _ = BeforeSuite(func(done Done) {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
-
+	rand.Seed(time.Now().UnixNano())
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		UseExistingCluster: pointer.BoolPtr(false),
@@ -89,10 +105,37 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).To(BeNil())
 	reconciler = &Reconciler{
 		Client: k8sClient,
-		Log:    ctrl.Log.WithName("Application"),
+		Log:    ctrl.Log.WithName("Application-Test"),
 		Scheme: testScheme,
 		dm:     dm,
 	}
+	// setup the controller manager since we need the component handler to run in the background
+	ctlManager, err = ctrl.NewManager(cfg, ctrl.Options{
+		Scheme:                  testScheme,
+		MetricsBindAddress:      ":8080",
+		LeaderElection:          false,
+		LeaderElectionNamespace: "default",
+		LeaderElectionID:        "test",
+	})
+	Expect(err).NotTo(HaveOccurred())
+	// start to run the no op reconciler that creates component revision
+	err = ctrl.NewControllerManagedBy(ctlManager).
+		Named("component").
+		For(&v1alpha2.Component{}).
+		Watches(&source.Kind{Type: &v1alpha2.Component{}}, &applicationconfiguration.ComponentHandler{
+			Client:                ctlManager.GetClient(),
+			Logger:                logging.NewLogrLogger(ctrl.Log.WithName("component-handler")),
+			RevisionLimit:         100,
+			CustomRevisionHookURL: "",
+		}).Complete(&NoOpReconciler{
+		Log: ctrl.Log.WithName("NoOp-Reconciler"),
+	})
+	Expect(err).NotTo(HaveOccurred())
+	// start the controller in the background so that new componentRevisions are created
+	go func() {
+		err = ctlManager.Start(stop)
+		Expect(err).NotTo(HaveOccurred())
+	}()
 	close(done)
 }, 60)
 
@@ -100,4 +143,5 @@ var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
+	close(stop)
 })
