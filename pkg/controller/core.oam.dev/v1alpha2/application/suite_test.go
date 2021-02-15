@@ -124,7 +124,7 @@ var _ = BeforeSuite(func(done Done) {
 		For(&v1alpha2.Component{}).
 		Watches(&source.Kind{Type: &v1alpha2.Component{}}, &applicationconfiguration.ComponentHandler{
 			Client:                ctlManager.GetClient(),
-			Logger:                logging.NewLogrLogger(ctrl.Log.WithName("component-handler")),
+			Logger:                logging.NewLogrLogger(ctrl.Log.WithName("application-testsuite-component-handler")),
 			RevisionLimit:         100,
 			CustomRevisionHookURL: "",
 		}).Complete(&NoOpReconciler{

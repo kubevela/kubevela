@@ -4,8 +4,10 @@ import (
 	"context"
 	"math/rand"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -244,11 +246,14 @@ var _ = Describe("Test Application apply", func() {
 
 		By("[TEST] Creating a component the first time")
 		// take a copy so the component's workload still uses object instead of raw data
+		// just like the way we use it in prod. The raw data will be filled by the k8s for some reason.
 		revision, newRevision, err := handler.createOrUpdateComponent(ctx, component.DeepCopy())
 		By("verify that the revision is the set correctly and newRevision is true")
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(newRevision).Should(BeTrue())
-		Expect(revision).Should(BeIdenticalTo(common.ConstructRevisionName(component.Name, 1)))
+		// verify the revision actually contains the right component
+		Expect(common.CompareWithRevision(ctx, handler.r, logging.NewLogrLogger(handler.logger), component.GetName(),
+			component.GetNamespace(), revision, &component.Spec)).Should(BeTrue())
 		preRevision := revision
 
 		By("[TEST] update the component without any changes (mimic reconcile behavior)")
@@ -268,7 +273,10 @@ var _ = Describe("Test Application apply", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(newRevision).Should(BeTrue())
 		Expect(revision).ShouldNot(BeIdenticalTo(preRevision))
-		Expect(revision).Should(BeIdenticalTo(common.ConstructRevisionName(component.Name, 2)))
+		Expect(common.CompareWithRevision(ctx, handler.r, logging.NewLogrLogger(handler.logger), component.GetName(),
+			component.GetNamespace(), revision, &component.Spec)).Should(BeTrue())
+		// revision increased
+		Expect(strings.Compare(revision, preRevision) > 0).Should(BeTrue())
 	})
 
 })

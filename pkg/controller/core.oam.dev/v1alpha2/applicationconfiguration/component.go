@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -107,23 +108,18 @@ func (c *ComponentHandler) IsRevisionDiff(mt klog.KMetadata, curComp *v1alpha2.C
 		return true, 0
 	}
 
-	// client in controller-runtime will use infoermer cache
+	// client in controller-runtime will use informer cache
 	// use client will be more efficient
 	needNewRevision, err := common.CompareWithRevision(context.TODO(), c.Client, c.Logger, mt.GetName(), mt.GetNamespace(),
 		curComp.Status.LatestRevision.Name, &curComp.Spec)
 	// TODO: this might be a bug that we treat all errors getting from k8s as a new revision
-	// but the client go event handler doesn't handle an error so we have to handle it here
+	// but the client go event handler doesn't handle an error. We need to see if we can retry this
 	if err != nil {
 		c.Logger.Info(fmt.Sprintf("Failed to compare the component with its latest revision with err = %+v", err),
 			"component", mt.GetName(), "latest revision", curComp.Status.LatestRevision.Name)
 		return true, curComp.Status.LatestRevision.Revision
 	}
 	return needNewRevision, curComp.Status.LatestRevision.Revision
-}
-
-func newTrue() *bool {
-	b := true
-	return &b
 }
 
 func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtime.Object) ([]reconcile.Request, bool) {
@@ -164,7 +160,7 @@ func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtim
 					Kind:       v1alpha2.ComponentKind,
 					Name:       comp.Name,
 					UID:        comp.UID,
-					Controller: newTrue(),
+					Controller: pointer.BoolPtr(true),
 				},
 			},
 			Labels: map[string]string{
@@ -174,19 +170,20 @@ func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtim
 		Revision: nextRevision,
 		Data:     runtime.RawExtension{Object: comp},
 	}
-
-	err := c.Client.Create(context.TODO(), &revision)
-	if err != nil {
-		c.Logger.Info(fmt.Sprintf("error create controllerRevision %v", err), "componentName", mt.GetName())
-		return nil, false
-	}
-
-	err = c.UpdateStatus(context.Background(), comp)
+	// has to update the status first
+	err := c.UpdateStatus(context.Background(), comp)
 	if err != nil {
 		c.Logger.Info(fmt.Sprintf("update component status latestRevision %s err %v", revisionName, err), "componentName", mt.GetName())
 		return nil, false
 	}
+
+	err = c.Client.Create(context.TODO(), &revision)
+	if err != nil {
+		c.Logger.Info(fmt.Sprintf("error create controllerRevision %v", err), "componentName", mt.GetName())
+		return nil, false
+	}
 	c.Logger.Info(fmt.Sprintf("ControllerRevision %s created", revisionName))
+	// garbage collect
 	if int64(c.RevisionLimit) < nextRevision {
 		if err := c.cleanupControllerRevision(comp); err != nil {
 			c.Logger.Info(fmt.Sprintf("failed to clean up revisions of Component %v.", err))

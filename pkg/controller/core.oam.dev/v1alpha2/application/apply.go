@@ -202,9 +202,12 @@ func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.Appli
 // it returns the corresponding component revisionName and if a new component revision is created
 func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2.Component) (string, bool, error) {
 	curComp := &v1alpha2.Component{}
-	key := ctypes.NamespacedName{Name: comp.Name, Namespace: comp.Namespace}
 	var preRevisionName, curRevisionName string
-	err := h.r.Get(ctx, key, curComp)
+	compName := comp.GetName()
+	compNameSpace := comp.GetNamespace()
+	compKey := ctypes.NamespacedName{Name: compName, Namespace: compNameSpace}
+
+	err := h.r.Get(ctx, compKey, curComp)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return "", false, err
@@ -224,43 +227,41 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 		}
 		h.logger.Info("Updated a component", "component name", comp.GetName())
 	}
-	// remove the object before we can compare with the existing componentRevision whose object is
-	// persisted as Raw data after going through api server
-	comp.Spec.Workload.Object = nil
-	curComp = comp.DeepCopy()
-	// get the name of the revision that comp generates so we can replace the componentName
-	// in the applicationConfiguration
-	if curComp.Status.LatestRevision != nil {
-		// set the curRevisionName if the component has a revision
-		curRevisionName = curComp.Status.LatestRevision.Name
-	}
-	if len(curRevisionName) != 0 {
+	// remove the object from the raw extension before we can compare with the existing componentRevision whose
+	// object is persisted as Raw data after going through api server
+	updatedComp := comp.DeepCopy()
+	updatedComp.Spec.Workload.Object = nil
+	if len(preRevisionName) != 0 {
 		needNewRevision, err := common.CompareWithRevision(ctx, h.r,
-			logging.NewLogrLogger(h.logger), curComp.GetName(), curComp.GetNamespace(), curRevisionName, &curComp.Spec)
+			logging.NewLogrLogger(h.logger), compName, compNameSpace, preRevisionName, &updatedComp.Spec)
 		if err != nil {
 			return "", false, errors.Wrap(err, fmt.Sprintf("compare with existing controllerRevision %s failed",
 				curRevisionName))
 		}
 		if !needNewRevision {
-			h.logger.Info("no need to wait for a new component revision", "component name", curComp.GetName(),
-				"revision", curRevisionName)
-			// the revision name is set after a component is updated/created and persisted in the etcd
-			// it's not clear with the informer's cache whether it's possible to get the new revision back
-			// in the update/create call so just to play safe, we compare the pre and cur revision name
-			return curRevisionName, preRevisionName != curRevisionName, nil
+			h.logger.Info("no need to wait for a new component revision", "component name", updatedComp.GetName(),
+				"revision", preRevisionName)
+			return preRevisionName, false, nil
 		}
 	}
-	h.logger.Info("wait for a new component revision", "component name", curComp.GetName(),
-		"current revision", curRevisionName)
-	// get the new component revision name of the component with retry
+	h.logger.Info("wait for a new component revision", "component name", compName,
+		"current revision", preRevisionName)
+	// get the new component revision that contains the component with retry
 	checkForRevision := func() (bool, error) {
-		if err := h.r.Get(ctx, key, curComp); err != nil {
+		if err := h.r.Get(ctx, compKey, curComp); err != nil {
 			return apierrors.IsNotFound(err), nil
 		}
-		if curComp.Status.LatestRevision == nil || curComp.Status.LatestRevision.Name == curRevisionName {
+		if curComp.Status.LatestRevision == nil || curComp.Status.LatestRevision.Name == preRevisionName {
 			return false, nil
 		}
-		return true, nil
+		needNewRevision, err := common.CompareWithRevision(ctx, h.r, logging.NewLogrLogger(h.logger), compName,
+			compNameSpace, curComp.Status.LatestRevision.Name, &updatedComp.Spec)
+		if err != nil {
+			// retry no matter what
+			return false, nil
+		}
+		// end the loop if we find the revision
+		return !needNewRevision, nil
 	}
 	if err := wait.ExponentialBackoff(utils.DefaultBackoff, checkForRevision); err != nil {
 		return "", true, err
