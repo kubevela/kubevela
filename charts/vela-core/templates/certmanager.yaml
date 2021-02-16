@@ -1,4 +1,4 @@
-{{- if and .Values.admissionWebhooks.certManager.enabled (not .Values.admissionWebhooks.patch.enabled) -}}
+{{- if and .Values.admissionWebhooks.certManager.enabled -}}
 
 # The following manifests contain a self-signed issuer CR and a certificate CR.
 # More document can be found at https://docs.cert-manager.io
