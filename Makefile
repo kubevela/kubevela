@@ -125,7 +125,10 @@ docker-push:
 	docker push ${IMG}
 
 e2e-setup:
-	helm upgrade --install --create-namespace --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set image.tag=$(GIT_COMMIT) -n vela-system kubevela ./charts/vela-core
+	helm repo add jetstack https://charts.jetstack.io
+	helm repo update
+	helm upgrade --install --create-namespace --namespace cert-manager cert-manager jetstack/cert-manager --version v1.2.0  --set installCRDs=true
+	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set admissionWebhooks.certManager.enabled=true --set image.repository=vela-core-test --set image.tag=$(GIT_COMMIT) kubevela ./charts/vela-core
 	ginkgo version
 	ginkgo -v -r e2e/setup
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s
