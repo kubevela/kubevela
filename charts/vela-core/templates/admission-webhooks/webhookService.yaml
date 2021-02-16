@@ -1,0 +1,19 @@
+{{- if .Values.admissionWebhooks.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "kubevela.name" . }}-webhook
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "kubevela.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.webhookService.type }}
+  ports:
+    - port: 443
+      targetPort: {{ .Values.webhookService.port }}
+      protocol: TCP
+      name: https
+  selector:
+    {{ include "kubevela.selectorLabels" . | nindent 6 }}
+
+{{- end -}}

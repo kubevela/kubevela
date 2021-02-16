@@ -1,0 +1,46 @@
+{{- if .Values.certManager.enabled -}}
+# The following manifests contain a self-signed issuer CR and a certificate CR.
+# More document can be found at https://docs.cert-manager.io
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ .Values.certificate.issuerName | quote  }}
+spec:
+  selfSigned: {}
+
+# The following Certificate will generate a secret for vela-core
+# This rely on the system has a installed cert-manager in it.
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.certificate.certificateName }}
+spec:
+  dnsNames:
+    - {{ template "kubevela.name" . }}-webhook.{{ .Release.Namespace }}.svc
+    - {{ template "kubevela.name" . }}-webhook.{{ .Release.Namespace }}.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: {{ .Values.certificate.issuerName  | default "selfsigned-issuer" | quote  }}
+  secretName: {{ .Values.certificate.secretName | quote }}
+---
+# generate a serving certificate for the apiservices to use
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ template "kube-prometheus-stack.fullname" . }}-admission
+  namespace: {{ template "kube-prometheus-stack.namespace" . }}
+spec:
+  secretName: {{ template "kube-prometheus-stack.fullname" . }}-admission
+  duration: 8760h # 1y
+  issuerRef:
+    {{- if .Values.prometheusOperator.admissionWebhooks.certManager.issuerRef }}
+    {{- toYaml .Values.prometheusOperator.admissionWebhooks.certManager.issuerRef | nindent 4 }}
+    {{- else }}
+    name: {{ template "kube-prometheus-stack.fullname" . }}-root-issuer
+    {{- end }}
+  dnsNames:
+  - {{ template "kube-prometheus-stack.operator.fullname" . }}
+  - {{ template "kube-prometheus-stack.operator.fullname" . }}.{{ template "kube-prometheus-stack.namespace" . }}
+  - {{ template "kube-prometheus-stack.operator.fullname" . }}.{{ template "kube-prometheus-stack.namespace" . }}.svc
+{{- end -}}
