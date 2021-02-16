@@ -6,8 +6,8 @@ replicaCount: 1
 # Valid applyOnceOnly values: true/false/on/off/force
 applyOnceOnly: "off"
 
-# By default, don't disable any builtin capabilities
-disableCaps: ""
+# By default, metrics are disabled due the prometheus dependency
+disableCaps: "metrics"
 image:
   repository: oamdev/vela-core
   tag: latest
@@ -92,3 +92,4 @@ admissionWebhooks:
     tolerations: []
   certManager:
     enabled: false
+
