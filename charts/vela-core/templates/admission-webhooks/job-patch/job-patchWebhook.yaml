@@ -3,7 +3,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name:  {{ template "kubevela.fullname" . }}-admission-patch
-  namespace: {{ template "kubevela.namespace" . }}
+  namespace: {{ .Release.Namespace }}
   annotations:
     "helm.sh/hook": post-install,post-upgrade
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
@@ -29,7 +29,7 @@ spec:
           args:
             - patch
             - --webhook-name={{ template "kubevela.fullname" . }}-admission
-            - --namespace={{ template "kubevela.namespace" . }}
+            - --namespace={{ .Release.Namespace }}
             - --secret-name={{ template "kubevela.fullname" . }}-admission
             - --patch-failure-policy={{ .Values.admissionWebhooks.failurePolicy }}
       restartPolicy: OnFailure

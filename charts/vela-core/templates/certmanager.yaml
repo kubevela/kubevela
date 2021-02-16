@@ -1,46 +1,53 @@
-{{- if .Values.certManager.enabled -}}
+{{- if and .Values.admissionWebhooks.certManager.enabled (not .Values.admissionWebhooks.patch.enabled) -}}
+
 # The following manifests contain a self-signed issuer CR and a certificate CR.
 # More document can be found at https://docs.cert-manager.io
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
-  name: {{ .Values.certificate.issuerName | quote  }}
+  name: {{ template "kubevela.fullname" . }}-self-signed-issuer
 spec:
   selfSigned: {}
 
-# The following Certificate will generate a secret for vela-core
-# This rely on the system has a installed cert-manager in it.
 ---
+# Generate a CA Certificate used to sign certificates for the webhook
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ .Values.certificate.certificateName }}
+  name: {{ template "kubevela.fullname" . }}-root-cert
 spec:
-  dnsNames:
-    - {{ template "kubevela.name" . }}-webhook.{{ .Release.Namespace }}.svc
-    - {{ template "kubevela.name" . }}-webhook.{{ .Release.Namespace }}.svc.cluster.local
+  secretName: {{ template "kubevela.fullname" . }}-root-cert
+  duration: 43800h # 5y
   issuerRef:
-    kind: Issuer
-    name: {{ .Values.certificate.issuerName  | default "selfsigned-issuer" | quote  }}
-  secretName: {{ .Values.certificate.secretName | quote }}
+    name: {{ template "kubevela.fullname" . }}-self-signed-issuer
+  commonName: "ca.webhook.kubevela"
+  isCA: true
+  
+---
+# Create an Issuer that uses the above generated CA certificate to issue certs
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ template "kubevela.fullname" . }}-root-issuer
+  namespace: {{ .Release.Namespace }}
+spec:
+  ca:
+    secretName: {{ template "kubevela.fullname" . }}-root-cert
+
 ---
 # generate a serving certificate for the apiservices to use
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ template "kube-prometheus-stack.fullname" . }}-admission
-  namespace: {{ template "kube-prometheus-stack.namespace" . }}
+  name: {{ template "kubevela.fullname" . }}-admission
+  namespace: {{ .Release.Namespace }}
 spec:
-  secretName: {{ template "kube-prometheus-stack.fullname" . }}-admission
+  secretName: {{ template "kubevela.fullname" . }}-admission
   duration: 8760h # 1y
   issuerRef:
-    {{- if .Values.prometheusOperator.admissionWebhooks.certManager.issuerRef }}
-    {{- toYaml .Values.prometheusOperator.admissionWebhooks.certManager.issuerRef | nindent 4 }}
-    {{- else }}
-    name: {{ template "kube-prometheus-stack.fullname" . }}-root-issuer
-    {{- end }}
+    name: {{ template "kubevela.fullname" . }}-root-issuer
   dnsNames:
-  - {{ template "kube-prometheus-stack.operator.fullname" . }}
-  - {{ template "kube-prometheus-stack.operator.fullname" . }}.{{ template "kube-prometheus-stack.namespace" . }}
-  - {{ template "kube-prometheus-stack.operator.fullname" . }}.{{ template "kube-prometheus-stack.namespace" . }}.svc
-{{- end -}}
+    - {{ template "kubevela.name" . }}-webhook.{{ .Release.Namespace }}.svc
+    - {{ template "kubevela.name" . }}-webhook.{{ .Release.Namespace }}.svc.cluster.local
+
+{{- end }}

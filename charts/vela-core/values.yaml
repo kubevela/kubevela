@@ -76,14 +76,6 @@ tolerations: []
 
 affinity: {}
 
-# certificate related to the webhook
-certificate:
-  issuerName: selfsigned-issuer
-  certificateName: serving-cert
-  secretName: webhook-server-cert
-  mountPath: /etc/k8s-webhook-certs
-  caBundle: replace-me
-
 rbac:
   create: true
 
@@ -96,7 +88,7 @@ admissionWebhooks:
       repository: jettech/kube-webhook-certgen
       tag: v1.5.0
       pullPolicy: IfNotPresent
-    affinity: { }
-    tolerations: [ ]
+    affinity: {}
+    tolerations: []
   certManager:
     enabled: false

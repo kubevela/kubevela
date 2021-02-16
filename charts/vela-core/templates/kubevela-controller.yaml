@@ -110,7 +110,7 @@ spec:
             {{ if .Values.admissionWebhooks.enabled }}
             - "--use-webhook=true"
             - "--webhook-port={{ .Values.webhookService.port }}"
-            - "--webhook-cert-dir={{ .Values.certificate.mountPath }}"
+            - "--webhook-cert-dir=/etc/k8s-webhook-certs"
             {{ end }}
             - "--health-addr=:{{ .Values.healthCheck.port }}"
             - "--apply-once-only={{ .Values.applyOnceOnly }}"
@@ -142,7 +142,7 @@ spec:
             initialDelaySeconds: 90
             periodSeconds: 5
           volumeMounts:
-            - mountPath: {{ .Values.certificate.mountPath }}
+            - mountPath: /etc/k8s-webhook-certs
               name: tls-cert-vol
               readOnly: true
           {{ end }}
@@ -151,7 +151,7 @@ spec:
         - name: tls-cert-vol
           secret:
             defaultMode: 420
-            secretName: {{ .Values.certificate.secretName | quote }}
+            secretName: {{ template "kubevela.fullname" . }}-admission
       {{ end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
