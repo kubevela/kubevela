@@ -42,19 +42,16 @@ test: vet lint staticcheck
 	@$(OK) unit-tests pass
 
 # Build manager binary
-build: fmt vet lint staticcheck helm-dependencies
+build: fmt vet lint staticcheck
 	go run hack/chart/generate.go
 	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
 	git checkout cmd/vela/fake/chart_source.go
 	@$(OK) build succeed
 
-vela-cli: helm-dependencies
+vela-cli:
 	go run hack/chart/generate.go
 	go build -o bin/vela -ldflags ${LDFLAGS} cmd/vela/main.go
 	git checkout cmd/vela/fake/chart_source.go
-
-helm-dependencies:
-	cd charts/vela-core && helm dependency update
 
 dashboard-build:
 	cd dashboard && npm install && cd ..
@@ -128,7 +125,6 @@ e2e-setup:
 	helm repo add jetstack https://charts.jetstack.io
 	helm repo update
 	helm upgrade --install --create-namespace --namespace cert-manager cert-manager jetstack/cert-manager --version v1.2.0  --set installCRDs=true --wait
-	kubectl wait --for=condition=Available deployment/cert-manager-webhook -n cert-manager
 	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set admissionWebhooks.certManager.enabled=true --set image.repository=vela-core-test --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
 	ginkgo version
 	ginkgo -v -r e2e/setup
