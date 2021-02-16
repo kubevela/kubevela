@@ -70,4 +70,20 @@ declare namespace API {
     default: string;
     required: boolean;
   }
+
+  // AppFile defines the spec of KubeVela AppFile
+  interface AppFile {
+    name:       string;
+    createTime?: string;
+    updateTime?: string;
+    services: Services;
+  }
+
+  interface Services {
+    [string]: Service;
+  }
+
+  interface Service {
+    [string]: any;
+  }
 }

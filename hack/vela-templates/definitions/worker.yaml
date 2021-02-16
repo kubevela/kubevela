@@ -7,5 +7,4 @@ metadata:
 spec:
   definitionRef:
     name: deployments.apps
-  extension:
-    template: |
+  template: |

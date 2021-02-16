@@ -8,6 +8,8 @@ Make sure you have finished and verified the installation following [this guide]
 
 ## Step 2: Deploy Your First Application
 
+Define your application in [Appfile](https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/vela.yaml), and ship it with `$ vela up`:
+
 ```bash
 $ vela up -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/vela.yaml
 Parsing vela.yaml ...
@@ -46,8 +48,7 @@ Services:
       Created at: ...
       Updated at: ...
     Traits:
-      - ✅ ingress: domain=testsvc.example.com
-	    	http=map[/:8000]
+      - ✅ ingress: Visiting URL: testsvc.example.com, IP: <your IP address>
 ```
 
 **In [kind cluster setup](./install.md#kind)**, you can visit the service via localhost. In other setups, replace localhost with ingress address accordingly.
@@ -72,10 +73,11 @@ Hello World
 
 ## What's Next
 
-Congratulations! You have just deployed an app using KubeVela. Here are some recommended next steps:
+Congratulations! You have just deployed an app using KubeVela.
 
-- Learn about KubeVela in detail starting from its [core concepts](concepts)
-- Try out more [end user guides](developers/learn-appfile.md)
+Here are some recommended next steps:
+
+- Learn about KubeVela in detail from its [core concepts](/en/concepts.md)
 - Join `#kubevela` channel in CNCF [Slack](https://cloud-native.slack.com) and/or [Gitter](https://gitter.im/oam-dev/community)
 
 Welcome onboard and sail Vela!

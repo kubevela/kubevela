@@ -11,7 +11,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/gosuri/uitable"
-	hashstructure "github.com/mitchellh/hashstructure/v2"
+	"github.com/mitchellh/hashstructure/v2"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"

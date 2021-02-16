@@ -3,6 +3,8 @@
 # Declare variables to be passed into your templates.
 
 replicaCount: 1
+# Valid applyOnceOnly values: true/false/on/off/force
+applyOnceOnly: "off"
 useWebhook: true
 # By default, don't disable any builtin capabilities
 disableCaps: ""

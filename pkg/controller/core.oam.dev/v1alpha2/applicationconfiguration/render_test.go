@@ -256,10 +256,11 @@ func TestRenderComponents(t *testing.T) {
 									oam.LabelAppComponentRevision: "",
 									oam.LabelOAMResourceType:      oam.ResourceTypeTrait,
 								})
-								return &Trait{Object: *t}
+								return &Trait{Object: *t, DataOutputs: make(map[string]v1alpha2.DataOutput)}
 							}(),
 						},
-						Scopes: []unstructured.Unstructured{},
+						Scopes:      []unstructured.Unstructured{},
+						DataOutputs: make(map[string]v1alpha2.DataOutput),
 					},
 				},
 			},
@@ -337,10 +338,11 @@ func TestRenderComponents(t *testing.T) {
 									oam.LabelAppComponentRevision: revisionName,
 									oam.LabelOAMResourceType:      oam.ResourceTypeTrait,
 								})
-								return &Trait{Object: *t}
+								return &Trait{Object: *t, DataOutputs: make(map[string]v1alpha2.DataOutput)}
 							}(),
 						},
-						Scopes: []unstructured.Unstructured{},
+						Scopes:      []unstructured.Unstructured{},
+						DataOutputs: make(map[string]v1alpha2.DataOutput),
 					},
 				},
 			},
@@ -410,11 +412,12 @@ func TestRenderComponents(t *testing.T) {
 									oam.LabelOAMResourceType:      oam.ResourceTypeTrait,
 								})
 								return &Trait{Object: *t,
-									Definition: v1alpha2.TraitDefinition{ObjectMeta: metav1.ObjectMeta{Name: "coolTrait"}, Spec: v1alpha2.TraitDefinitionSpec{RevisionEnabled: true}}}
+									Definition: v1alpha2.TraitDefinition{ObjectMeta: metav1.ObjectMeta{Name: "coolTrait"}, Spec: v1alpha2.TraitDefinitionSpec{RevisionEnabled: true}}, DataOutputs: make(map[string]v1alpha2.DataOutput)}
 							}(),
 						},
 						RevisionEnabled: true,
 						Scopes:          []unstructured.Unstructured{},
+						DataOutputs:     make(map[string]v1alpha2.DataOutput),
 					},
 				},
 			},
@@ -513,10 +516,11 @@ func TestRenderComponents(t *testing.T) {
 								if err := fieldpath.Pave(tr.Object).SetValue("spec.workload.path", workloadRef); err != nil {
 									t.Fail()
 								}
-								return &Trait{Object: *tr, Definition: v1alpha2.TraitDefinition{Spec: v1alpha2.TraitDefinitionSpec{WorkloadRefPath: "spec.workload.path"}}}
+								return &Trait{Object: *tr, Definition: v1alpha2.TraitDefinition{Spec: v1alpha2.TraitDefinitionSpec{WorkloadRefPath: "spec.workload.path"}}, DataOutputs: make(map[string]v1alpha2.DataOutput)}
 							}(),
 						},
-						Scopes: []unstructured.Unstructured{},
+						Scopes:      []unstructured.Unstructured{},
+						DataOutputs: make(map[string]v1alpha2.DataOutput),
 					},
 				},
 			},

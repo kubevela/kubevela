@@ -127,6 +127,37 @@ spec:
                 - type
                 type: object
               type: array
+            services:
+              description: Services record the status of the application services
+              items:
+                description: ApplicationComponentStatus record the health status of App component
+                properties:
+                  healthy:
+                    type: boolean
+                  message:
+                    type: string
+                  name:
+                    type: string
+                  traits:
+                    items:
+                      description: ApplicationTraitStatus records the trait health status
+                      properties:
+                        healthy:
+                          type: boolean
+                        message:
+                          type: string
+                        type:
+                          type: string
+                      required:
+                      - healthy
+                      - type
+                      type: object
+                    type: array
+                required:
+                - healthy
+                - name
+                type: object
+              type: array
             status:
               description: ApplicationPhase is a label for the condition of a application at the current time
               type: string

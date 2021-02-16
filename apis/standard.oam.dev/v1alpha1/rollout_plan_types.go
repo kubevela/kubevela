@@ -21,7 +21,7 @@ type HookType string
 
 const (
 	// InitializeRolloutHook execute webhook during the rollout initializing phase
-	InitializeRolloutHook HookType = "initilize-rollout"
+	InitializeRolloutHook HookType = "initialize-rollout"
 	// PreBatchRolloutHook execute webhook before each batch rollout
 	PreBatchRolloutHook HookType = "pre-batch-rollout"
 	// PostBatchRolloutHook execute webhook after each batch rollout
@@ -41,8 +41,6 @@ const (
 	InitializingState RollingState = "initializing"
 	// RollingInBatchesState rolling out
 	RollingInBatchesState RollingState = "rollingInBatches"
-	// PausedState rollout is stopped, the batch rolling is not completed
-	PausedState RollingState = "paused"
 	// FinalisingState finalize the rolling, possibly clean up the old resources, adjust traffic
 	FinalisingState RollingState = "finalising"
 	// RolloutSucceedState rollout successfully completed to match the desired target state
@@ -61,15 +59,14 @@ const (
 	BatchInitializingState BatchRollingState = "batchInitializing"
 	// BatchInRollingState still rolling the batch, the batch rolling is not completed yet
 	BatchInRollingState BatchRollingState = "batchInRolling"
-	// BatchVerifyingState verifying if the application is ready to roll. This happens when it's either manual or
-	// automatic with analysis
+	// BatchVerifyingState verifying if the application is ready to roll.
 	BatchVerifyingState BatchRollingState = "batchVerifying"
-	// BatchVerifyFailedState indicates that the batch didn't get the manual or automatic approval
-	BatchVerifyFailedState BatchRollingState = "batchVerifyFailed"
+	// BatchRolloutFailedState indicates that the batch didn't get the manual or automatic approval
+	BatchRolloutFailedState BatchRollingState = "batchVerifyFailed"
+	// BatchFinalizingState indicates that all the pods in the are available, we can move on to the next batch
+	BatchFinalizingState BatchRollingState = "batchFinalizing"
 	// BatchReadyState indicates that all the pods in the are upgraded and its state is ready
 	BatchReadyState BatchRollingState = "batchReady"
-	// BatchAvailableState indicates that all the pods in the are available, we can move on to the next batch
-	BatchAvailableState BatchRollingState = "batchAvailable"
 )
 
 // RolloutPlan fines the details of the rollout plan
@@ -90,7 +87,10 @@ type RolloutPlan struct {
 	NumBatches *int32 `json:"numBatches,omitempty"`
 
 	// The exact distribution among batches.
-	// mutually exclusive to NumBatches
+	// mutually exclusive to NumBatches.
+	// The total number cannot exceed the targetSize or the size of the source resource
+	// We will IGNORE the last batch's replica field if it's a percentage since round errors can lead to inaccurate sum
+	// We highly recommend to leave the last batch's replica field empty
 	// +optional
 	RolloutBatches []RolloutBatch `json:"rolloutBatches,omitempty"`
 
@@ -105,7 +105,7 @@ type RolloutPlan struct {
 	// +optional
 	Paused bool `json:"paused,omitempty"`
 
-	// RolloutWebhooks provides a way for the rollout to interact with an external process
+	// RolloutWebhooks provide a way for the rollout to interact with an external process
 	// +optional
 	RolloutWebhooks []RolloutWebhook `json:"rolloutWebhooks,omitempty"`
 
@@ -119,6 +119,7 @@ type RolloutPlan struct {
 type RolloutBatch struct {
 	// Replicas is the number of pods to upgrade in this batch
 	// it can be an absolute number (ex: 5) or a percentage of total pods
+	// we will ignore the percentage of the last batch to just fill the gap
 	// +optional
 	// it is mutually exclusive with the PodList field
 	Replicas intstr.IntOrString `json:"replicas,omitempty"`
@@ -208,16 +209,19 @@ type MetricsExpectedRange struct {
 	Max *intstr.IntOrString `json:"max,omitempty"`
 }
 
-// RolloutStatus defines the observed state of Rollout
+// RolloutStatus defines the observed state of a rollout plan
 type RolloutStatus struct {
 	// Conditions represents the latest available observations of a CloneSet's current state.
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
 
-	// The target resource generation
-	TargetGeneration string `json:"targetGeneration"`
+	// NewPodTemplateIdentifier is a string that uniquely represent the new pod template
+	// each workload type could use different ways to identify that so we cannot compare between resources
+	NewPodTemplateIdentifier string `json:"targetGeneration,omitempty"`
 
-	// The source resource generation
-	SourceGeneration string `json:"sourceGeneration"`
+	// lastAppliedPodTemplateIdentifier is a string that uniquely represent the last pod template
+	// each workload type could use different ways to identify that so we cannot compare between resources
+	// We update this field only after a successful rollout
+	LastAppliedPodTemplateIdentifier string `json:"lastAppliedPodTemplateIdentifier,omitempty"`
 
 	// RollingState is the Rollout State
 	RollingState RollingState `json:"rollingState"`
@@ -227,6 +231,7 @@ type RolloutStatus struct {
 	BatchRollingState BatchRollingState `json:"batchRollingState"`
 
 	// The current batch the rollout is working on/blocked
+	// it starts from 0
 	CurrentBatch int32 `json:"currentBatch"`
 
 	// UpgradedReplicas is the number of Pods upgraded by the rollout controller

@@ -29,6 +29,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -172,10 +174,22 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		},
 	)
 
-	if err := r.Status().Update(ctx, &workload); err != nil {
+	if err := r.UpdateStatus(ctx, &workload); err != nil {
 		return util.ReconcileWaitResult, err
 	}
 	return ctrl.Result{}, util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileSuccess())
+}
+
+// UpdateStatus updates v1alpha2.ContainerizedWorkload's Status with retry.RetryOnConflict
+func (r *Reconciler) UpdateStatus(ctx context.Context, workload *v1alpha2.ContainerizedWorkload, opts ...client.UpdateOption) error {
+	status := workload.DeepCopy().Status
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+		if err = r.Get(ctx, types.NamespacedName{Namespace: workload.Namespace, Name: workload.Name}, workload); err != nil {
+			return
+		}
+		workload.Status = status
+		return r.Status().Update(ctx, workload, opts...)
+	})
 }
 
 // SetupWithManager setups up k8s controller.

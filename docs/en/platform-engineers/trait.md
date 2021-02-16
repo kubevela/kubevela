@@ -1,16 +1,13 @@
-# Extending Traits in KubeVela
+# Trait Definition
 
-> WARNINIG: you are now reading a platform builder/administrator oriented documentation.
+In the following tutorial, you will learn about definition objects with [KubeWatch](https://github.com/wonderflow/kubewatch) as example.
 
-In the following tutorial, you will learn how to add a new trait and expose it to users via Appfile.
-We will use [KubeWatch](https://github.com/wonderflow/kubewatch) as example, this is a forked version
-that we make it work as CRD controller. User could use CRD(`kubewatches.labs.bitnami.com`) to describe K8s resources they
-want to watch including any types of CRD.
+> This is a fork because we make it work as CRD controller. So user could use CRD(`kubewatches.labs.bitnami.com`) to describe K8s resources they want to watch including any types of CRD.
 
 ## Step 1: Create Trait Definition
 
 To register [KubeWatch](https://github.com/wonderflow/kubewatch) as a new trait in KubeVela,
-the only thing needed is to create an OAM `TraitDefinition` object for it.
+the only thing needed is to create an `TraitDefinition` object for it.
 A full example can be found in this [kubewatch.yaml](https://github.com/oam-dev/catalog/blob/master/registry/kubewatch.yaml).
 Several highlights are list below.
 
@@ -104,7 +101,7 @@ from this reference.
 With the help of the OAM framework, end users will never bother writing the relationship info such like `targetReference`.
 Platform builders only need to declare this info here once, then the OAM framework will help glue them together.
 
-### 6. Define User Parameters
+### 6. Define Template
 
 ```yaml
 ...
@@ -119,12 +116,7 @@ Platform builders only need to declare this info here once, then the OAM framewo
       }
  ```
 
-For a given capability, KubeVela leverages [CUElang](https://github.com/cuelang/cue/blob/master/doc/tutorial/kubernetes/README.md)
-to define the parameters that the end users could configure in the Appfile.
-In nutshell, `parameter.*` expected to be filled by users. 
-
-> In the upcoming release, we will publish a detailed guide about defining CUE templates in KubeVela.
-> For now, the best samples to learn about this section is the [built-in templates](https://github.com/oam-dev/kubevela/tree/master/hack/vela-templates) of KubeVela.
+This is a CUE based template to define end user abstraction for this workload type. Please check the [templating documentation](../cue/trait.md) for more detail.
 
 Note that in this example, we only need to give the webhook url as parameter for using KubeWatch.
 
@@ -137,7 +129,9 @@ $ kubectl apply -f https://raw.githubusercontent.com/oam-dev/catalog/master/regi
 ```
 
 And the new trait will immediately become available for developers to use in KubeVela.
-It may take some time to be available as the dependency(helm chart) need to install.
+It may take some time to be available as the dependency (helm chart) need to install.
+
+## Step 3: Verify
 
 ```bash
 $ vela traits
@@ -159,8 +153,3 @@ route    	Configure route policy to the app                                	webs
 scaler   	Manually scale the app                                           	webservice
         	                                                                 	worker
 ```
-
-## Step 3: Using the new extended trait
-
-Using the extended trait is just the same as the trait installed from Capability center, please [refer there to see how
-to use](../developers/cap-center.md#Use-the-newly-installed-capability).

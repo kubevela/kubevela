@@ -82,9 +82,6 @@ These steps will install KubeVela controller and its dependency.
     kubectl create namespace vela-system 
     ```
 
-    
-
-
 4. Install KubeVela
     ```shell script
     helm install -n vela-system kubevela kubevela/vela-core
@@ -104,9 +101,22 @@ These steps will install KubeVela controller and its dependency.
     helm install -n vela-system kubevela kubevela/vela-core --set certmanager.enabled=true
     ```
    
-    If you want to try the latest master branch, try the following command:
+    If you want to try the latest master branch, add flag `--devel` in command `helm search` to choose a pre-release
+    version in format `<next_version>-rc-master` which means the next release candidate version build on `master` branch,
+    like `0.4.0-rc-master`.
+   
     ```shell script
-    helm install -n vela-system kubevela  https://kubevelacharts.oss-cn-hangzhou.aliyuncs.com/core/vela-core-latest.tgz --set useWebhook=false
+    $ helm search repo kubevela/vela-core -l --devel
+    NAME                     	CHART VERSION        	APP VERSION          	DESCRIPTION
+    kubevela/vela-core       	0.4.0-rc-master         0.4.0-rc-master         A Helm chart for KubeVela core
+    kubevela/vela-core       	0.3.2  	                0.3.2                   A Helm chart for KubeVela core
+    kubevela/vela-core       	0.3.1        	        0.3.1               	A Helm chart for KubeVela core
+    ```
+   
+    And try the following command to install it.
+   
+    ```shell script
+    helm install -n vela-system kubevela kubevela/vela-core --version <next_version>-rc-master --set useWebhook=false
     ```
 
 ## 3. Get KubeVela CLI

@@ -175,14 +175,14 @@ func ParseAndSyncCapability(data []byte, syncDir string) (types.Capability, erro
 		if err != nil {
 			return types.Capability{}, err
 		}
-		return HandleDefinition(rd.Name, syncDir, rd.Spec.Reference.Name, rd.Annotations, rd.Spec.Extension, types.TypeWorkload, nil)
+		return HandleDefinition(rd.Name, syncDir, rd.Spec.Reference.Name, rd.Annotations, rd.Spec.Extension, types.TypeWorkload, nil, rd.Spec.Template)
 	case "TraitDefinition":
 		var td v1alpha2.TraitDefinition
 		err = yaml.Unmarshal(data, &td)
 		if err != nil {
 			return types.Capability{}, err
 		}
-		return HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Annotations, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads)
+		return HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Annotations, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads, td.Spec.Template)
 	case "ScopeDefinition":
 		// TODO(wonderflow): support scope definition here.
 	}
@@ -247,9 +247,9 @@ func (g *GithubCenter) SyncCapabilityFromCenter() error {
 			continue
 		}
 		//nolint:gosec
-		err = ioutil.WriteFile(filepath.Join(repoDir, tmp.CrdName+".yaml"), data, 0644)
+		err = ioutil.WriteFile(filepath.Join(repoDir, tmp.Name+".yaml"), data, 0644)
 		if err != nil {
-			fmt.Printf("write definition %s to %s err %v\n", tmp.CrdName+".yaml", repoDir, err)
+			fmt.Printf("write definition %s to %s err %v\n", tmp.Name+".yaml", repoDir, err)
 			continue
 		}
 		success++
