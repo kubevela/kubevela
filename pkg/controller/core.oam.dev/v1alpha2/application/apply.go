@@ -293,14 +293,12 @@ func (h *appHandler) createOrUpdateAppConfig(ctx context.Context, appConfig *v1a
 
 	// get the AC with the last revision name stored in the application
 	key := ctypes.NamespacedName{Name: h.app.Status.LatestRevision.Name, Namespace: h.app.Namespace}
-	var exist = true
 	if err := h.r.Get(ctx, key, &curAppConfig); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return err
 		}
-		exist = false
-	}
-	if !exist {
+		h.logger.Info("create a new appConfig", "application name", h.app.GetName(),
+			"latest revision that does not exist", h.app.Status.LatestRevision.Name)
 		return h.createNewAppConfig(ctx, appConfig)
 	}
 
@@ -313,6 +311,8 @@ func (h *appHandler) createOrUpdateAppConfig(ctx context.Context, appConfig *v1a
 		}
 	}
 	// create the next version
+	h.logger.Info("create a new appConfig", "application name", h.app.GetName(),
+		"latest revision that does not match the appConfig", h.app.Status.LatestRevision.Name)
 	return h.createNewAppConfig(ctx, appConfig)
 }
 
@@ -335,6 +335,8 @@ func (h *appHandler) createNewAppConfig(ctx context.Context, appConfig *v1alpha2
 	if err := h.r.UpdateStatus(ctx, h.app); err != nil {
 		return err
 	}
+	h.logger.Info("recorded the latest appConfig revision", "application name", h.app.GetName(),
+		"latest revision", revisionName)
 	// it ok if the create failed, we will create again in  the next loop
 	return h.r.Create(ctx, appConfig)
 }

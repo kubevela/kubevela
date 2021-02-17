@@ -280,7 +280,6 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compNa
 	component.Spec.Workload.Object = componentWorkload
 
 	acComponent := &v1alpha2.ApplicationConfigurationComponent{}
-	acComponent.Traits = []v1alpha2.ComponentTrait{}
 	for _, assist := range assists {
 		tr, err := assist.Ins.Unstructured()
 		if err != nil {

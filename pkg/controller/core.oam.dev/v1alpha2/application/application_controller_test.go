@@ -826,18 +826,25 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: appwithNoTrait.Namespace,
 		}
 		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
-		By("Check Application Created")
+		By("Check Application Created with the correct revision")
 		checkApp := &v1alpha2.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
 		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
-
+		Expect(checkApp.Status.LatestRevision).ShouldNot(BeNil())
+		Expect(checkApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 		By("Check ApplicationConfiguration Created")
 		appConfig := &v1alpha2.ApplicationConfiguration{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: appwithNoTrait.Namespace,
 			Name:      common.ConstructRevisionName(appwithNoTrait.Name, 1),
 		}, appConfig)).Should(BeNil())
-
+		// check v2 is not created
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: appwithNoTrait.Namespace,
+			Name:      common.ConstructRevisionName(appwithNoTrait.Name, 2),
+		}, appConfig)).Should(HaveOccurred())
+		Expect(checkApp.Status.LatestRevision).ShouldNot(BeNil())
+		Expect(checkApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 		By("Check Component Created with the expected workload spec")
 		var component v1alpha2.Component
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
@@ -845,6 +852,7 @@ var _ = Describe("Test Application Controller", func() {
 			Name:      compName,
 		}, &component)).Should(BeNil())
 		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
+		Expect(component.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 
 		// check that the new appconfig has the correct annotation and labels
 		Expect(appConfig.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(BeIdenticalTo("true"))
@@ -852,6 +860,32 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(appConfig.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
 		Expect(appConfig.Spec.Components[0].ComponentName).Should(BeEmpty())
 		Expect(appConfig.Spec.Components[0].RevisionName).Should(Equal(component.Status.LatestRevision.Name))
+
+		By("Reconcile again to make sure we are not creating more appConfigs")
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+		Expect(checkApp.Status.LatestRevision).ShouldNot(BeNil())
+		Expect(checkApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
+
+		By("Check no new ApplicationConfiguration created")
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: appwithNoTrait.Namespace,
+			Name:      common.ConstructRevisionName(appwithNoTrait.Name, 1),
+		}, appConfig)).Should(BeNil())
+		// check v2 is not created
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: appwithNoTrait.Namespace,
+			Name:      common.ConstructRevisionName(appwithNoTrait.Name, 2),
+		}, appConfig)).Should(HaveOccurred())
+		By("Check no new Component created")
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: appwithNoTrait.Namespace,
+			Name:      compName,
+		}, &component)).Should(BeNil())
+		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
+		Expect(component.Status.LatestRevision.Revision).ShouldNot(BeNil())
+		Expect(component.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 
 		By("Delete Application, clean the resource")
 		Expect(k8sClient.Delete(ctx, appwithNoTrait)).Should(BeNil())

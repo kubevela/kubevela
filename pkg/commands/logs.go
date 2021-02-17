@@ -19,6 +19,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // NewLogsCommand creates `logs` command to tail logs of application
@@ -78,7 +79,7 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	if err != nil {
 		return err
 	}
-	compName, err := util.AskToChooseOneService(appfile.GetComponents(l.App))
+	compName, err := common.AskToChooseOneService(appfile.GetComponents(l.App))
 	if err != nil {
 		return err
 	}

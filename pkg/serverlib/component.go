@@ -9,7 +9,8 @@ import (
 )
 
 // RetrieveComponent will get component status
-func RetrieveComponent(ctx context.Context, c client.Client, applicationName, componentName, namespace string) (apis.ComponentMeta, error) {
+func RetrieveComponent(ctx context.Context, c client.Reader, applicationName, componentName,
+	namespace string) (apis.ComponentMeta, error) {
 	var componentMeta apis.ComponentMeta
 	applicationMeta, err := RetrieveApplicationStatusByName(ctx, c, applicationName, namespace)
 	if err != nil {

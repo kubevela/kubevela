@@ -7,9 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -121,6 +122,26 @@ var _ = Describe("Test Application apply", func() {
 		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
 		hashValue := curAC.GetLabels()[oam.LabelAppConfigHash]
 
+		By("[TEST] apply the same appConfig mimic application controller, should do nothing")
+		// this should not lead to a new AC
+		err = handler.createOrUpdateAppConfig(ctx, appConfig.DeepCopy())
+		Expect(err).ToNot(HaveOccurred())
+		// verify the app latest revision is not changed
+		Eventually(
+			func() error {
+				return handler.r.Get(ctx,
+					types.NamespacedName{Namespace: ns.Name, Name: app.Name},
+					curApp)
+			},
+			time.Second*10, time.Millisecond*500).Should(BeNil())
+
+		By("Verify that the lastest revision does not change")
+		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
+		Expect(curApp.Status.LatestRevision.Name).Should(Equal(app.Name + "-v1"))
+		Expect(handler.r.Get(ctx,
+			types.NamespacedName{Namespace: ns.Name, Name: app.Name + "-v1"},
+			curAC)).NotTo(HaveOccurred())
+
 		By("[TEST] Modify the applicationConfiguration mimic AC controller, should only update")
 		// update the status of the AC which is expected after AC controller takes over
 		curAC.Status.SetConditions(readyCondition("newType"))
@@ -131,7 +152,7 @@ var _ = Describe("Test Application apply", func() {
 		curAC.SetAnnotations(cl)
 		Expect(handler.r.Update(ctx, curAC)).NotTo(HaveOccurred())
 		// this should not lead to a new AC
-		err = handler.createOrUpdateAppConfig(ctx, appConfig.DeepCopy())
+		err = handler.createOrUpdateAppConfig(ctx, curAC.DeepCopy())
 		Expect(err).ToNot(HaveOccurred())
 		// verify the app latest revision is not changed
 		Eventually(
@@ -152,6 +173,7 @@ var _ = Describe("Test Application apply", func() {
 		_, exist := curAC.GetAnnotations()[oam.AnnotationNewAppConfig]
 		Expect(exist).Should(BeFalse())
 		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).Should(BeEquivalentTo(hashValue))
+		Expect(curAC.GetCondition("newType").Status).Should(BeEquivalentTo(corev1.ConditionTrue))
 		// check that no new appConfig created
 		Expect(handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: app.Name + "-v2"},
 			curAC)).Should(&oamutil.NotFoundMatcher{})
