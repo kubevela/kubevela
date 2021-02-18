@@ -25,11 +25,10 @@ import (
 	"net/http/httptest"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/google/go-cmp/cmp"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -395,8 +394,10 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(len(appConfig.Spec.Components[0].Traits)).Should(BeEquivalentTo(2))
 		Expect(appConfig.Spec.Components[0].ComponentName).Should(BeEmpty())
 		Expect(appConfig.Spec.Components[0].RevisionName).ShouldNot(BeEmpty())
+		// component create handler may create a v2 when it can't find v1
 		Expect(appConfig.Spec.Components[0].RevisionName).Should(
-			BeEquivalentTo(common.ConstructRevisionName(compName, 1)))
+			SatisfyAny(BeEquivalentTo(common.ConstructRevisionName(compName, 1)),
+				BeEquivalentTo(common.ConstructRevisionName(compName, 2))))
 
 		gotTrait := unstructured.Unstructured{}
 		By("Check the first trait should be service")
@@ -804,26 +805,26 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 
-	It("app with rolling out annotation", func() {
+	It("app generate appConfigs with annotation", func() {
 		By("create application with rolling out annotation")
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "vela-test-app-with-rollout",
 			},
 		}
-		appwithNoTrait.SetNamespace(ns.Name)
+		rolloutApp := appWithTraitAndScope.DeepCopy()
+		rolloutApp.SetNamespace(ns.Name)
 		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
-		compName := appwithNoTrait.Spec.Components[0].Name
+		compName := rolloutApp.Spec.Components[0].Name
 		// set the annotation
-		app := appwithNoTrait.DeepCopy()
-		app.SetAnnotations(map[string]string{
+		rolloutApp.SetAnnotations(map[string]string{
 			oam.AnnotationAppRollout: "true",
 		})
-		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, rolloutApp)).Should(BeNil())
 
 		appKey := client.ObjectKey{
-			Name:      appwithNoTrait.Name,
-			Namespace: appwithNoTrait.Namespace,
+			Name:      rolloutApp.Name,
+			Namespace: rolloutApp.Namespace,
 		}
 		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
 		By("Check Application Created with the correct revision")
@@ -835,20 +836,20 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check ApplicationConfiguration Created")
 		appConfig := &v1alpha2.ApplicationConfiguration{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: appwithNoTrait.Namespace,
-			Name:      common.ConstructRevisionName(appwithNoTrait.Name, 1),
+			Namespace: rolloutApp.Namespace,
+			Name:      common.ConstructRevisionName(rolloutApp.Name, 1),
 		}, appConfig)).Should(BeNil())
 		// check v2 is not created
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: appwithNoTrait.Namespace,
-			Name:      common.ConstructRevisionName(appwithNoTrait.Name, 2),
+			Namespace: rolloutApp.Namespace,
+			Name:      common.ConstructRevisionName(rolloutApp.Name, 2),
 		}, appConfig)).Should(HaveOccurred())
 		Expect(checkApp.Status.LatestRevision).ShouldNot(BeNil())
 		Expect(checkApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 		By("Check Component Created with the expected workload spec")
 		var component v1alpha2.Component
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: appwithNoTrait.Namespace,
+			Namespace: rolloutApp.Namespace,
 			Name:      compName,
 		}, &component)).Should(BeNil())
 		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
@@ -870,17 +871,17 @@ var _ = Describe("Test Application Controller", func() {
 
 		By("Check no new ApplicationConfiguration created")
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: appwithNoTrait.Namespace,
-			Name:      common.ConstructRevisionName(appwithNoTrait.Name, 1),
+			Namespace: rolloutApp.Namespace,
+			Name:      common.ConstructRevisionName(rolloutApp.Name, 1),
 		}, appConfig)).Should(BeNil())
 		// check v2 is not created
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: appwithNoTrait.Namespace,
-			Name:      common.ConstructRevisionName(appwithNoTrait.Name, 2),
+			Namespace: rolloutApp.Namespace,
+			Name:      common.ConstructRevisionName(rolloutApp.Name, 2),
 		}, appConfig)).Should(HaveOccurred())
 		By("Check no new Component created")
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: appwithNoTrait.Namespace,
+			Namespace: rolloutApp.Namespace,
 			Name:      compName,
 		}, &component)).Should(BeNil())
 		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
@@ -888,7 +889,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(component.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 
 		By("Delete Application, clean the resource")
-		Expect(k8sClient.Delete(ctx, appwithNoTrait)).Should(BeNil())
+		Expect(k8sClient.Delete(ctx, rolloutApp)).Should(BeNil())
 	})
 
 	It("app with health policy and custom status for workload", func() {

@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"strconv"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/mitchellh/hashstructure/v2"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctypes "k8s.io/apimachinery/pkg/types"
@@ -201,13 +201,13 @@ func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.Appli
 // createOrUpdateComponent creates a component if not exist and update if exists.
 // it returns the corresponding component revisionName and if a new component revision is created
 func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2.Component) (string, bool, error) {
-	curComp := &v1alpha2.Component{}
+	curComp := v1alpha2.Component{}
 	var preRevisionName, curRevisionName string
 	compName := comp.GetName()
 	compNameSpace := comp.GetNamespace()
 	compKey := ctypes.NamespacedName{Name: compName, Namespace: compNameSpace}
 
-	err := h.r.Get(ctx, compKey, curComp)
+	err := h.r.Get(ctx, compKey, &curComp)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			return "", false, err
@@ -236,7 +236,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 			logging.NewLogrLogger(h.logger), compName, compNameSpace, preRevisionName, &updatedComp.Spec)
 		if err != nil {
 			return "", false, errors.Wrap(err, fmt.Sprintf("compare with existing controllerRevision %s failed",
-				curRevisionName))
+				preRevisionName))
 		}
 		if !needNewRevision {
 			h.logger.Info("no need to wait for a new component revision", "component name", updatedComp.GetName(),
@@ -245,11 +245,12 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 		}
 	}
 	h.logger.Info("wait for a new component revision", "component name", compName,
-		"current revision", preRevisionName)
+		"previous revision", preRevisionName)
 	// get the new component revision that contains the component with retry
 	checkForRevision := func() (bool, error) {
-		if err := h.r.Get(ctx, compKey, curComp); err != nil {
-			return apierrors.IsNotFound(err), nil
+		if err := h.r.Get(ctx, compKey, &curComp); err != nil {
+			// retry no matter what
+			return false, nil
 		}
 		if curComp.Status.LatestRevision == nil || curComp.Status.LatestRevision.Name == preRevisionName {
 			return false, nil
@@ -261,12 +262,17 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 			return false, nil
 		}
 		// end the loop if we find the revision
+		if !needNewRevision {
+			curRevisionName = curComp.Status.LatestRevision.Name
+			h.logger.Info("get a matching component revision", "component name", compName,
+				"current revision", curRevisionName)
+		}
 		return !needNewRevision, nil
 	}
 	if err := wait.ExponentialBackoff(utils.DefaultBackoff, checkForRevision); err != nil {
 		return "", true, err
 	}
-	return curComp.Status.LatestRevision.Name, true, nil
+	return curRevisionName, true, nil
 }
 
 // createOrUpdateAppConfig will find the latest revision of the AC according
@@ -305,10 +311,12 @@ func (h *appHandler) createOrUpdateAppConfig(ctx context.Context, appConfig *v1a
 	// check if the old AC has the same HASH value
 	if curAppConfig.GetLabels()[oam.LabelAppConfigHash] == appConfig.GetLabels()[oam.LabelAppConfigHash] {
 		// Just to be safe that it's not because of a random Hash collision
-		if reflect.DeepEqual(curAppConfig.Spec, appConfig.Spec) {
+		if apiequality.Semantic.DeepEqual(&curAppConfig.Spec, &appConfig.Spec) {
 			// same spec, no need to create another AC
 			return nil
 		}
+		h.logger.Info("encountered a different app spec with same hash", "current spec",
+			curAppConfig.Spec, "new appConfig spec", appConfig.Spec)
 	}
 	// create the next version
 	h.logger.Info("create a new appConfig", "application name", h.app.GetName(),

@@ -56,8 +56,9 @@ var reconciler *Reconciler
 var stop = make(chan struct{})
 var ctlManager ctrl.Manager
 
-func TestAPIs(t *testing.T) {
+// TODO: create a mock client and add UT to cover all the failure cases
 
+func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	RunSpecsWithDefaultAndCustomReporters(t,

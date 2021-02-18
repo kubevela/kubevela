@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -232,7 +233,11 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 
 	ac := &v1alpha2.ApplicationConfiguration{}
 	if err := r.client.Get(ctx, req.NamespacedName, ac); err != nil {
-		return errResult, errors.Wrap(resource.IgnoreNotFound(err), errGetAppConfig)
+		if apierrors.IsNotFound(err) {
+			// stop processing this resource
+			return ctrl.Result{}, nil
+		}
+		return errResult, errors.Wrap(err, errGetAppConfig)
 	}
 	acPatch := ac.DeepCopy()
 

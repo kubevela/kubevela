@@ -413,18 +413,11 @@ func Object2Map(obj interface{}) (map[string]interface{}, error) {
 }
 
 // Object2RawExtension converts an object to a rawExtension
-func Object2RawExtension(obj interface{}) (*runtime.RawExtension, error) {
-	objMap, err := Object2Map(obj)
-	if err != nil {
-		return nil, err
-	}
-	bts, err := json.Marshal(objMap)
-	if err != nil {
-		return nil, err
-	}
-	return &runtime.RawExtension{
+func Object2RawExtension(obj interface{}) runtime.RawExtension {
+	bts, _ := json.Marshal(obj)
+	return runtime.RawExtension{
 		Raw: bts,
-	}, nil
+	}
 }
 
 // RawExtension2Map will convert rawExtension to map
