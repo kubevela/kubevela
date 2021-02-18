@@ -1,10 +1,10 @@
 # Building Developer Experience with KubeVela
 
-For end users of KubeVela based platforms, we recommend platform builders serve them with simple and developer-centric interfaces instead of exposing full Kubernetes details. The common practices include building GUI console, adopting DSL, or creating a user friendly command line tool.
+To achieve best user experience for your platform, we highly recommend platform builders to create simple and user friendly UI for end users instead of exposing full platform level details to them. Some common practices include building GUI console, adopting DSL, or creating a user friendly command line tool.
 
-In KubeVela, we also provide a docker-compose style descriptor named `Appfile` with a single command named `vela up` as an example of building developer experience with KubeVela.
+As an proof-of-concept of building developer experience with KubeVela, we developed a tool named `Appfile` as well. This tool enables developers to deploy any application with a single file and a single command: `vela up`.
 
-Let's walk through its experience first.
+Now let's walk through its experience.
 
 ## Step 1: Install
 
