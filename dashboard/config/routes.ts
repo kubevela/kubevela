@@ -1,7 +1,7 @@
 ﻿export default [
   {
     path: '/',
-    redirect: `/System`,
+    redirect: `/applications`,
   },
   {
     name: 'applications',
@@ -44,15 +44,15 @@
   {
     name: 'system',
     icon: 'setting',
-    path: '/System',
+    path: '/system',
     routes: [
       {
-        path: '/System',
-        redirect: `/System/Environment`,
+        path: '/system',
+        redirect: `/system/environment`,
       },
       {
         name: 'environment',
-        path: '/System/Environment',
+        path: '/system/environment',
         component: './System/Environment',
       },
     ],
