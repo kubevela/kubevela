@@ -1,19 +1,14 @@
-# Application CRD
+# Designing Application
 
-Application CRD describes the components and configurations of an application deployment.
-It captures all of the definitions of an application in a single object and acts as a declarative anchor to
-avoid configuration-drift.
+The goal of application model in KubeVela is to expose an unified abstraction to end user, and allow platform team to use any existing encapsulation solutions behind the abstraction. This is achieved by the `Application` custom resource.
 
-Application CRD provides an abstraction layer on top of infrastructure (e.g. Kubernetes) capabilities to
-simplify APIs by hiding low level details. For instance, it enables developers to model the "web service" workload
-without defining detailed `Deployment` + `Service` combo each time, or claim the auto-scaling requirements
-without referring to the underlying [KEDA](https://keda.sh/) ScaleObject.
+## Example
 
-## Spec of an Application
+The sample application below claimed a `backend` component with *Worker* workload type, and a `frontend` component with *Web Service* workload type.
 
-The following is an example of an Application, it will create a backend service with workload type worker,
-and a frontend service with workload type webservice.
-The frontend service will have a sidecar and auto scale policy trait. 
+Moreover, the `frontend` component claimed `sidecar` and `autoscaler` traits which means the workload will be automatically injected with a `fluentd` sidecar and scale from 1-100 replicas triggered by CPU usage.
+
+> For detailed definition about `Application` *workload type* and *traits*, please read the [core concepts](/en/concepts.md#application) documentation.
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -38,125 +33,76 @@ spec:
           properties:
             min: 1
             max: 10
+            cpuPercent: 60
         - name: sidecar
           properties:
             name: "sidecar-test"
             image: "fluentd"
 ```
 
-Let's explain more details of the Application spec with the example:
+The `type: worker` means the specification of this workload (claimed in following `settings` section) will be enforced by a `WorkloadDefinition` object named `worker` as below:
 
-1. An application named `website` is created, indicated by the `.metadata.name` field.
-2. The application created two different components, indicated by the `.spec.components` field.
-3. The name of the first component is `backend`, indicated by the `.spec.components[0].name` field.
-4. The workload type of the first component is `worker`, indicated by the `.spec.components[0].type` field. 
-The workload type refer to a WorkloadDefinition object named `worker` which will contain the schema of the component.
-5. The `settings` field of the first component is a schema free field, the schema depends on the workload type. In this
-example, it has two fields `image` and `cmd` which is defined in the `parameter` of the `.spec.template` field of the `worker` like below.
-    ```yaml
-    apiVersion: core.oam.dev/v1alpha2
-    kind: WorkloadDefinition
-    metadata:
-      name: worker
-    spec:
-      template: |
-        output: {
-            apiVersion: "apps/v1"
-            kind:       "Deployment"
-            spec: {
-                selector: matchLabels: {
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: worker
+  annotations:
+    definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic."
+spec:
+  template: |
+    output: {
+        apiVersion: "apps/v1"
+        kind:       "Deployment"
+        spec: {
+            selector: matchLabels: {
+                "app.oam.dev/component": context.name
+            }
+            template: {
+                metadata: labels: {
                     "app.oam.dev/component": context.name
                 }
-                template: {
-                    metadata: labels: {
-                        "app.oam.dev/component": context.name
-                    }
-                    spec: {
-                        containers: [{
-                            name:  context.name
-                            image: parameter.image
-    
-                            if parameter["cmd"] != _|_ {
-                                command: parameter.cmd
-                            }
-                        }]
-                    }
+                spec: {
+                    containers: [{
+                        name:  context.name
+                        image: parameter.image
+
+                        if parameter["cmd"] != _|_ {
+                            command: parameter.cmd
+                        }
+                    }]
                 }
             }
-        }    
-        parameter: {
-            image: string    
-            cmd?: [...string]
         }
-    ```
-6. The second component named `frontend` has a type `webservice`, the schema of the `settings` field is defined by the `webservice`
-workload type.
-7. The second component has two traits, indicated by the `.spec.components[0].traits` field.
-8. The first trait in the second component named `autoscaler`, indicated by the `.spec.components[0].traits[0].name` field.
-The trait name refer to a TraitDefinition object named `autoscaler` which will define the trait schema.
-9. The `properties` field in the first trait in the second component is also a schema free field, its schema defends on the trait.
-10. The second trait in the second component named `sidecar` follows the same rule, refer to a TraitDefinition named `scaler` which will
-define the schema of the `properties` field.
+    }    
+    parameter: {
+        image: string    
+        cmd?: [...string]
+    }
+```
 
 
-## Application Object and K8s Resources
+Hence, the `settings` section of `backend` only supports two parameters: `image` and `cmd`, this is enforced by the `parameter` list of the `.spec.template` field of the definition.
 
-As you can see in the above example, the relationships of all these concepts are:
+The similar extensible abstraction mechanism also applies to traits. For example, `name: autoscaler` in `frontend` means its trait specification (i.e. `properties` section) will be enforced by a `TraitDefinition` object named `autoscaler` as below:
 
-* An application object composed by multiple components.
-* A component in the application composed by name, workload and multiple traits.
-* A workload composed by type and settings. The type refer to a WorkloadDefinition object which is the template of the workload type.
-The settings are parameter values which can fill with the template and generate the K8s resource.
-* A trait composed by name and properties. The name refer to a TraitDefinition object which is the template of the trait.
-The properties are parameter values which can fill with the template and generate the auxiliary K8s resources.
+> TBD: a autoscaler TraitDefinition (HPA)
 
-Beside the relationships, there are some standard contracts between application object and K8s resourcs.
+All the definition objects are expected to be defined and installed by platform team. The end users will only focus on `Application` resource (either render it by tools or author it manually).
 
-* The K8s resource generated by the workload will be tagged the following KubeVela system labels:
-  - `workload.oam.dev/type=<workload type name>` represents the name of the WorkloadDefinition object referred. 
-  In the example above, it is `worker` to the first component.
-  - `app.oam.dev/name=<app name>` represents the name of the application. In the example above, it is `website`.
-  - `app.oam.dev/component=<component name>` represents the name of the component in the application. In the example above,
-  it is `backend` to the first component.
-  - `trait.oam.dev/resource=<resource name of the auxiliary object>` represents the auxiliary K8s object resource name.
-  In the example above, we don't have this kind of resource, so this label could be empty.
-  It's an advanced usage for composed K8s resources in a workload type.
-  - revision will also be added, this part is still under development with revision mechanism.
-  
-* The K8s resource generated by the trait will be tagged the following KubeVela system labels:
-  - `trait.oam.dev/type=<trait name>` represents the name of the TraitDefinition object referred. 
-  In the example above, it is `autoscaler` to the first trait in the second component.
-  - `app.oam.dev/name=<app name>` represents the name of the application. In the example above, it is `website`.
-  - `app.oam.dev/component=<component name>` represents the name of the component in the application. In the example above,
-  it is `backend` to the first component.
-  - `trait.oam.dev/resource=<resource name of the auxiliary object>` represents the auxiliary K8s object resource name.
-  Look at the example below, the `scaler` in the template inside the outputs is the resource name of this trait.
-  ```yaml
-  apiVersion: core.oam.dev/v1alpha2
-  kind: TraitDefinition
-  metadata:
-    name: scaler
-  spec:
-    appliesToWorkloads:
-      - webservice
-      - worker
-    definitionRef:
-      name: manualscalertraits.core.oam.dev
-    workloadRefPath: spec.workloadRef
-    template: |
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
-      	spec: {
-      		replicaCount: parameter.replicas
-      	}
-      }
-      parameter: {
-      	//+short=r
-      	//+usage=Replicas of the workload
-      	replicas: *1 | int
-      }
-  ```
-  - revision will also be added, this part is still under development with revision mechanism.
+## Conventions and "Standard Contract"
 
-We will introduce more about the CUE template in the `CUE` section.
+After the `Application` resource is applied to Kubernetes cluster, the KubeVela runtime will generate and manage the underlying resources instances following below "standard contract" and conventions.
+
+
+| Label  | Description |
+| :--: | :---------: | 
+|`workload.oam.dev/type=<workload definition name>` | The name of its corresponding `WorkloadDefinition` |
+|`trait.oam.dev/type=<trait definition name>` | The name of its corresponding `TraitDefinition` | 
+|`app.oam.dev/name=<app name>` | The name of the application it belongs to |
+|`app.oam.dev/component=<component name>` | The name of the component it belongs to |
+|`trait.oam.dev/resource=<name of trait resource instance>` | The name of trait resource instance |
+
+> TBD: the revision names and labels for resource instances are currently work in progress.
+
+> TBD: a demo for kubectl apply above Application CR and show full detailed underlying resources.

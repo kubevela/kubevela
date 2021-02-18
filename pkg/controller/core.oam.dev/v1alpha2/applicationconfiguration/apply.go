@@ -378,6 +378,8 @@ func (a *workloads) applyScope(ctx context.Context, wl Workload, s unstructured.
 	return nil
 }
 
+// applyScopeRemoval remove the workload reference from the scope's reference list.
+// If the scope or scope definition is not found(deleted), it's still regarded as remove successfully.
 func (a *workloads) applyScopeRemoval(ctx context.Context, namespace string, wr runtimev1alpha1.TypedReference, s v1alpha2.WorkloadScope) error {
 	scopeObject := unstructured.Unstructured{}
 	scopeObject.SetAPIVersion(s.Reference.APIVersion)
@@ -394,6 +396,11 @@ func (a *workloads) applyScopeRemoval(ctx context.Context, namespace string, wr 
 
 	scopeDefinition, err := util.FetchScopeDefinition(ctx, a.rawClient, a.dm, &scopeObject)
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// if the scope definition is deleted
+			// treat it as removal done to avoid blocking AppConfig finalizer
+			return nil
+		}
 		return errors.Wrapf(err, errFmtGetScopeDefinition, scopeObject.GetAPIVersion(), scopeObject.GetKind(), scopeObject.GetName())
 	}
 

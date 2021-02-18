@@ -27,9 +27,11 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -296,6 +298,60 @@ func TestApplyWorkloads(t *testing.T) {
 					return nil
 				},
 				MockUpdate: func(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+					return nil
+				},
+			},
+			args: args{
+				w: []Workload{{
+					Workload: workload,
+					Traits:   []*Trait{{Object: *trait.DeepCopy()}},
+					Scopes:   []unstructured.Unstructured{},
+				}},
+				ws: []v1alpha2.WorkloadStatus{
+					{
+						Reference: v1alpha1.TypedReference{
+							APIVersion: workload.GetAPIVersion(),
+							Kind:       workload.GetKind(),
+							Name:       workload.GetName(),
+						},
+						Scopes: []v1alpha2.WorkloadScope{
+							{
+								Reference: v1alpha1.TypedReference{
+									APIVersion: scope.GetAPIVersion(),
+									Kind:       scope.GetKind(),
+									Name:       scope.GetName(),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		"SuccessRemovingWhenScopeDefinitionNotFound": {
+			reason:     "ScopeDefinition not found should not block dereference",
+			applicator: ApplyFn(func(_ context.Context, o runtime.Object, _ ...apply.ApplyOption) error { return nil }),
+			rawClient: &test.MockClient{
+				MockGet: func(_ context.Context, key client.ObjectKey, obj runtime.Object) error {
+					if key.Name == scope.GetName() {
+						scope := obj.(*unstructured.Unstructured)
+
+						refs := []interface{}{
+							map[string]interface{}{
+								"apiVersion": workload.GetAPIVersion(),
+								"kind":       workload.GetKind(),
+								"name":       workload.GetName(),
+							},
+						}
+
+						if err := fieldpath.Pave(scope.UnstructuredContent()).SetValue("spec.workloadRefs", refs); err == nil {
+							return err
+						}
+
+						return nil
+					}
+					if _, ok := obj.(*v1alpha2.ScopeDefinition); ok {
+						return apierrors.NewNotFound(schema.GroupResource{}, "test")
+					}
 					return nil
 				},
 			},

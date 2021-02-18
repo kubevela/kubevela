@@ -1,42 +1,22 @@
 # CUE Basic
 
-KubeVela use [CUE](https://cuelang.org/) as its template DSL. With the help of CUE, we can define simple but powerful
-template in Definition Objects and build abstraction for applications.
+This document will explain how to use [CUE](https://cuelang.org/) as templating module in KubeVela. Please make sure you have already learned about `Application` custom resource and how it leverage templating modules for application encapsulation and abstraction. 
 
-## Why CUE ? 
+## Why CUE? 
 
-Why does KubeVela choose CUE? [Points of Cedric Charly](https://blog.cedriccharly.com/post/20191109-the-configuration-complexity-curse/) speaks well,
-let me conclude here.
+The reasons for KubeVela supports CUE as first class templating solution can be concluded as below:
 
-* **CUE is designed for large scale configuration.**
- CUE deliberately opts for the graph unification model used in computational linguistics instead of the traditional
- inheritance model. The graph model can help KubeVela to build a clear view of resources' relationships and dependency.
- For large scale infrastructure, that will be a complex, tightly interconnected graph of
- resources that describes an organization's entire computing environment. In this case, CUE has the ability to understand a
- configuration worked on by engineers across a whole company and to safely change a value that modifies thousands of
- objects in a configuration.
-* **CUE supports first-class code generation and automation.**
- A design goal of CUE is to have code that is straightfoward for humans to write, but is also simple for machines to
- generate. This goal highly consistent with KubeVela which wants to offer abstractions to bridge the gap between concepts
- used by app developers and kubernetes. CUE can integrate with existing tools and workflows naturally while other tools
- would have to build complex custom solutions. CUE can generate Kubernetes definitions from Go code and OpenAPI schemas
- and immediately work with resources directly or build higher level libraries.
-* **CUE integrates very well with Go.**
- KubeVela is built with GO just like most projects of the while Kubernetes system. CUE is also implemented in and
- exposes a rich client API in Go. KubeVela integrates with CUE as its core library and works as a Kubernetes CRD controller.
- With the help of CUE, KubeVela can easily handle data constraint problems.
- 
-If you want to go deeper I recommend reading [The Logic of CUE](https://cuelang.org/docs/concepts/logic/)
-to understand the theoretical foundation and what makes CUE different from other configuration languages.
+- **CUE is designed for large scale configuration.** CUE has the ability to understand a
+ configuration worked on by engineers across a whole company and to safely change a value that modifies thousands of objects in a configuration. This aligns very well with KubeVela's original goal to define and ship production level applications at web scale.
+- **CUE supports first-class code generation and automation.** CUE can integrate with existing tools and workflows naturally while other tools would have to build complex custom solutions. For example, generate OpenAPI schemas wigh Go code. This is how KubeVela build developer tools and GUI interfaces based on the CUE templates.
+- **CUE integrates very well with Go.**
+ KubeVela is built with GO just like most projects in Kubernetes system. CUE is also implemented in and exposes a rich API in Go. KubeVela integrates with CUE as its core library and works as a Kubernetes controller. With the help of CUE, KubeVela can easily handle data constraint problems.
 
-## CUE in KubeVela
+> Pleas also check [The Configuration Complexity Curse](https://blog.cedriccharly.com/post/20191109-the-configuration-complexity-curse/) and [The Logic of CUE](https://cuelang.org/docs/concepts/logic/) for more details.
 
-Let's go back to discuss how does CUE be used in KubeVela. As you know, KubeVela helps platform builder to build abstraction
-from Kubernetes resources to an application. We will use a [K8s Deployment](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/)
-as example to explain how was it implemented.
+## Parameter and Template
 
-In KubeVela we usually build a WorkloadDefinition to generate K8s Deployment as it's workload-like resources.
-A complete WorkloadDefinition example like below:
+A very simple `WorkloadDefinition` is like below:
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -67,45 +47,45 @@ spec:
                         name:  parameter.name
                         image: parameter.image
                     }]
-                }}}
+                }
+            }
+        }
     }
 ```
 
-In this example, the `template` field is totally CUE, it contains two keywords, `output` and `parameter`.
-The `output` defines what will be rendering out by the template. The `parameter` defines the input parameters which can
-be part of the application. 
+The `template` field in this definition is a CUE module, it defines two keywords for KubeVela to build the application abstraction:
+- The `parameter` defines the input parameters from end user, i.e. the configurable fields in the abstraction.
+- The `output` defines the template for the abstraction. 
 
-Let's try to write the CUE template step by step.
+## CUE Template Step by Step
 
-As you see, below is a Deployment YAML, most of the fields can be hidden and only expose `image` and `env` field for end user.
+Let's say as the platform team, we only want to allow end user configure `image` and `name` fields in the `Application` abstraction, and automatically generate all rest of the fields. How can we use CUE to achieve this?
+
+We can start from the final resource we envision the platform will generate based on user inputs, for example:
 
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
 meadata:
-  name: mytest
+  name: mytest # user inputs
 spec:
   template:
     spec:
       containers:
-      - name: mytest
+      - name: mytest # user inputs
         env:
         - name: a
           value: b
-        image: nginx:v1
+        image: nginx:v1 # user inputs
     metadata:
       labels:
-        app.oam.dev/component: mytest
+        app.oam.dev/component: mytest # generate by user inputs
   selector:
     matchLabels:
-      app.oam.dev/component: mytest
+      app.oam.dev/component: mytest # generate by user inputs
 ```  
 
-The first step is to convert the YAML to JSON and put the whole json object into the `output` keyword field.
-CUE is a superset of JSON: any valid JSON file is a valid CUE file. It provides some conveniences such as you can omit
-some quotes from field names without special characters.
-
-Here is the converted result:
+Then we can just convert this YAML to JSON and put the whole JSON object into the `output` keyword field:
                                                                                                             
 ```cue
 output: {
@@ -126,21 +106,21 @@ output: {
                     image: "nginx:v1"
                     env: [{name:"a",value:"b"}]
                 }]
-            }}}
+            }
+        }
+    }
 }
 ```
 
-Here are all conveniences add by CUE as a superset of JSON:
+Since CUE as a superset of JSON, we can use:
 
-* C-style comments,
+* C style comments,
 * quotes may be omitted from field names without special characters,
 * commas at the end of fields are optional,
 * comma after last element in list is allowed,
 * outer curly braces are optional.
 
-After that we add `parameter` keyword into the template, and use it as a variable reference, this is basic CUE grammar.
-
-Fields of keyword `parameter` will be detected by KubeVela and be exposed to users using in application.
+After that, we can then add `parameter` keyword, and use it as a variable reference, this is the very basic CUE feature for templating.
 
 ```cue
 parameter: {
@@ -163,45 +143,50 @@ output: {
                     name:  parameter.name
                     image: parameter.image
                 }]
-            }}}
+            }
+        }
+    }
 }
 ```
 
-Finally, you can put the whole CUE template into the `template` field of WorkloadDefinition object. That's all you need
-to know to create a basic KubeVela capability.
+Finally, you can put the above CUE module in the `template` field of `WorkloadDefinition` object and give it a name. Then end users can now author `Application` resource reference this definition as workload type and only have `name` and `image` as configurable parameters.
 
-## More Advanced Usage of CUE Grammar in Definition
+## Advanced CUE Templating
 
-In this section, we will introduce some more advanced CUE grammar to use in KubeVela.  
+In this section, we will introduce advanced CUE templating features supports in KubeVela.  
 
-### Structural parameter
+### Structural Parameter
 
-If you have some complex type of parameters in your template, and want to define a struct or embed struct as parameters,
-then you could use structural parameter.
+This is the most commonly used feature. It enables us to expose complex data structure for end users. For example, environment variable list.
 
-1. Define a struct type in, it includes a struct, a string and an integer.
+A simple guide is as below:
+
+1. Define a type in the CUE template, it includes a struct (`other`), a string and an integer.
+
     ```
     #Config: {
-     name:  string
-     value: int
-     other: {
-       key: string
-       value: string
-     }
+       name:  string
+       value: int
+       other: {
+         key: string
+         value: string
+       }
     }
     ```
 
-2. Use the struct defined in the `parameter` keyword, and use it as an array list.
+2. In the `parameter` section, reference above type and define it as `[...#Config]`. Then it can accept inputs from end users as an array list.
+
     ```
     parameter: {
-     name: string
-     image: string
-     configSingle: #Config
-     config: [...#Config]
+       name: string
+       image: string
+       configSingle: #Config
+       config: [...#Config] # array list parameter
     }
     ```
 
-3. In `output` keyword, it's referenced the same way with other normal field s.
+3. In the `output` section, simply do templating as other parameters.
+
     ```
     output: {
        ...
@@ -216,30 +201,33 @@ then you could use structural parameter.
     }
     ```
 
-4. The structural field `config` can be easily used in Application like below:
-    ```
-    apiVersion: core.oam.dev/v1alpha2
-    kind: Application
-    metadata:
-      name: website
-    spec:
-      components:
-        - name: backend
-          type: mydeploy
-          settings:
-            image: crccheck/hello-world
-            name: mysvc
-            config:
-             - name: a
-               value: 1
-               other:
-                 key: mykey
-                 value: myvalue
-    ```
-    
+4. As long as you install a workload definition object (e.g. `mydeploy`) with above template in the system, a new field `config` will be available to use like below:
+   
+  ```yaml
+  apiVersion: core.oam.dev/v1alpha2
+  kind: Application
+  metadata:
+    name: website
+  spec:
+    components:
+      - name: backend
+        type: mydeploy
+        settings:
+          image: crccheck/hello-world
+          name: mysvc
+          config: # a complex parameter
+           - name: a
+             value: 1
+             other:
+               key: mykey
+               value: myvalue
+  ```
+
+
 ### Conditional Parameter
 
-Conditional parameter can be used to decide template condition logic. 
+Conditional parameter can be used to do `if..else` logic in template.
+
 Below is an example that when `useENV=true`, it will render env section, otherwise, it will not.
 
 ```
@@ -263,10 +251,11 @@ output: {
 }
 ```
 
-### Optional Parameter and Default Value
+### Optional and Default Value
 
-Optional parameter can be optional, that usually works with conditional logic. If some field does not exit, the CUE
-grammar is `if _variable_ != _|_`, the example is like below:
+Optional parameter can be skipped, that usually works together with conditional logic. 
+
+Specifically, if some field does not exit, the CUE grammar is `if _variable_ != _|_`, the example is like below:
 
 ```
 parameter: {
@@ -314,7 +303,7 @@ So if a parameter field is neither a parameter with default value nor a conditio
 
 ### Loop 
 
-#### Loop for map type
+#### Loop for Map
 
 ```cue
 parameter: {
@@ -338,7 +327,7 @@ output: {
 }
 ```
 
-#### Loop for slice
+#### Loop for Slice
 
 ```cue
 parameter: {
@@ -363,11 +352,11 @@ output: {
 }
 ```
 
-### Import CUE internal packages
+### Import CUE Internal Packages
 
-CUE has [lots of internal packages](https://pkg.go.dev/cuelang.org/go@v0.2.2/pkg) which also can be used in KubeVela.
+CUE has many [internal packages](https://pkg.go.dev/cuelang.org/go@v0.2.2/pkg) which also can be used in KubeVela.
 
-Below is an example that use `strings.Join` to concat string list to one string. 
+Below is an example that use `strings.Join` to `concat` string list to one string. 
 
 ```cue
 import ("strings")
@@ -387,15 +376,6 @@ output: {
 }
 ```
 
+## Summary
 
-
-
-
-
-
-
-
-
-
-
-
+Overall, CUE is a very powerful templating language which could help platform team create extensible application encapsulation and abstraction with ease.

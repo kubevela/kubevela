@@ -1,45 +1,26 @@
 - Overview
   - [Introduction](/en/introduction.md)
-  - [Getting Started](/en/quick-start.md)
-  - [Concepts and Glossaries](/en/concepts.md)
+  - [Installation](/en/install.md)
+  - [Core Concepts](/en/concepts.md)
 
-- Platform Team Guide
-  - [What is KubeVela?](/en/platform-engineers/overview.md)
-  - Designing Abstraction
-    - [Application CRD](/en/application.md)
-    - CUE
-      - [CUE Basic](/en/cue/basic.md)
-      - [Workload Type](/en/cue/workload-type.md)
-      - [Trait](/en/cue/trait.md)
-      - [Status](/en/cue/status.md)
-  - Register Capability Modules
-    - [Workload Type](/en/platform-engineers/workload-type.md)
-    - [Trait](/en/platform-engineers/trait.md)
-    - [Cloud Services](/en/platform-engineers/cloud-services.md)
-
-- End User Guide
-  - Appfile
-    - [Learning Appfile](/en/developers/learn-appfile.md)
-  - Debugging
-    - [Port Forwarding](/en/developers/port-forward.md)
-    - [Check Application Logs](/en/developers/check-logs.md)
-    - [Execute Commands in Container](/en/developers/exec-cmd.md)  
-  - Extending
-    - [Managing Capabilities](/en/developers/cap-center.md)
-    - [Setting Routes](/en/developers/extensions/set-route.md)
-    - [Setting Auto-scaling Policy](/en/developers/extensions/set-autoscale.md)
-    - [Setting Rollout Strategy](/en/developers/extensions/set-rollout.md)
-    - [Setting Monitoring Policy](/en/developers/extensions/set-metrics.md)
-  - Configuring
-    - [Setting Up Deployment Environment](/en/developers/config-enviroments.md)
-    - [Configuring data/env in Application](/en/developers/config-app.md)
-  - [Alternative Commands](/en/developers/alternative-cmd.md)
+- Guides 
+  - [Application Encapsulation](/en/platform-engineers/overview.md)
+    - [Designing Application](/en/application.md)
+    - Managing Template Modules
+      - Definitions
+        - [Workload Type](/en/platform-engineers/workload-type.md)
+        - [Trait](/en/platform-engineers/trait.md)
+        - [Cloud Services](/en/platform-engineers/cloud-services.md)
+      - CUE
+        - [CUE Basic](/en/cue/basic.md)
+        - [Workload Type](/en/cue/workload-type.md)
+        - [Trait](/en/cue/trait.md)
+        - [Advanced Features](/en/cue/status.md)
 
 - Roadmap
   - [KubeVela Roadmap](/en/roadmap.md)
 
 - References
-  - [Appfile](/en/developers/references/devex/appfile.md)
   - [Capabilities](/en/developers/references/README.md)
     - Workload Types
       - [Webservice](/en/developers/references/workload-types/webservice.md)
@@ -51,7 +32,7 @@
       - [Rollout](/en/developers/references/traits/rollout.md)
       - [Metrics](/en/developers/references/traits/metrics.md)
       - [Scaler](/en/developers/references/traits/scaler.md)
-  - [Restful APi](/en/developers/references/restful-api/index.html ':ignore')
+    - [Restful APi](/en/developers/references/restful-api/index.html ':ignore')
   - CLI
     - General
       - [vela config](/en/cli/vela_config.md)
@@ -85,4 +66,22 @@
       - [vela template](/en/cli/vela_template.md)
     - Extensibility
       - [vela cap](/en/cli/vela_cap.md)
-  - [FAQ](/en/developers/references/devex/faq.md)
+  - Developer Experience
+    - [Overview](/en/quick-start.md)
+    - [Appfile](/en/developers/learn-appfile.md)
+    - CLI
+      - Debugging
+        - [Port Forwarding](/en/developers/port-forward.md)
+        - [Check Application Logs](/en/developers/check-logs.md)
+        - [Execute Commands in Container](/en/developers/exec-cmd.md)  
+      - Extending
+        - [Managing Capabilities](/en/developers/cap-center.md)
+        - [Setting Routes](/en/developers/extensions/set-route.md)
+        - [Setting Auto-scaling Policy](/en/developers/extensions/set-autoscale.md)
+        - [Setting Rollout Strategy](/en/developers/extensions/set-rollout.md)
+        - [Setting Monitoring Policy](/en/developers/extensions/set-metrics.md)
+      - Configuring
+        - [Setting Up Deployment Environment](/en/developers/config-enviroments.md)
+        - [Configuring data/env in Application](/en/developers/config-app.md)
+      - [Alternative Commands](/en/developers/alternative-cmd.md)
+- [FAQ](/en/developers/references/devex/faq.md)

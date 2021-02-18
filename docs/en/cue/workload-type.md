@@ -1,13 +1,12 @@
-# Workload Type with CUE
+# Defining Workload Types
 
-In the [CUE basic section](./basic.md), we have explained how CUE works as template of Workload Type and Trait.
-In this section, we will introduce more details about workload type.
+In this section, we will introduce more examples of using CUE to define workload types.
 
 ## Basic Usage
 
-The very basic usage of CUE in workload is to extend a K8s Resource as a workload type(WorkloadDefinition).
+The very basic usage of CUE in workload is to extend a Kubernetes resource as a workload type(via `WorkloadDefinition`) and expose configurable parameters to users.
 
-A K8s Deployment as a workload:
+A Deployment as workload type:
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -42,7 +41,7 @@ spec:
     }
 ```
 
-A K8s Job as workload:
+A Job as workload type:
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -80,13 +79,11 @@ spec:
     }   
 ```
 
-Other resources are the same, you can define all K8s resources include CRD in this way.
-
 ## Context
 
-When you want to reference the runtime instance name for an app, you can use the `conext` keyword instead of define a new parameter.
+When you want to reference the runtime instance name for an app, you can use the `conext` keyword to define `parameter`.
 
-KubeVela will provide a `context` struct including app name(`context.appName`) and component name(`context.name`).
+KubeVela runtime provides a `context` struct including app name(`context.appName`) and component name(`context.name`).
 
 ```cue
 context: {
@@ -95,8 +92,8 @@ context: {
 }
 ```
 
-Values of the context will be injected automatically when an application is deploying.
-So you can reference the context variable to use this information.
+Values of the context will be automatically generated before the underlying resources are applied.
+This is why you can reference the context variable as value in the template.
 
 ```yaml
 parameter: {
@@ -116,16 +113,11 @@ output: {
 
 ## Composition
 
-A workload type can contain multiple K8s resources, for example, a webserver workload type may be composed by
-K8s Deployment and Service.
+A workload type can contain multiple Kubernetes resources, for example, we can define a `webserver` workload type that is composed by Deployment and Service.
 
-The main workload resource MUST be defined in keyword `output` while the auxiliary workload resources MUST be defined
-in keyword `outputs` with a resource name inside.
+Note that in this case, you MUST define the template of component instance in `output` section, and leave all the other templates in `outputs` with resource name claimed. The format MUST be `outputs:<unique-name>:<full template>`.
 
-The format MUST be `outputs:<unique-name>:<k8s-object>`.
-
-In the underlying OAM model, the `output` resource will become the `workload` object while the `outputs` resources will
-become traits. 
+> This is how KubeVela know which resource is the running instance of the application component.
 
 Below is the example: 
 
@@ -135,7 +127,7 @@ kind: WorkloadDefinition
 metadata:
   name: webserver
   annotations:
-    definition.oam.dev/description: "webserver was composed by deployment and service"
+    definition.oam.dev/description: "webserver is a combo of Deployment + Service"
 spec:
   definitionRef:
     name: deployments.apps
@@ -181,11 +173,11 @@ spec:
     						}
     					}
     				}]
-    		}
+    		    }
     		}
     	}
     }
-    // workload can have extra object composition by using 'outputs' keyword
+    // an extra template
     outputs: service: {
     	apiVersion: "v1"
     	kind:       "Service"
@@ -219,9 +211,5 @@ spec:
     }
 ```
 
-The main workload inside the `output` keyword is a K8s Deployment. The auxiliary resources inside the `outputs` field
-is a K8s service, the resource name in the CUE template is `service` after the `outputs` keyword.
-
-The resource name will also be labeled on the K8s resource when it is deployed. In this example, the K8s Service will have
-a label(`trait.oam.dev/resource=service`).
+> TBD: a generated resource example for above workload definition.
 
