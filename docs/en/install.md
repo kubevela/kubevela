@@ -198,7 +198,7 @@ $ kubectl delete crd \
 
 Here are some recommended next steps:
 
-- Learn about KubeVela in detail from its [core concepts](/en/concepts.md)
+- Learn KubeVela starting from its [core concepts](/en/concepts.md)
 - Join `#kubevela` channel in CNCF [Slack](https://cloud-native.slack.com) and/or [Gitter](https://gitter.im/oam-dev/community)
 
 Welcome onboard and sail Vela!
