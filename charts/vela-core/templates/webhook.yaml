@@ -147,6 +147,28 @@ webhooks:
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
+        path: /validating-core-oam-dev-v1alpha2-traitdefinitions
+    failurePolicy: Fail
+    name: validating.core.oam.dev.v1alpha2.traitdefinitions
+    rules:
+      - apiGroups:
+          - core.oam.dev
+        apiVersions:
+          - v1alpha2
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - traitdefinitions
+        scope: Cluster
+    admissionReviewVersions: 
+      - v1beta1
+    timeoutSeconds: 5
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
         path: /validate-standard-oam-dev-v1alpha1-metricstrait
     failurePolicy: Fail
     name: vmetricstrait.kb.io

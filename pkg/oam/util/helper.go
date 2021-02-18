@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/runtime"
-
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-logr/logr"
@@ -23,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -353,6 +352,22 @@ func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef v1al
 		}
 	}
 	return kinds[0], nil
+}
+
+// GetObjectsGivenGVKAndLabels fetches the kubernetes object given its gvk and labels by list API
+func GetObjectsGivenGVKAndLabels(ctx context.Context, cli client.Reader,
+	gvk schema.GroupVersionKind, namespace string, labels map[string]string) (*unstructured.UnstructuredList, error) {
+	unstructuredObjList := &unstructured.UnstructuredList{}
+	apiVersion := metav1.GroupVersion{
+		Group:   gvk.Group,
+		Version: gvk.Version,
+	}.String()
+	unstructuredObjList.SetAPIVersion(apiVersion)
+	unstructuredObjList.SetKind(gvk.Kind)
+	if err := cli.List(ctx, unstructuredObjList, client.MatchingLabels(labels), client.InNamespace(namespace)); err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to get obj with labels %+v and gvk %+v ", labels, gvk))
+	}
+	return unstructuredObjList, nil
 }
 
 // GetObjectGivenGVKAndName fetches the kubernetes object given its gvk and name

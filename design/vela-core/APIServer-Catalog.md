@@ -4,14 +4,14 @@
 
 In KubeVela, APIServer provides the RESTful API for external systems (e.g. UI) to manage Vela abstractions like Applications, Definitions; Catalog stores templates to install common-off-the-shell (COTS) capabilities on Kubernetes.
 
-This doc provides a top-down architecture design for Vela APIServer and Catalog. It clarifies the API interfaces for platform builders to build integration solutions, and describes the architecture design in details for incoming roadmap. Some of the interfaces might have not been implemented yet, but we will follow this design in the future project roadmap.
+This doc provides a top-down architecture design for Vela APIServer and Catalog. It clarifies the API interfaces for platform builders to build integration solutions and describes the architecture design in details for the incoming roadmap. Some of the interfaces might have not been implemented yet, but we will follow this design in the future project roadmap.
 
 ## Motivation
 
 This design is based on and tries to resolve the following use cases:
 
 1. UI component wants to discover APIs to integrate with Vela APIServer.
-1. Users want to manage multiple clusters, catalogs, configuration environments in a single place.
+1. Users want to manage multiple clusters, catalogues, configuration environments in a single place.
 1. The management data can be stored in a cloud database like MySQL instead of k8s control plane.
     1. Because there aren't control logic for those data. This is unlike other Vela resources stored as CR in K8s control plane.
     1. It is more expensive to host a k8s control plane than MySQL database on cloud.
@@ -250,7 +250,7 @@ The structure of one package version contains:
 
 - `definitions`: definition files that describe the capabilities from this package to enable on a cluster. Note that these definitions will compared against a cluster on APIServer side to see if a cluster can install or upgrade this package.
 
-- `conditions/`: definingg conditional checks before deploying this package. For example, check if a CRD with specific version exist, if not then the deployment should fail.
+- `conditions/`: defining conditional checks before deploying this package. For example, check if a CRD with specific version exist, if not then the deployment should fail.
 
   ```yaml
   # check-crd.yaml
@@ -301,7 +301,7 @@ The structure of one package version contains:
 
 Please refer to `/catalogs/<catalog>` API endpoint above.
 
-Under the hood, APIServer will scan the catalog repo based on the predefined structure to parse each packages and versions.
+Under the hood, APIServer will scan the catalog repo based on the predefined structure to parse each packag and versions.
 
 #### Sync a catalog in APIServer
 
@@ -315,7 +315,7 @@ Vela APIServer aggregates package information from multiple catalog servers. To 
 
 ![alt](../../docs/resources/catalog-workflow.jpg)
 
-In our future roadmap, we will build a catalog controller for each k8s cluster. Then we will add API endpoint to install the package in APIServer which basically creates a CR to trigger the controller to reconcile package installation into the cluster. We choose this instead of APIServer installing the package because in this way we can bypass the APIServer in the package data transfer path and avoid APIServer becoming single point of failure.
+In our future roadmap, we will build a catalog controller for each k8s cluster. Then we will add API endpoint to install the package in APIServer which basically creates a CR to trigger the controller to reconcile package installation into the cluster. We choose this instead of APIServer installing the package because in this way we can bypass the APIServer in the package data transfer path and avoid APIServer becoming a single point of failure.
 
 ## Examples
 
@@ -323,7 +323,7 @@ In our future roadmap, we will build a catalog controller for each k8s cluster. 
 
 ### Package parameters
 
-We can parse the schema of parameters from Helm Chart or Terraform. For example, Helm supports [value schema file](https://www.arthurkoziel.com/validate-helm-chart-values-with-json-schemas/) for input validation and there is an [automation tool](https://github.com/karuppiah7890/helm-schema-gen] to generate the schema.
+We can parse the schema of parameters from Helm Chart or Terraform. For example, Helm supports [value schema file](https://www.arthurkoziel.com/validate-helm-chart-values-with-json-schemas/) for input validation and there is an [automation tool](https://github.com/karuppiah7890/helm-schema-gen) to generate the schema.
 
 ### Package dependency
 
@@ -331,8 +331,8 @@ Instead of having multiple definitions in one package, we could define that one 
 
 To provide a bundle of definitions, we could define package dependency. So a parent package could depend on multiple atomic packages to provide a full-fledged capability.
 
-Package dependency solution will simplify the structure and provide more atomic packages. But this is not a simple problem and beyond the current scope. We will add this on future roadmap.
+Package dependency solution will simplify the structure and provide more atomic packages. But this is not a simple problem and beyond the current scope. We will add this on the future roadmap.
 
 ### Multi-tenancy
 
-For initial version we plan to implement APIServer without multi-tenancy. But as an applicatio platform we expect multi-tenancy is a necessary part of Vela. We will keep API compatibility and might add some sort of auth token (e.g. JWT) as a query parameter in the future.
+For initial version we plan to implement APIServer without multi-tenancy. But as an application platform we expect multi-tenancy is a necessary part of Vela. We will keep API compatibility and might add some sort of auth token (e.g. JWT) as a query parameter in the future.

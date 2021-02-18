@@ -103,8 +103,7 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if deployStatus != compStatusDeployed {
 				return nil
 			}
-
-			return printComponentStatus(context.Background(), o.client, o.IOStreams, o.workloadName, o.appName, o.Env)
+			return printAppStatus(context.Background(), newClient, ioStreams, o.appName, o.Env, cmd)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,

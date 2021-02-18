@@ -315,9 +315,13 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 			switch val.IncompleteKind() {
 			case cue.StructKind:
 				depth := *recurseDepth
-				// TODO(zzxwill) this case not processed  `selector?: [string]: string`
-				if name == "selector" {
-					param.PrintableType = "map[string]string"
+				if subField, _ := val.Struct(); subField.Len() == 0 { // err cannot be not nil,so ignore it
+					if mapValue, ok := val.Elem(); ok {
+						// In the future we could recursive call to surpport complex map-value(struct or list)
+						param.PrintableType = fmt.Sprintf("map[string]%s", mapValue.IncompleteKind().String())
+					} else {
+						return fmt.Errorf("failed to got Map kind from %s", param.Name)
+					}
 				} else {
 					if err := ref.parseParameters(val, name, depth); err != nil {
 						return err

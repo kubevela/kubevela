@@ -24,8 +24,11 @@ import (
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -76,13 +79,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		app.Status.Phase = v1alpha2.ApplicationRollingOut
 		app.Status.SetConditions(readyCondition("Rolling"))
 		// do not process apps still in rolling out
-		return ctrl.Result{RequeueAfter: RolloutReconcileWaitTime}, r.Status().Update(ctx, app)
+		return ctrl.Result{RequeueAfter: RolloutReconcileWaitTime}, r.UpdateStatus(ctx, app)
 	}
 
 	applog.Info("Start Rendering")
 
 	app.Status.Phase = v1alpha2.ApplicationRendering
-	handler := &reter{r.Client, app, applog}
+	handler := &appHandler{r, app, applog}
 
 	app.Status.Conditions = []v1alpha1.Condition{}
 
@@ -109,9 +112,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	app.Status.SetConditions(readyCondition("Built"))
-
-	applog.Info("apply applicationconfig & component to the cluster")
-	// apply applicationconfig & component to the cluster
+	applog.Info("apply appConfig & component to the cluster")
+	// apply appConfig & component to the cluster
 	if err := handler.apply(ctx, ac, comps); err != nil {
 		handler.l.Error(err, "[Handle apply]")
 		app.Status.SetConditions(errorCondition("Applied", err))
@@ -120,13 +122,22 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	app.Status.SetConditions(readyCondition("Applied"))
 
+	app.Status.Phase = v1alpha2.ApplicationHealthChecking
 	applog.Info("check application health status")
 	// check application health status
-	if err := handler.healthCheck(appfile); err != nil {
+	appCompStatus, healthy, err := handler.statusAggregate(appfile)
+	if err != nil {
 		app.Status.SetConditions(errorCondition("HealthCheck", err))
 		return handler.Err(err)
 	}
+	if !healthy {
+		app.Status.SetConditions(errorCondition("HealthCheck", errors.New("not healthy")))
 
+		app.Status.Services = appCompStatus
+		// unhealthy will check again after 10s
+		return ctrl.Result{RequeueAfter: time.Second * 10}, r.Status().Update(ctx, app)
+	}
+	app.Status.Services = appCompStatus
 	app.Status.SetConditions(readyCondition("HealthCheck"))
 	app.Status.Phase = v1alpha2.ApplicationRunning
 	// Gather status of components
@@ -140,7 +151,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		})
 	}
 	app.Status.Components = refComps
-	return ctrl.Result{}, r.Status().Update(ctx, app)
+	return ctrl.Result{}, r.UpdateStatus(ctx, app)
 }
 
 // SetupWithManager install to manager
@@ -149,6 +160,18 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha2.Application{}).
 		Complete(r)
+}
+
+// UpdateStatus updates v1alpha2.Application's Status with retry.RetryOnConflict
+func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1alpha2.Application, opts ...client.UpdateOption) error {
+	status := app.DeepCopy().Status
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+		if err = r.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: app.Name}, app); err != nil {
+			return
+		}
+		app.Status = status
+		return r.Status().Update(ctx, app, opts...)
+	})
 }
 
 // Setup adds a controller that reconciles ApplicationDeployment.

@@ -54,10 +54,7 @@ vela-cli:
 	git checkout cmd/vela/fake/chart_source.go
 
 dashboard-build:
-	cd dashboard && yarn build && cd ./..
-
-dashboard-install:
-	cd dashboard && yarn && cd ./..
+	cd dashboard && npm install && cd ..
 
 doc-gen:
 	rm -r docs/en/cli/*
@@ -248,7 +245,7 @@ endif
 
 start-dashboard:
 	go run pkg/server/main/startAPIServer.go &
-	cd dashboard && yarn && yarn start && cd ..
+	cd dashboard && npm install && npm start && cd ..
 
 swagger-gen:
 	$(GOBIN)/swag init -g server/route.go -d pkg/ -o pkg/server/docs/

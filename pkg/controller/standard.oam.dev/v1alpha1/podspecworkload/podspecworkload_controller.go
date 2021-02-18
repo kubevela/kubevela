@@ -30,7 +30,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -151,7 +153,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		})
 	}
 
-	if err := r.Status().Update(ctx, &workload); err != nil {
+	if err := r.UpdateStatus(ctx, &workload); err != nil {
 		return util.ReconcileWaitResult, err
 	}
 	return ctrl.Result{}, util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileSuccess())
@@ -275,6 +277,18 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.PodSpecWorkload{}).
 		Complete(r)
+}
+
+// UpdateStatus updates *v1alpha1.PodSpecWorkload's Status with retry.RetryOnConflict
+func (r *Reconciler) UpdateStatus(ctx context.Context, workload *v1alpha1.PodSpecWorkload, opts ...client.UpdateOption) error {
+	status := workload.DeepCopy().Status
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+		if err = r.Get(ctx, types.NamespacedName{Namespace: workload.Namespace, Name: workload.Name}, workload); err != nil {
+			return
+		}
+		workload.Status = status
+		return r.Status().Update(ctx, workload, opts...)
+	})
 }
 
 // Setup adds a controller that reconciles PodSpecWorkload.

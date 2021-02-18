@@ -43,6 +43,9 @@ type RouteSpec struct {
 
 	// Provider indicate which ingress controller implementation the route trait will use, by default it's nginx-ingress
 	Provider string `json:"provider,omitempty"`
+
+	// IngressClass indicate which ingress class the route trait will use, by default it's nginx
+	IngressClass string `json:"ingressClass,omitempty"`
 }
 
 // Rule defines to route rule

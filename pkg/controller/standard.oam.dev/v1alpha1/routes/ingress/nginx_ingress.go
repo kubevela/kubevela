@@ -121,7 +121,7 @@ func (*Nginx) Construct(routeTrait *standardv1alpha1.Route) []*v1beta1.Ingress {
 
 		var annotations = make(map[string]string)
 
-		annotations["kubernetes.io/ingress.class"] = TypeNginx
+		annotations["kubernetes.io/ingress.class"] = routeTrait.Spec.IngressClass
 
 		// SSL
 		if routeTrait.Spec.TLS != nil {

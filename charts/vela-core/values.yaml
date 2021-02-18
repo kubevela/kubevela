@@ -4,6 +4,8 @@
 
 replicaCount: 1
 installCertManager: false
+# Valid applyOnceOnly values: true/false/on/off/force
+applyOnceOnly: "off"
 useWebhook: true
 # By default, don't disable any builtin capabilities
 disableCaps: ""

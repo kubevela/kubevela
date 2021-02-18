@@ -16,15 +16,33 @@ limitations under the License.
 
 package core_oam_dev
 
+// ApplyOnceOnlyMode enumerates ApplyOnceOnly modes.
+type ApplyOnceOnlyMode string
+
+const (
+	// ApplyOnceOnlyOff indicates workloads and traits should always be affected.
+	// It means ApplyOnceOnly is disabled.
+	ApplyOnceOnlyOff ApplyOnceOnlyMode = "off"
+
+	// ApplyOnceOnlyOn indicates workloads and traits should not be affected
+	// if no spec change is made in the ApplicationConfiguration.
+	ApplyOnceOnlyOn = "on"
+
+	// ApplyOnceOnlyForce is a more strong case for ApplyOnceOnly, the workload
+	// and traits won't be affected if no spec change is made in the ApplicationConfiguration,
+	// even if the workload or trait has been deleted from cluster.
+	ApplyOnceOnlyForce = "force"
+)
+
 // Args args used by controller
 type Args struct {
 	// RevisionLimit is the maximum number of revisions that will be maintained.
 	// The default value is 50.
 	RevisionLimit int
 
-	// ApplyOnceOnly indicates whether workloads and traits should be
+	// ApplyMode indicates whether workloads and traits should be
 	// affected if no spec change is made in the ApplicationConfiguration.
-	ApplyOnceOnly bool
+	ApplyMode ApplyOnceOnlyMode
 
 	// CustomRevisionHookURL is a webhook which will let oam-runtime to call with AC+Component info
 	// The webhook server will return a customized component revision for oam-runtime

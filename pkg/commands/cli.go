@@ -26,7 +26,7 @@ func NewCommand() *cobra.Command {
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			allCommands := cmd.Commands()
-			cmd.Printf("✈️  An Easy-to-use yet Fully Extensible App Platform based on Kubernetes and Open Application Model.\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
+			cmd.Printf("A Highly Extensible Platform Engine based on Kubernetes and Open Application Model.\n\nUsage:\n  vela [flags]\n  vela [command]\n\nAvailable Commands:\n\n")
 			PrintHelpByTag(cmd, allCommands, types.TypeStart)
 			PrintHelpByTag(cmd, allCommands, types.TypeApp)
 			PrintHelpByTag(cmd, allCommands, types.TypeCap)
@@ -58,11 +58,11 @@ func NewCommand() *cobra.Command {
 		NewInitCommand(commandArgs, ioStream),
 		NewUpCommand(commandArgs, ioStream),
 		NewExportCommand(commandArgs, ioStream),
+		NewCapabilityShowCommand(commandArgs, ioStream),
 
 		// Apps
 		NewListCommand(commandArgs, ioStream),
 		NewDeleteCommand(commandArgs, ioStream),
-		NewAppShowCommand(commandArgs, ioStream),
 		NewAppStatusCommand(commandArgs, ioStream),
 		NewExecCommand(commandArgs, ioStream),
 		NewPortForwardCommand(commandArgs, ioStream),
@@ -81,6 +81,7 @@ func NewCommand() *cobra.Command {
 		NewDashboardCommand(commandArgs, ioStream, fake.FrontendSource),
 		NewCompletionCommand(),
 		NewVersionCommand(),
+		NewHelpCommand(),
 	)
 
 	// this is for mute klog
@@ -89,19 +90,6 @@ func NewCommand() *cobra.Command {
 	_ = fset.Set("v", "-1")
 
 	return cmds
-}
-
-// PrintHelpByTag print custom defined help message
-func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
-	cmd.Printf("  %s:\n\n", tag)
-	table := newUITable()
-	for _, c := range all {
-		if val, ok := c.Annotations[types.TagCommandType]; ok && val == tag {
-			table.AddRow("    "+c.Use, c.Long)
-		}
-	}
-	cmd.Println(table.String())
-	cmd.Println()
 }
 
 // NewVersionCommand print client version

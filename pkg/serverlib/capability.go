@@ -2,6 +2,7 @@ package serverlib
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -91,9 +92,9 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 	switch tp.Type {
 	case types.TypeWorkload:
 		var wd v1alpha2.WorkloadDefinition
-		workloadData, err := ioutil.ReadFile(filepath.Clean(filepath.Join(repoDir, tp.CrdName+".yaml")))
+		workloadData, err := ioutil.ReadFile(filepath.Clean(filepath.Join(repoDir, tp.Name+".yaml")))
 		if err != nil {
-			return nil
+			return err
 		}
 		if err = yaml.Unmarshal(workloadData, &wd); err != nil {
 			return err
@@ -114,14 +115,18 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 			APIVersion: gvk.GroupVersion().String(),
 			Kind:       gvk.Kind,
 		}
+		err = addSourceIntoExtension(wd.Spec.Extension, tp.Source)
+		if err != nil {
+			return err
+		}
 		if err = client.Create(context.Background(), &wd); err != nil && !apierrors.IsAlreadyExists(err) {
 			return err
 		}
 	case types.TypeTrait:
 		var td v1alpha2.TraitDefinition
-		traitdata, err := ioutil.ReadFile(filepath.Clean(filepath.Join(repoDir, tp.CrdName+".yaml")))
+		traitdata, err := ioutil.ReadFile(filepath.Clean(filepath.Join(repoDir, tp.Name+".yaml")))
 		if err != nil {
-			return nil
+			return err
 		}
 		if err = yaml.Unmarshal(traitdata, &td); err != nil {
 			return err
@@ -144,6 +149,10 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 		tp.CrdInfo = &types.CRDInfo{
 			APIVersion: gvk.GroupVersion().String(),
 			Kind:       gvk.Kind,
+		}
+		err = addSourceIntoExtension(td.Spec.Extension, tp.Source)
+		if err != nil {
+			return err
 		}
 		if err = client.Create(context.Background(), &td); err != nil && !apierrors.IsAlreadyExists(err) {
 			return err
@@ -191,7 +200,7 @@ func GetCapabilityFromCenter(repoName, addonName string) (types.Capability, erro
 			return t, nil
 		}
 	}
-	return types.Capability{}, fmt.Errorf("%s/%s not exist, try vela cap:center:sync %s to sync from remote", repoName, addonName, repoName)
+	return types.Capability{}, fmt.Errorf("%s/%s not exist, try 'vela cap center sync %s' to sync from remote", repoName, addonName, repoName)
 }
 
 // ListCapabilityCenters will list all capabilities from center
@@ -303,13 +312,17 @@ func uninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 	capdir, _ := system.GetCapabilityDir()
 	switch cap.Type {
 	case types.TypeTrait:
-		return os.Remove(filepath.Join(capdir, "traits", cap.Name))
+		if err := os.Remove(filepath.Join(capdir, "traits", cap.Name)); err != nil {
+			return err
+		}
 	case types.TypeWorkload:
-		return os.Remove(filepath.Join(capdir, "workloads", cap.Name))
+		if err := os.Remove(filepath.Join(capdir, "workloads", cap.Name)); err != nil {
+			return err
+		}
 	case types.TypeScope:
 		// TODO(wonderflow): add scope remove here.
 	}
-	ioStreams.Infof("%s removed successfully", cap.Name)
+	ioStreams.Infof("Successfully uninstalled capability %s", cap.Name)
 	return nil
 }
 
@@ -416,4 +429,19 @@ func checkInstallStatus(repoName string, tmp types.Capability) string {
 		}
 	}
 	return status
+}
+
+func addSourceIntoExtension(in *runtime.RawExtension, source *types.Source) error {
+	var extension map[string]interface{}
+	err := json.Unmarshal(in.Raw, &extension)
+	if err != nil {
+		return err
+	}
+	extension["source"] = source
+	data, err := json.Marshal(extension)
+	if err != nil {
+		return err
+	}
+	in.Raw = data
+	return nil
 }

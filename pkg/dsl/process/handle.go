@@ -12,55 +12,72 @@ import (
 // Context defines Rendering Context Interface
 type Context interface {
 	SetBase(base model.Instance)
-	PutAssistants(insts ...Assistant)
+	AppendAuxiliaries(auxiliaries ...Auxiliary)
 	SetConfigs(configs []map[string]string)
-	Output() (model.Instance, []Assistant)
-	Compile(label string) string
+	Output() (model.Instance, []Auxiliary)
+	BaseContextFile() string
+	BaseContextLabels() map[string]string
 }
 
-// Assistant are objects rendered by definition template.
-type Assistant struct {
+// Auxiliary are objects rendered by definition template.
+type Auxiliary struct {
 	Ins model.Instance
 	// Type will be used to mark definition label for OAM runtime to get the CRD
 	// It's now required for trait and main workload object. Extra workload CR object will not have the type.
 	Type string
+
+	// Workload or trait with multiple `outputs` will have a name, if name is empty, than it's the main of this type.
+	Name string
+
+	// IsOutputs will record the output path format of the Auxiliary
+	// it can be one of these two cases:
+	// false: the format is `output`, this means it's the main resource of the trait
+	// true: the format is `outputs.<resourceName>`, this means it can be auxiliary workload or trait
+	IsOutputs bool
 }
 
-type context struct {
-	name       string
-	configs    []map[string]string
-	base       model.Instance
-	assistants []Assistant
+type templateContext struct {
+	// name is the component name of Application
+	name string
+	// appName is the name of Application
+	appName     string
+	configs     []map[string]string
+	base        model.Instance
+	auxiliaries []Auxiliary
+
+	// TODO(wonderflow): add a revision number here, and it should be a suffix combined with appName to be the name of AppConfig
 }
 
-// NewContext create render context
-func NewContext(name string) Context {
-	return &context{
-		name:       name,
-		configs:    []map[string]string{},
-		assistants: []Assistant{},
+// NewContext create render templateContext
+func NewContext(name, appName string) Context {
+	return &templateContext{
+		name:        name,
+		appName:     appName,
+		configs:     []map[string]string{},
+		auxiliaries: []Auxiliary{},
 	}
 }
 
-// SetBase set context base model
-func (ctx *context) SetConfigs(configs []map[string]string) {
+// SetBase set templateContext base model
+func (ctx *templateContext) SetConfigs(configs []map[string]string) {
 	ctx.configs = configs
 }
 
-// SetBase set context base model
-func (ctx *context) SetBase(base model.Instance) {
+// SetBase set templateContext base model
+func (ctx *templateContext) SetBase(base model.Instance) {
 	ctx.base = base
 }
 
-// PutAssistants add Assist model to context
-func (ctx *context) PutAssistants(insts ...Assistant) {
-	ctx.assistants = append(ctx.assistants, insts...)
+// AppendAuxiliaries add Assist model to templateContext
+func (ctx *templateContext) AppendAuxiliaries(auxiliaries ...Auxiliary) {
+	ctx.auxiliaries = append(ctx.auxiliaries, auxiliaries...)
 }
 
-// Compile return cue format string of context
-func (ctx *context) Compile(label string) string {
+// BaseContextFile return cue format string of templateContext
+func (ctx *templateContext) BaseContextFile() string {
 	var buff string
 	buff += fmt.Sprintf("name: \"%s\"\n", ctx.name)
+	buff += fmt.Sprintf("appName: \"%s\"\n", ctx.appName)
 
 	if ctx.base != nil {
 		buff += fmt.Sprintf("input: %s\n", structMarshal(ctx.base.String()))
@@ -71,16 +88,22 @@ func (ctx *context) Compile(label string) string {
 		buff += "config: " + string(bt)
 	}
 
-	if label != "" {
-		buff = fmt.Sprintf("%s: %s", label, structMarshal(buff))
-	}
-
-	return buff
+	return fmt.Sprintf("context: %s", structMarshal(buff))
 }
 
-// Output return models of context
-func (ctx *context) Output() (model.Instance, []Assistant) {
-	return ctx.base, ctx.assistants
+func (ctx *templateContext) BaseContextLabels() map[string]string {
+
+	return map[string]string{
+		// appName is oam.LabelAppName
+		"appName": ctx.appName,
+		// name is oam.LabelAppComponent
+		"name": ctx.name,
+	}
+}
+
+// GetK8sResource return models of templateContext
+func (ctx *templateContext) Output() (model.Instance, []Auxiliary) {
+	return ctx.base, ctx.auxiliaries
 }
 
 func structMarshal(v string) string {

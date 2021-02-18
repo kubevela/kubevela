@@ -127,3 +127,28 @@ Since discrepancy is found, vela-core controller will apply(update) the Deployme
 Thus, the changes we made to the Deployment before will also be eliminated.
 
 The same mechanism also works for Trait as well as Workload.
+
+### Apply Once Only Force
+
+Based on the same mechanism as `apply-once-only`, `apply-once-only-force` allows to skip re-creating a workload or trait that has already been DELETED from the cluster if its spec is not changed. 
+It's regarded as a stronger case of `apply-once-only`.
+
+## Usage
+
+Three available options are provided to a vela-core runtime setup flag named `apply-one-only`, referring to three modes:
+
+- off - `apply-once-only` is disabeld, this is the default option
+- on - `apply-once-only` is enabled
+- force - `apply-once-only-force` is enabled
+
+You can set it through `helm` chart value `applyOnceOnly` which is "off" by default if omitted, for example
+
+```shell
+helm install -n vela-system kubevela ./charts/vela-core --set applyOnceOnly=on
+```
+or
+```
+helm install -n vela-system kubevela ./charts/vela-core --set applyOnceOnly=force
+```
+
+

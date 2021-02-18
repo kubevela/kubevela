@@ -98,7 +98,7 @@ spec:
                   description: Paused the rollout, default is false
                   type: boolean
                 rolloutBatches:
-                  description: The exact distribution among batches. mutually exclusive to NumBatches
+                  description: The exact distribution among batches. mutually exclusive to NumBatches. The total number cannot exceed the targetSize or the size of the source resource We will IGNORE the last batch's replica field if it's a percentage since round errors can lead to inaccurate sum We highly recommend to leave the last batch's replica field empty
                   items:
                     description: RolloutBatch is used to describe how the each batch rollout should be
                     properties:
@@ -200,7 +200,7 @@ spec:
                         anyOf:
                         - type: integer
                         - type: string
-                        description: 'Replicas is the number of pods to upgrade in this batch it can be an absolute number (ex: 5) or a percentage of total pods it is mutually exclusive with the PodList field'
+                        description: 'Replicas is the number of pods to upgrade in this batch it can be an absolute number (ex: 5) or a percentage of total pods we will ignore the percentage of the last batch to just fill the gap it is mutually exclusive with the PodList field'
                         x-kubernetes-int-or-string: true
                     type: object
                   type: array
@@ -208,7 +208,7 @@ spec:
                   description: RolloutStrategy defines strategies for the rollout plan
                   type: string
                 rolloutWebhooks:
-                  description: RolloutWebhooks provides a way for the rollout to interact with an external process
+                  description: RolloutWebhooks provide a way for the rollout to interact with an external process
                   items:
                     description: RolloutWebhook holds the reference to external checks used for canary analysis
                     properties:
@@ -288,7 +288,7 @@ spec:
           - targetRef
           type: object
         status:
-          description: RolloutStatus defines the observed state of Rollout
+          description: RolloutStatus defines the observed state of a rollout plan
           properties:
             batchRollingState:
               description: BatchRollingState only meaningful when the Status is rolling
@@ -322,17 +322,17 @@ spec:
                 type: object
               type: array
             currentBatch:
-              description: The current batch the rollout is working on/blocked
+              description: The current batch the rollout is working on/blocked it starts from 0
               format: int32
               type: integer
+            lastAppliedPodTemplateIdentifier:
+              description: lastAppliedPodTemplateIdentifier is a string that uniquely represent the last pod template each workload type could use different ways to identify that so we cannot compare between resources We update this field only after a successful rollout
+              type: string
             rollingState:
               description: RollingState is the Rollout State
               type: string
-            sourceGeneration:
-              description: The source resource generation
-              type: string
             targetGeneration:
-              description: The target resource generation
+              description: NewPodTemplateIdentifier is a string that uniquely represent the new pod template each workload type could use different ways to identify that so we cannot compare between resources
               type: string
             upgradedReadyReplicas:
               description: UpgradedReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
@@ -345,8 +345,6 @@ spec:
           required:
           - currentBatch
           - rollingState
-          - sourceGeneration
-          - targetGeneration
           - upgradedReadyReplicas
           - upgradedReplicas
           type: object

@@ -94,7 +94,7 @@ func (i *infoCmd) run(ioStreams cmdutil.IOStreams) error {
 		return fmt.Errorf("fail to get cluster chartPath: %w", err)
 	}
 	ioStreams.Info("Versions:")
-	ioStreams.Infof("oam-kubernetes-runtime: %s \n", clusterVersion)
+	ioStreams.Infof("kubevela: %s \n", clusterVersion)
 	// TODO(wonderflow): we should print all helm charts installed by vela, including plugins
 
 	return nil
@@ -123,6 +123,7 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
 		},
+		Deprecated: "vela install is DEPRECATED and we will remove it after Kubevela 1.0. Please use helm chart instead",
 	}
 
 	flag := cmd.Flags()
@@ -282,7 +283,7 @@ func GetOAMReleaseVersion(ns string) (string, error) {
 			return result.Chart.AppVersion(), nil
 		}
 	}
-	return "", errors.New("oam-kubernetes-runtime not found in your kubernetes cluster, try `vela install` to install")
+	return "", errors.New("kubevela chart not found in your kubernetes cluster,  refer to 'https://kubevela.io/#/en/install' for installation")
 }
 
 // PrintTrackVelaRuntimeStatus prints status of installing vela-core runtime
