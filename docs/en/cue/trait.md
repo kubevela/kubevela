@@ -552,7 +552,9 @@ spec:
       		initContainers: [{
       			name:    parameter.name
       			image:   parameter.image
-      			command: parameter.command
+      			if parameter.command != _|_ {
+      			  command: parameter.command
+      			}
       			// +patchKey=name
       			volumeMounts: [{
       				name:      parameter.mountName
