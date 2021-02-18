@@ -853,7 +853,8 @@ var _ = Describe("Test Application Controller", func() {
 			Name:      compName,
 		}, &component)).Should(BeNil())
 		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
-		Expect(component.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
+		Expect(component.Status.LatestRevision.Revision).Should(
+			SatisfyAny(BeEquivalentTo(1), BeEquivalentTo(2)))
 
 		// check that the new appconfig has the correct annotation and labels
 		Expect(appConfig.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(BeIdenticalTo("true"))
