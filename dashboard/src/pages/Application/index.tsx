@@ -1,13 +1,11 @@
 import React, { useCallback } from 'react';
 
 import { Button, Card, message, Popconfirm, Space, Table } from 'antd';
-import { Link, useModel, useRequest } from 'umi';
+import { history, Link, useModel, useRequest } from 'umi';
 
 import { deleteApplication, getApplications } from '@/services/application';
 import { PlusOutlined } from '@ant-design/icons';
 import { PageContainer } from '@ant-design/pro-layout';
-// @ts-ignore
-import { Link as ReactLink } from 'react-router-dom';
 
 export default () => {
   const { currentEnvironment } = useModel('useEnvironmentModel');
@@ -43,8 +41,16 @@ export default () => {
       <Card>
         <div style={{ marginBottom: '10px' }}>
           <Space>
-            <Button type="primary" icon={<PlusOutlined />}>
-              <ReactLink to="/applications/create"> Create</ReactLink>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              href="/applications/create"
+              onClick={(e) => {
+                history.push('/applications/create');
+                e.preventDefault();
+              }}
+            >
+              Create
             </Button>
           </Space>
         </div>
