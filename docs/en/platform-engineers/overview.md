@@ -58,7 +58,7 @@ Hence, the encapsulation engine of KubeVela is designed to be a [Kubernetes Cont
 
 For example, as the platform team we want to leverage Istio as the Service Mesh layer to control the traffic to certain `Deployment` instances. But this could be really painful today because we have to enforce end users to define and manage a set of Kubernetes resources in a "juggling" approach. For example, in a simple canary rollout case, the end users have to carefully manage a primary *Deployment*, a primary *Service*, a *root Service*, a canary *Deployment*, a canary *Service*, and have to probably rename the *Deployment* instance after canary promotion (this is actually unacceptable in production because renaming will lead to the app restart). What's worse, we have to expect the users properly set the labels and selectors on those objects carefully because they are the key to ensure proper accessibility of every app instance and the only revision mechanism our Istio controller could count on.
 
-The issue above could be even painful if the workload instance is not *Deployment*, but *StatefulSet* or custom workload type. For example, normally it doesn't make sense to replicate a *StatefulSet* instance during rollout, this means the users have to maintain the name, revision, label, selector, app instances in a totally different approach from *Deployment*.
+The issue above could be even painful if the component instance is not *Deployment*, but *StatefulSet* or custom workload type. For example, normally it doesn't make sense to replicate a *StatefulSet* instance during rollout, this means the users have to maintain the name, revision, label, selector, app instances in a totally different approach from *Deployment*.
 
 #### Standard Contract Behind The Abstraction
 

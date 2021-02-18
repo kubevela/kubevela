@@ -53,6 +53,8 @@ spec:
 EOF
 ```
 
+## Step 3: Verify
+
 Check if the new workload type is added:
 
 ```console
@@ -71,9 +73,11 @@ webservice	Long running service with network routes
 worker    	Backend worker without ports exposed    
 ```
 
-## Step 3: Try out RDS workload to an application
+(Optional) Define RDS component in an application
 
-Let's first create an Appfile. We will claim an RDS instance with workload type of `rds`. You may need to change the variables of the `database` service to reflect your configuration.
+<details>
+
+Let's first create an [Appfile](../developers/learn-appfile.md). We will claim an RDS instance with workload type of `rds`. You may need to change the variables of the `database` service to reflect your configuration.
 
 ```bash
 $ cat << EOF > vela.yaml
@@ -132,3 +136,5 @@ PGDATABASE=postgres
 PGHOST=<hostname>
 ...
 ```
+</details>
+

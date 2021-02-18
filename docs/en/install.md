@@ -164,8 +164,6 @@ $ sudo mv ./vela /usr/local/bin/vela
 
 ## 4. (Optional) Clean Up
 
-<details>
-
 Run:
 
 ```bash
@@ -195,4 +193,12 @@ $ kubectl delete crd \
   traitdefinitions.core.oam.dev \
   workloaddefinitions.core.oam.dev
 ```
-</details>
+
+## 5. What's Next
+
+Here are some recommended next steps:
+
+- Learn about KubeVela in detail from its [core concepts](/en/concepts.md)
+- Join `#kubevela` channel in CNCF [Slack](https://cloud-native.slack.com) and/or [Gitter](https://gitter.im/oam-dev/community)
+
+Welcome onboard and sail Vela!
