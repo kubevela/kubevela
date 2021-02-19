@@ -161,8 +161,35 @@ $ sudo mv ./vela /usr/local/bin/vela
 
 <!-- tabs:end -->
 
+## 4. Sync Capability from Cluster
 
-## 4. (Optional) Clean Up
+```bash
+$ vela workloads
+Automatically discover capabilities successfully ✅ Add(5) Update(0) Delete(0)
+
+TYPE       	CATEGORY	DESCRIPTION                                                                     
++task      	workload	Describes jobs that run code or a script to completion.                         
++webservice	workload	Describes long-running, scalable, containerized services that have a stable     
+           	       	network endpoint to receive external network traffic from customers. If workload
+           	       	type is skipped for any service defined in Appfile, it will be defaulted to     
+           	       	`webservice` type.                                                              
++worker    	workload	Describes long-running, scalable, containerized services that running at        
+           	       	backend. They do NOT have network endpoint to receive external network          
+           	       	traffic.                                                                        
++ingress   	trait   	Configures K8s ingress and service to enable web traffic for your service.      
+           	       	Please use route trait in cap center for advanced usage.                        
++scaler    	trait   	Configures replicas for your service.                                           
+
+NAME      	DESCRIPTION                                                                                                             
+task      	Describes jobs that run code or a script to completion.                                                                 
+webservice	Describes long-running, scalable, containerized services that have a stable network endpoint to receive external network
+          	traffic from customers. If workload type is skipped for any service defined in Appfile, it will be defaulted to         
+          	`webservice` type.                                                                                                      
+worker    	Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to  
+          	receive external network traffic.   
+```
+
+## 5. (Optional) Clean Up
 
 Run:
 
