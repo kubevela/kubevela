@@ -20,6 +20,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (
@@ -118,6 +119,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 func (h *ValidatingHandler) ValidateCreate(ctx context.Context, obj *v1alpha2.ApplicationConfiguration) field.ErrorList {
 	var componentErrs field.ErrorList
 	vAppConfig := &ValidatingAppConfig{}
+	ctx = util.SetNnamespaceInCtx(ctx, obj.Namespace)
 	if err := vAppConfig.PrepareForValidation(ctx, h.Client, h.Mapper, obj); err != nil {
 		klog.InfoS("failed to prepare information before validation ", " name: ", obj.Name, " errMsg: ", err.Error())
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), obj.Spec,

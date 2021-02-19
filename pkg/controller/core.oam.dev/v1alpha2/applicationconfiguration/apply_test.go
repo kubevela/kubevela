@@ -129,9 +129,8 @@ func TestApplyWorkloads(t *testing.T) {
 	}
 
 	type args struct {
-		ctx context.Context
-		ws  []v1alpha2.WorkloadStatus
-		w   []Workload
+		ws []v1alpha2.WorkloadStatus
+		w  []Workload
 	}
 
 	cases := map[string]struct {
@@ -387,7 +386,7 @@ func TestApplyWorkloads(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			mapper := mock.NewMockDiscoveryMapper()
 			w := workloads{applicator: tc.applicator, rawClient: tc.rawClient, dm: mapper}
-			err := w.Apply(tc.args.ctx, tc.args.ws, tc.args.w)
+			err := w.Apply(context.TODO(), tc.args.ws, tc.args.w)
 
 			if diff := cmp.Diff(tc.want, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nw.Apply(...): -want error, +got error:\n%s", tc.reason, diff)

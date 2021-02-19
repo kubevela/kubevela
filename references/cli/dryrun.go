@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -52,7 +54,8 @@ func NewDryRunCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 
 			parser := appfile.NewApplicationParser(newClient, dm)
 
-			appFile, err := parser.GenerateAppFile(app.Name, app)
+			ctx := oamutil.SetNnamespaceInCtx(context.Background(), app.Namespace)
+			appFile, err := parser.GenerateAppFile(ctx, app.Name, app)
 			if err != nil {
 				return errors.WithMessage(err, "generate appFile")
 			}

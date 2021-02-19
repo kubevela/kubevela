@@ -94,6 +94,9 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err := r.Get(ctx, req.NamespacedName, &manualScalar); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+
+	ctx = util.SetNnamespaceInCtx(ctx, manualScalar.Namespace)
+
 	r.log.Info("Get the manualscalar trait", "ReplicaCount", manualScalar.Spec.ReplicaCount,
 		"Annotations", manualScalar.GetAnnotations())
 	// find the resource object to record the event to, default is the parent appConfig.

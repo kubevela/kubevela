@@ -95,3 +95,5 @@ admissionWebhooks:
   certManager:
     enabled: false
 
+
+systemDefinitionNamespace: vela-system

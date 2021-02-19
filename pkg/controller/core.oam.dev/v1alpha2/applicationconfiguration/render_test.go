@@ -119,8 +119,7 @@ func TestRender(t *testing.T) {
 		trait    ResourceRenderer
 	}
 	type args struct {
-		ctx context.Context
-		ac  *v1alpha2.ApplicationConfiguration
+		ac *v1alpha2.ApplicationConfiguration
 	}
 	type want struct {
 		w   []Workload
@@ -787,7 +786,7 @@ func TestRender(t *testing.T) {
 				tc.fields.workload, tc.fields.trait}
 			needTemplating := tc.args.ac.Status.RollingStatus != v1alpha2.RollingTemplated
 			_, isRolling := tc.args.ac.GetAnnotations()[oam.AnnotationAppRollout]
-			got, _, err := r.Render(tc.args.ctx, tc.args.ac)
+			got, _, err := r.Render(context.Background(), tc.args.ac)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nr.Render(...): -want error, +got error:\n%s\n", tc.reason, diff)
 			}
@@ -1422,8 +1421,7 @@ func TestRenderTraitWithoutMetadataName(t *testing.T) {
 		trait    ResourceRenderer
 	}
 	type args struct {
-		ctx context.Context
-		ac  *v1alpha2.ApplicationConfiguration
+		ac *v1alpha2.ApplicationConfiguration
 	}
 	type want struct {
 		w []Workload
@@ -1481,7 +1479,7 @@ func TestRenderTraitWithoutMetadataName(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), tc.fields.params,
 				tc.fields.workload, tc.fields.trait}
-			got, _, _ := r.Render(tc.args.ctx, tc.args.ac)
+			got, _, _ := r.Render(context.Background(), tc.args.ac)
 			if len(got) == 0 || len(got[0].Traits) == 0 || got[0].Traits[0].Object.GetName() != util.GenTraitName(componentName, ac.Spec.Components[0].Traits[0].DeepCopy(), "") {
 				t.Errorf("\n%s\nr.Render(...): -want error, +got error:\n%s\n", tc.reason, "Trait name is NOT "+
 					"automatically set.")

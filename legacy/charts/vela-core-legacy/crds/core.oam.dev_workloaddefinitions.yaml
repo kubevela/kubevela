@@ -21,7 +21,7 @@ spec:
     listKind: WorkloadDefinitionList
     plural: workloaddefinitions
     singular: workloaddefinition
-  scope: Cluster
+  scope: Namespaced
   subresources: {}
   validation:
     openAPIV3Schema:

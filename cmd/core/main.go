@@ -38,6 +38,7 @@ import (
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook/standard.oam.dev"
@@ -105,6 +106,7 @@ func main() {
 	flag.StringVar(&storageDriver, "storage-driver", "Local", "Application file save to the storage driver")
 	flag.DurationVar(&syncPeriod, "informer-re-sync-interval", 5*time.Minute,
 		"controller shared informer lister full re-sync period")
+	flag.StringVar(&oam.SystemDefinitonNamespace, "system-definition-namespace", "vela-system", "define the namespace of the system-level definition")
 	flag.Parse()
 
 	// setup logging
@@ -126,6 +128,7 @@ func main() {
 
 	setupLog.Info(fmt.Sprintf("KubeVela Version: %s, GIT Revision: %s.", version.VelaVersion, version.GitRevision))
 	setupLog.Info(fmt.Sprintf("Disable Capabilities: %s.", disableCaps))
+	setupLog.Info(fmt.Sprintf("core init with definition namespace %s", oam.SystemDefinitonNamespace))
 
 	restConfig := ctrl.GetConfigOrDie()
 	restConfig.UserAgent = kubevelaName + "/" + version.GitRevision

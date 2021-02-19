@@ -82,7 +82,9 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// parse template
 	appParser := appfile.NewApplicationParser(r.Client, r.dm)
 
-	appfile, err := appParser.GenerateAppFile(app.Name, app)
+	ctx = oamutil.SetNnamespaceInCtx(ctx, app.Namespace)
+
+	appfile, err := appParser.GenerateAppFile(ctx, app.Name, app)
 	if err != nil {
 		applog.Error(err, "[Handle Parse]")
 		app.Status.SetConditions(errorCondition("Parsed", err))

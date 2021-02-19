@@ -65,6 +65,7 @@ apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
   name: worker
+  namespace: default
   annotations:
     definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
 spec:
@@ -89,7 +90,7 @@ spec:
 		},
 	}
 
-	temp, err := LoadTemplate(&tclient, "worker", types.TypeWorkload)
+	temp, err := LoadTemplate(context.TODO(), &tclient, "worker", types.TypeWorkload)
 
 	if err != nil {
 		t.Error(err)
@@ -172,6 +173,7 @@ metadata:
     definition.oam.dev/description: "Configures K8s ingress and service to enable web traffic for your service.
     Please use route trait in cap center for advanced usage."
   name: ingress
+  namespace: default
 spec:
   status:
     customStatus: |-
@@ -206,7 +208,7 @@ spec:
 		},
 	}
 
-	temp, err := LoadTemplate(&tclient, "ingress", types.TypeTrait)
+	temp, err := LoadTemplate(context.TODO(), &tclient, "ingress", types.TypeTrait)
 
 	if err != nil {
 		t.Error(err)
