@@ -17,7 +17,7 @@ spec:
     listKind: TraitDefinitionList
     plural: traitdefinitions
     singular: traitdefinition
-  scope: Cluster
+  scope: Namespaced
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.definitionRef.name

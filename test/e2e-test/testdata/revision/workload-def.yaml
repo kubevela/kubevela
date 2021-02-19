@@ -2,6 +2,7 @@ apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
   name: bars.example.com
+  namespace: vela-system
 spec:
   definitionRef:
     name: bars.example.com

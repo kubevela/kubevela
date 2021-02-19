@@ -63,8 +63,9 @@ var _ = Describe("Test kubernetes native workloads", func() {
 		// create a workload definition for
 		wd := v1alpha2.WorkloadDefinition{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:   "deployments.apps",
-				Labels: label,
+				Name:      "deployments.apps",
+				Namespace: "vela-system",
+				Labels:    label,
 			},
 			Spec: v1alpha2.WorkloadDefinitionSpec{
 				Reference: v1alpha2.DefinitionReference{

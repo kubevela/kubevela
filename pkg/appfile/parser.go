@@ -1,6 +1,8 @@
 package appfile
 
 import (
+	"context"
+
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -130,12 +132,12 @@ func NewApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper)
 }
 
 // GenerateAppFile converts an application to an Appfile
-func (p *Parser) GenerateAppFile(name string, app *v1alpha2.Application) (*Appfile, error) {
+func (p *Parser) GenerateAppFile(ctx context.Context, name string, app *v1alpha2.Application) (*Appfile, error) {
 	appfile := new(Appfile)
 	appfile.Name = name
 	var wds []*Workload
 	for _, comp := range app.Spec.Components {
-		wd, err := p.parseWorkload(comp)
+		wd, err := p.parseWorkload(ctx, comp)
 		if err != nil {
 			return nil, err
 		}
@@ -146,12 +148,12 @@ func (p *Parser) GenerateAppFile(name string, app *v1alpha2.Application) (*Appfi
 	return appfile, nil
 }
 
-func (p *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload, error) {
+func (p *Parser) parseWorkload(ctx context.Context, comp v1alpha2.ApplicationComponent) (*Workload, error) {
 	workload := new(Workload)
 	workload.Traits = []*Trait{}
 	workload.Name = comp.Name
 	workload.Type = comp.WorkloadType
-	templ, err := util.LoadTemplate(p.client, workload.Type, types.TypeWorkload)
+	templ, err := util.LoadTemplate(ctx, p.client, workload.Type, types.TypeWorkload)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
 	}
@@ -169,7 +171,7 @@ func (p *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload, e
 		if err != nil {
 			return nil, errors.Errorf("fail to parse properties of %s for %s", traitValue.Name, comp.Name)
 		}
-		trait, err := p.parseTrait(traitValue.Name, properties)
+		trait, err := p.parseTrait(ctx, traitValue.Name, properties)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Name)
 		}
@@ -177,7 +179,7 @@ func (p *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload, e
 		workload.Traits = append(workload.Traits, trait)
 	}
 	for scopeType, instanceName := range comp.Scopes {
-		gvk, err := util.GetScopeGVK(p.client, p.dm, scopeType)
+		gvk, err := util.GetScopeGVK(ctx, p.client, p.dm, scopeType)
 		if err != nil {
 			return nil, err
 		}
@@ -189,8 +191,8 @@ func (p *Parser) parseWorkload(comp v1alpha2.ApplicationComponent) (*Workload, e
 	return workload, nil
 }
 
-func (p *Parser) parseTrait(name string, properties map[string]interface{}) (*Trait, error) {
-	templ, err := util.LoadTemplate(p.client, name, types.TypeTrait)
+func (p *Parser) parseTrait(ctx context.Context, name string, properties map[string]interface{}) (*Trait, error) {
+	templ, err := util.LoadTemplate(ctx, p.client, name, types.TypeTrait)
 	if kerrors.IsNotFound(err) {
 		return nil, errors.Errorf("trait definition of %s not found", name)
 	}

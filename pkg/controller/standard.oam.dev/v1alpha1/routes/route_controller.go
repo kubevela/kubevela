@@ -82,6 +82,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		"workload reference", routeTrait.Spec.WorkloadReference,
 		"labels", routeTrait.GetLabels())
 
+	ctx = oamutil.SetNnamespaceInCtx(ctx, routeTrait.Namespace)
+
 	// find the resource object to record the event to, default is the parent appConfig.
 	eventObj, err := oamutil.LocateParentAppConfig(ctx, r.Client, &routeTrait)
 	if eventObj == nil {

@@ -31,7 +31,8 @@ func (r *Reconciler) extractWorkloadTypeAndGVK(ctx context.Context, componentLis
 	}
 	// get the workload definition
 	// the validator webhook has checked that source and the target are the same type
-	wd, err := oamutil.GetWorkloadDefinition(ctx, r, componentType)
+	wd := new(corev1alpha2.WorkloadDefinition)
+	err := oamutil.GetDefinition(ctx, r, wd, componentType)
 	if err != nil {
 		return "", nil, errors.Wrap(err, fmt.Sprintf("failed to get workload definition %s", componentType))
 	}

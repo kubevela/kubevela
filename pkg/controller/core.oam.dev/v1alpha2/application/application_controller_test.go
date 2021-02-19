@@ -651,7 +651,7 @@ var _ = Describe("Test Application Controller", func() {
 		ntd, otd := &v1alpha2.TraitDefinition{}, &v1alpha2.TraitDefinition{}
 		tDDefJson, _ := yaml.YAMLToJSON([]byte(tdDefYamlWithHttp))
 		Expect(json.Unmarshal(tDDefJson, ntd)).Should(BeNil())
-		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "scaler"}, otd)).Should(BeNil())
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: ntd.Name, Namespace: ntd.Namespace}, otd)).Should(BeNil())
 		ntd.ResourceVersion = otd.ResourceVersion
 		Expect(k8sClient.Update(ctx, ntd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
@@ -695,13 +695,13 @@ var _ = Describe("Test Application Controller", func() {
 		nwd, owd := &v1alpha2.WorkloadDefinition{}, &v1alpha2.WorkloadDefinition{}
 		wDDefJson, _ := yaml.YAMLToJSON([]byte(wDDefWithHealthYaml))
 		Expect(json.Unmarshal(wDDefJson, nwd)).Should(BeNil())
-		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "worker"}, owd)).Should(BeNil())
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: nwd.Name, Namespace: nwd.Namespace}, owd)).Should(BeNil())
 		nwd.ResourceVersion = owd.ResourceVersion
 		Expect(k8sClient.Update(ctx, nwd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		ntd, otd := &v1alpha2.TraitDefinition{}, &v1alpha2.TraitDefinition{}
 		tDDefJson, _ := yaml.YAMLToJSON([]byte(tDDefWithHealthYaml))
 		Expect(json.Unmarshal(tDDefJson, ntd)).Should(BeNil())
-		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "scaler"}, otd)).Should(BeNil())
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: ntd.Name, Namespace: ntd.Namespace}, otd)).Should(BeNil())
 		ntd.ResourceVersion = otd.ResourceVersion
 		Expect(k8sClient.Update(ctx, ntd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		compName := "myweb-health"
@@ -995,7 +995,7 @@ const (
 kind: ScopeDefinition
 metadata:
   name: healthscopes.core.oam.dev
-  namespace: default
+  namespace: vela-system
 spec:
   workloadRefsPath: spec.workloadRefs
   allowComponentOverlap: true
@@ -1007,6 +1007,7 @@ apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
   name: worker
+  namespace: vela-system
   annotations:
     definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
 spec:
@@ -1066,6 +1067,7 @@ spec:
 kind: WorkloadDefinition
 metadata:
   name: webserver
+  namespace: vela-system
   annotations:
     definition.oam.dev/description: "webserver was composed by deployment and service"
 spec:
@@ -1157,6 +1159,7 @@ apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
   name: worker
+  namespace: vela-system
   annotations:
     definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
 spec:
@@ -1217,6 +1220,7 @@ spec:
 kind: WorkloadDefinition
 metadata:
   name: nworker
+  namespace: vela-system
   annotations:
     definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic."
 spec:
@@ -1286,6 +1290,7 @@ metadata:
   annotations:
     definition.oam.dev/description: "Manually scale the app"
   name: scaler
+  namespace: vela-system
 spec:
   appliesToWorkloads:
     - webservice
@@ -1315,6 +1320,7 @@ metadata:
   annotations:
     definition.oam.dev/description: "Manually scale the app"
   name: scaler
+  namespace: vela-system
 spec:
   appliesToWorkloads:
     - webservice
@@ -1359,6 +1365,7 @@ metadata:
   annotations:
     definition.oam.dev/description: "Manually scale the app"
   name: scaler
+  namespace: vela-system
 spec:
   appliesToWorkloads:
     - webservice
@@ -1387,6 +1394,7 @@ spec:
 kind: TraitDefinition
 metadata:
   name: ingress
+  namespace: vela-system
 spec:
   status:
     customStatus: |-

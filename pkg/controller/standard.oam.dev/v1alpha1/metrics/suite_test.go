@@ -18,6 +18,7 @@ package metrics
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -68,10 +69,18 @@ var _ = BeforeSuite(func(done Done) {
 		},
 	}
 	By("Bootstrapping test environment")
+	var yamlPath string
+	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
+		yamlPath = "../../../../../test/compatibility-test/testdata"
+	} else {
+		yamlPath = filepath.Join("../../../../..", "charts", "vela-core", "crds")
+	}
+	logf.Log.Info("start metrics test", "yaml_path", yamlPath)
 	useExistCluster := false
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("../../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
+			yamlPath, // this has all the required oam CRDs,
+			filepath.Join("..", "testdata/crds"),
 		},
 		UseExistingCluster: &useExistCluster,
 	}

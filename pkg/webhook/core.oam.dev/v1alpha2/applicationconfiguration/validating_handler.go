@@ -19,6 +19,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (
@@ -94,6 +95,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			return admission.ValidationResponse(true, "")
 		}
 		vAppConfig := &ValidatingAppConfig{}
+		ctx = util.SetNnamespaceInCtx(ctx, obj.Namespace)
 		if err := vAppConfig.PrepareForValidation(ctx, h.Client, h.Mapper, obj); err != nil {
 			klog.Info("failed preparing information before validation ", " name: ", obj.Name, " errMsg: ", err.Error())
 			return admission.Denied(err.Error())

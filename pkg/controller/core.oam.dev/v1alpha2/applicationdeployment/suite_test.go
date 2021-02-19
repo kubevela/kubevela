@@ -1,6 +1,7 @@
 package applicationdeployment
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -37,9 +38,16 @@ var _ = BeforeSuite(func(done Done) {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 
 	By("bootstrapping test environment")
+	var yamlPath string
+	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
+		yamlPath = "../../../../../test/compatibility-test/testdata"
+	} else {
+		yamlPath = filepath.Join("../../../../..", "charts", "vela-core", "crds")
+	}
+	logf.Log.Info("start application deployment suit test", "yaml_path", yamlPath)
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
+			yamlPath, // this has all the required CRDs,
 			filepath.Join("..", "config", "crd", "bases")},
 	}
 

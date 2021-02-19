@@ -149,7 +149,8 @@ var _ = Describe("Test apply changes to trait", func() {
 				APIVersion: "TraitDefinition",
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "bars.example.com",
+				Name:      "bars.example.com",
+				Namespace: "vela-system",
 			},
 			Spec: v1alpha2.TraitDefinitionSpec{
 				Reference: v1alpha2.DefinitionReference{

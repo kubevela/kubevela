@@ -239,7 +239,7 @@ var _ = Describe("Test application parser", func() {
 			},
 		}
 
-		appfile, err := NewApplicationParser(&tclient, nil).GenerateAppFile("test", &o)
+		appfile, err := NewApplicationParser(&tclient, nil).GenerateAppFile(context.TODO(), "test", &o)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		Expect(equal(expectedExceptApp, appfile)).Should(BeTrue())

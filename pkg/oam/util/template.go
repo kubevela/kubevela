@@ -24,23 +24,24 @@ type Template struct {
 }
 
 // GetScopeGVK Get ScopeDefinition
-func GetScopeGVK(cli client.Client, dm discoverymapper.DiscoveryMapper,
+func GetScopeGVK(ctx context.Context, cli client.Reader, dm discoverymapper.DiscoveryMapper,
 	name string) (schema.GroupVersionKind, error) {
 	var gvk schema.GroupVersionKind
 	sd := new(v1alpha2.ScopeDefinition)
-	if err := cli.Get(context.Background(), client.ObjectKey{
-		Name: name,
-	}, sd); err != nil {
+	err := GetDefinition(ctx, cli, sd, name)
+	if err != nil {
 		return gvk, err
 	}
+
 	return GetGVKFromDefinition(dm, sd.Spec.Reference)
 }
 
 // LoadTemplate Get template according to key
-func LoadTemplate(cli client.Reader, key string, kd types.CapType) (*Template, error) {
+func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.CapType) (*Template, error) {
 	switch kd {
 	case types.TypeWorkload:
-		wd, err := GetWorkloadDefinition(context.TODO(), cli, key)
+		wd := new(v1alpha2.WorkloadDefinition)
+		err := GetDefinition(ctx, cli, wd, key)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
@@ -59,7 +60,8 @@ func LoadTemplate(cli client.Reader, key string, kd types.CapType) (*Template, e
 		return tmpl, nil
 
 	case types.TypeTrait:
-		td, err := GetTraitDefinition(context.TODO(), cli, key)
+		td := new(v1alpha2.TraitDefinition)
+		err := GetDefinition(ctx, cli, td, key)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}

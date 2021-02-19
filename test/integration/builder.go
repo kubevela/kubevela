@@ -30,6 +30,7 @@ type wdModifier func(*v1alpha2.WorkloadDefinition)
 func wdNameAndDef(n string) wdModifier {
 	return func(wd *v1alpha2.WorkloadDefinition) {
 		wd.ObjectMeta.Name = n
+		wd.ObjectMeta.Namespace = "vela-system"
 		wd.Spec.Reference = v1alpha2.DefinitionReference{
 			Name: n,
 		}
