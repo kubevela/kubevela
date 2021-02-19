@@ -22,7 +22,7 @@ const (
 	// OutputFieldName is the name of the struct contains the CR data
 	OutputFieldName = process.OutputFieldName
 	// OutputsFieldName is the name of the struct contains the map[string]CR data
-	OutputsFieldName = "outputs"
+	OutputsFieldName = process.OutputsFieldName
 	// PatchFieldName is the name of the struct contains the patch of CR data
 	PatchFieldName = "patch"
 	// CustomMessage defines the custom message in definition template
