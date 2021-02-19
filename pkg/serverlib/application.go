@@ -26,8 +26,10 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	ccom "github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/server/apis"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -94,7 +96,7 @@ type DeleteOptions struct {
 }
 
 // ListApplications lists all applications
-func ListApplications(ctx context.Context, c client.Client, opt Option) ([]apis.ApplicationMeta, error) {
+func ListApplications(ctx context.Context, c client.Reader, opt Option) ([]apis.ApplicationMeta, error) {
 	var applicationMetaList applicationMetaList
 	appConfigList, err := ListApplicationConfigurations(ctx, c, opt)
 	if err != nil {
@@ -137,7 +139,7 @@ func ListApplicationConfigurations(ctx context.Context, c client.Reader, opt Opt
 }
 
 // ListComponents will list all components for dashboard
-func ListComponents(ctx context.Context, c client.Client, opt Option) ([]apis.ComponentMeta, error) {
+func ListComponents(ctx context.Context, c client.Reader, opt Option) ([]apis.ComponentMeta, error) {
 	var componentMetaList componentMetaList
 	var appConfigList corev1alpha2.ApplicationConfigurationList
 	var err error
@@ -147,7 +149,7 @@ func ListComponents(ctx context.Context, c client.Client, opt Option) ([]apis.Co
 
 	for _, a := range appConfigList.Items {
 		for _, com := range a.Spec.Components {
-			component, err := cmdutil.GetComponent(ctx, c, com.ComponentName, opt.Namespace)
+			component, _, err := oamutil.GetComponent(ctx, c, com, opt.Namespace)
 			if err != nil {
 				return componentMetaList, err
 			}
@@ -155,7 +157,7 @@ func ListComponents(ctx context.Context, c client.Client, opt Option) ([]apis.Co
 				Name:        com.ComponentName,
 				Status:      types.StatusDeployed,
 				CreatedTime: a.ObjectMeta.CreationTimestamp.String(),
-				Component:   component,
+				Component:   *component,
 				AppConfig:   a,
 				App:         a.Name,
 			})
@@ -166,7 +168,8 @@ func ListComponents(ctx context.Context, c client.Client, opt Option) ([]apis.Co
 }
 
 // RetrieveApplicationStatusByName will get app status
-func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, applicationName string, namespace string) (apis.ApplicationMeta, error) {
+func RetrieveApplicationStatusByName(ctx context.Context, c client.Reader, applicationName string,
+	namespace string) (apis.ApplicationMeta, error) {
 	var applicationMeta apis.ApplicationMeta
 	var appConfig corev1alpha2.ApplicationConfiguration
 	if err := c.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: namespace}, &appConfig); err != nil {
@@ -182,14 +185,13 @@ func RetrieveApplicationStatusByName(ctx context.Context, c client.Client, appli
 	applicationMeta.CreatedTime = appConfig.CreationTimestamp.Format(time.RFC3339)
 
 	for _, com := range appConfig.Spec.Components {
-		componentName := com.ComponentName
-		component, err := cmdutil.GetComponent(ctx, c, componentName, namespace)
+		component, revisionName, err := oamutil.GetComponent(ctx, c, com, namespace)
 		if err != nil {
 			return applicationMeta, err
 		}
 
 		applicationMeta.Components = append(applicationMeta.Components, apis.ComponentMeta{
-			Name:     componentName,
+			Name:     ccom.ExtractComponentName(revisionName),
 			Status:   status,
 			Workload: component.Spec.Workload,
 			Traits:   com.Traits,

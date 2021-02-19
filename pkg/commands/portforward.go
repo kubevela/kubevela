@@ -28,6 +28,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // VelaPortForwardOptions for vela port-forward
@@ -150,7 +151,7 @@ func getRouteServiceName(appconfig *v1alpha2.ApplicationConfiguration, svcName s
 
 // Complete will complete the config of port-forward
 func (o *VelaPortForwardOptions) Complete() error {
-	svcName, err := util.AskToChooseOneService(appfile.GetComponents(o.App))
+	svcName, err := common.AskToChooseOneService(appfile.GetComponents(o.App))
 	if err != nil {
 		return err
 	}

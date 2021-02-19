@@ -58,8 +58,10 @@ func (c *CloneSetController) Size(ctx context.Context) (int32, error) {
 }
 
 // Verify verifies that the target rollout resource is consistent with the rollout spec
-func (c *CloneSetController) Verify(ctx context.Context) *v1alpha1.RolloutStatus {
+func (c *CloneSetController) Verify(ctx context.Context) (status *v1alpha1.RolloutStatus) {
 	var verifyErr error
+	status = c.rolloutStatus
+
 	defer func() {
 		if verifyErr != nil {
 			klog.Error(verifyErr)
@@ -68,7 +70,7 @@ func (c *CloneSetController) Verify(ctx context.Context) *v1alpha1.RolloutStatus
 	}()
 
 	if verifyErr = c.fetchCloneSet(ctx); verifyErr != nil {
-		return c.rolloutStatus
+		return
 	}
 
 	// make sure that there are changes in the pod template
@@ -76,7 +78,7 @@ func (c *CloneSetController) Verify(ctx context.Context) *v1alpha1.RolloutStatus
 	if targetHash == c.rolloutStatus.LastAppliedPodTemplateIdentifier {
 		verifyErr = fmt.Errorf("there is no difference between the source and target, hash = %s", targetHash)
 		c.rolloutStatus.RolloutFailed(verifyErr.Error())
-		return c.rolloutStatus
+		return
 	}
 	// record the new pod template hash
 	c.rolloutStatus.NewPodTemplateIdentifier = targetHash
@@ -84,26 +86,26 @@ func (c *CloneSetController) Verify(ctx context.Context) *v1alpha1.RolloutStatus
 	// check if the rollout spec is compatible with the current state
 	totalReplicas, _ := c.Size(ctx)
 
-	// check if the target spec is the same as the Cloneset replicas
-	if verifyErr = c.verifyBatchSizes(totalReplicas); verifyErr != nil {
+	// check if the rollout batch replicas added up to the Cloneset replicas
+	if verifyErr = c.verifyRolloutBatchReplicaValue(totalReplicas); verifyErr != nil {
 		c.rolloutStatus.RolloutFailed(verifyErr.Error())
-		return c.rolloutStatus
+		return
 	}
 
 	// the rollout batch partition is either automatic or zero
 	if c.rolloutSpec.BatchPartition != nil && *c.rolloutSpec.BatchPartition != 0 {
 		verifyErr = fmt.Errorf("the rollout plan has to start from zero, partition= %d", *c.rolloutSpec.BatchPartition)
 		c.rolloutStatus.RolloutFailed(verifyErr.Error())
-		return c.rolloutStatus
+		return
 	}
 
-	// the number of old version in the Cloneset equals to the total number
+	// Cloneset should not be in the middle of an upgrade (the number of new version pod should be 0)
 	oldVersionPod, _ := intstr.GetValueFromIntOrPercent(c.cloneSet.Spec.UpdateStrategy.Partition, int(totalReplicas),
 		true)
 	if oldVersionPod != int(totalReplicas) {
 		verifyErr = fmt.Errorf("the cloneset was still in the middle of updating, number of old pods= %d", oldVersionPod)
 		c.rolloutStatus.RolloutFailed(verifyErr.Error())
-		return c.rolloutStatus
+		return
 	}
 
 	// mark the rollout verified
@@ -171,10 +173,11 @@ func (c *CloneSetController) CheckOneBatchPods(ctx context.Context) *v1alpha1.Ro
 		c.recorder.Event(c.parentController, event.Normal("Batch Available",
 			fmt.Sprintf("the batch num = %d is available", c.rolloutStatus.CurrentBatch)))
 		c.rolloutStatus.StateTransition(v1alpha1.OneBatchAvailableEvent)
+		c.rolloutStatus.LastAppliedPodTemplateIdentifier = c.rolloutStatus.NewPodTemplateIdentifier
 	} else {
 		// continue to verify
 		klog.V(common.LogDebug).InfoS("the batch is not ready yet", "current batch", currentBatch)
-		c.rolloutStatus.StateTransition(v1alpha1.BatchRolloutVerifyingEvent)
+		c.rolloutStatus.RolloutRetry("the batch is not ready yet")
 	}
 	return c.rolloutStatus
 }
@@ -191,8 +194,6 @@ func (c *CloneSetController) Finalize(ctx context.Context) *v1alpha1.RolloutStat
 		return c.rolloutStatus
 	}
 
-	c.rolloutStatus.StateTransition(v1alpha1.RollingFinalizedEvent)
-
 	return c.rolloutStatus
 }
 
@@ -200,7 +201,7 @@ func (c *CloneSetController) Finalize(ctx context.Context) *v1alpha1.RolloutStat
 The functions below are helper functions
 --------------------- */
 // check if the replicas in all the rollout batches add up to the right number
-func (c *CloneSetController) verifyBatchSizes(totalReplicas int32) error {
+func (c *CloneSetController) verifyRolloutBatchReplicaValue(totalReplicas int32) error {
 	// the target size has to be the same as the cloneset size
 	if c.rolloutSpec.TargetSize != nil && *c.rolloutSpec.TargetSize != totalReplicas {
 		return fmt.Errorf("the rollout plan is attempting to scale the cloneset, target = %d, cloneset size = %d",

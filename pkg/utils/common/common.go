@@ -16,6 +16,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/load"
 	"cuelang.org/go/encoding/openapi"
+	"github.com/AlecAivazis/survey/v2"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -148,4 +149,24 @@ func RealtimePrintCommandOutput(cmd *exec.Cmd, logFile string) error {
 		return err
 	}
 	return nil
+}
+
+// AskToChooseOneService will ask users to select one service of the application if more than one exidi
+func AskToChooseOneService(svcNames []string) (string, error) {
+	if len(svcNames) == 0 {
+		return "", fmt.Errorf("no service exist in the application")
+	}
+	if len(svcNames) == 1 {
+		return svcNames[0], nil
+	}
+	prompt := &survey.Select{
+		Message: "You have multiple services in your app. Please choose one service: ",
+		Options: svcNames,
+	}
+	var svcName string
+	err := survey.AskOne(prompt, &svcName)
+	if err != nil {
+		return "", fmt.Errorf("choosing service err %w", err)
+	}
+	return svcName, nil
 }

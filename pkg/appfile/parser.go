@@ -4,7 +4,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -215,7 +214,6 @@ func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1a
 	appconfig.SetGroupVersionKind(v1alpha2.ApplicationConfigurationGroupVersionKind)
 	appconfig.Name = app.Name
 	appconfig.Namespace = ns
-	appconfig.Spec.Components = []v1alpha2.ApplicationConfigurationComponent{}
 
 	if appconfig.Labels == nil {
 		appconfig.Labels = map[string]string{}
@@ -277,14 +275,17 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compNa
 	util.AddLabels(componentWorkload, labels)
 
 	component := &v1alpha2.Component{}
-	component.Spec.Workload.Object = componentWorkload
+	component.Spec.Workload = util.Object2RawExtension(componentWorkload)
 
 	acComponent := &v1alpha2.ApplicationConfigurationComponent{}
-	acComponent.Traits = []v1alpha2.ComponentTrait{}
 	for _, assist := range assists {
 		tr, err := assist.Ins.Unstructured()
 		if err != nil {
 			return nil, nil, errors.Wrapf(err, "evaluate trait=%s template for component=%s app=%s", assist.Name, compName, appName)
+		}
+		if err != nil {
+			return nil, nil, errors.Wrapf(err, "marshal trait=%s to byte array failed for component=%s app=%s",
+				assist.Name, compName, appName)
 		}
 		labels := map[string]string{
 			oam.TraitTypeLabel:    assist.Type,
@@ -296,9 +297,8 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compNa
 		}
 		util.AddLabels(tr, labels)
 		acComponent.Traits = append(acComponent.Traits, v1alpha2.ComponentTrait{
-			Trait: runtime.RawExtension{
-				Object: tr,
-			},
+			// we need to marshal the trait to byte array before sending them to the k8s
+			Trait: util.Object2RawExtension(tr),
 		})
 	}
 	return component, acComponent, nil

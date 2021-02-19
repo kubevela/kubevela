@@ -126,10 +126,10 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 
 	// reconcile the rollout part of the spec given the target and source workload
 	rolloutPlanController := rollout.NewRolloutPlanController(r, &appDeploy, r.record,
-		&appDeploy.Spec.RolloutPlan, appDeploy.Status.RolloutStatus, targetWorkload, sourceWorkload)
+		&appDeploy.Spec.RolloutPlan, &appDeploy.Status.RolloutStatus, targetWorkload, sourceWorkload)
 	result, rolloutStatus := rolloutPlanController.Reconcile(ctx)
 	// make sure that the new status is copied back
-	appDeploy.Status.RolloutStatus = rolloutStatus
+	appDeploy.Status.RolloutStatus = *rolloutStatus
 	// update the appDeploy status
 	return result, r.Update(ctx, &appDeploy)
 }

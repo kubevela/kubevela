@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -232,7 +233,11 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 
 	ac := &v1alpha2.ApplicationConfiguration{}
 	if err := r.client.Get(ctx, req.NamespacedName, ac); err != nil {
-		return errResult, errors.Wrap(resource.IgnoreNotFound(err), errGetAppConfig)
+		if apierrors.IsNotFound(err) {
+			// stop processing this resource
+			return ctrl.Result{}, nil
+		}
+		return errResult, errors.Wrap(err, errGetAppConfig)
 	}
 	acPatch := ac.DeepCopy()
 
@@ -301,7 +306,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 
 	applyOpts := []apply.ApplyOption{apply.MustBeControllableBy(ac.GetUID()), applyOnceOnly(ac, r.applyOnceOnlyMode)}
 	if err := r.workloads.Apply(ctx, ac.Status.Workloads, workloads, applyOpts...); err != nil {
-		log.Debug("Cannot apply components", "error", err, "requeue-after", time.Now().Add(shortWait))
+		log.Debug("Cannot apply workload", "error", err, "requeue-after", time.Now().Add(shortWait))
 		r.record.Event(ac, event.Warning(reasonCannotApplyComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyComponents)))
 		return errResult, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)

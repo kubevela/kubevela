@@ -8,10 +8,11 @@ import (
 	"github.com/pkg/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -59,19 +60,27 @@ func (v *ValidatingAppConfig) PrepareForValidation(ctx context.Context, c client
 	for _, acc := range ac.Spec.Components {
 		tmp := ValidatingComponent{}
 		tmp.appConfigComponent = acc
-
 		if acc.ComponentName != "" {
 			tmp.compName = acc.ComponentName
 		} else {
 			tmp.compName = acc.RevisionName
 		}
-		comp, _, err := util.GetComponent(ctx, c, acc, ac.Namespace)
+		var comp *v1alpha2.Component
+		accCopy := *acc.DeepCopy()
+		err := wait.ExponentialBackoff(retry.DefaultBackoff, func() (bool, error) {
+			var err error
+			comp, _, err = util.GetComponent(ctx, c, accCopy, ac.Namespace)
+			if err != nil && !k8serrors.IsNotFound(err) {
+				return false, err
+			}
+			return true, nil
+		})
 		if err != nil {
 			return errors.Wrapf(err, errFmtGetComponent, tmp.compName)
 		}
 		tmp.component = *comp
 
-		// get worload content from raw
+		// get workload content from raw
 		var wlContentObject map[string]interface{}
 		if err := json.Unmarshal(comp.Spec.Workload.Raw, &wlContentObject); err != nil {
 			return errors.Wrapf(err, errFmtUnmarshalWorkload, tmp.compName)
