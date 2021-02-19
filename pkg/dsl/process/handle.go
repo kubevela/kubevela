@@ -80,7 +80,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	buff += fmt.Sprintf("appName: \"%s\"\n", ctx.appName)
 
 	if ctx.base != nil {
-		buff += fmt.Sprintf("input: %s\n", structMarshal(ctx.base.String()))
+		buff += fmt.Sprintf("output: %s\n", structMarshal(ctx.base.String()))
 	}
 
 	if len(ctx.configs) > 0 {

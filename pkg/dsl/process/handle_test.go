@@ -41,7 +41,7 @@ image: "myserver"
 	myAppName, err := ctxInst.Lookup("context", "appName").String()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "myapp", myAppName)
-	inputJs, err := ctxInst.Lookup("context", "input").MarshalJSON()
+	inputJs, err := ctxInst.Lookup("context", "output").MarshalJSON()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, `{"image":"myserver"}`, string(inputJs))
 }
