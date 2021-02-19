@@ -170,18 +170,20 @@ func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtim
 		Revision: nextRevision,
 		Data:     runtime.RawExtension{Object: comp},
 	}
-	// has to update the status first
-	err := c.UpdateStatus(context.Background(), comp)
+
+	// TODO: we should update the status first. otherwise, the subsequent create will all fail if the update fails
+	err := c.Client.Create(context.TODO(), &revision)
+	if err != nil {
+		c.Logger.Info(fmt.Sprintf("error create controllerRevision %v", err), "componentName", mt.GetName())
+		return nil, false
+	}
+
+	err = c.UpdateStatus(context.Background(), comp)
 	if err != nil {
 		c.Logger.Info(fmt.Sprintf("update component status latestRevision %s err %v", revisionName, err), "componentName", mt.GetName())
 		return nil, false
 	}
 
-	err = c.Client.Create(context.TODO(), &revision)
-	if err != nil {
-		c.Logger.Info(fmt.Sprintf("error create controllerRevision %v", err), "componentName", mt.GetName())
-		return nil, false
-	}
 	c.Logger.Info(fmt.Sprintf("ControllerRevision %s created", revisionName))
 	// garbage collect
 	if int64(c.RevisionLimit) < nextRevision {
