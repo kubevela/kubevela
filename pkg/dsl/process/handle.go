@@ -12,6 +12,8 @@ import (
 const (
 	// OutputFieldName is the reference of context base object
 	OutputFieldName = "output"
+	// OutputsFieldName is the reference of context Auxiliaries
+	OutputsFieldName = "outputs"
 	// ConfigFieldName is the reference of context config
 	ConfigFieldName = "config"
 	// ContextName is the name of context
@@ -92,6 +94,18 @@ func (ctx *templateContext) BaseContextFile() string {
 
 	if ctx.base != nil {
 		buff += fmt.Sprintf(OutputFieldName+": %s\n", structMarshal(ctx.base.String()))
+	}
+
+	if len(ctx.auxiliaries) > 0 {
+		var auxLines []string
+		for _, auxiliary := range ctx.auxiliaries {
+			if auxiliary.IsOutputs {
+				auxLines = append(auxLines, fmt.Sprintf("%s: %s", auxiliary.Name, structMarshal(auxiliary.Ins.String())))
+			}
+		}
+		if len(auxLines) > 0 {
+			buff += fmt.Sprintf(OutputsFieldName+": {%s}\n", strings.Join(auxLines, "\n"))
+		}
 	}
 
 	if len(ctx.configs) > 0 {
