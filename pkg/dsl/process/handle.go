@@ -83,6 +83,18 @@ func (ctx *templateContext) BaseContextFile() string {
 		buff += fmt.Sprintf("output: %s\n", structMarshal(ctx.base.String()))
 	}
 
+	if len(ctx.auxiliaries) > 0 {
+		auxLines := []string{}
+		for _, auxiliary := range ctx.auxiliaries {
+			if auxiliary.IsOutputs {
+				auxLines = append(auxLines, fmt.Sprintf("%s: %s", auxiliary.Name, structMarshal(auxiliary.Ins.String())))
+			}
+		}
+		if len(auxLines) > 0 {
+			buff += fmt.Sprintf("outputs: {%s}\n", strings.Join(auxLines, "\n"))
+		}
+	}
+
 	if len(ctx.configs) > 0 {
 		bt, _ := json.Marshal(ctx.configs)
 		buff += "config: " + string(bt)
