@@ -11,7 +11,7 @@ Despite the efficiency and extensibility in defining abstractions and encapsulat
 
 KubeVela is designed to make it possible to build platforms with leverage of those great encapsulation solutions. 
 
-## Abstraction and Encapsulation
+## Encapsulation and Abstraction
 
 KubeVela introduces an `Application` resource as the abstraction that captures all needed resources to run the application, and exposes configurable parameters for end users. Every application is composed by multiple components, and each of them is defined by workload specification and traits (operational behaviors). For example:
 
@@ -44,11 +44,11 @@ spec:
 
 For platform builder side, this abstraction is highly extensible and can encapsulate all the needed resources that composed your app. In detail, each *workload type* and *trait* specification in an application is defined via independent definition objects, for example, [`WorkloadDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#workload-definition) and [`TraitDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#scaler-trait-definition). 
 
-The definition objects is designed to support any possible encapsulation modules, for example `CUE` lib, `Terraform` lib, `Helm` charts, etc. This enables platform team to create unified abstraction that can model and deploy any kind of resource with ease including the cloud services. Actually, in the `application-sample` above, it defines a OSS bucket on Alibaba Cloud as a component which is powered by a Terraform module behind the scenes.
+The definition objects is designed to support any possible encapsulation module types, for example `CUE`, `Terraform` and `Helm`, etc. This enables platform team to create unified abstraction that can model and deploy any kind of resource with ease including the cloud services. Actually, in the `application-sample` above, it defines a OSS bucket on Alibaba Cloud as a component which is powered by a Terraform module behind the scenes.
 
 ### No Configuration Drift
 
-Many of the existing encapsulation tools today works at client side, for example, DSL/IaC tools and Helm. This approach is easy to be adopted and has less invasion in the user cluster, KubeVela encapsulation engine can also be implemented at client side.
+Many of the existing encapsulation solutions today work at client side, for example, DSL/IaC tools and Helm. This approach is easy to be adopted and has less invasion in the user cluster, KubeVela encapsulation engine can also be implemented at client side.
 
 But client side abstractions, though light-weighted, always lead to an issue called infrastructure/configuration drift, i.e. the generated component instances are not in line with the expected configuration. This could be caused by incomplete coverage, less-than-perfect processes or emergency changes.
 

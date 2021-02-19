@@ -1,6 +1,6 @@
 # Designing Application
 
-The goal of application model in KubeVela is to expose an unified abstraction to end user, and allow platform team to use any existing encapsulation solutions behind the abstraction. This is achieved by the `Application` custom resource.
+Application encapsulation and abstraction is achieved by the `Application` custom resource.
 
 ## Example
 

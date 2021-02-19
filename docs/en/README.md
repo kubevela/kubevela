@@ -4,9 +4,7 @@
 
 # KubeVela
 
-For developers, KubeVela is an easy-to-use yet extensible platform that enables them to design and ship applications with minimal effort.
-
-For platform builders, KubeVela is the core engine that empowers them to create above platform with ease.
+KubeVela is a platform engine to enable designing and shipping applications with minimal effort.
 
 ## Community
 
@@ -19,9 +17,13 @@ For platform builders, KubeVela is the core engine that empowers them to create 
 
 ![alt](../resources/how-it-works.png)
 
-## Quick Start
+## Core Concepts
 
-Quick start tutorials are available on [this section](/en/quick-start).
+Learn KubeVela starting from its [core concepts](en/concepts.md).
+
+## Installation
+
+Installation guide is available on [this section](en/install.md).
 
 ## Contributing
 Check out [CONTRIBUTING](https://github.com/oam-dev/kubevela/blob/master/CONTRIBUTING.md) to see how to develop with KubeVela.
