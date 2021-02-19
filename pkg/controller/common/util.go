@@ -8,6 +8,9 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	v1 "k8s.io/api/apps/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -30,9 +33,17 @@ func ExtractComponentName(revisionName string) string {
 func CompareWithRevision(ctx context.Context, c client.Client, logger logging.Logger, componentName, nameSpace,
 	latestRevision string, curCompSpec *v1alpha2.ComponentSpec) (bool, error) {
 	oldRev := &v1.ControllerRevision{}
-	if err := c.Get(ctx, client.ObjectKey{Namespace: nameSpace, Name: latestRevision}, oldRev); err != nil {
-		logger.Info(fmt.Sprintf("get old controllerRevision %s error %v",
-			latestRevision, err), "componentName", componentName)
+	// retry on NotFound since we update the component last revision first
+	err := wait.ExponentialBackoff(retry.DefaultBackoff, func() (bool, error) {
+		err := c.Get(ctx, client.ObjectKey{Namespace: nameSpace, Name: latestRevision}, oldRev)
+		if err != nil && !apierrors.IsNotFound(err) {
+			logger.Info(fmt.Sprintf("get old controllerRevision %s error %v",
+				latestRevision, err), "componentName", componentName)
+			return false, err
+		}
+		return true, nil
+	})
+	if err != nil {
 		return true, err
 	}
 	oldComp, err := util.UnpackRevisionData(oldRev)

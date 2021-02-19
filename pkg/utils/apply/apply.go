@@ -135,24 +135,19 @@ func executeApplyOptions(ctx context.Context, existing, desired runtime.Object, 
 
 // MustBeControllableBy requires that the existing object is controllable by an
 // object with the supplied UID. An object is controllable if its controller
-// reference matches the supplied UID, or it has no controller reference. An
-// error will be returned if the current object cannot be controlled by the
-// supplied UID.
-// ACKNOWLEDGMENTS: The code was based in part on the source code of
-// - github.com/crossplane/crossplane-runtime/pkg/resource/resource.go#L274
+// reference includes the supplied UID.
+// There can be multiple controllers and it's ligit as long as one of them matches the UID
 func MustBeControllableBy(u types.UID) ApplyOption {
-	return func(_ context.Context, existing, _ runtime.Object) error {
-		if existing == nil {
+	return func(_ context.Context, _, newInstance runtime.Object) error {
+		if newInstance == nil {
 			return nil
 		}
-		c := metav1.GetControllerOf(existing.(metav1.Object))
-		if c == nil {
-			return nil
+		owners := newInstance.(metav1.Object).GetOwnerReferences()
+		for _, owner := range owners {
+			if owner.Controller != nil && *owner.Controller && owner.UID == u {
+				return nil
+			}
 		}
-
-		if c.UID != u {
-			return errors.Errorf("existing object is not controlled by UID %q", u)
-		}
-		return nil
+		return errors.Errorf("existing object is not controlled by UID %q", u)
 	}
 }
