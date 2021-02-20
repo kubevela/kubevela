@@ -3,226 +3,155 @@ import 'antd/dist/antd.css';
 
 import React, { useState } from 'react';
 
-import { Button, Col, Divider, Dropdown, Input, Menu, Row } from 'antd';
-import FormRender from 'form-render/lib/antd';
+import { Alert, Button, Form, Input, message, Space, Spin } from 'antd';
+import { history, useModel } from 'umi';
 
 import { createApplication } from '@/services/application';
-import { getCapabilityOpenAPISchema } from '@/services/capability';
-import { useModel } from '@@/plugin-model/useModel';
-import { DownOutlined, UserOutlined } from '@ant-design/icons';
+import { CloseOutlined, SaveOutlined } from '@ant-design/icons';
+import { FooterToolbar, PageContainer } from '@ant-design/pro-layout';
+
+import FormGroup from './components/FormGroup';
+import ServiceForm from './components/ServiceForm';
 
 export default (): React.ReactNode => {
+  const [services, setServices] = useState<{ [key: string]: any }>({});
+
+  const [errorFields, setErrorFields] = useState<{ [key: string]: any }>({});
+  const [showError, setShowError] = useState<boolean>(false);
   const { currentEnvironment } = useModel('useEnvironmentModel');
-  const { workloadList } = useModel('useWorkloadsModel');
-  const { traitsList } = useModel('useTraitsModel');
 
-  const [workloadType, setWorkloadType] = useState('');
+  const [loading, setLoading] = useState<boolean>(false);
 
-  const workloadMenuList = workloadList?.map((i) => (
-    <Menu.Item
-      key={i.name}
-      icon={<UserOutlined />}
-      onClick={() => handleMenuClick('workload_type', i.name)}
-    >
-      {i.name}
-    </Menu.Item>
-  ));
-
-  const traitMenuList = traitsList?.map((i) => (
-    <Menu.Item
-      key={i.name}
-      icon={<UserOutlined />}
-      onClick={() => handleMenuClick('trait', i.name)}
-    >
-      {i.name}
-    </Menu.Item>
-  ));
-
-  const workloadsMenu = <Menu>{workloadMenuList}</Menu>;
-
-  const traitsMenu = <Menu>{traitMenuList}</Menu>;
-
-  const [applicationName, setApplicationName] = useState('');
-  const [serviceName, setServiceName] = useState('');
-
-  // Capability parameters form render
-  const [formData, setData] = useState({});
-  // schema is OpenAPI Schema JSON data
-  const [workloadSchema, setWorkloadSchema] = useState({});
-  const [traitSchema, setTraitSchema] = useState({});
-  const [valid, setValid] = useState([]);
-
-  function handleMenuClick(capabilityType: string, capabilityName: string) {
-    console.log('click', capabilityName);
-    getCapabilityOpenAPISchema(capabilityName).then((result) => {
-      const data = JSON.parse(result.data);
-      if (capabilityType === 'workload_type') {
-        setWorkloadType(capabilityName);
-        setWorkloadSchema(data);
-      } else if (capabilityType === 'trait') {
-        setTraitSchema(data);
-      }
-    });
-  }
-
-  const onSubmit = () => {
-    // valid == 0: validation passed
-    if (valid.length > 0) {
-      alert(`invalid：${valid.toString()}`);
-    }
-    const servicesDict = {};
-    servicesDict[serviceName] = {
-      type: workloadType,
-    };
-
-    Object.entries(formData).forEach(([key, value]) => {
-      // eslint-disable-next-line default-case
-      switch (typeof value) {
-        case 'number':
-          servicesDict[serviceName][key] = value;
-          break;
-        case 'string':
-          if (value === null || value === '') {
-            break;
-          }
-          servicesDict[serviceName][key] = value;
-          break;
-        case 'object':
-          if (Array.isArray(value) && value.length) {
-            servicesDict[serviceName][key] = value;
-            break;
-          }
-      }
-    });
-
-    const appFile = {
-      name: applicationName,
-      services: servicesDict,
-    };
-
-    if (currentEnvironment?.envName == null) {
-      alert('could not get current environment name');
+  const saveApp = (app: API.AppFile) => {
+    const envName = currentEnvironment?.envName;
+    if (envName == null) {
+      message.error('Unrecognized environment!');
       return;
     }
-    createApplication(currentEnvironment.envName, appFile).then((r) => {
-      alert(r.data);
-    });
+    setLoading(true);
+    createApplication(envName, app)
+      .then(({ data }) => {
+        message.success({ content: data, key: 'created' });
+        history.push('/applications');
+      })
+      .catch(() => setLoading(false));
   };
-
   return (
-    <div style={{ maxWidth: 600 }}>
-      <Row>
-        <Col span="4">Application</Col>
-        <Col span="20" />
-      </Row>
+    <PageContainer>
+      {showError ? (
+        <Alert
+          showIcon
+          type="error"
+          message="The following fields failed validation:"
+          description={
+            <ul>
+              {Object.keys(errorFields).map((f) =>
+                errorFields[f] == null
+                  ? null
+                  : Object.entries(errorFields[f]).map((ff) => {
+                      return (
+                        <li key={ff[0]}>
+                          - {f}.{ff[0]}
+                        </li>
+                      );
+                    }),
+              )}
+            </ul>
+          }
+        />
+      ) : null}
+      <Spin spinning={loading}>
+        <Form
+          labelCol={{ span: 4 }}
+          onFinishFailed={({ errorFields: ef }) => {
+            setShowError(true);
+            const appErrorFields = {};
+            ef.forEach((f) => {
+              appErrorFields[f.name.join('.')] = f.errors.join(',');
+            });
+            setErrorFields({ ...errorFields, app: appErrorFields });
+          }}
+          onFinish={(values) => {
+            delete errorFields['app.name'];
+            Object.keys(errorFields).forEach((f) => {
+              if (errorFields[f] == null) {
+                delete errorFields[f];
+              }
+            });
+            if (Object.keys(errorFields).length > 0) {
+              setShowError(true);
+              return;
+            }
+            const { name } = values;
 
-      <Row>
-        <Col span="4">Name:</Col>
-        <Col span="8">
-          <Input
-            placeholder="Basic usage"
-            onChange={(e) => {
-              const v = e.target.value;
-              setApplicationName(v);
-            }}
-          />
-        </Col>
-        <Col span="12" />
-      </Row>
+            saveApp({
+              name,
+              services,
+            });
+          }}
+        >
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <FormGroup title="Basic">
+              <Form.Item
+                name="name"
+                label="Application Name"
+                required
+                rules={[{ required: true, max: 200 }]}
+              >
+                <Input placeholder="Application name" />
+              </Form.Item>
+            </FormGroup>
+            <FormGroup title="Services">
+              <ServiceForm
+                onChange={(value) => {
+                  const servicesObj = {};
+                  value.forEach((service) => {
+                    const { name, type, data, traits } = service;
+                    if (name == null || type == null) {
+                      return;
+                    }
+                    const serviceObj: any = { type };
+                    servicesObj[name] = serviceObj;
 
-      <Row>
-        <Col span="24">
-          <Divider />
-        </Col>
-      </Row>
-
-      <Row>
-        <Col span="4">Services</Col>
-        <Col span="20" />
-      </Row>
-
-      <Row>
-        <Col span="4">Name:</Col>
-        <Col span="8">
-          <Input
-            placeholder="Basic usage"
-            onChange={(e) => {
-              const v = e.target.value;
-              setServiceName(v);
-            }}
-          />
-        </Col>
-        <Col span="12" />
-      </Row>
-
-      <Row>
-        <Col span="4">Type:</Col>
-        <Col span="20">
-          <Dropdown overlay={workloadsMenu}>
-            <Button>
-              Select <DownOutlined />
+                    if (data != null) {
+                      Object.keys(data).forEach((k) => {
+                        serviceObj[k] = data[k];
+                      });
+                    }
+                    if (traits != null) {
+                      Object.keys(traits).forEach((k) => {
+                        serviceObj[k] = traits[k];
+                      });
+                    }
+                  });
+                  if (Object.keys(servicesObj).length < value.length) {
+                    setErrorFields({ ...errorFields, services: { name: '' } });
+                    setShowError(true);
+                  } else {
+                    if (errorFields.services?.name != null) {
+                      delete errorFields.services.name;
+                      setErrorFields({ ...errorFields });
+                    }
+                    setShowError(false);
+                  }
+                  setServices(servicesObj);
+                }}
+                onValidate={(errors) => {
+                  setErrorFields(errors);
+                }}
+              />
+            </FormGroup>
+          </Space>
+          <FooterToolbar>
+            <Button icon={<CloseOutlined />} onClick={() => history.push('/applications')}>
+              Cancel
             </Button>
-          </Dropdown>
-        </Col>
-      </Row>
-
-      <Row>
-        <Col span="4">Settings:</Col>
-        <Col span="20">
-          <FormRender
-            schema={workloadSchema}
-            formData={formData}
-            onChange={setData}
-            onValidate={setValid}
-            displayType="column"
-          />
-        </Col>
-      </Row>
-
-      <Row>
-        <Col span="24">
-          <Divider />
-        </Col>
-      </Row>
-
-      <Row>
-        <Col span="4">Traits</Col>
-        <Col span="20" />
-      </Row>
-
-      <Row>
-        <Col span="4">Type:</Col>
-        <Col span="20">
-          <Dropdown overlay={traitsMenu}>
-            <a className="ant-dropdown-link" onClick={(e) => e.preventDefault()}>
-              Select <DownOutlined />
-            </a>
-          </Dropdown>
-        </Col>
-      </Row>
-
-      <Row>
-        <Col span="4">Properties:</Col>
-        <Col span="20">
-          <FormRender
-            schema={traitSchema}
-            formData={formData}
-            onChange={setData}
-            onValidate={setValid}
-            displayType="column"
-          />
-        </Col>
-      </Row>
-
-      <Row>
-        <Col span="8" />
-        <Col span="8">
-          <Button onClick={onSubmit} type="primary">
-            Submit
-          </Button>
-        </Col>
-        <Col span="8" />
-      </Row>
-    </div>
+            <Button type="primary" icon={<SaveOutlined />} htmlType="submit">
+              Save
+            </Button>
+          </FooterToolbar>
+        </Form>
+      </Spin>
+    </PageContainer>
   );
 };
