@@ -3,6 +3,7 @@ package serverlib
 import (
 	"bytes"
 	"context"
+	j "encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/ghodss/yaml"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -327,20 +329,33 @@ func GetServicesWhenDescribingApplication(cmd *cobra.Command, app *api.Applicati
 	return targetServices, nil
 }
 
-func saveRemoteAppfile(url string) (string, error) {
+func saveAndLoadRemoteAppfile(url string) (*api.AppFile, error) {
 	body, err := common.HTTPGet(context.Background(), url)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
+	af := api.NewAppFile()
 	ext := filepath.Ext(url)
 	dest := "Appfile"
-	if ext == ".json" {
+	switch ext {
+	case ".json":
 		dest = "vela.json"
-	} else if ext == ".yaml" || ext == ".yml" {
+		af, err = api.JSONToYaml(body, af)
+	case ".yaml", ".yml":
 		dest = "vela.yaml"
+		err = yaml.Unmarshal(body, af)
+	default:
+		if j.Valid(body) {
+			af, err = api.JSONToYaml(body, af)
+		} else {
+			err = yaml.Unmarshal(body, af)
+		}
+	}
+	if err != nil {
+		return nil, err
 	}
 	//nolint:gosec
-	return dest, ioutil.WriteFile(dest, body, 0644)
+	return af, ioutil.WriteFile(dest, body, 0644)
 }
 
 // ExportFromAppFile exports Application from appfile object
@@ -394,12 +409,13 @@ func (o *AppfileOptions) Export(filePath string, quiet bool) (*BuildResult, []by
 	}
 	if filePath != "" {
 		if strings.HasPrefix(filePath, "https://") || strings.HasPrefix(filePath, "http://") {
-			filePath, err = saveRemoteAppfile(filePath)
+			app, err = saveAndLoadRemoteAppfile(filePath)
 			if err != nil {
 				return nil, nil, err
 			}
+		} else {
+			app, err = api.LoadFromFile(filePath)
 		}
-		app, err = api.LoadFromFile(filePath)
 	} else {
 		app, err = api.Load()
 	}

@@ -101,7 +101,7 @@ func (ctx *templateContext) BaseContextLabels() map[string]string {
 	}
 }
 
-// GetK8sResource return models of templateContext
+// Output return model and auxiliaries of templateContext
 func (ctx *templateContext) Output() (model.Instance, []Auxiliary) {
 	return ctx.base, ctx.auxiliaries
 }
