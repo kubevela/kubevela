@@ -34,14 +34,14 @@ image: "myserver"
 		return
 	}
 
-	gName, err := ctxInst.Lookup("context", "name").String()
+	gName, err := ctxInst.Lookup("context", ContextName).String()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "mycomp", gName)
 
-	myAppName, err := ctxInst.Lookup("context", "appName").String()
+	myAppName, err := ctxInst.Lookup("context", ContextAppName).String()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "myapp", myAppName)
-	inputJs, err := ctxInst.Lookup("context", "input").MarshalJSON()
+	inputJs, err := ctxInst.Lookup("context", OutputFieldName).MarshalJSON()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, `{"image":"myserver"}`, string(inputJs))
 }
