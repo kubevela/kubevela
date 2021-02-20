@@ -9,7 +9,7 @@ on:
 
 defaults:
   run:
-    working-directory: ./dashboard
+    working-directory: ./references/dashboard
 jobs:
   build:
     runs-on: ubuntu-20.04

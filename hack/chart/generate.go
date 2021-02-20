@@ -27,5 +27,5 @@ func printToFile(data string) {
 var ChartSource = "`)
 	utils.FprintZipData(&buffer, []byte(data))
 	buffer.WriteString(`"`)
-	_ = ioutil.WriteFile("cmd/vela/fake/chart_source.go", buffer.Bytes(), 0644)
+	_ = ioutil.WriteFile("references/cmd/cli/fake/chart_source.go", buffer.Bytes(), 0644)
 }

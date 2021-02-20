@@ -48,5 +48,5 @@ func PrintToFile(data string) {
 var FrontendSource = "`)
 	utils.FprintZipData(&buffer, []byte(data))
 	buffer.WriteString(`"`)
-	_ = ioutil.WriteFile("cmd/vela/fake/source.go", buffer.Bytes(), 0644)
+	_ = ioutil.WriteFile("references/cmd/cli/fake/source.go", buffer.Bytes(), 0644)
 }

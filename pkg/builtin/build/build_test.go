@@ -6,7 +6,7 @@ import (
 	"github.com/bmizerany/assert"
 
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 func TestBuild(t *testing.T) {

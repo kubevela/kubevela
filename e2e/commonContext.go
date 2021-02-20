@@ -10,8 +10,8 @@ import (
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
 
-	"github.com/oam-dev/kubevela/pkg/server/apis"
-	"github.com/oam-dev/kubevela/pkg/server/util"
+	"github.com/oam-dev/kubevela/references/apiserver/apis"
+	"github.com/oam-dev/kubevela/references/apiserver/util"
 )
 
 var (

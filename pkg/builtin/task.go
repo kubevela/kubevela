@@ -10,7 +10,7 @@ import (
 	_ "github.com/oam-dev/kubevela/pkg/builtin/http"
 
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 // RunBuildInTasks do initializing tasks for appfile.

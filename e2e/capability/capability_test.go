@@ -5,7 +5,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/e2e"
-	"github.com/oam-dev/kubevela/pkg/server/apis"
+	"github.com/oam-dev/kubevela/references/apiserver/apis"
 
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega"
