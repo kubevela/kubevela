@@ -91,7 +91,7 @@ var _ = Describe("Test Application apply", func() {
 		Expect(k8sClient.Delete(context.TODO(), &ns)).Should(Succeed())
 	})
 
-	FIt("Test creating applicationConfiguration revision", func() {
+	It("Test creating applicationConfiguration revision", func() {
 		ctx := context.TODO()
 
 		By("[TEST] Test application without AC revision")

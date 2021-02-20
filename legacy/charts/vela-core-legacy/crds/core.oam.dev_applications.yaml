@@ -357,9 +357,12 @@ spec:
                 revision:
                   format: int64
                   type: integer
+                revisionHash:
+                  type: string
               required:
               - name
               - revision
+              - revisionHash
               type: object
             rollingState:
               description: RollingState is the Rollout State

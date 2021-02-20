@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -390,7 +391,7 @@ var _ = Describe("Test appFile parser", func() {
 			}, ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
 				Namespace: "default",
-				Labels:    map[string]string{"application.oam.dev": "test"},
+				Labels:    map[string]string{oam.LabelAppName: "test"},
 			},
 			Spec: v1alpha2.ApplicationConfigurationSpec{
 				Components: []v1alpha2.ApplicationConfigurationComponent{
@@ -424,7 +425,7 @@ var _ = Describe("Test appFile parser", func() {
 			}, ObjectMeta: metav1.ObjectMeta{
 				Name:      "myweb",
 				Namespace: "default",
-				Labels:    map[string]string{"application.oam.dev": "test"},
+				Labels:    map[string]string{oam.LabelAppName: "test"},
 			}}
 		expectWorkload := &unstructured.Unstructured{
 			Object: map[string]interface{}{

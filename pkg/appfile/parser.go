@@ -20,9 +20,6 @@ import (
 const (
 	// AppfileBuiltinConfig defines the built-in config variable
 	AppfileBuiltinConfig = "config"
-
-	// OAMApplicationLabel is application's metadata label tagged on AC and Component
-
 )
 
 // Workload is component
