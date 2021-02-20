@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/openservicemesh/osm/pkg/cli"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"helm.sh/helm/v3/pkg/chart"
@@ -18,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/hack/utils"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/plugins"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
@@ -247,7 +247,7 @@ func InstallOamRuntime(chartPath, chartSource string, vals map[string]interface{
 		ioStreams.Infof("Use customized chart at: %s", chartPath)
 		chartRequested, err = loader.Load(chartPath)
 	} else {
-		chartRequested, err = cli.LoadChart(chartSource)
+		chartRequested, err = utils.LoadChart(chartSource)
 		if chartRequested != nil {
 			m, l := chartRequested.Metadata, len(chartRequested.Raw)
 			ioStreams.Infof("install chart %s, version %s, desc : %s, contains %d file\n", m.Name, m.Version, m.Description, l)
