@@ -29,6 +29,7 @@ require (
 	github.com/google/go-github/v32 v32.1.0
 	github.com/gosuri/uitable v0.0.4
 	github.com/hinshun/vt10x v0.0.0-20180616224451-1954e6464174
+	github.com/klauspost/compress v1.10.5 // indirect
 	github.com/kyokomi/emoji v2.2.4+incompatible
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/mholt/archiver/v3 v3.3.0
@@ -38,7 +39,6 @@ require (
 	github.com/onsi/ginkgo v1.13.0
 	github.com/onsi/gomega v1.10.3
 	github.com/openkruise/kruise-api v0.7.0
-	github.com/openservicemesh/osm v0.3.0
 	github.com/pkg/errors v0.9.1
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
 	github.com/spf13/cobra v1.1.1
