@@ -28,11 +28,7 @@ image: "myserver"
 
 	serviceTemplate := `
 	apiVersion: "v1"
-<<<<<<< HEAD
-	kind: "ConfigMap"
-=======
     kind:       "ConfigMap"
->>>>>>> context outputs
 `
 
 	svcInst, err := r.Compile("-", serviceTemplate)
