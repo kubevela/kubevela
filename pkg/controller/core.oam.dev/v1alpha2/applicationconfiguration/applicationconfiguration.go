@@ -240,7 +240,8 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		return errResult, errors.Wrap(err, errGetAppConfig)
 	}
 	acPatch := ac.DeepCopy()
-
+	firstReconcile := false
+	var newComponents []string
 	if ac.ObjectMeta.DeletionTimestamp.IsZero() {
 		if registerFinalizers(ac) {
 			log.Debug("Register new finalizers", "finalizers", ac.ObjectMeta.Finalizers)
@@ -256,6 +257,14 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		}
 		return reconcile.Result{}, errors.Wrap(r.client.Update(ctx, ac), errUpdateAppConfigStatus)
 	}
+
+	// make sure this is the last functional defer function to be called
+	defer func() {
+		// Make sure if error occurs, reconcile will not happen too frequency
+		if returnErr != nil && result.RequeueAfter < shortWait {
+			result.RequeueAfter = shortWait
+		}
+	}()
 
 	// execute the posthooks at the end no matter what
 	defer func() {
@@ -273,11 +282,6 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 			r.record.Event(ac, event.Normal(reasonExecutePosthook, "Successfully executed a posthook", "posthook name", name))
 		}
 		returnErr = errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
-
-		// Make sure if error occurs, reconcile will not happen too frequency
-		if returnErr != nil && result.RequeueAfter < shortWait {
-			result.RequeueAfter = shortWait
-		}
 	}()
 
 	// execute the prehooks
@@ -294,6 +298,24 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 
 	log = log.WithValues("uid", ac.GetUID(), "version", ac.GetResourceVersion())
 
+	// we have special logics for application generated applicationConfiguration
+	if newAppConifgAnno, exist := ac.GetAnnotations()[oam.AnnotationNewAppConfig]; exist {
+		if newAppConifgAnno == "true" {
+			firstReconcile = true
+			defer func() {
+				// we only flip the annotation after a successful reconcile
+				if returnErr == nil {
+					ac.GetAnnotations()[oam.AnnotationNewAppConfig] = "false"
+					returnErr = r.client.Update(ctx, ac)
+				}
+			}()
+		}
+	}
+	// TODO: Handle multiple components
+	if newComponent, exist := ac.GetAnnotations()[oam.AnnotationNewComponent]; exist {
+		newComponents = []string{newComponent}
+	}
+
 	workloads, depStatus, err := r.components.Render(ctx, ac)
 	if err != nil {
 		log.Info("Cannot render components", "error", err, "requeue-after", time.Now().Add(shortWait))
@@ -305,7 +327,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 	r.record.Event(ac, event.Normal(reasonRenderComponents, "Successfully rendered components", "workloads", strconv.Itoa(len(workloads))))
 
 	applyOpts := []apply.ApplyOption{apply.MustBeControllableBy(ac.GetUID()), applyOnceOnly(ac, r.applyOnceOnlyMode)}
-	if err := r.workloads.Apply(ctx, ac.Status.Workloads, workloads, applyOpts...); err != nil {
+	if err := r.workloads.Apply(ctx, ac.Status.Workloads, workloads, firstReconcile, newComponents, applyOpts...); err != nil {
 		log.Debug("Cannot apply workload", "error", err, "requeue-after", time.Now().Add(shortWait))
 		r.record.Event(ac, event.Warning(reasonCannotApplyComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyComponents)))

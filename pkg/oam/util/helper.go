@@ -296,17 +296,35 @@ type labelAnnotationObject interface {
 }
 
 // PassLabel passes through labels from the parent to the child object
-func PassLabel(parentObj oam.Object, childObj labelAnnotationObject) {
+func PassLabel(parentObj, childObj labelAnnotationObject) {
 	// pass app-config labels
 	childObj.SetLabels(MergeMapOverrideWithDst(parentObj.GetLabels(), childObj.GetLabels()))
 }
 
 // PassLabelAndAnnotation passes through labels and annotation objectMeta from the parent to the child object
-func PassLabelAndAnnotation(parentObj oam.Object, childObj labelAnnotationObject) {
+func PassLabelAndAnnotation(parentObj, childObj labelAnnotationObject) {
 	// pass app-config labels
 	childObj.SetLabels(MergeMapOverrideWithDst(parentObj.GetLabels(), childObj.GetLabels()))
 	// pass app-config annotation
 	childObj.SetAnnotations(MergeMapOverrideWithDst(parentObj.GetAnnotations(), childObj.GetAnnotations()))
+}
+
+// RemoveLabels removes keys that contains in the removekeys slice from the label
+func RemoveLabels(o labelAnnotationObject, removeKeys []string) {
+	exist := o.GetLabels()
+	for _, key := range removeKeys {
+		delete(exist, key)
+	}
+	o.SetLabels(exist)
+}
+
+// RemoveAnnotations removes keys that contains in the removekeys slice from the annotation
+func RemoveAnnotations(o labelAnnotationObject, removeKeys []string) {
+	exist := o.GetAnnotations()
+	for _, key := range removeKeys {
+		delete(exist, key)
+	}
+	o.SetAnnotations(exist)
 }
 
 // GetDefinitionName return the Definition name of any resources
@@ -514,12 +532,12 @@ func UnpackRevisionData(rev *appsv1.ControllerRevision) (*v1alpha2.Component, er
 }
 
 // AddLabels will merge labels with existing labels. If any conflict keys, use new value to override existing value.
-func AddLabels(o *unstructured.Unstructured, labels map[string]string) {
+func AddLabels(o labelAnnotationObject, labels map[string]string) {
 	o.SetLabels(MergeMapOverrideWithDst(o.GetLabels(), labels))
 }
 
 // AddAnnotations will merge annotations with existing ones. If any conflict keys, use new value to override existing value.
-func AddAnnotations(o *unstructured.Unstructured, annos map[string]string) {
+func AddAnnotations(o labelAnnotationObject, annos map[string]string) {
 	o.SetAnnotations(MergeMapOverrideWithDst(o.GetAnnotations(), annos))
 }
 

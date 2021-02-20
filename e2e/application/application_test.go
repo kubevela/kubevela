@@ -12,7 +12,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/e2e"
-	"github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
 
 var (
@@ -76,7 +76,7 @@ var ApplicationStatusDeeplyContext = func(context string, applicationName, workl
 			gomega.Eventually(func() int {
 				appConfig := &v1alpha2.ApplicationConfiguration{}
 				_ = k8sclient.Get(context2.Background(), client.ObjectKey{
-					Name:      common.ConstructRevisionName(applicationName, app.Status.LatestRevision.Revision),
+					Name:      utils.ConstructRevisionName(applicationName, app.Status.LatestRevision.Revision),
 					Namespace: "default"}, appConfig)
 				return len(appConfig.Status.Workloads)
 			}, 180*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))

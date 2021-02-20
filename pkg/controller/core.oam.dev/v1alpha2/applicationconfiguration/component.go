@@ -20,7 +20,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
 
 // ControllerRevisionComponentLabel indicate which component the revision belong to
@@ -110,7 +110,7 @@ func (c *ComponentHandler) IsRevisionDiff(mt klog.KMetadata, curComp *v1alpha2.C
 
 	// client in controller-runtime will use informer cache
 	// use client will be more efficient
-	needNewRevision, err := common.CompareWithRevision(context.TODO(), c.Client, c.Logger, mt.GetName(), mt.GetNamespace(),
+	needNewRevision, err := utils.CompareWithRevision(context.TODO(), c.Client, c.Logger, mt.GetName(), mt.GetNamespace(),
 		curComp.Status.LatestRevision.Name, &curComp.Spec)
 	// TODO: this might be a bug that we treat all errors getting from k8s as a new revision
 	// but the client go event handler doesn't handle an error. We need to see if we can retry this
@@ -139,7 +139,7 @@ func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtim
 	}
 
 	nextRevision := curRevision + 1
-	revisionName := common.ConstructRevisionName(mt.GetName(), nextRevision)
+	revisionName := utils.ConstructRevisionName(mt.GetName(), nextRevision)
 
 	if comp.Status.ObservedGeneration != comp.Generation {
 		comp.Status.ObservedGeneration = comp.Generation

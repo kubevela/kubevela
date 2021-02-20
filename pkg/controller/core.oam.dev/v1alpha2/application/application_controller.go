@@ -36,6 +36,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // RolloutReconcileWaitTime is the time to wait before reconcile again an application still in rollout phase
@@ -100,7 +101,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		app.Status.SetConditions(errorCondition("Built", err))
 		return handler.handleErr(err)
 	}
-
+	// pass the App label and annotation to ac
+	oamutil.PassLabelAndAnnotation(app, ac)
 	app.Status.SetConditions(readyCondition("Built"))
 	applog.Info("apply appConfig & component to the cluster")
 	// apply appConfig & component to the cluster

@@ -160,8 +160,9 @@ type RolloutWebhook struct {
 	// URL address of this webhook
 	URL string `json:"url"`
 
-	// ExpectedStatus a
+	// ExpectedStatus contains all the expected http status code that we will accept as success
 	ExpectedStatus []int `json:"expectedStatus,omitempty"`
+
 	// Metadata (key-value pairs) for this webhook
 	// +optional
 	Metadata *map[string]string `json:"metadata,omitempty"`

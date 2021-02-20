@@ -22,7 +22,7 @@ const (
 	AppfileBuiltinConfig = "config"
 
 	// OAMApplicationLabel is application's metadata label tagged on AC and Component
-	OAMApplicationLabel = "application.oam.dev"
+
 )
 
 // Workload is component
@@ -218,7 +218,7 @@ func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1a
 	if appconfig.Labels == nil {
 		appconfig.Labels = map[string]string{}
 	}
-	appconfig.Labels[OAMApplicationLabel] = app.Name
+	appconfig.Labels[oam.LabelAppName] = app.Name
 
 	var components []*v1alpha2.Component
 	for _, wl := range app.Workloads {
@@ -250,7 +250,7 @@ func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1a
 		if comp.Labels == nil {
 			comp.Labels = map[string]string{}
 		}
-		comp.Labels[OAMApplicationLabel] = app.Name
+		comp.Labels[oam.LabelAppName] = app.Name
 		comp.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
 
 		components = append(components, comp)

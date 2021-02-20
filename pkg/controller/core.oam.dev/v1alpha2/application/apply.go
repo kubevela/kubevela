@@ -22,7 +22,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -232,7 +231,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 	updatedComp := comp.DeepCopy()
 	updatedComp.Spec.Workload.Object = nil
 	if len(preRevisionName) != 0 {
-		needNewRevision, err := common.CompareWithRevision(ctx, h.r,
+		needNewRevision, err := utils.CompareWithRevision(ctx, h.r,
 			logging.NewLogrLogger(h.logger), compName, compNameSpace, preRevisionName, &updatedComp.Spec)
 		if err != nil {
 			return "", false, errors.Wrap(err, fmt.Sprintf("compare with existing controllerRevision %s failed",
@@ -255,7 +254,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 		if curComp.Status.LatestRevision == nil || curComp.Status.LatestRevision.Name == preRevisionName {
 			return false, nil
 		}
-		needNewRevision, err := common.CompareWithRevision(ctx, h.r, logging.NewLogrLogger(h.logger), compName,
+		needNewRevision, err := utils.CompareWithRevision(ctx, h.r, logging.NewLogrLogger(h.logger), compName,
 			compNameSpace, curComp.Status.LatestRevision.Name, &updatedComp.Spec)
 		if err != nil {
 			// retry no matter what
@@ -281,7 +280,7 @@ func (h *appHandler) createOrUpdateAppConfig(ctx context.Context, appConfig *v1a
 	var curAppConfig v1alpha2.ApplicationConfiguration
 	// initialized
 	if h.app.Status.LatestRevision == nil {
-		revisionName := common.ConstructRevisionName(h.app.Name, 0)
+		revisionName := utils.ConstructRevisionName(h.app.Name, 0)
 		h.app.Status.LatestRevision = &v1alpha2.Revision{
 			Name:     revisionName,
 			Revision: 0,
@@ -327,14 +326,16 @@ func (h *appHandler) createOrUpdateAppConfig(ctx context.Context, appConfig *v1a
 // create a new appConfig given the latest revision in the application
 func (h *appHandler) createNewAppConfig(ctx context.Context, appConfig *v1alpha2.ApplicationConfiguration) error {
 	nextRevision := h.app.Status.LatestRevision.Revision + 1
-	revisionName := common.ConstructRevisionName(h.app.Name, nextRevision)
+	revisionName := utils.ConstructRevisionName(h.app.Name, nextRevision)
 	// update the next revision in the application's status
 	h.app.Status.LatestRevision = &v1alpha2.Revision{
-		Name:     revisionName,
-		Revision: nextRevision,
+		Name:         revisionName,
+		Revision:     nextRevision,
+		RevisionHash: appConfig.GetLabels()[oam.LabelAppConfigHash],
 	}
 	appConfig.Name = revisionName
-	// indicate that the application is new, the appConfig controller should remove this after first reconcile
+	// indicate that the application is created by the applicationController
+	// appConfig controller should set this to false after the first successful reconcile
 	appConfig.SetAnnotations(oamutil.MergeMapOverrideWithDst(appConfig.GetAnnotations(), map[string]string{
 		oam.AnnotationNewAppConfig: "true",
 	}))
