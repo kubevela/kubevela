@@ -9,6 +9,17 @@ import (
 	"github.com/oam-dev/kubevela/pkg/dsl/model"
 )
 
+const (
+	// OutputFieldName is the reference of context base object
+	OutputFieldName = "output"
+	// ConfigFieldName is the reference of context config
+	ConfigFieldName = "config"
+	// ContextName is the name of context
+	ContextName = "name"
+	// ContextAppName is the appName of context
+	ContextAppName = "appName"
+)
+
 // Context defines Rendering Context Interface
 type Context interface {
 	SetBase(base model.Instance)
@@ -76,16 +87,16 @@ func (ctx *templateContext) AppendAuxiliaries(auxiliaries ...Auxiliary) {
 // BaseContextFile return cue format string of templateContext
 func (ctx *templateContext) BaseContextFile() string {
 	var buff string
-	buff += fmt.Sprintf("name: \"%s\"\n", ctx.name)
-	buff += fmt.Sprintf("appName: \"%s\"\n", ctx.appName)
+	buff += fmt.Sprintf(ContextName+": \"%s\"\n", ctx.name)
+	buff += fmt.Sprintf(ContextAppName+": \"%s\"\n", ctx.appName)
 
 	if ctx.base != nil {
-		buff += fmt.Sprintf("output: %s\n", structMarshal(ctx.base.String()))
+		buff += fmt.Sprintf(OutputFieldName+": %s\n", structMarshal(ctx.base.String()))
 	}
 
 	if len(ctx.configs) > 0 {
 		bt, _ := json.Marshal(ctx.configs)
-		buff += "config: " + string(bt)
+		buff += ConfigFieldName + ": " + string(bt)
 	}
 
 	return fmt.Sprintf("context: %s", structMarshal(buff))
@@ -95,9 +106,9 @@ func (ctx *templateContext) BaseContextLabels() map[string]string {
 
 	return map[string]string{
 		// appName is oam.LabelAppName
-		"appName": ctx.appName,
+		ContextAppName: ctx.appName,
 		// name is oam.LabelAppComponent
-		"name": ctx.name,
+		ContextName: ctx.name,
 	}
 }
 
