@@ -171,7 +171,6 @@ core-install: manifests
 	kubectl apply -f charts/vela-core/crds/
 	kubectl apply -f charts/vela-core/templates/defwithtemplate/
 	kubectl apply -f charts/vela-core/templates/definitions/
-	kubectl apply -f charts/vela-core/templates/velaConfig.yaml
 	bin/vela workloads
 	@$(OK) install succeed
 
