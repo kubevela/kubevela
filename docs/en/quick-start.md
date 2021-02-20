@@ -1,14 +1,16 @@
-# Quick Start
+# Building Developer Experience with KubeVela
 
-Welcome to KubeVela! In this guide, we'll walk you through how to install KubeVela, and deploy your first simple application.
+To achieve best user experience for your platform, we highly recommend platform builders to create simple and user friendly UI for end users instead of exposing full platform level details to them. Some common practices include building GUI console, adopting DSL, or creating a user friendly command line tool.
+
+As an proof-of-concept of building developer experience with KubeVela, we developed a tool named `Appfile` as well. This tool enables developers to deploy any application with a single file and a single command: `vela up`.
+
+Now let's walk through its experience.
 
 ## Step 1: Install
 
 Make sure you have finished and verified the installation following [this guide](./install.md).
 
 ## Step 2: Deploy Your First Application
-
-Define your application in [Appfile](https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/vela.yaml), and ship it with `$ vela up`:
 
 ```bash
 $ vela up -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/vela.yaml
@@ -73,11 +75,4 @@ Hello World
 
 ## What's Next
 
-Congratulations! You have just deployed an app using KubeVela.
-
-Here are some recommended next steps:
-
-- Learn about KubeVela in detail from its [core concepts](/en/concepts.md)
-- Join `#kubevela` channel in CNCF [Slack](https://cloud-native.slack.com) and/or [Gitter](https://gitter.im/oam-dev/community)
-
-Welcome onboard and sail Vela!
+- Learn details about [`Appfile`](./developers/learn-appfile.md) and know how it works.

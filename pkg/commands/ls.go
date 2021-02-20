@@ -52,7 +52,8 @@ func NewListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	return cmd
 }
 
-func printComponentList(ctx context.Context, c client.Client, appName string, env *types.EnvMeta, ioStreams cmdutil.IOStreams) {
+func printComponentList(ctx context.Context, c client.Reader, appName string, env *types.EnvMeta,
+	ioStreams cmdutil.IOStreams) {
 	deployedComponentList, err := serverlib.ListComponents(ctx, c, serverlib.Option{
 		AppName:   appName,
 		Namespace: env.Namespace,

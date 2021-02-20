@@ -1,6 +1,6 @@
 # Designing Application
 
-The goal of application model in KubeVela is to expose an unified abstraction to end user, and allow platform team to use any existing encapsulation solutions behind the abstraction. This is achieved by the `Application` custom resource.
+Application encapsulation and abstraction is achieved by the `Application` custom resource.
 
 ## Example
 
@@ -97,8 +97,8 @@ After the `Application` resource is applied to Kubernetes cluster, the KubeVela 
 
 | Label  | Description |
 | :--: | :---------: | 
-|`workload.oam.dev/type=<workload type name>` | The name of its corresponding `WorkloadDefinition` |
-|`trait.oam.dev/type=<trait name>` | The name of its corresponding `TraitDefinition` | 
+|`workload.oam.dev/type=<workload definition name>` | The name of its corresponding `WorkloadDefinition` |
+|`trait.oam.dev/type=<trait definition name>` | The name of its corresponding `TraitDefinition` | 
 |`app.oam.dev/name=<app name>` | The name of the application it belongs to |
 |`app.oam.dev/component=<component name>` | The name of the component it belongs to |
 |`trait.oam.dev/resource=<name of trait resource instance>` | The name of trait resource instance |

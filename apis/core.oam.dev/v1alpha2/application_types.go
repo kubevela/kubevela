@@ -21,6 +21,8 @@ import (
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -44,8 +46,7 @@ const (
 type AppStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	v1alpha1.RolloutStatus `json:",inline"`
 
 	Phase ApplicationPhase `json:"status,omitempty"`
 
@@ -54,6 +55,10 @@ type AppStatus struct {
 
 	// Services record the status of the application services
 	Services []ApplicationComponentStatus `json:"services,omitempty"`
+
+	// LatestRevision of the application configuration it generates
+	// +optional
+	LatestRevision *Revision `json:"latestRevision,omitempty"`
 }
 
 // ApplicationComponentStatus record the health status of App component
@@ -99,6 +104,11 @@ type ApplicationSpec struct {
 	Components []ApplicationComponent `json:"components"`
 
 	// TODO(wonderflow): we should have application level scopes supported here
+
+	// RolloutPlan is the details on how to rollout the resources
+	// The controller simply replace the old resources with the new one if there is no rollout plan involved
+	// +optional
+	RolloutPlan *v1alpha1.RolloutPlan `json:"rolloutPlan,omitempty"`
 }
 
 // +kubebuilder:object:root=true

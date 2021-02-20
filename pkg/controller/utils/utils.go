@@ -5,17 +5,27 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	mapset "github.com/deckarep/golang-set"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
+
+// DefaultBackoff is the backoff we use in controller
+var DefaultBackoff = wait.Backoff{
+	Duration: 1 * time.Second,
+	Factor:   2,
+	Steps:    5,
+	Jitter:   0.1,
+}
 
 // LabelPodSpecable defines whether a workload has podSpec or not.
 const LabelPodSpecable = "workload.oam.dev/podspecable"

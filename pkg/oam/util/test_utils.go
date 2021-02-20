@@ -17,6 +17,8 @@ func JSONMarshal(o interface{}) []byte {
 	return j
 }
 
+var _ types.GomegaMatcher = AlreadyExistMatcher{}
+
 // AlreadyExistMatcher matches the error to be already exist
 type AlreadyExistMatcher struct {
 }
@@ -39,6 +41,8 @@ func (matcher AlreadyExistMatcher) FailureMessage(actual interface{}) (message s
 func (matcher AlreadyExistMatcher) NegatedFailureMessage(actual interface{}) (message string) {
 	return format.Message(actual, "not to be already exist")
 }
+
+var _ types.GomegaMatcher = NotFoundMatcher{}
 
 // NotFoundMatcher matches the error to be not found.
 type NotFoundMatcher struct {
@@ -69,6 +73,8 @@ func BeEquivalentToError(expected error) types.GomegaMatcher {
 		ExpectedError: expected,
 	}
 }
+
+var _ types.GomegaMatcher = ErrorMatcher{}
 
 // ErrorMatcher matches errors.
 type ErrorMatcher struct {

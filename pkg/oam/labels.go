@@ -27,6 +27,8 @@ const (
 	LabelAppComponentRevision = "app.oam.dev/revision"
 	// LabelOAMResourceType whether a CR is workload or trait
 	LabelOAMResourceType = "app.oam.dev/resourceType"
+	// LabelAppConfigHash records the Hash value of the application configuration
+	LabelAppConfigHash = "app.oam.dev/appConfig-hash"
 
 	// WorkloadTypeLabel indicates the type of the workloadDefinition
 	WorkloadTypeLabel = "workload.oam.dev/type"
@@ -52,6 +54,16 @@ const (
 	AnnotationLastAppliedConfig = "app.oam.dev/last-applied-configuration"
 
 	// AnnotationAppRollout indicates that the application is still rolling out
-	// the application controller will not reconcile it yet
+	// the application controller should not reconcile it yet
 	AnnotationAppRollout = "app.oam.dev/rollout-template"
+
+	// AnnotationNewAppConfig indicates that the application configuration is new
+	// this is to enable the applicationConfiguration controller to handle the
+	// first reconcile logic differently similar to what "finalize" field
+	AnnotationNewAppConfig = "app.oam.dev/new-appConfig"
+
+	// AnnotationNewComponent indicates that the component is new
+	// this is to enable any concerned controllers to handle the first component apply logic differently
+	// the value of the annotation is name of the component revision
+	AnnotationNewComponent = "app.oam.dev/new-component"
 )

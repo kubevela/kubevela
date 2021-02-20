@@ -1,6 +1,4 @@
-# Templating Workload Types with CUE
-
-In the [CUE basic section](./basic.md), we have explained how CUE works as template module in KubeVela.
+# Defining Workload Types
 
 In this section, we will introduce more examples of using CUE to define workload types.
 
@@ -117,7 +115,7 @@ output: {
 
 A workload type can contain multiple Kubernetes resources, for example, we can define a `webserver` workload type that is composed by Deployment and Service.
 
-Note that in this case, you MUST define the template of workload instance in `output` section, and leave all the other templates in `outputs` with resource name claimed. The format MUST be `outputs:<unique-name>:<full template>`.
+Note that in this case, you MUST define the template of component instance in `output` section, and leave all the other templates in `outputs` with resource name claimed. The format MUST be `outputs:<unique-name>:<full template>`.
 
 > This is how KubeVela know which resource is the running instance of the application component.
 

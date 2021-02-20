@@ -1,23 +1,22 @@
-import React, { useState } from 'react';
-import { Input, Dropdown, Menu, Button, Divider, Row, Col } from 'antd';
-import { useModel } from '@@/plugin-model/useModel';
-import { DownOutlined, UserOutlined } from '@ant-design/icons';
-import FormRender from 'form-render/lib/antd';
-import { getCapabilityOpenAPISchema } from '@/services/capability';
 // prevent Ant design style from being overridden
 import 'antd/dist/antd.css';
-import {createApplication} from "@/services/application";
+
+import React, { useState } from 'react';
+
+import { Button, Col, Divider, Dropdown, Input, Menu, Row } from 'antd';
+import FormRender from 'form-render/lib/antd';
+
+import { createApplication } from '@/services/application';
+import { getCapabilityOpenAPISchema } from '@/services/capability';
+import { useModel } from '@@/plugin-model/useModel';
+import { DownOutlined, UserOutlined } from '@ant-design/icons';
 
 export default (): React.ReactNode => {
-  const  { currentEnvironment } = useModel('useEnvironmentModel');
-  // @ts-ignore
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { workloadsLoading, workloadList } = useModel('useWorkloadsModel');
-  // @ts-ignore
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { traitsLoading, traitsList } = useModel('useTraitsModel');
+  const { currentEnvironment } = useModel('useEnvironmentModel');
+  const { workloadList } = useModel('useWorkloadsModel');
+  const { traitsList } = useModel('useTraitsModel');
 
-  const [workloadType, setWorkloadType] = useState("");
+  const [workloadType, setWorkloadType] = useState('');
 
   const workloadMenuList = workloadList?.map((i) => (
     <Menu.Item
@@ -43,8 +42,8 @@ export default (): React.ReactNode => {
 
   const traitsMenu = <Menu>{traitMenuList}</Menu>;
 
-  const [applicationName, setApplicationName] = useState("");
-  const [serviceName, setServiceName] = useState("");
+  const [applicationName, setApplicationName] = useState('');
+  const [serviceName, setServiceName] = useState('');
 
   // Capability parameters form render
   const [formData, setData] = useState({});
@@ -58,7 +57,7 @@ export default (): React.ReactNode => {
     getCapabilityOpenAPISchema(capabilityName).then((result) => {
       const data = JSON.parse(result.data);
       if (capabilityType === 'workload_type') {
-        setWorkloadType(capabilityName)
+        setWorkloadType(capabilityName);
         setWorkloadSchema(data);
       } else if (capabilityType === 'trait') {
         setTraitSchema(data);
@@ -71,41 +70,43 @@ export default (): React.ReactNode => {
     if (valid.length > 0) {
       alert(`invalid：${valid.toString()}`);
     }
-    const servicesDict = {}
+    const servicesDict = {};
     servicesDict[serviceName] = {
       type: workloadType,
-    }
+    };
 
-    Object.entries(formData).forEach((([key, value]) => {
+    Object.entries(formData).forEach(([key, value]) => {
       // eslint-disable-next-line default-case
       switch (typeof value) {
-        case "number":
-          servicesDict[serviceName][key] = value
-          break
-        case "string":
-          if ((value === null) || (value === "")){
-            break
+        case 'number':
+          servicesDict[serviceName][key] = value;
+          break;
+        case 'string':
+          if (value === null || value === '') {
+            break;
           }
-          servicesDict[serviceName][key] = value
-          break
-        case "object":
-          if ((Array.isArray(value) && value.length)) {
-            servicesDict[serviceName][key] = value
-            break
+          servicesDict[serviceName][key] = value;
+          break;
+        case 'object':
+          if (Array.isArray(value) && value.length) {
+            servicesDict[serviceName][key] = value;
+            break;
           }
       }
-    }))
+    });
 
     const appFile = {
       name: applicationName,
       services: servicesDict,
-    }
+    };
 
     if (currentEnvironment?.envName == null) {
-      alert("could not get current environment name")
-      return
+      alert('could not get current environment name');
+      return;
     }
-    createApplication(currentEnvironment.envName, appFile).then(r => {alert(r.data)});
+    createApplication(currentEnvironment.envName, appFile).then((r) => {
+      alert(r.data);
+    });
   };
 
   return (
@@ -118,11 +119,13 @@ export default (): React.ReactNode => {
       <Row>
         <Col span="4">Name:</Col>
         <Col span="8">
-          <Input placeholder="Basic usage" onChange={(e) => {
-            const v = e.target.value
-            setApplicationName(v)
-          }
-          }/>
+          <Input
+            placeholder="Basic usage"
+            onChange={(e) => {
+              const v = e.target.value;
+              setApplicationName(v);
+            }}
+          />
         </Col>
         <Col span="12" />
       </Row>
@@ -141,11 +144,13 @@ export default (): React.ReactNode => {
       <Row>
         <Col span="4">Name:</Col>
         <Col span="8">
-          <Input placeholder="Basic usage" onChange={(e) => {
-            const v = e.target.value
-            setServiceName(v)
-          }
-          }/>
+          <Input
+            placeholder="Basic usage"
+            onChange={(e) => {
+              const v = e.target.value;
+              setServiceName(v);
+            }}
+          />
         </Col>
         <Col span="12" />
       </Row>

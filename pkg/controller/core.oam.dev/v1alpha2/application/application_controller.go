@@ -35,7 +35,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
@@ -44,8 +43,8 @@ const RolloutReconcileWaitTime = time.Second * 3
 
 // Reconciler reconciles a Application object
 type Reconciler struct {
-	dm discoverymapper.DiscoveryMapper
 	client.Client
+	dm     discoverymapper.DiscoveryMapper
 	Log    logr.Logger
 	Scheme *runtime.Scheme
 }
@@ -73,15 +72,6 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
-	// Check if the oam rollout annotation exists
-	if _, exist := app.GetAnnotations()[oam.AnnotationAppRollout]; exist {
-		applog.Info("The application is still in the process of rolling out")
-		app.Status.Phase = v1alpha2.ApplicationRollingOut
-		app.Status.SetConditions(readyCondition("Rolling"))
-		// do not process apps still in rolling out
-		return ctrl.Result{RequeueAfter: RolloutReconcileWaitTime}, r.UpdateStatus(ctx, app)
-	}
-
 	applog.Info("Start Rendering")
 
 	app.Status.Phase = v1alpha2.ApplicationRendering
@@ -95,9 +85,9 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	appfile, err := appParser.GenerateAppFile(app.Name, app)
 	if err != nil {
-		handler.l.Error(err, "[Handle Parse]")
+		applog.Error(err, "[Handle Parse]")
 		app.Status.SetConditions(errorCondition("Parsed", err))
-		return handler.Err(err)
+		return handler.handleErr(err)
 	}
 
 	app.Status.SetConditions(readyCondition("Parsed"))
@@ -106,18 +96,18 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// build template to applicationconfig & component
 	ac, comps, err := appParser.GenerateApplicationConfiguration(appfile, app.Namespace)
 	if err != nil {
-		handler.l.Error(err, "[Handle GenerateApplicationConfiguration]")
+		applog.Error(err, "[Handle GenerateApplicationConfiguration]")
 		app.Status.SetConditions(errorCondition("Built", err))
-		return handler.Err(err)
+		return handler.handleErr(err)
 	}
 
 	app.Status.SetConditions(readyCondition("Built"))
 	applog.Info("apply appConfig & component to the cluster")
 	// apply appConfig & component to the cluster
 	if err := handler.apply(ctx, ac, comps); err != nil {
-		handler.l.Error(err, "[Handle apply]")
+		applog.Error(err, "[Handle apply]")
 		app.Status.SetConditions(errorCondition("Applied", err))
-		return handler.Err(err)
+		return handler.handleErr(err)
 	}
 
 	app.Status.SetConditions(readyCondition("Applied"))
@@ -128,7 +118,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	appCompStatus, healthy, err := handler.statusAggregate(appfile)
 	if err != nil {
 		app.Status.SetConditions(errorCondition("HealthCheck", err))
-		return handler.Err(err)
+		return handler.handleErr(err)
 	}
 	if !healthy {
 		app.Status.SetConditions(errorCondition("HealthCheck", errors.New("not healthy")))

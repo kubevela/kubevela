@@ -19,6 +19,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/commands/util"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
@@ -168,7 +169,7 @@ func (o *VelaExecOptions) getComponentName() (string, error) {
 		o.Cmd.Printf("The service name '%s' is not valid\n", svcName)
 	}
 
-	compName, err := util.AskToChooseOneService(appfile.GetComponents(o.App))
+	compName, err := common.AskToChooseOneService(appfile.GetComponents(o.App))
 	if err != nil {
 		return "", err
 	}

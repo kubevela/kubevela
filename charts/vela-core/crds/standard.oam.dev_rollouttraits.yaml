@@ -91,14 +91,14 @@ spec:
                     format: int32
                     type: integer
                   numBatches:
-                    description: The number of batches, default = 1 mutually exclusive to RolloutBatches
+                    description: The number of batches, default = 1
                     format: int32
                     type: integer
                   paused:
                     description: Paused the rollout, default is false
                     type: boolean
                   rolloutBatches:
-                    description: The exact distribution among batches. mutually exclusive to NumBatches. The total number cannot exceed the targetSize or the size of the source resource We will IGNORE the last batch's replica field if it's a percentage since round errors can lead to inaccurate sum We highly recommend to leave the last batch's replica field empty
+                    description: The exact distribution among batches. its size has to be exactly the same as the NumBatches (if set) The total number cannot exceed the targetSize or the size of the source resource We will IGNORE the last batch's replica field if it's a percentage since round errors can lead to inaccurate sum We highly recommend to leave the last batch's replica field empty
                     items:
                       description: RolloutBatch is used to describe how the each batch rollout should be
                       properties:
@@ -107,6 +107,11 @@ spec:
                           items:
                             description: RolloutWebhook holds the reference to external checks used for canary analysis
                             properties:
+                              expectedStatus:
+                                description: ExpectedStatus a
+                                items:
+                                  type: integer
+                                type: array
                               metadata:
                                 additionalProperties:
                                   type: string
@@ -114,9 +119,6 @@ spec:
                                 type: object
                               name:
                                 description: Name of this webhook
-                                type: string
-                              timeout:
-                                description: Request timeout for this webhook
                                 type: string
                               type:
                                 description: Type of this webhook
@@ -212,6 +214,11 @@ spec:
                     items:
                       description: RolloutWebhook holds the reference to external checks used for canary analysis
                       properties:
+                        expectedStatus:
+                          description: ExpectedStatus a
+                          items:
+                            type: integer
+                          type: array
                         metadata:
                           additionalProperties:
                             type: string
@@ -219,9 +226,6 @@ spec:
                           type: object
                         name:
                           description: Name of this webhook
-                          type: string
-                        timeout:
-                          description: Request timeout for this webhook
                           type: string
                         type:
                           description: Type of this webhook
