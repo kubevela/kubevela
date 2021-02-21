@@ -18,7 +18,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -121,6 +121,7 @@ var _ = Describe("Test Application apply", func() {
 		Expect(curAC.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(BeIdenticalTo("true"))
 		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
 		hashValue := curAC.GetLabels()[oam.LabelAppConfigHash]
+		Expect(curApp.Status.LatestRevision.RevisionHash).Should(Equal(hashValue))
 
 		By("[TEST] apply the same appConfig mimic application controller, should do nothing")
 		// this should not lead to a new AC
@@ -146,9 +147,9 @@ var _ = Describe("Test Application apply", func() {
 		// update the status of the AC which is expected after AC controller takes over
 		curAC.Status.SetConditions(readyCondition("newType"))
 		Expect(handler.r.Status().Update(ctx, curAC)).NotTo(HaveOccurred())
-		// remove the new AppConfig annotation as AC controller would do
+		// set the new AppConfig annotation as false AC controller would do
 		cl := curAC.GetAnnotations()
-		delete(cl, oam.AnnotationNewAppConfig)
+		cl[oam.AnnotationNewAppConfig] = "false"
 		curAC.SetAnnotations(cl)
 		Expect(handler.r.Update(ctx, curAC)).NotTo(HaveOccurred())
 		// this should not lead to a new AC
@@ -169,9 +170,8 @@ var _ = Describe("Test Application apply", func() {
 		Expect(handler.r.Get(ctx,
 			types.NamespacedName{Namespace: ns.Name, Name: app.Name + "-v1"},
 			curAC)).NotTo(HaveOccurred())
-		// check that the new app annotation does not exist
-		_, exist := curAC.GetAnnotations()[oam.AnnotationNewAppConfig]
-		Expect(exist).Should(BeFalse())
+		// check that the new app annotation is false
+		Expect(curAC.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(BeEquivalentTo("false"))
 		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).Should(BeEquivalentTo(hashValue))
 		Expect(curAC.GetCondition("newType").Status).Should(BeEquivalentTo(corev1.ConditionTrue))
 		// check that no new appConfig created
@@ -211,13 +211,15 @@ var _ = Describe("Test Application apply", func() {
 		By("Verify that the lastest revision is advanced")
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(2))
 		Expect(curApp.Status.LatestRevision.Name).Should(Equal(app.Name + "-v2"))
+		Expect(curApp.Status.LatestRevision.RevisionHash).ShouldNot(Equal(hashValue))
+
+		// check that the new app annotation exist and the hash value has changed
 		Expect(handler.r.Get(ctx,
 			types.NamespacedName{Namespace: ns.Name, Name: app.Name + "-v2"},
 			curAC)).NotTo(HaveOccurred())
-		// check that the new app annotation exist and the hash value has changed
 		Expect(curAC.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(BeIdenticalTo("true"))
 		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
-		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEquivalentTo(hashValue))
+		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(Equal(hashValue))
 		// check that no more new appConfig created
 		Expect(handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: app.Name + "-v3"},
 			curAC)).Should(&oamutil.NotFoundMatcher{})
@@ -274,7 +276,7 @@ var _ = Describe("Test Application apply", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(newRevision).Should(BeTrue())
 		// verify the revision actually contains the right component
-		Expect(common.CompareWithRevision(ctx, handler.r, logging.NewLogrLogger(handler.logger), component.GetName(),
+		Expect(utils.CompareWithRevision(ctx, handler.r, logging.NewLogrLogger(handler.logger), component.GetName(),
 			component.GetNamespace(), revision, &component.Spec)).Should(BeTrue())
 		preRevision := revision
 
@@ -295,7 +297,7 @@ var _ = Describe("Test Application apply", func() {
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(newRevision).Should(BeTrue())
 		Expect(revision).ShouldNot(BeIdenticalTo(preRevision))
-		Expect(common.CompareWithRevision(ctx, handler.r, logging.NewLogrLogger(handler.logger), component.GetName(),
+		Expect(utils.CompareWithRevision(ctx, handler.r, logging.NewLogrLogger(handler.logger), component.GetName(),
 			component.GetNamespace(), revision, &component.Spec)).Should(BeTrue())
 		// revision increased
 		Expect(strings.Compare(revision, preRevision) > 0).Should(BeTrue())

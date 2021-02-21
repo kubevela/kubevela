@@ -26,7 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/appfile/api"
 	"github.com/oam-dev/kubevela/pkg/appfile/template"
 	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
-	ccom "github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -191,7 +191,7 @@ func RetrieveApplicationStatusByName(ctx context.Context, c client.Reader, appli
 		}
 
 		applicationMeta.Components = append(applicationMeta.Components, apis.ComponentMeta{
-			Name:     ccom.ExtractComponentName(revisionName),
+			Name:     utils.ExtractComponentName(revisionName),
 			Status:   status,
 			Workload: component.Spec.Workload,
 			Traits:   com.Traits,

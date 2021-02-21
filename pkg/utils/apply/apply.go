@@ -133,7 +133,7 @@ func executeApplyOptions(ctx context.Context, existing, desired runtime.Object, 
 	return nil
 }
 
-// MustBeControllableBy requires that the existing object is controllable by an
+// MustBeControllableBy requires that the new object is controllable by an
 // object with the supplied UID. An object is controllable if its controller
 // reference includes the supplied UID.
 // There can be multiple controllers and it's ligit as long as one of them matches the UID

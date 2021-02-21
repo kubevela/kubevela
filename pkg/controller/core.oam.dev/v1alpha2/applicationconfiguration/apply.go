@@ -69,7 +69,8 @@ var (
 // A WorkloadApplicator creates or updates or finalizes workloads and their traits.
 type WorkloadApplicator interface {
 	// Apply a workload and its traits.
-	Apply(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload, ao ...apply.ApplyOption) error
+	Apply(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload, c bool, newComponent []string,
+		ao ...apply.ApplyOption) error
 
 	// Finalize implements pre-delete hooks on workloads
 	Finalize(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) error
@@ -77,15 +78,17 @@ type WorkloadApplicator interface {
 
 // A WorkloadApplyFns creates or updates or finalizes workloads and their traits.
 type WorkloadApplyFns struct {
-	ApplyFn    func(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload, ao ...apply.ApplyOption) error
+	ApplyFn func(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload, newAppConfig bool,
+		newComponents []string, ao ...apply.ApplyOption) error
 	FinalizeFn func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) error
 }
 
 // Apply a workload and its traits. It employes the same mechanism as `kubectl apply`, that is, for each resource being applied,
 // computing a three-way diff merge in client side based on its current state, modified stated and last-applied-state which is
 // tracked through an specific annotaion. If the resource doesn't exist before, Apply will create it.
-func (fn WorkloadApplyFns) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload, ao ...apply.ApplyOption) error {
-	return fn.ApplyFn(ctx, status, w, ao...)
+func (fn WorkloadApplyFns) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload, newAppConfig bool,
+	newComponents []string, ao ...apply.ApplyOption) error {
+	return fn.ApplyFn(ctx, status, w, newAppConfig, newComponents, ao...)
 }
 
 // Finalize workloads and its traits/scopes.
@@ -99,7 +102,8 @@ type workloads struct {
 	dm         discoverymapper.DiscoveryMapper
 }
 
-func (a *workloads) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload, ao ...apply.ApplyOption) error {
+func (a *workloads) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus, w []Workload,
+	newAppConfig bool, newComponents []string, ao ...apply.ApplyOption) error {
 	// they are all in the same namespace
 	var namespace = w[0].Workload.GetNamespace()
 	for _, wl := range w {

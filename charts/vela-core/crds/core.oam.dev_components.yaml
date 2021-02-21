@@ -114,9 +114,12 @@ spec:
                   revision:
                     format: int64
                     type: integer
+                  revisionHash:
+                    type: string
                 required:
                 - name
                 - revision
+                - revisionHash
                 type: object
               observedGeneration:
                 description: The generation observed by the component controller.

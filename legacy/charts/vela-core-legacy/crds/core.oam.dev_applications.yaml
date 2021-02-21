@@ -146,7 +146,7 @@ spec:
                           description: RolloutWebhook holds the reference to external checks used for canary analysis
                           properties:
                             expectedStatus:
-                              description: ExpectedStatus a
+                              description: ExpectedStatus contains all the expected http status code that we will accept as success
                               items:
                                 type: integer
                               type: array
@@ -253,7 +253,7 @@ spec:
                     description: RolloutWebhook holds the reference to external checks used for canary analysis
                     properties:
                       expectedStatus:
-                        description: ExpectedStatus a
+                        description: ExpectedStatus contains all the expected http status code that we will accept as success
                         items:
                           type: integer
                         type: array
@@ -357,9 +357,12 @@ spec:
                 revision:
                   format: int64
                   type: integer
+                revisionHash:
+                  type: string
               required:
               - name
               - revision
+              - revisionHash
               type: object
             rollingState:
               description: RollingState is the Rollout State

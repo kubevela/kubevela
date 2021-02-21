@@ -528,7 +528,8 @@ func TestRenderComponents(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), tc.fields.params, tc.fields.workload, tc.fields.trait}
+			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), tc.fields.params,
+				tc.fields.workload, tc.fields.trait}
 			got, _, err := r.Render(tc.args.ctx, tc.args.ac)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nr.Render(...): -want error, +got error:\n%s\n", tc.reason, diff)
@@ -874,7 +875,8 @@ func TestRenderTraitWithoutMetadataName(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), tc.fields.params, tc.fields.workload, tc.fields.trait}
+			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), tc.fields.params,
+				tc.fields.workload, tc.fields.trait}
 			got, _, _ := r.Render(tc.args.ctx, tc.args.ac)
 			if len(got) == 0 || len(got[0].Traits) == 0 || got[0].Traits[0].Object.GetName() != util.GenTraitName(componentName, ac.Spec.Components[0].Traits[0].DeepCopy(), "") {
 				t.Errorf("\n%s\nr.Render(...): -want error, +got error:\n%s\n", tc.reason, "Trait name is NOT "+
@@ -1030,7 +1032,8 @@ func TestSetWorkloadInstanceName(t *testing.T) {
 	for name, ti := range tests {
 		t.Run(name, func(t *testing.T) {
 			if ti.expErr != nil {
-				assert.Equal(t, ti.expErr.Error(), SetWorkloadInstanceName(ti.traitDefs, ti.u, ti.c, ti.currentWorkload).Error())
+				assert.Equal(t, ti.expErr.Error(), SetWorkloadInstanceName(ti.traitDefs, ti.u, ti.c,
+					ti.currentWorkload).Error())
 			} else {
 				err := SetWorkloadInstanceName(ti.traitDefs, ti.u, ti.c, ti.currentWorkload)
 				assert.NoError(t, err)
