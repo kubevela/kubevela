@@ -77,9 +77,13 @@ func NewExecCommand(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 				ioStreams.Error("Please specify an application name.")
 				return nil
 			}
+			if len(args) == 1 {
+				ioStreams.Error("Please specify at least one command for the container.")
+				return nil
+			}
 			argsLenAtDash := cmd.ArgsLenAtDash()
 			if argsLenAtDash != 1 {
-				ioStreams.Error("Please specify at least one command for the container.")
+				ioStreams.Error("vela exec APP_NAME COMMAND is not supported. Use vela exec APP_NAME -- COMMAND instead.")
 				return nil
 			}
 
