@@ -283,10 +283,6 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compNa
 		if err != nil {
 			return nil, nil, errors.Wrapf(err, "evaluate trait=%s template for component=%s app=%s", assist.Name, compName, appName)
 		}
-		if err != nil {
-			return nil, nil, errors.Wrapf(err, "marshal trait=%s to byte array failed for component=%s app=%s",
-				assist.Name, compName, appName)
-		}
 		labels := map[string]string{
 			oam.TraitTypeLabel:    assist.Type,
 			oam.LabelAppName:      appName,
