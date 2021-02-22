@@ -350,7 +350,8 @@ spec:
 The trait can use the data of workload output and outputs to fill itself.
 
 There are two keywords `output` and `outputs` in the rendering context.
-You can use `context.output` refer to the output-object, and use `context.outputs.<xx>` refer to the outputs-object.
+You can use `context.output` refer to the workload object, and use `context.outputs.<xx>` refer to the trait object.
+please make sure the trait resource name is unique, or the former data will be covered by the latter one.
 
 Below is an example
 1. the main workload object(Deployment) in this example will render into the context.output before rendering traits.
