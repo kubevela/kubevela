@@ -119,7 +119,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string) er
 			if err != nil {
 				return errors.WithMessagef(err, "invalid outputs(%s) of workload %s", fieldInfo.Name, wd.name)
 			}
-			ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: AuxiliaryWorkload, Name: fieldInfo.Name, IsOutputs: true})
+			ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: AuxiliaryWorkload, Name: fieldInfo.Name})
 		}
 	}
 	return nil
@@ -291,14 +291,6 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string) error
 			}
 		}
 
-		output := inst.Lookup(OutputFieldName)
-		if output.Exists() {
-			other, err := model.NewOther(output)
-			if err != nil {
-				return errors.WithMessagef(err, "invalid output of trait %s", td.name)
-			}
-			ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, IsOutputs: false})
-		}
 		outputs := inst.Lookup(OutputsFieldName)
 		if outputs.Exists() {
 			st, err := outputs.Struct()
@@ -314,7 +306,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string) error
 				if err != nil {
 					return errors.WithMessagef(err, "invalid outputs(resource=%s) of trait %s", fieldInfo.Name, td.name)
 				}
-				ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, Name: fieldInfo.Name, IsOutputs: true})
+				ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, Name: fieldInfo.Name})
 			}
 		}
 
@@ -361,11 +353,7 @@ func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, n
 		if err != nil {
 			return nil, err
 		}
-		if assist.IsOutputs {
-			outputs[assist.Name] = object
-		} else {
-			root[OutputFieldName] = object
-		}
+		outputs[assist.Name] = object
 	}
 	if len(outputs) > 0 {
 		root[OutputsFieldName] = outputs
