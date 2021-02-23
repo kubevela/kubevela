@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	appfile2 "github.com/oam-dev/kubevela/references/appfile"
-
 	"github.com/spf13/cobra"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,6 +27,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 )
 
@@ -115,7 +114,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	}
 	o.Env = env
 
-	app, err := appfile2.LoadApplication(env.Name, o.Args[0])
+	app, err := appfile.LoadApplication(env.Name, o.Args[0])
 	if err != nil {
 		return err
 	}
@@ -152,12 +151,12 @@ func getRouteServiceName(appconfig *v1alpha2.ApplicationConfiguration, svcName s
 
 // Complete will complete the config of port-forward
 func (o *VelaPortForwardOptions) Complete() error {
-	svcName, err := common.AskToChooseOneService(appfile2.GetComponents(o.App))
+	svcName, err := common.AskToChooseOneService(appfile.GetComponents(o.App))
 	if err != nil {
 		return err
 	}
 	if o.routeTrait {
-		appconfig, err := appfile2.GetAppConfig(o.Context, o.Client, o.App, o.Env)
+		appconfig, err := appfile.GetAppConfig(o.Context, o.Client, o.App, o.Env)
 		if err != nil {
 			return err
 		}
@@ -192,7 +191,7 @@ func (o *VelaPortForwardOptions) Complete() error {
 	}
 	if len(o.Args) < 2 {
 		var found bool
-		_, configs := appfile2.GetServiceConfig(o.App, svcName)
+		_, configs := appfile.GetServiceConfig(o.App, svcName)
 		for k, v := range configs {
 			if k == "port" {
 				var val string

@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	appfile2 "github.com/oam-dev/kubevela/references/appfile"
-
 	"github.com/fatih/color"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -18,6 +16,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 )
 
@@ -109,7 +108,7 @@ func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 }
 
 func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta, cmd *cobra.Command) error {
-	app, err := appfile2.LoadApplication(env.Name, appName)
+	app, err := appfile.LoadApplication(env.Name, appName)
 	if err != nil {
 		return err
 	}
@@ -324,15 +323,15 @@ func getApp(ctx context.Context, c client.Client, compName, appName string, env 
 	var app *api.Application
 	var err error
 	if appName != "" {
-		app, err = appfile2.LoadApplication(env.Name, appName)
+		app, err = appfile.LoadApplication(env.Name, appName)
 	} else {
-		app, err = appfile2.MatchAppByComp(env.Name, compName)
+		app, err = appfile.MatchAppByComp(env.Name, compName)
 	}
 	if err != nil {
 		return nil, nil, err
 	}
 
-	appObj, err := appfile2.GetApplication(ctx, c, app, env)
+	appObj, err := appfile.GetApplication(ctx, c, app, env)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -6,14 +6,13 @@ import (
 	"strconv"
 	"strings"
 
-	appfile2 "github.com/oam-dev/kubevela/references/appfile"
-
 	"cuelang.org/go/cue"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
@@ -37,16 +36,16 @@ func LoadIfExist(envName string, workloadName string, appGroup string) (*api.App
 	} else {
 		appName = workloadName
 	}
-	app, err := appfile2.LoadApplication(envName, appName)
+	app, err := appfile.LoadApplication(envName, appName)
 
 	// can't handle
-	if err != nil && !appfile2.IsNotFound(appName, err) {
+	if err != nil && !appfile.IsNotFound(appName, err) {
 		return nil, err
 	}
 
 	// compatible application not found
 	if app == nil {
-		app, err = appfile2.NewEmptyApplication()
+		app, err = appfile.NewEmptyApplication()
 		if err != nil {
 			return nil, err
 		}
@@ -62,7 +61,7 @@ func BaseComplete(envName string, workloadName string, appName string, flagSet *
 	if err != nil {
 		return nil, err
 	}
-	tp, workloadData := appfile2.GetWorkload(app, workloadName)
+	tp, workloadData := appfile.GetWorkload(app, workloadName)
 	if tp == "" {
 		if workloadType == "" {
 			return nil, fmt.Errorf("must specify workload type for application %s", workloadName)
@@ -127,10 +126,10 @@ func BaseComplete(envName string, workloadName string, appName string, flagSet *
 			return nil, fmt.Errorf("get flag(s) \"%s\" err %w", v.Name, err)
 		}
 	}
-	if err = appfile2.SetWorkload(app, workloadName, tp, workloadData); err != nil {
+	if err = appfile.SetWorkload(app, workloadName, tp, workloadData); err != nil {
 		return app, err
 	}
-	return app, appfile2.Save(app, envName)
+	return app, appfile.Save(app, envName)
 }
 
 // BaseRun will check if it's a stating operation before run

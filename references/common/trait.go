@@ -5,10 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	appfile2 "github.com/oam-dev/kubevela/references/appfile"
-
-	"github.com/oam-dev/kubevela/references/appfile/api"
-
 	"cuelang.org/go/cue"
 	plur "github.com/gertd/go-pluralize"
 	"github.com/spf13/pflag"
@@ -16,6 +12,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/references/appfile"
+	"github.com/oam-dev/kubevela/references/appfile/api"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 
@@ -161,12 +159,12 @@ func AddOrUpdateTrait(env *types.EnvMeta, appName string, componentName string, 
 	if appName == "" {
 		appName = componentName
 	}
-	app, err := appfile2.LoadApplication(env.Name, appName)
+	app, err := appfile.LoadApplication(env.Name, appName)
 	if err != nil {
 		return app, err
 	}
 	traitAlias := template.Name
-	traitData, err := appfile2.GetTraitsByType(app, componentName, traitAlias)
+	traitData, err := appfile.GetTraitsByType(app, componentName, traitAlias)
 	if err != nil {
 		return app, err
 	}
@@ -194,10 +192,10 @@ func AddOrUpdateTrait(env *types.EnvMeta, appName string, componentName string, 
 			return nil, fmt.Errorf("get flag(s) \"%s\" err %w", name, err)
 		}
 	}
-	if err = appfile2.SetTrait(app, componentName, traitAlias, traitData); err != nil {
+	if err = appfile.SetTrait(app, componentName, traitAlias, traitData); err != nil {
 		return app, err
 	}
-	return app, appfile2.Save(app, env.Name)
+	return app, appfile.Save(app, env.Name)
 }
 
 // TraitOperationRun will check if it's a stage operation before run
@@ -220,12 +218,12 @@ func PrepareDetachTrait(envName string, traitType string, componentName string, 
 	if appName == "" {
 		appName = componentName
 	}
-	if appObj, err = appfile2.LoadApplication(envName, appName); err != nil {
+	if appObj, err = appfile.LoadApplication(envName, appName); err != nil {
 		return appObj, err
 	}
 
-	if err = appfile2.RemoveTrait(appObj, componentName, traitType); err != nil {
+	if err = appfile.RemoveTrait(appObj, componentName, traitType); err != nil {
 		return appObj, err
 	}
-	return appObj, appfile2.Save(appObj, envName)
+	return appObj, appfile.Save(appObj, envName)
 }

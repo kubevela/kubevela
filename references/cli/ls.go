@@ -4,8 +4,6 @@ import (
 	"context"
 	"strings"
 
-	appfile2 "github.com/oam-dev/kubevela/references/appfile"
-
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -13,6 +11,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/apiserver/apis"
+	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/common"
 )
 
@@ -80,7 +79,7 @@ func printComponentList(ctx context.Context, c client.Reader, appName string, en
 }
 
 func mergeStagingComponents(deployed []apis.ComponentMeta, env *types.EnvMeta, ioStreams cmdutil.IOStreams, fetcher func(name string) (*v1alpha2.Application, error)) []apis.ComponentMeta {
-	localApps, err := appfile2.List(env.Name)
+	localApps, err := appfile.List(env.Name)
 	if err != nil {
 		ioStreams.Error("list application err", err)
 		return deployed

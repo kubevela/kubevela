@@ -8,8 +8,6 @@ import (
 	"text/template"
 	"time"
 
-	appfile2 "github.com/oam-dev/kubevela/references/appfile"
-
 	"github.com/fatih/color"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -20,6 +18,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 )
 
@@ -46,7 +45,7 @@ func NewLogsCommand(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		app, err := appfile2.LoadApplication(env.Name, args[0])
+		app, err := appfile.LoadApplication(env.Name, args[0])
 		if err != nil {
 			return err
 		}
@@ -80,7 +79,7 @@ func (l *Args) Run(ctx context.Context, ioStreams util.IOStreams) error {
 	if err != nil {
 		return err
 	}
-	compName, err := common.AskToChooseOneService(appfile2.GetComponents(l.App))
+	compName, err := common.AskToChooseOneService(appfile.GetComponents(l.App))
 	if err != nil {
 		return err
 	}

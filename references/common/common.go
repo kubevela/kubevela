@@ -19,12 +19,11 @@ package common
 import (
 	"context"
 
-	appfile2 "github.com/oam-dev/kubevela/references/appfile"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 )
 
@@ -35,5 +34,5 @@ func BuildRun(ctx context.Context, app *api.Application, client client.Client, e
 		return err
 	}
 
-	return appfile2.Run(ctx, client, o, scopes)
+	return appfile.Run(ctx, client, o, scopes)
 }

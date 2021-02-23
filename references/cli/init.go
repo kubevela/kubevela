@@ -7,8 +7,6 @@ import (
 	"io/ioutil"
 	"strconv"
 
-	appfile2 "github.com/oam-dev/kubevela/references/appfile"
-
 	"cuelang.org/go/cue"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
@@ -20,6 +18,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 	"github.com/oam-dev/kubevela/references/common"
 	"github.com/oam-dev/kubevela/references/plugins"
@@ -74,7 +73,7 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 				return err
 			}
 
-			if err := appfile2.Validate(o.app); err != nil {
+			if err := appfile.Validate(o.app); err != nil {
 				return err
 			}
 

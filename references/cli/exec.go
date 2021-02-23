@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	appfile2 "github.com/oam-dev/kubevela/references/appfile"
-
 	"github.com/spf13/cobra"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,6 +18,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 )
 
@@ -123,7 +122,7 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 		return err
 	}
 	o.Env = env
-	app, err := appfile2.LoadApplication(env.Name, o.Args[0])
+	app, err := appfile.LoadApplication(env.Name, o.Args[0])
 	if err != nil {
 		return err
 	}
@@ -174,7 +173,7 @@ func (o *VelaExecOptions) getComponentName() (string, error) {
 		o.Cmd.Printf("The service name '%s' is not valid\n", svcName)
 	}
 
-	compName, err := common.AskToChooseOneService(appfile2.GetComponents(o.App))
+	compName, err := common.AskToChooseOneService(appfile.GetComponents(o.App))
 	if err != nil {
 		return "", err
 	}
