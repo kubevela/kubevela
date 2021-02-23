@@ -130,14 +130,33 @@ parameter: {
 				Object: map[string]interface{}{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata":   map[string]interface{}{"name": "test"},
 					"spec": map[string]interface{}{
 						"replicas": int64(2),
+						"selector": map[string]interface{}{
+							"matchLabels": map[string]interface{}{
+								"app.oam.dev/component": "test"}},
 						"template": map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{"app.oam.dev/component": "test"},
+							},
 							"spec": map[string]interface{}{
-								"containers": []interface{}{map[string]interface{}{"image": "website:0.1", "name": "main"},
-									map[string]interface{}{"image": "metrics-agent:0.2", "name": "sidecar"}}}}},
-				}},
+								"containers": []interface{}{map[string]interface{}{
+									"envFrom": []interface{}{map[string]interface{}{
+										"configMapRef": map[string]interface{}{"name": "testgame-config"},
+									}},
+									"image": "website:0.1",
+									"name":  "main",
+									"ports": []interface{}{map[string]interface{}{"containerPort": int64(443)}}},
+									map[string]interface{}{"image": "metrics-agent:0.2", "name": "sidecar"}}}}}},
+			},
+			expAssObjs: map[string]runtime.Object{
+				"AuxiliaryWorkloadgameconfig": &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "v1",
+						"kind":       "ConfigMap",
+						"metadata":   map[string]interface{}{"name": "testgame-config"}, "data": map[string]interface{}{"enemies": "enemies-data", "lives": "lives-data"}},
+				},
+			},
 		},
 		"output trait": {
 			traitTemplate: `
@@ -157,15 +176,32 @@ parameter: {
 				Object: map[string]interface{}{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata":   map[string]interface{}{"name": "test"},
 					"spec": map[string]interface{}{
 						"replicas": int64(2),
+						"selector": map[string]interface{}{
+							"matchLabels": map[string]interface{}{
+								"app.oam.dev/component": "test"}},
 						"template": map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{"app.oam.dev/component": "test"},
+							},
 							"spec": map[string]interface{}{
-								"containers": []interface{}{map[string]interface{}{"image": "website:0.1", "name": "main"}}}}},
-				}},
+								"containers": []interface{}{map[string]interface{}{
+									"envFrom": []interface{}{map[string]interface{}{
+										"configMapRef": map[string]interface{}{"name": "testgame-config"},
+									}},
+									"image": "website:0.1",
+									"name":  "main",
+									"ports": []interface{}{map[string]interface{}{"containerPort": int64(443)}}}}}}}},
+			},
 			traitName: "t1",
 			expAssObjs: map[string]runtime.Object{
+				"AuxiliaryWorkloadgameconfig": &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "v1",
+						"kind":       "ConfigMap",
+						"metadata":   map[string]interface{}{"name": "testgame-config"}, "data": map[string]interface{}{"enemies": "enemies-data", "lives": "lives-data"}},
+				},
 				"t1": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "v1", "kind": "Service", "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"type": "ClusterIP"}}},
 			},
 		},
@@ -195,45 +231,185 @@ parameter: {
 				Object: map[string]interface{}{
 					"apiVersion": "apps/v1",
 					"kind":       "Deployment",
-					"metadata":   map[string]interface{}{"name": "test"},
 					"spec": map[string]interface{}{
 						"replicas": int64(2),
+						"selector": map[string]interface{}{
+							"matchLabels": map[string]interface{}{
+								"app.oam.dev/component": "test"}},
 						"template": map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{"app.oam.dev/component": "test"},
+							},
 							"spec": map[string]interface{}{
-								"containers": []interface{}{map[string]interface{}{"image": "website:0.1", "name": "main"}}}}},
-				}},
+								"containers": []interface{}{map[string]interface{}{
+									"envFrom": []interface{}{map[string]interface{}{
+										"configMapRef": map[string]interface{}{"name": "testgame-config"},
+									}},
+									"image": "website:0.1",
+									"name":  "main",
+									"ports": []interface{}{map[string]interface{}{"containerPort": int64(443)}}}}}}}},
+			},
 			traitName: "t2",
 			expAssObjs: map[string]runtime.Object{
+				"AuxiliaryWorkloadgameconfig": &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "v1",
+						"kind":       "ConfigMap",
+						"metadata":   map[string]interface{}{"name": "testgame-config"}, "data": map[string]interface{}{"enemies": "enemies-data", "lives": "lives-data"}},
+				},
 				"t2": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "v1", "kind": "Service", "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"type": "ClusterIP"}}},
 				"t2ingress": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "extensions/v1beta1", "kind": "Ingress", "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"rules": []interface{}{map[string]interface{}{
 					"host": "example.com",
 				}}}}},
 			},
 		},
+		"simple data passing": {
+			traitTemplate: `
+      parameter: {
+        domain: string
+        path: string
+        exposePort: int
+      }
+      // trait template can have multiple outputs in one trait
+      outputs: service: {
+        apiVersion: "v1"
+        kind: "Service"
+        spec: {
+          selector:
+            app: context.name
+          ports: [
+            {
+              port: parameter.exposePort
+              targetPort: context.output.spec.template.spec.containers[0].ports[0].containerPort
+            }
+          ]
+        }
+      }
+      outputs: ingress: {
+        apiVersion: "networking.k8s.io/v1beta1"
+        kind: "Ingress"
+        metadata:
+          name: context.name
+          labels: config: context.outputs.gameconfig.data.enemies
+        spec: {
+          rules: [{
+            host: parameter.domain
+            http: {
+              paths: [{
+                  path: parameter.path
+                  backend: {
+                    serviceName: context.name
+                    servicePort: parameter.exposePort
+                  }
+              }]
+            }
+          }]
+        }
+      }`,
+			params: map[string]interface{}{
+				"domain":     "example.com",
+				"path":       "ping",
+				"exposePort": 1080,
+			},
+			expWorkload: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "apps/v1",
+					"kind":       "Deployment",
+					"spec": map[string]interface{}{
+						"replicas": int64(2),
+						"selector": map[string]interface{}{
+							"matchLabels": map[string]interface{}{
+								"app.oam.dev/component": "test"}},
+						"template": map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{"app.oam.dev/component": "test"},
+							},
+							"spec": map[string]interface{}{
+								"containers": []interface{}{map[string]interface{}{
+									"envFrom": []interface{}{map[string]interface{}{
+										"configMapRef": map[string]interface{}{"name": "testgame-config"},
+									}},
+									"image": "website:0.1",
+									"name":  "main",
+									"ports": []interface{}{map[string]interface{}{"containerPort": int64(443)}}}}}}}},
+			},
+			traitName: "t3",
+			expAssObjs: map[string]runtime.Object{
+				"AuxiliaryWorkloadgameconfig": &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "v1",
+						"kind":       "ConfigMap",
+						"metadata":   map[string]interface{}{"name": "testgame-config"}, "data": map[string]interface{}{"enemies": "enemies-data", "lives": "lives-data"}},
+				},
+				"t3service": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "v1", "kind": "Service", "spec": map[string]interface{}{"ports": []interface{}{map[string]interface{}{"port": int64(1080), "targetPort": int64(443)}}, "selector": map[string]interface{}{"app": "test"}}}},
+				"t3ingress": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "networking.k8s.io/v1beta1", "kind": "Ingress", "labels": map[string]interface{}{"config": "enemies-data"}, "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"host": "example.com", "http": map[string]interface{}{"paths": []interface{}{map[string]interface{}{"backend": map[string]interface{}{"serviceName": "test", "servicePort": int64(1080)}, "path": "ping"}}}}}}}},
+			},
+		},
 	}
 
 	for cassinfo, v := range tds {
 		baseTemplate := `
-output:{
-	apiVersion: "apps/v1"
-    kind: "Deployment"
-	metadata: name: context.name
-    spec: {
-		replicas: parameter.replicas
-		template: spec: {
-			containers: [{image: "website:0.1",name:"main"}]
-		}	
+	output: {
+      	apiVersion: "apps/v1"
+      	kind:       "Deployment"
+      	spec: {
+      		selector: matchLabels: {
+      			"app.oam.dev/component": context.name
+      		}
+			replicas: parameter.replicas
+      		template: {
+      			metadata: labels: {
+      				"app.oam.dev/component": context.name
+      			}
+      			spec: {
+      				containers: [{
+      					name:  "main"
+      					image: parameter.image
+						ports: [{containerPort: parameter.port}]
+      					envFrom: [{
+      						configMapRef: name: context.name + "game-config"
+      					}]
+      					if parameter["cmd"] != _|_ {
+      						command: parameter.cmd
+      					}
+      				}]
+      			}
+      		}
+      	}
 	}
-}
 
-parameter: {
-	replicas: *1 | int
-}
+	outputs: gameconfig: {
+      	apiVersion: "v1"
+      	kind:       "ConfigMap"
+      	metadata: {
+      		name: context.name + "game-config"
+      	}
+      	data: {
+      		enemies: parameter.enemies
+      		lives:   parameter.lives
+      	}
+	}
+
+	parameter: {
+      	// +usage=Which image would you like to use for your service
+      	// +short=i
+      	image: *"website:0.1" | string
+      	// +usage=Commands to run in the container
+      	cmd?: [...string]
+		replicas: *1 | int
+      	lives:   string
+      	enemies: string
+        port: int
+	}
+
 `
 		ctx := process.NewContext("test", "myapp")
 		wt := NewWorkloadAbstractEngine("-")
 		if err := wt.Params(map[string]interface{}{
 			"replicas": 2,
+			"enemies":  "enemies-data",
+			"lives":    "lives-data",
+			"port":     443,
 		}).Complete(ctx, baseTemplate); err != nil {
 			t.Error(err)
 			return
@@ -249,7 +425,7 @@ parameter: {
 		for _, ss := range assists {
 			got, err := ss.Ins.Unstructured()
 			assert.NoError(t, err, cassinfo)
-			assert.Equal(t, got, v.expAssObjs[ss.Type+ss.Name], cassinfo, ss.Type+ss.Name)
+			assert.Equal(t, v.expAssObjs[ss.Type+ss.Name], got, cassinfo, ss.Type+ss.Name)
 		}
 	}
 }
