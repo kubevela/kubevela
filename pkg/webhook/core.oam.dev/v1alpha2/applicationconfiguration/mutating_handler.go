@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/davecgh/go-spew/spew"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -57,7 +56,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 		mutatelog.Error(err, "failed to mutate the applicationConfiguration", "name", obj.Name)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	mutatelog.Info("Print the mutated obj", "obj name", obj.Name, "mutated obj", spew.Sdump(obj.Spec))
+	mutatelog.Info("Print the mutated obj", "obj name", obj.Name, "mutated obj", string(util.JSONMarshal(obj.Spec)))
 
 	marshalled, err := json.Marshal(obj)
 	if err != nil {
