@@ -27,6 +27,7 @@ import (
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
+	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -60,16 +62,11 @@ const (
 	errFmtUnsupportedParam = "unsupported parameter %q"
 	errFmtRequiredParam    = "required parameter %q not specified"
 	errFmtCompRevision     = "cannot get latest revision for component %q while revision is enabled"
-	errSetValueForField    = "can not set value %q for fieldPath %q"
 )
 
 var (
 	// ErrDataOutputNotExist is an error indicating the DataOutput specified doesn't not exist
 	ErrDataOutputNotExist = errors.New("DataOutput does not exist")
-)
-
-const (
-	instanceNamePath = "metadata.name"
 )
 
 // A ComponentRenderer renders an ApplicationConfiguration's Components into
@@ -101,18 +98,8 @@ type components struct {
 func (r *components) Render(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) ([]Workload, *v1alpha2.DependencyStatus, error) {
 	workloads := make([]*Workload, 0, len(ac.Spec.Components))
 	dag := newDAG()
-	// we have special logics for application generated applicationConfiguration
-	controlledByApp := false
-	for _, owner := range ac.GetOwnerReferences() {
-		if owner.APIVersion == v1alpha2.SchemeGroupVersion.String() && owner.Kind == v1alpha2.ApplicationKind &&
-			owner.Controller != nil && *owner.Controller {
-			controlledByApp = true
-			break
-		}
-	}
-
 	for _, acc := range ac.Spec.Components {
-		w, err := r.renderComponent(ctx, acc, ac, dag, controlledByApp)
+		w, err := r.renderComponent(ctx, acc, ac, dag)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -135,7 +122,10 @@ func (r *components) Render(ctx context.Context, ac *v1alpha2.ApplicationConfigu
 }
 
 func (r *components) renderComponent(ctx context.Context, acc v1alpha2.ApplicationConfigurationComponent,
-	ac *v1alpha2.ApplicationConfiguration, dag *dag, controlledByApp bool) (*Workload, error) {
+	ac *v1alpha2.ApplicationConfiguration, dag *dag) (*Workload, error) {
+	// we have special logics for application generated applicationConfiguration
+	controlledByApp := isControlledByApp(ac)
+
 	if acc.RevisionName != "" {
 		acc.ComponentName = utils.ExtractComponentName(acc.RevisionName)
 	}
@@ -192,27 +182,23 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 		traits = append(traits, &Trait{Object: *t, Definition: *traitDef})
 		traitDefs = append(traitDefs, *traitDef)
 	}
-	// we have a complete different approach on workload name for application generated appConfig
 	if !controlledByApp {
+		// This is the legacy standalone appConfig approach
 		existingWorkload, err := r.getExistingWorkload(ctx, ac, c, w)
 		if err != nil {
 			return nil, err
 		}
 
-		if err := SetWorkloadInstanceName(traitDefs, w, c, existingWorkload); err != nil {
+		if err := setWorkloadInstanceName(traitDefs, w, c, existingWorkload); err != nil {
 			return nil, err
 		}
 	} else {
+		// we have a completely different approach on workload name for application generated appConfig
 		revision, err := utils.ExtractRevision(acc.RevisionName)
 		if err != nil {
 			return nil, err
 		}
-
-		pv := fieldpath.Pave(w.UnstructuredContent())
-		if err := pv.SetString(instanceNamePath, utils.ConstructRevisionName(acc.ComponentName,
-			int64(revision))); err != nil {
-			return nil, errors.Wrapf(err, errSetValueForField, instanceNamePath, c.GetName())
-		}
+		setAppWorkloadInstanceName(acc.ComponentName, w, revision)
 	}
 
 	// create the ref after the workload name is set
@@ -261,8 +247,8 @@ func (r *components) renderTrait(ctx context.Context, ct v1alpha2.ComponentTrait
 		}
 		traitDef = util.GetDummyTraitDefinition(t)
 	}
-	traitName := getTraitName(ac, componentName, &ct, t, traitDef)
 
+	traitName := getTraitName(ac, componentName, &ct, t, traitDef)
 	setTraitProperties(t, traitName, ac.GetNamespace(), ref)
 
 	addDataOutputsToDAG(dag, ct.DataOutputs, t)
@@ -292,14 +278,13 @@ func setTraitProperties(t *unstructured.Unstructured, traitName, namespace strin
 	t.SetNamespace(namespace)
 }
 
-// SetWorkloadInstanceName will set metadata.name for workload CR according to createRevision flag in traitDefinition
-func SetWorkloadInstanceName(traitDefs []v1alpha2.TraitDefinition, w *unstructured.Unstructured,
+// setWorkloadInstanceName will set metadata.name for workload CR according to createRevision flag in traitDefinition
+func setWorkloadInstanceName(traitDefs []v1alpha2.TraitDefinition, w *unstructured.Unstructured,
 	c *v1alpha2.Component, existingWorkload *unstructured.Unstructured) error {
 	// Don't override the specified name
 	if w.GetName() != "" {
 		return nil
 	}
-	pv := fieldpath.Pave(w.UnstructuredContent())
 	// TODO: revisit this logic
 	// the name of the workload should depend on the workload type and if we are rolling or replacing upgrade
 	// i.e Cloneset type of workload just use the component name while deployment type of workload will have revision
@@ -313,22 +298,17 @@ func SetWorkloadInstanceName(traitDefs []v1alpha2.TraitDefinition, w *unstructur
 		// if workload exists, check the revision label, we will not change the name if workload exists and no revision changed
 		if existingWorkload != nil && existingWorkload.GetLabels()[oam.LabelAppComponentRevision] == componentLastRevision {
 			// using the existing name
-			return errors.Wrapf(pv.SetString(instanceNamePath, existingWorkload.GetName()), errSetValueForField, instanceNamePath, c.Status.LatestRevision)
+			w.SetName(existingWorkload.GetName())
+			return nil
 		}
 
 		// if revisionEnabled and the running workload's revision isn't equal to the component's latest reversion,
 		// use revisionName as the workload name
-		if err := pv.SetString(instanceNamePath, componentLastRevision); err != nil {
-			return errors.Wrapf(err, errSetValueForField, instanceNamePath, c.Status.LatestRevision)
-		}
-
+		w.SetName(componentLastRevision)
 		return nil
 	}
 	// use component name as workload name, which means we will always use one workload for different revisions
-	if err := pv.SetString(instanceNamePath, c.GetName()); err != nil {
-		return errors.Wrapf(err, errSetValueForField, instanceNamePath, c.GetName())
-	}
-	w.Object = pv.UnstructuredContent()
+	w.SetName(c.GetName())
 	return nil
 }
 
@@ -340,6 +320,30 @@ func isRevisionEnabled(traitDefs []v1alpha2.TraitDefinition) bool {
 		}
 	}
 	return false
+}
+
+// setAppWorkloadInstanceName sets the name of the workload instance depends on the component revision
+// and the workload kind
+func setAppWorkloadInstanceName(componentName string, w *unstructured.Unstructured, revision int) {
+	// TODO: we can get the workloadDefinition name from w.GetLabels()["oam.WorkloadTypeLabel"]
+	// and use a special field like "use-inplace-upgrade" in the definition to allow configurable behavior
+
+	// we hard code the behavior depends on the workload group/kind for now. The only in-place upgradable resources
+	// we support is cloneset for now. We can easily add more later.
+	if w.GroupVersionKind().Group == kruise.GroupVersion.Group {
+		if w.GetKind() == reflect.TypeOf(kruise.CloneSet{}).Name() {
+			// we use the component name alone for those resources that do support in-place upgrade
+			klog.InfoS("we reuse the component name for resources that support in-place upgrade",
+				"kind", w.GetKind(), "instance name", componentName)
+			w.SetName(componentName)
+			return
+		}
+	}
+	// we assume that the rest of the resources do not support in-place upgrade
+	instanceName := utils.ConstructRevisionName(componentName, int64(revision))
+	klog.InfoS("we encountered an unknown resources, assume that it does not support in-place upgrade",
+		"kind", w.GetKind(), "instance name", instanceName)
+	w.SetName(instanceName)
 }
 
 // A ResourceRenderer renders a Kubernetes-compliant YAML resource into an
@@ -743,6 +747,16 @@ func (r *components) getDataInput(ctx context.Context, s *dagSource, ac *unstruc
 	return rawval, true, "", nil
 }
 
+func isControlledByApp(ac *v1alpha2.ApplicationConfiguration) bool {
+	for _, owner := range ac.GetOwnerReferences() {
+		if owner.APIVersion == v1alpha2.SchemeGroupVersion.String() && owner.Kind == v1alpha2.ApplicationKind &&
+			owner.Controller != nil && *owner.Controller {
+			return true
+		}
+	}
+	return false
+}
+
 func matchValue(conds []v1alpha2.ConditionRequirement, val string, paved, ac *fieldpath.Paved) (bool, string) {
 	// If no condition is specified, it is by default to check value not empty.
 	if len(conds) == 0 {
@@ -815,13 +829,9 @@ func checkConditions(conds []v1alpha2.ConditionRequirement, paved *fieldpath.Pav
 // GetTraitName return trait name
 func getTraitName(ac *v1alpha2.ApplicationConfiguration, componentName string,
 	ct *v1alpha2.ComponentTrait, t *unstructured.Unstructured, traitDef *v1alpha2.TraitDefinition) string {
-	var (
-		traitName  string
-		apiVersion string
-		kind       string
-	)
-
-	if len(t.GetName()) > 0 {
+	var traitName, apiVersion, kind string
+	// we forbid the trait name in the template if the applicationConfiguration is generated by application
+	if len(t.GetName()) > 0 && !isControlledByApp(ac) {
 		return t.GetName()
 	}
 

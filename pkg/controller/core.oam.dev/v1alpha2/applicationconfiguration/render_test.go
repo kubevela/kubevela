@@ -35,11 +35,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -56,8 +56,8 @@ func TestRenderComponents(t *testing.T) {
 	componentName := "coolcomponent"
 	workloadName := "coolworkload"
 	traitName := "coolTrait"
-	revisionName := "coolcomponent-aa1111"
-	revisionName2 := "coolcomponent-bb2222"
+	revisionName := "coolcomponent-v1"
+	revisionName2 := "coolcomponent-v2"
 
 	ac := &v1alpha2.ApplicationConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
@@ -74,6 +74,7 @@ func TestRenderComponents(t *testing.T) {
 			},
 		},
 	}
+
 	revAC := &v1alpha2.ApplicationConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -89,6 +90,17 @@ func TestRenderComponents(t *testing.T) {
 			},
 		},
 	}
+
+	controlledAC := revAC.DeepCopy()
+	controlledAC.OwnerReferences = []metav1.OwnerReference{
+		{
+			APIVersion: v1alpha2.SchemeGroupVersion.String(),
+			Kind:       v1alpha2.ApplicationKind,
+			Controller: pointer.BoolPtr(true),
+		},
+	}
+	controlledAC.Spec.Components[0].RevisionName = revisionName2
+
 	ref := metav1.NewControllerRef(ac, v1alpha2.ApplicationConfigurationGroupVersionKind)
 	errTrait := errors.New("errTrait")
 
@@ -525,6 +537,90 @@ func TestRenderComponents(t *testing.T) {
 				},
 			},
 		},
+		"Success-With-AppControlledAppConfig": {
+			reason: "Workload name should be component name for CloneSet",
+			fields: fields{
+				client: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
+					switch defObj := obj.(type) {
+					case *v1alpha2.Component:
+						ccomp := v1alpha2.Component{
+							Status: v1alpha2.ComponentStatus{
+								LatestRevision: &v1alpha2.Revision{Name: revisionName2},
+							},
+						}
+						ccomp.DeepCopyInto(defObj)
+					case *v1alpha2.TraitDefinition:
+						ttrait := v1alpha2.TraitDefinition{ObjectMeta: metav1.ObjectMeta{Name: traitName},
+							Spec: v1alpha2.TraitDefinitionSpec{RevisionEnabled: true}}
+						ttrait.DeepCopyInto(defObj)
+					case *v1.ControllerRevision:
+						rev := &v1.ControllerRevision{
+							ObjectMeta: metav1.ObjectMeta{Name: revisionName, Namespace: namespace},
+							Data: runtime.RawExtension{Object: &v1alpha2.Component{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      componentName,
+									Namespace: namespace,
+								},
+								Spec: v1alpha2.ComponentSpec{
+									Workload: runtime.RawExtension{
+										Object: &unstructured.Unstructured{},
+									},
+								},
+								Status: v1alpha2.ComponentStatus{
+									LatestRevision: &v1alpha2.Revision{Name: revisionName2},
+								},
+							}},
+							Revision: 2,
+						}
+						rev.DeepCopyInto(defObj)
+					}
+					return nil
+				})},
+				params: ParameterResolveFn(func(_ []v1alpha2.ComponentParameter, _ []v1alpha2.ComponentParameterValue) ([]Parameter, error) {
+					return nil, nil
+				}),
+				workload: ResourceRenderFn(func(_ []byte, _ ...Parameter) (*unstructured.Unstructured, error) {
+					w := &unstructured.Unstructured{
+						Object: map[string]interface{}{
+							"apiVersion": "apps.kruise.io/v1alpha1",
+							"kind":       "CloneSet",
+						},
+					}
+					return w, nil
+				}),
+				trait: ResourceRenderFn(func(_ []byte, _ ...Parameter) (*unstructured.Unstructured, error) {
+					t := &unstructured.Unstructured{}
+					t.SetName(traitName)
+					return t, nil
+				}),
+			},
+			args: args{ac: controlledAC},
+			want: want{
+				w: []Workload{
+					{
+						ComponentName:         componentName,
+						ComponentRevisionName: revisionName2,
+						Workload: func() *unstructured.Unstructured {
+							w := &unstructured.Unstructured{}
+							w.SetNamespace(namespace)
+							w.SetName(componentName)
+							w.SetOwnerReferences([]metav1.OwnerReference{*ref})
+							w.SetAnnotations(map[string]string{
+								oam.AnnotationAppGeneration: "0",
+							})
+							w.SetLabels(map[string]string{
+								oam.LabelAppComponent:         componentName,
+								oam.LabelAppName:              acName,
+								oam.LabelAppComponentRevision: revisionName2,
+								oam.LabelOAMResourceType:      oam.ResourceTypeWorkload,
+							})
+							return w
+						}(),
+						RevisionEnabled: true,
+					},
+				},
+			},
+		},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -534,9 +630,16 @@ func TestRenderComponents(t *testing.T) {
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nr.Render(...): -want error, +got error:\n%s\n", tc.reason, diff)
 			}
-			if diff := cmp.Diff(tc.want.w, got); diff != "" {
-				t.Errorf("\n%s\nr.Render(...): -want, +got:\n%s\n", tc.reason, diff)
+			if isControlledByApp(tc.args.ac) {
+				if diff := cmp.Diff(tc.want.w[0].Workload.GetName(), got[0].Workload.GetName()); diff != "" {
+					t.Errorf("\n%s\nr.Render(...): -want, +got:\n%s\n", tc.reason, diff)
+				}
+			} else {
+				if diff := cmp.Diff(tc.want.w, got); diff != "" {
+					t.Errorf("\n%s\nr.Render(...): -want, +got:\n%s\n", tc.reason, diff)
+				}
 			}
+
 		})
 	}
 }
@@ -1009,38 +1112,112 @@ func TestSetWorkloadInstanceName(t *testing.T) {
 			}},
 			reason: "workloadName should align with componentName",
 		},
-		"set value error": {
-			u: &unstructured.Unstructured{Object: map[string]interface{}{
-				"metadata": []string{},
-			}},
-			c:      &v1alpha2.Component{ObjectMeta: metav1.ObjectMeta{Name: "comp"}, Status: v1alpha2.ComponentStatus{LatestRevision: &v1alpha2.Revision{Name: "rev-1"}}},
-			expErr: errors.Wrapf(errors.New("metadata is not an object"), errSetValueForField, instanceNamePath, "comp"),
-		},
-		"set value error for trait revisionEnabled": {
-			u: &unstructured.Unstructured{Object: map[string]interface{}{
-				"metadata": []string{},
-			}},
-			traitDefs: []v1alpha2.TraitDefinition{
-				{
-					Spec: v1alpha2.TraitDefinitionSpec{RevisionEnabled: false},
-				},
-			},
-			c:      &v1alpha2.Component{ObjectMeta: metav1.ObjectMeta{Name: "comp"}, Status: v1alpha2.ComponentStatus{LatestRevision: &v1alpha2.Revision{Name: "rev-1"}}},
-			expErr: errors.Wrapf(errors.New("metadata is not an object"), errSetValueForField, instanceNamePath, "comp"),
-		},
 	}
 	for name, ti := range tests {
 		t.Run(name, func(t *testing.T) {
 			if ti.expErr != nil {
-				assert.Equal(t, ti.expErr.Error(), SetWorkloadInstanceName(ti.traitDefs, ti.u, ti.c,
+				assert.Equal(t, ti.expErr.Error(), setWorkloadInstanceName(ti.traitDefs, ti.u, ti.c,
 					ti.currentWorkload).Error())
 			} else {
-				err := SetWorkloadInstanceName(ti.traitDefs, ti.u, ti.c, ti.currentWorkload)
+				err := setWorkloadInstanceName(ti.traitDefs, ti.u, ti.c, ti.currentWorkload)
 				assert.NoError(t, err)
 				assert.Equal(t, ti.exp, ti.u, ti.reason)
 			}
 		})
 	}
+}
+
+func TestSetAppWorkloadInstanceName(t *testing.T) {
+	tests := map[string]struct {
+		compName string
+		w        *unstructured.Unstructured
+		revision int
+		expName  string
+		reason   string
+	}{
+		"two resources case": {
+			compName: "webservice",
+			revision: 5,
+			w: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "extensions/v1beta1",
+				"kind":       "deployment",
+			}},
+			expName: "webservice-v5",
+			reason:  "workloadName should be the component with revision",
+		},
+		"one resources case": {
+			compName: "mysql",
+			revision: 2,
+			w: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "apps.kruise.io/v1alpha1",
+				"kind":       "CloneSet",
+			}},
+			expName: "mysql",
+			reason:  "workloadName should be just the component name if we can do in-place upgrade",
+		},
+		"ignore any existing name": {
+			compName: "mysql",
+			revision: 2,
+			w: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "apps.kruise.io/v1alpha1",
+				"kind":       "CloneSet",
+				"metadata": map[string]interface{}{
+					"name": "mysql-v1",
+				},
+			}},
+			expName: "mysql",
+			reason:  "workloadName set in the template is ignored",
+		},
+		"one resources same name case": {
+			compName: "mysql",
+			revision: 2,
+			w: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "oam.dev/v1alpha1",
+				"kind":       "CloneSet",
+			}},
+			expName: "mysql-v2",
+			reason:  "we compare not only the kind but also the group name",
+		},
+	}
+	for name, ti := range tests {
+		t.Run(name, func(t *testing.T) {
+			setAppWorkloadInstanceName(ti.compName, ti.w, ti.revision)
+			assert.Equal(t, ti.expName, ti.w.GetName(), ti.reason)
+		})
+	}
+}
+
+func TestIsControlledByApp(t *testing.T) {
+	// not true even if the kind checks right
+	ac := &v1alpha2.ApplicationConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "namespace",
+			Name:      "acName",
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "api",
+					Kind:       v1alpha2.ApplicationKind,
+				},
+			},
+		},
+	}
+	assert.False(t, isControlledByApp(ac))
+	// not true even the owner type checks right
+	ac.OwnerReferences = append(ac.OwnerReferences, metav1.OwnerReference{
+		APIVersion: v1alpha2.SchemeGroupVersion.String(),
+		Kind:       v1alpha2.ApplicationKind,
+	})
+	assert.False(t, isControlledByApp(ac))
+	// only true when it's the controller
+	ac.OwnerReferences[1].Controller = pointer.BoolPtr(true)
+	assert.True(t, isControlledByApp(ac))
+	// still true when it's not the only the controller
+	ac.OwnerReferences = append(ac.OwnerReferences, metav1.OwnerReference{
+		APIVersion: v1alpha2.SchemeGroupVersion.String(),
+		Kind:       v1alpha2.ApplicationDeploymentKind,
+		Controller: pointer.BoolPtr(true),
+	})
+	assert.True(t, isControlledByApp(ac))
 }
 
 func TestSetTraitProperties(t *testing.T) {
