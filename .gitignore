@@ -36,8 +36,8 @@ pkg/test/vela
 config/crd/bases
 tmp/
 
-cmd/vela/fake/source.go
-cmd/vela/fake/chart_source.go
+references/cmd/cli/fake/source.go
+references/cmd/cli/fake/chart_source.go
 charts/vela-core/crds/_.yaml
 .test_vela
 
@@ -46,16 +46,11 @@ charts/vela-core/crds/_.yaml
 # Dashboard
 node_modules/
 .eslintcache
-dashboard/dist/
-dashboard/package-lock.json
-dashboard/src/.umi/
+references/dashboard/dist/
+references/dashboard/package-lock.json
+references/dashboard/src/.umi/
 package-lock.json
-dashboard/src/.umi-production/
+references/dashboard/src/.umi-production/
 
 # Swagger: generate Restful API
-pkg/server/docs/index.html
-
-# Chart dependencies
-/charts/*/charts
-/e2e/application/vela.yaml
-/e2e/application/vela.json
+references/apiserver/docs/index.html

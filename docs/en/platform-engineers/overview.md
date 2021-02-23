@@ -11,7 +11,7 @@ Despite the efficiency and extensibility in defining abstractions and encapsulat
 
 KubeVela is designed to make it possible to build platforms with leverage of those great encapsulation solutions. 
 
-## Abstraction and Encapsulation
+## Encapsulation and Abstraction
 
 KubeVela introduces an `Application` resource as the abstraction that captures all needed resources to run the application, and exposes configurable parameters for end users. Every application is composed by multiple components, and each of them is defined by workload specification and traits (operational behaviors). For example:
 
@@ -44,11 +44,11 @@ spec:
 
 For platform builder side, this abstraction is highly extensible and can encapsulate all the needed resources that composed your app. In detail, each *workload type* and *trait* specification in an application is defined via independent definition objects, for example, [`WorkloadDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#workload-definition) and [`TraitDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#scaler-trait-definition). 
 
-The definition objects is designed to support any possible encapsulation modules, for example `CUE` lib, `Terraform` lib, `Helm` charts, etc. This enables platform team to create unified abstraction that can model and deploy any kind of resource with ease including the cloud services. Actually, in the `application-sample` above, it defines a OSS bucket on Alibaba Cloud as a component which is powered by a Terraform module behind the scenes.
+The definition objects is designed to support any possible encapsulation module types, for example `CUE`, `Terraform` and `Helm`, etc. This enables platform team to create unified abstraction that can model and deploy any kind of resource with ease including the cloud services. Actually, in the `application-sample` above, it defines a OSS bucket on Alibaba Cloud as a component which is powered by a Terraform module behind the scenes.
 
 ### No Configuration Drift
 
-Many of the existing encapsulation tools today works at client side, for example, DSL/IaC tools and Helm. This approach is easy to be adopted and has less invasion in the user cluster, KubeVela encapsulation engine can also be implemented at client side.
+Many of the existing encapsulation solutions today work at client side, for example, DSL/IaC tools and Helm. This approach is easy to be adopted and has less invasion in the user cluster, KubeVela encapsulation engine can also be implemented at client side.
 
 But client side abstractions, though light-weighted, always lead to an issue called infrastructure/configuration drift, i.e. the generated component instances are not in line with the expected configuration. This could be caused by incomplete coverage, less-than-perfect processes or emergency changes.
 
@@ -58,7 +58,7 @@ Hence, the encapsulation engine of KubeVela is designed to be a [Kubernetes Cont
 
 For example, as the platform team we want to leverage Istio as the Service Mesh layer to control the traffic to certain `Deployment` instances. But this could be really painful today because we have to enforce end users to define and manage a set of Kubernetes resources in a "juggling" approach. For example, in a simple canary rollout case, the end users have to carefully manage a primary *Deployment*, a primary *Service*, a *root Service*, a canary *Deployment*, a canary *Service*, and have to probably rename the *Deployment* instance after canary promotion (this is actually unacceptable in production because renaming will lead to the app restart). What's worse, we have to expect the users properly set the labels and selectors on those objects carefully because they are the key to ensure proper accessibility of every app instance and the only revision mechanism our Istio controller could count on.
 
-The issue above could be even painful if the workload instance is not *Deployment*, but *StatefulSet* or custom workload type. For example, normally it doesn't make sense to replicate a *StatefulSet* instance during rollout, this means the users have to maintain the name, revision, label, selector, app instances in a totally different approach from *Deployment*.
+The issue above could be even painful if the component instance is not *Deployment*, but *StatefulSet* or custom workload type. For example, normally it doesn't make sense to replicate a *StatefulSet* instance during rollout, this means the users have to maintain the name, revision, label, selector, app instances in a totally different approach from *Deployment*.
 
 #### Standard Contract Behind The Abstraction
 

@@ -4,7 +4,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -21,9 +20,6 @@ import (
 const (
 	// AppfileBuiltinConfig defines the built-in config variable
 	AppfileBuiltinConfig = "config"
-
-	// OAMApplicationLabel is application's metadata label tagged on AC and Component
-	OAMApplicationLabel = "application.oam.dev"
 )
 
 // Workload is component
@@ -215,12 +211,11 @@ func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1a
 	appconfig.SetGroupVersionKind(v1alpha2.ApplicationConfigurationGroupVersionKind)
 	appconfig.Name = app.Name
 	appconfig.Namespace = ns
-	appconfig.Spec.Components = []v1alpha2.ApplicationConfigurationComponent{}
 
 	if appconfig.Labels == nil {
 		appconfig.Labels = map[string]string{}
 	}
-	appconfig.Labels[OAMApplicationLabel] = app.Name
+	appconfig.Labels[oam.LabelAppName] = app.Name
 
 	var components []*v1alpha2.Component
 	for _, wl := range app.Workloads {
@@ -252,7 +247,7 @@ func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1a
 		if comp.Labels == nil {
 			comp.Labels = map[string]string{}
 		}
-		comp.Labels[OAMApplicationLabel] = app.Name
+		comp.Labels[oam.LabelAppName] = app.Name
 		comp.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
 
 		components = append(components, comp)
@@ -277,10 +272,9 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compNa
 	util.AddLabels(componentWorkload, labels)
 
 	component := &v1alpha2.Component{}
-	component.Spec.Workload.Object = componentWorkload
+	component.Spec.Workload = util.Object2RawExtension(componentWorkload)
 
 	acComponent := &v1alpha2.ApplicationConfigurationComponent{}
-	acComponent.Traits = []v1alpha2.ComponentTrait{}
 	for _, assist := range assists {
 		tr, err := assist.Ins.Unstructured()
 		if err != nil {
@@ -296,9 +290,8 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compNa
 		}
 		util.AddLabels(tr, labels)
 		acComponent.Traits = append(acComponent.Traits, v1alpha2.ComponentTrait{
-			Trait: runtime.RawExtension{
-				Object: tr,
-			},
+			// we need to marshal the trait to byte array before sending them to the k8s
+			Trait: util.Object2RawExtension(tr),
 		})
 	}
 	return component, acComponent, nil

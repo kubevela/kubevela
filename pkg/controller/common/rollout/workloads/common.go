@@ -12,7 +12,6 @@ import (
 // each batch replica can be absolute or a percentage
 func VerifySumOfBatchSizes(rolloutSpec *v1alpha1.RolloutPlan, totalReplicas int32) error {
 	// if not set, the sum of all the batch sizes minus the last batch cannot be more than the totalReplicas
-	// if not set, the sum of all the batch sizes minus the last batch cannot be more than the totalReplicas
 	totalRollout := 0
 	for i := 0; i < len(rolloutSpec.RolloutBatches)-1; i++ {
 		rb := rolloutSpec.RolloutBatches[i]

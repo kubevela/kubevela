@@ -82,12 +82,11 @@ type RolloutPlan struct {
 	TargetSize *int32 `json:"targetSize,omitempty"`
 
 	// The number of batches, default = 1
-	// mutually exclusive to RolloutBatches
 	// +optional
 	NumBatches *int32 `json:"numBatches,omitempty"`
 
 	// The exact distribution among batches.
-	// mutually exclusive to NumBatches.
+	// its size has to be exactly the same as the NumBatches (if set)
 	// The total number cannot exceed the targetSize or the size of the source resource
 	// We will IGNORE the last batch's replica field if it's a percentage since round errors can lead to inaccurate sum
 	// We highly recommend to leave the last batch's replica field empty
@@ -161,8 +160,8 @@ type RolloutWebhook struct {
 	// URL address of this webhook
 	URL string `json:"url"`
 
-	// Request timeout for this webhook
-	Timeout string `json:"timeout,omitempty"`
+	// ExpectedStatus contains all the expected http status code that we will accept as success
+	ExpectedStatus []int `json:"expectedStatus,omitempty"`
 
 	// Metadata (key-value pairs) for this webhook
 	// +optional
@@ -171,11 +170,14 @@ type RolloutWebhook struct {
 
 // RolloutWebhookPayload holds the info and metadata sent to webhooks
 type RolloutWebhookPayload struct {
-	// ResourceRef refers to the resource we are operating on
-	ResourceRef *runtimev1alpha1.TypedReference `json:"resourceRef"`
+	// Name of the upgrading resource
+	Name string `json:"name"`
 
-	// RolloutRef refers to the rollout that is controlling the rollout
-	RolloutRef *runtimev1alpha1.TypedReference `json:"rolloutRef"`
+	// Namespace of the upgrading resource
+	Namespace string `json:"namespace"`
+
+	// Phase of the rollout
+	Phase RollingState `json:"phase"`
 
 	// Metadata (key-value pairs) are the extra data send to this webhook
 	Metadata map[string]string `json:"metadata,omitempty"`

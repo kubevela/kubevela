@@ -296,17 +296,35 @@ type labelAnnotationObject interface {
 }
 
 // PassLabel passes through labels from the parent to the child object
-func PassLabel(parentObj oam.Object, childObj labelAnnotationObject) {
+func PassLabel(parentObj, childObj labelAnnotationObject) {
 	// pass app-config labels
 	childObj.SetLabels(MergeMapOverrideWithDst(parentObj.GetLabels(), childObj.GetLabels()))
 }
 
 // PassLabelAndAnnotation passes through labels and annotation objectMeta from the parent to the child object
-func PassLabelAndAnnotation(parentObj oam.Object, childObj labelAnnotationObject) {
+func PassLabelAndAnnotation(parentObj, childObj labelAnnotationObject) {
 	// pass app-config labels
 	childObj.SetLabels(MergeMapOverrideWithDst(parentObj.GetLabels(), childObj.GetLabels()))
 	// pass app-config annotation
 	childObj.SetAnnotations(MergeMapOverrideWithDst(parentObj.GetAnnotations(), childObj.GetAnnotations()))
+}
+
+// RemoveLabels removes keys that contains in the removekeys slice from the label
+func RemoveLabels(o labelAnnotationObject, removeKeys []string) {
+	exist := o.GetLabels()
+	for _, key := range removeKeys {
+		delete(exist, key)
+	}
+	o.SetLabels(exist)
+}
+
+// RemoveAnnotations removes keys that contains in the removekeys slice from the annotation
+func RemoveAnnotations(o labelAnnotationObject, removeKeys []string) {
+	exist := o.GetAnnotations()
+	for _, key := range removeKeys {
+		delete(exist, key)
+	}
+	o.SetAnnotations(exist)
 }
 
 // GetDefinitionName return the Definition name of any resources
@@ -412,6 +430,14 @@ func Object2Map(obj interface{}) (map[string]interface{}, error) {
 	return res, err
 }
 
+// Object2RawExtension converts an object to a rawExtension
+func Object2RawExtension(obj interface{}) runtime.RawExtension {
+	bts, _ := json.Marshal(obj)
+	return runtime.RawExtension{
+		Raw: bts,
+	}
+}
+
 // RawExtension2Map will convert rawExtension to map
 func RawExtension2Map(raw *runtime.RawExtension) (map[string]interface{}, error) {
 	if raw == nil {
@@ -464,7 +490,8 @@ func DeepHashObject(hasher hash.Hash, objectToWrite interface{}) {
 }
 
 // GetComponent will get Component and RevisionName by AppConfigComponent
-func GetComponent(ctx context.Context, client client.Reader, acc v1alpha2.ApplicationConfigurationComponent, namespace string) (*v1alpha2.Component, string, error) {
+func GetComponent(ctx context.Context, client client.Reader, acc v1alpha2.ApplicationConfigurationComponent,
+	namespace string) (*v1alpha2.Component, string, error) {
 	c := &v1alpha2.Component{}
 	var revisionName string
 	if acc.RevisionName != "" {
@@ -505,12 +532,12 @@ func UnpackRevisionData(rev *appsv1.ControllerRevision) (*v1alpha2.Component, er
 }
 
 // AddLabels will merge labels with existing labels. If any conflict keys, use new value to override existing value.
-func AddLabels(o *unstructured.Unstructured, labels map[string]string) {
+func AddLabels(o labelAnnotationObject, labels map[string]string) {
 	o.SetLabels(MergeMapOverrideWithDst(o.GetLabels(), labels))
 }
 
 // AddAnnotations will merge annotations with existing ones. If any conflict keys, use new value to override existing value.
-func AddAnnotations(o *unstructured.Unstructured, annos map[string]string) {
+func AddAnnotations(o labelAnnotationObject, annos map[string]string) {
 	o.SetAnnotations(MergeMapOverrideWithDst(o.GetAnnotations(), annos))
 }
 

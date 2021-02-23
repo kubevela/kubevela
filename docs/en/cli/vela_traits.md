@@ -22,7 +22,6 @@ vela traits
   -r, --                  Enforce refresh from cluster even if cache is not expired
       --apply-to string   Workload name
   -h, --help              help for traits
-  -s, --sync              Synchronize capabilities from cluster into local (default true)
 ```
 
 ### Options inherited from parent commands

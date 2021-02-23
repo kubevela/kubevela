@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -369,6 +370,20 @@ var _ = Describe("Test appFile parser", func() {
 		Expect(k8sClient.Create(context.Background(), cm.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		ac, components, err := NewApplicationParser(k8sClient, nil).GenerateApplicationConfiguration(TestApp, "default")
 		Expect(err).To(BeNil())
+		manuscaler := util.Object2RawExtension(&unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "core.oam.dev/v1alpha2",
+				"kind":       "ManualScalerTrait",
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						"app.oam.dev/component": "myweb",
+						"app.oam.dev/name":      "test",
+						"trait.oam.dev/type":    "scaler",
+					},
+				},
+				"spec": map[string]interface{}{"replicaCount": int64(10)},
+			},
+		})
 		expectAppConfig := &v1alpha2.ApplicationConfiguration{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "ApplicationConfiguration",
@@ -376,7 +391,7 @@ var _ = Describe("Test appFile parser", func() {
 			}, ObjectMeta: metav1.ObjectMeta{
 				Name:      "test",
 				Namespace: "default",
-				Labels:    map[string]string{"application.oam.dev": "test"},
+				Labels:    map[string]string{oam.LabelAppName: "test"},
 			},
 			Spec: v1alpha2.ApplicationConfigurationSpec{
 				Components: []v1alpha2.ApplicationConfigurationComponent{
@@ -393,22 +408,8 @@ var _ = Describe("Test appFile parser", func() {
 						},
 						Traits: []v1alpha2.ComponentTrait{
 							{
-								Trait: runtime.RawExtension{
-									Object: &unstructured.Unstructured{
-										Object: map[string]interface{}{
-											"apiVersion": "core.oam.dev/v1alpha2",
-											"kind":       "ManualScalerTrait",
-											"metadata": map[string]interface{}{
-												"labels": map[string]interface{}{
-													"app.oam.dev/component": "myweb",
-													"app.oam.dev/name":      "test",
-													"trait.oam.dev/type":    "scaler",
-												},
-											},
-											"spec": map[string]interface{}{"replicaCount": int64(10)},
-										},
-									},
-								}},
+								Trait: manuscaler,
+							},
 						},
 					},
 				},
@@ -424,7 +425,7 @@ var _ = Describe("Test appFile parser", func() {
 			}, ObjectMeta: metav1.ObjectMeta{
 				Name:      "myweb",
 				Namespace: "default",
-				Labels:    map[string]string{"application.oam.dev": "test"},
+				Labels:    map[string]string{oam.LabelAppName: "test"},
 			}}
 		expectWorkload := &unstructured.Unstructured{
 			Object: map[string]interface{}{
@@ -481,9 +482,9 @@ var _ = Describe("Test appFile parser", func() {
 		Expect(len(components)).To(BeEquivalentTo(1))
 		Expect(components[0].ObjectMeta).To(BeEquivalentTo(expectComponent.ObjectMeta))
 		Expect(components[0].TypeMeta).To(BeEquivalentTo(expectComponent.TypeMeta))
-		Expect(components[0].Spec.Workload.Object).Should(SatisfyAny(
-			BeEquivalentTo(expectWorkload),
-			BeEquivalentTo(expectWorkloadOptional)))
+		Expect(components[0].Spec.Workload).Should(SatisfyAny(
+			BeEquivalentTo(util.Object2RawExtension(expectWorkload)),
+			BeEquivalentTo(util.Object2RawExtension(expectWorkloadOptional))))
 	})
 
 })

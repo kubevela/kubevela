@@ -1,4 +1,4 @@
-# Templating Traits with CUE
+# Defining Traits
 
 In this section we will introduce how to define a Trait with CUE template.
 
@@ -147,7 +147,7 @@ spec:
 
 ## Patch Trait
 
-You could also use keyword `patch` to patch data to the workload instance (before the resource is applied) and claim this behavior as a trait.
+You could also use keyword `patch` to patch data to the component instance (before the resource is applied) and claim this behavior as a trait.
  
 Below is an example for `node-affinity` trait:
 
@@ -218,7 +218,7 @@ spec:
               server-owner: "old-owner"
 ```
 
-The patch trait above assumes the workload instance have `spec.template.spec.affinity` schema. Hence we need to use it with the field `appliesToWorkloads` which can enforce the trait only to be used by these specified workload types.
+The patch trait above assumes the component instance have `spec.template.spec.affinity` schema. Hence we need to use it with the field `appliesToWorkloads` which can enforce the trait only to be used by these specified workload types.
 
 By default, the patch trait in KubeVela relies on the CUE `merge` operation. It has following known constraints:
 
@@ -345,6 +345,127 @@ spec:
     }
 ```
 
+## Simple data passing
+
+The trait can use the data of workload output and outputs to fill itself.
+
+There are two keywords `output` and `outputs` in the rendering context.
+You can use `context.output` refer to the workload object, and use `context.outputs.<xx>` refer to the trait object.
+please make sure the trait resource name is unique, or the former data will be covered by the latter one.
+
+Below is an example
+1. the main workload object(Deployment) in this example will render into the context.output before rendering traits.
+2. the context.outputs.<xx> will keep all these rendered trait data and can be used in the traits after them.
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: worker
+spec:
+  definitionRef:
+    name: deployments.apps
+  extension:
+    template: |
+      output: {
+        apiVersion: "apps/v1"
+        kind:       "Deployment"
+        spec: {
+            selector: matchLabels: {
+                "app.oam.dev/component": context.name
+            }
+    
+            template: {
+                metadata: labels: {
+                    "app.oam.dev/component": context.name
+                }
+                spec: {
+                    containers: [{
+                        name:  context.name
+                        image: parameter.image
+                                         ports:[{containerPort: parameter.port}]
+                        envFrom: [{
+                            configMapRef: name: context.name + "game-config"
+                        }]
+                        if parameter["cmd"] != _|_ {
+                            command: parameter.cmd
+                        }
+                    }]
+                }
+            }
+        }
+      }
+
+      outputs: gameconfig: {
+            apiVersion: "v1"
+            kind:       "ConfigMap"
+            metadata: {
+                name: context.name + "game-config"
+            }
+            data: {
+                enemies: parameter.enemies
+                lives:   parameter.lives
+            }
+      }
+
+      parameter: {
+      	// +usage=Which image would you like to use for your service
+      	// +short=i
+      	image: string
+      	// +usage=Commands to run in the container
+      	cmd?: [...string]
+      	lives:   string
+      	enemies: string
+        port: int
+      }
+
+---
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: ingress
+spec:
+  extension:
+    template: |
+      parameter: {
+        domain: string
+        path: string
+        exposePort: int
+      }
+      // trait template can have multiple outputs in one trait
+      outputs: service: {
+        apiVersion: "v1"
+        kind: "Service"
+        spec: {
+          selector:
+            app: context.name
+          ports: [{
+              port: parameter.exposePort
+              targetPort: context.output.spec.template.spec.containers[0].ports[0].containerPort
+            }]
+        }
+      }
+      outputs: ingress: {
+          apiVersion: "networking.k8s.io/v1beta1"
+          kind: "Ingress"
+          metadata:
+            name: context.name
+            labels: config: context.outputs.gameconfig.data.enemies
+          spec: {
+            rules: [{
+              host: parameter.domain
+              http: {
+                paths: [{
+                    path: parameter.path
+                    backend: {
+                      serviceName: context.name
+                      servicePort: parameter.exposePort
+                    }
+                }]
+              }
+            }]
+          }
+      }
+```
 
 ## More Use Cases for Patch Trait
 
@@ -552,7 +673,9 @@ spec:
       		initContainers: [{
       			name:    parameter.name
       			image:   parameter.image
-      			command: parameter.command
+      			if parameter.command != _|_ {
+      			  command: parameter.command
+      			}
       			// +patchKey=name
       			volumeMounts: [{
       				name:      parameter.mountName

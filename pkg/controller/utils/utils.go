@@ -1,21 +1,39 @@
 package utils
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	mapset "github.com/deckarep/golang-set"
+	v12 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
+
+// DefaultBackoff is the backoff we use in controller
+var DefaultBackoff = wait.Backoff{
+	Duration: 1 * time.Second,
+	Factor:   2,
+	Steps:    5,
+	Jitter:   0.1,
+}
 
 // LabelPodSpecable defines whether a workload has podSpec or not.
 const LabelPodSpecable = "workload.oam.dev/podspecable"
@@ -138,4 +156,53 @@ func StoreInSet(disableCaps string) mapset.Set {
 		disableSlice = append(disableSlice, c)
 	}
 	return mapset.NewSetFromSlice(disableSlice)
+}
+
+// ConstructRevisionName will generate a revisionName given the componentName and revision
+// will be <componentName>-v<RevisionNumber>, for example: comp-v1
+func ConstructRevisionName(componentName string, revision int64) string {
+	return strings.Join([]string{componentName, fmt.Sprintf("v%d", revision)}, "-")
+}
+
+// ExtractComponentName will extract the componentName from a revisionName
+func ExtractComponentName(revisionName string) string {
+	splits := strings.Split(revisionName, "-")
+	return strings.Join(splits[0:len(splits)-1], "-")
+}
+
+// ExtractRevision will extract the revision from a revisionName
+func ExtractRevision(revisionName string) (int, error) {
+	splits := strings.Split(revisionName, "-")
+	// the revision is the last string without the prefix "v"
+	return strconv.Atoi(strings.TrimPrefix(splits[len(splits)-1], "v"))
+}
+
+// CompareWithRevision compares a component's spec with the component's latest revision content
+func CompareWithRevision(ctx context.Context, c client.Client, logger logging.Logger, componentName, nameSpace,
+	latestRevision string, curCompSpec *v1alpha2.ComponentSpec) (bool, error) {
+	oldRev := &v12.ControllerRevision{}
+	// retry on NotFound since we update the component last revision first
+	err := wait.ExponentialBackoff(retry.DefaultBackoff, func() (bool, error) {
+		err := c.Get(ctx, client.ObjectKey{Namespace: nameSpace, Name: latestRevision}, oldRev)
+		if err != nil && !errors.IsNotFound(err) {
+			logger.Info(fmt.Sprintf("get old controllerRevision %s error %v",
+				latestRevision, err), "componentName", componentName)
+			return false, err
+		}
+		return true, nil
+	})
+	if err != nil {
+		return true, err
+	}
+	oldComp, err := util.UnpackRevisionData(oldRev)
+	if err != nil {
+		logger.Info(fmt.Sprintf("Unmarshal old controllerRevision %s error %v",
+			latestRevision, err), "componentName", componentName)
+		return true, err
+	}
+	if reflect.DeepEqual(curCompSpec, &oldComp.Spec) {
+		// no need to create a new revision
+		return false, nil
+	}
+	return true, nil
 }

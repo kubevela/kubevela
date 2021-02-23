@@ -21,7 +21,6 @@ vela workloads
 ```
   -r, --       Enforce refresh from cluster even if cache is not expired
   -h, --help   help for workloads
-  -s, --sync   Synchronize capabilities from cluster into local (default true)
 ```
 
 ### Options inherited from parent commands

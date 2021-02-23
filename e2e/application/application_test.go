@@ -12,6 +12,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/e2e"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
 
 var (
@@ -64,10 +65,19 @@ var ApplicationStatusDeeplyContext = func(context string, applicationName, workl
 			k8sclient, err := e2e.NewK8sClient()
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 
+			ginkgo.By("check Application reconciled ready")
+			app := &v1alpha2.Application{}
+			gomega.Eventually(func() bool {
+				_ = k8sclient.Get(context2.Background(), client.ObjectKey{Name: applicationName, Namespace: "default"}, app)
+				return app.Status.LatestRevision != nil
+			}, 180*time.Second, 1*time.Second).Should(gomega.BeTrue())
+
 			ginkgo.By("check AppConfig reconciled ready")
 			gomega.Eventually(func() int {
 				appConfig := &v1alpha2.ApplicationConfiguration{}
-				_ = k8sclient.Get(context2.Background(), client.ObjectKey{Name: applicationName, Namespace: "default"}, appConfig)
+				_ = k8sclient.Get(context2.Background(), client.ObjectKey{
+					Name:      utils.ConstructRevisionName(applicationName, app.Status.LatestRevision.Revision),
+					Namespace: "default"}, appConfig)
 				return len(appConfig.Status.Workloads)
 			}, 180*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))
 

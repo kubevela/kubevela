@@ -9,6 +9,19 @@ import (
 	"github.com/oam-dev/kubevela/pkg/dsl/model"
 )
 
+const (
+	// OutputFieldName is the reference of context base object
+	OutputFieldName = "output"
+	// OutputsFieldName is the reference of context Auxiliaries
+	OutputsFieldName = "outputs"
+	// ConfigFieldName is the reference of context config
+	ConfigFieldName = "config"
+	// ContextName is the name of context
+	ContextName = "name"
+	// ContextAppName is the appName of context
+	ContextAppName = "appName"
+)
+
 // Context defines Rendering Context Interface
 type Context interface {
 	SetBase(base model.Instance)
@@ -76,16 +89,28 @@ func (ctx *templateContext) AppendAuxiliaries(auxiliaries ...Auxiliary) {
 // BaseContextFile return cue format string of templateContext
 func (ctx *templateContext) BaseContextFile() string {
 	var buff string
-	buff += fmt.Sprintf("name: \"%s\"\n", ctx.name)
-	buff += fmt.Sprintf("appName: \"%s\"\n", ctx.appName)
+	buff += fmt.Sprintf(ContextName+": \"%s\"\n", ctx.name)
+	buff += fmt.Sprintf(ContextAppName+": \"%s\"\n", ctx.appName)
 
 	if ctx.base != nil {
-		buff += fmt.Sprintf("input: %s\n", structMarshal(ctx.base.String()))
+		buff += fmt.Sprintf(OutputFieldName+": %s\n", structMarshal(ctx.base.String()))
+	}
+
+	if len(ctx.auxiliaries) > 0 {
+		var auxLines []string
+		for _, auxiliary := range ctx.auxiliaries {
+			if auxiliary.IsOutputs {
+				auxLines = append(auxLines, fmt.Sprintf("%s: %s", auxiliary.Name, structMarshal(auxiliary.Ins.String())))
+			}
+		}
+		if len(auxLines) > 0 {
+			buff += fmt.Sprintf(OutputsFieldName+": {%s}\n", strings.Join(auxLines, "\n"))
+		}
 	}
 
 	if len(ctx.configs) > 0 {
 		bt, _ := json.Marshal(ctx.configs)
-		buff += "config: " + string(bt)
+		buff += ConfigFieldName + ": " + string(bt)
 	}
 
 	return fmt.Sprintf("context: %s", structMarshal(buff))
@@ -95,13 +120,13 @@ func (ctx *templateContext) BaseContextLabels() map[string]string {
 
 	return map[string]string{
 		// appName is oam.LabelAppName
-		"appName": ctx.appName,
+		ContextAppName: ctx.appName,
 		// name is oam.LabelAppComponent
-		"name": ctx.name,
+		ContextName: ctx.name,
 	}
 }
 
-// GetK8sResource return models of templateContext
+// Output return model and auxiliaries of templateContext
 func (ctx *templateContext) Output() (model.Instance, []Auxiliary) {
 	return ctx.base, ctx.auxiliaries
 }

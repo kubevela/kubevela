@@ -166,7 +166,8 @@ var _ = Describe("Versioning mechanism of components", func() {
 			revisionNameV1 := cmpV1.Status.LatestRevision.Name
 			By("Get corresponding ControllerRevision of Component v1")
 			cr := &appsv1.ControllerRevision{}
-			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: revisionNameV1}, cr)).Should(Succeed())
+			Expect(k8sClient.Get(ctx,
+				client.ObjectKey{Namespace: namespace, Name: revisionNameV1}, cr)).ShouldNot(HaveOccurred())
 			By("Check revision seq number")
 			Expect(cr.Revision).Should(Equal(int64(1)))
 

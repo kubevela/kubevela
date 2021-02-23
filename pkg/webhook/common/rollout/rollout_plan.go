@@ -11,8 +11,8 @@ import (
 // This is called by the mutation webhooks and before the validators
 func DefaultRolloutPlan(rollout *v1alpha1.RolloutPlan) {
 	if rollout.TargetSize != nil && rollout.NumBatches != nil && rollout.RolloutBatches == nil {
-		// create the rollout  batch based on the total size and num batches if it's not set
-		// leave it for the validator to reject if they are both set
+		// create the rollout batch based on the total size and num batches if it's not set
+		// leave it for the validator to validate more if they are both set
 		numBatches := int(*rollout.NumBatches)
 		totalSize := int(*rollout.TargetSize)
 		// create the batch array
@@ -31,11 +31,12 @@ func DefaultRolloutPlan(rollout *v1alpha1.RolloutPlan) {
 // ValidateCreate validate the rollout plan
 func ValidateCreate(rollout *v1alpha1.RolloutPlan, rootPath *field.Path) field.ErrorList {
 	var allErrs field.ErrorList
-	// The total number of num in the batches match the current target resource pod size
+	// TODO: The total number of num in the batches match the current target resource pod size
 
-	// The TargetSize and NumBatches are mutually exclusive to RolloutBatches
-	if rollout.NumBatches != nil && rollout.RolloutBatches != nil {
-		allErrs = append(allErrs, field.Duplicate(rootPath.Child("numBatches"), rollout.NumBatches))
+	// NumBatches has to be the size of RolloutBatches
+	if rollout.NumBatches != nil && len(rollout.RolloutBatches) != int(*rollout.NumBatches) {
+		allErrs = append(allErrs, field.Invalid(rootPath.Child("numBatches"), rollout.NumBatches,
+			"the num batches does not match the rollout batch size"))
 	}
 
 	// validate the webhooks
