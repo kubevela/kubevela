@@ -7,7 +7,9 @@ on:
       - release-*
   workflow_dispatch: {}
   pull_request:
-    branches: [master]
+    branches:
+      - master
+      - release-*
 
 env:
   # Common versions
