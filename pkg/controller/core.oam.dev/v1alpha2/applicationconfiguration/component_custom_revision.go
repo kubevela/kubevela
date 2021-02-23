@@ -27,7 +27,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/server/util"
 )
 
 // RevisionHookRequest is request body for custom component revision hook
@@ -35,6 +34,9 @@ type RevisionHookRequest struct {
 	RelatedApps []reconcile.Request `json:"relatedApps"`
 	Comp        *v1alpha2.Component `json:"component"`
 }
+
+// ContentTypeJSON : json
+const ContentTypeJSON = "application/json"
 
 func (c *ComponentHandler) customComponentRevisionHook(relatedApps []reconcile.Request, comp *v1alpha2.Component) error {
 	if c.CustomRevisionHookURL == "" {
@@ -52,7 +54,7 @@ func (c *ComponentHandler) customComponentRevisionHook(relatedApps []reconcile.R
 	if err != nil {
 		return err
 	}
-	httpRequest.Header.Set("Content-Type", util.ContentTypeJSON)
+	httpRequest.Header.Set("Content-Type", ContentTypeJSON)
 	resp, err := http.DefaultClient.Do(httpRequest)
 	if err != nil {
 		return err

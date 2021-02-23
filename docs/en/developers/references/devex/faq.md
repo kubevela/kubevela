@@ -260,7 +260,7 @@ github.com/spf13/cobra.(*Command).ExecuteC
 github.com/spf13/cobra.(*Command).Execute
 	/home/runner/go/pkg/mod/github.com/spf13/cobra@v1.1.1/command.go:895
 main.main
-	/home/runner/work/kubevela/kubevela/cmd/vela/main.go:16
+	/home/runner/work/kubevela/kubevela/references/cmd/cli/main.go:16
 runtime.main
 	/opt/hostedtoolcache/go/1.14.13/x64/src/runtime/proc.go:203
 runtime.goexit

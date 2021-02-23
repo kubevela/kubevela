@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/oam-dev/kubevela/pkg/plugins"
+	"github.com/oam-dev/kubevela/references/plugins"
 )
 
 func main() {

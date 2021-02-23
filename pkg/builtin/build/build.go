@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
-	cmdutil "github.com/oam-dev/kubevela/pkg/commands/util"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 func init() {

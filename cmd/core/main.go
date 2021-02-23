@@ -33,7 +33,6 @@ import (
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	velacore "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/appfile/driver"
 	velacontroller "github.com/oam-dev/kubevela/pkg/controller"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
@@ -102,7 +101,7 @@ func main() {
 	flag.StringVar(&controllerArgs.CustomRevisionHookURL, "custom-revision-hook-url", "",
 		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
 	flag.StringVar(&disableCaps, "disable-caps", "", "To be disabled builtin capability list.")
-	flag.StringVar(&storageDriver, "storage-driver", driver.LocalDriverName, "Application file save to the storage driver")
+	flag.StringVar(&storageDriver, "storage-driver", "Local", "Application file save to the storage driver")
 	flag.DurationVar(&syncPeriod, "informer-re-sync-interval", 5*time.Minute,
 		"controller shared informer lister full re-sync period")
 	flag.Parse()
