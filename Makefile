@@ -146,10 +146,7 @@ e2e-test:
 
 e2e-cleanup:
 	# Clean up
-	helm del kubevela -n vela-system || true
-	kubectl delete ns vela-system || true
 	rm -rf ~/.vela
-
 
 # load docker image to the kind cluster
 kind-load:

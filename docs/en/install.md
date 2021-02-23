@@ -77,36 +77,18 @@ These steps will install KubeVela controller and its dependency.
     helm repo update
     ```
    
-3. Create Namespace for KubeVela controller
+3. Install KubeVela
     ```shell script
-    kubectl create namespace vela-system 
+    helm install --create-namespace -n vela-system kubevela kubevela/vela-core
     ```
-
-4. Install KubeVela
-    ```shell script
-    helm install -n vela-system kubevela kubevela/vela-core
-    ```
-    By default, it will enable webhook. KubeVela relies on [cert-manager](https://cert-manager.io/docs/)
-    to create certificates for webhook.
-    If cert-manager hasn't been installed, please refer to [cert-manager installation doc](https://cert-manager.io/docs/installation/kubernetes/).
-    
-    You can add an argument `--set useWebhook=false` after the command to disable the webhook if you don't want to rely on cert-manager.
-    If you just want to have a try this can also work:
-    ```shell script
-    helm install -n vela-system kubevela kubevela/vela-core --set useWebhook=false
-    ```
-   
-    You can also install cert-manager via kubevela chart by adding the argument `--set certmanager.enabled=true`.
-    ```shell script
-    helm install -n vela-system kubevela kubevela/vela-core --set certmanager.enabled=true
-    ```
+    By default, it will enable the webhook with a self-signed certificate provided by [kube-webhook-certgen](https://github.com/jet/kube-webhook-certgen)
    
     If you want to try the latest master branch, add flag `--devel` in command `helm search` to choose a pre-release
     version in format `<next_version>-rc-master` which means the next release candidate version build on `master` branch,
     like `0.4.0-rc-master`.
    
     ```shell script
-    $ helm search repo kubevela/vela-core -l --devel
+    helm search repo kubevela/vela-core -l --devel
     NAME                     	CHART VERSION        	APP VERSION          	DESCRIPTION
     kubevela/vela-core       	0.4.0-rc-master         0.4.0-rc-master         A Helm chart for KubeVela core
     kubevela/vela-core       	0.3.2  	                0.3.2                   A Helm chart for KubeVela core
@@ -116,7 +98,23 @@ These steps will install KubeVela controller and its dependency.
     And try the following command to install it.
    
     ```shell script
-    helm install -n vela-system kubevela kubevela/vela-core --version <next_version>-rc-master --set useWebhook=false
+    helm install --create-namespace -n vela-system kubevela kubevela/vela-core --version <next_version>-rc-master
+    ```
+
+4. Install Kubevela with cert-manager (optional)
+   
+   If cert-manager has been installed, it can be used to take care about generating certs. 
+
+   You need to install cert-manager before the kubevela chart.
+    ```shell script
+    helm repo add jetstack https://charts.jetstack.io
+    helm repo update
+    helm install cert-manager jetstack/cert-manager --namespace cert-manager --version v1.2.0 --create-namespace --set installCRDs=true
+    ```
+   
+    Install kubevela with enabled certmanager:
+    ```shell script
+    helm install --create-namespace -n vela-system --set admissionWebhooks.certManager.enabled=true kubevela kubevela/vela-core
     ```
 
 ## 3. Get KubeVela CLI
