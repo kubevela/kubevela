@@ -11,6 +11,7 @@ import (
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	oamstd "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -56,7 +57,7 @@ var _ = BeforeSuite(func(done Done) {
 	rawClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).ShouldNot(HaveOccurred())
 	Expect(rawClient).ShouldNot(BeNil())
-	k8sApplicator = NewAPIApplicator(rawClient)
+	k8sApplicator = NewAPIApplicator(rawClient, logging.NewNopLogger())
 
 	By("Create test namespace")
 	applyNS = corev1.Namespace{

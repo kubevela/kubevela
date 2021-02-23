@@ -127,7 +127,10 @@ func main() {
 	setupLog.Info(fmt.Sprintf("KubeVela Version: %s, GIT Revision: %s.", version.VelaVersion, version.GitRevision))
 	setupLog.Info(fmt.Sprintf("Disable Capabilities: %s.", disableCaps))
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	restConfig := ctrl.GetConfigOrDie()
+	restConfig.UserAgent = kubevelaName + "/" + version.GitRevision
+
+	mgr, err := ctrl.NewManager(restConfig, ctrl.Options{
 		Scheme:                  scheme,
 		MetricsBindAddress:      metricsAddr,
 		LeaderElection:          enableLeaderElection,
