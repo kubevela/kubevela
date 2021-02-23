@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
@@ -118,13 +119,14 @@ func TestAPIApplicator(t *testing.T) {
 	for caseName, tc := range cases {
 		t.Run(caseName, func(t *testing.T) {
 			a := &APIApplicator{
-				creator: creatorFn(func(_ context.Context, _ client.Client, _ runtime.Object, _ ...ApplyOption) (runtime.Object, error) {
+				creator: creatorFn(func(_ context.Context, _ logging.Logger, _ client.Client, _ runtime.Object, _ ...ApplyOption) (runtime.Object, error) {
 					return tc.args.existing, tc.args.creatorErr
 				}),
 				patcher: patcherFn(func(c, m runtime.Object) (client.Patch, error) {
 					return nil, tc.args.patcherErr
 				}),
-				c: tc.c,
+				c:   tc.c,
+				log: logging.NewNopLogger(),
 			}
 			result := a.Apply(ctx, tc.args.desired, tc.args.ao...)
 			if diff := cmp.Diff(tc.want, result, test.EquateErrors()); diff != "" {
@@ -285,7 +287,7 @@ func TestCreator(t *testing.T) {
 
 	for caseName, tc := range cases {
 		t.Run(caseName, func(t *testing.T) {
-			result, err := createOrGetExisting(ctx, tc.c, tc.args.desired, tc.args.ao...)
+			result, err := createOrGetExisting(ctx, logging.NewNopLogger(), tc.c, tc.args.desired, tc.args.ao...)
 			if diff := cmp.Diff(tc.want.existing, result); diff != "" {
 				t.Errorf("\n%s\ncreateOrGetExisting(...): -want , +got \n%s\n", tc.reason, diff)
 			}

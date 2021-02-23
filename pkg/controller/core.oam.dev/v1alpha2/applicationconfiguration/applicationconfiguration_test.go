@@ -666,7 +666,7 @@ func TestReconciler(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			r := NewReconciler(tc.args.m, nil, tc.args.o...)
+			r := NewReconciler(tc.args.m, nil, logging.NewNopLogger(), tc.args.o...)
 			got, err := r.Reconcile(reconcile.Request{})
 
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
@@ -1870,7 +1870,7 @@ func TestUpdateStatus(t *testing.T) {
 		},
 	}
 
-	r := NewReconciler(m, nil)
+	r := NewReconciler(m, nil, logging.NewNopLogger())
 
 	ac := &v1alpha2.ApplicationConfiguration{}
 	err := r.client.Get(context.Background(), types.NamespacedName{Name: "example-appconfig"}, ac)
