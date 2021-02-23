@@ -96,7 +96,7 @@ var expectedExceptApp = &Appfile{
 						"replicas": float64(10),
 					},
 					Template: `
-      output: {
+      outputs:scaler: {
       	apiVersion: "core.oam.dev/v1alpha2"
       	kind:       "ManualScalerTrait"
       	spec: {
@@ -130,7 +130,7 @@ spec:
   workloadRefPath: spec.workloadRef
   extension:
     template: |-
-      output: {
+      outputs: scaler: {
       	apiVersion: "core.oam.dev/v1alpha2"
       	kind:       "ManualScalerTrait"
       	spec: {
@@ -344,7 +344,7 @@ var _ = Describe("Test appFile parser", func() {
 							"replicas": float64(10),
 						},
 						Template: `
-      output: {
+      outputs: scaler: {
       	apiVersion: "core.oam.dev/v1alpha2"
       	kind:       "ManualScalerTrait"
       	spec: {
@@ -376,9 +376,10 @@ var _ = Describe("Test appFile parser", func() {
 				"kind":       "ManualScalerTrait",
 				"metadata": map[string]interface{}{
 					"labels": map[string]interface{}{
-						"app.oam.dev/component": "myweb",
-						"app.oam.dev/name":      "test",
-						"trait.oam.dev/type":    "scaler",
+						"app.oam.dev/component":  "myweb",
+						"app.oam.dev/name":       "test",
+						"trait.oam.dev/type":     "scaler",
+						"trait.oam.dev/resource": "scaler",
 					},
 				},
 				"spec": map[string]interface{}{"replicaCount": int64(10)},

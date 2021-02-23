@@ -9,7 +9,7 @@ spec:
     name: routes.standard.oam.dev
   extension:
     template: |
-      output: {
+      outputs: route: {
       	spec: {
       		domain: parameter.domain
       	}

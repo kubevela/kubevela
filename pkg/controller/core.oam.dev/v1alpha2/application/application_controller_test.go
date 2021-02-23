@@ -132,9 +132,10 @@ var _ = Describe("Test Application Controller", func() {
 			"kind":       "ManualScalerTrait",
 			"metadata": map[string]interface{}{
 				"labels": map[string]interface{}{
-					"trait.oam.dev/type":    "scaler",
-					"app.oam.dev/component": compName,
-					"app.oam.dev/name":      appName,
+					"trait.oam.dev/type":     "scaler",
+					"app.oam.dev/component":  compName,
+					"app.oam.dev/name":       appName,
+					"trait.oam.dev/resource": "scaler",
 				},
 			},
 			"spec": map[string]interface{}{
@@ -741,9 +742,10 @@ var _ = Describe("Test Application Controller", func() {
 		expTrait.SetName(app.Name)
 		expTrait.SetNamespace(app.Namespace)
 		expTrait.SetLabels(map[string]string{
-			oam.LabelAppName:        app.Name,
-			"trait.oam.dev/type":    "scaler",
-			"app.oam.dev/component": "myweb-health",
+			oam.LabelAppName:         app.Name,
+			"trait.oam.dev/type":     "scaler",
+			"app.oam.dev/component":  "myweb-health",
+			"trait.oam.dev/resource": "scaler",
 		})
 		(expTrait.Object["spec"].(map[string]interface{}))["workloadRef"] = map[string]interface{}{
 			"apiVersion": "apps/v1",
@@ -1369,7 +1371,7 @@ spec:
   workloadRefPath: spec.workloadRef
   extension:
     template: |-
-      output: {
+      outputs: scaler: {
       	apiVersion: "core.oam.dev/v1alpha2"
       	kind:       "ManualScalerTrait"
       	spec: {
@@ -1398,7 +1400,7 @@ spec:
   workloadRefPath: spec.workloadRef
   extension:
     template: |-
-      output: {
+      outputs: scaler: {
       	apiVersion: "core.oam.dev/v1alpha2"
       	kind:       "ManualScalerTrait"
       	spec: {
@@ -1444,7 +1446,7 @@ spec:
     healthPolicy: |
       isHealth: context.output.status.conditions[0].status == "True"
     template: |-
-      output: {
+      outputs: scaler: {
       	apiVersion: "core.oam.dev/v1alpha2"
       	kind:       "ManualScalerTrait"
       	spec: {
