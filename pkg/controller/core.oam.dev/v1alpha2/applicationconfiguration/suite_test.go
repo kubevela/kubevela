@@ -150,7 +150,7 @@ var _ = BeforeSuite(func(done Done) {
 	}, time.Second*30, time.Millisecond*500).Should(BeNil())
 	Expect(mapping.Resource.Resource).Should(Equal("foo"))
 
-	reconciler = NewReconciler(mgr, dm, WithLogger(logging.NewLogrLogger(ctrl.Log.WithName("suit-test-appconfig"))))
+	reconciler = NewReconciler(mgr, dm, logging.NewLogrLogger(ctrl.Log.WithName("suit-test-appconfig")))
 	componentHandler = &ComponentHandler{Client: k8sClient, RevisionLimit: 100, Logger: logging.NewLogrLogger(ctrl.Log.WithName("component-handler"))}
 
 	By("Creating workload definition and trait definition")
