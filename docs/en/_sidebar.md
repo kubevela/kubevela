@@ -17,6 +17,8 @@
         - [Workload Type](/en/cue/workload-type.md)
         - [Trait](/en/cue/trait.md)
         - [Advanced Features](/en/cue/status.md)
+      - HELM
+        - [Chart As Capability](/en/helm/chart-as-capability.md)
 
 - Roadmap
   - [KubeVela Roadmap](/en/roadmap.md)

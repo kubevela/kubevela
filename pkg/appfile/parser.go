@@ -2,16 +2,20 @@ package appfile
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
+	"github.com/oam-dev/kubevela/pkg/appfile/helm"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
@@ -37,6 +41,9 @@ type Workload struct {
 	Template           string
 	HealthCheckPolicy  string
 	CustomStatusFormat string
+
+	Helm                *v1alpha2.Helm
+	DefinitionReference v1alpha2.DefinitionReference
 }
 
 // GetUserConfigName get user config from AppFile, it will contain config file in it.
@@ -159,6 +166,8 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1alpha2.ApplicationCom
 	workload.Template = templ.TemplateStr
 	workload.HealthCheckPolicy = templ.Health
 	workload.CustomStatusFormat = templ.CustomStatus
+	workload.DefinitionReference = templ.Reference
+	workload.Helm = templ.Helm
 	settings, err := util.RawExtension2Map(&comp.Settings)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
@@ -223,41 +232,102 @@ func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1a
 
 	var components []*v1alpha2.Component
 	for _, wl := range app.Workloads {
-		pCtx, err := PrepareProcessContext(p.client, wl, app.Name, app.RevisionName, ns)
-		if err != nil {
-			return nil, nil, err
-		}
-		for _, tr := range wl.Traits {
-			if err := tr.EvalContext(pCtx); err != nil {
-				return nil, nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
+		var comp *v1alpha2.Component
+		var acComp *v1alpha2.ApplicationConfigurationComponent
+		var err error
+
+		switch wl.CapabilityCategory {
+		case types.HelmCategory:
+			comp, acComp, err = generateComponentFromHelmModule(p.client, p.dm, wl, app.Name, app.RevisionName, ns)
+			if err != nil {
+				return nil, nil, err
+			}
+		default:
+			comp, acComp, err = generateComponentFromCUEModule(p.client, wl, app.Name, app.RevisionName, ns)
+			if err != nil {
+				return nil, nil, err
 			}
 		}
-		comp, acComp, err := evalWorkloadWithContext(pCtx, wl, app.Name, wl.Name)
-		if err != nil {
-			return nil, nil, err
-		}
-		comp.Name = wl.Name
-		acComp.ComponentName = comp.Name
-
-		for _, sc := range wl.Scopes {
-			acComp.Scopes = append(acComp.Scopes, v1alpha2.ComponentScope{ScopeReference: v1alpha1.TypedReference{
-				APIVersion: sc.GVK.GroupVersion().String(),
-				Kind:       sc.GVK.Kind,
-				Name:       sc.Name,
-			}})
-		}
-
-		comp.Namespace = ns
-		if comp.Labels == nil {
-			comp.Labels = map[string]string{}
-		}
-		comp.Labels[oam.LabelAppName] = app.Name
-		comp.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
-
 		components = append(components, comp)
 		appconfig.Spec.Components = append(appconfig.Spec.Components, *acComp)
 	}
 	return appconfig, components, nil
+}
+
+func generateComponentFromCUEModule(c client.Client, wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+	pCtx, err := PrepareProcessContext(c, wl, appName, revision, ns)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, tr := range wl.Traits {
+		if err := tr.EvalContext(pCtx); err != nil {
+			return nil, nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
+		}
+	}
+	var comp *v1alpha2.Component
+	var acComp *v1alpha2.ApplicationConfigurationComponent
+	comp, acComp, err = evalWorkloadWithContext(pCtx, wl, appName, wl.Name)
+	if err != nil {
+		return nil, nil, err
+	}
+	comp.Name = wl.Name
+	acComp.ComponentName = comp.Name
+
+	for _, sc := range wl.Scopes {
+		acComp.Scopes = append(acComp.Scopes, v1alpha2.ComponentScope{ScopeReference: v1alpha1.TypedReference{
+			APIVersion: sc.GVK.GroupVersion().String(),
+			Kind:       sc.GVK.Kind,
+			Name:       sc.Name,
+		}})
+	}
+
+	comp.Namespace = ns
+	if comp.Labels == nil {
+		comp.Labels = map[string]string{}
+	}
+	comp.Labels[oam.LabelAppName] = appName
+	comp.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
+
+	return comp, acComp, nil
+}
+
+func generateComponentFromHelmModule(c client.Client, dm discoverymapper.DiscoveryMapper, wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+	targetWokrloadGVK, err := util.GetGVKFromDefinition(dm, wl.DefinitionReference)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// NOTE this is a hack way to enable using CUE module capabilities on Helm module workload
+	// construct an empty base workload according to its GVK
+	wl.Template = fmt.Sprintf(`
+output: {
+	apiVersion: "%s"
+	kind: "%s"
+}`, targetWokrloadGVK.GroupVersion().String(), targetWokrloadGVK.Kind)
+
+	// re-use the way CUE module generates comp & acComp
+	comp, acComp, err := generateComponentFromCUEModule(c, wl, appName, revision, ns)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	release, repo, err := helm.RenderHelmReleaseAndHelmRepo(wl.Helm, wl.Name, appName, ns, wl.Params)
+	if err != nil {
+		return nil, nil, err
+	}
+	rlsBytes, err := json.Marshal(release.Object)
+	if err != nil {
+		return nil, nil, err
+	}
+	repoBytes, err := json.Marshal(repo.Object)
+	if err != nil {
+		return nil, nil, err
+	}
+	comp.Spec.Helm = &v1alpha2.Helm{
+		Release:    runtime.RawExtension{Raw: rlsBytes},
+		Repository: runtime.RawExtension{Raw: repoBytes},
+	}
+	return comp, acComp, nil
 }
 
 // evalWorkloadWithContext evaluate the workload's template to generate component and ACComponent

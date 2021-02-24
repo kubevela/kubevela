@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -24,6 +25,7 @@ var cfg *rest.Config
 var scheme *runtime.Scheme
 var k8sClient client.Client
 var testEnv *envtest.Environment
+var dm discoverymapper.DiscoveryMapper
 
 func TestAppFile(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -53,6 +55,9 @@ var _ = BeforeSuite(func(done Done) {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
+	dm, err = discoverymapper.New(cfg)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(dm).ToNot(BeNil())
 
 	close(done)
 }, 60)

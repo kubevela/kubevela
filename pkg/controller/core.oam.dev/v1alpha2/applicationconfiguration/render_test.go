@@ -19,6 +19,7 @@ package applicationconfiguration
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -41,6 +42,7 @@ import (
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -2141,6 +2143,131 @@ func TestMatchValue(t *testing.T) {
 				t.Error(diff)
 			}
 			assert.Equal(t, tc.want.reason, reason)
+		})
+	}
+}
+
+func TestDiscoverHelmModuleWorkload(t *testing.T) {
+	ns := "test-ns"
+	releaseName := "test-rls"
+	chartName := "test-chart"
+	release := &unstructured.Unstructured{}
+	release.SetGroupVersionKind(helmapi.HelmReleaseGVK)
+	release.SetName(releaseName)
+	unstructured.SetNestedMap(release.Object, map[string]interface{}{
+		"chart": map[string]interface{}{
+			"spec": map[string]interface{}{
+				"chart":   chartName,
+				"version": "1.0.0",
+			},
+		},
+	}, "spec")
+	releaseRaw, _ := release.MarshalJSON()
+
+	rlsWithoutChart := release.DeepCopy()
+	unstructured.SetNestedMap(rlsWithoutChart.Object, nil, "spec", "chart")
+	rlsWithoutChartRaw, _ := rlsWithoutChart.MarshalJSON()
+
+	wl := &unstructured.Unstructured{}
+	wl.SetLabels(map[string]string{
+		"app.kubernetes.io/managed-by": "Helm",
+	})
+	wl.SetAnnotations(map[string]string{
+		"meta.helm.sh/release-name":      releaseName,
+		"meta.helm.sh/release-namespace": ns,
+	})
+
+	tests := map[string]struct {
+		reason         string
+		c              client.Reader
+		helm           *v1alpha2.Helm
+		workloadInComp *unstructured.Unstructured
+		wantWorkload   *unstructured.Unstructured
+		wantErr        error
+	}{
+		"CompHasNoHelm": {
+			reason:  "An error should occur because component has no Helm module",
+			wantErr: errors.New("the component has no valid helm module"),
+		},
+		"CannotGetReleaseFromComp": {
+			reason: "An error should occur because cannot get release",
+			helm: &v1alpha2.Helm{
+				Release: runtime.RawExtension{Raw: []byte("boom")},
+			},
+			wantErr: errors.Wrap(errors.New("invalid character 'b' looking for beginning of value"),
+				"cannot get helm release from component"),
+		},
+		"CannotGetChartFromRelease": {
+			reason: "An error should occur because cannot get chart info",
+			helm: &v1alpha2.Helm{
+				Release: runtime.RawExtension{Raw: rlsWithoutChartRaw},
+			},
+			wantErr: errors.New("cannot get helm chart name"),
+		},
+		"CannotGetWLFromComp": {
+			reason: "An error should occur because cannot get workload from component",
+			helm: &v1alpha2.Helm{
+				Release: runtime.RawExtension{Raw: releaseRaw},
+			},
+			wantErr: errors.Wrap(errors.New("unexpected end of JSON input"),
+				"cannot get workload from component"),
+		},
+		"CannotGetWorkload": {
+			reason: "An error should occur because cannot get workload from k8s cluster",
+			helm: &v1alpha2.Helm{
+				Release: runtime.RawExtension{Raw: releaseRaw},
+			},
+			workloadInComp: &unstructured.Unstructured{},
+			c:              &test.MockClient{MockGet: test.NewMockGetFn(errors.New("boom"))},
+			wantErr:        errors.New("boom"),
+		},
+		"GetNotMatchedWorkload": {
+			reason: "An error should occur because the found workload is not managed by Helm",
+			helm: &v1alpha2.Helm{
+				Release: runtime.RawExtension{Raw: releaseRaw},
+			},
+			workloadInComp: &unstructured.Unstructured{},
+			c: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
+				o, _ := obj.(*unstructured.Unstructured)
+				*o = unstructured.Unstructured{}
+				o.SetLabels(map[string]string{
+					"app.kubernetes.io/managed-by": "non-helm",
+				})
+				return nil
+			})},
+			wantErr: fmt.Errorf("the workload is found but not match with helm info(meta.helm.sh/release-name: %s, meta.helm.sh/namespace: %s, app.kubernetes.io/managed-by: Helm)", "test-rls", "test-ns"),
+		},
+		"DiscoverSuccessfully": {
+			reason: "No error should occur and the workload shoud be returned",
+			c: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
+				o, _ := obj.(*unstructured.Unstructured)
+				*o = *wl.DeepCopy()
+				return nil
+			})},
+			workloadInComp: wl.DeepCopy(),
+			helm: &v1alpha2.Helm{
+				Release: runtime.RawExtension{Raw: releaseRaw},
+			},
+			wantWorkload: wl.DeepCopy(),
+			wantErr:      nil,
+		},
+	}
+
+	for caseName, tc := range tests {
+		t.Run(caseName, func(t *testing.T) {
+			comp := &v1alpha2.Component{}
+			if tc.workloadInComp != nil {
+				wlRaw, _ := tc.workloadInComp.MarshalJSON()
+				comp.Spec.Workload = runtime.RawExtension{Raw: wlRaw}
+			}
+			comp.Spec.Helm = tc.helm
+			wl, err := discoverHelmModuleWorkload(context.Background(), tc.c, comp, ns)
+			if diff := cmp.Diff(tc.wantWorkload, wl); diff != "" {
+				t.Errorf("\n%s\ndiscoverHelmModuleWorkload(...)(...): -want object, +got object\n%s\n", tc.reason, diff)
+			}
+			if diff := cmp.Diff(tc.wantErr, err, test.EquateErrors()); diff != "" {
+				t.Errorf("\n%s\nApply(...): -want , +got \n%s\n", tc.reason, diff)
+			}
 		})
 	}
 }

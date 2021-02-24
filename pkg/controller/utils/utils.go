@@ -12,9 +12,9 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	mapset "github.com/deckarep/golang-set"
-	v12 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -70,7 +70,7 @@ func DiscoveryFromPodSpec(w *unstructured.Unstructured, fieldPath string) ([]int
 	if err != nil {
 		return nil, fmt.Errorf("discovery podSpec from %s in workload %v err %w", fieldPath, w.GetName(), err)
 	}
-	var spec v1.PodSpec
+	var spec corev1.PodSpec
 	err = json.Unmarshal(data, &spec)
 	if err != nil {
 		return nil, fmt.Errorf("discovery podSpec from %s in workload %v err %w", fieldPath, w.GetName(), err)
@@ -92,7 +92,7 @@ func DiscoveryFromPodTemplate(w *unstructured.Unstructured, fields ...string) ([
 	if err != nil {
 		return nil, nil, fmt.Errorf("workload %v convert object err %w", w.GetName(), err)
 	}
-	var spec v1.PodTemplateSpec
+	var spec corev1.PodTemplateSpec
 	err = json.Unmarshal(data, &spec)
 	if err != nil {
 		return nil, nil, fmt.Errorf("workload %v convert object to PodTemplate err %w", w.GetName(), err)
@@ -104,7 +104,7 @@ func DiscoveryFromPodTemplate(w *unstructured.Unstructured, fields ...string) ([
 	return ports, spec.Labels, nil
 }
 
-func getContainerPorts(cs []v1.Container) []intstr.IntOrString {
+func getContainerPorts(cs []corev1.Container) []intstr.IntOrString {
 	var ports []intstr.IntOrString
 	// TODO(wonderflow): exclude some sidecars
 	for _, container := range cs {
@@ -198,11 +198,11 @@ func ExtractRevision(revisionName string) (int, error) {
 // CompareWithRevision compares a component's spec with the component's latest revision content
 func CompareWithRevision(ctx context.Context, c client.Client, logger logging.Logger, componentName, nameSpace,
 	latestRevision string, curCompSpec *v1alpha2.ComponentSpec) (bool, error) {
-	oldRev := &v12.ControllerRevision{}
+	oldRev := &appsv1.ControllerRevision{}
 	// retry on NotFound since we update the component last revision first
 	err := wait.ExponentialBackoff(retry.DefaultBackoff, func() (bool, error) {
 		err := c.Get(ctx, client.ObjectKey{Namespace: nameSpace, Name: latestRevision}, oldRev)
-		if err != nil && !errors.IsNotFound(err) {
+		if err != nil && !kerrors.IsNotFound(err) {
 			logger.Info(fmt.Sprintf("get old controllerRevision %s error %v",
 				latestRevision, err), "componentName", componentName)
 			return false, err
