@@ -158,7 +158,7 @@ spec:
   extension:
     template: |-
       patch: {spec: template: metadata: labels: app: context.name}
-      output: {
+      outputs: service: {
         apiVersion: "v1"
         kind: "Service"
         metadata: name: context.name

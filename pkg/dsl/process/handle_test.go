@@ -44,9 +44,8 @@ image: "myserver"
 	}
 
 	svcAux := Auxiliary{
-		Ins:       svcIns,
-		Name:      "service",
-		IsOutputs: true,
+		Ins:  svcIns,
+		Name: "service",
 	}
 
 	ctx := NewContext("mycomp", "myapp")

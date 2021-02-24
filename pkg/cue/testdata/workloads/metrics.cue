@@ -7,7 +7,7 @@
 	// +usage=the label selector for the pods, default is the workload labels
 	selector?: [string]: string
 }
-output: {
+outputs: metrics: {
 	apiVersion: "standard.oam.dev/v1alpha1"
 	kind:       "MetricsTrait"
 	spec: {

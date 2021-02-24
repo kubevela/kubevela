@@ -1,4 +1,4 @@
-output: {
+outputs: rollout: {
 	apiVersion: "extend.oam.dev/v1alpha2"
 	kind:       "SimpleRolloutTrait"
 	spec: {

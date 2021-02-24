@@ -172,7 +172,7 @@ spec:
   workloadRefPath: spec.workloadRef
   extension:
     template: |-
-      output: {
+      outputs: scaler: {
       	apiVersion: "core.oam.dev/v1alpha2"
       	kind:       "ManualScalerTrait"
       	spec: {

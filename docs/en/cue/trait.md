@@ -4,9 +4,10 @@ In this section we will introduce how to define a Trait with CUE template.
 
 ## Composition
  
-Defining a *Trait* with CUE template is a bit different from *Workload Type*: a trait MUST use `outputs` keyword instead of `output` to define template.
+Defining a *Trait* with CUE template is a bit different from *Workload Type*: a trait MUST use `outputs` keyword instead of `output` in template.
 
-With the help of CUE template, it is very nature to compose multiple Kubernetes resources in one trait. Similarly, the format MUST be `outputs:<unique-name>:<full template>`.
+With the help of CUE template, it is very nature to compose multiple Kubernetes resources in one trait.
+Similarly, the format MUST be `outputs:<unique-name>:<full template>`.
 
 Below is an example for `ingress` trait.
 
@@ -147,7 +148,7 @@ spec:
 
 ## Patch Trait
 
-You could also use keyword `patch` to patch data to the component instance (before the resource is applied) and claim this behavior as a trait.
+You could also use keyword `patch` to patch data to the component instance (before the resource applied) and claim this behavior as a trait.
  
 Below is an example for `node-affinity` trait:
 
@@ -356,6 +357,7 @@ please make sure the trait resource name is unique, or the former data will be c
 Below is an example
 1. the main workload object(Deployment) in this example will render into the context.output before rendering traits.
 2. the context.outputs.<xx> will keep all these rendered trait data and can be used in the traits after them.
+
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition

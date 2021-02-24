@@ -106,7 +106,7 @@ Platform builders only need to declare this info here once, then the OAM framewo
 ```yaml
 ...
     template: |
-      output: {
+      outputs: kubewatch: {
         apiVersion: "labs.bitnami.com/v1alpha1"
         kind:       "KubeWatch"
         spec: handler: webhook: url: parameter.webhook

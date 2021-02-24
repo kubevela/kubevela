@@ -160,7 +160,7 @@ parameter: {
 		},
 		"output trait": {
 			traitTemplate: `
-output: {
+outputs: service: {
 	apiVersion: "v1"
     kind: "Service"
 	metadata: name: context.name
@@ -202,12 +202,12 @@ parameter: {
 						"kind":       "ConfigMap",
 						"metadata":   map[string]interface{}{"name": "testgame-config"}, "data": map[string]interface{}{"enemies": "enemies-data", "lives": "lives-data"}},
 				},
-				"t1": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "v1", "kind": "Service", "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"type": "ClusterIP"}}},
+				"t1service": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "v1", "kind": "Service", "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"type": "ClusterIP"}}},
 			},
 		},
 		"outputs trait": {
 			traitTemplate: `
-output: {
+outputs: service: {
 	apiVersion: "v1"
     kind: "Service"
 	metadata: name: context.name
@@ -257,7 +257,7 @@ parameter: {
 						"kind":       "ConfigMap",
 						"metadata":   map[string]interface{}{"name": "testgame-config"}, "data": map[string]interface{}{"enemies": "enemies-data", "lives": "lives-data"}},
 				},
-				"t2": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "v1", "kind": "Service", "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"type": "ClusterIP"}}},
+				"t2service": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "v1", "kind": "Service", "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"type": "ClusterIP"}}},
 				"t2ingress": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "extensions/v1beta1", "kind": "Ingress", "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"rules": []interface{}{map[string]interface{}{
 					"host": "example.com",
 				}}}}},
@@ -425,7 +425,7 @@ parameter: {
 		for _, ss := range assists {
 			got, err := ss.Ins.Unstructured()
 			assert.NoError(t, err, cassinfo)
-			assert.Equal(t, v.expAssObjs[ss.Type+ss.Name], got, cassinfo, ss.Type+ss.Name)
+			assert.Equal(t, v.expAssObjs[ss.Type+ss.Name], got, "case %s , type: %s name: %s", cassinfo, ss.Type, ss.Name)
 		}
 	}
 }

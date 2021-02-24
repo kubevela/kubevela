@@ -33,6 +33,7 @@ type Context interface {
 }
 
 // Auxiliary are objects rendered by definition template.
+// the format for auxiliary resource is always: `outputs.<resourceName>`, it can be auxiliary workload or trait
 type Auxiliary struct {
 	Ins model.Instance
 	// Type will be used to mark definition label for OAM runtime to get the CRD
@@ -41,12 +42,6 @@ type Auxiliary struct {
 
 	// Workload or trait with multiple `outputs` will have a name, if name is empty, than it's the main of this type.
 	Name string
-
-	// IsOutputs will record the output path format of the Auxiliary
-	// it can be one of these two cases:
-	// false: the format is `output`, this means it's the main resource of the trait
-	// true: the format is `outputs.<resourceName>`, this means it can be auxiliary workload or trait
-	IsOutputs bool
 }
 
 type templateContext struct {
@@ -99,9 +94,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	if len(ctx.auxiliaries) > 0 {
 		var auxLines []string
 		for _, auxiliary := range ctx.auxiliaries {
-			if auxiliary.IsOutputs {
-				auxLines = append(auxLines, fmt.Sprintf("%s: %s", auxiliary.Name, structMarshal(auxiliary.Ins.String())))
-			}
+			auxLines = append(auxLines, fmt.Sprintf("%s: %s", auxiliary.Name, structMarshal(auxiliary.Ins.String())))
 		}
 		if len(auxLines) > 0 {
 			buff += fmt.Sprintf(OutputsFieldName+": {%s}\n", strings.Join(auxLines, "\n"))
