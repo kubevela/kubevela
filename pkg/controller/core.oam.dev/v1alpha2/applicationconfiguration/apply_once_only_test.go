@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"k8s.io/apimachinery/pkg/types"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -285,6 +287,77 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 	})
 
 	When("ApplyOnceOnlyForce is enabled", func() {
+		It("should normally create workload/trait resources at fist time", func() {
+			By("Enable ApplyOnceOnlyForce")
+			reconciler.applyOnceOnlyMode = core.ApplyOnceOnlyForce
+			component2 := v1alpha2.Component{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "core.oam.dev/v1alpha2",
+					Kind:       "Component",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "mycomp2",
+					Namespace: namespace,
+				},
+				Spec: v1alpha2.ComponentSpec{
+					Workload: runtime.RawExtension{
+						Object: &cw,
+					},
+				},
+			}
+			newFakeTrait := fakeTrait.DeepCopy()
+			newFakeTrait.SetName("mytrait2")
+			appConfig2 := v1alpha2.ApplicationConfiguration{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "myac2",
+					Namespace: namespace,
+				},
+				Spec: v1alpha2.ApplicationConfigurationSpec{
+					Components: []v1alpha2.ApplicationConfigurationComponent{
+						{
+							ComponentName: "mycomp2",
+							Traits: []v1alpha2.ComponentTrait{
+								{Trait: runtime.RawExtension{Object: newFakeTrait}},
+							},
+						},
+					},
+				},
+			}
+
+			By("Create Component")
+			Expect(k8sClient.Create(ctx, &component2)).Should(Succeed())
+			time.Sleep(time.Second)
+
+			By("Creat appConfig & check successfully")
+			Expect(k8sClient.Create(ctx, &appConfig2)).Should(Succeed())
+			time.Sleep(time.Second)
+
+			By("Reconcile")
+			Expect(func() error {
+				_, err := reconciler.Reconcile(reconcile.Request{NamespacedName: types.NamespacedName{Name: "myac2", Namespace: namespace}})
+				return err
+			}()).Should(BeNil())
+			time.Sleep(2 * time.Second)
+
+			By("Get workload instance & Check workload spec")
+			cwObj := v1alpha2.ContainerizedWorkload{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: "mycomp2"}, &cwObj)
+			}, 5*time.Second, time.Second).Should(BeNil())
+			Expect(cwObj.Spec.Containers[0].Image).Should(Equal(image1))
+
+			By("Get trait instance & Check trait spec")
+			fooObj := &unstructured.Unstructured{}
+			fooObj.SetAPIVersion("example.com/v1")
+			fooObj.SetKind("Foo")
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: "mytrait2"}, fooObj)
+			}, 3*time.Second, time.Second).Should(BeNil())
+			fooObjV, _, _ := unstructured.NestedString(fooObj.Object, "spec", "key")
+			Expect(fooObjV).Should(Equal(traitSpecValue1))
+
+		})
+
 		It("should not revert changes of workload/trait made by others", func() {
 			By("Enable ApplyOnceOnlyForce")
 			reconciler.applyOnceOnlyMode = core.ApplyOnceOnlyForce
@@ -426,7 +499,7 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			recreatedFooObj.SetKind("Foo")
 			Expect(k8sClient.Get(ctx, traitObjKey, &recreatedFooObj)).Should(util.NotFoundMatcher{})
 
-			By("Update Appconfig to trigger generation augment")
+			By("Update AppConfig to trigger generation updated")
 			unstructured.SetNestedField(fakeTrait.Object, "newvalue", "spec", "key")
 			appConfig = v1alpha2.ApplicationConfiguration{
 				ObjectMeta: metav1.ObjectMeta{
@@ -445,10 +518,11 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 				},
 			}
 			Expect(k8sClient.Patch(ctx, &appConfig, client.Merge)).Should(Succeed())
+			time.Sleep(1 * time.Second)
 
 			By("Reconcile")
 			reconcileRetry(reconciler, req)
-			time.Sleep(3 * time.Second)
+			time.Sleep(2 * time.Second)
 
 			By("Check workload is re-created by reconciliation")
 			recreatedCwObj = v1alpha2.ContainerizedWorkload{}
