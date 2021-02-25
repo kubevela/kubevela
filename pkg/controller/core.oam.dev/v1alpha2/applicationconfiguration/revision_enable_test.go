@@ -19,18 +19,20 @@ package applicationconfiguration
 import (
 	"context"
 	"fmt"
+	"net/http/httptest"
 	"strconv"
 	"time"
-
-	v1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -339,4 +341,166 @@ var _ = Describe("Test ApplicationConfiguration Component Revision Enabled trait
 		Expect(tr.Object["spec"]).Should(BeEquivalentTo(map[string]interface{}{"key": "test2"}))
 	})
 
+})
+
+var _ = Describe("Test Component Revision Enabled with custom component revision hook", func() {
+	const (
+		namespace = "revision-enable-test2"
+		compName  = "revision-test-comp2"
+	)
+	var (
+		ctx       = context.Background()
+		component v1alpha2.Component
+		ns        = corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: namespace,
+			},
+		}
+	)
+
+	BeforeEach(func() {})
+
+	AfterEach(func() {
+		// delete the namespace with all its resources
+		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).
+			Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
+	})
+
+	It("custom component change revision lead to revision difference, it should not loop infinitely create", func() {
+		srv := httptest.NewServer(RevisionHandler)
+		defer srv.Close()
+		customComponentHandler := &ComponentHandler{Client: k8sClient, RevisionLimit: 100, Logger: logging.NewLogrLogger(ctrl.Log.WithName("component-handler")), CustomRevisionHookURL: srv.URL}
+		getDeploy := func(image string) *v1.Deployment {
+			return &v1.Deployment{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Deployment",
+					APIVersion: "apps/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: namespace,
+				},
+				Spec: v1.DeploymentSpec{
+					Selector: &metav1.LabelSelector{MatchLabels: map[string]string{
+						"app": compName,
+					}},
+					Template: corev1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+							"app": compName,
+						}},
+						Spec: corev1.PodSpec{Containers: []corev1.Container{{
+							Name:  "wordpress",
+							Image: image,
+							Ports: []corev1.ContainerPort{
+								{
+									Name:          "wordpress",
+									ContainerPort: 80,
+								},
+							},
+						},
+						}}},
+				},
+			}
+		}
+		component = v1alpha2.Component{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "core.oam.dev/v1alpha2",
+				Kind:       "Component",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      compName,
+				Namespace: namespace,
+			},
+			Spec: v1alpha2.ComponentSpec{
+				Workload: runtime.RawExtension{
+					Object: getDeploy("wordpress:4.6.1-apache"),
+				},
+			},
+		}
+
+		By("Create namespace")
+		Eventually(
+			func() error {
+				return k8sClient.Create(ctx, &ns)
+			},
+			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		By("Create Component")
+		Expect(k8sClient.Create(ctx, &component)).Should(Succeed())
+
+		By("component handler will automatically create controller revision")
+		Expect(func() bool {
+			_, ok := customComponentHandler.createControllerRevision(component.DeepCopy(), component.DeepCopy())
+			return ok
+		}()).Should(BeTrue())
+
+		By("it should not create again for the same generation component")
+		cmpV1 := &v1alpha2.Component{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: compName}, cmpV1)).Should(Succeed())
+		Expect(func() bool {
+			_, ok := customComponentHandler.createControllerRevision(cmpV1, cmpV1)
+			return ok
+		}()).Should(BeFalse())
+
+		var crList v1.ControllerRevisionList
+		By("Check controller revision created successfully")
+		Eventually(func() error {
+			labels := &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					ControllerRevisionComponentLabel: compName,
+				},
+			}
+			selector, err := metav1.LabelSelectorAsSelector(labels)
+			if err != nil {
+				return err
+			}
+			err = k8sClient.List(ctx, &crList, &client.ListOptions{
+				LabelSelector: selector,
+			})
+			if err != nil {
+				return err
+			}
+			if len(crList.Items) != 1 {
+				return fmt.Errorf("want only 1 revision created but got %d", len(crList.Items))
+			}
+			return nil
+		}, time.Second, 300*time.Millisecond).Should(BeNil())
+
+		By("===================================== Start to Update =========================================")
+		cmpV2 := &v1alpha2.Component{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: compName}, cmpV2)).Should(Succeed())
+		cmpV2.Spec.Workload = runtime.RawExtension{
+			Object: getDeploy("wordpress:v2"),
+		}
+		By("Update Component")
+		Expect(k8sClient.Update(ctx, cmpV2)).Should(Succeed())
+		By("component handler will automatically create a ne controller revision")
+		Expect(func() bool { _, ok := componentHandler.createControllerRevision(cmpV2, cmpV2); return ok }()).Should(BeTrue())
+
+		cmpV3 := &v1alpha2.Component{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: compName}, cmpV3)).Should(Succeed())
+		Expect(func() bool { _, ok := componentHandler.createControllerRevision(cmpV3, cmpV3); return ok }()).Should(BeFalse())
+
+		By("Check controller revision created successfully")
+		Eventually(func() error {
+			labels := &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					ControllerRevisionComponentLabel: compName,
+				},
+			}
+			selector, err := metav1.LabelSelectorAsSelector(labels)
+			if err != nil {
+				return err
+			}
+			err = k8sClient.List(ctx, &crList, &client.ListOptions{
+				LabelSelector: selector,
+			})
+			if err != nil {
+				return err
+			}
+			if len(crList.Items) != 2 {
+				return fmt.Errorf("there should be exactly 2 revision created but got %d", len(crList.Items))
+			}
+			return nil
+		}, time.Second, 300*time.Millisecond).Should(BeNil())
+	})
 })
