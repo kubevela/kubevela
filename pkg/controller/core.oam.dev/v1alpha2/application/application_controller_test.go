@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
@@ -238,7 +239,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
 
 		// check that the new appconfig has the correct annotation and labels
-		Expect(appConfig.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(BeIdenticalTo("true"))
+		Expect(appConfig.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(Equal(strconv.FormatBool(true)))
 		Expect(appConfig.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
 
 		// check the workload created should be the same as the raw data in the component
@@ -821,6 +822,7 @@ var _ = Describe("Test Application Controller", func() {
 		// set the annotation
 		rolloutApp.SetAnnotations(map[string]string{
 			oam.AnnotationAppRollout: "true",
+			"keep":                   "true",
 		})
 		Expect(k8sClient.Create(ctx, rolloutApp)).Should(BeNil())
 
@@ -857,10 +859,11 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
 		Expect(component.Status.LatestRevision.Revision).Should(
 			SatisfyAny(BeEquivalentTo(1), BeEquivalentTo(2)))
-
 		// check that the new appconfig has the correct annotation and labels
-		Expect(appConfig.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(BeIdenticalTo("true"))
-		Expect(appConfig.GetAnnotations()[oam.AnnotationNewComponent]).Should(Equal(component.Status.LatestRevision.Name))
+		Expect(appConfig.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(Equal(strconv.FormatBool(true)))
+		Expect(appConfig.GetAnnotations()[oam.AnnotationRollingComponent]).Should(Equal(component.Status.LatestRevision.Name))
+		Expect(appConfig.GetAnnotations()["keep"]).Should(Equal("true"))
+		Expect(appConfig.GetAnnotations()[oam.AnnotationAppRollout]).Should(BeEmpty())
 		Expect(appConfig.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
 		Expect(appConfig.Spec.Components[0].ComponentName).Should(BeEmpty())
 		Expect(appConfig.Spec.Components[0].RevisionName).Should(Equal(component.Status.LatestRevision.Name))
@@ -891,6 +894,20 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(component.Status.LatestRevision.Revision).ShouldNot(BeNil())
 		Expect(component.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 
+		By("Remove rollout annotation which should not trigger any change")
+		rolloutApp.SetAnnotations(map[string]string{
+			"keep": "true",
+		})
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+		Expect(checkApp.Status.LatestRevision).ShouldNot(BeNil())
+		Expect(checkApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
+		// check v2 is not created
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: rolloutApp.Namespace,
+			Name:      utils.ConstructRevisionName(rolloutApp.Name, 2),
+		}, appConfig)).Should(HaveOccurred())
 		By("Delete Application, clean the resource")
 		Expect(k8sClient.Delete(ctx, rolloutApp)).Should(BeNil())
 	})

@@ -138,6 +138,40 @@ var _ = Describe("Test apply", func() {
 			Expect(*resultDeploy.Spec.ProgressDeadlineSeconds).Should(Equal(int32(20)))
 			Expect(len(resultDeploy.Spec.Template.Spec.Volumes)).Should(Equal(1))
 		})
+
+		It("Test apply resources for rollout", func() {
+			// use standard.oam.dev/v1alpha1 podSpecWorkload as sample CR
+			podspec = basicTestPodSpecWorkload()
+			By("Set normal & array field")
+			podspec.Spec.Replicas = &int32_3
+			podspec.Spec.PodSpec.Volumes = []corev1.Volume{{Name: "test"}}
+			Expect(k8sApplicator.Apply(ctx, podspec)).Should(Succeed())
+			resultPodSpec := basicTestPodSpecWorkload()
+			Expect(rawClient.Get(ctx, podspecKey, resultPodSpec)).Should(Succeed())
+			Expect(*resultPodSpec.Spec.Replicas).Should(Equal(int32_3))
+			Expect(len(resultPodSpec.Spec.PodSpec.Volumes)).Should(Equal(1))
+
+			podspec = basicTestPodSpecWorkload()
+			By("Override normal & array field")
+			podspec.Spec.Replicas = &int32_5
+			podspec.Spec.PodSpec.Volumes = []corev1.Volume{{Name: "test"}, {Name: "test2"}}
+			Expect(k8sApplicator.Apply(ctx, podspec)).Should(Succeed())
+			resultPodSpec = basicTestPodSpecWorkload()
+			Expect(rawClient.Get(ctx, podspecKey, resultPodSpec)).Should(Succeed())
+			Expect(*resultPodSpec.Spec.Replicas).Should(Equal(int32_5))
+			Expect(len(resultPodSpec.Spec.PodSpec.Volumes)).Should(Equal(2))
+
+			podspec = basicTestPodSpecWorkload()
+			By("Unset normal & array field")
+			podspec.Spec.Replicas = nil
+			podspec.Spec.PodSpec.Volumes = nil
+			Expect(k8sApplicator.Apply(ctx, podspec)).Should(Succeed())
+			resultPodSpec = basicTestPodSpecWorkload()
+			Expect(rawClient.Get(ctx, podspecKey, resultPodSpec)).Should(Succeed())
+			By("Unsetted fields shoulde be removed")
+			Expect(resultPodSpec.Spec.Replicas).Should(BeNil())
+			Expect(len(resultPodSpec.Spec.PodSpec.Volumes)).Should(Equal(0))
+		})
 	})
 })
 

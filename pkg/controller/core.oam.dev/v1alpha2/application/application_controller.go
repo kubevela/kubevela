@@ -35,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -101,8 +102,9 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		app.Status.SetConditions(errorCondition("Built", err))
 		return handler.handleErr(err)
 	}
-	// pass the App label and annotation to ac
+	// pass the App label and annotation to ac except some app specific ones
 	oamutil.PassLabelAndAnnotation(app, ac)
+	oamutil.RemoveAnnotations(ac, []string{oam.AnnotationAppRollout})
 	app.Status.SetConditions(readyCondition("Built"))
 	applog.Info("apply appConfig & component to the cluster")
 	// apply appConfig & component to the cluster

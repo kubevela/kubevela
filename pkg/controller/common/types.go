@@ -15,7 +15,8 @@ const (
 	PodspecWorkloadControllerName = "podspecworkload"
 	// RouteControllerName is the controller name of Trait route
 	RouteControllerName = "route"
-
+	// RollingComponentsSep is the separator that divide the names in the newComponent annotation
+	RollingComponentsSep = ","
 	// DisableAllCaps disable all capabilities
 	DisableAllCaps = "all"
 	// DisableNoneCaps disable none of capabilities

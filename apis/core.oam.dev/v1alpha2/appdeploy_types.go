@@ -24,11 +24,11 @@ import (
 
 // ApplicationDeploymentSpec defines how to describe an upgrade between different application
 type ApplicationDeploymentSpec struct {
-	// TargetApplicationName contains the name of the application that we need to upgrade to.
-	// We assume that an application is immutable, thus the name alone is suffice
+	// TargetApplicationName contains the name of the applicationConfiguration that we need to upgrade to.
+	// Here we use an applicationConfiguration as a revision of an application, thus the name alone is suffice
 	TargetApplicationName string `json:"targetApplicationName"`
 
-	// SourceApplicationName contains the name of the application that we need to upgrade from.
+	// SourceApplicationName contains the name of the applicationConfiguration that we need to upgrade from.
 	// it can be empty only when it's the first time to deploy the application
 	SourceApplicationName string `json:"sourceApplicationName,omitempty"`
 
@@ -41,8 +41,8 @@ type ApplicationDeploymentSpec struct {
 	// RolloutPlan is the details on how to rollout the resources
 	RolloutPlan v1alpha1.RolloutPlan `json:"rolloutPlan"`
 
-	// RevertOnDelete revert the rollout when the rollout CR is deleted, default is false
-	// It will remove the target application from the kubernetes
+	// RevertOnDelete revert the rollout when the rollout CR is deleted
+	// It will remove the target application from the kubernetes if it's set to true
 	// +optional
 	RevertOnDelete *bool `json:"revertOnDelete,omitempty"`
 }

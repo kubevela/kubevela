@@ -16,11 +16,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	oamv1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
@@ -42,7 +40,7 @@ type Reconciler struct {
 
 // Reconcile is the main logic of applicationdeployment controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr error) {
-	var appDeploy corev1alpha2.ApplicationDeployment
+	var appDeploy oamv1alpha2.ApplicationDeployment
 	ctx, cancel := context.WithTimeout(context.TODO(), reconcileTimeOut)
 	defer cancel()
 
@@ -72,8 +70,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	r.handleFinalizer(&appDeploy)
 
 	// Get the target application
-	var targetApp corev1alpha2.Application
-	var sourceApp *corev1alpha2.Application
+	var targetApp oamv1alpha2.ApplicationConfiguration
+	var sourceApp *oamv1alpha2.ApplicationConfiguration
 	targetAppName := appDeploy.Spec.TargetApplicationName
 	if err := r.Get(ctx, ktypes.NamespacedName{Namespace: req.Namespace, Name: targetAppName},
 		&targetApp); err != nil {
@@ -91,34 +89,15 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 			sourceAppName))
 		return ctrl.Result{}, err
 	}
-	// Get the kubernetes workloads to upgrade from the application
-	workloadType, workloadGVK, err := r.extractWorkloadTypeAndGVK(ctx,
-		appDeploy.Spec.ComponentList, &targetApp, sourceApp)
-	if err != nil {
-		klog.ErrorS(err, "cannot extract the workloadType and GVK",
-			"component list", appDeploy.Spec.ComponentList, "target app", klog.KObj(&targetApp))
-		return ctrl.Result{}, err
-	}
 
-	targetWorkload, sourceWorkload, err := r.fetchWorkloads(ctx, &targetApp, sourceApp, workloadType, workloadGVK)
+	targetWorkload, sourceWorkload, err := r.extractWorkloads(ctx, appDeploy.Spec.ComponentList, &targetApp, sourceApp)
 	if err != nil {
-		klog.ErrorS(err, "cannot fetch the workloads to upgrade", "workload Type", workloadType,
-			"workload GVK", *workloadGVK, "target application", klog.KRef(req.Namespace, targetAppName),
-			"source application", klog.KRef(req.Namespace, sourceAppName))
+		klog.ErrorS(err, "cannot fetch the workloads to upgrade", "target application",
+			klog.KRef(req.Namespace, targetAppName), "source application", klog.KRef(req.Namespace, sourceAppName),
+			"commonComponent", appDeploy.Spec.ComponentList)
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, client.IgnoreNotFound(err)
 	}
 	klog.InfoS("get the target workload we need to work on", "targetWorkload", klog.KObj(targetWorkload))
-
-	// check if the target application is still in rolling
-	if _, exist := targetApp.GetAnnotations()[oam.AnnotationAppRollout]; exist {
-		// adjust the target workload if it's still a template
-		if err := r.adjustTargetApplicationTemplate(ctx, targetWorkload, &targetApp); err != nil {
-			klog.ErrorS(err, "cannot adjust the target workload", "target workload", klog.KObj(targetWorkload))
-			return ctrl.Result{}, err
-		}
-		// requeue it to process hopefully after the application controller takes over
-		return ctrl.Result{RequeueAfter: 2 * application.RolloutReconcileWaitTime}, nil
-	}
 
 	if sourceWorkload != nil {
 		klog.InfoS("get the source workload we need to work on", "sourceWorkload", klog.KObj(sourceWorkload))
@@ -134,7 +113,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	return result, r.Update(ctx, &appDeploy)
 }
 
-func (r *Reconciler) handleFinalizer(appDeploy *corev1alpha2.ApplicationDeployment) {
+func (r *Reconciler) handleFinalizer(appDeploy *oamv1alpha2.ApplicationDeployment) {
 	if appDeploy.DeletionTimestamp.IsZero() {
 		if !slice.ContainsString(appDeploy.Finalizers, appDeployFinalizer, nil) {
 			// TODO: add finalizer
@@ -151,8 +130,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("ApplicationDeployment")).
 		WithAnnotations("controller", "ApplicationDeployment")
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&corev1alpha2.ApplicationDeployment{}).
-		Owns(&corev1alpha2.Application{}).
+		For(&oamv1alpha2.ApplicationDeployment{}).
+		Owns(&oamv1alpha2.Application{}).
 		Complete(r)
 }
 

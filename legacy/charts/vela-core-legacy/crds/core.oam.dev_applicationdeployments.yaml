@@ -40,7 +40,7 @@ spec:
                 type: string
               type: array
             revertOnDelete:
-              description: RevertOnDelete revert the rollout when the rollout CR is deleted, default is false It will remove the target application from the kubernetes
+              description: RevertOnDelete revert the rollout when the rollout CR is deleted It will remove the target application from the kubernetes if it's set to true
               type: boolean
             rolloutPlan:
               description: RolloutPlan is the details on how to rollout the resources
@@ -255,10 +255,10 @@ spec:
                   type: integer
               type: object
             sourceApplicationName:
-              description: SourceApplicationName contains the name of the application that we need to upgrade from. it can be empty only when it's the first time to deploy the application
+              description: SourceApplicationName contains the name of the applicationConfiguration that we need to upgrade from. it can be empty only when it's the first time to deploy the application
               type: string
             targetApplicationName:
-              description: TargetApplicationName contains the name of the application that we need to upgrade to. We assume that an application is immutable, thus the name alone is suffice
+              description: TargetApplicationName contains the name of the applicationConfiguration that we need to upgrade to. Here we use an applicationConfiguration as a revision of an application, thus the name alone is suffice
               type: string
           required:
           - rolloutPlan

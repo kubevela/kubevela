@@ -233,8 +233,6 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		return errResult, errors.Wrap(err, errGetAppConfig)
 	}
 	acPatch := ac.DeepCopy()
-	firstReconcile := false
-	var newComponents []string
 	if ac.ObjectMeta.DeletionTimestamp.IsZero() {
 		if registerFinalizers(ac) {
 			log.Debug("Register new finalizers", "finalizers", ac.ObjectMeta.Finalizers)
@@ -292,21 +290,16 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 	log = log.WithValues("uid", ac.GetUID(), "version", ac.GetResourceVersion())
 
 	// we have special logics for application generated applicationConfiguration
-	if newAppConifgAnno, exist := ac.GetAnnotations()[oam.AnnotationNewAppConfig]; exist {
-		if newAppConifgAnno == "true" {
-			firstReconcile = true
+	if isControlledByApp(ac) {
+		if ac.GetAnnotations()[oam.AnnotationNewAppConfig] == strconv.FormatBool(true) {
 			defer func() {
 				// we only flip the annotation after a successful reconcile
 				if returnErr == nil {
-					ac.GetAnnotations()[oam.AnnotationNewAppConfig] = "false"
+					ac.GetAnnotations()[oam.AnnotationNewAppConfig] = strconv.FormatBool(false)
 					returnErr = r.client.Update(ctx, ac)
 				}
 			}()
 		}
-	}
-	// TODO: Handle multiple components
-	if newComponent, exist := ac.GetAnnotations()[oam.AnnotationNewComponent]; exist {
-		newComponents = []string{newComponent}
 	}
 
 	workloads, depStatus, err := r.components.Render(ctx, ac)
@@ -320,8 +313,8 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 	r.record.Event(ac, event.Normal(reasonRenderComponents, "Successfully rendered components", "workloads", strconv.Itoa(len(workloads))))
 
 	applyOpts := []apply.ApplyOption{apply.MustBeControllableBy(ac.GetUID()), applyOnceOnly(ac, r.applyOnceOnlyMode, log)}
-	if err := r.workloads.Apply(ctx, ac.Status.Workloads, workloads, firstReconcile, newComponents, applyOpts...); err != nil {
-		log.Debug("Cannot apply components", "error", err, "requeue-after", time.Now().Add(shortWait))
+	if err := r.workloads.Apply(ctx, ac.Status.Workloads, workloads, applyOpts...); err != nil {
+		log.Debug("Cannot apply workload", "error", err, "requeue-after", time.Now().Add(shortWait))
 		r.record.Event(ac, event.Warning(reasonCannotApplyComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyComponents)))
 		return errResult, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
