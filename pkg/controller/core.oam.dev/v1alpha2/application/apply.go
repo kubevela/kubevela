@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -81,6 +83,7 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 	}}
 	ac.SetOwnerReferences(owners)
 	hasRolloutLogic := false
+	var newComponents []string
 	// Check if we are doing rolling out
 	if _, exist := h.app.GetAnnotations()[oam.AnnotationAppRollout]; exist || h.app.Spec.RolloutPlan != nil {
 		h.logger.Info("The application rolling out is controlled by a rollout plan")
@@ -96,11 +99,7 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 			return err
 		}
 		if newRevision && hasRolloutLogic {
-			// set the annotation on ac to point out which component is newly changed
-			// TODO: handle multiple components
-			ac.SetAnnotations(oamutil.MergeMapOverrideWithDst(ac.GetAnnotations(), map[string]string{
-				oam.AnnotationNewComponent: revisionName,
-			}))
+			newComponents = append(newComponents, revisionName)
 		}
 		// find the ACC that contains this component
 		for i := 0; i < len(ac.Spec.Components); i++ {
@@ -112,7 +111,10 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 			}
 		}
 	}
-
+	// set the annotation on ac to point out which component are newly changed
+	ac.SetAnnotations(oamutil.MergeMapOverrideWithDst(ac.GetAnnotations(), map[string]string{
+		oam.AnnotationRollingComponent: strings.Join(newComponents, common.RollingComponentsSep),
+	}))
 	if err := h.createOrUpdateAppConfig(ctx, ac); err != nil {
 		return err
 	}
@@ -337,7 +339,7 @@ func (h *appHandler) createNewAppConfig(ctx context.Context, appConfig *v1alpha2
 	// indicate that the application is created by the applicationController
 	// appConfig controller should set this to false after the first successful reconcile
 	appConfig.SetAnnotations(oamutil.MergeMapOverrideWithDst(appConfig.GetAnnotations(), map[string]string{
-		oam.AnnotationNewAppConfig: "true",
+		oam.AnnotationNewAppConfig: strconv.FormatBool(true),
 	}))
 	// record that last appConfig we created first in the app's status
 	// make sure that we persist the latest revision first

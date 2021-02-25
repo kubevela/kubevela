@@ -28,7 +28,7 @@ func (h *ValidatingHandler) ValidateCreate(appDeploy *v1alpha2.ApplicationDeploy
 		return allErrs
 	}
 
-	var targetApp, sourceApp v1alpha2.Application
+	var targetApp, sourceApp v1alpha2.ApplicationConfiguration
 	targetAppName := appDeploy.Spec.TargetApplicationName
 	if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appDeploy.Namespace, Name: targetAppName},
 		&targetApp); err != nil {
@@ -62,7 +62,7 @@ func (h *ValidatingHandler) ValidateCreate(appDeploy *v1alpha2.ApplicationDeploy
 // 2. if there are no components, make sure the applications has only one common component so that's the default
 // 3. it is contained in both source and target application
 // 4. the common component has the same type
-func validateComponent(componentList []string, targetApp, sourceApp *v1alpha2.Application,
+func validateComponent(componentList []string, targetApp, sourceApp *v1alpha2.ApplicationConfiguration,
 	fldPath *field.Path) field.ErrorList {
 	var componentErrs field.ErrorList
 	var commmonComponentName string
@@ -92,17 +92,13 @@ func validateComponent(componentList []string, targetApp, sourceApp *v1alpha2.Ap
 		commmonComponentName = componentList[0]
 	}
 	// check if the workload type are the same in the source and target application
-	if sourceApp != nil {
-		targetComp := targetApp.GetComponent(commmonComponentName)
-		sourceComp := sourceApp.GetComponent(commmonComponentName)
-		if targetComp.WorkloadType != sourceComp.WorkloadType {
-			klog.Error("the common component have different types in the application",
-				"common component", commmonComponentName, "target component type", targetComp.WorkloadType,
-				"source component type", sourceComp.WorkloadType)
-			componentErrs = append(componentErrs, field.Invalid(fldPath, componentList[0],
-				"the common component have different types in the application"))
-		}
+	if len(commmonComponentName) == 0 {
+		klog.Error("the common component have different types in the application",
+			"common component", commmonComponentName)
+		componentErrs = append(componentErrs, field.Invalid(fldPath, componentList[0],
+			"the common component have different types in the application"))
 	}
+
 	return componentErrs
 }
 

@@ -408,9 +408,21 @@ func GetObjectGivenGVKAndName(ctx context.Context, client client.Reader,
 	return obj, nil
 }
 
-// Object2Unstructured convert an object to an unstructured struct
+// Object2Unstructured converts an object to an unstructured struct
 func Object2Unstructured(obj interface{}) (*unstructured.Unstructured, error) {
 	objMap, err := Object2Map(obj)
+	if err != nil {
+		return nil, err
+	}
+	return &unstructured.Unstructured{
+		Object: objMap,
+	}, nil
+}
+
+// RawExtension2Unstructured converts a rawExtension to an unstructured struct
+func RawExtension2Unstructured(raw *runtime.RawExtension) (*unstructured.Unstructured, error) {
+	var objMap map[string]interface{}
+	err := json.Unmarshal(raw.Raw, &objMap)
 	if err != nil {
 		return nil, err
 	}

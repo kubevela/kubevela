@@ -211,7 +211,7 @@ func TestReconciler(t *testing.T) {
 						return []Workload{{Workload: workload}}, &v1alpha2.DependencyStatus{}, nil
 					})),
 					WithApplicator(WorkloadApplyFns{ApplyFn: func(_ context.Context, _ []v1alpha2.WorkloadStatus,
-						_ []Workload, newAppConfig bool, newComponents []string, _ ...apply.ApplyOption) error {
+						_ []Workload, _ ...apply.ApplyOption) error {
 						return errBoom
 					}}),
 				},
@@ -241,10 +241,10 @@ func TestReconciler(t *testing.T) {
 					WithRenderer(ComponentRenderFn(func(_ context.Context, _ *v1alpha2.ApplicationConfiguration) ([]Workload, *v1alpha2.DependencyStatus, error) {
 						return []Workload{}, &v1alpha2.DependencyStatus{}, nil
 					})),
-					WithApplicator(WorkloadApplyFns{ApplyFn: (func(_ context.Context, _ []v1alpha2.WorkloadStatus,
-						_ []Workload, _ bool, _ []string, _ ...apply.ApplyOption) error {
+					WithApplicator(WorkloadApplyFns{ApplyFn: func(_ context.Context, _ []v1alpha2.WorkloadStatus,
+						_ []Workload, _ ...apply.ApplyOption) error {
 						return nil
-					})}),
+					}}),
 					WithGarbageCollector(GarbageCollectorFn(func(_ string, _ []v1alpha2.WorkloadStatus, _ []Workload) []unstructured.Unstructured {
 						return []unstructured.Unstructured{*workload}
 					})),
@@ -305,10 +305,10 @@ func TestReconciler(t *testing.T) {
 					WithRenderer(ComponentRenderFn(func(_ context.Context, _ *v1alpha2.ApplicationConfiguration) ([]Workload, *v1alpha2.DependencyStatus, error) {
 						return []Workload{{ComponentName: componentName, Workload: workload}}, &depStatus, nil
 					})),
-					WithApplicator(WorkloadApplyFns{ApplyFn: (func(_ context.Context, _ []v1alpha2.WorkloadStatus,
-						_ []Workload, _ bool, _ []string, _ ...apply.ApplyOption) error {
+					WithApplicator(WorkloadApplyFns{ApplyFn: func(_ context.Context, _ []v1alpha2.WorkloadStatus,
+						_ []Workload, _ ...apply.ApplyOption) error {
 						return nil
-					})}),
+					}}),
 					WithGarbageCollector(GarbageCollectorFn(func(_ string, _ []v1alpha2.WorkloadStatus, _ []Workload) []unstructured.Unstructured {
 						return []unstructured.Unstructured{*trait}
 					})),
@@ -341,9 +341,10 @@ func TestReconciler(t *testing.T) {
 					WithRenderer(ComponentRenderFn(func(_ context.Context, _ *v1alpha2.ApplicationConfiguration) ([]Workload, *v1alpha2.DependencyStatus, error) {
 						return []Workload{{ComponentName: componentName, Workload: workload}}, &v1alpha2.DependencyStatus{}, nil
 					})),
-					WithApplicator(WorkloadApplyFns{ApplyFn: (func(_ context.Context, _ []v1alpha2.WorkloadStatus, _ []Workload, _ bool, _ []string, _ ...apply.ApplyOption) error {
+					WithApplicator(WorkloadApplyFns{ApplyFn: func(_ context.Context, _ []v1alpha2.WorkloadStatus,
+						_ []Workload, _ ...apply.ApplyOption) error {
 						return nil
-					})}),
+					}}),
 					WithGarbageCollector(GarbageCollectorFn(func(_ string, _ []v1alpha2.WorkloadStatus, _ []Workload) []unstructured.Unstructured {
 						return []unstructured.Unstructured{*trait}
 					})),
@@ -414,10 +415,10 @@ func TestReconciler(t *testing.T) {
 					WithRenderer(ComponentRenderFn(func(_ context.Context, _ *v1alpha2.ApplicationConfiguration) ([]Workload, *v1alpha2.DependencyStatus, error) {
 						return []Workload{{ComponentName: componentName, Workload: workload}}, &v1alpha2.DependencyStatus{}, nil
 					})),
-					WithApplicator(WorkloadApplyFns{ApplyFn: (func(_ context.Context, _ []v1alpha2.WorkloadStatus,
-						_ []Workload, _ bool, _ []string, _ ...apply.ApplyOption) error {
+					WithApplicator(WorkloadApplyFns{ApplyFn: func(_ context.Context, _ []v1alpha2.WorkloadStatus,
+						_ []Workload, _ ...apply.ApplyOption) error {
 						return nil
-					})}),
+					}}),
 					WithGarbageCollector(GarbageCollectorFn(func(_ string, _ []v1alpha2.WorkloadStatus, _ []Workload) []unstructured.Unstructured {
 						return []unstructured.Unstructured{*trait}
 					})),
@@ -459,9 +460,10 @@ func TestReconciler(t *testing.T) {
 					WithRenderer(ComponentRenderFn(func(_ context.Context, _ *v1alpha2.ApplicationConfiguration) ([]Workload, *v1alpha2.DependencyStatus, error) {
 						return []Workload{{ComponentName: componentName, Workload: workload}}, &v1alpha2.DependencyStatus{}, nil
 					})),
-					WithApplicator(WorkloadApplyFns{ApplyFn: (func(_ context.Context, _ []v1alpha2.WorkloadStatus, _ []Workload, _ bool, _ []string, _ ...apply.ApplyOption) error {
+					WithApplicator(WorkloadApplyFns{ApplyFn: func(_ context.Context, _ []v1alpha2.WorkloadStatus,
+						_ []Workload, _ ...apply.ApplyOption) error {
 						return nil
-					})}),
+					}}),
 					WithGarbageCollector(GarbageCollectorFn(func(_ string, _ []v1alpha2.WorkloadStatus, _ []Workload) []unstructured.Unstructured {
 						return []unstructured.Unstructured{*trait}
 					})),
@@ -532,9 +534,9 @@ func TestReconciler(t *testing.T) {
 					WithRenderer(ComponentRenderFn(func(_ context.Context, _ *v1alpha2.ApplicationConfiguration) ([]Workload, *v1alpha2.DependencyStatus, error) {
 						return []Workload{{ComponentName: componentName, Workload: workload}}, &v1alpha2.DependencyStatus{}, nil
 					})),
-					WithApplicator(WorkloadApplyFns{ApplyFn: (func(_ context.Context, _ []v1alpha2.WorkloadStatus, _ []Workload, _ bool, _ []string, _ ...apply.ApplyOption) error {
+					WithApplicator(WorkloadApplyFns{ApplyFn: func(_ context.Context, _ []v1alpha2.WorkloadStatus, _ []Workload, _ ...apply.ApplyOption) error {
 						return nil
-					})}),
+					}}),
 					WithGarbageCollector(GarbageCollectorFn(func(_ string, _ []v1alpha2.WorkloadStatus, _ []Workload) []unstructured.Unstructured {
 						return []unstructured.Unstructured{*trait}
 					})),

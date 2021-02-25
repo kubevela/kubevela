@@ -5,6 +5,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
 
 var _ = Describe("Application Deployment Common Function Test", func() {
@@ -13,17 +14,17 @@ var _ = Describe("Application Deployment Common Function Test", func() {
 	})
 
 	Context("Test Find Common Component Function", func() {
-		var targetApp, sourceApp *v1alpha2.Application
+		var targetApp, sourceApp *v1alpha2.ApplicationConfiguration
 
 		BeforeEach(func() {
-			targetApp = &v1alpha2.Application{
-				Spec: v1alpha2.ApplicationSpec{
-					Components: []v1alpha2.ApplicationComponent{},
+			targetApp = &v1alpha2.ApplicationConfiguration{
+				Spec: v1alpha2.ApplicationConfigurationSpec{
+					Components: []v1alpha2.ApplicationConfigurationComponent{},
 				},
 			}
-			sourceApp = &v1alpha2.Application{
-				Spec: v1alpha2.ApplicationSpec{
-					Components: []v1alpha2.ApplicationComponent{},
+			sourceApp = &v1alpha2.ApplicationConfiguration{
+				Spec: v1alpha2.ApplicationConfigurationSpec{
+					Components: []v1alpha2.ApplicationConfigurationComponent{},
 				},
 			}
 		})
@@ -64,10 +65,10 @@ var _ = Describe("Application Deployment Common Function Test", func() {
 	})
 })
 
-func fillApplication(app *v1alpha2.ApplicationSpec, componentNames []string) {
+func fillApplication(app *v1alpha2.ApplicationConfigurationSpec, componentNames []string) {
 	for _, name := range componentNames {
-		app.Components = append(app.Components, v1alpha2.ApplicationComponent{
-			WorkloadType: name,
+		app.Components = append(app.Components, v1alpha2.ApplicationConfigurationComponent{
+			RevisionName: utils.ConstructRevisionName(name, 1),
 		})
 	}
 }

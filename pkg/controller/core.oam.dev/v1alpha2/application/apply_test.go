@@ -149,7 +149,7 @@ var _ = Describe("Test Application apply", func() {
 		Expect(handler.r.Status().Update(ctx, curAC)).NotTo(HaveOccurred())
 		// set the new AppConfig annotation as false AC controller would do
 		cl := curAC.GetAnnotations()
-		cl[oam.AnnotationNewAppConfig] = "false"
+		cl[oam.AnnotationNewAppConfig] = strconv.FormatBool(false)
 		curAC.SetAnnotations(cl)
 		Expect(handler.r.Update(ctx, curAC)).NotTo(HaveOccurred())
 		// this should not lead to a new AC
@@ -171,8 +171,8 @@ var _ = Describe("Test Application apply", func() {
 			types.NamespacedName{Namespace: ns.Name, Name: app.Name + "-v1"},
 			curAC)).NotTo(HaveOccurred())
 		// check that the new app annotation is false
-		Expect(curAC.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(BeEquivalentTo("false"))
-		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).Should(BeEquivalentTo(hashValue))
+		Expect(curAC.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(Equal(strconv.FormatBool(false)))
+		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).Should(Equal(hashValue))
 		Expect(curAC.GetCondition("newType").Status).Should(BeEquivalentTo(corev1.ConditionTrue))
 		// check that no new appConfig created
 		Expect(handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: app.Name + "-v2"},
@@ -217,7 +217,7 @@ var _ = Describe("Test Application apply", func() {
 		Expect(handler.r.Get(ctx,
 			types.NamespacedName{Namespace: ns.Name, Name: app.Name + "-v2"},
 			curAC)).NotTo(HaveOccurred())
-		Expect(curAC.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(BeIdenticalTo("true"))
+		Expect(curAC.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(BeIdenticalTo(strconv.FormatBool(true)))
 		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
 		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(Equal(hashValue))
 		// check that no more new appConfig created
