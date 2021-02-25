@@ -80,7 +80,7 @@ func (c *ComponentHandler) Generic(_ event.GenericEvent, _ workqueue.RateLimitin
 func isMatch(appConfigs *v1alpha2.ApplicationConfigurationList, compName string) (bool, types.NamespacedName) {
 	for _, app := range appConfigs.Items {
 		for _, comp := range app.Spec.Components {
-			if comp.ComponentName == compName {
+			if comp.ComponentName == compName || (strings.HasPrefix(comp.RevisionName, compName+"-")) {
 				return true, types.NamespacedName{Namespace: app.Namespace, Name: app.Name}
 			}
 		}
@@ -125,6 +125,10 @@ func (c *ComponentHandler) IsRevisionDiff(mt klog.KMetadata, curComp *v1alpha2.C
 func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtime.Object) ([]reconcile.Request, bool) {
 	curComp := obj.(*v1alpha2.Component)
 	comp := curComp.DeepCopy()
+	// No generation changed, will not create revision
+	if comp.Generation == comp.Status.ObservedGeneration {
+		return nil, false
+	}
 	diff, curRevision := c.IsRevisionDiff(mt, comp)
 	if !diff {
 		// No difference, no need to create new revision.
