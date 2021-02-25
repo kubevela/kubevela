@@ -131,7 +131,7 @@ These steps will install KubeVela controller and its dependency.
     helm install --create-namespace -n vela-system --set admissionWebhooks.certManager.enabled=true kubevela kubevela/vela-core
     ```
 
-## 3. Get KubeVela CLI
+## 3. (Optional) Get KubeVela CLI
 
 Here are three ways to get KubeVela Cli:
 
@@ -173,7 +173,9 @@ sudo mv ./vela /usr/local/bin/vela
 
 <!-- tabs:end -->
 
-## 4. Sync Capability from Cluster
+## 4. (Optional) Sync Capability from Cluster
+
+If you want to run application from `vela` cli, then you should sync capabilities first like below:
 
 ```shell script
 vela workloads

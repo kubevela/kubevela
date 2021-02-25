@@ -5,8 +5,7 @@ metadata:
   name: webservice
   namespace: {{.Values.systemDefinitionNamespace}}
   annotations:
-    definition.oam.dev/description: "Describes long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers.
-    If workload type is skipped for any service defined in Appfile, it will be defaulted to `webservice` type."
+    definition.oam.dev/description: "Describes long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers."
 spec:
   definitionRef:
     name: deployments.apps

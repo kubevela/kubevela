@@ -192,15 +192,10 @@ core-run: fmt vet manifests
 core-install: manifests
 	kubectl apply -f hack/namespace.yaml
 	kubectl apply -f charts/vela-core/crds/
-	kubectl apply -f charts/vela-core/templates/defwithtemplate/
-	kubectl apply -f charts/vela-core/templates/definitions/
-	bin/vela workloads
 	@$(OK) install succeed
 
 # Uninstall CRDs and Definitions of Vela Core from a cluster, this is for develop convenient.
 core-uninstall: manifests
-	kubectl delete -f charts/vela-core/templates/definitions/
-	kubectl delete -f charts/vela-core/templates/defwithtemplate/
 	kubectl delete -f charts/vela-core/crds/
 
 # Generate manifests e.g. CRD, RBAC etc.
