@@ -1,0 +1,212 @@
+/*
+Copyright 2020 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package utils
+
+import (
+	"context"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
+	"sigs.k8s.io/yaml"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+)
+
+var _ = Describe("Test Capability", func() {
+	ctx := context.Background()
+	var (
+		namespace = types.DefaultKubeVelaNS
+		ns        corev1.Namespace
+	)
+
+	Context("When the definition is WorkloadDefinition", func() {
+		var workloadDefinitionName = "web"
+
+		BeforeEach(func() {
+			ns = corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace,
+				},
+			}
+			By("Create a namespace")
+			Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+		})
+
+		It("Test CapabilityWorkloadDefinition", func() {
+			By("Apply WorkloadDefinition")
+			var validWorkloadDefinition = `
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: web
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "test"
+spec:
+  definitionRef:
+    name: deployments.apps
+  template: |
+    output: {
+    	apiVersion: "apps/v1"
+    	kind:       "Deployment"
+    	spec: {
+    		selector: matchLabels: {
+    			"app.oam.dev/component": context.name
+    		}
+    
+    		template: {
+    			metadata: labels: {
+    				"app.oam.dev/component": context.name
+    			}
+    
+    			spec: {
+    				containers: [{
+    					name:  context.name
+    					image: parameter.image
+    
+    					if parameter["cmd"] != _|_ {
+    						command: parameter.cmd
+    					}
+    				}]
+    		}
+    		}
+    	}
+    }
+    parameter: {
+    	// +usage=Which image would you like to use for your service
+    	// +short=i
+    	image: string
+    
+    	// +usage=Commands to run in the container
+    	cmd?: [...string]
+    }
+`
+			var workloadDefinition v1alpha2.WorkloadDefinition
+			Expect(yaml.Unmarshal([]byte(validWorkloadDefinition), &workloadDefinition)).Should(BeNil())
+			Expect(k8sClient.Create(ctx, &workloadDefinition)).Should(Succeed())
+
+			By("Test GetCapabilityObject")
+			def := &CapabilityWorkloadDefinition{Name: workloadDefinitionName}
+			capability, err := def.GetCapabilityObject(ctx, k8sClient, "", workloadDefinitionName)
+			Expect(err).Should(BeNil())
+			Expect(capability).Should(Not(BeNil()))
+
+			By("Test GetOpenAPISchema")
+			schema, err := def.GetOpenAPISchema(ctx, k8sClient, "", workloadDefinitionName)
+			Expect(err).Should(BeNil())
+			Expect(schema).Should(Not(BeNil()))
+
+		})
+	})
+
+	Context("When the definition is TraitDefinition", func() {
+		var traitDefinitionName = "scaler1"
+
+		BeforeEach(func() {
+			ns = corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace,
+				},
+			}
+			By("Create a namespace")
+			Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+		})
+
+		It("Test CapabilityTraitDefinition", func() {
+			By("Apply TraitDefinition")
+			var validTraitDefinition = `
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "Configures replicas for your service."
+  name: scaler1
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  definitionRef:
+    name: manualscalertraits.core.oam.dev
+  workloadRefPath: spec.workloadRef
+  template: |
+    outputs: scaler: {
+    	apiVersion: "core.oam.dev/v1alpha2"
+    	kind:       "ManualScalerTrait"
+    	spec: {
+    		replicaCount: parameter.replicas
+    	}
+    }
+    parameter: {
+    	//+short=r
+    	//+usage=Replicas of the workload
+    	replicas: *1 | int
+    }
+`
+
+			var traitDefinition v1alpha2.TraitDefinition
+			Expect(yaml.Unmarshal([]byte(validTraitDefinition), &traitDefinition)).Should(BeNil())
+			Expect(k8sClient.Create(ctx, &traitDefinition)).Should(Succeed())
+
+			By("Test GetCapabilityObject")
+			def := &CapabilityTraitDefinition{Name: traitDefinitionName}
+			capability, err := def.GetCapabilityObject(ctx, k8sClient, "", traitDefinitionName)
+			Expect(err).Should(BeNil())
+			Expect(capability).Should(Not(BeNil()))
+
+			By("Test GetOpenAPISchema")
+			var expectedSchema = "{\"properties\":{\"replicas\":{\"default\":1,\"description\":\"Replicas of the workload\",\"title\":\"replicas\",\"type\":\"integer\"}},\"required\":[\"replicas\"],\"type\":\"object\"}"
+			schema, err := def.GetOpenAPISchema(ctx, k8sClient, "", traitDefinitionName)
+			Expect(err).Should(BeNil())
+			Expect(string(schema)).Should(Equal(expectedSchema))
+		})
+	})
+
+	Context("When the definition is CapabilityBaseDefinition", func() {
+		BeforeEach(func() {
+			ns = corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace,
+				},
+			}
+			By("Create a namespace")
+			Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+		})
+
+		It("Test CapabilityTraitDefinition", func() {
+			By("Test CreateOrUpdateConfigMap")
+			definitionName := "n1"
+			def := &CapabilityBaseDefinition{}
+			ownerReference := []metav1.OwnerReference{{
+				APIVersion:         "v1",
+				Kind:               "k1",
+				Name:               definitionName,
+				UID:                "123456",
+				Controller:         pointer.BoolPtr(true),
+				BlockOwnerDeletion: pointer.BoolPtr(true),
+			}}
+			err := def.CreateOrUpdateConfigMap(ctx, k8sClient, definitionName, []byte(""), ownerReference)
+			Expect(err).Should(BeNil())
+		})
+	})
+
+})

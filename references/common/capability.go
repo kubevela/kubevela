@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
+
 	"github.com/ghodss/yaml"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -444,4 +446,12 @@ func addSourceIntoExtension(in *runtime.RawExtension, source *types.Source) erro
 	}
 	in.Raw = data
 	return nil
+}
+
+// GetCapabilityConfigMap gets the ConfigMap which stores the information of a capability
+func GetCapabilityConfigMap(kubeClient client.Client, capabilityName string) (corev1.ConfigMap, error) {
+	cmName := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, capabilityName)
+	var cm corev1.ConfigMap
+	err := kubeClient.Get(context.Background(), client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: cmName}, &cm)
+	return cm, err
 }

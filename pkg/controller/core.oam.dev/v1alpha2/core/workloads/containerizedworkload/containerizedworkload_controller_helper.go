@@ -2,7 +2,7 @@ package containerizedworkload
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -28,7 +28,7 @@ func (r *Reconciler) renderDeployment(ctx context.Context,
 
 	deploy, ok := resources[0].(*appsv1.Deployment)
 	if !ok {
-		return nil, fmt.Errorf("internal error, deployment is not rendered correctly")
+		return nil, errors.New("internal error, deployment is not rendered correctly")
 	}
 	// make sure we don't have opinion on the replica count
 	deploy.Spec.Replicas = nil
@@ -60,7 +60,7 @@ func (r *Reconciler) renderService(ctx context.Context,
 	}
 	service, ok := resources[1].(*corev1.Service)
 	if !ok {
-		return nil, fmt.Errorf("internal error, service is not rendered correctly")
+		return nil, errors.New("internal error, service is not rendered correctly")
 	}
 	// the service injector lib doesn't set the namespace and serviceType
 	service.Namespace = workload.Namespace

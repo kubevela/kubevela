@@ -70,6 +70,13 @@ const (
 	errFmtControllerRevisionData = "cannot get valid component data from controllerRevision %q"
 	errFmtGetComponent           = "cannot get component %q"
 	errFmtInvalidRevisionType    = "invalid type of revision %s, type should not be %v"
+
+	// ErrStoreCapabilityInConfigMap is the error while storing capability in ConfigMap
+	ErrStoreCapabilityInConfigMap = "cannot store capability %s in ConfigMap: %v"
+	// ErrGenerateOpenAPIV2JSONSchemaForCapability is the error while generating OpenAPI v3 schema
+	ErrGenerateOpenAPIV2JSONSchemaForCapability = "cannot generate OpenAPI v3 JSON schema for capability %s: %v"
+	// ErrUpdateCapabilityInConfigMap is the error while creating or updating a capability
+	ErrUpdateCapabilityInConfigMap = "cannot create or update capability %s in ConfigMap: %v"
 )
 
 type namespaceContextKey int

@@ -112,19 +112,19 @@ func NewTemplate(schematic *v1alpha2.Schematic, status *v1alpha2.Status, raw *ru
 }
 
 // ConvertTemplateJSON2Object convert spec.extension to object
-func ConvertTemplateJSON2Object(in *runtime.RawExtension, schematic *v1alpha2.Schematic) (types.Capability, error) {
+func ConvertTemplateJSON2Object(capabilityName string, in *runtime.RawExtension, schematic *v1alpha2.Schematic) (types.Capability, error) {
 	var t types.Capability
+	t.Name = capabilityName
 	capTemplate, err := NewTemplate(schematic, nil, in)
+
 	if err != nil {
 		return t, errors.Wrapf(err, "parse cue template")
 	}
-	var extension types.Capability
 	if in != nil && in.Raw != nil {
-		err := json.Unmarshal(in.Raw, &extension)
+		err := json.Unmarshal(in.Raw, &t)
 		if err != nil {
 			return t, errors.Wrapf(err, "parse extension fail")
 		}
-		t = extension
 	}
 	if capTemplate.TemplateStr != "" {
 		t.CueTemplate = capTemplate.TemplateStr

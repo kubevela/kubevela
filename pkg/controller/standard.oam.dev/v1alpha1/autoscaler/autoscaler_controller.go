@@ -149,7 +149,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// Setup adds a controller that reconciles MetricsTrait.
+// Setup adds a controller that reconciles Auto-Scale Trait.
 func Setup(mgr ctrl.Manager) error {
 	dm, err := discoverymapper.New(mgr.GetConfig())
 	if err != nil {

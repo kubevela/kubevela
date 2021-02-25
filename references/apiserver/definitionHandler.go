@@ -1,8 +1,11 @@
 package apiserver
 
 import (
+	"errors"
+
 	"github.com/gin-gonic/gin"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/references/apiserver/util"
 	"github.com/oam-dev/kubevela/references/common"
 )
@@ -17,10 +20,10 @@ import (
 // @Router /definitions/{definitionName} [get]
 func (s *APIServer) GetDefinition(c *gin.Context) {
 	definitionName := c.Param("name")
-	parameter, err := common.GetDefinition(definitionName)
+	cm, err := common.GetCapabilityConfigMap(s.KubeClient, definitionName)
 	if err != nil {
-		util.HandleError(c, util.StatusInternalServerError, err)
+		util.HandleError(c, util.StatusInternalServerError, errors.New("OpenAPI v3 JSON Schema is not ready"))
 		return
 	}
-	util.AssembleResponse(c, string(parameter), nil)
+	util.AssembleResponse(c, cm.Data[types.OpenapiV3JSONSchema], nil)
 }

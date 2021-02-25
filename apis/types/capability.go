@@ -86,6 +86,14 @@ const (
 	TypeScope CapType = "scope"
 )
 
+// CapabilityConfigMapNamePrefix is the prefix for capability ConfigMap name
+const CapabilityConfigMapNamePrefix = "schema-"
+
+const (
+	// OpenapiV3JSONSchema is the key to store OpenAPI v3 JSON schema in ConfigMap
+	OpenapiV3JSONSchema string = "openapi-v3-json-schema"
+)
+
 // CapabilityCategory defines the category of a capability
 type CapabilityCategory string
 

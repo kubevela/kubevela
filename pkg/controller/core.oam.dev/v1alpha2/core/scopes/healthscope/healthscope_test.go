@@ -428,7 +428,7 @@ func TestCheckDaemonsetHealth(t *testing.T) {
 }
 
 func TestCheckUnknownWorkload(t *testing.T) {
-	mockError := fmt.Errorf("mock error")
+	mockError := errors.New("mock error")
 	mockClient := test.NewMockClient()
 	unknownWL := runtimev1alpha1.TypedReference{}
 	tests := []struct {
