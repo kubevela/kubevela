@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -16,8 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -80,7 +79,7 @@ func (c *ComponentHandler) Generic(_ event.GenericEvent, _ workqueue.RateLimitin
 func isMatch(appConfigs *v1alpha2.ApplicationConfigurationList, compName string) (bool, types.NamespacedName) {
 	for _, app := range appConfigs.Items {
 		for _, comp := range app.Spec.Components {
-			if comp.ComponentName == compName || (strings.HasPrefix(comp.RevisionName, compName+"-")) {
+			if comp.ComponentName == compName || utils.ExtractComponentName(comp.RevisionName) == compName {
 				return true, types.NamespacedName{Namespace: app.Namespace, Name: app.Name}
 			}
 		}
