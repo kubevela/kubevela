@@ -79,8 +79,6 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	app.Status.Phase = v1alpha2.ApplicationRendering
 	handler := &appHandler{r, app, applog}
 
-	app.Status.Conditions = []v1alpha1.Condition{}
-
 	applog.Info("parse template")
 	// parse template
 	appParser := appfile.NewApplicationParser(r.Client, r.dm)
