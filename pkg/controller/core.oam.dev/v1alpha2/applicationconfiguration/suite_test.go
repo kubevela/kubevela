@@ -44,7 +44,7 @@ var k8sClient client.Client
 var scheme = runtime.NewScheme()
 var crd crdv1.CustomResourceDefinition
 
-func TestReconcilder(t *testing.T) {
+func TestReconcilerSuit(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	RunSpecsWithDefaultAndCustomReporters(t,
