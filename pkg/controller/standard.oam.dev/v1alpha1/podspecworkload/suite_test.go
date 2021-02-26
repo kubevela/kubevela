@@ -56,7 +56,8 @@ var _ = BeforeSuite(func(done Done) {
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("../../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
-			filepath.Join("..", "config", "crd", "bases")},
+			filepath.Join("..", "testdata/crds"),
+		},
 	}
 
 	var err error

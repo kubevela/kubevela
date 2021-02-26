@@ -1,0 +1,109 @@
+{{- if .Values.admissionWebhooks.enabled -}}
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ template "kubevela.fullname" . }}-admission
+  namespace: {{ .Release.Namespace }}
+  {{- if .Values.admissionWebhooks.certManager.enabled }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ printf "%s/%s-root-cert" .Release.Namespace (include "kubevela.fullname" .) | quote }}
+  {{- end }}
+webhooks:
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /mutating-core-oam-dev-v1alpha2-applicationconfigurations
+    {{- if .Values.admissionWebhooks.patch.enabled  }}
+    failurePolicy: Ignore
+    {{- else }}
+    failurePolicy: Fail
+    {{- end }}
+    name: mutating.core.oam.dev.v1alpha2.applicationconfigurations
+    rules:
+      - apiGroups:
+          - core.oam.dev
+        apiVersions:
+          - v1alpha2
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - applicationconfigurations
+        scope: Namespaced
+    admissionReviewVersions:
+      - v1beta1
+    timeoutSeconds: 5
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /mutating-core-oam-dev-v1alpha2-components
+    {{- if .Values.admissionWebhooks.patch.enabled  }}
+    failurePolicy: Ignore
+    {{- else }}
+    failurePolicy: Fails
+    {{- end }}
+    name: mutating.core.oam-dev.v1alpha2.components
+    rules:
+      - apiGroups:
+          - core.oam.dev
+        apiVersions:
+          - v1alpha2
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - components
+        scope: Namespaced
+    admissionReviewVersions:
+      - v1beta1
+    timeoutSeconds: 5
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /mutate-standard-oam-dev-v1alpha1-metricstrait
+    {{- if .Values.admissionWebhooks.patch.enabled  }}
+    failurePolicy: Ignore
+    {{- else }}
+    failurePolicy: Fails
+    {{- end }}
+    name: mmetricstrait.kb.io
+    rules:
+      - apiGroups:
+          - standard.oam.dev
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - metricstraits
+  - clientConfig:
+      caBundle: Cg==
+      service:
+        name: {{ template "kubevela.name" . }}-webhook
+        namespace: {{ .Release.Namespace }}
+        path: /mutate-standard-oam-dev-v1alpha1-podspecworkload
+    {{- if .Values.admissionWebhooks.patch.enabled  }}
+    failurePolicy: Ignore
+    {{- else }}
+    failurePolicy: Fails
+    {{- end }}
+    name: mcontainerized.kb.io
+    rules:
+      - apiGroups:
+          - standard.oam.dev
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - podspecworkloads
+
+{{- end -}}

@@ -3,12 +3,11 @@
 # Declare variables to be passed into your templates.
 
 replicaCount: 1
-installCertManager: false
 # Valid applyOnceOnly values: true/false/on/off/force
 applyOnceOnly: "off"
-useWebhook: true
-# By default, don't disable any builtin capabilities
-disableCaps: ""
+
+# By default, metrics are disabled due the prometheus dependency
+disableCaps: "metrics"
 image:
   repository: oamdev/vela-core
   tag: latest
@@ -77,10 +76,22 @@ tolerations: []
 
 affinity: {}
 
-# certificate related to the webhook
-certificate:
-  issuerName: selfsigned-issuer
-  certificateName: serving-cert
-  secretName: webhook-server-cert
-  mountPath: /etc/k8s-webhook-certs
-  caBundle: replace-me
+rbac:
+  create: true
+
+admissionWebhooks:
+  enabled: true
+  failurePolicy: Fail
+  certificate:
+    mountPath: /etc/k8s-webhook-certs
+  patch:
+    enabled: true
+    image:
+      repository: jettech/kube-webhook-certgen
+      tag: v1.5.0
+      pullPolicy: IfNotPresent
+    affinity: {}
+    tolerations: []
+  certManager:
+    enabled: false
+
