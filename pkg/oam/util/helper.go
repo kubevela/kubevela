@@ -301,12 +301,13 @@ func PassLabel(parentObj oam.Object, childObj labelAnnotationObject) {
 	childObj.SetLabels(MergeMapOverrideWithDst(parentObj.GetLabels(), childObj.GetLabels()))
 }
 
-// PassLabelAndAnnotation passes through labels and annotation objectMeta from the parent to the child object
+// PassLabelAndAnnotation passes through labels and annotation objectMeta from the parent to the child object,
+// when annotation or labels has conflicts, the parentObj will override the childObj.
 func PassLabelAndAnnotation(parentObj oam.Object, childObj labelAnnotationObject) {
 	// pass app-config labels
-	childObj.SetLabels(MergeMapOverrideWithDst(parentObj.GetLabels(), childObj.GetLabels()))
+	childObj.SetLabels(MergeMapOverrideWithDst(childObj.GetLabels(), parentObj.GetLabels()))
 	// pass app-config annotation
-	childObj.SetAnnotations(MergeMapOverrideWithDst(parentObj.GetAnnotations(), childObj.GetAnnotations()))
+	childObj.SetAnnotations(MergeMapOverrideWithDst(childObj.GetAnnotations(), parentObj.GetAnnotations()))
 }
 
 // GetDefinitionName return the Definition name of any resources
