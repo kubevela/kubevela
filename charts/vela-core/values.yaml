@@ -82,6 +82,8 @@ rbac:
 admissionWebhooks:
   enabled: true
   failurePolicy: Fail
+  certificate:
+    mountPath: /etc/k8s-webhook-certs
   patch:
     enabled: true
     image:

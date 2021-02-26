@@ -110,7 +110,7 @@ spec:
             {{ if .Values.admissionWebhooks.enabled }}
             - "--use-webhook=true"
             - "--webhook-port={{ .Values.webhookService.port }}"
-            - "--webhook-cert-dir=/etc/k8s-webhook-certs"
+            - "--webhook-cert-dir={{ .Values.admissionWebhooks.certificate.mountPath }}"
             {{ end }}
             - "--health-addr=:{{ .Values.healthCheck.port }}"
             - "--apply-once-only={{ .Values.applyOnceOnly }}"
@@ -142,7 +142,7 @@ spec:
             initialDelaySeconds: 90
             periodSeconds: 5
           volumeMounts:
-            - mountPath: /etc/k8s-webhook-certs
+            - mountPath: {{ .Values.admissionWebhooks.certificate.mountPath }}
               name: tls-cert-vol
               readOnly: true
           {{ end }}
