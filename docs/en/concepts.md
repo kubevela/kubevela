@@ -66,7 +66,7 @@ We also reference workload type and trait as "application/capability modules" in
 
 ## Definitions
 
-Both the schemas of workload settings and trait properties in `Application` are enforced by application modules that are pre-defined separately in a set of definition objects. The platform teams or component providers are responsible for registering and managing definitions in target cluster following [workload definition](https://github.com/oam-dev/spec/blob/master/4.workload_definitions.md) and [trait definition](https://github.com/oam-dev/spec/blob/master/6.traits.md) specifications in Open Application Model (OAM). 
+Both the schemas of workload settings and trait properties in `Application` are enforced by application modules that are pre-defined separately in a set of definition objects. The platform teams or component providers are responsible for registering and managing definitions in target cluster following [workload definition](https://github.com/oam-dev/spec/blob/master/4.workload_types.md) and [trait definition](https://github.com/oam-dev/spec/blob/master/6.traits.md) specifications in Open Application Model (OAM). 
 
 Currently, KubeVela supports [CUE](https://github.com/cuelang/cue) as the module type in definitions, with more types such as Helm and Terraform are coming in following releases. In the case of Helm, a chart could be directly referenced as a component type in `Application` and its `values.yaml` will become the component's specification.
 
