@@ -412,6 +412,16 @@ type WorkloadTrait struct {
 
 	// Message will allow controller to leave some additional information for this trait
 	Message string `json:"message,omitempty"`
+
+	// AppliedGeneration indicates the generation observed by the appConfig controller.
+	// The same field is also recorded in the annotations of traits.
+	// A trait is possible to be deleted from cluster after created.
+	// This field is useful to track the observed generation of traits after they are
+	// deleted.
+	AppliedGeneration int64 `json:"appliedGeneration,omitempty"`
+
+	// DependencyUnsatisfied notify does the trait has dependency unsatisfied
+	DependencyUnsatisfied bool `json:"dependencyUnsatisfied,omitempty"`
 }
 
 // A ScopeStatus represents the state of a scope.
@@ -442,12 +452,8 @@ type WorkloadStatus struct {
 	// DependencyUnsatisfied notify does the workload has dependency unsatisfied
 	DependencyUnsatisfied bool `json:"dependencyUnsatisfied,omitempty"`
 
-	// AppliedGeneration indicates the generation observed by the appConfig controller.
-	// The same field is also recorded in the annotations of workloads.
-	// A workload is possible to be deleted from cluster after created.
-	// This field is useful to track the observed generation of workloads after they are
-	// deleted.
-	AppliedGeneration int64 `json:"appliedGeneration,omitempty"`
+	// AppliedComponentRevision indicates the applied component revision name of this workload
+	AppliedComponentRevision string `json:"appliedComponentRevision,omitempty"`
 
 	// Reference to a workload created by an ApplicationConfiguration.
 	Reference runtimev1alpha1.TypedReference `json:"workloadRef,omitempty"`
