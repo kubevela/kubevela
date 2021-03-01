@@ -52,11 +52,7 @@ import (
 const (
 	reconcileTimeout = 1 * time.Minute
 	dependCheckWait  = 10 * time.Second
-	shortWait        = 30 * time.Second
-	longWait         = 1 * time.Minute
 )
-
-var errResult = reconcile.Result{RequeueAfter: shortWait}
 
 // Reconcile error strings.
 const (
@@ -230,7 +226,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 			// stop processing this resource
 			return ctrl.Result{}, nil
 		}
-		return errResult, errors.Wrap(err, errGetAppConfig)
+		return reconcile.Result{}, errors.Wrap(err, errGetAppConfig)
 	}
 	acPatch := ac.DeepCopy()
 	if ac.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -252,8 +248,8 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 	// make sure this is the last functional defer function to be called
 	defer func() {
 		// Make sure if error occurs, reconcile will not happen too frequency
-		if returnErr != nil && result.RequeueAfter < shortWait {
-			result.RequeueAfter = shortWait
+		if returnErr != nil {
+			result.RequeueAfter = 0
 		}
 	}()
 
@@ -291,11 +287,11 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 
 	// we have special logics for application generated applicationConfiguration
 	if isControlledByApp(ac) {
-		if ac.GetAnnotations()[oam.AnnotationNewAppConfig] == strconv.FormatBool(true) {
+		if ac.GetAnnotations()[oam.AnnotationAppRollout] == strconv.FormatBool(true) {
 			defer func() {
 				// we only flip the annotation after a successful reconcile
 				if returnErr == nil {
-					ac.GetAnnotations()[oam.AnnotationNewAppConfig] = strconv.FormatBool(false)
+					ac.GetAnnotations()[oam.AnnotationAppRollout] = strconv.FormatBool(false)
 					returnErr = r.client.Update(ctx, ac)
 				}
 			}()
@@ -304,20 +300,20 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 
 	workloads, depStatus, err := r.components.Render(ctx, ac)
 	if err != nil {
-		log.Info("Cannot render components", "error", err, "requeue-after", time.Now().Add(shortWait))
+		log.Info("Cannot render components", "error", err)
 		r.record.Event(ac, event.Warning(reasonCannotRenderComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errRenderComponents)))
-		return errResult, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
+		return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 	}
 	log.Debug("Successfully rendered components", "workloads", len(workloads))
 	r.record.Event(ac, event.Normal(reasonRenderComponents, "Successfully rendered components", "workloads", strconv.Itoa(len(workloads))))
 
 	applyOpts := []apply.ApplyOption{apply.MustBeControllableBy(ac.GetUID()), applyOnceOnly(ac, r.applyOnceOnlyMode, log)}
 	if err := r.workloads.Apply(ctx, ac.Status.Workloads, workloads, applyOpts...); err != nil {
-		log.Debug("Cannot apply workload", "error", err, "requeue-after", time.Now().Add(shortWait))
+		log.Debug("Cannot apply workload", "error", err)
 		r.record.Event(ac, event.Warning(reasonCannotApplyComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyComponents)))
-		return errResult, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
+		return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 	}
 	log.Debug("Successfully applied components", "workloads", len(workloads))
 	r.record.Event(ac, event.Normal(reasonApplyComponents, "Successfully applied components", "workloads", strconv.Itoa(len(workloads))))
@@ -334,10 +330,10 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		record := r.record.WithAnnotations("kind", e.GetKind(), "name", e.GetName())
 
 		if err := r.client.Delete(ctx, &e); resource.IgnoreNotFound(err) != nil {
-			log.Debug("Cannot garbage collect component", "error", err, "requeue-after", time.Now().Add(shortWait))
+			log.Debug("Cannot garbage collect component", "error", err)
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGCComponent)))
-			return errResult, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
+			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 		}
 		log.Debug("Garbage collected resource")
 		record.Event(ac, event.Normal(reasonGGComponent, "Successfully garbage collected component"))
@@ -347,7 +343,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 	r.updateStatus(ctx, ac, acPatch, workloads)
 
 	ac.Status.Dependency = v1alpha2.DependencyStatus{}
-	waitTime := longWait
+	var waitTime time.Duration
 	if len(depStatus.Unsatisfied) != 0 {
 		waitTime = dependCheckWait
 		ac.Status.Dependency = *depStatus
@@ -464,6 +460,9 @@ func hasScope(ac *v1alpha2.ApplicationConfiguration) bool {
 
 // A Workload produced by an OAM ApplicationConfiguration.
 type Workload struct {
+	// SkipApply indicates that the workload should not be applied
+	SkipApply bool
+
 	// ComponentName that produced this workload.
 	ComponentName string
 

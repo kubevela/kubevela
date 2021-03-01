@@ -33,6 +33,12 @@ func ValidateCreate(rollout *v1alpha1.RolloutPlan, rootPath *field.Path) field.E
 	var allErrs field.ErrorList
 	// TODO: The total number of num in the batches match the current target resource pod size
 
+	// the rollout batch partition is either automatic or positive
+	if rollout.BatchPartition != nil && *rollout.BatchPartition < 0 {
+		allErrs = append(allErrs, field.Invalid(rootPath.Child("batchPartition"), rollout.BatchPartition,
+			"the rollout plan has to be positive"))
+	}
+
 	// NumBatches has to be the size of RolloutBatches
 	if rollout.NumBatches != nil && len(rollout.RolloutBatches) != int(*rollout.NumBatches) {
 		allErrs = append(allErrs, field.Invalid(rootPath.Child("numBatches"), rollout.NumBatches,

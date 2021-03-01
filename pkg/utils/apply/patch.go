@@ -120,7 +120,10 @@ func getModifiedConfiguration(obj runtime.Object, updateAnnotation bool) ([]byte
 
 	if updateAnnotation {
 		annots[oam.AnnotationLastAppliedConfig] = string(modified)
-		_ = metadataAccessor.SetAnnotations(obj, annots)
+		err = metadataAccessor.SetAnnotations(obj, annots)
+		if err != nil {
+			return nil, err
+		}
 		modified, err = json.Marshal(obj)
 		if err != nil {
 			return nil, err

@@ -54,7 +54,7 @@ func prepWorkloadInstanceForRollout(workload *unstructured.Unstructured) error {
 	// TODO: we can get the workloadDefinition name from workload.GetLabels()["oam.WorkloadTypeLabel"]
 	// and use a special field like "disablePath" in the definition to allow configurable behavior
 
-	// we hard code the behavior depends on the known workload group/kind for now. We need to
+	// we hard code the behavior depends on the known workload group/kind for now.
 	if workload.GroupVersionKind().Group == v1alpha1.GroupVersion.Group {
 		switch workload.GetKind() {
 		case reflect.TypeOf(v1alpha1.CloneSet{}).Name():

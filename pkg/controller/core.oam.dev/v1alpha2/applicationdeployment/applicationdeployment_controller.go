@@ -10,6 +10,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ktypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"k8s.io/kubectl/pkg/util/slice"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -17,13 +18,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	oamv1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const appDeployFinalizer = "finalizers.applicationdeployment.oam.dev"
-const reconcileTimeOut = 30 * time.Second
+const reconcileTimeOut = 60 * time.Second
 
 // Reconciler reconciles an ApplicationDeployment object
 type Reconciler struct {
@@ -71,7 +75,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 
 	// Get the target application
 	var targetApp oamv1alpha2.ApplicationConfiguration
-	var sourceApp *oamv1alpha2.ApplicationConfiguration
+	sourceApp := &oamv1alpha2.ApplicationConfiguration{}
 	targetAppName := appDeploy.Spec.TargetApplicationName
 	if err := r.Get(ctx, ktypes.NamespacedName{Namespace: req.Namespace, Name: targetAppName},
 		&targetApp); err != nil {
@@ -84,6 +88,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	sourceAppName := appDeploy.Spec.SourceApplicationName
 	if sourceAppName == "" {
 		klog.Info("source app fields not filled, we assume it is deployed for the first time")
+		sourceApp = nil
 	} else if err := r.Get(ctx, ktypes.NamespacedName{Namespace: req.Namespace, Name: sourceAppName}, sourceApp); err != nil {
 		klog.ErrorS(err, "cannot locate source application", "source application", klog.KRef(req.Namespace,
 			sourceAppName))
@@ -109,8 +114,29 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	result, rolloutStatus := rolloutPlanController.Reconcile(ctx)
 	// make sure that the new status is copied back
 	appDeploy.Status.RolloutStatus = *rolloutStatus
+	if rolloutStatus.RollingState == v1alpha1.RolloutSucceedState {
+		// remove the rollout annotation so that the target appConfig controller can take over the rest of the work
+		oamutil.RemoveAnnotations(&targetApp, []string{oam.AnnotationAppRollout})
+		if err := r.Update(ctx, &targetApp); err != nil {
+			klog.ErrorS(err, "cannot remove the rollout annotation", "target application",
+				klog.KRef(req.Namespace, targetAppName))
+			return ctrl.Result{}, err
+		}
+	}
 	// update the appDeploy status
-	return result, r.Update(ctx, &appDeploy)
+	return result, r.updateStatus(ctx, &appDeploy)
+}
+
+// UpdateStatus updates v1alpha2.ApplicationDeployment's Status with retry.RetryOnConflict
+func (r *Reconciler) updateStatus(ctx context.Context, app *oamv1alpha2.ApplicationDeployment, opts ...client.UpdateOption) error {
+	status := app.DeepCopy().Status
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+		if err = r.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, app); err != nil {
+			return
+		}
+		app.Status = status
+		return r.Status().Update(ctx, app, opts...)
+	})
 }
 
 func (r *Reconciler) handleFinalizer(appDeploy *oamv1alpha2.ApplicationDeployment) {

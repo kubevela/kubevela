@@ -157,11 +157,13 @@ func (r *RolloutStatus) RolloutFailed(reason string) {
 func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 	rollingState := r.RollingState
 	batchRollingState := r.BatchRollingState
-	defer klog.InfoS("try to execute a rollout state transition",
-		"pre rolling state", rollingState,
-		"pre batch rolling state", batchRollingState,
-		"post rolling state", r.RollingState,
-		"post batch rolling state", r.BatchRollingState)
+	defer func() {
+		klog.InfoS("try to execute a rollout state transition",
+			"pre rolling state", rollingState,
+			"pre batch rolling state", batchRollingState,
+			"post rolling state", r.RollingState,
+			"post batch rolling state", r.BatchRollingState)
+	}()
 
 	// we have special transition for these two types of event
 	if event == RollingFailedEvent || event == RollingRetriableFailureEvent {

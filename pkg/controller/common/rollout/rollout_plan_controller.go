@@ -3,9 +3,11 @@ package rollout
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	kruisev1 "github.com/openkruise/kruise-api/apps/v1alpha1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -37,15 +39,22 @@ type Controller struct {
 
 // NewRolloutPlanController creates a RolloutPlanController
 func NewRolloutPlanController(client client.Client, parentController oam.Object, recorder event.Recorder,
-	rolloutSpec *v1alpha1.RolloutPlan,
-	rolloutStatus *v1alpha1.RolloutStatus, targetWorkload,
-	sourceWorkload *unstructured.Unstructured) *Controller {
+	rolloutSpec *v1alpha1.RolloutPlan, rolloutStatus *v1alpha1.RolloutStatus,
+	targetWorkload, sourceWorkload *unstructured.Unstructured) *Controller {
+	initializedRolloutStatus := rolloutStatus.DeepCopy()
+	// use Mutation webhook?
+	if len(initializedRolloutStatus.RollingState) == 0 {
+		initializedRolloutStatus.RollingState = v1alpha1.VerifyingState
+	}
+	if len(initializedRolloutStatus.BatchRollingState) == 0 {
+		initializedRolloutStatus.BatchRollingState = v1alpha1.BatchInitializingState
+	}
 	return &Controller{
 		client:           client,
 		parentController: parentController,
 		recorder:         recorder,
 		rolloutSpec:      rolloutSpec.DeepCopy(),
-		rolloutStatus:    rolloutStatus.DeepCopy(),
+		rolloutStatus:    initializedRolloutStatus,
 		targetWorkload:   targetWorkload,
 		sourceWorkload:   sourceWorkload,
 	}
@@ -56,16 +65,17 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 	klog.InfoS("Reconcile the rollout plan", "rollout Spec", r.rolloutSpec,
 		"target workload", klog.KObj(r.targetWorkload))
 	if r.sourceWorkload != nil {
-		klog.InfoS("we will do rolling upgrades", "source workload", klog.KObj(r.sourceWorkload))
+		klog.InfoS("We will do rolling upgrades", "source workload", klog.KObj(r.sourceWorkload))
 	}
-	klog.InfoS("rollout spec ", "rollout state", r.rolloutStatus.RollingState, "batch rolling state",
+	klog.InfoS("rollout status", "rollout state", r.rolloutStatus.RollingState, "batch rolling state",
 		r.rolloutStatus.BatchRollingState, "current batch", r.rolloutStatus.CurrentBatch, "upgraded Replicas",
 		r.rolloutStatus.UpgradedReplicas)
 
-	defer klog.InfoS("Finished reconciling rollout plan", "rollout state", status.RollingState,
-		"batch rolling state", status.BatchRollingState, "current batch", status.CurrentBatch,
-		"upgraded Replicas", status.UpgradedReplicas, "reconcile result ", res)
-
+	defer func() {
+		klog.InfoS("Finished reconciling rollout plan", "rollout state", status.RollingState,
+			"batch rolling state", status.BatchRollingState, "current batch", status.CurrentBatch,
+			"upgraded Replicas", status.UpgradedReplicas, "reconcile result ", res)
+	}()
 	status = r.rolloutStatus
 
 	defer func() {
@@ -293,6 +303,8 @@ func (r *Controller) validateRollingBatchStatus(totalSize int) bool {
 		if i < currentBatch {
 			batchSize, _ := intstr.GetValueFromIntOrPercent(&r.Replicas, totalSize, true)
 			podCount += batchSize
+		} else {
+			break
 		}
 	}
 	// the recorded number should be at least as much as the all the pods before the current batch
@@ -327,12 +339,11 @@ func (r *Controller) GetWorkloadController() (workloads.WorkloadController, erro
 		Name:      r.targetWorkload.GetName(),
 	}
 
-	switch kind {
-	case "CloneSet":
-		return workloads.NewCloneSetController(r.client, r.recorder, r.parentController,
-			r.rolloutSpec, r.rolloutStatus, target), nil
-
-	default:
-		return nil, fmt.Errorf("the workload kind `%s` is not supported", kind)
+	if r.targetWorkload.GroupVersionKind().Group == kruisev1.GroupVersion.Group {
+		if r.targetWorkload.GetKind() == reflect.TypeOf(kruisev1.CloneSet{}).Name() {
+			return workloads.NewCloneSetController(r.client, r.recorder, r.parentController,
+				r.rolloutSpec, r.rolloutStatus, target), nil
+		}
 	}
+	return nil, fmt.Errorf("the workload kind `%s` is not supported", kind)
 }

@@ -119,7 +119,6 @@ spec:
                 required:
                 - name
                 - revision
-                - revisionHash
                 type: object
               observedGeneration:
                 description: The generation observed by the component controller.

@@ -553,19 +553,18 @@ func AddAnnotations(o labelAnnotationObject, annos map[string]string) {
 	o.SetAnnotations(MergeMapOverrideWithDst(o.GetAnnotations(), annos))
 }
 
-// MergeMapOverrideWithDst merges two could be nil maps. If any conflicts, override src with dst.
+// MergeMapOverrideWithDst merges two could be nil maps. Keep the dst for any conflicts,
 func MergeMapOverrideWithDst(src, dst map[string]string) map[string]string {
 	if src == nil && dst == nil {
 		return nil
 	}
 	r := make(map[string]string)
-	for k, v := range dst {
+	for k, v := range src {
 		r[k] = v
 	}
-	for k, v := range src {
-		if _, exist := r[k]; !exist {
-			r[k] = v
-		}
+	// override the src for the same key
+	for k, v := range dst {
+		r[k] = v
 	}
 	return r
 }

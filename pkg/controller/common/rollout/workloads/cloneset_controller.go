@@ -92,19 +92,10 @@ func (c *CloneSetController) Verify(ctx context.Context) (status *v1alpha1.Rollo
 		return
 	}
 
-	// the rollout batch partition is either automatic or zero
-	if c.rolloutSpec.BatchPartition != nil && *c.rolloutSpec.BatchPartition != 0 {
-		verifyErr = fmt.Errorf("the rollout plan has to start from zero, partition= %d", *c.rolloutSpec.BatchPartition)
-		c.rolloutStatus.RolloutFailed(verifyErr.Error())
-		return
-	}
-
-	// Cloneset should not be in the middle of an upgrade (the number of new version pod should be 0)
-	oldVersionPod, _ := intstr.GetValueFromIntOrPercent(c.cloneSet.Spec.UpdateStrategy.Partition, int(totalReplicas),
-		true)
-	if oldVersionPod != int(totalReplicas) {
-		verifyErr = fmt.Errorf("the cloneset was still in the middle of updating, number of old pods= %d", oldVersionPod)
-		c.rolloutStatus.RolloutFailed(verifyErr.Error())
+	if !c.cloneSet.Spec.UpdateStrategy.Paused {
+		verifyErr = fmt.Errorf("the cloneset %s is in the middle of updating, need to be paused first",
+			c.cloneSet.GetName())
+		c.rolloutStatus.RolloutRetry(verifyErr.Error())
 		return
 	}
 
@@ -117,11 +108,22 @@ func (c *CloneSetController) Verify(ctx context.Context) (status *v1alpha1.Rollo
 
 // Initialize makes sure that
 func (c *CloneSetController) Initialize(ctx context.Context) *v1alpha1.RolloutStatus {
-	if c.fetchCloneSet(ctx) != nil {
+	totalReplicas, err := c.Size(ctx)
+	if err != nil {
 		return c.rolloutStatus
 	}
+	// kick start the update and start from every pod in the old version
+	clonePatch := client.MergeFrom(c.cloneSet.DeepCopyObject())
+	c.cloneSet.Spec.UpdateStrategy.Paused = false
+	c.cloneSet.Spec.UpdateStrategy.Partition = &intstr.IntOrString{Type: intstr.Int, IntVal: totalReplicas}
 
-	// mark the rollout initialized, there is nothing we need to do for Cloneset for now
+	// patch the CloneSet
+	if err := c.client.Patch(ctx, c.cloneSet, clonePatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
+		c.recorder.Event(c.parentController, event.Warning("Failed to the start the cloneset update", err))
+		c.rolloutStatus.RolloutRetry(err.Error())
+		return c.rolloutStatus
+	}
+	// mark the rollout initialized
 	c.recorder.Event(c.parentController, event.Normal("Initialized", "Rollout resource are initialized"))
 	c.rolloutStatus.StateTransition(v1alpha1.RollingInitializedEvent)
 	return c.rolloutStatus
@@ -139,7 +141,7 @@ func (c *CloneSetController) RolloutOneBatchPods(ctx context.Context) *v1alpha1.
 		IntVal: cloneSetSize - int32(newPodTarget)}
 	// patch the Cloneset
 	if err := c.client.Patch(ctx, c.cloneSet, clonePatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
-		c.recorder.Event(c.parentController, event.Warning("Failed to patch update the Cloneset", err))
+		c.recorder.Event(c.parentController, event.Warning("Failed to update the cloneset to upgrade", err))
 		c.rolloutStatus.RolloutRetry(err.Error())
 		return c.rolloutStatus
 	}

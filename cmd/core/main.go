@@ -27,6 +27,7 @@ import (
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -117,7 +118,7 @@ func main() {
 	} else {
 		w = os.Stdout
 	}
-
+	klog.InitFlags(nil)
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
 		o.Development = true
 		o.DestWritter = w
