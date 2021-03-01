@@ -408,8 +408,13 @@ func updateObservedGeneration(ac *v1alpha2.ApplicationConfiguration) {
 	}
 	for i, w := range ac.Status.Workloads {
 		// only the workload meet all dependency can mean the generation applied successfully
-		if w.AppliedGeneration != ac.Generation && !w.DependencyUnsatisfied {
-			ac.Status.Workloads[i].AppliedGeneration = ac.GetGeneration()
+		if w.AppliedComponentRevision != w.ComponentRevisionName && !w.DependencyUnsatisfied {
+			ac.Status.Workloads[i].AppliedComponentRevision = w.ComponentRevisionName
+		}
+		for j, t := range w.Traits {
+			if t.AppliedGeneration != ac.Generation && !t.DependencyUnsatisfied {
+				ac.Status.Workloads[i].Traits[j].AppliedGeneration = ac.Generation
+			}
 		}
 	}
 }
@@ -532,6 +537,7 @@ func (w Workload) Status() v1alpha2.WorkloadStatus {
 			Kind:       w.Traits[i].Object.GetKind(),
 			Name:       w.Traits[i].Object.GetName(),
 		}
+		acw.Traits[i].DependencyUnsatisfied = tr.HasDep
 	}
 	for i, s := range w.Scopes {
 		acw.Scopes[i].Reference = v1alpha1.TypedReference{
@@ -650,47 +656,49 @@ func applyOnceOnly(ac *v1alpha2.ApplicationConfiguration, mode core.ApplyOnceOnl
 			}
 
 			createdBefore := false
+			var appliedRevision, appliedGeneration string
 			for _, w := range ac.Status.Workloads {
 				// traverse recorded workloads to find the one matching applied resource
 				if w.Reference.GetObjectKind().GroupVersionKind() == desired.GetObjectKind().GroupVersionKind() &&
 					w.Reference.Name == d.GetName() {
 					// the workload matches applied resource
 					createdBefore = true
-
 					// for workload, when revision enabled, only when revision changed that can trigger to create a new one
-					if dLabels[oam.LabelOAMResourceType] == oam.ResourceTypeWorkload && w.ComponentRevisionName == dLabels[oam.LabelAppComponentRevision] {
+					if dLabels[oam.LabelOAMResourceType] == oam.ResourceTypeWorkload && w.AppliedComponentRevision == dLabels[oam.LabelAppComponentRevision] {
 						// the revision is not changed, so return an error to abort creating it
 						return &GenerationUnchanged{}
 					}
+					appliedRevision = w.AppliedComponentRevision
+					break
 				}
-				if !createdBefore {
-					// the workload is not matched, then traverse its traits to find matching one
-					for _, t := range w.Traits {
-						if t.Reference.GetObjectKind().GroupVersionKind() == desired.GetObjectKind().GroupVersionKind() &&
-							t.Reference.Name == d.GetName() {
-							// the trait matches applied resource
-							createdBefore = true
+				// the workload is not matched, then traverse its traits to find matching one
+				for _, t := range w.Traits {
+					if t.Reference.GetObjectKind().GroupVersionKind() == desired.GetObjectKind().GroupVersionKind() &&
+						t.Reference.Name == d.GetName() {
+						// the trait matches applied resource
+						createdBefore = true
+						// the resource was created before and appConfig status recorded the resource version applied
+						// if recorded AppliedGeneration and ComponentRevisionName both equal to the applied resource's,
+						// that means its spec is not changed
+						if dLabels[oam.LabelOAMResourceType] == oam.ResourceTypeTrait &&
+							w.ComponentRevisionName == dLabels[oam.LabelAppComponentRevision] &&
+							strconv.FormatInt(t.AppliedGeneration, 10) == dAnnots[oam.AnnotationAppGeneration] {
+							// the revision is not changed, so return an error to abort creating it
+							return &GenerationUnchanged{}
 						}
+						appliedGeneration = strconv.FormatInt(t.AppliedGeneration, 10)
+						break
 					}
-				}
-				// don't use if-else here because it will miss the case that the resource is a trait
-				if createdBefore {
-					// the resource was created before and appConfig status recorded the resource version applied
-					// if recorded AppliedGeneration and ComponentRevisionName both equal to the applied resource's,
-					// that means its spec is not changed
-					if (strconv.Itoa(int(w.AppliedGeneration)) != dAnnots[oam.AnnotationAppGeneration]) ||
-						(w.ComponentRevisionName != dLabels[oam.LabelAppComponentRevision]) {
-						log.Info("apply only once with mode: "+string(mode)+", but condition not meet, will create new",
-							oam.AnnotationAppGeneration, strconv.Itoa(int(w.AppliedGeneration))+"/"+dAnnots[oam.AnnotationAppGeneration],
-							oam.LabelAppComponentRevision, w.ComponentRevisionName+"/"+dLabels[oam.LabelAppComponentRevision])
-						// its spec is changed, so re-create the resource
-						return nil
-					}
-					// its spec is not changed, so return an error to abort creating it
-					return &GenerationUnchanged{}
 				}
 			}
-			log.Info("apply only once with mode: force, but resource not created before, will create new", "appConfig", ac.Name)
+			var message = "apply only once with mode: force, but resource not created before, will create new"
+			if createdBefore {
+				message = "apply only once with mode: force, but resource updated, will create new"
+			}
+			log.Info(message, "appConfig", ac.Name, "gvk", desired.GetObjectKind().GroupVersionKind(), "name", d.GetName(),
+				"resourceType", dLabels[oam.LabelOAMResourceType], "appliedCompRevision", appliedRevision, "labeledCompRevision", dLabels[oam.LabelAppComponentRevision],
+				"appliedGeneration", appliedGeneration, "labeledGeneration", dAnnots[oam.AnnotationAppGeneration])
+
 			// no recorded workloads nor traits matches the applied resource
 			// that means the resource is not created before, so create it
 			return nil
