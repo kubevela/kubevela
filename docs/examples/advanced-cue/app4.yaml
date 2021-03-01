@@ -5,7 +5,7 @@ metadata:
 spec:
   components:
     - name: express-server4
-      type: webserver
+      type: webservice
       settings:
         cmd:
           - node

@@ -45,6 +45,10 @@ spec:
             rolloutPlan:
               description: RolloutPlan is the details on how to rollout the resources
               properties:
+                batchPartition:
+                  description: All pods in the batches up to the batchPartition (included) will have the target resource specification while the rest still have the source resource This is designed for the operators to manually rollout Default is the the number of batches which will rollout all the batches
+                  format: int32
+                  type: integer
                 canaryMetric:
                   description: CanaryMetric provides a way for the rollout process to automatically check certain metrics before complete the process
                   items:
@@ -96,10 +100,6 @@ spec:
                     - name
                     type: object
                   type: array
-                lastBatchToRollout:
-                  description: All pods in the batches up to the batchPartition (included) will have the target resource specification while the rest still have the source resource This is designed for the operators to manually rollout Default is the the number of batches which will rollout all the batches
-                  format: int32
-                  type: integer
                 numBatches:
                   description: The number of batches, default = 1
                   format: int32

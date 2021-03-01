@@ -112,16 +112,18 @@ var _ = Describe("Test Application apply", func() {
 
 		By("Verify that the application status has the lastRevision name ")
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
-		Expect(curApp.Status.LatestRevision.Name).Should(Equal(app.Name + "-v1"))
+		Expect(curApp.Status.LatestRevision.Name).Should(Equal(utils.ConstructRevisionName(app.Name, 1)))
 		curAC := &v1alpha2.ApplicationConfiguration{}
 		Expect(handler.r.Get(ctx,
-			types.NamespacedName{Namespace: ns.Name, Name: app.Name + "-v1"},
+			types.NamespacedName{Namespace: ns.Name, Name: utils.ConstructRevisionName(app.Name, 1)},
 			curAC)).NotTo(HaveOccurred())
 		// check that the annotation/labels are correctly applied
-		Expect(curAC.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(BeIdenticalTo("true"))
 		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
 		hashValue := curAC.GetLabels()[oam.LabelAppConfigHash]
+		Expect(hashValue).ShouldNot(BeEmpty())
 		Expect(curApp.Status.LatestRevision.RevisionHash).Should(Equal(hashValue))
+
+		// TODO: verify that label and annotation change will be passed down
 
 		By("[TEST] apply the same appConfig mimic application controller, should do nothing")
 		// this should not lead to a new AC
@@ -138,9 +140,10 @@ var _ = Describe("Test Application apply", func() {
 
 		By("Verify that the lastest revision does not change")
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
-		Expect(curApp.Status.LatestRevision.Name).Should(Equal(app.Name + "-v1"))
+		Expect(curApp.Status.LatestRevision.Name).Should(Equal(utils.ConstructRevisionName(app.Name, 1)))
+		Expect(curApp.Status.LatestRevision.RevisionHash).Should(Equal(hashValue))
 		Expect(handler.r.Get(ctx,
-			types.NamespacedName{Namespace: ns.Name, Name: app.Name + "-v1"},
+			types.NamespacedName{Namespace: ns.Name, Name: curApp.Status.LatestRevision.Name},
 			curAC)).NotTo(HaveOccurred())
 
 		By("[TEST] Modify the applicationConfiguration mimic AC controller, should only update")
@@ -148,8 +151,8 @@ var _ = Describe("Test Application apply", func() {
 		curAC.Status.SetConditions(readyCondition("newType"))
 		Expect(handler.r.Status().Update(ctx, curAC)).NotTo(HaveOccurred())
 		// set the new AppConfig annotation as false AC controller would do
-		cl := curAC.GetAnnotations()
-		cl[oam.AnnotationNewAppConfig] = strconv.FormatBool(false)
+		cl := make(map[string]string)
+		cl[oam.AnnotationAppRollout] = strconv.FormatBool(false)
 		curAC.SetAnnotations(cl)
 		Expect(handler.r.Update(ctx, curAC)).NotTo(HaveOccurred())
 		// this should not lead to a new AC
@@ -166,17 +169,18 @@ var _ = Describe("Test Application apply", func() {
 
 		By("Verify that the lastest revision does not change")
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
-		Expect(curApp.Status.LatestRevision.Name).Should(Equal(app.Name + "-v1"))
+		Expect(curApp.Status.LatestRevision.Name).Should(Equal(utils.ConstructRevisionName(app.Name, 1)))
+		Expect(curApp.Status.LatestRevision.RevisionHash).Should(Equal(hashValue))
 		Expect(handler.r.Get(ctx,
-			types.NamespacedName{Namespace: ns.Name, Name: app.Name + "-v1"},
+			types.NamespacedName{Namespace: ns.Name, Name: curApp.Status.LatestRevision.Name},
 			curAC)).NotTo(HaveOccurred())
 		// check that the new app annotation is false
-		Expect(curAC.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(Equal(strconv.FormatBool(false)))
+		Expect(curAC.GetAnnotations()[oam.AnnotationAppRollout]).Should(Equal(strconv.FormatBool(false)))
 		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).Should(Equal(hashValue))
 		Expect(curAC.GetCondition("newType").Status).Should(BeEquivalentTo(corev1.ConditionTrue))
 		// check that no new appConfig created
-		Expect(handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: app.Name + "-v2"},
-			curAC)).Should(&oamutil.NotFoundMatcher{})
+		Expect(handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name,
+			Name: utils.ConstructRevisionName(app.Name, 2)}, curAC)).Should(&oamutil.NotFoundMatcher{})
 
 		By("[TEST] Modify the applicationConfiguration spec, should lead to a new AC")
 		// update the spec of the AC which should lead to a new AC being created
@@ -215,9 +219,8 @@ var _ = Describe("Test Application apply", func() {
 
 		// check that the new app annotation exist and the hash value has changed
 		Expect(handler.r.Get(ctx,
-			types.NamespacedName{Namespace: ns.Name, Name: app.Name + "-v2"},
+			types.NamespacedName{Namespace: ns.Name, Name: curApp.Status.LatestRevision.Name},
 			curAC)).NotTo(HaveOccurred())
-		Expect(curAC.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(BeIdenticalTo(strconv.FormatBool(true)))
 		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
 		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(Equal(hashValue))
 		// check that no more new appConfig created

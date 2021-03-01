@@ -98,7 +98,7 @@ type RolloutPlan struct {
 	// This is designed for the operators to manually rollout
 	// Default is the the number of batches which will rollout all the batches
 	// +optional
-	BatchPartition *int32 `json:"lastBatchToRollout,omitempty"`
+	BatchPartition *int32 `json:"batchPartition,omitempty"`
 
 	// Paused the rollout, default is false
 	// +optional

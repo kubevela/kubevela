@@ -296,7 +296,7 @@ type ComponentStatus struct {
 type Revision struct {
 	Name         string `json:"name"`
 	Revision     int64  `json:"revision"`
-	RevisionHash string `json:"revisionHash"`
+	RevisionHash string `json:"revisionHash,omitempty"`
 }
 
 // +kubebuilder:object:root=true

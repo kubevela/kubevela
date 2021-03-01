@@ -41,7 +41,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
@@ -158,7 +157,7 @@ func TestReconciler(t *testing.T) {
 				},
 			},
 			want: want{
-				result: reconcile.Result{RequeueAfter: shortWait},
+				result: reconcile.Result{},
 				err:    errors.Wrap(errBoom, errGetAppConfig),
 			},
 		},
@@ -187,7 +186,7 @@ func TestReconciler(t *testing.T) {
 				},
 			},
 			want: want{
-				result: reconcile.Result{RequeueAfter: shortWait},
+				result: reconcile.Result{},
 			},
 		},
 		"ApplyComponentsError": {
@@ -217,7 +216,7 @@ func TestReconciler(t *testing.T) {
 				},
 			},
 			want: want{
-				result: reconcile.Result{RequeueAfter: shortWait},
+				result: reconcile.Result{},
 			},
 		},
 		"GCDeleteError": {
@@ -251,7 +250,7 @@ func TestReconciler(t *testing.T) {
 				},
 			},
 			want: want{
-				result: reconcile.Result{RequeueAfter: shortWait},
+				result: reconcile.Result{},
 			},
 		},
 		"Has dependency": {
@@ -355,7 +354,7 @@ func TestReconciler(t *testing.T) {
 						return reconcile.Result{RequeueAfter: 15 * time.Second}, errBoom
 					})),
 					WithPosthook("postHook", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
-						return reconcile.Result{RequeueAfter: shortWait}, nil
+						return reconcile.Result{}, nil
 					})),
 				},
 			},
@@ -423,7 +422,7 @@ func TestReconciler(t *testing.T) {
 						return []unstructured.Unstructured{*trait}
 					})),
 					WithPosthook("preHookSuccess", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
-						return reconcile.Result{RequeueAfter: shortWait}, nil
+						return reconcile.Result{}, nil
 					})),
 					WithPosthook("preHookFailed", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
 						return reconcile.Result{RequeueAfter: 15 * time.Second}, errBoom
@@ -474,7 +473,7 @@ func TestReconciler(t *testing.T) {
 						return reconcile.Result{RequeueAfter: 15 * time.Second}, errBoom
 					})),
 					WithPosthook("preHookSuccess", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
-						return reconcile.Result{RequeueAfter: shortWait}, nil
+						return reconcile.Result{}, nil
 					})),
 					WithPosthook("preHookFailed", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
 						return reconcile.Result{RequeueAfter: 15 * time.Second}, errBoom
@@ -541,15 +540,15 @@ func TestReconciler(t *testing.T) {
 						return []unstructured.Unstructured{*trait}
 					})),
 					WithPrehook("preHook", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
-						return reconcile.Result{RequeueAfter: shortWait}, nil
+						return reconcile.Result{}, nil
 					})),
 					WithPosthook("postHook", ControllerHooksFn(func(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, logger logging.Logger) (reconcile.Result, error) {
-						return reconcile.Result{RequeueAfter: shortWait}, nil
+						return reconcile.Result{}, nil
 					})),
 				},
 			},
 			want: want{
-				result: reconcile.Result{RequeueAfter: longWait},
+				result: reconcile.Result{RequeueAfter: 0},
 			},
 		},
 		"RegisterFinalizer": {

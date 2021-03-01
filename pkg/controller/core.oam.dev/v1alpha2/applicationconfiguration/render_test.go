@@ -92,20 +92,27 @@ func TestRender(t *testing.T) {
 		},
 	}
 
-	controlledAC := revAC.DeepCopy()
-	controlledAC.OwnerReferences = []metav1.OwnerReference{
+	controlledTemplateAC := revAC.DeepCopy()
+	controlledTemplateAC.OwnerReferences = []metav1.OwnerReference{
 		{
 			APIVersion: v1alpha2.SchemeGroupVersion.String(),
 			Kind:       v1alpha2.ApplicationKind,
 			Controller: pointer.BoolPtr(true),
 		},
 	}
-	controlledAC.Spec.Components[0].RevisionName = revisionName2
-	controlledAC.SetAnnotations(map[string]string{
-		oam.AnnotationNewAppConfig:     strconv.FormatBool(true),
+	controlledTemplateAC.Spec.Components[0].RevisionName = revisionName2
+	controlledTemplateAC.SetAnnotations(map[string]string{
+		oam.AnnotationAppRollout:       strconv.FormatBool(true),
 		oam.AnnotationRollingComponent: revisionName + "," + revisionName2,
 		"keep":                         strconv.FormatBool(true),
 	})
+	controlledNoneTemplateAC := controlledTemplateAC.DeepCopy()
+	controlledNoneTemplateAC.SetAnnotations(map[string]string{
+		oam.AnnotationAppRollout:       strconv.FormatBool(false),
+		oam.AnnotationRollingComponent: revisionName + "," + revisionName2,
+		"keep":                         strconv.FormatBool(true),
+	})
+
 	ref := metav1.NewControllerRef(ac, v1alpha2.ApplicationConfigurationGroupVersionKind)
 	errTrait := errors.New("errTrait")
 
@@ -599,7 +606,7 @@ func TestRender(t *testing.T) {
 					return t, nil
 				}),
 			},
-			args: args{ac: controlledAC},
+			args: args{ac: controlledTemplateAC},
 			want: want{
 				w: []Workload{
 					{
@@ -677,10 +684,89 @@ func TestRender(t *testing.T) {
 					return t, nil
 				}),
 			},
-			args: args{ac: controlledAC},
+			args: args{ac: controlledTemplateAC},
 			want: want{
 				w: []Workload{
 					{
+						ComponentName:         componentName,
+						ComponentRevisionName: revisionName2,
+						Workload: func() *unstructured.Unstructured {
+							w := &unstructured.Unstructured{}
+							w.SetNamespace(namespace)
+							w.SetName(revisionName2)
+							w.SetOwnerReferences([]metav1.OwnerReference{*ref})
+							w.SetAnnotations(map[string]string{
+								oam.AnnotationAppGeneration: "0",
+							})
+							return w
+						}(),
+						RevisionEnabled: true,
+					},
+				},
+			},
+		},
+		"Success-With-NoneTemplate-Deployment": {
+			reason: "We do not render the workload after the template is out",
+			fields: fields{
+				client: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
+					switch defObj := obj.(type) {
+					case *v1alpha2.Component:
+						ccomp := v1alpha2.Component{
+							Status: v1alpha2.ComponentStatus{
+								LatestRevision: &v1alpha2.Revision{Name: revisionName2},
+							},
+						}
+						ccomp.DeepCopyInto(defObj)
+					case *v1alpha2.TraitDefinition:
+						ttrait := v1alpha2.TraitDefinition{ObjectMeta: metav1.ObjectMeta{Name: traitName},
+							Spec: v1alpha2.TraitDefinitionSpec{RevisionEnabled: true}}
+						ttrait.DeepCopyInto(defObj)
+					case *v1.ControllerRevision:
+						rev := &v1.ControllerRevision{
+							ObjectMeta: metav1.ObjectMeta{Name: revisionName, Namespace: namespace},
+							Data: runtime.RawExtension{Object: &v1alpha2.Component{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      componentName,
+									Namespace: namespace,
+								},
+								Spec: v1alpha2.ComponentSpec{
+									Workload: runtime.RawExtension{
+										Object: &unstructured.Unstructured{},
+									},
+								},
+								Status: v1alpha2.ComponentStatus{
+									LatestRevision: &v1alpha2.Revision{Name: revisionName2},
+								},
+							}},
+							Revision: 2,
+						}
+						rev.DeepCopyInto(defObj)
+					}
+					return nil
+				})},
+				params: ParameterResolveFn(func(_ []v1alpha2.ComponentParameter, _ []v1alpha2.ComponentParameterValue) ([]Parameter, error) {
+					return nil, nil
+				}),
+				workload: ResourceRenderFn(func(_ []byte, _ ...Parameter) (*unstructured.Unstructured, error) {
+					w := &unstructured.Unstructured{
+						Object: map[string]interface{}{
+							"apiVersion": "apps/v1",
+							"kind":       "Deployment",
+						},
+					}
+					return w, nil
+				}),
+				trait: ResourceRenderFn(func(_ []byte, _ ...Parameter) (*unstructured.Unstructured, error) {
+					t := &unstructured.Unstructured{}
+					t.SetName(traitName)
+					return t, nil
+				}),
+			},
+			args: args{ac: controlledNoneTemplateAC},
+			want: want{
+				w: []Workload{
+					{
+						SkipApply:             true,
 						ComponentName:         componentName,
 						ComponentRevisionName: revisionName2,
 						Workload: func() *unstructured.Unstructured {
@@ -718,9 +804,9 @@ func TestRender(t *testing.T) {
 				if diff := cmp.Diff(tc.want.w[0].Workload.GetName(), got[0].Workload.GetName()); diff != "" {
 					t.Errorf("\n%s\nr.Render(...): -want, +got:\n%s\n", tc.reason, diff)
 				}
-				if _, exit := got[0].Workload.GetAnnotations()[oam.AnnotationNewAppConfig]; exit {
+				if _, exit := got[0].Workload.GetAnnotations()[oam.AnnotationAppRollout]; exit {
 					t.Errorf("\n%s\nr.Render(...) workload should not get annotation:%s\n", tc.reason,
-						oam.AnnotationNewAppConfig)
+						oam.AnnotationAppRollout)
 				}
 				if _, exit := got[0].Workload.GetAnnotations()[oam.AnnotationRollingComponent]; exit {
 					t.Errorf("\n%s\nr.Render(...) workload  should not get annotation:%s\n", tc.reason,
@@ -737,6 +823,10 @@ func TestRender(t *testing.T) {
 				if got[0].Traits[0].Object.GetAnnotations()["keep"] != "true" {
 					t.Errorf("\n%s\nr.Render(...): trait should get annotation:%s\n", tc.reason,
 						"keep")
+				}
+				isTempalte := tc.args.ac.GetAnnotations()[oam.AnnotationAppRollout] == strconv.FormatBool(true)
+				if !isTempalte && !got[0].SkipApply {
+					t.Errorf("\n%s\nr.Render(...): none template workload should be skip apply\n", tc.reason)
 				}
 			} else {
 				if diff := cmp.Diff(tc.want.w, got); diff != "" {
@@ -756,7 +846,8 @@ func TestRenderComponent(t *testing.T) {
 	type arg struct {
 		ac                *v1alpha2.ApplicationConfiguration
 		isControlledByApp bool
-		isCompRolling     bool
+		isCompChanged     bool
+		isRollingTemplate bool
 		dag               *dag
 	}
 	type want struct {
@@ -837,6 +928,46 @@ func TestRenderComponent(t *testing.T) {
 		//TODO: Add more failure cases
 		//  add more dependency related tests for any future changes
 		//  add more trait related tests
+		"Newly-Changed-Component-NotRolling": {
+			reason: "newly changed workload should not be rendered if it's not rolling anymore (not the first time)",
+			fields: field{
+				client: &test.MockClient{MockGet: mockGet},
+
+				workload: ResourceRenderFn(func(_ []byte, _ ...Parameter) (*unstructured.Unstructured, error) {
+					w := &unstructured.Unstructured{
+						Object: map[string]interface{}{
+							"apiVersion": "apps/v1",
+							"kind":       "Deployment",
+						},
+					}
+					return w, nil
+				}),
+				trait: ResourceRenderFn(func(_ []byte, _ ...Parameter) (*unstructured.Unstructured, error) {
+					t := &unstructured.Unstructured{}
+					t.SetName(traitName)
+					return t, nil
+				}),
+			},
+			args: arg{
+				ac:                revAC,
+				isControlledByApp: true,
+				isCompChanged:     true,
+				isRollingTemplate: false,
+			},
+			want: want{
+				w: Workload{
+					ComponentName:         componentName,
+					ComponentRevisionName: revisionName,
+					Workload: func() *unstructured.Unstructured {
+						w := &unstructured.Unstructured{}
+						w.SetName(revisionName)
+						w.SetOwnerReferences([]metav1.OwnerReference{*ref})
+						return w
+					}(),
+					RevisionEnabled: true,
+				},
+			},
+		},
 		"Success-With-Newly-Changed-Component-Deployment": {
 			reason: "Workload name should be revision name for deployment and it should be disabled",
 			fields: field{
@@ -860,7 +991,8 @@ func TestRenderComponent(t *testing.T) {
 			args: arg{
 				ac:                revAC,
 				isControlledByApp: true,
-				isCompRolling:     true,
+				isCompChanged:     true,
+				isRollingTemplate: true,
 			},
 			want: want{
 				w: Workload{
@@ -899,7 +1031,8 @@ func TestRenderComponent(t *testing.T) {
 			args: arg{
 				ac:                revAC2,
 				isControlledByApp: true,
-				isCompRolling:     true,
+				isCompChanged:     true,
+				isRollingTemplate: true,
 			},
 			want: want{
 				w: Workload{
@@ -938,10 +1071,12 @@ func TestRenderComponent(t *testing.T) {
 			args: arg{
 				ac:                revAC,
 				isControlledByApp: true,
-				isCompRolling:     false,
+				isCompChanged:     false,
+				isRollingTemplate: false,
 			},
 			want: want{
 				w: Workload{
+					SkipApply:             true,
 					ComponentName:         componentName,
 					ComponentRevisionName: revisionName,
 					Workload: func() *unstructured.Unstructured {
@@ -960,7 +1095,7 @@ func TestRenderComponent(t *testing.T) {
 			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), mockParams,
 				tc.fields.workload, tc.fields.trait}
 			got, err := r.renderComponent(ctx, tc.args.ac.Spec.Components[0], tc.args.ac, tc.args.isControlledByApp,
-				tc.args.isCompRolling, tc.args.dag)
+				tc.args.isCompChanged, tc.args.isRollingTemplate, tc.args.dag)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nr.Render(...): -want error, +got error:\n%s\n", tc.reason, diff)
 			}
@@ -975,15 +1110,20 @@ func TestRenderComponent(t *testing.T) {
 					t.Errorf("\n%s\nr.Render(...): -want, +got:\n%s\n", tc.reason, diff)
 				}
 			}
-			if tc.args.isCompRolling {
-				wantedSpec, exist, err := unstructured.NestedFieldCopy(tc.want.w.Workload.Object, "spec")
-				assert.True(t, exist)
-				assert.True(t, err == nil)
-				gotSpec, exist, err := unstructured.NestedFieldCopy(got.Workload.Object, "spec")
-				assert.True(t, exist)
-				assert.True(t, err == nil)
-				if diff := cmp.Diff(wantedSpec, gotSpec); diff != "" {
-					t.Errorf("\n%s\nr.Render(...): -want, +got:\n%s\n", tc.reason, diff)
+			if tc.args.isCompChanged {
+				if tc.args.isRollingTemplate {
+					wantedSpec, exist, err := unstructured.NestedFieldCopy(tc.want.w.Workload.Object, "spec")
+					assert.True(t, exist)
+					assert.True(t, err == nil)
+					gotSpec, exist, err := unstructured.NestedFieldCopy(got.Workload.Object, "spec")
+					assert.True(t, exist)
+					assert.True(t, err == nil)
+					if diff := cmp.Diff(wantedSpec, gotSpec); diff != "" {
+						t.Errorf("\n%s\nr.Render(...): -want, +got:\n%s\n", tc.reason, diff)
+					}
+				} else {
+					// newly changed workloads are not rendered after the first time
+					assert.True(t, got.SkipApply)
 				}
 			} else {
 				// we won't touch the spec

@@ -239,7 +239,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
 
 		// check that the new appconfig has the correct annotation and labels
-		Expect(appConfig.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(Equal(strconv.FormatBool(true)))
+		Expect(appConfig.GetAnnotations()[oam.AnnotationAppRollout]).Should(BeEmpty())
 		Expect(appConfig.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
 
 		// check the workload created should be the same as the raw data in the component
@@ -647,12 +647,6 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(json.Unmarshal(component7.Spec.Workload.Raw, gotD3)).Should(BeNil())
 		fmt.Println(cmp.Diff(gotD3, expDeployment7))
 		Expect(gotD3).Should(BeEquivalentTo(expDeployment7))
-
-		Expect(k8sClient.Get(ctx, client.ObjectKey{
-			Namespace: app.Namespace,
-			Name:      "myweb6",
-		}, component6)).Should(&util.NotFoundMatcher{})
-
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 
@@ -821,8 +815,8 @@ var _ = Describe("Test Application Controller", func() {
 		compName := rolloutApp.Spec.Components[0].Name
 		// set the annotation
 		rolloutApp.SetAnnotations(map[string]string{
-			oam.AnnotationAppRollout: "true",
-			"keep":                   "true",
+			oam.AnnotationAppRollout: strconv.FormatBool(true),
+			"keep":                   strconv.FormatBool(true),
 		})
 		Expect(k8sClient.Create(ctx, rolloutApp)).Should(BeNil())
 
@@ -860,10 +854,9 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(component.Status.LatestRevision.Revision).Should(
 			SatisfyAny(BeEquivalentTo(1), BeEquivalentTo(2)))
 		// check that the new appconfig has the correct annotation and labels
-		Expect(appConfig.GetAnnotations()[oam.AnnotationNewAppConfig]).Should(Equal(strconv.FormatBool(true)))
+		Expect(appConfig.GetAnnotations()[oam.AnnotationAppRollout]).Should(Equal(strconv.FormatBool(true)))
 		Expect(appConfig.GetAnnotations()[oam.AnnotationRollingComponent]).Should(Equal(component.Status.LatestRevision.Name))
 		Expect(appConfig.GetAnnotations()["keep"]).Should(Equal("true"))
-		Expect(appConfig.GetAnnotations()[oam.AnnotationAppRollout]).Should(BeEmpty())
 		Expect(appConfig.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
 		Expect(appConfig.Spec.Components[0].ComponentName).Should(BeEmpty())
 		Expect(appConfig.Spec.Components[0].RevisionName).Should(Equal(component.Status.LatestRevision.Name))

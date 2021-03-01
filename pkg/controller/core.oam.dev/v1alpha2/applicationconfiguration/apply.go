@@ -33,6 +33,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -104,7 +105,11 @@ func (a *workloads) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus,
 	// they are all in the same namespace
 	var namespace = w[0].Workload.GetNamespace()
 	for _, wl := range w {
-		if !wl.HasDep {
+		if wl.SkipApply {
+			klog.InfoS("skip apply a workload due to rollout", "component name", wl.ComponentName, "component revision",
+				wl.ComponentRevisionName)
+		}
+		if !wl.HasDep && !wl.SkipApply {
 			// Apply the DataInputs to this workload
 			if err := a.ApplyInputRef(ctx, wl.Workload, wl.DataInputs, namespace, ao...); err != nil {
 				return err

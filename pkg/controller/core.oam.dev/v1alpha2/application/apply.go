@@ -82,14 +82,7 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 		Controller: pointer.BoolPtr(true),
 	}}
 	ac.SetOwnerReferences(owners)
-	hasRolloutLogic := false
 	var newComponents []string
-	// Check if we are doing rolling out
-	if _, exist := h.app.GetAnnotations()[oam.AnnotationAppRollout]; exist || h.app.Spec.RolloutPlan != nil {
-		h.logger.Info("The application rolling out is controlled by a rollout plan")
-		hasRolloutLogic = true
-	}
-
 	for _, comp := range comps {
 		comp.SetOwnerReferences(owners)
 		newComp := comp.DeepCopy()
@@ -98,7 +91,7 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 		if err != nil {
 			return err
 		}
-		if newRevision && hasRolloutLogic {
+		if newRevision {
 			newComponents = append(newComponents, revisionName)
 		}
 		// find the ACC that contains this component
@@ -112,32 +105,14 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 		}
 	}
 	// set the annotation on ac to point out which component are newly changed
-	ac.SetAnnotations(oamutil.MergeMapOverrideWithDst(ac.GetAnnotations(), map[string]string{
+	// make sure that it won't remove the value on the subsequent reconcile loops
+	ac.SetAnnotations(oamutil.MergeMapOverrideWithDst(map[string]string{
 		oam.AnnotationRollingComponent: strings.Join(newComponents, common.RollingComponentsSep),
-	}))
+	}, ac.GetAnnotations()))
 	if err := h.createOrUpdateAppConfig(ctx, ac); err != nil {
 		return err
 	}
 
-	// Garbage Collection for no used Components.
-	// There's no need to ApplicationConfiguration Garbage Collection, it has the same name with Application.
-	for _, comp := range h.app.Status.Components {
-		var exist = false
-		for _, cc := range comps {
-			if comp.Name == cc.Name {
-				exist = true
-				break
-			}
-		}
-		if exist {
-			continue
-		}
-		// Component not exits in current Application, should be deleted
-		var oldC = &v1alpha2.Component{ObjectMeta: metav1.ObjectMeta{Name: comp.Name, Namespace: ac.Namespace}}
-		if err := h.r.Delete(ctx, oldC); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -313,8 +288,9 @@ func (h *appHandler) createOrUpdateAppConfig(ctx context.Context, appConfig *v1a
 	if curAppConfig.GetLabels()[oam.LabelAppConfigHash] == appConfig.GetLabels()[oam.LabelAppConfigHash] {
 		// Just to be safe that it's not because of a random Hash collision
 		if apiequality.Semantic.DeepEqual(&curAppConfig.Spec, &appConfig.Spec) {
-			// same spec, no need to create another AC
-			return nil
+			// same spec, no need to create another AC, still need to update the AC to apply label/annotation
+			oamutil.PassLabelAndAnnotation(appConfig, &curAppConfig)
+			return h.r.Update(ctx, &curAppConfig)
 		}
 		h.logger.Info("encountered a different app spec with same hash", "current spec",
 			curAppConfig.Spec, "new appConfig spec", appConfig.Spec)
@@ -336,11 +312,14 @@ func (h *appHandler) createNewAppConfig(ctx context.Context, appConfig *v1alpha2
 		RevisionHash: appConfig.GetLabels()[oam.LabelAppConfigHash],
 	}
 	appConfig.Name = revisionName
-	// indicate that the application is created by the applicationController
-	// appConfig controller should set this to false after the first successful reconcile
-	appConfig.SetAnnotations(oamutil.MergeMapOverrideWithDst(appConfig.GetAnnotations(), map[string]string{
-		oam.AnnotationNewAppConfig: strconv.FormatBool(true),
-	}))
+	// indicate that the applicationConfig is created if we are doing rolling out
+	if _, exist := h.app.GetAnnotations()[oam.AnnotationAppRollout]; exist || h.app.Spec.RolloutPlan != nil {
+		h.logger.Info(fmt.Sprintf("The application %s rolling out is controlled by a rollout plan", h.app.Name))
+		appConfig.SetAnnotations(oamutil.MergeMapOverrideWithDst(appConfig.GetAnnotations(), map[string]string{
+			oam.AnnotationAppRollout: strconv.FormatBool(true),
+		}))
+	}
+
 	// record that last appConfig we created first in the app's status
 	// make sure that we persist the latest revision first
 	if err := h.r.UpdateStatus(ctx, h.app); err != nil {
