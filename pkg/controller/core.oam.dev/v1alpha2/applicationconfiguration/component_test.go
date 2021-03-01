@@ -138,7 +138,7 @@ func TestComponentHandler(t *testing.T) {
 	// check component's status saved in corresponding controllerRevision
 	assert.Equal(t, gotComp.Status.LatestRevision.Name, revisions.Items[0].Name)
 	assert.Equal(t, gotComp.Status.LatestRevision.Revision, revisions.Items[0].Revision)
-	// check component's status ObservedGeneration
+	// check component's status AppliedGeneration
 	assert.Equal(t, gotComp.Status.ObservedGeneration, comp.Generation)
 	q.Done(item)
 	// ============ Test Create Event End ===================

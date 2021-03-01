@@ -1192,7 +1192,7 @@ func TestPassThroughObjMeta(t *testing.T) {
 
 	gotAnnotation = u.GetAnnotations()
 	wantAnnotation = map[string]string{
-		"key1": "exist value1",
+		"key1": "value1",
 		"key2": "value2",
 		"key3": "value3",
 	}
@@ -1200,7 +1200,7 @@ func TestPassThroughObjMeta(t *testing.T) {
 
 	gotLabels := u.GetLabels()
 	wantLabels := map[string]string{
-		"core.oam.dev/ns":          "kube-system",
+		"core.oam.dev/ns":          "oam-system",
 		"core.oam.dev/kube-native": "deployment",
 		"core.oam.dev/controller":  "oam-kubernetes-runtime",
 	}

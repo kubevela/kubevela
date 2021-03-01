@@ -391,9 +391,9 @@ func updateObservedGeneration(ac *v1alpha2.ApplicationConfiguration) {
 		ac.Status.ObservedGeneration = ac.Generation
 	}
 	for i, w := range ac.Status.Workloads {
-		// only all workload meet requirements can say the generation is observed successfully
-		if w.ObservedGeneration != ac.Generation && len(ac.Status.Dependency.Unsatisfied) == 0 {
-			ac.Status.Workloads[i].ObservedGeneration = ac.GetGeneration()
+		// only the workload meet all dependency can mean the generation applied successfully
+		if w.AppliedGeneration != ac.Generation && !w.DependencyUnsatisfied {
+			ac.Status.Workloads[i].AppliedGeneration = ac.GetGeneration()
 		}
 	}
 }
@@ -483,6 +483,7 @@ func (w Workload) Status() v1alpha2.WorkloadStatus {
 	acw := v1alpha2.WorkloadStatus{
 		ComponentName:         w.ComponentName,
 		ComponentRevisionName: w.ComponentRevisionName,
+		DependencyUnsatisfied: w.HasDep,
 		Reference: v1alpha1.TypedReference{
 			APIVersion: w.Workload.GetAPIVersion(),
 			Kind:       w.Workload.GetKind(),
@@ -624,6 +625,12 @@ func applyOnceOnly(ac *v1alpha2.ApplicationConfiguration, mode core.ApplyOnceOnl
 					w.Reference.Name == d.GetName() {
 					// the workload matches applied resource
 					createdBefore = true
+
+					// for workload, when revision enabled, only when revision changed that can trigger to create a new one
+					if dLabels[oam.LabelOAMResourceType] == oam.ResourceTypeWorkload && w.ComponentRevisionName == dLabels[oam.LabelAppComponentRevision] {
+						// the revision is not changed, so return an error to abort creating it
+						return &GenerationUnchanged{}
+					}
 				}
 				if !createdBefore {
 					// the workload is not matched, then traverse its traits to find matching one
@@ -638,12 +645,12 @@ func applyOnceOnly(ac *v1alpha2.ApplicationConfiguration, mode core.ApplyOnceOnl
 				// don't use if-else here because it will miss the case that the resource is a trait
 				if createdBefore {
 					// the resource was created before and appConfig status recorded the resource version applied
-					// if recorded ObservedGeneration and ComponentRevisionName both equal to the applied resource's,
+					// if recorded AppliedGeneration and ComponentRevisionName both equal to the applied resource's,
 					// that means its spec is not changed
-					if (strconv.Itoa(int(w.ObservedGeneration)) != dAnnots[oam.AnnotationAppGeneration]) ||
+					if (strconv.Itoa(int(w.AppliedGeneration)) != dAnnots[oam.AnnotationAppGeneration]) ||
 						(w.ComponentRevisionName != dLabels[oam.LabelAppComponentRevision]) {
 						log.Info("apply only once with mode: "+string(mode)+", but condition not meet, will create new",
-							oam.AnnotationAppGeneration, strconv.Itoa(int(w.ObservedGeneration))+"/"+dAnnots[oam.AnnotationAppGeneration],
+							oam.AnnotationAppGeneration, strconv.Itoa(int(w.AppliedGeneration))+"/"+dAnnots[oam.AnnotationAppGeneration],
 							oam.LabelAppComponentRevision, w.ComponentRevisionName+"/"+dLabels[oam.LabelAppComponentRevision])
 						// its spec is changed, so re-create the resource
 						return nil
