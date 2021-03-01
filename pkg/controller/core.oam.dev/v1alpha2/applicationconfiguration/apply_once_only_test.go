@@ -664,13 +664,13 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			reconcileRetry(reconciler, req)
 			time.Sleep(2 * time.Second)
 
-			By("Check workload is re-created by reconciliation")
+			By("Check workload was not created by reconciliation")
 			Eventually(func() error {
 				By("Reconcile")
 				reconcileRetry(reconciler, req)
 				recreatedCwObj = v1alpha2.ContainerizedWorkload{}
 				return k8sClient.Get(ctx, cwObjKey, &recreatedCwObj)
-			}, 5*time.Second, time.Second).Should(Succeed())
+			}, 5*time.Second, time.Second).Should(SatisfyAll(util.NotFoundMatcher{}))
 
 			By("Check trait is re-created by reconciliation")
 			recreatedFooObj = unstructured.Unstructured{}
