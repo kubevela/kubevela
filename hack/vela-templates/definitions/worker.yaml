@@ -7,4 +7,6 @@ metadata:
 spec:
   definitionRef:
     name: deployments.apps
-  template: |
+  schematic:
+    cue:
+      template: |

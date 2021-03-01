@@ -7,4 +7,6 @@ metadata:
 spec:
   definitionRef:
     name: jobs.batch
-  template: |
+  schematic:
+    cue:
+      template: |

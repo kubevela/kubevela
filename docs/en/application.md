@@ -50,35 +50,37 @@ metadata:
   annotations:
     definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic."
 spec:
-  template: |
-    output: {
-        apiVersion: "apps/v1"
-        kind:       "Deployment"
-        spec: {
-            selector: matchLabels: {
-                "app.oam.dev/component": context.name
-            }
-            template: {
-                metadata: labels: {
-                    "app.oam.dev/component": context.name
-                }
-                spec: {
-                    containers: [{
-                        name:  context.name
-                        image: parameter.image
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        		}
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": context.name
+        			}
+        			spec: {
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
 
-                        if parameter["cmd"] != _|_ {
-                            command: parameter.cmd
-                        }
-                    }]
-                }
-            }
+        					if parameter["cmd"] != _|_ {
+        						command: parameter.cmd
+        					}
+        				}]
+        			}
+        		}
+        	}
         }
-    }    
-    parameter: {
-        image: string    
-        cmd?: [...string]
-    }
+        parameter: {
+        	image: string
+        	cmd?: [...string]
+        }
 ```
 
 
