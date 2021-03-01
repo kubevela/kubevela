@@ -124,7 +124,7 @@ func ValidateDefinitionReference(_ context.Context, td v1alpha2.TraitDefinition)
 	if len(td.Spec.Reference.Name) > 0 {
 		return nil
 	}
-	tmp, err := util.NewTemplate(td.Spec.Template, td.Spec.Status, td.Spec.Extension)
+	tmp, err := util.NewTemplate(td.Spec.Schematic, td.Spec.Status, td.Spec.Extension)
 	if err != nil {
 		return errors.Wrap(err, errValidateDefRef)
 	}

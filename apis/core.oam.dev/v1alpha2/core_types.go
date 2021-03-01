@@ -24,6 +24,20 @@ import (
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 )
 
+// CUE defines the encapsulation in CUE format
+type CUE struct {
+	// Template defines the abstraction template data of the capability, it will replace the old CUE template in extension field.
+	// Template is a required field if CUE is defined in Capability Definition.
+	Template string `json:"template"`
+}
+
+// Schematic defines the encapsulation of this capability(workload/trait/scope),
+// the encapsulation can be defined in different ways, e.g. CUE/HCL(terraform)/KUBE(K8s Object)/HELM, etc...
+type Schematic struct {
+	CUE *CUE `json:"cue,omitempty"`
+	// TODO(wonderflow): support HCL(terraform)/KUBE(K8s Object)/HELM here.
+}
+
 // A DefinitionReference refers to a CustomResourceDefinition by name.
 type DefinitionReference struct {
 	// Name of the referenced CustomResourceDefinition.
@@ -73,10 +87,9 @@ type WorkloadDefinitionSpec struct {
 	// +optional
 	Template string `json:"template,omitempty"`
 
-	// TemplateType defines the data format of the template, by default it's CUE format
-	// Terraform HCL, Helm Chart will also be candidates in the near future.
+	// Schematic defines the data format and template of the encapsulation of the workload
 	// +optional
-	TemplateType string `json:"templateType,omitempty"`
+	Schematic *Schematic `json:"schematic,omitempty"`
 
 	// Extension is used for extension needs by OAM platform builders
 	// +optional
@@ -150,15 +163,9 @@ type TraitDefinitionSpec struct {
 	// +optional
 	ConflictsWith []string `json:"conflictsWith,omitempty"`
 
-	// Template defines the abstraction template data of the workload, it will replace the old template in extension field.
-	// the data format depends on templateType, by default it's CUE
+	// Schematic defines the data format and template of the encapsulation of the trait
 	// +optional
-	Template string `json:"template,omitempty"`
-
-	// TemplateType defines the data format of the template, by default it's CUE format
-	// Terraform HCL, Helm Chart will also be candidates in the near future.
-	// +optional
-	TemplateType string `json:"templateType,omitempty"`
+	Schematic *Schematic `json:"schematic,omitempty"`
 
 	// Status defines the custom health policy and status message for trait
 	// +optional

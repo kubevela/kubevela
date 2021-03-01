@@ -12,4 +12,6 @@ spec:
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
-  template: |
+  schematic:
+    cue:
+      template: |
