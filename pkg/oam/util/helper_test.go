@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -156,7 +157,7 @@ func TestLocateParentAppConfig(t *testing.T) {
 }
 
 func TestFetchWorkloadTraitReference(t *testing.T) {
-	t.Log("Setting up variables")
+	klog.Info("Setting up variables")
 	noRefNameTrait := v1alpha2.ManualScalerTrait{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: v1alpha2.SchemeGroupVersion.String(),

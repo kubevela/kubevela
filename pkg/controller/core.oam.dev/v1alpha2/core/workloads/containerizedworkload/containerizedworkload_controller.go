@@ -75,26 +75,26 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
-	klog.Info("Reconcile container workload")
+	klog.InfoS("Reconcile container workload", "containerizedworkload", req.NamespacedName)
 
 	var workload v1alpha2.ContainerizedWorkload
 	if err := r.Get(ctx, req.NamespacedName, &workload); err != nil {
 		if apierrors.IsNotFound(err) {
-			klog.Infof("Container workload %s is deleted", workload.Name)
+			klog.Info("Container workload is deleted")
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	klog.Infof("Get the workload, apiVersion: %s, kind: %s", workload.APIVersion, workload.Kind)
+	klog.InfoS("Get the workload", "apiVersion", workload.APIVersion, "kind", workload.Kind)
 	// find the resource object to record the event to, default is the parent appConfig.
 	eventObj, err := util.LocateParentAppConfig(ctx, r.Client, &workload)
 	if eventObj == nil {
 		// fallback to workload itself
-		klog.Errorf("failed to locate parent ApplicationConfiguration by workload %s: %v", workload.Name, err)
+		klog.ErrorS(err, "workload", "name", workload.Name)
 		eventObj = &workload
 	}
 	deploy, err := r.renderDeployment(ctx, &workload)
 	if err != nil {
-		klog.Errorf("Failed to render a deployment: %v", err)
+		klog.ErrorS(err, "Failed to render a deployment")
 		r.record.Event(eventObj, event.Warning(errRenderWorkload, err))
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderWorkload)))
@@ -102,7 +102,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// server side apply, only the fields we set are touched
 	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(workload.GetUID())}
 	if err := r.Patch(ctx, deploy, client.Apply, applyOpts...); err != nil {
-		klog.Errorf("Failed to apply to a deployment: %v", err)
+		klog.ErrorS(err, "Failed to apply to a deployment")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyDeployment)))
@@ -114,14 +114,14 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	configMapApplyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(deploy.GetUID())}
 	configmaps, err := r.renderConfigMaps(ctx, &workload, deploy)
 	if err != nil {
-		klog.Errorf("Failed to render configmaps: %v", err)
+		klog.ErrorS(err, "Failed to render configmaps")
 		r.record.Event(eventObj, event.Warning(errRenderWorkload, err))
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderWorkload)))
 	}
 	for _, cm := range configmaps {
 		if err := r.Patch(ctx, cm, client.Apply, configMapApplyOpts...); err != nil {
-			klog.Errorf("Failed to apply a configmap: %v", err)
+			klog.ErrorS(err, "Failed to apply a configmap")
 			r.record.Event(eventObj, event.Warning(errApplyConfigMap, err))
 			return util.ReconcileWaitResult,
 				util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyConfigMap)))
@@ -134,14 +134,14 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// TODO(rz): remove this after we have service trait
 	service, err := r.renderService(ctx, &workload, deploy)
 	if err != nil {
-		klog.Errorf("Failed to render a service: %v", err)
+		klog.ErrorS(err, "Failed to render a service")
 		r.record.Event(eventObj, event.Warning(errRenderService, err))
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderService)))
 	}
 	// server side apply the service
 	if err := r.Patch(ctx, service, client.Apply, applyOpts...); err != nil {
-		klog.Errorf("Failed to apply a service: %v", err)
+		klog.ErrorS(err, "Failed to apply a service")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyService)))
@@ -151,7 +151,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			workload.Name, service.Name)))
 	// garbage collect the service/deployments that we created but not needed
 	if err := r.cleanupResources(ctx, &workload, &deploy.UID, &service.UID); err != nil {
-		klog.Errorf("Failed to clean up resources: %v", err)
+		klog.ErrorS(err, "Failed to clean up resources")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 	}
 	workload.Status.Resources = nil

@@ -110,18 +110,19 @@ func FetchWorkload(ctx context.Context, c client.Client, oamTrait oam.Trait) (
 	workloadRef := oamTrait.GetWorkloadReference()
 	if len(workloadRef.Kind) == 0 || len(workloadRef.APIVersion) == 0 || len(workloadRef.Name) == 0 {
 		err := errors.New("no workload reference")
-		klog.Errorf("%s: %v", ErrLocateWorkload, err)
+		klog.ErrorS(err, ErrLocateWorkload)
 		return nil, err
 	}
 	workload.SetAPIVersion(workloadRef.APIVersion)
 	workload.SetKind(workloadRef.Kind)
 	wn := client.ObjectKey{Name: workloadRef.Name, Namespace: oamTrait.GetNamespace()}
 	if err := c.Get(ctx, wn, &workload); err != nil {
-		klog.Errorf("Workload (Kind: %s, Name: %s) not found: %v", workloadRef.Kind, workloadRef.Name, err)
+		klog.ErrorS(err, "Workload not find", "kind", workloadRef.Kind, "workload name", workloadRef.Name)
 		return nil, err
 	}
-	klog.Infof("Get the workload (Name: %s, APIVersion: %s, Kind: %s, ID: %v) which the trait is pointing to ",
-		workload.GetName(), workload.GetAPIVersion(), workload.GetKind(), workload.GetUID())
+	klog.InfoS("Get the workload the trait is pointing to", "workload name", workload.GetName(),
+		"workload APIVersion", workload.GetAPIVersion(), "workload Kind", workload.GetKind(), "workload UID",
+		workload.GetUID())
 	return &workload, nil
 }
 
@@ -253,18 +254,20 @@ func fetchChildResources(ctx context.Context, r client.Reader, workload *unstruc
 		crs := unstructured.UnstructuredList{}
 		crs.SetAPIVersion(wcr.APIVersion)
 		crs.SetKind(wcr.Kind)
-		klog.Infof("List child resource kind, APIVersion: %s, Kind: %s, owner UID: %v", wcr.APIVersion, wcr.Kind, workload.GetUID())
+		klog.InfoS("List child resource kind", "APIVersion", wcr.APIVersion, "Kind", wcr.Kind, "owner UID",
+			workload.GetUID())
 		if err := r.List(ctx, &crs, client.InNamespace(workload.GetNamespace()),
 			client.MatchingLabels(wcr.Selector)); err != nil {
-			klog.Errorf("failed to list object (APIVersion: %s, Kind: %s): %v", crs.GetAPIVersion(), crs.GetKind(), err)
+			klog.ErrorS(err, "failed to list object", "api version", crs.GetAPIVersion(), "kind", crs.GetKind())
 			return nil, err
 		}
 		// pick the ones that is owned by the workload
 		for _, cr := range crs.Items {
 			for _, owner := range cr.GetOwnerReferences() {
 				if owner.UID == workload.GetUID() {
-					klog.Infof("Find a child resource we are looking for, APIVersion: %s, Kind: %s, Name: %s, Owner: %s",
-						cr.GetAPIVersion(), cr.GetKind(), cr.GetName(), owner.UID)
+					klog.InfoS("Find a child resource we are looking for",
+						"APIVersion", cr.GetAPIVersion(), "Kind", cr.GetKind(),
+						"Name", cr.GetName(), "owner", owner.UID)
 					or := cr // have to do a copy as the range variable is a reference and will change
 					childResources = append(childResources, &or)
 				}
@@ -305,15 +308,6 @@ func PassLabelAndAnnotation(parentObj, childObj labelAnnotationObject) {
 	childObj.SetLabels(MergeMapOverrideWithDst(childObj.GetLabels(), parentObj.GetLabels()))
 	// pass app-config annotation
 	childObj.SetAnnotations(MergeMapOverrideWithDst(childObj.GetAnnotations(), parentObj.GetAnnotations()))
-}
-
-// RemoveLabels removes keys that contains in the removekeys slice from the label
-func RemoveLabels(o labelAnnotationObject, removeKeys []string) {
-	exist := o.GetLabels()
-	for _, key := range removeKeys {
-		delete(exist, key)
-	}
-	o.SetLabels(exist)
 }
 
 // RemoveAnnotations removes keys that contains in the removekeys slice from the annotation

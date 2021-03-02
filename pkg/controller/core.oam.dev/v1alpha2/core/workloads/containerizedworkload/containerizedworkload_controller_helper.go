@@ -13,7 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -41,7 +40,7 @@ func (r *Reconciler) renderDeployment(ctx context.Context,
 			}
 		}
 	}
-	klog.Infof("rendered a deployment %v", deploy.Spec.Template.Spec)
+	klog.InfoS("rendered a deployment", "deploy", deploy.Spec.Template.Spec)
 
 	// set the controller reference so that we can watch this deployment and it will be deleted automatically
 	if err := ctrl.SetControllerReference(workload, deploy, r.Scheme); err != nil {
@@ -97,13 +96,14 @@ func (r *Reconciler) renderConfigMaps(ctx context.Context,
 // nolint:gocyclo
 func (r *Reconciler) cleanupResources(ctx context.Context,
 	workload *v1alpha2.ContainerizedWorkload, deployUID, serviceUID *types.UID) error {
+	klog.InfoS("Cleaning resources", "gc deployment", workload.Name)
 	var deploy appsv1.Deployment
 	var service corev1.Service
 	for _, res := range workload.Status.Resources {
 		uid := res.UID
 		if res.Kind == util.KindDeployment && res.APIVersion == appsv1.SchemeGroupVersion.String() {
 			if uid != *deployUID {
-				klog.Infof("Found an orphaned deployment, deployment UID: %s, orphaned UID:%s", *deployUID, uid)
+				klog.InfoS("Found an orphaned deployment", "deployment UID", *deployUID, "orphaned  UID", uid)
 				dn := client.ObjectKey{Name: res.Name, Namespace: workload.Namespace}
 				if err := r.Get(ctx, dn, &deploy); err != nil {
 					if apierrors.IsNotFound(err) {
@@ -114,11 +114,11 @@ func (r *Reconciler) cleanupResources(ctx context.Context,
 				if err := r.Delete(ctx, &deploy); err != nil {
 					return err
 				}
-				klog.Infof("Found an orphaned deployment, deployment UID: %s, orphaned UID:%s", *deployUID, uid)
+				klog.InfoS("Removed an orphaned deployment", "deployment UID", *deployUID, "orphaned UID", uid)
 			}
 		} else if res.Kind == util.KindService && res.APIVersion == corev1.SchemeGroupVersion.String() {
 			if uid != *serviceUID {
-				klog.Infof("Found an orphaned service, orphaned UID is %s", uid)
+				klog.InfoS("Found an orphaned service", "orphaned  UID", uid)
 				sn := client.ObjectKey{Name: res.Name, Namespace: workload.Namespace}
 				if err := r.Get(ctx, sn, &service); err != nil {
 					if apierrors.IsNotFound(err) {
@@ -129,7 +129,7 @@ func (r *Reconciler) cleanupResources(ctx context.Context,
 				if err := r.Delete(ctx, &service); err != nil {
 					return err
 				}
-				klog.Infof("Removed an orphaned service, orphaned UID is %s", uid)
+				klog.InfoS("Removed an orphaned service", "orphaned UID", uid)
 			}
 		}
 	}

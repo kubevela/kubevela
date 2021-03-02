@@ -4,28 +4,22 @@ import (
 	"context"
 	"testing"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-
-	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
-
-	appsv1 "k8s.io/api/apps/v1"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -53,7 +47,6 @@ var _ = Describe("HealthScope Controller Reconcile Test", func() {
 			return &WorkloadHealthCondition{HealthStatus: StatusUnhealthy}
 		})
 	reconciler := NewReconciler(mockMgr,
-		WithLogger(logging.NewNopLogger().WithValues("HealthScopeReconciler")),
 		WithRecorder(event.NewNopRecorder()),
 		WithChecker(MockHealthyChecker),
 	)
@@ -67,13 +60,13 @@ var _ = Describe("HealthScope Controller Reconcile Test", func() {
 	}}}
 
 	BeforeEach(func() {
-		logf.Log.Info("Set up resources before an unit test")
+		klog.Info("Set up resources before an unit test")
 		// remove built-in checkers then fulfill mock checkers
 		reconciler.checkers = []WorloadHealthChecker{}
 	})
 
 	AfterEach(func() {
-		logf.Log.Info("Clean up resources after an unit test")
+		klog.Info("Clean up resources after an unit test")
 	})
 
 	It("Test HealthScope Not Found", func() {
@@ -146,7 +139,6 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 		Client: &test.MockClient{},
 	}
 	reconciler := NewReconciler(mockMgr,
-		WithLogger(logging.NewNopLogger().WithValues("HealthScopeReconciler")),
 		WithRecorder(event.NewNopRecorder()),
 	)
 	reconciler.client = test.NewMockClient()
@@ -189,12 +181,12 @@ var _ = Describe("Test GetScopeHealthStatus", func() {
 	fieldpath.Pave(unsupporttedWL.Object).SetValue("status.unknown", 1) // healthy
 
 	BeforeEach(func() {
-		logf.Log.Info("Set up resources before an unit test")
+		klog.Info("Set up resources before an unit test")
 		hs.Spec.WorkloadReferences = []v1alpha1.TypedReference{}
 	})
 
 	AfterEach(func() {
-		logf.Log.Info("Clean up resources after an unit test")
+		klog.Info("Clean up resources after an unit test")
 	})
 
 	// use ContainerizedWorkload and Deployment checker
