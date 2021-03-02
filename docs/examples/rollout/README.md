@@ -1,14 +1,38 @@
 # Rollout Example
-[kubevela.io](https://kubevela.io)
+Here is an example of how to rollout an application with a component of type CloneSet. 
 
-## Install kruise
+## Install Kruise
 ```shell 
 helm install kruise https://github.com/openkruise/kruise/releases/download/v0.7.0/kruise-chart.tgz
-kubectl apply -f charts/vela-core/crds
-kubectl apply -f charts/vela-core/templates/defwithtemplate
+```
+
+## Rollout steps
+1. Install CloneSet based workloadDefinition
+```shell
 kubectl apply -f docs/examples/rollout/clonesetDefinition.yaml
+```
+
+2. Apply an application 
+```shell
 kubectl apply -f docs/examples/rollout/app-source.yaml
+```
+Wait for the application's status to be "running"
+
+3. Prepare the application for rolling out
+```shell
 kubectl apply -f docs/examples/rollout/app-source-prep.yaml
+```
+Wait for the applicationConfiguration "test-rolling-v1" `Rolling Status` to be "RollingTemplated"
+
+4. Modify the application image and apply
+```shell
 kubectl apply -f docs/examples/rollout/app-target.yaml
+```
+Wait for the applicationConfiguration "test-rolling-v2" `Rolling Status` to be "RollingTemplated"
+
+5. Apply the application deployment CR
+```shell
 kubectl apply -f docs/examples/rollout/app-deploy.yaml
 ```
+
+Check the status of the ApplicationDeployment and see the step by step rolling out

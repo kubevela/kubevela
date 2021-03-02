@@ -60,5 +60,5 @@ const (
 	// AnnotationRollingComponent indicates that the component is new
 	// this is to enable any concerned controllers to handle the first component apply logic differently
 	// the value of the annotation is a list of revision name of all the new component
-	AnnotationRollingComponent = "app.oam.dev/new-components"
+	AnnotationRollingComponent = "app.oam.dev/rolling-components"
 )

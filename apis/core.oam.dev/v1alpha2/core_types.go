@@ -478,6 +478,18 @@ type HistoryWorkload struct {
 // A ApplicationStatus represents the state of the entire application.
 type ApplicationStatus string
 
+// RollingStatus represents the rollout phases
+type RollingStatus string
+
+const (
+	// RollingTemplating means that the AC is rolling and need template
+	RollingTemplating RollingStatus = "RollingTemplating"
+	// RollingTemplated means that the AC is rolling and it already templated
+	RollingTemplated RollingStatus = "RollingTemplated"
+	// RollingComplete means that the AC is not rolling
+	RollingComplete RollingStatus = "RollingComplete"
+)
+
 // An ApplicationConfigurationStatus represents the observed state of a
 // ApplicationConfiguration.
 type ApplicationConfigurationStatus struct {
@@ -488,6 +500,9 @@ type ApplicationConfigurationStatus struct {
 	Status ApplicationStatus `json:"status,omitempty"`
 
 	Dependency DependencyStatus `json:"dependency,omitempty"`
+
+	// RollingStatus indicates what phase are we in the rollout phase
+	RollingStatus RollingStatus `json:"rollingStatus,omitempty"`
 
 	// Workloads created by this ApplicationConfiguration.
 	Workloads []WorkloadStatus `json:"workloads,omitempty"`

@@ -105,22 +105,24 @@ func (a *workloads) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus,
 	// they are all in the same namespace
 	var namespace = w[0].Workload.GetNamespace()
 	for _, wl := range w {
-		if wl.SkipApply {
-			klog.InfoS("skip apply a workload due to rollout", "component name", wl.ComponentName, "component revision",
-				wl.ComponentRevisionName)
-		}
-		if !wl.HasDep && !wl.SkipApply {
-			// Apply the DataInputs to this workload
-			if err := a.ApplyInputRef(ctx, wl.Workload, wl.DataInputs, namespace, ao...); err != nil {
-				return err
-			}
-			if err := a.applicator.Apply(ctx, wl.Workload, ao...); err != nil {
-				if !errors.Is(err, &GenerationUnchanged{}) {
-					// GenerationUnchanged only aborts applying current workload
-					// but not blocks the whole reconciliation through returning an error
-					return errors.Wrapf(err, errFmtApplyWorkload, wl.Workload.GetName())
+		if !wl.HasDep {
+			if wl.SkipApply {
+				klog.InfoS("skip apply a workload due to rollout", "component name", wl.ComponentName, "component revision",
+					wl.ComponentRevisionName)
+			} else {
+				// Apply the DataInputs to this workload
+				if err := a.ApplyInputRef(ctx, wl.Workload, wl.DataInputs, namespace, ao...); err != nil {
+					return err
+				}
+				if err := a.applicator.Apply(ctx, wl.Workload, ao...); err != nil {
+					if !errors.Is(err, &GenerationUnchanged{}) {
+						// GenerationUnchanged only aborts applying current workload
+						// but not blocks the whole reconciliation through returning an error
+						return errors.Wrapf(err, errFmtApplyWorkload, wl.Workload.GetName())
+					}
 				}
 			}
+
 		}
 		// Apply the ready DatatOutputs of this workload
 		if err := a.ApplyOutputRef(ctx, wl.Workload, wl.DataOutputs, namespace, ao...); err != nil {
