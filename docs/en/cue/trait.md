@@ -384,7 +384,7 @@ spec:
                     containers: [{
                         name:  context.name
                         image: parameter.image
-                                         ports:[{containerPort: parameter.port}]
+                        ports: [{containerPort: parameter.port}]
                         envFrom: [{
                             configMapRef: name: context.name + "game-config"
                         }]

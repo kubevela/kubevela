@@ -88,7 +88,7 @@ These steps will install KubeVela controller and its dependency.
     like `0.4.0-rc-master`.
    
     ```shell script
-    helm search repo kubevela/vela-core -l --devel
+    $ helm search repo kubevela/vela-core -l --devel
     NAME                     	CHART VERSION        	APP VERSION          	DESCRIPTION
     kubevela/vela-core       	0.4.0-rc-master         0.4.0-rc-master         A Helm chart for KubeVela core
     kubevela/vela-core       	0.3.2  	                0.3.2                   A Helm chart for KubeVela core
