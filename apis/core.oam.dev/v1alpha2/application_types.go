@@ -86,9 +86,9 @@ type ApplicationTrait struct {
 // ApplicationComponent describe the component of application
 type ApplicationComponent struct {
 	Name         string `json:"name"`
-	WorkloadType string `json:"type"`
+	WorkloadType string `json:"type,omitempty"`
 	// +kubebuilder:pruning:PreserveUnknownFields
-	Settings runtime.RawExtension `json:"settings"`
+	Settings runtime.RawExtension `json:"settings,omitempty"`
 
 	// Traits define the trait of one component, the type must be array to keep the order.
 	Traits []ApplicationTrait `json:"traits,omitempty"`

@@ -66,8 +66,6 @@ spec:
                     type: string
                 required:
                 - name
-                - settings
-                - type
                 type: object
               type: array
             rolloutPlan:
