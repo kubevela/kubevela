@@ -5,7 +5,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // ValidateCreate validates the Application on creation
@@ -23,12 +22,6 @@ func (h *ValidatingHandler) ValidateCreate(app *v1alpha2.Application) field.Erro
 func (h *ValidatingHandler) ValidateUpdate(newApp, oldApp *v1alpha2.Application) field.ErrorList {
 	// check if the newApp is valid
 	componentErrs := h.ValidateCreate(newApp)
-	// one can't add a rollout annotation to an existing application
-	if _, exist := oldApp.GetAnnotations()[oam.AnnotationAppRollout]; !exist {
-		if _, exist := newApp.GetAnnotations()[oam.AnnotationAppRollout]; exist {
-			componentErrs = append(componentErrs, field.Forbidden(field.NewPath("meta").Child("annotation"),
-				"cannot add a rollout annotation on an existing application"))
-		}
-	}
+	// TODO: add more validating
 	return componentErrs
 }

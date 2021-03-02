@@ -72,6 +72,7 @@ const (
 	reasonExecutePrehook          = "ExecutePrehook"
 	reasonExecutePosthook         = "ExecutePosthook"
 	reasonApplyComponents         = "AppliedComponents"
+	reasonRenderWorkloadTemplate  = "RenderedWorkloadTemplate"
 	reasonGGComponent             = "GarbageCollectedComponent"
 	reasonCannotExecutePrehooks   = "CannotExecutePrehooks"
 	reasonCannotExecutePosthooks  = "CannotExecutePosthooks"
@@ -182,6 +183,7 @@ func NewReconciler(m ctrl.Manager, dm discoverymapper.DiscoveryMapper, log loggi
 		scheme: m.GetScheme(),
 		components: &components{
 			client:   m.GetClient(),
+			record:   event.NewNopRecorder(),
 			dm:       dm,
 			params:   ParameterResolveFn(resolve),
 			workload: ResourceRenderFn(renderWorkload),
@@ -284,19 +286,6 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 	}
 
 	log = log.WithValues("uid", ac.GetUID(), "version", ac.GetResourceVersion())
-
-	// we have special logics for application generated applicationConfiguration
-	if isControlledByApp(ac) {
-		if ac.GetAnnotations()[oam.AnnotationAppRollout] == strconv.FormatBool(true) {
-			defer func() {
-				// we only flip the annotation after a successful reconcile
-				if returnErr == nil {
-					ac.GetAnnotations()[oam.AnnotationAppRollout] = strconv.FormatBool(false)
-					returnErr = r.client.Update(ctx, ac)
-				}
-			}()
-		}
-	}
 
 	workloads, depStatus, err := r.components.Render(ctx, ac)
 	if err != nil {
@@ -460,9 +449,6 @@ func hasScope(ac *v1alpha2.ApplicationConfiguration) bool {
 
 // A Workload produced by an OAM ApplicationConfiguration.
 type Workload struct {
-	// SkipApply indicates that the workload should not be applied
-	SkipApply bool
-
 	// ComponentName that produced this workload.
 	ComponentName string
 
@@ -471,6 +457,9 @@ type Workload struct {
 
 	// A Workload object.
 	Workload *unstructured.Unstructured
+
+	// SkipApply indicates that the workload should not be applied
+	SkipApply bool
 
 	// HasDep indicates whether this resource has dependencies and unready to be applied.
 	HasDep bool

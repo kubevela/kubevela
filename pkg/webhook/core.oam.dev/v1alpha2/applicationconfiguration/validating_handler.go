@@ -10,7 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/klog"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -68,45 +69,81 @@ var _ admission.Handler = &ValidatingHandler{}
 
 // Handle validate ApplicationConfiguration Spec here
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	obj := &v1alpha2.ApplicationConfiguration{}
+	app := &v1alpha2.ApplicationConfiguration{}
 	if req.Resource.String() != appConfigResource.String() {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", appConfigResource))
 	}
-	switch req.Operation { //nolint:exhaustive
+	err := h.Decoder.Decode(req, app)
+	if err != nil {
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+	if !app.ObjectMeta.DeletionTimestamp.IsZero() {
+		// TODO: validate finalizer too
+		// skip validating the AppConfig being deleted
+		klog.Info("skip validating applicationConfiguration being deleted", " name: ", app.Name,
+			" deletiongTimestamp: ", app.GetDeletionTimestamp())
+		return admission.ValidationResponse(true, "")
+	}
+
+	switch req.Operation {
 	case admissionv1beta1.Delete:
 		if len(req.OldObject.Raw) != 0 {
-			if err := h.Decoder.DecodeRaw(req.OldObject, obj); err != nil {
+			if err := h.Decoder.DecodeRaw(req.OldObject, app); err != nil {
 				return admission.Errored(http.StatusBadRequest, err)
 			}
 		} else {
 			// TODO(wonderflow): we can audit delete or something else here.
 			klog.Info("deleting Application Configuration", req.Name)
 		}
-	default:
-		err := h.Decoder.Decode(req, obj)
-		if err != nil {
+	case admissionv1beta1.Update:
+		oldApp := &v1alpha2.ApplicationConfiguration{}
+		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldApp); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
-		if !obj.ObjectMeta.DeletionTimestamp.IsZero() {
-			// skip validating the AppConfig being deleted
-			klog.Info("skip validating applicationConfiguration being deleted", " name: ", obj.Name,
-				" deletiongTimestamp: ", obj.GetDeletionTimestamp())
-			return admission.ValidationResponse(true, "")
+
+		if allErrs := h.ValidateUpdate(ctx, app, oldApp); len(allErrs) > 0 {
+			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
-		vAppConfig := &ValidatingAppConfig{}
-		if err := vAppConfig.PrepareForValidation(ctx, h.Client, h.Mapper, obj); err != nil {
-			klog.Info("failed preparing information before validation ", " name: ", obj.Name, " errMsg: ", err.Error())
-			return admission.Denied(err.Error())
+	case admissionv1beta1.Create:
+		if allErrs := h.ValidateCreate(ctx, app); len(allErrs) > 0 {
+			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
-		for _, validator := range h.Validators {
-			if allErrs := validator.Validate(ctx, *vAppConfig); utilerrors.NewAggregate(allErrs) != nil {
-				// utilerrors.NewAggregate can remove nil from allErrs
-				klog.Info("validation failed ", " name: ", obj.Name, " errMsgi: ", utilerrors.NewAggregate(allErrs).Error())
-				return admission.Denied(utilerrors.NewAggregate(allErrs).Error())
+	default:
+		// Do nothing for CONNECT
+	}
+	return admission.ValidationResponse(true, "")
+}
+
+// ValidateCreate validates the Application on creation
+func (h *ValidatingHandler) ValidateCreate(ctx context.Context, obj *v1alpha2.ApplicationConfiguration) field.ErrorList {
+	var componentErrs field.ErrorList
+	vAppConfig := &ValidatingAppConfig{}
+	if err := vAppConfig.PrepareForValidation(ctx, h.Client, h.Mapper, obj); err != nil {
+		klog.InfoS("failed to prepare information before validation ", " name: ", obj.Name, " errMsg: ", err.Error())
+		componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), obj.Spec,
+			fmt.Sprintf("failed to prepare information before validation, err = %s", err.Error())))
+		return componentErrs
+	}
+	for _, validator := range h.Validators {
+		if allErrs := validator.Validate(ctx, *vAppConfig); len(allErrs) != 0 {
+			// utilerrors.NewAggregate can remove nil from allErrs
+			klog.InfoS("validation failed", " name: ", obj.Name, " errMsgi: ",
+				utilerrors.NewAggregate(allErrs).Error())
+			for _, err := range allErrs {
+				componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), obj.Spec,
+					fmt.Sprintf("validation failed, err = %s", err.Error())))
 			}
 		}
 	}
-	return admission.ValidationResponse(true, "")
+	return componentErrs
+}
+
+// ValidateUpdate validates the Application on update
+func (h *ValidatingHandler) ValidateUpdate(ctx context.Context, newApp, oldApp *v1alpha2.ApplicationConfiguration) field.ErrorList {
+	// check if the newApp is valid
+	componentErrs := h.ValidateCreate(ctx, newApp)
+	// TODO: add more oam.AnnotationAppRollout
+	return componentErrs
 }
 
 // ValidateRevisionNameFn validates revisionName and componentName are assigned both.

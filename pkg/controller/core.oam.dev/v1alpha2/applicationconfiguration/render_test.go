@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
@@ -107,11 +108,7 @@ func TestRender(t *testing.T) {
 		"keep":                         strconv.FormatBool(true),
 	})
 	controlledNoneTemplateAC := controlledTemplateAC.DeepCopy()
-	controlledNoneTemplateAC.SetAnnotations(map[string]string{
-		oam.AnnotationAppRollout:       strconv.FormatBool(false),
-		oam.AnnotationRollingComponent: revisionName + "," + revisionName2,
-		"keep":                         strconv.FormatBool(true),
-	})
+	controlledNoneTemplateAC.Status.RollingStatus = v1alpha2.RollingTemplated
 
 	ref := metav1.NewControllerRef(ac, v1alpha2.ApplicationConfigurationGroupVersionKind)
 	errTrait := errors.New("errTrait")
@@ -705,8 +702,8 @@ func TestRender(t *testing.T) {
 				},
 			},
 		},
-		"Success-With-NoneTemplate-Deployment": {
-			reason: "We do not render the workload after the template is out",
+		"Success-With-Template-Finished-Deployment": {
+			reason: "We do not render the workload after the template is done",
 			fields: fields{
 				client: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
 					switch defObj := obj.(type) {
@@ -787,12 +784,15 @@ func TestRender(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), tc.fields.params,
+			r := &components{tc.fields.client, event.NewNopRecorder(), mock.NewMockDiscoveryMapper(), tc.fields.params,
 				tc.fields.workload, tc.fields.trait}
+			needTemplating := tc.args.ac.Status.RollingStatus != v1alpha2.RollingTemplated
+			_, isRolling := tc.args.ac.GetAnnotations()[oam.AnnotationAppRollout]
 			got, _, err := r.Render(tc.args.ctx, tc.args.ac)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nr.Render(...): -want error, +got error:\n%s\n", tc.reason, diff)
 			}
+
 			if isControlledByApp(tc.args.ac) {
 				// test the case of application generated AC
 				if diff := cmp.Diff(tc.want.w[0].ComponentName, got[0].ComponentName); diff != "" {
@@ -824,9 +824,19 @@ func TestRender(t *testing.T) {
 					t.Errorf("\n%s\nr.Render(...): trait should get annotation:%s\n", tc.reason,
 						"keep")
 				}
-				isTempalte := tc.args.ac.GetAnnotations()[oam.AnnotationAppRollout] == strconv.FormatBool(true)
-				if !isTempalte && !got[0].SkipApply {
-					t.Errorf("\n%s\nr.Render(...): none template workload should be skip apply\n", tc.reason)
+				if isRolling {
+					if !needTemplating && !got[0].SkipApply {
+						t.Errorf("\n%s\nr.Render(...): none template workload should be skip apply\n", tc.reason)
+					}
+					if needTemplating {
+						if got[0].SkipApply {
+							t.Errorf("\n%s\nr.Render(...): template workload should not be skipped\n", tc.reason)
+						}
+						if ac.Status.RollingStatus != v1alpha2.RollingTemplated {
+							t.Errorf("\n%s\nr.Render(...): ac status should be updated\n", tc.reason)
+						}
+					}
+
 				}
 			} else {
 				if diff := cmp.Diff(tc.want.w, got); diff != "" {
@@ -1092,7 +1102,7 @@ func TestRenderComponent(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), mockParams,
+			r := &components{tc.fields.client, event.NewNopRecorder(), mock.NewMockDiscoveryMapper(), mockParams,
 				tc.fields.workload, tc.fields.trait}
 			got, err := r.renderComponent(ctx, tc.args.ac.Spec.Components[0], tc.args.ac, tc.args.isControlledByApp,
 				tc.args.isCompChanged, tc.args.isRollingTemplate, tc.args.dag)
@@ -1469,7 +1479,7 @@ func TestRenderTraitWithoutMetadataName(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), tc.fields.params,
+			r := &components{tc.fields.client, event.NewNopRecorder(), mock.NewMockDiscoveryMapper(), tc.fields.params,
 				tc.fields.workload, tc.fields.trait}
 			got, _, _ := r.Render(tc.args.ctx, tc.args.ac)
 			if len(got) == 0 || len(got[0].Traits) == 0 || got[0].Traits[0].Object.GetName() != util.GenTraitName(componentName, ac.Spec.Components[0].Traits[0].DeepCopy(), "") {

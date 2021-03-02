@@ -740,6 +740,9 @@ spec:
               description: The generation observed by the appConfig controller.
               format: int64
               type: integer
+            rollingStatus:
+              description: RollingStatus indicates what phase are we in the rollout phase
+              type: string
             status:
               description: Status is a place holder for a customized controller to fill if it needs a single place to summarize the status of the entire application
               type: string

@@ -33,7 +33,7 @@ func SetAppWorkloadInstanceName(componentName string, w *unstructured.Unstructur
 			w.GetKind() == reflect.TypeOf(v1alpha1.StatefulSet{}).Name() {
 			// we use the component name alone for those resources that do support in-place upgrade
 			klog.InfoS("we reuse the component name for resources that support in-place upgrade",
-				"kind", w.GetKind(), "instance name", componentName)
+				"GVK", w.GroupVersionKind(), "instance name", componentName)
 			w.SetName(componentName)
 			return
 		}
@@ -41,7 +41,7 @@ func SetAppWorkloadInstanceName(componentName string, w *unstructured.Unstructur
 	// we assume that the rest of the resources do not support in-place upgrade
 	instanceName := utils.ConstructRevisionName(componentName, int64(revision))
 	klog.InfoS("we encountered an unknown resources, assume that it does not support in-place upgrade",
-		"kind", w.GetKind(), "instance name", instanceName)
+		"GVK", w.GroupVersionKind(), "instance name", instanceName)
 	w.SetName(instanceName)
 }
 
