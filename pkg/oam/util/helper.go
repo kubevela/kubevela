@@ -13,7 +13,6 @@ import (
 
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/davecgh/go-spew/spew"
-	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -25,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -104,25 +104,24 @@ func LocateParentAppConfig(ctx context.Context, client client.Client, oamObject 
 }
 
 // FetchWorkload fetch the workload that a trait refers to
-func FetchWorkload(ctx context.Context, c client.Client, mLog logr.Logger, oamTrait oam.Trait) (
+func FetchWorkload(ctx context.Context, c client.Client, oamTrait oam.Trait) (
 	*unstructured.Unstructured, error) {
 	var workload unstructured.Unstructured
 	workloadRef := oamTrait.GetWorkloadReference()
 	if len(workloadRef.Kind) == 0 || len(workloadRef.APIVersion) == 0 || len(workloadRef.Name) == 0 {
 		err := errors.New("no workload reference")
-		mLog.Error(err, ErrLocateWorkload)
+		klog.Errorf("%s: %v", ErrLocateWorkload, err)
 		return nil, err
 	}
 	workload.SetAPIVersion(workloadRef.APIVersion)
 	workload.SetKind(workloadRef.Kind)
 	wn := client.ObjectKey{Name: workloadRef.Name, Namespace: oamTrait.GetNamespace()}
 	if err := c.Get(ctx, wn, &workload); err != nil {
-		mLog.Error(err, "Workload not find", "kind", workloadRef.Kind, "workload name", workloadRef.Name)
+		klog.Errorf("Workload (Kind: %s, Name: %s) not found: %v", workloadRef.Kind, workloadRef.Name, err)
 		return nil, err
 	}
-	mLog.Info("Get the workload the trait is pointing to", "workload name", workload.GetName(),
-		"workload APIVersion", workload.GetAPIVersion(), "workload Kind", workload.GetKind(), "workload UID",
-		workload.GetUID())
+	klog.Infof("Get the workload (Name: %s, APIVersion: %s, Kind: %s, ID: %v) which the trait is pointing to ",
+		workload.GetName(), workload.GetAPIVersion(), workload.GetKind(), workload.GetUID())
 	return &workload, nil
 }
 
@@ -232,7 +231,7 @@ func GetTraitDefinition(ctx context.Context, cli client.Reader, traitName string
 }
 
 // FetchWorkloadChildResources fetch corresponding child resources given a workload
-func FetchWorkloadChildResources(ctx context.Context, mLog logr.Logger, r client.Reader,
+func FetchWorkloadChildResources(ctx context.Context, r client.Reader,
 	dm discoverymapper.DiscoveryMapper, workload *unstructured.Unstructured) ([]*unstructured.Unstructured, error) {
 	// Fetch the corresponding workloadDefinition CR
 	workloadDefinition, err := FetchWorkloadDefinition(ctx, r, dm, workload)
@@ -243,10 +242,10 @@ func FetchWorkloadChildResources(ctx context.Context, mLog logr.Logger, r client
 		}
 		return nil, err
 	}
-	return fetchChildResources(ctx, mLog, r, workload, workloadDefinition.Spec.ChildResourceKinds)
+	return fetchChildResources(ctx, r, workload, workloadDefinition.Spec.ChildResourceKinds)
 }
 
-func fetchChildResources(ctx context.Context, mLog logr.Logger, r client.Reader, workload *unstructured.Unstructured,
+func fetchChildResources(ctx context.Context, r client.Reader, workload *unstructured.Unstructured,
 	wcrl []v1alpha2.ChildResourceKind) ([]*unstructured.Unstructured, error) {
 	var childResources []*unstructured.Unstructured
 	// list by each child resource type with namespace and possible label selector
@@ -254,20 +253,18 @@ func fetchChildResources(ctx context.Context, mLog logr.Logger, r client.Reader,
 		crs := unstructured.UnstructuredList{}
 		crs.SetAPIVersion(wcr.APIVersion)
 		crs.SetKind(wcr.Kind)
-		mLog.Info("List child resource kind", "APIVersion", wcr.APIVersion, "Kind", wcr.Kind, "owner UID",
-			workload.GetUID())
+		klog.Infof("List child resource kind, APIVersion: %s, Kind: %s, owner UID: %v", wcr.APIVersion, wcr.Kind, workload.GetUID())
 		if err := r.List(ctx, &crs, client.InNamespace(workload.GetNamespace()),
 			client.MatchingLabels(wcr.Selector)); err != nil {
-			mLog.Error(err, "failed to list object", "api version", crs.GetAPIVersion(), "kind", crs.GetKind())
+			klog.Errorf("failed to list object (APIVersion: %s, Kind: %s): %v", crs.GetAPIVersion(), crs.GetKind(), err)
 			return nil, err
 		}
 		// pick the ones that is owned by the workload
 		for _, cr := range crs.Items {
 			for _, owner := range cr.GetOwnerReferences() {
 				if owner.UID == workload.GetUID() {
-					mLog.Info("Find a child resource we are looking for",
-						"APIVersion", cr.GetAPIVersion(), "Kind", cr.GetKind(),
-						"Name", cr.GetName(), "owner", owner.UID)
+					klog.Infof("Find a child resource we are looking for, APIVersion: %s, Kind: %s, Name: %s, Owner: %s",
+						cr.GetAPIVersion(), cr.GetKind(), cr.GetName(), owner.UID)
 					or := cr // have to do a copy as the range variable is a reference and will change
 					childResources = append(childResources, &or)
 				}

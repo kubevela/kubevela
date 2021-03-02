@@ -20,7 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -157,9 +156,7 @@ func TestLocateParentAppConfig(t *testing.T) {
 }
 
 func TestFetchWorkloadTraitReference(t *testing.T) {
-
 	t.Log("Setting up variables")
-	log := ctrl.Log.WithName("ManualScalarTraitReconciler")
 	noRefNameTrait := v1alpha2.ManualScalerTrait{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: v1alpha2.SchemeGroupVersion.String(),
@@ -238,7 +235,7 @@ func TestFetchWorkloadTraitReference(t *testing.T) {
 	for name, tc := range cases {
 		tclient := test.NewMockClient()
 		tclient.MockGet = test.NewMockGetFn(nil, tc.fields.getFunc)
-		gotWL, err := util.FetchWorkload(ctx, tclient, log, tc.fields.trait)
+		gotWL, err := util.FetchWorkload(ctx, tclient, tc.fields.trait)
 		t.Log(fmt.Sprint("Running test: ", name))
 		if tc.want.err == nil {
 			assert.NoError(t, err)
@@ -565,7 +562,6 @@ func TestChildResources(t *testing.T) {
 		},
 	}
 
-	log := ctrl.Log.WithName("ManualScalarTraitReconciler")
 	crkl := []v1alpha2.ChildResourceKind{
 		{
 			Kind:       "Deployment",
@@ -707,7 +703,7 @@ func TestChildResources(t *testing.T) {
 			MockGet:  test.NewMockGetFn(nil, tc.fields.getFunc),
 			MockList: test.NewMockListFn(nil, tc.fields.listFunc),
 		}
-		got, err := util.FetchWorkloadChildResources(ctx, log, &tclient, mock.NewMockDiscoveryMapper(), unstructuredWorkload)
+		got, err := util.FetchWorkloadChildResources(ctx, &tclient, mock.NewMockDiscoveryMapper(), unstructuredWorkload)
 		t.Log(fmt.Sprint("Running test: ", name))
 		assert.Equal(t, tc.want.err, err)
 		assert.Equal(t, tc.want.crks, got)

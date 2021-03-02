@@ -91,7 +91,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// Fetch the workload instance to which we want to do routes
-	workload, err := oamutil.FetchWorkload(ctx, r, mLog, &routeTrait)
+	workload, err := oamutil.FetchWorkload(ctx, r, &routeTrait)
 	if err != nil {
 		mLog.Error(err, "Error while fetching the workload", "workload reference",
 			routeTrait.GetWorkloadReference())
@@ -161,7 +161,7 @@ func (r *Reconciler) discoveryAndFillBackend(ctx context.Context, mLog logr.Logg
 	routeTrait *standardv1alpha1.Route) (*runtimev1alpha1.TypedReference, error) {
 
 	// Fetch the child childResources list from the corresponding workload
-	childResources, err := oamutil.FetchWorkloadChildResources(ctx, mLog, r, r.dm, workload)
+	childResources, err := oamutil.FetchWorkloadChildResources(ctx, r, r.dm, workload)
 	if err != nil {
 		mLog.Error(err, "Error while fetching the workload child childResources", "workload kind", workload.GetKind(),
 			"workload name", workload.GetName())

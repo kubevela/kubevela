@@ -87,7 +87,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// Fetch the instance to which the trait refers to
-	workload, err := util.FetchWorkload(ctx, r, log, &scaler)
+	workload, err := util.FetchWorkload(ctx, r, &scaler)
 	if err != nil {
 		log.Error(err, "Error while fetching the workload", "workload reference",
 			scaler.GetWorkloadReference())
@@ -98,7 +98,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// Fetch the child resources list from the corresponding workload
-	resources, err := util.FetchWorkloadChildResources(ctx, log, r, r.dm, workload)
+	resources, err := util.FetchWorkloadChildResources(ctx, r, r.dm, workload)
 	if err != nil {
 		log.Error(err, "Error while fetching the workload child resources", "workload", workload.UnstructuredContent())
 		r.record.Event(eventObj, event.Warning(util.ErrFetchChildResources, err))

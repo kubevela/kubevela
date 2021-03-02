@@ -117,7 +117,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// Fetch the workload instance to which we want to expose metrics
-	workload, err := oamutil.FetchWorkload(ctx, r, mLog, &metricsTrait)
+	workload, err := oamutil.FetchWorkload(ctx, r, &metricsTrait)
 	if err != nil {
 		mLog.Error(err, "Error while fetching the workload", "workload reference",
 			metricsTrait.GetWorkloadReference())
@@ -172,7 +172,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 func (r *Reconciler) fetchServicesLabel(ctx context.Context, mLog logr.Logger,
 	workload *unstructured.Unstructured, targetPort intstr.IntOrString) (map[string]string, error) {
 	// Fetch the child resources list from the corresponding workload
-	resources, err := oamutil.FetchWorkloadChildResources(ctx, mLog, r, r.dm, workload)
+	resources, err := oamutil.FetchWorkloadChildResources(ctx, r, r.dm, workload)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			mLog.Error(err, "Error while fetching the workload child resources", "workload kind", workload.GetKind(),
