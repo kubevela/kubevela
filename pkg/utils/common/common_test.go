@@ -98,63 +98,6 @@ name
 	}
 }
 
-func TestGenOpenAPIFromFile(t *testing.T) {
-	type want struct {
-		data []byte
-		err  error
-	}
-	var dir = "testdata"
-	var validCueFile = "workload1.cue"
-	var validTargetSchema = "workload1.json"
-	targetFile := filepath.Join(dir, validTargetSchema)
-	expect, _ := ioutil.ReadFile(targetFile)
-
-	normalWant := want{
-		data: expect,
-		err:  nil,
-	}
-
-	cases := map[string]struct {
-		reason       string
-		fileDir      string
-		fileName     string
-		targetSchema string
-		want         want
-	}{
-		"GenOpenAPIFromFile": {
-			reason:       "generate OpenAPI schema from a cue file",
-			fileDir:      dir,
-			fileName:     validCueFile,
-			targetSchema: validTargetSchema,
-			want:         normalWant,
-		},
-		"CueFileIsNotValid": {
-			reason:   "generate OpenAPI schema from a cue file which is invalid",
-			fileDir:  dir,
-			fileName: "workload2Invalid.cue",
-			want: want{
-				data: nil,
-				err:  errors.New("expected 'EOF', found '}'"),
-			},
-		},
-	}
-
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			got, err := GenOpenAPIFromFile(tc.fileDir, tc.fileName)
-			if tc.want.err != nil {
-				if diff := cmp.Diff(tc.want.err, errors.New(err.Error()), test.EquateErrors()); diff != "" {
-					t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want error, +got error:\n%s", tc.reason, diff)
-				}
-			}
-
-			if diff := cmp.Diff(tc.want.data, got); diff != "" {
-				t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want, +got:\n%s", tc.reason, diff)
-			}
-		})
-	}
-}
-
 func TestGenOpenAPI(t *testing.T) {
 	type want struct {
 		data []byte

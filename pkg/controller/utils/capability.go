@@ -3,12 +3,10 @@ package utils
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 
+	"cuelang.org/go/cue"
 	"github.com/getkin/kin-openapi/openapi3"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -229,7 +227,6 @@ func getOpenAPISchema(capability types.Capability) ([]byte, error) {
 // generateOpenAPISchemaFromCapabilityParameter returns the parameter of a definition in cue.Value format
 func generateOpenAPISchemaFromCapabilityParameter(capability types.Capability) ([]byte, error) {
 	name := capability.Name
-	definitionCueName := fmt.Sprintf("%s.cue", name)
 	template, err := prepareParameterCue(name, capability.CueTemplate)
 	if err != nil {
 		return nil, err
@@ -237,17 +234,13 @@ func generateOpenAPISchemaFromCapabilityParameter(capability types.Capability) (
 
 	// append context section in CUE string
 	template += mycue.BaseTemplate
-	dir, err := ioutil.TempDir("", "openapi")
-	//nolint:errcheck
-	defer os.RemoveAll(dir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to locally store cue file %s: %v", definitionCueName, err)
-	}
 
-	if err := ioutil.WriteFile(filepath.Join(dir, definitionCueName), []byte(template), 0600); err != nil {
-		return nil, fmt.Errorf("failed to locally store cue file %s: %v", definitionCueName, err)
+	var r cue.Runtime
+	cueInst, err := r.Compile("-", template)
+	if err != nil {
+		return nil, err
 	}
-	return common.GenOpenAPIFromFile(dir, filepath.FromSlash(definitionCueName))
+	return common.GenOpenAPI(cueInst)
 }
 
 // prepareParameterCue cuts `parameter` section form definition .cue file
