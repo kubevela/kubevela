@@ -90,8 +90,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err := r.Get(ctx, req.NamespacedName, &manualScalar); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	klog.Infof("Get the manualscalar trait, ReplicaCount is %d", manualScalar.Spec.ReplicaCount,
-		"Annotations", manualScalar.GetAnnotations())
+	klog.Infof("Get the manualscalar trait, ReplicaCount: %d, Annotations: %v", manualScalar.Spec.ReplicaCount,
+		manualScalar.GetAnnotations())
 	// find the resource object to record the event to, default is the parent appConfig.
 	eventObj, err := util.LocateParentAppConfig(ctx, r.Client, &manualScalar)
 	if eventObj == nil {
@@ -110,7 +110,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// Fetch the child resources list from the corresponding workload
 	resources, err := util.FetchWorkloadChildResources(ctx, r, r.dm, workload)
 	if err != nil {
-		klog.Errorf("Error while fetching the workload child resources: %v\n workload: %s", err, workload.UnstructuredContent())
+		klog.Errorf("Error while fetching the workload child resources: %v\nworkload: %s", err, workload.UnstructuredContent())
 		r.record.Event(eventObj, event.Warning(util.ErrFetchChildResources, err))
 		return util.ReconcileWaitResult, util.PatchCondition(ctx, r, &manualScalar,
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrFetchChildResources)))
@@ -166,7 +166,7 @@ func (r *Reconciler) scaleResources(ctx context.Context, manualScalar oamv1alpha
 		if locateReplicaField(document, res) {
 			found = true
 			resPatch := client.MergeFrom(res.DeepCopyObject())
-			klog.Infof("Get the resource the trait is going to modify, name is %s, UID is %s",
+			klog.Infof("Get the resource the trait is going to modify, Name is %s, UID is %s",
 				res.GetName(), res.GetUID())
 			cpmeta.AddOwnerReference(res, ownerRef)
 			err := unstructured.SetNestedField(res.Object, int64(manualScalar.Spec.ReplicaCount), "spec", "replicas")
@@ -177,16 +177,16 @@ func (r *Reconciler) scaleResources(ctx context.Context, manualScalar oamv1alpha
 			}
 			// merge patch to scale the resource
 			if err := r.Patch(ctx, res, resPatch, client.FieldOwner(manualScalar.GetUID())); err != nil {
-				klog.Error(err, "Failed to scale a resource")
+				klog.Errorf("Failed to scale a resource: %v", err)
 				return util.ReconcileWaitResult,
 					util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.Wrap(err, errScaleResource)))
 			}
-			klog.Info("Successfully scaled a resource", "resource GVK: %s, res UID: %s, target replica: %s", res.GroupVersionKind().String(),
+			klog.Infof("Successfully scaled a resource, GVK: %s, UID: %s, target replica: %s", res.GroupVersionKind().String(),
 				res.GetUID(), manualScalar.Spec.ReplicaCount)
 		}
 	}
 	if !found {
-		klog.Info("Cannot locate any resource", "total resources is %d", len(resources))
+		klog.Infof("Cannot locate any resource. Total number of resources is %d", len(resources))
 		return util.ReconcileWaitResult,
 			util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(fmt.Errorf(errScaleResource)))
 	}
