@@ -832,8 +832,9 @@ func TestRender(t *testing.T) {
 						if got[0].SkipApply {
 							t.Errorf("\n%s\nr.Render(...): template workload should not be skipped\n", tc.reason)
 						}
-						if ac.Status.RollingStatus != v1alpha2.RollingTemplated {
-							t.Errorf("\n%s\nr.Render(...): ac status should be updated\n", tc.reason)
+						if tc.args.ac.Status.RollingStatus != v1alpha2.RollingTemplated {
+							t.Errorf("\n%s\nr.Render(...): ac status should be templated but got %s\n", tc.reason,
+								ac.Status.RollingStatus)
 						}
 					}
 
