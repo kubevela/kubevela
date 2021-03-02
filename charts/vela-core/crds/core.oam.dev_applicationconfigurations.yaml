@@ -748,16 +748,18 @@ spec:
                 items:
                   description: A WorkloadStatus represents the status of a workload.
                   properties:
+                    appliedComponentRevision:
+                      description: AppliedComponentRevision indicates the applied component revision name of this workload
+                      type: string
                     componentName:
                       description: ComponentName that produced this workload.
                       type: string
                     componentRevisionName:
                       description: ComponentRevisionName of current component
                       type: string
-                    observedGeneration:
-                      description: ObservedGeneration indicates the generation observed by the appconfig controller. The same field is also recorded in the annotations of workloads. A workload is possible to be deleted from cluster after created. This field is useful to track the observed generation of workloads after they are deleted.
-                      format: int64
-                      type: integer
+                    dependencyUnsatisfied:
+                      description: DependencyUnsatisfied notify does the workload has dependency unsatisfied
+                      type: boolean
                     scopes:
                       description: Scopes associated with this workload.
                       items:
@@ -798,6 +800,13 @@ spec:
                       items:
                         description: A WorkloadTrait represents a trait associated with a workload and its status
                         properties:
+                          appliedGeneration:
+                            description: AppliedGeneration indicates the generation observed by the appConfig controller. The same field is also recorded in the annotations of traits. A trait is possible to be deleted from cluster after created. This field is useful to track the observed generation of traits after they are deleted.
+                            format: int64
+                            type: integer
+                          dependencyUnsatisfied:
+                            description: DependencyUnsatisfied notify does the trait has dependency unsatisfied
+                            type: boolean
                           message:
                             description: Message will allow controller to leave some additional information for this trait
                             type: string

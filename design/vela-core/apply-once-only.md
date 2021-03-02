@@ -130,8 +130,13 @@ The same mechanism also works for Trait as well as Workload.
 
 ### Apply Once Only Force
 
-Based on the same mechanism as `apply-once-only`, `apply-once-only-force` allows to skip re-creating a workload or trait that has already been DELETED from the cluster if its spec is not changed. 
-It's regarded as a stronger case of `apply-once-only`.
+Based on the same mechanism as `apply-once-only`, `apply-once-only-force` has a more strict method for apply only once.
+
+It allows to skip re-creating a workload or trait that has already been DELETED from the cluster if its spec is not changed. 
+
+Besides the condition in `apply-once-only`, `apply-once-only-force` has one more condition:
+
+- if the component revision not changed, the workload will not be applied.
 
 ## Usage
 

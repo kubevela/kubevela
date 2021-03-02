@@ -4,6 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	ctrl "sigs.k8s.io/controller-runtime"
+
 	"k8s.io/apimachinery/pkg/types"
 
 	. "github.com/onsi/ginkgo"
@@ -292,6 +295,8 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 	When("ApplyOnceOnlyForce is enabled", func() {
 		It("tests the situation where workload is not applied at the first because of unsatisfied dependency",
 			func() {
+				componentHandler := &ComponentHandler{Client: k8sClient, RevisionLimit: 100, Logger: logging.NewLogrLogger(ctrl.Log.WithName("component-handler"))}
+
 				By("Enable ApplyOnceOnlyForce")
 				reconciler.applyOnceOnlyMode = core.ApplyOnceOnlyForce
 
@@ -360,6 +365,13 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 				cmp := &v1alpha2.Component{}
 				Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: compInName}, cmp)).Should(Succeed())
 
+				cmpV1 := cmp.DeepCopy()
+				By("component handler will automatically create controller revision")
+				Expect(func() bool {
+					_, ok := componentHandler.createControllerRevision(cmpV1, cmpV1)
+					return ok
+				}()).Should(BeTrue())
+
 				By("Creat appConfig & check successfully")
 				Expect(k8sClient.Create(ctx, &acWithDep)).Should(Succeed())
 				Eventually(func() error {
@@ -390,21 +402,37 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 				Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: outName}, outputTrait)).Should(Succeed())
 				err := unstructured.SetNestedField(outputTrait.Object, "test", "status", "key")
 				Expect(err).Should(BeNil())
+				Expect(k8sClient.Status().Update(ctx, outputTrait)).Should(Succeed())
+				Eventually(func() string {
+					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: outName}, outputTrait)
+					data, _, _ := unstructured.NestedString(outputTrait.Object, "status", "key")
+					return data
+				}, 3*time.Second, time.Second).Should(Equal("test"))
+
+				By("Reconcile & check ac is satisfied")
+				Eventually(func() []v1alpha2.UnstaifiedDependency {
+					reconcileRetry(reconciler, reqDep)
+					acWithDep = v1alpha2.ApplicationConfiguration{}
+					if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: acWithDepName}, &acWithDep); err != nil {
+						return []v1alpha2.UnstaifiedDependency{{Reason: err.Error()}}
+					}
+					return acWithDep.Status.Dependency.Unsatisfied
+				}, time.Second, 300*time.Millisecond).Should(BeNil())
 
 				By("Reconcile & check workload is created")
 				Eventually(func() error {
 					reconcileRetry(reconciler, reqDep)
 					// the workload is created now because its dependency is satisfied
 					workloadIn := tempFoo.DeepCopy()
-					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: outName}, workloadIn)
+					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: inName}, workloadIn)
 				}, time.Second, 300*time.Millisecond).Should(BeNil())
 
 				By("Delete the workload")
 				recreatedWL := tempFoo.DeepCopy()
-				recreatedWL.SetName(outName)
+				recreatedWL.SetName(inName)
 				Expect(k8sClient.Delete(ctx, recreatedWL)).Should(Succeed())
 				outputTrait = tempFoo.DeepCopy()
-				Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: outName}, outputTrait)).Should(util.NotFoundMatcher{})
+				Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: inName}, outputTrait)).Should(util.NotFoundMatcher{})
 
 				By("Reconcile")
 				Expect(func() error { _, err := reconciler.Reconcile(req); return err }()).Should(BeNil())
@@ -413,6 +441,154 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 				By("Check workload is not re-created by reconciliation")
 				inputWorkload = tempFoo.DeepCopy()
 				Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: inName}, inputWorkload)).Should(util.NotFoundMatcher{})
+			})
+
+		It("tests the situation where workload is not applied at the first because of unsatisfied dependency and revision specified",
+			func() {
+				componentHandler := &ComponentHandler{Client: k8sClient, RevisionLimit: 100, Logger: logging.NewLogrLogger(ctrl.Log.WithName("component-handler"))}
+
+				By("Enable ApplyOnceOnlyForce")
+				reconciler.applyOnceOnlyMode = core.ApplyOnceOnlyForce
+
+				tempFoo := &unstructured.Unstructured{}
+				tempFoo.SetAPIVersion("example.com/v1")
+				tempFoo.SetKind("Foo")
+				tempFoo.SetNamespace(namespace)
+
+				inputWorkload := &unstructured.Unstructured{}
+				inputWorkload.SetAPIVersion("example.com/v1")
+				inputWorkload.SetKind("Foo")
+				inputWorkload.SetNamespace(namespace)
+
+				compInName := "comp-in-revision"
+				compIn := v1alpha2.Component{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      compInName,
+						Namespace: namespace,
+					},
+					Spec: v1alpha2.ComponentSpec{
+						Workload: runtime.RawExtension{
+							Object: inputWorkload,
+						},
+					},
+				}
+
+				outName := "data-output"
+				outputTrait := tempFoo.DeepCopy()
+				outputTrait.SetName(outName)
+
+				acWithDepName := "ac-dep"
+				acWithDep := v1alpha2.ApplicationConfiguration{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      acWithDepName,
+						Namespace: namespace,
+					},
+					Spec: v1alpha2.ApplicationConfigurationSpec{
+						Components: []v1alpha2.ApplicationConfigurationComponent{
+							{
+								RevisionName: compInName + "-v1",
+								DataInputs: []v1alpha2.DataInput{
+									{
+										ValueFrom: v1alpha2.DataInputValueFrom{
+											DataOutputName: "trait-output",
+										},
+										ToFieldPaths: []string{"spec.key"},
+									},
+								},
+								Traits: []v1alpha2.ComponentTrait{{
+									Trait: runtime.RawExtension{Object: outputTrait},
+									DataOutputs: []v1alpha2.DataOutput{{
+										Name:      "trait-output",
+										FieldPath: "status.key",
+									}},
+								},
+								},
+							},
+						},
+					},
+				}
+
+				By("Create Component")
+				Expect(k8sClient.Create(ctx, &compIn)).Should(Succeed())
+				cmp := &v1alpha2.Component{}
+				Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: compInName}, cmp)).Should(Succeed())
+
+				cmpV1 := cmp.DeepCopy()
+				By("component handler will automatically create controller revision")
+				Expect(func() bool {
+					_, ok := componentHandler.createControllerRevision(cmpV1, cmpV1)
+					return ok
+				}()).Should(BeTrue())
+
+				By("Creat appConfig & check successfully")
+				Expect(k8sClient.Create(ctx, &acWithDep)).Should(Succeed())
+				Eventually(func() error {
+					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: acWithDepName}, &acWithDep)
+				}, time.Second, 300*time.Millisecond).Should(BeNil())
+
+				By("Reconcile & check successfully")
+
+				reqDep := reconcile.Request{
+					NamespacedName: client.ObjectKey{Namespace: namespace, Name: acWithDepName},
+				}
+				Eventually(func() bool {
+					reconcileRetry(reconciler, reqDep)
+					acWithDep = v1alpha2.ApplicationConfiguration{}
+					if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: acWithDepName}, &acWithDep); err != nil {
+						return false
+					}
+					return len(acWithDep.Status.Workloads) == 1
+				}, time.Second, 300*time.Millisecond).Should(BeTrue())
+
+				// because dependency is not satisfied so the workload should not be created
+				By("Check the workload is NOT created")
+				workloadIn := tempFoo.DeepCopy()
+				Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: compInName + "-v1"}, workloadIn)).Should(&util.NotFoundMatcher{})
+
+				// modify the trait to make it satisfy comp's dependency
+				outputTrait = tempFoo.DeepCopy()
+				Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: outName}, outputTrait)).Should(Succeed())
+				err := unstructured.SetNestedField(outputTrait.Object, "test", "status", "key")
+				Expect(err).Should(BeNil())
+				Expect(k8sClient.Status().Update(ctx, outputTrait)).Should(Succeed())
+				Eventually(func() string {
+					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: outName}, outputTrait)
+					data, _, _ := unstructured.NestedString(outputTrait.Object, "status", "key")
+					return data
+				}, 3*time.Second, time.Second).Should(Equal("test"))
+
+				By("Reconcile & check ac is satisfied")
+				Eventually(func() []v1alpha2.UnstaifiedDependency {
+					reconcileRetry(reconciler, reqDep)
+					acWithDep = v1alpha2.ApplicationConfiguration{}
+					if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: acWithDepName}, &acWithDep); err != nil {
+						return []v1alpha2.UnstaifiedDependency{{Reason: err.Error()}}
+					}
+					return acWithDep.Status.Dependency.Unsatisfied
+				}, time.Second, 300*time.Millisecond).Should(BeNil())
+
+				By("Reconcile & check workload is created")
+				Eventually(func() error {
+					reconcileRetry(reconciler, reqDep)
+					// the workload should be created now because its dependency is satisfied
+					workloadIn := tempFoo.DeepCopy()
+					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: compInName}, workloadIn)
+				}, time.Second, 300*time.Millisecond).Should(BeNil())
+
+				By("Delete the workload")
+				recreatedWL := tempFoo.DeepCopy()
+				recreatedWL.SetName(compInName)
+				Expect(k8sClient.Delete(ctx, recreatedWL)).Should(Succeed())
+				inputWorkload2 := tempFoo.DeepCopy()
+				Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: compInName}, inputWorkload2)).Should(util.NotFoundMatcher{})
+
+				By("Reconcile")
+				Expect(func() error { _, err := reconciler.Reconcile(req); return err }()).Should(BeNil())
+				time.Sleep(3 * time.Second)
+
+				By("Check workload is not re-created by reconciliation")
+				inputWorkload = tempFoo.DeepCopy()
+				Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: compInName}, inputWorkload)).Should(util.NotFoundMatcher{})
 			})
 
 		It("should normally create workload/trait resources at fist time", func() {
@@ -664,13 +840,13 @@ var _ = Describe("Test apply (workloads/traits) once only", func() {
 			reconcileRetry(reconciler, req)
 			time.Sleep(2 * time.Second)
 
-			By("Check workload is re-created by reconciliation")
+			By("Check workload was not created by reconciliation")
 			Eventually(func() error {
 				By("Reconcile")
 				reconcileRetry(reconciler, req)
 				recreatedCwObj = v1alpha2.ContainerizedWorkload{}
 				return k8sClient.Get(ctx, cwObjKey, &recreatedCwObj)
-			}, 5*time.Second, time.Second).Should(Succeed())
+			}, 5*time.Second, time.Second).Should(SatisfyAll(util.NotFoundMatcher{}))
 
 			By("Check trait is re-created by reconciliation")
 			recreatedFooObj = unstructured.Unstructured{}
