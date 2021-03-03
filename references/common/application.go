@@ -473,7 +473,7 @@ func (o *AppfileOptions) saveToAppDir(f *api.AppFile) error {
 	return appfile.Save(app, o.Env.Name)
 }
 
-// ApplyApp applys config resources for the app.
+// ApplyApp applies config resources for the app.
 // It differs by create and update:
 // - for create, it displays app status along with information of url, metrics, ssh, logging.
 // - for update, it rolls out a canary deployment and prints its information. User can verify the canary deployment.

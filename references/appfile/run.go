@@ -14,18 +14,13 @@ import (
 
 // Run will deploy OAM objects and other assistant K8s Objects including ConfigMap, OAM Scope Custom Resource.
 func Run(ctx context.Context, client client.Client, app *v1alpha2.Application, assistantObjects []oam.Object) error {
-	if err := CreateOrUpdateObjects(ctx, client, assistantObjects); err != nil {
-		return err
-	}
 	if app != nil {
-		if err := CreateOrUpdateApplication(ctx, client, app); err != nil {
-			return err
-		}
+		assistantObjects = append(assistantObjects, app)
 	}
-	return nil
+	return CreateOrUpdateObjects(ctx, client, assistantObjects)
 }
 
-// CreateOrUpdateObjects will create all scopes
+// CreateOrUpdateObjects will create or update all scopes
 func CreateOrUpdateObjects(ctx context.Context, client client.Client, objects []oam.Object) error {
 	for _, obj := range objects {
 		key := ctypes.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}
@@ -33,8 +28,10 @@ func CreateOrUpdateObjects(ctx context.Context, client client.Client, objects []
 		u.SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
 		err := client.Get(ctx, key, u)
 		if err == nil {
-			obj.SetResourceVersion(u.GetResourceVersion())
-			return client.Update(ctx, obj)
+			if obj.GetResourceVersion() != u.GetResourceVersion() {
+				obj.SetResourceVersion(u.GetResourceVersion())
+				return client.Update(ctx, obj)
+			}
 		}
 		if !apierrors.IsNotFound(err) {
 			return err
@@ -44,22 +41,4 @@ func CreateOrUpdateObjects(ctx context.Context, client client.Client, objects []
 		}
 	}
 	return nil
-}
-
-// CreateOrUpdateApplication will create if not exist and update if exists.
-func CreateOrUpdateApplication(ctx context.Context, client client.Client, app *v1alpha2.Application) error {
-	var geta v1alpha2.Application
-	key := ctypes.NamespacedName{Name: app.Name, Namespace: app.Namespace}
-	var exist = true
-	if err := client.Get(ctx, key, &geta); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return err
-		}
-		exist = false
-	}
-	if !exist {
-		return client.Create(ctx, app)
-	}
-	app.ResourceVersion = geta.ResourceVersion
-	return client.Update(ctx, app)
 }
