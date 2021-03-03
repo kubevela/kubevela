@@ -53,14 +53,14 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
-	klog.Infof("Reconciling WorkloadDefinition %s...", definitionName)
+	klog.InfoS("Reconciling WorkloadDefinition", "Name", definitionName)
 	ctx := context.Background()
 	var def utils.CapabilityWorkloadDefinition
 	def.Name = req.NamespacedName.Name
 
 	err := def.StoreOpenAPISchema(ctx, r, req.Namespace, req.Name)
 	if err != nil {
-		klog.Error(err)
+		klog.ErrorS(err, "cannot store capability in ConfigMap")
 		r.record.Event(&(def.WorkloadDefinition), event.Warning("cannot store capability in ConfigMap", err))
 		// TODO(zzxwill) The error message should also be patched into Status
 		return reconcileWaitResult, util.PatchCondition(ctx, r, &(def.WorkloadDefinition),

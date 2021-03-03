@@ -189,13 +189,11 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 			return fmt.Errorf(util.ErrUpdateCapabilityInConfigMap, definitionName, err)
 		}
 		return nil
-	} else if cm.Data[types.OpenapiV3JSONSchema] != string(jsonSchema) {
-		cm.Data = data
-		err := k8sClient.Update(ctx, &cm)
-		if err != nil {
-			return fmt.Errorf(util.ErrUpdateCapabilityInConfigMap, definitionName, err)
-		}
-		return nil
+	}
+
+	cm.Data = data
+	if err = k8sClient.Update(ctx, &cm); err != nil {
+		return fmt.Errorf(util.ErrUpdateCapabilityInConfigMap, definitionName, err)
 	}
 	return nil
 }
