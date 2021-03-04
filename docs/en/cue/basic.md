@@ -26,31 +26,33 @@ metadata:
 spec:
   definitionRef:
     name: deployments.apps
-  template: |
-    parameter: {
-        name: string
-        image: string
-    }
-    output: {
-        apiVersion: "apps/v1"
-        kind:       "Deployment"
-        spec: {
-            selector: matchLabels: {
-                "app.oam.dev/component": parameter.name
-            }
-            template: {
-                metadata: labels: {
-                    "app.oam.dev/component": parameter.name
-                }
-                spec: {
-                    containers: [{
-                        name:  parameter.name
-                        image: parameter.image
-                    }]
-                }
-            }
+  schematic:
+    cue:
+      template: |
+        parameter: {
+        	name:  string
+        	image: string
         }
-    }
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": parameter.name
+        		}
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": parameter.name
+        			}
+        			spec: {
+        				containers: [{
+        					name:  parameter.name
+        					image: parameter.image
+        				}]
+        			}
+        		}
+        	}
+        }
 ```
 
 The `template` field in this definition is a CUE module, it defines two keywords for KubeVela to build the application abstraction:

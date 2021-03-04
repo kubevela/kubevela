@@ -19,4 +19,6 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  template: |
+  schematic:
+    cue:
+      template: |

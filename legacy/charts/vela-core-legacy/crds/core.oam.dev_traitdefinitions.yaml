@@ -67,6 +67,19 @@ spec:
             revisionEnabled:
               description: Revision indicates whether a trait is aware of component revision
               type: boolean
+            schematic:
+              description: Schematic defines the data format and template of the encapsulation of the trait
+              properties:
+                cue:
+                  description: CUE defines the encapsulation in CUE format
+                  properties:
+                    template:
+                      description: Template defines the abstraction template data of the capability, it will replace the old CUE template in extension field. Template is a required field if CUE is defined in Capability Definition.
+                      type: string
+                  required:
+                  - template
+                  type: object
+              type: object
             status:
               description: Status defines the custom health policy and status message for trait
               properties:
@@ -77,12 +90,6 @@ spec:
                   description: HealthPolicy defines the health check policy for the abstraction
                   type: string
               type: object
-            template:
-              description: Template defines the abstraction template data of the workload, it will replace the old template in extension field. the data format depends on templateType, by default it's CUE
-              type: string
-            templateType:
-              description: TemplateType defines the data format of the template, by default it's CUE format Terraform HCL, Helm Chart will also be candidates in the near future.
-              type: string
             workloadRefPath:
               description: WorkloadRefPath indicates where/if a trait accepts a workloadRef object
               type: string

@@ -320,30 +320,32 @@ kind: TraitDefinition
 metadata:
   name: auth-service
 spec:
-  template: |
-    parameter: {
-        serviceURL: string
-    }
-
-    processing: {
-      output: {
-        token?: string
-      }
-      # task shall output a json result and output will correlate fields by name.
-      http: {
-        method: *"GET" | string
-        url: parameter.serviceURL
-        request: {
-            body ?: bytes
-            header: {}
-            trailer: {}
+  schematic:
+    cue:
+      template: |
+        parameter: {
+        	serviceURL: string
         }
-      }
-    }
 
-    patch: {
-      data: token: processing.output.token
-    }
+        processing: {
+        	output: {
+        		token?: string
+        	}
+        	// task shall output a json result and output will correlate fields by name.
+        	http: {
+        		method: *"GET" | string
+        		url:    parameter.serviceURL
+        		request: {
+        			body?: bytes
+        			header: {}
+        			trailer: {}
+        		}
+        	}
+        }
+
+        patch: {
+        	data: token: processing.output.token
+        }
 ```
 
 ## Simple data passing

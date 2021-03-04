@@ -16,29 +16,31 @@ metadata:
 spec:
   definitionRef:
     name: deployments.apps
-  template: |
-    parameter: {
-        name: string
-        image: string
-    }
-    output: {
-        apiVersion: "apps/v1"
-        kind:       "Deployment"
-        spec: {
-            selector: matchLabels: {
-                "app.oam.dev/component": parameter.name
-            }
-            template: {
-                metadata: labels: {
-                    "app.oam.dev/component": parameter.name
-                }
-                spec: {
-                    containers: [{
-                        name:  parameter.name
-                        image: parameter.image
-                    }]
-                }}}
-    }
+  schematic:
+    cue:
+      template: |
+        parameter: {
+        	name:  string
+        	image: string
+        }
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": parameter.name
+        		}
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": parameter.name
+        			}
+        			spec: {
+        				containers: [{
+        					name:  parameter.name
+        					image: parameter.image
+        				}]
+        			}}}
+        }
 ```
 
 A Job as workload type:
@@ -53,30 +55,32 @@ metadata:
 spec:
   definitionRef:
     name: jobs.batch
-  template: |
-    output: {
-    	apiVersion: "batch/v1"
-    	kind:       "Job"
-    	spec: {
-    		parallelism: parameter.count
-    		completions: parameter.count
-    		template: spec: {
-    			restartPolicy: parameter.restart
-    			containers: [{
-    				image: parameter.image
-    				if parameter["cmd"] != _|_ {
-    					command: parameter.cmd
-    				}
-    			}]
-    		}
-    	}
-    }
-    parameter: {
-    	count: *1 | int
-    	image: string
-    	restart: *"Never" | string    
-    	cmd?: [...string]
-    }   
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "batch/v1"
+        	kind:       "Job"
+        	spec: {
+        		parallelism: parameter.count
+        		completions: parameter.count
+        		template: spec: {
+        			restartPolicy: parameter.restart
+        			containers: [{
+        				image: parameter.image
+        				if parameter["cmd"] != _|_ {
+        					command: parameter.cmd
+        				}
+        			}]
+        		}
+        	}
+        }
+        parameter: {
+        	count:   *1 | int
+        	image:   string
+        	restart: *"Never" | string
+        	cmd?: [...string]
+        }
 ```
 
 ## Context
@@ -131,84 +135,86 @@ metadata:
 spec:
   definitionRef:
     name: deployments.apps
-  template: |
-    output: {
-    	apiVersion: "apps/v1"
-    	kind:       "Deployment"
-    	spec: {
-    		selector: matchLabels: {
-    			"app.oam.dev/component": context.name
-    		}
-    		template: {
-    			metadata: labels: {
-    				"app.oam.dev/component": context.name
-    			}
-    			spec: {
-    				containers: [{
-    					name:  context.name
-    					image: parameter.image
-    
-    					if parameter["cmd"] != _|_ {
-    						command: parameter.cmd
-    					}
-    
-    					if parameter["env"] != _|_ {
-    						env: parameter.env
-    					}
-    
-    					if context["config"] != _|_ {
-    						env: context.config
-    					}
-    
-    					ports: [{
-    						containerPort: parameter.port
-    					}]
-    
-    					if parameter["cpu"] != _|_ {
-    						resources: {
-    							limits:
-    								cpu: parameter.cpu
-    							requests:
-    								cpu: parameter.cpu
-    						}
-    					}
-    				}]
-    		    }
-    		}
-    	}
-    }
-    // an extra template
-    outputs: service: {
-    	apiVersion: "v1"
-    	kind:       "Service"
-    	spec: {
-    		selector: {
-    			"app.oam.dev/component": context.name
-    		}
-    		ports: [
-    			{
-    				port:       parameter.port
-    				targetPort: parameter.port
-    			},
-    		]
-    	}
-    }
-    parameter: {
-    	image: string
-    	cmd?: [...string]
-    	port: *80 | int
-    	env?: [...{
-    		name:   string
-    		value?: string
-    		valueFrom?: {
-    			secretKeyRef: {
-    				name: string
-    				key:  string
-    			}
-    		}
-    	}]
-    	cpu?: string
-    }
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        		}
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": context.name
+        			}
+        			spec: {
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+
+        					if parameter["cmd"] != _|_ {
+        						command: parameter.cmd
+        					}
+
+        					if parameter["env"] != _|_ {
+        						env: parameter.env
+        					}
+
+        					if context["config"] != _|_ {
+        						env: context.config
+        					}
+
+        					ports: [{
+        						containerPort: parameter.port
+        					}]
+
+        					if parameter["cpu"] != _|_ {
+        						resources: {
+        							limits:
+        								cpu: parameter.cpu
+        							requests:
+        								cpu: parameter.cpu
+        						}
+        					}
+        				}]
+        		}
+        		}
+        	}
+        }
+        // an extra template
+        outputs: service: {
+        	apiVersion: "v1"
+        	kind:       "Service"
+        	spec: {
+        		selector: {
+        			"app.oam.dev/component": context.name
+        		}
+        		ports: [
+        			{
+        				port:       parameter.port
+        				targetPort: parameter.port
+        			},
+        		]
+        	}
+        }
+        parameter: {
+        	image: string
+        	cmd?: [...string]
+        	port: *80 | int
+        	env?: [...{
+        		name:   string
+        		value?: string
+        		valueFrom?: {
+        			secretKeyRef: {
+        				name: string
+        				key:  string
+        			}
+        		}
+        	}]
+        	cpu?: string
+        }
 ```
 
 > TBD: a generated resource example for above workload definition.

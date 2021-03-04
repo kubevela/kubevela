@@ -48,7 +48,7 @@ func LoadTemplate(cli client.Reader, key string, kd types.CapType) (*Template, e
 		if wd.Annotations["type"] == string(types.TerraformCategory) {
 			capabilityCategory = types.TerraformCategory
 		}
-		tmpl, err := NewTemplate(wd.Spec.Template, wd.Spec.Status, wd.Spec.Extension)
+		tmpl, err := NewTemplate(wd.Spec.Schematic, wd.Spec.Status, wd.Spec.Extension)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
@@ -67,7 +67,7 @@ func LoadTemplate(cli client.Reader, key string, kd types.CapType) (*Template, e
 		if td.Annotations["type"] == string(types.TerraformCategory) {
 			capabilityCategory = types.TerraformCategory
 		}
-		tmpl, err := NewTemplate(td.Spec.Template, td.Spec.Status, td.Spec.Extension)
+		tmpl, err := NewTemplate(td.Spec.Schematic, td.Spec.Status, td.Spec.Extension)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
@@ -83,7 +83,11 @@ func LoadTemplate(cli client.Reader, key string, kd types.CapType) (*Template, e
 }
 
 // NewTemplate will create CUE template for inner AbstractEngine using.
-func NewTemplate(template string, status *v1alpha2.Status, raw *runtime.RawExtension) (*Template, error) {
+func NewTemplate(schematic *v1alpha2.Schematic, status *v1alpha2.Status, raw *runtime.RawExtension) (*Template, error) {
+	var template string
+	if schematic != nil && schematic.CUE != nil {
+		template = schematic.CUE.Template
+	}
 	extension := map[string]interface{}{}
 	tmp := &Template{
 		TemplateStr: template,
@@ -106,9 +110,9 @@ func NewTemplate(template string, status *v1alpha2.Status, raw *runtime.RawExten
 }
 
 // ConvertTemplateJSON2Object convert spec.extension to object
-func ConvertTemplateJSON2Object(in *runtime.RawExtension, specTemplate string) (types.Capability, error) {
+func ConvertTemplateJSON2Object(in *runtime.RawExtension, schematic *v1alpha2.Schematic) (types.Capability, error) {
 	var t types.Capability
-	capTemplate, err := NewTemplate(specTemplate, nil, in)
+	capTemplate, err := NewTemplate(schematic, nil, in)
 	if err != nil {
 		return t, errors.Wrapf(err, "parse cue template")
 	}
