@@ -17,7 +17,7 @@ import (
 )
 
 // issue an http call to the an end ponit
-func makeHTTPRequest(ctx context.Context, webhookEndPoint string, payload interface{}) ([]byte, int, error) {
+func makeHTTPRequest(ctx context.Context, webhookEndPoint, method string, payload interface{}) ([]byte, int, error) {
 	payloadBin, err := json.Marshal(payload)
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
@@ -28,7 +28,7 @@ func makeHTTPRequest(ctx context.Context, webhookEndPoint string, payload interf
 		return nil, http.StatusInternalServerError, err
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), "POST", hook.String(), bytes.NewBuffer(payloadBin))
+	req, err := http.NewRequestWithContext(context.Background(), method, hook.String(), bytes.NewBuffer(payloadBin))
 	if err != nil {
 		return nil, http.StatusInternalServerError, err
 	}
@@ -45,7 +45,9 @@ func makeHTTPRequest(ctx context.Context, webhookEndPoint string, payload interf
 			var requestErr error
 			r, requestErr = http.DefaultClient.Do(req.WithContext(ctx))
 			defer func() {
-				_ = r.Body.Close()
+				if r != nil {
+					_ = r.Body.Close()
+				}
 			}()
 			if requestErr != nil {
 				return requestErr
@@ -54,8 +56,7 @@ func makeHTTPRequest(ctx context.Context, webhookEndPoint string, payload interf
 			if requestErr != nil {
 				return requestErr
 			}
-			if r.StatusCode == http.StatusInternalServerError ||
-				r.StatusCode == http.StatusServiceUnavailable {
+			if r.StatusCode >= http.StatusInternalServerError {
 				requestErr = fmt.Errorf("internal server error, status code = %d", r.StatusCode)
 			}
 			return requestErr
@@ -63,30 +64,32 @@ func makeHTTPRequest(ctx context.Context, webhookEndPoint string, payload interf
 
 	// failed even with retry
 	if err != nil {
-		return nil, http.StatusInternalServerError, err
+		return nil, r.StatusCode, err
 	}
 	return body, r.StatusCode, nil
 }
 
 // callWebhook does a HTTP POST to an external service and
 // returns an error if the response status code is non-2xx
-func callWebhook(ctx context.Context, resource klog.KMetadata, phase v1alpha1.RollingState,
-	w v1alpha1.RolloutWebhook) error {
+func callWebhook(ctx context.Context, resource klog.KMetadata, phase v1alpha1.RollingState, rw v1alpha1.RolloutWebhook) error {
 	payload := v1alpha1.RolloutWebhookPayload{
 		Name:      resource.GetName(),
 		Namespace: resource.GetNamespace(),
 		Phase:     phase,
 	}
 
-	if w.Metadata != nil {
-		payload.Metadata = *w.Metadata
+	if rw.Metadata != nil {
+		payload.Metadata = *rw.Metadata
 	}
 	// make the http request
-	_, status, err := makeHTTPRequest(ctx, w.URL, payload)
+	if len(rw.Method) == 0 {
+		rw.Method = http.MethodPost
+	}
+	_, status, err := makeHTTPRequest(ctx, rw.URL, rw.Method, payload)
 	if err != nil {
 		return err
 	}
-	if len(w.ExpectedStatus) == 0 {
+	if len(rw.ExpectedStatus) == 0 {
 		if status > http.StatusAccepted {
 			err := fmt.Errorf("we fail the webhook request based on status, http status = %d", status)
 			return err
@@ -95,7 +98,7 @@ func callWebhook(ctx context.Context, resource klog.KMetadata, phase v1alpha1.Ro
 	}
 	// check if the returned status is expected
 	accepted := false
-	for _, es := range w.ExpectedStatus {
+	for _, es := range rw.ExpectedStatus {
 		if es == status {
 			accepted = true
 			break
@@ -103,7 +106,7 @@ func callWebhook(ctx context.Context, resource klog.KMetadata, phase v1alpha1.Ro
 	}
 	if !accepted {
 		err := fmt.Errorf("http request to the webhook not accepeted, http status = %d", status)
-		klog.V(common.LogDebug).InfoS("the status is not expected", "expected status", w.ExpectedStatus)
+		klog.V(common.LogDebug).InfoS("the status is not expected", "expected status", rw.ExpectedStatus)
 		return err
 	}
 	return nil

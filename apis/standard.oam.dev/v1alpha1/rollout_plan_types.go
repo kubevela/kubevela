@@ -160,6 +160,9 @@ type RolloutWebhook struct {
 	// URL address of this webhook
 	URL string `json:"url"`
 
+	// Method the HTTP call method, default is POST
+	Method string `json:"method,omitempty"`
+
 	// ExpectedStatus contains all the expected http status code that we will accept as success
 	ExpectedStatus []int `json:"expectedStatus,omitempty"`
 
