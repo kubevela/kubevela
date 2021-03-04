@@ -2,41 +2,200 @@ package rollout
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"k8s.io/klog/v2"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-func Test_callWebhook(t *testing.T) {
+const mockUrl = "127.0.0.1:4848"
+
+func Test_MakeHTTPRequest(t *testing.T) {
 	ctx := context.TODO()
-	type args struct {
-		resource klog.KMetadata
-		phase    v1alpha1.RollingState
-		w        v1alpha1.RolloutWebhook
-	}
-	var tests []struct {
-		name       string
+	type parameter struct {
+		method     string
 		statusCode int
 		body       string
-		args       args
-		wantErr    bool
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	type want struct {
+		err        error
+		statusCode int
+		body       string
+	}
+	tests := map[string]struct {
+		method    string
+		payload   interface{}
+		parameter parameter
+		want      want
+	}{
+		"Test normal case": {
+			method:  http.MethodPost,
+			payload: "doesn't matter",
+			parameter: parameter{
+				method:     http.MethodPost,
+				statusCode: http.StatusAccepted,
+				body:       "all good",
+			},
+			want: want{
+				err:        nil,
+				statusCode: http.StatusAccepted,
+				body:       "all good",
+			},
+		},
+		"Test failed case with retry": {
+			method:  http.MethodPost,
+			payload: "doesn't matter",
+			parameter: parameter{
+				method:     http.MethodPost,
+				statusCode: http.StatusNotImplemented,
+				body:       "please retry",
+			},
+			want: want{
+				err:        fmt.Errorf("internal server error, status code = %d", http.StatusNotImplemented),
+				statusCode: http.StatusNotImplemented,
+				body:       "",
+			},
+		},
+		"Test client error failed case": {
+			method:  http.MethodPost,
+			payload: "doesn't matter",
+			parameter: parameter{
+				method:     http.MethodPost,
+				statusCode: http.StatusBadRequest,
+				body:       "bad request",
+			},
+			want: want{
+				err:        nil,
+				statusCode: http.StatusBadRequest,
+				body:       "bad request",
+			},
+		},
+	}
+	for testName, tt := range tests {
+		t.Run(testName, func(t *testing.T) {
 			// generate a test server so we can capture and inspect the request
-			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-				res.WriteHeader(tt.statusCode)
-				res.Write([]byte(tt.body))
-			}))
-			defer func() { testServer.Close() }()
-
-			if err := callWebhook(ctx, tt.args.resource, tt.args.phase, tt.args.w); (err != nil) != tt.wantErr {
-				t.Errorf("callWebhook() error = %v, wantErr %v", err, tt.wantErr)
+			testServer := NewMock(tt.parameter.method, tt.parameter.statusCode, tt.parameter.body)
+			defer testServer.Close()
+			gotReply, gotCode, gotErr := makeHTTPRequest(ctx, "http://"+mockUrl, tt.method, tt.payload)
+			if (tt.want.err == nil && gotErr != nil) || (tt.want.err != nil && gotErr == nil) {
+				t.Errorf("\n%s\nr.Reconcile(...): want error `%s`, got error:`%s`\n", testName, tt.want.err, gotErr)
+			}
+			if tt.want.err != nil && gotErr != nil && gotErr.Error() != tt.want.err.Error() {
+				t.Errorf("\n%s\nr.Reconcile(...): want error `%s`, got error:`%s`\n", testName, tt.want.err, gotErr)
+			}
+			if string(gotReply) != tt.want.body {
+				t.Errorf("\n%s\nr.Reconcile(...): want reply `%s`, got reply:`%s`\n", testName, tt.want.body, string(gotReply))
+			}
+			if gotCode != tt.want.statusCode {
+				t.Errorf("\n%s\nr.Reconcile(...): want code `%d`, got code:`%d`\n", testName, tt.want.statusCode,
+					gotCode)
 			}
 		})
 	}
+}
+
+func Test_callWebhook(t *testing.T) {
+	ctx := context.TODO()
+	url := "http://" + mockUrl
+	body := "all good"
+	res := v1alpha1.PodSpecWorkload{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "name",
+			Namespace: "namespace",
+		},
+	}
+	type args struct {
+		resource oam.Object
+		phase    v1alpha1.RollingState
+		rw       v1alpha1.RolloutWebhook
+	}
+	tests := map[string]struct {
+		returnedStatusCode int
+		args               args
+		wantErr            error
+	}{
+		"Test success case": {
+			returnedStatusCode: http.StatusAccepted,
+			args: args{
+				resource: &res,
+				phase:    v1alpha1.RollingInBatchesState,
+				rw: v1alpha1.RolloutWebhook{
+					URL: url,
+				},
+			},
+			wantErr: nil,
+		},
+		"Test failed default case": {
+			returnedStatusCode: http.StatusAlreadyReported,
+			args: args{
+				resource: &res,
+				phase:    v1alpha1.RollingInBatchesState,
+				rw: v1alpha1.RolloutWebhook{
+					URL: url,
+				},
+			},
+			wantErr: fmt.Errorf("we fail the webhook request based on status, http status = %d", http.StatusAlreadyReported),
+		},
+		"Test expected treated as success case": {
+			returnedStatusCode: http.StatusAlreadyReported,
+			args: args{
+				resource: &res,
+				phase:    v1alpha1.RollingInBatchesState,
+				rw: v1alpha1.RolloutWebhook{
+					URL:            url,
+					ExpectedStatus: []int{http.StatusNoContent, http.StatusAlreadyReported},
+				},
+			},
+			wantErr: nil,
+		},
+		"Test not expected treated as failed case": {
+			returnedStatusCode: http.StatusGone,
+			args: args{
+				resource: &res,
+				phase:    v1alpha1.RolloutFailedState,
+				rw: v1alpha1.RolloutWebhook{
+					URL:            url,
+					ExpectedStatus: []int{http.StatusNoContent, http.StatusAlreadyReported},
+				},
+			},
+			wantErr: fmt.Errorf("http request to the webhook not accepeted, http status = %d", http.StatusGone),
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			// generate a test server so we can capture and inspect the request
+			testServer := NewMock(http.MethodPost, tt.returnedStatusCode, body)
+			defer testServer.Close()
+
+			gotErr := callWebhook(ctx, tt.args.resource, tt.args.phase, tt.args.rw)
+			if (tt.wantErr == nil && gotErr != nil) || (tt.wantErr != nil && gotErr == nil) {
+				t.Errorf("\n%s\nr.Reconcile(...): want error `%s`, got error:`%s`\n", name, tt.wantErr, gotErr)
+			}
+			if tt.wantErr != nil && gotErr != nil && gotErr.Error() != tt.wantErr.Error() {
+				t.Errorf("\n%s\nr.Reconcile(...): want error `%s`, got error:`%s`\n", name, tt.wantErr, gotErr)
+			}
+		})
+	}
+}
+
+func NewMock(method string, statusCode int, body string) *httptest.Server {
+	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method == method {
+			w.WriteHeader(statusCode)
+			w.Write([]byte(body))
+		} else {
+			w.WriteHeader(http.StatusBadRequest)
+		}
+	}))
+	l, _ := net.Listen("tcp", mockUrl)
+	ts.Listener.Close()
+	ts.Listener = l
+	ts.Start()
+	return ts
 }

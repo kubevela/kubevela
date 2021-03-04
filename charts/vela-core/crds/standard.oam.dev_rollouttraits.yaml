@@ -117,6 +117,9 @@ spec:
                                   type: string
                                 description: Metadata (key-value pairs) for this webhook
                                 type: object
+                              method:
+                                description: Method the HTTP call method, default is POST
+                                type: string
                               name:
                                 description: Name of this webhook
                                 type: string
@@ -224,6 +227,9 @@ spec:
                             type: string
                           description: Metadata (key-value pairs) for this webhook
                           type: object
+                        method:
+                          description: Method the HTTP call method, default is POST
+                          type: string
                         name:
                           description: Name of this webhook
                           type: string

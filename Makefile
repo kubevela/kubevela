@@ -123,6 +123,7 @@ docker-push:
 	docker push ${IMG}
 
 e2e-setup:
+	helm install kruise https://github.com/openkruise/kruise/releases/download/v0.7.0/kruise-chart.tgz
 	helm repo add jetstack https://charts.jetstack.io
 	helm repo update
 	helm upgrade --install --create-namespace --namespace cert-manager cert-manager jetstack/cert-manager --version v1.2.0  --set installCRDs=true --wait
