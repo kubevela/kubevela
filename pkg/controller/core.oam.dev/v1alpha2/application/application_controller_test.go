@@ -855,7 +855,6 @@ var _ = Describe("Test Application Controller", func() {
 			SatisfyAny(BeEquivalentTo(1), BeEquivalentTo(2)))
 		// check that the new appconfig has the correct annotation and labels
 		Expect(appConfig.GetAnnotations()[oam.AnnotationAppRollout]).Should(Equal(strconv.FormatBool(true)))
-		Expect(appConfig.GetAnnotations()[oam.AnnotationRollingComponent]).Should(Equal(component.Status.LatestRevision.Name))
 		Expect(appConfig.GetAnnotations()["keep"]).Should(Equal("true"))
 		Expect(appConfig.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
 		Expect(appConfig.Spec.Components[0].ComponentName).Should(BeEmpty())

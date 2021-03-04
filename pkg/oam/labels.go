@@ -57,8 +57,8 @@ const (
 	// the application controller should not reconcile it yet
 	AnnotationAppRollout = "app.oam.dev/rollout-template"
 
-	// AnnotationRollingComponent indicates that the component is new
+	// AnnotationRollingComponent indicates that the component is rolling out
 	// this is to enable any concerned controllers to handle the first component apply logic differently
-	// the value of the annotation is a list of revision name of all the new component
+	// the value of the annotation is a list of component name of all the new component
 	AnnotationRollingComponent = "app.oam.dev/rolling-components"
 )

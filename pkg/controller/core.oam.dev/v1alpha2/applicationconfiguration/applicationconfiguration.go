@@ -72,7 +72,6 @@ const (
 	reasonExecutePrehook          = "ExecutePrehook"
 	reasonExecutePosthook         = "ExecutePosthook"
 	reasonApplyComponents         = "AppliedComponents"
-	reasonRenderWorkloadTemplate  = "RenderedWorkloadTemplate"
 	reasonGGComponent             = "GarbageCollectedComponent"
 	reasonCannotExecutePrehooks   = "CannotExecutePrehooks"
 	reasonCannotExecutePosthooks  = "CannotExecutePosthooks"
@@ -183,7 +182,6 @@ func NewReconciler(m ctrl.Manager, dm discoverymapper.DiscoveryMapper, log loggi
 		scheme: m.GetScheme(),
 		components: &components{
 			client:   m.GetClient(),
-			record:   event.NewNopRecorder(),
 			dm:       dm,
 			params:   ParameterResolveFn(resolve),
 			workload: ResourceRenderFn(renderWorkload),

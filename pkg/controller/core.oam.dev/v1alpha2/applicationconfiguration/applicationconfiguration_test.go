@@ -168,7 +168,6 @@ func TestReconciler(t *testing.T) {
 					Client: &test.MockClient{
 						MockGet: mockGetAppConfigFn,
 						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o runtime.Object) error {
-
 							want := ac(withConditions(runtimev1alpha1.ReconcileError(errors.Wrap(errBoom, errRenderComponents))))
 							if diff := cmp.Diff(want, o.(*v1alpha2.ApplicationConfiguration)); diff != "" {
 								t.Errorf("\nclient.Status().Update(): -want, +got:\n%s", diff)

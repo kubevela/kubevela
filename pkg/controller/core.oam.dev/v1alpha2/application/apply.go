@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
@@ -23,7 +22,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -82,17 +80,13 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 		Controller: pointer.BoolPtr(true),
 	}}
 	ac.SetOwnerReferences(owners)
-	var newComponents []string
 	for _, comp := range comps {
 		comp.SetOwnerReferences(owners)
 		newComp := comp.DeepCopy()
 		// newComp will be updated and return the revision name instead of the component name
-		revisionName, newRevision, err := h.createOrUpdateComponent(ctx, newComp)
+		revisionName, err := h.createOrUpdateComponent(ctx, newComp)
 		if err != nil {
 			return err
-		}
-		if newRevision {
-			newComponents = append(newComponents, revisionName)
 		}
 		// find the ACC that contains this component
 		for i := 0; i < len(ac.Spec.Components); i++ {
@@ -104,11 +98,7 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 			}
 		}
 	}
-	// set the annotation on ac to point out which component are newly changed
-	// make sure that it won't remove the value on the subsequent reconcile loops
-	ac.SetAnnotations(oamutil.MergeMapOverrideWithDst(map[string]string{
-		oam.AnnotationRollingComponent: strings.Join(newComponents, common.RollingComponentsSep),
-	}, ac.GetAnnotations()))
+
 	if err := h.createOrUpdateAppConfig(ctx, ac); err != nil {
 		return err
 	}
@@ -176,7 +166,7 @@ func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.Appli
 
 // createOrUpdateComponent creates a component if not exist and update if exists.
 // it returns the corresponding component revisionName and if a new component revision is created
-func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2.Component) (string, bool, error) {
+func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2.Component) (string, error) {
 	curComp := v1alpha2.Component{}
 	var preRevisionName, curRevisionName string
 	compName := comp.GetName()
@@ -186,10 +176,10 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 	err := h.r.Get(ctx, compKey, &curComp)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
-			return "", false, err
+			return "", err
 		}
 		if err = h.r.Create(ctx, comp); err != nil {
-			return "", false, err
+			return "", err
 		}
 		h.logger.Info("Created a new component", "component name", comp.GetName())
 	} else {
@@ -199,7 +189,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 		}
 		comp.ResourceVersion = curComp.ResourceVersion
 		if err := h.r.Update(ctx, comp); err != nil {
-			return "", false, err
+			return "", err
 		}
 		h.logger.Info("Updated a component", "component name", comp.GetName())
 	}
@@ -211,13 +201,13 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 		needNewRevision, err := utils.CompareWithRevision(ctx, h.r,
 			logging.NewLogrLogger(h.logger), compName, compNameSpace, preRevisionName, &updatedComp.Spec)
 		if err != nil {
-			return "", false, errors.Wrap(err, fmt.Sprintf("compare with existing controllerRevision %s failed",
+			return "", errors.Wrap(err, fmt.Sprintf("compare with existing controllerRevision %s failed",
 				preRevisionName))
 		}
 		if !needNewRevision {
 			h.logger.Info("no need to wait for a new component revision", "component name", updatedComp.GetName(),
 				"revision", preRevisionName)
-			return preRevisionName, false, nil
+			return preRevisionName, nil
 		}
 	}
 	h.logger.Info("wait for a new component revision", "component name", compName,
@@ -246,9 +236,9 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 		return !needNewRevision, nil
 	}
 	if err := wait.ExponentialBackoff(utils.DefaultBackoff, checkForRevision); err != nil {
-		return "", true, err
+		return "", err
 	}
-	return curRevisionName, true, nil
+	return curRevisionName, nil
 }
 
 // createOrUpdateAppConfig will find the latest revision of the AC according

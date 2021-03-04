@@ -30,9 +30,16 @@ kubectl apply -f docs/examples/rollout/app-target.yaml
 ```
 Wait for the applicationConfiguration "test-rolling-v2" `Rolling Status` to be "RollingTemplated"
 
-5. Apply the application deployment CR
+5. Apply the application deployment with pause
 ```shell
-kubectl apply -f docs/examples/rollout/app-deploy.yaml
+kubectl apply -f docs/examples/rollout/app-deploy-pause.yaml
 ```
+Check the status of the ApplicationDeployment and see the step by step rolling out.
+This rollout will pause after the second batch.
 
-Check the status of the ApplicationDeployment and see the step by step rolling out
+5. Apply the application deployment that completes the rollout
+```shell
+kubectl apply -f docs/examples/rollout/app-deploy-finish.yaml
+```
+Check the status of the ApplicationDeployment and see the rollout completes and the 
+applicationDeployment's "Rolling State" becomes `rolloutSucceed`
