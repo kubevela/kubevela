@@ -1,9 +1,12 @@
 package common
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +18,72 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
+
+var (
+	Port           = ":58081"
+	ResponseString = "Hello HTTP Get."
+)
+
+func TestInitBaseRestConfig(t *testing.T) {
+	args, err := InitBaseRestConfig()
+	assert.NotNil(t, t, args)
+	assert.NoError(t, err)
+}
+
+func TestHTTPGet(t *testing.T) {
+	type want struct {
+		data   string
+		errStr string
+	}
+	var (
+		ctx         = context.Background()
+		abnormalUrl = "http://abc.def"
+	)
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, ResponseString)
+	}))
+	defer testServer.Close()
+
+	cases := map[string]struct {
+		reason string
+		url    string
+		want   want
+	}{
+		"abnormal case": {
+			reason: "url is invalid",
+			url:    abnormalUrl,
+			want: want{
+				data:   "",
+				errStr: fmt.Sprintf("Get \"%s\": EOF", abnormalUrl),
+			},
+		},
+		"normal case": {
+			reason: "url is valid\n",
+			url:    testServer.URL,
+			want: want{
+				data:   fmt.Sprintf("%s\n", ResponseString),
+				errStr: "",
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got, err := HTTPGet(ctx, tc.url)
+			if tc.want.errStr != "" {
+				if diff := cmp.Diff(tc.want.errStr, err.Error(), test.EquateErrors()); diff != "" {
+					t.Errorf("\n%s\nHTTPGet(...): -want error, +got error:\n%s", tc.reason, diff)
+				}
+			}
+
+			if diff := cmp.Diff(tc.want.data, string(got)); diff != "" {
+				t.Errorf("\n%s\nHTTPGet(...): -want, +got:\n%s", tc.reason, diff)
+			}
+		})
+	}
+
+}
 
 func TestGetCUEParameterValue(t *testing.T) {
 	type want struct {
