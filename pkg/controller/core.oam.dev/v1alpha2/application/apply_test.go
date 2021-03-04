@@ -274,20 +274,18 @@ var _ = Describe("Test Application apply", func() {
 		By("[TEST] Creating a component the first time")
 		// take a copy so the component's workload still uses object instead of raw data
 		// just like the way we use it in prod. The raw data will be filled by the k8s for some reason.
-		revision, newRevision, err := handler.createOrUpdateComponent(ctx, component.DeepCopy())
+		revision, err := handler.createOrUpdateComponent(ctx, component.DeepCopy())
 		By("verify that the revision is the set correctly and newRevision is true")
 		Expect(err).ShouldNot(HaveOccurred())
-		Expect(newRevision).Should(BeTrue())
 		// verify the revision actually contains the right component
 		Expect(utils.CompareWithRevision(ctx, handler.r, logging.NewLogrLogger(handler.logger), component.GetName(),
 			component.GetNamespace(), revision, &component.Spec)).Should(BeTrue())
 		preRevision := revision
 
 		By("[TEST] update the component without any changes (mimic reconcile behavior)")
-		revision, newRevision, err = handler.createOrUpdateComponent(ctx, component.DeepCopy())
+		revision, err = handler.createOrUpdateComponent(ctx, component.DeepCopy())
 		By("verify that the revision is the same and newRevision is false")
 		Expect(err).ShouldNot(HaveOccurred())
-		Expect(newRevision).Should(BeFalse())
 		Expect(revision).Should(BeIdenticalTo(preRevision))
 
 		By("[TEST] update the component")
@@ -295,10 +293,9 @@ var _ = Describe("Test Application apply", func() {
 		cwV2 := cwV1.DeepCopy()
 		cwV2.Spec.Containers[0].Image = imageV2
 		component.Spec.Workload.Object = cwV2
-		revision, newRevision, err = handler.createOrUpdateComponent(ctx, component.DeepCopy())
+		revision, err = handler.createOrUpdateComponent(ctx, component.DeepCopy())
 		By("verify that the revision is changed and newRevision is true")
 		Expect(err).ShouldNot(HaveOccurred())
-		Expect(newRevision).Should(BeTrue())
 		Expect(revision).ShouldNot(BeIdenticalTo(preRevision))
 		Expect(utils.CompareWithRevision(ctx, handler.r, logging.NewLogrLogger(handler.logger), component.GetName(),
 			component.GetNamespace(), revision, &component.Spec)).Should(BeTrue())
