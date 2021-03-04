@@ -64,41 +64,44 @@ metadata:
 spec:
   definitionRef:
     name: deployments.apps
-  template: |
-    output: {
-    	apiVersion: "apps/v1"
-    	kind:       "Deployment"
-    	spec: {
-    		selector: matchLabels: {
-    			"app.oam.dev/component": context.name
-    		}
-    
-    		template: {
-    			metadata: labels: {
-    				"app.oam.dev/component": context.name
-    			}
-    
-    			spec: {
-    				containers: [{
-    					name:  context.name
-    					image: parameter.image
-    
-    					if parameter["cmd"] != _|_ {
-    						command: parameter.cmd
-    					}
-    				}]
-    		}
-    		}
-    	}
-    }
-    parameter: {
-    	// +usage=Which image would you like to use for your service
-    	// +short=i
-    	image: string
-    
-    	// +usage=Commands to run in the container
-    	cmd?: [...string]
-    }
+  schematic:
+    cue:
+      template: |
+        outputs: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        		}
+
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": context.name
+        			}
+
+        			spec: {
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+
+        					if parameter["cmd"] != _|_ {
+        						command: parameter.cmd
+        					}
+        				}]
+        			}
+        		}
+        	}
+        }
+        parameter: {
+        	// +usage=Which image would you like to use for your service
+        	// +short=i
+        	image: string
+
+        	// +usage=Commands to run in the container
+        	cmd?: [...string]
+        }
+
 `
 			var workloadDefinition v1alpha2.WorkloadDefinition
 			Expect(yaml.Unmarshal([]byte(validWorkloadDefinition), &workloadDefinition)).Should(BeNil())
@@ -148,19 +151,21 @@ spec:
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
-  template: |
-    outputs: scaler: {
-    	apiVersion: "core.oam.dev/v1alpha2"
-    	kind:       "ManualScalerTrait"
-    	spec: {
-    		replicaCount: parameter.replicas
-    	}
-    }
-    parameter: {
-    	//+short=r
-    	//+usage=Replicas of the workload
-    	replicas: *1 | int
-    }
+  schematic:
+    cue:
+      template: |
+        outputs: scaler: {
+        	apiVersion: "core.oam.dev/v1alpha2"
+        	kind:       "ManualScalerTrait"
+        	spec: {
+        		replicaCount: parameter.replicas
+        	}
+        }
+        parameter: {
+        	//+short=r
+        	//+usage=Replicas of the workload
+        	replicas: *1 | int
+        }
 `
 
 			var traitDefinition v1alpha2.TraitDefinition

@@ -19,10 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var (
-	Port           = ":58081"
-	ResponseString = "Hello HTTP Get."
-)
+var ResponseString = "Hello HTTP Get."
 
 func TestInitBaseRestConfig(t *testing.T) {
 	args, err := InitBaseRestConfig()
