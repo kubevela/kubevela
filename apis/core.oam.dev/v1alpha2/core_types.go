@@ -82,11 +82,6 @@ type WorkloadDefinitionSpec struct {
 	// +optional
 	Status *Status `json:"status,omitempty"`
 
-	// Template defines the abstraction template data of the workload, it will replace the old template in extension field.
-	// the data format depends on templateType, by default it's CUE
-	// +optional
-	Template string `json:"template,omitempty"`
-
 	// Schematic defines the data format and template of the encapsulation of the workload
 	// +optional
 	Schematic *Schematic `json:"schematic,omitempty"`
@@ -186,11 +181,6 @@ type TraitDefinitionSpec struct {
 	// Status defines the custom health policy and status message for trait
 	// +optional
 	Status *Status `json:"status,omitempty"`
-
-	// Template defines the abstraction template data of the workload, it will replace the old template in extension field.
-	// the data format depends on templateType, by default it's CUE
-	// +optional
-	Template string `json:"template,omitempty"`
 
 	// Extension is used for extension needs by OAM platform builders
 	// +optional

@@ -55,12 +55,7 @@ func (def *CapabilityWorkloadDefinition) GetCapabilityObject(ctx context.Context
 		return nil, fmt.Errorf("failed to get WorkloadDefinition %s: %v", def.Name, err)
 	}
 	def.WorkloadDefinition = workloadDefinition
-	schematic := &v1alpha2.Schematic{
-		CUE: &v1alpha2.CUE{
-			Template: workloadDefinition.Spec.Template,
-		},
-	}
-	capability, err = util.ConvertTemplateJSON2Object(name, workloadDefinition.Spec.Extension, schematic)
+	capability, err = util.ConvertTemplateJSON2Object(name, workloadDefinition.Spec.Extension, workloadDefinition.Spec.Schematic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert WorkloadDefinition to Capability Object")
 	}
@@ -115,12 +110,7 @@ func (def *CapabilityTraitDefinition) GetCapabilityObject(ctx context.Context, k
 		return &capability, fmt.Errorf("failed to get WorkloadDefinition %s: %v", def.Name, err)
 	}
 	def.TraitDefinition = traitDefinition
-	schematic := &v1alpha2.Schematic{
-		CUE: &v1alpha2.CUE{
-			Template: traitDefinition.Spec.Template,
-		},
-	}
-	capability, err = util.ConvertTemplateJSON2Object(name, traitDefinition.Spec.Extension, schematic)
+	capability, err = util.ConvertTemplateJSON2Object(name, traitDefinition.Spec.Extension, traitDefinition.Spec.Schematic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert WorkloadDefinition to Capability Object")
 	}

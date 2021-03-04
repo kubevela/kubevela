@@ -7,14 +7,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/go-cmp/cmp"
 	"gotest.tools/assert"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
@@ -51,10 +51,15 @@ func TestGetOpenAPISchema(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			data, _ := ioutil.ReadFile(filepath.Join(tc.fileDir, tc.fileName))
-			capability, _ := util.ConvertTemplateJSON2Object(tc.name, nil, string(data))
+			schematic := &v1alpha2.Schematic{
+				CUE: &v1alpha2.CUE{
+					Template: string(data),
+				},
+			}
+			capability, _ := util.ConvertTemplateJSON2Object(tc.name, nil, schematic)
 			schema, err := getOpenAPISchema(capability)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
-				t.Errorf("\n%s\ngetOpenAPISchemaByCapabilityWorkloadDefinition(...): -want error, +got error:\n%s", tc.reason, diff)
+				t.Errorf("\n%s\ngetOpenAPISchema(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
 			if tc.want.err == nil {
 				assert.Equal(t, string(schema), tc.want.data)
