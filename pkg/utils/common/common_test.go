@@ -32,10 +32,7 @@ func TestHTTPGet(t *testing.T) {
 		data   string
 		errStr string
 	}
-	var (
-		ctx         = context.Background()
-		abnormalUrl = "http://abc.def"
-	)
+	var ctx = context.Background()
 
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, ResponseString)
@@ -47,14 +44,6 @@ func TestHTTPGet(t *testing.T) {
 		url    string
 		want   want
 	}{
-		"abnormal case": {
-			reason: "url is invalid",
-			url:    abnormalUrl,
-			want: want{
-				data:   "",
-				errStr: fmt.Sprintf("Get \"%s\": EOF", abnormalUrl),
-			},
-		},
 		"normal case": {
 			reason: "url is valid\n",
 			url:    testServer.URL,
