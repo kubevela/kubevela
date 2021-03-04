@@ -245,6 +245,14 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		return reconcile.Result{}, errors.Wrap(r.client.Update(ctx, ac), errUpdateAppConfigStatus)
 	}
 
+	// make sure this is the last functional defer function to be called
+	defer func() {
+		// Make sure if error occurs, reconcile will not happen too frequency
+		if returnErr != nil {
+			result.RequeueAfter = 0
+		}
+	}()
+
 	// execute the posthooks at the end no matter what
 	defer func() {
 		updateObservedGeneration(ac)
@@ -261,11 +269,6 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 			r.record.Event(ac, event.Normal(reasonExecutePosthook, "Successfully executed a posthook", "posthook name", name))
 		}
 		returnErr = errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
-
-		// Make sure if error occurs, reconcile will not happen too frequency
-		if returnErr != nil && result.RequeueAfter < shortWait {
-			result.RequeueAfter = shortWait
-		}
 	}()
 
 	// execute the prehooks
