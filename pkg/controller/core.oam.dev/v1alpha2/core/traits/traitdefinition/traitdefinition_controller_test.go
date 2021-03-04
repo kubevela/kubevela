@@ -71,19 +71,21 @@ spec:
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
-  template: |
-    outputs: scaler: {
-    	apiVersion: "core.oam.dev/v1alpha2"
-    	kind:       "ManualScalerTrait"
-    	spec: {
-    		replicaCount: parameter.replicas
-    	}
-    }
-    parameter: {
-    	//+short=r
-    	//+usage=Replicas of the workload
-    	replicas: *1 | int
-    }
+  schematic:
+    cue:
+      template: |
+        outputs: scaler: {
+        	apiVersion: "core.oam.dev/v1alpha2"
+        	kind:       "ManualScalerTrait"
+        	spec: {
+        		replicaCount: parameter.replicas
+        	}
+        }
+        parameter: {
+        	//+short=r
+        	//+usage=Replicas of the workload
+        	replicas: *1 | int
+        }
 `
 
 			var def v1alpha2.TraitDefinition
@@ -129,14 +131,16 @@ spec:
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
-  template: |
-    outputs: scaler: {
-    	apiVersion: "core.oam.dev/v1alpha2"
-    	kind:       "ManualScalerTrait"
-    	spec: {
-    		replicaCount: 2
-    	}
-    }
+  schematic:
+    cue:
+      template: |
+        outputs: scaler: {
+        	apiVersion: "core.oam.dev/v1alpha2"
+        	kind:       "ManualScalerTrait"
+        	spec: {
+        		replicaCount: 2
+        	}
+        }
 `
 
 			var invalidDef v1alpha2.TraitDefinition
