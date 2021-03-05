@@ -18,7 +18,7 @@ const mockUrl = "127.0.0.1:4848"
 
 func Test_MakeHTTPRequest(t *testing.T) {
 	ctx := context.TODO()
-	type parameter struct {
+	type mockHTTPParameter struct {
 		method     string
 		statusCode int
 		body       string
@@ -29,15 +29,16 @@ func Test_MakeHTTPRequest(t *testing.T) {
 		body       string
 	}
 	tests := map[string]struct {
-		method    string
-		payload   interface{}
-		parameter parameter
-		want      want
+		url           string
+		method        string
+		payload       interface{}
+		httpParameter mockHTTPParameter
+		want          want
 	}{
 		"Test normal case": {
 			method:  http.MethodPost,
 			payload: "doesn't matter",
-			parameter: parameter{
+			httpParameter: mockHTTPParameter{
 				method:     http.MethodPost,
 				statusCode: http.StatusAccepted,
 				body:       "all good",
@@ -48,10 +49,25 @@ func Test_MakeHTTPRequest(t *testing.T) {
 				body:       "all good",
 			},
 		},
+		"Test http failed case with retry": {
+			url:     "127.0.0.1:13622",
+			method:  http.MethodPost,
+			payload: "doesn't matter",
+			httpParameter: mockHTTPParameter{
+				method:     http.MethodGet,
+				statusCode: http.StatusAccepted,
+				body:       "doesn't matter",
+			},
+			want: want{
+				err:        fmt.Errorf("internal server error, status code = %d", http.StatusNotImplemented),
+				statusCode: -1,
+				body:       "",
+			},
+		},
 		"Test failed case with retry": {
 			method:  http.MethodPost,
 			payload: "doesn't matter",
-			parameter: parameter{
+			httpParameter: mockHTTPParameter{
 				method:     http.MethodPost,
 				statusCode: http.StatusNotImplemented,
 				body:       "please retry",
@@ -65,7 +81,7 @@ func Test_MakeHTTPRequest(t *testing.T) {
 		"Test client error failed case": {
 			method:  http.MethodPost,
 			payload: "doesn't matter",
-			parameter: parameter{
+			httpParameter: mockHTTPParameter{
 				method:     http.MethodPost,
 				statusCode: http.StatusBadRequest,
 				body:       "bad request",
@@ -80,21 +96,32 @@ func Test_MakeHTTPRequest(t *testing.T) {
 	for testName, tt := range tests {
 		t.Run(testName, func(t *testing.T) {
 			// generate a test server so we can capture and inspect the request
-			testServer := NewMock(tt.parameter.method, tt.parameter.statusCode, tt.parameter.body)
+			testServer := NewMock(tt.httpParameter.method, tt.httpParameter.statusCode, tt.httpParameter.body)
 			defer testServer.Close()
-			gotReply, gotCode, gotErr := makeHTTPRequest(ctx, "http://"+mockUrl, tt.method, tt.payload)
-			if (tt.want.err == nil && gotErr != nil) || (tt.want.err != nil && gotErr == nil) {
-				t.Errorf("\n%s\nr.Reconcile(...): want error `%s`, got error:`%s`\n", testName, tt.want.err, gotErr)
+			if len(tt.url) == 0 {
+				tt.url = mockUrl
 			}
-			if tt.want.err != nil && gotErr != nil && gotErr.Error() != tt.want.err.Error() {
-				t.Errorf("\n%s\nr.Reconcile(...): want error `%s`, got error:`%s`\n", testName, tt.want.err, gotErr)
-			}
-			if string(gotReply) != tt.want.body {
-				t.Errorf("\n%s\nr.Reconcile(...): want reply `%s`, got reply:`%s`\n", testName, tt.want.body, string(gotReply))
-			}
+			gotReply, gotCode, gotErr := makeHTTPRequest(ctx, "http://"+tt.url, tt.method, tt.payload)
 			if gotCode != tt.want.statusCode {
 				t.Errorf("\n%s\nr.Reconcile(...): want code `%d`, got code:`%d`\n", testName, tt.want.statusCode,
 					gotCode)
+			}
+			if gotCode == -1 {
+				// we don't know exactly what error we should get when the network call failed
+				if gotErr == nil {
+					t.Errorf("\n%s\nr.Reconcile(...): want some error, got error:`%s`\n", testName, gotErr)
+				}
+			} else {
+				if (tt.want.err == nil && gotErr != nil) || (tt.want.err != nil && gotErr == nil) {
+					t.Errorf("\n%s\nr.Reconcile(...): want error `%s`, got error:`%s`\n", testName, tt.want.err, gotErr)
+				}
+				if tt.want.err != nil && gotErr != nil && gotErr.Error() != tt.want.err.Error() {
+					t.Errorf("\n%s\nr.Reconcile(...): want error `%s`, got error:`%s`\n", testName, tt.want.err, gotErr)
+				}
+
+			}
+			if string(gotReply) != tt.want.body {
+				t.Errorf("\n%s\nr.Reconcile(...): want reply `%s`, got reply:`%s`\n", testName, tt.want.body, string(gotReply))
 			}
 		})
 	}
