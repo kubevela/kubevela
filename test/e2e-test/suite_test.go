@@ -19,10 +19,12 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
@@ -75,6 +77,8 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).Should(BeNil())
 	err = crdv1.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
+	err = kruise.AddToScheme(scheme)
+	Expect(err).Should(BeNil())
 	depExample := &unstructured.Unstructured{}
 	depExample.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   "example.com",
@@ -93,15 +97,6 @@ var _ = BeforeSuite(func(done Done) {
 		Fail("setup failed")
 	}
 	By("Finished setting up test environment")
-
-	By("Applying CRD of WorkloadDefinition and TraitDefinition")
-	var workloadDefinitionCRD crdv1.CustomResourceDefinition
-	Expect(readYaml("../../charts/vela-core/crds/core.oam.dev_workloaddefinitions.yaml", &workloadDefinitionCRD)).Should(BeNil())
-	Expect(k8sClient.Create(context.Background(), &workloadDefinitionCRD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-	var traitDefinitionCRD crdv1.CustomResourceDefinition
-	Expect(readYaml("../../charts/vela-core/crds/core.oam.dev_traitdefinitions.yaml", &traitDefinitionCRD)).Should(BeNil())
-	Expect(k8sClient.Create(context.Background(), &traitDefinitionCRD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	// Create manual scaler trait definition
 	manualscalertrait = v1alpha2.TraitDefinition{
@@ -263,7 +258,11 @@ var _ = BeforeSuite(func(done Done) {
 	By("Create workload definition for revision mechanism test")
 	var nwd v1alpha2.WorkloadDefinition
 	Expect(readYaml("testdata/revision/workload-def.yaml", &nwd)).Should(BeNil())
-	Expect(k8sClient.Create(context.Background(), &nwd)).Should(Succeed())
+	Eventually(
+		func() error {
+			return k8sClient.Create(context.Background(), &nwd)
+		},
+		time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	close(done)
 }, 300)
@@ -288,12 +287,13 @@ var _ = AfterSuite(func() {
 	Expect(k8sClient.Delete(context.Background(), &crd)).Should(BeNil())
 	By("Deleted the custom resource definition")
 
+	By("Deleting all the definitions by deleting the definition CRDs")
 	crd = crdv1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "workloaddefinitions.core.oam.dev",
 		},
 	}
-	Expect(k8sClient.Delete(context.Background(), &crd)).Should(BeNil())
+	Expect(k8sClient.Delete(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
 	By("Deleted the workloaddefinitions CRD")
 
 	crd = crdv1.CustomResourceDefinition{
@@ -301,6 +301,6 @@ var _ = AfterSuite(func() {
 			Name: "traitdefinitions.core.oam.dev",
 		},
 	}
-	Expect(k8sClient.Delete(context.Background(), &crd)).Should(BeNil())
+	Expect(k8sClient.Delete(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
 	By("Deleted the workloaddefinitions CRD")
 })

@@ -64,7 +64,10 @@ func makeHTTPRequest(ctx context.Context, webhookEndPoint, method string, payloa
 
 	// failed even with retry
 	if err != nil {
-		return nil, r.StatusCode, err
+		if r != nil {
+			return nil, r.StatusCode, err
+		}
+		return nil, -1, err
 	}
 	return body, r.StatusCode, nil
 }
