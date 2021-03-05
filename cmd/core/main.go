@@ -173,10 +173,10 @@ func main() {
 	case "", "false", string(oamcontroller.ApplyOnceOnlyOff):
 		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyOff
 		setupLog.Info("ApplyOnceOnly is disabled")
-	case "true", oamcontroller.ApplyOnceOnlyOn:
+	case "true", string(oamcontroller.ApplyOnceOnlyOn):
 		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyOn
 		setupLog.Info("ApplyOnceOnly is enabled, that means workload or trait only apply once if no spec change even they are changed by others")
-	case oamcontroller.ApplyOnceOnlyForce:
+	case string(oamcontroller.ApplyOnceOnlyForce):
 		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyForce
 		setupLog.Info("ApplyOnceOnlyForce is enabled, that means workload or trait only apply once if no spec change even they are changed or deleted by others")
 	default:

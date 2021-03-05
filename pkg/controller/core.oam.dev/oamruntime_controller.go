@@ -26,12 +26,12 @@ const (
 
 	// ApplyOnceOnlyOn indicates workloads and traits should not be affected
 	// if no spec change is made in the ApplicationConfiguration.
-	ApplyOnceOnlyOn = "on"
+	ApplyOnceOnlyOn ApplyOnceOnlyMode = "on"
 
 	// ApplyOnceOnlyForce is a more strong case for ApplyOnceOnly, the workload
 	// and traits won't be affected if no spec change is made in the ApplicationConfiguration,
 	// even if the workload or trait has been deleted from cluster.
-	ApplyOnceOnlyForce = "force"
+	ApplyOnceOnlyForce ApplyOnceOnlyMode = "force"
 )
 
 // Args args used by controller

@@ -37,6 +37,7 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
@@ -316,6 +317,13 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		log := log.WithValues("kind", e.GetKind(), "name", e.GetName())
 		record := r.record.WithAnnotations("kind", e.GetKind(), "name", e.GetName())
 
+		err := r.confirmDeleteOnApplyOnceMode(ctx, ac.GetNamespace(), &e)
+		if err != nil {
+			log.Debug("confirm component can't be garbage collected", "error", err)
+			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
+			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGCComponent)))
+			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
+		}
 		if err := r.client.Delete(ctx, &e); resource.IgnoreNotFound(err) != nil {
 			log.Debug("Cannot garbage collect component", "error", err)
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
@@ -338,6 +346,41 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 
 	// the posthook function will do the final status update
 	return reconcile.Result{RequeueAfter: waitTime}, nil
+}
+
+// confirmDeleteOnApplyOnceMode will confirm whether the workload can be delete or not in apply once only enabled mode
+// currently only workload replicas with 0 can be delete
+func (r *OAMApplicationReconciler) confirmDeleteOnApplyOnceMode(ctx context.Context, namespace string, u *unstructured.Unstructured) error {
+	if r.applyOnceOnlyMode == core.ApplyOnceOnlyOff {
+		return nil
+	}
+	getU := u.DeepCopy()
+	err := r.client.Get(ctx, client.ObjectKey{Name: u.GetName(), Namespace: namespace}, getU)
+	if err != nil {
+		// no need to check if workload not found
+		return resource.IgnoreNotFound(err)
+	}
+	// only check for workload
+	if labels := getU.GetLabels(); labels == nil || labels[oam.LabelOAMResourceType] != oam.ResourceTypeWorkload {
+		return nil
+	}
+	paved := fieldpath.Pave(getU.Object)
+
+	// TODO: add more kinds of workload replica check here if needed
+	// "spec.replicas" maybe not accurate for all kinds of workload, but it work for most of them(including Deployment/StatefulSet/CloneSet).
+	// For workload which don't align with the `spec.replicas` schema, the check won't work
+	replicas, err := paved.GetInteger("spec.replicas")
+	if err != nil {
+		// it's possible for workload without the `spec.replicas`, it's omitempty
+		if strings.Contains(err.Error(), "no such field") {
+			return nil
+		}
+		return errors.WithMessage(err, "fail to get 'spec.replicas' from workload")
+	}
+	if replicas > 0 {
+		return errors.Errorf("can't delete workload with replicas %d in apply once only mode", replicas)
+	}
+	return nil
 }
 
 // UpdateStatus updates v1alpha2.ApplicationConfiguration's Status with retry.RetryOnConflict
@@ -552,9 +595,20 @@ func (fn GarbageCollectorFn) Eligible(namespace string, ws []v1alpha2.WorkloadSt
 }
 
 // IsRevisionWorkload check is a workload is an old revision Workload which shouldn't be garbage collected.
-// TODO(wonderflow): Do we have a better way to recognise it's a revisionWorkload which can't be garbage collected by AppConfig?
-func IsRevisionWorkload(status v1alpha2.WorkloadStatus) bool {
-	return strings.HasPrefix(status.Reference.Name, status.ComponentName+"-")
+func IsRevisionWorkload(status v1alpha2.WorkloadStatus, w []Workload) bool {
+	if strings.HasPrefix(status.Reference.Name, status.ComponentName+"-") {
+		// for compatibility, keep the old way
+		return true
+	}
+
+	// check all workload, with same componentName
+	for _, wr := range w {
+		if wr.ComponentName == status.ComponentName {
+			return wr.RevisionEnabled
+		}
+	}
+	// component not found, should be deleted
+	return false
 }
 
 func eligible(namespace string, ws []v1alpha2.WorkloadStatus, w []Workload) []unstructured.Unstructured {
@@ -578,7 +632,7 @@ func eligible(namespace string, ws []v1alpha2.WorkloadStatus, w []Workload) []un
 	eligible := make([]unstructured.Unstructured, 0)
 	for _, s := range ws {
 
-		if !applied[s.Reference] && !IsRevisionWorkload(s) {
+		if !applied[s.Reference] && !IsRevisionWorkload(s, w) {
 			w := &unstructured.Unstructured{}
 			w.SetAPIVersion(s.Reference.APIVersion)
 			w.SetKind(s.Reference.Kind)
