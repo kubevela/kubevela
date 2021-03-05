@@ -140,24 +140,24 @@ var _ = Describe("Test Rolling out Application", func() {
 		Expect(kc.Spec.UpdateStrategy.Paused).Should(BeTrue())
 
 		By("Apply the application rollout that stops after two batches")
-		var appDeploy v1alpha2.ApplicationDeployment
-		Expect(readYaml("testdata/rollout/app-deploy-pause.yaml", &appDeploy)).Should(BeNil())
-		appDeploy.Namespace = namespace
-		Expect(k8sClient.Create(ctx, &appDeploy)).Should(Succeed())
+		var appRollout v1alpha2.AppRollout
+		Expect(readYaml("testdata/rollout/app-deploy-pause.yaml", &appRollout)).Should(BeNil())
+		appRollout.Namespace = namespace
+		Expect(k8sClient.Create(ctx, &appRollout)).Should(Succeed())
 
 		By("Wait for the rollout phase change to rolling in batches")
 		Eventually(
 			func() oamstd.RollingState {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appDeploy.Name}, &appDeploy)
-				return appDeploy.Status.RollingState
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
+				return appRollout.Status.RollingState
 			},
 			time.Second*60, time.Millisecond*500).Should(BeEquivalentTo(oamstd.RollingInBatchesState))
 
 		By("Wait for rollout to finish two batches")
 		Eventually(
 			func() int32 {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appDeploy.Name}, &appDeploy)
-				return appDeploy.Status.CurrentBatch
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
+				return appRollout.Status.CurrentBatch
 			},
 			time.Second*60, time.Millisecond*500).Should(BeEquivalentTo(1))
 
@@ -165,15 +165,15 @@ var _ = Describe("Test Rolling out Application", func() {
 		// wait for the batch to be ready
 		Eventually(
 			func() oamstd.BatchRollingState {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appDeploy.Name}, &appDeploy)
-				return appDeploy.Status.BatchRollingState
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
+				return appRollout.Status.BatchRollingState
 			},
 			time.Second*60, time.Millisecond*500).Should(Equal(oamstd.BatchReadyState))
 		// wait for 30 seconds, it should still be at 1
 		time.Sleep(30 * time.Second)
-		k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appDeploy.Name}, &appDeploy)
-		Expect(appDeploy.Status.CurrentBatch).Should(BeEquivalentTo(1))
-		Expect(appDeploy.Status.BatchRollingState).Should(BeEquivalentTo(oamstd.BatchReadyState))
+		k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
+		Expect(appRollout.Status.CurrentBatch).Should(BeEquivalentTo(1))
+		Expect(appRollout.Status.BatchRollingState).Should(BeEquivalentTo(oamstd.BatchReadyState))
 
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: workloadName},
 			&kc)).ShouldNot(HaveOccurred())
@@ -181,15 +181,15 @@ var _ = Describe("Test Rolling out Application", func() {
 		Expect(kc.Status.UpdatedReadyReplicas).Should(BeEquivalentTo(3))
 
 		By("Finish the application rollout")
-		Expect(readYaml("testdata/rollout/app-deploy-finish.yaml", &appDeploy)).Should(BeNil())
-		appDeploy.Namespace = namespace
-		Expect(k8sClient.Update(ctx, &appDeploy)).Should(Succeed())
+		Expect(readYaml("testdata/rollout/app-deploy-finish.yaml", &appRollout)).Should(BeNil())
+		appRollout.Namespace = namespace
+		Expect(k8sClient.Update(ctx, &appRollout)).Should(Succeed())
 
 		By("Wait for the rollout phase change to succeeded")
 		Eventually(
 			func() oamstd.RollingState {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appDeploy.Name}, &appDeploy)
-				return appDeploy.Status.RollingState
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
+				return appRollout.Status.RollingState
 			},
 			time.Second*60, time.Millisecond*500).Should(Equal(oamstd.RolloutSucceedState))
 
@@ -199,7 +199,7 @@ var _ = Describe("Test Rolling out Application", func() {
 		Expect(kc.Status.UpdatedReplicas).Should(BeEquivalentTo(5))
 		Expect(kc.Status.UpdatedReadyReplicas).Should(BeEquivalentTo(5))
 		// Clean up
-		k8sClient.Delete(ctx, &appDeploy)
+		k8sClient.Delete(ctx, &appRollout)
 		k8sClient.Delete(ctx, &appConfig2)
 		k8sClient.Delete(ctx, &appConfig1)
 		k8sClient.Delete(ctx, &app)

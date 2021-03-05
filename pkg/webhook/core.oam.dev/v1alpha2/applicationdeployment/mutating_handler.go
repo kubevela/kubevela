@@ -31,7 +31,7 @@ var _ admission.Handler = &MutatingHandler{}
 
 // Handle handles admission requests.
 func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	obj := &v1alpha2.ApplicationDeployment{}
+	obj := &v1alpha2.AppRollout{}
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
@@ -52,7 +52,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 }
 
 // DefaultApplicationDeployment will set the default value for the ApplicationDeployment
-func DefaultApplicationDeployment(obj *v1alpha2.ApplicationDeployment) {
+func DefaultApplicationDeployment(obj *v1alpha2.AppRollout) {
 	klog.InfoS("default", "name", obj.Name)
 	if obj.Spec.RevertOnDelete == nil {
 		klog.V(common.LogDebug).Info("default RevertOnDelete as false")

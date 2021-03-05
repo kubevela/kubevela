@@ -1653,7 +1653,7 @@ func TestIsControlledByApp(t *testing.T) {
 	// still true when it's not the only the controller
 	ac.OwnerReferences = append(ac.OwnerReferences, metav1.OwnerReference{
 		APIVersion: v1alpha2.SchemeGroupVersion.String(),
-		Kind:       v1alpha2.ApplicationDeploymentKind,
+		Kind:       v1alpha2.AppRolloutKind,
 		Controller: pointer.BoolPtr(true),
 	})
 	assert.True(t, isControlledByApp(ac))

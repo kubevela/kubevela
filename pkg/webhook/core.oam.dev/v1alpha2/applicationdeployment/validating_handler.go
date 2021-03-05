@@ -27,7 +27,7 @@ var _ admission.Handler = &ValidatingHandler{}
 
 // Handle handles admission requests.
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	obj := &v1alpha2.ApplicationDeployment{}
+	obj := &v1alpha2.AppRollout{}
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
@@ -42,7 +42,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
 	case admissionv1beta1.Update:
-		oldObj := &v1alpha2.ApplicationDeployment{}
+		oldObj := &v1alpha2.AppRollout{}
 		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldObj); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
