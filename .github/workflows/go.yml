@@ -116,6 +116,10 @@ jobs:
       - name: Run e2e tests
         run: make e2e-test
 
+      - name: Cleanup image
+        if: ${{ always() }}
+        run: make image-cleanup
+
   staticcheck:
     runs-on: ubuntu-20.04
 
