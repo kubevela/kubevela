@@ -69,7 +69,8 @@ var _ = Describe("HealthScope", func() {
 		// create health scope definition
 		sd := v1alpha2.ScopeDefinition{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: "healthscope.core.oam.dev",
+				Name:      "healthscope.core.oam.dev",
+				Namespace: "vela-system",
 			},
 			Spec: v1alpha2.ScopeDefinitionSpec{
 				AllowComponentOverlap: true,
@@ -105,8 +106,9 @@ var _ = Describe("HealthScope", func() {
 		// create a workload definition
 		wd := v1alpha2.WorkloadDefinition{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:   "containerizedworkloads.core.oam.dev",
-				Labels: label,
+				Name:      "containerizedworkloads.core.oam.dev",
+				Namespace: "vela-system",
+				Labels:    label,
 			},
 			Spec: v1alpha2.WorkloadDefinitionSpec{
 				Reference: v1alpha2.DefinitionReference{

@@ -101,8 +101,9 @@ var _ = BeforeSuite(func(done Done) {
 	// Create manual scaler trait definition
 	manualscalertrait = v1alpha2.TraitDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   "manualscalertraits.core.oam.dev",
-			Labels: map[string]string{"trait": "manualscalertrait"},
+			Name:      "manualscalertraits.core.oam.dev",
+			Namespace: "vela-system",
+			Labels:    map[string]string{"trait": "manualscalertrait"},
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
 			WorkloadRefPath: "spec.workloadRef",
@@ -124,8 +125,9 @@ var _ = BeforeSuite(func(done Done) {
 
 	extendedmanualscalertrait = v1alpha2.TraitDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   "manualscalertraits-extended.core.oam.dev",
-			Labels: map[string]string{"trait": "manualscalertrait"},
+			Name:      "manualscalertraits-extended.core.oam.dev",
+			Namespace: "vela-system",
+			Labels:    map[string]string{"trait": "manualscalertrait"},
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
 			WorkloadRefPath: "spec.workloadRef",
@@ -143,8 +145,9 @@ var _ = BeforeSuite(func(done Done) {
 	// create workload definition for 'containerizedworkload'
 	wd := v1alpha2.WorkloadDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   "containerizedworkloads.core.oam.dev",
-			Labels: label,
+			Name:      "containerizedworkloads.core.oam.dev",
+			Namespace: "vela-system",
+			Labels:    label,
 		},
 		Spec: v1alpha2.WorkloadDefinitionSpec{
 			Reference: v1alpha2.DefinitionReference{
@@ -168,7 +171,8 @@ var _ = BeforeSuite(func(done Done) {
 	// create workload definition for 'deployments'
 	wdDeploy := v1alpha2.WorkloadDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "deployments.apps",
+			Name:      "deployments.apps",
+			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.WorkloadDefinitionSpec{
 			Reference: v1alpha2.DefinitionReference{

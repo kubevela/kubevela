@@ -146,6 +146,18 @@ e2e-test:
 	CGO_ENABLED=0 go test -timeout 1h -count=1 -v -tags 'integration' ./test/integration
 	@$(OK) tests pass
 
+compatibility-test: vet lint staticcheck generate-compatibility-testdata
+	# Run compatibility test with old crd
+	COMPATIBILITY_TEST=TRUE go test -race ./pkg/...
+	@$(OK) compatibility-test pass
+
+generate-compatibility-testdata:
+	mkdir -p  ./test/compatibility-test/testdata
+	go run ./test/compatibility-test/convert/main.go ./charts/vela-core/crds ./test/compatibility-test/testdata
+
+compatibility-testdata-cleanup:
+	rm -f ./test/compatibility-test/testdata/*
+
 e2e-cleanup:
 	# Clean up
 	rm -rf ~/.vela

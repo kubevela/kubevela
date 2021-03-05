@@ -230,6 +230,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		return reconcile.Result{}, errors.Wrap(err, errGetAppConfig)
 	}
 	acPatch := ac.DeepCopy()
+	ctx = util.SetNnamespaceInCtx(ctx, ac.Namespace)
 	if ac.ObjectMeta.DeletionTimestamp.IsZero() {
 		if registerFinalizers(ac) {
 			log.Debug("Register new finalizers", "finalizers", ac.ObjectMeta.Finalizers)

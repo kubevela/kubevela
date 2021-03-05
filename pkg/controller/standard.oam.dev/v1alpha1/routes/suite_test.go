@@ -18,6 +18,7 @@ package routes
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -75,10 +76,17 @@ var _ = BeforeSuite(func(done Done) {
 		},
 	}
 	By("Bootstrapping test environment")
+	var yamlPath string
+	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
+		yamlPath = "../../../../../test/compatibility-test/testdata"
+	} else {
+		yamlPath = filepath.Join("../../../../..", "charts", "vela-core", "crds")
+	}
+	logf.Log.Info("start route suit_test", "yaml_path", yamlPath)
 	useExistCluster := false
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("../../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
+			yamlPath, // this has all the required CRDs,
 			filepath.Join("..", "testdata/crds"),
 		},
 		UseExistingCluster: &useExistCluster,
@@ -97,6 +105,9 @@ var _ = BeforeSuite(func(done Done) {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
+	By("create definition namespace vela-system")
+	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
+	Expect(k8sClient.Create(context.Background(), &ns)).Should(BeNil())
 
 	By("Starting the route trait controller in the background")
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
@@ -124,14 +135,14 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(k8sClient.Create(context.Background(), &routeNS)).ToNot(HaveOccurred())
 	routeDef := &v1alpha2.TraitDefinition{}
 	routeDef.Name = "route"
-	routeDef.Namespace = RouteNSName
+	routeDef.Namespace = "vela-system"
 	routeDef.Spec.Reference.Name = "routes.standard.oam.dev"
 	routeDef.Spec.WorkloadRefPath = "spec.workloadRef"
 	Expect(k8sClient.Create(context.Background(), routeDef)).ToNot(HaveOccurred())
 
 	webservice := &v1alpha2.WorkloadDefinition{}
 	webservice.Name = "webservice"
-	webservice.Namespace = RouteNSName
+	webservice.Namespace = "vela-system"
 	webservice.Spec.Reference.Name = "deployments.apps"
 	webservice.Spec.ChildResourceKinds = []v1alpha2.ChildResourceKind{{
 		APIVersion: "apps/v1",
@@ -144,14 +155,14 @@ var _ = BeforeSuite(func(done Done) {
 
 	deployment := &v1alpha2.WorkloadDefinition{}
 	deployment.Name = "deployment"
-	deployment.Namespace = RouteNSName
+	deployment.Namespace = "vela-system"
 	deployment.Labels = map[string]string{"workload.oam.dev/podspecable": "true"}
 	deployment.Spec.Reference.Name = "deployments.apps"
 	Expect(k8sClient.Create(context.Background(), deployment)).ToNot(HaveOccurred())
 
 	deploy := &v1alpha2.WorkloadDefinition{}
 	deploy.Name = "deploy"
-	deploy.Namespace = RouteNSName
+	deploy.Namespace = "vela-system"
 	deploy.Spec.PodSpecPath = "spec.template.spec"
 	deploy.Spec.Reference.Name = "deployments.apps"
 	Expect(k8sClient.Create(context.Background(), deploy)).ToNot(HaveOccurred())

@@ -13,6 +13,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ admission.Handler = &ValidatingHandler{}
@@ -53,10 +54,10 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	if err := h.Decoder.Decode(req, app); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-
+	ctx = util.SetNnamespaceInCtx(ctx, app.Namespace)
 	switch req.Operation {
 	case admissionv1beta1.Create:
-		if allErrs := h.ValidateCreate(app); len(allErrs) > 0 {
+		if allErrs := h.ValidateCreate(ctx, app); len(allErrs) > 0 {
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
 	case admissionv1beta1.Update:
@@ -65,7 +66,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			return admission.Errored(http.StatusBadRequest, err)
 		}
 
-		if allErrs := h.ValidateUpdate(app, oldApp); len(allErrs) > 0 {
+		if allErrs := h.ValidateUpdate(ctx, app, oldApp); len(allErrs) > 0 {
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
 	default:

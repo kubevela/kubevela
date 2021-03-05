@@ -75,8 +75,9 @@ var _ = Describe("ContainerizedWorkload", func() {
 		label = map[string]string{fakeLabelKey: "containerized-workload"}
 		wd = v1alpha2.WorkloadDefinition{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:   "containerizedworkloads.core.oam.dev",
-				Labels: label,
+				Name:      "containerizedworkloads.core.oam.dev",
+				Namespace: "vela-system",
+				Labels:    label,
 			},
 			Spec: v1alpha2.WorkloadDefinitionSpec{
 				Reference: v1alpha2.DefinitionReference{

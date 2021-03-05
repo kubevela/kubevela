@@ -35,7 +35,8 @@ func ApplyTerraform(app *v1alpha2.Application, k8sClient client.Client, ioStream
 	var nativeVelaComponents []v1alpha2.ApplicationComponent
 	// parse template
 	appParser := appfile.NewApplicationParser(k8sClient, dm)
-	appFile, err := appParser.GenerateAppFile(app.Name, app)
+	// TODO(wangyike) this context only for compiling success, lately mabey surport setting sysNs and appNs in api-server or cli
+	appFile, err := appParser.GenerateAppFile(context.TODO(), app.Name, app)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse appfile: %w", err)
 	}

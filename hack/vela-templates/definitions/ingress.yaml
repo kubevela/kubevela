@@ -5,6 +5,7 @@ metadata:
     definition.oam.dev/description: "Configures K8s ingress and service to enable web traffic for your service.
     Please use route trait in cap center for advanced usage."
   name: ingress
+  namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   status:
     customStatus: |-
