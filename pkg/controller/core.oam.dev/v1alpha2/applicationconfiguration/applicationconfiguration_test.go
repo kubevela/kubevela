@@ -847,8 +847,17 @@ func TestEligible(t *testing.T) {
 }
 
 func TestIsRevisionWorkload(t *testing.T) {
-	if true != IsRevisionWorkload(v1alpha2.WorkloadStatus{ComponentName: "compName", Reference: runtimev1alpha1.TypedReference{Name: "compName-rev1"}}) {
+	if true != IsRevisionWorkload(v1alpha2.WorkloadStatus{ComponentName: "compName", Reference: runtimev1alpha1.TypedReference{Name: "compName-rev1"}}, nil) {
 		t.Error("workloadName has componentName as prefix is revisionWorkload")
+	}
+	if true != IsRevisionWorkload(v1alpha2.WorkloadStatus{ComponentName: "compName", Reference: runtimev1alpha1.TypedReference{Name: "speciedName"}}, []Workload{{ComponentName: "compName", RevisionEnabled: true}}) {
+		t.Error("workloadName has componentName same and revisionEnabled is revisionWorkload")
+	}
+	if false != IsRevisionWorkload(v1alpha2.WorkloadStatus{ComponentName: "compName", Reference: runtimev1alpha1.TypedReference{Name: "speciedName"}}, []Workload{{ComponentName: "compName", RevisionEnabled: false}}) {
+		t.Error("workloadName has componentName same and revisionEnabled is false")
+	}
+	if false != IsRevisionWorkload(v1alpha2.WorkloadStatus{ComponentName: "compName", Reference: runtimev1alpha1.TypedReference{Name: "speciedName"}}, []Workload{{ComponentName: "compName-notmatch", RevisionEnabled: true}}) {
+		t.Error("workload with no prefix and no componentName match is not revisionEnabled ")
 	}
 }
 
