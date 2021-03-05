@@ -70,7 +70,7 @@ var _ = Describe("Test Rolling out Application", func() {
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(BeNil())
 	})
 
-	FIt("Basic cloneset rollout", func() {
+	It("Basic cloneset rollout", func() {
 		By("Apply an application")
 		var app v1alpha2.Application
 		Expect(readYaml("testdata/rollout/app-source.yaml", &app)).Should(BeNil())
