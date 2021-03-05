@@ -286,4 +286,21 @@ var _ = AfterSuite(func() {
 	}
 	Expect(k8sClient.Delete(context.Background(), &crd)).Should(BeNil())
 	By("Deleted the custom resource definition")
+
+	By("Deleting all the definitions by deleting the definition CRDs")
+	crd = crdv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "workloaddefinitions.core.oam.dev",
+		},
+	}
+	Expect(k8sClient.Delete(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
+	By("Deleted the workloaddefinitions CRD")
+
+	crd = crdv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "traitdefinitions.core.oam.dev",
+		},
+	}
+	Expect(k8sClient.Delete(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
+	By("Deleted the workloaddefinitions CRD")
 })
