@@ -22,11 +22,11 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
-// ApplicationDeploymentSpec defines how to describe an upgrade between different application
-type ApplicationDeploymentSpec struct {
-	// TargetApplicationName contains the name of the applicationConfiguration that we need to upgrade to.
+// AppRolloutSpec defines how to describe an upgrade between different apps
+type AppRolloutSpec struct {
+	// TargetAppRevisionName contains the name of the applicationConfiguration that we need to upgrade to.
 	// Here we use an applicationConfiguration as a revision of an application, thus the name alone is suffice
-	TargetApplicationName string `json:"targetApplicationName"`
+	TargetAppRevisionName string `json:"targetApplicationName"`
 
 	// SourceApplicationName contains the name of the applicationConfiguration that we need to upgrade from.
 	// it can be empty only when it's the first time to deploy the application
@@ -42,40 +42,40 @@ type ApplicationDeploymentSpec struct {
 	RolloutPlan v1alpha1.RolloutPlan `json:"rolloutPlan"`
 
 	// RevertOnDelete revert the rollout when the rollout CR is deleted
-	// It will remove the target application from the kubernetes if it's set to true
+	// It will remove the target app from the kubernetes if it's set to true
 	// +optional
 	RevertOnDelete *bool `json:"revertOnDelete,omitempty"`
 }
 
-// ApplicationDeploymentStatus defines the observed state of ApplicationDeployment
-type ApplicationDeploymentStatus struct {
+// AppRolloutStatus defines the observed state of AppRollout
+type AppRolloutStatus struct {
 	v1alpha1.RolloutStatus `json:",inline"`
 
-	// LastTargetApplicationName contains the name of the application that we upgraded to
+	// LastTargetAppName contains the name of the app that we upgraded to
 	// We will restart the rollout if this is not the same as the spec
-	LastTargetApplicationName string `json:"lastTargetApplicationName"`
+	LastTargetAppName string `json:"lastTargetAppName"`
 
-	// LastSourceApplicationName contains the name of the application that we need to upgrade from.
+	// LastSourceAppName contains the name of the app that we need to upgrade from.
 	// We will restart the rollout if this is not the same as the spec
-	LastSourceApplicationName string `json:"lastSourceApplicationName,omitempty"`
+	LastSourceAppName string `json:"LastSourceAppName,omitempty"`
 }
 
-// ApplicationDeployment is the Schema for the ApplicationDeployment API
+// AppRollout is the Schema for the AppRollout API
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:categories={oam}
 // +kubebuilder:subresource:status
-type ApplicationDeployment struct {
+type AppRollout struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ApplicationDeploymentSpec   `json:"spec,omitempty"`
-	Status ApplicationDeploymentStatus `json:"status,omitempty"`
+	Spec   AppRolloutSpec   `json:"spec,omitempty"`
+	Status AppRolloutStatus `json:"status,omitempty"`
 }
 
-// ApplicationDeploymentList contains a list of ApplicationDeployment
+// AppRolloutList contains a list of AppRollout
 // +kubebuilder:object:root=true
-type ApplicationDeploymentList struct {
+type AppRolloutList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ApplicationDeployment `json:"items"`
+	Items           []AppRollout `json:"items"`
 }

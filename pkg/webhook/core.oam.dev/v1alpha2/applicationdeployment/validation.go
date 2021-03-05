@@ -14,13 +14,13 @@ import (
 )
 
 // ValidateCreate validates the ApplicationDeployment on creation
-func (h *ValidatingHandler) ValidateCreate(appDeploy *v1alpha2.ApplicationDeployment) field.ErrorList {
-	klog.InfoS("validate create", "name", appDeploy.Name)
-	allErrs := apimachineryvalidation.ValidateObjectMeta(&appDeploy.ObjectMeta, true,
+func (h *ValidatingHandler) ValidateCreate(appRollout *v1alpha2.AppRollout) field.ErrorList {
+	klog.InfoS("validate create", "name", appRollout.Name)
+	allErrs := apimachineryvalidation.ValidateObjectMeta(&appRollout.ObjectMeta, true,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
 
 	fldPath := field.NewPath("spec")
-	target := appDeploy.Spec.TargetApplicationName
+	target := appRollout.Spec.TargetAppRevisionName
 	if len(target) == 0 {
 		allErrs = append(allErrs, field.Required(fldPath.Child("targetApplicationName"),
 			"target application name cannot be empty"))
@@ -29,31 +29,31 @@ func (h *ValidatingHandler) ValidateCreate(appDeploy *v1alpha2.ApplicationDeploy
 	}
 
 	var targetApp, sourceApp v1alpha2.ApplicationConfiguration
-	targetAppName := appDeploy.Spec.TargetApplicationName
-	if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appDeploy.Namespace, Name: targetAppName},
+	targetAppName := appRollout.Spec.TargetAppRevisionName
+	if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appRollout.Namespace, Name: targetAppName},
 		&targetApp); err != nil {
 		klog.ErrorS(err, "cannot locate target application", "target application",
-			klog.KRef(appDeploy.Namespace, targetAppName))
+			klog.KRef(appRollout.Namespace, targetAppName))
 		allErrs = append(allErrs, field.NotFound(fldPath.Child("targetApplicationName"), targetAppName))
 		// can't continue without target
 		return allErrs
 	}
-	sourceAppName := appDeploy.Spec.SourceApplicationName
+	sourceAppName := appRollout.Spec.SourceApplicationName
 	if sourceAppName != "" {
-		if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appDeploy.Namespace, Name: sourceAppName},
+		if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appRollout.Namespace, Name: sourceAppName},
 			&sourceApp); err != nil {
 			klog.ErrorS(err, "cannot locate source application", "source application",
-				klog.KRef(appDeploy.Namespace, sourceAppName))
+				klog.KRef(appRollout.Namespace, sourceAppName))
 			allErrs = append(allErrs, field.NotFound(fldPath.Child("sourceApplicationName"), sourceAppName))
 		}
 	}
 
 	// validate the component spec
-	allErrs = append(allErrs, validateComponent(appDeploy.Spec.ComponentList, &targetApp, &sourceApp,
+	allErrs = append(allErrs, validateComponent(appRollout.Spec.ComponentList, &targetApp, &sourceApp,
 		fldPath.Child("componentList"))...)
 
 	// validate the rollout plan spec
-	allErrs = append(allErrs, rollout.ValidateCreate(&appDeploy.Spec.RolloutPlan, fldPath.Child("rolloutPlan"))...)
+	allErrs = append(allErrs, rollout.ValidateCreate(&appRollout.Spec.RolloutPlan, fldPath.Child("rolloutPlan"))...)
 	return allErrs
 }
 
@@ -103,7 +103,7 @@ func validateComponent(componentList []string, targetApp, sourceApp *v1alpha2.Ap
 }
 
 // ValidateUpdate validates the ApplicationDeployment on update
-func (h *ValidatingHandler) ValidateUpdate(new, old *v1alpha2.ApplicationDeployment) field.ErrorList {
+func (h *ValidatingHandler) ValidateUpdate(new, old *v1alpha2.AppRollout) field.ErrorList {
 	klog.InfoS("validate update", "name", new.Name)
 	errList := h.ValidateCreate(new)
 	if len(errList) > 0 {

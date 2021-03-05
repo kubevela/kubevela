@@ -37,14 +37,14 @@ type Reconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=core.oam.dev,resources=applicationdeployments,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=core.oam.dev,resources=applicationdeployments/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=core.oam.dev,resources=approllouts,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core.oam.dev,resources=approllouts/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications/status,verbs=get;update;patch
 
 // Reconcile is the main logic of applicationdeployment controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr error) {
-	var appDeploy oamv1alpha2.ApplicationDeployment
+	var appRollout oamv1alpha2.AppRollout
 	ctx, cancel := context.WithTimeout(context.TODO(), reconcileTimeOut)
 	defer cancel()
 
@@ -62,23 +62,23 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 		}
 	}()
 
-	if err := r.Get(ctx, req.NamespacedName, &appDeploy); err != nil {
+	if err := r.Get(ctx, req.NamespacedName, &appRollout); err != nil {
 		if apierrors.IsNotFound(err) {
-			klog.InfoS("application deployment does not exist", "appDeploy", klog.KRef(req.Namespace, req.Name))
+			klog.InfoS("application deployment does not exist", "appRollout", klog.KRef(req.Namespace, req.Name))
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	klog.InfoS("Start to reconcile ", "application deployment", klog.KObj(&appDeploy))
+	klog.InfoS("Start to reconcile ", "application deployment", klog.KObj(&appRollout))
 
 	// TODO: check if the target/source has changed
-	r.handleFinalizer(&appDeploy)
+	r.handleFinalizer(&appRollout)
 
-	ctx = oamutil.SetNnamespaceInCtx(ctx, appDeploy.Namespace)
+	ctx = oamutil.SetNnamespaceInCtx(ctx, appRollout.Namespace)
 
 	// Get the target application
 	var targetApp oamv1alpha2.ApplicationConfiguration
 	sourceApp := &oamv1alpha2.ApplicationConfiguration{}
-	targetAppName := appDeploy.Spec.TargetApplicationName
+	targetAppName := appRollout.Spec.TargetAppRevisionName
 	if err := r.Get(ctx, ktypes.NamespacedName{Namespace: req.Namespace, Name: targetAppName},
 		&targetApp); err != nil {
 		klog.ErrorS(err, "cannot locate target application", "target application",
@@ -87,7 +87,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	}
 
 	// Get the source application
-	sourceAppName := appDeploy.Spec.SourceApplicationName
+	sourceAppName := appRollout.Spec.SourceApplicationName
 	if sourceAppName == "" {
 		klog.Info("source app fields not filled, we assume it is deployed for the first time")
 		sourceApp = nil
@@ -97,11 +97,11 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 		return ctrl.Result{}, err
 	}
 
-	targetWorkload, sourceWorkload, err := r.extractWorkloads(ctx, appDeploy.Spec.ComponentList, &targetApp, sourceApp)
+	targetWorkload, sourceWorkload, err := r.extractWorkloads(ctx, appRollout.Spec.ComponentList, &targetApp, sourceApp)
 	if err != nil {
 		klog.ErrorS(err, "cannot fetch the workloads to upgrade", "target application",
 			klog.KRef(req.Namespace, targetAppName), "source application", klog.KRef(req.Namespace, sourceAppName),
-			"commonComponent", appDeploy.Spec.ComponentList)
+			"commonComponent", appRollout.Spec.ComponentList)
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, client.IgnoreNotFound(err)
 	}
 	klog.InfoS("get the target workload we need to work on", "targetWorkload", klog.KObj(targetWorkload))
@@ -111,11 +111,11 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	}
 
 	// reconcile the rollout part of the spec given the target and source workload
-	rolloutPlanController := rollout.NewRolloutPlanController(r, &appDeploy, r.record,
-		&appDeploy.Spec.RolloutPlan, &appDeploy.Status.RolloutStatus, targetWorkload, sourceWorkload)
+	rolloutPlanController := rollout.NewRolloutPlanController(r, &appRollout, r.record,
+		&appRollout.Spec.RolloutPlan, &appRollout.Status.RolloutStatus, targetWorkload, sourceWorkload)
 	result, rolloutStatus := rolloutPlanController.Reconcile(ctx)
 	// make sure that the new status is copied back
-	appDeploy.Status.RolloutStatus = *rolloutStatus
+	appRollout.Status.RolloutStatus = *rolloutStatus
 	if rolloutStatus.RollingState == v1alpha1.RolloutSucceedState {
 		// remove the rollout annotation so that the target appConfig controller can take over the rest of the work
 		oamutil.RemoveAnnotations(&targetApp, []string{oam.AnnotationAppRollout})
@@ -125,29 +125,29 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 			return ctrl.Result{}, err
 		}
 	}
-	// update the appDeploy status
-	return result, r.updateStatus(ctx, &appDeploy)
+	// update the appRollout status
+	return result, r.updateStatus(ctx, &appRollout)
 }
 
-// UpdateStatus updates v1alpha2.ApplicationDeployment's Status with retry.RetryOnConflict
-func (r *Reconciler) updateStatus(ctx context.Context, app *oamv1alpha2.ApplicationDeployment, opts ...client.UpdateOption) error {
-	status := app.DeepCopy().Status
+// UpdateStatus updates v1alpha2.AppRollout's Status with retry.RetryOnConflict
+func (r *Reconciler) updateStatus(ctx context.Context, appRollout *oamv1alpha2.AppRollout, opts ...client.UpdateOption) error {
+	status := appRollout.DeepCopy().Status
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
-		if err = r.Get(ctx, client.ObjectKey{Namespace: app.Namespace, Name: app.Name}, app); err != nil {
+		if err = r.Get(ctx, client.ObjectKey{Namespace: appRollout.Namespace, Name: appRollout.Name}, appRollout); err != nil {
 			return
 		}
-		app.Status = status
-		return r.Status().Update(ctx, app, opts...)
+		appRollout.Status = status
+		return r.Status().Update(ctx, appRollout, opts...)
 	})
 }
 
-func (r *Reconciler) handleFinalizer(appDeploy *oamv1alpha2.ApplicationDeployment) {
-	if appDeploy.DeletionTimestamp.IsZero() {
-		if !slice.ContainsString(appDeploy.Finalizers, appDeployFinalizer, nil) {
+func (r *Reconciler) handleFinalizer(appRollout *oamv1alpha2.AppRollout) {
+	if appRollout.DeletionTimestamp.IsZero() {
+		if !slice.ContainsString(appRollout.Finalizers, appDeployFinalizer, nil) {
 			// TODO: add finalizer
 			klog.Info("add finalizer")
 		}
-	} else if slice.ContainsString(appDeploy.Finalizers, appDeployFinalizer, nil) {
+	} else if slice.ContainsString(appRollout.Finalizers, appDeployFinalizer, nil) {
 		// TODO: perform finalize
 		klog.Info("perform clean up")
 	}
@@ -158,7 +158,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("ApplicationDeployment")).
 		WithAnnotations("controller", "ApplicationDeployment")
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&oamv1alpha2.ApplicationDeployment{}).
+		For(&oamv1alpha2.AppRollout{}).
 		Owns(&oamv1alpha2.Application{}).
 		Complete(r)
 }
