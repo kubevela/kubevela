@@ -150,6 +150,12 @@ e2e-cleanup:
 	# Clean up
 	rm -rf ~/.vela
 
+image-cleanup:
+# Delete Docker image
+ifneq ($(shell docker images -q vela-core-test:$(GIT_COMMIT)),)
+	docker image rm -f vela-core-test:$(GIT_COMMIT)
+endif
+
 # load docker image to the kind cluster
 kind-load:
 	docker build -t vela-core-test:$(GIT_COMMIT) .
