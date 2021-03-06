@@ -18,14 +18,14 @@ Follow the minikube [installation guide](https://minikube.sigs.k8s.io/docs/start
 
 Once minikube is installed, create a cluster:
 
-```bash
-$ minikube start
+```shell script
+minikube start
 ```
 
 Install ingress:
 
-```bash
-$ minikube addons enable ingress
+```shell script
+minikube addons enable ingress
 ``` 
 
 #### **KinD**
@@ -34,7 +34,7 @@ Follow [this guide](https://kind.sigs.k8s.io/docs/user/quick-start/#installation
 
 Then spins up a kind cluster:
 
-```bash
+```shell script
 cat <<EOF | kind create cluster --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
@@ -57,8 +57,8 @@ EOF
 ```
 
 Then install [ingress for kind](https://kind.sigs.k8s.io/docs/user/ingress/#ingress-nginx):
-```bash
-$ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/static/provider/kind/deploy.yaml
+```shell script
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/static/provider/kind/deploy.yaml
 ```
 
 <!-- tabs:end -->
@@ -68,12 +68,12 @@ $ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/ma
 These steps will install KubeVela controller and its dependency.
 
 1. Add helm chart repo for KubeVela
-    ```
+    ```shell script
     helm repo add kubevela https://kubevelacharts.oss-cn-hangzhou.aliyuncs.com/core
     ```
 
 2. Update the chart repo
-    ```
+    ```shell script
     helm repo update
     ```
    
@@ -88,11 +88,13 @@ These steps will install KubeVela controller and its dependency.
     like `0.4.0-rc-master`.
    
     ```shell script
-    $ helm search repo kubevela/vela-core -l --devel
-    NAME                     	CHART VERSION        	APP VERSION          	DESCRIPTION
-    kubevela/vela-core       	0.4.0-rc-master         0.4.0-rc-master         A Helm chart for KubeVela core
-    kubevela/vela-core       	0.3.2  	                0.3.2                   A Helm chart for KubeVela core
-    kubevela/vela-core       	0.3.1        	        0.3.1               	A Helm chart for KubeVela core
+    helm search repo kubevela/vela-core -l --devel
+    ```
+    ```console
+        NAME                     	CHART VERSION        	APP VERSION          	DESCRIPTION
+        kubevela/vela-core       	0.4.0-rc-master         0.4.0-rc-master         A Helm chart for KubeVela core
+        kubevela/vela-core       	0.3.2  	                0.3.2                   A Helm chart for KubeVela core
+        kubevela/vela-core       	0.3.1        	        0.3.1               	A Helm chart for KubeVela core
     ```
    
     And try the following command to install it.
@@ -100,6 +102,18 @@ These steps will install KubeVela controller and its dependency.
     ```shell script
     helm install --create-namespace -n vela-system kubevela kubevela/vela-core --version <next_version>-rc-master
     ```
+    ```console
+   NAME: kubevela
+   LAST DEPLOYED: Sat Mar  6 21:03:11 2021
+   NAMESPACE: vela-system
+   STATUS: deployed
+   REVISION: 1
+   NOTES:
+   1. Get the application URL by running these commands:
+     export POD_NAME=$(kubectl get pods --namespace vela-system -l "app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela" -o jsonpath="{.items[0].metadata.name}")
+     echo "Visit http://127.0.0.1:8080 to use your application"
+     kubectl --namespace vela-system port-forward $POD_NAME 8080:80
+   ```
 
 4. Install Kubevela with cert-manager (optional)
    
@@ -127,19 +141,19 @@ Here are three ways to get KubeVela Cli:
 
 **macOS/Linux**
 
-```console
-$ curl -fsSl https://kubevela.io/install.sh | bash
+```shell script
+curl -fsSl https://kubevela.io/install.sh | bash
 ```
 
 **Windows**
 
-```console
-$ powershell -Command "iwr -useb https://kubevela.io/install.ps1 | iex"
+```shell script
+powershell -Command "iwr -useb https://kubevela.io/install.ps1 | iex"
 ```
 #### **Homebrew**
 **macOS/Linux**
-```console
-$ brew install kubevela
+```shell script
+brew install kubevela
 ```
 
 #### **Download directly from releases**
@@ -147,8 +161,8 @@ $ brew install kubevela
 - Download the latest `vela` binary from the [releases page](https://github.com/oam-dev/kubevela/releases).
 - Unpack the `vela` binary and add it to `$PATH` to get started.
 
-```bash
-$ sudo mv ./vela /usr/local/bin/vela
+```shell script
+sudo mv ./vela /usr/local/bin/vela
 ```
 
 > Known Issue(https://github.com/oam-dev/kubevela/issues/625): 
@@ -161,8 +175,10 @@ $ sudo mv ./vela /usr/local/bin/vela
 
 ## 4. Sync Capability from Cluster
 
-```bash
-$ vela workloads
+```shell script
+vela workloads
+```
+```console
 Automatically discover capabilities successfully ✅ Add(5) Update(0) Delete(0)
 
 TYPE       	CATEGORY	DESCRIPTION                                                                     
@@ -191,9 +207,9 @@ worker    	Describes long-running, scalable, containerized services that running
 
 Run:
 
-```bash
-$ helm uninstall -n vela-system kubevela
-$ rm -r ~/.vela
+```shell script
+helm uninstall -n vela-system kubevela
+rm -r ~/.vela
 ```
 
 This will uninstall KubeVela server component and its dependency components.
@@ -201,8 +217,8 @@ This also cleans up local CLI cache.
 
 Then clean up CRDs (CRDs are not removed via helm by default):
 
-```
-$ kubectl delete crd \
+```shell script
+ kubectl delete crd \
   applicationconfigurations.core.oam.dev \
   applicationdeployments.core.oam.dev \
   autoscalers.standard.oam.dev \
