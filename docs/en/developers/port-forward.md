@@ -3,7 +3,7 @@
 Once your web services of the application deployed, you can access it locally via `port-forward`. 
 
 ```bash
-$ vela svc ls
+$ vela ls
 NAME  	        APP  	WORKLOAD  	  TRAITS	STATUS 	    CREATED-TIME
 express-server	testapp	webservice	      	    Deployed	2020-09-18 22:42:04 +0800 CST
 ```
