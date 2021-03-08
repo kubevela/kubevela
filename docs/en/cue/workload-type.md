@@ -135,87 +135,131 @@ metadata:
 spec:
   definitionRef:
     name: deployments.apps
-  schematic:
-    cue:
-      template: |
-        output: {
-        	apiVersion: "apps/v1"
-        	kind:       "Deployment"
-        	spec: {
-        		selector: matchLabels: {
-        			"app.oam.dev/component": context.name
-        		}
-        		template: {
-        			metadata: labels: {
-        				"app.oam.dev/component": context.name
-        			}
-        			spec: {
-        				containers: [{
-        					name:  context.name
-        					image: parameter.image
+  template: |
+    output: {
+        apiVersion: "apps/v1"
+        kind:       "Deployment"
+        spec: {
+            selector: matchLabels: {
+                "app.oam.dev/component": context.name
+            }
+            template: {
+                metadata: labels: {
+                    "app.oam.dev/component": context.name
+                }
+                spec: {
+                    containers: [{
+                        name:  context.name
+                        image: parameter.image
 
-        					if parameter["cmd"] != _|_ {
-        						command: parameter.cmd
-        					}
+                        if parameter["cmd"] != _|_ {
+                            command: parameter.cmd
+                        }
 
-        					if parameter["env"] != _|_ {
-        						env: parameter.env
-        					}
+                        if parameter["env"] != _|_ {
+                            env: parameter.env
+                        }
 
-        					if context["config"] != _|_ {
-        						env: context.config
-        					}
+                        if context["config"] != _|_ {
+                            env: context.config
+                        }
 
-        					ports: [{
-        						containerPort: parameter.port
-        					}]
+                        ports: [{
+                            containerPort: parameter.port
+                        }]
 
-        					if parameter["cpu"] != _|_ {
-        						resources: {
-        							limits:
-        								cpu: parameter.cpu
-        							requests:
-        								cpu: parameter.cpu
-        						}
-        					}
-        				}]
-        		}
-        		}
-        	}
+                        if parameter["cpu"] != _|_ {
+                            resources: {
+                                limits:
+                                    cpu: parameter.cpu
+                                requests:
+                                    cpu: parameter.cpu
+                            }
+                        }
+                    }]
+            }
+            }
         }
-        // an extra template
-        outputs: service: {
-        	apiVersion: "v1"
-        	kind:       "Service"
-        	spec: {
-        		selector: {
-        			"app.oam.dev/component": context.name
-        		}
-        		ports: [
-        			{
-        				port:       parameter.port
-        				targetPort: parameter.port
-        			},
-        		]
-        	}
+    }
+    // an extra template
+    outputs: service: {
+        apiVersion: "v1"
+        kind:       "Service"
+        spec: {
+            selector: {
+                "app.oam.dev/component": context.name
+            }
+            ports: [
+                {
+                    port:       parameter.port
+                    targetPort: parameter.port
+                },
+            ]
         }
-        parameter: {
-        	image: string
-        	cmd?: [...string]
-        	port: *80 | int
-        	env?: [...{
-        		name:   string
-        		value?: string
-        		valueFrom?: {
-        			secretKeyRef: {
-        				name: string
-        				key:  string
-        			}
-        		}
-        	}]
-        	cpu?: string
-        }
+    }
+    parameter: {
+        image: string
+        cmd?: [...string]
+        port: *80 | int
+        env?: [...{
+            name:   string
+            value?: string
+            valueFrom?: {
+                secretKeyRef: {
+                    name: string
+                    key:  string
+                }
+            }
+        }]
+        cpu?: string
+    }
+
 ```
 
-> TBD: a generated resource example for above workload definition.
+Please save the example as file `webserver.yaml`, then register the new workload to kubevela.
+```shell
+$ kubectl apply -f webserver.yaml
+```
+
+Next, we can use the `webserver` type workload in our application, below is the example:
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: Application
+metadata:
+  name: webserver-demo
+  namespace: default
+spec:
+  components:
+    - name: hello-world
+      type: webserver
+      settings:
+        image: crccheck/hello-world
+        port: 8000
+        env:
+        - name: "PORT"
+          value: "8000"
+        cpu: "100m"
+```
+
+Please save the Application example as file `app.yaml`, then create the new Application.
+```shell
+kubectl apply -f app.yaml
+```
+Wait for a while until the status of Application is `running`.
+```shell
+$ kubectl get application webserver-demo -o jsonpath='{.status.status}'
+running
+```
+Then, execute the following command
+```shell
+$ kubectl get deployment
+NAME             READY   UP-TO-DATE   AVAILABLE   AGE
+hello-world-v1   1/1     1            1           15s
+
+$ kubectl get svc
+NAME                           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+hello-world-trait-7bdcff98f7   ClusterIP   10.96.110.130   <none>        8000/TCP   32s
+kubernetes                     ClusterIP   10.96.0.1       <none>        443/TCP    5d18h
+```
+From the result, we can see that both Deployment and Service have been created.
 
