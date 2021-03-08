@@ -2,8 +2,11 @@ package application
 
 import (
 	"context"
+	"fmt"
 
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -16,6 +19,19 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1alpha2.Ap
 	appParser := appfile.NewApplicationParser(h.Client, h.dm)
 	if _, err := appParser.GenerateAppFile(ctx, app.Name, app); err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), app, err.Error()))
+		return componentErrs
+	}
+	vApp := &ValidatingApp{app: app}
+	for _, validator := range h.Validators {
+		if allErrs := validator.Validate(ctx, *vApp); len(allErrs) != 0 {
+			// utilerrors.NewAggregate can remove nil from allErrs
+			klog.InfoS("validation failed", " name: ", app.Name, " errMsgi: ",
+				utilerrors.NewAggregate(allErrs).Error())
+			for _, err := range allErrs {
+				componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), app.Spec,
+					fmt.Sprintf("validation failed, err = %s", err.Error())))
+			}
+		}
 	}
 	return componentErrs
 }

@@ -23,7 +23,8 @@ type ValidatingHandler struct {
 	dm     discoverymapper.DiscoveryMapper
 	Client client.Client
 	// Decoder decodes objects
-	Decoder *admission.Decoder
+	Decoder    *admission.Decoder
+	Validators []AppValidator
 }
 
 var _ inject.Client = &ValidatingHandler{}
@@ -82,6 +83,11 @@ func RegisterValidatingHandler(mgr manager.Manager) error {
 		return err
 	}
 	server := mgr.GetWebhookServer()
-	server.Register("/validating-core-oam-dev-v1alpha2-applications", &webhook.Admission{Handler: &ValidatingHandler{dm: mapper}})
+	server.Register("/validating-core-oam-dev-v1alpha2-applications", &webhook.Admission{Handler: &ValidatingHandler{
+		dm: mapper,
+		Validators: []AppValidator{
+			AppValidateFunc(ValidateTraitNameFn),
+		},
+	}})
 	return nil
 }
