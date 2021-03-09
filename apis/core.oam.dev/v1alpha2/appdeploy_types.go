@@ -28,9 +28,9 @@ type AppRolloutSpec struct {
 	// Here we use an applicationConfiguration as a revision of an application, thus the name alone is suffice
 	TargetAppRevisionName string `json:"targetApplicationName"`
 
-	// SourceApplicationName contains the name of the applicationConfiguration that we need to upgrade from.
+	// SourceAppRevisionName contains the name of the applicationConfiguration that we need to upgrade from.
 	// it can be empty only when it's the first time to deploy the application
-	SourceApplicationName string `json:"sourceApplicationName,omitempty"`
+	SourceAppRevisionName string `json:"sourceAppRevisionName,omitempty"`
 
 	// The list of component to upgrade in the application.
 	// We only support single component application so far
@@ -51,13 +51,13 @@ type AppRolloutSpec struct {
 type AppRolloutStatus struct {
 	v1alpha1.RolloutStatus `json:",inline"`
 
-	// LastTargetAppName contains the name of the app that we upgraded to
+	// LastUpgradedTargetAppRevision contains the name of the app that we upgraded to
 	// We will restart the rollout if this is not the same as the spec
-	LastTargetAppName string `json:"lastTargetAppName"`
+	LastUpgradedTargetAppRevision string `json:"lastTargetAppRevision"`
 
-	// LastSourceAppName contains the name of the app that we need to upgrade from.
+	// LastSourceAppRevision contains the name of the app that we need to upgrade from.
 	// We will restart the rollout if this is not the same as the spec
-	LastSourceAppName string `json:"LastSourceAppName,omitempty"`
+	LastSourceAppRevision string `json:"LastSourceAppRevision,omitempty"`
 }
 
 // AppRollout is the Schema for the AppRollout API

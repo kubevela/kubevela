@@ -260,8 +260,8 @@ spec:
                   format: int32
                   type: integer
               type: object
-            sourceApplicationName:
-              description: SourceApplicationName contains the name of the applicationConfiguration that we need to upgrade from. it can be empty only when it's the first time to deploy the application
+            sourceAppRevisionName:
+              description: SourceAppRevisionName contains the name of the applicationConfiguration that we need to upgrade from. it can be empty only when it's the first time to deploy the application
               type: string
             targetApplicationName:
               description: TargetAppRevisionName contains the name of the applicationConfiguration that we need to upgrade to. Here we use an applicationConfiguration as a revision of an application, thus the name alone is suffice
@@ -273,8 +273,8 @@ spec:
         status:
           description: AppRolloutStatus defines the observed state of AppRollout
           properties:
-            LastSourceAppName:
-              description: LastSourceAppName contains the name of the app that we need to upgrade from. We will restart the rollout if this is not the same as the spec
+            LastSourceAppRevision:
+              description: LastSourceAppRevision contains the name of the app that we need to upgrade from. We will restart the rollout if this is not the same as the spec
               type: string
             batchRollingState:
               description: BatchRollingState only meaningful when the Status is rolling
@@ -314,8 +314,8 @@ spec:
             lastAppliedPodTemplateIdentifier:
               description: lastAppliedPodTemplateIdentifier is a string that uniquely represent the last pod template each workload type could use different ways to identify that so we cannot compare between resources We update this field only after a successful rollout
               type: string
-            lastTargetAppName:
-              description: LastTargetAppName contains the name of the app that we upgraded to We will restart the rollout if this is not the same as the spec
+            lastTargetAppRevision:
+              description: LastUpgradedTargetAppRevision contains the name of the app that we upgraded to We will restart the rollout if this is not the same as the spec
               type: string
             rollingState:
               description: RollingState is the Rollout State
@@ -333,7 +333,7 @@ spec:
               type: integer
           required:
           - currentBatch
-          - lastTargetAppName
+          - lastTargetAppRevision
           - rollingState
           - upgradedReadyReplicas
           - upgradedReplicas

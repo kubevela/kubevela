@@ -15,7 +15,8 @@ type WorkloadController interface {
 	// it returns new rollout status
 	Verify(ctx context.Context) *v1alpha1.RolloutStatus
 
-	// Initialize make sure that the resource is ready to be upgraded.
+	// Initialize make sure that the resource is ready to be upgraded
+	// this function is tasked to change rollout status
 	Initialize(ctx context.Context) *v1alpha1.RolloutStatus
 
 	// RolloutOneBatchPods tries to upgrade pods in the resources following the rollout plan
@@ -36,6 +37,6 @@ type WorkloadController interface {
 
 	// Finalize makes sure the resources are in a good final state.
 	// For example, we may remove the source object to prevent scalar traits to ever work
-	// and we will call the finalize rollout web hooks
-	Finalize(ctx context.Context) *v1alpha1.RolloutStatus
+	// and the finalize rollout web hooks will be called after this call succeeds
+	Finalize(ctx context.Context) (*v1alpha1.RolloutStatus, error)
 }

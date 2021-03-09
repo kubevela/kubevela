@@ -56,11 +56,15 @@ const (
 	AnnotationLastAppliedConfig = "app.oam.dev/last-applied-configuration"
 
 	// AnnotationAppRollout indicates that the application is still rolling out
-	// the application controller should not reconcile it yet
+	// the application controller should treat it differently
 	AnnotationAppRollout = "app.oam.dev/rollout-template"
 
 	// AnnotationRollingComponent indicates that the component is rolling out
 	// this is to enable any concerned controllers to handle the first component apply logic differently
 	// the value of the annotation is a list of component name of all the new component
 	AnnotationRollingComponent = "app.oam.dev/rolling-components"
+
+	// AnnotationAppRevision indicates that the object is an application revision
+	//	its controller should not try to reconcile it
+	AnnotationAppRevision = "app.oam.dev/app-revision"
 )

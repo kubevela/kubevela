@@ -151,18 +151,19 @@ func executeApplyOptions(ctx context.Context, existing, desired runtime.Object, 
 // MustBeControllableBy requires that the new object is controllable by an
 // object with the supplied UID. An object is controllable if its controller
 // reference includes the supplied UID.
-// There can be multiple controllers and it's ligit as long as one of them matches the UID
 func MustBeControllableBy(u types.UID) ApplyOption {
-	return func(_ context.Context, _, newInstance runtime.Object) error {
-		if newInstance == nil {
+	return func(_ context.Context, existing, _ runtime.Object) error {
+		if existing == nil {
 			return nil
 		}
-		owners := newInstance.(metav1.Object).GetOwnerReferences()
-		for _, owner := range owners {
-			if owner.Controller != nil && *owner.Controller && owner.UID == u {
-				return nil
-			}
+		c := metav1.GetControllerOf(existing.(metav1.Object))
+		if c == nil {
+			return nil
 		}
-		return errors.Errorf("existing object is not controlled by UID %q", u)
+
+		if c.UID != u {
+			return errors.Errorf("existing object is not controlled by UID %q", u)
+		}
+		return nil
 	}
 }

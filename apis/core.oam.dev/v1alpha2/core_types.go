@@ -515,8 +515,10 @@ const (
 	RollingTemplating RollingStatus = "RollingTemplating"
 	// RollingTemplated means that the AC is rolling and it already templated
 	RollingTemplated RollingStatus = "RollingTemplated"
-	// RollingComplete means that the AC is not rolling
-	RollingComplete RollingStatus = "RollingComplete"
+	// RollingCompleted means that the AC is the new active revision of the application
+	RollingCompleted RollingStatus = "RollingCompleted"
+	// InactiveAfterRollingCompleted means that the AC is the inactive revision after the rolling is finished
+	InactiveAfterRollingCompleted RollingStatus = "InactiveAfterRollingCompleted"
 )
 
 // An ApplicationConfigurationStatus represents the observed state of a

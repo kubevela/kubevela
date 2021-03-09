@@ -7,11 +7,13 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -73,7 +75,7 @@ func (c *CloneSetController) Verify(ctx context.Context) (status *v1alpha1.Rollo
 		return
 	}
 
-	// make sure that there are changes in the pod template
+	// make sure that the updateRevision is different from what we have already done
 	targetHash := c.cloneSet.Status.UpdateRevision
 	if targetHash == c.rolloutStatus.LastAppliedPodTemplateIdentifier {
 		verifyErr = fmt.Errorf("there is no difference between the source and target, hash = %s", targetHash)
@@ -112,8 +114,11 @@ func (c *CloneSetController) Initialize(ctx context.Context) *v1alpha1.RolloutSt
 	if err != nil {
 		return c.rolloutStatus
 	}
-	// kick start the update and start from every pod in the old version
+	// add the parent controller to the owner of the cloneset
+	// before kicking start the update and start from every pod in the old version
 	clonePatch := client.MergeFrom(c.cloneSet.DeepCopyObject())
+	ref := metav1.NewControllerRef(c.parentController, v1alpha2.AppRolloutKindVersionKind)
+	c.cloneSet.SetOwnerReferences(append(c.cloneSet.GetOwnerReferences(), *ref))
 	c.cloneSet.Spec.UpdateStrategy.Paused = false
 	c.cloneSet.Spec.UpdateStrategy.Partition = &intstr.IntOrString{Type: intstr.Int, IntVal: totalReplicas}
 
@@ -191,12 +196,29 @@ func (c *CloneSetController) FinalizeOneBatch(ctx context.Context) *v1alpha1.Rol
 }
 
 // Finalize makes sure the Cloneset is all upgraded
-func (c *CloneSetController) Finalize(ctx context.Context) *v1alpha1.RolloutStatus {
-	if c.fetchCloneSet(ctx) != nil {
-		return c.rolloutStatus
+func (c *CloneSetController) Finalize(ctx context.Context) (*v1alpha1.RolloutStatus, error) {
+	if err := c.fetchCloneSet(ctx); err != nil {
+		return c.rolloutStatus, err
 	}
-
-	return c.rolloutStatus
+	clonePatch := client.MergeFrom(c.cloneSet.DeepCopyObject())
+	// remove the parent controller from the resources' owner list
+	var newOwnerList []metav1.OwnerReference
+	for _, owner := range c.cloneSet.GetOwnerReferences() {
+		if owner.Kind == v1alpha2.AppRolloutKind && owner.APIVersion == v1alpha2.SchemeGroupVersion.String() {
+			continue
+		}
+		newOwnerList = append(newOwnerList, owner)
+	}
+	c.cloneSet.SetOwnerReferences(newOwnerList)
+	// patch the CloneSet
+	if err := c.client.Patch(ctx, c.cloneSet, clonePatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
+		c.recorder.Event(c.parentController, event.Warning("Failed to the finalize the cloneset", err))
+		c.rolloutStatus.RolloutRetry(err.Error())
+		return c.rolloutStatus, err
+	}
+	// mark the resource finalized
+	c.recorder.Event(c.parentController, event.Normal("Finalized", "Rollout resource are finalized"))
+	return c.rolloutStatus, nil
 }
 
 /* --------------------

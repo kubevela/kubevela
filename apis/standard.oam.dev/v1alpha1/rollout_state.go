@@ -58,24 +58,28 @@ const (
 
 // These are valid conditions of the rollout.
 const (
-	// RolloutSpecVerified indicates that the rollout spec matches the resource we have in the cluster
-	RolloutSpecVerified runtimev1alpha1.ConditionType = "RolloutSpecVerified"
-	// RolloutInitialized means all the needed initialization work is done
-	RolloutInitialized runtimev1alpha1.ConditionType = "Initialized"
+	// RolloutSpecVerifying indicates that the rollout just started with verification
+	RolloutSpecVerifying runtimev1alpha1.ConditionType = "RolloutSpecVerifying"
+	// RolloutInitializing means we start to initialize the cluster
+	RolloutInitializing runtimev1alpha1.ConditionType = "RolloutInitializing"
 	// RolloutInProgress means we are upgrading resources.
-	RolloutInProgress runtimev1alpha1.ConditionType = "Ready"
+	RolloutInProgress runtimev1alpha1.ConditionType = "RolloutInProgress"
+	// RolloutFinalizing means the rollout is finalizing
+	RolloutFinalizing runtimev1alpha1.ConditionType = "RolloutFinalizing"
+	// RolloutFailed means that the rollout failed.
+	RolloutFailed runtimev1alpha1.ConditionType = "RolloutFailed"
 	// RolloutSucceed means that the rollout is done.
-	RolloutSucceed runtimev1alpha1.ConditionType = "Succeed"
-	// BatchInitialized
-	BatchInitialized runtimev1alpha1.ConditionType = "BatchInitialized"
-	// BatchInRolled
-	BatchInRolled runtimev1alpha1.ConditionType = "BatchInRolled"
-	// BatchVerified
-	BatchVerified runtimev1alpha1.ConditionType = "BatchVerified"
+	RolloutSucceed runtimev1alpha1.ConditionType = "RolloutSucceed"
+	// BatchInitializing
+	BatchInitializing runtimev1alpha1.ConditionType = "BatchInitializing"
+	// BatchPaused
+	BatchPaused runtimev1alpha1.ConditionType = "BatchPaused"
+	// BatchVerifying
+	BatchVerifying runtimev1alpha1.ConditionType = "BatchVerifying"
 	// BatchRolloutFailed
 	BatchRolloutFailed runtimev1alpha1.ConditionType = "BatchRolloutFailed"
-	// BatchFinalized
-	BatchFinalized runtimev1alpha1.ConditionType = "BatchFinalized"
+	// BatchFinalizing
+	BatchFinalizing runtimev1alpha1.ConditionType = "BatchFinalizing"
 	// BatchReady
 	BatchReady runtimev1alpha1.ConditionType = "BatchReady"
 )
@@ -107,21 +111,24 @@ func (r *RolloutStatus) getRolloutConditionType() runtimev1alpha1.ConditionType 
 	// figure out which condition type should we put in the condition depends on its state
 	switch r.RollingState {
 	case VerifyingState:
-		return RolloutSpecVerified
+		return RolloutSpecVerifying
 
 	case InitializingState:
-		return RolloutInitialized
+		return RolloutInitializing
 
 	case RollingInBatchesState:
 		switch r.BatchRollingState {
 		case BatchInitializingState:
-			return BatchInitialized
+			return BatchInitializing
 
 		case BatchVerifyingState:
-			return BatchVerified
+			return BatchVerifying
 
 		case BatchFinalizingState:
-			return BatchFinalized
+			return BatchFinalizing
+
+		case BatchRolloutFailedState:
+			return BatchRolloutFailed
 
 		case BatchReadyState:
 			return BatchReady
@@ -131,10 +138,16 @@ func (r *RolloutStatus) getRolloutConditionType() runtimev1alpha1.ConditionType 
 		}
 
 	case FinalisingState:
+		return RolloutFinalizing
+
+	case RolloutFailedState:
+		return RolloutFailed
+
+	case RolloutSucceedState:
 		return RolloutSucceed
 
 	default:
-		return RolloutSucceed
+		return RolloutFailed
 	}
 }
 
@@ -149,6 +162,17 @@ func (r *RolloutStatus) RolloutFailed(reason string) {
 	// set the condition first which depends on the state
 	r.SetConditions(NewNegativeCondition(r.getRolloutConditionType(), reason))
 	r.RollingState = RolloutFailedState
+}
+
+// ResetStatus resets the status of the rollout to start from beginning
+func (r *RolloutStatus) ResetStatus() {
+	r.NewPodTemplateIdentifier = ""
+	r.LastAppliedPodTemplateIdentifier = ""
+	r.RollingState = VerifyingState
+	r.BatchRollingState = BatchInitializingState
+	r.CurrentBatch = 0
+	r.UpgradedReplicas = 0
+	r.UpgradedReadyReplicas = 0
 }
 
 // StateTransition is the center place to do rollout state transition
@@ -202,7 +226,7 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 
 	case RolloutSucceedState:
 		if event == WorkloadModifiedEvent {
-			r.RollingState = VerifyingState
+			r.ResetStatus()
 			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
@@ -210,7 +234,7 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 
 	case RolloutFailedState:
 		if event == WorkloadModifiedEvent {
-			r.RollingState = VerifyingState
+			r.ResetStatus()
 			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}

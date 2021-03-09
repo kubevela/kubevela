@@ -83,10 +83,8 @@ func validateWebhook(rollout *v1alpha1.RolloutPlan, rootPath *field.Path) (allEr
 
 // ValidateUpdate validate if one can change the rollout plan from the previous psec
 func ValidateUpdate(new *v1alpha1.RolloutPlan, prev *v1alpha1.RolloutPlan, rootPath *field.Path) field.ErrorList {
-	// makes sure the new rollout alone is valid
-	allErrs := ValidateCreate(new, rootPath)
-
 	// TODO: Enforce that only a few fields can change after a rollout plan is set
+	var allErrs field.ErrorList
 
 	return allErrs
 }

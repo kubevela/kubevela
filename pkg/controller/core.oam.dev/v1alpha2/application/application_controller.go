@@ -166,7 +166,7 @@ func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1alpha2.Application
 	})
 }
 
-// Setup adds a controller that reconciles ApplicationDeployment.
+// Setup adds a controller that reconciles AppRollout.
 func Setup(mgr ctrl.Manager, _ core.Args, _ logging.Logger) error {
 	dm, err := discoverymapper.New(mgr.GetConfig())
 	if err != nil {

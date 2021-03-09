@@ -10,6 +10,6 @@ spec:
         cmd:
           - ./podinfo
           - stress-cpu=1
-        image: stefanprodan/podinfo:4.0.6
+        image: stefanprodan/podinfo:4.0.3
         port: 8080
         updateStrategyType: InPlaceIfPossible
