@@ -189,7 +189,7 @@ func NewReconciler(m ctrl.Manager, dm discoverymapper.DiscoveryMapper, log loggi
 			trait:    ResourceRenderFn(renderTrait),
 		},
 		workloads: &workloads{
-			applicator: apply.NewAPIApplicator(m.GetClient(), log),
+			applicator: apply.NewAPIApplicator(m.GetClient()),
 			rawClient:  m.GetClient(),
 			dm:         dm,
 		},
