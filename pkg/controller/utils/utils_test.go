@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	"github.com/crossplane/crossplane-runtime/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/stretchr/testify/assert"
 	v12 "k8s.io/api/apps/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -182,4 +184,22 @@ func TestCompareWithRevision(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetAppRevison(t *testing.T) {
+	name, number := GetAppRevision(nil)
+	assert.Equal(t, name, "")
+	assert.Equal(t, number, int64(0))
+	app := &v1alpha2.Application{}
+	app.Name = "myapp"
+	name, number = GetAppRevision(app)
+	assert.Equal(t, name, "myapp-v1")
+	assert.Equal(t, number, int64(1))
+	app.Status.LatestRevision = &v1alpha2.Revision{
+		Name:     "myapp-v1",
+		Revision: 1,
+	}
+	name, number = GetAppRevision(app)
+	assert.Equal(t, name, "myapp-v2")
+	assert.Equal(t, number, int64(2))
 }

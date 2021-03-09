@@ -12,6 +12,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -104,8 +105,9 @@ func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, namesp
 
 // Appfile describes application
 type Appfile struct {
-	Name      string
-	Workloads []*Workload
+	Name         string
+	RevisionName string
+	Workloads    []*Workload
 }
 
 // TemplateValidate validate Template format
@@ -140,7 +142,7 @@ func (p *Parser) GenerateAppFile(ctx context.Context, name string, app *v1alpha2
 		wds = append(wds, wd)
 	}
 	appfile.Workloads = wds
-
+	appfile.RevisionName, _ = utils.GetAppRevision(app)
 	return appfile, nil
 }
 
@@ -221,7 +223,7 @@ func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1a
 
 	var components []*v1alpha2.Component
 	for _, wl := range app.Workloads {
-		pCtx, err := PrepareProcessContext(p.client, wl, app.Name, ns)
+		pCtx, err := PrepareProcessContext(p.client, wl, app.Name, app.RevisionName, ns)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -300,8 +302,8 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compNa
 }
 
 // PrepareProcessContext prepares a DSL process Context
-func PrepareProcessContext(k8sClient client.Client, wl *Workload, applicationName string, namespace string) (process.Context, error) {
-	pCtx := process.NewContext(wl.Name, applicationName)
+func PrepareProcessContext(k8sClient client.Client, wl *Workload, applicationName, revision string, namespace string) (process.Context, error) {
+	pCtx := process.NewContext(wl.Name, applicationName, revision)
 	userConfig := wl.GetUserConfigName()
 	if userConfig != "" {
 		cg := config.Configmap{Client: k8sClient}

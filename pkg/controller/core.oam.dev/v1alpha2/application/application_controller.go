@@ -118,6 +118,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// check application health status
 	appCompStatus, healthy, err := handler.statusAggregate(appfile)
 	if err != nil {
+		applog.Error(err, "[status aggregate]")
 		app.Status.SetConditions(errorCondition("HealthCheck", err))
 		return handler.handleErr(err)
 	}

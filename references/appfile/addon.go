@@ -17,6 +17,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -48,13 +49,15 @@ func ApplyTerraform(app *v1alpha2.Application, k8sClient client.Client, ioStream
 		return nil, err
 	}
 
+	revisionName, _ := utils.GetAppRevision(app)
+
 	for i, wl := range appFile.Workloads {
 		switch wl.CapabilityCategory {
 		case types.TerraformCategory:
 			name := wl.Name
 			ioStream.Infof("\nApplying cloud resources %s\n", name)
 
-			tf, err := getTerraformJSONFiles(k8sClient, wl, appFile.Name, namespace)
+			tf, err := getTerraformJSONFiles(k8sClient, wl, appFile.Name, revisionName, namespace)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get Terraform JSON files from workload %s: %w", name, err)
 			}
@@ -168,8 +171,8 @@ func generateSecretFromTerraformOutput(k8sClient client.Client, outputList []str
 }
 
 // getTerraformJSONFiles gets Terraform JSON files or modules from workload
-func getTerraformJSONFiles(k8sClient client.Client, wl *appfile.Workload, applicationName string, namespace string) ([]byte, error) {
-	pCtx, err := appfile.PrepareProcessContext(k8sClient, wl, applicationName, namespace)
+func getTerraformJSONFiles(k8sClient client.Client, wl *appfile.Workload, applicationName, revisionName string, namespace string) ([]byte, error) {
+	pCtx, err := appfile.PrepareProcessContext(k8sClient, wl, applicationName, namespace, revisionName)
 	if err != nil {
 		return nil, err
 	}

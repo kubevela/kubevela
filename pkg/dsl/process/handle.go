@@ -20,6 +20,8 @@ const (
 	ContextName = "name"
 	// ContextAppName is the appName of context
 	ContextAppName = "appName"
+	// ContextAppRevision is the revision name of app of context
+	ContextAppRevision = "appRevision"
 )
 
 // Context defines Rendering Context Interface
@@ -48,19 +50,20 @@ type templateContext struct {
 	// name is the component name of Application
 	name string
 	// appName is the name of Application
-	appName     string
+	appName string
+	// appRevision is the revision name of Application
+	appRevision string
 	configs     []map[string]string
 	base        model.Instance
 	auxiliaries []Auxiliary
-
-	// TODO(wonderflow): add a revision number here, and it should be a suffix combined with appName to be the name of AppConfig
 }
 
 // NewContext create render templateContext
-func NewContext(name, appName string) Context {
+func NewContext(name, appName, appRevision string) Context {
 	return &templateContext{
 		name:        name,
 		appName:     appName,
+		appRevision: appRevision,
 		configs:     []map[string]string{},
 		auxiliaries: []Auxiliary{},
 	}
@@ -86,6 +89,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	var buff string
 	buff += fmt.Sprintf(ContextName+": \"%s\"\n", ctx.name)
 	buff += fmt.Sprintf(ContextAppName+": \"%s\"\n", ctx.appName)
+	buff += fmt.Sprintf(ContextAppRevision+": \"%s\"\n", ctx.appRevision)
 
 	if ctx.base != nil {
 		buff += fmt.Sprintf(OutputFieldName+": %s\n", structMarshal(ctx.base.String()))
@@ -116,6 +120,8 @@ func (ctx *templateContext) BaseContextLabels() map[string]string {
 		ContextAppName: ctx.appName,
 		// name is oam.LabelAppComponent
 		ContextName: ctx.name,
+		// appRevision is oam.LabelAppRevision
+		ContextAppRevision: ctx.appRevision,
 	}
 }
 

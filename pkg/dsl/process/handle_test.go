@@ -48,7 +48,7 @@ image: "myserver"
 		Name: "service",
 	}
 
-	ctx := NewContext("mycomp", "myapp")
+	ctx := NewContext("mycomp", "myapp", "myapp-v1")
 	ctx.SetBase(base)
 	ctx.AppendAuxiliaries(svcAux)
 
@@ -65,6 +65,10 @@ image: "myserver"
 	myAppName, err := ctxInst.Lookup("context", ContextAppName).String()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "myapp", myAppName)
+
+	myAppRevision, err := ctxInst.Lookup("context", ContextAppRevision).String()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "myapp-v1", myAppRevision)
 
 	inputJs, err := ctxInst.Lookup("context", OutputFieldName).MarshalJSON()
 	assert.Equal(t, nil, err)

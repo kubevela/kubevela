@@ -79,10 +79,34 @@ parameter: {
 				}}}}},
 			},
 		},
+		{
+			workloadTemplate: `
+output:{
+	apiVersion: "apps/v1"
+    kind: "Deployment"
+	metadata: {
+      name: context.name
+      annotations: "revision.oam.dev": context.appRevision
+    }
+    spec: replicas: parameter.replicas
+}
+parameter: {
+	replicas: *1 | int
+	type: string
+	host: string
+}
+`,
+			params: map[string]interface{}{
+				"replicas": 2,
+				"type":     "ClusterIP",
+				"host":     "example.com",
+			},
+			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "apps/v1", "kind": "Deployment", "metadata": map[string]interface{}{"name": "test", "annotations": map[string]interface{}{"revision.oam.dev": "myapp-v1"}}, "spec": map[string]interface{}{"replicas": int64(2)}}},
+		},
 	}
 
 	for _, v := range testCases {
-		ctx := process.NewContext("test", "myapp")
+		ctx := process.NewContext("test", "myapp", "myapp-v1")
 		wt := NewWorkloadAbstractEngine("testworkload")
 		assert.NoError(t, wt.Params(v.params).Complete(ctx, v.workloadTemplate))
 		base, assists := ctx.Output()
@@ -263,6 +287,69 @@ parameter: {
 				}}}}},
 			},
 		},
+		"outputs trait with context appRevision": {
+			traitTemplate: `
+outputs: service: {
+	apiVersion: "v1"
+    kind: "Service"
+    metadata: {
+      name: context.name
+      annotations: "revision.oam.dev": context.appRevision
+    }
+    spec: type: parameter.type
+}
+outputs: ingress: {
+	apiVersion: "extensions/v1beta1"
+    kind: "Ingress"
+	metadata: name: context.name
+    spec: rules: [{host: parameter.host}]
+}
+parameter: {
+	type: string
+	host: string
+}`,
+			params: map[string]interface{}{
+				"type": "ClusterIP",
+				"host": "example.com",
+			},
+			expWorkload: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "apps/v1",
+					"kind":       "Deployment",
+					"spec": map[string]interface{}{
+						"replicas": int64(2),
+						"selector": map[string]interface{}{
+							"matchLabels": map[string]interface{}{
+								"app.oam.dev/component": "test"}},
+						"template": map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{"app.oam.dev/component": "test"},
+							},
+							"spec": map[string]interface{}{
+								"containers": []interface{}{map[string]interface{}{
+									"envFrom": []interface{}{map[string]interface{}{
+										"configMapRef": map[string]interface{}{"name": "testgame-config"},
+									}},
+									"image": "website:0.1",
+									"name":  "main",
+									"ports": []interface{}{map[string]interface{}{"containerPort": int64(443)}}}}}}}},
+			},
+			traitName: "t2",
+			expAssObjs: map[string]runtime.Object{
+				"AuxiliaryWorkloadgameconfig": &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "v1",
+						"kind":       "ConfigMap",
+						"metadata":   map[string]interface{}{"name": "testgame-config"}, "data": map[string]interface{}{"enemies": "enemies-data", "lives": "lives-data"}},
+				},
+				"t2service": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "v1", "kind": "Service", "metadata": map[string]interface{}{"name": "test", "annotations": map[string]interface{}{
+					"revision.oam.dev": "myapp-v1",
+				}}, "spec": map[string]interface{}{"type": "ClusterIP"}}},
+				"t2ingress": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "extensions/v1beta1", "kind": "Ingress", "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"rules": []interface{}{map[string]interface{}{
+					"host": "example.com",
+				}}}}},
+			},
+		},
 		"simple data passing": {
 			traitTemplate: `
       parameter: {
@@ -403,7 +490,7 @@ parameter: {
 	}
 
 `
-		ctx := process.NewContext("test", "myapp")
+		ctx := process.NewContext("test", "myapp", "myapp-v1")
 		wt := NewWorkloadAbstractEngine("-")
 		if err := wt.Params(map[string]interface{}{
 			"replicas": 2,
