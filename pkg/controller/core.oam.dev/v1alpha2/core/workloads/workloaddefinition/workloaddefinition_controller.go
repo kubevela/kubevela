@@ -19,7 +19,6 @@ package workloaddefinition
 import (
 	"context"
 	"fmt"
-	"time"
 
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
@@ -28,7 +27,6 @@ import (
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -47,7 +45,6 @@ type Reconciler struct {
 
 // Reconcile is the main logic for WorkloadDefinition controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	reconcileWaitResult := reconcile.Result{RequeueAfter: 120 * time.Second}
 	definitionName := req.NamespacedName.Name
 	if definitionName == "containerizedworkloads.core.oam.dev" {
 		return ctrl.Result{}, nil
@@ -63,7 +60,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.ErrorS(err, "cannot store capability in ConfigMap")
 		r.record.Event(&(def.WorkloadDefinition), event.Warning("cannot store capability in ConfigMap", err))
 		// TODO(zzxwill) The error message should also be patched into Status
-		return reconcileWaitResult, util.PatchCondition(ctx, r, &(def.WorkloadDefinition),
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.WorkloadDefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
 	}
 	klog.Info("Successfully stored Capability Schema in ConfigMap")

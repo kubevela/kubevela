@@ -27,20 +27,18 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Test Capability", func() {
 	ctx := context.Background()
 	var (
-		namespace = types.DefaultKubeVelaNS
+		namespace = "ns-cap"
 		ns        corev1.Namespace
 	)
 
 	Context("When the definition is WorkloadDefinition", func() {
-		var workloadDefinitionName = "web"
-
+		var workloadDefinitionName = "web1"
 		BeforeEach(func() {
 			ns = corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -57,8 +55,8 @@ var _ = Describe("Test Capability", func() {
 apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
-  name: web
-  namespace: vela-system
+  name: web1
+  namespace: ns-cap
   annotations:
     definition.oam.dev/description: "test"
 spec:
@@ -109,12 +107,12 @@ spec:
 
 			By("Test GetCapabilityObject")
 			def := &CapabilityWorkloadDefinition{Name: workloadDefinitionName}
-			capability, err := def.GetCapabilityObject(ctx, k8sClient, "", workloadDefinitionName)
+			capability, err := def.GetCapabilityObject(ctx, k8sClient, namespace, workloadDefinitionName)
 			Expect(err).Should(BeNil())
 			Expect(capability).Should(Not(BeNil()))
 
 			By("Test GetOpenAPISchema")
-			schema, err := def.GetOpenAPISchema(ctx, k8sClient, "", workloadDefinitionName)
+			schema, err := def.GetOpenAPISchema(ctx, k8sClient, namespace, workloadDefinitionName)
 			Expect(err).Should(BeNil())
 			Expect(schema).Should(Not(BeNil()))
 
@@ -140,7 +138,7 @@ spec:
 apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata:
-  namespace: vela-system
+  namespace: ns-cap
   annotations:
     definition.oam.dev/description: "Configures replicas for your service."
   name: scaler1
@@ -174,13 +172,13 @@ spec:
 
 			By("Test GetCapabilityObject")
 			def := &CapabilityTraitDefinition{Name: traitDefinitionName}
-			capability, err := def.GetCapabilityObject(ctx, k8sClient, "", traitDefinitionName)
+			capability, err := def.GetCapabilityObject(ctx, k8sClient, namespace, traitDefinitionName)
 			Expect(err).Should(BeNil())
 			Expect(capability).Should(Not(BeNil()))
 
 			By("Test GetOpenAPISchema")
 			var expectedSchema = "{\"properties\":{\"replicas\":{\"default\":1,\"description\":\"Replicas of the workload\",\"title\":\"replicas\",\"type\":\"integer\"}},\"required\":[\"replicas\"],\"type\":\"object\"}"
-			schema, err := def.GetOpenAPISchema(ctx, k8sClient, "", traitDefinitionName)
+			schema, err := def.GetOpenAPISchema(ctx, k8sClient, namespace, traitDefinitionName)
 			Expect(err).Should(BeNil())
 			Expect(string(schema)).Should(Equal(expectedSchema))
 		})
@@ -209,7 +207,7 @@ spec:
 				Controller:         pointer.BoolPtr(true),
 				BlockOwnerDeletion: pointer.BoolPtr(true),
 			}}
-			err := def.CreateOrUpdateConfigMap(ctx, k8sClient, definitionName, []byte(""), ownerReference)
+			err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, definitionName, []byte(""), ownerReference)
 			Expect(err).Should(BeNil())
 		})
 	})

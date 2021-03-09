@@ -43,11 +43,6 @@ type CapabilityWorkloadDefinition struct {
 
 // GetCapabilityObject gets types.Capability object by WorkloadDefinition name
 func (def *CapabilityWorkloadDefinition) GetCapabilityObject(ctx context.Context, k8sClient client.Client, namespace, name string) (*types.Capability, error) {
-	// from fake unit-test, null namespace will be changed to "" instead of "default", not like normal api server processing
-	if namespace == "" {
-		namespace = "default"
-	}
-
 	var workloadDefinition v1alpha2.WorkloadDefinition
 	var capability types.Capability
 	capability.Name = def.Name

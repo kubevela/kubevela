@@ -35,14 +35,142 @@ import (
 
 var _ = Describe("Apply WorkloadDefinition to store its schema to ConfigMap Test", func() {
 	ctx := context.Background()
-	var (
-		namespace = "ns-def"
-		ns        corev1.Namespace
-	)
+	var ns corev1.Namespace
 
-	Context("When the WorkloadDefinition is valid, should create a ConfigMap", func() {
+	Context("When the WorkloadDefinition's namespace doesn't exist, should occur error", func() {
+		It("Applying WorkloadDefinition", func() {
+			By("Apply WorkloadDefinition")
+			var validWorkloadDefinition = `
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: wd-without-ready-ns
+  namespace: ns-def
+  annotations:
+    definition.oam.dev/description: "test"
+spec:
+  definitionRef:
+    name: deployments.apps
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        		}
+
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": context.name
+        			}
+
+        			spec: {
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+
+        					if parameter["cmd"] != _|_ {
+        						command: parameter.cmd
+        					}
+        				}]
+        			}
+        		}
+        	}
+        }
+        parameter: {
+        	// +usage=Which image would you like to use for your service
+        	// +short=i
+        	image: string
+
+        	// +usage=Commands to run in the container
+        	cmd?: [...string]
+        }
+`
+
+			var def v1alpha2.WorkloadDefinition
+			Expect(yaml.Unmarshal([]byte(validWorkloadDefinition), &def)).Should(BeNil())
+			Expect(k8sClient.Create(ctx, &def)).Should(Not(Succeed()))
+		})
+	})
+
+	Context("When the WorkloadDefinition without namespace is valid, should create a ConfigMap", func() {
+		var workloadDefinitionName = "web-no-ns"
+		var namespace = "default"
+		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: workloadDefinitionName, Namespace: namespace}}
+
+		It("Applying valid WorkloadDefinition", func() {
+			By("Apply WorkloadDefinition")
+			var validWorkloadDefinition = `
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: web-no-ns
+  annotations:
+    definition.oam.dev/description: "test"
+spec:
+  definitionRef:
+    name: deployments.apps
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        		}
+
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": context.name
+        			}
+
+        			spec: {
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+
+        					if parameter["cmd"] != _|_ {
+        						command: parameter.cmd
+        					}
+        				}]
+        			}
+        		}
+        	}
+        }
+        parameter: {
+        	// +usage=Which image would you like to use for your service
+        	// +short=i
+        	image: string
+
+        	// +usage=Commands to run in the container
+        	cmd?: [...string]
+        }
+`
+
+			var def v1alpha2.WorkloadDefinition
+			Expect(yaml.Unmarshal([]byte(validWorkloadDefinition), &def)).Should(BeNil())
+			// API server will convert blank namespace to `default`
+			def.Namespace = namespace
+			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
+
+			By("Check whether ConfigMap is created")
+			reconcileRetry(&r, req)
+			var cm corev1.ConfigMap
+			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, workloadDefinitionName)
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)).Should(Succeed())
+			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+		})
+	})
+
+	Context("When the WorkloadDefinition with namespace is valid, should create a ConfigMap", func() {
 		var workloadDefinitionName = "web"
-		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: workloadDefinitionName}}
+		var namespace = "ns-def"
+		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: workloadDefinitionName, Namespace: namespace}}
 
 		BeforeEach(func() {
 			ns = corev1.Namespace{
@@ -121,7 +249,7 @@ spec:
 
 	Context("When the WorkloadDefinition is invalid, should hit issues", func() {
 		var invalidWorkloadDefinitionName = "invalid-wd1"
-
+		var namespace = "ns-def"
 		BeforeEach(func() {
 			ns = corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{

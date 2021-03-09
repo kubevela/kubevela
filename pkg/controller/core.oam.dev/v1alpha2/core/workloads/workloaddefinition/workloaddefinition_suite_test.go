@@ -38,7 +38,7 @@ var testEnv *envtest.Environment
 var controllerDone chan struct{}
 var r Reconciler
 
-func TestWorkloaddefinition(t *testing.T) {
+func TestWorkloadDefinition(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "WorkloadDefinition Suite")
 }

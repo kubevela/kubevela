@@ -35,14 +35,53 @@ import (
 
 var _ = Describe("Apply TraitDefinition to store its schema to ConfigMap Test", func() {
 	ctx := context.Background()
-	var (
-		namespace = types.DefaultKubeVelaNS
-		ns        corev1.Namespace
-	)
+	var ns corev1.Namespace
 
-	Context("When the TraitDefinition is valid, should create a ConfigMap", func() {
-		var traitDefinitionName = "scaler1"
-		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: traitDefinitionName}}
+	Context("When the TraitDefinition is valid, but the namespace doesn't exist, should occur errors", func() {
+		It("Apply TraitDefinition", func() {
+			By("Apply TraitDefinition")
+			var validTraitDefinition = `
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  namespace: ns-tr-def
+  annotations:
+    definition.oam.dev/description: "Configures replicas for your service."
+  name: scaler1
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  definitionRef:
+    name: manualscalertraits.core.oam.dev
+  workloadRefPath: spec.workloadRef
+  schematic:
+    cue:
+      template: |
+        outputs: scaler: {
+        	apiVersion: "core.oam.dev/v1alpha2"
+        	kind:       "ManualScalerTrait"
+        	spec: {
+        		replicaCount: parameter.replicas
+        	}
+        }
+        parameter: {
+        	//+short=r
+        	//+usage=Replicas of the workload
+        	replicas: *1 | int
+        }
+`
+
+			var def v1alpha2.TraitDefinition
+			Expect(yaml.Unmarshal([]byte(validTraitDefinition), &def)).Should(BeNil())
+			Expect(k8sClient.Create(ctx, &def)).Should(Not(Succeed()))
+		})
+	})
+
+	Context("When the TraitDefinition is valid, but the namespace is blank, should create a ConfigMap", func() {
+		var traitDefinitionName = "scaler-no-ns"
+		var namespace = "default"
+		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: traitDefinitionName, Namespace: namespace}}
 
 		BeforeEach(func() {
 			ns = corev1.Namespace{
@@ -60,7 +99,69 @@ var _ = Describe("Apply TraitDefinition to store its schema to ConfigMap Test", 
 apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata:
-  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "Configures replicas for your service."
+  name: scaler-no-ns
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  definitionRef:
+    name: manualscalertraits.core.oam.dev
+  workloadRefPath: spec.workloadRef
+  schematic:
+    cue:
+      template: |
+        outputs: scaler: {
+        	apiVersion: "core.oam.dev/v1alpha2"
+        	kind:       "ManualScalerTrait"
+        	spec: {
+        		replicaCount: parameter.replicas
+        	}
+        }
+        parameter: {
+        	//+short=r
+        	//+usage=Replicas of the workload
+        	replicas: *1 | int
+        }
+`
+
+			var def v1alpha2.TraitDefinition
+			Expect(yaml.Unmarshal([]byte(validTraitDefinition), &def)).Should(BeNil())
+			def.Namespace = namespace
+			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
+
+			By("Check whether ConfigMap is created")
+			reconcileRetry(&r, req)
+			var cm corev1.ConfigMap
+			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, traitDefinitionName)
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)).Should(Succeed())
+			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+		})
+	})
+
+	Context("When the TraitDefinition is valid, should create a ConfigMap", func() {
+		var traitDefinitionName = "scaler1"
+		var namespace = "ns-tr-def"
+		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: traitDefinitionName, Namespace: namespace}}
+
+		BeforeEach(func() {
+			ns = corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace,
+				},
+			}
+			By("Create a namespace")
+			Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+		})
+
+		It("Apply TraitDefinition", func() {
+			By("Apply TraitDefinition")
+			var validTraitDefinition = `
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  namespace: ns-tr-def
   annotations:
     definition.oam.dev/description: "Configures replicas for your service."
   name: scaler1
@@ -96,14 +197,14 @@ spec:
 			reconcileRetry(&r, req)
 			var cm corev1.ConfigMap
 			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, traitDefinitionName)
-			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: name}, &cm)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)).Should(Succeed())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
 		})
 	})
 
 	Context("When the TraitDefinition is invalid, should report issues", func() {
 		var invalidTraitDefinitionName = "invalid-tr1"
-
+		var namespace = "ns-tr-def"
 		BeforeEach(func() {
 			ns = corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -120,7 +221,7 @@ spec:
 apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata:
-  namespace: vela-system
+  namespace: ns-tr-def
   annotations:
     definition.oam.dev/description: "Configures replicas for your service."
   name: invalid-tr1

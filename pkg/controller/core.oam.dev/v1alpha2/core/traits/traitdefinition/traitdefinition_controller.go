@@ -46,7 +46,7 @@ type Reconciler struct {
 // Reconcile is the main logic for TraitDefinition controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	definitionName := req.NamespacedName.Name
-	klog.InfoS("Reconciling TraitDefinition...", "Name", definitionName)
+	klog.InfoS("Reconciling TraitDefinition...", "Name", definitionName, "Namespace", req.Namespace)
 	ctx := context.Background()
 	var def utils.CapabilityTraitDefinition
 	def.Name = req.NamespacedName.Name
@@ -56,7 +56,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.ErrorS(err, "cannot store capability in ConfigMap")
 		r.record.Event(&(def.TraitDefinition), event.Warning("cannot store capability in ConfigMap", err))
 		// TODO(zzxwill) The error message should also be patched into Status
-		return util.ReconcileWaitResult, util.PatchCondition(ctx, r, &def.TraitDefinition,
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &def.TraitDefinition,
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
 	}
 	klog.Info("Successfully stored Capability Schema in ConfigMap")
