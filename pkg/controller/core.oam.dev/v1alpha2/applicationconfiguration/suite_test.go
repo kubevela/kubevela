@@ -2,6 +2,7 @@ package applicationconfiguration
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,9 +57,16 @@ func TestReconcilerSuit(t *testing.T) {
 var _ = BeforeSuite(func(done Done) {
 	ctx := context.Background()
 	By("Bootstrapping test environment")
+	var yamlPath string
+	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
+		yamlPath = "../../../../../test/compatibility-test/testdata"
+	} else {
+		yamlPath = filepath.Join("../../../../..", "charts", "vela-core", "crds")
+	}
+	logf.Log.Info("start applicationconfiguration suit test", "yaml_path", yamlPath)
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("../../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
+			yamlPath, // this has all the required CRDs,
 		},
 	}
 	var err error
@@ -156,7 +165,8 @@ var _ = BeforeSuite(func(done Done) {
 	By("Creating workload definition and trait definition")
 	wd := v1alpha2.WorkloadDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "foo.example.com",
+			Name:      "foo.example.com",
+			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.WorkloadDefinitionSpec{
 			Reference: v1alpha2.DefinitionReference{
@@ -166,7 +176,8 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	td := v1alpha2.TraitDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "foo.example.com",
+			Name:      "foo.example.com",
+			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
 			Reference: v1alpha2.DefinitionReference{
@@ -177,7 +188,8 @@ var _ = BeforeSuite(func(done Done) {
 
 	rollout := v1alpha2.TraitDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "rollout-revision",
+			Name:      "rollout-revision",
+			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
 			Reference: v1alpha2.DefinitionReference{
@@ -186,6 +198,8 @@ var _ = BeforeSuite(func(done Done) {
 			RevisionEnabled: true,
 		},
 	}
+	definitonNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
+	Expect(k8sClient.Create(context.Background(), definitonNs.DeepCopy())).Should(BeNil())
 
 	// For some reason, WorkloadDefinition is created as a Cluster scope object
 	Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))

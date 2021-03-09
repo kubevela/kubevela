@@ -19,11 +19,14 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -59,10 +62,15 @@ func TestAPIs(t *testing.T) {
 
 var _ = BeforeSuite(func(done Done) {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
-
 	By("bootstrapping test environment")
+	var yamlPath string
+	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
+		yamlPath = "../../../../../test/compatibility-test/testdata"
+	} else {
+		yamlPath = filepath.Join("../../../../..", "charts", "vela-core", "crds")
+	}
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{filepath.Join("../../../../..", "charts", "vela-core", "crds")},
+		CRDDirectoryPaths: []string{yamlPath},
 	}
 
 	var err error
@@ -86,6 +94,8 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(decoder).ToNot(BeNil())
 
 	ctx := context.Background()
+	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
+	Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
 	wd := &v1alpha2.WorkloadDefinition{}
 	wDDefJson, _ := yaml.YAMLToJSON([]byte(wDDefYaml))
 	Expect(json.Unmarshal(wDDefJson, wd)).Should(BeNil())
@@ -111,6 +121,7 @@ apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
   name: worker
+  namespace: vela-system
   annotations:
     definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
 spec:
@@ -163,6 +174,7 @@ metadata:
   annotations:
     definition.oam.dev/description: "Manually scale the app"
   name: scaler
+  namespace: vela-system
 spec:
   appliesToWorkloads:
     - webservice

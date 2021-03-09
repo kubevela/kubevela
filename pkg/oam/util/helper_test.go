@@ -15,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -1330,15 +1331,6 @@ func TestGetDummy(t *testing.T) {
 	}, util.GetDummyWorkloadDefinition(u))
 }
 
-func TestNamespacedDefinition(t *testing.T) {
-	ns := "namespaced"
-	n := "definition"
-	_ = os.Setenv(util.DefinitionNamespaceEnv, ns)
-	nn := util.GenNamespacedDefinitionName(n)
-	assert.Equal(t, nn.Namespace, ns)
-	assert.Equal(t, nn.Name, n)
-}
-
 func TestRawExtension2Map(t *testing.T) {
 	r1 := runtime.RawExtension{
 		Raw:    []byte(`{"a":{"c":"d"},"b":1}`),
@@ -1366,4 +1358,509 @@ func TestRawExtension2Map(t *testing.T) {
 	got2, err := util.RawExtension2Map(&r2)
 	assert.NoError(t, err)
 	assert.Equal(t, exp1, got2)
+}
+
+func TestGenDefinitionNsFromCtx(t *testing.T) {
+	type testcase struct {
+		ctx    context.Context
+		wantNs string
+	}
+	testcases := []testcase{
+		{ctx: context.TODO(), wantNs: "vela-system"},
+		{ctx: util.SetNnamespaceInCtx(context.Background(), "vela-app"), wantNs: "vela-app"},
+		{ctx: util.SetNnamespaceInCtx(context.Background(), ""), wantNs: "default"},
+	}
+	for _, ts := range testcases {
+		resNs := util.GetDefinitionNamespaceWithCtx(ts.ctx)
+		assert.Equal(t, ts.wantNs, resNs)
+
+	}
+}
+
+// TestGetDefinitionError is try to mock test when get an not existed definition  in namespaced scope cluster
+// will get an error that tpye is not found
+func TestGetDefinitionError(t *testing.T) {
+	ctx := context.Background()
+	ctx = util.SetNnamespaceInCtx(ctx, "vela-app")
+
+	errNotFound := apierrors.NewNotFound(schema.GroupResource{Group: "core.oma.dev", Resource: "traitDefinition"}, "mock")
+	errNeedNamespace := fmt.Errorf("an empty namespace may not be set when a resource name is provided")
+
+	getFunc := func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+		ns := key.Namespace
+		if ns != "" {
+			return errNotFound
+		} else {
+			return errNeedNamespace
+		}
+	}
+
+	client := test.MockClient{MockGet: getFunc}
+	td := new(v1alpha2.TraitDefinition)
+	got := util.GetDefinition(ctx, &client, td, "mock")
+	assert.Equal(t, errNotFound, got)
+}
+
+// TestGetDefinitionWithClusterScope is try to test compatibility of GetDefinition,
+// GetDefinition try to search definition in system-level namespace firstly,
+// if not found will search in app namespace, still cannot find it, try to search definition without namespace
+func TestGetDefinitionWithClusterScope(t *testing.T) {
+	ctx := context.Background()
+	ctx = util.SetNnamespaceInCtx(ctx, "vela-app")
+	// system-level definition
+	sys := v1alpha2.TraitDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "sysDefinition",
+			Namespace: "vela-system",
+		},
+		Spec: v1alpha2.TraitDefinitionSpec{
+			Reference: v1alpha2.DefinitionReference{
+				Name: "definitionrefrence.core.oam.dev",
+			},
+		},
+	}
+	// app workload Definition
+	app := v1alpha2.TraitDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "appDefinition",
+			Namespace: "vela-app",
+		},
+		Spec: v1alpha2.TraitDefinitionSpec{
+			Reference: v1alpha2.DefinitionReference{
+				Name: "definitionrefrence",
+			},
+		},
+	}
+	// old cluster workload trait scope definition crd is cluster scope, the namesapce field is empty
+	noNs := v1alpha2.TraitDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "noNsDefinition",
+		},
+		Spec: v1alpha2.TraitDefinitionSpec{
+			Reference: v1alpha2.DefinitionReference{
+				Name: "definitionrefrence",
+			},
+		},
+	}
+	tdList := []v1alpha2.TraitDefinition{app, sys, noNs}
+	mockIndexer := map[string]v1alpha2.TraitDefinition{}
+	for i := 0; i < len(tdList); i++ {
+		var key string
+		if tdList[i].Namespace != "" {
+			key = tdList[i].Namespace + "/" + tdList[i].Name
+		} else {
+			key = tdList[i].Name
+		}
+		mockIndexer[key] = tdList[i]
+	}
+
+	getFunc := func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+		var namespacedName string
+		if key.Namespace != "" {
+			namespacedName = key.Namespace + "/" + key.Name
+		} else {
+			namespacedName = key.Name
+		}
+		td, ok := mockIndexer[namespacedName]
+		if ok {
+			obj, _ := obj.(*v1alpha2.TraitDefinition)
+			*obj = td
+			return nil
+		} else {
+			return apierrors.NewNotFound(schema.GroupResource{Group: "core.oma.dev", Resource: "traitDefinition"}, namespacedName)
+		}
+	}
+
+	type want struct {
+		td  *v1alpha2.TraitDefinition
+		err error
+	}
+	testcases := map[string]struct {
+		tdName string
+		want   want
+	}{
+		"app namespace is first level": {
+			tdName: "appDefinition",
+			want: want{
+				err: nil,
+				td:  &app,
+			},
+		},
+		"got sys namespace in system levle": {
+			tdName: "sysDefinition",
+			want: want{
+				err: nil,
+				td:  &sys,
+			},
+		},
+		"old cluster traitdefinition crd is cluster scope": {
+			tdName: "noNsDefinition",
+			want: want{
+				err: nil,
+				td:  &noNs,
+			},
+		},
+		"return err search not exsited definition": {
+			tdName: "notExistedDefinition",
+			want: want{
+				err: apierrors.NewNotFound(schema.GroupResource{Group: "core.oma.dev", Resource: "traitDefinition"}, "notExistedDefinition"),
+				td:  new(v1alpha2.TraitDefinition),
+			},
+		},
+	}
+
+	tclient := test.MockClient{MockGet: getFunc}
+
+	for name, tc := range testcases {
+		got := new(v1alpha2.TraitDefinition)
+		err := util.GetDefinition(ctx, &tclient, got, tc.tdName)
+		t.Log(fmt.Sprint("Running test: ", name))
+
+		assert.Equal(t, tc.want.err, err)
+		assert.Equal(t, tc.want.td, got)
+	}
+}
+
+func TestGetWorkloadDefinition(t *testing.T) {
+	// Test common variables
+	ctx := context.Background()
+	ctx = util.SetNnamespaceInCtx(ctx, "vela-app")
+
+	// sys workload Definition
+	sysWorkloadDefinition := v1alpha2.WorkloadDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mockdefinition",
+			Namespace: "vela-system",
+		},
+		Spec: v1alpha2.WorkloadDefinitionSpec{
+			Reference: v1alpha2.DefinitionReference{
+				Name: "definitionrefrence.core.oam.dev",
+			},
+		},
+	}
+
+	// app workload Definition
+	appWorkloadDefinition := v1alpha2.WorkloadDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mockdefinition.core.oam.dev",
+			Namespace: "vela-app",
+		},
+		Spec: v1alpha2.WorkloadDefinitionSpec{
+			Reference: v1alpha2.DefinitionReference{
+				Name: "definitionrefrence.core.oam.dev",
+			},
+		},
+	}
+
+	type fields struct {
+		getFunc test.MockGetFn
+	}
+	type want struct {
+		wld v1alpha2.WorkloadDefinition
+		err error
+	}
+
+	cases := map[string]struct {
+		fields fields
+		want   want
+	}{
+
+		"app defintion will overlay system definition": {
+			fields: fields{
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+					o := obj.(*v1alpha2.WorkloadDefinition)
+					if key.Namespace == "vela-system" {
+						*o = sysWorkloadDefinition
+					} else {
+						*o = appWorkloadDefinition
+					}
+					return nil
+				},
+			},
+			want: want{
+				wld: appWorkloadDefinition,
+				err: nil,
+			},
+		},
+
+		"return system definiton when cannot find in app ns": {
+			fields: fields{
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+					if key.Namespace == "vela-system" {
+						o := obj.(*v1alpha2.WorkloadDefinition)
+						*o = sysWorkloadDefinition
+						return nil
+					}
+					return apierrors.NewNotFound(schema.GroupResource{Group: "core.oma.dev", Resource: "workloadDefinition"}, key.Name)
+				},
+			},
+			want: want{
+				wld: sysWorkloadDefinition,
+				err: nil,
+			},
+		},
+	}
+	for name, tc := range cases {
+		tclient := test.MockClient{
+			MockGet: tc.fields.getFunc,
+		}
+		got := new(v1alpha2.WorkloadDefinition)
+		err := util.GetDefinition(ctx, &tclient, got, "mockdefinition")
+		t.Log(fmt.Sprint("Running test: ", name))
+
+		assert.Equal(t, tc.want.err, err)
+		assert.Equal(t, tc.want.wld, *got)
+	}
+}
+
+func TestGetTraitDefinition(t *testing.T) {
+	// Test common variables
+	ctx := context.Background()
+	ctx = util.SetNnamespaceInCtx(ctx, "vela-app")
+
+	// sys workload Definition
+	sysTraitDefinition := v1alpha2.TraitDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mockdefinition",
+			Namespace: "vela-system",
+		},
+		Spec: v1alpha2.TraitDefinitionSpec{
+			Reference: v1alpha2.DefinitionReference{
+				Name: "definitionrefrence.core.oam.dev",
+			},
+		},
+	}
+
+	// app workload Definition
+	appTraitDefinition := v1alpha2.TraitDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mockdefinition.core.oam.dev",
+			Namespace: "vela-app",
+		},
+		Spec: v1alpha2.TraitDefinitionSpec{
+			Reference: v1alpha2.DefinitionReference{
+				Name: "definitionrefrence.core.oam.dev",
+			},
+		},
+	}
+
+	type fields struct {
+		getFunc test.MockGetFn
+	}
+	type want struct {
+		wld v1alpha2.TraitDefinition
+		err error
+	}
+
+	cases := map[string]struct {
+		fields fields
+		want   want
+	}{
+		"app defintion will overlay system definition": {
+			fields: fields{
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+					o := obj.(*v1alpha2.TraitDefinition)
+					if key.Namespace == "vela-system" {
+						*o = sysTraitDefinition
+					} else {
+						*o = appTraitDefinition
+					}
+					return nil
+				},
+			},
+			want: want{
+				wld: appTraitDefinition,
+				err: nil,
+			},
+		},
+
+		"return system definiton when cannot find in app ns": {
+			fields: fields{
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+					if key.Namespace == "vela-system" {
+						o := obj.(*v1alpha2.TraitDefinition)
+						*o = sysTraitDefinition
+						return nil
+					}
+					return apierrors.NewNotFound(schema.GroupResource{Group: "core.oma.dev", Resource: "workloadDefinition"}, key.Name)
+				},
+			},
+			want: want{
+				wld: sysTraitDefinition,
+				err: nil,
+			},
+		},
+	}
+	for name, tc := range cases {
+		tclient := test.MockClient{
+			MockGet: tc.fields.getFunc,
+		}
+		got := new(v1alpha2.TraitDefinition)
+		err := util.GetDefinition(ctx, &tclient, got, "mockdefinition")
+		t.Log(fmt.Sprint("Running test: ", name))
+
+		assert.Equal(t, tc.want.err, err)
+		assert.Equal(t, tc.want.wld, *got)
+	}
+}
+
+func TestGetDefinition(t *testing.T) {
+	// Test common variables
+	env := "env-namespace"
+
+	// sys workload Definition
+	sysTraitDefinition := v1alpha2.TraitDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mockdefinition",
+			Namespace: "vela-system",
+		},
+	}
+
+	// app workload Definition
+	appTraitDefinition := v1alpha2.TraitDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mockdefinition",
+			Namespace: "vela-app",
+		},
+	}
+
+	// env workload Definition
+	envTraitDefinition := v1alpha2.TraitDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mockdefinition",
+			Namespace: env,
+		},
+	}
+
+	cli := test.MockClient{MockGet: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+		o := obj.(*v1alpha2.TraitDefinition)
+		switch key.Namespace {
+		case "vela-system":
+			*o = sysTraitDefinition
+		case "vela-app":
+			*o = appTraitDefinition
+		case env:
+			*o = envTraitDefinition
+		default:
+			return apierrors.NewNotFound(schema.GroupResource{Group: "core.oma.dev", Resource: "traitDefinition"}, key.Name)
+		}
+		return nil
+	}}
+
+	ctx := context.Background()
+	ctx = util.SetNnamespaceInCtx(ctx, "vela-app")
+	appTd := new(v1alpha2.TraitDefinition)
+	err := util.GetDefinition(ctx, &cli, appTd, "mockTrait")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, &appTraitDefinition, appTd)
+
+	err = os.Setenv(util.DefinitionNamespaceEnv, env)
+	assert.Equal(t, nil, err)
+	envTd := new(v1alpha2.TraitDefinition)
+	err = util.GetDefinition(ctx, &cli, envTd, "mockTrait")
+	assert.Equal(t, nil, err)
+	assert.Equal(t, &envTraitDefinition, envTd)
+}
+
+func TestGetScopeDefiniton(t *testing.T) {
+	ctx := context.Background()
+	namespace := "vela-app"
+	ctx = util.SetNnamespaceInCtx(ctx, namespace)
+	scopeDefinitionKind := "ScopeDefinition"
+	mockVerision := "core.oam.dev/v1alpha2"
+	scopeDefinitionName := "mockscopes.core.oam.dev"
+	scopeDefinitionRefName := "mockscopes.core.oam.dev"
+	scopeDefinitionWorkloadRefsPath := "spec.workloadRefs"
+
+	sysScopeDefinition := v1alpha2.ScopeDefinition{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       scopeDefinitionKind,
+			APIVersion: mockVerision,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scopeDefinitionName,
+			Namespace: "vela-system",
+		},
+		Spec: v1alpha2.ScopeDefinitionSpec{
+			Reference: v1alpha2.DefinitionReference{
+				Name: scopeDefinitionRefName,
+			},
+			WorkloadRefsPath:      scopeDefinitionWorkloadRefsPath,
+			AllowComponentOverlap: false,
+		},
+	}
+
+	appScopeDefinition := v1alpha2.ScopeDefinition{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       scopeDefinitionKind,
+			APIVersion: mockVerision,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      scopeDefinitionName,
+			Namespace: namespace,
+		},
+		Spec: v1alpha2.ScopeDefinitionSpec{
+			Reference: v1alpha2.DefinitionReference{
+				Name: scopeDefinitionRefName,
+			},
+			WorkloadRefsPath:      scopeDefinitionWorkloadRefsPath,
+			AllowComponentOverlap: false,
+		},
+	}
+	type fields struct {
+		getFunc test.MockGetFn
+	}
+	type want struct {
+		spd *v1alpha2.ScopeDefinition
+		err error
+	}
+	cases := map[string]struct {
+		fields fields
+		want   want
+	}{
+		"app defintion will overlay system definition": {
+			fields: fields{
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+					o := obj.(*v1alpha2.ScopeDefinition)
+					if key.Namespace == "vela-system" {
+						*o = sysScopeDefinition
+					} else {
+						*o = appScopeDefinition
+					}
+					return nil
+				},
+			},
+			want: want{
+				spd: &appScopeDefinition,
+				err: nil,
+			},
+		},
+
+		"return system definiton when cannot find in app ns": {
+			fields: fields{
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+					if key.Namespace == "vela-system" {
+						o := obj.(*v1alpha2.ScopeDefinition)
+						*o = sysScopeDefinition
+						return nil
+					}
+					return apierrors.NewNotFound(schema.GroupResource{Group: "core.oma.dev", Resource: "scopeDefinition"}, key.Name)
+				},
+			},
+			want: want{
+				spd: &sysScopeDefinition,
+				err: nil,
+			},
+		},
+	}
+	for name, tc := range cases {
+		tclient := test.MockClient{
+			MockGet: tc.fields.getFunc,
+		}
+		got := new(v1alpha2.ScopeDefinition)
+		err := util.GetDefinition(ctx, &tclient, got, "mockdefinition")
+		t.Log(fmt.Sprint("Running test: ", name))
+		assert.Equal(t, tc.want.err, err)
+		assert.Equal(t, tc.want.spd, got)
+	}
 }

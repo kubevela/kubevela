@@ -37,6 +37,7 @@ import (
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // RolloutReconcileWaitTime is the time to wait before reconcile again an application still in rollout phase
@@ -93,7 +94,9 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// parse template
 	appParser := appfile.NewApplicationParser(r.Client, r.dm)
 
-	appfile, err := appParser.GenerateAppFile(app.Name, app)
+	ctx = oamutil.SetNnamespaceInCtx(ctx, app.Namespace)
+
+	appfile, err := appParser.GenerateAppFile(ctx, app.Name, app)
 	if err != nil {
 		handler.l.Error(err, "[Handle Parse]")
 		app.Status.SetConditions(errorCondition("Parsed", err))

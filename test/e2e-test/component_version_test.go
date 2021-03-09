@@ -533,7 +533,7 @@ var _ = Describe("Component revision", func() {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "manualscalertraits2.core.oam.dev",
-			Namespace: namespace,
+			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
 			RevisionEnabled: true,

@@ -150,7 +150,8 @@ var _ = Describe("Finalizer for HealthScope in ApplicationConfiguration", func()
 			// create health scope definition
 			sd := v1alpha2.ScopeDefinition{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "healthscopes.core.oam.dev",
+					Name:      "healthscopes.core.oam.dev",
+					Namespace: "vela-system",
 				},
 				Spec: v1alpha2.ScopeDefinitionSpec{
 					AllowComponentOverlap: true,

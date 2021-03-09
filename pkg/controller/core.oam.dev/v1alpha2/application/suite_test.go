@@ -17,12 +17,16 @@ limitations under the License.
 package application
 
 import (
+	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -61,9 +65,16 @@ var _ = BeforeSuite(func(done Done) {
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 
 	By("bootstrapping test environment")
+	var yamlPath string
+	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
+		yamlPath = "../../../../../test/compatibility-test/testdata"
+	} else {
+		yamlPath = filepath.Join("../../../../..", "charts", "vela-core", "crds")
+	}
+	logf.Log.Info("start application suit test", "yaml_path", yamlPath)
 	testEnv = &envtest.Environment{
 		UseExistingCluster: pointer.BoolPtr(false),
-		CRDDirectoryPaths:  []string{filepath.Join("../../../../..", "charts", "vela-core", "crds")},
+		CRDDirectoryPaths:  []string{yamlPath},
 	}
 
 	var err error
@@ -89,6 +100,8 @@ var _ = BeforeSuite(func(done Done) {
 		Scheme: testScheme,
 		dm:     dm,
 	}
+	definitonNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
+	Expect(k8sClient.Create(context.Background(), definitonNs.DeepCopy())).Should(BeNil())
 	close(done)
 }, 60)
 

@@ -106,7 +106,7 @@ var _ = BeforeSuite(func(done Done) {
 	close(done)
 }, 60)
 
-var DefinitionNamespace = "testdef"
+var DefinitionNamespace = "vela-system"
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	_ = k8sClient.Delete(context.Background(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: DefinitionNamespace}})

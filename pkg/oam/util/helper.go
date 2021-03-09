@@ -72,6 +72,13 @@ const (
 	errFmtInvalidRevisionType    = "invalid type of revision %s, type should not be %v"
 )
 
+type namespaceContextKey int
+
+const (
+	// AppDefinitionNamespace is context key to define app namespace
+	AppDefinitionNamespace namespaceContextKey = iota
+)
+
 // A ConditionedObject is an Object type with condition field
 type ConditionedObject interface {
 	oam.Object
@@ -163,10 +170,8 @@ func FetchScopeDefinition(ctx context.Context, r client.Reader, dm discoverymapp
 	if err != nil {
 		return nil, err
 	}
-	nn := GenNamespacedDefinitionName(spName)
-	// Fetch the corresponding scopeDefinition CR
-	scopeDefinition := &v1alpha2.ScopeDefinition{}
-	if err := r.Get(ctx, nn, scopeDefinition); err != nil {
+	scopeDefinition := new(v1alpha2.ScopeDefinition)
+	if err = GetDefinition(ctx, r, scopeDefinition, spName); err != nil {
 		return nil, err
 	}
 	return scopeDefinition, nil
@@ -180,9 +185,8 @@ func FetchTraitDefinition(ctx context.Context, r client.Reader, dm discoverymapp
 	if err != nil {
 		return nil, err
 	}
-	// Fetch the corresponding traitDefinition CR
-	traitDefinition, err := GetTraitDefinition(ctx, r, trName)
-	if err != nil {
+	traitDefinition := new(v1alpha2.TraitDefinition)
+	if err = GetDefinition(ctx, r, traitDefinition, trName); err != nil {
 		return nil, err
 	}
 	return traitDefinition, nil
@@ -196,39 +200,70 @@ func FetchWorkloadDefinition(ctx context.Context, r client.Reader, dm discoverym
 	if err != nil {
 		return nil, err
 	}
-	// Fetch the corresponding workloadDefinition CR
-	workloadDefinition, err := GetWorkloadDefinition(ctx, r, wldName)
-	if err != nil {
+	workloadDefinition := new(v1alpha2.WorkloadDefinition)
+	if err = GetDefinition(ctx, r, workloadDefinition, wldName); err != nil {
 		return nil, err
 	}
 	return workloadDefinition, nil
 }
 
-// GenNamespacedDefinitionName generate definition name with customized namespace
-func GenNamespacedDefinitionName(dn string) types.NamespacedName {
+// GetDefinitionNamespaceWithCtx will get namespace from context, it will try get `AppDefinitionNamespace` key, if not found,
+// will use default system level namespace defined in `systemvar.SystemDefinitonNamespace`
+func GetDefinitionNamespaceWithCtx(ctx context.Context) string {
+	var appNs string
+	if app := ctx.Value(AppDefinitionNamespace); app == nil {
+		appNs = oam.SystemDefinitonNamespace
+	} else {
+		appNs = app.(string)
+	}
+	return appNs
+}
+
+// SetNnamespaceInCtx set app namespace in context,
+// Sometimes webhook handler may receive request that appNs is empty string, and will cause error when search definition
+// So if namespace is empty, it will use `default` namespace by default.
+func SetNnamespaceInCtx(ctx context.Context, appNs string) context.Context {
+	if appNs == "" {
+		// compatible with some webhook handlers that maybe recei ve empty string as app namespace which means `default` namespace
+		appNs = "default"
+	}
+	ctx = context.WithValue(ctx, AppDefinitionNamespace, appNs)
+	return ctx
+}
+
+// GetDefinition get definition from two level namespace
+func GetDefinition(ctx context.Context, cli client.Reader, definition runtime.Object, definitionName string) error {
 	if dns := os.Getenv(DefinitionNamespaceEnv); dns != "" {
-		return types.NamespacedName{Name: dn, Namespace: dns}
+		if err := cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: dns}, definition); err == nil {
+			return nil
+		} else if !apierrors.IsNotFound(err) {
+			return err
+		}
 	}
-	return types.NamespacedName{Name: dn}
+	appNs := GetDefinitionNamespaceWithCtx(ctx)
+	if err := cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: appNs}, definition); err != nil {
+		if apierrors.IsNotFound(err) {
+			if err = cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: oam.SystemDefinitonNamespace}, definition); err != nil {
+				if apierrors.IsNotFound(err) {
+					// compatibility code for old clusters those definition crd is cluster scope
+					var newErr error
+					if newErr = cli.Get(ctx, types.NamespacedName{Name: definitionName}, definition); checkRequestNamespaceError(newErr) {
+						return err
+					}
+					return newErr
+				}
+				return err
+			}
+			return err
+		}
+		return err
+	}
+	return nil
 }
 
-// GetWorkloadDefinition  Get WorkloadDefinition
-func GetWorkloadDefinition(ctx context.Context, cli client.Reader,
-	workitemName string) (*v1alpha2.WorkloadDefinition, error) {
-	wd := new(v1alpha2.WorkloadDefinition)
-	if err := cli.Get(ctx, GenNamespacedDefinitionName(workitemName), wd); err != nil {
-		return nil, err
-	}
-	return wd, nil
-}
-
-// GetTraitDefinition Get TraitDefinition
-func GetTraitDefinition(ctx context.Context, cli client.Reader, traitName string) (*v1alpha2.TraitDefinition, error) {
-	td := new(v1alpha2.TraitDefinition)
-	if err := cli.Get(ctx, GenNamespacedDefinitionName(traitName), td); err != nil {
-		return nil, err
-	}
-	return td, nil
+// when get a  namespaced scope object without namespace, would get an error request namespace
+func checkRequestNamespaceError(err error) bool {
+	return err != nil && err.Error() == "an empty namespace may not be set when a resource name is provided"
 }
 
 // FetchWorkloadChildResources fetch corresponding child resources given a workload

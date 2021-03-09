@@ -84,3 +84,5 @@ certificate:
   secretName: webhook-server-cert
   mountPath: /etc/k8s-webhook-certs
   caBundle: replace-me
+
+systemDefinitionNamespace: vela-system

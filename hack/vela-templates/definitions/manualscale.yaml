@@ -4,6 +4,7 @@ metadata:
   annotations:
     definition.oam.dev/description: "Configures replicas for your service."
   name: scaler
+  namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   appliesToWorkloads:
     - webservice

@@ -39,7 +39,6 @@ import (
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -99,8 +98,7 @@ func TestRenderComponents(t *testing.T) {
 		trait    ResourceRenderer
 	}
 	type args struct {
-		ctx context.Context
-		ac  *v1alpha2.ApplicationConfiguration
+		ac *v1alpha2.ApplicationConfiguration
 	}
 	type want struct {
 		w   []Workload
@@ -525,7 +523,7 @@ func TestRenderComponents(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), tc.fields.params, tc.fields.workload, tc.fields.trait}
-			got, _, err := r.Render(tc.args.ctx, tc.args.ac)
+			got, _, err := r.Render(context.TODO(), tc.args.ac)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nr.Render(...): -want error, +got error:\n%s\n", tc.reason, diff)
 			}
@@ -813,8 +811,7 @@ func TestRenderTraitWithoutMetadataName(t *testing.T) {
 		trait    ResourceRenderer
 	}
 	type args struct {
-		ctx context.Context
-		ac  *v1alpha2.ApplicationConfiguration
+		ac *v1alpha2.ApplicationConfiguration
 	}
 	type want struct {
 		w []Workload
@@ -871,7 +868,7 @@ func TestRenderTraitWithoutMetadataName(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), tc.fields.params, tc.fields.workload, tc.fields.trait}
-			got, _, _ := r.Render(tc.args.ctx, tc.args.ac)
+			got, _, _ := r.Render(context.TODO(), tc.args.ac)
 			if len(got) == 0 || len(got[0].Traits) == 0 || got[0].Traits[0].Object.GetName() != util.GenTraitName(componentName, ac.Spec.Components[0].Traits[0].DeepCopy(), "") {
 				t.Errorf("\n%s\nr.Render(...): -want error, +got error:\n%s\n", tc.reason, "Trait name is NOT "+
 					"automatically set.")

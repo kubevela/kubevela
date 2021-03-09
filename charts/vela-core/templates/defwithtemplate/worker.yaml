@@ -3,6 +3,7 @@ apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
   name: worker
+  namespace: {{.Values.systemDefinitionNamespace}}
   annotations:
     definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic."
 spec:
