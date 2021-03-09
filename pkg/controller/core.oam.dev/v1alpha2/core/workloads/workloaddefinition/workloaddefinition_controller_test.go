@@ -36,7 +36,7 @@ import (
 var _ = Describe("Apply WorkloadDefinition to store its schema to ConfigMap Test", func() {
 	ctx := context.Background()
 	var (
-		namespace = types.DefaultKubeVelaNS
+		namespace = "ns-def"
 		ns        corev1.Namespace
 	)
 
@@ -61,7 +61,7 @@ apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
   name: web
-  namespace: vela-system
+  namespace: ns-def
   annotations:
     definition.oam.dev/description: "test"
 spec:
@@ -114,7 +114,7 @@ spec:
 			reconcileRetry(&r, req)
 			var cm corev1.ConfigMap
 			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, workloadDefinitionName)
-			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: name}, &cm)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)).Should(Succeed())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
 		})
 	})
@@ -139,7 +139,7 @@ apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
   name: invalid-wd1
-  namespace: vela-system
+  namespace: ns-def
   annotations:
     definition.oam.dev/description: "test"
 spec:

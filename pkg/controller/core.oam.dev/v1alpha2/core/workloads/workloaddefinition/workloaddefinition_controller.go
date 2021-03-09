@@ -53,7 +53,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
-	klog.InfoS("Reconciling WorkloadDefinition", "Name", definitionName)
+	klog.InfoS("Reconciling WorkloadDefinition", "Name", definitionName, "Namespace", req.Namespace)
 	ctx := context.Background()
 	var def utils.CapabilityWorkloadDefinition
 	def.Name = req.NamespacedName.Name

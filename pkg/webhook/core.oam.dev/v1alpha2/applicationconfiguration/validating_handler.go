@@ -119,7 +119,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 func (h *ValidatingHandler) ValidateCreate(ctx context.Context, obj *v1alpha2.ApplicationConfiguration) field.ErrorList {
 	var componentErrs field.ErrorList
 	vAppConfig := &ValidatingAppConfig{}
-	ctx = util.SetNnamespaceInCtx(ctx, obj.Namespace)
+	ctx = util.SetNamespaceInCtx(ctx, obj.Namespace)
 	if err := vAppConfig.PrepareForValidation(ctx, h.Client, h.Mapper, obj); err != nil {
 		klog.InfoS("failed to prepare information before validation ", " name: ", obj.Name, " errMsg: ", err.Error())
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), obj.Spec,

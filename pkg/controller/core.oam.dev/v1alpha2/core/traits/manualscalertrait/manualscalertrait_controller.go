@@ -95,7 +95,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	ctx = util.SetNnamespaceInCtx(ctx, manualScalar.Namespace)
+	ctx = util.SetNamespaceInCtx(ctx, manualScalar.Namespace)
 
 	r.log.Info("Get the manualscalar trait", "ReplicaCount", manualScalar.Spec.ReplicaCount,
 		"Annotations", manualScalar.GetAnnotations())

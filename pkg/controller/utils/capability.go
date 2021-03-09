@@ -43,6 +43,11 @@ type CapabilityWorkloadDefinition struct {
 
 // GetCapabilityObject gets types.Capability object by WorkloadDefinition name
 func (def *CapabilityWorkloadDefinition) GetCapabilityObject(ctx context.Context, k8sClient client.Client, namespace, name string) (*types.Capability, error) {
+	// from fake unit-test, null namespace will be changed to "" instead of "default", not like normal api server processing
+	if namespace == "" {
+		namespace = "default"
+	}
+
 	var workloadDefinition v1alpha2.WorkloadDefinition
 	var capability types.Capability
 	capability.Name = def.Name
@@ -86,7 +91,7 @@ func (def *CapabilityWorkloadDefinition) StoreOpenAPISchema(ctx context.Context,
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	return def.CreateOrUpdateConfigMap(ctx, k8sClient, workloadDefinition.Name, jsonSchema, ownerReference)
+	return def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, workloadDefinition.Name, jsonSchema, ownerReference)
 }
 
 // CapabilityTraitDefinition is the Capability struct for TraitDefinition
@@ -142,7 +147,7 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	return def.CreateOrUpdateConfigMap(ctx, k8sClient, traitDefinition.Name, jsonSchema, ownerReference)
+	return def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, traitDefinition.Name, jsonSchema, ownerReference)
 }
 
 // CapabilityBaseDefinition is the base struct for CapabilityWorkloadDefinition and CapabilityTraitDefinition
@@ -150,14 +155,15 @@ type CapabilityBaseDefinition struct {
 }
 
 // CreateOrUpdateConfigMap creates ConfigMap to store OpenAPI v3 schema or or updates data in ConfigMap
-func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context, k8sClient client.Client, definitionName string, jsonSchema []byte, ownerReferences []metav1.OwnerReference) error {
+func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context, k8sClient client.Client, namespace, definitionName string, jsonSchema []byte, ownerReferences []metav1.OwnerReference) error {
 	cmName := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, definitionName)
-	ns := types.DefaultKubeVelaNS
 	var cm v1.ConfigMap
 	var data = map[string]string{
 		types.OpenapiV3JSONSchema: string(jsonSchema),
 	}
-	err := k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: cmName}, &cm)
+	// No need to check the existence of namespace, if it doesn't exist, API server will return the error message
+	// before it's to be reconciled by WorkloadDefinition/TraitDefinition controller.
+	err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: cmName}, &cm)
 	if err != nil && apierrors.IsNotFound(err) {
 		cm = v1.ConfigMap{
 			TypeMeta: metav1.TypeMeta{
@@ -166,7 +172,7 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            cmName,
-				Namespace:       ns,
+				Namespace:       namespace,
 				OwnerReferences: ownerReferences,
 				Labels: map[string]string{
 					"definition.oam.dev": "schema",
