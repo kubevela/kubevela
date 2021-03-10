@@ -65,7 +65,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
-	//TODO write test here
+	// TODO write test here
 
 	close(done)
 }, 60)

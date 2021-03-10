@@ -1068,8 +1068,8 @@ func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
 			By(fmt.Sprintf("reconcile err: %+v ", err))
 		} else if result.Requeue || result.RequeueAfter > 0 {
 			// retry if we need to requeue
-			By("reconcile failed with requeue")
-			return fmt.Errorf("reconcile failed with requeue")
+			By("reconcile timeout as it still needs to requeue")
+			return fmt.Errorf("reconcile timeout as it still needs to requeue")
 		}
 		return err
 	}, 30*time.Second, time.Second).Should(BeNil())

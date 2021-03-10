@@ -59,7 +59,7 @@ func (h *appHandler) handleErr(err error) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 	if nerr != nil {
-		h.logger.Error(nerr, "[Update] application")
+		h.logger.Error(nerr, "[Update] application status")
 	}
 	return ctrl.Result{
 		RequeueAfter: time.Second * 10,
@@ -114,7 +114,7 @@ func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.Appli
 			Name:    wl.Name,
 			Healthy: true,
 		}
-		pCtx := process.NewContext(wl.Name, appfile.Name)
+		pCtx := process.NewContext(wl.Name, appfile.Name, appfile.RevisionName)
 		if err := wl.EvalContext(pCtx); err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate context error", appfile.Name, wl.Name)
 		}
@@ -293,8 +293,7 @@ func (h *appHandler) createOrUpdateAppConfig(ctx context.Context, appConfig *v1a
 
 // create a new appConfig given the latest revision in the application
 func (h *appHandler) createNewAppConfig(ctx context.Context, appConfig *v1alpha2.ApplicationConfiguration) error {
-	nextRevision := h.app.Status.LatestRevision.Revision + 1
-	revisionName := utils.ConstructRevisionName(h.app.Name, nextRevision)
+	revisionName, nextRevision := utils.GetAppRevision(h.app)
 	// update the next revision in the application's status
 	h.app.Status.LatestRevision = &v1alpha2.Revision{
 		Name:         revisionName,

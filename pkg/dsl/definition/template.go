@@ -127,17 +127,8 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string) er
 
 func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader, ns string) (map[string]interface{}, error) {
 
-	var commonLabels = map[string]string{}
-	var root = map[string]interface{}{}
-	for k, v := range ctx.BaseContextLabels() {
-		root[k] = v
-		switch k {
-		case "appName":
-			commonLabels[oam.LabelAppName] = v
-		case "name":
-			commonLabels[oam.LabelAppComponent] = v
-		}
-	}
+	var root = initRoot(ctx.BaseContextLabels())
+	var commonLabels = getCommonLabels(ctx.BaseContextLabels())
 
 	base, assists := ctx.Output()
 	componentWorkload, err := base.Unstructured()
@@ -325,18 +316,33 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string) error
 	return nil
 }
 
-func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, ns string) (map[string]interface{}, error) {
-	var root = map[string]interface{}{}
+func getCommonLabels(contextLabels map[string]string) map[string]string {
 	var commonLabels = map[string]string{}
-	for k, v := range ctx.BaseContextLabels() {
-		root[k] = v
+	for k, v := range contextLabels {
 		switch k {
-		case "appName":
+		case process.ContextAppName:
 			commonLabels[oam.LabelAppName] = v
-		case "name":
+		case process.ContextName:
 			commonLabels[oam.LabelAppComponent] = v
+		case process.ContextAppRevision:
+			// TODO(wonderflow): do we need to add appRevision into common labels ? Actually it's appConfig name in our current design.
 		}
 	}
+	return commonLabels
+}
+
+func initRoot(contextLabels map[string]string) map[string]interface{} {
+	var root = map[string]interface{}{}
+	for k, v := range contextLabels {
+		root[k] = v
+	}
+	return root
+}
+
+func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, ns string) (map[string]interface{}, error) {
+	var root = initRoot(ctx.BaseContextLabels())
+	var commonLabels = getCommonLabels(ctx.BaseContextLabels())
+
 	_, assists := ctx.Output()
 	outputs := make(map[string]interface{})
 	for _, assist := range assists {

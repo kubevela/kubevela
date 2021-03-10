@@ -934,7 +934,7 @@ func TestRenderComponent(t *testing.T) {
 		args   arg
 		want   want
 	}{
-		//TODO: Add more failure cases
+		// TODO: Add more failure cases
 		//  add more dependency related tests for any future changes
 		//  add more trait related tests
 		"Newly-Changed-Component-NotRolling": {

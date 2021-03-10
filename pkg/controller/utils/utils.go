@@ -158,6 +158,19 @@ func StoreInSet(disableCaps string) mapset.Set {
 	return mapset.NewSetFromSlice(disableSlice)
 }
 
+// GetAppRevision will generate revision name and revision number for application
+func GetAppRevision(app *v1alpha2.Application) (string, int64) {
+	if app == nil {
+		// should never happen
+		return "", 0
+	}
+	var nextRevision int64 = 1
+	if app.Status.LatestRevision != nil {
+		nextRevision = app.Status.LatestRevision.Revision + 1
+	}
+	return ConstructRevisionName(app.Name, nextRevision), nextRevision
+}
+
 // ConstructRevisionName will generate a revisionName given the componentName and revision
 // will be <componentName>-v<RevisionNumber>, for example: comp-v1
 func ConstructRevisionName(componentName string, revision int64) string {
