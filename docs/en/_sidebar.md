@@ -68,7 +68,7 @@
     - Extensibility
       - [vela cap](/en/cli/vela_cap.md)
   - Developer Experience
-    - [Overview](/en/quick-start.md)
+    - [Overview](/en/quick-start-appfile.md)
     - [Appfile](/en/developers/learn-appfile.md)
     - CLI
       - Debugging

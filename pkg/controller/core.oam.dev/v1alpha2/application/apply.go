@@ -133,6 +133,7 @@ func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.Appli
 			status.Healthy = false
 			healthy = false
 		}
+
 		status.Message, err = wl.EvalStatus(pCtx, h.r, h.app.Namespace)
 		if err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appfile.Name, wl.Name)
@@ -273,7 +274,6 @@ func (h *appHandler) createOrUpdateAppConfig(ctx context.Context, appConfig *v1a
 			"latest revision that does not exist", h.app.Status.LatestRevision.Name)
 		return h.createNewAppConfig(ctx, appConfig)
 	}
-
 	// check if the old AC has the same HASH value
 	if curAppConfig.GetLabels()[oam.LabelAppConfigHash] == appConfig.GetLabels()[oam.LabelAppConfigHash] {
 		// Just to be safe that it's not because of a random Hash collision
