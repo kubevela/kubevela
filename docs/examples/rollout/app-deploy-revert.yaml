@@ -4,15 +4,14 @@ metadata:
   name: rolling-test
 spec:
   # application (revision) reference
-  targetAppRevisionName: test-rolling-v2
-  sourceAppRevisionName: test-rolling-v1
+  targetAppRevisionName: test-rolling-v3
+  sourceAppRevisionName: test-rolling-v2
   # HPA reference (optional)
   componentList:
     - metrics-provider
   rolloutPlan:
     rolloutStrategy: "IncreaseFirst"
     rolloutBatches:
-      - replicas: 10%
-      - replicas: 2
-      - replicas: 2
-    batchPartition: 1
+      - replicas: 20%
+      - replicas: 30%
+      - replicas: 50%

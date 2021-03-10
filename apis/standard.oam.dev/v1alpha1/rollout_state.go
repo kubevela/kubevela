@@ -39,8 +39,8 @@ const (
 	// FinishedOneBatchEvent indicates that we have successfully rolled out one batch
 	FinishedOneBatchEvent RolloutEvent = "FinishedOneBatchEvent"
 
-	// BatchRolloutVerifyingEvent indicates that we are waiting for the approval of resume one batch
-	BatchRolloutVerifyingEvent RolloutEvent = "BatchRolloutVerifyingEvent"
+	// RolloutOneBatchEvent indicates that we have rollout one batch
+	RolloutOneBatchEvent RolloutEvent = "RolloutOneBatchEvent"
 
 	// OneBatchAvailableEvent indicates that the batch resource is considered available
 	// this events comes after we have examine the pod readiness check and traffic shifting if needed
@@ -66,6 +66,8 @@ const (
 	RolloutInProgress runtimev1alpha1.ConditionType = "RolloutInProgress"
 	// RolloutFinalizing means the rollout is finalizing
 	RolloutFinalizing runtimev1alpha1.ConditionType = "RolloutFinalizing"
+	// RolloutFailing means the rollout is failing
+	RolloutFailing runtimev1alpha1.ConditionType = "RolloutFailing"
 	// RolloutFailed means that the rollout failed.
 	RolloutFailed runtimev1alpha1.ConditionType = "RolloutFailed"
 	// RolloutSucceed means that the rollout is done.
@@ -110,7 +112,7 @@ const invalidBatchRollingStateTransition = "the batch rolling state transition f
 func (r *RolloutStatus) getRolloutConditionType() runtimev1alpha1.ConditionType {
 	// figure out which condition type should we put in the condition depends on its state
 	switch r.RollingState {
-	case VerifyingState:
+	case VerifyingSpecState:
 		return RolloutSpecVerifying
 
 	case InitializingState:
@@ -140,6 +142,9 @@ func (r *RolloutStatus) getRolloutConditionType() runtimev1alpha1.ConditionType 
 	case FinalisingState:
 		return RolloutFinalizing
 
+	case RolloutFailingState:
+		return RolloutFailing
+
 	case RolloutFailedState:
 		return RolloutFailed
 
@@ -164,15 +169,50 @@ func (r *RolloutStatus) RolloutFailed(reason string) {
 	r.RollingState = RolloutFailedState
 }
 
+// RolloutFailing is a special state transition that always moves the rollout state to the failing state
+func (r *RolloutStatus) RolloutFailing(reason string) {
+	// set the condition first which depends on the state
+	r.SetConditions(NewNegativeCondition(r.getRolloutConditionType(), reason))
+	r.RollingState = RolloutFailingState
+	r.BatchRollingState = BatchInitializingState
+}
+
 // ResetStatus resets the status of the rollout to start from beginning
 func (r *RolloutStatus) ResetStatus() {
 	r.NewPodTemplateIdentifier = ""
 	r.LastAppliedPodTemplateIdentifier = ""
-	r.RollingState = VerifyingState
+	r.RollingState = VerifyingSpecState
 	r.BatchRollingState = BatchInitializingState
 	r.CurrentBatch = 0
 	r.UpgradedReplicas = 0
 	r.UpgradedReadyReplicas = 0
+}
+
+// SetRolloutCondition sets the supplied condition, replacing any existing condition
+// of the same type unless they are identical.
+func (r *RolloutStatus) SetRolloutCondition(new runtimev1alpha1.Condition) {
+	exists := false
+	for i, existing := range r.Conditions {
+		if existing.Type != new.Type {
+			continue
+		}
+		// we want to update the condition when the LTT changes
+		if existing.Type == new.Type &&
+			existing.Status == new.Status &&
+			existing.Reason == new.Reason &&
+			existing.Message == new.Message &&
+			existing.LastTransitionTime == new.LastTransitionTime {
+			exists = true
+			continue
+		}
+
+		r.Conditions[i] = new
+		exists = true
+	}
+	if !exists {
+		r.Conditions = append(r.Conditions, new)
+	}
+
 }
 
 // StateTransition is the center place to do rollout state transition
@@ -195,10 +235,10 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 	}
 
 	switch rollingState {
-	case VerifyingState:
+	case VerifyingSpecState:
 		if event == RollingSpecVerifiedEvent {
 			r.RollingState = InitializingState
-			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
+			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
@@ -207,7 +247,7 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 		if event == RollingInitializedEvent {
 			r.RollingState = RollingInBatchesState
 			r.BatchRollingState = BatchInitializingState
-			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
+			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
@@ -219,27 +259,31 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 	case FinalisingState:
 		if event == RollingFinalizedEvent {
 			r.RollingState = RolloutSucceedState
-			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
+			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
+			return
+		}
+		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
+
+	case RolloutFailingState:
+		if event == RollingFinalizedEvent {
+			r.RollingState = RolloutFailedState
+			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
 
 	case RolloutSucceedState:
 		if event == WorkloadModifiedEvent {
+			r.SetRolloutCondition(NewNegativeCondition(r.getRolloutConditionType(), "Rollout Spec is modified"))
 			r.ResetStatus()
-			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
 
 	case RolloutFailedState:
 		if event == WorkloadModifiedEvent {
+			r.SetRolloutCondition(NewNegativeCondition(r.getRolloutConditionType(), "Rollout Spec is modified"))
 			r.ResetStatus()
-			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
-			return
-		}
-		if event == RollingFailedEvent {
-			// no op
 			return
 		}
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
@@ -267,9 +311,9 @@ func (r *RolloutStatus) batchStateTransition(event RolloutEvent) {
 		panic(fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event))
 
 	case BatchInRollingState:
-		if event == BatchRolloutVerifyingEvent {
+		if event == RolloutOneBatchEvent {
 			r.BatchRollingState = BatchVerifyingState
-			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
+			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		panic(fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event))
@@ -277,7 +321,7 @@ func (r *RolloutStatus) batchStateTransition(event RolloutEvent) {
 	case BatchVerifyingState:
 		if event == OneBatchAvailableEvent {
 			r.BatchRollingState = BatchFinalizingState
-			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
+			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		panic(fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event))
@@ -285,14 +329,14 @@ func (r *RolloutStatus) batchStateTransition(event RolloutEvent) {
 	case BatchFinalizingState:
 		if event == FinishedOneBatchEvent {
 			r.BatchRollingState = BatchReadyState
-			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
+			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		if event == AllBatchFinishedEvent {
 			// transition out of the batch loop
 			r.BatchRollingState = BatchReadyState
 			r.RollingState = FinalisingState
-			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
+			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		panic(fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event))
@@ -301,7 +345,7 @@ func (r *RolloutStatus) batchStateTransition(event RolloutEvent) {
 		if event == BatchRolloutApprovedEvent {
 			r.BatchRollingState = BatchInitializingState
 			r.CurrentBatch++
-			r.SetConditions(NewPositiveCondition(r.getRolloutConditionType()))
+			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		panic(fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event))

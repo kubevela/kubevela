@@ -74,7 +74,7 @@ func makeHTTPRequest(ctx context.Context, webhookEndPoint, method string, payloa
 
 // callWebhook does a HTTP POST to an external service and
 // returns an error if the response status code is non-2xx
-func callWebhook(ctx context.Context, resource klog.KMetadata, phase v1alpha1.RollingState, rw v1alpha1.RolloutWebhook) error {
+func callWebhook(ctx context.Context, resource klog.KMetadata, phase string, rw v1alpha1.RolloutWebhook) error {
 	payload := v1alpha1.RolloutWebhookPayload{
 		Name:      resource.GetName(),
 		Namespace: resource.GetNamespace(),

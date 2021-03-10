@@ -263,12 +263,12 @@ spec:
               sourceAppRevisionName:
                 description: SourceAppRevisionName contains the name of the applicationConfiguration that we need to upgrade from. it can be empty only when it's the first time to deploy the application
                 type: string
-              targetApplicationName:
+              targetAppRevisionName:
                 description: TargetAppRevisionName contains the name of the applicationConfiguration that we need to upgrade to. Here we use an applicationConfiguration as a revision of an application, thus the name alone is suffice
                 type: string
             required:
             - rolloutPlan
-            - targetApplicationName
+            - targetAppRevisionName
             type: object
           status:
             description: AppRolloutStatus defines the observed state of AppRollout
@@ -324,7 +324,7 @@ spec:
                 description: NewPodTemplateIdentifier is a string that uniquely represent the new pod template each workload type could use different ways to identify that so we cannot compare between resources
                 type: string
               upgradedReadyReplicas:
-                description: UpgradedReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
+                description: UpgradedReadyReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
                 format: int32
                 type: integer
               upgradedReplicas:

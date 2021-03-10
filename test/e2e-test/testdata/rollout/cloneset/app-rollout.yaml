@@ -4,8 +4,8 @@ metadata:
   name: rolling-e2e-test
 spec:
   # application (revision) reference
-  targetApplicationName: test-e2e-rolling-v2
-  sourceApplicationName: test-e2e-rolling-v1
+  targetAppRevisionName: test-e2e-rolling-v2
+  sourceAppRevisionName: test-e2e-rolling-v1
   # HPA reference (optional)
   componentList:
     - metrics-provider

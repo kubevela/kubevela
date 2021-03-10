@@ -26,7 +26,7 @@ import (
 type AppRolloutSpec struct {
 	// TargetAppRevisionName contains the name of the applicationConfiguration that we need to upgrade to.
 	// Here we use an applicationConfiguration as a revision of an application, thus the name alone is suffice
-	TargetAppRevisionName string `json:"targetApplicationName"`
+	TargetAppRevisionName string `json:"targetAppRevisionName"`
 
 	// SourceAppRevisionName contains the name of the applicationConfiguration that we need to upgrade from.
 	// it can be empty only when it's the first time to deploy the application

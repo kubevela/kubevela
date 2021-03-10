@@ -73,12 +73,41 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	}
 
+	VerifyAppConfigTemplated := func(revision int64) {
+		var appConfigName string
+		By("Get Application latest status after AppConfig created")
+		Eventually(
+			func() int64 {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Name}, &app)
+				return app.Status.LatestRevision.Revision
+			},
+			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(revision))
+		appConfigName = app.Status.LatestRevision.Name
+		By(fmt.Sprintf("Wait for AppConfig %s synced", appConfigName))
+		var appConfig v1alpha2.ApplicationConfiguration
+		Eventually(
+			func() corev1.ConditionStatus {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appConfigName}, &appConfig)
+				return appConfig.Status.GetCondition(cpv1.TypeSynced).Status
+			},
+			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(corev1.ConditionTrue))
+
+		By(fmt.Sprintf("Wait for AppConfig %s to be templated", appConfigName))
+		Eventually(
+			func() v1alpha2.RollingStatus {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appConfigName}, &appConfig)
+				return appConfig.Status.RollingStatus
+			},
+			time.Second*60, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.RollingTemplated))
+	}
+
 	ApplySourceApp := func() {
 		By("Apply an application")
 		var newApp v1alpha2.Application
 		Expect(readYaml("testdata/rollout/cloneset/app-source.yaml", &newApp)).Should(BeNil())
 		newApp.Namespace = namespace
 		Expect(k8sClient.Create(ctx, &newApp)).Should(Succeed())
+
 		By("Get Application latest status after AppConfig created")
 		Eventually(
 			func() *v1alpha2.Revision {
@@ -102,38 +131,8 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			map[string]string{oam.AnnotationRollingComponent: app.Spec.Components[0].Name,
 				oam.AnnotationAppRollout: strconv.FormatBool(true)}))
 		Expect(k8sClient.Update(ctx, &app)).Should(Succeed())
-		By("Wait for AppConfig1 to be templated")
-		Eventually(
-			func() v1alpha2.RollingStatus {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Status.LatestRevision.Name}, &appConfig1)
-				return appConfig1.Status.RollingStatus
-			},
-			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.RollingTemplated))
-	}
 
-	VerifyAppConfig2Synced := func() {
-		By("Get Application latest status after AppConfig created")
-		Eventually(
-			func() int64 {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Name}, &app)
-				return app.Status.LatestRevision.Revision
-			},
-			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(2))
-		By("Wait for AppConfig2 synced")
-		Eventually(
-			func() corev1.ConditionStatus {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Status.LatestRevision.Name}, &appConfig2)
-				return appConfig2.Status.GetCondition(cpv1.TypeSynced).Status
-			},
-			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(corev1.ConditionTrue))
-
-		By("Wait for AppConfig2 to be templated")
-		Eventually(
-			func() v1alpha2.RollingStatus {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Status.LatestRevision.Name}, &appConfig2)
-				return appConfig2.Status.RollingStatus
-			},
-			time.Second*60, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.RollingTemplated))
+		VerifyAppConfigTemplated(1)
 	}
 
 	ApplyTargetApp := func() {
@@ -146,9 +145,24 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Name}, &app)
 				app.Spec = targetApp.Spec
 				return k8sClient.Update(ctx, &app)
+			}, time.Second*5, time.Millisecond*500).Should(Succeed())
+
+		VerifyAppConfigTemplated(2)
+
+		By("Remove the application rolling annotation")
+		Eventually(
+			func() error {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Name}, &app)
+				util.RemoveAnnotations(&app, []string{oam.AnnotationRollingComponent})
+				return k8sClient.Update(ctx, &app)
+			}, time.Second*5, time.Millisecond*500).Should(Succeed())
+
+		Eventually(
+			func() corev1.ConditionStatus {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Status.LatestRevision.Name}, &appConfig2)
+				return appConfig2.Status.GetCondition(cpv1.TypeSynced).Status
 			},
-			time.Second*60, time.Millisecond*500).Should(Succeed())
-		VerifyAppConfig2Synced()
+			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(corev1.ConditionTrue))
 	}
 
 	VerifyCloneSetPaused := func() {
@@ -160,7 +174,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 	}
 
 	VerifyRolloutOwnsCloneset := func() {
-		By("Verify that rollout controller owns the cloneset")
+		By("VerifySpec that rollout controller owns the cloneset")
 		Eventually(
 			func() string {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: clonesetName}, &kc)
@@ -184,7 +198,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			time.Second*240, time.Second).Should(Equal(oamstd.RolloutSucceedState))
 	}
 
-	VerifyAppConfig2RollingStatus := func() {
+	VerifyAppConfigRollingCompleted := func(appConfigName string) {
 		By("Wait for AppConfig2 to resume the control of cloneset")
 		var clonesetOwner *metav1.OwnerReference
 		Eventually(
@@ -201,21 +215,25 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		Expect(kc.Status.UpdatedReplicas).Should(BeEquivalentTo(*kc.Spec.Replicas))
 		Expect(kc.Status.UpdatedReadyReplicas).Should(BeEquivalentTo(*kc.Spec.Replicas))
 
-		By("Verify AppConfig2 rolling status")
+		By("VerifySpec AppConfig rolling status")
+		var appConfig v1alpha2.ApplicationConfiguration
+
 		Eventually(
 			func() v1alpha2.RollingStatus {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appConfig2.Name}, &appConfig2)
-				return appConfig2.Status.RollingStatus
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appConfigName}, &appConfig)
+				return appConfig.Status.RollingStatus
 			},
 			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.RollingCompleted))
 	}
 
-	VerifyAppConfig1RollingStatus := func() {
-		By("Verify AppConfig1 is inactive")
+	VerifyAppConfigInactive := func(appConfigName string) {
+		By("VerifySpec AppConfig is inactive")
+		var appConfig v1alpha2.ApplicationConfiguration
+
 		Eventually(
 			func() v1alpha2.RollingStatus {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appConfig1.Name}, &appConfig1)
-				return appConfig1.Status.RollingStatus
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appConfigName}, &appConfig)
+				return appConfig.Status.RollingStatus
 			},
 			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.InactiveAfterRollingCompleted))
 	}
@@ -264,7 +282,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		VerifyRolloutSucceeded()
 
-		VerifyAppConfig2RollingStatus()
+		VerifyAppConfigRollingCompleted(appConfig2.Name)
 		// Clean up
 		k8sClient.Delete(ctx, &appRollout)
 	})
@@ -299,7 +317,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			},
 			time.Second*15, time.Millisecond*500).Should(BeEquivalentTo(batchPartition))
 
-		By("Verify that the rollout stops at the first batch")
+		By("VerifySpec that the rollout stops at the first batch")
 		// wait for the batch to be ready
 		Eventually(
 			func() oamstd.BatchRollingState {
@@ -324,9 +342,9 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		VerifyRolloutSucceeded()
 
-		VerifyAppConfig2RollingStatus()
+		VerifyAppConfigRollingCompleted(appConfig2.Name)
 
-		VerifyAppConfig1RollingStatus()
+		VerifyAppConfigInactive(appConfig1.Name)
 
 		// Clean up
 		k8sClient.Delete(ctx, &appRollout)
@@ -370,7 +388,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			},
 			time.Second*15, time.Millisecond*500).Should(BeEquivalentTo(batchPartition))
 
-		By("Verify that the rollout stops at the first batch")
+		By("VerifySpec that the rollout stops at the first batch")
 		// wait for the batch to be ready
 		Eventually(
 			func() corev1.ConditionStatus {
@@ -442,9 +460,9 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		VerifyRolloutSucceeded()
 
-		VerifyAppConfig2RollingStatus()
+		VerifyAppConfigRollingCompleted(appConfig2.Name)
 
-		VerifyAppConfig1RollingStatus()
+		VerifyAppConfigInactive(appConfig1.Name)
 
 		By("Revert the change by first marking the application as rolling")
 		var appConfig3 v1alpha2.ApplicationConfiguration
@@ -463,6 +481,9 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		By("Revert the application back to source")
 		var sourceApp v1alpha2.Application
 		Expect(readYaml("testdata/rollout/cloneset/app-source.yaml", &sourceApp)).Should(BeNil())
+		sourceApp.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(),
+			map[string]string{oam.AnnotationRollingComponent: app.Spec.Components[0].Name,
+				oam.AnnotationAppRollout: strconv.FormatBool(true)}))
 		Eventually(
 			func() error {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Name}, &app)
@@ -485,13 +506,13 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				appRollout.Spec.TargetAppRevisionName = appConfig3.Name
 				return k8sClient.Update(ctx, &appRollout)
 			},
-			time.Second*5, time.Millisecond*500).ShouldNot(HaveOccurred())
+			time.Second*5, time.Millisecond*500).Should(Succeed())
 
 		VerifyRolloutOwnsCloneset()
 
 		VerifyRolloutSucceeded()
 
-		By("Verify AppConfig rolling status")
+		By("VerifySpec AppConfig rolling status")
 		Eventually(
 			func() v1alpha2.RollingStatus {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appConfig2.Name}, &appConfig2)
@@ -541,7 +562,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			},
 			time.Second*15, time.Millisecond*500).Should(BeEquivalentTo(batchPartition))
 
-		By("Verify that the rollout stops")
+		By("VerifySpec that the rollout stops")
 		// wait for the batch to be ready
 		Eventually(
 			func() oamstd.BatchRollingState {
@@ -585,9 +606,8 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				return k8sClient.Update(ctx, &cd)
 			},
 			time.Second*3, time.Millisecond*300).Should(Succeed())
-		VerifyAppConfig2Synced()
-		VerifyCloneSetPaused()
-		By("Apply the application rollout that stops after two batches")
+		VerifyAppConfigTemplated(2)
+		By("Apply the application rollout")
 		var newAppRollout v1alpha2.AppRollout
 		Expect(readYaml("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
@@ -599,9 +619,9 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		VerifyRolloutSucceeded()
 
-		VerifyAppConfig2RollingStatus()
+		VerifyAppConfigRollingCompleted(appConfig2.Name)
 
-		VerifyAppConfig1RollingStatus()
+		VerifyAppConfigInactive(appConfig1.Name)
 
 		// Clean up
 		k8sClient.Delete(ctx, &appRollout)
