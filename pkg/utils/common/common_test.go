@@ -1,9 +1,12 @@
 package common
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +18,58 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 )
+
+var ResponseString = "Hello HTTP Get."
+
+func TestInitBaseRestConfig(t *testing.T) {
+	args, err := InitBaseRestConfig()
+	assert.NotNil(t, t, args)
+	assert.NoError(t, err)
+}
+
+func TestHTTPGet(t *testing.T) {
+	type want struct {
+		data   string
+		errStr string
+	}
+	var ctx = context.Background()
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, ResponseString)
+	}))
+	defer testServer.Close()
+
+	cases := map[string]struct {
+		reason string
+		url    string
+		want   want
+	}{
+		"normal case": {
+			reason: "url is valid\n",
+			url:    testServer.URL,
+			want: want{
+				data:   fmt.Sprintf("%s\n", ResponseString),
+				errStr: "",
+			},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got, err := HTTPGet(ctx, tc.url)
+			if tc.want.errStr != "" {
+				if diff := cmp.Diff(tc.want.errStr, err.Error(), test.EquateErrors()); diff != "" {
+					t.Errorf("\n%s\nHTTPGet(...): -want error, +got error:\n%s", tc.reason, diff)
+				}
+			}
+
+			if diff := cmp.Diff(tc.want.data, string(got)); diff != "" {
+				t.Errorf("\n%s\nHTTPGet(...): -want, +got:\n%s", tc.reason, diff)
+			}
+		})
+	}
+
+}
 
 func TestGetCUEParameterValue(t *testing.T) {
 	type want struct {
@@ -94,63 +149,6 @@ name
 				t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
 
-		})
-	}
-}
-
-func TestGenOpenAPIFromFile(t *testing.T) {
-	type want struct {
-		data []byte
-		err  error
-	}
-	var dir = "testdata"
-	var validCueFile = "workload1.cue"
-	var validTargetSchema = "workload1.json"
-	targetFile := filepath.Join(dir, validTargetSchema)
-	expect, _ := ioutil.ReadFile(targetFile)
-
-	normalWant := want{
-		data: expect,
-		err:  nil,
-	}
-
-	cases := map[string]struct {
-		reason       string
-		fileDir      string
-		fileName     string
-		targetSchema string
-		want         want
-	}{
-		"GenOpenAPIFromFile": {
-			reason:       "generate OpenAPI schema from a cue file",
-			fileDir:      dir,
-			fileName:     validCueFile,
-			targetSchema: validTargetSchema,
-			want:         normalWant,
-		},
-		"CueFileIsNotValid": {
-			reason:   "generate OpenAPI schema from a cue file which is invalid",
-			fileDir:  dir,
-			fileName: "workload2Invalid.cue",
-			want: want{
-				data: nil,
-				err:  errors.New("expected 'EOF', found '}'"),
-			},
-		},
-	}
-
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			got, err := GenOpenAPIFromFile(tc.fileDir, tc.fileName)
-			if tc.want.err != nil {
-				if diff := cmp.Diff(tc.want.err, errors.New(err.Error()), test.EquateErrors()); diff != "" {
-					t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want error, +got error:\n%s", tc.reason, diff)
-				}
-			}
-
-			if diff := cmp.Diff(tc.want.data, got); diff != "" {
-				t.Errorf("\n%s\nGenOpenAPIFromFile(...): -want, +got:\n%s", tc.reason, diff)
-			}
 		})
 	}
 }

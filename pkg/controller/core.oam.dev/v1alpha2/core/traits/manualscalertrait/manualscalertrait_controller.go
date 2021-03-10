@@ -95,7 +95,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	ctx = util.SetNnamespaceInCtx(ctx, manualScalar.Namespace)
+	ctx = util.SetNamespaceInCtx(ctx, manualScalar.Namespace)
 
 	r.log.Info("Get the manualscalar trait", "ReplicaCount", manualScalar.Spec.ReplicaCount,
 		"Annotations", manualScalar.GetAnnotations())
@@ -120,7 +120,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		mLog.Error(err, "Error while fetching the workload child resources", "workload", workload.UnstructuredContent())
 		r.record.Event(eventObj, event.Warning(util.ErrFetchChildResources, err))
 		return util.ReconcileWaitResult, util.PatchCondition(ctx, r, &manualScalar,
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrFetchChildResources)))
+			cpv1alpha1.ReconcileError(errors.New(util.ErrFetchChildResources)))
 	}
 	// include the workload itself if there is no child resources
 	if len(resources) == 0 {
@@ -195,7 +195,7 @@ func (r *Reconciler) scaleResources(ctx context.Context, mLog logr.Logger,
 	if !found {
 		mLog.Info("Cannot locate any resource", "total resources", len(resources))
 		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(fmt.Errorf(errScaleResource)))
+			util.PatchCondition(ctx, r, &manualScalar, cpv1alpha1.ReconcileError(errors.New(errScaleResource)))
 	}
 	return ctrl.Result{}, nil
 }

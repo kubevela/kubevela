@@ -103,7 +103,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		"workload reference", metricsTrait.Spec.WorkloadReference,
 		"labels", metricsTrait.GetLabels())
 
-	ctx = oamutil.SetNnamespaceInCtx(ctx, metricsTrait.Namespace)
+	ctx = oamutil.SetNamespaceInCtx(ctx, metricsTrait.Namespace)
 
 	// find the resource object to record the event to, default is the parent appConfig.
 	eventObj, err := oamutil.LocateParentAppConfig(ctx, r.Client, &metricsTrait)

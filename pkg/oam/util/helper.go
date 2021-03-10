@@ -70,6 +70,13 @@ const (
 	errFmtControllerRevisionData = "cannot get valid component data from controllerRevision %q"
 	errFmtGetComponent           = "cannot get component %q"
 	errFmtInvalidRevisionType    = "invalid type of revision %s, type should not be %v"
+
+	// ErrStoreCapabilityInConfigMap is the error while storing capability in ConfigMap
+	ErrStoreCapabilityInConfigMap = "cannot store capability %s in ConfigMap: %v"
+	// ErrGenerateOpenAPIV2JSONSchemaForCapability is the error while generating OpenAPI v3 schema
+	ErrGenerateOpenAPIV2JSONSchemaForCapability = "cannot generate OpenAPI v3 JSON schema for capability %s: %v"
+	// ErrUpdateCapabilityInConfigMap is the error while creating or updating a capability
+	ErrUpdateCapabilityInConfigMap = "cannot create or update capability %s in ConfigMap: %v"
 )
 
 type namespaceContextKey int
@@ -219,15 +226,15 @@ func GetDefinitionNamespaceWithCtx(ctx context.Context) string {
 	return appNs
 }
 
-// SetNnamespaceInCtx set app namespace in context,
+// SetNamespaceInCtx set app namespace in context,
 // Sometimes webhook handler may receive request that appNs is empty string, and will cause error when search definition
 // So if namespace is empty, it will use `default` namespace by default.
-func SetNnamespaceInCtx(ctx context.Context, appNs string) context.Context {
-	if appNs == "" {
-		// compatible with some webhook handlers that maybe recei ve empty string as app namespace which means `default` namespace
-		appNs = "default"
+func SetNamespaceInCtx(ctx context.Context, namespace string) context.Context {
+	if namespace == "" {
+		// compatible with some webhook handlers that maybe receive empty string as app namespace which means `default` namespace
+		namespace = "default"
 	}
-	ctx = context.WithValue(ctx, AppDefinitionNamespace, appNs)
+	ctx = context.WithValue(ctx, AppDefinitionNamespace, namespace)
 	return ctx
 }
 

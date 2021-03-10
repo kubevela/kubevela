@@ -163,7 +163,7 @@ func GetDescription(annotation map[string]string) string {
 
 // HandleTemplate will handle definition template to capability
 func HandleTemplate(in *runtime.RawExtension, schematic *corev1alpha2.Schematic, name, syncDir string) (types.Capability, error) {
-	tmp, err := util.ConvertTemplateJSON2Object(in, schematic)
+	tmp, err := util.ConvertTemplateJSON2Object(name, in, schematic)
 	if err != nil {
 		return types.Capability{}, err
 	}

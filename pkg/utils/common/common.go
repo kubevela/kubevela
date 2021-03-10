@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/load"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
@@ -113,18 +112,6 @@ func GenOpenAPI(inst *cue.Instance) ([]byte, error) {
 	var out = &bytes.Buffer{}
 	_ = json.Indent(out, b, "", "   ")
 	return out.Bytes(), nil
-}
-
-// GenOpenAPIFromFile generates OpenAPI json schema from cue file
-func GenOpenAPIFromFile(filePath string, fileName string) ([]byte, error) {
-	filename := filepath.FromSlash(fileName)
-	inst := cue.Build(load.Instances([]string{filename}, &load.Config{
-		Dir: filePath,
-	}))[0]
-	if inst.Err != nil {
-		return nil, inst.Err
-	}
-	return GenOpenAPI(inst)
 }
 
 // RealtimePrintCommandOutput prints command output in real time

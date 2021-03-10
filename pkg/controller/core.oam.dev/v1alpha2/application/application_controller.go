@@ -82,7 +82,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// parse template
 	appParser := appfile.NewApplicationParser(r.Client, r.dm)
 
-	ctx = oamutil.SetNnamespaceInCtx(ctx, app.Namespace)
+	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 
 	appfile, err := appParser.GenerateAppFile(ctx, app.Name, app)
 	if err != nil {

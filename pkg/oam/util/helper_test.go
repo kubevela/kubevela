@@ -1367,8 +1367,8 @@ func TestGenDefinitionNsFromCtx(t *testing.T) {
 	}
 	testcases := []testcase{
 		{ctx: context.TODO(), wantNs: "vela-system"},
-		{ctx: util.SetNnamespaceInCtx(context.Background(), "vela-app"), wantNs: "vela-app"},
-		{ctx: util.SetNnamespaceInCtx(context.Background(), ""), wantNs: "default"},
+		{ctx: util.SetNamespaceInCtx(context.Background(), "vela-app"), wantNs: "vela-app"},
+		{ctx: util.SetNamespaceInCtx(context.Background(), ""), wantNs: "default"},
 	}
 	for _, ts := range testcases {
 		resNs := util.GetDefinitionNamespaceWithCtx(ts.ctx)
@@ -1381,7 +1381,7 @@ func TestGenDefinitionNsFromCtx(t *testing.T) {
 // will get an error that tpye is not found
 func TestGetDefinitionError(t *testing.T) {
 	ctx := context.Background()
-	ctx = util.SetNnamespaceInCtx(ctx, "vela-app")
+	ctx = util.SetNamespaceInCtx(ctx, "vela-app")
 
 	errNotFound := apierrors.NewNotFound(schema.GroupResource{Group: "core.oma.dev", Resource: "traitDefinition"}, "mock")
 	errNeedNamespace := fmt.Errorf("an empty namespace may not be set when a resource name is provided")
@@ -1406,7 +1406,7 @@ func TestGetDefinitionError(t *testing.T) {
 // if not found will search in app namespace, still cannot find it, try to search definition without namespace
 func TestGetDefinitionWithClusterScope(t *testing.T) {
 	ctx := context.Background()
-	ctx = util.SetNnamespaceInCtx(ctx, "vela-app")
+	ctx = util.SetNamespaceInCtx(ctx, "vela-app")
 	// system-level definition
 	sys := v1alpha2.TraitDefinition{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1524,7 +1524,7 @@ func TestGetDefinitionWithClusterScope(t *testing.T) {
 func TestGetWorkloadDefinition(t *testing.T) {
 	// Test common variables
 	ctx := context.Background()
-	ctx = util.SetNnamespaceInCtx(ctx, "vela-app")
+	ctx = util.SetNamespaceInCtx(ctx, "vela-app")
 
 	// sys workload Definition
 	sysWorkloadDefinition := v1alpha2.WorkloadDefinition{
@@ -1616,7 +1616,7 @@ func TestGetWorkloadDefinition(t *testing.T) {
 func TestGetTraitDefinition(t *testing.T) {
 	// Test common variables
 	ctx := context.Background()
-	ctx = util.SetNnamespaceInCtx(ctx, "vela-app")
+	ctx = util.SetNamespaceInCtx(ctx, "vela-app")
 
 	// sys workload Definition
 	sysTraitDefinition := v1alpha2.TraitDefinition{
@@ -1748,7 +1748,7 @@ func TestGetDefinition(t *testing.T) {
 	}}
 
 	ctx := context.Background()
-	ctx = util.SetNnamespaceInCtx(ctx, "vela-app")
+	ctx = util.SetNamespaceInCtx(ctx, "vela-app")
 	appTd := new(v1alpha2.TraitDefinition)
 	err := util.GetDefinition(ctx, &cli, appTd, "mockTrait")
 	assert.Equal(t, nil, err)
@@ -1765,7 +1765,7 @@ func TestGetDefinition(t *testing.T) {
 func TestGetScopeDefiniton(t *testing.T) {
 	ctx := context.Background()
 	namespace := "vela-app"
-	ctx = util.SetNnamespaceInCtx(ctx, namespace)
+	ctx = util.SetNamespaceInCtx(ctx, namespace)
 	scopeDefinitionKind := "ScopeDefinition"
 	mockVerision := "core.oam.dev/v1alpha2"
 	scopeDefinitionName := "mockscopes.core.oam.dev"

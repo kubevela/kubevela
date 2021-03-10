@@ -82,11 +82,6 @@ type WorkloadDefinitionSpec struct {
 	// +optional
 	Status *Status `json:"status,omitempty"`
 
-	// Template defines the abstraction template data of the workload, it will replace the old template in extension field.
-	// the data format depends on templateType, by default it's CUE
-	// +optional
-	Template string `json:"template,omitempty"`
-
 	// Schematic defines the data format and template of the encapsulation of the workload
 	// +optional
 	Schematic *Schematic `json:"schematic,omitempty"`
@@ -95,6 +90,11 @@ type WorkloadDefinitionSpec struct {
 	// +optional
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Extension *runtime.RawExtension `json:"extension,omitempty"`
+}
+
+// CapabilityStatus is the status of WorkloadDefinition and TraitDefinition
+type CapabilityStatus struct {
+	runtimev1alpha1.ConditionedStatus `json:",inline"`
 }
 
 // Status defines the loop back status of the abstraction by using CUE template
@@ -119,7 +119,18 @@ type WorkloadDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec WorkloadDefinitionSpec `json:"spec,omitempty"`
+	Spec   WorkloadDefinitionSpec `json:"spec,omitempty"`
+	Status CapabilityStatus       `json:"status,omitempty"`
+}
+
+// SetConditions set condition for WorkloadDefinition
+func (wd *WorkloadDefinition) SetConditions(c ...runtimev1alpha1.Condition) {
+	wd.Status.SetConditions(c...)
+}
+
+// GetCondition gets condition from WorkloadDefinition
+func (wd *WorkloadDefinition) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+	return wd.Status.GetCondition(conditionType)
 }
 
 // +kubebuilder:object:root=true
@@ -189,7 +200,18 @@ type TraitDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec TraitDefinitionSpec `json:"spec,omitempty"`
+	Spec   TraitDefinitionSpec `json:"spec,omitempty"`
+	Status CapabilityStatus    `json:"status,omitempty"`
+}
+
+// SetConditions set condition for TraitDefinition
+func (td *TraitDefinition) SetConditions(c ...runtimev1alpha1.Condition) {
+	td.Status.SetConditions(c...)
+}
+
+// GetCondition gets condition from TraitDefinition
+func (td *TraitDefinition) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+	return td.Status.GetCondition(conditionType)
 }
 
 // +kubebuilder:object:root=true

@@ -73,7 +73,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	// TODO: check if the target/source has changed
 	r.handleFinalizer(&appRollout)
 
-	ctx = oamutil.SetNnamespaceInCtx(ctx, appRollout.Namespace)
+	ctx = oamutil.SetNamespaceInCtx(ctx, appRollout.Namespace)
 
 	// Get the target application
 	var targetApp oamv1alpha2.ApplicationConfiguration

@@ -54,7 +54,7 @@ func NewDryRunCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 
 			parser := appfile.NewApplicationParser(newClient, dm)
 
-			ctx := oamutil.SetNnamespaceInCtx(context.Background(), app.Namespace)
+			ctx := oamutil.SetNamespaceInCtx(context.Background(), app.Namespace)
 			appFile, err := parser.GenerateAppFile(ctx, app.Name, app)
 			if err != nil {
 				return errors.WithMessage(err, "generate appFile")

@@ -73,7 +73,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 	log.Info("Retrieved trait Autoscaler", "APIVersion", scaler.APIVersion, "Kind", scaler.Kind)
 
-	ctx = util.SetNnamespaceInCtx(ctx, scaler.Namespace)
+	ctx = util.SetNamespaceInCtx(ctx, scaler.Namespace)
 
 	// find the resource object to record the event to, default is the parent appConfig.
 	eventObj, err := util.LocateParentAppConfig(ctx, r.Client, &scaler)
@@ -149,7 +149,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// Setup adds a controller that reconciles MetricsTrait.
+// Setup adds a controller that reconciles Auto-Scale Trait.
 func Setup(mgr ctrl.Manager) error {
 	dm, err := discoverymapper.New(mgr.GetConfig())
 	if err != nil {
