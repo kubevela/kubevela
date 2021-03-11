@@ -224,7 +224,21 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 		return "", fmt.Errorf("delete application err: %w", err)
 	}
 
-	// TODO(wonderflow): delete the default health scope here
+	for _, cmp := range app.Spec.Components {
+		healthScopeName, ok := cmp.Scopes[api.DefaultHealthScopeKey]
+		if ok {
+			var healthScope corev1alpha2.HealthScope
+			if err := o.Client.Get(ctx, client.ObjectKey{Namespace: o.Env.Namespace, Name: healthScopeName}, &healthScope); err != nil {
+				if apierrors.IsNotFound(err) {
+					continue
+				}
+				return "", fmt.Errorf("delete health scope %s err: %w", healthScopeName, err)
+			}
+			if err = o.Client.Delete(ctx, &healthScope); err != nil {
+				return "", fmt.Errorf("delete health scope %s err: %w", healthScopeName, err)
+			}
+		}
+	}
 	return fmt.Sprintf("app \"%s\" deleted from env \"%s\"", o.AppName, o.Env.Name), nil
 }
 
