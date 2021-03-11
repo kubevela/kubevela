@@ -8,12 +8,12 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"k8s.io/utils/pointer"
 
 	cpv1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -153,7 +153,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		Eventually(
 			func() error {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Name}, &app)
-				util.RemoveAnnotations(&app, []string{oam.AnnotationRollingComponent})
+				util.RemoveAnnotations(&app, []string{oam.AnnotationAppRollout})
 				return k8sClient.Update(ctx, &app)
 			}, time.Second*5, time.Millisecond*500).Should(Succeed())
 

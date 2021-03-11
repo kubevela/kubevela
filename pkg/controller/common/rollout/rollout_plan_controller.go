@@ -285,13 +285,13 @@ func (r *Controller) finalizeOneBatch(ctx context.Context) {
 	if currentBatch == len(r.rolloutSpec.RolloutBatches)-1 {
 		// this is the last batch, mark the rollout finalized
 		r.rolloutStatus.StateTransition(v1alpha1.AllBatchFinishedEvent)
-		r.recorder.Event(r.parentController, event.Normal("all batches rolled out",
+		r.recorder.Event(r.parentController, event.Normal("All batches rolled out",
 			fmt.Sprintf("upgrade pod = %d, total ready pod = %d", r.rolloutStatus.UpgradedReplicas,
 				r.rolloutStatus.UpgradedReadyReplicas)))
 	} else {
 		klog.InfoS("finished one batch rollout", "current batch", r.rolloutStatus.CurrentBatch)
 		// th
-		r.recorder.Event(r.parentController, event.Normal("Batch finalized",
+		r.recorder.Event(r.parentController, event.Normal("One batch is finalized",
 			fmt.Sprintf("the batch num = %d is ready", r.rolloutStatus.CurrentBatch)))
 		r.rolloutStatus.StateTransition(v1alpha1.FinishedOneBatchEvent)
 	}

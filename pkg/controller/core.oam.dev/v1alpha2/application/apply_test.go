@@ -25,12 +25,7 @@ import (
 
 var _ = Describe("Test Application apply", func() {
 	var handler appHandler
-	app := &v1alpha2.Application{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Application",
-			APIVersion: "core.oam.dev/v1alpha2",
-		},
-	}
+	var app *v1alpha2.Application
 	var appConfig *v1alpha2.ApplicationConfiguration
 	var namespaceName string
 	var componentName string
@@ -42,6 +37,12 @@ var _ = Describe("Test Application apply", func() {
 		ns = corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: namespaceName,
+			},
+		}
+		app = &v1alpha2.Application{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Application",
+				APIVersion: "core.oam.dev/v1alpha2",
 			},
 		}
 		app.Namespace = namespaceName
@@ -91,11 +92,97 @@ var _ = Describe("Test Application apply", func() {
 		Expect(k8sClient.Delete(context.TODO(), &ns)).Should(Succeed())
 	})
 
-	It("Test creating applicationConfiguration revision", func() {
+	It("Test creating applicationConfiguration without revisions", func() {
+		ctx := context.TODO()
+		By("[TEST] Test application without AC revision")
+		app.Name = "test-revision"
+		annoKey := "testKey"
+		Expect(handler.r.Create(ctx, app)).NotTo(HaveOccurred())
+		// Test create or update
+		appConfig := appConfig.DeepCopy()
+		appConfig.SetAnnotations(map[string]string{annoKey: strconv.FormatBool(true)})
+		err := handler.createOrUpdateAppConfig(ctx, appConfig)
+		Expect(err).ToNot(HaveOccurred())
+		// verify
+		curApp := &v1alpha2.Application{}
+		Eventually(
+			func() error {
+				return handler.r.Get(ctx,
+					types.NamespacedName{Namespace: ns.Name, Name: app.Name},
+					curApp)
+			},
+			time.Second*10, time.Millisecond*500).Should(BeNil())
+
+		By("Verify that the application status has the lastRevision name ")
+		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
+		Expect(curApp.Status.LatestRevision.Name).Should(Equal(utils.ConstructRevisionName(app.Name, 1)))
+		curAC := &v1alpha2.ApplicationConfiguration{}
+		Expect(handler.r.Get(ctx,
+			types.NamespacedName{Namespace: ns.Name, Name: utils.ConstructRevisionName(app.Name, 1)},
+			curAC)).NotTo(HaveOccurred())
+		// check that the annotation/labels are correctly applied
+		Expect(curAC.GetAnnotations()[annoKey]).ShouldNot(BeEmpty())
+		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
+		hashValue := curAC.GetLabels()[oam.LabelAppConfigHash]
+		Expect(hashValue).ShouldNot(BeEmpty())
+		Expect(curApp.Status.LatestRevision.RevisionHash).Should(Equal(hashValue))
+
+		By("[TEST] Modify the applicationConfiguration spec, should not lead to a new AC")
+		// update the spec of the AC which should lead to a new AC being created
+		appConfig.Spec.Components[0].Traits = []v1alpha2.ComponentTrait{
+			{
+				Trait: runtime.RawExtension{
+					Object: &v1alpha1.MetricsTrait{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       "MetricsTrait",
+							APIVersion: "standard.oam.dev/v1alpha1",
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      app.Name,
+							Namespace: namespaceName,
+						},
+					},
+				},
+			},
+		}
+		// this should not lead to a new AC, just replace and should not remove annotation
+		oamutil.RemoveAnnotations(appConfig, []string{annoKey})
+		err = handler.createOrUpdateAppConfig(ctx, appConfig)
+		Expect(err).ToNot(HaveOccurred())
+		// verify the app latest revision is not changed
+		Eventually(
+			func() error {
+				return handler.r.Get(ctx,
+					types.NamespacedName{Namespace: ns.Name, Name: app.Name},
+					curApp)
+			},
+			time.Second*10, time.Millisecond*500).Should(BeNil())
+
+		By("Verify that the lastest revision does not change, the hashvalue should though")
+		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
+		Expect(curApp.Status.LatestRevision.Name).Should(Equal(utils.ConstructRevisionName(app.Name, 1)))
+		Expect(curApp.Status.LatestRevision.RevisionHash).ShouldNot(Equal(hashValue))
+		Expect(handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: curApp.Status.LatestRevision.Name},
+			curAC)).Should(Succeed())
+		// check that no new appConfig created
+		Expect(handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name,
+			Name: utils.ConstructRevisionName(app.Name, 2)}, curAC)).Should(&oamutil.NotFoundMatcher{})
+
+		// check that the new app annotation exist and the hash value has changed
+		Expect(handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: curApp.Status.LatestRevision.Name},
+			curAC)).Should(Succeed())
+		Expect(curAC.GetAnnotations()[annoKey]).ShouldNot(BeEmpty())
+		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
+		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(Equal(hashValue))
+	})
+
+	It("Test creating applicationConfiguration revisions", func() {
 		ctx := context.TODO()
 
 		By("[TEST] Test application without AC revision")
 		app.Name = "test-revision"
+		// we want the app to generate new AC revision
+		app.SetAnnotations(map[string]string{oam.AnnotationAppRollout: strconv.FormatBool(true)})
 		Expect(handler.r.Create(ctx, app)).NotTo(HaveOccurred())
 		// Test create or update
 		err := handler.createOrUpdateAppConfig(ctx, appConfig.DeepCopy())
