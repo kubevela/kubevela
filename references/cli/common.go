@@ -18,6 +18,7 @@ package cli
 
 // constants used in `svc` command
 const (
-	App     = "app"
-	Service = "svc"
+	App       = "app"
+	Service   = "svc"
+	Namespace = "namespace"
 )
