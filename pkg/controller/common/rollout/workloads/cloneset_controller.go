@@ -15,7 +15,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -166,13 +165,13 @@ func (c *CloneSetController) CheckOneBatchPods(ctx context.Context) (*v1alpha1.R
 	if currentBatch.MaxUnavailable != nil {
 		unavail, _ = intstr.GetValueFromIntOrPercent(currentBatch.MaxUnavailable, int(cloneSetSize), true)
 	}
-	klog.V(common.LogDebug).InfoS("checking the rolling out progress", "current batch", currentBatch,
+	klog.InfoS("checking the rolling out progress", "current batch", currentBatch,
 		"new pod count target", newPodTarget, "new ready pod count", readyPodCount,
 		"max unavailable pod allowed", unavail)
 	c.rolloutStatus.UpgradedReadyReplicas = int32(readyPodCount)
 	if unavail+readyPodCount >= newPodTarget {
 		// record the successful upgrade
-		klog.InfoS("pods are ready", "current batch", currentBatch)
+		klog.InfoS("all pods in current batch are ready", "current batch", currentBatch)
 		c.recorder.Event(c.parentController, event.Normal("Batch Available",
 			fmt.Sprintf("Batch %d is available", c.rolloutStatus.CurrentBatch)))
 		c.rolloutStatus.LastAppliedPodTemplateIdentifier = c.rolloutStatus.NewPodTemplateIdentifier

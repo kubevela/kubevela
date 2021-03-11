@@ -124,7 +124,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(corev1.ConditionTrue))
 	}
 
-	MarkSourceAppRolling := func() {
+	MarkAppRolling := func(revision int64) {
 		By("Mark the application as rolling")
 		Eventually(
 			func() error {
@@ -135,7 +135,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				return k8sClient.Update(ctx, &app)
 			}, time.Second*5, time.Millisecond*500).Should(Succeed())
 
-		VerifyAppConfigTemplated(1)
+		VerifyAppConfigTemplated(revision)
 	}
 
 	ApplyTargetApp := func() {
@@ -214,7 +214,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				return ""
 			},
 			time.Second*5, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.ApplicationConfigurationKind))
-		Expect(clonesetOwner.Name).Should(BeEquivalentTo(appConfig2.Name))
+		Expect(clonesetOwner.Name).Should(BeEquivalentTo(appConfigName))
 		Expect(kc.Status.UpdatedReplicas).Should(BeEquivalentTo(*kc.Spec.Replicas))
 		Expect(kc.Status.UpdatedReadyReplicas).Should(BeEquivalentTo(*kc.Spec.Replicas))
 
@@ -241,6 +241,61 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.InactiveAfterRollingCompleted))
 	}
 
+	ApplyTwoAppVersion := func() {
+		CreateClonesetDef()
+		ApplySourceApp()
+		MarkAppRolling(1)
+		ApplyTargetApp()
+		VerifyCloneSetPaused()
+	}
+
+	RevertBackToSource := func() {
+		By("Revert the change by first marking the application as rolling")
+		MarkAppRolling(2)
+
+		By("Revert the application back to source")
+		var sourceApp v1alpha2.Application
+		Expect(readYaml("testdata/rollout/cloneset/app-source.yaml", &sourceApp)).Should(BeNil())
+		sourceApp.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(),
+			map[string]string{oam.AnnotationRollingComponent: app.Spec.Components[0].Name,
+				oam.AnnotationAppRollout: strconv.FormatBool(true)}))
+		Eventually(
+			func() error {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Name}, &app)
+				app.Spec = sourceApp.Spec
+				return k8sClient.Update(ctx, &app)
+			},
+			time.Second*60, time.Millisecond*500).Should(Succeed())
+
+		By("Wait for AppConfig3 to be templated")
+		VerifyAppConfigTemplated(3)
+		var appConfig3 v1alpha2.ApplicationConfiguration
+		k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Status.LatestRevision.Name}, &appConfig3)
+
+		By("Modify the application rollout with new target and source")
+		Eventually(
+			func() error {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
+				appRollout.Spec.SourceAppRevisionName = appConfig2.Name
+				appRollout.Spec.TargetAppRevisionName = appConfig3.Name
+				return k8sClient.Update(ctx, &appRollout)
+			},
+			time.Second*5, time.Millisecond*500).Should(Succeed())
+
+		VerifyRolloutOwnsCloneset()
+
+		By("VerifySpec AppConfig rolling status")
+
+		VerifyRolloutSucceeded()
+
+		VerifyAppConfigRollingCompleted(appConfig3.Name)
+
+		VerifyAppConfigInactive(appConfig2.Name)
+
+		// Clean up
+		k8sClient.Delete(ctx, &appRollout)
+	}
+
 	BeforeEach(func() {
 		By("Start to run a test, clean up previous resources")
 		namespace = "rolling-e2e-test" // + "-" + strconv.FormatInt(rand.Int63(), 16)
@@ -258,19 +313,13 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		time.Sleep(15 * time.Second)
 	})
 
-	PIt("Test cloneset rollout first time (no source)", func() {
-		CreateClonesetDef()
-		ApplySourceApp()
-		MarkSourceAppRolling()
-		ApplyTargetApp()
-		VerifyCloneSetPaused()
+	It("Test cloneset rollout first time (no source)", func() {
+		ApplyTwoAppVersion()
 		By("Apply the application rollout go directly to the target")
 		var newAppRollout v1alpha2.AppRollout
 		Expect(readYaml("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
 		newAppRollout.Spec.SourceAppRevisionName = ""
-		newAppRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(len(newAppRollout.Spec.RolloutPlan.
-			RolloutBatches) - 1))
 		Expect(k8sClient.Create(ctx, &newAppRollout)).Should(Succeed())
 
 		By("Wait for the rollout phase change to rolling in batches")
@@ -291,12 +340,9 @@ var _ = Describe("Cloneset based rollout tests", func() {
 	})
 
 	It("Test cloneset rollout with a manual check", func() {
-		CreateClonesetDef()
-		ApplySourceApp()
-		MarkSourceAppRolling()
-		ApplyTargetApp()
-		VerifyCloneSetPaused()
-		By("Apply the application rollout that stops after the first batche")
+		ApplyTwoAppVersion()
+
+		By("Apply the application rollout that stops after the first batch")
 		var newAppRollout v1alpha2.AppRollout
 		Expect(readYaml("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
@@ -353,18 +399,13 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		k8sClient.Delete(ctx, &appRollout)
 	})
 
-	PIt("Test pause and modify rollout plan after rolling succeeded", func() {
-		CreateClonesetDef()
-		ApplySourceApp()
-		MarkSourceAppRolling()
-		ApplyTargetApp()
-		VerifyCloneSetPaused()
-		By("Apply the application rollout that stops after two batches")
+	It("Test pause and modify rollout plan after rolling succeeded", func() {
+		ApplyTwoAppVersion()
+
+		By("Apply the application rollout")
 		var newAppRollout v1alpha2.AppRollout
 		Expect(readYaml("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
-		batchPartition := 0
-		newAppRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(batchPartition))
 		Expect(k8sClient.Create(ctx, &newAppRollout)).Should(Succeed())
 
 		By("Wait for the rollout phase change to rolling in batches")
@@ -383,15 +424,8 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				err := k8sClient.Update(ctx, &appRollout)
 				return err
 			},
-			time.Second*5, time.Millisecond*500).ShouldNot(HaveOccurred())
-		Eventually(
-			func() int32 {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
-				return appRollout.Status.CurrentBatch
-			},
-			time.Second*15, time.Millisecond*500).Should(BeEquivalentTo(batchPartition))
-
-		By("VerifySpec that the rollout stops at the first batch")
+			time.Second*5, time.Millisecond*500).Should(Succeed())
+		By("VerifySpec that the rollout pauses")
 		// wait for the batch to be ready
 		Eventually(
 			func() corev1.ConditionStatus {
@@ -399,11 +433,13 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				return appRollout.Status.GetCondition(oamstd.BatchPaused).Status
 			},
 			time.Second*30, time.Millisecond*500).Should(Equal(corev1.ConditionTrue))
-		// wait for 15 seconds, it should stop at 1
+
+		preBatch := appRollout.Status.CurrentBatch
+		// wait for 15 seconds, the batch should not move
 		time.Sleep(15 * time.Second)
 		k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
 		Expect(appRollout.Status.RollingState).Should(BeEquivalentTo(oamstd.RollingInBatchesState))
-		Expect(appRollout.Status.CurrentBatch).Should(BeEquivalentTo(batchPartition))
+		Expect(appRollout.Status.CurrentBatch).Should(BeEquivalentTo(preBatch))
 		k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
 		lt := appRollout.Status.GetCondition(oamstd.BatchPaused).LastTransitionTime
 		beforeSleep := metav1.Time{
@@ -414,10 +450,9 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		VerifyRolloutOwnsCloneset()
 
 		By("Finish the application rollout")
-		// set the partition as the same size as the array
+		// remove the batch restriction
 		appRollout.Spec.RolloutPlan.Paused = false
-		appRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(len(appRollout.Spec.RolloutPlan.
-			RolloutBatches) - 1))
+		appRollout.Spec.RolloutPlan.BatchPartition = nil
 		Expect(k8sClient.Update(ctx, &appRollout)).Should(Succeed())
 
 		VerifyRolloutSucceeded()
@@ -439,18 +474,13 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		k8sClient.Delete(ctx, &appRollout)
 	})
 
-	PIt("Test rolling back after a successful rollout", func() {
-		CreateClonesetDef()
-		ApplySourceApp()
-		MarkSourceAppRolling()
-		ApplyTargetApp()
-		VerifyCloneSetPaused()
+	It("Test rolling back after a successful rollout", func() {
+		ApplyTwoAppVersion()
+
 		By("Apply the application rollout")
 		var newAppRollout v1alpha2.AppRollout
 		Expect(readYaml("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
-		newAppRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(len(newAppRollout.Spec.RolloutPlan.
-			RolloutBatches) - 1))
 		Expect(k8sClient.Create(ctx, &newAppRollout)).Should(Succeed())
 		By("Wait for the rollout phase change to rolling in batches")
 		Eventually(
@@ -467,80 +497,12 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		VerifyAppConfigInactive(appConfig1.Name)
 
-		By("Revert the change by first marking the application as rolling")
-		var appConfig3 v1alpha2.ApplicationConfiguration
-		k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Name}, &app)
-		app.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(),
-			map[string]string{oam.AnnotationRollingComponent: app.Spec.Components[0].Name,
-				oam.AnnotationAppRollout: strconv.FormatBool(true)}))
-		Expect(k8sClient.Update(ctx, &app)).Should(Succeed())
-		By("Wait for AppConfig2 to be templated")
-		Eventually(
-			func() v1alpha2.RollingStatus {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Status.LatestRevision.Name}, &appConfig2)
-				return appConfig2.Status.RollingStatus
-			},
-			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.RollingTemplated))
-		By("Revert the application back to source")
-		var sourceApp v1alpha2.Application
-		Expect(readYaml("testdata/rollout/cloneset/app-source.yaml", &sourceApp)).Should(BeNil())
-		sourceApp.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(),
-			map[string]string{oam.AnnotationRollingComponent: app.Spec.Components[0].Name,
-				oam.AnnotationAppRollout: strconv.FormatBool(true)}))
-		Eventually(
-			func() error {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Name}, &app)
-				app.Spec = sourceApp.Spec
-				return k8sClient.Update(ctx, &app)
-			},
-			time.Second*60, time.Millisecond*500).Should(Succeed())
-		By("Wait for AppConfig3 to be templated")
-		Eventually(
-			func() v1alpha2.RollingStatus {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Status.LatestRevision.Name}, &appConfig3)
-				return appConfig3.Status.RollingStatus
-			},
-			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.RollingTemplated))
-		By("Modify the application rollout with new target and source")
-		Eventually(
-			func() error {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
-				appRollout.Spec.SourceAppRevisionName = appConfig2.Name
-				appRollout.Spec.TargetAppRevisionName = appConfig3.Name
-				return k8sClient.Update(ctx, &appRollout)
-			},
-			time.Second*5, time.Millisecond*500).Should(Succeed())
-
-		VerifyRolloutOwnsCloneset()
-
-		VerifyRolloutSucceeded()
-
-		By("VerifySpec AppConfig rolling status")
-		Eventually(
-			func() v1alpha2.RollingStatus {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appConfig2.Name}, &appConfig2)
-				return appConfig2.Status.RollingStatus
-			},
-			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.InactiveAfterRollingCompleted))
-
-		Eventually(
-			func() v1alpha2.RollingStatus {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appConfig2.Name}, &appConfig3)
-				return appConfig3.Status.RollingStatus
-			},
-			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.RollingCompleted))
-
-		// Clean up
-		k8sClient.Delete(ctx, &appRollout)
-		k8sClient.Delete(ctx, &appConfig3)
+		RevertBackToSource()
 	})
 
 	PIt("Test rolling back after a failed rollout", func() {
-		CreateClonesetDef()
-		ApplySourceApp()
-		MarkSourceAppRolling()
-		ApplyTargetApp()
-		VerifyCloneSetPaused()
+		ApplyTwoAppVersion()
+
 		By("Apply the application rollout that stops after the first batche")
 		var newAppRollout v1alpha2.AppRollout
 		Expect(readYaml("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
@@ -555,7 +517,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: newAppRollout.Name}, &appRollout)
 				return appRollout.Status.RollingState
 			},
-			time.Second*60, time.Millisecond*500).Should(BeEquivalentTo(oamstd.RollingInBatchesState))
+			time.Second*10, time.Millisecond*500).Should(BeEquivalentTo(oamstd.RollingInBatchesState))
 
 		By("Wait for rollout to finish the batches")
 		Eventually(
@@ -563,7 +525,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
 				return appRollout.Status.CurrentBatch
 			},
-			time.Second*15, time.Millisecond*500).Should(BeEquivalentTo(batchPartition))
+			time.Second*60, time.Millisecond*500).Should(BeEquivalentTo(batchPartition))
 
 		By("VerifySpec that the rollout stops")
 		// wait for the batch to be ready
@@ -579,9 +541,9 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			func() error {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
 				appRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(0)
-				return k8sClient.Update(ctx, &newAppRollout)
+				return k8sClient.Update(ctx, &appRollout)
 			},
-			time.Second*3, time.Millisecond*500).Should(Succeed())
+			time.Second*30, time.Millisecond*500).Should(Succeed())
 
 		By("Wait for the rollout phase change to fail")
 		Eventually(
@@ -591,14 +553,13 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			},
 			time.Second*5, time.Millisecond*500).Should(BeEquivalentTo(oamstd.RolloutFailedState))
 
-		// Clean up
-		k8sClient.Delete(ctx, &appRollout)
+		RevertBackToSource()
 	})
 
 	PIt("Test rolling by changing the definition", func() {
 		CreateClonesetDef()
 		ApplySourceApp()
-		MarkSourceAppRolling()
+		MarkAppRolling(1)
 		By("Apply the definition change")
 		var cd, newCD v1alpha2.WorkloadDefinition
 		Expect(readYaml("testdata/rollout/cloneset/clonesetDefinitionModified.yaml.yaml", &newCD)).Should(BeNil())
