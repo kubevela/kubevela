@@ -148,9 +148,7 @@ var _ = Describe("Test Application apply", func() {
 		}
 		// this should not lead to a new AC but replace it with a completely different one
 		// the entire annotation should be changed too
-		oamutil.RemoveAnnotations(appConfig, []string{annoKey1})
-		oamutil.AddAnnotations(appConfig, map[string]string{annoKey2: strconv.FormatBool(true)})
-		appConfig.SetAnnotations(map[string]string{})
+		appConfig.SetAnnotations(map[string]string{annoKey2: strconv.FormatBool(true)})
 
 		err = handler.createOrUpdateAppConfig(ctx, appConfig)
 		Expect(err).ToNot(HaveOccurred())
@@ -166,20 +164,20 @@ var _ = Describe("Test Application apply", func() {
 		By("Verify that the lastest revision does not change, the hashvalue should though")
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 		Expect(curApp.Status.LatestRevision.Name).Should(Equal(utils.ConstructRevisionName(app.Name, 1)))
-		Expect(curApp.Status.LatestRevision.RevisionHash).ShouldNot(Equal(hashValue))
-		Expect(handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: curApp.Status.LatestRevision.Name},
-			curAC)).Should(Succeed())
+		newHash := curApp.Status.LatestRevision.RevisionHash
+		Expect(newHash).ShouldNot(Equal(hashValue))
 		// check that no new appConfig created
 		Expect(handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name,
 			Name: utils.ConstructRevisionName(app.Name, 2)}, curAC)).Should(&oamutil.NotFoundMatcher{})
 
 		// check that the new app annotation exist and the hash value has changed
+		updatedAC := v1alpha2.ApplicationConfiguration{}
 		Expect(handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: curApp.Status.LatestRevision.Name},
-			curAC)).Should(Succeed())
-		Expect(curAC.GetAnnotations()[annoKey1]).Should(BeEmpty())
-		Expect(curAC.GetAnnotations()[annoKey2]).ShouldNot(BeEmpty())
-		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
-		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(Equal(hashValue))
+			&updatedAC)).Should(Succeed())
+		Expect(updatedAC.GetAnnotations()[annoKey1]).Should(BeEmpty())
+		Expect(updatedAC.GetAnnotations()[annoKey2]).ShouldNot(BeEmpty())
+		Expect(updatedAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
+		Expect(updatedAC.GetLabels()[oam.LabelAppConfigHash]).Should(Equal(newHash))
 	})
 
 	It("Test creating applicationConfiguration revisions", func() {
