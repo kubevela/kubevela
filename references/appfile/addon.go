@@ -49,7 +49,7 @@ func ApplyTerraform(app *v1alpha2.Application, k8sClient client.Client, ioStream
 		return nil, err
 	}
 
-	revisionName, _ := utils.GetAppRevision(app)
+	revisionName, _ := utils.GetAppNextRevision(app)
 
 	for i, wl := range appFile.Workloads {
 		switch wl.CapabilityCategory {

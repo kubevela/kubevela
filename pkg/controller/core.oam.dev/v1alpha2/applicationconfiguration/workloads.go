@@ -43,6 +43,7 @@ func SetAppWorkloadInstanceName(componentName string, w *unstructured.Unstructur
 	klog.InfoS("we encountered an unknown resources, assume that it does not support in-place upgrade",
 		"GVK", w.GroupVersionKind(), "instance name", instanceName)
 	w.SetName(instanceName)
+
 }
 
 // prepWorkloadInstanceForRollout prepare the workload before it is emit to the k8s. The current approach is to mark it

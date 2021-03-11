@@ -3,6 +3,7 @@ package applicationdeployment
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
@@ -26,10 +27,10 @@ import (
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-const appDeployFinalizer = "finalizers.applicationdeployment.oam.dev"
+const appRolloutFinalizer = "finalizers.approllout.oam.dev"
 const reconcileTimeOut = 60 * time.Second
 
-// Reconciler reconciles an ApplicationDeployment object
+// Reconciler reconciles an AppRollout object
 type Reconciler struct {
 	client.Client
 	dm     discoverymapper.DiscoveryMapper
@@ -42,7 +43,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications/status,verbs=get;update;patch
 
-// Reconcile is the main logic of applicationdeployment controller
+// Reconcile is the main logic of appRollout controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr error) {
 	var appRollout oamv1alpha2.AppRollout
 	ctx, cancel := context.WithTimeout(context.TODO(), reconcileTimeOut)
@@ -52,23 +53,24 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	defer func() {
 		if retErr == nil {
 			if res.Requeue || res.RequeueAfter > 0 {
-				klog.InfoS("Finished reconciling appDeployment", "deployment", req, "time spent",
+				klog.InfoS("Finished reconciling appRollout", "controller request", req, "time spent",
 					time.Since(startTime), "result", res)
 			} else {
-				klog.InfoS("Finished reconcile appDeployment", "deployment", req, "time spent", time.Since(startTime))
+				klog.InfoS("Finished reconcile appRollout", "controller  request", req, "time spent",
+					time.Since(startTime))
 			}
 		} else {
-			klog.Errorf("Failed to reconcile appDeployment %s: %v", req, retErr)
+			klog.Errorf("Failed to reconcile appRollout %s: %v", req, retErr)
 		}
 	}()
 
 	if err := r.Get(ctx, req.NamespacedName, &appRollout); err != nil {
 		if apierrors.IsNotFound(err) {
-			klog.InfoS("application deployment does not exist", "appRollout", klog.KRef(req.Namespace, req.Name))
+			klog.InfoS("appRollout does not exist", "appRollout", klog.KRef(req.Namespace, req.Name))
 		}
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	klog.InfoS("Start to reconcile ", "application deployment", klog.KObj(&appRollout))
+	klog.InfoS("Start to reconcile ", "appRollout", klog.KObj(&appRollout))
 
 	// TODO: check if the target/source has changed
 	r.handleFinalizer(&appRollout)
@@ -87,7 +89,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	}
 
 	// Get the source application
-	sourceAppName := appRollout.Spec.SourceApplicationName
+	sourceAppName := appRollout.Spec.SourceAppRevisionName
 	if sourceAppName == "" {
 		klog.Info("source app fields not filled, we assume it is deployed for the first time")
 		sourceApp = nil
@@ -110,13 +112,38 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 		klog.InfoS("get the source workload we need to work on", "sourceWorkload", klog.KObj(sourceWorkload))
 	}
 
+	if appRollout.Status.RollingState == v1alpha1.RolloutSucceedState ||
+		appRollout.Status.RollingState == v1alpha1.RolloutFailedState {
+		if appRollout.Status.LastUpgradedTargetAppRevision == appRollout.Spec.TargetAppRevisionName &&
+			appRollout.Status.LastSourceAppRevision == appRollout.Spec.SourceAppRevisionName {
+			klog.InfoS("rollout terminated, no need to reconcile", "source", sourceAppName,
+				"target", targetAppName)
+			return ctrl.Result{}, nil
+		}
+		klog.InfoS("rollout target changed, restart the rollout", "source", sourceAppName,
+			"target", targetAppName)
+		appRollout.Status.StateTransition(v1alpha1.WorkloadModifiedEvent)
+	}
+
 	// reconcile the rollout part of the spec given the target and source workload
 	rolloutPlanController := rollout.NewRolloutPlanController(r, &appRollout, r.record,
 		&appRollout.Spec.RolloutPlan, &appRollout.Status.RolloutStatus, targetWorkload, sourceWorkload)
 	result, rolloutStatus := rolloutPlanController.Reconcile(ctx)
 	// make sure that the new status is copied back
 	appRollout.Status.RolloutStatus = *rolloutStatus
+	appRollout.Status.LastUpgradedTargetAppRevision = targetAppName
+	appRollout.Status.LastSourceAppRevision = sourceAppName
 	if rolloutStatus.RollingState == v1alpha1.RolloutSucceedState {
+		if sourceApp != nil {
+			// mark the source app as an application revision only so that it stop being reconciled
+			oamutil.RemoveAnnotations(sourceApp, []string{oam.AnnotationAppRollout})
+			oamutil.AddAnnotations(sourceApp, map[string]string{oam.AnnotationAppRevision: strconv.FormatBool(true)})
+			if err := r.Update(ctx, sourceApp); err != nil {
+				klog.ErrorS(err, "cannot add the app revision annotation", "source application",
+					klog.KRef(req.Namespace, sourceAppName))
+				return ctrl.Result{}, err
+			}
+		}
 		// remove the rollout annotation so that the target appConfig controller can take over the rest of the work
 		oamutil.RemoveAnnotations(&targetApp, []string{oam.AnnotationAppRollout})
 		if err := r.Update(ctx, &targetApp); err != nil {
@@ -124,6 +151,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 				klog.KRef(req.Namespace, targetAppName))
 			return ctrl.Result{}, err
 		}
+		klog.InfoS("rollout succeeded, record the source and target app revision", "source", sourceAppName,
+			"target", targetAppName)
 	}
 	// update the appRollout status
 	return result, r.updateStatus(ctx, &appRollout)
@@ -143,11 +172,11 @@ func (r *Reconciler) updateStatus(ctx context.Context, appRollout *oamv1alpha2.A
 
 func (r *Reconciler) handleFinalizer(appRollout *oamv1alpha2.AppRollout) {
 	if appRollout.DeletionTimestamp.IsZero() {
-		if !slice.ContainsString(appRollout.Finalizers, appDeployFinalizer, nil) {
+		if !slice.ContainsString(appRollout.Finalizers, appRolloutFinalizer, nil) {
 			// TODO: add finalizer
 			klog.Info("add finalizer")
 		}
-	} else if slice.ContainsString(appRollout.Finalizers, appDeployFinalizer, nil) {
+	} else if slice.ContainsString(appRollout.Finalizers, appRolloutFinalizer, nil) {
 		// TODO: perform finalize
 		klog.Info("perform clean up")
 	}
@@ -155,15 +184,15 @@ func (r *Reconciler) handleFinalizer(appRollout *oamv1alpha2.AppRollout) {
 
 // SetupWithManager setup the controller with manager
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("ApplicationDeployment")).
-		WithAnnotations("controller", "ApplicationDeployment")
+	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+		WithAnnotations("controller", "AppRollout")
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&oamv1alpha2.AppRollout{}).
 		Owns(&oamv1alpha2.Application{}).
 		Complete(r)
 }
 
-// Setup adds a controller that reconciles ApplicationDeployment.
+// Setup adds a controller that reconciles AppRollout.
 func Setup(mgr ctrl.Manager, _ controller.Args, _ logging.Logger) error {
 	dm, err := discoverymapper.New(mgr.GetConfig())
 	if err != nil {

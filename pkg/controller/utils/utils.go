@@ -158,15 +158,20 @@ func StoreInSet(disableCaps string) mapset.Set {
 	return mapset.NewSetFromSlice(disableSlice)
 }
 
-// GetAppRevision will generate revision name and revision number for application
-func GetAppRevision(app *v1alpha2.Application) (string, int64) {
+// GetAppNextRevision will generate the next revision name and revision number for application
+func GetAppNextRevision(app *v1alpha2.Application) (string, int64) {
 	if app == nil {
 		// should never happen
 		return "", 0
 	}
 	var nextRevision int64 = 1
 	if app.Status.LatestRevision != nil {
-		nextRevision = app.Status.LatestRevision.Revision + 1
+		// we only bump the version when we are rolling
+		if _, exist := app.GetAnnotations()[oam.AnnotationAppRollout]; exist {
+			nextRevision = app.Status.LatestRevision.Revision + 1
+		} else {
+			nextRevision = app.Status.LatestRevision.Revision
+		}
 	}
 	return ConstructRevisionName(app.Name, nextRevision), nextRevision
 }

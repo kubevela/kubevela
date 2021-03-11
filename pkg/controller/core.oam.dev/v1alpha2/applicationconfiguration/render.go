@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -113,7 +114,8 @@ func (r *components) Render(ctx context.Context, ac *v1alpha2.ApplicationConfigu
 		// we need to do a template roll out if it's not done yet
 		needRolloutTemplate = ac.Status.RollingStatus != v1alpha2.RollingTemplated
 	} else if ac.Status.RollingStatus == v1alpha2.RollingTemplated {
-		ac.Status.RollingStatus = v1alpha2.RollingComplete
+		klog.InfoS("mark the ac rolling status as completed", "appConfig", klog.KRef(ac.Namespace, ac.Name))
+		ac.Status.RollingStatus = v1alpha2.RollingCompleted
 	}
 
 	for _, acc := range ac.Spec.Components {
@@ -146,6 +148,7 @@ func (r *components) Render(ctx context.Context, ac *v1alpha2.ApplicationConfigu
 	}
 	// set the ac rollingStatus to be RollingTemplated if all workloads are going to be applied
 	if workloadsAllClear && ac.Status.RollingStatus == v1alpha2.RollingTemplating {
+		klog.InfoS("mark the ac rolling status as templated", "appConfig", klog.KRef(ac.Namespace, ac.Name))
 		ac.Status.RollingStatus = v1alpha2.RollingTemplated
 	}
 
@@ -192,7 +195,6 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 	// don't pass the following annotation as those are for appConfig only
 	util.RemoveAnnotations(w, []string{oam.AnnotationAppRollout, oam.AnnotationRollingComponent})
 	ref := metav1.NewControllerRef(ac, v1alpha2.ApplicationConfigurationGroupVersionKind)
-	w.SetOwnerReferences([]metav1.OwnerReference{*ref})
 	w.SetNamespace(ac.GetNamespace())
 
 	traits := make([]*Trait, 0, len(acc.Traits))
@@ -232,12 +234,18 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 		if isComponentRolling && needRolloutTemplate {
 			// we have a special logic to emit the workload as a template so that the rollout
 			// controller can take over.
+			// TODO: We might need to add the owner reference to the existing object in case the resource
+			// is going to be shared (ie. CloneSet)
 			if err := prepWorkloadInstanceForRollout(w); err != nil {
 				return nil, err
 			}
+			// yield the controller to the rollout
+			ref.Controller = pointer.BoolPtr(false)
 			klog.InfoS("Successfully rendered a workload instance for rollout", "workload", w.GetName())
 		}
 	}
+	// set the owner reference after its ref is edited
+	w.SetOwnerReferences([]metav1.OwnerReference{*ref})
 
 	// create the ref after the workload name is set
 	workloadRef := runtimev1alpha1.TypedReference{

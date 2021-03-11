@@ -139,7 +139,7 @@ func Test_callWebhook(t *testing.T) {
 	}
 	type args struct {
 		resource oam.Object
-		phase    v1alpha1.RollingState
+		phase    string
 		rw       v1alpha1.RolloutWebhook
 	}
 	tests := map[string]struct {
@@ -151,7 +151,7 @@ func Test_callWebhook(t *testing.T) {
 			returnedStatusCode: http.StatusAccepted,
 			args: args{
 				resource: &res,
-				phase:    v1alpha1.RollingInBatchesState,
+				phase:    string(v1alpha1.RollingInBatchesState),
 				rw: v1alpha1.RolloutWebhook{
 					URL: url,
 				},
@@ -162,7 +162,7 @@ func Test_callWebhook(t *testing.T) {
 			returnedStatusCode: http.StatusAlreadyReported,
 			args: args{
 				resource: &res,
-				phase:    v1alpha1.RollingInBatchesState,
+				phase:    string(v1alpha1.RollingInBatchesState),
 				rw: v1alpha1.RolloutWebhook{
 					URL: url,
 				},
@@ -173,7 +173,7 @@ func Test_callWebhook(t *testing.T) {
 			returnedStatusCode: http.StatusAlreadyReported,
 			args: args{
 				resource: &res,
-				phase:    v1alpha1.RollingInBatchesState,
+				phase:    string(v1alpha1.RollingInBatchesState),
 				rw: v1alpha1.RolloutWebhook{
 					URL:            url,
 					ExpectedStatus: []int{http.StatusNoContent, http.StatusAlreadyReported},
@@ -185,7 +185,7 @@ func Test_callWebhook(t *testing.T) {
 			returnedStatusCode: http.StatusGone,
 			args: args{
 				resource: &res,
-				phase:    v1alpha1.RolloutFailedState,
+				phase:    string(v1alpha1.RolloutFailedState),
 				rw: v1alpha1.RolloutWebhook{
 					URL:            url,
 					ExpectedStatus: []int{http.StatusNoContent, http.StatusAlreadyReported},

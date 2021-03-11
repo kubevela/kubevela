@@ -44,7 +44,7 @@ func NewRolloutPlanController(client client.Client, parentController oam.Object,
 	initializedRolloutStatus := rolloutStatus.DeepCopy()
 	// use Mutation webhook?
 	if len(initializedRolloutStatus.RollingState) == 0 {
-		initializedRolloutStatus.RollingState = v1alpha1.VerifyingState
+		initializedRolloutStatus.ResetStatus()
 	}
 	if len(initializedRolloutStatus.BatchRollingState) == 0 {
 		initializedRolloutStatus.BatchRollingState = v1alpha1.BatchInitializingState
@@ -69,12 +69,13 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 	}
 	klog.InfoS("rollout status", "rollout state", r.rolloutStatus.RollingState, "batch rolling state",
 		r.rolloutStatus.BatchRollingState, "current batch", r.rolloutStatus.CurrentBatch, "upgraded Replicas",
-		r.rolloutStatus.UpgradedReplicas)
+		r.rolloutStatus.UpgradedReplicas, "ready Replicas", r.rolloutStatus.UpgradedReadyReplicas)
 
 	defer func() {
-		klog.InfoS("Finished reconciling rollout plan", "rollout state", status.RollingState,
+		klog.InfoS("Finished one round of reconciling rollout plan", "rollout state", status.RollingState,
 			"batch rolling state", status.BatchRollingState, "current batch", status.CurrentBatch,
-			"upgraded Replicas", status.UpgradedReplicas, "reconcile result ", res)
+			"upgraded Replicas", status.UpgradedReplicas, "ready Replicas", r.rolloutStatus.UpgradedReadyReplicas,
+			"reconcile result ", res)
 	}()
 	status = r.rolloutStatus
 
@@ -98,21 +99,32 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 	}
 
 	switch r.rolloutStatus.RollingState {
-	case v1alpha1.VerifyingState:
-		r.rolloutStatus = workloadController.Verify(ctx)
+	case v1alpha1.VerifyingSpecState:
+		if r.rolloutStatus, err = workloadController.VerifySpec(ctx); err != nil {
+			// we can fail it right away, everything after initialized need to be finalized
+			r.rolloutStatus.RolloutFailed(err.Error())
+		} else {
+			r.rolloutStatus.StateTransition(v1alpha1.RollingSpecVerifiedEvent)
+		}
 
 	case v1alpha1.InitializingState:
 		if err := r.initializeRollout(ctx); err == nil {
-			r.rolloutStatus = workloadController.Initialize(ctx)
+			if r.rolloutStatus, err = workloadController.Initialize(ctx); err == nil {
+				r.rolloutStatus.StateTransition(v1alpha1.RollingInitializedEvent)
+			}
 		}
 
 	case v1alpha1.RollingInBatchesState:
 		r.reconcileBatchInRolling(ctx, workloadController)
 
+	case v1alpha1.RolloutFailingState:
+		if r.rolloutStatus, err = workloadController.Finalize(ctx, false); err == nil {
+			r.finalizeRollout(ctx)
+		}
+
 	case v1alpha1.FinalisingState:
-		r.rolloutStatus = workloadController.Finalize(ctx)
-		// if we are still going to finalize it
-		if r.rolloutStatus.RollingState == v1alpha1.FinalisingState {
+		if r.rolloutStatus, err = workloadController.Finalize(ctx, true); err == nil {
+			// if we are still going to finalize it
 			r.finalizeRollout(ctx)
 		}
 
@@ -129,12 +141,12 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 	return res, r.rolloutStatus
 }
 
-// reconcile logic when we are in the middle of rollout
+// reconcile logic when we are in the middle of rollout, we have to go through finalizing state before succeed or fail
 func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadController workloads.WorkloadController) {
 
 	if r.rolloutSpec.Paused {
 		r.recorder.Event(r.parentController, event.Normal("Rollout paused", "Rollout paused"))
-		r.rolloutStatus.SetConditions(v1alpha1.NewPositiveCondition("Paused"))
+		r.rolloutStatus.SetConditions(v1alpha1.NewPositiveCondition(v1alpha1.BatchPaused))
 		return
 	}
 
@@ -144,7 +156,11 @@ func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadContro
 		r.rolloutStatus.RolloutRetry(err.Error())
 		return
 	}
-	r.validateRollingBatchStatus(int(replicas))
+
+	if err := r.validateRollingBatchStatus(int(replicas)); err != nil {
+		r.rolloutStatus.RolloutFailing(err.Error())
+		return
+	}
 
 	switch r.rolloutStatus.BatchRollingState {
 	case v1alpha1.BatchInitializingState:
@@ -152,17 +168,28 @@ func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadContro
 
 	case v1alpha1.BatchInRollingState:
 		//  still rolling the batch, the batch rolling is not completed yet
-		r.rolloutStatus = workloadController.RolloutOneBatchPods(ctx)
+		if r.rolloutStatus, err = workloadController.RolloutOneBatchPods(ctx); err != nil {
+			r.rolloutStatus.RolloutFailing(err.Error())
+		} else {
+			r.rolloutStatus.StateTransition(v1alpha1.RolloutOneBatchEvent)
+		}
 
 	case v1alpha1.BatchVerifyingState:
 		// verifying if the application is ready to roll
 		// need to check if they meet the availability requirements in the rollout spec.
 		// TODO: evaluate any metrics/analysis
-		r.rolloutStatus = workloadController.CheckOneBatchPods(ctx)
+		finished := false
+		if r.rolloutStatus, finished = workloadController.CheckOneBatchPods(ctx); finished {
+			r.rolloutStatus.StateTransition(v1alpha1.OneBatchAvailableEvent)
+		}
 
 	case v1alpha1.BatchFinalizingState:
-		// all the pods in the are available
-		r.finalizeOneBatch(ctx)
+		// finalize one batch
+		if r.rolloutStatus, err = workloadController.FinalizeOneBatch(ctx); err != nil {
+			r.rolloutStatus.RolloutFailing(err.Error())
+		} else {
+			r.finalizeOneBatch(ctx)
+		}
 
 	case v1alpha1.BatchReadyState:
 		// all the pods in the are upgraded and their state are ready
@@ -175,15 +202,16 @@ func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadContro
 }
 
 // all the common initialize work before we rollout
+// TODO: fail the rollout if the webhook call is explicitly rejected (through http status code)
 func (r *Controller) initializeRollout(ctx context.Context) error {
 	// call the pre-rollout webhooks
 	for _, rw := range r.rolloutSpec.RolloutWebhooks {
 		if rw.Type == v1alpha1.InitializeRolloutHook {
-			err := callWebhook(ctx, r.parentController, v1alpha1.InitializingState, rw)
+			err := callWebhook(ctx, r.parentController, string(v1alpha1.InitializingState), rw)
 			if err != nil {
 				klog.ErrorS(err, "failed to invoke a webhook",
 					"webhook name", rw.Name, "webhook end point", rw.URL)
-				r.rolloutStatus.RolloutFailed("failed to invoke a webhook")
+				r.rolloutStatus.RolloutRetry("failed to invoke a webhook")
 				return err
 			}
 			klog.InfoS("successfully invoked a pre rollout webhook", "webhook name", rw.Name, "webhook end point",
@@ -200,11 +228,11 @@ func (r *Controller) initializeOneBatch(ctx context.Context) {
 	// call all the pre-batch rollout webhooks
 	for _, rh := range rolloutHooks {
 		if rh.Type == v1alpha1.PreBatchRolloutHook {
-			err := callWebhook(ctx, r.parentController, v1alpha1.InitializingState, rh)
+			err := callWebhook(ctx, r.parentController, string(v1alpha1.BatchInitializingState), rh)
 			if err != nil {
 				klog.ErrorS(err, "failed to invoke a webhook",
 					"webhook name", rh.Name, "webhook end point", rh.URL)
-				r.rolloutStatus.RolloutFailed("failed to invoke a webhook")
+				r.rolloutStatus.RolloutRetry("failed to invoke a webhook")
 				return
 			}
 			klog.InfoS("successfully invoked a pre batch webhook", "webhook name", rh.Name, "webhook end point",
@@ -240,11 +268,11 @@ func (r *Controller) finalizeOneBatch(ctx context.Context) {
 	// call all the post-batch rollout webhooks
 	for _, rh := range rolloutHooks {
 		if rh.Type == v1alpha1.PostBatchRolloutHook {
-			err := callWebhook(ctx, r.parentController, v1alpha1.FinalisingState, rh)
+			err := callWebhook(ctx, r.parentController, string(v1alpha1.BatchFinalizingState), rh)
 			if err != nil {
 				klog.ErrorS(err, "failed to invoke a webhook",
 					"webhook name", rh.Name, "webhook end point", rh.URL)
-				r.rolloutStatus.RolloutFailed("failed to invoke a webhook")
+				r.rolloutStatus.RolloutRetry("failed to invoke a webhook")
 				return
 			}
 			klog.InfoS("successfully invoked a post batch webhook", "webhook name", rh.Name, "webhook end point",
@@ -256,14 +284,14 @@ func (r *Controller) finalizeOneBatch(ctx context.Context) {
 	if currentBatch == len(r.rolloutSpec.RolloutBatches)-1 {
 		// this is the last batch, mark the rollout finalized
 		r.rolloutStatus.StateTransition(v1alpha1.AllBatchFinishedEvent)
-		r.recorder.Event(r.parentController, event.Normal("all batches rolled out",
+		r.recorder.Event(r.parentController, event.Normal("All batches rolled out",
 			fmt.Sprintf("upgrade pod = %d, total ready pod = %d", r.rolloutStatus.UpgradedReplicas,
 				r.rolloutStatus.UpgradedReadyReplicas)))
 	} else {
 		klog.InfoS("finished one batch rollout", "current batch", r.rolloutStatus.CurrentBatch)
 		// th
-		r.recorder.Event(r.parentController, event.Normal("Batch finalized",
-			fmt.Sprintf("the batch num = %d is ready", r.rolloutStatus.CurrentBatch)))
+		r.recorder.Event(r.parentController, event.Normal("Batch Finalized",
+			fmt.Sprintf("Batch %d is finalized and ready to go", r.rolloutStatus.CurrentBatch)))
 		r.rolloutStatus.StateTransition(v1alpha1.FinishedOneBatchEvent)
 	}
 }
@@ -273,11 +301,12 @@ func (r *Controller) finalizeRollout(ctx context.Context) {
 	// call the post-rollout webhooks
 	for _, rw := range r.rolloutSpec.RolloutWebhooks {
 		if rw.Type == v1alpha1.FinalizeRolloutHook {
-			err := callWebhook(ctx, r.parentController, v1alpha1.FinalisingState, rw)
+			err := callWebhook(ctx, r.parentController, string(r.rolloutStatus.RollingState), rw)
 			if err != nil {
 				klog.ErrorS(err, "failed to invoke a webhook",
 					"webhook name", rw.Name, "webhook end point", rw.URL)
-				r.rolloutStatus.RolloutFailed("failed to invoke a post rollout webhook")
+				r.rolloutStatus.RolloutRetry("failed to invoke a post rollout webhook")
+				return
 			}
 			klog.InfoS("successfully invoked a post rollout webhook", "webhook name", rw.Name, "webhook end point",
 				rw.URL)
@@ -287,14 +316,15 @@ func (r *Controller) finalizeRollout(ctx context.Context) {
 }
 
 // verify that the upgradedReplicas and current batch in the status are valid according to the spec
-func (r *Controller) validateRollingBatchStatus(totalSize int) bool {
+func (r *Controller) validateRollingBatchStatus(totalSize int) error {
 	status := r.rolloutStatus
 	spec := r.rolloutSpec
 	podCount := 0
 	if spec.BatchPartition != nil && *spec.BatchPartition < status.CurrentBatch {
-		klog.ErrorS(fmt.Errorf("the current batch value in the status is greater than the batch partition"),
-			"batch partition", *spec.BatchPartition, "current batch status", status.CurrentBatch)
-		return false
+		err := fmt.Errorf("the current batch value in the status is greater than the batch partition")
+		klog.ErrorS(err, "we have moved past the user defined partition", "user specified batch partition",
+			*spec.BatchPartition, "current batch we are working on", status.CurrentBatch)
+		return err
 	}
 	upgradedReplicas := int(status.UpgradedReplicas)
 	currentBatch := int(status.CurrentBatch)
@@ -309,9 +339,9 @@ func (r *Controller) validateRollingBatchStatus(totalSize int) bool {
 	}
 	// the recorded number should be at least as much as the all the pods before the current batch
 	if podCount > upgradedReplicas {
-		klog.ErrorS(fmt.Errorf("the upgraded replica in the status is too small"), "upgraded num status",
-			upgradedReplicas, "pods in all the previous batches", podCount)
-		return false
+		err := fmt.Errorf("the upgraded replica in the status is less than all the pods in the previous batch")
+		klog.ErrorS(err, "upgraded num status", upgradedReplicas, "pods in all the previous batches", podCount)
+		return err
 	}
 	// calculate the upper bound with the current batch
 	if currentBatch == len(spec.RolloutBatches)-1 {
@@ -324,11 +354,11 @@ func (r *Controller) validateRollingBatchStatus(totalSize int) bool {
 	}
 	// the recorded number should be not as much as the all the pods including the active batch
 	if podCount < upgradedReplicas {
-		klog.ErrorS(fmt.Errorf("the upgraded replica in the status is too large"), "upgraded num status",
-			upgradedReplicas, "pods in the batches including the current batch", podCount)
-		return false
+		err := fmt.Errorf("the upgraded replica in the status is greater than all the pods in the current batch")
+		klog.ErrorS(err, "upgraded num status", upgradedReplicas, "pods in the batches including the current batch", podCount)
+		return err
 	}
-	return true
+	return nil
 }
 
 // GetWorkloadController pick the right workload controller to work on the workload

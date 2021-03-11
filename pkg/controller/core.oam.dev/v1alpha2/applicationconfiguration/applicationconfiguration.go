@@ -69,6 +69,7 @@ const (
 
 // Reconcile event reasons.
 const (
+	reasonRevision                = "ACRevision"
 	reasonRenderComponents        = "RenderedComponents"
 	reasonExecutePrehook          = "ExecutePrehook"
 	reasonExecutePosthook         = "ExecutePosthook"
@@ -249,6 +250,8 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 
 	// make sure this is the last functional defer function to be called
 	defer func() {
+		// always update ac status and set the error
+		returnErr = errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 		// Make sure if error occurs, reconcile will not happen too frequency
 		if returnErr != nil {
 			result.RequeueAfter = 0
@@ -270,7 +273,6 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 			}
 			r.record.Event(ac, event.Normal(reasonExecutePosthook, "Successfully executed a posthook", "posthook name", name))
 		}
-		returnErr = errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 	}()
 
 	// execute the prehooks
@@ -280,19 +282,32 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 			log.Debug("Failed to execute pre-hooks", "hook name", name, "error", err, "requeue-after", result.RequeueAfter)
 			r.record.Event(ac, event.Warning(reasonCannotExecutePrehooks, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errExecutePrehooks)))
-			return result, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
+			return result, nil
 		}
 		r.record.Event(ac, event.Normal(reasonExecutePrehook, "Successfully executed a prehook", "prehook name ", name))
 	}
 
 	log = log.WithValues("uid", ac.GetUID(), "version", ac.GetResourceVersion())
 
+	// we have special logics for application generated applicationConfiguration
+	if isControlledByApp(ac) {
+		if ac.GetAnnotations()[oam.AnnotationAppRevision] == strconv.FormatBool(true) {
+			msg := "Encounter an application revision, no need to reconcile"
+			log.Info(msg)
+			r.record.Event(ac, event.Normal(reasonRevision, msg))
+			ac.SetConditions(v1alpha1.Unavailable())
+			ac.Status.RollingStatus = v1alpha2.InactiveAfterRollingCompleted
+			// TODO: GC the traits/workloads
+			return reconcile.Result{}, nil
+		}
+	}
+
 	workloads, depStatus, err := r.components.Render(ctx, ac)
 	if err != nil {
 		log.Info("Cannot render components", "error", err)
 		r.record.Event(ac, event.Warning(reasonCannotRenderComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errRenderComponents)))
-		return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
+		return reconcile.Result{}, nil
 	}
 	log.Debug("Successfully rendered components", "workloads", len(workloads))
 	r.record.Event(ac, event.Normal(reasonRenderComponents, "Successfully rendered components", "workloads", strconv.Itoa(len(workloads))))
@@ -302,7 +317,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		log.Debug("Cannot apply workload", "error", err)
 		r.record.Event(ac, event.Warning(reasonCannotApplyComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyComponents)))
-		return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
+		return reconcile.Result{}, nil
 	}
 	log.Debug("Successfully applied components", "workloads", len(workloads))
 	r.record.Event(ac, event.Normal(reasonApplyComponents, "Successfully applied components", "workloads", strconv.Itoa(len(workloads))))
@@ -323,13 +338,13 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 			log.Debug("confirm component can't be garbage collected", "error", err)
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGCComponent)))
-			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
+			return reconcile.Result{}, nil
 		}
 		if err := r.client.Delete(ctx, &e); resource.IgnoreNotFound(err) != nil {
 			log.Debug("Cannot garbage collect component", "error", err)
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGCComponent)))
-			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
+			return reconcile.Result{}, nil
 		}
 		log.Debug("Garbage collected resource")
 		record.Event(ac, event.Normal(reasonGGComponent, "Successfully garbage collected component"))
@@ -345,7 +360,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		ac.Status.Dependency = *depStatus
 	}
 
-	// the posthook function will do the final status update
+	// the defer function will do the final status update
 	return reconcile.Result{RequeueAfter: waitTime}, nil
 }
 

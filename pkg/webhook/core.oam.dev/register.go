@@ -23,6 +23,7 @@ func Register(mgr manager.Manager) error {
 	}
 	applicationconfiguration.RegisterMutatingHandler(mgr)
 	applicationdeployment.RegisterMutatingHandler(mgr)
+	applicationdeployment.RegisterValidatingHandler(mgr)
 	if err := component.RegisterMutatingHandler(mgr); err != nil {
 		return err
 	}

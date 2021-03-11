@@ -19,7 +19,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/webhook/common/rollout"
 )
 
-// MutatingHandler handles ApplicationDeployment
+// MutatingHandler handles AppRollout
 type MutatingHandler struct {
 	Client client.Client
 
@@ -37,7 +37,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	if err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
-	DefaultApplicationDeployment(obj)
+	DefaultAppRollout(obj)
 
 	marshalled, err := json.Marshal(obj)
 	if err != nil {
@@ -45,14 +45,14 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 	}
 	resp := admission.PatchResponseFromRaw(req.AdmissionRequest.Object.Raw, marshalled)
 	if len(resp.Patches) > 0 {
-		klog.V(common.LogDebugWithContent).Infof("Admit ApplicationDeployment %s/%s patches: %v", obj.Namespace, obj.Name,
+		klog.V(common.LogDebugWithContent).Infof("Admit AppRollout %s/%s patches: %v", obj.Namespace, obj.Name,
 			util.DumpJSON(resp.Patches))
 	}
 	return resp
 }
 
-// DefaultApplicationDeployment will set the default value for the ApplicationDeployment
-func DefaultApplicationDeployment(obj *v1alpha2.AppRollout) {
+// DefaultAppRollout will set the default value for the AppRollout®
+func DefaultAppRollout(obj *v1alpha2.AppRollout) {
 	klog.InfoS("default", "name", obj.Name)
 	if obj.Spec.RevertOnDelete == nil {
 		klog.V(common.LogDebug).Info("default RevertOnDelete as false")
@@ -82,6 +82,6 @@ func (h *MutatingHandler) InjectDecoder(d *admission.Decoder) error {
 // RegisterMutatingHandler will register component mutation handler to the webhook
 func RegisterMutatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
-	server.Register("/mutating-core-oam-dev-v1alpha2-applicationdeployments",
+	server.Register("/mutating-core-oam-dev-v1alpha2-approllout",
 		&webhook.Admission{Handler: &MutatingHandler{}})
 }

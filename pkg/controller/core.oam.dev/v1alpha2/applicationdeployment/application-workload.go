@@ -37,13 +37,14 @@ func (r *Reconciler) extractWorkloads(ctx context.Context, componentList []strin
 	if err != nil {
 		return nil, nil, err
 	}
-	klog.InfoS("get the target workload we need to work on", "targetWorkload", klog.KObj(targetWorkload))
+	klog.InfoS("successfully get the target workload we need to work on", "targetWorkload", klog.KObj(targetWorkload))
 	if sourceApp != nil {
 		sourceWorkload, err := r.fetchWorkload(ctx, componentName, sourceApp)
 		if err != nil {
 			return nil, nil, err
 		}
-		klog.InfoS("get the source workload we need to work on", "sourceWorkload", klog.KObj(sourceWorkload))
+		klog.InfoS("successfully get the source workload we need to work on", "sourceWorkload",
+			klog.KObj(sourceWorkload))
 		return targetWorkload, sourceWorkload, nil
 	}
 	return targetWorkload, nil, nil
@@ -84,14 +85,11 @@ func (r *Reconciler) fetchWorkload(ctx context.Context, componentName string,
 	}
 	// reuse the same appConfig controller logic that determines the workload name given an ACC
 	applicationconfiguration.SetAppWorkloadInstanceName(componentName, w, revision)
-	klog.InfoS("get the workload we need to work on", "workload gvk", w.GroupVersionKind(), "workload name", w.GetName())
 	// get the real workload object from api-server given GVK and name
 	workload, err := oamutil.GetObjectGivenGVKAndName(ctx, r, w.GroupVersionKind(), targetApp.GetNamespace(), w.GetName())
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to get workload %s with gvk %+v ", w.GetName(), w.GroupVersionKind()))
 	}
-	klog.InfoS("successfully get the workload we need to work on", "workload gvk", w.GroupVersionKind(),
-		"workload name", w.GetName())
 
 	return workload, nil
 }

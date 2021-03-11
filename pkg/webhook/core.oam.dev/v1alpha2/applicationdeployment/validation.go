@@ -3,6 +3,7 @@ package applicationdeployment
 import (
 	"context"
 
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apimachineryvalidation "k8s.io/apimachinery/pkg/api/validation"
 	ktypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -10,10 +11,11 @@ import (
 	"k8s.io/kubectl/pkg/util/slice"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/webhook/common/rollout"
 )
 
-// ValidateCreate validates the ApplicationDeployment on creation
+// ValidateCreate validates the AppRollout on creation
 func (h *ValidatingHandler) ValidateCreate(appRollout *v1alpha2.AppRollout) field.ErrorList {
 	klog.InfoS("validate create", "name", appRollout.Name)
 	allErrs := apimachineryvalidation.ValidateObjectMeta(&appRollout.ObjectMeta, true,
@@ -38,7 +40,7 @@ func (h *ValidatingHandler) ValidateCreate(appRollout *v1alpha2.AppRollout) fiel
 		// can't continue without target
 		return allErrs
 	}
-	sourceAppName := appRollout.Spec.SourceApplicationName
+	sourceAppName := appRollout.Spec.SourceAppRevisionName
 	if sourceAppName != "" {
 		if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appRollout.Namespace, Name: sourceAppName},
 			&sourceApp); err != nil {
@@ -65,7 +67,7 @@ func (h *ValidatingHandler) ValidateCreate(appRollout *v1alpha2.AppRollout) fiel
 func validateComponent(componentList []string, targetApp, sourceApp *v1alpha2.ApplicationConfiguration,
 	fldPath *field.Path) field.ErrorList {
 	var componentErrs field.ErrorList
-	var commmonComponentName string
+	var commonComponentName string
 	if len(componentList) > 1 {
 		componentErrs = append(componentErrs, field.TooLong(fldPath, componentList, 1))
 		return componentErrs
@@ -79,7 +81,7 @@ func validateComponent(componentList []string, targetApp, sourceApp *v1alpha2.Ap
 			componentErrs = append(componentErrs, field.TooMany(fldPath, len(commons), 1))
 			return componentErrs
 		}
-		commmonComponentName = commons[0]
+		commonComponentName = commons[0]
 	} else {
 		// the component need to be one of the common components
 		if !slice.ContainsString(commons, componentList[0], nil) {
@@ -89,12 +91,12 @@ func validateComponent(componentList []string, targetApp, sourceApp *v1alpha2.Ap
 				"it is not a common component in the application"))
 			return componentErrs
 		}
-		commmonComponentName = componentList[0]
+		commonComponentName = componentList[0]
 	}
 	// check if the workload type are the same in the source and target application
-	if len(commmonComponentName) == 0 {
+	if len(commonComponentName) == 0 {
 		klog.Error("the common component have different types in the application",
-			"common component", commmonComponentName)
+			"common component", commonComponentName)
 		componentErrs = append(componentErrs, field.Invalid(fldPath, componentList[0],
 			"the common component have different types in the application"))
 	}
@@ -102,13 +104,27 @@ func validateComponent(componentList []string, targetApp, sourceApp *v1alpha2.Ap
 	return componentErrs
 }
 
-// ValidateUpdate validates the ApplicationDeployment on update
+// ValidateUpdate validates the AppRollout on update
 func (h *ValidatingHandler) ValidateUpdate(new, old *v1alpha2.AppRollout) field.ErrorList {
 	klog.InfoS("validate update", "name", new.Name)
 	errList := h.ValidateCreate(new)
+	fldPath := field.NewPath("spec").Child("rolloutPlan")
+
 	if len(errList) > 0 {
 		return errList
 	}
-	fldPath := field.NewPath("spec").Child("rolloutPlan")
+	// we can only reuse the rollout after reaching terminating state if the target and source has changed
+	if old.Status.RollingState == v1alpha1.RolloutSucceedState ||
+		old.Status.RollingState == v1alpha1.RolloutFailedState {
+		if old.Spec.SourceAppRevisionName == new.Spec.SourceAppRevisionName &&
+			old.Spec.TargetAppRevisionName == new.Spec.TargetAppRevisionName {
+			if !apiequality.Semantic.DeepEqual(&old.Spec.RolloutPlan, &new.Spec.RolloutPlan) {
+				errList = append(errList, field.Invalid(fldPath, new.Spec,
+					"a successful or failed rollout cannot be modified without changing the target or the source"))
+				return errList
+			}
+		}
+	}
+
 	return rollout.ValidateUpdate(&new.Spec.RolloutPlan, &old.Spec.RolloutPlan, fldPath)
 }

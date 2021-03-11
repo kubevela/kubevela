@@ -1155,20 +1155,18 @@ func TestUnpackRevisionData(t *testing.T) {
 
 func TestPassThroughObjMeta(t *testing.T) {
 	ac := &v1alpha2.ApplicationConfiguration{}
-
 	labels := map[string]string{
 		"core.oam.dev/ns":         "oam-system",
 		"core.oam.dev/controller": "oam-kubernetes-runtime",
 	}
-
 	annotation := map[string]string{
 		"key1": "value1",
 		"key2": "value2",
 	}
-
 	ac.SetLabels(labels)
 	ac.SetAnnotations(annotation)
 	t.Log("workload and trait have no labels and annotation")
+	// test initial pass
 	var u unstructured.Unstructured
 	util.PassLabelAndAnnotation(ac, &u)
 	got := u.GetLabels()
@@ -1177,6 +1175,7 @@ func TestPassThroughObjMeta(t *testing.T) {
 	gotAnnotation := u.GetAnnotations()
 	wantAnnotation := annotation
 	assert.Equal(t, wantAnnotation, gotAnnotation)
+	// test overlapping keys
 	t.Log("workload and trait contains overlapping keys")
 	existAnnotation := map[string]string{
 		"key1": "exist value1",
@@ -1188,9 +1187,7 @@ func TestPassThroughObjMeta(t *testing.T) {
 	}
 	u.SetLabels(existLabels)
 	u.SetAnnotations(existAnnotation)
-
 	util.PassLabelAndAnnotation(ac, &u)
-
 	gotAnnotation = u.GetAnnotations()
 	wantAnnotation = map[string]string{
 		"key1": "value1",
@@ -1198,13 +1195,22 @@ func TestPassThroughObjMeta(t *testing.T) {
 		"key3": "value3",
 	}
 	assert.Equal(t, wantAnnotation, gotAnnotation)
-
 	gotLabels := u.GetLabels()
 	wantLabels := map[string]string{
 		"core.oam.dev/ns":          "oam-system",
 		"core.oam.dev/kube-native": "deployment",
 		"core.oam.dev/controller":  "oam-kubernetes-runtime",
 	}
+	assert.Equal(t, wantLabels, gotLabels)
+
+	// test removing annotation
+	t.Log("removing parent key doesn't remove child's")
+	util.RemoveAnnotations(ac, []string{"key1", "key2"})
+	assert.Equal(t, len(ac.GetAnnotations()), 0)
+	util.PassLabelAndAnnotation(ac, &u)
+	gotAnnotation = u.GetAnnotations()
+	assert.Equal(t, wantAnnotation, gotAnnotation)
+	gotLabels = u.GetLabels()
 	assert.Equal(t, wantLabels, gotLabels)
 }
 

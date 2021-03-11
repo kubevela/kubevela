@@ -15,7 +15,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 )
 
-// ValidatingHandler handles ApplicationDeployment
+// ValidatingHandler handles AppRollout
 type ValidatingHandler struct {
 	client.Client
 
@@ -76,6 +76,6 @@ func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 // RegisterValidatingHandler will register application configuration validation to webhook
 func RegisterValidatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
-	server.Register("/validating-core-oam-dev-v1alpha2-applicationdeployments",
+	server.Register("/validating-core-oam-dev-v1alpha2-approllout",
 		&webhook.Admission{Handler: &ValidatingHandler{}})
 }

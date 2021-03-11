@@ -345,7 +345,7 @@ spec:
               description: NewPodTemplateIdentifier is a string that uniquely represent the new pod template each workload type could use different ways to identify that so we cannot compare between resources
               type: string
             upgradedReadyReplicas:
-              description: UpgradedReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
+              description: UpgradedReadyReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
               format: int32
               type: integer
             upgradedReplicas:

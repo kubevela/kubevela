@@ -142,7 +142,7 @@ func (p *Parser) GenerateAppFile(ctx context.Context, name string, app *v1alpha2
 		wds = append(wds, wd)
 	}
 	appfile.Workloads = wds
-	appfile.RevisionName, _ = utils.GetAppRevision(app)
+	appfile.RevisionName, _ = utils.GetAppNextRevision(app)
 	return appfile, nil
 }
 

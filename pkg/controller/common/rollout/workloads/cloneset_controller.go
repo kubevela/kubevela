@@ -7,11 +7,13 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -57,10 +59,9 @@ func (c *CloneSetController) Size(ctx context.Context) (int32, error) {
 	return *c.cloneSet.Spec.Replicas, nil
 }
 
-// Verify verifies that the target rollout resource is consistent with the rollout spec
-func (c *CloneSetController) Verify(ctx context.Context) (status *v1alpha1.RolloutStatus) {
+// VerifySpec verifies that the target rollout resource is consistent with the rollout spec
+func (c *CloneSetController) VerifySpec(ctx context.Context) (*v1alpha1.RolloutStatus, error) {
 	var verifyErr error
-	status = c.rolloutStatus
 
 	defer func() {
 		if verifyErr != nil {
@@ -70,15 +71,15 @@ func (c *CloneSetController) Verify(ctx context.Context) (status *v1alpha1.Rollo
 	}()
 
 	if verifyErr = c.fetchCloneSet(ctx); verifyErr != nil {
-		return
+		// do not fail the rollout because we can't get the resource
+		c.rolloutStatus.RolloutRetry(verifyErr.Error())
+		return c.rolloutStatus, nil
 	}
 
-	// make sure that there are changes in the pod template
+	// make sure that the updateRevision is different from what we have already done
 	targetHash := c.cloneSet.Status.UpdateRevision
 	if targetHash == c.rolloutStatus.LastAppliedPodTemplateIdentifier {
-		verifyErr = fmt.Errorf("there is no difference between the source and target, hash = %s", targetHash)
-		c.rolloutStatus.RolloutFailed(verifyErr.Error())
-		return
+		return nil, fmt.Errorf("there is no difference between the source and target, hash = %s", targetHash)
 	}
 	// record the new pod template hash
 	c.rolloutStatus.NewPodTemplateIdentifier = targetHash
@@ -88,32 +89,34 @@ func (c *CloneSetController) Verify(ctx context.Context) (status *v1alpha1.Rollo
 
 	// check if the rollout batch replicas added up to the Cloneset replicas
 	if verifyErr = c.verifyRolloutBatchReplicaValue(totalReplicas); verifyErr != nil {
-		c.rolloutStatus.RolloutFailed(verifyErr.Error())
-		return
+		return nil, verifyErr
 	}
 
 	if !c.cloneSet.Spec.UpdateStrategy.Paused {
 		verifyErr = fmt.Errorf("the cloneset %s is in the middle of updating, need to be paused first",
 			c.cloneSet.GetName())
 		c.rolloutStatus.RolloutRetry(verifyErr.Error())
-		return
+		return c.rolloutStatus, nil
 	}
 
 	// mark the rollout verified
-	c.recorder.Event(c.parentController, event.Normal("Verified",
+	c.recorder.Event(c.parentController, event.Normal("Rollout Verified",
 		"Rollout spec and the CloneSet resource are verified"))
-	c.rolloutStatus.StateTransition(v1alpha1.RollingSpecVerifiedEvent)
-	return c.rolloutStatus
+	return c.rolloutStatus, nil
 }
 
-// Initialize makes sure that
-func (c *CloneSetController) Initialize(ctx context.Context) *v1alpha1.RolloutStatus {
+// Initialize makes sure that the cloneset is under our control
+func (c *CloneSetController) Initialize(ctx context.Context) (*v1alpha1.RolloutStatus, error) {
 	totalReplicas, err := c.Size(ctx)
 	if err != nil {
-		return c.rolloutStatus
+		c.rolloutStatus.RolloutRetry(err.Error())
+		return c.rolloutStatus, nil
 	}
-	// kick start the update and start from every pod in the old version
+	// add the parent controller to the owner of the cloneset
+	// before kicking start the update and start from every pod in the old version
 	clonePatch := client.MergeFrom(c.cloneSet.DeepCopyObject())
+	ref := metav1.NewControllerRef(c.parentController, v1alpha2.AppRolloutKindVersionKind)
+	c.cloneSet.SetOwnerReferences(append(c.cloneSet.GetOwnerReferences(), *ref))
 	c.cloneSet.Spec.UpdateStrategy.Paused = false
 	c.cloneSet.Spec.UpdateStrategy.Partition = &intstr.IntOrString{Type: intstr.Int, IntVal: totalReplicas}
 
@@ -121,17 +124,16 @@ func (c *CloneSetController) Initialize(ctx context.Context) *v1alpha1.RolloutSt
 	if err := c.client.Patch(ctx, c.cloneSet, clonePatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
 		c.recorder.Event(c.parentController, event.Warning("Failed to the start the cloneset update", err))
 		c.rolloutStatus.RolloutRetry(err.Error())
-		return c.rolloutStatus
+		return c.rolloutStatus, err
 	}
 	// mark the rollout initialized
-	c.recorder.Event(c.parentController, event.Normal("Initialized", "Rollout resource are initialized"))
-	c.rolloutStatus.StateTransition(v1alpha1.RollingInitializedEvent)
-	return c.rolloutStatus
+	c.recorder.Event(c.parentController, event.Normal("Rollout Initialized", "Rollout resource are initialized"))
+	return c.rolloutStatus, nil
 }
 
 // RolloutOneBatchPods calculates the number of pods we can upgrade once according to the rollout spec
 // and then set the partition accordingly
-func (c *CloneSetController) RolloutOneBatchPods(ctx context.Context) *v1alpha1.RolloutStatus {
+func (c *CloneSetController) RolloutOneBatchPods(ctx context.Context) (*v1alpha1.RolloutStatus, error) {
 	// calculate what's the total pods that should be upgraded given the currentBatch in the status
 	cloneSetSize, _ := c.Size(ctx)
 	newPodTarget := c.calculateNewPodTarget(int(cloneSetSize))
@@ -143,19 +145,18 @@ func (c *CloneSetController) RolloutOneBatchPods(ctx context.Context) *v1alpha1.
 	if err := c.client.Patch(ctx, c.cloneSet, clonePatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
 		c.recorder.Event(c.parentController, event.Warning("Failed to update the cloneset to upgrade", err))
 		c.rolloutStatus.RolloutRetry(err.Error())
-		return c.rolloutStatus
+		return c.rolloutStatus, nil
 	}
 	// record the upgrade
 	klog.InfoS("upgraded one batch", "current batch", c.rolloutStatus.CurrentBatch)
-	c.recorder.Event(c.parentController, event.Normal("Rollout",
-		fmt.Sprintf("upgraded the batch num = %d", c.rolloutStatus.CurrentBatch)))
-	c.rolloutStatus.StateTransition(v1alpha1.BatchRolloutVerifyingEvent)
+	c.recorder.Event(c.parentController, event.Normal("Batch Rollout",
+		fmt.Sprintf("Submitted upgrade quest for batch %d", c.rolloutStatus.CurrentBatch)))
 	c.rolloutStatus.UpgradedReplicas = int32(newPodTarget)
-	return c.rolloutStatus
+	return c.rolloutStatus, nil
 }
 
-// CheckOneBatchPods checks to see if the pods are all available according to
-func (c *CloneSetController) CheckOneBatchPods(ctx context.Context) *v1alpha1.RolloutStatus {
+// CheckOneBatchPods checks to see if the pods are all available according to the rollout plan
+func (c *CloneSetController) CheckOneBatchPods(ctx context.Context) (*v1alpha1.RolloutStatus, bool) {
 	cloneSetSize, _ := c.Size(ctx)
 	newPodTarget := c.calculateNewPodTarget(int(cloneSetSize))
 	// get the number of ready pod from cloneset
@@ -173,30 +174,48 @@ func (c *CloneSetController) CheckOneBatchPods(ctx context.Context) *v1alpha1.Ro
 		// record the successful upgrade
 		klog.InfoS("pods are ready", "current batch", currentBatch)
 		c.recorder.Event(c.parentController, event.Normal("Batch Available",
-			fmt.Sprintf("the batch num = %d is available", c.rolloutStatus.CurrentBatch)))
-		c.rolloutStatus.StateTransition(v1alpha1.OneBatchAvailableEvent)
+			fmt.Sprintf("Batch %d is available", c.rolloutStatus.CurrentBatch)))
 		c.rolloutStatus.LastAppliedPodTemplateIdentifier = c.rolloutStatus.NewPodTemplateIdentifier
-	} else {
-		// continue to verify
-		klog.V(common.LogDebug).InfoS("the batch is not ready yet", "current batch", currentBatch)
-		c.rolloutStatus.RolloutRetry("the batch is not ready yet")
+		return c.rolloutStatus, true
 	}
-	return c.rolloutStatus
+	// continue to verify
+	klog.InfoS("the batch is not ready yet", "current batch", currentBatch)
+	c.rolloutStatus.RolloutRetry("the batch is not ready yet")
+	return c.rolloutStatus, false
 }
 
 // FinalizeOneBatch makes sure that the rollout status are updated correctly
-func (c *CloneSetController) FinalizeOneBatch(ctx context.Context) *v1alpha1.RolloutStatus {
-	// nothing to do for now
-	return c.rolloutStatus
+func (c *CloneSetController) FinalizeOneBatch(ctx context.Context) (*v1alpha1.RolloutStatus, error) {
+	// nothing to do for cloneset for now
+	return c.rolloutStatus, nil
 }
 
 // Finalize makes sure the Cloneset is all upgraded
-func (c *CloneSetController) Finalize(ctx context.Context) *v1alpha1.RolloutStatus {
-	if c.fetchCloneSet(ctx) != nil {
-		return c.rolloutStatus
+func (c *CloneSetController) Finalize(ctx context.Context, succeed bool) (*v1alpha1.RolloutStatus, error) {
+	if err := c.fetchCloneSet(ctx); err != nil {
+		c.rolloutStatus.RolloutRetry(err.Error())
+		return c.rolloutStatus, nil
 	}
-
-	return c.rolloutStatus
+	clonePatch := client.MergeFrom(c.cloneSet.DeepCopyObject())
+	// remove the parent controller from the resources' owner list
+	var newOwnerList []metav1.OwnerReference
+	for _, owner := range c.cloneSet.GetOwnerReferences() {
+		if owner.Kind == v1alpha2.AppRolloutKind && owner.APIVersion == v1alpha2.SchemeGroupVersion.String() {
+			continue
+		}
+		newOwnerList = append(newOwnerList, owner)
+	}
+	c.cloneSet.SetOwnerReferences(newOwnerList)
+	// patch the CloneSet
+	if err := c.client.Patch(ctx, c.cloneSet, clonePatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
+		c.recorder.Event(c.parentController, event.Warning("Failed to the finalize the cloneset", err))
+		c.rolloutStatus.RolloutRetry(err.Error())
+		return c.rolloutStatus, err
+	}
+	// mark the resource finalized
+	c.recorder.Event(c.parentController, event.Normal("Rollout Finalized",
+		fmt.Sprintf("Rollout resource are finalized, succeed := %t", succeed)))
+	return c.rolloutStatus, nil
 }
 
 /* --------------------
@@ -225,7 +244,6 @@ func (c *CloneSetController) fetchCloneSet(ctx context.Context) error {
 		if !apierrors.IsNotFound(err) {
 			c.recorder.Event(c.parentController, event.Warning("Failed to get the Cloneset", err))
 		}
-		c.rolloutStatus.RolloutRetry(err.Error())
 		return err
 	}
 	c.cloneSet = &workload

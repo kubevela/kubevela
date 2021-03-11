@@ -34,9 +34,9 @@ const (
 type RollingState string
 
 const (
-	// VerifyingState verify that the rollout setting is valid and the controller can locate both the
+	// VerifyingSpecState verify that the rollout setting is valid and the controller can locate both the
 	// target and the source
-	VerifyingState RollingState = "verifying"
+	VerifyingSpecState RollingState = "verifyingSpec"
 	// InitializingState rollout is initializing all the new resources
 	InitializingState RollingState = "initializing"
 	// RollingInBatchesState rolling out
@@ -45,6 +45,8 @@ const (
 	FinalisingState RollingState = "finalising"
 	// RolloutSucceedState rollout successfully completed to match the desired target state
 	RolloutSucceedState RollingState = "rolloutSucceed"
+	// RolloutFailingState finalize the rollout before giving up, possibly clean up the old resources, adjust traffic
+	RolloutFailingState RollingState = "rolloutFailing"
 	// RolloutFailedState rollout is failed, the target replica is not reached
 	// we can not move forward anymore
 	// we will let the client to decide when or whether to revert
@@ -180,7 +182,7 @@ type RolloutWebhookPayload struct {
 	Namespace string `json:"namespace"`
 
 	// Phase of the rollout
-	Phase RollingState `json:"phase"`
+	Phase string `json:"phase"`
 
 	// Metadata (key-value pairs) are the extra data send to this webhook
 	Metadata map[string]string `json:"metadata,omitempty"`
@@ -242,6 +244,6 @@ type RolloutStatus struct {
 	// UpgradedReplicas is the number of Pods upgraded by the rollout controller
 	UpgradedReplicas int32 `json:"upgradedReplicas"`
 
-	// UpgradedReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
+	// UpgradedReadyReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
 	UpgradedReadyReplicas int32 `json:"upgradedReadyReplicas"`
 }
