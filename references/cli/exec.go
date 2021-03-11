@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+
 	"github.com/spf13/cobra"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -19,7 +21,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
-	"github.com/oam-dev/kubevela/references/appfile/api"
 )
 
 const (
@@ -40,7 +41,7 @@ type VelaExecOptions struct {
 	context.Context
 	VelaC types.Args
 	Env   *types.EnvMeta
-	App   *api.Application
+	App   *v1alpha2.Application
 
 	f             k8scmdutil.Factory
 	kcExecOptions *cmdexec.ExecOptions
@@ -122,7 +123,7 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 		return err
 	}
 	o.Env = env
-	app, err := appfile.LoadApplication(env.Name, o.Args[0])
+	app, err := appfile.LoadApplication(env.Namespace, o.Args[0], o.VelaC)
 	if err != nil {
 		return err
 	}
@@ -167,8 +168,10 @@ func (o *VelaExecOptions) getComponentName() (string, error) {
 	svcName := o.ServiceName
 
 	if svcName != "" {
-		if _, exist := o.App.Services[svcName]; exist {
-			return svcName, nil
+		for _, cc := range o.App.Spec.Components {
+			if cc.Name == svcName {
+				return svcName, nil
+			}
 		}
 		o.Cmd.Printf("The service name '%s' is not valid\n", svcName)
 	}

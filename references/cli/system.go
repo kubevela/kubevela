@@ -111,7 +111,7 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
@@ -172,9 +172,6 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 			"try running 'vela workloads' or 'vela traits' to check after a while, details: %v", err)
 		return nil
 	}
-	if err := RefreshDefinitions(context.Background(), i.c, ioStreams, false, true); err != nil {
-		return err
-	}
 	ioStreams.Info("- Finished successfully.")
 
 	if waitDuration > 0 {
@@ -204,7 +201,7 @@ func CheckCapabilityReady(ctx context.Context, c types.Args, timeout time.Durati
 	defer spiner.Stop()
 
 	for {
-		_, err = plugins.GetCapabilitiesFromCluster(ctx, types.DefaultKubeVelaNS, c, tmpdir, nil)
+		_, err = plugins.GetCapabilitiesFromCluster(ctx, types.DefaultKubeVelaNS, c, nil)
 		if err == nil {
 			return nil
 		}

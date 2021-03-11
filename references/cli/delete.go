@@ -5,7 +5,6 @@ import (
 
 	"github.com/spf13/cobra"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -30,11 +29,13 @@ func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 	cmd.SetOut(ioStreams.Out)
 
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+		newClient, err := c.GetClient()
 		if err != nil {
 			return err
 		}
-		o := &common.DeleteOptions{}
+		o := &common.DeleteOptions{
+			C: c,
+		}
 		o.Client = newClient
 		o.Env, err = GetEnv(cmd)
 		if err != nil {

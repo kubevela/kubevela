@@ -162,7 +162,7 @@ func StoreRepos(repos []CapCenterConfig) error {
 }
 
 // ParseAndSyncCapability will convert config from remote center to capability
-func ParseAndSyncCapability(data []byte, syncDir string) (types.Capability, error) {
+func ParseAndSyncCapability(data []byte) (types.Capability, error) {
 	var obj = unstructured.Unstructured{Object: make(map[string]interface{})}
 	err := yaml.Unmarshal(data, &obj.Object)
 	if err != nil {
@@ -175,14 +175,14 @@ func ParseAndSyncCapability(data []byte, syncDir string) (types.Capability, erro
 		if err != nil {
 			return types.Capability{}, err
 		}
-		return HandleDefinition(rd.Name, syncDir, rd.Spec.Reference.Name, rd.Annotations, rd.Spec.Extension, types.TypeWorkload, nil, rd.Spec.Schematic)
+		return HandleDefinition(rd.Name, rd.Spec.Reference.Name, rd.Annotations, rd.Spec.Extension, types.TypeWorkload, nil, rd.Spec.Schematic)
 	case "TraitDefinition":
 		var td v1alpha2.TraitDefinition
 		err = yaml.Unmarshal(data, &td)
 		if err != nil {
 			return types.Capability{}, err
 		}
-		return HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Annotations, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads, td.Spec.Schematic)
+		return HandleDefinition(td.Name, td.Spec.Reference.Name, td.Annotations, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads, td.Spec.Schematic)
 	case "ScopeDefinition":
 		// TODO(wonderflow): support scope definition here.
 	}
@@ -241,7 +241,7 @@ func (g *GithubCenter) SyncCapabilityFromCenter() error {
 				return fmt.Errorf("decode github content %s err %w", *fileContent.Path, err)
 			}
 		}
-		tmp, err := ParseAndSyncCapability(data, filepath.Join(dir, ".tmp"))
+		tmp, err := ParseAndSyncCapability(data)
 		if err != nil {
 			fmt.Printf("parse definition of %s err %v\n", *fileContent.Name, err)
 			continue

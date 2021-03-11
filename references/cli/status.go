@@ -92,11 +92,11 @@ func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 				ioStreams.Errorf("Error: failed to get Env: %s", err)
 				return err
 			}
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
-			return printAppStatus(ctx, newClient, ioStreams, appName, env, cmd)
+			return printAppStatus(ctx, newClient, ioStreams, appName, env, cmd, c)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
@@ -107,8 +107,8 @@ func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	return cmd
 }
 
-func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta, cmd *cobra.Command) error {
-	app, err := appfile.LoadApplication(env.Name, appName)
+func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta, cmd *cobra.Command, velaC types.Args) error {
+	app, err := appfile.LoadApplication(env.Namespace, appName, velaC)
 	if err != nil {
 		return err
 	}
@@ -118,8 +118,7 @@ func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOSt
 	table := newUITable()
 	table.AddRow("  Name:", appName)
 	table.AddRow("  Namespace:", namespace)
-	table.AddRow("  Created at:", app.CreateTime.String())
-	table.AddRow("  Updated at:", app.UpdateTime.String())
+	table.AddRow("  Created at:", app.CreationTimestamp.String())
 	cmd.Printf("%s\n\n", table.String())
 
 	cmd.Printf("Services:\n\n")
@@ -216,14 +215,14 @@ HealthCheckLoop:
 	return healthStatus, healthInfo, nil
 }
 
-func printTrackingDeployStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, compName, appName string, env *types.EnvMeta) (CompStatus, error) {
+func printTrackingDeployStatus(c types.Args, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta) (CompStatus, error) {
 	sDeploy := newTrackingSpinnerWithDelay("Checking Status ...", trackingInterval)
 	sDeploy.Start()
 	defer sDeploy.Stop()
 TrackDeployLoop:
 	for {
 		time.Sleep(trackingInterval)
-		deployStatus, failMsg, err := TrackDeployStatus(ctx, c, compName, appName, env)
+		deployStatus, failMsg, err := TrackDeployStatus(c, appName, env)
 		if err != nil {
 			return compStatusUnknown, err
 		}
@@ -245,12 +244,12 @@ TrackDeployLoop:
 }
 
 // TrackDeployStatus will only check AppConfig is deployed successfully,
-func TrackDeployStatus(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (CompStatus, string, error) {
-	app, appObj, err := getApp(ctx, c, compName, appName, env)
+func TrackDeployStatus(c types.Args, appName string, env *types.EnvMeta) (CompStatus, string, error) {
+	appObj, err := appfile.LoadApplication(env.Namespace, appName, c)
 	if err != nil {
 		return compStatusUnknown, "", err
 	}
-	if app == nil || appObj == nil {
+	if appObj == nil {
 		return compStatusUnknown, "", errors.New(ErrNotLoadAppConfig)
 	}
 	condition := appObj.Status.Conditions
@@ -317,25 +316,6 @@ func trackHealthCheckingStatus(ctx context.Context, c client.Client, compName, a
 		}
 	}
 	return compStatusHealthCheckDone, HealthStatusNotDiagnosed, "", nil
-}
-
-func getApp(ctx context.Context, c client.Client, compName, appName string, env *types.EnvMeta) (*api.Application, *v1alpha2.Application, error) {
-	var app *api.Application
-	var err error
-	if appName != "" {
-		app, err = appfile.LoadApplication(env.Name, appName)
-	} else {
-		app, err = appfile.MatchAppByComp(env.Name, compName)
-	}
-	if err != nil {
-		return nil, nil, err
-	}
-
-	appObj, err := appfile.GetApplication(ctx, c, app, env)
-	if err != nil {
-		return nil, nil, err
-	}
-	return app, appObj, nil
 }
 
 func getWorkloadStatusFromApp(app *v1alpha2.Application, compName string) (v1alpha2.ApplicationComponentStatus, bool) {

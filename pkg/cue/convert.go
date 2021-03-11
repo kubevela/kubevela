@@ -3,8 +3,6 @@ package cue
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"path/filepath"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -16,13 +14,9 @@ import (
 const specValue = "parameter"
 
 // GetParameters get parameter from cue template
-func GetParameters(templatePath string) ([]types.Parameter, error) {
+func GetParameters(templateStr string) ([]types.Parameter, error) {
 	r := cue.Runtime{}
-	b, err := ioutil.ReadFile(filepath.Clean(templatePath))
-	if err != nil {
-		return nil, err
-	}
-	template, err := r.Compile("", string(b)+BaseTemplate)
+	template, err := r.Compile("", templateStr+BaseTemplate)
 	if err != nil {
 		return nil, err
 	}

@@ -108,7 +108,7 @@ var _ = Describe("DefinitionFiles", func() {
 	// Notice!!  DefinitionPath Object is Cluster Scope object
 	// which means objects created in other DefinitionNamespace will also affect here.
 	It("gettrait", func() {
-		traitDefs, _, err := GetTraitsFromCluster(context.Background(), DefinitionNamespace, types.Args{Config: cfg, Schema: scheme}, definitionDir, selector)
+		traitDefs, _, err := GetTraitsFromCluster(context.Background(), DefinitionNamespace, types.Args{Config: cfg, Schema: scheme}, selector)
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting trait definitions %v", traitDefs))
 		for i := range traitDefs {
@@ -116,7 +116,6 @@ var _ = Describe("DefinitionFiles", func() {
 			By("check CueTemplate is fulfilled")
 			Expect(traitDefs[i].CueTemplate).ShouldNot(BeEmpty())
 			traitDefs[i].CueTemplate = ""
-			traitDefs[i].DefinitionPath = ""
 		}
 		Expect(traitDefs).Should(Equal([]types.Capability{route}))
 	})
@@ -124,7 +123,7 @@ var _ = Describe("DefinitionFiles", func() {
 	// Notice!!  DefinitionPath Object is Cluster Scope object
 	// which means objects created in other DefinitionNamespace will also affect here.
 	It("getworkload", func() {
-		workloadDefs, _, err := GetWorkloadsFromCluster(context.Background(), DefinitionNamespace, types.Args{Config: cfg, Schema: scheme}, definitionDir, selector)
+		workloadDefs, _, err := GetWorkloadsFromCluster(context.Background(), DefinitionNamespace, types.Args{Config: cfg, Schema: scheme}, selector)
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting workload definitions  %v", workloadDefs))
 		for i := range workloadDefs {
@@ -132,17 +131,15 @@ var _ = Describe("DefinitionFiles", func() {
 			By("check CueTemplate is fulfilled")
 			Expect(workloadDefs[i].CueTemplate).ShouldNot(BeEmpty())
 			workloadDefs[i].CueTemplate = ""
-			workloadDefs[i].DefinitionPath = ""
 		}
 		Expect(workloadDefs).Should(Equal([]types.Capability{deployment, websvc}))
 	})
 	It("getall", func() {
-		alldef, err := GetCapabilitiesFromCluster(context.Background(), DefinitionNamespace, types.Args{Config: cfg, Schema: scheme}, definitionDir, selector)
+		alldef, err := GetCapabilitiesFromCluster(context.Background(), DefinitionNamespace, types.Args{Config: cfg, Schema: scheme}, selector)
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting all definitions %v", alldef))
 		for i := range alldef {
 			alldef[i].CueTemplate = ""
-			alldef[i].DefinitionPath = ""
 		}
 		Expect(alldef).Should(Equal([]types.Capability{deployment, websvc, route}))
 	})

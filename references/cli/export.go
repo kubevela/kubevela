@@ -19,15 +19,19 @@ func NewExportCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 			types.TagCommandType: types.TypeStart,
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			velaEnv, err := GetEnv(cmd)
+			if err != nil {
+				return err
+			}
 			o := &common.AppfileOptions{
 				IO:  ioStream,
-				Env: &types.EnvMeta{},
+				Env: velaEnv,
 			}
 			filePath, err := cmd.Flags().GetString(appFilePath)
 			if err != nil {
 				return err
 			}
-			_, data, err := o.Export(filePath, true)
+			_, data, err := o.Export(filePath, velaEnv.Namespace, true, c)
 			if err != nil {
 				return err
 			}

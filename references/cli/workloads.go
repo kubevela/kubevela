@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"context"
-
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
@@ -12,8 +10,6 @@ import (
 
 // NewWorkloadsCommand creates `workloads` command
 func NewWorkloadsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	var enforceRefresh bool
-	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "workloads",
 		DisableFlagsInUseLine: true,
@@ -24,12 +20,11 @@ func NewWorkloadsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-
-			if err := RefreshDefinitions(ctx, c, ioStreams, true, enforceRefresh); err != nil {
+			env, err := GetEnv(cmd)
+			if err != nil {
 				return err
 			}
-
-			workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
+			workloads, err := plugins.LoadInstalledCapabilityWithType(env.Namespace, c, types.TypeWorkload)
 			if err != nil {
 				return err
 			}
@@ -40,7 +35,6 @@ func NewWorkloadsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 		},
 	}
 	cmd.SetOut(ioStreams.Out)
-	cmd.Flags().BoolVarP(&enforceRefresh, "", "r", false, "Enforce refresh from cluster even if cache is not expired")
 	return cmd
 }
 

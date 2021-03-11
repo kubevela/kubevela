@@ -83,7 +83,6 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	appParser := appfile.NewApplicationParser(r.Client, r.dm)
 
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
-
 	appfile, err := appParser.GenerateAppFile(ctx, app.Name, app)
 	if err != nil {
 		applog.Error(err, "[Handle Parse]")

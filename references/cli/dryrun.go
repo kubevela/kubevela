@@ -8,7 +8,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -37,7 +36,7 @@ func NewDryRunCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}

@@ -19,7 +19,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	apitypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -95,6 +94,7 @@ type DeleteOptions struct {
 	CompName string
 	Client   client.Client
 	Env      *types.EnvMeta
+	C        types.Args
 }
 
 // ListApplications lists all applications
@@ -244,13 +244,11 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 
 // DeleteComponent will delete one component including server side.
 func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) (string, error) {
-	var app *api.Application
 	var err error
-	if o.AppName != "" {
-		app, err = appfile.LoadApplication(o.Env.Name, o.AppName)
-	} else {
-		app, err = appfile.MatchAppByComp(o.Env.Name, o.CompName)
+	if o.AppName == "" {
+		return "", errors.New("app name is required")
 	}
+	app, err := appfile.LoadApplication(o.Env.Namespace, o.AppName, o.C)
 	if err != nil {
 		return "", err
 	}
@@ -263,24 +261,15 @@ func (o *DeleteOptions) DeleteComponent(io cmdutil.IOStreams) (string, error) {
 	if err := appfile.RemoveComponent(app, o.CompName); err != nil {
 		return "", err
 	}
-	if err := appfile.Save(app, o.Env.Name); err != nil {
-		return "", err
-	}
 
 	// Remove component from appConfig in k8s cluster
 	ctx := context.Background()
-	if err := BuildRun(ctx, app, o.Client, o.Env, io); err != nil {
+
+	if err := o.Client.Update(ctx, app); err != nil {
 		return "", err
 	}
 
-	// Remove component in k8s cluster
-	var c corev1alpha2.Component
-	c.Name = o.CompName
-	c.Namespace = o.Env.Namespace
-	err = o.Client.Delete(context.Background(), &c)
-	if err != nil && !apierrors.IsNotFound(err) {
-		return "", fmt.Errorf("delete component err: %w", err)
-	}
+	// It's the server responsibility to GC component
 
 	return fmt.Sprintf("component \"%s\" deleted from \"%s\"", o.CompName, o.AppName), nil
 }
@@ -373,8 +362,8 @@ func saveAndLoadRemoteAppfile(url string) (*api.AppFile, error) {
 }
 
 // ExportFromAppFile exports Application from appfile object
-func (o *AppfileOptions) ExportFromAppFile(app *api.AppFile, quiet bool) (*BuildResult, []byte, error) {
-	tm, err := template.Load()
+func (o *AppfileOptions) ExportFromAppFile(app *api.AppFile, namespace string, quiet bool, c types.Args) (*BuildResult, []byte, error) {
+	tm, err := template.Load(namespace, c)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -415,7 +404,7 @@ func (o *AppfileOptions) ExportFromAppFile(app *api.AppFile, quiet bool) (*Build
 }
 
 // Export export Application object from the path of Appfile
-func (o *AppfileOptions) Export(filePath string, quiet bool) (*BuildResult, []byte, error) {
+func (o *AppfileOptions) Export(filePath, namespace string, quiet bool, c types.Args) (*BuildResult, []byte, error) {
 	var app *api.AppFile
 	var err error
 	if !quiet {
@@ -424,9 +413,6 @@ func (o *AppfileOptions) Export(filePath string, quiet bool) (*BuildResult, []by
 	if filePath != "" {
 		if strings.HasPrefix(filePath, "https://") || strings.HasPrefix(filePath, "http://") {
 			app, err = saveAndLoadRemoteAppfile(filePath)
-			if err != nil {
-				return nil, nil, err
-			}
 		} else {
 			app, err = api.LoadFromFile(filePath)
 		}
@@ -440,16 +426,16 @@ func (o *AppfileOptions) Export(filePath string, quiet bool) (*BuildResult, []by
 	if !quiet {
 		o.IO.Info("Load Template ...")
 	}
-	return o.ExportFromAppFile(app, quiet)
+	return o.ExportFromAppFile(app, namespace, quiet, c)
 }
 
 // Run starts an application according to Appfile
-func (o *AppfileOptions) Run(filePath string, config *rest.Config) error {
-	result, data, err := o.Export(filePath, false)
+func (o *AppfileOptions) Run(filePath, namespace string, c types.Args) error {
+	result, data, err := o.Export(filePath, namespace, false, c)
 	if err != nil {
 		return err
 	}
-	dm, err := discoverymapper.New(config)
+	dm, err := discoverymapper.New(c.Config)
 	if err != nil {
 		return err
 	}

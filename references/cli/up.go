@@ -2,7 +2,6 @@ package cli
 
 import (
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -31,7 +30,7 @@ func NewUpCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			kubecli, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			kubecli, err := c.GetClient()
 			if err != nil {
 				return err
 			}
@@ -45,7 +44,7 @@ func NewUpCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return o.Run(filePath, c.Config)
+			return o.Run(filePath, velaEnv.Namespace, c)
 		},
 	}
 	cmd.SetOut(ioStream.Out)

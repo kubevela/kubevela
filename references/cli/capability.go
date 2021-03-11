@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -29,7 +28,7 @@ func CapabilityCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Com
 	}
 	cmd.AddCommand(
 		NewCenterCommand(ioStream),
-		NewCapListCommand(ioStream),
+		NewCapListCommand(c, ioStream),
 		NewCapInstallCommand(c, ioStream),
 		NewCapUninstallCommand(c, ioStream),
 	)
@@ -94,7 +93,7 @@ func NewCapInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 			if argsLength < 1 {
 				return errors.New("you must specify <center>/<name> for capability you want to install")
 			}
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
@@ -126,7 +125,7 @@ func NewCapUninstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 			if len(args) < 1 {
 				return errors.New("you must specify <name> for capability you want to uninstall")
 			}
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
@@ -138,7 +137,11 @@ func NewCapUninstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 				}
 				name = l[1]
 			}
-			return common.RemoveCapability(newClient, name, ioStreams)
+			env, err := GetEnv(cmd)
+			if err != nil {
+				return err
+			}
+			return common.RemoveCapability(env.Namespace, c, newClient, name, ioStreams)
 		},
 	}
 	cmd.PersistentFlags().StringP("token", "t", "", "Github Repo token")
@@ -168,7 +171,7 @@ func NewCapCenterSyncCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 }
 
 // NewCapListCommand List capabilities from cap-center
-func NewCapListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewCapListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ls [cap-center]",
 		Short:   "List capabilities from cap-center",
@@ -179,7 +182,11 @@ func NewCapListCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			if len(args) > 0 {
 				repoName = args[0]
 			}
-			capabilityList, err := common.ListCapabilities(repoName)
+			env, err := GetEnv(cmd)
+			if err != nil {
+				return err
+			}
+			capabilityList, err := common.ListCapabilities(env.Namespace, c, repoName)
 			if err != nil {
 				return err
 			}

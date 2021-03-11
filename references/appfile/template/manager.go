@@ -12,8 +12,8 @@ type Manager interface {
 }
 
 // Load will load all installed capabilities and create a manager
-func Load() (Manager, error) {
-	caps, err := plugins.LoadAllInstalledCapability()
+func Load(namespace string, c types.Args) (Manager, error) {
+	caps, err := plugins.LoadAllInstalledCapability(namespace, c)
 	if err != nil {
 		return nil, err
 	}

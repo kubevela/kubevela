@@ -32,7 +32,7 @@ func NewListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}

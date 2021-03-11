@@ -43,7 +43,6 @@ type Capability struct {
 	CueTemplate    string      `json:"template,omitempty"`
 	CueTemplateURI string      `json:"templateURI,omitempty"`
 	Parameters     []Parameter `json:"parameters,omitempty"`
-	DefinitionPath string      `json:"definition"`
 	CrdName        string      `json:"crdName,omitempty"`
 	Center         string      `json:"center,omitempty"`
 	Status         string      `json:"status,omitempty"`
@@ -51,6 +50,9 @@ type Capability struct {
 
 	// trait only
 	AppliesTo []string `json:"appliesTo,omitempty"`
+
+	// Namespace represents it's a system-level or user-level capability.
+	Namespace string `json:"namespace,omitempty"`
 
 	// Plugin Source
 	Source  *Source       `json:"source,omitempty"`

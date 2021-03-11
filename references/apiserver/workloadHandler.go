@@ -29,7 +29,7 @@ func (s *APIServer) GetWorkload(c *gin.Context) {
 // ListWorkload lists all workloads in the cluster
 func (s *APIServer) ListWorkload(c *gin.Context) {
 	var workloadDefinitionList []apis.WorkloadMeta
-	workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
+	workloads, err := plugins.LoadInstalledCapabilityWithType("default", s.c, types.TypeWorkload)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return

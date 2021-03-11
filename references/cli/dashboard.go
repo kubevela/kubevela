@@ -45,7 +45,7 @@ func NewDashboardCommand(c types.Args, ioStreams cmdutil.IOStreams, frontendSour
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
