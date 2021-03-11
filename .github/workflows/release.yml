@@ -58,20 +58,6 @@ jobs:
           asset_path: ./_bin/vela-linux-amd64.zip
           asset_name: vela-${{ steps.get_version.outputs.VERSION }}-linux-amd64.zip
           asset_content_type: binary/octet-stream
-      - name: Upload Linux arm64 tar.gz
-        uses: actions/upload-release-asset@v1.0.2
-        with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/vela-linux-arm64.tar.gz
-          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-linux-arm64.tar.gz
-          asset_content_type: binary/octet-stream
-      - name: Upload Linux arm64 zip
-        uses: actions/upload-release-asset@v1.0.2
-        with:
-          upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/vela-linux-arm64.zip
-          asset_name: vela-${{ steps.get_version.outputs.VERSION }}-linux-arm64.zip
-          asset_content_type: binary/octet-stream
       - name: Upload MacOS tar.gz
         uses: actions/upload-release-asset@v1.0.2
         with:
