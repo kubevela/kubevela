@@ -16,7 +16,7 @@
 
 */
 
-package workloaddefinition
+package componentdefinition
 
 import (
 	"path/filepath"
@@ -42,9 +42,9 @@ var testEnv *envtest.Environment
 var controllerDone chan struct{}
 var r Reconciler
 
-func TestWorkloadDefinition(t *testing.T) {
+func TestComponentDefinition(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "WorkloadDefinition Suite")
+	RunSpecs(t, "ComponentDefinition Suite")
 }
 
 var _ = BeforeSuite(func(done Done) {

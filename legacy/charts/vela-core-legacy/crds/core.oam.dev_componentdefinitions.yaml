@@ -1,0 +1,150 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.4
+  creationTimestamp: null
+  name: componentdefinitions.core.oam.dev
+spec:
+  group: core.oam.dev
+  names:
+    kind: ComponentDefinition
+    listKind: ComponentDefinitionList
+    plural: componentdefinitions
+    singular: componentdefinition
+  scope: Namespaced
+  validation:
+    openAPIV3Schema:
+      description: ComponentDefinition is the Schema for the componentdefinitions API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: ComponentDefinitionSpec defines the desired state of ComponentDefinition
+          properties:
+            childResourceKinds:
+              description: ChildResourceKinds are the list of GVK of the child resources this workload generates
+              items:
+                description: A ChildResourceKind defines a child Kubernetes resource kind with a selector
+                properties:
+                  apiVersion:
+                    description: APIVersion of the child resource
+                    type: string
+                  kind:
+                    description: Kind of the child resource
+                    type: string
+                  selector:
+                    additionalProperties:
+                      type: string
+                    description: Selector to select the child resources that the workload wants to expose to traits
+                    type: object
+                required:
+                - apiVersion
+                - kind
+                type: object
+              type: array
+            definitionRef:
+              description: Reference to the CustomResourceDefinition that defines this workload kind.
+              properties:
+                name:
+                  description: Name of the referenced CustomResourceDefinition.
+                  type: string
+                version:
+                  description: Version indicate which version should be used if CRD has multiple versions by default it will use the first one if not specified
+                  type: string
+              required:
+              - name
+              type: object
+            extension:
+              description: Extension is used for extension needs by OAM platform builders
+              type: object
+              
+            podSpecPath:
+              description: PodSpecPath indicates where/if this workload has K8s podSpec field if one workload has podSpec, trait can do lot's of assumption such as port, env, volume fields.
+              type: string
+            revisionLabel:
+              description: RevisionLabel indicates which label for underlying resources(e.g. pods) of this workload can be used by trait to create resource selectors(e.g. label selector for pods).
+              type: string
+            schematic:
+              description: Schematic defines the data format and template of the encapsulation of the workload
+              properties:
+                cue:
+                  description: CUE defines the encapsulation in CUE format
+                  properties:
+                    template:
+                      description: Template defines the abstraction template data of the capability, it will replace the old CUE template in extension field. Template is a required field if CUE is defined in Capability Definition.
+                      type: string
+                  required:
+                  - template
+                  type: object
+              type: object
+            status:
+              description: Status defines the custom health policy and status message for workload
+              properties:
+                customStatus:
+                  description: CustomStatus defines the custom status message that could display to user
+                  type: string
+                healthPolicy:
+                  description: HealthPolicy defines the health check policy for the abstraction
+                  type: string
+              type: object
+          required:
+          - definitionRef
+          type: object
+        status:
+          description: ComponentDefinitionStatus is the status of ComponentDefinition
+          properties:
+            conditions:
+              description: Conditions of the resource.
+              items:
+                description: A Condition that may apply to a resource.
+                properties:
+                  lastTransitionTime:
+                    description: LastTransitionTime is the last time this condition transitioned from one status to another.
+                    format: date-time
+                    type: string
+                  message:
+                    description: A Message containing details about this condition's last transition from one status to another, if any.
+                    type: string
+                  reason:
+                    description: A Reason for this condition's last transition from one status to another.
+                    type: string
+                  status:
+                    description: Status of this condition; is it currently True, False, or Unknown?
+                    type: string
+                  type:
+                    description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
+                    type: string
+                required:
+                - lastTransitionTime
+                - reason
+                - status
+                - type
+                type: object
+              type: array
+            workloadDefinitionDef:
+              description: workloadRef refers to the active WorkloadDefinition
+              type: string
+          required:
+          - workloadDefinitionDef
+          type: object
+      type: object
+  version: v1alpha2
+  versions:
+  - name: v1alpha2
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

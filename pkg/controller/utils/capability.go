@@ -51,36 +51,36 @@ type CapabilityDefinitionInterface interface {
 	GetOpenAPISchema(ctx context.Context, k8sClient client.Client, objectKey client.ObjectKey) ([]byte, error)
 }
 
-// CapabilityWorkloadDefinition is the struct for WorkloadDefinition
-type CapabilityWorkloadDefinition struct {
-	Name               string                      `json:"name"`
-	WorkloadDefinition v1alpha2.WorkloadDefinition `json:"workloadDefinition"`
+// CapabilityComponentDefinition is the struct for ComponentDefinition
+type CapabilityComponentDefinition struct {
+	Name                string                       `json:"name"`
+	ComponentDefinition v1alpha2.ComponentDefinition `json:"componentDefinition"`
 	CapabilityBaseDefinition
 }
 
 // GetCapabilityObject gets types.Capability object by WorkloadDefinition name
-func (def *CapabilityWorkloadDefinition) GetCapabilityObject(ctx context.Context, k8sClient client.Client, namespace, name string) (*types.Capability, error) {
-	var workloadDefinition v1alpha2.WorkloadDefinition
+func (def *CapabilityComponentDefinition) GetCapabilityObject(ctx context.Context, k8sClient client.Client, namespace, name string) (*types.Capability, error) {
+	var componentDefinition v1alpha2.ComponentDefinition
 	var capability types.Capability
 	capability.Name = def.Name
 	objectKey := client.ObjectKey{
 		Namespace: namespace,
 		Name:      name,
 	}
-	err := k8sClient.Get(ctx, objectKey, &workloadDefinition)
+	err := k8sClient.Get(ctx, objectKey, &componentDefinition)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get WorkloadDefinition %s: %w", def.Name, err)
+		return nil, fmt.Errorf("failed to get ComponentDefinition %s: %v", def.Name, err)
 	}
-	def.WorkloadDefinition = workloadDefinition
-	capability, err = util.ConvertTemplateJSON2Object(name, workloadDefinition.Spec.Extension, workloadDefinition.Spec.Schematic)
+	def.ComponentDefinition = componentDefinition
+	capability, err = util.ConvertTemplateJSON2Object(name, componentDefinition.Spec.Extension, componentDefinition.Spec.Schematic)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert WorkloadDefinition to Capability Object")
+		return nil, fmt.Errorf("failed to convert ComponentDefinition to Capability Object")
 	}
 	return &capability, err
 }
 
 // GetOpenAPISchema gets OpenAPI v3 schema by WorkloadDefinition name
-func (def *CapabilityWorkloadDefinition) GetOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string) ([]byte, error) {
+func (def *CapabilityComponentDefinition) GetOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string) ([]byte, error) {
 	capability, err := def.GetCapabilityObject(ctx, k8sClient, namespace, name)
 	if err != nil {
 		return nil, err
@@ -89,21 +89,21 @@ func (def *CapabilityWorkloadDefinition) GetOpenAPISchema(ctx context.Context, k
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema in ConfigMap from WorkloadDefinition
-func (def *CapabilityWorkloadDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string) error {
+func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string) error {
 	jsonSchema, err := def.GetOpenAPISchema(ctx, k8sClient, namespace, name)
 	if err != nil {
 		return fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
 	}
-	workloadDefinition := def.WorkloadDefinition
+	componentDefinition := def.ComponentDefinition
 	ownerReference := []metav1.OwnerReference{{
-		APIVersion:         workloadDefinition.APIVersion,
-		Kind:               workloadDefinition.Kind,
-		Name:               workloadDefinition.Name,
-		UID:                workloadDefinition.GetUID(),
+		APIVersion:         componentDefinition.APIVersion,
+		Kind:               componentDefinition.Kind,
+		Name:               componentDefinition.Name,
+		UID:                componentDefinition.GetUID(),
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	return def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, workloadDefinition.Name, jsonSchema, ownerReference)
+	return def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, componentDefinition.Name, jsonSchema, ownerReference)
 }
 
 // CapabilityTraitDefinition is the Capability struct for TraitDefinition

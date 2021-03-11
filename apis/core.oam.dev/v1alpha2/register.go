@@ -37,6 +37,14 @@ var (
 	SchemeBuilder = &scheme.Builder{GroupVersion: SchemeGroupVersion}
 )
 
+// ComponentDefinition type metadata.
+var (
+	ComponentDefinitionKind             = reflect.TypeOf(ComponentDefinition{}).Name()
+	ComponentDefinitionGroupKind        = schema.GroupKind{Group: Group, Kind: ComponentDefinitionKind}.String()
+	ComponentDefinitionKindAPIVersion   = ComponentDefinitionKind + "." + SchemeGroupVersion.String()
+	ComponentDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(ComponentDefinitionKind)
+)
+
 // WorkloadDefinition type metadata.
 var (
 	WorkloadDefinitionKind             = reflect.TypeOf(WorkloadDefinition{}).Name()
@@ -118,6 +126,7 @@ var (
 )
 
 func init() {
+	SchemeBuilder.Register(&ComponentDefinition{}, &ComponentDefinitionList{})
 	SchemeBuilder.Register(&WorkloadDefinition{}, &WorkloadDefinitionList{})
 	SchemeBuilder.Register(&TraitDefinition{}, &TraitDefinitionList{})
 	SchemeBuilder.Register(&ScopeDefinition{}, &ScopeDefinitionList{})

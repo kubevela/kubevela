@@ -22,6 +22,8 @@ import (
 	"context"
 	"fmt"
 
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
@@ -50,6 +52,15 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	definitionName := req.NamespacedName.Name
 	klog.InfoS("Reconciling TraitDefinition...", "Name", definitionName, "Namespace", req.Namespace)
 	ctx := context.Background()
+
+	var traitdefinition v1alpha2.TraitDefinition
+	if err := r.Get(ctx, req.NamespacedName, &traitdefinition); err != nil {
+		if kerrors.IsNotFound(err) {
+			err = nil
+		}
+		return ctrl.Result{}, err
+	}
+
 	var def utils.CapabilityTraitDefinition
 	def.Name = req.NamespacedName.Name
 
