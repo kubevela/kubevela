@@ -309,7 +309,7 @@ var _ = Describe("HealthScope", func() {
 					healthScope.Status.ScopeHealthCondition)
 				return healthScope.Status.ScopeHealthCondition
 			},
-			time.Second*120, time.Second*5).Should(Equal(v1alpha2.ScopeHealthCondition{
+			time.Second*150, time.Second*5).Should(Equal(v1alpha2.ScopeHealthCondition{
 			HealthStatus:     v1alpha2.StatusHealthy,
 			Total:            int64(2),
 			HealthyWorkloads: int64(2),

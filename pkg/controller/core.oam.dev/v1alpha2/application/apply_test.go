@@ -17,7 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -133,10 +132,10 @@ var _ = Describe("Test Application apply", func() {
 		appConfig.Spec.Components[0].Traits = []v1alpha2.ComponentTrait{
 			{
 				Trait: runtime.RawExtension{
-					Object: &v1alpha1.MetricsTrait{
+					Object: &v1alpha2.ManualScalerTrait{
 						TypeMeta: metav1.TypeMeta{
-							Kind:       "MetricsTrait",
-							APIVersion: "standard.oam.dev/v1alpha1",
+							Kind:       "ManualScalerTrait",
+							APIVersion: "core.oam.dev/v1alpha2",
 						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      app.Name,
@@ -278,7 +277,7 @@ var _ = Describe("Test Application apply", func() {
 		appConfig.Spec.Components[0].Traits = []v1alpha2.ComponentTrait{
 			{
 				Trait: runtime.RawExtension{
-					Object: &v1alpha1.MetricsTrait{
+					Object: &v1alpha2.ManualScalerTrait{
 						TypeMeta: metav1.TypeMeta{
 							Kind:       "MetricsTrait",
 							APIVersion: "standard.oam.dev/v1alpha1",

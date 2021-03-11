@@ -69,7 +69,7 @@ func (def *CapabilityWorkloadDefinition) GetCapabilityObject(ctx context.Context
 	}
 	err := k8sClient.Get(ctx, objectKey, &workloadDefinition)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get WorkloadDefinition %s: %v", def.Name, err)
+		return nil, fmt.Errorf("failed to get WorkloadDefinition %s: %w", def.Name, err)
 	}
 	def.WorkloadDefinition = workloadDefinition
 	capability, err = util.ConvertTemplateJSON2Object(name, workloadDefinition.Spec.Extension, workloadDefinition.Spec.Schematic)
@@ -92,7 +92,7 @@ func (def *CapabilityWorkloadDefinition) GetOpenAPISchema(ctx context.Context, k
 func (def *CapabilityWorkloadDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string) error {
 	jsonSchema, err := def.GetOpenAPISchema(ctx, k8sClient, namespace, name)
 	if err != nil {
-		return fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %v", def.Name, err)
+		return fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
 	}
 	workloadDefinition := def.WorkloadDefinition
 	ownerReference := []metav1.OwnerReference{{
@@ -124,7 +124,7 @@ func (def *CapabilityTraitDefinition) GetCapabilityObject(ctx context.Context, k
 	}
 	err := k8sClient.Get(ctx, objectKey, &traitDefinition)
 	if err != nil {
-		return &capability, fmt.Errorf("failed to get WorkloadDefinition %s: %v", def.Name, err)
+		return &capability, fmt.Errorf("failed to get WorkloadDefinition %s: %w", def.Name, err)
 	}
 	def.TraitDefinition = traitDefinition
 	capability, err = util.ConvertTemplateJSON2Object(name, traitDefinition.Spec.Extension, traitDefinition.Spec.Schematic)
