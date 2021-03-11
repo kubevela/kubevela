@@ -35,4 +35,4 @@ ARG TARGETARCH
 COPY --from=builder /workspace/manager-${TARGETARCH} /manager
 USER nonroot:nonroot
 
-ENTRYPOINT ["/manager"]
+CMD ["/manager","--metrics-addr=:8080","--enable-leader-election"]

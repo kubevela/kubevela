@@ -64,7 +64,8 @@ metadata:
 ...
       containers:
         - name: oam
-          args:
+          command:
+            - "/manager"
             - "--metrics-addr=:8080"
             - "--enable-leader-election"
 +           - "--disable-caps=all"
