@@ -25,11 +25,9 @@ type WorkloadController interface {
 	// it returns the number of pods upgraded in this round
 	RolloutOneBatchPods(ctx context.Context) (*v1alpha1.RolloutStatus, error)
 
-	// CheckOneBatchPods tries to upgrade pods in the resources following the rollout plan
-	// it will upgrade as many pods as the rollout plan allows at once, the routine does not block on any operations.
-	// Instead, we rely on the go-client's requeue mechanism to drive this towards the spec goal
-	// it returns the number of pods upgraded in this round
-	CheckOneBatchPods(ctx context.Context) (*v1alpha1.RolloutStatus, error)
+	// CheckOneBatchPods checks how many pods are ready to serve requests in the current batch
+	// it returns whether the number of pods upgraded in this round satisfies the rollout plan
+	CheckOneBatchPods(ctx context.Context) (*v1alpha1.RolloutStatus, bool)
 
 	// FinalizeOneBatch makes sure that the rollout can start the next batch
 	// it also needs to handle the corner cases around the very last batch

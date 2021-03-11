@@ -178,9 +178,8 @@ func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadContro
 		// verifying if the application is ready to roll
 		// need to check if they meet the availability requirements in the rollout spec.
 		// TODO: evaluate any metrics/analysis
-		if r.rolloutStatus, err = workloadController.CheckOneBatchPods(ctx); err != nil {
-			r.rolloutStatus.RolloutFailing(err.Error())
-		} else {
+		finished := false
+		if r.rolloutStatus, finished = workloadController.CheckOneBatchPods(ctx); finished {
 			r.rolloutStatus.StateTransition(v1alpha1.OneBatchAvailableEvent)
 		}
 
@@ -291,8 +290,8 @@ func (r *Controller) finalizeOneBatch(ctx context.Context) {
 	} else {
 		klog.InfoS("finished one batch rollout", "current batch", r.rolloutStatus.CurrentBatch)
 		// th
-		r.recorder.Event(r.parentController, event.Normal("One batch is finalized",
-			fmt.Sprintf("the batch num = %d is ready", r.rolloutStatus.CurrentBatch)))
+		r.recorder.Event(r.parentController, event.Normal("Batch Finalized",
+			fmt.Sprintf("Batch %d is finalized and ready to go", r.rolloutStatus.CurrentBatch)))
 		r.rolloutStatus.StateTransition(v1alpha1.FinishedOneBatchEvent)
 	}
 }

@@ -126,11 +126,14 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 	MarkSourceAppRolling := func() {
 		By("Mark the application as rolling")
-		k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Name}, &app)
-		app.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(),
-			map[string]string{oam.AnnotationRollingComponent: app.Spec.Components[0].Name,
-				oam.AnnotationAppRollout: strconv.FormatBool(true)}))
-		Expect(k8sClient.Update(ctx, &app)).Should(Succeed())
+		Eventually(
+			func() error {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Name}, &app)
+				app.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(),
+					map[string]string{oam.AnnotationRollingComponent: app.Spec.Components[0].Name,
+						oam.AnnotationAppRollout: strconv.FormatBool(true)}))
+				return k8sClient.Update(ctx, &app)
+			}, time.Second*5, time.Millisecond*500).Should(Succeed())
 
 		VerifyAppConfigTemplated(1)
 	}

@@ -13,5 +13,5 @@ spec:
     rolloutStrategy: "IncreaseFirst"
     rolloutBatches:
       - replicas: 10%
-      - replicas: 20%
-      - replicas: 70%
+      - replicas: 2
+      - replicas: 2

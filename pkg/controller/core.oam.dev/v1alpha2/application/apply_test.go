@@ -96,11 +96,12 @@ var _ = Describe("Test Application apply", func() {
 		ctx := context.TODO()
 		By("[TEST] Test application without AC revision")
 		app.Name = "test-revision"
-		annoKey := "testKey"
+		annoKey1 := "testKey1"
+		annoKey2 := "testKey2"
 		Expect(handler.r.Create(ctx, app)).NotTo(HaveOccurred())
 		// Test create or update
 		appConfig := appConfig.DeepCopy()
-		appConfig.SetAnnotations(map[string]string{annoKey: strconv.FormatBool(true)})
+		appConfig.SetAnnotations(map[string]string{annoKey1: strconv.FormatBool(true)})
 		err := handler.createOrUpdateAppConfig(ctx, appConfig)
 		Expect(err).ToNot(HaveOccurred())
 		// verify
@@ -121,7 +122,7 @@ var _ = Describe("Test Application apply", func() {
 			types.NamespacedName{Namespace: ns.Name, Name: utils.ConstructRevisionName(app.Name, 1)},
 			curAC)).NotTo(HaveOccurred())
 		// check that the annotation/labels are correctly applied
-		Expect(curAC.GetAnnotations()[annoKey]).ShouldNot(BeEmpty())
+		Expect(curAC.GetAnnotations()[annoKey1]).ShouldNot(BeEmpty())
 		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
 		hashValue := curAC.GetLabels()[oam.LabelAppConfigHash]
 		Expect(hashValue).ShouldNot(BeEmpty())
@@ -145,8 +146,12 @@ var _ = Describe("Test Application apply", func() {
 				},
 			},
 		}
-		// this should not lead to a new AC, just replace and should not remove annotation
-		oamutil.RemoveAnnotations(appConfig, []string{annoKey})
+		// this should not lead to a new AC but replace it with a completely different one
+		// the entire annotation should be changed too
+		oamutil.RemoveAnnotations(appConfig, []string{annoKey1})
+		oamutil.AddAnnotations(appConfig, map[string]string{annoKey2: strconv.FormatBool(true)})
+		appConfig.SetAnnotations(map[string]string{})
+
 		err = handler.createOrUpdateAppConfig(ctx, appConfig)
 		Expect(err).ToNot(HaveOccurred())
 		// verify the app latest revision is not changed
@@ -171,7 +176,8 @@ var _ = Describe("Test Application apply", func() {
 		// check that the new app annotation exist and the hash value has changed
 		Expect(handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: curApp.Status.LatestRevision.Name},
 			curAC)).Should(Succeed())
-		Expect(curAC.GetAnnotations()[annoKey]).ShouldNot(BeEmpty())
+		Expect(curAC.GetAnnotations()[annoKey1]).Should(BeEmpty())
+		Expect(curAC.GetAnnotations()[annoKey2]).ShouldNot(BeEmpty())
 		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
 		Expect(curAC.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(Equal(hashValue))
 	})

@@ -271,30 +271,7 @@ func (h *appHandler) createOrUpdateAppConfig(ctx context.Context, appConfig *v1a
 			h.app.GetName(), "latest revision that does not exist", h.app.Status.LatestRevision.Name)
 		return h.createNewAppConfig(ctx, appConfig)
 	}
-	nextRevisionName, _ := utils.GetAppNextRevision(h.app)
-	if nextRevisionName == h.app.Status.LatestRevision.Name {
-		// we don't need to create another appConfig
-		h.logger.Info("replace the existing application config", "application name",
-			h.app.GetName(), "latest revision to be replaced", h.app.Status.LatestRevision.Name, "new hash value", specHashLabel)
-		appConfig.ResourceVersion = curAppConfig.ResourceVersion
-		appConfig.Name = nextRevisionName
-		oamutil.PassLabelAndAnnotation(&curAppConfig, appConfig)
-		// the above move will replace the appConfig's hash with the current one, need to set it back.
-		appConfig.SetLabels(oamutil.MergeMapOverrideWithDst(appConfig.GetLabels(),
-			map[string]string{
-				oam.LabelAppConfigHash: specHashLabel,
-			}))
-		h.app.Status.LatestRevision.RevisionHash = specHashLabel
-
-		// record that last appConfig we created first in the app's status
-		// make sure that we persist the latest revision first
-		if err := h.r.UpdateStatus(ctx, h.app); err != nil {
-			return err
-		}
-		// it ok if the update fails, we will update again in the next loop
-		return h.r.Update(ctx, appConfig)
-	}
-	// check if the old AC has the same HASH value
+	// check if the old AC has the same HASH value first, just replace lable/annotation if that's the case
 	if curAppConfig.GetLabels()[oam.LabelAppConfigHash] == appConfig.GetLabels()[oam.LabelAppConfigHash] {
 		// Just to be safe that it's not because of a random Hash collision
 		if apiequality.Semantic.DeepEqual(&curAppConfig.Spec, &appConfig.Spec) {
@@ -307,6 +284,24 @@ func (h *appHandler) createOrUpdateAppConfig(ctx context.Context, appConfig *v1a
 		h.logger.Info("encountered a different app spec with same hash", "current spec",
 			curAppConfig.Spec, "new appConfig spec", appConfig.Spec)
 	}
+	nextRevisionName, _ := utils.GetAppNextRevision(h.app)
+	if nextRevisionName == h.app.Status.LatestRevision.Name {
+		// we don't need to create another appConfig
+		h.logger.Info("replace the existing application config", "application name",
+			h.app.GetName(), "latest revision to be replaced", h.app.Status.LatestRevision.Name, "new hash value", specHashLabel)
+		appConfig.ResourceVersion = curAppConfig.ResourceVersion
+		appConfig.Name = nextRevisionName
+		h.app.Status.LatestRevision.RevisionHash = specHashLabel
+
+		// record that last appConfig we created first in the app's status
+		// make sure that we persist the latest revision first
+		if err := h.r.UpdateStatus(ctx, h.app); err != nil {
+			return err
+		}
+		// it ok if the update fails, we will update again in the next loop
+		return h.r.Update(ctx, appConfig)
+	}
+
 	// create the next version
 	h.logger.Info("create a new appConfig", "application name", h.app.GetName(),
 		"latest revision that does not match the appConfig", h.app.Status.LatestRevision.Name)
