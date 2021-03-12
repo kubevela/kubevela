@@ -8,13 +8,13 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
+	"github.com/oam-dev/kubevela/references/plugins"
 )
 
 // NewTraitsCommand creates `traits` command
 func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	var workloadName string
 	cmd := &cobra.Command{
-		Use:                   "traits [--apply-to WORKLOAD_NAME]",
+		Use:                   "traits",
 		DisableFlagsInUseLine: true,
 		Short:                 "List traits",
 		Long:                  "List traits",
@@ -27,7 +27,7 @@ func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			return printTraitList(env.Namespace, c, &workloadName, ioStreams)
+			return printTraitList(env.Namespace, c, ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
@@ -35,21 +35,20 @@ func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 	}
 
 	cmd.SetOut(ioStreams.Out)
-	cmd.Flags().StringVar(&workloadName, "apply-to", "", "Workload name")
 	return cmd
 }
 
-func printTraitList(userNamespace string, c types.Args, workloadName *string, ioStreams cmdutil.IOStreams) error {
+func printTraitList(userNamespace string, c types.Args, ioStreams cmdutil.IOStreams) error {
 	table := newUITable()
-	table.MaxColWidth = 120
 	table.Wrap = true
-	traitDefinitionList, err := common.ListTraitDefinitions(userNamespace, c, workloadName)
+
+	traitDefinitionList, err := common.ListRawTraitDefinitions(userNamespace, c)
 	if err != nil {
 		return err
 	}
-	table.AddRow("NAME", "DESCRIPTION", "APPLIES TO")
+	table.AddRow("NAME", "NAMESPACE", "APPLIES-TO", "CONFLICTS-WITH", "DESCRIPTION")
 	for _, t := range traitDefinitionList {
-		table.AddRow(t.Name, t.Description, strings.Join(t.AppliesTo, "\n"))
+		table.AddRow(t.Name, t.Namespace, strings.Join(t.Spec.AppliesToWorkloads, ","), strings.Join(t.Spec.ConflictsWith, ","), plugins.GetDescription(t.Annotations))
 	}
 	ioStreams.Info(table.String())
 	return nil

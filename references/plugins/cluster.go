@@ -157,6 +157,7 @@ func GetDescription(annotation map[string]string) string {
 	if !ok {
 		return DescriptionUndefined
 	}
+	desc = strings.ReplaceAll(desc, "\n", " ")
 	return desc
 }
 

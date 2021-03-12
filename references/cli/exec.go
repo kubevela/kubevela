@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/spf13/cobra"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -16,6 +14,7 @@ import (
 	cmdexec "k8s.io/kubectl/pkg/cmd/exec"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"

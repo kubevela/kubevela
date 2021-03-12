@@ -5,6 +5,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/references/common"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 
@@ -24,11 +25,7 @@ func NewWorkloadsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 			if err != nil {
 				return err
 			}
-			workloads, err := plugins.LoadInstalledCapabilityWithType(env.Namespace, c, types.TypeWorkload)
-			if err != nil {
-				return err
-			}
-			return printWorkloadList(workloads, ioStreams)
+			return printWorkloadList(env.Namespace, c, ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeCap,
@@ -38,12 +35,15 @@ func NewWorkloadsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	return cmd
 }
 
-func printWorkloadList(workloadList []types.Capability, ioStreams cmdutil.IOStreams) error {
+func printWorkloadList(userNamespace string, c types.Args, ioStreams cmdutil.IOStreams) error {
+	def, err := common.ListRawWorkloadDefinitions(userNamespace, c)
+	if err != nil {
+		return err
+	}
 	table := newUITable()
-	table.MaxColWidth = 120
-	table.AddRow("NAME", "DESCRIPTION")
-	for _, r := range workloadList {
-		table.AddRow(r.Name, r.Description)
+	table.AddRow("NAME", "NAMESPACE", "WORKLOAD", "DESCRIPTION")
+	for _, r := range def {
+		table.AddRow(r.Name, r.Namespace, r.Spec.Reference.Name, plugins.GetDescription(r.Annotations))
 	}
 	ioStreams.Info(table.String())
 	return nil

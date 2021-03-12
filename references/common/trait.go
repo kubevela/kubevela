@@ -1,12 +1,17 @@
 package common
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	plur "github.com/gertd/go-pluralize"
+	client2 "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 
@@ -23,6 +28,42 @@ func ListTraitDefinitions(userNamespace string, c types.Args, workloadName *stri
 	}
 	traitList = convertAllApplyToList(traits, workloads, workloadName)
 	return traitList, nil
+}
+
+// ListRawTraitDefinitions will list raw definition
+func ListRawTraitDefinitions(userNamespace string, c types.Args) ([]v1alpha2.TraitDefinition, error) {
+	client, err := c.GetClient()
+	if err != nil {
+		return nil, err
+	}
+	ctx := util.SetNamespaceInCtx(context.Background(), userNamespace)
+	traitList := v1alpha2.TraitDefinitionList{}
+	if err = client.List(ctx, &traitList, client2.InNamespace(userNamespace)); err != nil {
+		return nil, err
+	}
+	sysTraitList := v1alpha2.TraitDefinitionList{}
+	if err = client.List(ctx, &sysTraitList, client2.InNamespace(oam.SystemDefinitonNamespace)); err != nil {
+		return nil, err
+	}
+	return append(traitList.Items, sysTraitList.Items...), nil
+}
+
+// ListRawWorkloadDefinitions will list raw definition
+func ListRawWorkloadDefinitions(userNamespace string, c types.Args) ([]v1alpha2.WorkloadDefinition, error) {
+	client, err := c.GetClient()
+	if err != nil {
+		return nil, err
+	}
+	ctx := util.SetNamespaceInCtx(context.Background(), userNamespace)
+	workloadList := v1alpha2.WorkloadDefinitionList{}
+	if err = client.List(ctx, &workloadList); err != nil {
+		return nil, err
+	}
+	sysWorkloadList := v1alpha2.WorkloadDefinitionList{}
+	if err = client.List(ctx, &sysWorkloadList, client2.InNamespace(oam.SystemDefinitonNamespace)); err != nil {
+		return nil, err
+	}
+	return append(workloadList.Items, sysWorkloadList.Items...), nil
 }
 
 // GetTraitDefinition will get trait capability with applyTo converted
