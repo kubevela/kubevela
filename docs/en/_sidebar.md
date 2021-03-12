@@ -18,6 +18,7 @@
   - [Define Traits](/en/cue/trait.md)
   - [Advanced Features](/en/cue/status.md)
   - [Auto-generated Schema](/en/platform-engineers/openapi-v3-json-schema.md)
+  - [Development Guide](/en/cue/development-guide.md)
 
   - Using Helm
   - [Define Components](/en/helm/component.md)
