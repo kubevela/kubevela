@@ -30,7 +30,8 @@ func (h *ValidatingHandler) ValidateCreate(appRollout *v1alpha2.AppRollout) fiel
 		return allErrs
 	}
 
-	var targetApp, sourceApp v1alpha2.ApplicationConfiguration
+	var targetApp v1alpha2.ApplicationConfiguration
+	sourceApp := &v1alpha2.ApplicationConfiguration{}
 	targetAppName := appRollout.Spec.TargetAppRevisionName
 	if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appRollout.Namespace, Name: targetAppName},
 		&targetApp); err != nil {
@@ -43,15 +44,17 @@ func (h *ValidatingHandler) ValidateCreate(appRollout *v1alpha2.AppRollout) fiel
 	sourceAppName := appRollout.Spec.SourceAppRevisionName
 	if sourceAppName != "" {
 		if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appRollout.Namespace, Name: sourceAppName},
-			&sourceApp); err != nil {
+			sourceApp); err != nil {
 			klog.ErrorS(err, "cannot locate source application", "source application",
 				klog.KRef(appRollout.Namespace, sourceAppName))
 			allErrs = append(allErrs, field.NotFound(fldPath.Child("sourceApplicationName"), sourceAppName))
 		}
+	} else {
+		sourceApp = nil
 	}
 
 	// validate the component spec
-	allErrs = append(allErrs, validateComponent(appRollout.Spec.ComponentList, &targetApp, &sourceApp,
+	allErrs = append(allErrs, validateComponent(appRollout.Spec.ComponentList, &targetApp, sourceApp,
 		fldPath.Child("componentList"))...)
 
 	// validate the rollout plan spec

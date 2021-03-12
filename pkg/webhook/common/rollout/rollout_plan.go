@@ -1,6 +1,8 @@
 package rollout
 
 import (
+	"net/http"
+
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -61,6 +63,10 @@ func validateWebhook(rollout *v1alpha1.RolloutPlan, rootPath *field.Path) (allEr
 					rw.Type, "the rollout webhook type can only be initialize or finalize webhook"))
 			}
 			// TODO: check the URL/name uniqueness?
+			if rw.Method != http.MethodPost && rw.Method != http.MethodGet && rw.Method != http.MethodPut {
+				allErrs = append(allErrs, field.Invalid(webhookPath.Index(i),
+					rw.Method, "the rollout webhook method can only be Get/PUT/POST"))
+			}
 		}
 	}
 
