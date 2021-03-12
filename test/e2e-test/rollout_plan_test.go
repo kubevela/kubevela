@@ -177,7 +177,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 	}
 
 	VerifyRolloutOwnsCloneset := func() {
-		By("VerifySpec that rollout controller owns the cloneset")
+		By("Verify that rollout controller owns the cloneset")
 		Eventually(
 			func() string {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: clonesetName}, &kc)
@@ -218,7 +218,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		Expect(kc.Status.UpdatedReplicas).Should(BeEquivalentTo(*kc.Spec.Replicas))
 		Expect(kc.Status.UpdatedReadyReplicas).Should(BeEquivalentTo(*kc.Spec.Replicas))
 
-		By("VerifySpec AppConfig rolling status")
+		By("Verify AppConfig rolling status")
 		var appConfig v1alpha2.ApplicationConfiguration
 
 		Eventually(
@@ -230,7 +230,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 	}
 
 	VerifyAppConfigInactive := func(appConfigName string) {
-		By("VerifySpec AppConfig is inactive")
+		By("Verify AppConfig is inactive")
 		var appConfig v1alpha2.ApplicationConfiguration
 
 		Eventually(
@@ -278,13 +278,14 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
 				appRollout.Spec.SourceAppRevisionName = appConfig2.Name
 				appRollout.Spec.TargetAppRevisionName = appConfig3.Name
+				appRollout.Spec.RolloutPlan.BatchPartition = nil
 				return k8sClient.Update(ctx, &appRollout)
 			},
 			time.Second*5, time.Millisecond*500).Should(Succeed())
 
 		VerifyRolloutOwnsCloneset()
 
-		By("VerifySpec AppConfig rolling status")
+		By("Verify AppConfig rolling status")
 
 		VerifyRolloutSucceeded()
 
@@ -366,7 +367,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			},
 			time.Second*15, time.Millisecond*500).Should(BeEquivalentTo(batchPartition))
 
-		By("VerifySpec that the rollout stops at the first batch")
+		By("Verify that the rollout stops at the first batch")
 		// wait for the batch to be ready
 		Eventually(
 			func() oamstd.BatchRollingState {
@@ -425,7 +426,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				return err
 			},
 			time.Second*5, time.Millisecond*500).Should(Succeed())
-		By("VerifySpec that the rollout pauses")
+		By("Verify that the rollout pauses")
 		// wait for the batch to be ready
 		Eventually(
 			func() corev1.ConditionStatus {
@@ -500,7 +501,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		RevertBackToSource()
 	})
 
-	PIt("Test rolling back after a failed rollout", func() {
+	It("Test rolling back after a failed rollout", func() {
 		ApplyTwoAppVersion()
 
 		By("Apply the application rollout that stops after the first batche")
@@ -527,14 +528,14 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			},
 			time.Second*60, time.Millisecond*500).Should(BeEquivalentTo(batchPartition))
 
-		By("VerifySpec that the rollout stops")
+		By("Verify that the rollout stops")
 		// wait for the batch to be ready
 		Eventually(
 			func() oamstd.BatchRollingState {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
 				return appRollout.Status.BatchRollingState
 			},
-			time.Second*30, time.Millisecond*500).Should(Equal(oamstd.BatchReadyState))
+			time.Second*60, time.Millisecond*500).Should(Equal(oamstd.BatchReadyState))
 
 		By("Move back the partition to cause the rollout to fail")
 		Eventually(
@@ -543,7 +544,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				appRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(0)
 				return k8sClient.Update(ctx, &appRollout)
 			},
-			time.Second*30, time.Millisecond*500).Should(Succeed())
+			time.Second*15, time.Millisecond*500).Should(Succeed())
 
 		By("Wait for the rollout phase change to fail")
 		Eventually(
@@ -551,7 +552,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: newAppRollout.Name}, &appRollout)
 				return appRollout.Status.RollingState
 			},
-			time.Second*5, time.Millisecond*500).Should(BeEquivalentTo(oamstd.RolloutFailedState))
+			time.Second*10, time.Millisecond*500).Should(BeEquivalentTo(oamstd.RolloutFailedState))
 
 		RevertBackToSource()
 	})
