@@ -1,9 +1,30 @@
 # Automatically scale workloads by resource utilization metrics and cron
 
-> Note: autoscale is one of the extension capabilities [installed from cap center](../cap-center.md),
-> please install it if you can't find it in `vela traits`.
+
+
+## Prerequisite
+Make sure auto-scaler trait controller is installed in your cluster
+
+Install auto-scaler trait controller with helm
+
+1. Add helm chart repo for autoscaler trait
+    ```shell script
+    helm repo add oam.catalog  http://oam.dev/catalog/
+    ```
+
+2. Update the chart repo
+    ```shell script
+    helm repo update
+    ```
+
+3. Install autoscaler trait  controller
+    ```shell script
+    helm install --create-namespace -n vela-system autoscalertrait oam.catalog/autoscalertrait
 
 Autoscale depends on metrics server, please [enable it in your Kubernetes cluster](../references/devex/faq.md#autoscale-how-to-enable-metrics-server-in-various-kubernetes-clusters) at the beginning.
+
+> Note: autoscale is one of the extension capabilities [installed from cap center](../cap-center.md),
+> please install it if you can't find it in `vela traits`.
 
 ## Setting cron auto-scaling policy
 Introduce how to automatically scale workloads by cron.

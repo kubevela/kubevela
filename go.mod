@@ -52,7 +52,6 @@ require (
 	github.com/ugorji/go v1.2.1 // indirect
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.3
-	github.com/wonderflow/keda-api v0.0.0-20201026084048-e7c39fa208e8
 	go.uber.org/zap v1.15.0
 	golang.org/x/crypto v0.0.0-20201208171446-5f87f3452ae9 // indirect
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect

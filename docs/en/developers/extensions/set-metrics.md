@@ -1,12 +1,36 @@
 # Monitoring Application
 
-> Note: metrics is one of the extension capabilities [installed from cap center](../cap-center.md),
-> please install it if you can't find it in `vela traits`.
 
 If your application has exposed metrics, you can easily tell the platform how to collect the metrics data from your app with `metrics` capability.
 
+## Prerequisite
+Make sure metrics trait controller is installed in your cluster
+
+Install metrics trait controller with helm
+
+1. Add helm chart repo for metrics trait
+    ```shell script
+    helm repo add oam.catalog  http://oam.dev/catalog/
+    ```
+
+2. Update the chart repo
+    ```shell script
+    helm repo update
+    ```
+
+3. Install metrics trait controller
+    ```shell script
+    helm install --create-namespace -n vela-system metricstrait oam.catalog/metricstrait
+
+
+> Note: metrics is one of the extension capabilities [installed from cap center](../cap-center.md),
+> please install it if you can't find it in `vela traits`.
+
+## Setting metrics policy
 Let's run [`christianhxc/gorandom:1.0`](https://github.com/christianhxc/prometheus-tutorial) as an example app.
 The app will emit random latencies as metrics.
+
+
 
 
 1. Prepare Appfile:
