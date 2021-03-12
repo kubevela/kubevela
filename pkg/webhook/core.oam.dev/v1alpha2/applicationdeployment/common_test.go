@@ -29,14 +29,20 @@ var _ = Describe("Application Deployment Common Function Test", func() {
 			}
 		})
 
-		It("Test has one common component", func() {
+		It("Test source app is nil", func() {
+			fillApplication(&targetApp.Spec, []string{"a", "b", "c"})
+			common := FindCommonComponent(targetApp, nil)
+			Expect(common).Should(BeEquivalentTo([]string{"a", "b", "c"}))
+		})
+
+		It("Test has one component", func() {
 			fillApplication(&targetApp.Spec, []string{"a", "b", "c"})
 			fillApplication(&sourceApp.Spec, []string{"c"})
 			common := FindCommonComponent(targetApp, sourceApp)
 			Expect(common).Should(BeEquivalentTo([]string{"c"}))
 		})
 
-		It("Test has one components", func() {
+		It("Test has one common components", func() {
 			fillApplication(&targetApp.Spec, []string{"a", "b", "c"})
 			fillApplication(&sourceApp.Spec, []string{"d", "c"})
 			common := FindCommonComponent(targetApp, sourceApp)
@@ -44,23 +50,17 @@ var _ = Describe("Application Deployment Common Function Test", func() {
 		})
 
 		It("Test has more than 1 common component", func() {
-			fillApplication(&targetApp.Spec, []string{"a", "b", "c"})
-			fillApplication(&sourceApp.Spec, []string{"b", "c"})
+			fillApplication(&targetApp.Spec, []string{"b", "a", "c"})
+			fillApplication(&sourceApp.Spec, []string{"c", "b"})
 			common := FindCommonComponent(targetApp, sourceApp)
-			Expect(common).Should(BeEquivalentTo([]string{"b", "c"}))
+			Expect(common).Should(BeEquivalentTo([]string{"c", "b"}))
 		})
 
 		It("Test has more than 1 common component", func() {
 			fillApplication(&targetApp.Spec, []string{"a", "b", "c"})
-			fillApplication(&sourceApp.Spec, []string{"a", "c", "d", "e"})
+			fillApplication(&sourceApp.Spec, []string{"d", "e", "c", "a"})
 			common := FindCommonComponent(targetApp, sourceApp)
-			Expect(common).Should(BeEquivalentTo([]string{"a", "c"}))
-		})
-
-		It("Test there is no source application", func() {
-			fillApplication(&targetApp.Spec, []string{"a", "b", "c"})
-			common := FindCommonComponent(targetApp, nil)
-			Expect(common).Should(BeEquivalentTo([]string{"a", "b", "c"}))
+			Expect(common).Should(BeEquivalentTo([]string{"c", "a"}))
 		})
 	})
 })

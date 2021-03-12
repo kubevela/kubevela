@@ -460,9 +460,9 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
 		lt = appRollout.Status.GetCondition(oamstd.RolloutSucceed).LastTransitionTime
 
-		// move the batch partition back to 1 to see if it will roll again
+		// move the batch partition back but should be rejected
 		appRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(0)
-		Expect(k8sClient.Update(ctx, &appRollout)).Should(Succeed())
+		Expect(k8sClient.Update(ctx, &appRollout)).ShouldNot(Succeed())
 
 		// nothing should happen, the transition time should be the same
 		VerifyRolloutSucceeded()
