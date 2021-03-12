@@ -210,7 +210,7 @@ spec:
                     type: object
                   type: array
                 rolloutStrategy:
-                  description: RolloutStrategy defines strategies for the rollout plan
+                  description: RolloutStrategy defines strategies for the rollout plan The default is IncreaseFirstRolloutStrategyType
                   type: string
                 rolloutWebhooks:
                   description: RolloutWebhooks provide a way for the rollout to interact with an external process

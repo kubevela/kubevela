@@ -101,16 +101,20 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 
 	switch r.rolloutStatus.RollingState {
 	case v1alpha1.VerifyingSpecState:
-		if err = workloadController.VerifySpec(ctx); err != nil {
+		verified, err := workloadController.VerifySpec(ctx)
+		if err != nil {
 			// we can fail it right away, everything after initialized need to be finalized
 			r.rolloutStatus.RolloutFailed(err.Error())
-		} else {
+		} else if verified {
 			r.rolloutStatus.StateTransition(v1alpha1.RollingSpecVerifiedEvent)
 		}
 
 	case v1alpha1.InitializingState:
-		if err := r.initializeRollout(ctx); err == nil {
-			if err = workloadController.Initialize(ctx); err == nil {
+		if err = r.initializeRollout(ctx); err == nil {
+			initialized, err := workloadController.Initialize(ctx)
+			if err != nil {
+				r.rolloutStatus.RolloutFailing(err.Error())
+			} else if initialized {
 				r.rolloutStatus.StateTransition(v1alpha1.RollingInitializedEvent)
 			}
 		}
@@ -119,13 +123,12 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 		r.reconcileBatchInRolling(ctx, workloadController)
 
 	case v1alpha1.RolloutFailingState:
-		if err = workloadController.Finalize(ctx, false); err == nil {
+		if succeed := workloadController.Finalize(ctx, false); succeed {
 			r.finalizeRollout(ctx)
 		}
 
 	case v1alpha1.FinalisingState:
-		if err = workloadController.Finalize(ctx, true); err == nil {
-			// if we are still going to finalize it
+		if succeed := workloadController.Finalize(ctx, false); succeed {
 			r.finalizeRollout(ctx)
 		}
 
@@ -144,7 +147,6 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 
 // reconcile logic when we are in the middle of rollout, we have to go through finalizing state before succeed or fail
 func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadController workloads.WorkloadController) {
-
 	if r.rolloutSpec.Paused {
 		r.recorder.Event(r.parentController, event.Normal("Rollout paused", "Rollout paused"))
 		r.rolloutStatus.SetConditions(v1alpha1.NewPositiveCondition(v1alpha1.BatchPaused))
@@ -164,9 +166,10 @@ func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadContro
 
 	case v1alpha1.BatchInRollingState:
 		//  still rolling the batch, the batch rolling is not completed yet
-		if err = workloadController.RolloutOneBatchPods(ctx); err != nil {
+		upgradeDone, err := workloadController.RolloutOneBatchPods(ctx)
+		if err != nil {
 			r.rolloutStatus.RolloutFailing(err.Error())
-		} else {
+		} else if upgradeDone {
 			r.rolloutStatus.StateTransition(v1alpha1.RolloutOneBatchEvent)
 		}
 
@@ -175,16 +178,19 @@ func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadContro
 		// need to check if they meet the availability requirements in the rollout spec.
 		// TODO: evaluate any metrics/analysis
 		// TODO: We may need to go back to rollout again if the size of the resource can change behind our back
-		finished := false
-		if finished = workloadController.CheckOneBatchPods(ctx); finished {
+		verified, err := workloadController.CheckOneBatchPods(ctx)
+		if err != nil {
+			r.rolloutStatus.RolloutFailing(err.Error())
+		} else if verified {
 			r.rolloutStatus.StateTransition(v1alpha1.OneBatchAvailableEvent)
 		}
 
 	case v1alpha1.BatchFinalizingState:
 		// finalize one batch
-		if err = workloadController.FinalizeOneBatch(ctx); err != nil {
+		finalized, err := workloadController.FinalizeOneBatch(ctx)
+		if err != nil {
 			r.rolloutStatus.RolloutFailing(err.Error())
-		} else {
+		} else if finalized {
 			r.finalizeOneBatch(ctx)
 		}
 

@@ -75,6 +75,7 @@ const (
 type RolloutPlan struct {
 
 	// RolloutStrategy defines strategies for the rollout plan
+	// The default is IncreaseFirstRolloutStrategyType
 	// +optional
 	RolloutStrategy *RolloutStrategyType `json:"rolloutStrategy,omitempty"`
 
