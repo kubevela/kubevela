@@ -17,6 +17,7 @@
         - [Workload Type](/en/cue/workload-type.md)
         - [Trait](/en/cue/trait.md)
         - [Advanced Features](/en/cue/status.md)
+        - [Development Guide](/en/cue/development-guide.md)
 
 - Roadmap
   - [KubeVela Roadmap](/en/roadmap.md)
