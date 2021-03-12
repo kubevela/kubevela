@@ -1,5 +1,23 @@
 # Automatically scale workloads by resource utilization metrics and cron
 
+## Prerequisite
+Make sure auto-scaler trait controller is installed in your cluster
+
+Install auto-scaler trait controller with helm
+
+1. Add helm chart repo for autoscaler trait
+    ```shell script
+    helm repo add oam.catalog  http://oam.dev/catalog/
+    ```
+
+2. Update the chart repo
+    ```shell script
+    helm repo update
+    ```
+
+3. Install autoscaler trait  controller
+    ```shell script
+    helm install --create-namespace -n vela-system autoscalertrait oam.catalog/autoscalertrait
 > Note: autoscale is one of the extension capabilities [installed from cap center](../cap-center.md),
 > please install it if you can't find it in `vela traits`.
 
