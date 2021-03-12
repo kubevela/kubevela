@@ -17,10 +17,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 )
 
 var _ = Describe("ContainerizedWorkload", func() {
