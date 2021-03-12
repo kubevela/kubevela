@@ -51,18 +51,6 @@ spec:
                 - kind
                 type: object
               type: array
-            definitionRef:
-              description: Reference to the CustomResourceDefinition that defines this workload kind.
-              properties:
-                name:
-                  description: Name of the referenced CustomResourceDefinition.
-                  type: string
-                version:
-                  description: Version indicate which version should be used if CRD has multiple versions by default it will use the first one if not specified
-                  type: string
-              required:
-              - name
-              type: object
             extension:
               description: Extension is used for extension needs by OAM platform builders
               type: object
@@ -96,8 +84,24 @@ spec:
                   description: HealthPolicy defines the health check policy for the abstraction
                   type: string
               type: object
-          required:
-          - definitionRef
+            workload:
+              description: Workload is a workload type descriptor
+              properties:
+                definition:
+                  description: Definition mutually exclusive to workload.type, a embedded WorkloadDefinition
+                  properties:
+                    apiVersion:
+                      type: string
+                    kind:
+                      type: string
+                  required:
+                  - apiVersion
+                  - kind
+                  type: object
+                type:
+                  description: Type ref to a WorkloadDefinition via name
+                  type: string
+              type: object
           type: object
         status:
           description: ComponentDefinitionStatus is the status of ComponentDefinition
@@ -130,11 +134,11 @@ spec:
                 - type
                 type: object
               type: array
-            workloadDefinitionDef:
-              description: workloadRef refers to the active WorkloadDefinition
+            configMapRef:
+              description: ConfigMapRef refer to ConfigMap contain OpenAPI V3 JSON schema
               type: string
           required:
-          - workloadDefinitionDef
+          - configMapRef
           type: object
       type: object
   version: v1alpha2

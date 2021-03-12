@@ -103,7 +103,11 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	return def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, componentDefinition.Name, jsonSchema, ownerReference)
+	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, componentDefinition.Name, jsonSchema, ownerReference)
+	if err == nil {
+		def.ComponentDefinition.Status.ConfigMapRef = cmName
+	}
+	return err
 }
 
 // CapabilityTraitDefinition is the Capability struct for TraitDefinition
@@ -159,7 +163,11 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 		Controller:         pointer.BoolPtr(true),
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
-	return def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, traitDefinition.Name, jsonSchema, ownerReference)
+	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, traitDefinition.Name, jsonSchema, ownerReference)
+	if err == nil {
+		def.TraitDefinition.Status.ConfigMapRef = cmName
+	}
+	return err
 }
 
 // CapabilityBaseDefinition is the base struct for CapabilityWorkloadDefinition and CapabilityTraitDefinition
@@ -167,7 +175,7 @@ type CapabilityBaseDefinition struct {
 }
 
 // CreateOrUpdateConfigMap creates ConfigMap to store OpenAPI v3 schema or or updates data in ConfigMap
-func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context, k8sClient client.Client, namespace, definitionName string, jsonSchema []byte, ownerReferences []metav1.OwnerReference) error {
+func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context, k8sClient client.Client, namespace, definitionName string, jsonSchema []byte, ownerReferences []metav1.OwnerReference) (string, error) {
 	cmName := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, definitionName)
 	var cm v1.ConfigMap
 	var data = map[string]string{
@@ -194,16 +202,16 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 		}
 		err = k8sClient.Create(ctx, &cm)
 		if err != nil {
-			return fmt.Errorf(util.ErrUpdateCapabilityInConfigMap, definitionName, err)
+			return cmName, fmt.Errorf(util.ErrUpdateCapabilityInConfigMap, definitionName, err)
 		}
-		return nil
+		return cmName, nil
 	}
 
 	cm.Data = data
 	if err = k8sClient.Update(ctx, &cm); err != nil {
-		return fmt.Errorf(util.ErrUpdateCapabilityInConfigMap, definitionName, err)
+		return cmName, fmt.Errorf(util.ErrUpdateCapabilityInConfigMap, definitionName, err)
 	}
-	return nil
+	return cmName, nil
 }
 
 // getDefinition is the main function for GetDefinition API

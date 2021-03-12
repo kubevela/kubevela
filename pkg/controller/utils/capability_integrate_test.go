@@ -208,7 +208,7 @@ spec:
 				Controller:         pointer.BoolPtr(true),
 				BlockOwnerDeletion: pointer.BoolPtr(true),
 			}}
-			err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, definitionName, []byte(""), ownerReference)
+			_, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, definitionName, []byte(""), ownerReference)
 			Expect(err).Should(BeNil())
 		})
 	})

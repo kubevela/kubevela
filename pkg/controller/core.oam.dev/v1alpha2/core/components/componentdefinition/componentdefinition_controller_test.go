@@ -51,8 +51,8 @@ metadata:
   annotations:
     definition.oam.dev/description: "test"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    type: deployments.app
   schematic:
     cue:
       template: |
@@ -113,8 +113,8 @@ metadata:
   annotations:
     definition.oam.dev/description: "test"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    type: deployments.app
   schematic:
     cue:
       template: |
@@ -169,6 +169,12 @@ spec:
 				return err == nil
 			}, 10*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+
+			By("Check whether ConfigMapRef refer to right")
+			Eventually(func() string {
+				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: def.Namespace, Name: def.Name}, &def)
+				return def.Status.ConfigMapRef
+			}, 10*time.Second, time.Second).Should(Equal(name))
 		})
 	})
 
@@ -198,8 +204,8 @@ metadata:
   annotations:
     definition.oam.dev/description: "test"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    type: deployments.app
   schematic:
     cue:
       template: |
@@ -252,6 +258,12 @@ spec:
 				return err == nil
 			}, 10*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+
+			By("Check whether ConfigMapRef refer to right")
+			Eventually(func() string {
+				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: def.Namespace, Name: def.Name}, &def)
+				return def.Status.ConfigMapRef
+			}, 10*time.Second, time.Second).Should(Equal(name))
 		})
 	})
 
@@ -279,8 +291,8 @@ metadata:
   annotations:
     definition.oam.dev/description: "test"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    type: deployments.app
   schematic:
     cue:
       template: |

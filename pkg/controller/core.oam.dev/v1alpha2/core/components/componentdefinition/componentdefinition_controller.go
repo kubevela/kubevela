@@ -76,6 +76,12 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.ComponentDefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
 	}
+
+	if err := r.Update(ctx, &def.ComponentDefinition); err != nil {
+		klog.ErrorS(err, "cannot update componentDefinition ConfigMapRef Field")
+		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot update ComponentDefinition ConfigMapRef Field", err))
+	}
+
 	klog.Info("Successfully stored Capability Schema in ConfigMap")
 	return ctrl.Result{}, nil
 }

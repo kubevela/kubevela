@@ -17,11 +17,10 @@ limitations under the License.
 package v1alpha2
 
 import (
+	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 )
 
 // CUE defines the encapsulation in CUE format
@@ -60,12 +59,26 @@ type ChildResourceKind struct {
 	Selector map[string]string `json:"selector,omitempty"`
 }
 
+// A WorkloadTypeDescriptor refer to a Workload Type
+type WorkloadTypeDescriptor struct {
+	// Type ref to a WorkloadDefinition via name
+	Type string `json:"type,omitempty"`
+	// Definition mutually exclusive to workload.type, a embedded WorkloadDefinition
+	Definition WorkloadGVK `json:"definition,omitempty"`
+}
+
+// WorkloadGVK refer to a Workload Type
+type WorkloadGVK struct {
+	APIVersion string `json:"apiVersion"`
+	Kind       string `json:"kind"`
+}
+
 // ComponentDefinitionSpec defines the desired state of ComponentDefinition
 // +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
 // +kubebuilder:resource:scope=Namespaced,categories={crossplane,oam}
 type ComponentDefinitionSpec struct {
-	// Reference to the CustomResourceDefinition that defines this workload kind.
-	Reference DefinitionReference `json:"definitionRef"`
+	// Workload is a workload type descriptor
+	Workload WorkloadTypeDescriptor `json:"workload,omitempty"`
 
 	// ChildResourceKinds are the list of GVK of the child resources this workload generates
 	ChildResourceKinds []ChildResourceKind `json:"childResourceKinds,omitempty"`
@@ -96,9 +109,10 @@ type ComponentDefinitionSpec struct {
 
 // ComponentDefinitionStatus is the status of ComponentDefinition
 type ComponentDefinitionStatus struct {
+	// ConditionedStatus reflects the observed status of a resource
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
-	// workloadRef refers to the active WorkloadDefinition
-	WorkloadDefinitionRef string `json:"workloadDefinitionDef"`
+	// ConfigMapRef refer to ConfigMap contain OpenAPI V3 JSON schema
+	ConfigMapRef string `json:"configMapRef"`
 }
 
 // +kubebuilder:object:root=true
@@ -259,6 +273,13 @@ type TraitDefinitionSpec struct {
 	Extension *runtime.RawExtension `json:"extension,omitempty"`
 }
 
+type TraitDefinitionStatus struct {
+	// ConditionedStatus reflects the observed status of a resource
+	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	// ConfigMapRef refer to ConfigMap contain OpenAPI V3 JSON schema
+	ConfigMapRef string `json:"configMapRef"`
+}
+
 // +kubebuilder:object:root=true
 
 // A TraitDefinition registers a kind of Kubernetes custom resource as a valid
@@ -271,8 +292,8 @@ type TraitDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TraitDefinitionSpec `json:"spec,omitempty"`
-	Status CapabilityStatus    `json:"status,omitempty"`
+	Spec   TraitDefinitionSpec   `json:"spec,omitempty"`
+	Status TraitDefinitionStatus `json:"status,omitempty"`
 }
 
 // SetConditions set condition for TraitDefinition

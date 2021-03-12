@@ -96,7 +96,6 @@ spec:
                 type: string
             type: object
           status:
-            description: CapabilityStatus is the status of WorkloadDefinition and TraitDefinition
             properties:
               conditions:
                 description: Conditions of the resource.
@@ -126,6 +125,11 @@ spec:
                   - type
                   type: object
                 type: array
+              configMapRef:
+                description: ConfigMapRef refer to ConfigMap contain OpenAPI V3 JSON schema
+                type: string
+            required:
+            - configMapRef
             type: object
         type: object
     served: true
