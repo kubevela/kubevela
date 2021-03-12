@@ -18,11 +18,12 @@ type APIServer struct {
 	server     *http.Server
 	KubeClient client.Client
 	dm         discoverymapper.DiscoveryMapper
+	c          types.Args
 }
 
 // New will create APIServer
 func New(c types.Args, port, staticPath string) (*APIServer, error) {
-	newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+	newClient, err := c.GetClient()
 	if err != nil {
 		return nil, err
 	}
@@ -33,6 +34,7 @@ func New(c types.Args, port, staticPath string) (*APIServer, error) {
 	s := &APIServer{
 		KubeClient: newClient,
 		dm:         dm,
+		c:          c,
 	}
 	server := &http.Server{
 		Addr:         port,

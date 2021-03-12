@@ -63,7 +63,8 @@ func (s *APIServer) DeleteCapabilityCenter(c *gin.Context) {
 // RemoveCapabilityFromCluster remove a specific capability from cluster
 func (s *APIServer) RemoveCapabilityFromCluster(c *gin.Context) {
 	capabilityCenterName := c.Param("capabilityName")
-	msg, err := common.RemoveCapabilityFromCluster(s.KubeClient, capabilityCenterName)
+	// TODO get namespace from env
+	msg, err := common.RemoveCapabilityFromCluster("default", s.c, s.KubeClient, capabilityCenterName)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
@@ -74,7 +75,7 @@ func (s *APIServer) RemoveCapabilityFromCluster(c *gin.Context) {
 // ListCapabilities lists capabilities of a capability center
 func (s *APIServer) ListCapabilities(c *gin.Context) {
 	capabilityCenterName := c.Param("capabilityName")
-	capabilityList, err := common.ListCapabilities(capabilityCenterName)
+	capabilityList, err := common.ListCapabilities("default", s.c, capabilityCenterName)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return

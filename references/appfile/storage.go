@@ -33,11 +33,6 @@ func GetStorage() *Storage {
 	return store
 }
 
-// List applications storage common implement
-func (s *Storage) List(envName string) ([]*api.Application, error) {
-	return s.Driver.List(envName)
-}
-
 // Save application storage common implement
 func (s *Storage) Save(app *api.Application, envName string) error {
 	return s.Driver.Save(app, envName)
@@ -46,9 +41,4 @@ func (s *Storage) Save(app *api.Application, envName string) error {
 // Delete application storage common implement
 func (s *Storage) Delete(envName, appName string) error {
 	return s.Driver.Delete(envName, appName)
-}
-
-// Get application storage common implement
-func (s *Storage) Get(envName, appName string) (*api.Application, error) {
-	return s.Driver.Get(envName, appName)
 }

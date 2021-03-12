@@ -183,7 +183,11 @@ func setDisplayFormat(format string) {
 
 // GenerateReferenceDocs generates reference docs
 func (ref *MarkdownReference) GenerateReferenceDocs(baseRefPath string) error {
-	caps, err := LoadAllInstalledCapability()
+	c, err := common.InitBaseRestConfig()
+	if err != nil {
+		return err
+	}
+	caps, err := LoadAllInstalledCapability("default", c)
 	if err != nil {
 		return fmt.Errorf("failed to generate reference docs for all capabilities: %w", err)
 	}

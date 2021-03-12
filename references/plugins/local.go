@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -14,8 +15,8 @@ import (
 )
 
 // LoadCapabilityByName will load capability from local by name
-func LoadCapabilityByName(name string) (types.Capability, error) {
-	caps, err := LoadAllInstalledCapability()
+func LoadCapabilityByName(name string, userNamespace string, c types.Args) (types.Capability, error) {
+	caps, err := LoadAllInstalledCapability(userNamespace, c)
 	if err != nil {
 		return types.Capability{}, err
 	}
@@ -28,26 +29,49 @@ func LoadCapabilityByName(name string) (types.Capability, error) {
 }
 
 // LoadAllInstalledCapability will list all capability
-func LoadAllInstalledCapability() ([]types.Capability, error) {
-	workloads, err := LoadInstalledCapabilityWithType(types.TypeWorkload)
+func LoadAllInstalledCapability(userNamespace string, c types.Args) ([]types.Capability, error) {
+	caps, err := GetCapabilitiesFromCluster(context.TODO(), userNamespace, c, nil)
 	if err != nil {
 		return nil, err
 	}
-	traits, err := LoadInstalledCapabilityWithType(types.TypeTrait)
+	systemCaps, err := GetCapabilitiesFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
 	if err != nil {
 		return nil, err
 	}
-	workloads = append(workloads, traits...)
-	return workloads, nil
+	caps = append(caps, systemCaps...)
+	return caps, nil
 }
 
 // LoadInstalledCapabilityWithType will load cap list by type
-func LoadInstalledCapabilityWithType(capT types.CapType) ([]types.Capability, error) {
-	dir, err := system.GetCapabilityDir()
-	if err != nil {
-		return nil, err
+func LoadInstalledCapabilityWithType(userNamespace string, c types.Args, capT types.CapType) ([]types.Capability, error) {
+	switch capT {
+	case types.TypeWorkload:
+		caps, _, err := GetWorkloadsFromCluster(context.TODO(), userNamespace, c, nil)
+		if err != nil {
+			return nil, err
+		}
+		systemCaps, _, err := GetWorkloadsFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
+		if err != nil {
+			return nil, err
+		}
+		caps = append(caps, systemCaps...)
+		return caps, nil
+	case types.TypeTrait:
+		caps, _, err := GetTraitsFromCluster(context.TODO(), userNamespace, c, nil)
+		if err != nil {
+			return nil, err
+		}
+		systemCaps, _, err := GetTraitsFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
+		if err != nil {
+			return nil, err
+		}
+		caps = append(caps, systemCaps...)
+		return caps, nil
+	case types.TypeScope:
+
 	}
-	return loadInstalledCapabilityWithType(dir, capT)
+
+	return nil, nil
 }
 
 // GetInstalledCapabilityWithCapName will get cap by alias
@@ -210,7 +234,7 @@ func LoadCapabilityFromSyncedCenter(dir string) ([]types.Capability, error) {
 			fmt.Printf("read file %s err %v\n", f.Name(), err)
 			continue
 		}
-		tmp, err := ParseAndSyncCapability(data, filepath.Join(dir, ".tmp"))
+		tmp, err := ParseAndSyncCapability(data)
 		if err != nil {
 			fmt.Printf("get definition of %s err %v\n", f.Name(), err)
 			continue

@@ -15,11 +15,11 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
-	"github.com/oam-dev/kubevela/references/appfile/api"
 )
 
 // NewLogsCommand creates `logs` command to tail logs of application
@@ -45,7 +45,7 @@ func NewLogsCommand(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		app, err := appfile.LoadApplication(env.Name, args[0])
+		app, err := appfile.LoadApplication(env.Namespace, args[0], c)
 		if err != nil {
 			return err
 		}
@@ -69,7 +69,7 @@ type Args struct {
 	Output string
 	Env    *types.EnvMeta
 	C      types.Args
-	App    *api.Application
+	App    *v1alpha2.Application
 }
 
 // Run refer to the implementation at https://github.com/oam-dev/stern/blob/master/stern/main.go

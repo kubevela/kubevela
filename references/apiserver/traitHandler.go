@@ -1,22 +1,12 @@
 package apiserver
 
 import (
-	"context"
-	"os"
-	"strconv"
-
 	"github.com/gin-gonic/gin"
-	"github.com/spf13/pflag"
-	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/oam-dev/kubevela/apis/types"
-	env2 "github.com/oam-dev/kubevela/pkg/utils/env"
-	util2 "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/apiserver/apis"
 	"github.com/oam-dev/kubevela/references/apiserver/util"
-	"github.com/oam-dev/kubevela/references/appfile/api"
 	"github.com/oam-dev/kubevela/references/common"
-	"github.com/oam-dev/kubevela/references/plugins"
 )
 
 // AttachTrait attaches a trait to a component
@@ -30,13 +20,8 @@ func (s *APIServer) AttachTrait(c *gin.Context) {
 		util.HandleError(c, util.InvalidArgument, "the trait attach request body is invalid")
 		return
 	}
-	ctrl.Log.Info("request parameters body:", "body", body)
-	msg, err := s.DoAttachTrait(c, body)
-	if err != nil {
-		util.HandleError(c, util.StatusInternalServerError, err.Error())
-		return
-	}
-	util.AssembleResponse(c, msg, nil)
+
+	util.AssembleResponse(c, "deprecated, please use appfile to update", nil)
 }
 
 // GetTrait gets a trait by name
@@ -46,7 +31,7 @@ func (s *APIServer) GetTrait(c *gin.Context) {
 	var capability types.Capability
 	var err error
 
-	if capability, err = common.GetTraitDefinition(&workloadType, traitType); err != nil {
+	if capability, err = common.GetTraitDefinition("default", s.c, &workloadType, traitType); err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
 	}
@@ -58,7 +43,7 @@ func (s *APIServer) ListTrait(c *gin.Context) {
 	var traitList []types.Capability
 	var workloadName string
 	var err error
-	if traitList, err = common.ListTraitDefinitions(&workloadName); err != nil {
+	if traitList, err = common.ListTraitDefinitions("default", s.c, &workloadName); err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
 	}
@@ -67,77 +52,5 @@ func (s *APIServer) ListTrait(c *gin.Context) {
 
 // DetachTrait detaches a trait from a component
 func (s *APIServer) DetachTrait(c *gin.Context) {
-	envName := c.Param("envName")
-	traitType := c.Param("traitName")
-	componentName := c.Param("compName")
-	applicationName := c.Param("appName")
-
-	var staging = false
-	var err error
-	if stagingStr := c.Param("staging"); stagingStr != "" {
-		if staging, err = strconv.ParseBool(stagingStr); err != nil {
-			util.HandleError(c, util.StatusInternalServerError, err.Error())
-			return
-		}
-	}
-	msg, err := s.DoDetachTrait(c, envName, traitType, componentName, applicationName, staging)
-	if err != nil {
-		util.HandleError(c, util.StatusInternalServerError, err.Error())
-		return
-	}
-	util.AssembleResponse(c, msg, nil)
-}
-
-// DoAttachTrait executes attaching trait operation
-func (s *APIServer) DoAttachTrait(c context.Context, body apis.TraitBody) (string, error) {
-	// Prepare
-	var appObj *api.Application
-	fs := pflag.NewFlagSet("trait", pflag.ContinueOnError)
-	for _, f := range body.Flags {
-		fs.String(f.Name, f.Value, "")
-	}
-	var staging = false
-	var err error
-	if body.Staging != "" {
-		staging, err = strconv.ParseBool(body.Staging)
-		if err != nil {
-			return "", err
-		}
-	}
-	traitAlias := body.Name
-	template, err := plugins.GetInstalledCapabilityWithCapName(types.TypeTrait, traitAlias)
-	if err != nil {
-		return "", err
-	}
-	// Run step
-	env, err := env2.GetEnvByName(body.EnvName)
-	if err != nil {
-		return "", err
-	}
-
-	appObj, err = common.AddOrUpdateTrait(env, body.AppName, body.ComponentName, fs, template)
-	if err != nil {
-		return "", err
-	}
-	io := util2.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	return common.TraitOperationRun(c, s.KubeClient, env, appObj, staging, io)
-}
-
-// DoDetachTrait executes detaching trait operation
-func (s *APIServer) DoDetachTrait(c context.Context, envName string, traitType string, componentName string, appName string, staging bool) (string, error) {
-	var appObj *api.Application
-	var err error
-	if appName == "" {
-		appName = componentName
-	}
-	if appObj, err = common.PrepareDetachTrait(envName, traitType, componentName, appName); err != nil {
-		return "", err
-	}
-	// Run
-	env, err := env2.GetEnvByName(envName)
-	if err != nil {
-		return "", err
-	}
-	io := util2.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	return common.TraitOperationRun(c, s.KubeClient, env, appObj, staging, io)
+	util.AssembleResponse(c, "deprecated, please use appfile to update", nil)
 }

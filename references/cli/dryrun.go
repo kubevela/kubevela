@@ -8,7 +8,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -37,7 +36,7 @@ func NewDryRunCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
@@ -54,7 +53,13 @@ func NewDryRunCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 
 			parser := appfile.NewApplicationParser(newClient, dm)
 
-			ctx := oamutil.SetNamespaceInCtx(context.Background(), app.Namespace)
+			velaEnv, err := GetEnv(cmd)
+			if err != nil {
+				return err
+			}
+
+			ctx := oamutil.SetNamespaceInCtx(context.Background(), velaEnv.Namespace)
+
 			appFile, err := parser.GenerateAppFile(ctx, app.Name, app)
 			if err != nil {
 				return errors.WithMessage(err, "generate appFile")

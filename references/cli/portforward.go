@@ -28,7 +28,6 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
-	"github.com/oam-dev/kubevela/references/appfile/api"
 )
 
 // VelaPortForwardOptions for vela port-forward
@@ -40,7 +39,7 @@ type VelaPortForwardOptions struct {
 	context.Context
 	VelaC types.Args
 	Env   *types.EnvMeta
-	App   *api.Application
+	App   *v1alpha2.Application
 
 	f                    k8scmdutil.Factory
 	kcPortForwardOptions *cmdpf.PortForwardOptions
@@ -74,7 +73,7 @@ func NewPortForwardCommand(c types.Args, ioStreams util.IOStreams) *cobra.Comman
 				ioStreams.Error("Please specify application name.")
 				return nil
 			}
-			newClient, err := client.New(o.VelaC.Config, client.Options{Scheme: o.VelaC.Schema})
+			newClient, err := o.VelaC.GetClient()
 			if err != nil {
 				return err
 			}
@@ -114,7 +113,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	}
 	o.Env = env
 
-	app, err := appfile.LoadApplication(env.Name, o.Args[0])
+	app, err := appfile.LoadApplication(env.Namespace, o.Args[0], o.VelaC)
 	if err != nil {
 		return err
 	}
@@ -191,7 +190,7 @@ func (o *VelaPortForwardOptions) Complete() error {
 	}
 	if len(o.Args) < 2 {
 		var found bool
-		_, configs := appfile.GetServiceConfig(o.App, svcName)
+		_, configs := appfile.GetApplicationSettings(o.App, svcName)
 		for k, v := range configs {
 			if k == "port" {
 				var val string

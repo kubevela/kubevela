@@ -136,7 +136,7 @@ var (
 			ginkgo.It("should list all applications", func() {
 				output, err := Exec("vela ls")
 				gomega.Expect(err).NotTo(gomega.HaveOccurred())
-				gomega.Expect(output).To(gomega.ContainSubstring("SERVICE"))
+				gomega.Expect(output).To(gomega.ContainSubstring("COMPONENT"))
 				gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
 				gomega.Expect(output).To(gomega.ContainSubstring(workloadType))
 				if traitAlias != "" {
