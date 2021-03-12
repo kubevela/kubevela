@@ -6,7 +6,6 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/webhook/standard.oam.dev/v1alpha1/metrics"
 	"github.com/oam-dev/kubevela/pkg/webhook/standard.oam.dev/v1alpha1/podspecworkload"
 )
 
@@ -19,13 +18,6 @@ import (
 func Register(mgr manager.Manager, disableCaps string) {
 	disableCapsSet := utils.StoreInSet(disableCaps)
 	server := mgr.GetWebhookServer()
-	if disableCaps == common.DisableNoneCaps || !disableCapsSet.Contains(common.MetricsControllerName) {
-		// MetricsTrait
-		server.Register("/validate-standard-oam-dev-v1alpha1-metricstrait",
-			&webhook.Admission{Handler: &metrics.ValidatingHandler{}})
-		server.Register("/mutate-standard-oam-dev-v1alpha1-metricstrait",
-			&webhook.Admission{Handler: &metrics.MutatingHandler{}})
-	}
 	if disableCaps == common.DisableNoneCaps || !disableCapsSet.Contains(common.PodspecWorkloadControllerName) {
 		// PodSpecWorkload
 		server.Register("/validate-standard-oam-dev-v1alpha1-podspecworkload",
