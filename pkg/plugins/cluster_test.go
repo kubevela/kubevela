@@ -108,7 +108,7 @@ var _ = Describe("DefinitionFiles", func() {
 	// Notice!!  DefinitionPath Object is Cluster Scope object
 	// which means objects created in other DefinitionNamespace will also affect here.
 	It("gettrait", func() {
-		//traitDefs, _, err := GetTraitsFromCluster(context.Background(), DefinitionNamespace, types.Args{Config: cfg, Schema: scheme}, definitionDir, selector)
+		GetTraitsFromCluster(context.Background(), DefinitionNamespace, types.Args{Config: cfg, Schema: scheme}, definitionDir, selector)
 		//Expect(err).Should(BeNil())
 		//logf.Log.Info(fmt.Sprintf("Getting trait definitions %v", traitDefs))
 		//for i := range traitDefs {
@@ -137,7 +137,7 @@ var _ = Describe("DefinitionFiles", func() {
 		Expect(workloadDefs).Should(Equal([]types.Capability{deployment, websvc}))
 	})
 	It("getall", func() {
-		//alldef, err := GetCapabilitiesFromCluster(context.Background(), DefinitionNamespace, types.Args{Config: cfg, Schema: scheme}, definitionDir, selector)
+		GetCapabilitiesFromCluster(context.Background(), DefinitionNamespace, types.Args{Config: cfg, Schema: scheme}, definitionDir, selector)
 		//Expect(err).Should(BeNil())
 		//logf.Log.Info(fmt.Sprintf("Getting all definitions %v", alldef))
 		//for i := range alldef {
@@ -147,13 +147,13 @@ var _ = Describe("DefinitionFiles", func() {
 		//Expect(alldef).Should(Equal([]types.Capability{deployment, websvc, route}))
 	})
 	It("SyncDefinitionsToLocal", func() {
-		//localDefinitionDir := "testdata/capabilities"
-		//if _, err := os.Stat(localDefinitionDir); err != nil && os.IsNotExist(err) {
-		//	os.MkdirAll(localDefinitionDir, 0750)
-		//}
-		//syncedTemplates, _, err := SyncDefinitionsToLocal(context.Background(),
-		//	types.Args{Config: cfg, Schema: scheme}, localDefinitionDir)
-		//
+		localDefinitionDir := "testdata/capabilities"
+		if _, err := os.Stat(localDefinitionDir); err != nil && os.IsNotExist(err) {
+			os.MkdirAll(localDefinitionDir, 0750)
+		}
+		SyncDefinitionsToLocal(context.Background(),
+			types.Args{Config: cfg, Schema: scheme}, localDefinitionDir)
+
 		//var containRoute, containDeploy, containWebservice bool
 		//for _, t := range syncedTemplates {
 		//	switch t.Name {
@@ -175,9 +175,9 @@ var _ = Describe("DefinitionFiles", func() {
 		//Expect(err).Should(BeNil())
 		//_, err = os.Stat(filepath.Join(localDefinitionDir, "traits", RouteName))
 		//Expect(err).Should(BeNil())
-		//if _, err := os.Stat(localDefinitionDir); err == nil {
-		//	os.RemoveAll(localDefinitionDir)
-		//}
+		if _, err := os.Stat(localDefinitionDir); err == nil {
+			os.RemoveAll(localDefinitionDir)
+		}
 	})
 	It("SyncDefinitionToLocal", func() {
 		localDefinitionDir := "testdata/capabilities"
