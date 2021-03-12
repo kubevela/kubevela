@@ -1,0 +1,26 @@
+name: license
+on:
+  push:
+    branches:
+      - master
+      - release-*
+  workflow_dispatch: {}
+  pull_request:
+    branches:
+      - master
+      - release-*
+
+jobs:
+  license_check:
+    runs-on: ubuntu-latest
+    name: Check for unapproved licenses
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 2.6
+      - name: Install dependencies
+        run: gem install license_finder
+      - name: Run tests
+        run: license_finder --decisions_file .license/dependency_decisions.yml
