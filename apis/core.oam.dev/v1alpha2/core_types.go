@@ -273,6 +273,7 @@ type TraitDefinitionSpec struct {
 	Extension *runtime.RawExtension `json:"extension,omitempty"`
 }
 
+// TraitDefinitionStatus is the status of TraitDefinition
 type TraitDefinitionStatus struct {
 	// ConditionedStatus reflects the observed status of a resource
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
