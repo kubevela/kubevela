@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -75,8 +76,14 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 	}
 
 	var message = ""
-	// Create Namespace
-	if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envArgs.Namespace}}); err != nil && !apierrors.IsAlreadyExists(err) {
+	// Check If Namespace Exists
+	if err := c.Get(ctx, k8stypes.NamespacedName{Name: envArgs.Namespace}, &corev1.Namespace{}); err != nil {
+		if apierrors.IsNotFound(err) {
+			// Create Namespace
+			if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envArgs.Namespace}}); err != nil {
+				return message, err
+			}
+		}
 		return message, err
 	}
 
