@@ -72,7 +72,6 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		klog.ErrorS(err, "cannot store capability in ConfigMap")
 		r.record.Event(&(def.TraitDefinition), event.Warning("cannot store capability in ConfigMap", err))
-		// TODO(zzxwill) The error message should also be patched into Status
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &def.TraitDefinition,
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
 	}
