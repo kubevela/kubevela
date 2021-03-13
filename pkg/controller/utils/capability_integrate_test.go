@@ -61,8 +61,8 @@ metadata:
   annotations:
     definition.oam.dev/description: "test"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    type: deployments.apps
   schematic:
     cue:
       template: |
@@ -144,7 +144,7 @@ metadata:
     definition.oam.dev/description: "Configures replicas for your service."
   name: scaler1
 spec:
-  appliesToComponents:
+  appliesToWorkloads:
     - webservice
     - worker
   definitionRef:
