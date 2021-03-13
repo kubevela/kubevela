@@ -77,7 +77,7 @@ type RolloutPlan struct {
 	// RolloutStrategy defines strategies for the rollout plan
 	// The default is IncreaseFirstRolloutStrategyType
 	// +optional
-	RolloutStrategy *RolloutStrategyType `json:"rolloutStrategy,omitempty"`
+	RolloutStrategy RolloutStrategyType `json:"rolloutStrategy,omitempty"`
 
 	// The size of the target resource. The default is the same
 	// as the size of the source resource.

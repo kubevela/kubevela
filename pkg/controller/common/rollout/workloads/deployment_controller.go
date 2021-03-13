@@ -144,30 +144,29 @@ func (c *DeploymentController) RolloutOneBatchPods(ctx context.Context) (bool, e
 		// don't fail the rollout just because of we can't get the resource
 		return false, nil
 	}
-	targetSize := c.rolloutStatus.RolloutTargetSize
-	currentSize := *c.sourceDeploy.Spec.Replicas + *c.targetDeploy.Spec.Replicas
+	currentSizeSetting := *c.sourceDeploy.Spec.Replicas + *c.targetDeploy.Spec.Replicas
+	// get the rollout strategy
 	rolloutStrategy := v1alpha1.IncreaseFirstRolloutStrategyType
-	if c.rolloutSpec.RolloutStrategy != nil {
-		rolloutStrategy = *c.rolloutSpec.RolloutStrategy
+	if len(c.rolloutSpec.RolloutStrategy) != 0 {
+		rolloutStrategy = c.rolloutSpec.RolloutStrategy
 	}
-	currentBatch := c.calculateCurrentBatchSize(c.rolloutStatus.RolloutTargetSize, currentSize)
-	if rolloutStrategy == v1alpha1.IncreaseFirstRolloutStrategyType && currentSize == targetSize {
-		c.rolloutStatus.UpgradedReplicas = currentBatch
+	// Determine if we are the first or the second part of the current batch rollout
+	if currentSizeSetting == c.rolloutStatus.RolloutTargetSize {
+		// we need to finish the first part of the rollout,
+		// will always return false to not move to the next phase
+		return false, c.rolloutBatchFirstHalf(ctx, rolloutStrategy)
 	}
-	// set the Partition as the desired number of pods in old revisions.
-	deployPatch := client.MergeFrom(c.sourceDeploy.DeepCopyObject())
-	c.sourceDeploy.Spec.Replicas = pointer.Int32Ptr(1)
-	// patch the Deployment
-	if err := c.client.Patch(ctx, &c.sourceDeploy, deployPatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
-		c.recorder.Event(c.parentController, event.Warning("Failed to update the Deployment to upgrade", err))
-		c.rolloutStatus.RolloutRetry(err.Error())
+	// we are at the second half
+	targetSize := c.calculateCurrentTarget(c.rolloutStatus.RolloutTargetSize)
+	if !c.rolloutBatchSecondHalf(ctx, rolloutStrategy, targetSize) {
 		return false, nil
 	}
-	// record the upgrade
-	klog.InfoS("upgraded one batch", "current batch", c.rolloutStatus.CurrentBatch)
+	// record the finished upgrade action
+	klog.InfoS("upgraded one batch", "current batch", c.rolloutStatus.CurrentBatch,
+		"target deployment size", targetSize)
 	c.recorder.Event(c.parentController, event.Normal("Batch Rollout",
 		fmt.Sprintf("Submitted upgrade quest for batch %d", c.rolloutStatus.CurrentBatch)))
-	c.rolloutStatus.UpgradedReplicas = currentBatch
+	c.rolloutStatus.UpgradedReplicas = targetSize
 	return true, nil
 }
 
@@ -178,31 +177,38 @@ func (c *DeploymentController) CheckOneBatchPods(ctx context.Context) (bool, err
 		// don't fail the rollout just because of we can't get the resource
 		return false, nil
 	}
-	newPodTarget := 1
-	// get the number of ready pod from Deployment
-	readyPodCount := int(c.sourceDeploy.Status.UpdatedReplicas)
+	// get the number of ready pod from target
+	readyTargetPodCount := c.targetDeploy.Status.ReadyReplicas
+	sourcePodCount := c.sourceDeploy.Status.Replicas
 	currentBatch := c.rolloutSpec.RolloutBatches[c.rolloutStatus.CurrentBatch]
+	targetGoal := c.calculateCurrentTarget(c.rolloutStatus.RolloutTargetSize)
+	sourceGoal := c.calculateCurrentSource(c.rolloutStatus.RolloutTargetSize)
 	maxUnavail := 0
 	if currentBatch.MaxUnavailable != nil {
-		maxUnavail, _ = intstr.GetValueFromIntOrPercent(currentBatch.MaxUnavailable, int(2), true)
+		maxUnavail, _ = intstr.GetValueFromIntOrPercent(currentBatch.MaxUnavailable, int(targetGoal), true)
 	}
-	klog.InfoS("checking the rolling out progress", "current batch", currentBatch,
-		"new pod count target", newPodTarget, "new ready pod count", readyPodCount,
-		"max unavailable pod allowed", maxUnavail)
-	c.rolloutStatus.UpgradedReadyReplicas = int32(readyPodCount)
-	// we could overshoot in revert cases
-	if maxUnavail+readyPodCount >= newPodTarget {
-		// record the successful upgrade
-		klog.InfoS("all pods in current batch are ready", "current batch", currentBatch)
-		c.recorder.Event(c.parentController, event.Normal("Batch Available",
-			fmt.Sprintf("Batch %d is available", c.rolloutStatus.CurrentBatch)))
-		c.rolloutStatus.LastAppliedPodTemplateIdentifier = c.rolloutStatus.NewPodTemplateIdentifier
-		return true, nil
+	klog.InfoS("checking the rolling out progress", "current batch", c.rolloutStatus.CurrentBatch,
+		"target pod ready count", readyTargetPodCount, "source pod count", sourcePodCount,
+		"max unavailable pod allowed", maxUnavail, "target goal", targetGoal, "source goal", sourceGoal)
+
+	// make sure that the source deployment has the correct pods before moving the target
+	// and the total we could overshoot in revert cases
+	if sourcePodCount != sourceGoal ||
+		int32(maxUnavail)+readyTargetPodCount+sourcePodCount < c.rolloutStatus.RolloutTargetSize {
+		// continue to verify
+		klog.InfoS("the batch is not ready yet", "current batch", c.rolloutStatus.CurrentBatch)
+		c.rolloutStatus.RolloutRetry(fmt.Sprintf(
+			"the batch %d is not ready yet with %d target pods ready and %d source pods with %d unavailable allowed",
+			c.rolloutStatus.CurrentBatch, readyTargetPodCount, sourcePodCount, maxUnavail))
+		return false, nil
 	}
-	// continue to verify
-	klog.InfoS("the batch is not ready yet", "current batch", currentBatch)
-	c.rolloutStatus.RolloutRetry("the batch is not ready yet")
-	return false, nil
+	// record the successful upgrade
+	c.rolloutStatus.UpgradedReadyReplicas = readyTargetPodCount
+	klog.InfoS("all pods in current batch are ready", "current batch", c.rolloutStatus.CurrentBatch)
+	c.recorder.Event(c.parentController, event.Normal("Batch Available",
+		fmt.Sprintf("Batch %d is available", c.rolloutStatus.CurrentBatch)))
+	c.rolloutStatus.LastAppliedPodTemplateIdentifier = c.rolloutStatus.NewPodTemplateIdentifier
+	return true, nil
 }
 
 // FinalizeOneBatch makes sure that the rollout status are updated correctly
@@ -303,22 +309,130 @@ func (c *DeploymentController) claimDeployment(ctx context.Context, deploy *apps
 	return nil
 }
 
-func (c *DeploymentController) calculateCurrentBatchSize(totalSize, currentSize int32) int32 {
+func (c *DeploymentController) rolloutBatchFirstHalf(ctx context.Context, rolloutStrategy v1alpha1.RolloutStrategyType) error {
+	var err error
+	if rolloutStrategy == v1alpha1.IncreaseFirstRolloutStrategyType {
+		// set the target replica first which should increase its size
+		if err = c.patchDeployment(ctx, c.calculateCurrentTarget(c.rolloutStatus.RolloutTargetSize),
+			&c.targetDeploy); err != nil {
+			c.rolloutStatus.RolloutRetry(err.Error())
+		}
+		return nil
+	}
+	if rolloutStrategy == v1alpha1.DecreaseFirstRolloutStrategyType {
+		// set the source replicas first which should shrink its size
+		if err = c.patchDeployment(ctx, c.calculateCurrentSource(c.rolloutStatus.RolloutTargetSize),
+			&c.sourceDeploy); err != nil {
+			c.rolloutStatus.RolloutRetry(err.Error())
+		}
+		return nil
+	}
+	return fmt.Errorf("encountered an unknown rolloutStrategy `%s`", rolloutStrategy)
+}
+
+func (c *DeploymentController) rolloutBatchSecondHalf(ctx context.Context,
+	rolloutStrategy v1alpha1.RolloutStrategyType, targetSize int32) bool {
+	var err error
+	if rolloutStrategy == v1alpha1.IncreaseFirstRolloutStrategyType {
+		// calculate the max unavailable given the target size
+		maxUnavail := 0
+		currentBatch := c.rolloutSpec.RolloutBatches[c.rolloutStatus.CurrentBatch]
+		if currentBatch.MaxUnavailable != nil {
+			maxUnavail, _ = intstr.GetValueFromIntOrPercent(currentBatch.MaxUnavailable, int(targetSize), true)
+		}
+		// make sure that the target deployment has enough ready pods before reducing the source
+		if c.targetDeploy.Status.ReadyReplicas+int32(maxUnavail) >= targetSize {
+			// set the source replicas now which should shrink its size
+			if err = c.patchDeployment(ctx, c.calculateCurrentSource(c.rolloutStatus.RolloutTargetSize),
+				&c.sourceDeploy); err != nil {
+				c.rolloutStatus.RolloutRetry(err.Error())
+				return false
+			}
+		} else {
+			// continue to verify
+			klog.InfoS("the batch is not ready yet", "current batch", c.rolloutStatus.CurrentBatch,
+				"target ready pod", c.targetDeploy.Status.ReadyReplicas)
+			c.rolloutStatus.RolloutRetry(fmt.Sprintf("the batch %d is not ready yet with %d target pods ready",
+				c.rolloutStatus.CurrentBatch, c.targetDeploy.Status.ReadyReplicas))
+			return false
+		}
+	} else if rolloutStrategy == v1alpha1.DecreaseFirstRolloutStrategyType {
+		// make sure that the source deployment has the correct pods before moving the target
+		sourceSize := c.calculateCurrentSource(c.rolloutStatus.RolloutTargetSize)
+		if c.sourceDeploy.Status.Replicas == sourceSize {
+			// we can increase the target deployment as soon as the source deployment's replica is correct
+			// no need to wait for them to be ready
+			if err = c.patchDeployment(ctx, targetSize, &c.targetDeploy); err != nil {
+				c.rolloutStatus.RolloutRetry(err.Error())
+				return false
+			}
+		} else {
+			// continue to verify
+			klog.InfoS("the batch is not ready yet", "current batch", c.rolloutStatus.CurrentBatch,
+				"source deploy pod", c.sourceDeploy.Status.Replicas)
+			c.rolloutStatus.RolloutRetry(fmt.Sprintf("the batch %d is not ready yet with %d source pods",
+				c.rolloutStatus.CurrentBatch, c.sourceDeploy.Status.Replicas))
+			return false
+		}
+	}
+	return true
+}
+
+// the target deploy size for the current batch
+func (c *DeploymentController) calculateCurrentTarget(totalSize int32) int32 {
 	currentBatch := int(c.rolloutStatus.CurrentBatch)
-	var currentBatchSize int32
+	var targetSize int32
 	if currentBatch == len(c.rolloutSpec.RolloutBatches)-1 {
-		currentBatchSize = totalSize - currentSize
+		targetSize = totalSize
 		// special handle the last batch, we ignore the rest of the batch in case there are rounding errors
 		klog.InfoS("Use the target size as the  for the last rolling batch",
-			"current batch", currentBatch, "batch size", currentBatchSize)
+			"current batch", currentBatch, "batch size", targetSize)
 	} else {
-		size, _ := intstr.GetValueFromIntOrPercent(
-			&c.rolloutSpec.RolloutBatches[currentBatch].Replicas, int(totalSize), true)
-		currentBatchSize = int32(size)
-		klog.InfoS("Calculated the number of new version pod",
-			"current batch", currentBatch, "batch size", currentBatchSize)
+		for i, r := range c.rolloutSpec.RolloutBatches {
+			batchSize, _ := intstr.GetValueFromIntOrPercent(&r.Replicas, int(totalSize), true)
+			if i <= currentBatch {
+				targetSize += int32(batchSize)
+			} else {
+				break
+			}
+		}
+		klog.InfoS("Calculated the number of pods in the target deployment after current batch",
+			"current batch", currentBatch, "target deploy size", targetSize)
 	}
-	return currentBatchSize
+	return targetSize
+}
+
+// the target deploy size for the current batch
+func (c *DeploymentController) calculateCurrentSource(totalSize int32) int32 {
+	currentBatch := int(c.rolloutStatus.CurrentBatch)
+	var sourceSize int32
+	for i, r := range c.rolloutSpec.RolloutBatches {
+		batchSize, _ := intstr.GetValueFromIntOrPercent(&r.Replicas, int(totalSize), true)
+		if i < currentBatch {
+			sourceSize += int32(batchSize)
+		} else {
+			break
+		}
+	}
+	klog.InfoS("Calculated the number of pods in the source deployment after current batch",
+		"current batch", currentBatch, "source deploy size", sourceSize)
+	return sourceSize
+}
+
+// patch the deployment's target, returns if succeeded
+func (c *DeploymentController) patchDeployment(ctx context.Context, target int32, deploy *apps.Deployment) error {
+	deployPatch := client.MergeFrom(deploy.DeepCopyObject())
+	deploy.Spec.Replicas = pointer.Int32Ptr(target)
+	// patch the Deployment
+	if err := c.client.Patch(ctx, deploy, deployPatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
+		c.recorder.Event(c.parentController, event.Warning(event.Reason(fmt.Sprintf(
+			"Failed to update the deployment %s to the correct target %d", deploy.GetName(), target)), err))
+		return err
+	}
+	c.recorder.Event(c.parentController, event.Normal("Batch Rollout",
+		fmt.Sprintf("Submitted upgrade quest for deployment %s to have %d pods for batch %d",
+			deploy.GetName(), target, c.rolloutStatus.CurrentBatch)))
+	return nil
 }
 
 func (c *DeploymentController) releaseDeployment(ctx context.Context, deploy *apps.Deployment) error {
