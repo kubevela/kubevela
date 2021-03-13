@@ -104,10 +104,11 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
 	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, componentDefinition.Name, jsonSchema, ownerReference)
-	if err == nil {
-		def.ComponentDefinition.Status.ConfigMapRef = cmName
+	if err != nil {
+		return err
 	}
-	return err
+	def.ComponentDefinition.Status.ConfigMapRef = cmName
+	return nil
 }
 
 // CapabilityTraitDefinition is the Capability struct for TraitDefinition
@@ -164,10 +165,11 @@ func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8
 		BlockOwnerDeletion: pointer.BoolPtr(true),
 	}}
 	cmName, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, traitDefinition.Name, jsonSchema, ownerReference)
-	if err == nil {
-		def.TraitDefinition.Status.ConfigMapRef = cmName
+	if err != nil {
+		return err
 	}
-	return err
+	def.TraitDefinition.Status.ConfigMapRef = cmName
+	return nil
 }
 
 // CapabilityBaseDefinition is the base struct for CapabilityWorkloadDefinition and CapabilityTraitDefinition

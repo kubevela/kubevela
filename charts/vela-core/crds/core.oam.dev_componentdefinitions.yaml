@@ -10,6 +10,9 @@ metadata:
 spec:
   group: core.oam.dev
   names:
+    categories:
+    - crossplane
+    - oam
     kind: ComponentDefinition
     listKind: ComponentDefinitionList
     plural: componentdefinitions
@@ -104,6 +107,8 @@ spec:
                     description: Type ref to a WorkloadDefinition via name
                     type: string
                 type: object
+            required:
+            - workload
             type: object
           status:
             description: ComponentDefinitionStatus is the status of ComponentDefinition
@@ -137,14 +142,14 @@ spec:
                   type: object
                 type: array
               configMapRef:
-                description: ConfigMapRef refer to ConfigMap contain OpenAPI V3 JSON schema
+                description: ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
                 type: string
-            required:
-            - configMapRef
             type: object
         type: object
     served: true
     storage: true
+    subresources:
+      status: {}
 status:
   acceptedNames:
     kind: ""

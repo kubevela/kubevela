@@ -59,92 +59,6 @@ type ChildResourceKind struct {
 	Selector map[string]string `json:"selector,omitempty"`
 }
 
-// A WorkloadTypeDescriptor refer to a Workload Type
-type WorkloadTypeDescriptor struct {
-	// Type ref to a WorkloadDefinition via name
-	Type string `json:"type,omitempty"`
-	// Definition mutually exclusive to workload.type, a embedded WorkloadDefinition
-	Definition WorkloadGVK `json:"definition,omitempty"`
-}
-
-// WorkloadGVK refer to a Workload Type
-type WorkloadGVK struct {
-	APIVersion string `json:"apiVersion"`
-	Kind       string `json:"kind"`
-}
-
-// ComponentDefinitionSpec defines the desired state of ComponentDefinition
-// +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
-// +kubebuilder:resource:scope=Namespaced,categories={crossplane,oam}
-type ComponentDefinitionSpec struct {
-	// Workload is a workload type descriptor
-	Workload WorkloadTypeDescriptor `json:"workload,omitempty"`
-
-	// ChildResourceKinds are the list of GVK of the child resources this workload generates
-	ChildResourceKinds []ChildResourceKind `json:"childResourceKinds,omitempty"`
-
-	// RevisionLabel indicates which label for underlying resources(e.g. pods) of this workload
-	// can be used by trait to create resource selectors(e.g. label selector for pods).
-	// +optional
-	RevisionLabel string `json:"revisionLabel,omitempty"`
-
-	// PodSpecPath indicates where/if this workload has K8s podSpec field
-	// if one workload has podSpec, trait can do lot's of assumption such as port, env, volume fields.
-	// +optional
-	PodSpecPath string `json:"podSpecPath,omitempty"`
-
-	// Status defines the custom health policy and status message for workload
-	// +optional
-	Status *Status `json:"status,omitempty"`
-
-	// Schematic defines the data format and template of the encapsulation of the workload
-	// +optional
-	Schematic *Schematic `json:"schematic,omitempty"`
-
-	// Extension is used for extension needs by OAM platform builders
-	// +optional
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Extension *runtime.RawExtension `json:"extension,omitempty"`
-}
-
-// ComponentDefinitionStatus is the status of ComponentDefinition
-type ComponentDefinitionStatus struct {
-	// ConditionedStatus reflects the observed status of a resource
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
-	// ConfigMapRef refer to ConfigMap contain OpenAPI V3 JSON schema
-	ConfigMapRef string `json:"configMapRef"`
-}
-
-// +kubebuilder:object:root=true
-
-// ComponentDefinition is the Schema for the componentdefinitions API
-type ComponentDefinition struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   ComponentDefinitionSpec   `json:"spec,omitempty"`
-	Status ComponentDefinitionStatus `json:"status,omitempty"`
-}
-
-// SetConditions set condition for WorkloadDefinition
-func (cd *ComponentDefinition) SetConditions(c ...runtimev1alpha1.Condition) {
-	cd.Status.SetConditions(c...)
-}
-
-// GetCondition gets condition from WorkloadDefinition
-func (cd *ComponentDefinition) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
-	return cd.Status.GetCondition(conditionType)
-}
-
-// +kubebuilder:object:root=true
-
-// ComponentDefinitionList contains a list of ComponentDefinition
-type ComponentDefinitionList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ComponentDefinition `json:"items"`
-}
-
 // A WorkloadDefinitionSpec defines the desired state of a WorkloadDefinition.
 type WorkloadDefinitionSpec struct {
 	// Reference to the CustomResourceDefinition that defines this workload kind.
@@ -177,8 +91,8 @@ type WorkloadDefinitionSpec struct {
 	Extension *runtime.RawExtension `json:"extension,omitempty"`
 }
 
-// CapabilityStatus is the status of WorkloadDefinition and TraitDefinition
-type CapabilityStatus struct {
+// WorkloadDefinitionStatus is the status of WorkloadDefinition
+type WorkloadDefinitionStatus struct {
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
 }
 
@@ -204,8 +118,8 @@ type WorkloadDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   WorkloadDefinitionSpec `json:"spec,omitempty"`
-	Status CapabilityStatus       `json:"status,omitempty"`
+	Spec   WorkloadDefinitionSpec   `json:"spec,omitempty"`
+	Status WorkloadDefinitionStatus `json:"status,omitempty"`
 }
 
 // SetConditions set condition for WorkloadDefinition
@@ -277,8 +191,8 @@ type TraitDefinitionSpec struct {
 type TraitDefinitionStatus struct {
 	// ConditionedStatus reflects the observed status of a resource
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
-	// ConfigMapRef refer to ConfigMap contain OpenAPI V3 JSON schema
-	ConfigMapRef string `json:"configMapRef"`
+	// ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
+	ConfigMapRef string `json:"configMapRef,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -289,6 +203,7 @@ type TraitDefinitionStatus struct {
 // ApplicationConfiguration.
 // +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
 // +kubebuilder:resource:scope=Namespaced,categories={crossplane,oam}
+// +kubebuilder:subresource:status
 type TraitDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

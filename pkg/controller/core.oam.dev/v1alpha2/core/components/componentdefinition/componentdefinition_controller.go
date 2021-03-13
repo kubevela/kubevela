@@ -60,28 +60,27 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
-	// TODO: check finalizer
+	// this is a placeholder for finalizer here in the future
 	if componentDefinition.DeletionTimestamp != nil {
 		return ctrl.Result{}, nil
 	}
 
-	fmt.Println("this step is running")
 	var def utils.CapabilityComponentDefinition
 	def.Name = req.NamespacedName.Name
 	err := def.StoreOpenAPISchema(ctx, r, req.Namespace, req.Name)
 	if err != nil {
 		klog.ErrorS(err, "cannot store capability in ConfigMap")
 		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot store capability in ConfigMap", err))
-		// TODO(yangsoon) The error message should also be patched into Status
+		// TODO(zzxwill) The error message should also be patched into Status
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.ComponentDefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
 	}
 
-	if err := r.Update(ctx, &def.ComponentDefinition); err != nil {
+	if err := r.Status().Update(ctx, &def.ComponentDefinition); err != nil {
 		klog.ErrorS(err, "cannot update componentDefinition ConfigMapRef Field")
 		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot update ComponentDefinition ConfigMapRef Field", err))
+		return ctrl.Result{}, nil
 	}
-
 	klog.Info("Successfully stored Capability Schema in ConfigMap")
 	return ctrl.Result{}, nil
 }
