@@ -534,7 +534,7 @@ context:
 
 ## Dry-Run Application
 
-After we test the CUE Template, we can use `vela system dry-run` dry run an application, and output the conversion result to stdout.
+After we test the CUE Template, we can use `vela system dry-run` dry run an application, this command will displays all k8s Kind which you want to create.
 First, we need use `mergedef.sh` to format and create the WorkloadDefinition file, then apply the WorkloadDefinition.
 Note that you need to remove the mock data before you merge files.
 
