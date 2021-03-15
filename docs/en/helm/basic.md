@@ -1,6 +1,6 @@
 # Use Helm chart as schematic module
 
-Here is an example of how to use Helm chart as workload capability module.
+Here is an example of how to use Helm chart as workload schematic module.
 
 ## Install fluxcd/flux2 as dependencies
 
@@ -46,8 +46,8 @@ Only one workload allowed in one helm chart.
 For example, in our sample chart, the core workload is `deployments.apps/v1`, other resources will also be deployed but mechanism of KubeVela won't work for them.
 - `.spec.schematic.helm` contains information of Helm release & repository.
 
-Specifically, the definition follows the APIs from `fluxcd/flux2`, [HelmReleaseSpec](https://github.com/fluxcd/helm-controller/blob/main/docs/api/helmrelease.md) and [HelmRepositorySpec](https://github.com/fluxcd/source-controller/blob/main/docs/api/source.md#source.toolkit.fluxcd.io/v1beta1.HelmRepository).
-However, the fields shown in the sample are almost enough to describe a Helm chart release and its repository.
+There are two fields `release` and `repository` in the `.spec.schematic.helm` section, these two fields align with the APIs of `fluxcd/flux2`. Spec of `release` aligns with [`HelmReleaseSpec`](https://github.com/fluxcd/helm-controller/blob/main/docs/api/helmrelease.md) and spec of `repository` aligns with [`HelmRepositorySpec`](https://github.com/fluxcd/source-controller/blob/main/docs/api/source.md#source.toolkit.fluxcd.io/v1beta1.HelmRepository).
+In a word, just like the fields shown in the sample, the helm schematic module describes a specific Helm chart release and its repository.
 
 ## Create an Application using the helm based WorkloadDefinition
 
@@ -69,7 +69,7 @@ spec:
 ```
 Helm module workload will use data in `settings` as [Helm chart values](https://github.com/captainroy-hy/podinfo/blob/master/charts/podinfo/values.yaml).
 Currently, you can learn the schema of settings by reading the `README.md` of the Helm chart, and the schema are totally align with [`values.yaml`](https://github.com/captainroy-hy/podinfo/blob/master/charts/podinfo/values.yaml) of the chart.
-We will integerate with the [openapi-v3-json-schema automatically generation](https://kubevela.io/#/en/platform-engineers/openapi-v3-json-schema.md) soon.
+We will integerate the values and generate it's [openapi-v3-json-schema](https://kubevela.io/#/en/platform-engineers/openapi-v3-json-schema.md) soon.
 
 Deploy the application and after several minutes (it takes time to fetch Helm chart from the repo, render and install), you can check the Helm release is installed.
 ```shell

@@ -1,7 +1,11 @@
 # Use existing Trait system
 
-A Helm module workload can fully work with Traits in the same way as existing workloads. 
-In this sample application, we add two exemplary traits, scaler and [virtualgroup](https://github.com/oam-dev/kubevela/blob/master/docs/examples/helm-module/virtual-group-td.yaml), to a Helm module workload.
+A Helm module workload can fully work with traits in the same way as the CUE based schematic.
+In this sample application, we add two exemplary traits,
+[scaler](https://github.com/oam-dev/kubevela/blob/master/charts/vela-core/templates/defwithtemplate/manualscale.yaml)
+and
+[virtualgroup](https://github.com/oam-dev/kubevela/blob/master/docs/examples/helm-module/virtual-group-td.yaml),
+to a Helm module workload.
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -25,11 +29,10 @@ spec:
             group: "my-group1"
             type: "cluster"
 ```
-> If vela webhook is enabled, remember to add `deployments.apps` into the trait definition's `.spec.appliesToWorkloads` list.
 
 :exclamation: Only one thing you should pay attention when use Trait system with Helm module workload, **make sure the target workload in your Helm chart strictly follows the qualified-full-name convention in Helm.**
 [As the sample chart shows](https://github.com/captainroy-hy/podinfo/blob/c2b9603036f1f033ec2534ca0edee8eff8f5b335/charts/podinfo/templates/deployment.yaml#L4), the workload name is composed of [release name and chart name](https://github.com/captainroy-hy/podinfo/blob/c2b9603036f1f033ec2534ca0edee8eff8f5b335/charts/podinfo/templates/_helpers.tpl#L13). 
-KubeVela will generate a release name based on your Application name and component name automatically, so you just make sure not overried the full name template in your Helm chart. 
+KubeVela will generate a release name based on your Application name and component name automatically, so you just make sure not override the full name template in your Helm chart. 
 
 KubeVela relies on the name to discovery the workload, otherwise it cannot apply traits to the workload.
 
