@@ -17,11 +17,10 @@ limitations under the License.
 package v1alpha2
 
 import (
+	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 )
 
 // CUE defines the encapsulation in CUE format
@@ -92,8 +91,8 @@ type WorkloadDefinitionSpec struct {
 	Extension *runtime.RawExtension `json:"extension,omitempty"`
 }
 
-// CapabilityStatus is the status of WorkloadDefinition and TraitDefinition
-type CapabilityStatus struct {
+// WorkloadDefinitionStatus is the status of WorkloadDefinition
+type WorkloadDefinitionStatus struct {
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
 }
 
@@ -119,8 +118,8 @@ type WorkloadDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   WorkloadDefinitionSpec `json:"spec,omitempty"`
-	Status CapabilityStatus       `json:"status,omitempty"`
+	Spec   WorkloadDefinitionSpec   `json:"spec,omitempty"`
+	Status WorkloadDefinitionStatus `json:"status,omitempty"`
 }
 
 // SetConditions set condition for WorkloadDefinition
@@ -188,6 +187,14 @@ type TraitDefinitionSpec struct {
 	Extension *runtime.RawExtension `json:"extension,omitempty"`
 }
 
+// TraitDefinitionStatus is the status of TraitDefinition
+type TraitDefinitionStatus struct {
+	// ConditionedStatus reflects the observed status of a resource
+	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	// ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
+	ConfigMapRef string `json:"configMapRef,omitempty"`
+}
+
 // +kubebuilder:object:root=true
 
 // A TraitDefinition registers a kind of Kubernetes custom resource as a valid
@@ -196,12 +203,13 @@ type TraitDefinitionSpec struct {
 // ApplicationConfiguration.
 // +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
 // +kubebuilder:resource:scope=Namespaced,categories={crossplane,oam}
+// +kubebuilder:subresource:status
 type TraitDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TraitDefinitionSpec `json:"spec,omitempty"`
-	Status CapabilityStatus    `json:"status,omitempty"`
+	Spec   TraitDefinitionSpec   `json:"spec,omitempty"`
+	Status TraitDefinitionStatus `json:"status,omitempty"`
 }
 
 // SetConditions set condition for TraitDefinition

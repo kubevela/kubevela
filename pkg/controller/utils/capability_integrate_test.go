@@ -38,8 +38,8 @@ var _ = Describe("Test Capability", func() {
 		ns        corev1.Namespace
 	)
 
-	Context("When the definition is WorkloadDefinition", func() {
-		var workloadDefinitionName = "web1"
+	Context("When the definition is ComponentDefinition", func() {
+		var componentDefinitionName = "web1"
 		BeforeEach(func() {
 			ns = corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -50,19 +50,19 @@ var _ = Describe("Test Capability", func() {
 			Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		})
 
-		It("Test CapabilityWorkloadDefinition", func() {
-			By("Apply WorkloadDefinition")
-			var validWorkloadDefinition = `
+		It("Test CapabilityComponentDefinition", func() {
+			By("Apply ComponentDefinition")
+			var validComponentDefinition = `
 apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+kind: ComponentDefinition
 metadata:
   name: web1
   namespace: ns-cap
   annotations:
     definition.oam.dev/description: "test"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    type: deployments.apps
   schematic:
     cue:
       template: |
@@ -102,18 +102,18 @@ spec:
         }
 
 `
-			var workloadDefinition v1alpha2.WorkloadDefinition
-			Expect(yaml.Unmarshal([]byte(validWorkloadDefinition), &workloadDefinition)).Should(BeNil())
-			Expect(k8sClient.Create(ctx, &workloadDefinition)).Should(Succeed())
+			var componentDefinition v1alpha2.ComponentDefinition
+			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &componentDefinition)).Should(BeNil())
+			Expect(k8sClient.Create(ctx, &componentDefinition)).Should(Succeed())
 
 			By("Test GetCapabilityObject")
-			def := &CapabilityWorkloadDefinition{Name: workloadDefinitionName}
-			capability, err := def.GetCapabilityObject(ctx, k8sClient, namespace, workloadDefinitionName)
+			def := &CapabilityComponentDefinition{Name: componentDefinitionName}
+			capability, err := def.GetCapabilityObject(ctx, k8sClient, namespace, componentDefinitionName)
 			Expect(err).Should(BeNil())
 			Expect(capability).Should(Not(BeNil()))
 
 			By("Test GetOpenAPISchema")
-			schema, err := def.GetOpenAPISchema(ctx, k8sClient, namespace, workloadDefinitionName)
+			schema, err := def.GetOpenAPISchema(ctx, k8sClient, namespace, componentDefinitionName)
 			Expect(err).Should(BeNil())
 			Expect(schema).Should(Not(BeNil()))
 
@@ -208,7 +208,7 @@ spec:
 				Controller:         pointer.BoolPtr(true),
 				BlockOwnerDeletion: pointer.BoolPtr(true),
 			}}
-			err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, definitionName, []byte(""), ownerReference)
+			_, err := def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, definitionName, []byte(""), ownerReference)
 			Expect(err).Should(BeNil())
 		})
 	})

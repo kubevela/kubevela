@@ -11,7 +11,7 @@
         - [Workload Type](/en/platform-engineers/workload-type.md)
         - [Trait](/en/platform-engineers/trait.md)
         - [Cloud Services](/en/platform-engineers/cloud-services.md)
-        - [OpenAPI v3 JSON schema](./platform-engineers/openapi-v3-json-schema.md)
+        - [OpenAPI v3 JSON schema](/en/platform-engineers/openapi-v3-json-schema.md)
       - CUE
         - [CUE Basic](/en/cue/basic.md)
         - [Workload Type](/en/cue/workload-type.md)

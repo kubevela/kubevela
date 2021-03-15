@@ -109,7 +109,7 @@ spec:
             - definitionRef
             type: object
           status:
-            description: CapabilityStatus is the status of WorkloadDefinition and TraitDefinition
+            description: WorkloadDefinitionStatus is the status of WorkloadDefinition
             properties:
               conditions:
                 description: Conditions of the resource.

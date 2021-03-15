@@ -15,11 +15,12 @@
 
 */
 
-package workloaddefinition
+package componentdefinition
 
 import (
 	"context"
 	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -34,24 +35,24 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-var _ = Describe("Apply WorkloadDefinition to store its schema to ConfigMap Test", func() {
+var _ = Describe("Apply ComponentDefinition to store its schema to ConfigMap Test", func() {
 	ctx := context.Background()
 	var ns corev1.Namespace
 
-	Context("When the WorkloadDefinition's namespace doesn't exist, should occur error", func() {
-		It("Applying WorkloadDefinition", func() {
-			By("Apply WorkloadDefinition")
-			var validWorkloadDefinition = `
+	Context("When the ComponentDefinition's namespace doesn't exist, should occur error", func() {
+		It("Applying ComponentDefinition", func() {
+			By("Apply ComponentDefinition")
+			var validComponentDefinition = `
 apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+kind: ComponentDefinition
 metadata:
   name: wd-without-ready-ns
   namespace: ns-def
   annotations:
     definition.oam.dev/description: "test"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    type: deployments.app
   schematic:
     cue:
       template: |
@@ -91,29 +92,29 @@ spec:
         }
 `
 
-			var def v1alpha2.WorkloadDefinition
-			Expect(yaml.Unmarshal([]byte(validWorkloadDefinition), &def)).Should(BeNil())
+			var def v1alpha2.ComponentDefinition
+			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &def)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &def)).Should(Not(Succeed()))
 		})
 	})
 
-	Context("When the WorkloadDefinition without namespace is valid, should create a ConfigMap", func() {
-		var workloadDefinitionName = "web-no-ns"
+	Context("When the ComponentDefinition without namespace is valid, should create a ConfigMap", func() {
+		var componentDefinitionName = "web-no-ns"
 		var namespace = "default"
-		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: workloadDefinitionName, Namespace: namespace}}
+		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
 
-		It("Applying valid WorkloadDefinition", func() {
-			By("Apply WorkloadDefinition")
-			var validWorkloadDefinition = `
+		It("Applying valid ComponentDefinition", func() {
+			By("Apply ComponentDefinition")
+			var validComponentDefinition = `
 apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+kind: ComponentDefinition
 metadata:
   name: web-no-ns
   annotations:
     definition.oam.dev/description: "test"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    type: deployments.app
   schematic:
     cue:
       template: |
@@ -153,8 +154,8 @@ spec:
         }
 `
 
-			var def v1alpha2.WorkloadDefinition
-			Expect(yaml.Unmarshal([]byte(validWorkloadDefinition), &def)).Should(BeNil())
+			var def v1alpha2.ComponentDefinition
+			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &def)).Should(BeNil())
 			// API server will convert blank namespace to `default`
 			def.Namespace = namespace
 			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
@@ -162,16 +163,25 @@ spec:
 			By("Check whether ConfigMap is created")
 			reconcileRetry(&r, req)
 			var cm corev1.ConfigMap
-			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, workloadDefinitionName)
-			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)).Should(Succeed())
+			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
+				return err == nil
+			}, 10*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+
+			By("Check whether ConfigMapRef refer to right")
+			Eventually(func() string {
+				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: def.Namespace, Name: def.Name}, &def)
+				return def.Status.ConfigMapRef
+			}, 10*time.Second, time.Second).Should(Equal(name))
 		})
 	})
 
-	Context("When the WorkloadDefinition with namespace is valid, should create a ConfigMap", func() {
-		var workloadDefinitionName = "web"
+	Context("When the ComponentDefinition with namespace is valid, should create a ConfigMap", func() {
+		var componentDefinitionName = "web"
 		var namespace = "ns-def"
-		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: workloadDefinitionName, Namespace: namespace}}
+		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
 
 		BeforeEach(func() {
 			ns = corev1.Namespace{
@@ -183,19 +193,19 @@ spec:
 			Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		})
 
-		It("Applying valid WorkloadDefinition", func() {
-			By("Apply WorkloadDefinition")
-			var validWorkloadDefinition = `
+		It("Applying valid ComponentDefinition", func() {
+			By("Apply ComponentDefinition")
+			var validComponentDefinition = `
 apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+kind: ComponentDefinition
 metadata:
   name: web
   namespace: ns-def
   annotations:
     definition.oam.dev/description: "test"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    type: deployments.app
   schematic:
     cue:
       template: |
@@ -235,21 +245,30 @@ spec:
         }
 `
 
-			var def v1alpha2.WorkloadDefinition
-			Expect(yaml.Unmarshal([]byte(validWorkloadDefinition), &def)).Should(BeNil())
+			var def v1alpha2.ComponentDefinition
+			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &def)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
 
 			By("Check whether ConfigMap is created")
 			reconcileRetry(&r, req)
 			var cm corev1.ConfigMap
-			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, workloadDefinitionName)
-			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)).Should(Succeed())
+			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
+				return err == nil
+			}, 10*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+
+			By("Check whether ConfigMapRef refer to right")
+			Eventually(func() string {
+				_ = k8sClient.Get(ctx, client.ObjectKey{Namespace: def.Namespace, Name: def.Name}, &def)
+				return def.Status.ConfigMapRef
+			}, 10*time.Second, time.Second).Should(Equal(name))
 		})
 	})
 
-	Context("When the WorkloadDefinition is invalid, should hit issues", func() {
-		var invalidWorkloadDefinitionName = "invalid-wd1"
+	Context("When the ComponentDefinition is invalid, should hit issues", func() {
+		var invalidComponentDefinitionName = "invalid-wd1"
 		var namespace = "ns-def"
 		BeforeEach(func() {
 			ns = corev1.Namespace{
@@ -261,19 +280,19 @@ spec:
 			Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		})
 
-		It("Applying invalid WorkloadDefinition", func() {
-			By("Apply the WorkloadDefinition")
-			var invalidWorkloadDefinition = `
+		It("Applying invalid ComponentDefinition", func() {
+			By("Apply the ComponentDefinition")
+			var invalidComponentDefinition = `
 apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+kind: ComponentDefinition
 metadata:
   name: invalid-wd1
   namespace: ns-def
   annotations:
     definition.oam.dev/description: "test"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    type: deployments.app
   schematic:
     cue:
       template: |
@@ -301,11 +320,11 @@ spec:
         }
 `
 
-			var invalidDef v1alpha2.WorkloadDefinition
-			Expect(yaml.Unmarshal([]byte(invalidWorkloadDefinition), &invalidDef)).Should(BeNil())
+			var invalidDef v1alpha2.ComponentDefinition
+			Expect(yaml.Unmarshal([]byte(invalidComponentDefinition), &invalidDef)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &invalidDef)).Should(Succeed())
-			gotWorkloadDefinition := &v1alpha2.WorkloadDefinition{}
-			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: invalidWorkloadDefinitionName, Namespace: namespace}, gotWorkloadDefinition)).Should(BeNil())
+			gotComponentDefinition := &v1alpha2.ComponentDefinition{}
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: invalidComponentDefinitionName, Namespace: namespace}, gotComponentDefinition)).Should(BeNil())
 		})
 	})
 })

@@ -6,27 +6,23 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.4
   creationTimestamp: null
-  name: traitdefinitions.core.oam.dev
+  name: componentdefinitions.core.oam.dev
 spec:
   group: core.oam.dev
   names:
     categories:
     - crossplane
     - oam
-    kind: TraitDefinition
-    listKind: TraitDefinitionList
-    plural: traitdefinitions
-    singular: traitdefinition
+    kind: ComponentDefinition
+    listKind: ComponentDefinitionList
+    plural: componentdefinitions
+    singular: componentdefinition
   scope: Namespaced
   versions:
-  - additionalPrinterColumns:
-    - jsonPath: .spec.definitionRef.name
-      name: DEFINITION-NAME
-      type: string
-    name: v1alpha2
+  - name: v1alpha2
     schema:
       openAPIV3Schema:
-        description: A TraitDefinition registers a kind of Kubernetes custom resource as a valid OAM trait kind by referencing its CustomResourceDefinition. The CRD is used to validate the schema of the trait when it is embedded in an OAM ApplicationConfiguration.
+        description: ComponentDefinition is the Schema for the componentdefinitions API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
@@ -37,39 +33,41 @@ spec:
           metadata:
             type: object
           spec:
-            description: A TraitDefinitionSpec defines the desired state of a TraitDefinition.
+            description: ComponentDefinitionSpec defines the desired state of ComponentDefinition
             properties:
-              appliesToWorkloads:
-                description: AppliesToWorkloads specifies the list of workload kinds this trait applies to. Workload kinds are specified in kind.group/version format, e.g. server.core.oam.dev/v1alpha2. Traits that omit this field apply to all workload kinds.
+              childResourceKinds:
+                description: ChildResourceKinds are the list of GVK of the child resources this workload generates
                 items:
-                  type: string
+                  description: A ChildResourceKind defines a child Kubernetes resource kind with a selector
+                  properties:
+                    apiVersion:
+                      description: APIVersion of the child resource
+                      type: string
+                    kind:
+                      description: Kind of the child resource
+                      type: string
+                    selector:
+                      additionalProperties:
+                        type: string
+                      description: Selector to select the child resources that the workload wants to expose to traits
+                      type: object
+                  required:
+                  - apiVersion
+                  - kind
+                  type: object
                 type: array
-              conflictsWith:
-                description: 'ConflictsWith specifies the list of traits(CRD name, Definition name, CRD group) which could not apply to the same workloads with this trait. Traits that omit this field can work with any other traits. Example rules: "service" # Trait definition name "services.k8s.io" # API resource/crd name "*.networking.k8s.io" # API group "labelSelector:foo=bar" # label selector labelSelector format: https://pkg.go.dev/k8s.io/apimachinery/pkg/labels#Parse'
-                items:
-                  type: string
-                type: array
-              definitionRef:
-                description: Reference to the CustomResourceDefinition that defines this trait kind.
-                properties:
-                  name:
-                    description: Name of the referenced CustomResourceDefinition.
-                    type: string
-                  version:
-                    description: Version indicate which version should be used if CRD has multiple versions by default it will use the first one if not specified
-                    type: string
-                required:
-                - name
-                type: object
               extension:
                 description: Extension is used for extension needs by OAM platform builders
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
-              revisionEnabled:
-                description: Revision indicates whether a trait is aware of component revision
-                type: boolean
+              podSpecPath:
+                description: PodSpecPath indicates where/if this workload has K8s podSpec field if one workload has podSpec, trait can do lot's of assumption such as port, env, volume fields.
+                type: string
+              revisionLabel:
+                description: RevisionLabel indicates which label for underlying resources(e.g. pods) of this workload can be used by trait to create resource selectors(e.g. label selector for pods).
+                type: string
               schematic:
-                description: Schematic defines the data format and template of the encapsulation of the trait
+                description: Schematic defines the data format and template of the encapsulation of the workload
                 properties:
                   cue:
                     description: CUE defines the encapsulation in CUE format
@@ -82,7 +80,7 @@ spec:
                     type: object
                 type: object
               status:
-                description: Status defines the custom health policy and status message for trait
+                description: Status defines the custom health policy and status message for workload
                 properties:
                   customStatus:
                     description: CustomStatus defines the custom status message that could display to user
@@ -91,12 +89,29 @@ spec:
                     description: HealthPolicy defines the health check policy for the abstraction
                     type: string
                 type: object
-              workloadRefPath:
-                description: WorkloadRefPath indicates where/if a trait accepts a workloadRef object
-                type: string
+              workload:
+                description: Workload is a workload type descriptor
+                properties:
+                  definition:
+                    description: Definition mutually exclusive to workload.type, a embedded WorkloadDefinition
+                    properties:
+                      apiVersion:
+                        type: string
+                      kind:
+                        type: string
+                    required:
+                    - apiVersion
+                    - kind
+                    type: object
+                  type:
+                    description: Type ref to a WorkloadDefinition via name
+                    type: string
+                type: object
+            required:
+            - workload
             type: object
           status:
-            description: TraitDefinitionStatus is the status of TraitDefinition
+            description: ComponentDefinitionStatus is the status of ComponentDefinition
             properties:
               conditions:
                 description: Conditions of the resource.
