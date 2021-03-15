@@ -86,8 +86,6 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 			return message, err
 		}
 	}
-		return message, err
-	}
 
 	// Create Issuer For SSL if both email and domain are all set.
 	if envArgs.Email != "" && envArgs.Domain != "" {
