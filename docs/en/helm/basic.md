@@ -1,0 +1,93 @@
+# Use Helm chart as schematic module
+
+Here is an example of how to use Helm chart as workload capability module.
+
+## Install fluxcd/flux2 as dependencies
+
+Using helm as a workload depends on several CRDs and controllers from [fluxcd/flux2](https://github.com/fluxcd/flux2), make sure you have make them installed before continue.
+
+It's worth to note that flux2 doesn't offer an official Helm chart to install,
+so we provide a chart which only includes minimal dependencies KubeVela relies on as an alternative choice.
+
+Install the minimal flux2 chart provided by KubeVela:
+```shell
+helm install --create-namespace -n flux-system helm-flux http://oam.dev/catalog/helm-flux2-0.1.0.tgz
+```
+
+## Write WorkloadDefinition 
+Here is an example `WorkloadDefinition` about how to use Helm as schematic module.
+
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: webapp-chart
+  annotations:
+    definition.oam.dev/description: helm chart for webapp
+spec:
+  definitionRef:
+    name: deployments.apps
+    version: v1
+  schematic:
+    helm:
+      release:
+        chart:
+          spec:
+            chart: "podinfo"
+            version: "5.1.4"
+      repository:
+        url: "http://oam.dev/catalog/"
+```
+
+Just like using CUE as schematic module, we also have some rules and contracts to use helm chart as schematic module.
+
+- `.spec.definitionRef` is required to indicate the main workload(Group/Verison/Kind) in your Helm chart.
+Only one workload allowed in one helm chart.
+For example, in our sample chart, the core workload is `deployments.apps/v1`, other resources will also be deployed but mechanism of KubeVela won't work for them.
+- `.spec.schematic.helm` contains information of Helm release & repository.
+
+Specifically, the definition follows the APIs from `fluxcd/flux2`, [HelmReleaseSpec](https://github.com/fluxcd/helm-controller/blob/main/docs/api/helmrelease.md) and [HelmRepositorySpec](https://github.com/fluxcd/source-controller/blob/main/docs/api/source.md#source.toolkit.fluxcd.io/v1beta1.HelmRepository).
+However, the fields shown in the sample are almost enough to describe a Helm chart release and its repository.
+
+## Create an Application using the helm based WorkloadDefinition
+
+Here is an example `Application`.
+
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: Application
+metadata:
+  name: myapp
+  namespace: default
+spec:
+  components:
+    - name: demo-podinfo 
+      type: webapp-chart 
+      settings: 
+        image:
+          tag: "5.1.2"
+```
+Helm module workload will use data in `settings` as [Helm chart values](https://github.com/captainroy-hy/podinfo/blob/master/charts/podinfo/values.yaml).
+Currently, you can learn the schema of settings by reading the `README.md` of the Helm chart, and the schema are totally align with [`values.yaml`](https://github.com/captainroy-hy/podinfo/blob/master/charts/podinfo/values.yaml) of the chart.
+We will integerate with the [openapi-v3-json-schema automatically generation](https://kubevela.io/#/en/platform-engineers/openapi-v3-json-schema.md) soon.
+
+Deploy the application and after several minutes (it takes time to fetch Helm chart from the repo, render and install), you can check the Helm release is installed.
+```shell
+helm ls -A
+
+myapp-demo-podinfo	default  	1 	2021-03-05 02:02:18.692317102 +0000 UTC	deployed	podinfo-5.1.4   	5.1.4
+```
+Check the deployment defined in the chart has been created successfully.
+```shell
+kubectl get deploy
+
+NAME                     READY   UP-TO-DATE   AVAILABLE   AGE
+myapp-demo-podinfo   1/1     1            1           66m
+```
+
+Check the values(`image.tag = 5.1.2`) from application's `settings` are assigned to the chart.
+```shell
+kubectl get deployment myapp-demo-podinfo -o json | jq '.spec.template.spec.containers[0].image'
+
+"ghcr.io/stefanprodan/podinfo:5.1.2"
+```
