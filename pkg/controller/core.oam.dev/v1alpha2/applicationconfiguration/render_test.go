@@ -1681,6 +1681,21 @@ func TestSetTraitProperties(t *testing.T) {
 	expU.SetName("comp1")
 	expU.SetNamespace("ns")
 	expU.SetOwnerReferences([]metav1.OwnerReference{{Name: "comp1"}})
+	assert.Equal(t, expU, u)
+
+	u = &unstructured.Unstructured{}
+	u.SetOwnerReferences([]metav1.OwnerReference{
+		{
+			Name: "resourceTracker",
+		},
+	})
+	u.SetNamespace("another-ns")
+	setTraitProperties(u, "comp1", "ns", &metav1.OwnerReference{Name: "comp1"})
+	expU = &unstructured.Unstructured{}
+	expU.SetName("comp1")
+	expU.SetNamespace("another-ns")
+	expU.SetOwnerReferences([]metav1.OwnerReference{{Name: "resourceTracker"}})
+	assert.Equal(t, expU, u)
 }
 
 func TestRenderTraitName(t *testing.T) {

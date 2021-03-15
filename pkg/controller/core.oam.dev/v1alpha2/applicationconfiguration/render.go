@@ -203,8 +203,10 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 	// don't pass the following annotation as those are for appConfig only
 	util.RemoveAnnotations(w, []string{oam.AnnotationAppRollout, oam.AnnotationRollingComponent, oam.AnnotationInplaceUpgrade})
 	ref := metav1.NewControllerRef(ac, v1alpha2.ApplicationConfigurationGroupVersionKind)
-	w.SetNamespace(ac.GetNamespace())
-
+	// Don't override if the resources already has namespace, it was set by user or the application controller which is by design.
+	if len(w.GetNamespace()) == 0 {
+		w.SetNamespace(ac.GetNamespace())
+	}
 	traits := make([]*Trait, 0, len(acc.Traits))
 	traitDefs := make([]v1alpha2.TraitDefinition, 0, len(acc.Traits))
 	compInfoLabels[oam.LabelOAMResourceType] = oam.ResourceTypeTrait
@@ -270,7 +272,10 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 		}
 	}
 	// set the owner reference after its ref is edited
-	w.SetOwnerReferences([]metav1.OwnerReference{*ref})
+	// If workload is in different namespace with application set the ownerReference, otherwise the owner was set with a resourceTracker by application controller already.
+	if ac.GetNamespace() == w.GetNamespace() {
+		w.SetOwnerReferences([]metav1.OwnerReference{*ref})
+	}
 
 	// create the ref after the workload name is set
 	workloadRef := runtimev1alpha1.TypedReference{
@@ -346,9 +351,15 @@ func setTraitProperties(t *unstructured.Unstructured, traitName, namespace strin
 	if t.GetName() == "" {
 		t.SetName(traitName)
 	}
+	// Don't override if the resources already has namespace, it was set by user or the application controller which is by design.
+	if len(t.GetNamespace()) == 0 {
+		t.SetNamespace(namespace)
+	}
+	// If trait is in different namespace with application set the ownerReference, otherwise the owner was set with a resourceTracker by application controller already.
+	if t.GetNamespace() == namespace {
+		t.SetOwnerReferences([]metav1.OwnerReference{*ref})
+	}
 
-	t.SetOwnerReferences([]metav1.OwnerReference{*ref})
-	t.SetNamespace(namespace)
 }
 
 // setWorkloadInstanceName will set metadata.name for workload CR according to createRevision flag in traitDefinition

@@ -24,11 +24,13 @@ import (
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
@@ -375,4 +377,135 @@ func (h *appHandler) applyHelmModuleResources(ctx context.Context, comp *v1alpha
 	}
 	klog.InfoS("Apply a HelmRelease", "namespace", release.GetNamespace(), "name", release.GetName())
 	return nil
+}
+
+// handleResourceTracker check the namesapce of  all components and traits, if the namespace is different with application, the tracker will own them
+func (h *appHandler) handleResourceTracker(ctx context.Context, components []*v1alpha2.Component, ac *v1alpha2.ApplicationConfiguration) error {
+	ref := new(metav1.OwnerReference)
+	// resourceTracker is cache for resourceTracker, avoid get from k8s every time
+	resourceTracker := new(v1beta1.ResourceTracker)
+	needTracker := false
+	for i, c := range components {
+		u, err := oamutil.RawExtension2Unstructured(&c.Spec.Workload)
+		if err != nil {
+			return err
+		}
+		if checkResourceDiffWithApp(u, h.app.Namespace) {
+			needTracker = true
+			if len(resourceTracker.Name) == 0 {
+				resourceTracker, ref, err = h.getResourceTrackerAndOwnReference(ctx)
+				if err != nil {
+					return err
+				}
+			}
+			u.SetOwnerReferences([]metav1.OwnerReference{*ref})
+			raw := oamutil.Object2RawExtension(u)
+			components[i].Spec.Workload = raw
+		}
+	}
+	for _, acComponent := range ac.Spec.Components {
+		for i, t := range acComponent.Traits {
+			u, err := oamutil.RawExtension2Unstructured(&t.Trait)
+			if err != nil {
+				return err
+			}
+			if checkResourceDiffWithApp(u, h.app.Namespace) {
+				needTracker = true
+				if len(resourceTracker.Name) == 0 {
+					resourceTracker, ref, err = h.getResourceTrackerAndOwnReference(ctx)
+					if err != nil {
+						return err
+					}
+				}
+				u.SetOwnerReferences([]metav1.OwnerReference{*ref})
+				raw := oamutil.Object2RawExtension(u)
+				acComponent.Traits[i].Trait = raw
+			}
+		}
+	}
+	if !needTracker {
+		h.app.Status.ResourceTracker = nil
+		// check weather related resourceTracker is existed, if yes delete it
+		err := h.r.Get(ctx, ctypes.NamespacedName{Name: h.generateResourceTrackerName()}, resourceTracker)
+		if err == nil {
+			return h.r.Delete(ctx, resourceTracker)
+		}
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+		return nil
+	}
+	h.app.Status.ResourceTracker = &runtimev1alpha1.TypedReference{
+		Name:       resourceTracker.Name,
+		Kind:       v1beta1.ResourceTrackerGroupKind,
+		APIVersion: v1beta1.ResourceTrackerKindAPIVersion,
+		UID:        resourceTracker.UID}
+
+	return nil
+}
+
+func (h *appHandler) getResourceTrackerAndOwnReference(ctx context.Context) (*v1beta1.ResourceTracker, *metav1.OwnerReference, error) {
+	resourceTracker := new(v1beta1.ResourceTracker)
+	key := ctypes.NamespacedName{Name: h.generateResourceTrackerName()}
+	err := h.r.Get(ctx, key, resourceTracker)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			resourceTracker = &v1beta1.ResourceTracker{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: h.generateResourceTrackerName(),
+				},
+			}
+			if err = h.r.Client.Create(ctx, resourceTracker); err != nil {
+				return nil, nil, err
+			}
+			return resourceTracker, metav1.NewControllerRef(resourceTracker, v1beta1.ResourceTrackerKindVersionKind), nil
+		}
+		return nil, nil, err
+	}
+	return resourceTracker, metav1.NewControllerRef(resourceTracker, v1beta1.ResourceTrackerKindVersionKind), nil
+}
+
+func (h *appHandler) generateResourceTrackerName() string {
+	return fmt.Sprintf("%s-%s", h.app.Namespace, h.app.Name)
+}
+
+func checkResourceDiffWithApp(u *unstructured.Unstructured, appNs string) bool {
+	return len(u.GetNamespace()) != 0 && u.GetNamespace() != appNs
+}
+
+// finalizeResourceTracker func return whether need to update application
+func (h *appHandler) removeResourceTracker(ctx context.Context) (bool, error) {
+	client := h.r.Client
+	rt := new(v1beta1.ResourceTracker)
+	trackerName := h.generateResourceTrackerName()
+	key := ctypes.NamespacedName{Name: trackerName}
+	err := client.Get(ctx, key, rt)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// for some cases the resourceTracker have been deleted but finalizer still exist
+			if meta.FinalizerExists(h.app, resourceTrackerFinalizer) {
+				meta.RemoveFinalizer(h.app, resourceTrackerFinalizer)
+				return true, nil
+			}
+			// for some cases: informer cache haven't sync resourceTracker from k8s, return error trigger reconcile again
+			if h.app.Status.ResourceTracker != nil {
+				return false, fmt.Errorf("application status has resouceTracker but cannot get from k8s ")
+			}
+			return false, nil
+		}
+		return false, err
+	}
+	rt = &v1beta1.ResourceTracker{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: trackerName,
+		},
+	}
+	err = h.r.Client.Delete(ctx, rt)
+	if err != nil {
+		return false, err
+	}
+	h.logger.Info("delete application resourceTracker")
+	meta.RemoveFinalizer(h.app, resourceTrackerFinalizer)
+	h.app.Status.ResourceTracker = nil
+	return true, nil
 }
