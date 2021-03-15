@@ -1,0 +1,20 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: Application
+metadata:
+  name: myapp
+  namespace: default
+spec:
+  components:
+    - name: demo-podinfo 
+      type: webapp-chart 
+      settings: 
+        image:
+          tag: "5.1.2"
+      traits:
+        - name: scaler
+          properties:
+            replicas: 2
+        - name: virtualgroup
+          properties:
+            group: "my-group1"
+            type: "cluster"

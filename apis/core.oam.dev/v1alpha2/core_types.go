@@ -34,7 +34,10 @@ type CUE struct {
 // the encapsulation can be defined in different ways, e.g. CUE/HCL(terraform)/KUBE(K8s Object)/HELM, etc...
 type Schematic struct {
 	CUE *CUE `json:"cue,omitempty"`
-	// TODO(wonderflow): support HCL(terraform)/KUBE(K8s Object)/HELM here.
+
+	HELM *Helm `json:"helm,omitempty"`
+
+	// TODO(wonderflow): support HCL(terraform)/KUBE(K8s Object) here.
 }
 
 // A DefinitionReference refers to a CustomResourceDefinition by name.
@@ -307,11 +310,26 @@ type ComponentSpec struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Workload runtime.RawExtension `json:"workload"`
 
+	// HelmRelease records a Helm release used by a Helm module workload.
+	// +optional
+	Helm *Helm `json:"helm,omitempty"`
+
 	// Parameters exposed by this component. ApplicationConfigurations that
 	// reference this component may specify values for these parameters, which
 	// will in turn be injected into the embedded workload.
 	// +optional
 	Parameters []ComponentParameter `json:"parameters,omitempty"`
+}
+
+// A Helm represents resources used by a Helm module
+type Helm struct {
+	// Release records a Helm release used by a Helm module workload.
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Release runtime.RawExtension `json:"release"`
+
+	// HelmRelease records a Helm repository used by a Helm module workload.
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Repository runtime.RawExtension `json:"repository"`
 }
 
 // A ComponentStatus represents the observed state of a Component.

@@ -1,0 +1,19 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: webapp-chart
+  annotations:
+    definition.oam.dev/description: helm chart for webapp
+spec:
+  definitionRef:
+    name: deployments.apps
+    version: v1
+  schematic:
+    helm:
+      release:
+        chart:
+          spec:
+            chart: "podinfo"
+            version: "5.1.4"
+      repository:
+        url: "http://oam.dev/catalog/"

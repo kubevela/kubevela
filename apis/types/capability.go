@@ -102,6 +102,8 @@ type CapabilityCategory string
 const (
 	// TerraformCategory means the capability is in Terraform format
 	TerraformCategory CapabilityCategory = "terraform"
+	// HelmCategory means the capability is a helm capability
+	HelmCategory CapabilityCategory = "helm"
 )
 
 // Parameter defines a parameter for cli from capability template
