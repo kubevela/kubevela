@@ -180,6 +180,7 @@ func (r *RolloutStatus) RolloutFailing(reason string) {
 // ResetStatus resets the status of the rollout to start from beginning
 func (r *RolloutStatus) ResetStatus() {
 	r.NewPodTemplateIdentifier = ""
+	r.RolloutTargetSize = -1
 	r.LastAppliedPodTemplateIdentifier = ""
 	r.RollingState = VerifyingSpecState
 	r.BatchRollingState = BatchInitializingState
@@ -237,17 +238,17 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 	switch rollingState {
 	case VerifyingSpecState:
 		if event == RollingSpecVerifiedEvent {
-			r.RollingState = InitializingState
 			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
+			r.RollingState = InitializingState
 			return
 		}
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
 
 	case InitializingState:
 		if event == RollingInitializedEvent {
+			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
 			r.RollingState = RollingInBatchesState
 			r.BatchRollingState = BatchInitializingState
-			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
@@ -258,16 +259,16 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 
 	case FinalisingState:
 		if event == RollingFinalizedEvent {
-			r.RollingState = RolloutSucceedState
 			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
+			r.RollingState = RolloutSucceedState
 			return
 		}
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
 
 	case RolloutFailingState:
 		if event == RollingFinalizedEvent {
-			r.RollingState = RolloutFailedState
 			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
+			r.RollingState = RolloutFailedState
 			return
 		}
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
@@ -312,40 +313,40 @@ func (r *RolloutStatus) batchStateTransition(event RolloutEvent) {
 
 	case BatchInRollingState:
 		if event == RolloutOneBatchEvent {
-			r.BatchRollingState = BatchVerifyingState
 			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
+			r.BatchRollingState = BatchVerifyingState
 			return
 		}
 		panic(fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event))
 
 	case BatchVerifyingState:
 		if event == OneBatchAvailableEvent {
-			r.BatchRollingState = BatchFinalizingState
 			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
+			r.BatchRollingState = BatchFinalizingState
 			return
 		}
 		panic(fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event))
 
 	case BatchFinalizingState:
 		if event == FinishedOneBatchEvent {
-			r.BatchRollingState = BatchReadyState
 			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
+			r.BatchRollingState = BatchReadyState
 			return
 		}
 		if event == AllBatchFinishedEvent {
+			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
 			// transition out of the batch loop
 			r.BatchRollingState = BatchReadyState
 			r.RollingState = FinalisingState
-			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		panic(fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event))
 
 	case BatchReadyState:
 		if event == BatchRolloutApprovedEvent {
+			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
 			r.BatchRollingState = BatchInitializingState
 			r.CurrentBatch++
-			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
 			return
 		}
 		panic(fmt.Errorf(invalidBatchRollingStateTransition, batchRollingState, event))
