@@ -647,8 +647,9 @@ func ConvertComponentDef2WorkloadDef(componentDef *v1alpha2.ComponentDefinition,
 
 	workloadDef.SetName(componentDef.Name)
 	workloadDef.SetNamespace(componentDef.Namespace)
+	workloadDef.SetLabels(componentDef.Labels)
+	workloadDef.SetAnnotations(componentDef.Annotations)
 	workloadDef.Spec.Reference = reference
-	workloadDef.Spec.ChildResourceKinds = componentDef.Spec.ChildResourceKinds
 	workloadDef.Spec.Extension = componentDef.Spec.Extension
 	workloadDef.Spec.RevisionLabel = componentDef.Spec.RevisionLabel
 	workloadDef.Spec.Status = componentDef.Spec.Status

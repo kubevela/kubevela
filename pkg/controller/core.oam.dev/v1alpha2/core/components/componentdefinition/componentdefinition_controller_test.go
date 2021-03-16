@@ -407,7 +407,9 @@ spec:
 				return err == nil
 			}, 10*time.Second, time.Second).Should(BeTrue())
 			Expect(wd.Name).Should(Equal(def.Name))
-			Expect(wd.Spec.Schematic.CUE).Should(Equal(def.Spec.Schematic.CUE))
+			Expect(wd.Namespace).Should(Equal(def.Namespace))
+			Expect(wd.Annotations).Should(Equal(def.Annotations))
+			Expect(wd.Spec.Schematic).Should(Equal(def.Spec.Schematic))
 			convertRef, err := util.ConvertWorkloadGVK2Definition(def.Spec.Workload.Definition)
 			Expect(err).Should(BeNil())
 			Expect(wd.Spec.Reference).Should(Equal(convertRef))
@@ -431,43 +433,6 @@ metadata:
 spec:
   workload:
     type: deployments.app
-  schematic:
-    cue:
-      template: |
-        output: {
-        	apiVersion: "apps/v1"
-        	kind:       "Deployment"
-        	spec: {
-        		selector: matchLabels: {
-        			"app.oam.dev/component": context.name
-        		}
-
-        		template: {
-        			metadata: labels: {
-        				"app.oam.dev/component": context.name
-        			}
-
-        			spec: {
-        				containers: [{
-        					name:  context.name
-        					image: parameter.image
-
-        					if parameter["cmd"] != _|_ {
-        						command: parameter.cmd
-        					}
-        				}]
-        			}
-        		}
-        	}
-        }
-        parameter: {
-        	// +usage=Which image would you like to use for your service
-        	// +short=i
-        	image: string
-
-        	// +usage=Commands to run in the container
-        	cmd?: [...string]
-        }
 `
 			var def v1alpha2.ComponentDefinition
 			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &def)).Should(BeNil())
