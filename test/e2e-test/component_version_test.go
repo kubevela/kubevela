@@ -593,8 +593,10 @@ var _ = Describe("Component revision", func() {
 			By("apply new ApplicationConfiguration with a revision enabled trait")
 			Expect(k8sClient.Create(ctx, &TraitDefinition)).Should(Succeed())
 			Expect(k8sClient.Get(ctx, appConfigObjKey, &appConfig)).Should(Succeed())
-			appConfig.Spec.Components[0].Traits = []v1alpha2.ComponentTrait{{Trait: runtime.RawExtension{Object: trait.DeepCopyObject()}}}
-			Expect(k8sClient.Update(ctx, &appConfig)).Should(Succeed())
+			updatedAppConfig := appConfig.DeepCopy()
+			updatedAppConfig.Spec.Components[0].Traits = []v1alpha2.ComponentTrait{{Trait: runtime.RawExtension{Object: trait.DeepCopyObject()}}}
+			updatedAppConfig.SetResourceVersion("")
+			Expect(k8sClient.Patch(ctx, updatedAppConfig, client.Merge)).Should(Succeed())
 
 			By("check current workload exists")
 			time.Sleep(3 * time.Second)

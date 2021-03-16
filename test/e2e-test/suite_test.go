@@ -321,3 +321,16 @@ var _ = AfterSuite(func() {
 	Expect(k8sClient.Delete(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
 	By("Deleted the workloaddefinitions CRD")
 })
+
+// reconcileAppConfigNow will trigger an immediate reconciliation on AppConfig.
+// Some test cases may fail for timeout to wait a scheduled reconciliation.
+// This is a workaround to avoid long-time wait before next scheduled
+// reconciliation.
+func reconcileAppConfigNow(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) error {
+	u := ac.DeepCopy()
+	u.SetAnnotations(map[string]string{
+		"app.oam.dev/requestreconcile": time.Now().String(),
+	})
+	u.SetResourceVersion("")
+	return k8sClient.Patch(ctx, u, client.Merge)
+}

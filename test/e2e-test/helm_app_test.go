@@ -179,14 +179,7 @@ var _ = Describe("Test application containing helm module", func() {
 
 		By("Veriify two traits are applied to the workload")
 		Eventually(func() bool {
-			acUpdate := ac.DeepCopy()
-			acUpdate.SetResourceVersion("")
-			acUpdate.SetAnnotations(map[string]string{
-				"app.oam.dev/requestreconcile": time.Now().String(),
-			})
-			// a workaround to trigger reconcile appconfig immediately
-			if err := k8sClient.Patch(ctx, acUpdate, client.Merge); err != nil {
-				By(err.Error())
+			if err := reconcileAppConfigNow(ctx, ac); err != nil {
 				return false
 			}
 			deploy := &appsv1.Deployment{}
@@ -257,14 +250,7 @@ var _ = Describe("Test application containing helm module", func() {
 
 		By("Veriify the changes are applied to the workload")
 		Eventually(func() bool {
-			acUpdate := ac.DeepCopy()
-			acUpdate.SetResourceVersion("")
-			acUpdate.SetAnnotations(map[string]string{
-				"app.oam.dev/requestreconcile": time.Now().String(),
-			})
-			// a workaround to trigger reconcile appconfig immediately
-			if err := k8sClient.Patch(ctx, acUpdate, client.Merge); err != nil {
-				By(err.Error())
+			if err := reconcileAppConfigNow(ctx, ac); err != nil {
 				return false
 			}
 			deploy := &appsv1.Deployment{}
