@@ -63,7 +63,7 @@ func (c *CloneSetController) VerifySpec(ctx context.Context) (bool, error) {
 	}
 	// record the size
 	klog.InfoS("record the target size", "total replicas", totalReplicas)
-	c.rolloutStatus.RolloutTargetSize = totalReplicas
+	c.rolloutStatus.RolloutTargetTotalSize = totalReplicas
 
 	// make sure that the updateRevision is different from what we have already done
 	targetHash := c.cloneSet.Status.UpdateRevision
@@ -102,6 +102,13 @@ func (c *CloneSetController) Initialize(ctx context.Context) (bool, error) {
 	if err != nil {
 		c.rolloutStatus.RolloutRetry(err.Error())
 		return false, nil
+	}
+
+	if controller := metav1.GetControllerOf(c.cloneSet); controller != nil {
+		if controller.Kind == v1alpha2.AppRolloutKind && controller.APIVersion == v1alpha2.SchemeGroupVersion.String() {
+			// it's already there
+			return true, nil
+		}
 	}
 	// add the parent controller to the owner of the cloneset
 	// before kicking start the update and start from every pod in the old version

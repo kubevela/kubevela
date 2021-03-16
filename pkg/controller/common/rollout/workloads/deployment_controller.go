@@ -21,7 +21,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-// DeploymentController is responsible for handle rollout deployment type of workloads
+// DeploymentController is responsible for handling rollout deployment type of workloads
 type DeploymentController struct {
 	client           client.Client
 	recorder         event.Recorder
@@ -35,7 +35,7 @@ type DeploymentController struct {
 	targetDeploy         apps.Deployment
 }
 
-// NewDeploymentController creates a new Deployment rollout controller
+// NewDeploymentController creates a new deployment rollout controller
 func NewDeploymentController(client client.Client, recorder event.Recorder, parentController oam.Object,
 	rolloutSpec *v1alpha1.RolloutPlan, rolloutStatus *v1alpha1.RolloutStatus, sourceNamespacedName,
 	targetNamespacedName types.NamespacedName) *DeploymentController {
@@ -62,7 +62,7 @@ func (c *DeploymentController) VerifySpec(ctx context.Context) (bool, error) {
 	}()
 
 	// check if the rollout spec is compatible with the current state
-	totalReplicas, verifyErr := c.calculateTargetSize(ctx)
+	targetTotalReplicas, verifyErr := c.calculateTargetTotalSize(ctx)
 	if verifyErr != nil {
 		// do not fail the rollout just because we can't get the resource
 		c.rolloutStatus.RolloutRetry(verifyErr.Error())
@@ -70,7 +70,7 @@ func (c *DeploymentController) VerifySpec(ctx context.Context) (bool, error) {
 	}
 	// record the size and we will use this value to drive the rest of the batches
 	// we do not handle scale case in this controller
-	c.rolloutStatus.RolloutTargetSize = totalReplicas
+	c.rolloutStatus.RolloutTargetTotalSize = targetTotalReplicas
 
 	// make sure that the updateRevision is different from what we have already done
 	targetHash, verifyErr := utils.ComputeSpecHash(c.targetDeploy.Spec)
@@ -87,12 +87,17 @@ func (c *DeploymentController) VerifySpec(ctx context.Context) (bool, error) {
 
 	// check if the rollout batch replicas added up to the Deployment replicas
 	// we don't handle scale case in this controller
-	if verifyErr = c.verifyRolloutBatchReplicaValue(totalReplicas); verifyErr != nil {
+	if verifyErr = c.verifyRolloutBatchReplicaValue(targetTotalReplicas); verifyErr != nil {
 		return false, verifyErr
 	}
 
+	if !c.sourceDeploy.Spec.Paused {
+		return false, fmt.Errorf("the source eployment %s is still being reconciled, need to be paused",
+			c.sourceDeploy.GetName())
+	}
+
 	if !c.targetDeploy.Spec.Paused && c.targetDeploy.Spec.Replicas != pointer.Int32Ptr(0) {
-		return false, fmt.Errorf("the Deployment %s is in the middle of updating, need to be paused or empty",
+		return false, fmt.Errorf("the target deployment %s is not empty, need to be paused or empty",
 			c.sourceDeploy.GetName())
 	}
 
@@ -121,12 +126,12 @@ func (c *DeploymentController) Initialize(ctx context.Context) (bool, error) {
 		c.rolloutStatus.RolloutRetry(err.Error())
 		return false, nil
 	}
-	err = c.claimDeployment(ctx, &c.sourceDeploy)
+	err = c.claimDeployment(ctx, &c.sourceDeploy, false)
 	if err != nil {
 		c.rolloutStatus.RolloutRetry(err.Error())
 		return false, nil
 	}
-	err = c.claimDeployment(ctx, &c.targetDeploy)
+	err = c.claimDeployment(ctx, &c.targetDeploy, c.calculateInitialTargetSize(ctx))
 	if err != nil {
 		c.rolloutStatus.RolloutRetry(err.Error())
 		return false, nil
@@ -151,13 +156,13 @@ func (c *DeploymentController) RolloutOneBatchPods(ctx context.Context) (bool, e
 		rolloutStrategy = c.rolloutSpec.RolloutStrategy
 	}
 	// Determine if we are the first or the second part of the current batch rollout
-	if currentSizeSetting == c.rolloutStatus.RolloutTargetSize {
+	if currentSizeSetting == c.rolloutStatus.RolloutTargetTotalSize {
 		// we need to finish the first part of the rollout,
 		// will always return false to not move to the next phase
 		return false, c.rolloutBatchFirstHalf(ctx, rolloutStrategy)
 	}
 	// we are at the second half
-	targetSize := c.calculateCurrentTarget(c.rolloutStatus.RolloutTargetSize)
+	targetSize := c.calculateCurrentTarget(c.rolloutStatus.RolloutTargetTotalSize)
 	if !c.rolloutBatchSecondHalf(ctx, rolloutStrategy, targetSize) {
 		return false, nil
 	}
@@ -165,7 +170,7 @@ func (c *DeploymentController) RolloutOneBatchPods(ctx context.Context) (bool, e
 	klog.InfoS("upgraded one batch", "current batch", c.rolloutStatus.CurrentBatch,
 		"target deployment size", targetSize)
 	c.recorder.Event(c.parentController, event.Normal("Batch Rollout",
-		fmt.Sprintf("Submitted upgrade quest for batch %d", c.rolloutStatus.CurrentBatch)))
+		fmt.Sprintf("Submitted upgrade quests for batch %d", c.rolloutStatus.CurrentBatch)))
 	c.rolloutStatus.UpgradedReplicas = targetSize
 	return true, nil
 }
@@ -181,8 +186,8 @@ func (c *DeploymentController) CheckOneBatchPods(ctx context.Context) (bool, err
 	readyTargetPodCount := c.targetDeploy.Status.ReadyReplicas
 	sourcePodCount := c.sourceDeploy.Status.Replicas
 	currentBatch := c.rolloutSpec.RolloutBatches[c.rolloutStatus.CurrentBatch]
-	targetGoal := c.calculateCurrentTarget(c.rolloutStatus.RolloutTargetSize)
-	sourceGoal := c.calculateCurrentSource(c.rolloutStatus.RolloutTargetSize)
+	targetGoal := c.calculateCurrentTarget(c.rolloutStatus.RolloutTargetTotalSize)
+	sourceGoal := c.calculateCurrentSource(c.rolloutStatus.RolloutTargetTotalSize)
 	maxUnavail := 0
 	if currentBatch.MaxUnavailable != nil {
 		maxUnavail, _ = intstr.GetValueFromIntOrPercent(currentBatch.MaxUnavailable, int(targetGoal), true)
@@ -194,7 +199,7 @@ func (c *DeploymentController) CheckOneBatchPods(ctx context.Context) (bool, err
 	// make sure that the source deployment has the correct pods before moving the target
 	// and the total we could overshoot in revert cases
 	if sourcePodCount != sourceGoal ||
-		int32(maxUnavail)+readyTargetPodCount+sourcePodCount < c.rolloutStatus.RolloutTargetSize {
+		int32(maxUnavail)+readyTargetPodCount+sourcePodCount < c.rolloutStatus.RolloutTargetTotalSize {
 		// continue to verify
 		klog.InfoS("the batch is not ready yet", "current batch", c.rolloutStatus.CurrentBatch)
 		c.rolloutStatus.RolloutRetry(fmt.Sprintf(
@@ -214,12 +219,17 @@ func (c *DeploymentController) CheckOneBatchPods(ctx context.Context) (bool, err
 // FinalizeOneBatch makes sure that the rollout status are updated correctly
 func (c *DeploymentController) FinalizeOneBatch(ctx context.Context) (bool, error) {
 	// nothing to do for Deployment for now
-	return false, nil
+	return true, nil
 }
 
 // Finalize makes sure the Deployment is all upgraded
 func (c *DeploymentController) Finalize(ctx context.Context, succeed bool) bool {
-	err := c.releaseDeployment(ctx, &c.sourceDeploy)
+	err := c.fetchDeployments(ctx)
+	if err != nil {
+		// don't fail the rollout just because of we can't get the resource
+		return false
+	}
+	err = c.releaseDeployment(ctx, &c.sourceDeploy)
 	if err != nil {
 		c.rolloutStatus.RolloutRetry(err.Error())
 		return false
@@ -239,31 +249,36 @@ func (c *DeploymentController) Finalize(ctx context.Context, succeed bool) bool 
 The functions below are helper functions
 --------------------- */
 
-// calculateTargetSize fetches the Deployment and returns the replicas (not the actual number of pods)
-func (c *DeploymentController) calculateTargetSize(ctx context.Context) (int32, error) {
+// calculateTargetTotalSize fetches the Deployment and returns the replicas (not the actual number of pods)
+func (c *DeploymentController) calculateTargetTotalSize(ctx context.Context) (int32, error) {
 	if err := c.fetchDeployments(ctx); err != nil {
 		return -1, err
 	}
-
+	// the spec target size is the truth if it's set
+	if c.rolloutSpec.TargetSize != nil {
+		return *c.rolloutSpec.TargetSize, nil
+	}
+	// otherwise, we assume that the source is the total
 	// source default is 1
 	var sourceSize int32 = 1
-	var targetSize int32 = 0
 	if c.sourceDeploy.Spec.Replicas != nil {
 		sourceSize = *c.sourceDeploy.Spec.Replicas
 	}
-	if c.targetDeploy.Spec.Replicas != nil {
-		targetSize = *c.targetDeploy.Spec.Replicas
+	return sourceSize, nil
+}
+
+// calculateInitialTargetSize calculates what the initial replica should be set to the target deploy
+func (c *DeploymentController) calculateInitialTargetSize(ctx context.Context) bool {
+	total, _ := c.calculateTargetTotalSize(ctx)
+	var sourceSize int32 = 1
+	if c.sourceDeploy.Spec.Replicas != nil {
+		sourceSize = *c.sourceDeploy.Spec.Replicas
 	}
-	return sourceSize + targetSize, nil
+	return total == sourceSize
 }
 
 // check if the replicas in all the rollout batches add up to the right number
 func (c *DeploymentController) verifyRolloutBatchReplicaValue(totalReplicas int32) error {
-	// the target size has to be the same as the Deployment size
-	if c.rolloutSpec.TargetSize != nil && *c.rolloutSpec.TargetSize != totalReplicas {
-		return fmt.Errorf("the rollout plan is attempting to scale the Deployment, target = %d, Deployment size = %d",
-			*c.rolloutSpec.TargetSize, totalReplicas)
-	}
 	// use a common function to check if the sum of all the batches can match the Deployment size
 	err := VerifySumOfBatchSizes(c.rolloutSpec, totalReplicas)
 	if err != nil {
@@ -294,13 +309,18 @@ func (c *DeploymentController) fetchDeployments(ctx context.Context) error {
 	return nil
 }
 
-// add the parent controller to the owner of the Deployment
+// add the parent controller to the owner of the deployment, unpause it and initialize the size
 // before kicking start the update and start from every pod in the old version
-func (c *DeploymentController) claimDeployment(ctx context.Context, deploy *apps.Deployment) error {
+func (c *DeploymentController) claimDeployment(ctx context.Context, deploy *apps.Deployment, initSize bool) error {
 	deployPatch := client.MergeFrom(deploy.DeepCopyObject())
-	ref := metav1.NewControllerRef(c.parentController, v1alpha2.AppRolloutKindVersionKind)
-	deploy.SetOwnerReferences(append(deploy.GetOwnerReferences(), *ref))
+	if controller := metav1.GetControllerOf(deploy); controller == nil {
+		ref := metav1.NewControllerRef(c.parentController, v1alpha2.AppRolloutKindVersionKind)
+		deploy.SetOwnerReferences(append(deploy.GetOwnerReferences(), *ref))
+	}
 	deploy.Spec.Paused = false
+	if initSize {
+		deploy.Spec.Replicas = pointer.Int32Ptr(0)
+	}
 	// patch the Deployment
 	if err := c.client.Patch(ctx, deploy, deployPatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
 		c.recorder.Event(c.parentController, event.Warning("Failed to the start the Deployment update", err))
@@ -313,7 +333,7 @@ func (c *DeploymentController) rolloutBatchFirstHalf(ctx context.Context, rollou
 	var err error
 	if rolloutStrategy == v1alpha1.IncreaseFirstRolloutStrategyType {
 		// set the target replica first which should increase its size
-		if err = c.patchDeployment(ctx, c.calculateCurrentTarget(c.rolloutStatus.RolloutTargetSize),
+		if err = c.patchDeployment(ctx, c.calculateCurrentTarget(c.rolloutStatus.RolloutTargetTotalSize),
 			&c.targetDeploy); err != nil {
 			c.rolloutStatus.RolloutRetry(err.Error())
 		}
@@ -321,7 +341,7 @@ func (c *DeploymentController) rolloutBatchFirstHalf(ctx context.Context, rollou
 	}
 	if rolloutStrategy == v1alpha1.DecreaseFirstRolloutStrategyType {
 		// set the source replicas first which should shrink its size
-		if err = c.patchDeployment(ctx, c.calculateCurrentSource(c.rolloutStatus.RolloutTargetSize),
+		if err = c.patchDeployment(ctx, c.calculateCurrentSource(c.rolloutStatus.RolloutTargetTotalSize),
 			&c.sourceDeploy); err != nil {
 			c.rolloutStatus.RolloutRetry(err.Error())
 		}
@@ -343,7 +363,7 @@ func (c *DeploymentController) rolloutBatchSecondHalf(ctx context.Context,
 		// make sure that the target deployment has enough ready pods before reducing the source
 		if c.targetDeploy.Status.ReadyReplicas+int32(maxUnavail) >= targetSize {
 			// set the source replicas now which should shrink its size
-			if err = c.patchDeployment(ctx, c.calculateCurrentSource(c.rolloutStatus.RolloutTargetSize),
+			if err = c.patchDeployment(ctx, c.calculateCurrentSource(c.rolloutStatus.RolloutTargetTotalSize),
 				&c.sourceDeploy); err != nil {
 				c.rolloutStatus.RolloutRetry(err.Error())
 				return false
@@ -358,7 +378,7 @@ func (c *DeploymentController) rolloutBatchSecondHalf(ctx context.Context,
 		}
 	} else if rolloutStrategy == v1alpha1.DecreaseFirstRolloutStrategyType {
 		// make sure that the source deployment has the correct pods before moving the target
-		sourceSize := c.calculateCurrentSource(c.rolloutStatus.RolloutTargetSize)
+		sourceSize := c.calculateCurrentSource(c.rolloutStatus.RolloutTargetTotalSize)
 		if c.sourceDeploy.Status.Replicas == sourceSize {
 			// we can increase the target deployment as soon as the source deployment's replica is correct
 			// no need to wait for them to be ready
@@ -402,18 +422,10 @@ func (c *DeploymentController) calculateCurrentTarget(totalSize int32) int32 {
 	return targetSize
 }
 
-// the target deploy size for the current batch
+// the source deploy size for the current batch
 func (c *DeploymentController) calculateCurrentSource(totalSize int32) int32 {
 	currentBatch := int(c.rolloutStatus.CurrentBatch)
-	var sourceSize int32
-	for i, r := range c.rolloutSpec.RolloutBatches {
-		batchSize, _ := intstr.GetValueFromIntOrPercent(&r.Replicas, int(totalSize), true)
-		if i < currentBatch {
-			sourceSize += int32(batchSize)
-		} else {
-			break
-		}
-	}
+	sourceSize := totalSize - c.calculateCurrentTarget(totalSize)
 	klog.InfoS("Calculated the number of pods in the source deployment after current batch",
 		"current batch", currentBatch, "source deploy size", sourceSize)
 	return sourceSize
@@ -429,9 +441,8 @@ func (c *DeploymentController) patchDeployment(ctx context.Context, target int32
 			"Failed to update the deployment %s to the correct target %d", deploy.GetName(), target)), err))
 		return err
 	}
-	c.recorder.Event(c.parentController, event.Normal("Batch Rollout",
-		fmt.Sprintf("Submitted upgrade quest for deployment %s to have %d pods for batch %d",
-			deploy.GetName(), target, c.rolloutStatus.CurrentBatch)))
+	klog.InfoS("Submitted upgrade quest for deployment", "deployment",
+		deploy.GetName(), "target replica size", target, "batch", c.rolloutStatus.CurrentBatch)
 	return nil
 }
 

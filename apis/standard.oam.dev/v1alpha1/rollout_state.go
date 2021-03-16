@@ -180,7 +180,7 @@ func (r *RolloutStatus) RolloutFailing(reason string) {
 // ResetStatus resets the status of the rollout to start from beginning
 func (r *RolloutStatus) ResetStatus() {
 	r.NewPodTemplateIdentifier = ""
-	r.RolloutTargetSize = -1
+	r.RolloutTargetTotalSize = -1
 	r.LastAppliedPodTemplateIdentifier = ""
 	r.RollingState = VerifyingSpecState
 	r.BatchRollingState = BatchInitializingState

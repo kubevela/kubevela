@@ -75,7 +75,7 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 	defer func() {
 		klog.InfoS("Finished one round of reconciling rollout plan", "rollout state", status.RollingState,
 			"batch rolling state", status.BatchRollingState, "current batch", status.CurrentBatch,
-			"upgraded Replicas", status.UpgradedReplicas, "ready Replicas", r.rolloutStatus.UpgradedReadyReplicas,
+			"upgraded Replicas", status.UpgradedReplicas, "ready Replicas", status.UpgradedReadyReplicas,
 			"reconcile result ", res)
 	}()
 	status = r.rolloutStatus
@@ -128,7 +128,7 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 		}
 
 	case v1alpha1.FinalisingState:
-		if succeed := workloadController.Finalize(ctx, false); succeed {
+		if succeed := workloadController.Finalize(ctx, true); succeed {
 			r.finalizeRollout(ctx)
 		}
 
@@ -154,7 +154,7 @@ func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadContro
 	}
 
 	// makes sure that the current batch and replica count in the status are validate
-	err := r.validateRollingBatchStatus(int(r.rolloutStatus.RolloutTargetSize))
+	err := r.validateRollingBatchStatus(int(r.rolloutStatus.RolloutTargetTotalSize))
 	if err != nil {
 		r.rolloutStatus.RolloutFailing(err.Error())
 		return
@@ -374,8 +374,8 @@ func (r *Controller) GetWorkloadController() (workloads.WorkloadController, erro
 	}
 	var source types.NamespacedName
 	if r.sourceWorkload != nil {
-		source.Namespace = r.targetWorkload.GetNamespace()
-		source.Name = r.targetWorkload.GetName()
+		source.Namespace = r.sourceWorkload.GetNamespace()
+		source.Name = r.sourceWorkload.GetName()
 	}
 
 	if r.targetWorkload.GroupVersionKind().Group == kruisev1.GroupVersion.Group {

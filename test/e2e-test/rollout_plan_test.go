@@ -199,8 +199,8 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				return appRollout.Status.RollingState
 			},
 			time.Second*240, time.Second).Should(Equal(oamstd.RolloutSucceedState))
-		Expect(appRollout.Status.UpgradedReadyReplicas).Should(BeEquivalentTo(appRollout.Status.RolloutTargetSize))
-		Expect(appRollout.Status.UpgradedReplicas).Should(BeEquivalentTo(appRollout.Status.RolloutTargetSize))
+		Expect(appRollout.Status.UpgradedReadyReplicas).Should(BeEquivalentTo(appRollout.Status.RolloutTargetTotalSize))
+		Expect(appRollout.Status.UpgradedReplicas).Should(BeEquivalentTo(appRollout.Status.RolloutTargetTotalSize))
 	}
 
 	VerifyAppConfigRollingCompleted := func(appConfigName string) {
