@@ -112,7 +112,7 @@ func ListApplications(ctx context.Context, c client.Reader, opt Option) ([]apis.
 		}
 		applicationMeta, err := RetrieveApplicationStatusByName(ctx, c, a.Name, a.Namespace)
 		if err != nil {
-			return applicationMetaList, nil
+			return applicationMetaList, err
 		}
 		applicationMeta.Components = nil
 		applicationMetaList = append(applicationMetaList, applicationMeta)

@@ -100,7 +100,7 @@ func openPrint(v cue.Value) (string, error) {
 	sysopts := []cue.Option{cue.All(), cue.DisallowCycles(true), cue.ResolveReferences(true), cue.Docs(true)}
 	f, err := sets.ToFile(v.Syntax(sysopts...))
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 	for _, decl := range f.Decls {
 		listOpen(decl)

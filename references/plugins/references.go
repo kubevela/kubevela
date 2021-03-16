@@ -258,7 +258,7 @@ func (ref *MarkdownReference) CreateMarkdown(caps []types.Capability, baseRefPat
 		}
 		refContent = title + description + specification + refContent + conflictWithAndMoreSection
 		if _, err := f.WriteString(refContent); err != nil {
-			return nil
+			return err
 		}
 		if err := f.Close(); err != nil {
 			return err
@@ -403,7 +403,7 @@ func (ref *MarkdownReference) generateConflictWithAndMore(capabilityName string,
 	}
 	data, err := ioutil.ReadFile(filepath.Clean(conflictWithFile))
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 	return "\n" + string(data), nil
 }
