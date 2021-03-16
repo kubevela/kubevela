@@ -22,6 +22,9 @@ import (
 	"context"
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
+
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
@@ -63,6 +66,32 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// this is a placeholder for finalizer here in the future
 	if componentDefinition.DeletionTimestamp != nil {
 		return ctrl.Result{}, nil
+	}
+
+	// if Workload.Type is empty, we need create a WorkloadDefinition
+	if componentDefinition.Spec.Workload.Type == "" {
+		workloadDefinition := new(v1alpha2.WorkloadDefinition)
+		newCd := componentDefinition.DeepCopy()
+		if err := util.ConvertComponentDef2WorkloadDef(newCd, workloadDefinition); err != nil {
+			klog.ErrorS(err, "cannot convert ComponentDefinition")
+			r.record.Event(&componentDefinition, event.Warning("cannot convert ComponentDefinition", err))
+			return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
+				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrConvertComponentDefinition, componentDefinition.Name, err)))
+		}
+		owners := []metav1.OwnerReference{{
+			APIVersion: v1alpha2.SchemeGroupVersion.String(),
+			Kind:       v1alpha2.ComponentDefinitionKind,
+			Name:       componentDefinition.Name,
+			UID:        componentDefinition.UID,
+			Controller: pointer.BoolPtr(true),
+		}}
+		workloadDefinition.SetOwnerReferences(owners)
+		if err := r.Create(ctx, workloadDefinition); err != nil {
+			klog.ErrorS(err, "cannot create converted WorkloadDefinition")
+			r.record.Event(&componentDefinition, event.Warning("cannot create converted Workload", err))
+			return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
+				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateConvertedWorklaodDefinition, workloadDefinition.Name, err)))
+		}
 	}
 
 	var def utils.CapabilityComponentDefinition

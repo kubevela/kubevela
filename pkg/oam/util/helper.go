@@ -77,6 +77,11 @@ const (
 	ErrGenerateOpenAPIV2JSONSchemaForCapability = "cannot generate OpenAPI v3 JSON schema for capability %s: %v"
 	// ErrUpdateCapabilityInConfigMap is the error while creating or updating a capability
 	ErrUpdateCapabilityInConfigMap = "cannot create or update capability %s in ConfigMap: %v"
+
+	// ErrConvertComponentDefinition is the error while convert a workloadDefinition from componentDefinition
+	ErrConvertComponentDefinition = "cannot convert ComponentDefinition %s to WorkloadDefinition %v"
+	// ErrCreateConvertedWorklaodDefinition is the error while apply a WorkloadDefinition
+	ErrCreateConvertedWorklaodDefinition = "cannot create converted WorkloadDefinition %s: %v"
 )
 
 type namespaceContextKey int
@@ -415,6 +420,19 @@ func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef v1al
 	return kinds[0], nil
 }
 
+// ConvertWorkloadGVK2Definition help convert a GVK to DefinitionReference
+func ConvertWorkloadGVK2Definition(def v1alpha2.WorkloadGVK) (v1alpha2.DefinitionReference, error) {
+	var reference v1alpha2.DefinitionReference
+	gv, err := schema.ParseGroupVersion(def.APIVersion)
+	if err != nil {
+		return reference, err
+	}
+	resource := strings.ToLower(def.Kind) + "s"
+	reference.Name = resource + "." + gv.Group
+	reference.Version = gv.Version
+	return reference, nil
+}
+
 // GetObjectsGivenGVKAndLabels fetches the kubernetes object given its gvk and labels by list API
 func GetObjectsGivenGVKAndLabels(ctx context.Context, cli client.Reader,
 	gvk schema.GroupVersionKind, namespace string, labels map[string]string) (*unstructured.UnstructuredList, error) {
@@ -610,4 +628,26 @@ func MergeMapOverrideWithDst(src, dst map[string]string) map[string]string {
 		r[k] = v
 	}
 	return r
+}
+
+// ConvertComponentDef2WorkloadDef help convert a ComponentDefinition to WorkloadDefinition
+func ConvertComponentDef2WorkloadDef(componentDef *v1alpha2.ComponentDefinition, workloadDef *v1alpha2.WorkloadDefinition) error {
+	if len(componentDef.Spec.Workload.Type) > 1 {
+		return errors.New("No need to convert ComponentDefinition")
+	}
+	var reference v1alpha2.DefinitionReference
+	reference, err := ConvertWorkloadGVK2Definition(componentDef.Spec.Workload.Definition)
+	if err != nil {
+		return fmt.Errorf("create DefinitionReference fail %w", err)
+	}
+
+	workloadDef.SetName(componentDef.Name)
+	workloadDef.SetNamespace(componentDef.Namespace)
+	workloadDef.Spec.Reference = reference
+	workloadDef.Spec.ChildResourceKinds = componentDef.Spec.ChildResourceKinds
+	workloadDef.Spec.Extension = componentDef.Spec.Extension
+	workloadDef.Spec.RevisionLabel = componentDef.Spec.RevisionLabel
+	workloadDef.Spec.Status = componentDef.Spec.Status
+	workloadDef.Spec.Schematic = componentDef.Spec.Schematic
+	return nil
 }

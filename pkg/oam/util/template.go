@@ -42,20 +42,23 @@ func GetScopeGVK(ctx context.Context, cli client.Reader, dm discoverymapper.Disc
 func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.CapType) (*Template, error) {
 	switch kd {
 	case types.TypeWorkload:
-		wd := new(v1alpha2.WorkloadDefinition)
-		err := GetDefinition(ctx, cli, wd, key)
+		cd := new(v1alpha2.ComponentDefinition)
+		err := GetDefinition(ctx, cli, cd, key)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
-		tmpl, err := NewTemplate(wd.Spec.Schematic, wd.Spec.Status, wd.Spec.Extension)
+		tmpl, err := NewTemplate(cd.Spec.Schematic, cd.Spec.Status, cd.Spec.Extension)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
 		if tmpl == nil {
 			return nil, errors.New("no template found in definition")
 		}
-		tmpl.Reference = wd.Spec.Reference
-		if wd.Annotations["type"] == string(types.TerraformCategory) {
+		tmpl.Reference, err = ConvertWorkloadGVK2Definition(cd.Spec.Workload.Definition)
+		if err != nil {
+			return nil, fmt.Errorf("get DefinitionReference error %w", err)
+		}
+		if cd.Annotations["type"] == string(types.TerraformCategory) {
 			tmpl.CapabilityCategory = types.TerraformCategory
 		}
 		return tmpl, nil
