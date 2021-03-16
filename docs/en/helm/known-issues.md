@@ -1,6 +1,6 @@
 # Limitations and known issues
 
-Here are the highlights for using Helm Chart as schematic module. 
+Here are the highlights for using Helm Chart as schematic module. We hope to loosen or remove most of these restrictions over time.
 
 ## Only one main workload in the Chart
 
