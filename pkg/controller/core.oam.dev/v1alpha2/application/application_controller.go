@@ -19,6 +19,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
@@ -170,6 +171,9 @@ func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1alpha2.Application
 // Setup adds a controller that reconciles AppRollout.
 func Setup(mgr ctrl.Manager, _ core.Args, _ logging.Logger) error {
 	dm, err := discoverymapper.New(mgr.GetConfig())
+	if err := definition.AddImportFromCluster(mgr.GetConfig(), mgr.GetScheme()); err != nil {
+		ctrl.Log.Error(err, "use kubernetes cluster openAPI as rendering package")
+	}
 	if err != nil {
 		return fmt.Errorf("create discovery dm fail %w", err)
 	}
