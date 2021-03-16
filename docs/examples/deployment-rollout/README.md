@@ -18,13 +18,11 @@ Wait for the application's status to be "running"
 ```shell
 kubectl apply -f docs/examples/deployment-rollout/app-source-prep.yaml
 ```
-Wait for the applicationConfiguration "test-rolling-v1" `Rolling Status` to be "RollingTemplated"
 
 4. Modify the application image and apply
 ```shell
 kubectl apply -f docs/examples/deployment-rollout/app-target.yaml
 ```
-Wait for the applicationConfiguration "test-rolling-v2" `Rolling Status` to be "RollingTemplated"
 
 5. Mark the application as normal
 ```shell
@@ -33,14 +31,14 @@ kubectl apply -f docs/examples/deployment-rollout/app-target-done.yaml
 
 6. Apply the application deployment with pause
 ```shell
-kubectl apply -f docs/examples/deployment-rollout/app-deploy-pause.yaml
+kubectl apply -f docs/examples/deployment-rollout/app-rollout-pause.yaml
 ```
-Check the status of the ApplicationDeployment and see the step by step rolling out.
+Check the status of the ApplicationRollout and see the step by step rolling out.
 This rollout will pause after the second batch.
 
 7. Apply the application deployment that completes the rollout
 ```shell
-kubectl apply -f docs/examples/deployment-rollout/app-deploy-finish.yaml
+kubectl apply -f docs/examples/deployment-rollout/app-rollout-finish.yaml
 ```
-Check the status of the ApplicationDeployment and see the rollout completes, and the 
-applicationDeployment's "Rolling State" becomes `rolloutSucceed`
+Check the status of the ApplicationRollout and see the rollout completes, and the 
+ApplicationRollout's "Rolling State" becomes `rolloutSucceed`

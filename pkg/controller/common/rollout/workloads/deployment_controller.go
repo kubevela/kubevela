@@ -170,7 +170,7 @@ func (c *DeploymentController) RolloutOneBatchPods(ctx context.Context) (bool, e
 	klog.InfoS("upgraded one batch", "current batch", c.rolloutStatus.CurrentBatch,
 		"target deployment size", targetSize)
 	c.recorder.Event(c.parentController, event.Normal("Batch Rollout",
-		fmt.Sprintf("Submitted upgrade quests for batch %d", c.rolloutStatus.CurrentBatch)))
+		fmt.Sprintf("Finished submiting all upgrade quests for batch %d", c.rolloutStatus.CurrentBatch)))
 	c.rolloutStatus.UpgradedReplicas = targetSize
 	return true, nil
 }
@@ -330,21 +330,24 @@ func (c *DeploymentController) claimDeployment(ctx context.Context, deploy *apps
 }
 
 func (c *DeploymentController) rolloutBatchFirstHalf(ctx context.Context, rolloutStrategy v1alpha1.RolloutStrategyType) error {
-	var err error
 	if rolloutStrategy == v1alpha1.IncreaseFirstRolloutStrategyType {
 		// set the target replica first which should increase its size
-		if err = c.patchDeployment(ctx, c.calculateCurrentTarget(c.rolloutStatus.RolloutTargetTotalSize),
+		if err := c.patchDeployment(ctx, c.calculateCurrentTarget(c.rolloutStatus.RolloutTargetTotalSize),
 			&c.targetDeploy); err != nil {
 			c.rolloutStatus.RolloutRetry(err.Error())
 		}
+		c.recorder.Event(c.parentController, event.Normal("Batch Rollout",
+			fmt.Sprintf("Submitted the increase part of upgrade quests for batch %d", c.rolloutStatus.CurrentBatch)))
 		return nil
 	}
 	if rolloutStrategy == v1alpha1.DecreaseFirstRolloutStrategyType {
 		// set the source replicas first which should shrink its size
-		if err = c.patchDeployment(ctx, c.calculateCurrentSource(c.rolloutStatus.RolloutTargetTotalSize),
+		if err := c.patchDeployment(ctx, c.calculateCurrentSource(c.rolloutStatus.RolloutTargetTotalSize),
 			&c.sourceDeploy); err != nil {
 			c.rolloutStatus.RolloutRetry(err.Error())
 		}
+		c.recorder.Event(c.parentController, event.Normal("Batch Rollout",
+			fmt.Sprintf("Submitted the decrease part of upgrade quests for batch %d", c.rolloutStatus.CurrentBatch)))
 		return nil
 	}
 	return fmt.Errorf("encountered an unknown rolloutStrategy `%s`", rolloutStrategy)
