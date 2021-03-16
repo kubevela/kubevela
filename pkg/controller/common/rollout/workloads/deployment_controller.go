@@ -66,6 +66,7 @@ func (c *DeploymentController) VerifySpec(ctx context.Context) (bool, error) {
 	if verifyErr != nil {
 		// do not fail the rollout just because we can't get the resource
 		c.rolloutStatus.RolloutRetry(verifyErr.Error())
+		// nolint:nilerr
 		return false, nil
 	}
 	// record the size and we will use this value to drive the rest of the batches
@@ -77,6 +78,7 @@ func (c *DeploymentController) VerifySpec(ctx context.Context) (bool, error) {
 	if verifyErr != nil {
 		// do not fail the rollout because we can't compute the hash value for some reason
 		c.rolloutStatus.RolloutRetry(verifyErr.Error())
+		// nolint:nilerr
 		return false, nil
 	}
 	if targetHash == c.rolloutStatus.LastAppliedPodTemplateIdentifier {
@@ -147,6 +149,7 @@ func (c *DeploymentController) RolloutOneBatchPods(ctx context.Context) (bool, e
 	err := c.fetchDeployments(ctx)
 	if err != nil {
 		// don't fail the rollout just because of we can't get the resource
+		// nolint:nilerr
 		return false, nil
 	}
 	currentSizeSetting := *c.sourceDeploy.Spec.Replicas + *c.targetDeploy.Spec.Replicas
@@ -180,6 +183,7 @@ func (c *DeploymentController) CheckOneBatchPods(ctx context.Context) (bool, err
 	err := c.fetchDeployments(ctx)
 	if err != nil {
 		// don't fail the rollout just because of we can't get the resource
+		// nolint:nilerr
 		return false, nil
 	}
 	// get the number of ready pod from target
