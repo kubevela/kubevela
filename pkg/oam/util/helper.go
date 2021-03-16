@@ -428,8 +428,12 @@ func ConvertWorkloadGVK2Definition(def v1alpha2.WorkloadGVK) (v1alpha2.Definitio
 		return reference, err
 	}
 	resource := strings.ToLower(def.Kind) + "s"
-	reference.Name = resource + "." + gv.Group
-	reference.Version = gv.Version
+	if gv.Group == "" {
+		reference.Name = resource + "." + gv.Version
+	} else {
+		reference.Name = resource + "." + gv.Group
+		reference.Version = gv.Version
+	}
 	return reference, nil
 }
 

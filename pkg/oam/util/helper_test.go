@@ -811,6 +811,47 @@ func TestGetGVKFromDef(t *testing.T) {
 	}, gvk)
 }
 
+func TestConvertWorkloadGVK2Def(t *testing.T) {
+	type want struct {
+		ref v1alpha2.DefinitionReference
+		err error
+	}
+	convertErr := fmt.Errorf("unexpected GroupVersion string: %v", "apps/v1/")
+
+	cases := []struct {
+		testName    string
+		workloadGVK v1alpha2.WorkloadGVK
+		want        want
+	}{{
+		testName:    "expected GVK with version",
+		workloadGVK: v1alpha2.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"},
+		want: want{
+			ref: v1alpha2.DefinitionReference{Name: "deployments.apps", Version: "v1"},
+			err: nil,
+		},
+	}, {
+		testName:    "expected GVK without version",
+		workloadGVK: v1alpha2.WorkloadGVK{APIVersion: "apps", Kind: "Deployment"},
+		want: want{
+			ref: v1alpha2.DefinitionReference{Name: "deployments.apps", Version: ""},
+			err: nil,
+		},
+	}, {
+		testName:    "unexpected GVK",
+		workloadGVK: v1alpha2.WorkloadGVK{APIVersion: "apps/v1/", Kind: "Deployment"},
+		want: want{
+			ref: v1alpha2.DefinitionReference{},
+			err: convertErr,
+		},
+	}}
+	for _, tc := range cases {
+		ref, err := util.ConvertWorkloadGVK2Definition(tc.workloadGVK)
+		t.Log(fmt.Sprint("Running test: ", tc.testName))
+		assert.Equal(t, tc.want.err, err)
+		assert.Equal(t, tc.want.ref, ref)
+	}
+}
+
 func TestGenTraitName(t *testing.T) {
 	mts := v1alpha2.ManualScalerTrait{
 		ObjectMeta: metav1.ObjectMeta{

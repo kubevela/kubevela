@@ -35,7 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-var _ = Describe("Apply ComponentDefinition to store its schema to ConfigMap Test", func() {
+var _ = Describe("Test ComponentDefinition Controller", func() {
 	ctx := context.Background()
 	var ns corev1.Namespace
 
@@ -52,7 +52,9 @@ metadata:
     definition.oam.dev/description: "test"
 spec:
   workload:
-    type: deployments.app
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   schematic:
     cue:
       template: |
@@ -114,7 +116,9 @@ metadata:
     definition.oam.dev/description: "test"
 spec:
   workload:
-    type: deployments.app
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   schematic:
     cue:
       template: |
@@ -205,7 +209,9 @@ metadata:
     definition.oam.dev/description: "test"
 spec:
   workload:
-    type: deployments.app
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   schematic:
     cue:
       template: |
@@ -292,7 +298,9 @@ metadata:
     definition.oam.dev/description: "test"
 spec:
   workload:
-    type: deployments.app
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   schematic:
     cue:
       template: |
@@ -325,6 +333,152 @@ spec:
 			Expect(k8sClient.Create(ctx, &invalidDef)).Should(Succeed())
 			gotComponentDefinition := &v1alpha2.ComponentDefinition{}
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: invalidComponentDefinitionName, Namespace: namespace}, gotComponentDefinition)).Should(BeNil())
+		})
+	})
+
+	Context("When the ComponentDefinition only container Workload.Definition, should create a WorkloadDefinition", func() {
+		var componentDefinitionName = "cd-with-workload-definition"
+		var namespace = "default"
+		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
+
+		It("Applying ComponentDefinition with Workload.Definition", func() {
+			By("Apply ComponentDefinition")
+			var validComponentDefinition = `
+apiVersion: core.oam.dev/v1alpha2
+kind: ComponentDefinition
+metadata:
+  name: cd-with-workload-definition
+  annotations:
+    definition.oam.dev/description: "test"
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        		}
+
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": context.name
+        			}
+
+        			spec: {
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+
+        					if parameter["cmd"] != _|_ {
+        						command: parameter.cmd
+        					}
+        				}]
+        			}
+        		}
+        	}
+        }
+        parameter: {
+        	// +usage=Which image would you like to use for your service
+        	// +short=i
+        	image: string
+
+        	// +usage=Commands to run in the container
+        	cmd?: [...string]
+        }
+`
+			var def v1alpha2.ComponentDefinition
+			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &def)).Should(BeNil())
+			def.Namespace = namespace
+			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
+
+			By("Check whether WorkloadDefinition is created")
+			reconcileRetry(&r, req)
+			var wd v1alpha2.WorkloadDefinition
+			var wdName = componentDefinitionName
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: wdName}, &wd)
+				return err == nil
+			}, 10*time.Second, time.Second).Should(BeTrue())
+			Expect(wd.Name).Should(Equal(def.Name))
+			Expect(wd.Spec.Schematic.CUE).Should(Equal(def.Spec.Schematic.CUE))
+			convertRef, err := util.ConvertWorkloadGVK2Definition(def.Spec.Workload.Definition)
+			Expect(err).Should(BeNil())
+			Expect(wd.Spec.Reference).Should(Equal(convertRef))
+		})
+	})
+
+	Context("When the ComponentDefinition container Workload.Type, shouldn't create a WorkloadDefinition", func() {
+		var componentDefinitionName = "cd-with-workload-type"
+		var namespace = "default"
+		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
+
+		It("Applying ComponentDefinition with Workload.Type", func() {
+			By("Apply ComponentDefinition")
+			var validComponentDefinition = `
+apiVersion: core.oam.dev/v1alpha2
+kind: ComponentDefinition
+metadata:
+  name: cd-with-workload-type
+  annotations:
+    definition.oam.dev/description: "test"
+spec:
+  workload:
+    type: deployments.app
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        		}
+
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": context.name
+        			}
+
+        			spec: {
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+
+        					if parameter["cmd"] != _|_ {
+        						command: parameter.cmd
+        					}
+        				}]
+        			}
+        		}
+        	}
+        }
+        parameter: {
+        	// +usage=Which image would you like to use for your service
+        	// +short=i
+        	image: string
+
+        	// +usage=Commands to run in the container
+        	cmd?: [...string]
+        }
+`
+			var def v1alpha2.ComponentDefinition
+			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &def)).Should(BeNil())
+			def.Namespace = namespace
+			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
+
+			By("Check whether WorkloadDefinition is created")
+			reconcileRetry(&r, req)
+			var wd v1alpha2.WorkloadDefinition
+			var wdName = componentDefinitionName
+			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: wdName}, &wd)).Should(Not(Succeed()))
 		})
 	})
 })

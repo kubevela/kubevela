@@ -67,30 +67,9 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
-	// if Workload.Type is empty, we need create a WorkloadDefinition
-	if componentDefinition.Spec.Workload.Type == "" {
-		workloadDefinition := new(v1alpha2.WorkloadDefinition)
-		newCd := componentDefinition.DeepCopy()
-		if err := util.ConvertComponentDef2WorkloadDef(newCd, workloadDefinition); err != nil {
-			klog.ErrorS(err, "cannot convert ComponentDefinition")
-			r.record.Event(&componentDefinition, event.Warning("cannot convert ComponentDefinition", err))
-			return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
-				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrConvertComponentDefinition, componentDefinition.Name, err)))
-		}
-		owners := []metav1.OwnerReference{{
-			APIVersion: v1alpha2.SchemeGroupVersion.String(),
-			Kind:       v1alpha2.ComponentDefinitionKind,
-			Name:       componentDefinition.Name,
-			UID:        componentDefinition.UID,
-			Controller: pointer.BoolPtr(true),
-		}}
-		workloadDefinition.SetOwnerReferences(owners)
-		if err := r.Create(ctx, workloadDefinition); err != nil {
-			klog.ErrorS(err, "cannot create converted WorkloadDefinition")
-			r.record.Event(&componentDefinition, event.Warning("cannot create converted Workload", err))
-			return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
-				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateConvertedWorklaodDefinition, workloadDefinition.Name, err)))
-		}
+	// if Workload.Type is not empty, means componentdefinition refer to an already existing workloaddefinition
+	if componentDefinition.Spec.Workload.Type != "" {
+		return ctrl.Result{}, nil
 	}
 
 	var def utils.CapabilityComponentDefinition
@@ -109,6 +88,37 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 	klog.Info("Successfully stored Capability Schema in ConfigMap")
+
+	// if Workload.Type is empty, we need create a WorkloadDefinition
+	if err := r.Get(ctx, req.NamespacedName, &v1alpha2.WorkloadDefinition{}); err == nil {
+		klog.Infof("WorkloadDefinition: %s already exists", componentDefinition.Name)
+		return ctrl.Result{}, nil
+	}
+
+	workloadDefinition := new(v1alpha2.WorkloadDefinition)
+	newCd := componentDefinition.DeepCopy()
+	if err := util.ConvertComponentDef2WorkloadDef(newCd, workloadDefinition); err != nil {
+		klog.ErrorS(err, "cannot convert ComponentDefinition")
+		r.record.Event(&componentDefinition, event.Warning("cannot convert ComponentDefinition", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
+			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrConvertComponentDefinition, componentDefinition.Name, err)))
+	}
+	owners := []metav1.OwnerReference{{
+		APIVersion: v1alpha2.SchemeGroupVersion.String(),
+		Kind:       v1alpha2.ComponentDefinitionKind,
+		Name:       componentDefinition.Name,
+		UID:        componentDefinition.UID,
+		Controller: pointer.BoolPtr(true),
+	}}
+	workloadDefinition.SetOwnerReferences(owners)
+	if err := r.Create(ctx, workloadDefinition); err != nil {
+		klog.ErrorS(err, "cannot create converted WorkloadDefinition")
+		r.record.Event(&componentDefinition, event.Warning("cannot create converted Workload", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
+			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateConvertedWorklaodDefinition, workloadDefinition.Name, err)))
+	}
+
+	klog.InfoS("Successfully create WorkloadDefinition", "name", workloadDefinition.Name)
 	return ctrl.Result{}, nil
 }
 
