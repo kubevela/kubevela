@@ -55,6 +55,8 @@ type CapabilityDefinitionInterface interface {
 type CapabilityComponentDefinition struct {
 	Name                string                       `json:"name"`
 	ComponentDefinition v1alpha2.ComponentDefinition `json:"componentDefinition"`
+	WorkloadType        util.WorkloadType            `json:"workloadType"`
+	WorkloadDefName     string                       `json:"workloadDefName"`
 	CapabilityBaseDefinition
 }
 
@@ -62,7 +64,6 @@ type CapabilityComponentDefinition struct {
 func (def *CapabilityComponentDefinition) GetCapabilityObject(ctx context.Context, k8sClient client.Client, namespace, name string) (*types.Capability, error) {
 	var componentDefinition v1alpha2.ComponentDefinition
 	var capability types.Capability
-	capability.Name = def.Name
 	objectKey := client.ObjectKey{
 		Namespace: namespace,
 		Name:      name,
@@ -72,9 +73,20 @@ func (def *CapabilityComponentDefinition) GetCapabilityObject(ctx context.Contex
 		return nil, fmt.Errorf("failed to get ComponentDefinition %s: %w", def.Name, err)
 	}
 	def.ComponentDefinition = componentDefinition
-	capability, err = util.ConvertTemplateJSON2Object(name, componentDefinition.Spec.Extension, componentDefinition.Spec.Schematic)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert ComponentDefinition to Capability Object")
+
+	switch def.WorkloadType {
+	case util.ReferWorkload:
+		var wd = new(v1alpha2.WorkloadDefinition)
+		objectKey.Name = def.WorkloadDefName
+		if err := k8sClient.Get(ctx, objectKey, wd); err != nil {
+			return nil, fmt.Errorf("failed to get WorkloadDefinition that ComponentDefinition refers to")
+		}
+		capability, err = util.ConvertTemplateJSON2Object(name, wd.Spec.Extension, wd.Spec.Schematic)
+	default:
+		capability, err = util.ConvertTemplateJSON2Object(name, componentDefinition.Spec.Extension, componentDefinition.Spec.Schematic)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert ComponentDefinition to Capability Object")
+		}
 	}
 	return &capability, err
 }

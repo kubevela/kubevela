@@ -26,10 +26,8 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -67,14 +65,28 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
-	// if Workload.Type is not empty, means componentdefinition refer to an already existing workloaddefinition
-	if componentDefinition.Spec.Workload.Type != "" {
-		return ctrl.Result{}, nil
+	handler := handler{
+		Client: r.Client,
+		dm:     r.dm,
+		cd:     &componentDefinition,
 	}
+
+	workloadType, err := handler.CreateWorkloadDefinition(ctx)
+	if err != nil {
+		klog.ErrorS(err, "cannot create converted WorkloadDefinition")
+		r.record.Event(&componentDefinition, event.Warning("cannot store capability in ConfigMap", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
+			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateConvertedWorklaodDefinition, componentDefinition.Name, err)))
+	}
+	klog.InfoS("Successfully create WorkloadDefinition", "name", componentDefinition.Name)
 
 	var def utils.CapabilityComponentDefinition
 	def.Name = req.NamespacedName.Name
-	err := def.StoreOpenAPISchema(ctx, r, req.Namespace, req.Name)
+	def.WorkloadType = workloadType
+	if workloadType == util.ReferWorkload {
+		def.WorkloadDefName = componentDefinition.Spec.Workload.Type
+	}
+	err = def.StoreOpenAPISchema(ctx, r, req.Namespace, req.Name)
 	if err != nil {
 		klog.ErrorS(err, "cannot store capability in ConfigMap")
 		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot store capability in ConfigMap", err))
@@ -89,36 +101,6 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 	klog.Info("Successfully stored Capability Schema in ConfigMap")
 
-	// if Workload.Type is empty, we need create a WorkloadDefinition
-	if err := r.Get(ctx, req.NamespacedName, &v1alpha2.WorkloadDefinition{}); err == nil {
-		klog.Infof("WorkloadDefinition: %s already exists", componentDefinition.Name)
-		return ctrl.Result{}, nil
-	}
-
-	workloadDefinition := new(v1alpha2.WorkloadDefinition)
-	newCd := componentDefinition.DeepCopy()
-	if err := util.ConvertComponentDef2WorkloadDef(newCd, workloadDefinition); err != nil {
-		klog.ErrorS(err, "cannot convert ComponentDefinition")
-		r.record.Event(&componentDefinition, event.Warning("cannot convert ComponentDefinition", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrConvertComponentDefinition, componentDefinition.Name, err)))
-	}
-	owners := []metav1.OwnerReference{{
-		APIVersion: v1alpha2.SchemeGroupVersion.String(),
-		Kind:       v1alpha2.ComponentDefinitionKind,
-		Name:       componentDefinition.Name,
-		UID:        componentDefinition.UID,
-		Controller: pointer.BoolPtr(true),
-	}}
-	workloadDefinition.SetOwnerReferences(owners)
-	if err := r.Create(ctx, workloadDefinition); err != nil {
-		klog.ErrorS(err, "cannot create converted WorkloadDefinition")
-		r.record.Event(&componentDefinition, event.Warning("cannot create converted Workload", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateConvertedWorklaodDefinition, workloadDefinition.Name, err)))
-	}
-
-	klog.InfoS("Successfully create WorkloadDefinition", "name", workloadDefinition.Name)
 	return ctrl.Result{}, nil
 }
 

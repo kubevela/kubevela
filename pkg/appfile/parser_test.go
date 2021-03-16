@@ -544,9 +544,9 @@ var _ = Describe("Test appfile parser to parse helm module", func() {
 						"url": "http://oam.dev/catalog/",
 					}),
 				},
-				DefinitionReference: v1alpha2.DefinitionReference{
-					Name:    "deployments.apps",
-					Version: "v1",
+				DefinitionReference: v1alpha2.WorkloadGVK{
+					APIVersion: "apps/v1",
+					Kind:       "Deployment",
 				},
 			},
 		},

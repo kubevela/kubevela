@@ -14,6 +14,7 @@ type DiscoveryMapper interface {
 	Refresh() (meta.RESTMapper, error)
 	RESTMapping(gk schema.GroupKind, version ...string) (*meta.RESTMapping, error)
 	KindsFor(input schema.GroupVersionResource) ([]schema.GroupVersionKind, error)
+	ResourcesFor(input schema.GroupVersionKind) (schema.GroupVersionResource, error)
 }
 
 var _ DiscoveryMapper = &DefaultDiscoveryMapper{}
@@ -88,4 +89,15 @@ func (d *DefaultDiscoveryMapper) KindsFor(input schema.GroupVersionResource) ([]
 		mapping, err = mapper.KindsFor(input)
 	}
 	return mapping, err
+}
+
+// ResourcesFor will get a resource from GroupVersionKind
+func (d *DefaultDiscoveryMapper) ResourcesFor(input schema.GroupVersionKind) (schema.GroupVersionResource, error) {
+	var gvr schema.GroupVersionResource
+	mapping, err := d.RESTMapping(input.GroupKind(), input.Version)
+	if err != nil {
+		return gvr, err
+	}
+	gvr = mapping.Resource
+	return gvr, nil
 }

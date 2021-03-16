@@ -21,7 +21,7 @@ type Template struct {
 	Health             string
 	CustomStatus       string
 	CapabilityCategory types.CapabilityCategory
-	Reference          v1alpha2.DefinitionReference
+	Reference          v1alpha2.WorkloadGVK
 	Helm               *v1alpha2.Helm
 }
 
@@ -54,7 +54,7 @@ func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.C
 		if tmpl == nil {
 			return nil, errors.New("no template found in definition")
 		}
-		tmpl.Reference, err = ConvertWorkloadGVK2Definition(cd.Spec.Workload.Definition)
+		tmpl.Reference = cd.Spec.Workload.Definition
 		if err != nil {
 			return nil, fmt.Errorf("get DefinitionReference error %w", err)
 		}
@@ -80,7 +80,6 @@ func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.C
 		if tmpl == nil {
 			return nil, errors.New("no template found in definition")
 		}
-		tmpl.Reference = td.Spec.Reference
 		tmpl.CapabilityCategory = capabilityCategory
 		return tmpl, nil
 	case types.TypeScope:

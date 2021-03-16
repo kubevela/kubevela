@@ -46,7 +46,7 @@ var _ = Describe("Test ComponentDefinition Controller", func() {
 apiVersion: core.oam.dev/v1alpha2
 kind: ComponentDefinition
 metadata:
-  name: wd-without-ready-ns
+  name: cd-without-ready-ns
   namespace: ns-def
   annotations:
     definition.oam.dev/description: "test"
@@ -410,9 +410,6 @@ spec:
 			Expect(wd.Namespace).Should(Equal(def.Namespace))
 			Expect(wd.Annotations).Should(Equal(def.Annotations))
 			Expect(wd.Spec.Schematic).Should(Equal(def.Spec.Schematic))
-			convertRef, err := util.ConvertWorkloadGVK2Definition(def.Spec.Workload.Definition)
-			Expect(err).Should(BeNil())
-			Expect(wd.Spec.Reference).Should(Equal(convertRef))
 		})
 	})
 
@@ -422,17 +419,69 @@ spec:
 		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
 
 		It("Applying ComponentDefinition with Workload.Type", func() {
+			By("Apply WorkloadDefinition")
+			var taskWorkloadDefinition = `
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: worker
+  annotations:
+    definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic."
+spec:
+  definitionRef:
+    name: deployments.apps
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        		}
+        
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": context.name
+        			}
+        
+        			spec: {
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+        
+        					if parameter["cmd"] != _|_ {
+        						command: parameter.cmd
+        					}
+        				}]
+        			}
+        		}
+        	}
+        }
+        
+        parameter: {
+        	// +usage=Which image would you like to use for your service
+        	// +short=i
+        	image: string
+        	// +usage=Commands to run in the container
+        	cmd?: [...string]
+        }
+`
+			var task v1alpha2.WorkloadDefinition
+			Expect(yaml.Unmarshal([]byte(taskWorkloadDefinition), &task)).Should(BeNil())
+			task.Namespace = namespace
+			Expect(k8sClient.Create(ctx, &task)).Should(Succeed())
+
 			By("Apply ComponentDefinition")
 			var validComponentDefinition = `
 apiVersion: core.oam.dev/v1alpha2
 kind: ComponentDefinition
 metadata:
   name: cd-with-workload-type
-  annotations:
-    definition.oam.dev/description: "test"
 spec:
   workload:
-    type: deployments.app
+    type: worker
 `
 			var def v1alpha2.ComponentDefinition
 			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &def)).Should(BeNil())
