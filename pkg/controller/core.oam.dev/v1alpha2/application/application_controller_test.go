@@ -1184,7 +1184,9 @@ spec:
       kind: Deployment
   extension:
     template: |
-      output: {
+      import "kube"
+
+      output: kube.#Deployment & {
           apiVersion: "apps/v1"
           kind:       "Deployment"
           metadata: {
@@ -1246,7 +1248,8 @@ spec:
       kind: Deployment
   extension:
     template: |
-      output: {
+	  import "kube"	
+      output: kube.#Deployment & {
       	apiVersion: "apps/v1"
       	kind:       "Deployment"
       	spec: {
@@ -1342,7 +1345,8 @@ spec:
     healthPolicy: |
       isHealth: context.output.status.readyReplicas == context.output.status.replicas 
     template: |
-      output: {
+      import "kube"
+      output: kube.#Deployment & {
           apiVersion: "apps/v1"
           kind:       "Deployment"
           metadata: {
@@ -1409,7 +1413,8 @@ spec:
   schematic:
     cue:
       template: |
-        output: {
+        import "kube"
+        output: kube.#Deployment & {
         	apiVersion: "apps/v1"
         	kind:       "Deployment"
         	spec: {
@@ -1629,12 +1634,13 @@ spec:
   schematic:
     cue:
       template: |
+        import "kube"
         parameter: {
         	domain: string
         	http: [string]: int
         }
         // trait template can have multiple outputs in one trait
-        outputs: service: {
+        outputs: service: kube.#Service & {
         	apiVersion: "v1"
         	kind:       "Service"
         	spec: {
@@ -1648,7 +1654,7 @@ spec:
         		]
         	}
         }
-        outputs: ingress: {
+        outputs: ingress: kube.#Ingress & {
         	apiVersion: "networking.k8s.io/v1beta1"
         	kind:       "Ingress"
         	metadata:
