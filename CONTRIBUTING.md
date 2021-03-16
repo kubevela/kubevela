@@ -18,7 +18,7 @@ contributing to `kubevela` or build a PoC (Proof of Concept).
 3. ginkgo 1.14.0+ (just for [E2E test](./CONTRIBUTING.md#e2e-test))
 4. golangci-lint 1.31.0+, it will install automatically if you run `make`, you can [install it manually](https://golangci-lint.run/usage/install/#local-installation) if the installation is too slow.
 
-We also recommend you to learn about KubeVela's [design](docs/en/design.md) before dive into its code.
+We also recommend you to learn about KubeVela's [design](https://kubevela.io/#/en/concepts) before dive into its code.
 
 ### Build
 
