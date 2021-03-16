@@ -18,7 +18,9 @@
         - [Trait](/en/cue/trait.md)
         - [Advanced Features](/en/cue/status.md)
       - HELM
-        - [Chart As Capability](/en/helm/chart-as-capability.md)
+        - [Helm Chart Basic](/en/helm/basic.md)
+        - [Trait](/en/helm/trait.md)
+        - [Limitations and known issues](/en/helm/known-issues.md)
 
 - Roadmap
   - [KubeVela Roadmap](/en/roadmap.md)
