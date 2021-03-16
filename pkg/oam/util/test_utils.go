@@ -132,6 +132,19 @@ func (matcher ErrorMatcher) NegatedFailureMessage(actual interface{}) (message s
 	return format.Message(actual, "not to equal", expectedError)
 }
 
+// UnMarshalStringToComponentDefinition parse a string to a componentDefinition object
+func UnMarshalStringToComponentDefinition(s string) (*v1alpha2.ComponentDefinition, error) {
+	obj := &v1alpha2.ComponentDefinition{}
+	_body, err := yaml.YAMLToJSON([]byte(s))
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(_body, obj); err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
 // UnMarshalStringToWorkloadDefinition parse a string to a workloadDefinition object
 func UnMarshalStringToWorkloadDefinition(s string) (*v1alpha2.WorkloadDefinition, error) {
 	obj := &v1alpha2.WorkloadDefinition{}

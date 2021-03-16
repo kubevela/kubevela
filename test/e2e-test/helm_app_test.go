@@ -24,7 +24,7 @@ var _ = Describe("Test application containing helm module", func() {
 		namespace = "helm-test-ns"
 		appName   = "test-app"
 		compName  = "test-comp"
-		wdName    = "webapp-chart"
+		cdName    = "webapp-chart"
 		tdName    = "virtualgroup"
 	)
 	var app v1alpha2.Application
@@ -52,11 +52,11 @@ var _ = Describe("Test application containing helm module", func() {
 			},
 			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		wd := v1alpha2.WorkloadDefinition{}
-		wd.SetName(wdName)
-		wd.SetNamespace(namespace)
-		wd.Spec.Reference = v1alpha2.DefinitionReference{Name: "deployments.apps", Version: "v1"}
-		wd.Spec.Schematic = &v1alpha2.Schematic{
+		cd := v1alpha2.ComponentDefinition{}
+		cd.SetName(cdName)
+		cd.SetNamespace(namespace)
+		cd.Spec.Workload.Definition = v1alpha2.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}
+		cd.Spec.Schematic = &v1alpha2.Schematic{
 			HELM: &v1alpha2.Helm{
 				Release: util.Object2RawExtension(map[string]interface{}{
 					"chart": map[string]interface{}{
@@ -72,7 +72,7 @@ var _ = Describe("Test application containing helm module", func() {
 			},
 		}
 
-		Expect(k8sClient.Create(ctx, &wd)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
 
 		By("Install a patch trait used to test CUE module")
 		td := v1alpha2.TraitDefinition{}
@@ -112,6 +112,7 @@ var _ = Describe("Test application containing helm module", func() {
 	AfterEach(func() {
 		By("Clean up resources after a test")
 		k8sClient.DeleteAllOf(ctx, &v1alpha2.Application{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1alpha2.ComponentDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1alpha2.WorkloadDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1alpha2.TraitDefinition{}, client.InNamespace(namespace))
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
@@ -135,7 +136,7 @@ var _ = Describe("Test application containing helm module", func() {
 				Components: []v1alpha2.ApplicationComponent{
 					{
 						Name:         compName,
-						WorkloadType: wdName,
+						WorkloadType: cdName,
 						Settings: util.Object2RawExtension(map[string]interface{}{
 							"image": map[string]interface{}{
 								"tag": "5.1.2",
@@ -211,7 +212,7 @@ var _ = Describe("Test application containing helm module", func() {
 				Components: []v1alpha2.ApplicationComponent{
 					{
 						Name:         compName,
-						WorkloadType: wdName,
+						WorkloadType: cdName,
 						Settings: util.Object2RawExtension(map[string]interface{}{
 							"image": map[string]interface{}{
 								"tag": "5.1.3", // change 5.1.4 => 5.1.3
