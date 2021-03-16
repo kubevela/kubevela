@@ -106,6 +106,6 @@ release in application level.
 
 Traits work on Helm schematic workload in the same way as CUE based workload.
 The changes on traits will effect the main workload finally.
-Users should pay attention that, pods belonging to the workload may restart
-because of various possible changes applied to the workload, that will result 
-in service down.
+Users should pay attention that, pods belonging to the workload may restart twice on upgrade,
+one is by the helm upgrade, and the other one is because of various possible changes applied to the workload,
+that will result in service down.
