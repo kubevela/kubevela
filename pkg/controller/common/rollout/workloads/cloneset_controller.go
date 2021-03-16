@@ -59,6 +59,7 @@ func (c *CloneSetController) VerifySpec(ctx context.Context) (bool, error) {
 	if verifyErr != nil {
 		// do not fail the rollout because we can't get the resource
 		c.rolloutStatus.RolloutRetry(verifyErr.Error())
+		// nolint: nilerr
 		return false, nil
 	}
 	// record the size

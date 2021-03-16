@@ -69,7 +69,7 @@ func (def *CapabilityComponentDefinition) GetCapabilityObject(ctx context.Contex
 	}
 	err := k8sClient.Get(ctx, objectKey, &componentDefinition)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get ComponentDefinition %s: %v", def.Name, err)
+		return nil, fmt.Errorf("failed to get ComponentDefinition %s: %w", def.Name, err)
 	}
 	def.ComponentDefinition = componentDefinition
 	capability, err = util.ConvertTemplateJSON2Object(name, componentDefinition.Spec.Extension, componentDefinition.Spec.Schematic)

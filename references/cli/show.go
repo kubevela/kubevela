@@ -190,19 +190,19 @@ func generateSideBar(capabilities []types.Capability, docsPath string) error {
 		return err
 	}
 	if _, err := f.WriteString("- Workload Types\n"); err != nil {
-		return nil
+		return err
 	}
 	for _, w := range workloads {
 		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", w, plugins.WorkloadTypePath, w)); err != nil {
-			return nil
+			return err
 		}
 	}
 	if _, err := f.WriteString("- Traits\n"); err != nil {
-		return nil
+		return err
 	}
 	for _, t := range traits {
 		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, plugins.TraitPath, t)); err != nil {
-			return nil
+			return err
 		}
 	}
 	return nil

@@ -226,6 +226,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 	checkForRevision := func() (bool, error) {
 		if err := h.r.Get(ctx, compKey, &curComp); err != nil {
 			// retry no matter what
+			// nolint:nilerr
 			return false, nil
 		}
 		if curComp.Status.LatestRevision == nil || curComp.Status.LatestRevision.Name == preRevisionName {
@@ -235,6 +236,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 			compNameSpace, curComp.Status.LatestRevision.Name, &updatedComp.Spec)
 		if err != nil {
 			// retry no matter what
+			// nolint:nilerr
 			return false, nil
 		}
 		// end the loop if we find the revision
