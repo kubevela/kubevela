@@ -93,6 +93,21 @@ spec:
                   required:
                   - template
                   type: object
+                helm:
+                  description: A Helm represents resources used by a Helm module
+                  properties:
+                    release:
+                      description: Release records a Helm release used by a Helm module workload.
+                      type: object
+                      
+                    repository:
+                      description: HelmRelease records a Helm repository used by a Helm module workload.
+                      type: object
+                      
+                  required:
+                  - release
+                  - repository
+                  type: object
               type: object
             status:
               description: Status defines the custom health policy and status message for workload
@@ -108,7 +123,7 @@ spec:
           - definitionRef
           type: object
         status:
-          description: CapabilityStatus is the status of WorkloadDefinition and TraitDefinition
+          description: WorkloadDefinitionStatus is the status of WorkloadDefinition
           properties:
             conditions:
               description: Conditions of the resource.

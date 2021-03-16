@@ -9,7 +9,6 @@ import (
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/go-logr/logr"
-	"github.com/mitchellh/hashstructure/v2"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -17,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -95,6 +95,11 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 			if ac.Spec.Components[i].ComponentName == newComp.Name {
 				ac.Spec.Components[i].RevisionName = revisionName
 				ac.Spec.Components[i].ComponentName = ""
+			}
+		}
+		if comp.Spec.Helm != nil {
+			if err := h.applyHelmModuleResources(ctx, comp, owners); err != nil {
+				return errors.Wrap(err, "cannot apply Helm module resources")
 			}
 		}
 	}
@@ -198,6 +203,10 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 	// object is persisted as Raw data after going through api server
 	updatedComp := comp.DeepCopy()
 	updatedComp.Spec.Workload.Object = nil
+	if updatedComp.Spec.Helm != nil {
+		updatedComp.Spec.Helm.Release.Object = nil
+		updatedComp.Spec.Helm.Repository.Object = nil
+	}
 	if len(preRevisionName) != 0 {
 		needNewRevision, err := utils.CompareWithRevision(ctx, h.r,
 			logging.NewLogrLogger(h.logger), compName, compNameSpace, preRevisionName, &updatedComp.Spec)
@@ -217,6 +226,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 	checkForRevision := func() (bool, error) {
 		if err := h.r.Get(ctx, compKey, &curComp); err != nil {
 			// retry no matter what
+			// nolint:nilerr
 			return false, nil
 		}
 		if curComp.Status.LatestRevision == nil || curComp.Status.LatestRevision.Name == preRevisionName {
@@ -226,6 +236,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 			compNameSpace, curComp.Status.LatestRevision.Name, &updatedComp.Spec)
 		if err != nil {
 			// retry no matter what
+			// nolint:nilerr
 			return false, nil
 		}
 		// end the loop if we find the revision
@@ -246,12 +257,10 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 // it will create a new revision if the appConfig is different from the existing one
 func (h *appHandler) createOrUpdateAppConfig(ctx context.Context, appConfig *v1alpha2.ApplicationConfiguration) error {
 	var curAppConfig v1alpha2.ApplicationConfiguration
-	// compute a hash value of the appConfig spec
-	specHash, err := hashstructure.Hash(appConfig.Spec, hashstructure.FormatV2, nil)
+	specHashLabel, err := utils.ComputeSpecHash(appConfig.Spec)
 	if err != nil {
 		return err
 	}
-	specHashLabel := strconv.FormatUint(specHash, 16)
 	appConfig.SetLabels(oamutil.MergeMapOverrideWithDst(appConfig.GetLabels(),
 		map[string]string{
 			oam.LabelAppConfigHash: specHashLabel,
@@ -335,4 +344,29 @@ func (h *appHandler) createNewAppConfig(ctx context.Context, appConfig *v1alpha2
 		"latest revision", revisionName)
 	// it ok if the create failed, we will create again in  the next loop
 	return h.r.Create(ctx, appConfig)
+}
+
+func (h *appHandler) applyHelmModuleResources(ctx context.Context, comp *v1alpha2.Component, owners []metav1.OwnerReference) error {
+	klog.Info("Process a Helm module component")
+	repo, err := oamutil.RawExtension2Unstructured(&comp.Spec.Helm.Repository)
+	if err != nil {
+		return err
+	}
+	release, err := oamutil.RawExtension2Unstructured(&comp.Spec.Helm.Release)
+	if err != nil {
+		return err
+	}
+
+	release.SetOwnerReferences(owners)
+	repo.SetOwnerReferences(owners)
+
+	if err := h.r.applicator.Apply(ctx, repo); err != nil {
+		return err
+	}
+	klog.InfoS("Apply a HelmRepository", "namespace", repo.GetNamespace(), "name", repo.GetName())
+	if err := h.r.applicator.Apply(ctx, release); err != nil {
+		return err
+	}
+	klog.InfoS("Apply a HelmRelease", "namespace", release.GetNamespace(), "name", release.GetName())
+	return nil
 }

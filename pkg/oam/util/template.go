@@ -21,6 +21,8 @@ type Template struct {
 	Health             string
 	CustomStatus       string
 	CapabilityCategory types.CapabilityCategory
+	Reference          v1alpha2.DefinitionReference
+	Helm               *v1alpha2.Helm
 }
 
 // GetScopeGVK Get ScopeDefinition
@@ -45,10 +47,6 @@ func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.C
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
-		var capabilityCategory types.CapabilityCategory
-		if wd.Annotations["type"] == string(types.TerraformCategory) {
-			capabilityCategory = types.TerraformCategory
-		}
 		tmpl, err := NewTemplate(wd.Spec.Schematic, wd.Spec.Status, wd.Spec.Extension)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
@@ -56,7 +54,10 @@ func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.C
 		if tmpl == nil {
 			return nil, errors.New("no template found in definition")
 		}
-		tmpl.CapabilityCategory = capabilityCategory
+		tmpl.Reference = wd.Spec.Reference
+		if wd.Annotations["type"] == string(types.TerraformCategory) {
+			tmpl.CapabilityCategory = types.TerraformCategory
+		}
 		return tmpl, nil
 
 	case types.TypeTrait:
@@ -76,6 +77,7 @@ func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.C
 		if tmpl == nil {
 			return nil, errors.New("no template found in definition")
 		}
+		tmpl.Reference = td.Spec.Reference
 		tmpl.CapabilityCategory = capabilityCategory
 		return tmpl, nil
 	case types.TypeScope:
@@ -84,16 +86,29 @@ func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.C
 	return nil, fmt.Errorf("kind(%s) of %s not supported", kd, key)
 }
 
-// NewTemplate will create CUE template for inner AbstractEngine using.
+// NewTemplate will create template for inner AbstractEngine using.
 func NewTemplate(schematic *v1alpha2.Schematic, status *v1alpha2.Status, raw *runtime.RawExtension) (*Template, error) {
-	var template string
-	if schematic != nil && schematic.CUE != nil {
-		template = schematic.CUE.Template
+	tmp := &Template{}
+
+	if status != nil {
+		tmp.CustomStatus = status.CustomStatus
+		tmp.Health = status.HealthPolicy
 	}
+	if schematic != nil {
+		if schematic.CUE != nil {
+			tmp.TemplateStr = schematic.CUE.Template
+			// CUE module has highest priority
+			// no need to check other schematic types
+			return tmp, nil
+		}
+		if schematic.HELM != nil {
+			tmp.Helm = schematic.HELM
+			tmp.CapabilityCategory = types.HelmCategory
+			return tmp, nil
+		}
+	}
+
 	extension := map[string]interface{}{}
-	tmp := &Template{
-		TemplateStr: template,
-	}
 	if tmp.TemplateStr == "" && raw != nil {
 		if err := json.Unmarshal(raw.Raw, &extension); err != nil {
 			return nil, err
@@ -103,10 +118,6 @@ func NewTemplate(schematic *v1alpha2.Schematic, status *v1alpha2.Status, raw *ru
 				tmp.TemplateStr = tmpStr
 			}
 		}
-	}
-	if status != nil {
-		tmp.CustomStatus = status.CustomStatus
-		tmp.Health = status.HealthPolicy
 	}
 	return tmp, nil
 }

@@ -47,6 +47,12 @@ func ValidateCreate(rollout *v1alpha1.RolloutPlan, rootPath *field.Path) field.E
 			"the num batches does not match the rollout batch size"))
 	}
 
+	if rollout.RolloutStrategy != v1alpha1.IncreaseFirstRolloutStrategyType &&
+		rollout.RolloutStrategy != v1alpha1.DecreaseFirstRolloutStrategyType {
+		allErrs = append(allErrs, field.Invalid(rootPath.Child("rolloutStrategy"),
+			rollout.RolloutStrategy, "the rollout webhook type can only be initialize or finalize webhook"))
+	}
+
 	// validate the webhooks
 	allErrs = append(allErrs, validateWebhook(rollout, rootPath)...)
 

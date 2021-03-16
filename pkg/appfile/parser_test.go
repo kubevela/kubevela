@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -486,6 +487,178 @@ var _ = Describe("Test appFile parser", func() {
 		Expect(components[0].Spec.Workload).Should(SatisfyAny(
 			BeEquivalentTo(util.Object2RawExtension(expectWorkload)),
 			BeEquivalentTo(util.Object2RawExtension(expectWorkloadOptional))))
+	})
+
+})
+
+var _ = Describe("Test appfile parser to parse helm module", func() {
+	var (
+		appName  = "test-app"
+		compName = "test-comp"
+	)
+	appFile := &Appfile{
+		Name: appName,
+		Workloads: []*Workload{
+			{
+				Name:               compName,
+				Type:               "webapp-chart",
+				CapabilityCategory: oamtypes.HelmCategory,
+				Params: map[string]interface{}{
+					"image": map[string]interface{}{
+						"tag": "5.1.2",
+					},
+				},
+				Traits: []*Trait{
+					{
+						Name: "scaler",
+						Params: map[string]interface{}{
+							"replicas": float64(10),
+						},
+						Template: `
+      outputs: scaler: {
+      	apiVersion: "core.oam.dev/v1alpha2"
+      	kind:       "ManualScalerTrait"
+      	spec: {
+      		replicaCount: parameter.replicas
+      	}
+      }
+      parameter: {
+      	//+short=r
+      	replicas: *1 | int
+      }
+`,
+					},
+				},
+				Helm: &v1alpha2.Helm{
+					Release: util.Object2RawExtension(map[string]interface{}{
+						"chart": map[string]interface{}{
+							"spec": map[string]interface{}{
+								"chart":   "podinfo",
+								"version": "5.1.4",
+							},
+						},
+					}),
+					Repository: util.Object2RawExtension(map[string]interface{}{
+						"url": "http://oam.dev/catalog/",
+					}),
+				},
+				DefinitionReference: v1alpha2.DefinitionReference{
+					Name:    "deployments.apps",
+					Version: "v1",
+				},
+			},
+		},
+	}
+
+	It("Test application containing helm module", func() {
+		By("Generate ApplicationConfiguration and Components")
+		ac, components, err := NewApplicationParser(k8sClient, dm).GenerateApplicationConfiguration(appFile, "default")
+		Expect(err).To(BeNil())
+
+		manuscaler := util.Object2RawExtension(&unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "core.oam.dev/v1alpha2",
+				"kind":       "ManualScalerTrait",
+				"metadata": map[string]interface{}{
+					"labels": map[string]interface{}{
+						"app.oam.dev/component":  compName,
+						"app.oam.dev/name":       appName,
+						"trait.oam.dev/type":     "scaler",
+						"trait.oam.dev/resource": "scaler",
+					},
+				},
+				"spec": map[string]interface{}{"replicaCount": int64(10)},
+			},
+		})
+		expectAppConfig := &v1alpha2.ApplicationConfiguration{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ApplicationConfiguration",
+				APIVersion: "core.oam.dev/v1alpha2",
+			}, ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: "default",
+				Labels:    map[string]string{oam.LabelAppName: appName},
+			},
+			Spec: v1alpha2.ApplicationConfigurationSpec{
+				Components: []v1alpha2.ApplicationConfigurationComponent{
+					{
+						ComponentName: compName,
+						Traits: []v1alpha2.ComponentTrait{
+							{
+								Trait: manuscaler,
+							},
+						},
+					},
+				},
+			},
+		}
+		expectComponent := &v1alpha2.Component{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Component",
+				APIVersion: "core.oam.dev/v1alpha2",
+			}, ObjectMeta: metav1.ObjectMeta{
+				Name:      compName,
+				Namespace: "default",
+				Labels:    map[string]string{oam.LabelAppName: appName},
+			},
+			Spec: v1alpha2.ComponentSpec{
+				Helm: &v1alpha2.Helm{
+					Release: util.Object2RawExtension(map[string]interface{}{
+						"apiVersion": "helm.toolkit.fluxcd.io/v2beta1",
+						"kind":       "HelmRelease",
+						"metadata": map[string]interface{}{
+							"name":      fmt.Sprintf("%s-%s", appName, compName),
+							"namespace": "default",
+						},
+						"spec": map[string]interface{}{
+							"chart": map[string]interface{}{
+								"spec": map[string]interface{}{
+									"sourceRef": map[string]interface{}{
+										"kind":      "HelmRepository",
+										"name":      fmt.Sprintf("%s-%s", appName, compName),
+										"namespace": "default",
+									},
+								},
+							},
+							"interval": "5m0s",
+							"values": map[string]interface{}{
+								"image": map[string]interface{}{
+									"tag": "5.1.2",
+								},
+							},
+						},
+					}),
+					Repository: util.Object2RawExtension(map[string]interface{}{
+						"apiVersion": "source.toolkit.fluxcd.io/v1beta1",
+						"kind":       "HelmRepository",
+						"metadata": map[string]interface{}{
+							"name":      fmt.Sprintf("%s-%s", appName, compName),
+							"namespace": "default",
+						},
+						"spec": map[string]interface{}{
+							"url": "http://oam.dev/catalog/",
+						},
+					}),
+				},
+				Workload: util.Object2RawExtension(map[string]interface{}{
+					"apiVersion": "apps/v1",
+					"kind":       "Deployment",
+					"metadata": map[string]interface{}{
+						"labels": map[string]interface{}{
+							"workload.oam.dev/type": "webapp-chart",
+							"app.oam.dev/component": compName,
+							"app.oam.dev/name":      appName,
+						},
+					},
+				}),
+			},
+		}
+		By("Verify expected ApplicationConfiguration")
+		diff := cmp.Diff(ac, expectAppConfig)
+		Expect(diff).Should(BeEmpty())
+		By("Verify expected Component")
+		diff = cmp.Diff(components[0], expectComponent)
+		Expect(diff).ShouldNot(BeEmpty())
 	})
 
 })

@@ -22,7 +22,8 @@ spec:
     plural: traitdefinitions
     singular: traitdefinition
   scope: Namespaced
-  subresources: {}
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       description: A TraitDefinition registers a kind of Kubernetes custom resource as a valid OAM trait kind by referencing its CustomResourceDefinition. The CRD is used to validate the schema of the trait when it is embedded in an OAM ApplicationConfiguration.
@@ -79,6 +80,21 @@ spec:
                   required:
                   - template
                   type: object
+                helm:
+                  description: A Helm represents resources used by a Helm module
+                  properties:
+                    release:
+                      description: Release records a Helm release used by a Helm module workload.
+                      type: object
+                      
+                    repository:
+                      description: HelmRelease records a Helm repository used by a Helm module workload.
+                      type: object
+                      
+                  required:
+                  - release
+                  - repository
+                  type: object
               type: object
             status:
               description: Status defines the custom health policy and status message for trait
@@ -95,7 +111,7 @@ spec:
               type: string
           type: object
         status:
-          description: CapabilityStatus is the status of WorkloadDefinition and TraitDefinition
+          description: TraitDefinitionStatus is the status of TraitDefinition
           properties:
             conditions:
               description: Conditions of the resource.
@@ -125,6 +141,9 @@ spec:
                 - type
                 type: object
               type: array
+            configMapRef:
+              description: ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
+              type: string
           type: object
       type: object
   version: v1alpha2

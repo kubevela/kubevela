@@ -446,9 +446,13 @@ var _ = Describe("Versioning mechanism of components", func() {
 			By("Create Component v2")
 			var comp2 v1alpha2.Component
 			Expect(readYaml("testdata/revision/comp-v2.yaml", &comp2)).Should(BeNil())
-			k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &comp1)
-			comp2.ResourceVersion = comp1.ResourceVersion
-			Expect(k8sClient.Update(ctx, &comp2)).Should(Succeed())
+			Eventually(func() error {
+				tmp := &v1alpha2.Component{}
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, tmp)
+				updatedComp := comp2.DeepCopy()
+				updatedComp.ResourceVersion = tmp.ResourceVersion
+				return k8sClient.Update(ctx, updatedComp)
+			}, 5*time.Second, time.Second).Should(Succeed())
 
 			By("Workload exist with revisionName v2")
 			var w2 unstructured.Unstructured
@@ -589,8 +593,10 @@ var _ = Describe("Component revision", func() {
 			By("apply new ApplicationConfiguration with a revision enabled trait")
 			Expect(k8sClient.Create(ctx, &TraitDefinition)).Should(Succeed())
 			Expect(k8sClient.Get(ctx, appConfigObjKey, &appConfig)).Should(Succeed())
-			appConfig.Spec.Components[0].Traits = []v1alpha2.ComponentTrait{{Trait: runtime.RawExtension{Object: trait.DeepCopyObject()}}}
-			Expect(k8sClient.Update(ctx, &appConfig)).Should(Succeed())
+			updatedAppConfig := appConfig.DeepCopy()
+			updatedAppConfig.Spec.Components[0].Traits = []v1alpha2.ComponentTrait{{Trait: runtime.RawExtension{Object: trait.DeepCopyObject()}}}
+			updatedAppConfig.SetResourceVersion("")
+			Expect(k8sClient.Patch(ctx, updatedAppConfig, client.Merge)).Should(Succeed())
 
 			By("check current workload exists")
 			time.Sleep(3 * time.Second)

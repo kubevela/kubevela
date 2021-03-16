@@ -14,14 +14,31 @@ on:
 env:
   # Common versions
   GO_VERSION: '1.14'
-  GOLANGCI_VERSION: 'v1.31'
+  GOLANGCI_VERSION: 'v1.38'
   DOCKER_BUILDX_VERSION: 'v0.4.2'
   KIND_VERSION: 'v0.7.0'
 
 jobs:
 
+  detect-noop:
+    runs-on: ubuntu-20.04
+    outputs:
+      noop: ${{ steps.noop.outputs.should_skip }}
+    steps:
+      - name: Detect No-op Changes
+        id: noop
+        uses: fkirc/skip-duplicate-actions@v3.3.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          paths_ignore: '["**.md", "**.png", "**.jpg"]'
+          do_not_skip: '["workflow_dispatch", "schedule", "push"]'
+          concurrent_skipping: false
+
   unit-tests:
     runs-on: ubuntu-20.04
+    needs: detect-noop
+    if: needs.detect-noop.outputs.noop != 'true'
+
     steps:
       - name: Set up Go 1.14
         uses: actions/setup-go@v1
@@ -66,6 +83,9 @@ jobs:
 
   compatibility-test:
     runs-on: ubuntu-20.04
+    needs: detect-noop
+    if: needs.detect-noop.outputs.noop != 'true'
+
     steps:
       - name: Set up Go 1.14
         uses: actions/setup-go@v1
@@ -105,6 +125,9 @@ jobs:
 
   e2e-tests:
     runs-on: aliyun
+    needs: detect-noop
+    if: needs.detect-noop.outputs.noop != 'true'
+
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
@@ -161,6 +184,8 @@ jobs:
 
   staticcheck:
     runs-on: ubuntu-20.04
+    needs: detect-noop
+    if: needs.detect-noop.outputs.noop != 'true'
 
     steps:
       - name: Checkout
@@ -180,6 +205,8 @@ jobs:
 
   lint:
     runs-on: ubuntu-20.04
+    needs: detect-noop
+    if: needs.detect-noop.outputs.noop != 'true'
 
     steps:
       - name: Checkout
@@ -205,6 +232,8 @@ jobs:
 
   check-diff:
     runs-on: ubuntu-20.04
+    needs: detect-noop
+    if: needs.detect-noop.outputs.noop != 'true'
 
     steps:
       - name: Checkout

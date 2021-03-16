@@ -80,6 +80,21 @@ spec:
                     required:
                     - template
                     type: object
+                  helm:
+                    description: A Helm represents resources used by a Helm module
+                    properties:
+                      release:
+                        description: Release records a Helm release used by a Helm module workload.
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      repository:
+                        description: HelmRelease records a Helm repository used by a Helm module workload.
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                    required:
+                    - release
+                    - repository
+                    type: object
                 type: object
               status:
                 description: Status defines the custom health policy and status message for trait
@@ -96,7 +111,7 @@ spec:
                 type: string
             type: object
           status:
-            description: CapabilityStatus is the status of WorkloadDefinition and TraitDefinition
+            description: TraitDefinitionStatus is the status of TraitDefinition
             properties:
               conditions:
                 description: Conditions of the resource.
@@ -126,11 +141,15 @@ spec:
                   - type
                   type: object
                 type: array
+              configMapRef:
+                description: ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
+                type: string
             type: object
         type: object
     served: true
     storage: true
-    subresources: {}
+    subresources:
+      status: {}
 status:
   acceptedNames:
     kind: ""

@@ -16,7 +16,7 @@
 
 */
 
-package workloaddefinition
+package componentdefinition
 
 import (
 	"context"
@@ -25,6 +25,7 @@ import (
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -37,7 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-// Reconciler reconciles a WorkloadDefinition object
+// Reconciler reconciles a ComponentDefinition object
 type Reconciler struct {
 	client.Client
 	dm     discoverymapper.DiscoveryMapper
@@ -45,25 +46,39 @@ type Reconciler struct {
 	record event.Recorder
 }
 
-// Reconcile is the main logic for WorkloadDefinition controller
+// Reconcile is the main logic for ComponentDefinition controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	definitionName := req.NamespacedName.Name
-	if definitionName == "containerizedworkloads.core.oam.dev" {
+	klog.InfoS("Reconciling ComponentDefinition", "Name", definitionName, "Namespace", req.Namespace)
+	ctx := context.Background()
+
+	var componentDefinition v1alpha2.ComponentDefinition
+	if err := r.Get(ctx, req.NamespacedName, &componentDefinition); err != nil {
+		if kerrors.IsNotFound(err) {
+			err = nil
+		}
+		return ctrl.Result{}, err
+	}
+
+	// this is a placeholder for finalizer here in the future
+	if componentDefinition.DeletionTimestamp != nil {
 		return ctrl.Result{}, nil
 	}
 
-	klog.InfoS("Reconciling WorkloadDefinition", "Name", definitionName, "Namespace", req.Namespace)
-	ctx := context.Background()
-	var def utils.CapabilityWorkloadDefinition
+	var def utils.CapabilityComponentDefinition
 	def.Name = req.NamespacedName.Name
-
 	err := def.StoreOpenAPISchema(ctx, r, req.Namespace, req.Name)
 	if err != nil {
 		klog.ErrorS(err, "cannot store capability in ConfigMap")
-		r.record.Event(&(def.WorkloadDefinition), event.Warning("cannot store capability in ConfigMap", err))
-		// TODO(zzxwill) The error message should also be patched into Status
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.WorkloadDefinition),
+		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot store capability in ConfigMap", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.ComponentDefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
+	}
+
+	if err := r.Status().Update(ctx, &def.ComponentDefinition); err != nil {
+		klog.ErrorS(err, "cannot update componentDefinition ConfigMapRef Field")
+		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot update ComponentDefinition ConfigMapRef Field", err))
+		return ctrl.Result{}, nil
 	}
 	klog.Info("Successfully stored Capability Schema in ConfigMap")
 	return ctrl.Result{}, nil
@@ -71,14 +86,14 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 // SetupWithManager will setup with event recorder
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("WorkloadDefinition")).
-		WithAnnotations("controller", "WorkloadDefinition")
+	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("ComponentDefinition")).
+		WithAnnotations("controller", "ComponentDefinition")
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha2.WorkloadDefinition{}).
+		For(&v1alpha2.ComponentDefinition{}).
 		Complete(r)
 }
 
-// Setup adds a controller that reconciles WorkloadDefinition.
+// Setup adds a controller that reconciles ComponentDefinition.
 func Setup(mgr ctrl.Manager, _ controller.Args, _ logging.Logger) error {
 	dm, err := discoverymapper.New(mgr.GetConfig())
 	if err != nil {

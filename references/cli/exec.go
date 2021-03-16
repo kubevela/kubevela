@@ -191,7 +191,7 @@ func (o *VelaExecOptions) getPodName(compName string) (string, error) {
 		}).String(),
 	})
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 	if podList != nil && len(podList.Items) == 0 {
 		return "", fmt.Errorf("cannot get pods")
