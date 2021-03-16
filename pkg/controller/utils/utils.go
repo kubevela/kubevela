@@ -12,6 +12,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	mapset "github.com/deckarep/golang-set"
+	"github.com/mitchellh/hashstructure/v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -223,4 +224,15 @@ func CompareWithRevision(ctx context.Context, c client.Client, logger logging.Lo
 		return false, nil
 	}
 	return true, nil
+}
+
+// ComputeSpecHash computes the hash value of a k8s resource spec
+func ComputeSpecHash(spec interface{}) (string, error) {
+	// compute a hash value of any resource spec
+	specHash, err := hashstructure.Hash(spec, hashstructure.FormatV2, nil)
+	if err != nil {
+		return "", err
+	}
+	specHashLabel := strconv.FormatUint(specHash, 16)
+	return specHashLabel, nil
 }

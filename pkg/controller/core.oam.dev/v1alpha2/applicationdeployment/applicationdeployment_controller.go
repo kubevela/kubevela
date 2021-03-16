@@ -74,29 +74,67 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 
 	// TODO: check if the target/source has changed
 	r.handleFinalizer(&appRollout)
+	targetAppName := appRollout.Spec.TargetAppRevisionName
+	sourceAppName := appRollout.Spec.SourceAppRevisionName
 
 	ctx = oamutil.SetNamespaceInCtx(ctx, appRollout.Namespace)
+
+	if appRollout.Status.RollingState == v1alpha1.RolloutSucceedState ||
+		appRollout.Status.RollingState == v1alpha1.RolloutFailedState {
+		if appRollout.Status.LastUpgradedTargetAppRevision == appRollout.Spec.TargetAppRevisionName &&
+			appRollout.Status.LastSourceAppRevision == appRollout.Spec.SourceAppRevisionName {
+			klog.InfoS("rollout terminated, no need to reconcile", "source", sourceAppName,
+				"target", targetAppName)
+			return ctrl.Result{}, nil
+		}
+		klog.InfoS("rollout target changed, restart the rollout", "source", sourceAppName,
+			"target", targetAppName)
+		appRollout.Status.StateTransition(v1alpha1.WorkloadModifiedEvent)
+	}
 
 	// Get the target application
 	var targetApp oamv1alpha2.ApplicationConfiguration
 	sourceApp := &oamv1alpha2.ApplicationConfiguration{}
-	targetAppName := appRollout.Spec.TargetAppRevisionName
 	if err := r.Get(ctx, ktypes.NamespacedName{Namespace: req.Namespace, Name: targetAppName},
 		&targetApp); err != nil {
-		klog.ErrorS(err, "cannot locate target application", "target application",
+		if apierrors.IsNotFound(err) {
+			klog.ErrorS(err, "target application revision not exist", "target application revision",
+				klog.KRef(req.Namespace, targetAppName))
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
+		klog.ErrorS(err, "cannot locate target application revision", "target application revision",
 			klog.KRef(req.Namespace, targetAppName))
 		return ctrl.Result{}, err
 	}
-
+	// check if the app is templated
+	if targetApp.Status.RollingStatus != oamv1alpha2.RollingTemplated {
+		klog.Info("target app revision is not ready for rolling yet", "application revision", targetAppName)
+		r.record.Event(&appRollout, event.Normal("Rollout Paused",
+			"target app revision is not ready for rolling yet", "application revision", targetAppName))
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	}
 	// Get the source application
-	sourceAppName := appRollout.Spec.SourceAppRevisionName
 	if sourceAppName == "" {
 		klog.Info("source app fields not filled, we assume it is deployed for the first time")
 		sourceApp = nil
-	} else if err := r.Get(ctx, ktypes.NamespacedName{Namespace: req.Namespace, Name: sourceAppName}, sourceApp); err != nil {
-		klog.ErrorS(err, "cannot locate source application", "source application", klog.KRef(req.Namespace,
-			sourceAppName))
-		return ctrl.Result{}, err
+	} else {
+		if err := r.Get(ctx, ktypes.NamespacedName{Namespace: req.Namespace, Name: sourceAppName}, sourceApp); err != nil {
+			if apierrors.IsNotFound(err) {
+				klog.ErrorS(err, "target application revision not exist", "source application revision",
+					klog.KRef(req.Namespace, sourceAppName))
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+			}
+			klog.ErrorS(err, "cannot locate source application revision", "source application revision",
+				klog.KRef(req.Namespace, sourceAppName))
+			return ctrl.Result{}, err
+		}
+		// check if the app is templated
+		if sourceApp.Status.RollingStatus != oamv1alpha2.RollingTemplated {
+			klog.Info("source app revision is not ready for rolling yet", "application revision", sourceAppName)
+			r.record.Event(&appRollout, event.Normal("Rollout Paused",
+				"source app revision is not ready for rolling yet", "application revision", sourceAppName))
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		}
 	}
 
 	targetWorkload, sourceWorkload, err := r.extractWorkloads(ctx, appRollout.Spec.ComponentList, &targetApp, sourceApp)
@@ -110,19 +148,6 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 
 	if sourceWorkload != nil {
 		klog.InfoS("get the source workload we need to work on", "sourceWorkload", klog.KObj(sourceWorkload))
-	}
-
-	if appRollout.Status.RollingState == v1alpha1.RolloutSucceedState ||
-		appRollout.Status.RollingState == v1alpha1.RolloutFailedState {
-		if appRollout.Status.LastUpgradedTargetAppRevision == appRollout.Spec.TargetAppRevisionName &&
-			appRollout.Status.LastSourceAppRevision == appRollout.Spec.SourceAppRevisionName {
-			klog.InfoS("rollout terminated, no need to reconcile", "source", sourceAppName,
-				"target", targetAppName)
-			return ctrl.Result{}, nil
-		}
-		klog.InfoS("rollout target changed, restart the rollout", "source", sourceAppName,
-			"target", targetAppName)
-		appRollout.Status.StateTransition(v1alpha1.WorkloadModifiedEvent)
 	}
 
 	// reconcile the rollout part of the spec given the target and source workload

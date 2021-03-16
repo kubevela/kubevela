@@ -220,7 +220,7 @@ spec:
                       type: object
                     type: array
                   rolloutStrategy:
-                    description: RolloutStrategy defines strategies for the rollout plan
+                    description: RolloutStrategy defines strategies for the rollout plan The default is IncreaseFirstRolloutStrategyType
                     type: string
                   rolloutWebhooks:
                     description: RolloutWebhooks provide a way for the rollout to interact with an external process
@@ -320,6 +320,10 @@ spec:
               rollingState:
                 description: RollingState is the Rollout State
                 type: string
+              rolloutTargetSize:
+                description: RolloutTargetTotalSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+                format: int32
+                type: integer
               targetGeneration:
                 description: NewPodTemplateIdentifier is a string that uniquely represent the new pod template each workload type could use different ways to identify that so we cannot compare between resources
                 type: string

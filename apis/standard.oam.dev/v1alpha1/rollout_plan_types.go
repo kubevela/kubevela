@@ -75,8 +75,9 @@ const (
 type RolloutPlan struct {
 
 	// RolloutStrategy defines strategies for the rollout plan
+	// The default is IncreaseFirstRolloutStrategyType
 	// +optional
-	RolloutStrategy *RolloutStrategyType `json:"rolloutStrategy,omitempty"`
+	RolloutStrategy RolloutStrategyType `json:"rolloutStrategy,omitempty"`
 
 	// The size of the target resource. The default is the same
 	// as the size of the source resource.
@@ -220,6 +221,10 @@ type MetricsExpectedRange struct {
 type RolloutStatus struct {
 	// Conditions represents the latest available observations of a CloneSet's current state.
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
+
+	// RolloutTargetTotalSize is the size of the target resources. This is determined once the initial spec verification
+	// and does not change until the rollout is restarted
+	RolloutTargetTotalSize int32 `json:"rolloutTargetSize,omitempty"`
 
 	// NewPodTemplateIdentifier is a string that uniquely represent the new pod template
 	// each workload type could use different ways to identify that so we cannot compare between resources

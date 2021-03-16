@@ -8,6 +8,7 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	kruisev1 "github.com/openkruise/kruise-api/apps/v1alpha1"
+	apps "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -74,7 +75,7 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 	defer func() {
 		klog.InfoS("Finished one round of reconciling rollout plan", "rollout state", status.RollingState,
 			"batch rolling state", status.BatchRollingState, "current batch", status.CurrentBatch,
-			"upgraded Replicas", status.UpgradedReplicas, "ready Replicas", r.rolloutStatus.UpgradedReadyReplicas,
+			"upgraded Replicas", status.UpgradedReplicas, "ready Replicas", status.UpgradedReadyReplicas,
 			"reconcile result ", res)
 	}()
 	status = r.rolloutStatus
@@ -100,16 +101,20 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 
 	switch r.rolloutStatus.RollingState {
 	case v1alpha1.VerifyingSpecState:
-		if r.rolloutStatus, err = workloadController.VerifySpec(ctx); err != nil {
+		verified, err := workloadController.VerifySpec(ctx)
+		if err != nil {
 			// we can fail it right away, everything after initialized need to be finalized
 			r.rolloutStatus.RolloutFailed(err.Error())
-		} else {
+		} else if verified {
 			r.rolloutStatus.StateTransition(v1alpha1.RollingSpecVerifiedEvent)
 		}
 
 	case v1alpha1.InitializingState:
-		if err := r.initializeRollout(ctx); err == nil {
-			if r.rolloutStatus, err = workloadController.Initialize(ctx); err == nil {
+		if err = r.initializeRollout(ctx); err == nil {
+			initialized, err := workloadController.Initialize(ctx)
+			if err != nil {
+				r.rolloutStatus.RolloutFailing(err.Error())
+			} else if initialized {
 				r.rolloutStatus.StateTransition(v1alpha1.RollingInitializedEvent)
 			}
 		}
@@ -118,13 +123,12 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 		r.reconcileBatchInRolling(ctx, workloadController)
 
 	case v1alpha1.RolloutFailingState:
-		if r.rolloutStatus, err = workloadController.Finalize(ctx, false); err == nil {
+		if succeed := workloadController.Finalize(ctx, false); succeed {
 			r.finalizeRollout(ctx)
 		}
 
 	case v1alpha1.FinalisingState:
-		if r.rolloutStatus, err = workloadController.Finalize(ctx, true); err == nil {
-			// if we are still going to finalize it
+		if succeed := workloadController.Finalize(ctx, true); succeed {
 			r.finalizeRollout(ctx)
 		}
 
@@ -143,7 +147,6 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 
 // reconcile logic when we are in the middle of rollout, we have to go through finalizing state before succeed or fail
 func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadController workloads.WorkloadController) {
-
 	if r.rolloutSpec.Paused {
 		r.recorder.Event(r.parentController, event.Normal("Rollout paused", "Rollout paused"))
 		r.rolloutStatus.SetConditions(v1alpha1.NewPositiveCondition(v1alpha1.BatchPaused))
@@ -151,13 +154,8 @@ func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadContro
 	}
 
 	// makes sure that the current batch and replica count in the status are validate
-	replicas, err := workloadController.Size(ctx)
+	err := r.validateRollingBatchStatus(int(r.rolloutStatus.RolloutTargetTotalSize))
 	if err != nil {
-		r.rolloutStatus.RolloutRetry(err.Error())
-		return
-	}
-
-	if err := r.validateRollingBatchStatus(int(replicas)); err != nil {
 		r.rolloutStatus.RolloutFailing(err.Error())
 		return
 	}
@@ -168,9 +166,10 @@ func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadContro
 
 	case v1alpha1.BatchInRollingState:
 		//  still rolling the batch, the batch rolling is not completed yet
-		if r.rolloutStatus, err = workloadController.RolloutOneBatchPods(ctx); err != nil {
+		upgradeDone, err := workloadController.RolloutOneBatchPods(ctx)
+		if err != nil {
 			r.rolloutStatus.RolloutFailing(err.Error())
-		} else {
+		} else if upgradeDone {
 			r.rolloutStatus.StateTransition(v1alpha1.RolloutOneBatchEvent)
 		}
 
@@ -178,16 +177,20 @@ func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadContro
 		// verifying if the application is ready to roll
 		// need to check if they meet the availability requirements in the rollout spec.
 		// TODO: evaluate any metrics/analysis
-		finished := false
-		if r.rolloutStatus, finished = workloadController.CheckOneBatchPods(ctx); finished {
+		// TODO: We may need to go back to rollout again if the size of the resource can change behind our back
+		verified, err := workloadController.CheckOneBatchPods(ctx)
+		if err != nil {
+			r.rolloutStatus.RolloutFailing(err.Error())
+		} else if verified {
 			r.rolloutStatus.StateTransition(v1alpha1.OneBatchAvailableEvent)
 		}
 
 	case v1alpha1.BatchFinalizingState:
 		// finalize one batch
-		if r.rolloutStatus, err = workloadController.FinalizeOneBatch(ctx); err != nil {
+		finalized, err := workloadController.FinalizeOneBatch(ctx)
+		if err != nil {
 			r.rolloutStatus.RolloutFailing(err.Error())
-		} else {
+		} else if finalized {
 			r.finalizeOneBatch(ctx)
 		}
 
@@ -340,7 +343,7 @@ func (r *Controller) validateRollingBatchStatus(totalSize int) error {
 	// the recorded number should be at least as much as the all the pods before the current batch
 	if podCount > upgradedReplicas {
 		err := fmt.Errorf("the upgraded replica in the status is less than all the pods in the previous batch")
-		klog.ErrorS(err, "upgraded num status", upgradedReplicas, "pods in all the previous batches", podCount)
+		klog.ErrorS(err, "rollout status inconsistent", "upgraded num status", upgradedReplicas, "pods in all the previous batches", podCount)
 		return err
 	}
 	// calculate the upper bound with the current batch
@@ -355,7 +358,8 @@ func (r *Controller) validateRollingBatchStatus(totalSize int) error {
 	// the recorded number should be not as much as the all the pods including the active batch
 	if podCount < upgradedReplicas {
 		err := fmt.Errorf("the upgraded replica in the status is greater than all the pods in the current batch")
-		klog.ErrorS(err, "upgraded num status", upgradedReplicas, "pods in the batches including the current batch", podCount)
+		klog.ErrorS(err, "rollout status inconsistent", "total target size", totalSize,
+			"upgraded num status", upgradedReplicas, "pods in the batches including the current batch", podCount)
 		return err
 	}
 	return nil
@@ -368,11 +372,23 @@ func (r *Controller) GetWorkloadController() (workloads.WorkloadController, erro
 		Namespace: r.targetWorkload.GetNamespace(),
 		Name:      r.targetWorkload.GetName(),
 	}
+	var source types.NamespacedName
+	if r.sourceWorkload != nil {
+		source.Namespace = r.sourceWorkload.GetNamespace()
+		source.Name = r.sourceWorkload.GetName()
+	}
 
 	if r.targetWorkload.GroupVersionKind().Group == kruisev1.GroupVersion.Group {
 		if r.targetWorkload.GetKind() == reflect.TypeOf(kruisev1.CloneSet{}).Name() {
 			return workloads.NewCloneSetController(r.client, r.recorder, r.parentController,
 				r.rolloutSpec, r.rolloutStatus, target), nil
+		}
+	}
+
+	if r.targetWorkload.GroupVersionKind().Group == apps.GroupName {
+		if r.targetWorkload.GetKind() == reflect.TypeOf(apps.Deployment{}).Name() {
+			return workloads.NewDeploymentController(r.client, r.recorder, r.parentController,
+				r.rolloutSpec, r.rolloutStatus, source, target), nil
 		}
 	}
 	return nil, fmt.Errorf("the workload kind `%s` is not supported", kind)

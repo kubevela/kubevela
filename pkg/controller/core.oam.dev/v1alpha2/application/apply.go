@@ -9,7 +9,6 @@ import (
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/go-logr/logr"
-	"github.com/mitchellh/hashstructure/v2"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -256,12 +255,10 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 // it will create a new revision if the appConfig is different from the existing one
 func (h *appHandler) createOrUpdateAppConfig(ctx context.Context, appConfig *v1alpha2.ApplicationConfiguration) error {
 	var curAppConfig v1alpha2.ApplicationConfiguration
-	// compute a hash value of the appConfig spec
-	specHash, err := hashstructure.Hash(appConfig.Spec, hashstructure.FormatV2, nil)
+	specHashLabel, err := utils.ComputeSpecHash(appConfig.Spec)
 	if err != nil {
 		return err
 	}
-	specHashLabel := strconv.FormatUint(specHash, 16)
 	appConfig.SetLabels(oamutil.MergeMapOverrideWithDst(appConfig.GetLabels(),
 		map[string]string{
 			oam.LabelAppConfigHash: specHashLabel,
