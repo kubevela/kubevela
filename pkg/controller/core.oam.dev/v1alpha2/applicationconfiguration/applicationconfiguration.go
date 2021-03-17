@@ -214,7 +214,7 @@ func NewReconciler(m ctrl.Manager, dm discoverymapper.DiscoveryMapper, log loggi
 
 // Reconcile an OAM ApplicationConfigurations by rendering and instantiating its
 // Components and Traits.
-func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reconcile.Result, returnErr error) {
+func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("request", req)
 	log.Debug("Reconciling")
 
@@ -229,6 +229,13 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		}
 		return reconcile.Result{}, errors.Wrap(err, errGetAppConfig)
 	}
+
+	return r.ACReconcile(ctx, ac, log)
+}
+
+// ACReconcile contains all the reconcile logic of an AC, it can be used by other controller
+func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2.ApplicationConfiguration,
+	log logging.Logger) (result reconcile.Result, returnErr error) {
 	acPatch := ac.DeepCopy()
 	ctx = util.SetNamespaceInCtx(ctx, ac.Namespace)
 	if ac.ObjectMeta.DeletionTimestamp.IsZero() {
