@@ -702,8 +702,8 @@ var _ = Describe("Test Application Controller", func() {
 	It("app with health policy for workload", func() {
 		By("change workload and trait definition with health policy")
 		ncd, ocd := &v1alpha2.ComponentDefinition{}, &v1alpha2.ComponentDefinition{}
-		wDDefJson, _ := yaml.YAMLToJSON([]byte(cDDefWithHealthYaml))
-		Expect(json.Unmarshal(wDDefJson, ncd)).Should(BeNil())
+		cDDefJson, _ := yaml.YAMLToJSON([]byte(cDDefWithHealthYaml))
+		Expect(json.Unmarshal(cDDefJson, ncd)).Should(BeNil())
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: ncd.Name, Namespace: ncd.Namespace}, ocd)).Should(BeNil())
 		ncd.ResourceVersion = ocd.ResourceVersion
 		Expect(k8sClient.Update(ctx, ncd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))

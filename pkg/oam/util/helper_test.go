@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -813,13 +814,29 @@ func TestGetGVKFromDef(t *testing.T) {
 
 func TestConvertWorkloadGVK2Def(t *testing.T) {
 	mapper := mock.NewMockDiscoveryMapper()
+
+	mapper.MockRESTMapping = mock.NewMockRESTMapping("clonesets")
+	ref, err := util.ConvertWorkloadGVK2Definition(mapper, v1alpha2.WorkloadGVK{APIVersion: "apps.kruise.io/v1alpha1",
+		Kind: "CloneSet"})
+	assert.NoError(t, err)
+	assert.Equal(t, v1alpha2.DefinitionReference{
+		Name:    "clonesets.apps.kruise.io",
+		Version: "v1alpha1",
+	}, ref)
+
 	mapper.MockRESTMapping = mock.NewMockRESTMapping("deployments")
-	ref, err := util.ConvertWorkloadGVK2Definition(mapper, v1alpha2.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"})
+	ref, err = util.ConvertWorkloadGVK2Definition(mapper, v1alpha2.WorkloadGVK{APIVersion: "apps/v1",
+		Kind: "Deployment"})
 	assert.NoError(t, err)
 	assert.Equal(t, v1alpha2.DefinitionReference{
 		Name:    "deployments.apps",
 		Version: "v1",
 	}, ref)
+
+	ref, err = util.ConvertWorkloadGVK2Definition(mapper, v1alpha2.WorkloadGVK{APIVersion: "/apps/v1",
+		Kind: "Deployment"})
+	assert.Error(t, err)
+
 }
 
 func TestGenTraitName(t *testing.T) {
@@ -1880,4 +1897,142 @@ func TestGetScopeDefiniton(t *testing.T) {
 		assert.Equal(t, tc.want.err, err)
 		assert.Equal(t, tc.want.spd, got)
 	}
+}
+
+func TestConvertComponentDef2WorkloadDef(t *testing.T) {
+	var noNeedErr = errors.New("No need to convert ComponentDefinition")
+	var cd = v1alpha2.ComponentDefinition{}
+	mapper := mock.NewMockDiscoveryMapper()
+
+	var componentDefWithWorkloadType = `
+apiVersion: core.oam.dev/v1alpha2
+kind: ComponentDefinition
+metadata:
+  name: cd-with-workload-type
+spec:
+  workload:
+    type: worker
+`
+
+	err := yaml.Unmarshal([]byte(componentDefWithWorkloadType), &cd)
+	assert.Equal(t, nil, err)
+	err = util.ConvertComponentDef2WorkloadDef(mapper, &cd, &v1alpha2.WorkloadDefinition{})
+	assert.Equal(t, noNeedErr.Error(), err.Error())
+
+	var componentDefWithWrongDefinition = `
+apiVersion: core.oam.dev/v1alpha2
+kind: ComponentDefinition
+metadata:
+  name: worker
+spec:
+  workload:
+    definition:
+      apiVersion: /apps/v1/
+      kind: Deployment
+`
+	cd = v1alpha2.ComponentDefinition{}
+	err = yaml.Unmarshal([]byte(componentDefWithWrongDefinition), &cd)
+	assert.Equal(t, nil, err)
+	err = util.ConvertComponentDef2WorkloadDef(mapper, &cd, &v1alpha2.WorkloadDefinition{})
+	assert.Error(t, err)
+
+	mapper.MockRESTMapping = mock.NewMockRESTMapping("deployments")
+	var Template = `
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        		}
+        
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": context.name
+        			}
+        
+        			spec: {
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+        
+        					if parameter["cmd"] != _|_ {
+        						command: parameter.cmd
+        					}
+        				}]
+        			}
+        		}
+        	}
+        }
+        
+        parameter: {
+        	// +usage=Which image would you like to use for your service
+        	// +short=i
+        	image: string
+        	// +usage=Commands to run in the container
+        	cmd?: [...string]
+        }
+`
+	var componentDefWithDefinition = `
+apiVersion: core.oam.dev/v1alpha2
+kind: ComponentDefinition
+metadata:
+  name: worker
+  namespace: vela-system
+  labels:
+    env: test
+  annotations:
+    definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend."
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  childResourceKinds:
+    - apiVersion: apps/v1
+      kind: Deployment
+  status:
+    healthPolicy: |
+      isHealth: (context.output.status.readyReplicas > 0) && (context.output.status.readyReplicas == context.output.status.replicas)` + Template
+
+	var expectWorkloadDef = `
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: worker
+  namespace: vela-system
+  labels:
+    env: test
+  annotations:
+    definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend."
+spec:
+  definitionRef:
+    name: deployments.apps
+    version: v1
+  childResourceKinds:
+    - apiVersion: apps/v1
+      kind: Deployment
+  status:
+    healthPolicy: |
+      isHealth: (context.output.status.readyReplicas > 0) && (context.output.status.readyReplicas == context.output.status.replicas)` + Template
+	cd = v1alpha2.ComponentDefinition{}
+	wd := &v1alpha2.WorkloadDefinition{}
+	err = yaml.Unmarshal([]byte(componentDefWithDefinition), &cd)
+	assert.NoError(t, err)
+	err = util.ConvertComponentDef2WorkloadDef(mapper, &cd, wd)
+	assert.NoError(t, err)
+	expectWd := v1alpha2.WorkloadDefinition{}
+	err = yaml.Unmarshal([]byte(expectWorkloadDef), &expectWd)
+	assert.NoError(t, err)
+	assert.Equal(t, expectWd.Namespace, wd.Namespace)
+	assert.Equal(t, expectWd.Name, wd.Name)
+	assert.Equal(t, expectWd.Labels, wd.Labels)
+	assert.Equal(t, expectWd.Annotations, wd.Annotations)
+	assert.Equal(t, expectWd.Spec.Reference, wd.Spec.Reference)
+	assert.Equal(t, expectWd.Spec.ChildResourceKinds, wd.Spec.ChildResourceKinds)
+	assert.Equal(t, expectWd.Spec.Status, wd.Spec.Status)
+	assert.Equal(t, expectWd.Spec.Schematic, wd.Spec.Schematic)
 }

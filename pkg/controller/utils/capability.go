@@ -55,8 +55,11 @@ type CapabilityDefinitionInterface interface {
 type CapabilityComponentDefinition struct {
 	Name                string                       `json:"name"`
 	ComponentDefinition v1alpha2.ComponentDefinition `json:"componentDefinition"`
-	WorkloadType        util.WorkloadType            `json:"workloadType"`
-	WorkloadDefName     string                       `json:"workloadDefName"`
+
+	WorkloadType    util.WorkloadType `json:"workloadType"`
+	WorkloadDefName string            `json:"workloadDefName"`
+
+	Helm *v1alpha2.Helm `json:"helm"`
 	CapabilityBaseDefinition
 }
 

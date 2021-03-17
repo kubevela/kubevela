@@ -90,7 +90,8 @@ const (
 	ComponentDef WorkloadType = "ComponentDef"
 
 	// HELMDef describe a workload refer to HELM
-	HELMDef WorkloadType = "HELMDef"
+	// TODO(yangsoon): we need store helm capability schema in configMap
+	HELMDef WorkloadType = "HelmDef"
 
 	// ReferWorkload describe an existing workload
 	ReferWorkload WorkloadType = "ReferWorkload"
@@ -663,6 +664,7 @@ func ConvertComponentDef2WorkloadDef(dm discoverymapper.DiscoveryMapper, compone
 	workloadDef.SetLabels(componentDef.Labels)
 	workloadDef.SetAnnotations(componentDef.Annotations)
 	workloadDef.Spec.Reference = reference
+	workloadDef.Spec.ChildResourceKinds = componentDef.Spec.ChildResourceKinds
 	workloadDef.Spec.Extension = componentDef.Spec.Extension
 	workloadDef.Spec.RevisionLabel = componentDef.Spec.RevisionLabel
 	workloadDef.Spec.Status = componentDef.Spec.Status

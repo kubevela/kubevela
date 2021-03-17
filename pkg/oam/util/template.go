@@ -40,8 +40,10 @@ func GetScopeGVK(ctx context.Context, cli client.Reader, dm discoverymapper.Disc
 
 // LoadTemplate Get template according to key
 func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.CapType) (*Template, error) {
+	// Application Controller only load template from ComponentDefinition and TraitDefinition
+	// nolint:exhaustive
 	switch kd {
-	case types.TypeWorkload:
+	case types.TypeComponentDefinition:
 		cd := new(v1alpha2.ComponentDefinition)
 		err := GetDefinition(ctx, cli, cd, key)
 		if err != nil {
@@ -55,9 +57,6 @@ func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.C
 			return nil, errors.New("no template found in definition")
 		}
 		tmpl.Reference = cd.Spec.Workload.Definition
-		if err != nil {
-			return nil, fmt.Errorf("get DefinitionReference error %w", err)
-		}
 		if cd.Annotations["type"] == string(types.TerraformCategory) {
 			tmpl.CapabilityCategory = types.TerraformCategory
 		}

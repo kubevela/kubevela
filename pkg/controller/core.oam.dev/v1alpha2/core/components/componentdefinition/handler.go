@@ -20,9 +20,11 @@ import (
 	"context"
 	"fmt"
 
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
+
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -46,32 +48,33 @@ func (h *handler) CreateWorkloadDefinition(ctx context.Context) (util.WorkloadTy
 	if h.cd.Spec.Schematic != nil && h.cd.Spec.Schematic.HELM != nil {
 		workloadType = util.HELMDef
 	}
+
 	wd := new(v1alpha2.WorkloadDefinition)
 	err := h.Get(ctx, client.ObjectKey{Namespace: h.cd.Namespace, Name: workloadName}, wd)
-	if workloadType == util.ReferWorkload {
-		if err != nil {
+	if err != nil {
+		switch workloadType {
+		case util.ReferWorkload:
 			klog.Infof("ComponentDefinition %s refer to wrong Workload", h.cd.Name)
 			return workloadType, err
-		}
-	}
-	if workloadType == util.ComponentDef || workloadType == util.HELMDef {
-		if err == nil {
-			return workloadType, nil
-		}
-		newCd := h.cd.DeepCopy()
-		if err := util.ConvertComponentDef2WorkloadDef(h.dm, newCd, wd); err != nil {
-			return workloadType, fmt.Errorf("convert WorkloadDefinition %s error %w", h.cd.Name, err)
-		}
-		owners := []metav1.OwnerReference{{
-			APIVersion: v1alpha2.SchemeGroupVersion.String(),
-			Kind:       v1alpha2.ComponentDefinitionKind,
-			Name:       h.cd.Name,
-			UID:        h.cd.UID,
-			Controller: pointer.BoolPtr(true),
-		}}
-		wd.SetOwnerReferences(owners)
-		if err := h.Create(ctx, wd); err != nil {
-			return workloadType, fmt.Errorf("create converted WorkloadDefinition %s error %w", h.cd.Name, err)
+		default:
+			if !kerrors.IsNotFound(err) {
+				return workloadType, err
+			}
+			newCd := h.cd.DeepCopy()
+			if err := util.ConvertComponentDef2WorkloadDef(h.dm, newCd, wd); err != nil {
+				return workloadType, fmt.Errorf("convert WorkloadDefinition %s error %w", h.cd.Name, err)
+			}
+			owners := []metav1.OwnerReference{{
+				APIVersion: v1alpha2.SchemeGroupVersion.String(),
+				Kind:       v1alpha2.ComponentDefinitionKind,
+				Name:       h.cd.Name,
+				UID:        h.cd.UID,
+				Controller: pointer.BoolPtr(true),
+			}}
+			wd.SetOwnerReferences(owners)
+			if err := h.Create(ctx, wd); err != nil {
+				return workloadType, fmt.Errorf("create converted WorkloadDefinition %s error %w", h.cd.Name, err)
+			}
 		}
 	}
 	return workloadType, nil

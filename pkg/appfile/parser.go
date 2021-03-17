@@ -158,7 +158,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1alpha2.ApplicationCom
 	workload.Traits = []*Trait{}
 	workload.Name = comp.Name
 	workload.Type = comp.WorkloadType
-	templ, err := util.LoadTemplate(ctx, p.client, workload.Type, types.TypeWorkload)
+	templ, err := util.LoadTemplate(ctx, p.client, workload.Type, types.TypeComponentDefinition)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
 	}

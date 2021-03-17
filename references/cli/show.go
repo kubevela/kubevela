@@ -140,7 +140,8 @@ func startReferenceDocsSite(ctx context.Context, c types.Args, ioStreams cmdutil
 	case types.TypeTrait:
 		capabilityPath = plugins.TraitPath
 	case types.TypeScope:
-
+	case types.TypeComponentDefinition:
+		// TODO: add ComponentDefinition
 	}
 
 	url := fmt.Sprintf("http://127.0.0.1%s/#/%s/%s", Port, capabilityPath, capabilityName)
@@ -308,7 +309,8 @@ func getWorkloadsAndTraits(capabilities []types.Capability) ([]string, []string)
 		case types.TypeTrait:
 			traits = append(traits, c.Name)
 		case types.TypeScope:
-
+		case types.TypeComponentDefinition:
+			// TODO get ComponentDefinitions
 		}
 	}
 	return workloads, traits

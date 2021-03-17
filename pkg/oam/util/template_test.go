@@ -92,7 +92,7 @@ spec:
 		},
 	}
 
-	temp, err := LoadTemplate(context.TODO(), &tclient, "worker", types.TypeWorkload)
+	temp, err := LoadTemplate(context.TODO(), &tclient, "worker", types.TypeComponentDefinition)
 
 	if err != nil {
 		t.Error(err)
