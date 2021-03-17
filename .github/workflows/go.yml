@@ -124,7 +124,7 @@ jobs:
         run: make compatibility-testdata-cleanup
 
   e2e-tests:
-    runs-on: aliyun
+    runs-on: ubuntu-20.04
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
 
@@ -145,12 +145,9 @@ jobs:
         uses: engineerd/setup-kind@v0.5.0
         with:
           version: ${{ env.KIND_VERSION }}
-          skipClusterCreation: true
 
       - name: Setup Kind Cluster
         run: |
-          kind delete cluster
-          kind create cluster
           kubectl version
           kubectl cluster-info
 
@@ -177,10 +174,6 @@ jobs:
 
       - name: Run e2e tests
         run: make e2e-test
-
-      - name: Cleanup image
-        if: ${{ always() }}
-        run: make image-cleanup
 
   staticcheck:
     runs-on: ubuntu-20.04
