@@ -12,10 +12,23 @@ import (
 
 func TestPackage(t *testing.T) {
 	var openAPISchema = `
-{
+{	
+	"paths": {
+		"paths...": {
+			"post":{
+				"x-kubernetes-group-version-kind": {
+                    "group": "test.io",
+                    "kind": "Bucket",
+                    "version": "v1"
+                }
+			}
+		}
+	},
     "definitions":{
         "Bucket":{
             "properties":{
+				"apiVersion": {"type": "string"}
+ 				"kind": {"type": "string"}
                 "acl":{
                     "default":"private",
                     "enum":[
@@ -314,8 +327,10 @@ output: oss.#Bucket
 	assert.NilError(t, err)
 
 	exceptObj := `output: close({
-	acl:                 "public-read-write" | "public-read" | *"private"
+	kind:                "Bucket"
+	apiVersion:          "test.io/v1"
 	type:                "alicloud_oss_bucket"
+	acl:                 "public-read-write" | "public-read" | *"private"
 	dataRedundancyType?: "ZRS" | *"LRS"
 	dataSourceRef?:      close({
 		dsPath: string

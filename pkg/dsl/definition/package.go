@@ -2,6 +2,8 @@ package definition
 
 import (
 	"context"
+	"fmt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -28,7 +30,9 @@ func AddImportFromCluster(config *rest.Config, scheme *runtime.Scheme) error {
 		return err
 	}
 	kubePkg := newPackage("kube")
-	kubePkg.addOpenAPI(apiSchema)
+	if err := kubePkg.addOpenAPI(apiSchema); err != nil {
+		return err
+	}
 	kubePkg.mount()
 	return nil
 }
@@ -106,6 +110,23 @@ func (pkg *pkgInstance) addOpenAPI(apiSchema string) error {
 	if err != nil {
 		return err
 	}
+
+	kinds := map[string]metav1.GroupVersionKind{}
+	pathv := oaInst.Value().Lookup("paths")
+	if pathv.Exists() {
+		if st, err := pathv.Struct(); err == nil {
+			iter := st.Fields()
+			for iter.Next() {
+				gvk := iter.Value().Lookup("post",
+					"x-kubernetes-group-version-kind")
+				if gvk.Exists() {
+					if v, err := getGVK(gvk); err == nil {
+						kinds["#"+v.Kind] = v
+					}
+				}
+			}
+		}
+	}
 	oaFile, err := jsonschema.Extract(oaInst, &jsonschema.Config{
 		Root: "#/definitions",
 		Map:  openAPIMapping,
@@ -113,6 +134,21 @@ func (pkg *pkgInstance) addOpenAPI(apiSchema string) error {
 	if err != nil {
 		return err
 	}
+
+	for k, v := range kinds {
+		apiversion := v.Version
+		if v.Group != "" {
+			apiversion = v.Group + "/" + apiversion
+		}
+
+		def := fmt.Sprintf(`%s: {
+kind: "%s"
+apiVersion: "%s",
+}`, k, v.Kind, apiversion)
+
+		pkg.AddFile(k, def)
+	}
+
 	processOpenAPIFile(oaFile)
 	return pkg.AddSyntax(oaFile)
 }
@@ -125,4 +161,19 @@ func (pkg *pkgInstance) mount() {
 		}
 	}
 	velaBuiltinPkgs = append(velaBuiltinPkgs, pkg.Instance)
+}
+
+func getGVK(v cue.Value) (metav1.GroupVersionKind, error) {
+	ret := metav1.GroupVersionKind{}
+	var err error
+	ret.Group, err = v.Lookup("group").String()
+	if err != nil {
+		return ret, err
+	}
+	ret.Version, err = v.Lookup("version").String()
+	if err != nil {
+		return ret, err
+	}
+	ret.Kind, err = v.Lookup("kind").String()
+	return ret, err
 }

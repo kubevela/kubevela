@@ -1415,8 +1415,6 @@ spec:
       template: |
         import "kube"
         output: kube.#Deployment & {
-        	apiVersion: "apps/v1"
-        	kind:       "Deployment"
         	spec: {
         		selector: matchLabels: {
         			"app.oam.dev/component": context.name
@@ -1443,9 +1441,7 @@ spec:
         	}
         }
 
-        outputs: gameconfig: {
-        	apiVersion: "v1"
-        	kind:       "ConfigMap"
+        outputs: gameconfig: kube.#ConfigMap & {
         	metadata: {
         		name: context.name + "game-config"
         	}
@@ -1530,9 +1526,8 @@ spec:
   workloadRefPath: spec.workloadRef
   extension:
     template: |-
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
+	  import "kube"	
+      outputs: scaler: kube.#ManualScalerTrait & {
       	spec: {
       		replicaCount: parameter.replicas
       	}
@@ -1560,9 +1555,8 @@ spec:
   workloadRefPath: spec.workloadRef
   extension:
     template: |-
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
+ 	  import "kube"	
+      outputs: scaler: kube.#ManualScalerTrait & {
       	spec: {
           replicaCount: parameter.replicas
           token: processing.output.token
@@ -1607,9 +1601,8 @@ spec:
     healthPolicy: |
       isHealth: context.output.status.conditions[0].status == "True"
     template: |-
-      outputs: scaler: {
-      	apiVersion: "core.oam.dev/v1alpha2"
-      	kind:       "ManualScalerTrait"
+	  import "kube"	
+      outputs: scaler: kube.#ManualScalerTrait & {
       	spec: {
       		replicaCount: parameter.replicas
       	}
@@ -1641,8 +1634,6 @@ spec:
         }
         // trait template can have multiple outputs in one trait
         outputs: service: kube.#Service & {
-        	apiVersion: "v1"
-        	kind:       "Service"
         	spec: {
         		selector:
         			app: context.name
@@ -1655,8 +1646,6 @@ spec:
         	}
         }
         outputs: ingress: kube.#Ingress & {
-        	apiVersion: "networking.k8s.io/v1beta1"
-        	kind:       "Ingress"
         	metadata:
         		name: context.name
         	spec: {
