@@ -3,7 +3,6 @@ package definition
 import (
 	"context"
 	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 
 	"cuelang.org/go/cue"
@@ -12,6 +11,7 @@ import (
 	"cuelang.org/go/cue/token"
 	"cuelang.org/go/encoding/jsonschema"
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
@@ -51,8 +51,6 @@ func getClusterOpenAPI(config *rest.Config, scheme *runtime.Scheme) (string, err
 	}
 	return string(body), nil
 }
-
-var rootDefs = "#SchemaMap"
 
 func openAPIMapping(pos token.Pos, a []string) ([]ast.Label, error) {
 	if len(a) < 2 {
@@ -146,7 +144,9 @@ kind: "%s"
 apiVersion: "%s",
 }`, k, v.Kind, apiversion)
 
-		pkg.AddFile(k, def)
+		if err := pkg.AddFile(k, def); err != nil {
+			return err
+		}
 	}
 
 	processOpenAPIFile(oaFile)

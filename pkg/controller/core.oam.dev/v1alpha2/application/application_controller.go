@@ -19,7 +19,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
@@ -36,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	apply "github.com/oam-dev/kubevela/pkg/utils/apply"
