@@ -1,12 +1,9 @@
 /*
 Copyright 2020 The KubeVela Authors.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -1185,10 +1182,7 @@ spec:
   extension:
     template: |
       import "kube"
-
       output: kube.#Deployment & {
-          apiVersion: "apps/v1"
-          kind:       "Deployment"
           metadata: {
               annotations: {
                   if context["config"] != _|_ {
@@ -1206,30 +1200,25 @@ spec:
                   metadata: labels: {
                       "app.oam.dev/component": context.name
                   }
-
                   spec: {
                       containers: [{
                           name:  context.name
                           image: parameter.image
-
                           if parameter["cmd"] != _|_ {
                               command: parameter.cmd
                           }
                       }]
                   }
               }
-
               selector:
                   matchLabels:
                       "app.oam.dev/component": context.name
           }
       }
-
       parameter: {
           // +usage=Which image would you like to use for your service
           // +short=i
           image: string
-
           cmd?: [...string]
       }
 `
@@ -1248,10 +1237,8 @@ spec:
       kind: Deployment
   extension:
     template: |
-	  import "kube"	
+      import "kube"
       output: kube.#Deployment & {
-      	apiVersion: "apps/v1"
-      	kind:       "Deployment"
       	spec: {
       		selector: matchLabels: {
       			"app.oam.dev/component": context.name
@@ -1264,23 +1251,18 @@ spec:
       				containers: [{
       					name:  context.name
       					image: parameter.image
-
       					if parameter["cmd"] != _|_ {
       						command: parameter.cmd
       					}
-
       					if parameter["env"] != _|_ {
       						env: parameter.env
       					}
-
       					if context["config"] != _|_ {
       						env: context.config
       					}
-
       					ports: [{
       						containerPort: parameter.port
       					}]
-
       					if parameter["cpu"] != _|_ {
       						resources: {
       							limits:
@@ -1326,7 +1308,6 @@ spec:
       	}]
       	cpu?: string
       }
-
 `
 	cDDefWithHealthYaml = `
 apiVersion: core.oam.dev/v1alpha2
@@ -1347,8 +1328,6 @@ spec:
     template: |
       import "kube"
       output: kube.#Deployment & {
-          apiVersion: "apps/v1"
-          kind:       "Deployment"
           metadata: {
               annotations: {
                   if context["config"] != _|_ {
@@ -1366,30 +1345,25 @@ spec:
                   metadata: labels: {
                       "app.oam.dev/component": context.name
                   }
-
                   spec: {
                       containers: [{
                           name:  context.name
                           image: parameter.image
-
                           if parameter["cmd"] != _|_ {
                               command: parameter.cmd
                           }
                       }]
                   }
               }
-
               selector:
                   matchLabels:
                       "app.oam.dev/component": context.name
           }
       }
-
       parameter: {
           // +usage=Which image would you like to use for your service
           // +short=i
           image: string
-
           cmd?: [...string]
       }
 `
@@ -1419,12 +1393,10 @@ spec:
         		selector: matchLabels: {
         			"app.oam.dev/component": context.name
         		}
-
         		template: {
         			metadata: labels: {
         				"app.oam.dev/component": context.name
         			}
-
         			spec: {
         				containers: [{
         					name:  context.name
@@ -1440,7 +1412,6 @@ spec:
         		}
         	}
         }
-
         outputs: gameconfig: kube.#ConfigMap & {
         	metadata: {
         		name: context.name + "game-config"
@@ -1450,7 +1421,6 @@ spec:
         		lives:   parameter.lives
         	}
         }
-
         parameter: {
         	// +usage=Which image would you like to use for your service
         	// +short=i
@@ -1526,8 +1496,9 @@ spec:
   workloadRefPath: spec.workloadRef
   extension:
     template: |-
-	  import "kube"	
-      outputs: scaler: kube.#ManualScalerTrait & {
+      outputs: scaler: {
+      	apiVersion: "core.oam.dev/v1alpha2"
+      	kind:       "ManualScalerTrait"
       	spec: {
       		replicaCount: parameter.replicas
       	}
@@ -1536,7 +1507,6 @@ spec:
       	//+short=r
       	replicas: *1 | int
       }
-
 `
 	tdDefYamlWithHttp = `
 apiVersion: core.oam.dev/v1alpha2
@@ -1555,8 +1525,9 @@ spec:
   workloadRefPath: spec.workloadRef
   extension:
     template: |-
- 	  import "kube"	
-      outputs: scaler: kube.#ManualScalerTrait & {
+      outputs: scaler: {
+      	apiVersion: "core.oam.dev/v1alpha2"
+      	kind:       "ManualScalerTrait"
       	spec: {
           replicaCount: parameter.replicas
           token: processing.output.token
@@ -1601,8 +1572,9 @@ spec:
     healthPolicy: |
       isHealth: context.output.status.conditions[0].status == "True"
     template: |-
-	  import "kube"	
-      outputs: scaler: kube.#ManualScalerTrait & {
+      outputs: scaler: {
+      	apiVersion: "core.oam.dev/v1alpha2"
+      	kind:       "ManualScalerTrait"
       	spec: {
       		replicaCount: parameter.replicas
       	}

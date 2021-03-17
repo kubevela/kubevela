@@ -25,7 +25,8 @@ func addImportsFor(bi *build.Instance) {
 
 // AddImportFromCluster use  K8s native API and CRD definition as a reference package in template rendering
 func AddImportFromCluster(config *rest.Config, scheme *runtime.Scheme) error {
-	apiSchema, err := getClusterOpenAPI(config, scheme)
+	copyConfig := *config
+	apiSchema, err := getClusterOpenAPI(&copyConfig, scheme)
 	if err != nil {
 		return err
 	}
@@ -66,7 +67,20 @@ func openAPIMapping(pos token.Pos, a []string) ([]ast.Label, error) {
 	return []ast.Label{ast.NewIdent("#" + name)}, nil
 }
 
-func processOpenAPIFile(f *ast.File) {
+type pkgInstance struct {
+	*build.Instance
+}
+
+func newPackage(name string) *pkgInstance {
+	return &pkgInstance{
+		&build.Instance{
+			PkgName:    name,
+			ImportPath: name,
+		},
+	}
+}
+
+func (pkg *pkgInstance) processOpenAPIFile(f *ast.File) {
 	ast.Walk(f, func(node ast.Node) bool {
 		if st, ok := node.(*ast.StructLit); ok {
 			hasEllipsis := false
@@ -86,18 +100,13 @@ func processOpenAPIFile(f *ast.File) {
 		}
 		return true
 	}, nil)
-}
-
-type pkgInstance struct {
-	*build.Instance
-}
-
-func newPackage(name string) *pkgInstance {
-	return &pkgInstance{
-		&build.Instance{
-			PkgName:    name,
-			ImportPath: name,
-		},
+	for index, decl := range f.Decls {
+		if field, ok := decl.(*ast.Field); ok {
+			if ident, ok := field.Label.(*ast.Ident); ok && ident.Name == "#IntOrString" {
+				f.Decls = append(f.Decls[:index], f.Decls[index+1:]...)
+				pkg.AddFile("-", "#IntOrString: int | string")
+			}
+		}
 	}
 }
 
@@ -143,13 +152,12 @@ func (pkg *pkgInstance) addOpenAPI(apiSchema string) error {
 kind: "%s"
 apiVersion: "%s",
 }`, k, v.Kind, apiversion)
-
 		if err := pkg.AddFile(k, def); err != nil {
 			return err
 		}
 	}
 
-	processOpenAPIFile(oaFile)
+	pkg.processOpenAPIFile(oaFile)
 	return pkg.AddSyntax(oaFile)
 }
 
