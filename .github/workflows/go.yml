@@ -13,13 +13,12 @@ on:
 
 env:
   # Common versions
-  GO_VERSION: '1.14'
-  GOLANGCI_VERSION: 'v1.38'
-  DOCKER_BUILDX_VERSION: 'v0.4.2'
-  KIND_VERSION: 'v0.7.0'
+  GO_VERSION: "1.14"
+  GOLANGCI_VERSION: "v1.38"
+  DOCKER_BUILDX_VERSION: "v0.4.2"
+  KIND_VERSION: "v0.7.0"
 
 jobs:
-
   detect-noop:
     runs-on: ubuntu-20.04
     outputs:
@@ -59,7 +58,7 @@ jobs:
           restore-keys: ${{ runner.os }}-pkg-
 
       - name: Install ginkgo
-        run:  |
+        run: |
           sudo apt-get install -y golang-ginkgo-dev
 
       - name: Setup Kind Cluster
@@ -124,7 +123,7 @@ jobs:
         run: make compatibility-testdata-cleanup
 
   e2e-tests:
-    runs-on: aliyun
+    runs-on: [aliyun, aliyun2]
     needs: detect-noop
     if: needs.detect-noop.outputs.noop != 'true'
 
