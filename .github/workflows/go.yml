@@ -5,7 +5,7 @@ on:
     branches:
       - master
       - release-*
-  workflow_dispatch: {}
+  workflow_dispatch: { }
   pull_request:
     branches:
       - master
@@ -59,7 +59,7 @@ jobs:
           restore-keys: ${{ runner.os }}-pkg-
 
       - name: Install ginkgo
-        run:  |
+        run: |
           sudo apt-get install -y golang-ginkgo-dev
 
       - name: Setup Kind Cluster
@@ -140,6 +140,10 @@ jobs:
       - name: Get dependencies
         run: |
           go get -v -t -d ./...
+
+      - name: Install ginkgo
+        run: |
+          sudo apt-get install -y golang-ginkgo-dev
 
       - name: Setup Kind
         uses: engineerd/setup-kind@v0.5.0
