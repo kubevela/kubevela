@@ -104,7 +104,7 @@ func (pkg *pkgInstance) processOpenAPIFile(f *ast.File) {
 		if field, ok := decl.(*ast.Field); ok {
 			if ident, ok := field.Label.(*ast.Ident); ok && ident.Name == "#IntOrString" {
 				f.Decls = append(f.Decls[:index], f.Decls[index+1:]...)
-				pkg.AddFile("-", "#IntOrString: int | string")
+				_ = pkg.AddFile("-", "#IntOrString: int | string")
 			}
 		}
 	}
