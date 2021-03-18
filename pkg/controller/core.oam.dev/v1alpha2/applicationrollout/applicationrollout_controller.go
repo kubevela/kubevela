@@ -72,24 +72,29 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	}
 	klog.InfoS("Start to reconcile ", "appRollout", klog.KObj(&appRollout))
 
-	// TODO: check if the target/source has changed
 	r.handleFinalizer(&appRollout)
 	targetAppName := appRollout.Spec.TargetAppRevisionName
 	sourceAppName := appRollout.Spec.SourceAppRevisionName
 
 	ctx = oamutil.SetNamespaceInCtx(ctx, appRollout.Namespace)
-
+	// handle rollout target/source change
 	if appRollout.Status.RollingState == v1alpha1.RolloutSucceedState ||
 		appRollout.Status.RollingState == v1alpha1.RolloutFailedState {
-		if appRollout.Status.LastUpgradedTargetAppRevision == appRollout.Spec.TargetAppRevisionName &&
-			appRollout.Status.LastSourceAppRevision == appRollout.Spec.SourceAppRevisionName {
+		if appRollout.Status.LastUpgradedTargetAppRevision == targetAppName &&
+			appRollout.Status.LastSourceAppRevision == sourceAppName {
 			klog.InfoS("rollout terminated, no need to reconcile", "source", sourceAppName,
 				"target", targetAppName)
 			return ctrl.Result{}, nil
 		}
-		klog.InfoS("rollout target changed, restart the rollout", "source", sourceAppName,
-			"target", targetAppName)
-		appRollout.Status.StateTransition(v1alpha1.WorkloadModifiedEvent)
+		klog.InfoS("rollout target changed, restart the rollout", "new source", sourceAppName,
+			"new target", targetAppName)
+		appRollout.Status.RolloutModified()
+	}
+	if appRollout.Status.LastUpgradedTargetAppRevision != targetAppName ||
+		appRollout.Status.LastSourceAppRevision != sourceAppName {
+		klog.InfoS("rollout target changed, restart the rollout", "new source", sourceAppName,
+			"new target", targetAppName)
+		appRollout.Status.RolloutModified()
 	}
 
 	// Get the target application
