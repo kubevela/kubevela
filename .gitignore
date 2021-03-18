@@ -25,6 +25,7 @@ coverage.txt
 *.swo
 *~
 .DS_Store
+_.yaml
 
 # Dependency directories (remove the comment below to include it)
 vendor/
