@@ -1,11 +1,15 @@
 package definition
 
 import (
+	"fmt"
 	"testing"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/build"
+	"cuelang.org/go/cue/parser"
+	"cuelang.org/go/cue/token"
 	"gotest.tools/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/oam-dev/kubevela/pkg/dsl/model"
 )
@@ -386,4 +390,114 @@ output: oss.#Bucket
 })
 `
 	assert.Equal(t, base.String(), exceptObj)
+}
+
+func TestProcessFile(t *testing.T) {
+	srcTmpl := `
+#Definition: {
+	kind?: string
+	apiVersion?: string
+	metadata: {
+		name: string
+		...
+	}
+	...
+}
+`
+	file, err := parser.ParseFile("-", srcTmpl)
+	assert.NilError(t, err)
+	testPkg := newPackage("foo")
+	testPkg.processOpenAPIFile(file)
+
+	var r cue.Runtime
+	inst, err := r.CompileFile(file)
+	assert.NilError(t, err)
+	testCasesInst, err := r.Compile("-", `
+	#Definition: {}
+	case1: #Definition & {additionalProperty: "test"}
+
+	case2: #Definition & {
+		metadata: {
+			additionalProperty: "test"
+		}
+}
+`)
+	assert.NilError(t, err)
+	retInst, err := inst.Fill(testCasesInst.Value())
+	assert.NilError(t, err)
+	assert.Error(t, retInst.Lookup("case1").Err(), "case1: field \"additionalProperty\" not allowed in closed struct")
+	assert.Error(t, retInst.Lookup("case2", "metadata").Err(), "case2.metadata: field \"additionalProperty\" not allowed in closed struct")
+}
+
+func TestMount(t *testing.T) {
+	velaBuiltinPkgs = nil
+	testPkg := newPackage("foo")
+	testPkg.mount()
+	assert.Equal(t, len(velaBuiltinPkgs), 1)
+	testPkg.mount()
+	assert.Equal(t, len(velaBuiltinPkgs), 1)
+	assert.Equal(t, velaBuiltinPkgs[0], testPkg.Instance)
+}
+
+func TestGetGVK(t *testing.T) {
+	srcTmpl := `
+{
+	"x-kubernetes-group-version-kind": {
+		"group": "test.io",
+		"kind": "Foo",
+		"version": "v1"
+	}
+}
+`
+	var r cue.Runtime
+	inst, err := r.Compile("-", srcTmpl)
+	assert.NilError(t, err)
+	gvk, err := getGVK(inst.Value().Lookup("x-kubernetes-group-version-kind"))
+	assert.NilError(t, err)
+	assert.Equal(t, gvk, metav1.GroupVersionKind{
+		Group:   "test.io",
+		Version: "v1",
+		Kind:    "Foo",
+	})
+}
+
+func TestOpenAPIMapping(t *testing.T) {
+	testCases := []struct {
+		input  []string
+		pos    token.Pos
+		result string
+		errMsg string
+	}{
+		{
+			input:  []string{"definitions", "io.k8s.api.discovery.v1beta1.Endpoint"},
+			pos:    token.NoPos,
+			result: "[#Endpoint]",
+		},
+		{
+			input:  []string{"definitions", "io.k8s.apiextensions-apiserver.pkg.apis.apiextensions.v1.JSONSchemaProps"},
+			pos:    token.NoPos.Add(1),
+			result: "[_]",
+		},
+		{
+			input:  []string{"definitions", "io.k8s.apiextensions-apiserver.pkg.apis.apiextensions.v1.JSONSchemaProps"},
+			pos:    token.NoPos,
+			result: "[#JSONSchemaProps]",
+		},
+		{
+			input:  []string{"definitions"},
+			pos:    token.NoPos,
+			errMsg: "openAPIMapping format invalid",
+		},
+	}
+
+	for _, tCase := range testCases {
+		labels, err := openAPIMapping(tCase.pos, tCase.input)
+		if tCase.errMsg != "" {
+			assert.Error(t, err, tCase.errMsg)
+			continue
+		}
+		assert.NilError(t, err)
+		assert.Equal(t, len(labels), 1)
+		assert.Equal(t, tCase.result, fmt.Sprint(labels))
+	}
 }

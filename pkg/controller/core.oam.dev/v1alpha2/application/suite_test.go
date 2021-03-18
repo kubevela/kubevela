@@ -145,7 +145,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).NotTo(HaveOccurred())
 	definitonNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
 	Expect(k8sClient.Create(context.Background(), definitonNs.DeepCopy())).Should(BeNil())
-	Expect(definition.AddImportFromCluster(cfg, &runtime.Scheme{})).Should(BeNil())
+	Expect(definition.AddImportFromCluster(cfg)).Should(BeNil())
 	// start the controller in the background so that new componentRevisions are created
 	go func() {
 		err = ctlManager.Start(stop)

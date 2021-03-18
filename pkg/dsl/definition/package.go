@@ -24,9 +24,9 @@ func addImportsFor(bi *build.Instance) {
 }
 
 // AddImportFromCluster use  K8s native API and CRD definition as a reference package in template rendering
-func AddImportFromCluster(config *rest.Config, scheme *runtime.Scheme) error {
+func AddImportFromCluster(config *rest.Config) error {
 	copyConfig := *config
-	apiSchema, err := getClusterOpenAPI(&copyConfig, scheme)
+	apiSchema, err := getClusterOpenAPI(&copyConfig)
 	if err != nil {
 		return err
 	}
@@ -38,9 +38,8 @@ func AddImportFromCluster(config *rest.Config, scheme *runtime.Scheme) error {
 	return nil
 }
 
-func getClusterOpenAPI(config *rest.Config, scheme *runtime.Scheme) (string, error) {
-	codec := runtime.NoopEncoder{Decoder: serializer.NewCodecFactory(scheme).UniversalDeserializer()}
-	config.NegotiatedSerializer = serializer.NegotiatedSerializerWrapper(runtime.SerializerInfo{Serializer: codec})
+func getClusterOpenAPI(config *rest.Config) (string, error) {
+	config.NegotiatedSerializer = serializer.NegotiatedSerializerWrapper(runtime.SerializerInfo{})
 	restClient, err := rest.UnversionedRESTClientFor(config)
 	if err != nil {
 		return "", err
@@ -100,11 +99,11 @@ func (pkg *pkgInstance) processOpenAPIFile(f *ast.File) {
 		}
 		return true
 	}, nil)
-	for index, decl := range f.Decls {
+
+	for _, decl := range f.Decls {
 		if field, ok := decl.(*ast.Field); ok {
-			if ident, ok := field.Label.(*ast.Ident); ok && ident.Name == "#IntOrString" {
-				f.Decls = append(f.Decls[:index], f.Decls[index+1:]...)
-				_ = pkg.AddFile("-", "#IntOrString: int | string")
+			if val, ok := field.Value.(*ast.Ident); ok && val.Name == "string" {
+				field.Value = ast.NewBinExpr(token.OR, ast.NewIdent("int"), ast.NewIdent("string"))
 			}
 		}
 	}
@@ -165,7 +164,7 @@ func (pkg *pkgInstance) mount() {
 	for i := range velaBuiltinPkgs {
 		if velaBuiltinPkgs[i].ImportPath == pkg.ImportPath {
 			velaBuiltinPkgs[i] = pkg.Instance
-			break
+			return
 		}
 	}
 	velaBuiltinPkgs = append(velaBuiltinPkgs, pkg.Instance)
