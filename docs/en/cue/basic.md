@@ -377,3 +377,22 @@ output: {
 	}
 }
 ```
+
+### Import Kube Package
+
+KubeVela generate a cue package named “kube” by reading K8s openapi from K8s cluster.
+
+You can use package "kube" in CUE Template of kubevela
+
+```cue
+import ("kube")
+
+parameter: {
+    name:  string
+}
+
+output: kube.#Deployment
+output: {
+    metadata: name: parameter.name
+}
+```
