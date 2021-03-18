@@ -207,6 +207,7 @@ worker    	Describes long-running, scalable, containerized services that running
 
 ## 5. (Optional) Clean Up
 
+<details>
 Run:
 
 ```shell script
@@ -236,12 +237,4 @@ Then clean up CRDs (CRDs are not removed via helm by default):
   traitdefinitions.core.oam.dev \
   workloaddefinitions.core.oam.dev
 ```
-
-## 5. What's Next
-
-Here are some recommended next steps:
-
-- Learn KubeVela starting from its [core concepts](/en/concepts.md)
-- Join `#kubevela` channel in CNCF [Slack](https://cloud-native.slack.com) and/or [Gitter](https://gitter.im/oam-dev/community)
-
-Welcome onboard and sail Vela!
+</details>

@@ -1,4 +1,4 @@
-# Cloud service
+# Cloud Service
 
 In this tutorial, we will add a Alibaba Cloud's RDS service as a new workload type in KubeVela.
 

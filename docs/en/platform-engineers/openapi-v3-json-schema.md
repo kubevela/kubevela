@@ -1,8 +1,10 @@
-# OpenAPI v3 JSON Schema of a definition
+# Auto-generated OpenAPI v3 JSON Schema for Capability
 
-## Why is OpenAPI v3 JSON Schema of a definition needed?
+For any installed capability, KubeVela will automatically generate OpenAPI v3 JSON Schema for it.
 
-In definitions, [parameter](https://kubevela.io/#/en/platform-engineers/workload-type?id=_4-define-template) section are expected to be set by developers when creating `Application` object.
+## Why?
+
+In definition objects, [parameter](https://kubevela.io/#/en/platform-engineers/workload-type?id=_4-define-template) section are expected to be set by developers when creating `Application` object.
 While there is another GUI way for developers to input all parameter fields by rendering `parameter` section to [OpenAPI v3 Specification](https://github.com/OAI/OpenAPI-Specification/blob/master/versions/3.0.2.md#format).
 
 For example,  after you created a definition object, KubeVela will generate OpenAPI v3 JSON Schema from `parameter` of Workload Type [webservice](https://kubevela.io/#/en/developers/references/workload-types/webservice).

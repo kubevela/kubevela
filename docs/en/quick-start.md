@@ -86,4 +86,10 @@ Hello World
 
 ## What's Next
 
+Here are some recommended next steps:
+
+- Learn KubeVela starting from its [core concepts](/en/concepts.md)
 - Learn more details about [`Application`](./application.md) and understand how it works.
+- Join `#kubevela` channel in CNCF [Slack](https://cloud-native.slack.com) and/or [Gitter](https://gitter.im/oam-dev/community)
+
+Welcome onboard and sail Vela!

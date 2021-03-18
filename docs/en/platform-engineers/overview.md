@@ -1,19 +1,16 @@
-# Application Encapsulation
-
+# Introduction of Application CRD
 
 ## Motivation
 
-Application encapsulation is essential for building end-user facing systems. It is the mostly widely used approach to enable easier developer experience and allow users to deliver application resources as an unit.
+Encapsulation is probably the mostly widely used approach to enable easier developer experience and allow users to deliver the whole application resources as one unit. For example, many tools today encapsulate Kubernetes *Deployment* and *Service* into a *Web Service* module, and then instantiate this module by simply providing parameters such as *image=foo* and *ports=80*. This pattern can be found in cdk8s (e.g. [`web-service.ts` ](https://github.com/awslabs/cdk8s/blob/master/examples/typescript/web-service/web-service.ts)), CUE (e.g. [`kube.cue`](https://github.com/cuelang/cue/blob/b8b489251a3f9ea318830788794c1b4a753031c0/doc/tutorial/kubernetes/quick/services/kube.cue#L70)), and many widely used Helm charts (e.g. [Web Service](https://docs.bitnami.com/tutorials/create-your-first-helm-chart/)).
 
-For example, many tools today encapsulate Kubernetes *Deployment* and *Service* into a *Web Service* module, and then instantiate this module by simply providing parameters such as *image=foo* and *ports=80*. This pattern can be found in cdk8s (e.g. [`web-service.ts` ](https://github.com/awslabs/cdk8s/blob/master/examples/typescript/web-service/web-service.ts)), CUE (e.g. [`kube.cue`](https://github.com/cuelang/cue/blob/b8b489251a3f9ea318830788794c1b4a753031c0/doc/tutorial/kubernetes/quick/services/kube.cue#L70)), and many widely used Helm charts (e.g. [Web Service](https://docs.bitnami.com/tutorials/create-your-first-helm-chart/)).
+Despite the efficiency and extensibility in defining abstractions with encapsulation, both DSL (e.g. cdk8s and CUE) and templating (e.g. Helm) are mostly used as client side tools and can be barely used as a platform level building block. This leaves platform builders either have to create restricted/inextensible abstractions, or re-invent the wheels of what DSL/templating has already been doing great.
 
-Despite the efficiency and extensibility in defining abstractions and encapsulating applications, both DSL (e.g. cdk8s and CUE) and templating (e.g. Helm) are mostly used as client side tools and can be barely used as a platform level building block. This leaves platform builders either have to create restricted/inextensible abstractions, or re-invent the wheels of what DSL/templating has already been doing great.
+KubeVela is designed to make it possible to build easy-to-use yet highly extensible platforms with leverage of the battle-tested encapsulation and abstraction. 
 
-KubeVela is designed to make it possible to build platforms with leverage of those great encapsulation solutions. 
+## Abstraction
 
-## Encapsulation and Abstraction
-
-KubeVela introduces an `Application` resource as the abstraction that captures all needed resources to run the application, and exposes configurable parameters for end users. Every application is composed by multiple components, and each of them is defined by workload specification and traits (operational behaviors). For example:
+First of all, KubeVela introduces an `Application` CRD as its main abstraction that could capture all needed resources to run the application, and exposes configurable parameters for end users. Every application is composed by multiple components, and each of them is defined by workload specification and traits (operational behaviors). For example:
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -42,9 +39,13 @@ spec:
       bucket: "my-bucket"
 ```
 
-For platform builder side, this abstraction is highly extensible and can encapsulate all the needed resources that composed your app. In detail, each *workload type* and *trait* specification in an application is defined via independent definition objects, for example, [`WorkloadDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#workload-definition) and [`TraitDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#scaler-trait-definition). 
+## Encapsulation
 
-The definition objects is designed to support any possible encapsulation module types, for example `CUE`, `Terraform` and `Helm`, etc. This enables platform team to create unified abstraction that can model and deploy any kind of resource with ease including the cloud services. Actually, in the `application-sample` above, it defines a OSS bucket on Alibaba Cloud as a component which is powered by a Terraform module behind the scenes.
+With `Application` provides an abstraction to deploy apps, each *component* and *trait* specification in this application is actually enforced by another set of building block objects named *"definitions"*, for example, [`WorkloadDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#workload-definition) and [`TraitDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#scaler-trait-definition).
+
+Definitions are designed to leverage encapsulation technologies such as `CUE`, `Helm` and `Terraform modules` to template and parameterize Kubernetes resources as well as cloud services. This enables users to assemble templated capabilities (defined via Helm charts or CUE modules etc) into an `Application` by simply providing parameters, i.e. they only need to interact with an unified abstraction. Actually, in the `application-sample` above, it models a Kubernetes Deployment (component `foo`) to run container and a Alibaba Cloud OSS bucket (component `bar`) alongside.
+
+This templating based encapsulation and abstraction mechanism is the key for KubeVela to provide *PaaS-like* experience (*i.e. app-centric, higher level abstractions, self-service operations etc*) to end users.
 
 ### No Configuration Drift
 

@@ -14,7 +14,7 @@
 
 # KubeVela
 
-KubeVela is a platform engine to enable designing and shipping applications with minimal effort.
+KubeVela is the platform engine to create *PaaS-like* experience on Kubernetes, in a scalable approach.
 
 ## Community
 
@@ -23,17 +23,13 @@ KubeVela is a platform engine to enable designing and shipping applications with
 
 > NOTE: KubeVela is still in early stage and iterating quickly. It's currently under preview release.
 
-## How It Works?
-
-![alt](docs/resources/how-it-works.png)
-
-## Core Concepts
-
-Learn KubeVela starting from its [core concepts](https://kubevela.io/#/en/concepts).
-
 ## Installation
 
 Installation guide is available on [this section](https://kubevela.io/#/en/install).
+
+## Quick Start
+
+Quick start is available on [this section](https://kubevela.io/#/en/quick-start).
 
 ## Documentation
 
@@ -43,4 +39,4 @@ For full documentation, please visit the KubeVela website: [https://kubevela.io]
 Check out [CONTRIBUTING](./CONTRIBUTING.md) to see how to develop with KubeVela.
 
 ## Code of Conduct
-This project has adopted the [CNCF Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md). See [CODE OF CONDUCT](CODE_OF_CONDUCT.md) for details.
+KubeVela adopts [CNCF Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md). See [CODE OF CONDUCT](CODE_OF_CONDUCT.md) for details.

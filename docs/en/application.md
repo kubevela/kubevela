@@ -1,6 +1,6 @@
 # Designing Application
 
-Application encapsulation and abstraction is achieved by the `Application` custom resource.
+This documentation will walk through how to use `Application` custom resource.
 
 ## Example
 
