@@ -1,9 +1,12 @@
 /*
 Copyright 2020 The KubeVela Authors.
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
+
     http://www.apache.org/licenses/LICENSE-2.0
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -78,6 +81,25 @@ var _ = Describe("Test Application Controller", func() {
 				{
 					Name:         "myweb2",
 					WorkloadType: "worker",
+					Settings:     runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
+				},
+			},
+		},
+	}
+
+	appImportPkg := &v1alpha2.Application{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Application",
+			APIVersion: "core.oam.dev/v1alpha2",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "app-import-pkg",
+		},
+		Spec: v1alpha2.ApplicationSpec{
+			Components: []v1alpha2.ApplicationComponent{
+				{
+					Name:         "myweb",
+					WorkloadType: "worker-import",
 					Settings:     runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
 				},
 			},
@@ -161,6 +183,9 @@ var _ = Describe("Test Application Controller", func() {
 	cd := &v1alpha2.ComponentDefinition{}
 	cDDefJson, _ := yaml.YAMLToJSON([]byte(cDDefYaml))
 
+	importWd := &v1alpha2.WorkloadDefinition{}
+	importWdJson, _ := yaml.YAMLToJSON([]byte(wDImportYaml))
+
 	webserverwd := &v1alpha2.ComponentDefinition{}
 	webserverwdJson, _ := yaml.YAMLToJSON([]byte(webserverYaml))
 
@@ -180,6 +205,9 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(json.Unmarshal(cDDefJson, cd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, cd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
+		Expect(json.Unmarshal(importWdJson, importWd)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, importWd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
 		Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, td.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
@@ -188,7 +216,6 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(json.Unmarshal(webserverwdJson, webserverwd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, webserverwd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
 	})
 	AfterEach(func() {
 		By("[TEST] Clean up resources after an integration test")
@@ -1138,6 +1165,61 @@ var _ = Describe("Test Application Controller", func() {
 			Name:      utils.ConstructRevisionName(appMix.Name, 1),
 		}, appConfig)).Should(BeNil())
 	})
+
+	It("app-import-pkg will create workload by import kube package", func() {
+		expDeployment := getExpDeployment("myweb", appImportPkg.Name)
+		expDeployment.Labels["workload.oam.dev/type"] = "worker-import"
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-app-import-pkg",
+			},
+		}
+		appImportPkg.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, appImportPkg.DeepCopyObject())).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      appImportPkg.Name,
+			Namespace: appImportPkg.Namespace,
+		}
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		By("Check Application Created")
+		checkApp := &v1alpha2.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+
+		By("Check ApplicationConfiguration Created")
+		appConfig := &v1alpha2.ApplicationConfiguration{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: appImportPkg.Namespace,
+			Name:      utils.ConstructRevisionName(appImportPkg.Name, 1),
+		}, appConfig)).Should(BeNil())
+
+		By("Check Component Created with the expected workload spec")
+		var component v1alpha2.Component
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: appImportPkg.Namespace,
+			Name:      "myweb",
+		}, &component)).Should(BeNil())
+		Expect(component.ObjectMeta.Labels).Should(BeEquivalentTo(map[string]string{oam.LabelAppName: "app-import-pkg"}))
+		Expect(component.ObjectMeta.OwnerReferences[0].Name).Should(BeEquivalentTo("app-import-pkg"))
+		Expect(component.ObjectMeta.OwnerReferences[0].Kind).Should(BeEquivalentTo("Application"))
+		Expect(component.ObjectMeta.OwnerReferences[0].APIVersion).Should(BeEquivalentTo("core.oam.dev/v1alpha2"))
+		Expect(component.ObjectMeta.OwnerReferences[0].Controller).Should(BeEquivalentTo(pointer.BoolPtr(true)))
+		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
+
+		// check that the new appconfig has the correct annotation and labels
+		Expect(appConfig.GetAnnotations()[oam.AnnotationAppRollout]).Should(BeEmpty())
+		Expect(appConfig.GetLabels()[oam.LabelAppConfigHash]).ShouldNot(BeEmpty())
+
+		// check the workload created should be the same as the raw data in the component
+		gotD := &v1.Deployment{}
+		Expect(json.Unmarshal(component.Spec.Workload.Raw, gotD)).Should(BeNil())
+		fmt.Println(cmp.Diff(expDeployment, gotD))
+		Expect(assert.ObjectsAreEqual(expDeployment, gotD)).Should(BeEquivalentTo(true))
+		By("Delete Application, clean the resource")
+		Expect(k8sClient.Delete(ctx, appImportPkg)).Should(BeNil())
+	})
 })
 
 func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
@@ -1181,6 +1263,67 @@ spec:
       kind: Deployment
   extension:
     template: |
+      output: {
+          apiVersion: "apps/v1"
+          kind:       "Deployment"
+          metadata: {
+              annotations: {
+                  if context["config"] != _|_ {
+                      for _, v in context.config {
+                          "\(v.name)" : v.value
+                      }
+                  }
+              }
+          }
+          spec: {
+              selector: matchLabels: {
+                  "app.oam.dev/component": context.name
+              }
+              template: {
+                  metadata: labels: {
+                      "app.oam.dev/component": context.name
+                  }
+
+                  spec: {
+                      containers: [{
+                          name:  context.name
+                          image: parameter.image
+
+                          if parameter["cmd"] != _|_ {
+                              command: parameter.cmd
+                          }
+                      }]
+                  }
+              }
+
+              selector:
+                  matchLabels:
+                      "app.oam.dev/component": context.name
+          }
+      }
+
+      parameter: {
+          // +usage=Which image would you like to use for your service
+          // +short=i
+          image: string
+
+          cmd?: [...string]
+      }
+`
+
+	wDImportYaml = `
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: worker-import
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
+spec:
+  definitionRef:
+    name: deployments.apps
+  extension:
+    template: |
       import "kube"
       output: kube.#Deployment & {
           metadata: {
@@ -1200,25 +1343,30 @@ spec:
                   metadata: labels: {
                       "app.oam.dev/component": context.name
                   }
+
                   spec: {
                       containers: [{
                           name:  context.name
                           image: parameter.image
+
                           if parameter["cmd"] != _|_ {
                               command: parameter.cmd
                           }
                       }]
                   }
               }
+
               selector:
                   matchLabels:
                       "app.oam.dev/component": context.name
           }
       }
+
       parameter: {
           // +usage=Which image would you like to use for your service
           // +short=i
           image: string
+
           cmd?: [...string]
       }
 `
@@ -1237,8 +1385,9 @@ spec:
       kind: Deployment
   extension:
     template: |
-      import "kube"
-      output: kube.#Deployment & {
+      output: {
+      	apiVersion: "apps/v1"
+      	kind:       "Deployment"
       	spec: {
       		selector: matchLabels: {
       			"app.oam.dev/component": context.name
@@ -1251,18 +1400,23 @@ spec:
       				containers: [{
       					name:  context.name
       					image: parameter.image
+
       					if parameter["cmd"] != _|_ {
       						command: parameter.cmd
       					}
+
       					if parameter["env"] != _|_ {
       						env: parameter.env
       					}
+
       					if context["config"] != _|_ {
       						env: context.config
       					}
+
       					ports: [{
       						containerPort: parameter.port
       					}]
+
       					if parameter["cpu"] != _|_ {
       						resources: {
       							limits:
@@ -1308,6 +1462,7 @@ spec:
       	}]
       	cpu?: string
       }
+
 `
 	cDDefWithHealthYaml = `
 apiVersion: core.oam.dev/v1alpha2
@@ -1326,8 +1481,9 @@ spec:
     healthPolicy: |
       isHealth: context.output.status.readyReplicas == context.output.status.replicas 
     template: |
-      import "kube"
-      output: kube.#Deployment & {
+      output: {
+          apiVersion: "apps/v1"
+          kind:       "Deployment"
           metadata: {
               annotations: {
                   if context["config"] != _|_ {
@@ -1345,25 +1501,30 @@ spec:
                   metadata: labels: {
                       "app.oam.dev/component": context.name
                   }
+
                   spec: {
                       containers: [{
                           name:  context.name
                           image: parameter.image
+
                           if parameter["cmd"] != _|_ {
                               command: parameter.cmd
                           }
                       }]
                   }
               }
+
               selector:
                   matchLabels:
                       "app.oam.dev/component": context.name
           }
       }
+
       parameter: {
           // +usage=Which image would you like to use for your service
           // +short=i
           image: string
+
           cmd?: [...string]
       }
 `
@@ -1387,16 +1548,19 @@ spec:
   schematic:
     cue:
       template: |
-        import "kube"
-        output: kube.#Deployment & {
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
         	spec: {
         		selector: matchLabels: {
         			"app.oam.dev/component": context.name
         		}
+
         		template: {
         			metadata: labels: {
         				"app.oam.dev/component": context.name
         			}
+
         			spec: {
         				containers: [{
         					name:  context.name
@@ -1412,7 +1576,10 @@ spec:
         		}
         	}
         }
-        outputs: gameconfig: kube.#ConfigMap & {
+
+        outputs: gameconfig: {
+        	apiVersion: "v1"
+        	kind:       "ConfigMap"
         	metadata: {
         		name: context.name + "game-config"
         	}
@@ -1421,6 +1588,7 @@ spec:
         		lives:   parameter.lives
         	}
         }
+
         parameter: {
         	// +usage=Which image would you like to use for your service
         	// +short=i
@@ -1507,6 +1675,7 @@ spec:
       	//+short=r
       	replicas: *1 | int
       }
+
 `
 	tdDefYamlWithHttp = `
 apiVersion: core.oam.dev/v1alpha2
@@ -1599,13 +1768,14 @@ spec:
   schematic:
     cue:
       template: |
-        import "kube"
         parameter: {
         	domain: string
         	http: [string]: int
         }
         // trait template can have multiple outputs in one trait
-        outputs: service: kube.#Service & {
+        outputs: service: {
+        	apiVersion: "v1"
+        	kind:       "Service"
         	spec: {
         		selector:
         			app: context.name
@@ -1617,7 +1787,9 @@ spec:
         		]
         	}
         }
-        outputs: ingress: kube.#Ingress & {
+        outputs: ingress: {
+        	apiVersion: "networking.k8s.io/v1beta1"
+        	kind:       "Ingress"
         	metadata:
         		name: context.name
         	spec: {
