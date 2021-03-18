@@ -78,6 +78,8 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	dm, err := discoverymapper.New(mgr.GetConfig())
 	Expect(err).ToNot(HaveOccurred())
+	_, err = dm.Refresh()
+	Expect(err).ToNot(HaveOccurred())
 
 	r = Reconciler{
 		Client: mgr.GetClient(),
