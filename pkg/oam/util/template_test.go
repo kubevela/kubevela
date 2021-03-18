@@ -15,7 +15,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 )
 
-func TestLoadWorkloadTemplate(t *testing.T) {
+func TestLoadComponentTemplate(t *testing.T) {
 	cueTemplate := `
       context: {
          name: "test"
@@ -60,17 +60,19 @@ func TestLoadWorkloadTemplate(t *testing.T) {
       }
       `
 
-	var workloadDefintion = `
+	var componentDefintion = `
 apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+kind: ComponentDefinition
 metadata:
   name: worker
   namespace: default
   annotations:
     definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   extension:
     template: |
 ` + cueTemplate
@@ -79,18 +81,18 @@ spec:
 	tclient := test.MockClient{
 		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj runtime.Object) error {
 			switch o := obj.(type) {
-			case *v1alpha2.WorkloadDefinition:
-				wd, err := UnMarshalStringToWorkloadDefinition(workloadDefintion)
+			case *v1alpha2.ComponentDefinition:
+				cd, err := UnMarshalStringToComponentDefinition(componentDefintion)
 				if err != nil {
 					return err
 				}
-				*o = *wd
+				*o = *cd
 			}
 			return nil
 		},
 	}
 
-	temp, err := LoadTemplate(context.TODO(), &tclient, "worker", types.TypeWorkload)
+	temp, err := LoadTemplate(context.TODO(), &tclient, "worker", types.TypeComponentDefinition)
 
 	if err != nil {
 		t.Error(err)

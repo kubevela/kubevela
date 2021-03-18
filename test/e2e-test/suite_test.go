@@ -98,7 +98,11 @@ var _ = BeforeSuite(func(done Done) {
 	}
 
 	// TODO: Remove this after we get rid of the integration test dir
-	By("Applying CRD of WorkloadDefinition and TraitDefinition")
+	By("Applying CRD of ComponentDefinition, WorkloadDefinition and TraitDefinition")
+	var componentDefinitionCRD crdv1.CustomResourceDefinition
+	Expect(readYaml("../../charts/vela-core/crds/core.oam.dev_componentdefinitions.yaml", &componentDefinitionCRD)).Should(BeNil())
+	Expect(k8sClient.Create(context.Background(), &componentDefinitionCRD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
 	var workloadDefinitionCRD crdv1.CustomResourceDefinition
 	Expect(readYaml("../../charts/vela-core/crds/core.oam.dev_workloaddefinitions.yaml", &workloadDefinitionCRD)).Should(BeNil())
 	Expect(k8sClient.Create(context.Background(), &workloadDefinitionCRD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))

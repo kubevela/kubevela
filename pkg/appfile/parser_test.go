@@ -143,16 +143,18 @@ spec:
       	replicas: *1 | int
       }`
 
-const workloadDefinition = `
+const componenetDefinition = `
 apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+kind: ComponentDefinition
 metadata:
   name: worker
   annotations:
     definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   extension:
     template: |
       output: {
@@ -224,8 +226,8 @@ var _ = Describe("Test application parser", func() {
 		tclient := test.MockClient{
 			MockGet: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
 				switch o := obj.(type) {
-				case *v1alpha2.WorkloadDefinition:
-					wd, err := util.UnMarshalStringToWorkloadDefinition(workloadDefinition)
+				case *v1alpha2.ComponentDefinition:
+					wd, err := util.UnMarshalStringToComponentDefinition(componenetDefinition)
 					if err != nil {
 						return err
 					}
@@ -542,9 +544,9 @@ var _ = Describe("Test appfile parser to parse helm module", func() {
 						"url": "http://oam.dev/catalog/",
 					}),
 				},
-				DefinitionReference: v1alpha2.DefinitionReference{
-					Name:    "deployments.apps",
-					Version: "v1",
+				DefinitionReference: v1alpha2.WorkloadGVK{
+					APIVersion: "apps/v1",
+					Kind:       "Deployment",
 				},
 			},
 		},

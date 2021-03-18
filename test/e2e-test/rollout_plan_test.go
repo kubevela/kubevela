@@ -62,10 +62,10 @@ var _ = Describe("Cloneset based rollout tests", func() {
 	}
 
 	CreateClonesetDef := func() {
-		By("Install CloneSet based workloadDefinition")
-		var cd v1alpha2.WorkloadDefinition
+		By("Install CloneSet based componentDefinition")
+		var cd v1alpha2.ComponentDefinition
 		Expect(readYaml("testdata/rollout/cloneset/clonesetDefinition.yaml", &cd)).Should(BeNil())
-		// create the workloadDefinition if not exist
+		// create the componentDefinition if not exist
 		Eventually(
 			func() error {
 				return k8sClient.Create(ctx, &cd)
@@ -564,7 +564,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		ApplySourceApp()
 		MarkAppRolling(1)
 		By("Apply the definition change")
-		var cd, newCD v1alpha2.WorkloadDefinition
+		var cd, newCD v1alpha2.ComponentDefinition
 		Expect(readYaml("testdata/rollout/cloneset/clonesetDefinitionModified.yaml.yaml", &newCD)).Should(BeNil())
 		Eventually(
 			func() error {

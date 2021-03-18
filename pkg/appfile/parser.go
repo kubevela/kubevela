@@ -43,7 +43,7 @@ type Workload struct {
 	CustomStatusFormat string
 
 	Helm                *v1alpha2.Helm
-	DefinitionReference v1alpha2.DefinitionReference
+	DefinitionReference v1alpha2.WorkloadGVK
 }
 
 // GetUserConfigName get user config from AppFile, it will contain config file in it.
@@ -158,7 +158,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1alpha2.ApplicationCom
 	workload.Traits = []*Trait{}
 	workload.Name = comp.Name
 	workload.Type = comp.WorkloadType
-	templ, err := util.LoadTemplate(ctx, p.client, workload.Type, types.TypeWorkload)
+	templ, err := util.LoadTemplate(ctx, p.client, workload.Type, types.TypeComponentDefinition)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
 	}
@@ -238,7 +238,7 @@ func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1a
 
 		switch wl.CapabilityCategory {
 		case types.HelmCategory:
-			comp, acComp, err = generateComponentFromHelmModule(p.client, p.dm, wl, app.Name, app.RevisionName, ns)
+			comp, acComp, err = generateComponentFromHelmModule(p.client, wl, app.Name, app.RevisionName, ns)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -291,11 +291,12 @@ func generateComponentFromCUEModule(c client.Client, wl *Workload, appName, revi
 	return comp, acComp, nil
 }
 
-func generateComponentFromHelmModule(c client.Client, dm discoverymapper.DiscoveryMapper, wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
-	targetWokrloadGVK, err := util.GetGVKFromDefinition(dm, wl.DefinitionReference)
+func generateComponentFromHelmModule(c client.Client, wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+	gv, err := schema.ParseGroupVersion(wl.DefinitionReference.APIVersion)
 	if err != nil {
 		return nil, nil, err
 	}
+	targetWokrloadGVK := gv.WithKind(wl.DefinitionReference.Kind)
 
 	// NOTE this is a hack way to enable using CUE module capabilities on Helm module workload
 	// construct an empty base workload according to its GVK

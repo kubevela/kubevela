@@ -96,8 +96,8 @@ var _ = BeforeSuite(func(done Done) {
 	ctx := context.Background()
 	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
 	Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
-	wd := &v1alpha2.WorkloadDefinition{}
-	wDDefJson, _ := yaml.YAMLToJSON([]byte(wDDefYaml))
+	wd := &v1alpha2.ComponentDefinition{}
+	wDDefJson, _ := yaml.YAMLToJSON([]byte(cDDefYaml))
 	Expect(json.Unmarshal(wDDefJson, wd)).Should(BeNil())
 	Expect(k8sClient.Create(ctx, wd)).Should(BeNil())
 
@@ -116,17 +116,19 @@ var _ = AfterSuite(func() {
 })
 
 const (
-	wDDefYaml = `
+	cDDefYaml = `
 apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+kind: ComponentDefinition
 metadata:
   name: worker
   namespace: vela-system
   annotations:
     definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   extension:
     template: |
       output: {

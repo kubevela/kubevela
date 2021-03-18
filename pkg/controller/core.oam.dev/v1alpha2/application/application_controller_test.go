@@ -161,10 +161,10 @@ var _ = Describe("Test Application Controller", func() {
 		Scopes:       map[string]string{"healthscopes.core.oam.dev": "app-with-two-comp-default-health"},
 	})
 
-	wd := &v1alpha2.WorkloadDefinition{}
-	wDDefJson, _ := yaml.YAMLToJSON([]byte(wDDefYaml))
+	cd := &v1alpha2.ComponentDefinition{}
+	cDDefJson, _ := yaml.YAMLToJSON([]byte(cDDefYaml))
 
-	webserverwd := &v1alpha2.WorkloadDefinition{}
+	webserverwd := &v1alpha2.ComponentDefinition{}
 	webserverwdJson, _ := yaml.YAMLToJSON([]byte(webserverYaml))
 
 	td := &v1alpha2.TraitDefinition{}
@@ -180,8 +180,8 @@ var _ = Describe("Test Application Controller", func() {
 
 	BeforeEach(func() {
 
-		Expect(json.Unmarshal(wDDefJson, wd)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, wd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(json.Unmarshal(cDDefJson, cd)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, cd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, td.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -701,12 +701,12 @@ var _ = Describe("Test Application Controller", func() {
 
 	It("app with health policy for workload", func() {
 		By("change workload and trait definition with health policy")
-		nwd, owd := &v1alpha2.WorkloadDefinition{}, &v1alpha2.WorkloadDefinition{}
-		wDDefJson, _ := yaml.YAMLToJSON([]byte(wDDefWithHealthYaml))
-		Expect(json.Unmarshal(wDDefJson, nwd)).Should(BeNil())
-		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: nwd.Name, Namespace: nwd.Namespace}, owd)).Should(BeNil())
-		nwd.ResourceVersion = owd.ResourceVersion
-		Expect(k8sClient.Update(ctx, nwd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		ncd, ocd := &v1alpha2.ComponentDefinition{}, &v1alpha2.ComponentDefinition{}
+		cDDefJson, _ := yaml.YAMLToJSON([]byte(cDDefWithHealthYaml))
+		Expect(json.Unmarshal(cDDefJson, ncd)).Should(BeNil())
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: ncd.Name, Namespace: ncd.Namespace}, ocd)).Should(BeNil())
+		ncd.ResourceVersion = ocd.ResourceVersion
+		Expect(k8sClient.Update(ctx, ncd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		ntd, otd := &v1alpha2.TraitDefinition{}, &v1alpha2.TraitDefinition{}
 		tDDefJson, _ := yaml.YAMLToJSON([]byte(tDDefWithHealthYaml))
 		Expect(json.Unmarshal(tDDefJson, ntd)).Should(BeNil())
@@ -906,10 +906,10 @@ var _ = Describe("Test Application Controller", func() {
 
 	It("app with health policy and custom status for workload", func() {
 		By("change workload and trait definition with health policy")
-		nwd := &v1alpha2.WorkloadDefinition{}
-		wDDefJson, _ := yaml.YAMLToJSON([]byte(wdDefWithHealthStatusYaml))
-		Expect(json.Unmarshal(wDDefJson, nwd)).Should(BeNil())
-		Expect(k8sClient.Create(ctx, nwd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		ncd := &v1alpha2.ComponentDefinition{}
+		cDDefJson, _ := yaml.YAMLToJSON([]byte(cdDefWithHealthStatusYaml))
+		Expect(json.Unmarshal(cDDefJson, ncd)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, ncd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 		ntd := &v1alpha2.TraitDefinition{}
 		tDDefJson, _ := yaml.YAMLToJSON([]byte(tDDefWithHealthStatusYaml))
 		Expect(json.Unmarshal(tDDefJson, ntd)).Should(BeNil())
@@ -1087,17 +1087,19 @@ spec:
   definitionRef:
     name: healthscopes.core.oam.dev`
 
-	wDDefYaml = `
+	cDDefYaml = `
 apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+kind: ComponentDefinition
 metadata:
   name: worker
   namespace: vela-system
   annotations:
     definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   extension:
     template: |
       output: {
@@ -1149,15 +1151,17 @@ spec:
 `
 
 	webserverYaml = `apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+kind: ComponentDefinition
 metadata:
   name: webserver
   namespace: vela-system
   annotations:
     definition.oam.dev/description: "webserver was composed by deployment and service"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   extension:
     template: |
       output: {
@@ -1239,17 +1243,19 @@ spec:
       }
 
 `
-	wDDefWithHealthYaml = `
+	cDDefWithHealthYaml = `
 apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+kind: ComponentDefinition
 metadata:
   name: worker
   namespace: vela-system
   annotations:
     definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   extension:
     healthPolicy: |
       isHealth: context.output.status.readyReplicas == context.output.status.replicas 
@@ -1301,16 +1307,18 @@ spec:
           cmd?: [...string]
       }
 `
-	wdDefWithHealthStatusYaml = `apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+	cdDefWithHealthStatusYaml = `apiVersion: core.oam.dev/v1alpha2
+kind: ComponentDefinition
 metadata:
   name: nworker
   namespace: vela-system
   annotations:
     definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic."
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   status:
     healthPolicy: |
       isHealth: (context.output.status.readyReplicas > 0) && (context.output.status.readyReplicas == context.output.status.replicas)

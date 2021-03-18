@@ -68,7 +68,8 @@ func LoadInstalledCapabilityWithType(userNamespace string, c types.Args, capT ty
 		caps = append(caps, systemCaps...)
 		return caps, nil
 	case types.TypeScope:
-
+	case types.TypeComponentDefinition:
+		// TODO(yangsoon): support ComponentDefinition here
 	}
 
 	return nil, nil
@@ -151,6 +152,8 @@ func GetSubDir(dir string, capT types.CapType) string {
 		return filepath.Join(dir, "traits")
 	case types.TypeScope:
 		return filepath.Join(dir, "scopes")
+	case types.TypeComponentDefinition:
+		// TODO(yangsoon): support componentdefinition here
 	}
 	return dir
 }
