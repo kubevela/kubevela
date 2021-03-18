@@ -145,8 +145,6 @@ e2e-api-test:
 e2e-test:
 	# Run e2e test
 	ginkgo -v ./test/e2e-test
-	# integration test will clean environment, please don't put test behind it.
-	CGO_ENABLED=0 go test -timeout 1h -count=1 -v -tags 'integration' ./test/integration
 	@$(OK) tests pass
 
 compatibility-test: vet lint staticcheck generate-compatibility-testdata
