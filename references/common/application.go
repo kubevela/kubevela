@@ -23,7 +23,6 @@ import (
 
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -100,12 +99,20 @@ type DeleteOptions struct {
 // ListApplications lists all applications
 func ListApplications(ctx context.Context, c client.Reader, opt Option) ([]apis.ApplicationMeta, error) {
 	var applicationMetaList applicationMetaList
-	appConfigList, err := ListApplicationConfigurations(ctx, c, opt)
-	if err != nil {
-		return nil, err
+	var appList corev1alpha2.ApplicationList
+	if opt.AppName != "" {
+		var app corev1alpha2.Application
+		if err := c.Get(ctx, client.ObjectKey{Name: opt.AppName, Namespace: opt.Namespace}, &app); err != nil {
+			return applicationMetaList, err
+		}
+		appList.Items = append(appList.Items, app)
+	} else {
+		err := c.List(ctx, &appList, &client.ListOptions{Namespace: opt.Namespace})
+		if err != nil {
+			return applicationMetaList, err
+		}
 	}
-
-	for _, a := range appConfigList.Items {
+	for _, a := range appList.Items {
 		// ignore the deleted resource
 		if a.GetDeletionGracePeriodSeconds() != nil {
 			continue
@@ -173,34 +180,14 @@ func ListComponents(ctx context.Context, c client.Reader, opt Option) ([]apis.Co
 func RetrieveApplicationStatusByName(ctx context.Context, c client.Reader, applicationName string,
 	namespace string) (apis.ApplicationMeta, error) {
 	var applicationMeta apis.ApplicationMeta
-	var appConfig corev1alpha2.ApplicationConfiguration
-	if err := c.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: namespace}, &appConfig); err != nil {
+	var app corev1alpha2.Application
+	if err := c.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: namespace}, &app); err != nil {
 		return applicationMeta, err
 	}
+	applicationMeta.Name = app.Name
+	applicationMeta.Status = string(app.Status.Phase)
+	applicationMeta.CreatedTime = app.CreationTimestamp.Format(time.RFC3339)
 
-	var status = "Unknown"
-	if len(appConfig.Status.Conditions) != 0 {
-		status = string(appConfig.Status.Conditions[0].Status)
-	}
-	applicationMeta.Name = appConfig.Name
-	applicationMeta.Status = status
-	applicationMeta.CreatedTime = appConfig.CreationTimestamp.Format(time.RFC3339)
-
-	for _, com := range appConfig.Spec.Components {
-		component, revisionName, err := oamutil.GetComponent(ctx, c, com, namespace)
-		if err != nil {
-			return applicationMeta, err
-		}
-
-		applicationMeta.Components = append(applicationMeta.Components, apis.ComponentMeta{
-			Name:     utils.ExtractComponentName(revisionName),
-			Status:   status,
-			Workload: component.Spec.Workload,
-			Traits:   com.Traits,
-		})
-		applicationMeta.Status = status
-
-	}
 	return applicationMeta, nil
 }
 
