@@ -11,7 +11,7 @@ disableCaps: "metrics"
 image:
   repository: oamdev/vela-core
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 imagePullSecrets: []
 nameOverride: ""
