@@ -125,9 +125,6 @@ jobs:
 
   e2e-rollout-tests:
     runs-on: aliyun
-      needs: detect-noop
-      if: needs.detect-noop.outputs.noop != 'true'
-
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v2
