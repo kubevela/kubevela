@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,12 +45,29 @@ func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.C
 	// nolint:exhaustive
 	switch kd {
 	case types.TypeComponentDefinition:
+		var schematic *v1alpha2.Schematic
+		var status *v1alpha2.Status
+		var extension *runtime.RawExtension
+
 		cd := new(v1alpha2.ComponentDefinition)
 		err := GetDefinition(ctx, cli, cd, key)
-		if err != nil {
-			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+
+		switch kerrors.IsNotFound(err) {
+		// If ComponentDefinition is not found, find the workloadDefinition with the same name.
+		case true:
+			wd := new(v1alpha2.WorkloadDefinition)
+			if err := GetDefinition(ctx, cli, wd, key); err != nil {
+				return nil, errors.WithMessagef(err, "LoadTemplate from WorkloadDefinition [%s] ", key)
+			}
+			schematic, status, extension = wd.Spec.Schematic, wd.Spec.Status, wd.Spec.Extension
+		case false:
+			if err != nil {
+				return nil, errors.WithMessagef(err, "LoadTemplate from ComponentDefinition [%s] ", key)
+			}
+			schematic, status, extension = cd.Spec.Schematic, cd.Spec.Status, cd.Spec.Extension
 		}
-		tmpl, err := NewTemplate(cd.Spec.Schematic, cd.Spec.Status, cd.Spec.Extension)
+
+		tmpl, err := NewTemplate(schematic, status, extension)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
