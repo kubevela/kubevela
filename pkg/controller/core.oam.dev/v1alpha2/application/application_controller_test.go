@@ -1059,6 +1059,88 @@ var _ = Describe("Test Application Controller", func() {
 		}))
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
+
+	It("app with a component refer to an existing WorkloadDefinition", func() {
+		appRefertoWd := appwithNoTrait.DeepCopy()
+		appRefertoWd.Spec.Components[0] = v1alpha2.ApplicationComponent{
+			Name:         "mytask",
+			WorkloadType: "task",
+			Settings:     runtime.RawExtension{Raw: []byte(`{"image":"busybox", "cmd":["sleep","1000"]}`)},
+		}
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-app-with-workload-task",
+			},
+		}
+		appRefertoWd.SetName("test-app-with-workload-task")
+		appRefertoWd.SetNamespace(ns.Name)
+
+		taskWd := &v1alpha2.WorkloadDefinition{}
+		wDDefJson, _ := yaml.YAMLToJSON([]byte(wdDefYaml))
+		Expect(json.Unmarshal(wDDefJson, taskWd)).Should(BeNil())
+		taskWd.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, taskWd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, appRefertoWd.DeepCopyObject())).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      appRefertoWd.Name,
+			Namespace: appRefertoWd.Namespace,
+		}
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		By("Check Application Created")
+		checkApp := &v1alpha2.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+
+		By("Check ApplicationConfiguration Created")
+		appConfig := &v1alpha2.ApplicationConfiguration{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: appRefertoWd.Namespace,
+			Name:      utils.ConstructRevisionName(appRefertoWd.Name, 1),
+		}, appConfig)).Should(BeNil())
+	})
+
+	It("app with two components and one component refer to an existing WorkloadDefinition", func() {
+		appMix := appWithTwoComp.DeepCopy()
+		appMix.Spec.Components[1] = v1alpha2.ApplicationComponent{
+			Name:         "mytask",
+			WorkloadType: "task",
+			Settings:     runtime.RawExtension{Raw: []byte(`{"image":"busybox", "cmd":["sleep","1000"]}`)},
+		}
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-app-with-mix-components",
+			},
+		}
+		appMix.SetName("test-app-with-mix-components")
+		appMix.SetNamespace(ns.Name)
+
+		taskWd := &v1alpha2.WorkloadDefinition{}
+		wDDefJson, _ := yaml.YAMLToJSON([]byte(wdDefYaml))
+		Expect(json.Unmarshal(wDDefJson, taskWd)).Should(BeNil())
+		taskWd.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, taskWd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, appMix.DeepCopyObject())).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      appMix.Name,
+			Namespace: appMix.Namespace,
+		}
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		By("Check Application Created")
+		checkApp := &v1alpha2.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+
+		By("Check ApplicationConfiguration Created")
+		appConfig := &v1alpha2.ApplicationConfiguration{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: appMix.Namespace,
+			Name:      utils.ConstructRevisionName(appMix.Name, 1),
+		}, appConfig)).Should(BeNil())
+	})
 })
 
 func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
@@ -1376,6 +1458,54 @@ spec:
         	cmd?: [...string]
         	lives:   string
         	enemies: string
+        }
+`
+	wdDefYaml = `
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: task
+  annotations:
+    definition.oam.dev/description: "Describes jobs that run code or a script to completion."
+spec:
+  definitionRef:
+    name: jobs.batch
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "batch/v1"
+        	kind:       "Job"
+        	spec: {
+        		parallelism: parameter.count
+        		completions: parameter.count
+        		template: spec: {
+        			restartPolicy: parameter.restart
+        			containers: [{
+        				name:  context.name
+        				image: parameter.image
+        
+        				if parameter["cmd"] != _|_ {
+        					command: parameter.cmd
+        				}
+        			}]
+        		}
+        	}
+        }
+        parameter: {
+        	// +usage=specify number of tasks to run in parallel
+        	// +short=c
+        	count: *1 | int
+        
+        	// +usage=Which image would you like to use for your service
+        	// +short=i
+        	image: string
+        
+        	// +usage=Define the job restart policy, the value can only be Never or OnFailure. By default, it's Never.
+        	restart: *"Never" | string
+        
+        	// +usage=Commands to run in the container
+        	cmd?: [...string]
         }
 `
 	tDDefYaml = `
