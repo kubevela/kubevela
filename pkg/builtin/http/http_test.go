@@ -31,7 +31,7 @@ const Req = `
 }
 `
 
-func TestHTTPCmd_Run(t *testing.T) {
+func TestHTTPCmdRun(t *testing.T) {
 	s := NewMock()
 	defer s.Close()
 
