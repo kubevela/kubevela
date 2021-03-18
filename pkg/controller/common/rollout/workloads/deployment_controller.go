@@ -94,7 +94,7 @@ func (c *DeploymentController) VerifySpec(ctx context.Context) (bool, error) {
 	}
 
 	if !c.sourceDeploy.Spec.Paused {
-		return false, fmt.Errorf("the source eployment %s is still being reconciled, need to be paused",
+		return false, fmt.Errorf("the source deployment %s is still being reconciled, need to be paused",
 			c.sourceDeploy.GetName())
 	}
 
