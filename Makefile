@@ -142,9 +142,12 @@ e2e-api-test:
 	ginkgo -v -r e2e/apiserver
 	ginkgo -v -r e2e/application
 
+e2e-rollout-test:
+	ginkgo -v --focus="Cloneset based rollout tests" ./test/e2e-test/
+
 e2e-test:
 	# Run e2e test
-	ginkgo -v ./test/e2e-test
+	ginkgo -v --skip="Cloneset based rollout tests" ./test/e2e-test
 	@$(OK) tests pass
 
 compatibility-test: vet lint staticcheck generate-compatibility-testdata
