@@ -1,15 +1,10 @@
-# Limitations and known issues
+# Limitations and Known Issues
 
-Here are the highlights for using Helm Chart as schematic module. We hope to loosen or remove most of these restrictions over time.
+Here are some known issues for using Helm chart as application component. Pleas note most of these restrictions will be fixed over time.
 
-## Only one main workload in the Chart
+## Only one main workload in the chart
 
-The Chart must have exactly one workload being regarded as the **main**
-workload.
-In our context, `main workload` means the workload that will be tracked by
-KubeVela controllers, applied with traits and added into scopes. 
-For example, the `main workload` will benifit from KubeVela with unified
-rollout, revision, traffic management, etc.
+The chart must have exactly one workload being regarded as the **main** workload. In this context, `main workload` means the workload that will be tracked by KubeVela controllers, applied with traits and added into scopes. Only the `main workload` will benefit from KubeVela with rollout, revision, traffic management, etc.
 
 To tell KubeVela which one is the main workload, you must follow these two steps:
 
@@ -29,7 +24,7 @@ spec:
     name: deployments.apps
     version: v1
 ```
-The clonset resource should be defined as:
+The CloneSet workload resource should be defined as:
 ```yaml
 ...
 spec:
@@ -42,36 +37,27 @@ spec:
 
 The name of the main workload should be templated with [a default fully
 qualified app
-name](https://github.com/helm/helm/blob/543364fba59b0c7c30e38ebe0f73680db895abb6/pkg/chartutil/create.go#L415).
-Helm is highly recommended that new charts are created via `helm create` command
-as the template names are automatically defined as per this best practice.  You
-must let your main workload use the templated full name as its name.
-DO NOT assign any value to `.Values.fullnameOverride`.
+name](https://github.com/helm/helm/blob/543364fba59b0c7c30e38ebe0f73680db895abb6/pkg/chartutil/create.go#L415). DO NOT assign any value to `.Values.fullnameOverride`.
 
-## Upgrade an application
+> Also, Helm highly recommend that new charts are created via `$ helm create` command so the template names are automatically defined as per this best practice.
 
-By contrast to CUE based workload, application using Helm schematic workload
-cannot benefit from [application level rollout](https://github.com/oam-dev/kubevela/blob/master/design/vela-core/rollout-design.md#applicationdeployment-workflow) because they use totally different mechanisms to create and 
-manage workloads.
-So currently [application inplace upgrade](https://github.com/oam-dev/kubevela/blob/master/design/vela-core/rollout-design.md#application-inplace-upgrade-workflow) is the only one choice for users who
-want to upgrade their applications containing Helm schematic workloads.
-Just as [the sample](./trait.md#update-an-applicatiion) shows, users can modify
-the application's configuration directly to upgrade it.
+## Upgrade the application
 
-#### Changing settings will trigger Helm release upgrade
+#### Rollout strategy
 
-For Helm schematic workload, `.spec.components.settings` in the config of
-application will override the default values of a Chart.
-Any changes applied to `settings` will trigger a Helm release upgrade.
-Most of this procedure is handled by Helm and Flux2/helm-controller,
-while KubeVela has no opinion on it, even upgrade has failed or timeout.
+For now, Helm based components cannot benefit from [application level rollout strategy](https://github.com/oam-dev/kubevela/blob/master/design/vela-core/rollout-design.md#applicationdeployment-workflow).
 
-On one hand, users should be very clear with what will happen after making such
-an upgrade to the Chart release. On the other hand, users can define remediation
-strategies in the Helm schematic according to [fluxcd/helmrelease API
+So currently in-place upgrade by modifying the application specification directly is the only way to upgrade the Helm based components, no advanced rollout strategy can be assigned to it. Please check [this sample](./trait.md#update-an-applicatiion).
+
+#### Changing `settings` will trigger Helm release upgrade
+
+For Helm based component, `.spec.components.settings` is the way user override the default values of the chart, so any changes applied to `settings` will trigger a Helm release upgrade.
+
+This process is handled by Helm and `Flux2/helm-controller`, hence you can define remediation
+strategies in the schematic according to [fluxcd/helmrelease API
 doc](https://github.com/fluxcd/helm-controller/blob/main/docs/api/helmrelease.md#upgraderemediation)
 and [spec doc](https://toolkit.fluxcd.io/components/helm/helmreleases/#configuring-failure-remediation) 
-in case of upgrade failure.
+in case failure happens during this upgrade.
 
 For example
 ```yaml
@@ -97,15 +83,8 @@ spec:
 
 ```
 
-Currently, users can hardly get helpful information of a living Helm release to
-figure out what happened if upgrading failed.  
-We will enhance the observability to help users track the situation of Helm
-release in application level.
+> Note: currently, it's hard to get helpful information of a living Helm release to figure out what happened if upgrading failed. We will enhance the observability to help users track the situation of Helm release in application level.
 
-#### Changing traits may make Pod restart
+#### Changing `traits` may make Pods restart
 
-Traits work on Helm schematic workload in the same way as CUE based workload.
-The changes on traits will effect the main workload finally.
-Users should pay attention that, pods belonging to the workload may restart twice on upgrade,
-one is by the helm upgrade, and the other one is because of various possible changes applied to the workload,
-that will result in service down.
+Traits work on Helm based component in the same way as CUE based component, i.e. changes on traits may impact the main workload instance. Hence, the Pods belonging to this workload instance may restart twice during upgrade, one is by the Helm upgrade, and the other one is caused by traits.

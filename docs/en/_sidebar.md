@@ -1,27 +1,30 @@
 - Overview
   - [Introduction](/en/introduction.md)
+
+- Get Started
   - [Installation](/en/install.md)
+  - [Quick Start](/en/quick-start.md)
   - [Core Concepts](/en/concepts.md)
 
-- Guides 
-  - [Application Encapsulation](/en/platform-engineers/overview.md)
+- Learning KubeVela 
+  - Application CRD
+    - [Introduction](/en/platform-engineers/overview.md)
     - [Designing Application](/en/application.md)
-    - Managing Template Modules
-      - Definitions
-        - [Workload Type](/en/platform-engineers/workload-type.md)
-        - [Trait](/en/platform-engineers/trait.md)
-        - [Cloud Services](/en/platform-engineers/cloud-services.md)
-        - [OpenAPI v3 JSON schema](/en/platform-engineers/openapi-v3-json-schema.md)
-        - [Definition And Template](/en/platform-engineers/definition-and-templates.md)
-      - CUE
-        - [CUE Basic](/en/cue/basic.md)
-        - [Workload Type](/en/cue/workload-type.md)
-        - [Trait](/en/cue/trait.md)
-        - [Advanced Features](/en/cue/status.md)
-      - HELM
-        - [Helm Chart Basic](/en/helm/basic.md)
-        - [Trait](/en/helm/trait.md)
-        - [Limitations and known issues](/en/helm/known-issues.md)
+  - Managing Components and Traits
+    - [Definitions](/en/platform-engineers/definition-and-templates.md)
+    - CUE
+      - [CUE Basic](/en/cue/basic.md)
+      - [Workload Type](/en/cue/workload-type.md)
+      - [Trait](/en/cue/trait.md)
+      - [Advanced Features](/en/cue/status.md)
+    - Helm
+      - [Workload Type](/en/helm/component.md)
+      - [Trait](/en/helm/trait.md)
+      - [Limitations](/en/helm/known-issues.md)
+    - How-to (Out-of-dated)
+      - [Defining Workload Type](/en/platform-engineers/workload-type.md)
+      - [Defining Trait](/en/platform-engineers/trait.md)
+      - [Defining Cloud Service](/en/platform-engineers/cloud-services.md)
 
 - Roadmap
   - [KubeVela Roadmap](/en/roadmap.md)
@@ -29,7 +32,7 @@
 - References
   - [Capabilities](/en/developers/references/README.md)
     - Workload Types
-      - [Webservice](/en/developers/references/workload-types/webservice.md)
+      - [Web Service](/en/developers/references/workload-types/webservice.md)
       - [Task](/en/developers/references/workload-types/task.md)
       - [Worker](/en/developers/references/workload-types/worker.md)
     - Traits
@@ -38,7 +41,7 @@
       - [Rollout](/en/developers/references/traits/rollout.md)
       - [Metrics](/en/developers/references/traits/metrics.md)
       - [Scaler](/en/developers/references/traits/scaler.md)
-    - [Restful APi](/en/developers/references/restful-api/index.html ':ignore')
+    - [Restful API](/en/developers/references/restful-api/index.html ':ignore')
   - CLI
     - General
       - [vela config](/en/cli/vela_config.md)

@@ -1,6 +1,6 @@
-# Use Helm chart as schematic module
+# Use Helm To Define a Component
 
-Here is an example of how to use Helm chart as workload schematic module.
+This documentation explains how to use Helm chart to define an application component.
 
 ## Install fluxcd/flux2 as dependencies
 
@@ -11,7 +11,7 @@ so we provide a chart which only includes minimal dependencies KubeVela relies o
 
 Install the minimal flux2 chart provided by KubeVela:
 ```shell
-helm install --create-namespace -n flux-system helm-flux http://oam.dev/catalog/helm-flux2-0.1.0.tgz
+$ helm install --create-namespace -n flux-system helm-flux http://oam.dev/catalog/helm-flux2-0.1.0.tgz
 ```
 
 ## Write WorkloadDefinition 
@@ -73,21 +73,18 @@ We will integerate the values and generate it's [openapi-v3-json-schema](https:/
 
 Deploy the application and after several minutes (it takes time to fetch Helm chart from the repo, render and install), you can check the Helm release is installed.
 ```shell
-helm ls -A
-
+$ helm ls -A
 myapp-demo-podinfo	default  	1 	2021-03-05 02:02:18.692317102 +0000 UTC	deployed	podinfo-5.1.4   	5.1.4
 ```
 Check the deployment defined in the chart has been created successfully.
 ```shell
-kubectl get deploy
-
+$ kubectl get deploy
 NAME                     READY   UP-TO-DATE   AVAILABLE   AGE
 myapp-demo-podinfo   1/1     1            1           66m
 ```
 
 Check the values(`image.tag = 5.1.2`) from application's `settings` are assigned to the chart.
 ```shell
-kubectl get deployment myapp-demo-podinfo -o json | jq '.spec.template.spec.containers[0].image'
-
+$ kubectl get deployment myapp-demo-podinfo -o json | jq '.spec.template.spec.containers[0].image'
 "ghcr.io/stefanprodan/podinfo:5.1.2"
 ```

@@ -1,6 +1,6 @@
-# Status Write Back
+# Advanced Features
 
-We can also define status write back in the CUE template of workload types and traits.
+By using CUE as encapsulation method, some advanced features such as status write back could be easily achieved.
 
 ## Health Check
 

@@ -1,8 +1,8 @@
 # CUE Basic
 
-This document will explain how to use [CUE](https://cuelang.org/) as templating module in KubeVela. Please make sure you have already learned about `Application` custom resource and how it leverage templating modules for application encapsulation and abstraction. 
+This document will explain how to use [CUE](https://cuelang.org/) to encapsulate a given capability in Kubernetes and make it available to end users to consume in `Application` CRD. Please make sure you have already learned about `Application` custom resource before reading the following guide. 
 
-## Why CUE? 
+## Overview
 
 The reasons for KubeVela supports CUE as first class templating solution can be concluded as below:
 
@@ -377,7 +377,3 @@ output: {
 	}
 }
 ```
-
-## Summary
-
-Overall, CUE is a very powerful templating language which could help platform team create extensible application encapsulation and abstraction with ease.
