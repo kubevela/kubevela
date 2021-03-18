@@ -116,7 +116,7 @@ check-diff: reviewable
 
 # Build the docker image
 docker-build:
-	docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) . -t ${IMG}
+	DOCKER_BUILDKIT=1 docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) . -t ${IMG}
 
 # Push the docker image
 docker-push:
@@ -174,7 +174,7 @@ endif
 
 # load docker image to the kind cluster
 kind-load:
-	docker build -t vela-core-test:$(GIT_COMMIT) .
+	DOCKER_BUILDKIT=1 docker build -t vela-core-test:$(GIT_COMMIT) .
 	kind load docker-image vela-core-test:$(GIT_COMMIT) || { echo >&2 "kind not installed or error loading image: $(IMAGE)"; exit 1; }
 
 # Image URL to use all building/pushing image targets
