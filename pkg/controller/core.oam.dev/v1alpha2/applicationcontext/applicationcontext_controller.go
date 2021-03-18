@@ -72,7 +72,7 @@ func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 		return reconcile.Result{}, errors.Wrap(err, errGetAppRevision)
 	}
 
-	//copy the status
+	// copy the status
 	appConfig := appRevision.Spec.ApplicationConfiguration.DeepCopy()
 	appConfig.Status = appContext.Status
 	// call into the acReconciler and copy the status back
