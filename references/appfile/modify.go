@@ -11,10 +11,12 @@ import (
 	"github.com/oam-dev/kubevela/references/appfile/api"
 )
 
+var errorAppNilPointer = errors.New("app is nil pointer")
+
 // SetWorkload will set user workload for Appfile
 func SetWorkload(app *api.Application, componentName, workloadType string, workloadData map[string]interface{}) error {
 	if app == nil {
-		return errors.New("app is nil pointer")
+		return errorAppNilPointer
 	}
 
 	s, ok := app.Services[componentName]
@@ -32,7 +34,7 @@ func SetWorkload(app *api.Application, componentName, workloadType string, workl
 // SetTrait will set user trait for Appfile
 func SetTrait(app *v1alpha2.Application, componentName, traitType string, traitData map[string]interface{}) error {
 	if app == nil {
-		return errors.New("app is nil pointer")
+		return errorAppNilPointer
 	}
 	if traitData == nil {
 		traitData = make(map[string]interface{})
@@ -68,7 +70,7 @@ func SetTrait(app *v1alpha2.Application, componentName, traitType string, traitD
 // RemoveTrait will remove a trait from Appfile
 func RemoveTrait(app *api.Application, componentName, traitType string) error {
 	if app == nil {
-		return errors.New("app is nil pointer")
+		return errorAppNilPointer
 	}
 
 	s, ok := app.Services[componentName]
@@ -82,7 +84,7 @@ func RemoveTrait(app *api.Application, componentName, traitType string) error {
 // RemoveComponent will remove component from Application
 func RemoveComponent(app *v1alpha2.Application, componentName string) error {
 	if app == nil {
-		return errors.New("app is nil pointer")
+		return errorAppNilPointer
 	}
 	var newComps []v1alpha2.ApplicationComponent
 	for _, comp := range app.Spec.Components {
