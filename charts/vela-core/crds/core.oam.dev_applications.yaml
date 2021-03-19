@@ -10,6 +10,8 @@ metadata:
 spec:
   group: core.oam.dev
   names:
+    categories:
+    - oam
     kind: Application
     listKind: ApplicationList
     plural: applications
@@ -358,47 +360,13 @@ spec:
               latestRevision:
                 description: LatestRevision of the application configuration it generates
                 properties:
-                  appRevisionHash:
-                    description: AppRevisionHash record the detailed hash value of the spec of ApplicationRevision Object We should replace it with 'revisionHash' after the refactor finished
-                    properties:
-                      applicationSpec:
-                        type: string
-                      componentDefinitions:
-                        items:
-                          description: NameAndHashValue defines a structure contains the resource name and its hash value
-                          properties:
-                            hashValue:
-                              type: string
-                            name:
-                              type: string
-                          required:
-                          - hashValue
-                          - name
-                          type: object
-                        type: array
-                      traitDefinitions:
-                        items:
-                          description: NameAndHashValue defines a structure contains the resource name and its hash value
-                          properties:
-                            hashValue:
-                              type: string
-                            name:
-                              type: string
-                          required:
-                          - hashValue
-                          - name
-                          type: object
-                        type: array
-                    required:
-                    - applicationSpec
-                    type: object
                   name:
                     type: string
                   revision:
                     format: int64
                     type: integer
                   revisionHash:
-                    description: RevisionHash record the hash value of the spec of ApplicationConfiguration object. We're going to deprecate that by using ApplicationRevision
+                    description: RevisionHash record the hash value of the spec of ApplicationConfiguration object. We're going to deprecate that by using AppRevisionHash
                     type: string
                 required:
                 - name

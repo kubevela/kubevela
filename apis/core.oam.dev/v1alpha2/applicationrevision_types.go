@@ -25,28 +25,31 @@ import (
 // ApplicationRevisionSpec is the spec of ApplicationRevision
 type ApplicationRevisionSpec struct {
 	// Application records the snapshot of the created/modified Application
-	Application *Application `json:"application"`
+	Application Application `json:"application"`
 
 	// ComponentDefinitions records the snapshot of the componentDefinitions related with the created/modified Application
-	ComponentDefinitions []*ComponentDefinition `json:"componentDefinitions,omitempty"`
+	ComponentDefinitions map[string]ComponentDefinition `json:"componentDefinitions,omitempty"`
 
 	// WorkloadDefinitions records the snapshot of the workloadDefinitions related with the created/modified Application
-	WorkloadDefinitions []*WorkloadDefinition `json:"workloadDefinitions,omitempty"`
+	WorkloadDefinitions map[string]WorkloadDefinition `json:"workloadDefinitions,omitempty"`
 
 	// TraitDefinitions records the snapshot of the traitDefinitions related with the created/modified Application
-	TraitDefinitions []*TraitDefinition `json:"traitDefinitions,omitempty"`
+	TraitDefinitions map[string]TraitDefinition `json:"traitDefinitions,omitempty"`
+
+	// ScopeDefinitions records the snapshot of the scopeDefinitions related with the created/modified Application
+	ScopeDefinitions map[string]ScopeDefinition `json:"scopeDefinitions,omitempty"`
 
 	// Components records the rendered components from Application, it will contains the whole K8s CR of workload in it.
 	Components []*Component `json:"components"`
 
 	// ApplicationConfiguration records the rendered applicationConfiguration from Application,
 	// it will contains the whole K8s CR of trait and the reference component in it.
-	ApplicationConfiguration *ApplicationConfiguration `json:"applicationConfiguration"`
+	ApplicationConfiguration ApplicationConfiguration `json:"applicationConfiguration"`
 }
 
-// +kubebuilder:object:root=true
-
 // ApplicationRevision is the Schema for the ApplicationRevision API
+// +kubebuilder:object:root=true
+// +kubebuilder:shortName=apprev,resource:categories={oam}
 type ApplicationRevision struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -54,9 +57,8 @@ type ApplicationRevision struct {
 	Spec ApplicationRevisionSpec `json:"spec,omitempty"`
 }
 
-// +kubebuilder:object:root=true
-
 // ApplicationRevisionList contains a list of ApplicationRevision
+// +kubebuilder:object:root=true
 type ApplicationRevisionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

@@ -79,7 +79,7 @@ type ComponentDefinitionStatus struct {
 // +kubebuilder:object:root=true
 
 // ComponentDefinition is the Schema for the componentdefinitions API
-// +kubebuilder:resource:scope=Namespaced,categories={crossplane,oam}
+// +kubebuilder:resource:scope=Namespaced,categories={oam}
 // +kubebuilder:subresource:status
 type ComponentDefinition struct {
 	metav1.TypeMeta   `json:",inline"`

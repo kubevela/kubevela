@@ -75,7 +75,7 @@ var ApplicationStatusDeeplyContext = func(context string, applicationName, workl
 			gomega.Eventually(func() int {
 				appConfig := &v1alpha2.ApplicationConfiguration{}
 				_ = k8sclient.Get(context2.Background(), client.ObjectKey{
-					Name:      app.Status.LatestRevision.Name,
+					Name:      applicationName,
 					Namespace: "default"}, appConfig)
 				return len(appConfig.Status.Workloads)
 			}, 180*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))

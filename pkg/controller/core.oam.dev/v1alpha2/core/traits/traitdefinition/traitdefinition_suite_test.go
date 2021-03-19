@@ -41,7 +41,7 @@ var testEnv *envtest.Environment
 var controllerDone chan struct{}
 var r Reconciler
 
-func TestTraitdefinition(t *testing.T) {
+func TestTraitDefinition(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "TraitDefinition Suite")
 }

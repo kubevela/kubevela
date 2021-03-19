@@ -370,47 +370,13 @@ spec:
                     latestRevision:
                       description: LatestRevision of the application configuration it generates
                       properties:
-                        appRevisionHash:
-                          description: AppRevisionHash record the detailed hash value of the spec of ApplicationRevision Object We should replace it with 'revisionHash' after the refactor finished
-                          properties:
-                            applicationSpec:
-                              type: string
-                            componentDefinitions:
-                              items:
-                                description: NameAndHashValue defines a structure contains the resource name and its hash value
-                                properties:
-                                  hashValue:
-                                    type: string
-                                  name:
-                                    type: string
-                                required:
-                                - hashValue
-                                - name
-                                type: object
-                              type: array
-                            traitDefinitions:
-                              items:
-                                description: NameAndHashValue defines a structure contains the resource name and its hash value
-                                properties:
-                                  hashValue:
-                                    type: string
-                                  name:
-                                    type: string
-                                required:
-                                - hashValue
-                                - name
-                                type: object
-                              type: array
-                          required:
-                          - applicationSpec
-                          type: object
                         name:
                           type: string
                         revision:
                           format: int64
                           type: integer
                         revisionHash:
-                          description: RevisionHash record the hash value of the spec of ApplicationConfiguration object. We're going to deprecate that by using ApplicationRevision
+                          description: RevisionHash record the hash value of the spec of ApplicationConfiguration object. We're going to deprecate that by using AppRevisionHash
                           type: string
                       required:
                       - name
@@ -1317,8 +1283,7 @@ spec:
                   type: object
               type: object
             componentDefinitions:
-              description: ComponentDefinitions records the snapshot of the componentDefinitions related with the created/modified Application
-              items:
+              additionalProperties:
                 description: ComponentDefinition is the Schema for the componentdefinitions API
                 properties:
                   apiVersion:
@@ -1458,7 +1423,8 @@ spec:
                         type: string
                     type: object
                 type: object
-              type: array
+              description: ComponentDefinitions records the snapshot of the componentDefinitions related with the created/modified Application
+              type: object
             components:
               description: Components records the rendered components from Application, it will contains the whole K8s CR of workload in it.
               items:
@@ -1557,47 +1523,13 @@ spec:
                       latestRevision:
                         description: LatestRevision of component
                         properties:
-                          appRevisionHash:
-                            description: AppRevisionHash record the detailed hash value of the spec of ApplicationRevision Object We should replace it with 'revisionHash' after the refactor finished
-                            properties:
-                              applicationSpec:
-                                type: string
-                              componentDefinitions:
-                                items:
-                                  description: NameAndHashValue defines a structure contains the resource name and its hash value
-                                  properties:
-                                    hashValue:
-                                      type: string
-                                    name:
-                                      type: string
-                                  required:
-                                  - hashValue
-                                  - name
-                                  type: object
-                                type: array
-                              traitDefinitions:
-                                items:
-                                  description: NameAndHashValue defines a structure contains the resource name and its hash value
-                                  properties:
-                                    hashValue:
-                                      type: string
-                                    name:
-                                      type: string
-                                  required:
-                                  - hashValue
-                                  - name
-                                  type: object
-                                type: array
-                            required:
-                            - applicationSpec
-                            type: object
                           name:
                             type: string
                           revision:
                             format: int64
                             type: integer
                           revisionHash:
-                            description: RevisionHash record the hash value of the spec of ApplicationConfiguration object. We're going to deprecate that by using ApplicationRevision
+                            description: RevisionHash record the hash value of the spec of ApplicationConfiguration object. We're going to deprecate that by using AppRevisionHash
                             type: string
                         required:
                         - name
@@ -1610,9 +1542,52 @@ spec:
                     type: object
                 type: object
               type: array
+            scopeDefinitions:
+              additionalProperties:
+                description: A ScopeDefinition registers a kind of Kubernetes custom resource as a valid OAM scope kind by referencing its CustomResourceDefinition. The CRD is used to validate the schema of the scope when it is embedded in an OAM ApplicationConfiguration.
+                properties:
+                  apiVersion:
+                    description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+                    type: string
+                  kind:
+                    description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+                    type: string
+                  metadata:
+                    type: object
+                  spec:
+                    description: A ScopeDefinitionSpec defines the desired state of a ScopeDefinition.
+                    properties:
+                      allowComponentOverlap:
+                        description: AllowComponentOverlap specifies whether an OAM component may exist in multiple instances of this kind of scope.
+                        type: boolean
+                      definitionRef:
+                        description: Reference to the CustomResourceDefinition that defines this scope kind.
+                        properties:
+                          name:
+                            description: Name of the referenced CustomResourceDefinition.
+                            type: string
+                          version:
+                            description: Version indicate which version should be used if CRD has multiple versions by default it will use the first one if not specified
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      extension:
+                        description: Extension is used for extension needs by OAM platform builders
+                        type: object
+                        
+                      workloadRefsPath:
+                        description: WorkloadRefsPath indicates if/where a scope accepts workloadRef objects
+                        type: string
+                    required:
+                    - allowComponentOverlap
+                    - definitionRef
+                    type: object
+                type: object
+              description: ScopeDefinitions records the snapshot of the scopeDefinitions related with the created/modified Application
+              type: object
             traitDefinitions:
-              description: TraitDefinitions records the snapshot of the traitDefinitions related with the created/modified Application
-              items:
+              additionalProperties:
                 description: A TraitDefinition registers a kind of Kubernetes custom resource as a valid OAM trait kind by referencing its CustomResourceDefinition. The CRD is used to validate the schema of the trait when it is embedded in an OAM ApplicationConfiguration.
                 properties:
                   apiVersion:
@@ -1733,10 +1708,10 @@ spec:
                         type: string
                     type: object
                 type: object
-              type: array
+              description: TraitDefinitions records the snapshot of the traitDefinitions related with the created/modified Application
+              type: object
             workloadDefinitions:
-              description: WorkloadDefinitions records the snapshot of the workloadDefinitions related with the created/modified Application
-              items:
+              additionalProperties:
                 description: A WorkloadDefinition registers a kind of Kubernetes custom resource as a valid OAM workload kind by referencing its CustomResourceDefinition. The CRD is used to validate the schema of the workload when it is embedded in an OAM Component.
                 properties:
                   apiVersion:
@@ -1867,7 +1842,8 @@ spec:
                         type: array
                     type: object
                 type: object
-              type: array
+              description: WorkloadDefinitions records the snapshot of the workloadDefinitions related with the created/modified Application
+              type: object
           required:
           - application
           - applicationConfiguration

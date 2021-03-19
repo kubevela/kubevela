@@ -24,6 +24,10 @@ type Template struct {
 	CapabilityCategory types.CapabilityCategory
 	Reference          v1alpha2.WorkloadGVK
 	Helm               *v1alpha2.Helm
+	// TODO: Add scope definition too
+	ComponentDefinition *v1alpha2.ComponentDefinition
+	WorkloadDefinition  *v1alpha2.WorkloadDefinition
+	TraitDefinition     *v1alpha2.TraitDefinition
 }
 
 // GetScopeGVK Get ScopeDefinition
@@ -42,7 +46,6 @@ func GetScopeGVK(ctx context.Context, cli client.Reader, dm discoverymapper.Disc
 // LoadTemplate Get template according to key
 func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.CapType) (*Template, error) {
 	// Application Controller only load template from ComponentDefinition and TraitDefinition
-	// nolint:exhaustive
 	switch kd {
 	case types.TypeComponentDefinition:
 		var schematic *v1alpha2.Schematic
@@ -51,33 +54,38 @@ func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.C
 
 		cd := new(v1alpha2.ComponentDefinition)
 		err := GetDefinition(ctx, cli, cd, key)
-
-		switch kerrors.IsNotFound(err) {
-		// If ComponentDefinition is not found, find the workloadDefinition with the same name.
-		case true:
-			wd := new(v1alpha2.WorkloadDefinition)
-			if err := GetDefinition(ctx, cli, wd, key); err != nil {
-				return nil, errors.WithMessagef(err, "LoadTemplate from WorkloadDefinition [%s] ", key)
+		if err != nil {
+			if kerrors.IsNotFound(err) {
+				wd := new(v1alpha2.WorkloadDefinition)
+				if err := GetDefinition(ctx, cli, wd, key); err != nil {
+					return nil, errors.WithMessagef(err, "LoadTemplate from workloadDefinition [%s] ", key)
+				}
+				schematic, status, extension = wd.Spec.Schematic, wd.Spec.Status, wd.Spec.Extension
+				tmpl, err := NewTemplate(schematic, status, extension)
+				if err != nil {
+					return nil, errors.WithMessagef(err, "Create template [%s] from workload definition", key)
+				}
+				if cd.Annotations["type"] == string(types.TerraformCategory) {
+					tmpl.CapabilityCategory = types.TerraformCategory
+				}
+				tmpl.WorkloadDefinition = wd
+				// GetGVKFromDefinition
+				// TODO: need to pass in a discoverMapper in order to get the tmpl reference
+				// from the workloadDefinition reference
+				return tmpl, nil
 			}
-			schematic, status, extension = wd.Spec.Schematic, wd.Spec.Status, wd.Spec.Extension
-		case false:
-			if err != nil {
-				return nil, errors.WithMessagef(err, "LoadTemplate from ComponentDefinition [%s] ", key)
-			}
-			schematic, status, extension = cd.Spec.Schematic, cd.Spec.Status, cd.Spec.Extension
+			return nil, errors.WithMessagef(err, "LoadTemplate from ComponentDefinition [%s] ", key)
 		}
-
+		schematic, status, extension = cd.Spec.Schematic, cd.Spec.Status, cd.Spec.Extension
 		tmpl, err := NewTemplate(schematic, status, extension)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
-		if tmpl == nil {
-			return nil, errors.New("no template found in definition")
-		}
-		tmpl.Reference = cd.Spec.Workload.Definition
 		if cd.Annotations["type"] == string(types.TerraformCategory) {
 			tmpl.CapabilityCategory = types.TerraformCategory
 		}
+		tmpl.ComponentDefinition = cd
+		tmpl.Reference = cd.Spec.Workload.Definition
 		return tmpl, nil
 
 	case types.TypeTrait:
@@ -98,9 +106,12 @@ func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.C
 			return nil, errors.New("no template found in definition")
 		}
 		tmpl.CapabilityCategory = capabilityCategory
+		tmpl.TraitDefinition = td
 		return tmpl, nil
 	case types.TypeScope:
 		// TODO: add scope template support
+	default:
+		return nil, fmt.Errorf("kind(%s) of %s not supported", kd, key)
 	}
 	return nil, fmt.Errorf("kind(%s) of %s not supported", kd, key)
 }
