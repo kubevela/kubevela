@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestApplication_GetComponent(t *testing.T) {
+func TestApplicationGetComponent(t *testing.T) {
 	ac1 := ApplicationComponent{
 		Name:         "ac1",
 		WorkloadType: "type1",

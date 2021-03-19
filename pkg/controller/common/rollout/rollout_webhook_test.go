@@ -16,7 +16,7 @@ import (
 
 const mockUrl = "127.0.0.1:4848"
 
-func Test_MakeHTTPRequest(t *testing.T) {
+func TestMakeHTTPRequest(t *testing.T) {
 	ctx := context.TODO()
 	type mockHTTPParameter struct {
 		method     string
