@@ -22,22 +22,22 @@ metadata:
 spec:
   components:
     - name: foo
-      type: worker # workload type
+      type: webservice
       settings:
-        image: "busybox"
-        cmd:
-        - sleep
-        - "1000"
+        image: crccheck/hello-world
+        port: 8000
       traits:
-        - name: scaler
+        - name: ingress
           properties:
-            replicas: 10
+            domain: testsvc.example.com
+            http:
+              "/": 8000
         - name: sidecar
           properties:
-            name: "sidecar-test"
-            image: "nginx"
+            name: "logging"
+            image: "fluentd"
     - name: bar
-      type: aliyun-oss # workload type
+      type: aliyun-oss # cloud service
       bucket: "my-bucket"
 ```
 

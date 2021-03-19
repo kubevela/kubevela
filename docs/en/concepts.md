@@ -96,8 +96,3 @@ The overall architecture of KubeVela is shown as below:
 ![alt](../../resources/arch.png)
 
 Specifically, the application controller is responsible for application abstraction and encapsulation (i.e. the controller for `Application` and `Definition`). The rollout controller will handle progressive rollout strategy with the whole application as a unit. The multi-env deployment engine (*currently WIP*) is responsible for deploying the application across multiple clusters and environments. 
-
-
-## What's Next
-
-Now that you have grasped the core ideas of KubeVela, let's learn more details about [Application CRD](platform-engineers/overview.md) feature.

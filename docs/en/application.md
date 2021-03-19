@@ -1,6 +1,6 @@
-# Defining Application
+# Using `Application` to Describe Your App
 
-This documentation will walk through how to use `Application` object to define your application with corresponding operational behaviors in declarative approach.
+This documentation will walk through how to use `Application` object to define your apps with corresponding operational behaviors in declarative approach.
 
 ## Example
 
