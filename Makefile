@@ -114,9 +114,12 @@ check-diff: reviewable
 	git diff --quiet || ($(ERR) please run 'make reviewable' to include all changes && false)
 	@$(OK) branch is clean
 
-# Build the docker image
+# Build the docker image using buildkit
 docker-build:
-	DOCKER_BUILDKIT=1 docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) . -t ${IMG}
+	buildctl build ...\
+      --output type=image,name=docker.io/oamdev/${IMG},push=false \
+	  --opt build-arg:VERSION=$(VELA_VERSION) \
+	  --opt build-arg:GITVERSION=$(GIT_COMMIT)
 
 # Push the docker image
 docker-push:
@@ -174,7 +177,8 @@ endif
 
 # load docker image to the kind cluster
 kind-load:
-	DOCKER_BUILDKIT=1 docker build -t vela-core-test:$(GIT_COMMIT) .
+	buildctl build ...\
+      --output type=image,name=docker.io/oamdev/vela-core-test:$(GIT_COMMIT),push=false
 	kind load docker-image vela-core-test:$(GIT_COMMIT) || { echo >&2 "kind not installed or error loading image: $(IMAGE)"; exit 1; }
 
 # Image URL to use all building/pushing image targets
