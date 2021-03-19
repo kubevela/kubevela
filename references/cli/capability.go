@@ -73,7 +73,7 @@ func NewCapCenterConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.PersistentFlags().StringP("token", "t", "", "Github Repo token")
+	AddTokenVarFlags(cmd)
 	return cmd
 }
 
@@ -107,7 +107,7 @@ func NewCapInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 			return nil
 		},
 	}
-	cmd.PersistentFlags().StringP("token", "t", "", "Github Repo token")
+	AddTokenVarFlags(cmd)
 	return cmd
 }
 
@@ -144,7 +144,7 @@ func NewCapUninstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Co
 			return common.RemoveCapability(env.Namespace, c, newClient, name, ioStreams)
 		},
 	}
-	cmd.PersistentFlags().StringP("token", "t", "", "Github Repo token")
+	AddTokenVarFlags(cmd)
 	return cmd
 }
 
