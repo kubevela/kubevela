@@ -48,7 +48,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-var _ = FDescribe("Test Application Controller", func() {
+var _ = Describe("Test Application Controller", func() {
 	ctx := context.TODO()
 	appwithConfig := &v1alpha2.Application{
 		TypeMeta: metav1.TypeMeta{
