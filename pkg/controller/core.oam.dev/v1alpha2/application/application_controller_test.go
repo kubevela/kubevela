@@ -26,10 +26,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -181,19 +182,19 @@ var _ = Describe("Test Application Controller", func() {
 	})
 
 	cd := &v1alpha2.ComponentDefinition{}
-	cDDefJson, _ := yaml.YAMLToJSON([]byte(cDDefYaml))
+	cDDefJson, _ := yaml.YAMLToJSON([]byte(componentDefYaml))
 
 	importWd := &v1alpha2.WorkloadDefinition{}
 	importWdJson, _ := yaml.YAMLToJSON([]byte(wDImportYaml))
 
 	webserverwd := &v1alpha2.ComponentDefinition{}
-	webserverwdJson, _ := yaml.YAMLToJSON([]byte(webserverYaml))
+	webserverwdJson, _ := yaml.YAMLToJSON([]byte(webComponentDefYaml))
 
 	td := &v1alpha2.TraitDefinition{}
-	tDDefJson, _ := yaml.YAMLToJSON([]byte(tDDefYaml))
+	tDDefJson, _ := yaml.YAMLToJSON([]byte(TraitDefYaml))
 
 	sd := &v1alpha2.ScopeDefinition{}
-	sdDefJson, _ := yaml.YAMLToJSON([]byte(sDDefYaml))
+	sdDefJson, _ := yaml.YAMLToJSON([]byte(scopeDefYaml))
 
 	cm := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{Name: "kubevela-app-with-config-myweb1-myconfig", Namespace: appwithConfig.Namespace},
@@ -201,7 +202,6 @@ var _ = Describe("Test Application Controller", func() {
 	}
 
 	BeforeEach(func() {
-
 		Expect(json.Unmarshal(cDDefJson, cd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, cd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
@@ -217,6 +217,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(json.Unmarshal(webserverwdJson, webserverwd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, webserverwd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	})
+
 	AfterEach(func() {
 		By("[TEST] Clean up resources after an integration test")
 	})
@@ -246,7 +247,7 @@ var _ = Describe("Test Application Controller", func() {
 		appConfig := &v1alpha2.ApplicationConfiguration{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: appwithNoTrait.Namespace,
-			Name:      utils.ConstructRevisionName(appwithNoTrait.Name, 1),
+			Name:      appwithNoTrait.Name,
 		}, appConfig)).Should(BeNil())
 
 		By("Check Component Created with the expected workload spec")
@@ -303,7 +304,7 @@ var _ = Describe("Test Application Controller", func() {
 		appConfig := &v1alpha2.ApplicationConfiguration{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: app.Namespace,
-			Name:      utils.ConstructRevisionName(app.Name, 1),
+			Name:      app.Name,
 		}, appConfig)).Should(BeNil())
 
 		By("Check Component Created with the expected workload spec")
@@ -349,7 +350,7 @@ var _ = Describe("Test Application Controller", func() {
 		appConfig := &v1alpha2.ApplicationConfiguration{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: app.Namespace,
-			Name:      utils.ConstructRevisionName(app.Name, 1),
+			Name:      app.Name,
 		}, appConfig)).Should(BeNil())
 
 		gotTrait := unstructured.Unstructured{}
@@ -414,7 +415,7 @@ var _ = Describe("Test Application Controller", func() {
 		appConfig := &v1alpha2.ApplicationConfiguration{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: app.Namespace,
-			Name:      utils.ConstructRevisionName(app.Name, 1),
+			Name:      app.Name,
 		}, appConfig)).Should(BeNil())
 
 		Expect(len(appConfig.Spec.Components[0].Traits)).Should(BeEquivalentTo(2))
@@ -504,7 +505,7 @@ var _ = Describe("Test Application Controller", func() {
 		appConfig := &v1alpha2.ApplicationConfiguration{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: app.Namespace,
-			Name:      utils.ConstructRevisionName(app.Name, 1),
+			Name:      app.Name,
 		}, appConfig)).Should(BeNil())
 
 		gotTrait := unstructured.Unstructured{}
@@ -566,7 +567,7 @@ var _ = Describe("Test Application Controller", func() {
 		appConfig := &v1alpha2.ApplicationConfiguration{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: app.Namespace,
-			Name:      utils.ConstructRevisionName(app.Name, 1),
+			Name:      app.Name,
 		}, appConfig)).Should(BeNil())
 
 		gotTrait := unstructured.Unstructured{}
@@ -634,7 +635,7 @@ var _ = Describe("Test Application Controller", func() {
 		By("check AC and Component updated")
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: app.Namespace,
-			Name:      utils.ConstructRevisionName(app.Name, 1),
+			Name:      app.Name,
 		}, appConfig)).Should(BeNil())
 
 		Expect(json.Unmarshal(appConfig.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
@@ -713,7 +714,7 @@ var _ = Describe("Test Application Controller", func() {
 		appConfig := &v1alpha2.ApplicationConfiguration{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: app.Namespace,
-			Name:      utils.ConstructRevisionName(app.Name, 1),
+			Name:      app.Name,
 		}, appConfig)).Should(BeNil())
 
 		gotTrait := unstructured.Unstructured{}
@@ -726,7 +727,7 @@ var _ = Describe("Test Application Controller", func() {
 	It("app with health policy for workload", func() {
 		By("change workload and trait definition with health policy")
 		ncd, ocd := &v1alpha2.ComponentDefinition{}, &v1alpha2.ComponentDefinition{}
-		cDDefJson, _ := yaml.YAMLToJSON([]byte(cDDefWithHealthYaml))
+		cDDefJson, _ := yaml.YAMLToJSON([]byte(componentDefWithHealthYaml))
 		Expect(json.Unmarshal(cDDefJson, ncd)).Should(BeNil())
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: ncd.Name, Namespace: ncd.Namespace}, ocd)).Should(BeNil())
 		ncd.ResourceVersion = ocd.ResourceVersion
@@ -875,8 +876,7 @@ var _ = Describe("Test Application Controller", func() {
 			Name:      compName,
 		}, &component)).Should(BeNil())
 		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
-		Expect(component.Status.LatestRevision.Revision).Should(
-			SatisfyAny(BeEquivalentTo(1), BeEquivalentTo(2)))
+		Expect(component.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 		// check that the new appconfig has the correct annotation and labels
 		Expect(appConfig.GetAnnotations()[oam.AnnotationAppRollout]).Should(Equal(strconv.FormatBool(true)))
 		Expect(appConfig.GetAnnotations()["keep"]).Should(Equal("true"))
@@ -1100,7 +1100,7 @@ var _ = Describe("Test Application Controller", func() {
 		appRefertoWd.SetNamespace(ns.Name)
 
 		taskWd := &v1alpha2.WorkloadDefinition{}
-		wDDefJson, _ := yaml.YAMLToJSON([]byte(wdDefYaml))
+		wDDefJson, _ := yaml.YAMLToJSON([]byte(workloadDefYaml))
 		Expect(json.Unmarshal(wDDefJson, taskWd)).Should(BeNil())
 		taskWd.SetNamespace(ns.Name)
 		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
@@ -1121,7 +1121,7 @@ var _ = Describe("Test Application Controller", func() {
 		appConfig := &v1alpha2.ApplicationConfiguration{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: appRefertoWd.Namespace,
-			Name:      utils.ConstructRevisionName(appRefertoWd.Name, 1),
+			Name:      appRefertoWd.Name,
 		}, appConfig)).Should(BeNil())
 	})
 
@@ -1141,7 +1141,7 @@ var _ = Describe("Test Application Controller", func() {
 		appMix.SetNamespace(ns.Name)
 
 		taskWd := &v1alpha2.WorkloadDefinition{}
-		wDDefJson, _ := yaml.YAMLToJSON([]byte(wdDefYaml))
+		wDDefJson, _ := yaml.YAMLToJSON([]byte(workloadDefYaml))
 		Expect(json.Unmarshal(wDDefJson, taskWd)).Should(BeNil())
 		taskWd.SetNamespace(ns.Name)
 		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
@@ -1162,7 +1162,7 @@ var _ = Describe("Test Application Controller", func() {
 		appConfig := &v1alpha2.ApplicationConfiguration{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: appMix.Namespace,
-			Name:      utils.ConstructRevisionName(appMix.Name, 1),
+			Name:      appMix.Name,
 		}, appConfig)).Should(BeNil())
 	})
 
@@ -1192,7 +1192,7 @@ var _ = Describe("Test Application Controller", func() {
 		appConfig := &v1alpha2.ApplicationConfiguration{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: appImportPkg.Namespace,
-			Name:      utils.ConstructRevisionName(appImportPkg.Name, 1),
+			Name:      appImportPkg.Name,
 		}, appConfig)).Should(BeNil())
 
 		By("Check Component Created with the expected workload spec")
@@ -1237,7 +1237,7 @@ func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
 }
 
 const (
-	sDDefYaml = `apiVersion: core.oam.dev/v1alpha2
+	scopeDefYaml = `apiVersion: core.oam.dev/v1alpha2
 kind: ScopeDefinition
 metadata:
   name: healthscopes.core.oam.dev
@@ -1248,7 +1248,7 @@ spec:
   definitionRef:
     name: healthscopes.core.oam.dev`
 
-	cDDefYaml = `
+	componentDefYaml = `
 apiVersion: core.oam.dev/v1alpha2
 kind: ComponentDefinition
 metadata:
@@ -1371,7 +1371,7 @@ spec:
       }
 `
 
-	webserverYaml = `apiVersion: core.oam.dev/v1alpha2
+	webComponentDefYaml = `apiVersion: core.oam.dev/v1alpha2
 kind: ComponentDefinition
 metadata:
   name: webserver
@@ -1464,7 +1464,7 @@ spec:
       }
 
 `
-	cDDefWithHealthYaml = `
+	componentDefWithHealthYaml = `
 apiVersion: core.oam.dev/v1alpha2
 kind: ComponentDefinition
 metadata:
@@ -1599,11 +1599,12 @@ spec:
         	enemies: string
         }
 `
-	wdDefYaml = `
+	workloadDefYaml = `
 apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
   name: task
+  namespace: vela-system
   annotations:
     definition.oam.dev/description: "Describes jobs that run code or a script to completion."
 spec:
@@ -1647,7 +1648,7 @@ spec:
         	cmd?: [...string]
         }
 `
-	tDDefYaml = `
+	TraitDefYaml = `
 apiVersion: core.oam.dev/v1alpha2
 kind: TraitDefinition
 metadata:

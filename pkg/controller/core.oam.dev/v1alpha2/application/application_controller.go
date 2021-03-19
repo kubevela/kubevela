@@ -38,7 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
-	apply "github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 // RolloutReconcileWaitTime is the time to wait before reconcile again an application still in rollout phase
@@ -79,14 +79,20 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	applog.Info("Start Rendering")
 
 	app.Status.Phase = v1alpha2.ApplicationRendering
-	handler := &appHandler{r, app, applog}
+
+	// by default, we regard the spec is diff
+	handler := &appHandler{
+		r:      r,
+		app:    app,
+		logger: applog,
+	}
 
 	applog.Info("parse template")
 	// parse template
 	appParser := appfile.NewApplicationParser(r.Client, r.dm)
 
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
-	appfile, err := appParser.GenerateAppFile(ctx, app.Name, app)
+	generatedAppfile, err := appParser.GenerateAppFile(ctx, app.Name, app)
 	if err != nil {
 		applog.Error(err, "[Handle Parse]")
 		app.Status.SetConditions(errorCondition("Parsed", err))
@@ -94,10 +100,10 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	app.Status.SetConditions(readyCondition("Parsed"))
-
+	handler.appfile = generatedAppfile
 	applog.Info("build template")
 	// build template to applicationconfig & component
-	ac, comps, err := appParser.GenerateApplicationConfiguration(appfile, app.Namespace)
+	ac, comps, err := appParser.GenerateApplicationConfiguration(generatedAppfile, app.Namespace)
 	if err != nil {
 		applog.Error(err, "[Handle GenerateApplicationConfiguration]")
 		app.Status.SetConditions(errorCondition("Built", err))
@@ -118,7 +124,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	app.Status.Phase = v1alpha2.ApplicationHealthChecking
 	applog.Info("check application health status")
 	// check application health status
-	appCompStatus, healthy, err := handler.statusAggregate(appfile)
+	appCompStatus, healthy, err := handler.statusAggregate(generatedAppfile)
 	if err != nil {
 		applog.Error(err, "[status aggregate]")
 		app.Status.SetConditions(errorCondition("HealthCheck", err))

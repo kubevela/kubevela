@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"time"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
@@ -11,7 +10,6 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
-	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctypes "k8s.io/apimachinery/pkg/types"
@@ -48,9 +46,10 @@ func readyCondition(tpy string) runtimev1alpha1.Condition {
 }
 
 type appHandler struct {
-	r      *Reconciler
-	app    *v1alpha2.Application
-	logger logr.Logger
+	r       *Reconciler
+	app     *v1alpha2.Application
+	appfile *appfile.Appfile
+	logger  logr.Logger
 }
 
 func (h *appHandler) handleErr(err error) (ctrl.Result, error) {
@@ -98,16 +97,30 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 			}
 		}
 		if comp.Spec.Helm != nil {
-			if err := h.applyHelmModuleResources(ctx, comp, owners); err != nil {
+			// TODO(wonderflow): do we still need to apply helm resource if the spec has no difference?
+			if err = h.applyHelmModuleResources(ctx, comp, owners); err != nil {
 				return errors.Wrap(err, "cannot apply Helm module resources")
 			}
 		}
 	}
-
-	if err := h.createOrUpdateAppConfig(ctx, ac); err != nil {
-		return err
+	isNewRevision, appRev, err := h.GenerateRevision(ctx, ac, comps)
+	if err != nil {
+		return errors.Wrap(err, "cannot generate a revision of the application")
+	}
+	if isNewRevision {
+		if err = h.r.Create(ctx, appRev); err != nil {
+			return err
+		}
+	} else {
+		if err = h.r.Update(ctx, appRev); err != nil {
+			return err
+		}
 	}
 
+	// TODO: replace this with create appContext
+	if err = h.createOrUpdateAppConfig(ctx, ac); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -265,85 +278,28 @@ func (h *appHandler) createOrUpdateAppConfig(ctx context.Context, appConfig *v1a
 		map[string]string{
 			oam.LabelAppConfigHash: specHashLabel,
 		}))
-	// first time ever
-	if h.app.Status.LatestRevision == nil {
-		h.logger.Info("create the first appConfig", "application name", h.app.GetName())
-		return h.createNewAppConfig(ctx, appConfig)
+
+	// AC name is the same as the app name if there is no rollout
+	key := ctypes.NamespacedName{Name: h.app.Name, Namespace: h.app.Namespace}
+	if _, exist := h.app.GetAnnotations()[oam.AnnotationAppRollout]; exist || h.app.Spec.RolloutPlan != nil {
+		// the AC name follows the appRevision if there is rollout
+		key = ctypes.NamespacedName{Name: h.app.Status.LatestRevision.Name, Namespace: h.app.Namespace}
 	}
-	// get the AC with the last revision name stored in the application
-	key := ctypes.NamespacedName{Name: h.app.Status.LatestRevision.Name, Namespace: h.app.Namespace}
+	appConfig.Name = key.Name
 	if err := h.r.Get(ctx, key, &curAppConfig); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return err
 		}
-		h.logger.Info("create a new appConfig that the last creation failed to create", "application name",
-			h.app.GetName(), "latest revision that does not exist", h.app.Status.LatestRevision.Name)
-		return h.createNewAppConfig(ctx, appConfig)
-	}
-	// check if the old AC has the same HASH value first, just replace lable/annotation if that's the case
-	if curAppConfig.GetLabels()[oam.LabelAppConfigHash] == appConfig.GetLabels()[oam.LabelAppConfigHash] {
-		// Just to be safe that it's not because of a random Hash collision
-		if apiequality.Semantic.DeepEqual(&curAppConfig.Spec, &appConfig.Spec) {
-			// same spec, no need to create another AC, still need to update the AC to apply label/annotation
-			h.logger.Info("update latest application config", "application name",
-				h.app.GetName(), "latest revision to be updated", h.app.Status.LatestRevision.Name)
-			oamutil.PassLabelAndAnnotation(appConfig, &curAppConfig)
-			return h.r.Update(ctx, &curAppConfig)
-		}
-		h.logger.Info("encountered a different app spec with same hash", "current spec",
-			curAppConfig.Spec, "new appConfig spec", appConfig.Spec)
-	}
-	nextRevisionName, _ := utils.GetAppNextRevision(h.app)
-	if nextRevisionName == h.app.Status.LatestRevision.Name {
-		// we don't need to create another appConfig
-		h.logger.Info("replace the existing application config", "application name",
-			h.app.GetName(), "latest revision to be replaced", h.app.Status.LatestRevision.Name, "new hash value", specHashLabel)
-		appConfig.ResourceVersion = curAppConfig.ResourceVersion
-		appConfig.Name = nextRevisionName
-		h.app.Status.LatestRevision.RevisionHash = specHashLabel
-
-		// record that last appConfig we created first in the app's status
-		// make sure that we persist the latest revision first
-		if err := h.r.UpdateStatus(ctx, h.app); err != nil {
-			return err
-		}
-		// it ok if the update fails, we will update again in the next loop
-		return h.r.Update(ctx, appConfig)
+		h.logger.Info("create a new appConfig", "application name",
+			h.app.GetName(), "revision that does not exist", key.Name)
+		return h.r.Create(ctx, appConfig)
 	}
 
-	// create the next version
-	h.logger.Info("create a new appConfig", "application name", h.app.GetName(),
-		"latest revision that does not match the appConfig", h.app.Status.LatestRevision.Name)
-	return h.createNewAppConfig(ctx, appConfig)
-}
-
-// create a new appConfig given the latest revision in the application
-func (h *appHandler) createNewAppConfig(ctx context.Context, appConfig *v1alpha2.ApplicationConfiguration) error {
-	revisionName, nextRevision := utils.GetAppNextRevision(h.app)
-	// update the next revision in the application's status
-	h.app.Status.LatestRevision = &v1alpha2.Revision{
-		Name:         revisionName,
-		Revision:     nextRevision,
-		RevisionHash: appConfig.GetLabels()[oam.LabelAppConfigHash],
-	}
-	appConfig.Name = revisionName
-	// indicate that the applicationConfig is created if we are doing rolling out
-	if _, exist := h.app.GetAnnotations()[oam.AnnotationAppRollout]; exist || h.app.Spec.RolloutPlan != nil {
-		h.logger.Info(fmt.Sprintf("The application %s rolling out is controlled by a rollout plan", h.app.Name))
-		appConfig.SetAnnotations(oamutil.MergeMapOverrideWithDst(appConfig.GetAnnotations(), map[string]string{
-			oam.AnnotationAppRollout: strconv.FormatBool(true),
-		}))
-	}
-
-	// record that last appConfig we created first in the app's status
-	// make sure that we persist the latest revision first
-	if err := h.r.UpdateStatus(ctx, h.app); err != nil {
-		return err
-	}
-	h.logger.Info("recorded the latest appConfig revision", "application name", h.app.GetName(),
-		"latest revision", revisionName)
-	// it ok if the create failed, we will create again in  the next loop
-	return h.r.Create(ctx, appConfig)
+	// we don't need to create another appConfig
+	h.logger.Info("replace the existing application config", "application name",
+		h.app.GetName(), "appConfig name", key.Name, "new hash value", specHashLabel)
+	appConfig.ResourceVersion = curAppConfig.ResourceVersion
+	return h.r.Update(ctx, appConfig)
 }
 
 func (h *appHandler) applyHelmModuleResources(ctx context.Context, comp *v1alpha2.Component, owners []metav1.OwnerReference) error {

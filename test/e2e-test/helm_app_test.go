@@ -165,7 +165,7 @@ var _ = Describe("Test application containing helm module", func() {
 		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
 
 		ac := &v1alpha2.ApplicationConfiguration{}
-		acName := fmt.Sprintf("%s-v1", appName)
+		acName := appName
 		By("Verify the AppConfig is created successfully")
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac)

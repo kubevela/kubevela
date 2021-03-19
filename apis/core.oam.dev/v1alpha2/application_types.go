@@ -111,9 +111,9 @@ type ApplicationSpec struct {
 	RolloutPlan *v1alpha1.RolloutPlan `json:"rolloutPlan,omitempty"`
 }
 
-// +kubebuilder:object:root=true
-
 // Application is the Schema for the applications API
+// +kubebuilder:object:root=true
+// +kubebuilder:resource:categories={oam}
 // +kubebuilder:subresource:status
 type Application struct {
 	metav1.TypeMeta   `json:",inline"`

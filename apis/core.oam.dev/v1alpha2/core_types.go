@@ -353,25 +353,8 @@ type Revision struct {
 	Revision int64  `json:"revision"`
 
 	// RevisionHash record the hash value of the spec of ApplicationConfiguration object.
-	// We're going to deprecate that by using ApplicationRevision
+	// We're going to deprecate that by using AppRevisionHash
 	RevisionHash string `json:"revisionHash,omitempty"`
-
-	// AppRevisionHash record the detailed hash value of the spec of ApplicationRevision Object
-	// We should replace it with 'revisionHash' after the refactor finished
-	AppRevisionHash *AppRevisionHash `json:"appRevisionHash,omitempty"`
-}
-
-// AppRevisionHash defines the hash value of the Application and its related definitions.
-type AppRevisionHash struct {
-	ApplicationSpec      string             `json:"applicationSpec"`
-	ComponentDefinitions []NameAndHashValue `json:"componentDefinitions,omitempty"`
-	TraitDefinitions     []NameAndHashValue `json:"traitDefinitions,omitempty"`
-}
-
-// NameAndHashValue defines a structure contains the resource name and its hash value
-type NameAndHashValue struct {
-	Name      string `json:"name"`
-	HashValue string `json:"hashValue"`
 }
 
 // +kubebuilder:object:root=true

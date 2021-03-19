@@ -203,10 +203,10 @@ func TestGetAppRevison(t *testing.T) {
 		Name:     "myapp-v1",
 		Revision: 1,
 	}
-	// we don't automatically advance the revision
+	// we always automatically advance the revision
 	revisionName, latestRevision = GetAppNextRevision(app)
-	assert.Equal(t, revisionName, "myapp-v1")
-	assert.Equal(t, latestRevision, int64(1))
+	assert.Equal(t, revisionName, "myapp-v2")
+	assert.Equal(t, latestRevision, int64(2))
 	// we generate new revisions if the app is rolling
 	app.SetAnnotations(map[string]string{oam.AnnotationAppRollout: strconv.FormatBool(true)})
 	revisionName, latestRevision = GetAppNextRevision(app)
@@ -224,9 +224,9 @@ func TestGetAppRevison(t *testing.T) {
 		Name:     revisionName,
 		Revision: latestRevision,
 	}
-	// remove the annotation and it will stop
+	// remove the annotation and it will still advance
 	oamutil.RemoveAnnotations(app, []string{oam.AnnotationAppRollout})
 	revisionName, latestRevision = GetAppNextRevision(app)
-	assert.Equal(t, revisionName, "myapp-v3")
-	assert.Equal(t, latestRevision, int64(3))
+	assert.Equal(t, revisionName, "myapp-v4")
+	assert.Equal(t, latestRevision, int64(4))
 }

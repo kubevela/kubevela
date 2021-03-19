@@ -167,12 +167,8 @@ func GetAppNextRevision(app *v1alpha2.Application) (string, int64) {
 	}
 	var nextRevision int64 = 1
 	if app.Status.LatestRevision != nil {
-		// we only bump the version when we are rolling
-		if _, exist := app.GetAnnotations()[oam.AnnotationAppRollout]; exist {
-			nextRevision = app.Status.LatestRevision.Revision + 1
-		} else {
-			nextRevision = app.Status.LatestRevision.Revision
-		}
+		// revision will always bump and increment no matter what the way user is running.
+		nextRevision = app.Status.LatestRevision.Revision + 1
 	}
 	return ConstructRevisionName(app.Name, nextRevision), nextRevision
 }

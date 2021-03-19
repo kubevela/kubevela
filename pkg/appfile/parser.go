@@ -16,7 +16,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -44,6 +43,8 @@ type Workload struct {
 
 	Helm                *v1alpha2.Helm
 	DefinitionReference v1alpha2.WorkloadGVK
+	// TODO: remove all the duplicate fields above as workload now contains the whole template
+	FullTemplate *util.Template
 }
 
 // GetUserConfigName get user config from AppFile, it will contain config file in it.
@@ -93,6 +94,8 @@ type Trait struct {
 	Template           string
 	HealthCheckPolicy  string
 	CustomStatusFormat string
+
+	FullTemplate *util.Template
 }
 
 // EvalContext eval trait template and set result to context
@@ -149,7 +152,6 @@ func (p *Parser) GenerateAppFile(ctx context.Context, name string, app *v1alpha2
 		wds = append(wds, wd)
 	}
 	appfile.Workloads = wds
-	appfile.RevisionName, _ = utils.GetAppNextRevision(app)
 	return appfile, nil
 }
 
@@ -158,6 +160,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1alpha2.ApplicationCom
 	workload.Traits = []*Trait{}
 	workload.Name = comp.Name
 	workload.Type = comp.WorkloadType
+	// TODO: pass in p.dm
 	templ, err := util.LoadTemplate(ctx, p.client, workload.Type, types.TypeComponentDefinition)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
@@ -168,6 +171,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1alpha2.ApplicationCom
 	workload.CustomStatusFormat = templ.CustomStatus
 	workload.DefinitionReference = templ.Reference
 	workload.Helm = templ.Helm
+	workload.FullTemplate = templ
 	settings, err := util.RawExtension2Map(&comp.Settings)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
@@ -199,6 +203,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1alpha2.ApplicationCom
 }
 
 func (p *Parser) parseTrait(ctx context.Context, name string, properties map[string]interface{}) (*Trait, error) {
+	// TODO: pass in p.dm
 	templ, err := util.LoadTemplate(ctx, p.client, name, types.TypeTrait)
 	if kerrors.IsNotFound(err) {
 		return nil, errors.Errorf("trait definition of %s not found", name)
@@ -214,6 +219,7 @@ func (p *Parser) parseTrait(ctx context.Context, name string, properties map[str
 		Template:           templ.TemplateStr,
 		HealthCheckPolicy:  templ.Health,
 		CustomStatusFormat: templ.CustomStatus,
+		FullTemplate:       templ,
 	}, nil
 }
 
@@ -347,6 +353,7 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compNa
 	util.AddLabels(componentWorkload, labels)
 
 	component := &v1alpha2.Component{}
+	// we need to marshal the workload to byte array before sending them to the k8s
 	component.Spec.Workload = util.Object2RawExtension(componentWorkload)
 
 	acComponent := &v1alpha2.ApplicationConfigurationComponent{}
