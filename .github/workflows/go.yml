@@ -195,6 +195,14 @@ jobs:
         run: |
           go get -v -t -d ./...
 
+      - name: Setup buildkit
+        run: |
+          wget https://github.com/moby/buildkit/releases/download/v0.8.2/buildkit-v0.8.2.linux-amd64.tar.gz
+          tar -xvf buildkit-v0.8.2.linux-amd64.tar.gz
+          cd bin/
+          export PATH=$PWD:$PATH
+          echo $PATH
+
       - name: Setup Kind
         uses: engineerd/setup-kind@v0.5.0
         with:

@@ -118,6 +118,7 @@ check-diff: reviewable
 docker-build:
 	buildctl build ...\
       --output type=image,name=docker.io/oamdev/${IMG},push=false \
+      --frontend=dockerfile.v0 \
 	  --opt build-arg:VERSION=$(VELA_VERSION) \
 	  --opt build-arg:GITVERSION=$(GIT_COMMIT)
 
