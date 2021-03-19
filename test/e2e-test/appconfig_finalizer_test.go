@@ -126,6 +126,11 @@ var _ = Describe("Finalizer for HealthScope in ApplicationConfiguration", func()
 					ComponentName: componentName,
 				},
 			}
+			By("Check component should already existed")
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &v1alpha2.Component{})
+			}, time.Second*30, time.Microsecond*500).Should(BeNil())
+
 			By("Apply AppConfig")
 			Expect(k8sClient.Create(ctx, &appConfig)).Should(Succeed())
 

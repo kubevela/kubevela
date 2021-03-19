@@ -1604,6 +1604,7 @@ apiVersion: core.oam.dev/v1alpha2
 kind: WorkloadDefinition
 metadata:
   name: task
+  namespace: vela-system
   annotations:
     definition.oam.dev/description: "Describes jobs that run code or a script to completion."
 spec:
