@@ -23,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func Test_fillDatainput(t *testing.T) {
+func TestFillDatainput(t *testing.T) {
 	getObj1 := func() *unstructured.Unstructured {
 		return &unstructured.Unstructured{Object: map[string]interface{}{
 			"spec": map[string]interface{}{

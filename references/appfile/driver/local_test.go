@@ -34,7 +34,7 @@ func init() {
 	_ = ioutil.WriteFile(filepath.Join(dir, appName+".yaml"), out, 0644)
 }
 
-func TestLocal_Delete(t *testing.T) {
+func TestLocalDelete(t *testing.T) {
 	type args struct {
 		envName string
 		appName string
@@ -57,7 +57,7 @@ func TestLocal_Delete(t *testing.T) {
 	}
 }
 
-func TestLocal_Save(t *testing.T) {
+func TestLocalSave(t *testing.T) {
 	type args struct {
 		app     *api.Application
 		envName string
@@ -79,7 +79,7 @@ func TestLocal_Save(t *testing.T) {
 	}
 }
 
-func TestLocal_Name(t *testing.T) {
+func TestLocalName(t *testing.T) {
 	tests := []struct {
 		name string
 		want string
@@ -112,7 +112,7 @@ func TestNewLocalStorage(t *testing.T) {
 	}
 }
 
-func Test_getApplicationDir(t *testing.T) {
+func TestGetApplicationDir(t *testing.T) {
 	type args struct {
 		envName string
 	}

@@ -7,7 +7,7 @@ import (
 	"github.com/oam-dev/kubevela/references/appfile/api"
 )
 
-func TestConfigMap_Delete(t *testing.T) {
+func TestConfigMapDelete(t *testing.T) {
 	type args struct {
 		envName string
 		appName string
@@ -29,7 +29,7 @@ func TestConfigMap_Delete(t *testing.T) {
 	}
 }
 
-func TestConfigMap_Get(t *testing.T) {
+func TestConfigMapGet(t *testing.T) {
 	type args struct {
 		envName string
 		appName string
@@ -57,7 +57,7 @@ func TestConfigMap_Get(t *testing.T) {
 	}
 }
 
-func TestConfigMap_List(t *testing.T) {
+func TestConfigMapList(t *testing.T) {
 	type args struct {
 		envName string
 	}
@@ -84,7 +84,7 @@ func TestConfigMap_List(t *testing.T) {
 	}
 }
 
-func TestConfigMap_Name(t *testing.T) {
+func TestConfigMapName(t *testing.T) {
 	tests := []struct {
 		name string
 		want string
@@ -101,7 +101,7 @@ func TestConfigMap_Name(t *testing.T) {
 	}
 }
 
-func TestConfigMap_Save(t *testing.T) {
+func TestConfigMapSave(t *testing.T) {
 	type args struct {
 		app     *api.Application
 		envName string

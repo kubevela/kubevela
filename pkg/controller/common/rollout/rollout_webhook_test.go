@@ -127,7 +127,7 @@ func Test_MakeHTTPRequest(t *testing.T) {
 	}
 }
 
-func Test_callWebhook(t *testing.T) {
+func TestCallWebhook(t *testing.T) {
 	ctx := context.TODO()
 	url := "http://" + mockUrl
 	body := "all good"
