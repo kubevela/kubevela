@@ -244,7 +244,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (reconcile.R
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errFinalizeWorkloads)))
 			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 		}
-		return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
+		return reconcile.Result{}, errors.Wrap(r.client.Update(ctx, ac), errUpdateAppConfigStatus)
 	}
 
 	reconResult := r.ACReconcile(ctx, ac, log)
