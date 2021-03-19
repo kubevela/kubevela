@@ -1,4 +1,4 @@
-# CUE Basic
+# Learning CUE
 
 This document will explain how to use [CUE](https://cuelang.org/) to encapsulate a given capability in Kubernetes and make it available to end users to consume in `Application` CRD. Please make sure you have already learned about `Application` custom resource before reading the following guide. 
 

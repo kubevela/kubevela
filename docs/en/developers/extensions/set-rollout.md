@@ -137,4 +137,25 @@ $ curl -H "Host:example.com" http://<your-ingress-ip-address>/
 Hello World -- This is rolling 02
 ```
 
-> NOTE: please check the [detailed documentation](../references/traits/rollout.md#how-rollout-works) for `Rollout` trait to fully understand how canary release strategy works in KubeVela.
+
+**How `Rollout` works?**
+
+<details>
+
+`Rollout` trait implements progressive release process to rollout your app following [Canary strategy](https://martinfowler.com/bliki/CanaryRelease.html).
+
+In detail, `Rollout` controller will create a canary of your app , and then gradually shift traffic to the canary while measuring key performance indicators like HTTP requests success rate at the same time. 
+
+
+![alt](../../../resources/traffic-shifting-analysis.png)
+
+In this sample, for every `10s`, `5%` traffic will be shifted to canary from the primary, until the traffic on canary reached `50%`. At the mean time, the instance number of canary will automatically scale to `replicas: 2` per configured in Appfile.
+
+
+Based on analysis result of the KPIs during this traffic shifting, a canary will be promoted or aborted if analysis is failed. If promoting, the primary will be upgraded from v1 to v2, and traffic will be fully shifted back to the primary instances. So as result, canary instances will be deleted after the promotion finished.
+
+![alt](../../../resources/promotion.png)
+
+> Note: KubeVela's `Rollout` trait is implemented with [Weaveworks Flagger](https://flagger.app/) operator.
+  
+</details>

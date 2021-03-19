@@ -1,96 +1,87 @@
 - Overview
   - [Introduction](/en/introduction.md)
-
-- Get Started
-  - [Installation](/en/install.md)
-  - [Quick Start](/en/quick-start.md)
   - [Core Concepts](/en/concepts.md)
 
-- Learning KubeVela 
-  - Application CRD
-    - [Introduction](/en/platform-engineers/overview.md)
-    - [Designing Application](/en/application.md)
-  - Managing Components and Traits
-    - [Definitions](/en/platform-engineers/definition-and-templates.md)
-    - CUE
-      - [CUE Basic](/en/cue/basic.md)
-      - [Workload Type](/en/cue/workload-type.md)
-      - [Trait](/en/cue/trait.md)
-      - [Advanced Features](/en/cue/status.md)
-    - Helm
-      - [Workload Type](/en/helm/component.md)
-      - [Trait](/en/helm/trait.md)
-      - [Limitations](/en/helm/known-issues.md)
-    - How-to (Out-of-dated)
-      - [Defining Workload Type](/en/platform-engineers/workload-type.md)
-      - [Defining Trait](/en/platform-engineers/trait.md)
-      - [Defining Cloud Service](/en/platform-engineers/cloud-services.md)
+- Getting Started
+  - [Installation](/en/install.md)
+  - [Quick Start](/en/quick-start.md)
+
+- Application Abstraction
+  - [Overview](/en/platform-engineers/overview.md)
+  - [Application CRD](/en/application.md)
+  - [Definition CRD](/en/platform-engineers/definition-and-templates.md)
+
+- Using CUE
+  - [Learning CUE](/en/cue/basic.md)
+  - [Define Components](/en/cue/workload-type.md)
+  - [Define Traits](/en/cue/trait.md)
+  - [Advanced Features](/en/cue/status.md)
+  - [Auto-generated Schema](/en/platform-engineers/openapi-v3-json-schema.md)
+
+- Using Helm
+  - [Define Components](/en/helm/component.md)
+  - [Attach Traits](/en/helm/trait.md)
+  - [Known Limitations](/en/helm/known-issues.md)
+
+- Developer Experience
+  - [Overview](/en/quick-start-appfile.md)
+  - [Learning Appfile](/en/developers/learn-appfile.md)
+  - [Port Forwarding](/en/developers/port-forward.md)
+  - [Check Application Logs](/en/developers/check-logs.md)
+  - [Execute Commands in Container](/en/developers/exec-cmd.md)  
+  - [Managing Capabilities](/en/developers/cap-center.md)
+  - [Setting Routes](/en/developers/extensions/set-route.md)
+  - [Setting Auto-scaling Policy](/en/developers/extensions/set-autoscale.md)
+  - [Setting Rollout Strategy](/en/developers/extensions/set-rollout.md)
+  - [Setting Monitoring Policy](/en/developers/extensions/set-metrics.md)
+  - [Setting Up Deployment Environment](/en/developers/config-enviroments.md)
+  - [Configuring data/env in Application](/en/developers/config-app.md)
+  <!-- - How-to (Out-of-dated) -->
+    <!-- - [Defining Workload Type](/en/platform-engineers/workload-type.md) -->
+    <!-- - [Defining Trait](/en/platform-engineers/trait.md) -->
+    <!-- - [Defining Cloud Service](/en/platform-engineers/cloud-services.md) -->
+  <!-- - [Alternative Commands](/en/developers/alternative-cmd.md) -->
+
+- CLI References
+  - [vela config](/en/cli/vela_config.md)
+  - [vela env](/en/cli/vela_env.md)
+  - [vela init](/en/cli/vela_init.md)
+  - [vela install](/en/cli/vela_install.md)
+  - [vela up](/en/cli/vela_up.md)
+  - [vela version](/en/cli/vela_version.md)
+  - [vela delete](/en/cli/vela_delete.md)
+  - [vela exec](/en/cli/vela_exec.md)
+  - [vela logs](/en/cli/vela_logs.md)
+  - [vela ls](/en/cli/vela_ls.md)
+  - [vela port-forward](/en/cli/vela_port-forward.md)
+  - [vela show](/en/cli/vela_show.md)
+  - [vela status](/en/cli/vela_status.md)
+  - [vela svc](/en/cli/vela_svc.md)
+  - [vela workloads](/en/cli/vela_workloads.md)
+  - [vela traits](/en/cli/vela_traits.md)
+  - [vela scaler](/en/cli/vela_scaler.md)
+  - [vela route](/en/cli/vela_route.md)
+  - [vela autoscale](/en/cli/vela_autoscale.md)
+  - [vela rollout](/en/cli/vela_rollout.md)
+  - [vela metrics](/en/cli/vela_metrics.md)
+  - [vela completion](/en/cli/vela_completion.md)
+  - [vela dashboard](/en/cli/vela_dashboard.md)
+  - [vela system](/en/cli/vela_system.md)
+  - [vela template](/en/cli/vela_template.md)
+  - [vela cap](/en/cli/vela_cap.md)
+
+- [Capability References](/en/developers/references/README.md)
+  - [Web Service](/en/developers/references/workload-types/webservice.md)
+  - [Task](/en/developers/references/workload-types/task.md)
+  - [Worker](/en/developers/references/workload-types/worker.md)
+  - [Route](/en/developers/references/traits/route.md)
+  - [Autoscale](/en/developers/references/traits/autoscale.md)
+  - [Rollout](/en/developers/references/traits/rollout.md)
+  - [Metrics](/en/developers/references/traits/metrics.md)
+  - [Scaler](/en/developers/references/traits/scaler.md)
+  - [Restful API](/en/developers/references/restful-api/index.html ':ignore')
 
 - Roadmap
   - [KubeVela Roadmap](/en/roadmap.md)
 
-- References
-  - [Capabilities](/en/developers/references/README.md)
-    - Workload Types
-      - [Web Service](/en/developers/references/workload-types/webservice.md)
-      - [Task](/en/developers/references/workload-types/task.md)
-      - [Worker](/en/developers/references/workload-types/worker.md)
-    - Traits
-      - [Route](/en/developers/references/traits/route.md)
-      - [Autoscale](/en/developers/references/traits/autoscale.md)
-      - [Rollout](/en/developers/references/traits/rollout.md)
-      - [Metrics](/en/developers/references/traits/metrics.md)
-      - [Scaler](/en/developers/references/traits/scaler.md)
-    - [Restful API](/en/developers/references/restful-api/index.html ':ignore')
-  - CLI
-    - General
-      - [vela config](/en/cli/vela_config.md)
-      - [vela env](/en/cli/vela_env.md)
-      - [vela init](/en/cli/vela_init.md)
-      - [vela install](/en/cli/vela_install.md)
-      - [vela up](/en/cli/vela_up.md)
-      - [vela version](/en/cli/vela_version.md)
-    - Applications
-      - [vela delete](/en/cli/vela_delete.md)
-      - [vela exec](/en/cli/vela_exec.md)
-      - [vela logs](/en/cli/vela_logs.md)
-      - [vela ls](/en/cli/vela_ls.md)
-      - [vela port-forward](/en/cli/vela_port-forward.md)
-      - [vela show](/en/cli/vela_show.md)
-      - [vela status](/en/cli/vela_status.md)
-      - [vela svc](/en/cli/vela_svc.md)
-    - Workload Types
-      - [vela workloads](/en/cli/vela_workloads.md)
-    - Traits
-      - [vela traits](/en/cli/vela_traits.md)
-      - [vela scaler](/en/cli/vela_scaler.md)
-      - [vela route](/en/cli/vela_route.md)
-      - [vela autoscale](/en/cli/vela_autoscale.md)
-      - [vela rollout](/en/cli/vela_rollout.md)
-      - [vela metrics](/en/cli/vela_metrics.md)
-    - System
-      - [vela completion](/en/cli/vela_completion.md)
-      - [vela dashboard](/en/cli/vela_dashboard.md)
-      - [vela system](/en/cli/vela_system.md)
-      - [vela template](/en/cli/vela_template.md)
-    - Extensibility
-      - [vela cap](/en/cli/vela_cap.md)
-  - Developer Experience
-    - [Overview](/en/quick-start-appfile.md)
-    - [Appfile](/en/developers/learn-appfile.md)
-    - CLI
-      - Debugging
-        - [Port Forwarding](/en/developers/port-forward.md)
-        - [Check Application Logs](/en/developers/check-logs.md)
-        - [Execute Commands in Container](/en/developers/exec-cmd.md)  
-      - Extending
-        - [Managing Capabilities](/en/developers/cap-center.md)
-        - [Setting Routes](/en/developers/extensions/set-route.md)
-        - [Setting Auto-scaling Policy](/en/developers/extensions/set-autoscale.md)
-        - [Setting Rollout Strategy](/en/developers/extensions/set-rollout.md)
-        - [Setting Monitoring Policy](/en/developers/extensions/set-metrics.md)
-      - Configuring
-        - [Setting Up Deployment Environment](/en/developers/config-enviroments.md)
-        - [Configuring data/env in Application](/en/developers/config-app.md)
-      - [Alternative Commands](/en/developers/alternative-cmd.md)
 - [FAQ](/en/developers/references/devex/faq.md)

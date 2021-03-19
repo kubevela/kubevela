@@ -21,7 +21,7 @@ KubeVela is the platform engine to create *PaaS-like* experience on Kubernetes, 
 - Slack:  [CNCF Slack](https://slack.cncf.io/) #kubevela channel
 - Gitter: [Discussion](https://gitter.im/oam-dev/community)
 
-> NOTE: KubeVela is still in early stage and iterating quickly. It's currently under preview release.
+> NOTE: KubeVela is still iterating quickly. It's currently under pre-beta release.
 
 ## Installation
 
@@ -35,8 +35,16 @@ Quick start is available on [this section](https://kubevela.io/#/en/quick-start)
 
 For full documentation, please visit the KubeVela website: [https://kubevela.io](https://kubevela.io/).
 
+## Talks and Conferences
+
+| Engagement | Link        |
+|:-----------|:------------|
+| 🎤  Talks | - [KubeVela - The Modern App Delivery System in Alibaba](https://docs.google.com/presentation/d/1CWCLcsKpDQB3bBDTfdv2BZ8ilGGJv2E8L-iOA5HMrV0/edit?usp=sharing) |
+| 🌎 KubeCon | - [ [NA 2020] Standardizing Cloud Native Application Delivery Across Different Clouds](https://www.youtube.com/watch?v=0yhVuBIbHcI) <br> - [ [EU 2021] Zero Pain Microservice Development and Deployment with Dapr and KubeVela](https://sched.co/iE4S) |
+| 📺 Conferences | - [Dapr, Rudr, OAM: Mark Russinovich presents next gen app development & deployment](https://www.youtube.com/watch?v=eJCu6a-x9uo) <br> - [Mark Russinovich presents "The Future of Cloud Native Applications with OAM and Dapr"](https://myignite.techcommunity.microsoft.com/sessions/82059)|
+
 ## Contributing
 Check out [CONTRIBUTING](./CONTRIBUTING.md) to see how to develop with KubeVela.
 
 ## Code of Conduct
-KubeVela adopts [CNCF Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md). See [CODE OF CONDUCT](CODE_OF_CONDUCT.md) for details.
+KubeVela adopts [CNCF Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md).

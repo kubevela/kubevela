@@ -1,13 +1,17 @@
-# Managing Components and Traits
+# Introduction of Definition Objects
 
-This documentation explains how to manage available application components and traits in your platform with `WorkloadDefinition` and `TraitDefinition` objects.
+This documentation explains how to register and manage available *components* and *traits* in your platform with `WorkloadDefinition` and `TraitDefinition`, so your end users could "assemble" them into a `Application` resource.
+
+> All definition objects are expected to be maintained and installed by platform team, think them as *capability providers* in your platform.
+
+## Overview
 
 Essentially, a definition object in KubeVela is consisted by three section:
-- `spec.definitionRef`
+- **Capability Indexer** defined by `spec.definitionRef`
   - this is for discovering the provider of this capability.
-- `Interoperability Fields`
+- **Interoperability Fields**
   - they are for the platform to ensure a trait can work with given workload type. Hence only `TraitDefinition` has these fields.
-- `spec.schematic`
+- **Capability Encapsulation** defined by `spec.schematic`
   - this defines the encapsulation (i.e. templating and parametering) of this capability. For now, user can choose to use Helm or CUE as encapsulation.
 
 Hence, the basic structure of definition object is as below:
@@ -28,9 +32,13 @@ spec:
   # ... interoperability fields
 ```
 
-## `spec.definitionRef`
+Let's explain these fields one by one.
 
-Below is a definition for `Web Service` type in KubeVela: 
+### Capability Indexer
+
+The indexer of given capability is declared as `spec.definitionRef`.
+
+Below is a definition for *Web Service* in KubeVela: 
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -49,7 +57,7 @@ spec:
 
 In above example, it claims to leverage Kubernetes Deployment (`deployments.apps`) as the workload type to instantiate this component.
 
-Below is an example of `Ingress` trait:
+Below is an example of *ingress* trait:
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -64,9 +72,9 @@ spec:
 
 Similarly, it claims to leverage Kubernetes Ingress (`ingresses.networking.k8s.io`) as the underlying provider of this capability.
 
-## `Interoperability Fields`
+### Interoperability Fields
 
-An overall view of these fields in `TraitDefinition` is show as below.
+The interoperability fields are **trait only**. An overall view of interoperability fields in a `TraitDefinition` is show as below.
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -86,7 +94,7 @@ spec:
 
 Let's explain them in detail.
 
-### `.spec.appliesToWorkloads` 
+#### `.spec.appliesToWorkloads`
 
 This field defines the constraints that what kinds of workloads this trait is allowed to apply to.
 - It accepts an array of string as value.
@@ -104,7 +112,7 @@ If this field is omitted, it means this trait is allowded to apply to any worklo
 KubeVela will raise an error if a trait is applied to a workload which is NOT included in the `appliesToWorkloads`.
 
 
-### `.spec.conflictsWith` 
+##### `.spec.conflictsWith` 
 
 This field defines that constraints that what kinds of traits are conflicting with this trait, if they are applied to the same workload.
 - It accepts an array of string as value. 
@@ -119,7 +127,7 @@ There are four approaches to denote one or a group of workload types.
 
 If this field is omitted, it means this trait is NOT conflicting with any traits.
 
-### `.spec.workloadRefPath`
+##### `.spec.workloadRefPath`
 
 This field defines the field path of the trait which is used to store the reference of the workload to which the trait is applied.
 - It accepts a string as value, e.g., `spec.workloadRef`.  
@@ -128,9 +136,9 @@ If this field is set, KubeVela core will automatically fill the workload referen
 
 Please check [scaler](https://github.com/oam-dev/kubevela/blob/master/charts/vela-core/templates/defwithtemplate/manualscale.yaml) trait as a demonstration of how to set this field.
 
-## Capability Encapsulation
+### Capability Encapsulation
 
-The encapsulation (i.e. templating and parametering) of given capability are defined in `spec.schematic` field. For example, below is the full definition of `Web Service` type in KubeVela:
+The encapsulation (i.e. templating and parametering) of given capability are defined in `spec.schematic` field. For example, below is the full definition of *Web Service* type in KubeVela:
 
 <details>
 
@@ -229,8 +237,8 @@ spec:
 ```
 </details>
 
-We will explain this section in detail in the following guides:
-- [Use CUE](en/cue/basic) to encapsulate capabilities.
-- [Use Helm](en/helm/basic) to encapsulate capabilities.
+It's by design that KubeVela supports multiple ways to define the encapsulation. Hence, we will explain this field in detail with following guides.
+- Learn about [CUE](/en/cue/basic) based capability definitions.
+- Learn about [Helm](/en/helm/component) based capability definitions.
 
 
