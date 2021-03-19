@@ -66,7 +66,7 @@ func init() {
 
 func main() {
 	var metricsAddr, logFilePath, leaderElectionNamespace string
-	var enableLeaderElection, logCompress bool
+	var enableLeaderElection, logCompress, logDebug bool
 	var logRetainDate int
 	var certDir string
 	var webhookPort int
@@ -90,6 +90,7 @@ func main() {
 	flag.StringVar(&logFilePath, "log-file-path", "", "The file to write logs to.")
 	flag.IntVar(&logRetainDate, "log-retain-date", 7, "The number of days of logs history to retain.")
 	flag.BoolVar(&logCompress, "log-compress", true, "Enable compression on the rotated logs.")
+	flag.BoolVar(&logDebug, "log-debug", false, "Enable debug logs for development purpose")
 	flag.IntVar(&controllerArgs.RevisionLimit, "revision-limit", 50,
 		"RevisionLimit is the maximum number of revisions that will be maintained. The default value is 50.")
 	flag.StringVar(&healthAddr, "health-addr", ":9440", "The address the health endpoint binds to.")
@@ -117,7 +118,7 @@ func main() {
 	}
 
 	logger := zap.New(func(o *zap.Options) {
-		o.Development = true
+		o.Development = logDebug
 		o.DestWritter = w
 	})
 	ctrl.SetLogger(logger)
