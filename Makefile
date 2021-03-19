@@ -192,6 +192,10 @@ manager: fmt vet lint manifests
 core-run: fmt vet manifests
 	go run ./cmd/core/main.go
 
+# Run against the configured Kubernetes cluster in ~/.kube/config with debug logs
+core-debug-run: fmt vet manifests
+	go run ./cmd/core/main.go --log-debug=true
+
 # Install CRDs and Definitions of Vela Core into a cluster, this is for develop convenient.
 core-install: manifests
 	kubectl apply -f hack/namespace.yaml
