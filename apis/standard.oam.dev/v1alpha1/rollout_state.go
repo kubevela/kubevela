@@ -51,9 +51,6 @@ const (
 
 	// BatchRolloutFailedEvent indicates that we are waiting for the approval of the
 	BatchRolloutFailedEvent RolloutEvent = "BatchRolloutFailedEvent"
-
-	// WorkloadModifiedEvent indicates that the res
-	WorkloadModifiedEvent RolloutEvent = "WorkloadModifiedEvent"
 )
 
 // These are valid conditions of the rollout.
@@ -160,6 +157,12 @@ func (r *RolloutStatus) getRolloutConditionType() runtimev1alpha1.ConditionType 
 func (r *RolloutStatus) RolloutRetry(reason string) {
 	// we can still retry, no change on the state
 	r.SetConditions(NewNegativeCondition(r.getRolloutConditionType(), reason))
+}
+
+// RolloutModified is special state transition as we allow it to happen at any time
+func (r *RolloutStatus) RolloutModified() {
+	r.SetRolloutCondition(NewNegativeCondition(r.getRolloutConditionType(), "Rollout Spec is modified"))
+	r.ResetStatus()
 }
 
 // RolloutFailed is a special state transition since we need an error message
@@ -274,19 +277,9 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
 
 	case RolloutSucceedState:
-		if event == WorkloadModifiedEvent {
-			r.SetRolloutCondition(NewNegativeCondition(r.getRolloutConditionType(), "Rollout Spec is modified"))
-			r.ResetStatus()
-			return
-		}
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
 
 	case RolloutFailedState:
-		if event == WorkloadModifiedEvent {
-			r.SetRolloutCondition(NewNegativeCondition(r.getRolloutConditionType(), "Rollout Spec is modified"))
-			r.ResetStatus()
-			return
-		}
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
 
 	default:
