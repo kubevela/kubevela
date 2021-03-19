@@ -17,7 +17,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 )
 
-func TestContainerizedWorkloadReconciler_cleanupResources(t *testing.T) {
+func TestContainerizedWorkloadReconcilerCleanupResources(t *testing.T) {
 	type args struct {
 		ctx        context.Context
 		workload   *v1alpha2.ContainerizedWorkload
