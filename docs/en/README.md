@@ -11,7 +11,7 @@ KubeVela is the platform engine to create *PaaS-like* experience on Kubernetes, 
 - Slack:  [CNCF Slack](https://slack.cncf.io/) #kubevela channel
 - Gitter: [Discussion](https://gitter.im/oam-dev/community)
 
-> NOTE: KubeVela is still in early stage and iterating quickly. It's currently under preview release.
+> NOTE: KubeVela is still iterating quickly. It's currently under pre-beta release.
 
 ## Installation
 
