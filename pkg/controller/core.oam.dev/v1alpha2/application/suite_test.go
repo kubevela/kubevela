@@ -46,6 +46,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	// +kubebuilder:scaffold:imports
 )
@@ -109,7 +110,6 @@ var _ = BeforeSuite(func(done Done) {
 	err = scheme.AddToScheme(testScheme)
 	Expect(err).NotTo(HaveOccurred())
 	// +kubebuilder:scaffold:scheme
-
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
@@ -145,6 +145,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).NotTo(HaveOccurred())
 	definitonNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
 	Expect(k8sClient.Create(context.Background(), definitonNs.DeepCopy())).Should(BeNil())
+	Expect(definition.AddImportFromCluster(cfg)).Should(BeNil())
 	// start the controller in the background so that new componentRevisions are created
 	go func() {
 		err = ctlManager.Start(stop)

@@ -35,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	apply "github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -170,6 +171,9 @@ func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1alpha2.Application
 // Setup adds a controller that reconciles AppRollout.
 func Setup(mgr ctrl.Manager, _ core.Args, _ logging.Logger) error {
 	dm, err := discoverymapper.New(mgr.GetConfig())
+	if err := definition.AddImportFromCluster(mgr.GetConfig()); err != nil {
+		ctrl.Log.Error(err, "use kubernetes cluster openAPI as rendering package")
+	}
 	if err != nil {
 		return fmt.Errorf("create discovery dm fail %w", err)
 	}

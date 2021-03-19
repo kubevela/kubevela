@@ -89,6 +89,8 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string) er
 	if err := bi.AddFile("-", ctx.BaseContextFile()); err != nil {
 		return err
 	}
+	addImportsFor(bi)
+
 	instances := cue.Build([]*build.Instance{bi})
 	for _, inst := range instances {
 		if err := inst.Value().Err(); err != nil {
@@ -269,6 +271,8 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string) error
 	if err := bi.AddFile("context", ctx.BaseContextFile()); err != nil {
 		return errors.WithMessagef(err, "invalid context of trait %s", td.name)
 	}
+	addImportsFor(bi)
+
 	instances := cue.Build([]*build.Instance{bi})
 	for _, inst := range instances {
 		if err := inst.Value().Err(); err != nil {
