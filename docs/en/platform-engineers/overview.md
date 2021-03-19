@@ -1,5 +1,7 @@
 # Introduction of Application CRD
 
+This documentation will explain what is `Application` object and why you need it.
+
 ## Motivation
 
 Encapsulation is probably the mostly widely used approach to enable easier developer experience and allow users to deliver the whole application resources as one unit. For example, many tools today encapsulate Kubernetes *Deployment* and *Service* into a *Web Service* module, and then instantiate this module by simply providing parameters such as *image=foo* and *ports=80*. This pattern can be found in cdk8s (e.g. [`web-service.ts` ](https://github.com/awslabs/cdk8s/blob/master/examples/typescript/web-service/web-service.ts)), CUE (e.g. [`kube.cue`](https://github.com/cuelang/cue/blob/b8b489251a3f9ea318830788794c1b4a753031c0/doc/tutorial/kubernetes/quick/services/kube.cue#L70)), and many widely used Helm charts (e.g. [Web Service](https://docs.bitnami.com/tutorials/create-your-first-helm-chart/)).

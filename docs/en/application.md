@@ -1,14 +1,12 @@
-# Designing Application
+# Defining Application
 
-This documentation will walk through how to use `Application` custom resource.
+This documentation will walk through how to use `Application` object to define your application with corresponding operational behaviors in declarative approach.
 
 ## Example
 
 The sample application below claimed a `backend` component with *Worker* workload type, and a `frontend` component with *Web Service* workload type.
 
 Moreover, the `frontend` component claimed `sidecar` and `autoscaler` traits which means the workload will be automatically injected with a `fluentd` sidecar and scale from 1-100 replicas triggered by CPU usage.
-
-> For detailed definition about `Application` *workload type* and *traits*, please read the [core concepts](/en/concepts.md#application) documentation.
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2

@@ -1,30 +1,49 @@
 - Overview
   - [Introduction](/en/introduction.md)
 
-- Get Started
+- Getting Started
   - [Installation](/en/install.md)
   - [Quick Start](/en/quick-start.md)
-  - [Core Concepts](/en/concepts.md)
 
-- Learning KubeVela 
-  - Application CRD
-    - [Introduction](/en/platform-engineers/overview.md)
-    - [Designing Application](/en/application.md)
-  - Managing Components and Traits
-    - [Definitions](/en/platform-engineers/definition-and-templates.md)
+- Learning KubeVela
+  - [Core Concepts](/en/concepts.md)
+  - Application
+    - [Overview](/en/platform-engineers/overview.md)
+    - [Define Application](/en/application.md)
+  - Components and Traits
+    - [Overview](/en/platform-engineers/definition-and-templates.md)
     - CUE
       - [CUE Basic](/en/cue/basic.md)
-      - [Workload Type](/en/cue/workload-type.md)
-      - [Trait](/en/cue/trait.md)
+      - [Define Components](/en/cue/workload-type.md)
+      - [Define Traits](/en/cue/trait.md)
       - [Advanced Features](/en/cue/status.md)
     - Helm
-      - [Workload Type](/en/helm/component.md)
-      - [Trait](/en/helm/trait.md)
-      - [Limitations](/en/helm/known-issues.md)
-    - How-to (Out-of-dated)
-      - [Defining Workload Type](/en/platform-engineers/workload-type.md)
-      - [Defining Trait](/en/platform-engineers/trait.md)
-      - [Defining Cloud Service](/en/platform-engineers/cloud-services.md)
+      - [Define Components](/en/helm/component.md)
+      - [Attach Traits](/en/helm/trait.md)
+      - [Known Limitations](/en/helm/known-issues.md)
+    <!-- - How-to (Out-of-dated) -->
+      <!-- - [Defining Workload Type](/en/platform-engineers/workload-type.md) -->
+      <!-- - [Defining Trait](/en/platform-engineers/trait.md) -->
+      <!-- - [Defining Cloud Service](/en/platform-engineers/cloud-services.md) -->
+
+- Building Developer Experience
+  - [Overview](/en/quick-start-appfile.md)
+  - [Appfile](/en/developers/learn-appfile.md)
+  - CLI
+    - Debugging
+      - [Port Forwarding](/en/developers/port-forward.md)
+      - [Check Application Logs](/en/developers/check-logs.md)
+      - [Execute Commands in Container](/en/developers/exec-cmd.md)  
+    - Extending
+      - [Managing Capabilities](/en/developers/cap-center.md)
+      - [Setting Routes](/en/developers/extensions/set-route.md)
+      - [Setting Auto-scaling Policy](/en/developers/extensions/set-autoscale.md)
+      - [Setting Rollout Strategy](/en/developers/extensions/set-rollout.md)
+      - [Setting Monitoring Policy](/en/developers/extensions/set-metrics.md)
+    - Configuring
+      - [Setting Up Deployment Environment](/en/developers/config-enviroments.md)
+      - [Configuring data/env in Application](/en/developers/config-app.md)
+    <!-- - [Alternative Commands](/en/developers/alternative-cmd.md) -->
 
 - Roadmap
   - [KubeVela Roadmap](/en/roadmap.md)
@@ -75,22 +94,4 @@
       - [vela template](/en/cli/vela_template.md)
     - Extensibility
       - [vela cap](/en/cli/vela_cap.md)
-  - Developer Experience
-    - [Overview](/en/quick-start-appfile.md)
-    - [Appfile](/en/developers/learn-appfile.md)
-    - CLI
-      - Debugging
-        - [Port Forwarding](/en/developers/port-forward.md)
-        - [Check Application Logs](/en/developers/check-logs.md)
-        - [Execute Commands in Container](/en/developers/exec-cmd.md)  
-      - Extending
-        - [Managing Capabilities](/en/developers/cap-center.md)
-        - [Setting Routes](/en/developers/extensions/set-route.md)
-        - [Setting Auto-scaling Policy](/en/developers/extensions/set-autoscale.md)
-        - [Setting Rollout Strategy](/en/developers/extensions/set-rollout.md)
-        - [Setting Monitoring Policy](/en/developers/extensions/set-metrics.md)
-      - Configuring
-        - [Setting Up Deployment Environment](/en/developers/config-enviroments.md)
-        - [Configuring data/env in Application](/en/developers/config-app.md)
-      - [Alternative Commands](/en/developers/alternative-cmd.md)
 - [FAQ](/en/developers/references/devex/faq.md)
