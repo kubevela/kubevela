@@ -230,13 +230,6 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (reconcile.R
 		return reconcile.Result{}, errors.Wrap(err, errGetAppConfig)
 	}
 
-	return r.ACReconcile(ctx, ac, log)
-}
-
-// ACReconcile contains all the reconcile logic of an AC, it can be used by other controller
-func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2.ApplicationConfiguration,
-	log logging.Logger) (result reconcile.Result, returnErr error) {
-	acPatch := ac.DeepCopy()
 	ctx = util.SetNamespaceInCtx(ctx, ac.Namespace)
 	if ac.ObjectMeta.DeletionTimestamp.IsZero() {
 		if registerFinalizers(ac) {
@@ -246,7 +239,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 	} else {
 		if err := r.workloads.Finalize(ctx, ac); err != nil {
 			log.Debug("Failed to finalize workloads", "workloads status", ac.Status.Workloads,
-				"error", err, "requeue-after", result.RequeueAfter)
+				"error", err)
 			r.record.Event(ac, event.Warning(reasonCannotFinalizeWorkloads, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errFinalizeWorkloads)))
 			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
@@ -254,16 +247,21 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 		return reconcile.Result{}, errors.Wrap(r.client.Update(ctx, ac), errUpdateAppConfigStatus)
 	}
 
-	// make sure this is the last functional defer function to be called
-	defer func() {
-		// always update ac status and set the error
-		returnErr = errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
-		// Make sure if error occurs, reconcile will not happen too frequency
-		if returnErr != nil {
-			result.RequeueAfter = 0
-		}
-	}()
+	reconResult := r.ACReconcile(ctx, ac, log)
+	// always update ac status and set the error
+	err := errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
+	// use the controller build-in backoff mechanism if an error occurs
+	if err != nil {
+		reconResult.RequeueAfter = 0
+	}
+	return reconResult, err
+}
 
+// ACReconcile contains all the reconcile logic of an AC, it can be used by other controller
+func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2.ApplicationConfiguration,
+	log logging.Logger) (result reconcile.Result) {
+
+	acPatch := ac.DeepCopy()
 	// execute the posthooks at the end no matter what
 	defer func() {
 		updateObservedGeneration(ac)
@@ -274,7 +272,6 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 				r.record.Event(ac, event.Warning(reasonCannotExecutePosthooks, err))
 				ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errExecutePosthooks)))
 				result = exeResult
-				returnErr = errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 				return
 			}
 			r.record.Event(ac, event.Normal(reasonExecutePosthook, "Successfully executed a posthook", "posthook name", name))
@@ -288,7 +285,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 			log.Debug("Failed to execute pre-hooks", "hook name", name, "error", err, "requeue-after", result.RequeueAfter)
 			r.record.Event(ac, event.Warning(reasonCannotExecutePrehooks, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errExecutePrehooks)))
-			return result, nil
+			return result
 		}
 		r.record.Event(ac, event.Normal(reasonExecutePrehook, "Successfully executed a prehook", "prehook name ", name))
 	}
@@ -304,7 +301,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 			ac.SetConditions(v1alpha1.Unavailable())
 			ac.Status.RollingStatus = v1alpha2.InactiveAfterRollingCompleted
 			// TODO: GC the traits/workloads
-			return reconcile.Result{}, nil
+			return reconcile.Result{}
 		}
 	}
 
@@ -313,7 +310,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 		log.Info("Cannot render components", "error", err)
 		r.record.Event(ac, event.Warning(reasonCannotRenderComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errRenderComponents)))
-		return reconcile.Result{}, nil
+		return reconcile.Result{}
 	}
 	log.Debug("Successfully rendered components", "workloads", len(workloads))
 	r.record.Event(ac, event.Normal(reasonRenderComponents, "Successfully rendered components", "workloads", strconv.Itoa(len(workloads))))
@@ -323,7 +320,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 		log.Debug("Cannot apply workload", "error", err)
 		r.record.Event(ac, event.Warning(reasonCannotApplyComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyComponents)))
-		return reconcile.Result{}, nil
+		return reconcile.Result{}
 	}
 	log.Debug("Successfully applied components", "workloads", len(workloads))
 	r.record.Event(ac, event.Normal(reasonApplyComponents, "Successfully applied components", "workloads", strconv.Itoa(len(workloads))))
@@ -344,13 +341,13 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 			log.Debug("confirm component can't be garbage collected", "error", err)
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGCComponent)))
-			return reconcile.Result{}, nil
+			return reconcile.Result{}
 		}
 		if err := r.client.Delete(ctx, &e); resource.IgnoreNotFound(err) != nil {
 			log.Debug("Cannot garbage collect component", "error", err)
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGCComponent)))
-			return reconcile.Result{}, nil
+			return reconcile.Result{}
 		}
 		log.Debug("Garbage collected resource")
 		record.Event(ac, event.Normal(reasonGGComponent, "Successfully garbage collected component"))
@@ -367,7 +364,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 	}
 
 	// the defer function will do the final status update
-	return reconcile.Result{RequeueAfter: waitTime}, nil
+	return reconcile.Result{RequeueAfter: waitTime}
 }
 
 // confirmDeleteOnApplyOnceMode will confirm whether the workload can be delete or not in apply once only enabled mode

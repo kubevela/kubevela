@@ -85,6 +85,14 @@ var (
 	ApplicationConfigurationGroupVersionKind = SchemeGroupVersion.WithKind(ApplicationConfigurationKind)
 )
 
+// ApplicationContext type metadata.
+var (
+	ApplicationContextKind             = reflect.TypeOf(ApplicationContext{}).Name()
+	ApplicationContextGroupKind        = schema.GroupKind{Group: Group, Kind: ApplicationContextKind}.String()
+	ApplicationContextKindAPIVersion   = ApplicationContextKind + "." + SchemeGroupVersion.String()
+	ApplicationContextGroupVersionKind = SchemeGroupVersion.WithKind(ApplicationContextKind)
+)
+
 // ContainerizedWorkload type metadata.
 var (
 	ContainerizedWorkloadKind             = reflect.TypeOf(ContainerizedWorkload{}).Name()
@@ -146,4 +154,5 @@ func init() {
 	SchemeBuilder.Register(&Application{}, &ApplicationList{})
 	SchemeBuilder.Register(&AppRollout{}, &AppRolloutList{})
 	SchemeBuilder.Register(&ApplicationRevision{}, &ApplicationRevisionList{})
+	SchemeBuilder.Register(&ApplicationContext{}, &ApplicationContextList{})
 }
