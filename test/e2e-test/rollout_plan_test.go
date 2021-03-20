@@ -21,6 +21,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var _ = Describe("Cloneset based rollout tests", func() {
@@ -64,7 +65,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 	CreateClonesetDef := func() {
 		By("Install CloneSet based componentDefinition")
 		var cd v1alpha2.ComponentDefinition
-		Expect(readYaml("testdata/rollout/cloneset/clonesetDefinition.yaml", &cd)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/clonesetDefinition.yaml", &cd)).Should(BeNil())
 		// create the componentDefinition if not exist
 		Eventually(
 			func() error {
@@ -104,7 +105,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 	ApplySourceApp := func() {
 		By("Apply an application")
 		var newApp v1alpha2.Application
-		Expect(readYaml("testdata/rollout/cloneset/app-source.yaml", &newApp)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-source.yaml", &newApp)).Should(BeNil())
 		newApp.Namespace = namespace
 		Expect(k8sClient.Create(ctx, &newApp)).Should(Succeed())
 
@@ -141,7 +142,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 	ApplyTargetApp := func() {
 		By("Update the application to target spec during rolling")
 		var targetApp v1alpha2.Application
-		Expect(readYaml("testdata/rollout/cloneset/app-target.yaml", &targetApp)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-target.yaml", &targetApp)).Should(BeNil())
 
 		Eventually(
 			func() error {
@@ -257,7 +258,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		By("Revert the application back to source")
 		var sourceApp v1alpha2.Application
-		Expect(readYaml("testdata/rollout/cloneset/app-source.yaml", &sourceApp)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-source.yaml", &sourceApp)).Should(BeNil())
 		sourceApp.SetAnnotations(util.MergeMapOverrideWithDst(app.GetAnnotations(),
 			map[string]string{oam.AnnotationRollingComponent: app.Spec.Components[0].Name,
 				oam.AnnotationAppRollout: strconv.FormatBool(true)}))
@@ -320,7 +321,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		ApplyTwoAppVersion()
 		By("Apply the application rollout go directly to the target")
 		var newAppRollout v1alpha2.AppRollout
-		Expect(readYaml("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
 		newAppRollout.Spec.SourceAppRevisionName = ""
 		Expect(k8sClient.Create(ctx, &newAppRollout)).Should(Succeed())
@@ -347,7 +348,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		By("Apply the application rollout that stops after the first batch")
 		var newAppRollout v1alpha2.AppRollout
-		Expect(readYaml("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
 		batchPartition := 0
 		newAppRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(batchPartition))
@@ -407,7 +408,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		By("Apply the application rollout")
 		var newAppRollout v1alpha2.AppRollout
-		Expect(readYaml("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
 		Expect(k8sClient.Create(ctx, &newAppRollout)).Should(Succeed())
 
@@ -482,7 +483,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		By("Apply the application rollout")
 		var newAppRollout v1alpha2.AppRollout
-		Expect(readYaml("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
 		Expect(k8sClient.Create(ctx, &newAppRollout)).Should(Succeed())
 		By("Wait for the rollout phase change to rolling in batches")
@@ -508,7 +509,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		By("Apply the application rollout that stops after the first batche")
 		var newAppRollout v1alpha2.AppRollout
-		Expect(readYaml("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
 		batchPartition := 1
 		newAppRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(batchPartition))
@@ -565,7 +566,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		MarkAppRolling(1)
 		By("Apply the definition change")
 		var cd, newCD v1alpha2.ComponentDefinition
-		Expect(readYaml("testdata/rollout/cloneset/clonesetDefinitionModified.yaml.yaml", &newCD)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/clonesetDefinitionModified.yaml.yaml", &newCD)).Should(BeNil())
 		Eventually(
 			func() error {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: newCD.Name}, &cd)
@@ -576,7 +577,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		VerifyAppConfigTemplated(2)
 		By("Apply the application rollout")
 		var newAppRollout v1alpha2.AppRollout
-		Expect(readYaml("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
 		newAppRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(len(newAppRollout.Spec.RolloutPlan.
 			RolloutBatches) - 1))

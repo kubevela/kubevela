@@ -44,6 +44,7 @@ import (
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -100,15 +101,15 @@ var _ = BeforeSuite(func(done Done) {
 	// TODO: Remove this after we get rid of the integration test dir
 	By("Applying CRD of ComponentDefinition, WorkloadDefinition and TraitDefinition")
 	var componentDefinitionCRD crdv1.CustomResourceDefinition
-	Expect(readYaml("../../charts/vela-core/crds/core.oam.dev_componentdefinitions.yaml", &componentDefinitionCRD)).Should(BeNil())
+	Expect(common.ReadYamlToObject("../../charts/vela-core/crds/core.oam.dev_componentdefinitions.yaml", &componentDefinitionCRD)).Should(BeNil())
 	Expect(k8sClient.Create(context.Background(), &componentDefinitionCRD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	var workloadDefinitionCRD crdv1.CustomResourceDefinition
-	Expect(readYaml("../../charts/vela-core/crds/core.oam.dev_workloaddefinitions.yaml", &workloadDefinitionCRD)).Should(BeNil())
+	Expect(common.ReadYamlToObject("../../charts/vela-core/crds/core.oam.dev_workloaddefinitions.yaml", &workloadDefinitionCRD)).Should(BeNil())
 	Expect(k8sClient.Create(context.Background(), &workloadDefinitionCRD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	var traitDefinitionCRD crdv1.CustomResourceDefinition
-	Expect(readYaml("../../charts/vela-core/crds/core.oam.dev_traitdefinitions.yaml", &traitDefinitionCRD)).Should(BeNil())
+	Expect(common.ReadYamlToObject("../../charts/vela-core/crds/core.oam.dev_traitdefinitions.yaml", &traitDefinitionCRD)).Should(BeNil())
 	Expect(k8sClient.Create(context.Background(), &traitDefinitionCRD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	By("Finished setting up test environment")
 
@@ -275,7 +276,7 @@ var _ = BeforeSuite(func(done Done) {
 
 	By("Create workload definition for revision mechanism test")
 	var nwd v1alpha2.WorkloadDefinition
-	Expect(readYaml("testdata/revision/workload-def.yaml", &nwd)).Should(BeNil())
+	Expect(common.ReadYamlToObject("testdata/revision/workload-def.yaml", &nwd)).Should(BeNil())
 	Eventually(
 		func() error {
 			return k8sClient.Create(context.Background(), &nwd)

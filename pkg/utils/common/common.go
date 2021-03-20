@@ -16,6 +16,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/ghodss/yaml"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -156,4 +157,13 @@ func AskToChooseOneService(svcNames []string) (string, error) {
 		return "", fmt.Errorf("choosing service err %w", err)
 	}
 	return svcName, nil
+}
+
+// ReadYamlToObject will read a yaml K8s object to runtime.Object
+func ReadYamlToObject(path string, object k8sruntime.Object) error {
+	data, err := ioutil.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return err
+	}
+	return yaml.Unmarshal(data, object)
 }

@@ -177,7 +177,7 @@ func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1alpha2.Application
 // Setup adds a controller that reconciles AppRollout.
 func Setup(mgr ctrl.Manager, _ core.Args, _ logging.Logger) error {
 	dm, err := discoverymapper.New(mgr.GetConfig())
-	if err := definition.AddImportFromCluster(mgr.GetConfig()); err != nil {
+	if err := definition.AddKubeCUEPackagesFromCluster(mgr.GetConfig()); err != nil {
 		ctrl.Log.Error(err, "use kubernetes cluster openAPI as rendering package")
 	}
 	if err != nil {

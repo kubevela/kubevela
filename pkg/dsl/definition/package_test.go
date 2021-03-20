@@ -319,7 +319,7 @@ func TestPackage(t *testing.T) {
 	assert.NilError(t, pkg.addOpenAPI(openAPISchema))
 	pkg.mount()
 	bi := build.NewContext().NewInstance("", nil)
-	addImportsFor(bi)
+	AddVelaInternalPackagesFor(bi)
 	bi.AddFile("-", `
 import "oss"
 output: oss.#Bucket

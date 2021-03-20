@@ -380,9 +380,10 @@ output: {
 
 ### Import Kube Package
 
-KubeVela generate a cue package named “kube” by reading K8s openapi from K8s cluster.
+KubeVela automatically generates a cue package named `kube` as internal packages by reading K8s openapi from the
+installed K8s cluster.
 
-You can use package "kube" in CUE Template of kubevela
+You can use package `kube` in CUE Template of KubeVela just like the same way with the CUE internal packages.
 
 ```cue
 import ("kube")

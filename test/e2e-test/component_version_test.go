@@ -4,13 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/ghodss/yaml"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,6 +19,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var _ = Describe("Versioning mechanism of components", func() {
@@ -307,7 +306,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Create trait definition")
 			var td v1alpha2.TraitDefinition
-			Expect(readYaml("testdata/revision/trait-def.yaml", &td)).Should(BeNil())
+			Expect(common.ReadYamlToObject("testdata/revision/trait-def.yaml", &td)).Should(BeNil())
 
 			var gtd v1alpha2.TraitDefinition
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: td.Name, Namespace: td.Namespace}, &gtd); err != nil {
@@ -319,12 +318,12 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Create Component v1")
 			var comp1 v1alpha2.Component
-			Expect(readYaml("testdata/revision/comp-v1.yaml", &comp1)).Should(BeNil())
+			Expect(common.ReadYamlToObject("testdata/revision/comp-v1.yaml", &comp1)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &comp1)).Should(Succeed())
 
 			By("Create AppConfig with component")
 			var appconfig v1alpha2.ApplicationConfiguration
-			Expect(readYaml("testdata/revision/app.yaml", &appconfig)).Should(BeNil())
+			Expect(common.ReadYamlToObject("testdata/revision/app.yaml", &appconfig)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &appconfig)).Should(Succeed())
 
 			By("Get Component latest status after ControllerRevision created")
@@ -351,7 +350,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Create Component v2")
 			var comp2 v1alpha2.Component
-			Expect(readYaml("testdata/revision/comp-v2.yaml", &comp2)).Should(BeNil())
+			Expect(common.ReadYamlToObject("testdata/revision/comp-v2.yaml", &comp2)).Should(BeNil())
 			comp2.ResourceVersion = comp1.ResourceVersion
 			Expect(k8sClient.Update(ctx, &comp2)).Should(Succeed())
 
@@ -411,7 +410,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Create trait definition")
 			var td v1alpha2.TraitDefinition
-			Expect(readYaml("testdata/revision/trait-def-no-revision.yaml", &td)).Should(BeNil())
+			Expect(common.ReadYamlToObject("testdata/revision/trait-def-no-revision.yaml", &td)).Should(BeNil())
 			var gtd v1alpha2.TraitDefinition
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: td.Name, Namespace: td.Namespace}, &gtd); err != nil {
 				Expect(k8sClient.Create(ctx, &td)).Should(Succeed())
@@ -422,12 +421,12 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Create Component v1")
 			var comp1 v1alpha2.Component
-			Expect(readYaml("testdata/revision/comp-v1.yaml", &comp1)).Should(BeNil())
+			Expect(common.ReadYamlToObject("testdata/revision/comp-v1.yaml", &comp1)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &comp1)).Should(Succeed())
 
 			By("Create AppConfig with component")
 			var appconfig v1alpha2.ApplicationConfiguration
-			Expect(readYaml("testdata/revision/app.yaml", &appconfig)).Should(BeNil())
+			Expect(common.ReadYamlToObject("testdata/revision/app.yaml", &appconfig)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &appconfig)).Should(Succeed())
 
 			By("Workload created with component name")
@@ -445,7 +444,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Create Component v2")
 			var comp2 v1alpha2.Component
-			Expect(readYaml("testdata/revision/comp-v2.yaml", &comp2)).Should(BeNil())
+			Expect(common.ReadYamlToObject("testdata/revision/comp-v2.yaml", &comp2)).Should(BeNil())
 			Eventually(func() error {
 				tmp := &v1alpha2.Component{}
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, tmp)
@@ -485,14 +484,6 @@ var _ = Describe("Versioning mechanism of components", func() {
 		})
 	})
 })
-
-func readYaml(path string, object runtime.Object) error {
-	data, err := ioutil.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	return yaml.Unmarshal(data, object)
-}
 
 var _ = Describe("Component revision", func() {
 	ctx := context.Background()

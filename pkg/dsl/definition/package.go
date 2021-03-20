@@ -19,12 +19,13 @@ import (
 
 var velaBuiltinPkgs []*build.Instance
 
-func addImportsFor(bi *build.Instance) {
+// AddVelaInternalPackagesFor will add KubeVela built-in packages into your CUE instance
+func AddVelaInternalPackagesFor(bi *build.Instance) {
 	bi.Imports = append(bi.Imports, velaBuiltinPkgs...)
 }
 
-// AddImportFromCluster use  K8s native API and CRD definition as a reference package in template rendering
-func AddImportFromCluster(config *rest.Config) error {
+// AddKubeCUEPackagesFromCluster use  K8s native API and CRD definition as a reference package in template rendering
+func AddKubeCUEPackagesFromCluster(config *rest.Config) error {
 	copyConfig := *config
 	apiSchema, err := getClusterOpenAPI(&copyConfig)
 	if err != nil {
@@ -146,7 +147,6 @@ func (pkg *pkgInstance) addOpenAPI(apiSchema string) error {
 		if v.Group != "" {
 			apiversion = v.Group + "/" + apiversion
 		}
-
 		def := fmt.Sprintf(`%s: {
 kind: "%s"
 apiVersion: "%s",
