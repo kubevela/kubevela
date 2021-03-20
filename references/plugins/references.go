@@ -252,10 +252,9 @@ func (ref *MarkdownReference) CreateMarkdown(caps []types.Capability, baseRefPat
 		}
 		specification := fmt.Sprintf("\n\n## Specification\n\n%s\n\n%s", specificationIntro, specificationContent)
 
-		conflictWithAndMoreSection, err := ref.generateConflictWithAndMore(capName, referenceSourcePath)
-		if err != nil {
-			return err
-		}
+		// it's fine if the conflict info files not found
+		conflictWithAndMoreSection, _ := ref.generateConflictWithAndMore(capName, referenceSourcePath)
+
 		refContent = title + description + specification + refContent + conflictWithAndMoreSection
 		if _, err := f.WriteString(refContent); err != nil {
 			return err
