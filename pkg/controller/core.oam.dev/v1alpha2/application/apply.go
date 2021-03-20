@@ -78,7 +78,6 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 		UID:        h.app.UID,
 		Controller: pointer.BoolPtr(true),
 	}}
-	ac.SetOwnerReferences(owners)
 	for _, comp := range comps {
 		comp.SetOwnerReferences(owners)
 		newComp := comp.DeepCopy()
@@ -107,6 +106,7 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 	if err != nil {
 		return errors.Wrap(err, "cannot generate a revision of the application")
 	}
+	appRev.SetOwnerReferences(owners)
 	if isNewRevision {
 		if err = h.r.Create(ctx, appRev); err != nil {
 			return err
@@ -117,9 +117,9 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 		}
 	}
 
-	// TODO: replace this with create appContext
-	if err = h.createOrUpdateAppConfig(ctx, ac); err != nil {
-		return err
+	// we only need to create appContext here if there is no rollout controller to take care of new versions
+	if _, exist := h.app.GetAnnotations()[oam.AnnotationAppRollout]; !exist && h.app.Spec.RolloutPlan == nil {
+		return h.createOrUpdateAppContext(ctx, owners)
 	}
 	return nil
 }
@@ -266,40 +266,46 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 	return curRevisionName, nil
 }
 
-// createOrUpdateAppConfig will find the latest revision of the AC according
-// it will create a new revision if the appConfig is different from the existing one
-func (h *appHandler) createOrUpdateAppConfig(ctx context.Context, appConfig *v1alpha2.ApplicationConfiguration) error {
-	var curAppConfig v1alpha2.ApplicationConfiguration
-	specHashLabel, err := utils.ComputeSpecHash(appConfig.Spec)
-	if err != nil {
-		return err
-	}
-	appConfig.SetLabels(oamutil.MergeMapOverrideWithDst(appConfig.GetLabels(),
-		map[string]string{
-			oam.LabelAppConfigHash: specHashLabel,
-		}))
-
+// createOrUpdateAppContext will make sure the appContext points to the latest application revision
+// this will only be called in the case of no rollout,
+func (h *appHandler) createOrUpdateAppContext(ctx context.Context, owners []metav1.OwnerReference) error {
+	var curAppContext v1alpha2.ApplicationContext
 	// AC name is the same as the app name if there is no rollout
-	key := ctypes.NamespacedName{Name: h.app.Name, Namespace: h.app.Namespace}
-	if _, exist := h.app.GetAnnotations()[oam.AnnotationAppRollout]; exist || h.app.Spec.RolloutPlan != nil {
-		// the AC name follows the appRevision if there is rollout
-		key = ctypes.NamespacedName{Name: h.app.Status.LatestRevision.Name, Namespace: h.app.Namespace}
+	appContext := v1alpha2.ApplicationContext{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      h.app.Name,
+			Namespace: h.app.Namespace,
+		},
+		Spec: v1alpha2.ApplicationContextSpec{
+			// new AC always point to the latest app revision
+			ApplicationRevisionName: h.app.Status.LatestRevision.Name,
+		},
 	}
-	appConfig.Name = key.Name
-	if err := h.r.Get(ctx, key, &curAppConfig); err != nil {
+	appContext.SetOwnerReferences(owners)
+	// set the AC label and annotation
+	appLabel := h.app.GetLabels()
+	if appLabel == nil {
+		appLabel = make(map[string]string)
+	}
+	appLabel[oam.LabelAppRevisionHash] = h.app.Status.LatestRevision.RevisionHash
+	appContext.SetLabels(appLabel)
+	appContext.SetAnnotations(h.app.GetAnnotations())
+	key := ctypes.NamespacedName{Name: appContext.Name, Namespace: appContext.Namespace}
+
+	if err := h.r.Get(ctx, key, &curAppContext); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return err
 		}
-		h.logger.Info("create a new appConfig", "application name",
-			h.app.GetName(), "revision that does not exist", key.Name)
-		return h.r.Create(ctx, appConfig)
+		klog.InfoS("create a new appContext", "application name",
+			appContext.GetName(), "revision it points to", appContext.Spec.ApplicationRevisionName)
+		return h.r.Create(ctx, &appContext)
 	}
 
 	// we don't need to create another appConfig
-	h.logger.Info("replace the existing application config", "application name",
-		h.app.GetName(), "appConfig name", key.Name, "new hash value", specHashLabel)
-	appConfig.ResourceVersion = curAppConfig.ResourceVersion
-	return h.r.Update(ctx, appConfig)
+	klog.InfoS("replace the existing appContext", "application name", appContext.GetName(),
+		"revision it points to", appContext.Spec.ApplicationRevisionName)
+	appContext.ResourceVersion = curAppContext.ResourceVersion
+	return h.r.Update(ctx, &appContext)
 }
 
 func (h *appHandler) applyHelmModuleResources(ctx context.Context, comp *v1alpha2.Component, owners []metav1.OwnerReference) error {
