@@ -1,7 +1,0 @@
-domain: oam.dev
-repo: github.com/oam-dev/kubevela
-resources:
-- group: standard
-  kind: Route
-  version: v1alpha1
-version: "2"
