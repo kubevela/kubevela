@@ -312,3 +312,18 @@ jobs:
 
       - name: Check Diff
         run: make check-diff
+
+  build-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go 1.14
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.14
+        id: go
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+      - name: Run cross-build
+        run: make cross-build
+      - name: Run compress binary
+        run: make compress
