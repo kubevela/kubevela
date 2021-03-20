@@ -18,7 +18,7 @@ func main() {
 	tgz := archiver.NewTarGz()
 	defer tgz.Close()
 	var archiveDir, output string
-	flag.StringVar(&archiveDir, "path", "dashboard/dist", "specify frontend static file")
+	flag.StringVar(&archiveDir, "path", "references/dashboard/dist", "specify frontend static file")
 	flag.StringVar(&output, "output", "", "specify output dir, if not set, output base64 result of the gzip result")
 	flag.Parse()
 	var stdout bool
