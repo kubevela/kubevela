@@ -7,10 +7,8 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -36,11 +34,12 @@ func NewDashboardCommand(c types.Args, ioStreams cmdutil.IOStreams, frontendSour
 	var o Options
 	o.frontendSource = frontendSource
 	cmd := &cobra.Command{
-		Hidden:  true,
-		Use:     "dashboard",
-		Short:   "Setup API Server and launch Dashboard",
-		Long:    "Setup API Server and launch Dashboard",
-		Example: `dashboard`,
+		Hidden:     true,
+		Use:        "dashboard",
+		Short:      "Setup API Server and launch Dashboard",
+		Long:       "Setup API Server and launch Dashboard",
+		Example:    `dashboard`,
+		Deprecated: "vela dashboard is deprecated, it will only launch APIServer without dashboard",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return c.SetConfig()
 		},
@@ -198,23 +197,6 @@ func SetupAPIServer(c types.Args, cmd *cobra.Command, o Options) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	return server.Shutdown(ctx)
-}
-
-// OpenBrowser will open browser by url in different OS system
-// nolint:gosec
-func OpenBrowser(url string) error {
-	var err error
-	switch runtime.GOOS {
-	case "linux":
-		err = exec.Command("xdg-open", url).Start()
-	case "windows":
-		err = exec.Command("cmd", "/C", "start", url).Run()
-	case "darwin":
-		err = exec.Command("open", url).Start()
-	default:
-		err = fmt.Errorf("unsupported platform")
-	}
-	return err
 }
 
 // CheckVelaRuntimeInstalledAndReady checks whether vela-core runtime is installed and ready

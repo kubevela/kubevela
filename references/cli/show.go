@@ -7,8 +7,10 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -345,4 +347,21 @@ func showReferenceConsole(ctx context.Context, c types.Args, ioStreams cmdutil.I
 		ioStreams.Info("\n")
 	}
 	return nil
+}
+
+// OpenBrowser will open browser by url in different OS system
+// nolint:gosec
+func OpenBrowser(url string) error {
+	var err error
+	switch runtime.GOOS {
+	case "linux":
+		err = exec.Command("xdg-open", url).Start()
+	case "windows":
+		err = exec.Command("cmd", "/C", "start", url).Run()
+	case "darwin":
+		err = exec.Command("open", url).Start()
+	default:
+		err = fmt.Errorf("unsupported platform")
+	}
+	return err
 }

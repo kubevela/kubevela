@@ -23,18 +23,10 @@ jobs:
       - name: Get the version
         id: get_version
         run: echo ::set-output name=VERSION::${GITHUB_REF#refs/tags/}
-      - name: Use Node.js 10.x
-        uses: actions/setup-node@v1
-        with:
-          node-version: 12.x
-      - name: Run dashboard build
-        run: make dashboard-build
       - name: Tag helm chart image
         run:  |
           sed -i 's/latest/${{ steps.get_version.outputs.VERSION }}/g' charts/vela-core/values.yaml
           sed -i 's/0.1.0/${{ steps.get_version.outputs.VERSION }}/g' charts/vela-core/Chart.yaml
-      - name: Run generate-source
-        run: make generate-source
       - name: Run cross-build
         run: make cross-build
       - name: Run compress binary
