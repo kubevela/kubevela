@@ -11,6 +11,10 @@ import (
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 )
 
+func TestGetChartURL(t *testing.T) {
+
+}
+
 func TestRenderHelmReleaseAndHelmRepo(t *testing.T) {
 	h := testData()
 	chartValues := map[string]interface{}{

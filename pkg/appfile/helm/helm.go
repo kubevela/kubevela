@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pkg/errors"
+
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
@@ -23,16 +23,12 @@ var (
 
 // RenderHelmReleaseAndHelmRepo constructs HelmRelease and HelmRepository in unstructured format
 func RenderHelmReleaseAndHelmRepo(helmSpec *v1alpha2.Helm, compName, appName, ns string, values map[string]interface{}) (*unstructured.Unstructured, *unstructured.Unstructured, error) {
-	releaseSpec := &helmapi.HelmReleaseSpec{}
-	if err := json.Unmarshal(helmSpec.Release.Raw, releaseSpec); err != nil {
-		return nil, nil, err
+	releaseSpec, repoSpec, err := unmarshalHelmSpec(helmSpec)
+	if err != nil {
+		return nil, nil, errors.WithMessage(err, "Helm spec is invalid")
 	}
 	if releaseSpec.Interval == nil {
 		releaseSpec.Interval = DefaultIntervalDuration
-	}
-	repoSpec := &helmapi.HelmRepositorySpec{}
-	if err := json.Unmarshal(helmSpec.Repository.Raw, repoSpec); err != nil {
-		return nil, nil, err
 	}
 	if repoSpec.Interval == nil {
 		repoSpec.Interval = DefaultIntervalDuration
@@ -101,4 +97,16 @@ func setSpecObjIntoUnstructuredObj(spec interface{}, u *unstructured.Unstructure
 	}
 	_ = unstructured.SetNestedMap(u.Object, data, "spec")
 	return nil
+}
+
+func unmarshalHelmSpec(h *v1alpha2.Helm) (*helmapi.HelmReleaseSpec, *helmapi.HelmRepositorySpec, error) {
+	releaseSpec := &helmapi.HelmReleaseSpec{}
+	if err := json.Unmarshal(h.Release.Raw, releaseSpec); err != nil {
+		return nil, nil, errors.Wrap(err, "Helm release spec is invalid")
+	}
+	repoSpec := &helmapi.HelmRepositorySpec{}
+	if err := json.Unmarshal(h.Repository.Raw, repoSpec); err != nil {
+		return nil, nil, errors.Wrap(err, "Helm repository spec is invalid")
+	}
+	return releaseSpec, repoSpec, nil
 }

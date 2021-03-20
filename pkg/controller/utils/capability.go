@@ -33,6 +33,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile/helm"
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -105,7 +106,13 @@ func (def *CapabilityComponentDefinition) GetOpenAPISchema(ctx context.Context, 
 
 // StoreOpenAPISchema stores OpenAPI v3 schema in ConfigMap from WorkloadDefinition
 func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string) error {
-	jsonSchema, err := def.GetOpenAPISchema(ctx, k8sClient, namespace, name)
+	var jsonSchema []byte
+	var err error
+	if def.WorkloadType == util.HELMDef {
+		jsonSchema, err = helm.GetChartValuesJSONSchema(ctx, def.Helm)
+	} else {
+		jsonSchema, err = def.GetOpenAPISchema(ctx, k8sClient, namespace, name)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
 	}
