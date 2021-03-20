@@ -78,7 +78,6 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 		UID:        h.app.UID,
 		Controller: pointer.BoolPtr(true),
 	}}
-	ac.SetOwnerReferences(owners)
 	for _, comp := range comps {
 		comp.SetOwnerReferences(owners)
 		newComp := comp.DeepCopy()
@@ -107,6 +106,7 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 	if err != nil {
 		return errors.Wrap(err, "cannot generate a revision of the application")
 	}
+	appRev.SetOwnerReferences(owners)
 	if isNewRevision {
 		if err = h.r.Create(ctx, appRev); err != nil {
 			return err
@@ -119,7 +119,7 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 
 	// we only need to create appContext here if there is no rollout controller to take care of new versions
 	if _, exist := h.app.GetAnnotations()[oam.AnnotationAppRollout]; !exist && h.app.Spec.RolloutPlan == nil {
-		return h.createOrUpdateAppContext(ctx)
+		return h.createOrUpdateAppContext(ctx, owners)
 	}
 	return nil
 }
@@ -268,7 +268,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 
 // createOrUpdateAppContext will make sure the appContext points to the latest application revision
 // this will only be called in the case of no rollout,
-func (h *appHandler) createOrUpdateAppContext(ctx context.Context) error {
+func (h *appHandler) createOrUpdateAppContext(ctx context.Context, owners []metav1.OwnerReference) error {
 	var curAppContext v1alpha2.ApplicationContext
 	// AC name is the same as the app name if there is no rollout
 	appContext := v1alpha2.ApplicationContext{
@@ -281,6 +281,7 @@ func (h *appHandler) createOrUpdateAppContext(ctx context.Context) error {
 			ApplicationRevisionName: h.app.Status.LatestRevision.Name,
 		},
 	}
+	appContext.SetOwnerReferences(owners)
 	// set the AC label and annotation
 	appLabel := h.app.GetLabels()
 	if appLabel == nil {
