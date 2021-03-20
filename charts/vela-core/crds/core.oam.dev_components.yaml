@@ -130,7 +130,7 @@ spec:
                     format: int64
                     type: integer
                   revisionHash:
-                    description: RevisionHash record the hash value of the spec of ApplicationConfiguration object. We're going to deprecate that by using AppRevisionHash
+                    description: RevisionHash record the hash value of the spec of ApplicationRevision object.
                     type: string
                 required:
                 - name

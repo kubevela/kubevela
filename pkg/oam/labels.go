@@ -29,8 +29,8 @@ const (
 	LabelAppComponentRevision = "app.oam.dev/revision"
 	// LabelOAMResourceType whether a CR is workload or trait
 	LabelOAMResourceType = "app.oam.dev/resourceType"
-	// LabelAppConfigHash records the Hash value of the application configuration
-	LabelAppConfigHash = "app.oam.dev/appConfig-hash"
+	// LabelAppRevisionHash records the Hash value of the application revision
+	LabelAppRevisionHash = "app.oam.dev/app-revision-hash"
 
 	// WorkloadTypeLabel indicates the type of the workloadDefinition
 	WorkloadTypeLabel = "workload.oam.dev/type"

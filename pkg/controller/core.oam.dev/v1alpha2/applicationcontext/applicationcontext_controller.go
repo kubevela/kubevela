@@ -75,7 +75,10 @@ func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 	// copy the status
 	appConfig := appRevision.Spec.ApplicationConfiguration.DeepCopy()
 	appConfig.Status = appContext.Status
-	// call into the acReconciler and copy the status back
+	// the name of the appConfig has to be the same as the appContext
+	appConfig.Name = appContext.Name
+	appConfig.Namespace = appContext.Namespace
+	// call into the old ac Reconciler and copy the status back
 	acReconciler := ac.NewReconciler(r.mgr, dm, r.log, ac.WithRecorder(r.record), ac.WithApplyOnceOnlyMode(r.applyMode))
 	reconResult := acReconciler.ACReconcile(ctx, appConfig, r.log)
 	appContext.Status = appConfig.Status

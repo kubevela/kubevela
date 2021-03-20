@@ -25,6 +25,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // AppRevisionHash is used to compute the hash value of the AppRevision
@@ -83,6 +84,7 @@ func (h *appHandler) GenerateRevision(ctx context.Context, ac *v1alpha2.Applicat
 	if err != nil {
 		return false, nil, err
 	}
+	appRev.SetLabels(map[string]string{oam.LabelAppRevisionHash: appRevisionHash})
 
 	// check if the appRevision is different from the existing one
 	if h.app.Status.LatestRevision != nil && h.app.Status.LatestRevision.RevisionHash == appRevisionHash {
@@ -157,7 +159,8 @@ func DeepEqualRevision(old, new *v1alpha2.ApplicationRevision) bool {
 // ComputeAppRevisionHash computes a single hash value for an appRevision object
 func ComputeAppRevisionHash(appRevision *v1alpha2.ApplicationRevision) (string, error) {
 	// we first constructs a AppRevisionHash structure to store all the meaningful spec hashes
-	// to avoid computing the annotations
+	// and avoid computing the annotations. Those fields are all read from k8s already so their
+	// raw extension value are already byte array. Never include any in-memory objects.
 	appRevisionHash := AppRevisionHash{
 		WorkloadDefinitionHash:  make(map[string]string),
 		ComponentDefinitionHash: make(map[string]string),

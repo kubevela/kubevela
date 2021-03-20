@@ -352,8 +352,7 @@ type Revision struct {
 	Name     string `json:"name"`
 	Revision int64  `json:"revision"`
 
-	// RevisionHash record the hash value of the spec of ApplicationConfiguration object.
-	// We're going to deprecate that by using AppRevisionHash
+	// RevisionHash record the hash value of the spec of ApplicationRevision object.
 	RevisionHash string `json:"revisionHash,omitempty"`
 }
 
