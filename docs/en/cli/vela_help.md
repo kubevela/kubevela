@@ -1,20 +1,15 @@
-## vela up
+## vela help
 
-Apply an appfile
-
-### Synopsis
-
-Apply an appfile
+Help about any command
 
 ```
-vela up
+vela help [command] 
 ```
 
 ### Options
 
 ```
-  -f, -- string   specify file path for appfile
-  -h, --help      help for up
+  -h, --help   help for help
 ```
 
 ### Options inherited from parent commands
