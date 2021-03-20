@@ -86,9 +86,6 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 				"target", targetAppName)
 			return ctrl.Result{}, nil
 		}
-		klog.InfoS("rollout target changed, restart the rollout", "new source", sourceAppName,
-			"new target", targetAppName)
-		appRollout.Status.RolloutModified()
 	}
 	if appRollout.Status.LastUpgradedTargetAppRevision != targetAppName ||
 		appRollout.Status.LastSourceAppRevision != sourceAppName {
