@@ -90,7 +90,6 @@ const (
 	ComponentDef WorkloadType = "ComponentDef"
 
 	// HELMDef describe a workload refer to HELM
-	// TODO(yangsoon): we need store helm capability schema in configMap
 	HELMDef WorkloadType = "HelmDef"
 
 	// ReferWorkload describe an existing workload

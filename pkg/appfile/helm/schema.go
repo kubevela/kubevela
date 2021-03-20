@@ -33,7 +33,7 @@ var (
 // file.  If the Chart provides a 'values.json.schema' file, use it directly.
 // Otherwise, try to generate a JSON schema based on the Values file.
 func GetChartValuesJSONSchema(ctx context.Context, h *v1alpha2.Helm) ([]byte, error) {
-	releaseSpec, repoSpec, err := unmarshalHelmSpec(h)
+	releaseSpec, repoSpec, err := decodeHelmSpec(h)
 	if err != nil {
 		return nil, errors.WithMessage(err, "Helm spec is invalid")
 	}
@@ -42,23 +42,20 @@ func GetChartValuesJSONSchema(ctx context.Context, h *v1alpha2.Helm) ([]byte, er
 	if err != nil {
 		return nil, errors.WithMessage(err, "cannot load Chart files")
 	}
-	var values, jsonSchema *loader.BufferedFile
+	var values *loader.BufferedFile
 	for _, f := range files {
-		if f.Name == "values.yaml" || f.Name == "values.yml" {
+		switch f.Name {
+		case "values.yaml", "values.yml":
 			values = f
+		case "values.schema.json":
+			// use the JSON schema file if exists
+			return f.Data, nil
+		default:
 			continue
 		}
-		if f.Name == "values.schema.json" {
-			jsonSchema = f
-			continue
-		}
-	}
-	if jsonSchema != nil {
-		// use the JSON schema file if exists
-		return jsonSchema.Data, nil
 	}
 	if values == nil {
-		return nil, errors.New("cannot find JSON schema nor Values file in the Chart")
+		return nil, errors.New("cannot find 'values.schema.json' or 'values.yaml' file in the Chart")
 	}
 	// try to generate a schema based on Values file
 	generatedSchema, err := generateSchemaFromValues(values.Data)
@@ -188,16 +185,16 @@ func makeSwaggerCompatible(d []byte) ([]byte, error) {
 // handleItemsOfArrayType will convert all 'items' of array type from array to object
 // and remove enum in the items
 func handleItemsOfArrayType(t map[string]interface{}) {
+	for _, v := range t {
+		if next, ok := v.(map[string]interface{}); ok {
+			handleItemsOfArrayType(next)
+		}
+	}
 	if t["type"] == "array" {
 		if i, ok := t["items"].([]interface{}); ok {
 			itemSpec, _ := i[0].(map[string]interface{})
 			itemSpec["enum"] = nil
 			t["items"] = itemSpec
-		}
-	}
-	for _, v := range t {
-		if next, ok := v.(map[string]interface{}); ok {
-			handleItemsOfArrayType(next)
 		}
 	}
 }

@@ -1,6 +1,7 @@
 package helm
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/ghodss/yaml"
@@ -11,12 +12,8 @@ import (
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 )
 
-func TestGetChartURL(t *testing.T) {
-
-}
-
 func TestRenderHelmReleaseAndHelmRepo(t *testing.T) {
-	h := testData()
+	h := testData("podinfo", "1.0.0", "test.com")
 	chartValues := map[string]interface{}{
 		"image": map[string]interface{}{
 			"tag": "1.0.1",
@@ -65,13 +62,13 @@ func TestRenderHelmReleaseAndHelmRepo(t *testing.T) {
 	}
 }
 
-func testData() *v1alpha2.Helm {
-	rlsStr :=
+func testData(chart, version, repoURL string) *v1alpha2.Helm {
+	rlsStr := fmt.Sprintf(
 		`chart:
   spec:
-    chart: "podinfo"
-    version: "1.0.0"`
-	repoStr := `url: "test.com"`
+    chart: "%s"
+    version: "%s"`, chart, version)
+	repoStr := fmt.Sprintf(`url: "%s"`, repoURL)
 	rlsJson, _ := yaml.YAMLToJSON([]byte(rlsStr))
 	repoJson, _ := yaml.YAMLToJSON([]byte(repoStr))
 

@@ -68,8 +68,20 @@ spec:
           tag: "5.1.2"
 ```
 Helm module workload will use data in `settings` as [Helm chart values](https://github.com/captainroy-hy/podinfo/blob/master/charts/podinfo/values.yaml).
-Currently, you can learn the schema of settings by reading the `README.md` of the Helm chart, and the schema are totally align with [`values.yaml`](https://github.com/captainroy-hy/podinfo/blob/master/charts/podinfo/values.yaml) of the chart.
-We will integerate the values and generate it's [openapi-v3-json-schema](https://kubevela.io/#/en/platform-engineers/openapi-v3-json-schema.md) soon.
+You can learn the schema of settings by reading the `README.md` of the Helm
+chart, and the schema are totally align with
+[`values.yaml`](https://github.com/captainroy-hy/podinfo/blob/master/charts/podinfo/values.yaml)
+of the chart.  
+
+Helm v3 has [support to validate
+values](https://helm.sh/docs/topics/charts/#schema-files) in a chart's
+values.yaml file with JSON schemas.  
+Vela will try to fetch the `values.schema.json` file from the Chart archive and
+[save the schema into a
+ConfigMap](https://kubevela.io/#/en/platform-engineers/openapi-v3-json-schema.md)
+which can be consumed latter through UI or CLI.  
+If `values.schema.json` is not provided by the Chart author, Vela will generate a
+OpenAPI-v3 JSON schema based on the `values.yaml` file automatically.  
 
 Deploy the application and after several minutes (it takes time to fetch Helm chart from the repo, render and install), you can check the Helm release is installed.
 ```shell

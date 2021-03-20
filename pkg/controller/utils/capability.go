@@ -108,9 +108,10 @@ func (def *CapabilityComponentDefinition) GetOpenAPISchema(ctx context.Context, 
 func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string) error {
 	var jsonSchema []byte
 	var err error
-	if def.WorkloadType == util.HELMDef {
+	switch def.WorkloadType {
+	case util.HELMDef:
 		jsonSchema, err = helm.GetChartValuesJSONSchema(ctx, def.Helm)
-	} else {
+	default:
 		jsonSchema, err = def.GetOpenAPISchema(ctx, k8sClient, namespace, name)
 	}
 	if err != nil {

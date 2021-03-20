@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -23,7 +22,7 @@ var (
 
 // RenderHelmReleaseAndHelmRepo constructs HelmRelease and HelmRepository in unstructured format
 func RenderHelmReleaseAndHelmRepo(helmSpec *v1alpha2.Helm, compName, appName, ns string, values map[string]interface{}) (*unstructured.Unstructured, *unstructured.Unstructured, error) {
-	releaseSpec, repoSpec, err := unmarshalHelmSpec(helmSpec)
+	releaseSpec, repoSpec, err := decodeHelmSpec(helmSpec)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "Helm spec is invalid")
 	}
@@ -99,7 +98,7 @@ func setSpecObjIntoUnstructuredObj(spec interface{}, u *unstructured.Unstructure
 	return nil
 }
 
-func unmarshalHelmSpec(h *v1alpha2.Helm) (*helmapi.HelmReleaseSpec, *helmapi.HelmRepositorySpec, error) {
+func decodeHelmSpec(h *v1alpha2.Helm) (*helmapi.HelmReleaseSpec, *helmapi.HelmRepositorySpec, error) {
 	releaseSpec := &helmapi.HelmReleaseSpec{}
 	if err := json.Unmarshal(h.Release.Raw, releaseSpec); err != nil {
 		return nil, nil, errors.Wrap(err, "Helm release spec is invalid")
