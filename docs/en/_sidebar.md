@@ -6,26 +6,30 @@
   - [Installation](/en/install.md)
   - [Quick Start](/en/quick-start.md)
 
-- Application Abstraction
+- Platform Team Guide
+  - Application Abstraction
   - [Overview](/en/platform-engineers/overview.md)
   - [Application CRD](/en/application.md)
   - [Definition CRD](/en/platform-engineers/definition-and-templates.md)
 
-- Using CUE
+  - Using CUE
   - [Learning CUE](/en/cue/basic.md)
   - [Define Components](/en/cue/workload-type.md)
   - [Define Traits](/en/cue/trait.md)
   - [Advanced Features](/en/cue/status.md)
   - [Auto-generated Schema](/en/platform-engineers/openapi-v3-json-schema.md)
 
-- Using Helm
+  - Using Helm
   - [Define Components](/en/helm/component.md)
   - [Attach Traits](/en/helm/trait.md)
   - [Known Limitations](/en/helm/known-issues.md)
 
-- Developer Experience
+- End User Guide (Experimental)
+  - Appfile
   - [Overview](/en/quick-start-appfile.md)
   - [Learning Appfile](/en/developers/learn-appfile.md)
+
+  - Command Line Tool (CLI)
   - [Port Forwarding](/en/developers/port-forward.md)
   - [Check Application Logs](/en/developers/check-logs.md)
   - [Execute Commands in Container](/en/developers/exec-cmd.md)  
@@ -62,7 +66,8 @@
   - [vela template](/en/cli/vela_template.md)
   - [vela cap](/en/cli/vela_cap.md)
 
-- [Capability References](/en/developers/references/README.md)
+- Capability References
+  - [Overview](/en/developers/references/README.md)
   - [Web Service](/en/developers/references/workload-types/webservice.md)
   - [Task](/en/developers/references/workload-types/task.md)
   - [Worker](/en/developers/references/workload-types/worker.md)
