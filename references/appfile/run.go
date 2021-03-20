@@ -34,7 +34,10 @@ func CreateOrUpdateObjects(ctx context.Context, client client.Client, objects []
 		err := client.Get(ctx, key, u)
 		if err == nil {
 			obj.SetResourceVersion(u.GetResourceVersion())
-			return client.Update(ctx, obj)
+			if err = client.Update(ctx, obj); err != nil {
+				return err
+			}
+			continue
 		}
 		if !apierrors.IsNotFound(err) {
 			return err
