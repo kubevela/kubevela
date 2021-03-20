@@ -43,7 +43,7 @@ spec:
 
 ## Encapsulation
 
-With `Application` provides an abstraction to deploy apps, each *component* and *trait* specification in this application is actually enforced by another set of building block objects named *"definitions"*, for example, [`WorkloadDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#workload-definition) and [`TraitDefinition`](https://github.com/oam-dev/kubevela/tree/master/config/samples/application#scaler-trait-definition).
+With `Application` provides an abstraction to deploy apps, each *component* and *trait* specification in this application is actually enforced by another set of building block objects named *"definitions"*, for example, [`WorkloadDefinition`](https://github.com/oam-dev/kubevela/tree/master/docs/examplesapplication#workload-definition) and [`TraitDefinition`](https://github.com/oam-dev/kubevela/tree/master/docs/examplesapplication#scaler-trait-definition).
 
 Definitions are designed to leverage encapsulation technologies such as `CUE`, `Helm` and `Terraform modules` to template and parameterize Kubernetes resources as well as cloud services. This enables users to assemble templated capabilities (defined via Helm charts or CUE modules etc) into an `Application` by simply providing parameters, i.e. they only need to interact with an unified abstraction. Actually, in the `application-sample` above, it models a Kubernetes Deployment (component `foo`) to run container and a Alibaba Cloud OSS bucket (component `bar`) alongside.
 
