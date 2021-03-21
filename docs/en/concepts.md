@@ -25,7 +25,7 @@ Below are the core building blocks in KubeVela that make this happen.
 ## Application
 The *Application* is the core API of KubeVela. It allows developers to work with a single artifact to capture the complete application definition with simplified primitives.
 
-Having an "application" concept is important to for any app-centric platform to simplify administrative tasks and can serve as an anchor to avoid configuration drifts during operation. Also, as an abstraction object, `Application` provided a much simpler path for on-boarding Kubernetes capabilities without relying on low level details. For example, a developer will be able to model a "web service" without defining detailed Kubernetes Deployment + Service combo each time, or claim the auto-scaling requirements without referring to the underlying KEDA ScaleObject.
+Having an "application" concept is important to for any app-centric platform to simplify administrative tasks and can serve as an anchor to avoid configuration drifts during operation. Also, as an abstraction object, `Application` provides a much simpler path for on-boarding Kubernetes capabilities without relying on low level details. For example, a developer will be able to model a "web service" without defining a detailed Kubernetes Deployment + Service combo each time, or claim the auto-scaling requirements without referring to the underlying KEDA ScaleObject.
 
 An example of `website` application with two components (i.e. `frontend` and `backend`) could be modeled as below:
 
@@ -60,9 +60,9 @@ spec:
 
 ### Components
 
-For each of the components in `Application`, its `.type` field references the detailed definition of this component (such as its workload type, template, parameters etc), and `.settings` is the user input values to instantiate it. Some typical component types are *Long Running Web Service*, *One-time Off Task* or *Redis Database*.
+For each of the components in `Application`, its `.type` field references the detailed definition of this component (such as its workload type, template, parameters, etc.), and `.settings` are the user input values to instantiate it. Some typical component types are *Long Running Web Service*, *One-time Off Task* or *Redis Database*.
 
-All supported component types expected to be pre-installed in the platform, or, provided by component providers such as 3rd-party software owner.
+All supported component types expected to be pre-installed in the platform, or provided by component providers such as 3rd-party software vendors.
 
 ### Traits
 
@@ -79,7 +79,7 @@ Both the schemas of workload settings and trait properties in `Application` are 
 Specifically, definition object carries the templating information of this capability. Currently, KubeVela supports [Helm](http://helm.sh/) charts and [CUE](https://github.com/cuelang/cue) modules as definitions which means you could use KubeVela to deploy Helm charts and CUE modules as application components, or claim them as traits. More capability types support such as [Terraform](https://www.terraform.io/) is also work in progress.
 
 ## Environment
-Before releasing an application to production, it's important to test the code in testing/staging workspaces. In KubeVela, we describe these workspaces as "deployment environments" or "environments" for short. Each environment has its own configuration (e.g., domain, Kubernetes cluster and namespace, configuration data, access control policy etc.) to allow user to create different deployment environments such as "test" and "production".
+Before releasing an application to production, it's important to test the code in testing/staging workspaces. In KubeVela, we describe these workspaces as "deployment environments" or "environments" for short. Each environment has its own configuration (e.g., domain, Kubernetes cluster and namespace, configuration data, access control policy, etc.) to allow user to create different deployment environments such as "test" and "production".
 
 Currently, a KubeVela `environment` only maps to a Kubernetes namespace, while the cluster level environment is work in progress.
 
