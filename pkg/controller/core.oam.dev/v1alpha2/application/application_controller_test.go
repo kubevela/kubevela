@@ -43,6 +43,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationcontext"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -360,7 +361,10 @@ var _ = Describe("Test Application Controller", func() {
 		}, appRevision)).Should(BeNil())
 
 		gotTrait := unstructured.Unstructured{}
-		Expect(json.Unmarshal(appRevision.Spec.ApplicationConfiguration.Spec.Components[0].Traits[0].Trait.Raw,
+
+		ac, err := applicationcontext.ConvertRawExtention2AppConfig(appRevision.Spec.ApplicationConfiguration)
+		Expect(err).Should(BeNil())
+		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[0].Trait.Raw,
 			&gotTrait)).Should(BeNil())
 		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb3", app.Name)))
 
@@ -429,12 +433,16 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: app.Namespace,
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
+
 		Expect(appContext.Spec.ApplicationRevisionName).Should(Equal(appRevision.Name))
-		Expect(len(appRevision.Spec.ApplicationConfiguration.Spec.Components[0].Traits)).Should(BeEquivalentTo(2))
-		Expect(appRevision.Spec.ApplicationConfiguration.Spec.Components[0].ComponentName).Should(BeEmpty())
-		Expect(appRevision.Spec.ApplicationConfiguration.Spec.Components[0].RevisionName).ShouldNot(BeEmpty())
+
+		ac, err := applicationcontext.ConvertRawExtention2AppConfig(appRevision.Spec.ApplicationConfiguration)
+		Expect(err).Should(BeNil())
+		Expect(len(ac.Spec.Components[0].Traits)).Should(BeEquivalentTo(2))
+		Expect(ac.Spec.Components[0].ComponentName).Should(BeEmpty())
+		Expect(ac.Spec.Components[0].RevisionName).ShouldNot(BeEmpty())
 		// component create handler may create a v2 when it can't find v1
-		Expect(appRevision.Spec.ApplicationConfiguration.Spec.Components[0].RevisionName).Should(
+		Expect(ac.Spec.Components[0].RevisionName).Should(
 			SatisfyAny(BeEquivalentTo(utils.ConstructRevisionName(compName, 1)),
 				BeEquivalentTo(utils.ConstructRevisionName(compName, 2))))
 
@@ -460,13 +468,15 @@ var _ = Describe("Test Application Controller", func() {
 				},
 			},
 		}}
-		Expect(json.Unmarshal(appRevision.Spec.ApplicationConfiguration.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
+		ac, err = applicationcontext.ConvertRawExtention2AppConfig(appRevision.Spec.ApplicationConfiguration)
+		Expect(err).Should(BeNil())
+		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
 		fmt.Println(cmp.Diff(expectServiceTrait, gotTrait))
 		Expect(assert.ObjectsAreEqual(expectServiceTrait, gotTrait)).Should(BeTrue())
 
 		By("Check the second trait should be scaler")
 		gotTrait = unstructured.Unstructured{}
-		Expect(json.Unmarshal(appRevision.Spec.ApplicationConfiguration.Spec.Components[0].Traits[1].Trait.Raw, &gotTrait)).Should(BeNil())
+		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[1].Trait.Raw, &gotTrait)).Should(BeNil())
 		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb-composed-3", app.Name)))
 
 		By("Check component created as expected")
@@ -527,10 +537,12 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(appContext.Spec.ApplicationRevisionName).Should(Equal(appRevision.Name))
 
 		gotTrait := unstructured.Unstructured{}
-		Expect(json.Unmarshal(appRevision.Spec.ApplicationConfiguration.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
+		ac, err := applicationcontext.ConvertRawExtention2AppConfig(appRevision.Spec.ApplicationConfiguration)
+		Expect(err).Should(BeNil())
+		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
 		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb4", app.Name)))
 
-		Expect(appRevision.Spec.ApplicationConfiguration.Spec.Components[0].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
+		Expect(ac.Spec.Components[0].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
 			APIVersion: "core.oam.dev/v1alpha2",
 			Kind:       "HealthScope",
 			Name:       "appWithTraitAndScope-default-health",
@@ -595,15 +607,17 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(appContext.Spec.ApplicationRevisionName).Should(Equal(appRevision.Name))
 
 		gotTrait := unstructured.Unstructured{}
-		Expect(json.Unmarshal(appRevision.Spec.ApplicationConfiguration.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
+		ac, err := applicationcontext.ConvertRawExtention2AppConfig(appRevision.Spec.ApplicationConfiguration)
+		Expect(err).Should(BeNil())
+		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
 		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb5", app.Name)))
 
-		Expect(appRevision.Spec.ApplicationConfiguration.Spec.Components[0].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
+		Expect(ac.Spec.Components[0].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
 			APIVersion: "core.oam.dev/v1alpha2",
 			Kind:       "HealthScope",
 			Name:       "app-with-two-comp-default-health",
 		}))
-		Expect(appRevision.Spec.ApplicationConfiguration.Spec.Components[1].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
+		Expect(ac.Spec.Components[1].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
 			APIVersion: "core.oam.dev/v1alpha2",
 			Kind:       "HealthScope",
 			Name:       "app-with-two-comp-default-health",
@@ -667,15 +681,17 @@ var _ = Describe("Test Application Controller", func() {
 		}, appRevision)).Should(BeNil())
 		Expect(appContext.Spec.ApplicationRevisionName).Should(Equal(appRevision.Name))
 
-		Expect(json.Unmarshal(appRevision.Spec.ApplicationConfiguration.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
+		ac, err = applicationcontext.ConvertRawExtention2AppConfig(appRevision.Spec.ApplicationConfiguration)
+		Expect(err).Should(BeNil())
+		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
 		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb5", app.Name)))
 
-		Expect(appRevision.Spec.ApplicationConfiguration.Spec.Components[0].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
+		Expect(ac.Spec.Components[0].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
 			APIVersion: "core.oam.dev/v1alpha2",
 			Kind:       "HealthScope",
 			Name:       "app-with-two-comp-default-health",
 		}))
-		Expect(appRevision.Spec.ApplicationConfiguration.Spec.Components[1].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
+		Expect(ac.Spec.Components[1].Scopes[0].ScopeReference).Should(BeEquivalentTo(v1alpha1.TypedReference{
 			APIVersion: "core.oam.dev/v1alpha2",
 			Kind:       "HealthScope",
 			Name:       "app-with-two-comp-default-health",
@@ -752,7 +768,10 @@ var _ = Describe("Test Application Controller", func() {
 		}, appRevision)).Should(BeNil())
 		Expect(appContext.Spec.ApplicationRevisionName).Should(Equal(appRevision.Name))
 		gotTrait := unstructured.Unstructured{}
-		Expect(json.Unmarshal(appRevision.Spec.ApplicationConfiguration.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
+
+		ac, err := applicationcontext.ConvertRawExtention2AppConfig(appRevision.Spec.ApplicationConfiguration)
+		Expect(err).Should(BeNil())
+		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
 		Expect(gotTrait).Should(BeEquivalentTo(expTrait))
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
@@ -916,11 +935,13 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
 		Expect(component.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 		// check that the new appconfig has the correct annotation and labels
-		Expect(appRevision.Spec.ApplicationConfiguration.GetAnnotations()[oam.AnnotationAppRollout]).Should(Equal(strconv.FormatBool(true)))
-		Expect(appRevision.Spec.ApplicationConfiguration.GetAnnotations()["keep"]).Should(Equal("true"))
-		Expect(appRevision.Spec.ApplicationConfiguration.GetLabels()[oam.LabelAppRevisionHash]).ShouldNot(BeEmpty())
-		Expect(appRevision.Spec.ApplicationConfiguration.Spec.Components[0].ComponentName).Should(BeEmpty())
-		Expect(appRevision.Spec.ApplicationConfiguration.Spec.Components[0].RevisionName).Should(Equal(component.Status.LatestRevision.Name))
+		ac, err := applicationcontext.ConvertRawExtention2AppConfig(appRevision.Spec.ApplicationConfiguration)
+		Expect(err).Should(BeNil())
+		Expect(ac.GetAnnotations()[oam.AnnotationAppRollout]).Should(Equal(strconv.FormatBool(true)))
+		Expect(ac.GetAnnotations()["keep"]).Should(Equal("true"))
+		Expect(ac.GetLabels()[oam.LabelAppRevisionHash]).ShouldNot(BeEmpty())
+		Expect(ac.Spec.Components[0].ComponentName).Should(BeEmpty())
+		Expect(ac.Spec.Components[0].RevisionName).Should(Equal(component.Status.LatestRevision.Name))
 
 		By("Reconcile again to make sure we are not creating more appConfigs")
 		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})

@@ -591,13 +591,9 @@ func (in *ApplicationRevisionSpec) DeepCopyInto(out *ApplicationRevisionSpec) {
 	}
 	if in.Components != nil {
 		in, out := &in.Components, &out.Components
-		*out = make([]*Component, len(*in))
-		for i := range *in {
-			if (*in)[i] != nil {
-				in, out := &(*in)[i], &(*out)[i]
-				*out = new(Component)
-				(*in).DeepCopyInto(*out)
-			}
+		*out = make(map[string]Component, len(*in))
+		for key, val := range *in {
+			(*out)[key] = *val.DeepCopy()
 		}
 	}
 	in.ApplicationConfiguration.DeepCopyInto(&out.ApplicationConfiguration)

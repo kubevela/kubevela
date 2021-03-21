@@ -26,6 +26,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // AppRevisionHash is used to compute the hash value of the AppRevision
@@ -45,8 +46,8 @@ func (h *appHandler) GenerateRevision(ctx context.Context, ac *v1alpha2.Applicat
 	appRev := &v1alpha2.ApplicationRevision{
 		Spec: v1alpha2.ApplicationRevisionSpec{
 			Application:              *copiedApp,
-			Components:               comps,
-			ApplicationConfiguration: *ac,
+			Components:               convertComponentList2Map(comps),
+			ApplicationConfiguration: util.Object2RawExtension(ac),
 			ComponentDefinitions:     make(map[string]v1alpha2.ComponentDefinition),
 			WorkloadDefinitions:      make(map[string]v1alpha2.WorkloadDefinition),
 			TraitDefinitions:         make(map[string]v1alpha2.TraitDefinition),
@@ -116,6 +117,15 @@ func (h *appHandler) GenerateRevision(ctx context.Context, ac *v1alpha2.Applicat
 	h.logger.Info("recorded the latest appConfig revision", "application name", h.app.GetName(),
 		"latest revision", appRev.Name)
 	return true, appRev, nil
+}
+
+func convertComponentList2Map(comps []*v1alpha2.Component) map[string]v1alpha2.Component {
+	objs := map[string]v1alpha2.Component{}
+	for _, comp := range comps {
+		obj := comp.DeepCopy()
+		objs[comp.Name] = *obj
+	}
+	return objs
 }
 
 // DeepEqualRevision will check the Application and Definition to see if the Application is the same revision
