@@ -127,6 +127,7 @@ func createOrGetExisting(ctx context.Context, c client.Client, desired runtime.O
 
 	existing := &unstructured.Unstructured{}
 	existing.GetObjectKind().SetGroupVersionKind(desired.GetObjectKind().GroupVersionKind())
+
 	err := c.Get(ctx, types.NamespacedName{Name: m.GetName(), Namespace: m.GetNamespace()}, existing)
 	if kerrors.IsNotFound(err) {
 		return create()
