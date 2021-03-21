@@ -22,7 +22,7 @@ For platform builders, KubeVela serves as a framework that empowers them to crea
  
 - Extending Natively. An application in KubeVela is composed of various modularized components (named: services). Capabilities from Kubernetes ecosystem can be added to KubeVela as new workload types or traits through Kubernetes CRD registry mechanism at any time.
 
-- Simple yet Extensible Abstraction Mechanism. KubeVela introduced a templating engine (supports [CUELang](https://github.com/cuelang/cue) and more) to abstract user-facing schemas from the underline Kubernetes resources. KubeVela provides a set of built-in abstractions to start with and the platform builders are free to modify them at any time. Abstraction changes take effect at runtime, neither recompilation nor redeployment of KubeVela is required.
+- Simple yet Extensible Abstraction Mechanism. KubeVela introduced a templating engine (supports [CUELang](https://github.com/cuelang/cue) and more) to abstract user-facing schemas from the underlying Kubernetes resources. KubeVela provides a set of built-in abstractions to start with and the platform builders are free to modify them at any time. Abstraction changes take effect at runtime, neither recompilation nor redeployment of KubeVela is required.
   
 With KubeVela, platform builders now finally have the tooling support to design and ship any new capabilities to their end-users with high confidence and low turn around time. 
 
