@@ -46,6 +46,8 @@ const (
 	UsageTag = "+usage="
 	// ShortTag is the short alias annotation
 	ShortTag = "+short"
+	// K8sSecretSchemaTag marks the value should be set as an context
+	K8sSecretSchemaTag = "+k8sSecretSchema="
 )
 
 // CapabilityDefinitionInterface is the interface for Capability (WorkloadDefinition and TraitDefinition)
@@ -287,15 +289,11 @@ func getOpenAPISchema(capability types.Capability) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	swagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromData(openAPISchema)
+
+	schema, err := ConvertOpenAPISchema2SwaggerObject(openAPISchema)
 	if err != nil {
 		return nil, err
 	}
-	schemaRef := swagger.Components.Schemas["parameter"]
-	if schemaRef == nil {
-		return nil, fmt.Errorf(util.ErrGenerateOpenAPIV2JSONSchemaForCapability, capability.Name, nil)
-	}
-	schema := schemaRef.Value
 	fixOpenAPISchema("", schema)
 
 	parameter, err := schema.MarshalJSON()
@@ -307,8 +305,12 @@ func getOpenAPISchema(capability types.Capability) ([]byte, error) {
 
 // generateOpenAPISchemaFromCapabilityParameter returns the parameter of a definition in cue.Value format
 func generateOpenAPISchemaFromCapabilityParameter(capability types.Capability) ([]byte, error) {
-	name := capability.Name
-	template, err := prepareParameterCue(name, capability.CueTemplate)
+	return GenerateOpenAPISchemaFromDefinition(capability.Name, capability.CueTemplate)
+}
+
+// GenerateOpenAPISchemaFromDefinition returns the parameter of a definition
+func GenerateOpenAPISchemaFromDefinition(definitionName, cueTemplate string) ([]byte, error) {
+	template, err := prepareParameterCue(definitionName, cueTemplate)
 	if err != nil {
 		return nil, err
 	}
@@ -370,4 +372,17 @@ func fixOpenAPISchema(name string, schema *openapi3.Schema) {
 		description = strings.TrimSpace(description)
 	}
 	schema.Description = description
+}
+
+// ConvertOpenAPISchema2SwaggerObject converts OpenAPI v2 JSON schema to Swagger Object
+func ConvertOpenAPISchema2SwaggerObject(data []byte) (*openapi3.Schema, error) {
+	swagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromData(data)
+	if err != nil {
+		return nil, err
+	}
+	schemaRef := swagger.Components.Schemas["parameter"]
+	if schemaRef == nil {
+		return nil, errors.New(util.ErrGenerateOpenAPIV2JSONSchemaForCapability)
+	}
+	return schemaRef.Value, nil
 }

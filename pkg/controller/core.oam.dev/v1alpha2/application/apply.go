@@ -170,27 +170,39 @@ func (h *appHandler) createOrUpdateAppRevision(ctx context.Context, appRev *v1be
 	return h.r.Update(ctx, appRev)
 }
 
-func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]common.ApplicationComponentStatus, bool, error) {
+func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.ApplicationComponentStatus, bool, error) {
 	var appStatus []common.ApplicationComponentStatus
 	var healthy = true
-	for _, wl := range appfile.Workloads {
+	for _, wl := range appFile.Workloads {
 		var status = common.ApplicationComponentStatus{
 			Name:    wl.Name,
 			Healthy: true,
 		}
-		pCtx := process.NewContext(wl.Name, appfile.Name, appfile.RevisionName)
+
+		var (
+			outputSecretName string
+			err              error
+		)
+		if wl.IsCloudResourceProducer() {
+			outputSecretName, err = appfile.SetOutputSecretNames(wl)
+			if err != nil {
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, setting outputSecretName error", appFile.Name, wl.Name)
+			}
+		}
+
+		pCtx := process.NewContext(h.app.Namespace, wl.Name, appFile.Name, appFile.RevisionName, outputSecretName, wl.RequiredSecrets)
 		if err := wl.EvalContext(pCtx); err != nil {
-			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate context error", appfile.Name, wl.Name)
+			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate context error", appFile.Name, wl.Name)
 		}
 		for _, tr := range wl.Traits {
 			if err := tr.EvalContext(pCtx); err != nil {
-				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate context error", appfile.Name, wl.Name, tr.Name)
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate context error", appFile.Name, wl.Name, tr.Name)
 			}
 		}
 
 		workloadHealth, err := wl.EvalHealth(pCtx, h.r, h.app.Namespace)
 		if err != nil {
-			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appfile.Name, wl.Name)
+			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appFile.Name, wl.Name)
 		}
 		if !workloadHealth {
 			// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
@@ -200,7 +212,7 @@ func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]common.Applica
 
 		status.Message, err = wl.EvalStatus(pCtx, h.r, h.app.Namespace)
 		if err != nil {
-			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appfile.Name, wl.Name)
+			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appFile.Name, wl.Name)
 		}
 		var traitStatusList []common.ApplicationTraitStatus
 		for _, trait := range wl.Traits {
@@ -210,7 +222,7 @@ func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]common.Applica
 			}
 			traitHealth, err := trait.EvalHealth(pCtx, h.r, h.app.Namespace)
 			if err != nil {
-				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, check health error", appfile.Name, wl.Name, trait.Name)
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, check health error", appFile.Name, wl.Name, trait.Name)
 			}
 			if !traitHealth {
 				// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
@@ -219,7 +231,7 @@ func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]common.Applica
 			}
 			traitStatus.Message, err = trait.EvalStatus(pCtx, h.r, h.app.Namespace)
 			if err != nil {
-				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appfile.Name, wl.Name, trait.Name)
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appFile.Name, wl.Name, trait.Name)
 			}
 			traitStatusList = append(traitStatusList, traitStatus)
 		}
