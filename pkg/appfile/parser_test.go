@@ -37,6 +37,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -243,7 +244,7 @@ var _ = Describe("Test application parser", func() {
 			},
 		}
 
-		appfile, err := NewApplicationParser(&tclient, nil).GenerateAppFile(context.TODO(), "test", &o)
+		appfile, err := NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), "test", &o)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		Expect(equal(expectedExceptApp, appfile)).Should(BeTrue())
@@ -279,26 +280,28 @@ func equal(af, dest *Appfile) bool {
 }
 
 var _ = Describe("Test appFile parser", func() {
-	// TestApp is test data
-	var TestApp = &Appfile{
-		Name: "test",
-		Workloads: []*Workload{
-			{
-				Name: "myweb",
-				Type: "worker",
-				Params: map[string]interface{}{
-					"image":  "busybox",
-					"cmd":    []interface{}{"sleep", "1000"},
-					"config": "myconfig",
-				},
-				Scopes: []Scope{
-					{Name: "test-scope", GVK: schema.GroupVersionKind{
-						Group:   "core.oam.dev",
-						Version: "v1alpha2",
-						Kind:    "HealthScope",
-					}},
-				},
-				Template: `
+	It("application without-trait will only create appfile with workload", func() {
+		// TestApp is test data
+		var TestApp = &Appfile{
+			Name: "test",
+			Workloads: []*Workload{
+				{
+					Name: "myweb",
+					Type: "worker",
+					Params: map[string]interface{}{
+						"image":  "busybox",
+						"cmd":    []interface{}{"sleep", "1000"},
+						"config": "myconfig",
+					},
+					Scopes: []Scope{
+						{Name: "test-scope", GVK: schema.GroupVersionKind{
+							Group:   "core.oam.dev",
+							Version: "v1alpha2",
+							Kind:    "HealthScope",
+						}},
+					},
+					engine: definition.NewWorkloadAbstractEngine("myweb", pd),
+					Template: `
       output: {
         apiVersion: "apps/v1"
       	kind:       "Deployment"
@@ -340,13 +343,14 @@ var _ = Describe("Test appFile parser", func() {
       
       	cmd?: [...string]
       }`,
-				Traits: []*Trait{
-					{
-						Name: "scaler",
-						Params: map[string]interface{}{
-							"replicas": float64(10),
-						},
-						Template: `
+					Traits: []*Trait{
+						{
+							Name: "scaler",
+							Params: map[string]interface{}{
+								"replicas": float64(10),
+							},
+							engine: definition.NewTraitAbstractEngine("scaler", pd),
+							Template: `
       outputs: scaler: {
       	apiVersion: "core.oam.dev/v1alpha2"
       	kind:       "ManualScalerTrait"
@@ -359,19 +363,17 @@ var _ = Describe("Test appFile parser", func() {
       	replicas: *1 | int
       }
 `,
+						},
 					},
 				},
 			},
-		},
-	}
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{Name: "kubevela-test-myweb-myconfig", Namespace: "default"},
-		Data:       map[string]string{"c1": "v1", "c2": "v2"},
-	}
-
-	It("application without-trait will only create appfile with workload", func() {
+		}
+		cm := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: "kubevela-test-myweb-myconfig", Namespace: "default"},
+			Data:       map[string]string{"c1": "v1", "c2": "v2"},
+		}
 		Expect(k8sClient.Create(context.Background(), cm.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		ac, components, err := NewApplicationParser(k8sClient, nil).GenerateApplicationConfiguration(TestApp, "default")
+		ac, components, err := NewApplicationParser(k8sClient, dm, pd).GenerateApplicationConfiguration(TestApp, "default")
 		Expect(err).To(BeNil())
 		manuscaler := util.Object2RawExtension(&unstructured.Unstructured{
 			Object: map[string]interface{}{
@@ -498,25 +500,29 @@ var _ = Describe("Test appfile parser to parse helm module", func() {
 		appName  = "test-app"
 		compName = "test-comp"
 	)
-	appFile := &Appfile{
-		Name: appName,
-		Workloads: []*Workload{
-			{
-				Name:               compName,
-				Type:               "webapp-chart",
-				CapabilityCategory: oamtypes.HelmCategory,
-				Params: map[string]interface{}{
-					"image": map[string]interface{}{
-						"tag": "5.1.2",
-					},
-				},
-				Traits: []*Trait{
-					{
-						Name: "scaler",
-						Params: map[string]interface{}{
-							"replicas": float64(10),
+
+	It("Test application containing helm module", func() {
+		appFile := &Appfile{
+			Name: appName,
+			Workloads: []*Workload{
+				{
+					Name:               compName,
+					Type:               "webapp-chart",
+					CapabilityCategory: oamtypes.HelmCategory,
+					Params: map[string]interface{}{
+						"image": map[string]interface{}{
+							"tag": "5.1.2",
 						},
-						Template: `
+					},
+					engine: definition.NewWorkloadAbstractEngine(compName, pd),
+					Traits: []*Trait{
+						{
+							Name: "scaler",
+							Params: map[string]interface{}{
+								"replicas": float64(10),
+							},
+							engine: definition.NewTraitAbstractEngine("scaler", pd),
+							Template: `
       outputs: scaler: {
       	apiVersion: "core.oam.dev/v1alpha2"
       	kind:       "ManualScalerTrait"
@@ -529,32 +535,30 @@ var _ = Describe("Test appfile parser to parse helm module", func() {
       	replicas: *1 | int
       }
 `,
+						},
+					},
+					Helm: &v1alpha2.Helm{
+						Release: util.Object2RawExtension(map[string]interface{}{
+							"chart": map[string]interface{}{
+								"spec": map[string]interface{}{
+									"chart":   "podinfo",
+									"version": "5.1.4",
+								},
+							},
+						}),
+						Repository: util.Object2RawExtension(map[string]interface{}{
+							"url": "http://oam.dev/catalog/",
+						}),
+					},
+					DefinitionReference: v1alpha2.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
 					},
 				},
-				Helm: &v1alpha2.Helm{
-					Release: util.Object2RawExtension(map[string]interface{}{
-						"chart": map[string]interface{}{
-							"spec": map[string]interface{}{
-								"chart":   "podinfo",
-								"version": "5.1.4",
-							},
-						},
-					}),
-					Repository: util.Object2RawExtension(map[string]interface{}{
-						"url": "http://oam.dev/catalog/",
-					}),
-				},
-				DefinitionReference: v1alpha2.WorkloadGVK{
-					APIVersion: "apps/v1",
-					Kind:       "Deployment",
-				},
 			},
-		},
-	}
-
-	It("Test application containing helm module", func() {
+		}
 		By("Generate ApplicationConfiguration and Components")
-		ac, components, err := NewApplicationParser(k8sClient, dm).GenerateApplicationConfiguration(appFile, "default")
+		ac, components, err := NewApplicationParser(k8sClient, dm, pd).GenerateApplicationConfiguration(appFile, "default")
 		Expect(err).To(BeNil())
 
 		manuscaler := util.Object2RawExtension(&unstructured.Unstructured{

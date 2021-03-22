@@ -13,7 +13,7 @@ import (
 func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1alpha2.Application) field.ErrorList {
 	var componentErrs field.ErrorList
 	// try to generate an app file
-	appParser := appfile.NewApplicationParser(h.Client, h.dm)
+	appParser := appfile.NewApplicationParser(h.Client, h.dm, h.pd)
 	if _, err := appParser.GenerateAppFile(ctx, app.Name, app); err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), app, err.Error()))
 	}

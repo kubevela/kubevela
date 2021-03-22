@@ -8,9 +8,11 @@ spec:
   schematic:
     cue:
       template: |
+        import (
+           apps "kube/apps/v1"
+        )
+        output: apps.#Deployment
         output: {
-        	apiVersion: "apps/v1"
-        	kind:       "Deployment"
         	spec: {
         		selector: matchLabels: {
         			"app.oam.dev/component": context.name

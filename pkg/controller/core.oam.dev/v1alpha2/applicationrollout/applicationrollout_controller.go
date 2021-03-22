@@ -2,7 +2,6 @@ package applicationrollout
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"time"
 
@@ -220,14 +219,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // Setup adds a controller that reconciles AppRollout.
-func Setup(mgr ctrl.Manager, _ controller.Args, _ logging.Logger) error {
-	dm, err := discoverymapper.New(mgr.GetConfig())
-	if err != nil {
-		return fmt.Errorf("create discovery dm fail %w", err)
-	}
+func Setup(mgr ctrl.Manager, args controller.Args, _ logging.Logger) error {
 	reconciler := Reconciler{
 		Client: mgr.GetClient(),
-		dm:     dm,
+		dm:     args.DiscoveryMapper,
 		Scheme: mgr.GetScheme(),
 	}
 	return reconciler.SetupWithManager(mgr)

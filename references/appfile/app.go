@@ -12,12 +12,13 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 	"github.com/oam-dev/kubevela/references/appfile/template"
 )
 
 // NewEmptyApplication new empty application, only set tm
-func NewEmptyApplication(namespace string, c types.Args) (*api.Application, error) {
+func NewEmptyApplication(namespace string, c common.Args) (*api.Application, error) {
 	tm, err := template.Load(namespace, c)
 	if err != nil {
 		return nil, err
@@ -54,7 +55,7 @@ func Validate(app *api.Application) error {
 }
 
 // LoadApplication will load application from cluster.
-func LoadApplication(namespace, appName string, c types.Args) (*v1alpha2.Application, error) {
+func LoadApplication(namespace, appName string, c common.Args) (*v1alpha2.Application, error) {
 	newClient, err := c.GetClient()
 	if err != nil {
 		return nil, err

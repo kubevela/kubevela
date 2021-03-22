@@ -5,11 +5,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+
 	"github.com/pkg/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
@@ -18,11 +19,11 @@ type APIServer struct {
 	server     *http.Server
 	KubeClient client.Client
 	dm         discoverymapper.DiscoveryMapper
-	c          types.Args
+	c          common.Args
 }
 
 // New will create APIServer
-func New(c types.Args, port, staticPath string) (*APIServer, error) {
+func New(c common.Args, port, staticPath string) (*APIServer, error) {
 	newClient, err := c.GetClient()
 	if err != nil {
 		return nil, err

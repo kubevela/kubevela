@@ -37,7 +37,7 @@ type VelaPortForwardOptions struct {
 	ioStreams util.IOStreams
 
 	context.Context
-	VelaC types.Args
+	VelaC common.Args
 	Env   *types.EnvMeta
 	App   *v1alpha2.Application
 
@@ -49,7 +49,7 @@ type VelaPortForwardOptions struct {
 }
 
 // NewPortForwardCommand is vela port-forward command
-func NewPortForwardCommand(c types.Args, ioStreams util.IOStreams) *cobra.Command {
+func NewPortForwardCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 	o := &VelaPortForwardOptions{
 		ioStreams: ioStreams,
 		kcPortForwardOptions: &cmdpf.PortForwardOptions{

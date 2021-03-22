@@ -122,5 +122,39 @@ output: {
 	assert.Error(t, err)
 	var expnil *unstructured.Unstructured
 	assert.Equal(t, expnil, data)
+}
 
+func TestError(t *testing.T) {
+	ins := &instance{
+		v: ``,
+	}
+	_, err := ins.Unstructured()
+	assert.Equal(t, err.Error(), "Object 'Kind' is missing in '{}'")
+	ins = &instance{
+		v: `
+apiVersion: "apps/v1"
+kind:       "Deployment"
+metadata: name: parameter.name
+`,
+	}
+	_, err = ins.Unstructured()
+	assert.Equal(t, err.Error(), `metadata.name: reference "parameter" not found`)
+	ins = &instance{
+		v: `
+apiVersion: "apps/v1"
+kind:       "Deployment"
+metadata: name: "abc"
+`,
+	}
+	obj, err := ins.Unstructured()
+	assert.Equal(t, err, nil)
+	assert.Equal(t, obj, &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata": map[string]interface{}{
+				"name": "abc",
+			},
+		},
+	})
 }

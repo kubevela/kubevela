@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+
 	"github.com/mholt/archiver/v3"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap/zapcore"
@@ -30,7 +32,7 @@ import (
 )
 
 // NewDashboardCommand creates `dashboard` command and its nested children commands
-func NewDashboardCommand(c types.Args, ioStreams cmdutil.IOStreams, frontendSource string) *cobra.Command {
+func NewDashboardCommand(c common.Args, ioStreams cmdutil.IOStreams, frontendSource string) *cobra.Command {
 	var o Options
 	o.frontendSource = frontendSource
 	cmd := &cobra.Command{
@@ -140,7 +142,7 @@ func (o *Options) GetStaticPath() error {
 }
 
 // SetupAPIServer starts a RESTfulAPI server
-func SetupAPIServer(c types.Args, cmd *cobra.Command, o Options) error {
+func SetupAPIServer(c common.Args, cmd *cobra.Command, o Options) error {
 	// setup logging
 	var w io.Writer
 	if len(o.logFilePath) > 0 {

@@ -84,10 +84,6 @@ const (
 
 // Setup adds a controller that reconciles ApplicationConfigurations.
 func Setup(mgr ctrl.Manager, args core.Args, l logging.Logger) error {
-	dm, err := discoverymapper.New(mgr.GetConfig())
-	if err != nil {
-		return fmt.Errorf("create discovery dm fail %w", err)
-	}
 	name := "oam/" + strings.ToLower(v1alpha2.ApplicationConfigurationGroupKind)
 
 	return ctrl.NewControllerManagedBy(mgr).
@@ -99,7 +95,7 @@ func Setup(mgr ctrl.Manager, args core.Args, l logging.Logger) error {
 			RevisionLimit:         args.RevisionLimit,
 			CustomRevisionHookURL: args.CustomRevisionHookURL,
 		}).
-		Complete(NewReconciler(mgr, dm,
+		Complete(NewReconciler(mgr, args.DiscoveryMapper,
 			l.WithValues("controller", name),
 			WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
 			WithApplyOnceOnlyMode(args.ApplyMode)))

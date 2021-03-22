@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
@@ -28,7 +29,7 @@ type appInitOptions struct {
 	client client.Client
 	cmdutil.IOStreams
 	Env *types.EnvMeta
-	c   types.Args
+	c   common2.Args
 
 	app          *api.Application
 	appName      string
@@ -38,7 +39,7 @@ type appInitOptions struct {
 }
 
 // NewInitCommand creates `init` command
-func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewInitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	o := &appInitOptions{IOStreams: ioStreams, c: c}
 	cmd := &cobra.Command{
 		Use:                   "init",

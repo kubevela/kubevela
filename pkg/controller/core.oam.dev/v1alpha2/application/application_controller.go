@@ -18,7 +18,6 @@ package application
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
@@ -48,6 +47,7 @@ const RolloutReconcileWaitTime = time.Second * 3
 type Reconciler struct {
 	client.Client
 	dm         discoverymapper.DiscoveryMapper
+	pd         *definition.PackageDiscover
 	Log        logr.Logger
 	Scheme     *runtime.Scheme
 	applicator apply.Applicator
@@ -89,7 +89,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	applog.Info("parse template")
 	// parse template
-	appParser := appfile.NewApplicationParser(r.Client, r.dm)
+	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
 
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
 	generatedAppfile, err := appParser.GenerateAppFile(ctx, app.Name, app)
@@ -175,19 +175,13 @@ func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1alpha2.Application
 }
 
 // Setup adds a controller that reconciles AppRollout.
-func Setup(mgr ctrl.Manager, _ core.Args, _ logging.Logger) error {
-	dm, err := discoverymapper.New(mgr.GetConfig())
-	if err := definition.AddKubeCUEPackagesFromCluster(mgr.GetConfig()); err != nil {
-		ctrl.Log.Error(err, "use kubernetes cluster openAPI as rendering package")
-	}
-	if err != nil {
-		return fmt.Errorf("create discovery dm fail %w", err)
-	}
+func Setup(mgr ctrl.Manager, args core.Args, _ logging.Logger) error {
 	reconciler := Reconciler{
 		Client:     mgr.GetClient(),
 		Log:        ctrl.Log.WithName("Application"),
 		Scheme:     mgr.GetScheme(),
-		dm:         dm,
+		dm:         args.DiscoveryMapper,
+		pd:         args.PackageDiscover,
 		applicator: apply.NewAPIApplicator(mgr.GetClient()),
 	}
 	return reconciler.SetupWithManager(mgr)

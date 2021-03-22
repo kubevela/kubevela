@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -35,8 +33,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
+	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -154,12 +153,7 @@ func (h *MutatingHandler) InjectDecoder(d *admission.Decoder) error {
 }
 
 // RegisterMutatingHandler will register component mutation handler to the webhook
-func RegisterMutatingHandler(mgr manager.Manager) error {
-	mapper, err := discoverymapper.New(mgr.GetConfig())
-	if err != nil {
-		return err
-	}
+func RegisterMutatingHandler(mgr manager.Manager, args controller.Args) {
 	server := mgr.GetWebhookServer()
-	server.Register("/mutating-core-oam-dev-v1alpha2-components", &webhook.Admission{Handler: &MutatingHandler{Mapper: mapper}})
-	return nil
+	server.Register("/mutating-core-oam-dev-v1alpha2-components", &webhook.Admission{Handler: &MutatingHandler{Mapper: args.DiscoveryMapper}})
 }

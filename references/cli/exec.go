@@ -38,7 +38,7 @@ type VelaExecOptions struct {
 	ServiceName string
 
 	context.Context
-	VelaC types.Args
+	VelaC common.Args
 	Env   *types.EnvMeta
 	App   *v1alpha2.Application
 
@@ -48,7 +48,7 @@ type VelaExecOptions struct {
 }
 
 // NewExecCommand creates `exec` command
-func NewExecCommand(c types.Args, ioStreams util.IOStreams) *cobra.Command {
+func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 	o := &VelaExecOptions{
 		kcExecOptions: &cmdexec.ExecOptions{
 			StreamOptions: cmdexec.StreamOptions{

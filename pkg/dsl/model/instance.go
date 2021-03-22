@@ -1,6 +1,12 @@
 package model
 
 import (
+	"strings"
+
+	"github.com/pkg/errors"
+
+	"cuelang.org/go/cue/build"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
@@ -34,28 +40,31 @@ func (inst *instance) IsBase() bool {
 }
 
 func (inst *instance) Compile() ([]byte, error) {
+	bi := build.NewContext().NewInstance("", nil)
+	err := bi.AddFile("-", inst.v)
+	if err != nil {
+		return nil, err
+	}
 	var r cue.Runtime
-	cueInst, err := r.Compile("-", inst.v)
+	it, err := r.Build(bi)
 	if err != nil {
 		return nil, err
 	}
 	// compiled object should be final and concrete value
-	if err := cueInst.Value().Validate(cue.Concrete(true), cue.Final()); err != nil {
-		return nil, err
+	if err := it.Value().Validate(cue.Concrete(true), cue.Final()); err != nil {
+		return nil, it.Err
 	}
-	return cueInst.Value().MarshalJSON()
+	return it.Value().MarshalJSON()
 }
 
 // Unstructured convert cue values to unstructured.Unstructured
-// TODO(wonderflow): will it be better if we try to decode it to concrete object(such as K8s Deployment) by using runtime.Schema?ß
+// TODO(wonderflow): will it be better if we try to decode it to concrete object(such as K8s Deployment) by using runtime.Schema?
 func (inst *instance) Unstructured() (*unstructured.Unstructured, error) {
 	jsonv, err := inst.Compile()
 	if err != nil {
 		return nil, err
 	}
-
 	o := &unstructured.Unstructured{}
-
 	if err := o.UnmarshalJSON(jsonv); err != nil {
 		return nil, err
 	}
@@ -107,7 +116,13 @@ func openPrint(v cue.Value) (string, error) {
 	}
 
 	ret, err := format.Node(f)
-	return string(ret), err
+	if err != nil {
+		return "", err
+	}
+	if strings.Contains(string(ret), "_|_") {
+		return "", errors.New(string(ret))
+	}
+	return string(ret), nil
 }
 
 func listOpen(expr ast.Node) {

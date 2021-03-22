@@ -107,8 +107,8 @@ parameter: {
 
 	for _, v := range testCases {
 		ctx := process.NewContext("test", "myapp", "myapp-v1")
-		wt := NewWorkloadAbstractEngine("testworkload")
-		assert.NoError(t, wt.Params(v.params).Complete(ctx, v.workloadTemplate))
+		wt := NewWorkloadAbstractEngine("testworkload", &PackageDiscover{})
+		assert.NoError(t, wt.Complete(ctx, v.workloadTemplate, v.params))
 		base, assists := ctx.Output()
 		assert.Equal(t, len(v.expAssObjs), len(assists))
 		assert.NotNil(t, base)
@@ -432,6 +432,70 @@ parameter: {
 				"t3ingress": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "networking.k8s.io/v1beta1", "kind": "Ingress", "labels": map[string]interface{}{"config": "enemies-data"}, "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"rules": []interface{}{map[string]interface{}{"host": "example.com", "http": map[string]interface{}{"paths": []interface{}{map[string]interface{}{"backend": map[string]interface{}{"serviceName": "test", "servicePort": int64(1080)}, "path": "ping"}}}}}}}},
 			},
 		},
+		"outputs trait with schema": {
+			traitTemplate: `
+#Service:{
+  apiVersion: string
+  kind: string
+}
+#Ingress:{
+  apiVersion: string
+  kind: string
+}
+outputs:{
+  service: #Service
+  ingress: #Ingress
+}
+outputs: service: {
+	apiVersion: "v1"
+    kind: "Service"
+}
+outputs: ingress: {
+	apiVersion: "extensions/v1beta1"
+    kind: "Ingress"
+}
+parameter: {
+	type: string
+	host: string
+}`,
+			params: map[string]interface{}{
+				"type": "ClusterIP",
+				"host": "example.com",
+			},
+			expWorkload: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "apps/v1",
+					"kind":       "Deployment",
+					"spec": map[string]interface{}{
+						"replicas": int64(2),
+						"selector": map[string]interface{}{
+							"matchLabels": map[string]interface{}{
+								"app.oam.dev/component": "test"}},
+						"template": map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{"app.oam.dev/component": "test"},
+							},
+							"spec": map[string]interface{}{
+								"containers": []interface{}{map[string]interface{}{
+									"envFrom": []interface{}{map[string]interface{}{
+										"configMapRef": map[string]interface{}{"name": "testgame-config"},
+									}},
+									"image": "website:0.1",
+									"name":  "main",
+									"ports": []interface{}{map[string]interface{}{"containerPort": int64(443)}}}}}}}},
+			},
+			traitName: "t2",
+			expAssObjs: map[string]runtime.Object{
+				"AuxiliaryWorkloadgameconfig": &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "v1",
+						"kind":       "ConfigMap",
+						"metadata":   map[string]interface{}{"name": "testgame-config"}, "data": map[string]interface{}{"enemies": "enemies-data", "lives": "lives-data"}},
+				},
+				"t2service": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "v1", "kind": "Service"}},
+				"t2ingress": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "extensions/v1beta1", "kind": "Ingress"}},
+			},
+		},
 	}
 
 	for cassinfo, v := range tds {
@@ -491,18 +555,18 @@ parameter: {
 
 `
 		ctx := process.NewContext("test", "myapp", "myapp-v1")
-		wt := NewWorkloadAbstractEngine("-")
-		if err := wt.Params(map[string]interface{}{
+		wt := NewWorkloadAbstractEngine("-", &PackageDiscover{})
+		if err := wt.Complete(ctx, baseTemplate, map[string]interface{}{
 			"replicas": 2,
 			"enemies":  "enemies-data",
 			"lives":    "lives-data",
 			"port":     443,
-		}).Complete(ctx, baseTemplate); err != nil {
+		}); err != nil {
 			t.Error(err)
 			return
 		}
-		td := NewTraitAbstractEngine(v.traitName)
-		assert.NoError(t, td.Params(v.params).Complete(ctx, v.traitTemplate))
+		td := NewTraitAbstractEngine(v.traitName, &PackageDiscover{})
+		assert.NoError(t, td.Complete(ctx, v.traitTemplate, v.params))
 		base, assists := ctx.Output()
 		assert.Equal(t, len(v.expAssObjs), len(assists), cassinfo)
 		assert.NotNil(t, base)

@@ -39,6 +39,7 @@ var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var scheme = runtime.NewScheme()
+var pd *PackageDiscover
 
 func TestDefinition(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -64,6 +65,8 @@ var _ = BeforeSuite(func(done Done) {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
+	pd, err = NewPackageDiscover(cfg)
+	Expect(err).ToNot(HaveOccurred())
 
 	close(done)
 }, 60)

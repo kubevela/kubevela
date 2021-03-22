@@ -202,7 +202,7 @@ var _ = Describe("test generate revision ", func() {
 
 	It("Test apply success for none rollout case", func() {
 		By("Apply the application")
-		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.dm)
+		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.dm, reconciler.pd)
 		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 		generatedAppfile, err := appParser.GenerateAppFile(ctx, app.Name, &app)
 		Expect(err).Should(Succeed())

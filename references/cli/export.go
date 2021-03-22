@@ -4,12 +4,13 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
 )
 
 // NewExportCommand will create command for exporting deploy manifests from an AppFile
-func NewExportCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func NewExportCommand(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "export",
 		DisableFlagsInUseLine: true,

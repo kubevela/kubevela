@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+
 	plur "github.com/gertd/go-pluralize"
 	client2 "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -16,7 +18,7 @@ import (
 )
 
 // ListTraitDefinitions will list all definition include traits and workloads
-func ListTraitDefinitions(userNamespace string, c types.Args, workloadName *string) ([]types.Capability, error) {
+func ListTraitDefinitions(userNamespace string, c common.Args, workloadName *string) ([]types.Capability, error) {
 	var traitList []types.Capability
 	traits, err := plugins.LoadInstalledCapabilityWithType(userNamespace, c, types.TypeTrait)
 	if err != nil {
@@ -31,7 +33,7 @@ func ListTraitDefinitions(userNamespace string, c types.Args, workloadName *stri
 }
 
 // ListRawTraitDefinitions will list raw definition
-func ListRawTraitDefinitions(userNamespace string, c types.Args) ([]v1alpha2.TraitDefinition, error) {
+func ListRawTraitDefinitions(userNamespace string, c common.Args) ([]v1alpha2.TraitDefinition, error) {
 	client, err := c.GetClient()
 	if err != nil {
 		return nil, err
@@ -49,7 +51,7 @@ func ListRawTraitDefinitions(userNamespace string, c types.Args) ([]v1alpha2.Tra
 }
 
 // ListRawWorkloadDefinitions will list raw definition
-func ListRawWorkloadDefinitions(userNamespace string, c types.Args) ([]v1alpha2.WorkloadDefinition, error) {
+func ListRawWorkloadDefinitions(userNamespace string, c common.Args) ([]v1alpha2.WorkloadDefinition, error) {
 	client, err := c.GetClient()
 	if err != nil {
 		return nil, err
@@ -67,7 +69,7 @@ func ListRawWorkloadDefinitions(userNamespace string, c types.Args) ([]v1alpha2.
 }
 
 // GetTraitDefinition will get trait capability with applyTo converted
-func GetTraitDefinition(userNamespace string, c types.Args, workloadName *string, traitType string) (types.Capability, error) {
+func GetTraitDefinition(userNamespace string, c common.Args, workloadName *string, traitType string) (types.Capability, error) {
 	var traitDef types.Capability
 	traitCap, err := plugins.GetInstalledCapabilityWithCapName(types.TypeTrait, traitType)
 	if err != nil {
