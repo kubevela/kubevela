@@ -83,8 +83,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	var def utils.CapabilityComponentDefinition
 	def.Name = req.NamespacedName.Name
 	def.WorkloadType = workloadType
-	if workloadType == util.ReferWorkload {
+	switch workloadType {
+	case util.ReferWorkload:
 		def.WorkloadDefName = componentDefinition.Spec.Workload.Type
+	case util.HELMDef:
+		def.Helm = componentDefinition.Spec.Schematic.HELM
+		def.ComponentDefinition = componentDefinition
+	default:
 	}
 	err = def.StoreOpenAPISchema(ctx, r, req.Namespace, req.Name)
 	if err != nil {

@@ -340,6 +340,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 			var w1 unstructured.Unstructured
 			Eventually(
 				func() error {
+					reconcileAppConfigNow(ctx, &appconfig)
 					w1.SetAPIVersion("example.com/v1")
 					w1.SetKind("Bar")
 					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: revisionNameV1}, &w1)
