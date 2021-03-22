@@ -2,6 +2,7 @@ package applicationcontext
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -74,7 +76,11 @@ func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 	}
 
 	// copy the status
-	appConfig := appRevision.Spec.ApplicationConfiguration.DeepCopy()
+	acRaw := appRevision.Spec.ApplicationConfiguration
+	appConfig, err := ConvertRawExtention2AppConfig(acRaw)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
 	appConfig.Status = appContext.Status
 	// the name of the appConfig has to be the same as the appContext
 	appConfig.ObjectMeta = metav1.ObjectMeta{Namespace: appContext.Namespace, Name: appContext.Name, UID: appContext.UID}
@@ -89,6 +95,19 @@ func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 		reconResult.RequeueAfter = 0
 	}
 	return reconResult, err
+}
+
+// ConvertRawExtention2AppConfig converts runtime.RawExtention to ApplicationConfiguration
+func ConvertRawExtention2AppConfig(raw runtime.RawExtension) (*v1alpha2.ApplicationConfiguration, error) {
+	ac := &v1alpha2.ApplicationConfiguration{}
+	b, err := raw.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(b, ac); err != nil {
+		return nil, err
+	}
+	return ac, nil
 }
 
 // SetupWithManager setup the controller with manager
