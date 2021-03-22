@@ -16,29 +16,6 @@
 
 KubeVela is the platform engine to create *PaaS-like* experience on Kubernetes, in a scalable approach.
 
-For platform builders, KubeVela serves as a framework that empowers them to create user friendly yet highly extensible platforms at ease.
-In details, KubeVela relieves the pains of building such platforms by doing the following:
-
-- Application Centric. KubeVela enforces an **application** concept as its main API and **ALL** KubeVela's capabilities serve
-  for the applications' requirements only. This is achieved by adopting the [Open Application Model](https://github.com/oam-dev/spec) 
-  as the core API for KubeVela.
-
-- Extending Natively. An application in KubeVela is composed of various modularized components (named: services).
-  Capabilities from Kubernetes ecosystem can be added to KubeVela as new workload types or traits through Kubernetes CRD
-  registry mechanism at any time.
-
-- Simple yet Extensible Abstraction Mechanism. KubeVela introduced a templating engine (supports [CUELang](https://github.com/cuelang/cue)
-  and more) to abstract user-facing schemas from the underlying Kubernetes resources. KubeVela provides a set of
-  built-in abstractions to start with and the platform builders are free to modify them at any time.
-  Abstraction changes take effect at runtime, neither recompilation nor redeployment of KubeVela is required.
-
-With KubeVela, platform builders now finally have the tooling support to design and ship any new capabilities to their
-end-users with high confidence and low turn around time.
-
-For developers, such platforms built with KubeVela will enable them to design and ship their applications to Kubernetes with minimal effort.
-Instead of managing a handful infrastructure details, a simple application definition is all they need, following an
-developer centric workflow that can be easily integrated with any CI/CD pipeline.
-
 ## Community
 
 - Slack:  [CNCF Slack](https://slack.cncf.io/) #kubevela channel
@@ -46,17 +23,11 @@ developer centric workflow that can be easily integrated with any CI/CD pipeline
 
 > NOTE: KubeVela is still iterating quickly. It's currently under pre-beta release.
 
-## Installation
+## Getting Started
 
-Installation guide is available on [this section](https://kubevela.io/#/en/install).
+Take a look at the [documentation](https://kubevela.io/) to get started.
 
-## Quick Start
-
-Quick start is available on [this section](https://kubevela.io/#/en/quick-start).
-
-## Documentation
-
-For full documentation, please visit the KubeVela website: [https://kubevela.io](https://kubevela.io/).
+If you have understood the concepts, a step by step quick start is available on [this section](https://kubevela.io/#/en/quick-start).
 
 ## Talks and Conferences
 
