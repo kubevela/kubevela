@@ -479,6 +479,49 @@ spec:
 		})
 	})
 
+	Context("When the ComponentDefinition contains Helm schematic", func() {
+		var componentDefinitionName = "cd-with-helm-schematic"
+		var namespace = "default"
+		req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
+
+		It("Applying ComponentDefinition with Helm schematic", func() {
+			cd := v1alpha2.ComponentDefinition{}
+			cd.SetName(componentDefinitionName)
+			cd.SetNamespace(namespace)
+			cd.Spec.Workload.Definition = v1alpha2.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}
+			cd.Spec.Schematic = &v1alpha2.Schematic{
+				HELM: &v1alpha2.Helm{
+					Release: util.Object2RawExtension(map[string]interface{}{
+						"chart": map[string]interface{}{
+							"spec": map[string]interface{}{
+								"chart":   "podinfo",
+								"version": "5.1.4",
+							},
+						},
+					}),
+					Repository: util.Object2RawExtension(map[string]interface{}{
+						"url": "http://oam.dev/catalog/",
+					}),
+				},
+			}
+			By("Create ComponentDefinition")
+			Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
+
+			By("Check whether WorkloadDefinition is created")
+			reconcileRetry(&r, req)
+			var wd v1alpha2.WorkloadDefinition
+			var wdName = componentDefinitionName
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: wdName}, &wd)
+				return err == nil
+			}, 10*time.Second, time.Second).Should(BeTrue())
+			Expect(wd.Name).Should(Equal(cd.Name))
+			Expect(wd.Namespace).Should(Equal(cd.Namespace))
+			Expect(wd.Annotations).Should(Equal(cd.Annotations))
+			Expect(wd.Spec.Schematic).Should(Equal(cd.Spec.Schematic))
+		})
+	})
+
 	Context("When the ComponentDefinition contain Workload.Type, shouldn't create a WorkloadDefinition", func() {
 		var componentDefinitionName = "cd-with-workload-type"
 		var namespace = "default"
@@ -576,4 +619,5 @@ spec:
 			}, 10*time.Second, time.Second).Should(Equal(name))
 		})
 	})
+
 })

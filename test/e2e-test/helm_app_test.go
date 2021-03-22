@@ -2,6 +2,7 @@ package controllers_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -285,4 +286,18 @@ var _ = Describe("Test application containing helm module", func() {
 		}, 120*time.Second, 10*time.Second).Should(BeTrue())
 	})
 
+	It("Test store JSON schema of Helm Chart in ConfigMap", func() {
+		By("Get the ConfigMap")
+		cmName := fmt.Sprintf("schema-%s", cdName)
+		Eventually(func() error {
+			cm := &corev1.ConfigMap{}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: cmName, Namespace: namespace}, cm); err != nil {
+				return err
+			}
+			if cm.Data["openapi-v3-json-schema"] == "" {
+				return errors.New("json schema is not found in the ConfigMap")
+			}
+			return nil
+		}, 60*time.Second, 5*time.Second).Should(Succeed())
+	})
 })
