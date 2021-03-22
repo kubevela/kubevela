@@ -62,6 +62,12 @@ var _ = Describe("Test applicationContext reconcile", func() {
 				Name:    containerName,
 				Image:   containerImage,
 				Command: []string{"sleep", "30s"},
+				Ports: []v1alpha2.ContainerPort{
+					v1alpha2.ContainerPort{
+						Name: "http",
+						Port: 80,
+					},
+				},
 			},
 		}),
 	)
@@ -90,6 +96,12 @@ var _ = Describe("Test applicationContext reconcile", func() {
 				Name:    containerName,
 				Image:   containerImage,
 				Command: []string{"sleep", "30s"},
+				Ports: []v1alpha2.ContainerPort{
+					v1alpha2.ContainerPort{
+						Name: "http",
+						Port: 80,
+					},
+				},
 			},
 		}),
 	)
@@ -153,7 +165,7 @@ var _ = Describe("Test applicationContext reconcile", func() {
 			Namespace: namespace,
 		},
 		Spec: v1alpha2.ApplicationRevisionSpec{
-			ApplicationConfiguration: util.Object2RawExtension(ac1),
+			ApplicationConfiguration: util.Object2RawExtension(ac2),
 			Components:               convertComponentList2Map([]*v1alpha2.Component{co2}),
 			Application:              *dummyApp,
 		}}
