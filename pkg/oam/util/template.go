@@ -45,7 +45,7 @@ func GetScopeGVK(ctx context.Context, cli client.Reader, dm discoverymapper.Disc
 }
 
 // LoadTemplate Get template according to key
-func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.CapType) (*Template, error) {
+func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli client.Reader, key string, kd types.CapType) (*Template, error) {
 	// Application Controller only load template from ComponentDefinition and TraitDefinition
 	switch kd {
 	case types.TypeComponentDefinition:
@@ -70,9 +70,14 @@ func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.C
 					tmpl.CapabilityCategory = types.TerraformCategory
 				}
 				tmpl.WorkloadDefinition = wd
-				// GetGVKFromDefinition
-				// TODO: need to pass in a discoverMapper in order to get the tmpl reference
-				// from the workloadDefinition reference
+				gvk, err := GetGVKFromDefinition(dm, wd.Spec.Reference)
+				if err != nil {
+					return nil, errors.WithMessagef(err, "Get GVK from workload definition [%s]", key)
+				}
+				tmpl.Reference = common.WorkloadGVK{
+					APIVersion: gvk.GroupVersion().String(),
+					Kind:       gvk.Kind,
+				}
 				return tmpl, nil
 			}
 			return nil, errors.WithMessagef(err, "LoadTemplate from ComponentDefinition [%s] ", key)

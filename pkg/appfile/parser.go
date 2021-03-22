@@ -163,8 +163,7 @@ func (p *Parser) GenerateAppFile(ctx context.Context, name string, app *v1alpha2
 
 func (p *Parser) parseWorkload(ctx context.Context, comp v1alpha2.ApplicationComponent) (*Workload, error) {
 
-	// TODO: pass in p.dm
-	templ, err := util.LoadTemplate(ctx, p.client, comp.WorkloadType, types.TypeComponentDefinition)
+	templ, err := util.LoadTemplate(ctx, p.dm, p.client, comp.WorkloadType, types.TypeComponentDefinition)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
 	}
@@ -212,8 +211,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1alpha2.ApplicationCom
 }
 
 func (p *Parser) parseTrait(ctx context.Context, name string, properties map[string]interface{}) (*Trait, error) {
-	// TODO: pass in p.dm
-	templ, err := util.LoadTemplate(ctx, p.client, name, types.TypeTrait)
+	templ, err := util.LoadTemplate(ctx, p.dm, p.client, name, types.TypeTrait)
 	if kerrors.IsNotFound(err) {
 		return nil, errors.Errorf("trait definition of %s not found", name)
 	}
