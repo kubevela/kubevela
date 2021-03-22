@@ -681,8 +681,6 @@ var _ = Describe("Test Application Controller", func() {
 		}, appRevision)).Should(BeNil())
 		Expect(appContext.Spec.ApplicationRevisionName).Should(Equal(appRevision.Name))
 
-		ac, err = applicationcontext.ConvertRawExtention2AppConfig(appRevision.Spec.ApplicationConfiguration)
-		Expect(err).Should(BeNil())
 		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
 		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb5", app.Name)))
 
