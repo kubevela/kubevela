@@ -291,6 +291,10 @@ the following fields:
      - fetch the current traffic split
 
 ## State Transition
+Here is the state transition graph
+
+![](../../docs/resources/approllout-status-transition.jpg)
+
 Here are the various top-level states of the rollout 
 ```go
 	// Verifying verifies that the rollout setting is valid and the controller can locate both the
