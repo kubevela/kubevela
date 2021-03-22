@@ -21,23 +21,23 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Test applicationContext reconcile", func() {
 	ctx := context.Background()
 	var (
-		namespace      = "appcontext-test"
+		namespace      = "appcontext-test-ns"
 		acName1        = "applicationconfig1"
 		acName2        = "applicationconfig2"
 		compName1      = "component1"
@@ -114,10 +114,9 @@ var _ = Describe("Test applicationContext reconcile", func() {
 			Namespace: namespace,
 		},
 		Spec: v1alpha2.ApplicationRevisionSpec{
-			Components: []*v1alpha2.Component{
-				co1,
-			},
-			ApplicationConfiguration: *ac1,
+			Components: convertComponentList2Map([]*v1alpha2.Component{co1}),
+
+			ApplicationConfiguration: util.Object2RawExtension(ac1),
 			Application:              *dummyApp,
 		}}
 	trait2 := &v1alpha2.ManualScalerTrait{
@@ -154,11 +153,9 @@ var _ = Describe("Test applicationContext reconcile", func() {
 			Namespace: namespace,
 		},
 		Spec: v1alpha2.ApplicationRevisionSpec{
-			ApplicationConfiguration: *ac2,
-			Components: []*v1alpha2.Component{
-				co2,
-			},
-			Application: *dummyApp,
+			ApplicationConfiguration: util.Object2RawExtension(ac1),
+			Components:               convertComponentList2Map([]*v1alpha2.Component{co2}),
+			Application:              *dummyApp,
 		}}
 	appContext := &v1alpha2.ApplicationContext{
 		ObjectMeta: metav1.ObjectMeta{
@@ -171,7 +168,7 @@ var _ = Describe("Test applicationContext reconcile", func() {
 	}
 
 	BeforeEach(func() {
-		Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(BeNil()))
 		Eventually(
 			func() error {
 				return k8sClient.Get(ctx, types.NamespacedName{Name: namespace}, &ns)
@@ -263,7 +260,7 @@ var _ = Describe("Test applicationContext reconcile", func() {
 			},
 		}
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: arName1}, ar1)).Should(BeNil())
-		ar1.Spec.ApplicationConfiguration = *ac1
+		ar1.Spec.ApplicationConfiguration = util.Object2RawExtension(ac1)
 		Expect(k8sClient.Update(ctx, ar1)).Should(Succeed())
 		Expect(k8sClient.Get(ctx, key, appContext)).Should(BeNil())
 		appContext.Spec.ApplicationRevisionName = arName1
@@ -284,7 +281,7 @@ var _ = Describe("Test applicationContext reconcile", func() {
 		By("Test delete trait in AppRevision2, and switch context to AppRevision2")
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: arName2}, ar2)).Should(BeNil())
 		ac2.Spec.Components[0].Traits = []v1alpha2.ComponentTrait{}
-		ar1.Spec.ApplicationConfiguration = *ac2
+		ar1.Spec.ApplicationConfiguration = util.Object2RawExtension(ac2)
 		Expect(k8sClient.Update(ctx, ar2)).Should(BeNil())
 		Expect(k8sClient.Get(ctx, key, appContext)).Should(BeNil())
 		appContext.Spec.ApplicationRevisionName = arName2
@@ -295,3 +292,12 @@ var _ = Describe("Test applicationContext reconcile", func() {
 		}, time.Second*100, time.Second*5).Should(util.NotFoundMatcher{})
 	})
 })
+
+func convertComponentList2Map(comps []*v1alpha2.Component) map[string]v1alpha2.Component {
+	objs := map[string]v1alpha2.Component{}
+	for _, comp := range comps {
+		obj := comp.DeepCopy()
+		objs[comp.Name] = *obj
+	}
+	return objs
+}
