@@ -216,7 +216,7 @@ var _ = Describe("Test applicationContext reconcile", func() {
 			}
 			cw := new(v1alpha2.ContainerizedWorkload)
 			return k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: cwName1}, cw)
-		}, time.Second*60, time.Second*5).Should(BeNil())
+		}, time.Second*60, time.Millisecond*300).Should(BeNil())
 
 		By("Test revision have both workload and trait , switch AppContext to revision2")
 		Expect(k8sClient.Get(ctx, key, appContext)).Should(BeNil())
@@ -248,7 +248,7 @@ var _ = Describe("Test applicationContext reconcile", func() {
 				return fmt.Errorf("cannot get component trait %v", err)
 			}
 			return nil
-		}, time.Second*60, time.Second*5).Should(BeNil())
+		}, time.Second*60, time.Millisecond*300).Should(BeNil())
 
 		By("Test add trait in AppRevision1, and switch context to AppRevision1")
 
@@ -287,7 +287,7 @@ var _ = Describe("Test applicationContext reconcile", func() {
 				return fmt.Errorf("repica number missmatch , actual: %d", mt.Spec.ReplicaCount)
 			}
 			return nil
-		}, time.Second*100, time.Second*5).Should(BeNil())
+		}, time.Second*60, time.Millisecond*300).Should(BeNil())
 		ac1.Spec.Components[0].Traits = []v1alpha2.ComponentTrait{}
 
 		By("Test delete trait in AppRevision2, and switch context to AppRevision2")
@@ -301,7 +301,7 @@ var _ = Describe("Test applicationContext reconcile", func() {
 		Eventually(func() error {
 			mt := new(v1alpha2.ManualScalerTrait)
 			return k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: traitName2}, mt)
-		}, time.Second*100, time.Second*5).Should(util.NotFoundMatcher{})
+		}, time.Second*60, time.Millisecond*300).Should(util.NotFoundMatcher{})
 	})
 })
 
