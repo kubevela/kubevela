@@ -314,15 +314,13 @@ func TestPackage(t *testing.T) {
     }
 }
 `
-
-	pkg := newPackage("oss")
-	assert.NilError(t, pkg.addOpenAPI(openAPISchema))
-	pkg.mount()
+	mypd := &PackageDiscover{pkgKinds: make(map[string][]string)}
+	mypd.addKubeCUEPackagesFromCluster(openAPISchema)
 	bi := build.NewContext().NewInstance("", nil)
-	AddVelaInternalPackagesFor(bi)
+	mypd.ImportBuiltinPackagesFor(bi)
 	bi.AddFile("-", `
-import "oss"
-output: oss.#Bucket
+import "kube/test.io/v1"
+output: v1.#Bucket
 `)
 	var r cue.Runtime
 	inst, err := r.Build(bi)
@@ -430,13 +428,13 @@ func TestProcessFile(t *testing.T) {
 }
 
 func TestMount(t *testing.T) {
-	velaBuiltinPkgs = nil
+	mypd := &PackageDiscover{pkgKinds: make(map[string][]string)}
 	testPkg := newPackage("foo")
-	testPkg.mount()
-	assert.Equal(t, len(velaBuiltinPkgs), 1)
-	testPkg.mount()
-	assert.Equal(t, len(velaBuiltinPkgs), 1)
-	assert.Equal(t, velaBuiltinPkgs[0], testPkg.Instance)
+	mypd.mount(testPkg, []string{"abc"})
+	assert.Equal(t, len(mypd.velaBuiltinPackages), 1)
+	mypd.mount(testPkg, []string{"abc"})
+	assert.Equal(t, len(mypd.velaBuiltinPackages), 1)
+	assert.Equal(t, mypd.velaBuiltinPackages[0], testPkg.Instance)
 }
 
 func TestGetGVK(t *testing.T) {

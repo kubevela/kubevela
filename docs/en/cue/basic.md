@@ -380,20 +380,62 @@ output: {
 
 ### Import Kube Package
 
-KubeVela automatically generates a cue package named `kube` as internal packages by reading K8s openapi from the
+KubeVela automatically generates all K8s resources as internal packages by reading K8s openapi from the
 installed K8s cluster.
 
-You can use package `kube` in CUE Template of KubeVela just like the same way with the CUE internal packages.
+You can use these packages with the format `kube/<apiVersion>` in CUE Template of KubeVela just like the same way
+with the CUE internal packages.
+
+For example, `Deployment` can be used as:
 
 ```cue
-import ("kube")
+import (
+   apps "kube/apps/v1"
+)
 
 parameter: {
     name:  string
 }
 
-output: kube.#Deployment
+output: apps.#Deployment
 output: {
     metadata: name: parameter.name
+}
+```
+
+Service can be used as (import package with an alias is not necessary):
+
+```cue
+import ("kube/v1")
+
+output: v1.#Service
+output: {
+	metadata: {
+		"name": parameter.name
+	}
+	spec: type: "ClusterIP",
+}
+
+parameter: {
+	name:  "myapp"
+}
+```
+
+Even the installed CRD works:
+
+```
+import (
+  oam  "kube/core.oam.dev/v1alpha2"
+)
+
+output: oam.#Application
+output: {
+	metadata: {
+		"name": parameter.name
+	}
+}
+
+parameter: {
+	name:  "myapp"
 }
 ```

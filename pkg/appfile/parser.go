@@ -45,6 +45,8 @@ type Workload struct {
 	DefinitionReference v1alpha2.WorkloadGVK
 	// TODO: remove all the duplicate fields above as workload now contains the whole template
 	FullTemplate *util.Template
+
+	engine definition.AbstractEngine
 }
 
 // GetUserConfigName get user config from AppFile, it will contain config file in it.
@@ -65,17 +67,17 @@ func (wl *Workload) GetUserConfigName() string {
 
 // EvalContext eval workload template and set result to context
 func (wl *Workload) EvalContext(ctx process.Context) error {
-	return definition.NewWorkloadAbstractEngine(wl.Name).Params(wl.Params).Complete(ctx, wl.Template)
+	return wl.engine.Complete(ctx, wl.Template, wl.Params)
 }
 
 // EvalStatus eval workload status
 func (wl *Workload) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
-	return definition.NewWorkloadAbstractEngine(wl.Name).Status(ctx, cli, ns, wl.CustomStatusFormat)
+	return wl.engine.Status(ctx, cli, ns, wl.CustomStatusFormat)
 }
 
 // EvalHealth eval workload health check
 func (wl *Workload) EvalHealth(ctx process.Context, client client.Client, namespace string) (bool, error) {
-	return definition.NewWorkloadAbstractEngine(wl.Name).HealthCheck(ctx, client, namespace, wl.HealthCheckPolicy)
+	return wl.engine.HealthCheck(ctx, client, namespace, wl.HealthCheckPolicy)
 }
 
 // Scope defines the scope of workload
@@ -96,21 +98,22 @@ type Trait struct {
 	CustomStatusFormat string
 
 	FullTemplate *util.Template
+	engine       definition.AbstractEngine
 }
 
 // EvalContext eval trait template and set result to context
 func (trait *Trait) EvalContext(ctx process.Context) error {
-	return definition.NewTraitAbstractEngine(trait.Name).Params(trait.Params).Complete(ctx, trait.Template)
+	return trait.engine.Complete(ctx, trait.Template, trait.Params)
 }
 
 // EvalStatus eval trait status
 func (trait *Trait) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
-	return definition.NewTraitAbstractEngine(trait.Name).Status(ctx, cli, ns, trait.CustomStatusFormat)
+	return trait.engine.Status(ctx, cli, ns, trait.CustomStatusFormat)
 }
 
 // EvalHealth eval trait health check
 func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, namespace string) (bool, error) {
-	return definition.NewTraitAbstractEngine(trait.Name).HealthCheck(ctx, client, namespace, trait.HealthCheckPolicy)
+	return trait.engine.HealthCheck(ctx, client, namespace, trait.HealthCheckPolicy)
 }
 
 // Appfile describes application
@@ -129,13 +132,15 @@ func (af *Appfile) TemplateValidate() error {
 type Parser struct {
 	client client.Client
 	dm     discoverymapper.DiscoveryMapper
+	pd     *definition.PackageDiscover
 }
 
 // NewApplicationParser create appfile parser
-func NewApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper) *Parser {
+func NewApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper, pd *definition.PackageDiscover) *Parser {
 	return &Parser{
 		client: cli,
 		dm:     dm,
+		pd:     pd,
 	}
 }
 
@@ -156,27 +161,30 @@ func (p *Parser) GenerateAppFile(ctx context.Context, name string, app *v1alpha2
 }
 
 func (p *Parser) parseWorkload(ctx context.Context, comp v1alpha2.ApplicationComponent) (*Workload, error) {
-	workload := new(Workload)
-	workload.Traits = []*Trait{}
-	workload.Name = comp.Name
-	workload.Type = comp.WorkloadType
+
 	// TODO: pass in p.dm
-	templ, err := util.LoadTemplate(ctx, p.client, workload.Type, types.TypeComponentDefinition)
+	templ, err := util.LoadTemplate(ctx, p.client, comp.WorkloadType, types.TypeComponentDefinition)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
 	}
-	workload.CapabilityCategory = templ.CapabilityCategory
-	workload.Template = templ.TemplateStr
-	workload.HealthCheckPolicy = templ.Health
-	workload.CustomStatusFormat = templ.CustomStatus
-	workload.DefinitionReference = templ.Reference
-	workload.Helm = templ.Helm
-	workload.FullTemplate = templ
 	settings, err := util.RawExtension2Map(&comp.Settings)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
 	}
-	workload.Params = settings
+	workload := &Workload{
+		Traits:              []*Trait{},
+		Name:                comp.Name,
+		Type:                comp.WorkloadType,
+		CapabilityCategory:  templ.CapabilityCategory,
+		Template:            templ.TemplateStr,
+		HealthCheckPolicy:   templ.Health,
+		CustomStatusFormat:  templ.CustomStatus,
+		DefinitionReference: templ.Reference,
+		Helm:                templ.Helm,
+		FullTemplate:        templ,
+		Params:              settings,
+		engine:              definition.NewWorkloadAbstractEngine(comp.Name, p.pd),
+	}
 	for _, traitValue := range comp.Traits {
 		properties, err := util.RawExtension2Map(&traitValue.Properties)
 		if err != nil {
@@ -211,7 +219,6 @@ func (p *Parser) parseTrait(ctx context.Context, name string, properties map[str
 	if err != nil {
 		return nil, err
 	}
-
 	return &Trait{
 		Name:               name,
 		CapabilityCategory: templ.CapabilityCategory,
@@ -220,6 +227,7 @@ func (p *Parser) parseTrait(ctx context.Context, name string, properties map[str
 		HealthCheckPolicy:  templ.Health,
 		CustomStatusFormat: templ.CustomStatus,
 		FullTemplate:       templ,
+		engine:             definition.NewTraitAbstractEngine(name, p.pd),
 	}, nil
 }
 
@@ -241,7 +249,6 @@ func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1a
 		var comp *v1alpha2.Component
 		var acComp *v1alpha2.ApplicationConfigurationComponent
 		var err error
-
 		switch wl.CapabilityCategory {
 		case types.HelmCategory:
 			comp, acComp, err = generateComponentFromHelmModule(p.client, wl, app.Name, app.RevisionName, ns)

@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
+	"github.com/pkg/errors"
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -15,10 +14,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/pkg/errors"
-
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (
@@ -96,20 +95,15 @@ func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 }
 
 // RegisterValidatingHandler will register TraitDefinition validation to webhook
-func RegisterValidatingHandler(mgr manager.Manager) error {
+func RegisterValidatingHandler(mgr manager.Manager, args controller.Args) {
 	server := mgr.GetWebhookServer()
-	mapper, err := discoverymapper.New(mgr.GetConfig())
-	if err != nil {
-		return err
-	}
 	server.Register("/validating-core-oam-dev-v1alpha2-traitdefinitions", &webhook.Admission{Handler: &ValidatingHandler{
-		Mapper: mapper,
+		Mapper: args.DiscoveryMapper,
 		Validators: []TraitDefValidator{
 			TraitDefValidatorFn(ValidateDefinitionReference),
 			// add more validators here
 		},
 	}})
-	return nil
 }
 
 // ValidateDefinitionReference validates whether the trait definition is valid if

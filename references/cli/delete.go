@@ -7,12 +7,13 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
 )
 
 // NewDeleteCommand Delete App
-func NewDeleteCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewDeleteCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "delete APP_NAME",
 		DisableFlagsInUseLine: true,

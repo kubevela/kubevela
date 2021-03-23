@@ -2,6 +2,7 @@ package template
 
 import (
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 
@@ -12,7 +13,7 @@ type Manager interface {
 }
 
 // Load will load all installed capabilities and create a manager
-func Load(namespace string, c types.Args) (Manager, error) {
+func Load(namespace string, c common.Args) (Manager, error) {
 	caps, err := plugins.LoadAllInstalledCapability(namespace, c)
 	if err != nil {
 		return nil, err

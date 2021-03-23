@@ -51,15 +51,11 @@ const (
 )
 
 // Setup adds a controller that reconciles ContainerizedWorkload.
-func Setup(mgr ctrl.Manager, _ controller.Args, _ logging.Logger) error {
-	dm, err := discoverymapper.New(mgr.GetConfig())
-	if err != nil {
-		return err
-	}
+func Setup(mgr ctrl.Manager, args controller.Args, _ logging.Logger) error {
 	reconciler := Reconciler{
 		Client:          mgr.GetClient(),
 		DiscoveryClient: *discovery.NewDiscoveryClientForConfigOrDie(mgr.GetConfig()),
-		dm:              dm,
+		dm:              args.DiscoveryMapper,
 		log:             ctrl.Log.WithName("ManualScalarTrait"),
 		record:          event.NewAPIRecorder(mgr.GetEventRecorderFor("ManualScalarTrait")),
 		Scheme:          mgr.GetScheme(),

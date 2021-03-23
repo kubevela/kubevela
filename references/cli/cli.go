@@ -43,7 +43,7 @@ func NewCommand() *cobra.Command {
 	}
 	cmds.PersistentFlags().StringP("env", "e", "", "specify environment name for application")
 
-	commandArgs := types.Args{
+	commandArgs := common.Args{
 		Schema: common.Scheme,
 	}
 

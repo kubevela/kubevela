@@ -78,14 +78,6 @@ var _ = BeforeSuite(func(done Done) {
 
 	Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: DefinitionNamespace}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-	traitdata, err := ioutil.ReadFile("testdata/traitDef.yaml")
-	Expect(err).Should(BeNil())
-	Expect(yaml.Unmarshal(traitdata, &td)).Should(BeNil())
-
-	td.Namespace = DefinitionNamespace
-	logf.Log.Info("Creating trait definition", "data", td)
-	Expect(k8sClient.Create(ctx, &td)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
 	workloaddata, err := ioutil.ReadFile("testdata/workloadDef.yaml")
 	Expect(err).Should(BeNil())
 

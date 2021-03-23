@@ -30,6 +30,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/ghodss/yaml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
@@ -40,7 +41,6 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationcontext"
@@ -104,6 +104,12 @@ var _ = Describe("Test Application Controller", func() {
 					Name:         "myweb",
 					WorkloadType: "worker-import",
 					Settings:     runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
+					Traits: []v1alpha2.ApplicationTrait{
+						{
+							Name:       "ingress-import",
+							Properties: runtime.RawExtension{Raw: []byte("{\"http\":{\"/\":80},\"domain\":\"abc.com\"}")},
+						},
+					},
 				},
 			},
 		},
@@ -189,6 +195,8 @@ var _ = Describe("Test Application Controller", func() {
 	importWd := &v1alpha2.WorkloadDefinition{}
 	importWdJson, _ := yaml.YAMLToJSON([]byte(wDImportYaml))
 
+	importTd := &v1alpha2.TraitDefinition{}
+
 	webserverwd := &v1alpha2.ComponentDefinition{}
 	webserverwdJson, _ := yaml.YAMLToJSON([]byte(webComponentDefYaml))
 
@@ -209,6 +217,10 @@ var _ = Describe("Test Application Controller", func() {
 
 		Expect(json.Unmarshal(importWdJson, importWd)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, importWd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		importTdJson, err := yaml.YAMLToJSON([]byte(tdImportedYaml))
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(json.Unmarshal(importTdJson, importTd)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, importTd.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
 		Expect(k8sClient.Create(ctx, td.DeepCopy())).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -1236,7 +1248,7 @@ var _ = Describe("Test Application Controller", func() {
 		}, appContext)).Should(BeNil())
 	})
 
-	It("app-import-pkg will create workload by import kube package", func() {
+	It("app-import-pkg will create workload by imported kube package", func() {
 		expDeployment := getExpDeployment("myweb", appImportPkg.Name)
 		expDeployment.Labels["workload.oam.dev/type"] = "worker-import"
 		ns := &corev1.Namespace{
@@ -1266,6 +1278,10 @@ var _ = Describe("Test Application Controller", func() {
 			Namespace: curApp.Namespace,
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
+		appConfig, err := applicationcontext.ConvertRawExtention2AppConfig(appRevision.Spec.ApplicationConfiguration)
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(string(appConfig.Spec.Components[0].Traits[0].Trait.Raw)).Should(BeEquivalentTo("{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"labels\":{\"app.oam.dev/component\":\"myweb\",\"app.oam.dev/name\":\"app-import-pkg\",\"trait.oam.dev/resource\":\"service\",\"trait.oam.dev/type\":\"ingress-import\"},\"name\":\"myweb\"},\"spec\":{\"ports\":[{\"port\":80,\"targetPort\":80}],\"selector\":{\"app.oam.dev/component\":\"myweb\"}}}"))
+		Expect(string(appConfig.Spec.Components[0].Traits[1].Trait.Raw)).Should(BeEquivalentTo("{\"apiVersion\":\"networking.k8s.io/v1beta1\",\"kind\":\"Ingress\",\"metadata\":{\"labels\":{\"app.oam.dev/component\":\"myweb\",\"app.oam.dev/name\":\"app-import-pkg\",\"trait.oam.dev/resource\":\"ingress\",\"trait.oam.dev/type\":\"ingress-import\"},\"name\":\"myweb\"},\"spec\":{\"rules\":[{\"host\":\"abc.com\",\"http\":{\"paths\":[{\"backend\":{\"serviceName\":\"myweb\",\"servicePort\":80},\"path\":\"/\"}]}}]}}"))
 
 		By("Check ApplicationContext created")
 		appContext := &v1alpha2.ApplicationContext{}
@@ -1402,8 +1418,8 @@ spec:
     name: deployments.apps
   extension:
     template: |
-      import "kube"
-      output: kube.#Deployment & {
+      import "kube/apps/v1"
+      output: v1.#Deployment & {
           metadata: {
               annotations: {
                   if context["config"] != _|_ {
@@ -1448,6 +1464,69 @@ spec:
           cmd?: [...string]
       }
 `
+
+	tdImportedYaml = `apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: ingress-import
+  namespace: vela-system
+spec:
+  appliesToWorkloads:
+    - "*"
+  schematic:
+    cue:
+      template: |
+        import (
+        	kubev1 "kube/v1"
+        	network "kube/networking.k8s.io/v1beta1"
+        )
+
+        parameter: {
+        	domain: string
+        	http: [string]: int
+        }
+
+        outputs: {
+        service: kubev1.#Service
+        ingress: network.#Ingress
+        }
+
+        // trait template can have multiple outputs in one trait
+        outputs: service: {
+        	metadata:
+        		name: context.name
+        	spec: {
+        		selector:
+        			"app.oam.dev/component": context.name
+        		ports: [
+        			for k, v in parameter.http {
+        				port:       v
+        				targetPort: v
+        			},
+        		]
+        	}
+        }
+
+        outputs: ingress: {
+        	metadata:
+        		name: context.name
+        	spec: {
+        		rules: [{
+        			host: parameter.domain
+        			http: {
+        				paths: [
+        					for k, v in parameter.http {
+        						path: k
+        						backend: {
+        							serviceName: context.name
+        							servicePort: v
+        						}
+        					},
+        				]
+        			}
+        		}]
+        	}
+        }`
 
 	webComponentDefYaml = `apiVersion: core.oam.dev/v1alpha2
 kind: ComponentDefinition

@@ -9,13 +9,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 // NewEnvCommand creates `env` command and its nested children
-func NewEnvCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func NewEnvCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "env",
 		DisableFlagsInUseLine: true,
@@ -51,7 +52,7 @@ func NewEnvListCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 }
 
 // NewEnvInitCommand creates `env init` command for initializing environments
-func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewEnvInitCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var envArgs types.EnvMeta
 	ctx := context.Background()
 	cmd := &cobra.Command{

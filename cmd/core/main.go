@@ -31,11 +31,13 @@ import (
 
 	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	velacore "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	velacontroller "github.com/oam-dev/kubevela/pkg/controller"
+	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook/standard.oam.dev"
@@ -156,19 +158,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	if useWebhook {
-		setupLog.Info("vela webhook enabled, will serving at :" + strconv.Itoa(webhookPort))
-		if err = oamwebhook.Register(mgr); err != nil {
-			setupLog.Error(err, "unable to setup oam runtime webhook")
-			os.Exit(1)
-		}
-		velawebhook.Register(mgr, disableCaps)
-		if err := waitWebhookSecretVolume(certDir, waitSecretTimeout, waitSecretInterval); err != nil {
-			setupLog.Error(err, "unable to get webhook secret")
-			os.Exit(1)
-		}
-	}
-
 	switch strings.ToLower(applyOnceOnly) {
 	case "", "false", string(oamcontroller.ApplyOnceOnlyOff):
 		controllerArgs.ApplyMode = oamcontroller.ApplyOnceOnlyOff
@@ -186,12 +175,35 @@ func main() {
 		os.Exit(1)
 	}
 
+	dm, err := discoverymapper.New(mgr.GetConfig())
+	if err != nil {
+		setupLog.Error(err, "failed to create CRD discovery client")
+		os.Exit(1)
+	}
+	controllerArgs.DiscoveryMapper = dm
+	pd, err := definition.NewPackageDiscover(mgr.GetConfig())
+	if err != nil {
+		setupLog.Error(err, "failed to create CRD discovery for CUE package client")
+		os.Exit(1)
+	}
+	controllerArgs.PackageDiscover = pd
+
+	if useWebhook {
+		setupLog.Info("vela webhook enabled, will serving at :" + strconv.Itoa(webhookPort))
+		oamwebhook.Register(mgr, controllerArgs)
+		velawebhook.Register(mgr, disableCaps)
+		if err := waitWebhookSecretVolume(certDir, waitSecretTimeout, waitSecretInterval); err != nil {
+			setupLog.Error(err, "unable to get webhook secret")
+			os.Exit(1)
+		}
+	}
+
 	if err = oamv1alpha2.Setup(mgr, controllerArgs, logging.NewLogrLogger(setupLog)); err != nil {
 		setupLog.Error(err, "unable to setup the oam core controller")
 		os.Exit(1)
 	}
 
-	if err = velacontroller.Setup(mgr, disableCaps); err != nil {
+	if err = standardcontroller.Setup(mgr, disableCaps); err != nil {
 		setupLog.Error(err, "unable to setup the vela core controller")
 		os.Exit(1)
 	}

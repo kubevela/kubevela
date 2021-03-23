@@ -11,11 +11,12 @@ import (
 	"strings"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
 // LoadCapabilityByName will load capability from local by name
-func LoadCapabilityByName(name string, userNamespace string, c types.Args) (types.Capability, error) {
+func LoadCapabilityByName(name string, userNamespace string, c common.Args) (types.Capability, error) {
 	caps, err := LoadAllInstalledCapability(userNamespace, c)
 	if err != nil {
 		return types.Capability{}, err
@@ -29,7 +30,7 @@ func LoadCapabilityByName(name string, userNamespace string, c types.Args) (type
 }
 
 // LoadAllInstalledCapability will list all capability
-func LoadAllInstalledCapability(userNamespace string, c types.Args) ([]types.Capability, error) {
+func LoadAllInstalledCapability(userNamespace string, c common.Args) ([]types.Capability, error) {
 	caps, err := GetCapabilitiesFromCluster(context.TODO(), userNamespace, c, nil)
 	if err != nil {
 		return nil, err
@@ -43,7 +44,7 @@ func LoadAllInstalledCapability(userNamespace string, c types.Args) ([]types.Cap
 }
 
 // LoadInstalledCapabilityWithType will load cap list by type
-func LoadInstalledCapabilityWithType(userNamespace string, c types.Args, capT types.CapType) ([]types.Capability, error) {
+func LoadInstalledCapabilityWithType(userNamespace string, c common.Args, capT types.CapType) ([]types.Capability, error) {
 	switch capT {
 	case types.TypeWorkload:
 		caps, _, err := GetWorkloadsFromCluster(context.TODO(), userNamespace, c, nil)

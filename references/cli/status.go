@@ -15,6 +15,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
 	"github.com/oam-dev/kubevela/references/appfile/api"
@@ -70,7 +71,7 @@ const (
 )
 
 // NewAppStatusCommand creates `status` command for showing status
-func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewAppStatusCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:     "status APP_NAME",
@@ -107,7 +108,7 @@ func NewAppStatusCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	return cmd
 }
 
-func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta, cmd *cobra.Command, velaC types.Args) error {
+func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta, cmd *cobra.Command, velaC common.Args) error {
 	app, err := appfile.LoadApplication(env.Namespace, appName, velaC)
 	if err != nil {
 		return err
@@ -215,7 +216,7 @@ HealthCheckLoop:
 	return healthStatus, healthInfo, nil
 }
 
-func printTrackingDeployStatus(c types.Args, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta) (CompStatus, error) {
+func printTrackingDeployStatus(c common.Args, ioStreams cmdutil.IOStreams, appName string, env *types.EnvMeta) (CompStatus, error) {
 	sDeploy := newTrackingSpinnerWithDelay("Checking Status ...", trackingInterval)
 	sDeploy.Start()
 	defer sDeploy.Stop()
@@ -244,7 +245,7 @@ TrackDeployLoop:
 }
 
 // TrackDeployStatus will only check AppConfig is deployed successfully,
-func TrackDeployStatus(c types.Args, appName string, env *types.EnvMeta) (CompStatus, string, error) {
+func TrackDeployStatus(c common.Args, appName string, env *types.EnvMeta) (CompStatus, string, error) {
 	appObj, err := appfile.LoadApplication(env.Namespace, appName, c)
 	if err != nil {
 		return compStatusUnknown, "", err
