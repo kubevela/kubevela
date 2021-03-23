@@ -10,11 +10,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // Run will deploy OAM objects and other assistant K8s Objects including ConfigMap, OAM Scope Custom Resource.
-func Run(ctx context.Context, client client.Client, app *v1alpha2.Application, assistantObjects []oam.Object) error {
+func Run(ctx context.Context, client client.Client, app *v1beta1.Application, assistantObjects []oam.Object) error {
 	if err := CreateOrUpdateObjects(ctx, client, assistantObjects); err != nil {
 		return err
 	}
@@ -53,7 +54,7 @@ func CreateOrUpdateObjects(ctx context.Context, client client.Client, objects []
 }
 
 // CreateOrUpdateApplication will create if not exist and update if exists.
-func CreateOrUpdateApplication(ctx context.Context, client client.Client, app *v1alpha2.Application) error {
+func CreateOrUpdateApplication(ctx context.Context, client client.Client, app *v1beta1.Application) error {
 	var geta v1alpha2.Application
 	key := ctypes.NamespacedName{Name: app.Name, Namespace: app.Namespace}
 	var exist = true

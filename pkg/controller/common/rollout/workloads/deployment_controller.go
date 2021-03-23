@@ -14,7 +14,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -318,7 +318,7 @@ func (c *DeploymentController) fetchDeployments(ctx context.Context) error {
 func (c *DeploymentController) claimDeployment(ctx context.Context, deploy *apps.Deployment, initSize bool) error {
 	deployPatch := client.MergeFrom(deploy.DeepCopyObject())
 	if controller := metav1.GetControllerOf(deploy); controller == nil {
-		ref := metav1.NewControllerRef(c.parentController, v1alpha2.AppRolloutKindVersionKind)
+		ref := metav1.NewControllerRef(c.parentController, v1beta1.AppRolloutKindVersionKind)
 		deploy.SetOwnerReferences(append(deploy.GetOwnerReferences(), *ref))
 	}
 	deploy.Spec.Paused = false
@@ -459,7 +459,7 @@ func (c *DeploymentController) releaseDeployment(ctx context.Context, deploy *ap
 	var newOwnerList []metav1.OwnerReference
 	found := false
 	for _, owner := range deploy.GetOwnerReferences() {
-		if owner.Kind == v1alpha2.AppRolloutKind && owner.APIVersion == v1alpha2.SchemeGroupVersion.String() {
+		if owner.Kind == v1beta1.AppRolloutKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
 			found = true
 			continue
 		}

@@ -43,7 +43,7 @@ type ApplicationRevisionSpec struct {
 	ScopeDefinitions map[string]ScopeDefinition `json:"scopeDefinitions,omitempty"`
 
 	// Components records the rendered components from Application, it will contains the whole K8s CR of workload in it.
-	Components map[string]common.RawComponent `json:"components,omitempty"`
+	Components []common.RawComponent `json:"components,omitempty"`
 
 	// ApplicationConfiguration records the rendered applicationConfiguration from Application,
 	// it will contains the whole K8s CR of trait and the reference component in it.

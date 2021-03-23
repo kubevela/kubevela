@@ -83,7 +83,7 @@ type WorkloadHealthCondition struct {
 // +kubebuilder:object:root=true
 
 // A HealthScope determines an aggregate health status based of the health of components.
-// +kubebuilder:resource:categories={crossplane,oam}
+// +kubebuilder:resource:categories={oam}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:JSONPath=".status.health",name=HEALTH,type=string
 type HealthScope struct {

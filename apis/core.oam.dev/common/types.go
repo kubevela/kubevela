@@ -16,7 +16,12 @@
 
 package common
 
-import "k8s.io/apimachinery/pkg/runtime"
+import (
+	v1alpha12 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+)
 
 // CUE defines the encapsulation in CUE format
 type CUE struct {
@@ -114,13 +119,6 @@ type ApplicationComponentStatus struct {
 	Traits  []ApplicationTraitStatus `json:"traits,omitempty"`
 }
 
-// ApplicationTrait defines the trait of application
-type ApplicationTrait struct {
-	Name string `json:"name"`
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Properties runtime.RawExtension `json:"properties"`
-}
-
 // ApplicationTraitStatus records the trait health status
 type ApplicationTraitStatus struct {
 	Type    string `json:"type"`
@@ -142,4 +140,23 @@ type RawComponent struct {
 	// +kubebuilder:validation:EmbeddedResource
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Raw runtime.RawExtension `json:"raw"`
+}
+
+// AppStatus defines the observed state of Application
+type AppStatus struct {
+	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+	// Important: Run "make" to regenerate code after modifying this file
+	v1alpha1.RolloutStatus `json:",inline"`
+
+	Phase ApplicationPhase `json:"status,omitempty"`
+
+	// Components record the related Components created by Application Controller
+	Components []v1alpha12.TypedReference `json:"components,omitempty"`
+
+	// Services record the status of the application services
+	Services []ApplicationComponentStatus `json:"services,omitempty"`
+
+	// LatestRevision of the application configuration it generates
+	// +optional
+	LatestRevision *Revision `json:"latestRevision,omitempty"`
 }

@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	types2 "github.com/oam-dev/kubevela/apis/types"
+
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
@@ -295,7 +297,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 			log.Info(msg)
 			r.record.Event(ac, event.Normal(reasonRevision, msg))
 			ac.SetConditions(v1alpha1.Unavailable())
-			ac.Status.RollingStatus = v1alpha2.InactiveAfterRollingCompleted
+			ac.Status.RollingStatus = types2.InactiveAfterRollingCompleted
 			// TODO: GC the traits/workloads
 			return reconcile.Result{}
 		}

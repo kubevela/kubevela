@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -26,7 +26,7 @@ func TestUp(t *testing.T) {
 		IO:  ioStream,
 		Env: &env,
 	}
-	app := &v1alpha2.Application{}
+	app := &v1beta1.Application{}
 	app.Name = "app-up"
 	msg := o.Info(app)
 	assert.Contains(t, msg, "App has been deployed")

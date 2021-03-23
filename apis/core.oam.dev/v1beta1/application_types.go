@@ -17,7 +17,6 @@
 package v1beta1
 
 import (
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -28,34 +27,22 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// AppStatus defines the observed state of Application
-type AppStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	v1alpha1.RolloutStatus `json:",inline"`
-
-	Phase common.ApplicationPhase `json:"status,omitempty"`
-
-	// Components record the related Components created by Application Controller
-	Components []runtimev1alpha1.TypedReference `json:"components,omitempty"`
-
-	// Services record the status of the application services
-	Services []common.ApplicationComponentStatus `json:"services,omitempty"`
-
-	// LatestRevision of the application configuration it generates
-	// +optional
-	LatestRevision *common.Revision `json:"latestRevision,omitempty"`
+// ApplicationTrait defines the trait of application
+type ApplicationTrait struct {
+	Type string `json:"type"`
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Properties runtime.RawExtension `json:"properties,omitempty"`
 }
 
 // ApplicationComponent describe the component of application
 type ApplicationComponent struct {
-	Name         string `json:"name"`
-	WorkloadType string `json:"type"`
+	Name string `json:"name"`
+	Type string `json:"type"`
 	// +kubebuilder:pruning:PreserveUnknownFields
-	Settings runtime.RawExtension `json:"settings"`
+	Properties runtime.RawExtension `json:"properties,omitempty"`
 
 	// Traits define the trait of one component, the type must be array to keep the order.
-	Traits []common.ApplicationTrait `json:"traits,omitempty"`
+	Traits []ApplicationTrait `json:"traits,omitempty"`
 
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// scopes in ApplicationComponent defines the component-level scopes
@@ -84,8 +71,8 @@ type Application struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ApplicationSpec `json:"spec,omitempty"`
-	Status AppStatus       `json:"status,omitempty"`
+	Spec   ApplicationSpec  `json:"spec,omitempty"`
+	Status common.AppStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -100,7 +87,7 @@ type ApplicationList struct {
 // GetComponent get the component from the application based on its workload type
 func (app *Application) GetComponent(workloadType string) *ApplicationComponent {
 	for _, c := range app.Spec.Components {
-		if c.WorkloadType == workloadType {
+		if c.Type == workloadType {
 			return &c
 		}
 	}

@@ -140,7 +140,7 @@ func in(l []string, v string) bool {
 	return false
 }
 
-// Parse will parse applyTo(with format apigroup/Version.Kind) to crd name by just calculate the plural of kind word.
+// Parse will parse applyTo(with format Group/Version.Kind) to crd name by just calculate the plural of kind word.
 // TODO we should use discoverymapper instead of calculate plural
 func Parse(applyTo string) string {
 	l := strings.Split(applyTo, "/")

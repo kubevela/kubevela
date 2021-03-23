@@ -1,18 +1,18 @@
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: testapp
 spec:
   components:
     - name: express-server
-      settings:
+      properties:
         cmd:
           - node
           - server.js
         image: oamdev/testapp:v1
         port: 8080
       traits:
-        - name: ingress
+        - type: ingress
           properties:
             domain: test.my.domain
             http:

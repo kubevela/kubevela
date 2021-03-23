@@ -23,6 +23,8 @@ import (
 	"strconv"
 	"testing"
 
+	types2 "github.com/oam-dev/kubevela/apis/types"
+
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -110,7 +112,7 @@ func TestRender(t *testing.T) {
 		"keep":                         strconv.FormatBool(true),
 	})
 	controlledNoneTemplateAC := controlledTemplateAC.DeepCopy()
-	controlledNoneTemplateAC.Status.RollingStatus = v1alpha2.RollingTemplated
+	controlledNoneTemplateAC.Status.RollingStatus = types2.RollingTemplated
 
 	ref := metav1.NewControllerRef(ac, v1alpha2.ApplicationConfigurationGroupVersionKind)
 	errTrait := errors.New("errTrait")
@@ -787,7 +789,7 @@ func TestRender(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), tc.fields.params,
 				tc.fields.workload, tc.fields.trait}
-			needTemplating := tc.args.ac.Status.RollingStatus != v1alpha2.RollingTemplated
+			needTemplating := tc.args.ac.Status.RollingStatus != types2.RollingTemplated
 			_, isRolling := tc.args.ac.GetAnnotations()[oam.AnnotationAppRollout]
 			got, _, err := r.Render(context.Background(), tc.args.ac)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
@@ -833,7 +835,7 @@ func TestRender(t *testing.T) {
 						if got[0].SkipApply {
 							t.Errorf("\n%s\nr.Render(...): template workload should not be skipped\n", tc.reason)
 						}
-						if tc.args.ac.Status.RollingStatus != v1alpha2.RollingTemplated {
+						if tc.args.ac.Status.RollingStatus != types2.RollingTemplated {
 							t.Errorf("\n%s\nr.Render(...): ac status should be templated but got %s\n", tc.reason,
 								ac.Status.RollingStatus)
 						}

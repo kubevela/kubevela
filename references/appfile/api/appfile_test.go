@@ -11,8 +11,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -38,7 +38,7 @@ func TestBuildOAMApplication2(t *testing.T) {
 
 	testCases := []struct {
 		appFile   *AppFile
-		expectApp *v1alpha2.Application
+		expectApp *v1beta1.Application
 	}{
 		{
 			appFile: &AppFile{
@@ -50,19 +50,19 @@ func TestBuildOAMApplication2(t *testing.T) {
 					},
 				},
 			},
-			expectApp: &v1alpha2.Application{
+			expectApp: &v1beta1.Application{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Application",
 					APIVersion: "core.oam.dev/v1alpha2",
 				}, ObjectMeta: metav1.ObjectMeta{
 					Name: "test",
 				},
-				Spec: v1alpha2.ApplicationSpec{
-					Components: []v1alpha2.ApplicationComponent{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []v1beta1.ApplicationComponent{
 						{
-							Name:         "webapp",
-							WorkloadType: "containerWorkload",
-							Settings: runtime.RawExtension{
+							Name: "webapp",
+							Type: "containerWorkload",
+							Properties: runtime.RawExtension{
 								Raw: []byte("{\"image\":\"busybox\"}"),
 							},
 							Scopes: map[string]string{"healthscopes.core.oam.dev": "test-default-health"},
@@ -84,25 +84,25 @@ func TestBuildOAMApplication2(t *testing.T) {
 					},
 				},
 			},
-			expectApp: &v1alpha2.Application{
+			expectApp: &v1beta1.Application{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Application",
 					APIVersion: "core.oam.dev/v1alpha2",
 				}, ObjectMeta: metav1.ObjectMeta{
 					Name: "test",
 				},
-				Spec: v1alpha2.ApplicationSpec{
-					Components: []v1alpha2.ApplicationComponent{
+				Spec: v1beta1.ApplicationSpec{
+					Components: []v1beta1.ApplicationComponent{
 						{
-							Name:         "webapp",
-							WorkloadType: "containerWorkload",
-							Settings: runtime.RawExtension{
+							Name: "webapp",
+							Type: "containerWorkload",
+							Properties: runtime.RawExtension{
 								Raw: []byte("{\"image\":\"busybox\"}"),
 							},
 							Scopes: map[string]string{"healthscopes.core.oam.dev": "test-default-health"},
-							Traits: []common.ApplicationTrait{
+							Traits: []v1beta1.ApplicationTrait{
 								{
-									Name: "scaler",
+									Type: "scaler",
 									Properties: runtime.RawExtension{
 										Raw: []byte("{\"replicas\":10}"),
 									},
@@ -264,25 +264,25 @@ outputs: ingress: {
   }
 }
 `
-	ac1 := &v1alpha2.Application{
+	ac1 := &v1beta1.Application{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Application",
-			APIVersion: "core.oam.dev/v1alpha2",
+			APIVersion: "core.oam.dev/v1beta1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "myapp",
 			Namespace: "default",
 		},
-		Spec: v1alpha2.ApplicationSpec{
-			Components: []v1alpha2.ApplicationComponent{{
-				WorkloadType: "webservice",
-				Name:         "express-server",
-				Scopes:       map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
-				Settings: runtime.RawExtension{
+		Spec: v1beta1.ApplicationSpec{
+			Components: []v1beta1.ApplicationComponent{{
+				Type:   "webservice",
+				Name:   "express-server",
+				Scopes: map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
+				Properties: runtime.RawExtension{
 					Raw: []byte(`{"image": "oamdev/testapp:v1", "cmd": ["node", "server.js"]}`),
 				},
-				Traits: []common.ApplicationTrait{{
-					Name: "route",
+				Traits: []v1beta1.ApplicationTrait{{
+					Type: "route",
 					Properties: runtime.RawExtension{
 						Raw: []byte(`{"domain": "example.com", "http":{"/": 8080}}`),
 					},
@@ -292,18 +292,18 @@ outputs: ingress: {
 		},
 	}
 	ac2 := ac1.DeepCopy()
-	ac2.Spec.Components = append(ac2.Spec.Components, v1alpha2.ApplicationComponent{
-		Name:         "mongodb",
-		WorkloadType: "backend",
-		Settings: runtime.RawExtension{
+	ac2.Spec.Components = append(ac2.Spec.Components, v1beta1.ApplicationComponent{
+		Name: "mongodb",
+		Type: "backend",
+		Properties: runtime.RawExtension{
 			Raw: []byte(`{"image":"bitnami/mongodb:3.6.20","cmd": ["mongodb"]}`),
 		},
-		Traits: []common.ApplicationTrait{},
+		Traits: []v1beta1.ApplicationTrait{},
 		Scopes: map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
 	})
 
 	ac3 := ac1.DeepCopy()
-	ac3.Spec.Components[0].WorkloadType = "withconfig"
+	ac3.Spec.Components[0].Type = "withconfig"
 
 	// TODO application 那边补测试:
 	// 2. 1对多的情况，多对1 的情况
@@ -336,7 +336,7 @@ outputs: ingress: {
 	}
 	type want struct {
 		objs []oam.Object
-		app  *v1alpha2.Application
+		app  *v1beta1.Application
 		err  error
 	}
 	cases := map[string]struct {
@@ -438,17 +438,17 @@ outputs: ingress: {
 						continue
 					}
 					found = true
-					assert.Equal(t, comp.WorkloadType, c.want.app.Spec.Components[idx].WorkloadType)
+					assert.Equal(t, comp.Type, c.want.app.Spec.Components[idx].Type)
 					assert.Equal(t, comp.Name, c.want.app.Spec.Components[idx].Name)
 					assert.Equal(t, comp.Scopes, c.want.app.Spec.Components[idx].Scopes)
 
-					got, err := util.RawExtension2Map(&comp.Settings)
+					got, err := util.RawExtension2Map(&comp.Properties)
 					assert.NoError(t, err)
-					exp, err := util.RawExtension2Map(&c.want.app.Spec.Components[idx].Settings)
+					exp, err := util.RawExtension2Map(&c.want.app.Spec.Components[idx].Properties)
 					assert.NoError(t, err)
 					assert.Equal(t, exp, got)
 					for tidx, tr := range comp.Traits {
-						assert.Equal(t, tr.Name, c.want.app.Spec.Components[idx].Traits[tidx].Name)
+						assert.Equal(t, tr.Type, c.want.app.Spec.Components[idx].Traits[tidx].Type)
 
 						got, err := util.RawExtension2Map(&tr.Properties)
 						assert.NoError(t, err)

@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/types"
 )
 
 // A WorkloadDefinitionSpec defines the desired state of a WorkloadDefinition.
@@ -69,7 +70,7 @@ type WorkloadDefinitionStatus struct {
 // is used to validate the schema of the workload when it is embedded in an OAM
 // Component.
 // +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
-// +kubebuilder:resource:scope=Namespaced,categories={crossplane,oam}
+// +kubebuilder:resource:scope=Namespaced,categories={oam}
 type WorkloadDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -158,7 +159,7 @@ type TraitDefinitionStatus struct {
 // to validate the schema of the trait when it is embedded in an OAM
 // ApplicationConfiguration.
 // +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
-// +kubebuilder:resource:scope=Namespaced,categories={crossplane,oam}
+// +kubebuilder:resource:scope=Namespaced,categories={oam}
 // +kubebuilder:subresource:status
 type TraitDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -212,7 +213,7 @@ type ScopeDefinitionSpec struct {
 // to validate the schema of the scope when it is embedded in an OAM
 // ApplicationConfiguration.
 // +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
-// +kubebuilder:resource:scope=Namespaced,categories={crossplane,oam}
+// +kubebuilder:resource:scope=Namespaced,categories={oam}
 type ScopeDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -292,7 +293,7 @@ type ComponentStatus struct {
 // +kubebuilder:object:root=true
 
 // A Component describes how an OAM workload kind may be instantiated.
-// +kubebuilder:resource:categories={crossplane,oam}
+// +kubebuilder:resource:categories={oam}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:JSONPath=".spec.workload.kind",name=WORKLOAD-KIND,type=string
 // +kubebuilder:printcolumn:name="age",type="date",JSONPath=".metadata.creationTimestamp"
@@ -468,20 +469,6 @@ type HistoryWorkload struct {
 // A ApplicationStatus represents the state of the entire application.
 type ApplicationStatus string
 
-// RollingStatus represents the rollout phases
-type RollingStatus string
-
-const (
-	// RollingTemplating means that the AC is rolling and need template
-	RollingTemplating RollingStatus = "RollingTemplating"
-	// RollingTemplated means that the AC is rolling and it already templated
-	RollingTemplated RollingStatus = "RollingTemplated"
-	// RollingCompleted means that the AC is the new active revision of the application
-	RollingCompleted RollingStatus = "RollingCompleted"
-	// InactiveAfterRollingCompleted means that the AC is the inactive revision after the rolling is finished
-	InactiveAfterRollingCompleted RollingStatus = "InactiveAfterRollingCompleted"
-)
-
 // An ApplicationConfigurationStatus represents the observed state of a
 // ApplicationConfiguration.
 type ApplicationConfigurationStatus struct {
@@ -494,7 +481,7 @@ type ApplicationConfigurationStatus struct {
 	Dependency DependencyStatus `json:"dependency,omitempty"`
 
 	// RollingStatus indicates what phase are we in the rollout phase
-	RollingStatus RollingStatus `json:"rollingStatus,omitempty"`
+	RollingStatus types.RollingStatus `json:"rollingStatus,omitempty"`
 
 	// Workloads created by this ApplicationConfiguration.
 	Workloads []WorkloadStatus `json:"workloads,omitempty"`
@@ -536,7 +523,7 @@ type DependencyToObject struct {
 // +kubebuilder:object:root=true
 
 // An ApplicationConfiguration represents an OAM application.
-// +kubebuilder:resource:shortName=appconfig,categories={crossplane,oam}
+// +kubebuilder:resource:shortName=appconfig,categories={oam}
 // +kubebuilder:subresource:status
 type ApplicationConfiguration struct {
 	metav1.TypeMeta   `json:",inline"`
