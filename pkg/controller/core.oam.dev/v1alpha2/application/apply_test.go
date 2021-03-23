@@ -14,14 +14,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
 
 var _ = Describe("Test Application apply", func() {
 	var handler appHandler
-	var app *v1alpha2.Application
+	var app *v1beta1.Application
 	var namespaceName string
 	var ns corev1.Namespace
 
@@ -33,23 +33,23 @@ var _ = Describe("Test Application apply", func() {
 				Name: namespaceName,
 			},
 		}
-		app = &v1alpha2.Application{
+		app = &v1beta1.Application{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Application",
-				APIVersion: "core.oam.dev/v1alpha2",
+				APIVersion: "core.oam.dev/v1beta1",
 			},
 		}
 		app.Namespace = namespaceName
-		app.Spec = v1alpha2.ApplicationSpec{
-			Components: []v1alpha2.ApplicationComponent{{
-				WorkloadType: "webservice",
-				Name:         "express-server",
-				Scopes:       map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
-				Settings: runtime.RawExtension{
+		app.Spec = v1beta1.ApplicationSpec{
+			Components: []v1beta1.ApplicationComponent{{
+				Kind:   "webservice",
+				Name:   "express-server",
+				Scopes: map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
+				Properties: runtime.RawExtension{
 					Raw: []byte(`{"image": "oamdev/testapp:v1", "cmd": ["node", "server.js"]}`),
 				},
-				Traits: []common.ApplicationTrait{{
-					Name: "route",
+				Traits: []v1beta1.ApplicationTrait{{
+					Kind: "route",
 					Properties: runtime.RawExtension{
 						Raw: []byte(`{"domain": "example.com", "http":{"/": 8080}}`),
 					},

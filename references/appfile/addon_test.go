@@ -9,18 +9,18 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 var _ = It("Test ApplyTerraform", func() {
-	app := &v1alpha2.Application{
+	app := &v1beta1.Application{
 		ObjectMeta: v1.ObjectMeta{Name: "test-terraform-app"},
-		Spec: v1alpha2.ApplicationSpec{Components: []v1alpha2.ApplicationComponent{{
-			Name:         "test-terraform-svc",
-			WorkloadType: "aliyun-oss",
-			Settings:     runtime.RawExtension{Raw: []byte("{\"bucket\": \"oam-website\"}")},
+		Spec: v1beta1.ApplicationSpec{Components: []v1beta1.ApplicationComponent{{
+			Name:       "test-terraform-svc",
+			Kind:       "aliyun-oss",
+			Properties: runtime.RawExtension{Raw: []byte("{\"bucket\": \"oam-website\"}")},
 		},
 		}},
 	}

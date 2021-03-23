@@ -20,6 +20,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -195,7 +196,7 @@ func TestGetAppRevison(t *testing.T) {
 	assert.Equal(t, revisionName, "")
 	assert.Equal(t, latestRevision, int64(0))
 	// the first is always 1
-	app := &v1alpha2.Application{}
+	app := &v1beta1.Application{}
 	app.Name = "myapp"
 	revisionName, latestRevision = GetAppNextRevision(app)
 	assert.Equal(t, revisionName, "myapp-v1")

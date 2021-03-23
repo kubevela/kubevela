@@ -157,7 +157,7 @@ var _ = Describe("Test application containing helm module", func() {
 								"tag": "5.1.2",
 							},
 						}),
-						Traits: []common.ApplicationTrait{
+						Traits: []v1alpha2.ApplicationTrait{
 							{
 								Name: "scaler",
 								Properties: util.Object2RawExtension(map[string]interface{}{
@@ -233,7 +233,7 @@ var _ = Describe("Test application containing helm module", func() {
 								"tag": "5.1.3", // change 5.1.4 => 5.1.3
 							},
 						}),
-						Traits: []common.ApplicationTrait{
+						Traits: []v1alpha2.ApplicationTrait{
 							{
 								Name: "scaler",
 								Properties: util.Object2RawExtension(map[string]interface{}{

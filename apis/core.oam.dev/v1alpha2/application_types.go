@@ -48,15 +48,22 @@ type AppStatus struct {
 	LatestRevision *common.Revision `json:"latestRevision,omitempty"`
 }
 
+// ApplicationTrait defines the trait of application
+type ApplicationTrait struct {
+	Name string `json:"name"`
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Properties runtime.RawExtension `json:"properties,omitempty"`
+}
+
 // ApplicationComponent describe the component of application
 type ApplicationComponent struct {
 	Name         string `json:"name"`
 	WorkloadType string `json:"type"`
 	// +kubebuilder:pruning:PreserveUnknownFields
-	Settings runtime.RawExtension `json:"settings"`
+	Settings runtime.RawExtension `json:"settings,omitempty"`
 
 	// Traits define the trait of one component, the type must be array to keep the order.
-	Traits []common.ApplicationTrait `json:"traits,omitempty"`
+	Traits []ApplicationTrait `json:"traits,omitempty"`
 
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// scopes in ApplicationComponent defines the component-level scopes

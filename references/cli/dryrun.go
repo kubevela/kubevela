@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/yaml"
 
-	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -168,7 +168,7 @@ func ReadObjectsFromFile(path string) ([]oam.Object, error) {
 	return objs, nil
 }
 
-func readApplicationFromFile(filename string) (*corev1alpha2.Application, error) {
+func readApplicationFromFile(filename string) (*corev1beta1.Application, error) {
 
 	fileContent, err := ioutil.ReadFile(filepath.Clean(filename))
 	if err != nil {
@@ -184,7 +184,7 @@ func readApplicationFromFile(filename string) (*corev1alpha2.Application, error)
 		}
 	}
 
-	app := new(corev1alpha2.Application)
+	app := new(corev1beta1.Application)
 	err = json.Unmarshal(fileContent, app)
 	return app, err
 }

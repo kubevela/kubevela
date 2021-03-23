@@ -13,6 +13,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
@@ -26,9 +27,9 @@ type Template struct {
 	Reference          common.WorkloadGVK
 	Helm               *common.Helm
 	// TODO: Add scope definition too
-	ComponentDefinition *v1alpha2.ComponentDefinition
-	WorkloadDefinition  *v1alpha2.WorkloadDefinition
-	TraitDefinition     *v1alpha2.TraitDefinition
+	ComponentDefinition *v1beta1.ComponentDefinition
+	WorkloadDefinition  *v1beta1.WorkloadDefinition
+	TraitDefinition     *v1beta1.TraitDefinition
 }
 
 // GetScopeGVK Get ScopeDefinition
@@ -53,11 +54,11 @@ func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.C
 		var status *common.Status
 		var extension *runtime.RawExtension
 
-		cd := new(v1alpha2.ComponentDefinition)
+		cd := new(v1beta1.ComponentDefinition)
 		err := GetDefinition(ctx, cli, cd, key)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
-				wd := new(v1alpha2.WorkloadDefinition)
+				wd := new(v1beta1.WorkloadDefinition)
 				if err := GetDefinition(ctx, cli, wd, key); err != nil {
 					return nil, errors.WithMessagef(err, "LoadTemplate from workloadDefinition [%s] ", key)
 				}
@@ -90,7 +91,7 @@ func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.C
 		return tmpl, nil
 
 	case types.TypeTrait:
-		td := new(v1alpha2.TraitDefinition)
+		td := new(v1beta1.TraitDefinition)
 		err := GetDefinition(ctx, cli, td, key)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)

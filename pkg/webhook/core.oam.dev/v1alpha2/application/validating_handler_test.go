@@ -39,11 +39,11 @@ var _ = Describe("Test Application Validator", func() {
 				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
 				Object: runtime.RawExtension{
 					Raw: []byte(`
-{"apiVersion":"core.oam.dev/v1alpha2",
+{"apiVersion":"core.oam.dev/v1beta1",
 "kind":"Application",
 "metadata":{"name":"application-sample"},
-"spec":{"components":[{"name":"myweb","settings":{"cmd":["sleep","1000"],"image":"busybox"},
-"traits":[{"name":"scaler","properties":{"replicas":10}}],"type":"worker"}]}}
+"spec":{"components":[{"name":"myweb","properties":{"cmd":["sleep","1000"],"image":"busybox"},
+"traits":[{"kind":"scaler","properties":{"replicas":10}}],"kind":"worker"}]}}
 `),
 				},
 			},
@@ -58,11 +58,11 @@ var _ = Describe("Test Application Validator", func() {
 				Operation: admissionv1beta1.Create,
 				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
 				Object: runtime.RawExtension{
-					Raw: []byte(`{"apiVersion":"core.oam.dev/v1alpha2",
+					Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1",
 "kind":"Application",
 "metadata":{"name":"application-sample"},
-"spec":{"components":[{"name":"myweb","settings":{"cmd":["sleep","1000"],"image":"busybox"},
-"traits":[{"name":"scaler","properties":{"replicas":10}}],"type":"worker1"}]}}`),
+"spec":{"components":[{"name":"myweb","properties":{"cmd":["sleep","1000"],"image":"busybox"},
+"traits":[{"kind":"scaler","properties":{"replicas":10}}],"kind":"worker1"}]}}`),
 				},
 			},
 		}
@@ -77,20 +77,20 @@ var _ = Describe("Test Application Validator", func() {
 				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
 				Object: runtime.RawExtension{
 					Raw: []byte(`
-{"apiVersion":"core.oam.dev/v1alpha2",
+{"apiVersion":"core.oam.dev/v1beta1",
 "kind":"Application",
 "metadata":{"name":"application-sample", "annotations": {"app.oam.dev/rollout" : "true"},}
-"spec":{"components":[{"name":"myweb","settings":{"cmd":["sleep","1000"],"image":"busybox"},
-"traits":[{"name":"scaler","properties":{"replicas":10}}],"type":"worker"}]}}
+"spec":{"components":[{"name":"myweb","properties":{"cmd":["sleep","1000"],"image":"busybox"},
+"traits":[{"kind":"scaler","properties":{"replicas":10}}],"kind":"worker"}]}}
 `),
 				},
 				OldObject: runtime.RawExtension{
 					Raw: []byte(`
-{"apiVersion":"core.oam.dev/v1alpha2",
+{"apiVersion":"core.oam.dev/v1beta1",
 "kind":"Application",
 "metadata":{"name":"application-sample"},
-"spec":{"components":[{"name":"myweb","settings":{"cmd":["sleep","1000"],"image":"busybox"},
-"traits":[{"name":"scaler","properties":{"replicas":10}}],"type":"worker"}]}}
+"spec":{"components":[{"name":"myweb","properties":{"cmd":["sleep","1000"],"image":"busybox"},
+"traits":[{"kind":"scaler","properties":{"replicas":10}}],"kind":"worker"}]}}
 `),
 				},
 			},

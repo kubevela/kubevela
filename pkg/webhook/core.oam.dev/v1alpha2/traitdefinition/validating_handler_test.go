@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
@@ -84,7 +86,7 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 		var mockValidator TraitDefValidatorFn
 		It("Test validation passed", func() {
 			// mock a validator that always validates successfully
-			mockValidator = func(_ context.Context, _ v1alpha2.TraitDefinition) error {
+			mockValidator = func(_ context.Context, _ v1beta1.TraitDefinition) error {
 				return nil
 			}
 			handler.Validators = []TraitDefValidator{
@@ -102,7 +104,7 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 		})
 		It("Test validation failed", func() {
 			// mock a validator that always failed
-			mockValidator = func(_ context.Context, _ v1alpha2.TraitDefinition) error {
+			mockValidator = func(_ context.Context, _ v1beta1.TraitDefinition) error {
 				return errors.New("mock validator error")
 			}
 			handler.Validators = []TraitDefValidator{

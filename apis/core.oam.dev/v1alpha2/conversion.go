@@ -25,23 +25,31 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
-// CovertTo converts this Application to the Hub version (v1beta1).
-func (app *Application) CovertTo(dst conversion.Hub) error {
+// ConvertTo converts this Application to the Hub version (v1beta1).
+func (app *Application) ConvertTo(dst conversion.Hub) error {
 	switch t := dst.(type) {
 	case *v1beta1.Application:
-		appv1beta1 := dst.(*v1beta1.Application)
 		klog.Infof("convert *v1alpha.Application [%s] to *v1beta1.Application", app.Name)
+
+		appv1beta1 := dst.(*v1beta1.Application)
 		appv1beta1.ObjectMeta = app.ObjectMeta
 
 		if len(app.Spec.Components) > 0 {
 			componets := make([]v1beta1.ApplicationComponent, len(app.Spec.Components))
 			for i, component := range app.Spec.Components {
+				traits := make([]v1beta1.ApplicationTrait, len(component.Traits))
+				for j, trait := range component.Traits {
+					traits[j] = v1beta1.ApplicationTrait{
+						Kind:       trait.Name,
+						Properties: trait.Properties,
+					}
+				}
 				componets[i] = v1beta1.ApplicationComponent{
-					Name:         component.Name,
-					WorkloadType: component.WorkloadType,
-					Settings:     component.Settings,
-					Traits:       component.Traits,
-					Scopes:       component.Scopes,
+					Name:       component.Name,
+					Kind:       component.WorkloadType,
+					Properties: component.Settings,
+					Traits:     traits,
+					Scopes:     component.Scopes,
 				}
 			}
 			appv1beta1.Spec.Components = componets
@@ -66,17 +74,25 @@ func (app *Application) ConvertFrom(src conversion.Hub) error {
 	switch t := src.(type) {
 	case *v1beta1.Application:
 		appv1beta1 := src.(*v1beta1.Application)
+
 		klog.Infof("convert *v1alpha.Application from *v1beta1.Application [%s]", appv1beta1.Name)
 		app.ObjectMeta = appv1beta1.ObjectMeta
 
 		if len(appv1beta1.Spec.Components) > 0 {
 			componets := make([]ApplicationComponent, len(appv1beta1.Spec.Components))
 			for i, component := range appv1beta1.Spec.Components {
+				traits := make([]ApplicationTrait, len(component.Traits))
+				for j, trait := range component.Traits {
+					traits[j] = ApplicationTrait{
+						Name:       trait.Kind,
+						Properties: trait.Properties,
+					}
+				}
 				componets[i] = ApplicationComponent{
 					Name:         component.Name,
-					WorkloadType: component.WorkloadType,
-					Settings:     component.Settings,
-					Traits:       component.Traits,
+					WorkloadType: component.Kind,
+					Settings:     component.Properties,
+					Traits:       traits,
 					Scopes:       component.Scopes,
 				}
 			}

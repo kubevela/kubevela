@@ -37,6 +37,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -118,7 +119,7 @@ var expectedExceptApp = &Appfile{
 }
 
 const traitDefinition = `
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -146,7 +147,7 @@ spec:
       }`
 
 const componenetDefinition = `
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
   name: worker
@@ -199,28 +200,28 @@ spec:
       }`
 
 const appfileYaml = `
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: application-sample
 spec:
   components:
     - name: myweb
-      type: worker
-      settings:
+      kind: worker
+      properties:
         image: "busybox"
         cmd:
         - sleep
         - "1000"
       traits:
-        - name: scaler
+        - kind: scaler
           properties:
             replicas: 10
 `
 
 var _ = Describe("Test application parser", func() {
 	It("Test we can parse an application to an appFile", func() {
-		o := v1alpha2.Application{}
+		o := v1beta1.Application{}
 		err := yaml.Unmarshal([]byte(appfileYaml), &o)
 		Expect(err).ShouldNot(HaveOccurred())
 
@@ -228,13 +229,13 @@ var _ = Describe("Test application parser", func() {
 		tclient := test.MockClient{
 			MockGet: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
 				switch o := obj.(type) {
-				case *v1alpha2.ComponentDefinition:
+				case *v1beta1.ComponentDefinition:
 					wd, err := util.UnMarshalStringToComponentDefinition(componenetDefinition)
 					if err != nil {
 						return err
 					}
 					*o = *wd
-				case *v1alpha2.TraitDefinition:
+				case *v1beta1.TraitDefinition:
 					td, err := util.UnMarshalStringToTraitDefinition(traitDefinition)
 					if err != nil {
 						return err
@@ -247,7 +248,6 @@ var _ = Describe("Test application parser", func() {
 
 		appfile, err := NewApplicationParser(&tclient, dm, pd).GenerateAppFile(context.TODO(), "test", &o)
 		Expect(err).ShouldNot(HaveOccurred())
-
 		Expect(equal(expectedExceptApp, appfile)).Should(BeTrue())
 	})
 })
@@ -268,13 +268,13 @@ func equal(af, dest *Appfile) bool {
 		for j, td := range wd.Traits {
 			destTd := destWd.Traits[j]
 			if td.Name != destTd.Name {
+				fmt.Printf("td:%s dest%s", td.Name, destTd.Name)
 				return false
 			}
 			if !reflect.DeepEqual(td.Params, destTd.Params) {
 				fmt.Printf("%#v | %#v\n", td.Params, destTd.Params)
 				return false
 			}
-
 		}
 	}
 	return true

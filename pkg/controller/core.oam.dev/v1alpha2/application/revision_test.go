@@ -15,8 +15,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -24,13 +24,13 @@ import (
 )
 
 var _ = Describe("test generate revision ", func() {
-	var appRevision1, appRevision2 v1alpha2.ApplicationRevision
-	var app v1alpha2.Application
-	cd := v1alpha2.ComponentDefinition{}
-	webCompDef := v1alpha2.ComponentDefinition{}
-	wd := v1alpha2.WorkloadDefinition{}
-	td := v1alpha2.TraitDefinition{}
-	sd := v1alpha2.ScopeDefinition{}
+	var appRevision1, appRevision2 v1beta1.ApplicationRevision
+	var app v1beta1.Application
+	cd := v1beta1.ComponentDefinition{}
+	webCompDef := v1beta1.ComponentDefinition{}
+	wd := v1beta1.WorkloadDefinition{}
+	td := v1beta1.TraitDefinition{}
+	sd := v1beta1.ScopeDefinition{}
 	var handler appHandler
 	var ac *v1alpha2.ApplicationConfiguration
 	var comps []*v1alpha2.Component
@@ -74,28 +74,28 @@ var _ = Describe("test generate revision ", func() {
 		By("Create the Namespace for test")
 		Expect(k8sClient.Create(ctx, &ns)).Should(Succeed())
 
-		app = v1alpha2.Application{
+		app = v1beta1.Application{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Application",
-				APIVersion: "core.oam.dev/v1alpha2",
+				APIVersion: "core.oam.dev/v1beta1",
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "revision-apply-test",
 				Namespace: namespaceName,
 				UID:       "f97e2615-3822-4c62-a3bd-fb880e0bcec5",
 			},
-			Spec: v1alpha2.ApplicationSpec{
-				Components: []v1alpha2.ApplicationComponent{
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
 					{
-						WorkloadType: cd.Name,
-						Name:         "express-server",
-						Scopes:       map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
-						Settings: runtime.RawExtension{
+						Kind:   cd.Name,
+						Name:   "express-server",
+						Scopes: map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
+						Properties: runtime.RawExtension{
 							Raw: []byte(`{"image": "oamdev/testapp:v1", "cmd": ["node", "server.js"]}`),
 						},
-						Traits: []common.ApplicationTrait{
+						Traits: []v1beta1.ApplicationTrait{
 							{
-								Name: td.Name,
+								Kind: td.Name,
 								Properties: runtime.RawExtension{
 									Raw: []byte(`{"replicas": 5}`),
 								},
@@ -108,15 +108,15 @@ var _ = Describe("test generate revision ", func() {
 		// create the application
 		Expect(k8sClient.Create(ctx, &app)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		appRevision1 = v1alpha2.ApplicationRevision{
+		appRevision1 = v1beta1.ApplicationRevision{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "appRevision1",
 			},
-			Spec: v1alpha2.ApplicationRevisionSpec{
-				ComponentDefinitions: make(map[string]v1alpha2.ComponentDefinition),
-				WorkloadDefinitions:  make(map[string]v1alpha2.WorkloadDefinition),
-				TraitDefinitions:     make(map[string]v1alpha2.TraitDefinition),
-				ScopeDefinitions:     make(map[string]v1alpha2.ScopeDefinition),
+			Spec: v1beta1.ApplicationRevisionSpec{
+				ComponentDefinitions: make(map[string]v1beta1.ComponentDefinition),
+				WorkloadDefinitions:  make(map[string]v1beta1.WorkloadDefinition),
+				TraitDefinitions:     make(map[string]v1beta1.TraitDefinition),
+				ScopeDefinitions:     make(map[string]v1beta1.ScopeDefinition),
 			},
 		}
 		appRevision1.Spec.Application = app
@@ -188,7 +188,7 @@ var _ = Describe("test generate revision ", func() {
 
 	It("Test app revisions with different application spec should produce different hash and not equal", func() {
 		// change application setting
-		appRevision2.Spec.Application.Spec.Components[0].Settings.Raw =
+		appRevision2.Spec.Application.Spec.Components[0].Properties.Raw =
 			[]byte(`{"image": "oamdev/testapp:v2", "cmd": ["node", "server.js"]}`)
 
 		verifyNotEqual()
@@ -213,7 +213,7 @@ var _ = Describe("test generate revision ", func() {
 		Expect(ac.Namespace).Should(Equal(app.Namespace))
 		Expect(handler.apply(context.Background(), ac, comps)).Should(Succeed())
 
-		curApp := &v1alpha2.Application{}
+		curApp := &v1beta1.Application{}
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx,
@@ -223,7 +223,7 @@ var _ = Describe("test generate revision ", func() {
 			time.Second*10, time.Millisecond*500).Should(BeNil())
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 		By("Verify the created appRevision is exactly what it is")
-		curAppRevision := &v1alpha2.ApplicationRevision{}
+		curAppRevision := &v1beta1.ApplicationRevision{}
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx,
@@ -277,7 +277,7 @@ var _ = Describe("test generate revision ", func() {
 		By("Change the application and apply again")
 		// bump the image tag
 		app.ResourceVersion = curApp.ResourceVersion
-		app.Spec.Components[0].Settings = runtime.RawExtension{
+		app.Spec.Components[0].Properties = runtime.RawExtension{
 			Raw: []byte(`{"image": "oamdev/testapp:v2", "cmd": ["node", "server.js"]}`),
 		}
 		// persist the app

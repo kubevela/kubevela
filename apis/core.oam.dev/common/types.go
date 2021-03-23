@@ -114,13 +114,6 @@ type ApplicationComponentStatus struct {
 	Traits  []ApplicationTraitStatus `json:"traits,omitempty"`
 }
 
-// ApplicationTrait defines the trait of application
-type ApplicationTrait struct {
-	Name string `json:"name"`
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Properties runtime.RawExtension `json:"properties"`
-}
-
 // ApplicationTraitStatus records the trait health status
 type ApplicationTraitStatus struct {
 	Type    string `json:"type"`

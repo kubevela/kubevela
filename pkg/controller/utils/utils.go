@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -160,7 +161,7 @@ func StoreInSet(disableCaps string) mapset.Set {
 }
 
 // GetAppNextRevision will generate the next revision name and revision number for application
-func GetAppNextRevision(app *v1alpha2.Application) (string, int64) {
+func GetAppNextRevision(app *v1beta1.Application) (string, int64) {
 	if app == nil {
 		// should never happen
 		return "", 0

@@ -3,12 +3,12 @@ package util
 import (
 	"encoding/json"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
 	"github.com/onsi/gomega/format"
 	"github.com/onsi/gomega/types"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/yaml"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 )
 
 // JSONMarshal returns the JSON encoding
@@ -133,8 +133,8 @@ func (matcher ErrorMatcher) NegatedFailureMessage(actual interface{}) (message s
 }
 
 // UnMarshalStringToComponentDefinition parse a string to a componentDefinition object
-func UnMarshalStringToComponentDefinition(s string) (*v1alpha2.ComponentDefinition, error) {
-	obj := &v1alpha2.ComponentDefinition{}
+func UnMarshalStringToComponentDefinition(s string) (*v1beta1.ComponentDefinition, error) {
+	obj := &v1beta1.ComponentDefinition{}
 	_body, err := yaml.YAMLToJSON([]byte(s))
 	if err != nil {
 		return nil, err
@@ -146,8 +146,8 @@ func UnMarshalStringToComponentDefinition(s string) (*v1alpha2.ComponentDefiniti
 }
 
 // UnMarshalStringToTraitDefinition parse a string to a traitDefinition object
-func UnMarshalStringToTraitDefinition(s string) (*v1alpha2.TraitDefinition, error) {
-	obj := &v1alpha2.TraitDefinition{}
+func UnMarshalStringToTraitDefinition(s string) (*v1beta1.TraitDefinition, error) {
+	obj := &v1beta1.TraitDefinition{}
 	_body, err := yaml.YAMLToJSON([]byte(s))
 	if err != nil {
 		return nil, err

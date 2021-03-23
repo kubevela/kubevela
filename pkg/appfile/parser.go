@@ -14,6 +14,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
@@ -146,7 +147,7 @@ func NewApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper,
 }
 
 // GenerateAppFile converts an application to an Appfile
-func (p *Parser) GenerateAppFile(ctx context.Context, name string, app *v1alpha2.Application) (*Appfile, error) {
+func (p *Parser) GenerateAppFile(ctx context.Context, name string, app *v1beta1.Application) (*Appfile, error) {
 	appfile := new(Appfile)
 	appfile.Name = name
 	var wds []*Workload
@@ -161,21 +162,21 @@ func (p *Parser) GenerateAppFile(ctx context.Context, name string, app *v1alpha2
 	return appfile, nil
 }
 
-func (p *Parser) parseWorkload(ctx context.Context, comp v1alpha2.ApplicationComponent) (*Workload, error) {
+func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComponent) (*Workload, error) {
 
 	// TODO: pass in p.dm
-	templ, err := util.LoadTemplate(ctx, p.client, comp.WorkloadType, types.TypeComponentDefinition)
+	templ, err := util.LoadTemplate(ctx, p.client, comp.Kind, types.TypeComponentDefinition)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
 	}
-	settings, err := util.RawExtension2Map(&comp.Settings)
+	settings, err := util.RawExtension2Map(&comp.Properties)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
 	}
 	workload := &Workload{
 		Traits:              []*Trait{},
 		Name:                comp.Name,
-		Type:                comp.WorkloadType,
+		Type:                comp.Kind,
 		CapabilityCategory:  templ.CapabilityCategory,
 		Template:            templ.TemplateStr,
 		HealthCheckPolicy:   templ.Health,
@@ -189,11 +190,11 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1alpha2.ApplicationCom
 	for _, traitValue := range comp.Traits {
 		properties, err := util.RawExtension2Map(&traitValue.Properties)
 		if err != nil {
-			return nil, errors.Errorf("fail to parse properties of %s for %s", traitValue.Name, comp.Name)
+			return nil, errors.Errorf("fail to parse properties of %s for %s", traitValue.Kind, comp.Name)
 		}
-		trait, err := p.parseTrait(ctx, traitValue.Name, properties)
+		trait, err := p.parseTrait(ctx, traitValue.Kind, properties)
 		if err != nil {
-			return nil, errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Name)
+			return nil, errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Kind)
 		}
 
 		workload.Traits = append(workload.Traits, trait)

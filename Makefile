@@ -207,8 +207,11 @@ core-uninstall: manifests
 	kubectl delete -f charts/vela-core/crds/
 
 # Generate manifests e.g. CRD, RBAC etc.
-manifests:
+manifests: kustomize
 	go generate $(foreach t,pkg apis,./$(t)/...)
+	# TODO(yangsoon): remove fixed file path
+	$(KUSTOMIZE) build config/crd -o config/crd/base/core.oam.dev_applications.yaml
+	mv config/crd/base/* charts/vela-core/crds
 	./hack/vela-templates/gen_definitions.sh
 
 GOLANGCILINT_VERSION ?= v1.31.0
@@ -266,6 +269,22 @@ ifeq (, $(shell which cue))
 CUE=$(GOBIN)/cue
 else
 CUE=$(shell which cue)
+endif
+
+KUSTOMIZE_VERSION ?= 3.8.2
+
+.PHONY: kustomize
+kustomize:
+ifeq (, $(shell which kustomize))
+	@{ \
+	set -e ;\
+	echo 'installing kustomize-v$(KUSTOMIZE_VERSION)' ;\
+	curl -s https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash -s $(KUSTOMIZE_VERSION) $(GOBIN);\
+	echo 'Install succeed' ;\
+	}
+KUSTOMIZE=$(GOBIN)/kustomize
+else
+KUSTOMIZE=$(shell which kustomize)
 endif
 
 start-dashboard:

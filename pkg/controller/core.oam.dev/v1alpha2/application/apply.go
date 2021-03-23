@@ -20,6 +20,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
@@ -48,7 +49,7 @@ func readyCondition(tpy string) runtimev1alpha1.Condition {
 
 type appHandler struct {
 	r       *Reconciler
-	app     *v1alpha2.Application
+	app     *v1beta1.Application
 	appfile *appfile.Appfile
 	logger  logr.Logger
 }
@@ -73,8 +74,8 @@ func (h *appHandler) handleErr(err error) (ctrl.Result, error) {
 // 4. garbage collect unused components
 func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) error {
 	owners := []metav1.OwnerReference{{
-		APIVersion: v1alpha2.SchemeGroupVersion.String(),
-		Kind:       v1alpha2.ApplicationKind,
+		APIVersion: v1beta1.SchemeGroupVersion.String(),
+		Kind:       v1beta1.ApplicationKind,
 		Name:       h.app.Name,
 		UID:        h.app.UID,
 		Controller: pointer.BoolPtr(true),

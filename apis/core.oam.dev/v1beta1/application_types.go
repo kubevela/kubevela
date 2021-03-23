@@ -47,15 +47,22 @@ type AppStatus struct {
 	LatestRevision *common.Revision `json:"latestRevision,omitempty"`
 }
 
+// ApplicationTrait defines the trait of application
+type ApplicationTrait struct {
+	Kind string `json:"kind"`
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Properties runtime.RawExtension `json:"properties,omitempty"`
+}
+
 // ApplicationComponent describe the component of application
 type ApplicationComponent struct {
-	Name         string `json:"name"`
-	WorkloadType string `json:"type"`
+	Name string `json:"name"`
+	Kind string `json:"kind"`
 	// +kubebuilder:pruning:PreserveUnknownFields
-	Settings runtime.RawExtension `json:"settings"`
+	Properties runtime.RawExtension `json:"properties,omitempty"`
 
 	// Traits define the trait of one component, the type must be array to keep the order.
-	Traits []common.ApplicationTrait `json:"traits,omitempty"`
+	Traits []ApplicationTrait `json:"traits,omitempty"`
 
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// scopes in ApplicationComponent defines the component-level scopes
@@ -100,7 +107,7 @@ type ApplicationList struct {
 // GetComponent get the component from the application based on its workload type
 func (app *Application) GetComponent(workloadType string) *ApplicationComponent {
 	for _, c := range app.Spec.Components {
-		if c.WorkloadType == workloadType {
+		if c.Kind == workloadType {
 			return &c
 		}
 	}

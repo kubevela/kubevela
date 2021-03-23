@@ -73,14 +73,12 @@ spec:
                                     x-kubernetes-preserve-unknown-fields: true
                                 required:
                                 - name
-                                - properties
                                 type: object
                               type: array
                             type:
                               type: string
                           required:
                           - name
-                          - settings
                           - type
                           type: object
                         type: array
@@ -946,15 +944,17 @@ spec:
                         items:
                           description: ApplicationComponent describe the component of application
                           properties:
+                            kind:
+                              type: string
                             name:
                               type: string
+                            properties:
+                              type: object
+                              x-kubernetes-preserve-unknown-fields: true
                             scopes:
                               additionalProperties:
                                 type: string
                               description: scopes in ApplicationComponent defines the component-level scopes the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
-                              type: object
-                              x-kubernetes-preserve-unknown-fields: true
-                            settings:
                               type: object
                               x-kubernetes-preserve-unknown-fields: true
                             traits:
@@ -962,22 +962,18 @@ spec:
                               items:
                                 description: ApplicationTrait defines the trait of application
                                 properties:
-                                  name:
+                                  kind:
                                     type: string
                                   properties:
                                     type: object
                                     x-kubernetes-preserve-unknown-fields: true
                                 required:
-                                - name
-                                - properties
+                                - kind
                                 type: object
                               type: array
-                            type:
-                              type: string
                           required:
+                          - kind
                           - name
-                          - settings
-                          - type
                           type: object
                         type: array
                       rolloutPlan:
