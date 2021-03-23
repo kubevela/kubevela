@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
@@ -14,43 +16,179 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 )
 
-var velaBuiltinPkgs []*build.Instance
-
-// AddVelaInternalPackagesFor will add KubeVela built-in packages into your CUE instance
-func AddVelaInternalPackagesFor(bi *build.Instance) {
-	bi.Imports = append(bi.Imports, velaBuiltinPkgs...)
+// PackageDiscover defines the inner CUE packages loaded from K8s cluster
+type PackageDiscover struct {
+	velaBuiltinPackages []*build.Instance
+	pkgKinds            map[string][]string
+	mutex               sync.RWMutex
+	client              *rest.RESTClient
 }
 
-// AddKubeCUEPackagesFromCluster use  K8s native API and CRD definition as a reference package in template rendering
-func AddKubeCUEPackagesFromCluster(config *rest.Config) error {
-	copyConfig := *config
-	apiSchema, err := getClusterOpenAPI(&copyConfig)
+// NewPackageDiscover will create a PackageDiscover client with the K8s config file.
+func NewPackageDiscover(config *rest.Config) (*PackageDiscover, error) {
+	client, err := getClusterOpenAPIClient(config)
+	if err != nil {
+		return nil, err
+	}
+	pd := &PackageDiscover{
+		client:   client,
+		pkgKinds: make(map[string][]string),
+	}
+	if err = pd.RefreshKubePackagesFromCluster(); err != nil {
+		return nil, err
+	}
+	return pd, nil
+}
+
+// ImportBuiltinPackagesFor will add KubeVela built-in packages into your CUE instance
+func (pd *PackageDiscover) ImportBuiltinPackagesFor(bi *build.Instance) {
+	pd.mutex.RLock()
+	defer pd.mutex.RUnlock()
+	bi.Imports = append(bi.Imports, pd.velaBuiltinPackages...)
+}
+
+// RefreshKubePackagesFromCluster will use K8s client to load/refresh all K8s open API as a reference kube package using in template
+func (pd *PackageDiscover) RefreshKubePackagesFromCluster() error {
+	body, err := pd.client.Get().AbsPath("/openapi/v2").Do(context.Background()).Raw()
 	if err != nil {
 		return err
 	}
-	kubePkg := newPackage("kube")
-	if err := kubePkg.addOpenAPI(apiSchema); err != nil {
+	return pd.addKubeCUEPackagesFromCluster(string(body))
+}
+
+// Exist checks if the GVK exists in the built-in packages
+func (pd *PackageDiscover) Exist(gvk metav1.GroupVersionKind) bool {
+	// package name equals to importPath
+	importPath := genPackageName(gvk.Group, gvk.Version)
+	pd.mutex.RLock()
+	defer pd.mutex.RUnlock()
+	pkgKinds := pd.pkgKinds[importPath]
+	for _, k := range pkgKinds {
+		if k == gvk.Kind {
+			return true
+		}
+	}
+	return false
+}
+
+// mount will mount the new parsed package into PackageDiscover built-in packages
+func (pd *PackageDiscover) mount(pkg *pkgInstance, pkgKinds []string) {
+	pd.mutex.Lock()
+	defer pd.mutex.Unlock()
+	for i, p := range pd.velaBuiltinPackages {
+		if p.ImportPath == pkg.ImportPath {
+			pd.velaBuiltinPackages[i] = pkg.Instance
+			return
+		}
+	}
+	pd.pkgKinds[pkg.ImportPath] = pkgKinds
+	pd.velaBuiltinPackages = append(pd.velaBuiltinPackages, pkg.Instance)
+}
+
+func (pd *PackageDiscover) addKubeCUEPackagesFromCluster(apiSchema string) error {
+	var r cue.Runtime
+	oaInst, err := r.Compile("-", apiSchema)
+	if err != nil {
 		return err
 	}
-	kubePkg.mount()
+	kinds := map[string]metav1.GroupVersionKind{}
+	pathValue := oaInst.Value().Lookup("paths")
+	if pathValue.Exists() {
+		if st, err := pathValue.Struct(); err == nil {
+			iter := st.Fields()
+			for iter.Next() {
+				gvk := iter.Value().Lookup("post",
+					"x-kubernetes-group-version-kind")
+				if gvk.Exists() {
+					if v, err := getGVK(gvk); err == nil {
+						kinds["#"+v.Kind] = v
+					}
+				}
+			}
+		}
+	}
+	oaFile, err := jsonschema.Extract(oaInst, &jsonschema.Config{
+		Root: "#/definitions",
+		Map:  openAPIMapping,
+	})
+	if err != nil {
+		return err
+	}
+	packages := make(map[string]*pkgInstance)
+	groupKinds := make(map[string][]string)
+
+	for k, v := range kinds {
+		apiVersion := v.Version
+		if v.Group != "" {
+			apiVersion = v.Group + "/" + apiVersion
+		}
+		def := fmt.Sprintf(`%s: {
+kind: "%s"
+apiVersion: "%s",
+}`, k, v.Kind, apiVersion)
+		pkgName := genPackageName(v.Group, v.Version)
+		pkg, ok := packages[pkgName]
+		if !ok {
+			pkg = newPackage(pkgName)
+		}
+
+		mykinds := groupKinds[pkgName]
+		mykinds = append(mykinds, v.Kind)
+
+		if err := pkg.AddFile(k, def); err != nil {
+			return err
+		}
+		packages[pkgName] = pkg
+		groupKinds[pkgName] = mykinds
+	}
+	for name, pkg := range packages {
+		pkg.processOpenAPIFile(oaFile)
+		if err = pkg.AddSyntax(oaFile); err != nil {
+			return err
+		}
+		pd.mount(pkg, groupKinds[name])
+	}
 	return nil
 }
 
-func getClusterOpenAPI(config *rest.Config) (string, error) {
-	config.NegotiatedSerializer = serializer.NegotiatedSerializerWrapper(runtime.SerializerInfo{})
-	restClient, err := rest.UnversionedRESTClientFor(config)
-	if err != nil {
-		return "", err
+func genPackageName(group, version string) string {
+	res := []string{"kube"}
+	if group != "" {
+		res = append(res, group)
 	}
+	// version should never be empty
+	res = append(res, version)
+	return strings.Join(res, "/")
+}
 
-	body, err := restClient.Get().AbsPath("/openapi/v2").Do(context.Background()).Raw()
-	if err != nil {
-		return "", err
+func setDiscoveryDefaults(config *rest.Config) {
+	config.APIPath = ""
+	config.GroupVersion = nil
+	if config.Timeout == 0 {
+		config.Timeout = 32 * time.Second
 	}
-	return string(body), nil
+	if config.Burst == 0 && config.QPS < 100 {
+		// discovery is expected to be bursty, increase the default burst
+		// to accommodate looking up resource info for many API groups.
+		// matches burst set by ConfigFlags#ToDiscoveryClient().
+		// see https://issue.k8s.io/86149
+		config.Burst = 100
+	}
+	codec := runtime.NoopEncoder{Decoder: clientgoscheme.Codecs.UniversalDecoder()}
+	config.NegotiatedSerializer = serializer.NegotiatedSerializerWrapper(runtime.SerializerInfo{Serializer: codec})
+	if len(config.UserAgent) == 0 {
+		config.UserAgent = rest.DefaultKubernetesUserAgent()
+	}
+}
+
+func getClusterOpenAPIClient(config *rest.Config) (*rest.RESTClient, error) {
+	copyConfig := *config
+	setDiscoveryDefaults(&copyConfig)
+	return rest.UnversionedRESTClientFor(&copyConfig)
 }
 
 func openAPIMapping(pos token.Pos, a []string) ([]ast.Label, error) {
@@ -108,66 +246,6 @@ func (pkg *pkgInstance) processOpenAPIFile(f *ast.File) {
 			}
 		}
 	}
-}
-
-func (pkg *pkgInstance) addOpenAPI(apiSchema string) error {
-	var r cue.Runtime
-
-	oaInst, err := r.Compile("-", apiSchema)
-	if err != nil {
-		return err
-	}
-
-	kinds := map[string]metav1.GroupVersionKind{}
-	pathv := oaInst.Value().Lookup("paths")
-	if pathv.Exists() {
-		if st, err := pathv.Struct(); err == nil {
-			iter := st.Fields()
-			for iter.Next() {
-				gvk := iter.Value().Lookup("post",
-					"x-kubernetes-group-version-kind")
-				if gvk.Exists() {
-					if v, err := getGVK(gvk); err == nil {
-						kinds["#"+v.Kind] = v
-					}
-				}
-			}
-		}
-	}
-	oaFile, err := jsonschema.Extract(oaInst, &jsonschema.Config{
-		Root: "#/definitions",
-		Map:  openAPIMapping,
-	})
-	if err != nil {
-		return err
-	}
-
-	for k, v := range kinds {
-		apiversion := v.Version
-		if v.Group != "" {
-			apiversion = v.Group + "/" + apiversion
-		}
-		def := fmt.Sprintf(`%s: {
-kind: "%s"
-apiVersion: "%s",
-}`, k, v.Kind, apiversion)
-		if err := pkg.AddFile(k, def); err != nil {
-			return err
-		}
-	}
-
-	pkg.processOpenAPIFile(oaFile)
-	return pkg.AddSyntax(oaFile)
-}
-
-func (pkg *pkgInstance) mount() {
-	for i := range velaBuiltinPkgs {
-		if velaBuiltinPkgs[i].ImportPath == pkg.ImportPath {
-			velaBuiltinPkgs[i] = pkg.Instance
-			return
-		}
-	}
-	velaBuiltinPkgs = append(velaBuiltinPkgs, pkg.Instance)
 }
 
 func getGVK(v cue.Value) (metav1.GroupVersionKind, error) {

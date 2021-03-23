@@ -115,11 +115,14 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(k8sClient).ToNot(BeNil())
 	dm, err := discoverymapper.New(cfg)
 	Expect(err).To(BeNil())
+	pd, err := definition.NewPackageDiscover(cfg)
+	Expect(err).To(BeNil())
 	reconciler = &Reconciler{
 		Client: k8sClient,
 		Log:    ctrl.Log.WithName("Application-Test"),
 		Scheme: testScheme,
 		dm:     dm,
+		pd:     pd,
 	}
 	// setup the controller manager since we need the component handler to run in the background
 	ctlManager, err = ctrl.NewManager(cfg, ctrl.Options{
@@ -145,7 +148,6 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).NotTo(HaveOccurred())
 	definitonNs := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
 	Expect(k8sClient.Create(context.Background(), definitonNs.DeepCopy())).Should(BeNil())
-	Expect(definition.AddKubeCUEPackagesFromCluster(cfg)).Should(BeNil())
 	// start the controller in the background so that new componentRevisions are created
 	go func() {
 		err = ctlManager.Start(stop)

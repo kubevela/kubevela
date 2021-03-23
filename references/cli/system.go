@@ -18,6 +18,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/hack/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/plugins"
@@ -41,7 +42,7 @@ type initCmd struct {
 	chartPath string
 	chartArgs chartArgs
 	waitReady string
-	c         types.Args
+	c         common.Args
 }
 
 type chartArgs struct {
@@ -56,7 +57,7 @@ type infoCmd struct {
 }
 
 // SystemCommandGroup creates `system` command and its nested children command
-func SystemCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func SystemCommandGroup(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "system",
 		Short: "System management utilities",
@@ -101,7 +102,7 @@ func (i *infoCmd) run(ioStreams cmdutil.IOStreams) error {
 }
 
 // NewInstallCommand creates `install` command
-func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewInstallCommand(c common.Args, chartContent string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	i := &initCmd{ioStreams: ioStreams}
 	cmd := &cobra.Command{
 		Use:   "install",
@@ -184,7 +185,7 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 }
 
 // CheckCapabilityReady waits unitl capability is installed successfully
-func CheckCapabilityReady(ctx context.Context, c types.Args, timeout time.Duration) error {
+func CheckCapabilityReady(ctx context.Context, c common.Args, timeout time.Duration) error {
 	if timeout < 5*time.Minute {
 		timeout = 5 * time.Minute
 	}

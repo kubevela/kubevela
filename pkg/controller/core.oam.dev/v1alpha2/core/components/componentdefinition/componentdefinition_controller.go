@@ -34,6 +34,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -41,7 +42,9 @@ import (
 // Reconciler reconciles a ComponentDefinition object
 type Reconciler struct {
 	client.Client
-	dm     discoverymapper.DiscoveryMapper
+	dm discoverymapper.DiscoveryMapper
+	// TODO support package discover refresh in definition
+	pd     *definition.PackageDiscover
 	Scheme *runtime.Scheme
 	record event.Recorder
 }
@@ -119,15 +122,12 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // Setup adds a controller that reconciles ComponentDefinition.
-func Setup(mgr ctrl.Manager, _ controller.Args, _ logging.Logger) error {
-	dm, err := discoverymapper.New(mgr.GetConfig())
-	if err != nil {
-		return err
-	}
+func Setup(mgr ctrl.Manager, args controller.Args, _ logging.Logger) error {
 	r := Reconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-		dm:     dm,
+		dm:     args.DiscoveryMapper,
+		pd:     args.PackageDiscover,
 	}
 	return r.SetupWithManager(mgr)
 }

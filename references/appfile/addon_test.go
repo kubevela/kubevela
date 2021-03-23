@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -25,9 +25,8 @@ var _ = It("Test ApplyTerraform", func() {
 		}},
 	}
 	ioStream := util.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
-	dm, _ := discoverymapper.New(cfg)
-	_, err := ApplyTerraform(app, k8sClient, ioStream, addonNamespace, dm)
-	Expect(err).ShouldNot(BeNil())
+	_, err := ApplyTerraform(app, k8sClient, ioStream, addonNamespace, common.Args{Config: cfg})
+	Expect(err).Should(BeNil())
 })
 
 var _ = Describe("Test generateSecretFromTerraformOutput", func() {

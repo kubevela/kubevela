@@ -3,30 +3,28 @@ kind: TraitDefinition
 metadata:
   name: myingress
 spec:
-  status:
-    customStatus: |-
-      if len(context.outputs.ingress.status.loadBalancer.ingress) > 0 {
-      	message: "Visiting URL: " + context.outputs.ingress.spec.rules[0].host + ", IP: " + context.outputs.ingress.status.loadBalancer.ingress[0].ip
-      }
-      if len(context.outputs.ingress.status.loadBalancer.ingress) == 0 {
-      	message: "No loadBalancer found, visiting by using 'vela port-forward " + context.appName + " --route'\n"
-      }
-    healthPolicy: |
-      isHealth: len(context.outputs.service.spec.clusterIP) > 0
   appliesToWorkloads:
-    - myworker
+    - "*"
   schematic:
     cue:
       template: |
+        import (
+        	kubev1 "kube/v1"
+        	network "kube/networking.k8s.io/v1beta1"
+        )
+
         parameter: {
         	domain: string
         	http: [string]: int
         }
 
+        outputs: {
+        service: kubev1.#Service
+        ingress: network.#Ingress
+        }
+
         // trait template can have multiple outputs in one trait
         outputs: service: {
-        	apiVersion: "v1"
-        	kind:       "Service"
         	metadata:
         		name: context.name
         	spec: {
@@ -42,8 +40,6 @@ spec:
         }
 
         outputs: ingress: {
-        	apiVersion: "networking.k8s.io/v1beta1"
-        	kind:       "Ingress"
         	metadata:
         		name: context.name
         	spec: {

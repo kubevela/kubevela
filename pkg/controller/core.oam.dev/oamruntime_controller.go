@@ -16,6 +16,11 @@ limitations under the License.
 
 package core_oam_dev
 
+import (
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+)
+
 // ApplyOnceOnlyMode enumerates ApplyOnceOnly modes.
 type ApplyOnceOnlyMode string
 
@@ -47,4 +52,9 @@ type Args struct {
 	// CustomRevisionHookURL is a webhook which will let oam-runtime to call with AC+Component info
 	// The webhook server will return a customized component revision for oam-runtime
 	CustomRevisionHookURL string
+
+	// DiscoveryMapper used for CRD discovery in controller, a K8s client is contained in it.
+	DiscoveryMapper discoverymapper.DiscoveryMapper
+	// PackageDiscover used for CRD discovery in CUE packages, a K8s client is contained in it.
+	PackageDiscover *definition.PackageDiscover
 }

@@ -10,11 +10,12 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 // NewListCommand creates `ls` command and its nested children command
-func NewListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "ls",

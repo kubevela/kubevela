@@ -22,11 +22,6 @@ func TestCreateRefTestDir(t *testing.T) {
 	}
 }
 
-func TestGenerateReferenceDocs(t *testing.T) {
-	ref := &MarkdownReference{}
-	assert.NoError(t, ref.GenerateReferenceDocs(RefTestDir))
-}
-
 func TestCreateMarkdown(t *testing.T) {
 	workloadName := "workload1"
 	traitName := "trait1"

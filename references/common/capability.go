@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/ghodss/yaml"
@@ -261,7 +263,7 @@ func SyncCapabilityCenter(capabilityCenterName string) error {
 
 // RemoveCapabilityFromCluster will remove a capability from cluster.
 // 1. remove definition 2. uninstall chart 3. remove local files
-func RemoveCapabilityFromCluster(userNamespace string, c types.Args, client client.Client, capabilityName string) (string, error) {
+func RemoveCapabilityFromCluster(userNamespace string, c common.Args, client client.Client, capabilityName string) (string, error) {
 	ioStreams := cmdutil.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 	if err := RemoveCapability(userNamespace, c, client, capabilityName, ioStreams); err != nil {
 		return "", err
@@ -272,7 +274,7 @@ func RemoveCapabilityFromCluster(userNamespace string, c types.Args, client clie
 
 // RemoveCapability will remove a capability from cluster.
 // 1. remove definition 2. uninstall chart 3. remove local files
-func RemoveCapability(userNamespace string, c types.Args, client client.Client, capabilityName string, ioStreams cmdutil.IOStreams) error {
+func RemoveCapability(userNamespace string, c common.Args, client client.Client, capabilityName string, ioStreams cmdutil.IOStreams) error {
 	// TODO(wonderflow): make sure no apps is using this capability
 	caps, err := plugins.LoadAllInstalledCapability(userNamespace, c)
 	if err != nil {
@@ -335,7 +337,7 @@ func uninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 }
 
 // ListCapabilities will list all caps from specified center
-func ListCapabilities(userNamespace string, c types.Args, capabilityCenterName string) ([]types.Capability, error) {
+func ListCapabilities(userNamespace string, c common.Args, capabilityCenterName string) ([]types.Capability, error) {
 	var capabilityList []types.Capability
 	dir, err := system.GetCapCenterDir()
 	if err != nil {
@@ -361,7 +363,7 @@ func ListCapabilities(userNamespace string, c types.Args, capabilityCenterName s
 	return capabilityList, nil
 }
 
-func listCenterCapabilities(userNamespace string, c types.Args, repoDir string) ([]types.Capability, error) {
+func listCenterCapabilities(userNamespace string, c common.Args, repoDir string) ([]types.Capability, error) {
 	templates, err := plugins.LoadCapabilityFromSyncedCenter(repoDir)
 	if err != nil {
 		return templates, err
@@ -415,7 +417,7 @@ func RemoveCapabilityCenter(centerName string) (string, error) {
 	return message, err
 }
 
-func gatherWorkloads(userNamespace string, c types.Args, templates []types.Capability) []types.Capability {
+func gatherWorkloads(userNamespace string, c common.Args, templates []types.Capability) []types.Capability {
 	workloads, err := plugins.LoadInstalledCapabilityWithType(userNamespace, c, types.TypeWorkload)
 	if err != nil {
 		workloads = make([]types.Capability, 0)
@@ -428,7 +430,7 @@ func gatherWorkloads(userNamespace string, c types.Args, templates []types.Capab
 	return workloads
 }
 
-func checkInstallStatus(userNamespace string, c types.Args, repoName string, tmp types.Capability) string {
+func checkInstallStatus(userNamespace string, c common.Args, repoName string, tmp types.Capability) string {
 	var status = "uninstalled"
 	installed, _ := plugins.LoadInstalledCapabilityWithType(userNamespace, c, tmp.Type)
 	for _, i := range installed {

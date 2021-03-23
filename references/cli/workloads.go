@@ -4,13 +4,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 
 // NewWorkloadsCommand creates `workloads` command
-func NewWorkloadsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewWorkloadsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "workloads",
 		DisableFlagsInUseLine: true,
@@ -35,7 +36,7 @@ func NewWorkloadsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	return cmd
 }
 
-func printWorkloadList(userNamespace string, c types.Args, ioStreams cmdutil.IOStreams) error {
+func printWorkloadList(userNamespace string, c common2.Args, ioStreams cmdutil.IOStreams) error {
 	def, err := common.ListRawWorkloadDefinitions(userNamespace, c)
 	if err != nil {
 		return err

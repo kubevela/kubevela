@@ -6,13 +6,14 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 
 // NewTraitsCommand creates `traits` command
-func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewTraitsCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "traits",
 		DisableFlagsInUseLine: true,
@@ -38,7 +39,7 @@ func NewTraitsCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 	return cmd
 }
 
-func printTraitList(userNamespace string, c types.Args, ioStreams cmdutil.IOStreams) error {
+func printTraitList(userNamespace string, c common2.Args, ioStreams cmdutil.IOStreams) error {
 	table := newUITable()
 	table.Wrap = true
 

@@ -9,12 +9,13 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/common"
 )
 
 // CapabilityCommandGroup commands for capability center
-func CapabilityCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func CapabilityCommandGroup(c common2.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "cap",
 		Short: "Manage capability centers and installing/uninstalling capabilities",
@@ -78,7 +79,7 @@ func NewCapCenterConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 }
 
 // NewCapInstallCommand Install capability into cluster
-func NewCapInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewCapInstallCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "install <center>/<name>",
 		Short:   "Install capability into cluster",
@@ -112,7 +113,7 @@ func NewCapInstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 }
 
 // NewCapUninstallCommand Uninstall capability from cluster
-func NewCapUninstallCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewCapUninstallCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "uninstall <name>",
 		Short:   "Uninstall capability from cluster",
@@ -171,7 +172,7 @@ func NewCapCenterSyncCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 }
 
 // NewCapListCommand List capabilities from cap-center
-func NewCapListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewCapListCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ls [cap-center]",
 		Short:   "List capabilities from cap-center",

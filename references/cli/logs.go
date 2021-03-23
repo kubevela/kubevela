@@ -23,7 +23,7 @@ import (
 )
 
 // NewLogsCommand creates `logs` command to tail logs of application
-func NewLogsCommand(c types.Args, ioStreams util.IOStreams) *cobra.Command {
+func NewLogsCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 	largs := &Args{C: c}
 	cmd := &cobra.Command{}
 	cmd.Use = "logs"
@@ -68,7 +68,7 @@ func NewLogsCommand(c types.Args, ioStreams util.IOStreams) *cobra.Command {
 type Args struct {
 	Output string
 	Env    *types.EnvMeta
-	C      types.Args
+	C      common.Args
 	App    *v1alpha2.Application
 }
 

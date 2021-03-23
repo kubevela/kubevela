@@ -24,7 +24,6 @@ import (
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/apis/types"
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
 )
 
@@ -42,14 +41,14 @@ func init() {
 }
 
 // InitBaseRestConfig will return reset config for create controller runtime client
-func InitBaseRestConfig() (types.Args, error) {
+func InitBaseRestConfig() (Args, error) {
 	restConf, err := config.GetConfig()
 	if err != nil {
 		fmt.Println("get kubeConfig err", err)
 		os.Exit(1)
 	}
 
-	return types.Args{
+	return Args{
 		Config: restConf,
 		Schema: Scheme,
 	}, nil

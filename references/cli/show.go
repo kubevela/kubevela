@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/plugins"
@@ -43,7 +44,7 @@ const (
 var webSite bool
 
 // NewCapabilityShowCommand shows the reference doc for a workload type or trait
-func NewCapabilityShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "show",
 		Short:   "Show the reference doc for a workload type or trait",
@@ -73,7 +74,7 @@ func NewCapabilityShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.
 	return cmd
 }
 
-func startReferenceDocsSite(ctx context.Context, c types.Args, ioStreams cmdutil.IOStreams, capabilityName string) error {
+func startReferenceDocsSite(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string) error {
 	home, err := system.GetVelaHomeDir()
 	if err != nil {
 		return err
@@ -318,7 +319,7 @@ func getWorkloadsAndTraits(capabilities []types.Capability) ([]string, []string)
 	return workloads, traits
 }
 
-func showReferenceConsole(ctx context.Context, c types.Args, ioStreams cmdutil.IOStreams, capabilityName string) error {
+func showReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string) error {
 	home, err := system.GetVelaHomeDir()
 	if err != nil {
 		return err

@@ -2,6 +2,7 @@ package appfile
 
 import (
 	"context"
+	"fmt"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -34,6 +35,7 @@ func CreateOrUpdateObjects(ctx context.Context, client client.Client, objects []
 		err := client.Get(ctx, key, u)
 		if err == nil {
 			obj.SetResourceVersion(u.GetResourceVersion())
+			fmt.Println("Updating: ", u.GetObjectKind().GroupVersionKind().String(), "in", u.GetNamespace())
 			if err = client.Update(ctx, obj); err != nil {
 				return err
 			}
@@ -42,6 +44,7 @@ func CreateOrUpdateObjects(ctx context.Context, client client.Client, objects []
 		if !apierrors.IsNotFound(err) {
 			return err
 		}
+		fmt.Println("Creating: ", u.GetObjectKind().GroupVersionKind().String(), "in", u.GetNamespace())
 		if err = client.Create(ctx, obj); err != nil {
 			return err
 		}

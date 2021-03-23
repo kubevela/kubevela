@@ -25,7 +25,7 @@ import (
 const DescriptionUndefined = "description not defined"
 
 // GetCapabilitiesFromCluster will get capability from K8s cluster
-func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c types.Args, selector labels.Selector) ([]types.Capability, error) {
+func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, error) {
 	workloads, _, err := GetWorkloadsFromCluster(ctx, namespace, c, selector)
 	if err != nil {
 		return nil, err
@@ -39,7 +39,7 @@ func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c types.A
 }
 
 // GetWorkloadsFromCluster will get capability from K8s cluster
-func GetWorkloadsFromCluster(ctx context.Context, namespace string, c types.Args, selector labels.Selector) ([]types.Capability, []error, error) {
+func GetWorkloadsFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, []error, error) {
 	newClient, err := c.GetClient()
 	if err != nil {
 		return nil, nil, err
@@ -73,7 +73,7 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c types.Args
 }
 
 // GetTraitsFromCluster will get capability from K8s cluster
-func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, selector labels.Selector) ([]types.Capability, []error, error) {
+func GetTraitsFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, []error, error) {
 	newClient, err := c.GetClient()
 	if err != nil {
 		return nil, nil, err
@@ -194,7 +194,7 @@ func HandleTemplate(in *runtime.RawExtension, schematic *corev1alpha2.Schematic,
 }
 
 // SyncDefinitionsToLocal sync definitions to local
-func SyncDefinitionsToLocal(ctx context.Context, c types.Args, localDefinitionDir string) ([]types.Capability, []string, error) {
+func SyncDefinitionsToLocal(ctx context.Context, c common.Args, localDefinitionDir string) ([]types.Capability, []string, error) {
 	var syncedTemplates []types.Capability
 	var warnings []string
 
@@ -225,7 +225,7 @@ func SyncDefinitionsToLocal(ctx context.Context, c types.Args, localDefinitionDi
 }
 
 // SyncDefinitionToLocal sync definitions to local
-func SyncDefinitionToLocal(ctx context.Context, c types.Args, localDefinitionDir string, capabilityName string) (*types.Capability, error) {
+func SyncDefinitionToLocal(ctx context.Context, c common.Args, localDefinitionDir string, capabilityName string) (*types.Capability, error) {
 	var foundCapability bool
 
 	newClient, err := c.GetClient()

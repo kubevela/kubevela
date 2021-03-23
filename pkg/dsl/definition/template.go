@@ -39,15 +39,14 @@ const (
 
 // AbstractEngine defines Definition's Render interface
 type AbstractEngine interface {
-	Params(params interface{}) AbstractEngine
-	Complete(ctx process.Context, abstractTemplate string) error
+	Complete(ctx process.Context, abstractTemplate string, params interface{}) error
 	HealthCheck(ctx process.Context, cli client.Client, ns string, healthPolicyTemplate string) (bool, error)
 	Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string) (string, error)
 }
 
 type def struct {
-	name   string
-	params interface{}
+	name string
+	pd   *PackageDiscover
 }
 
 type workloadDef struct {
@@ -55,29 +54,23 @@ type workloadDef struct {
 }
 
 // NewWorkloadAbstractEngine create Workload Definition AbstractEngine
-func NewWorkloadAbstractEngine(name string) AbstractEngine {
+func NewWorkloadAbstractEngine(name string, pd *PackageDiscover) AbstractEngine {
 	return &workloadDef{
 		def: def{
-			name:   name,
-			params: nil,
+			name: name,
+			pd:   pd,
 		},
 	}
 }
 
-// Params set definition's params
-func (wd *workloadDef) Params(params interface{}) AbstractEngine {
-	wd.params = params
-	return wd
-}
-
 // Complete do workload definition's rendering
-func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string) error {
+func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := bi.AddFile("-", abstractTemplate); err != nil {
 		return errors.WithMessagef(err, "invalid cue template of workload %s", wd.name)
 	}
-	if wd.params != nil {
-		bt, err := json.Marshal(wd.params)
+	if params != nil {
+		bt, err := json.Marshal(params)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of workload %s", wd.name)
 		}
@@ -89,40 +82,42 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string) er
 	if err := bi.AddFile("-", ctx.BaseContextFile()); err != nil {
 		return err
 	}
-	AddVelaInternalPackagesFor(bi)
+	wd.pd.ImportBuiltinPackagesFor(bi)
+	var r cue.Runtime
+	inst, err := r.Build(bi)
+	if err != nil {
+		return err
+	}
 
-	instances := cue.Build([]*build.Instance{bi})
-	for _, inst := range instances {
-		if err := inst.Value().Err(); err != nil {
-			return errors.WithMessagef(err, "invalid cue template of workload %s after merge parameter and context", wd.name)
-		}
-		output := inst.Lookup(OutputFieldName)
-		base, err := model.NewBase(output)
-		if err != nil {
-			return errors.WithMessagef(err, "invalid output of workload %s", wd.name)
-		}
-		ctx.SetBase(base)
+	if err := inst.Value().Err(); err != nil {
+		return errors.WithMessagef(err, "invalid cue template of workload %s after merge parameter and context", wd.name)
+	}
+	output := inst.Lookup(OutputFieldName)
+	base, err := model.NewBase(output)
+	if err != nil {
+		return errors.WithMessagef(err, "invalid output of workload %s", wd.name)
+	}
+	ctx.SetBase(base)
 
-		// we will support outputs for workload composition, and it will become trait in AppConfig.
-		outputs := inst.Lookup(OutputsFieldName)
-		if !outputs.Exists() {
+	// we will support outputs for workload composition, and it will become trait in AppConfig.
+	outputs := inst.Lookup(OutputsFieldName)
+	if !outputs.Exists() {
+		return nil
+	}
+	st, err := outputs.Struct()
+	if err != nil {
+		return errors.WithMessagef(err, "invalid outputs of workload %s", wd.name)
+	}
+	for i := 0; i < st.Len(); i++ {
+		fieldInfo := st.Field(i)
+		if fieldInfo.IsDefinition || fieldInfo.IsHidden || fieldInfo.IsOptional {
 			continue
 		}
-		st, err := outputs.Struct()
+		other, err := model.NewOther(fieldInfo.Value)
 		if err != nil {
-			return errors.WithMessagef(err, "invalid outputs of workload %s", wd.name)
+			return errors.WithMessagef(err, "invalid outputs(%s) of workload %s", fieldInfo.Name, wd.name)
 		}
-		for i := 0; i < st.Len(); i++ {
-			fieldInfo := st.Field(i)
-			if fieldInfo.IsDefinition || fieldInfo.IsHidden || fieldInfo.IsOptional {
-				continue
-			}
-			other, err := model.NewOther(fieldInfo.Value)
-			if err != nil {
-				return errors.WithMessagef(err, "invalid outputs(%s) of workload %s", fieldInfo.Name, wd.name)
-			}
-			ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: AuxiliaryWorkload, Name: fieldInfo.Name})
-		}
+		ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: AuxiliaryWorkload, Name: fieldInfo.Name})
 	}
 	return nil
 }
@@ -238,28 +233,23 @@ type traitDef struct {
 }
 
 // NewTraitAbstractEngine create Trait Definition AbstractEngine
-func NewTraitAbstractEngine(name string) AbstractEngine {
+func NewTraitAbstractEngine(name string, pd *PackageDiscover) AbstractEngine {
 	return &traitDef{
 		def: def{
 			name: name,
+			pd:   pd,
 		},
 	}
 }
 
-// Params set definition's params
-func (td *traitDef) Params(params interface{}) AbstractEngine {
-	td.params = params
-	return td
-}
-
 // Complete do trait definition's rendering
-func (td *traitDef) Complete(ctx process.Context, abstractTemplate string) error {
+func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := bi.AddFile("-", abstractTemplate); err != nil {
 		return errors.WithMessagef(err, "invalid template of trait %s", td.name)
 	}
-	if td.params != nil {
-		bt, err := json.Marshal(td.params)
+	if params != nil {
+		bt, err := json.Marshal(params)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of trait %s", td.name)
 		}
@@ -271,7 +261,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string) error
 	if err := bi.AddFile("context", ctx.BaseContextFile()); err != nil {
 		return errors.WithMessagef(err, "invalid context of trait %s", td.name)
 	}
-	AddVelaInternalPackagesFor(bi)
+	td.pd.ImportBuiltinPackagesFor(bi)
 
 	instances := cue.Build([]*build.Instance{bi})
 	for _, inst := range instances {

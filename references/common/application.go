@@ -24,7 +24,6 @@ import (
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -93,7 +92,7 @@ type DeleteOptions struct {
 	CompName string
 	Client   client.Client
 	Env      *types.EnvMeta
-	C        types.Args
+	C        common.Args
 }
 
 // ListApplications lists all applications
@@ -349,7 +348,7 @@ func saveAndLoadRemoteAppfile(url string) (*api.AppFile, error) {
 }
 
 // ExportFromAppFile exports Application from appfile object
-func (o *AppfileOptions) ExportFromAppFile(app *api.AppFile, namespace string, quiet bool, c types.Args) (*BuildResult, []byte, error) {
+func (o *AppfileOptions) ExportFromAppFile(app *api.AppFile, namespace string, quiet bool, c common.Args) (*BuildResult, []byte, error) {
 	tm, err := template.Load(namespace, c)
 	if err != nil {
 		return nil, nil, err
@@ -391,7 +390,7 @@ func (o *AppfileOptions) ExportFromAppFile(app *api.AppFile, namespace string, q
 }
 
 // Export export Application object from the path of Appfile
-func (o *AppfileOptions) Export(filePath, namespace string, quiet bool, c types.Args) (*BuildResult, []byte, error) {
+func (o *AppfileOptions) Export(filePath, namespace string, quiet bool, c common.Args) (*BuildResult, []byte, error) {
 	var app *api.AppFile
 	var err error
 	if !quiet {
@@ -417,20 +416,16 @@ func (o *AppfileOptions) Export(filePath, namespace string, quiet bool, c types.
 }
 
 // Run starts an application according to Appfile
-func (o *AppfileOptions) Run(filePath, namespace string, c types.Args) error {
+func (o *AppfileOptions) Run(filePath, namespace string, c common.Args) error {
 	result, data, err := o.Export(filePath, namespace, false, c)
 	if err != nil {
 		return err
 	}
-	dm, err := discoverymapper.New(c.Config)
-	if err != nil {
-		return err
-	}
-	return o.BaseAppFileRun(result, data, dm)
+	return o.BaseAppFileRun(result, data, c)
 }
 
 // BaseAppFileRun starts an application according to Appfile
-func (o *AppfileOptions) BaseAppFileRun(result *BuildResult, data []byte, dm discoverymapper.DiscoveryMapper) error {
+func (o *AppfileOptions) BaseAppFileRun(result *BuildResult, data []byte, args common.Args) error {
 	deployFilePath := ".vela/deploy.yaml"
 	o.IO.Infof("Writing deploy config to (%s)\n", deployFilePath)
 	if err := os.MkdirAll(filepath.Dir(deployFilePath), 0700); err != nil {
@@ -445,7 +440,7 @@ func (o *AppfileOptions) BaseAppFileRun(result *BuildResult, data []byte, dm dis
 		return errors.Wrap(err, "save to app dir failed")
 	}
 
-	kubernetesComponent, err := appfile.ApplyTerraform(result.application, o.Kubecli, o.IO, o.Env.Namespace, dm)
+	kubernetesComponent, err := appfile.ApplyTerraform(result.application, o.Kubecli, o.IO, o.Env.Namespace, args)
 	if err != nil {
 		return err
 	}

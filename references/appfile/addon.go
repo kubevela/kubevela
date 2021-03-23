@@ -18,7 +18,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	util2 "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
@@ -32,11 +31,20 @@ const (
 )
 
 // ApplyTerraform deploys addon resources
-func ApplyTerraform(app *v1alpha2.Application, k8sClient client.Client, ioStream util.IOStreams, namespace string, dm discoverymapper.DiscoveryMapper) ([]v1alpha2.ApplicationComponent, error) {
+func ApplyTerraform(app *v1alpha2.Application, k8sClient client.Client, ioStream util.IOStreams, namespace string, args common.Args) ([]v1alpha2.ApplicationComponent, error) {
+	dm, err := args.GetDiscoveryMapper()
+	if err != nil {
+		return nil, err
+	}
+	pd, err := args.GetPackageDiscover()
+	if err != nil {
+		return nil, err
+	}
+
 	// TODO(zzxwill) Need to check whether authentication credentials of a specific cloud provider are exported as environment variables, like `ALICLOUD_ACCESS_KEY`
 	var nativeVelaComponents []v1alpha2.ApplicationComponent
 	// parse template
-	appParser := appfile.NewApplicationParser(k8sClient, dm)
+	appParser := appfile.NewApplicationParser(k8sClient, dm, pd)
 
 	ctx := util2.SetNamespaceInCtx(context.Background(), namespace)
 	appFile, err := appParser.GenerateAppFile(ctx, app.Name, app)

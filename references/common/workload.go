@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/oam-dev/kubevela/pkg/utils/common"
+
 	"cuelang.org/go/cue"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,7 +30,7 @@ type RunOptions struct {
 }
 
 // InitApplication will load Application from cluster
-func InitApplication(env *types.EnvMeta, c types.Args, workloadName string, appGroup string) (*api.Application, error) {
+func InitApplication(env *types.EnvMeta, c common.Args, workloadName string, appGroup string) (*api.Application, error) {
 	var appName string
 	if appGroup != "" {
 		appName = appGroup
@@ -48,7 +50,7 @@ func InitApplication(env *types.EnvMeta, c types.Args, workloadName string, appG
 }
 
 // BaseComplete will construct an Application from cli parameters.
-func BaseComplete(env *types.EnvMeta, c types.Args, workloadName string, appName string, flagSet *pflag.FlagSet, workloadType string) (*api.Application, error) {
+func BaseComplete(env *types.EnvMeta, c common.Args, workloadName string, appName string, flagSet *pflag.FlagSet, workloadType string) (*api.Application, error) {
 	app, err := InitApplication(env, c, workloadName, appName)
 	if err != nil {
 		return nil, err

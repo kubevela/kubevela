@@ -16,9 +16,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -34,7 +32,7 @@ type dryRunOptions struct {
 }
 
 // NewDryRunCommand creates `dry-run` command
-func NewDryRunCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	o := &dryRunOptions{IOStreams: ioStreams}
 	cmd := &cobra.Command{
 		Use:                   "dry-run",
@@ -69,9 +67,11 @@ func NewDryRunCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 					return err
 				}
 			}
-			if err := definition.AddKubeCUEPackagesFromCluster(c.Config); err != nil {
+			pd, err := c.GetPackageDiscover()
+			if err != nil {
 				return err
 			}
+
 			dm, err := discoverymapper.New(c.Config)
 			if err != nil {
 				return err
@@ -82,7 +82,7 @@ func NewDryRunCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 				return errors.WithMessagef(err, "read application file: %s", o.applicationFile)
 			}
 
-			parser := appfile.NewApplicationParser(newClient, dm)
+			parser := appfile.NewApplicationParser(newClient, dm, pd)
 
 			ctx := oamutil.SetNamespaceInCtx(context.Background(), velaEnv.Namespace)
 
@@ -152,6 +152,10 @@ func ReadObjectsFromFile(path string) ([]oam.Object, error) {
 	}
 	for _, fi := range fis {
 		if fi.IsDir() {
+			continue
+		}
+		fileType := filepath.Ext(fi.Name())
+		if fileType != ".yaml" && fileType != ".yml" {
 			continue
 		}
 		obj := &unstructured.Unstructured{}
