@@ -2,6 +2,7 @@ package core_oam_dev
 
 import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/conversion"
 
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/application"
@@ -21,4 +22,7 @@ func Register(mgr manager.Manager, args controller.Args) {
 	applicationdeployment.RegisterValidatingHandler(mgr)
 	component.RegisterMutatingHandler(mgr, args)
 	component.RegisterValidatingHandler(mgr)
+
+	server := mgr.GetWebhookServer()
+	server.Register("/convert", &conversion.Webhook{})
 }

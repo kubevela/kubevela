@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
@@ -148,7 +149,7 @@ func (c *ComponentHandler) createControllerRevision(mt metav1.Object, obj runtim
 		comp.Status.ObservedGeneration = comp.Generation
 	}
 
-	comp.Status.LatestRevision = &v1alpha2.Revision{
+	comp.Status.LatestRevision = &common.Revision{
 		Name:     revisionName,
 		Revision: nextRevision,
 	}

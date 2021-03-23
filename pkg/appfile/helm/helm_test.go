@@ -8,7 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 )
 
@@ -62,7 +62,7 @@ func TestRenderHelmReleaseAndHelmRepo(t *testing.T) {
 	}
 }
 
-func testData(chart, version, repoURL string) *v1alpha2.Helm {
+func testData(chart, version, repoURL string) *common.Helm {
 	rlsStr := fmt.Sprintf(
 		`chart:
   spec:
@@ -72,7 +72,7 @@ func testData(chart, version, repoURL string) *v1alpha2.Helm {
 	rlsJson, _ := yaml.YAMLToJSON([]byte(rlsStr))
 	repoJson, _ := yaml.YAMLToJSON([]byte(repoStr))
 
-	h := &v1alpha2.Helm{}
+	h := &common.Helm{}
 	h.Release.Raw = rlsJson
 	h.Repository.Raw = repoJson
 	return h

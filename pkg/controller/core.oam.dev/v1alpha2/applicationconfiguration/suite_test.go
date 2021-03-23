@@ -31,6 +31,7 @@ import (
 	controllerscheme "sigs.k8s.io/controller-runtime/pkg/scheme"
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -169,7 +170,7 @@ var _ = BeforeSuite(func(done Done) {
 			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.WorkloadDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "foo.example.com",
 			},
 		},
@@ -180,7 +181,7 @@ var _ = BeforeSuite(func(done Done) {
 			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "foo.example.com",
 			},
 		},
@@ -192,7 +193,7 @@ var _ = BeforeSuite(func(done Done) {
 			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "foo.example.com",
 			},
 			RevisionEnabled: true,

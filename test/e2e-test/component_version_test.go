@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -156,7 +157,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Get Component latest status after ControllerRevision created")
 			Eventually(
-				func() *v1alpha2.Revision {
+				func() *commontypes.Revision {
 					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, cmpV1)
 					return cmpV1.Status.LatestRevision
 				},
@@ -208,7 +209,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Get Component latest status after ControllerRevision created")
 			Eventually(
-				func() *v1alpha2.Revision {
+				func() *commontypes.Revision {
 					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, cmpV1)
 					return cmpV1.Status.LatestRevision
 				},
@@ -252,7 +253,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 			cmpV1 := &v1alpha2.Component{}
 			By("Get Component latest status after ControllerRevision created")
 			Eventually(
-				func() *v1alpha2.Revision {
+				func() *commontypes.Revision {
 					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, cmpV1)
 					return cmpV1.Status.LatestRevision
 				},
@@ -328,7 +329,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Get Component latest status after ControllerRevision created")
 			Eventually(
-				func() *v1alpha2.Revision {
+				func() *commontypes.Revision {
 					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &comp1)
 					return comp1.Status.LatestRevision
 				},
@@ -357,7 +358,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Get Component latest status after ControllerRevision created")
 			Eventually(
-				func() *v1alpha2.Revision {
+				func() *commontypes.Revision {
 					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &comp2)
 					if comp2.Status.LatestRevision != nil && comp2.Status.LatestRevision.Revision > 1 {
 						return comp2.Status.LatestRevision
@@ -534,7 +535,7 @@ var _ = Describe("Component revision", func() {
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
 			RevisionEnabled: true,
-			Reference: v1alpha2.DefinitionReference{
+			Reference: commontypes.DefinitionReference{
 				Name: "manualscalertraits.core.oam.dev",
 			},
 			WorkloadRefPath: "spec.workloadRef",

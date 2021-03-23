@@ -7,6 +7,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 )
@@ -58,7 +59,7 @@ func SetTrait(app *v1alpha2.Application, componentName, traitType string, traitD
 			app.Spec.Components[idx].Traits[j].Properties.Raw = data
 		}
 		if !added {
-			app.Spec.Components[idx].Traits = append(app.Spec.Components[idx].Traits, v1alpha2.ApplicationTrait{Name: traitType, Properties: runtime.RawExtension{Raw: data}})
+			app.Spec.Components[idx].Traits = append(app.Spec.Components[idx].Traits, common.ApplicationTrait{Name: traitType, Properties: runtime.RawExtension{Raw: data}})
 		}
 	}
 	if !foundComp {

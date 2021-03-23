@@ -13,6 +13,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -165,7 +166,7 @@ func wdNameAndDef(n string) wdModifier {
 	return func(wd *v1alpha2.WorkloadDefinition) {
 		wd.ObjectMeta.Name = n
 		wd.ObjectMeta.Namespace = "appconfig-render-test"
-		wd.Spec.Reference = v1alpha2.DefinitionReference{
+		wd.Spec.Reference = common.DefinitionReference{
 			Name: n,
 		}
 	}

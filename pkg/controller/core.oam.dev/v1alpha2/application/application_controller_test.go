@@ -42,6 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationcontext"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -84,7 +85,7 @@ var _ = Describe("Test Application Controller", func() {
 				{
 					Name:         "myweb2",
 					WorkloadType: "worker",
-					Settings:     runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
+					Settings:     runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
 				},
 			},
 		},
@@ -104,7 +105,7 @@ var _ = Describe("Test Application Controller", func() {
 					Name:         "myweb",
 					WorkloadType: "worker-import",
 					Settings:     runtime.RawExtension{Raw: []byte("{\"cmd\":[\"sleep\",\"1000\"],\"image\":\"busybox\"}")},
-					Traits: []v1alpha2.ApplicationTrait{
+					Traits: []common.ApplicationTrait{
 						{
 							Name:       "ingress-import",
 							Properties: runtime.RawExtension{Raw: []byte("{\"http\":{\"/\":80},\"domain\":\"abc.com\"}")},
@@ -148,7 +149,7 @@ var _ = Describe("Test Application Controller", func() {
 
 	appWithTrait := appwithNoTrait.DeepCopy()
 	appWithTrait.SetName("app-with-trait")
-	appWithTrait.Spec.Components[0].Traits = []v1alpha2.ApplicationTrait{
+	appWithTrait.Spec.Components[0].Traits = []common.ApplicationTrait{
 		{
 			Name:       "scaler",
 			Properties: runtime.RawExtension{Raw: []byte(`{"replicas":2}`)},
@@ -255,7 +256,7 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check Application Created")
 		checkApp := &v1alpha2.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+		Expect(checkApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 
 		By("Check ApplicationContext Created")
 		appContext := &v1alpha2.ApplicationContext{}
@@ -312,7 +313,7 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check Application Created")
 		checkApp := &v1alpha2.Application{}
 		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
-		Expect(checkApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+		Expect(checkApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 
 		By("Check ApplicationContext Created")
 		appContext := &v1alpha2.ApplicationContext{}
@@ -358,7 +359,7 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check App running successfully")
 		curApp := &v1alpha2.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 
 		By("Check ApplicationContext and trait created as expected")
 		appContext := &v1alpha2.ApplicationContext{}
@@ -411,7 +412,7 @@ var _ = Describe("Test Application Controller", func() {
 		appWithComposedWorkload := appwithNoTrait.DeepCopy()
 		appWithComposedWorkload.Spec.Components[0].WorkloadType = "webserver"
 		appWithComposedWorkload.SetName(appname)
-		appWithComposedWorkload.Spec.Components[0].Traits = []v1alpha2.ApplicationTrait{
+		appWithComposedWorkload.Spec.Components[0].Traits = []common.ApplicationTrait{
 			{
 				Name:       "scaler",
 				Properties: runtime.RawExtension{Raw: []byte(`{"replicas":2}`)},
@@ -432,7 +433,7 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check App running successfully")
 		curApp := &v1alpha2.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 
 		By("Check AppConfig and trait created as expected")
 		appContext := &v1alpha2.ApplicationContext{}
@@ -533,7 +534,7 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check App running successfully")
 		curApp := &v1alpha2.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 
 		By("Check AppConfig and trait created as expected")
 		appContext := &v1alpha2.ApplicationContext{}
@@ -603,7 +604,7 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check App running successfully")
 		curApp := &v1alpha2.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 
 		By("Check AppConfig and trait created as expected")
 		appContext := &v1alpha2.ApplicationContext{}
@@ -680,7 +681,7 @@ var _ = Describe("Test Application Controller", func() {
 
 		By("Check App updated successfully")
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 
 		By("check AC and Component updated")
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
@@ -763,7 +764,7 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check App running successfully")
 		curApp := &v1alpha2.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 
 		By("Check AppConfig and trait created as expected")
 		appContext := &v1alpha2.ApplicationContext{}
@@ -881,11 +882,11 @@ var _ = Describe("Test Application Controller", func() {
 			if err != nil {
 				return err.Error()
 			}
-			if checkApp.Status.Phase != v1alpha2.ApplicationRunning {
+			if checkApp.Status.Phase != common.ApplicationRunning {
 				fmt.Println(checkApp.Status.Conditions)
 			}
 			return string(checkApp.Status.Phase)
-		}(), 5*time.Second, time.Second).Should(BeEquivalentTo(v1alpha2.ApplicationRunning))
+		}(), 5*time.Second, time.Second).Should(BeEquivalentTo(common.ApplicationRunning))
 
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
@@ -918,7 +919,7 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check Application Created with the correct revision")
 		curApp := &v1alpha2.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 		Expect(curApp.Status.LatestRevision).ShouldNot(BeNil())
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 
@@ -956,7 +957,7 @@ var _ = Describe("Test Application Controller", func() {
 		By("Reconcile again to make sure we are not creating more appConfigs")
 		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 		Expect(curApp.Status.LatestRevision).ShouldNot(BeNil())
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 
@@ -980,7 +981,7 @@ var _ = Describe("Test Application Controller", func() {
 		})
 		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 		Expect(curApp.Status.LatestRevision).ShouldNot(BeNil())
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 		// check v2 is not created
@@ -1126,17 +1127,17 @@ var _ = Describe("Test Application Controller", func() {
 			if err != nil {
 				return err.Error()
 			}
-			if checkApp.Status.Phase != v1alpha2.ApplicationRunning {
+			if checkApp.Status.Phase != common.ApplicationRunning {
 				fmt.Println(checkApp.Status.Conditions)
 			}
 			return string(checkApp.Status.Phase)
-		}(), 5*time.Second, time.Second).Should(BeEquivalentTo(v1alpha2.ApplicationRunning))
-		Expect(checkApp.Status.Services).Should(BeEquivalentTo([]v1alpha2.ApplicationComponentStatus{
+		}(), 5*time.Second, time.Second).Should(BeEquivalentTo(common.ApplicationRunning))
+		Expect(checkApp.Status.Services).Should(BeEquivalentTo([]common.ApplicationComponentStatus{
 			{
 				Name:    compName,
 				Healthy: true,
 				Message: "type: busybox,\t enemies:alien",
-				Traits: []v1alpha2.ApplicationTraitStatus{
+				Traits: []common.ApplicationTraitStatus{
 					{
 						Type:    "ingress",
 						Healthy: true,
@@ -1179,7 +1180,7 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check Application Created with the correct revision")
 		curApp := &v1alpha2.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 		Expect(curApp.Status.LatestRevision).ShouldNot(BeNil())
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 
@@ -1229,7 +1230,7 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check Application Created with the correct revision")
 		curApp := &v1alpha2.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 		Expect(curApp.Status.LatestRevision).ShouldNot(BeNil())
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 
@@ -1268,7 +1269,7 @@ var _ = Describe("Test Application Controller", func() {
 		By("Check Application Created with the correct revision")
 		curApp := &v1alpha2.Application{}
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(v1alpha2.ApplicationRunning))
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 		Expect(curApp.Status.LatestRevision).ShouldNot(BeNil())
 		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 

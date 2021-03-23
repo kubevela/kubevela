@@ -1,20 +1,20 @@
 /*
-Copyright 2021 The KubeVela Authors.
+ Copyright 2021. The KubeVela Authors.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+     http://www.apache.org/licenses/LICENSE-2.0
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
 */
 
-package v1alpha2
+package v1beta1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,7 +43,6 @@ type ApplicationRevisionSpec struct {
 	ScopeDefinitions map[string]ScopeDefinition `json:"scopeDefinitions,omitempty"`
 
 	// Components records the rendered components from Application, it will contains the whole K8s CR of workload in it.
-
 	Components map[string]common.RawComponent `json:"components,omitempty"`
 
 	// ApplicationConfiguration records the rendered applicationConfiguration from Application,
@@ -53,9 +52,10 @@ type ApplicationRevisionSpec struct {
 	ApplicationConfiguration runtime.RawExtension `json:"applicationConfiguration"`
 }
 
-// ApplicationRevision is the Schema for the ApplicationRevision API
 // +kubebuilder:object:root=true
-// +kubebuilder:shortName=apprev,resource:categories={oam}
+
+// ApplicationRevision is the Schema for the ApplicationRevision API
+// +kubebuilder:storageversion
 type ApplicationRevision struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -63,8 +63,9 @@ type ApplicationRevision struct {
 	Spec ApplicationRevisionSpec `json:"spec,omitempty"`
 }
 
-// ApplicationRevisionList contains a list of ApplicationRevision
 // +kubebuilder:object:root=true
+
+// ApplicationRevisionList contains a list of ApplicationRevision
 type ApplicationRevisionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

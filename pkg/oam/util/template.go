@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -22,8 +23,8 @@ type Template struct {
 	Health             string
 	CustomStatus       string
 	CapabilityCategory types.CapabilityCategory
-	Reference          v1alpha2.WorkloadGVK
-	Helm               *v1alpha2.Helm
+	Reference          common.WorkloadGVK
+	Helm               *common.Helm
 	// TODO: Add scope definition too
 	ComponentDefinition *v1alpha2.ComponentDefinition
 	WorkloadDefinition  *v1alpha2.WorkloadDefinition
@@ -48,8 +49,8 @@ func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.C
 	// Application Controller only load template from ComponentDefinition and TraitDefinition
 	switch kd {
 	case types.TypeComponentDefinition:
-		var schematic *v1alpha2.Schematic
-		var status *v1alpha2.Status
+		var schematic *common.Schematic
+		var status *common.Status
 		var extension *runtime.RawExtension
 
 		cd := new(v1alpha2.ComponentDefinition)
@@ -117,7 +118,7 @@ func LoadTemplate(ctx context.Context, cli client.Reader, key string, kd types.C
 }
 
 // NewTemplate will create template for inner AbstractEngine using.
-func NewTemplate(schematic *v1alpha2.Schematic, status *v1alpha2.Status, raw *runtime.RawExtension) (*Template, error) {
+func NewTemplate(schematic *common.Schematic, status *common.Status, raw *runtime.RawExtension) (*Template, error) {
 	tmp := &Template{}
 
 	if status != nil {
@@ -153,7 +154,7 @@ func NewTemplate(schematic *v1alpha2.Schematic, status *v1alpha2.Status, raw *ru
 }
 
 // ConvertTemplateJSON2Object convert spec.extension to object
-func ConvertTemplateJSON2Object(capabilityName string, in *runtime.RawExtension, schematic *v1alpha2.Schematic) (types.Capability, error) {
+func ConvertTemplateJSON2Object(capabilityName string, in *runtime.RawExtension, schematic *common.Schematic) (types.Capability, error) {
 	var t types.Capability
 	t.Name = capabilityName
 	capTemplate, err := NewTemplate(schematic, nil, in)
