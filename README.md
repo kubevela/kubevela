@@ -23,17 +23,11 @@ KubeVela is the platform engine to create *PaaS-like* experience on Kubernetes, 
 
 > NOTE: KubeVela is still iterating quickly. It's currently under pre-beta release.
 
-## Installation
+## Getting Started
 
-Installation guide is available on [this section](https://kubevela.io/#/en/install).
+Take a look at the [documentation](https://kubevela.io/) to get started.
 
-## Quick Start
-
-Quick start is available on [this section](https://kubevela.io/#/en/quick-start).
-
-## Documentation
-
-For full documentation, please visit the KubeVela website: [https://kubevela.io](https://kubevela.io/).
+If you have understood the concepts, a step by step quick start is available on [this section](https://kubevela.io/#/en/quick-start).
 
 ## Talks and Conferences
 

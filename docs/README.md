@@ -1,5 +1,6 @@
 # KubeVela Website
-[kubevela.io](https://kubevela.io)
+
+This is the source of the website [https://kubevela.io](https://kubevela.io).
 
 ## Contributing
 
@@ -28,4 +29,4 @@
 
 - Push your commit
 
-  Thanks for your contribution!
+  Thanks for your contributions!
