@@ -15,11 +15,11 @@ KubeVela is the platform engine to create *PaaS-like* experience on Kubernetes, 
 
 ## Installation
 
-Installation guide is available on [this section](en/install.md).
+Installation guide is available on [this section](./install.md).
 
 ## Quick Start
 
-Quick start is available on [this section](en/quick-start).
+Quick start is available on [this section](./quick-start.md).
 
 ## Contributing
 Check out [CONTRIBUTING](https://github.com/oam-dev/kubevela/blob/master/CONTRIBUTING.md) to see how to develop with KubeVela.

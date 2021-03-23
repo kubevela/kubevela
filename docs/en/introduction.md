@@ -59,3 +59,7 @@ Though KubeVela itself is not a package manager, it's a core engine for platform
 ### Kubernetes
 
 KubeVela is a Kubernetes plugin for building upper layer platforms. It leverages the native Kubernetes extensibility and capabilities to resolve a hard problem - making shipping applications enjoyable on Kubernetes.
+
+## Getting Started
+
+[Install KubeVela](./install.md) into any Kubernetes cluster to get started.
