@@ -1,4 +1,4 @@
-# Core Concepts
+# Core Concepts of KubeVela
 
 *"KubeVela is a scalable way to create PaaS-like experience on Kubernetes"*
 
