@@ -1,6 +1,8 @@
 # Development Guide
 
-This document will guide platform builders use `cue` and `vela` tools to test/dry-run your CUE templates. In this guide we will take a workloaddefinition in [GoogleCloudPlatform-MicroServices-Demo](https://github.com/oam-dev/samples/tree/master/7.GoogleCloudPlatform_MicroServices_Demo) as example.
+This document will guide you an easy way to test/debug with your CUE templates.
+We will rely on the [`cue`](TODO:link) tool and [`vela`](TODO:link) cli, please install them first.
+This guide will take a workloaddefinition in [GoogleCloudPlatform-MicroServices-Demo](https://github.com/oam-dev/samples/tree/master/7.GoogleCloudPlatform_MicroServices_Demo) as example.
 
 ## Create Definition 
 GoogleCloudPlatform-MicroServices-Demo is a cloud-native microservices demo application. This demo consists of a 10-tier microservices application, we abstracted out a workload type named **[microservice](https://github.com/oam-dev/samples/blob/master/7.GoogleCloudPlatform_MicroServices_Demo/Definitions/workloads/microservice.yaml)**. 
