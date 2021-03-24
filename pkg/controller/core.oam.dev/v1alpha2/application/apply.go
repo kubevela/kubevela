@@ -103,6 +103,7 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 			}
 		}
 	}
+	ac.SetOwnerReferences(owners)
 	isNewRevision, appRev, err := h.GenerateRevision(ctx, ac, comps)
 	if err != nil {
 		return errors.Wrap(err, "cannot generate a revision of the application")
