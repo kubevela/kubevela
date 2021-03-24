@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"k8s.io/klog/v2"
 
+	"k8s.io/klog/v2"
+
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	"k8s.io/apimachinery/pkg/types"
