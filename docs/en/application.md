@@ -86,7 +86,50 @@ Hence, the `settings` section of `backend` only supports two parameters: `image`
 
 The similar extensible abstraction mechanism also applies to traits. For example, `name: autoscaler` in `frontend` means its trait specification (i.e. `properties` section) will be enforced by a `TraitDefinition` object named `autoscaler` as below:
 
-> TBD: a autoscaler TraitDefinition (HPA)
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "configure k8s HPA for Deployment"
+  name: hpa
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  schematic:
+    cue:
+      template: |
+        outputs: hpa: {
+        	apiVersion: "autoscaling/v2beta2"
+        	kind:       "HorizontalPodAutoscaler"
+        	metadata: name: context.name
+        	spec: {
+        		scaleTargetRef: {
+        			apiVersion: "apps/v1"
+        			kind:       "Deployment"
+        			name:       context.name
+        		}
+        		minReplicas: parameter.min
+        		maxReplicas: parameter.max
+        		metrics: [{
+        			type: "Resource"
+        			resource: {
+        				name: "cpu"
+        				target: {
+        					type:               "Utilization"
+        					averageUtilization: parameter.cpuUtil
+        				}
+        			}
+        		}]
+        	}
+        }
+        parameter: {
+        	min:     *1 | int
+        	max:     *10 | int
+        	cpuUtil: *50 | int
+        }
+```
 
 All the definition objects are expected to be defined and installed by platform team. The end users will only focus on `Application` resource (either render it by tools or author it manually).
 

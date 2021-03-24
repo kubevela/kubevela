@@ -69,14 +69,18 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	if err := bi.AddFile("-", abstractTemplate); err != nil {
 		return errors.WithMessagef(err, "invalid cue template of workload %s", wd.name)
 	}
+	var paramFile = "parameter: {}"
 	if params != nil {
 		bt, err := json.Marshal(params)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of workload %s", wd.name)
 		}
-		if err := bi.AddFile("parameter", fmt.Sprintf("parameter: %s", string(bt))); err != nil {
-			return errors.WithMessagef(err, "invalid parameter of workload %s", wd.name)
+		if string(bt) != "null" {
+			paramFile = fmt.Sprintf("parameter: %s", string(bt))
 		}
+	}
+	if err := bi.AddFile("parameter", paramFile); err != nil {
+		return errors.WithMessagef(err, "invalid parameter of workload %s", wd.name)
 	}
 
 	if err := bi.AddFile("-", ctx.BaseContextFile()); err != nil {
@@ -248,16 +252,19 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	if err := bi.AddFile("-", abstractTemplate); err != nil {
 		return errors.WithMessagef(err, "invalid template of trait %s", td.name)
 	}
+	var paramFile = "parameter: {}"
 	if params != nil {
 		bt, err := json.Marshal(params)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of trait %s", td.name)
 		}
-		if err := bi.AddFile("parameter", fmt.Sprintf("parameter: %s", string(bt))); err != nil {
-			return errors.WithMessagef(err, "invalid parameter of trait %s", td.name)
+		if string(bt) != "null" {
+			paramFile = fmt.Sprintf("parameter: %s", string(bt))
 		}
 	}
-
+	if err := bi.AddFile("parameter", paramFile); err != nil {
+		return errors.WithMessagef(err, "invalid parameter of trait %s", td.name)
+	}
 	if err := bi.AddFile("context", ctx.BaseContextFile()); err != nil {
 		return errors.WithMessagef(err, "invalid context of trait %s", td.name)
 	}
