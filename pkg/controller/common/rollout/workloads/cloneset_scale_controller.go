@@ -41,7 +41,7 @@ func (c *cloneSetScaleHandler) initialize(ctx context.Context, cloneSet *kruise.
 	return nil
 }
 
-// RolloutOneBatch update CloneSet spec replicas directly
+// rolloutOneBatchPods update CloneSet spec replicas directly
 func (c *cloneSetScaleHandler) rolloutOneBatchPods(ctx context.Context, cloneSet *kruise.CloneSet, newPodTargets int) error {
 	targetReplicas := int32(newPodTargets)
 	cloneSet.Spec.Replicas = &targetReplicas

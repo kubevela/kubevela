@@ -393,7 +393,7 @@ func (r *Controller) GetWorkloadController() (workloads.WorkloadController, erro
 
 	if r.targetWorkload.GroupVersionKind().Group == apps.GroupName {
 		if r.targetWorkload.GetKind() == reflect.TypeOf(apps.Deployment{}).Name() {
-			// TODO: create DeploymentScaleController when current rollout plan is for scale
+			// TODO: create deployment scale controller when current rollout plan is for scale
 			return workloads.NewDeploymentController(r.client, r.recorder, r.parentController,
 				r.rolloutSpec, r.rolloutStatus, source, target), nil
 		}

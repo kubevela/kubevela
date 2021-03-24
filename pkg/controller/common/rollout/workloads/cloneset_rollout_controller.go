@@ -34,14 +34,14 @@ func NewCloneSetRolloutController(client client.Client, recorder event.Recorder,
 	}
 }
 
-// Initial makes sure that the CloneSet keep all old revision pods before start rollout.
+// initialize makes sure that the CloneSet keep all old revision pods before start rollout.
 func (c *cloneSetRolloutHandler) initialize(ctx context.Context, cloneSet *kruise.CloneSet) error {
 	totalReplicas := cloneSet.Spec.Replicas
 	cloneSet.Spec.UpdateStrategy.Partition = &intstr.IntOrString{Type: intstr.Int, IntVal: *totalReplicas}
 	return nil
 }
 
-// RolloutOneBatch set the CloneSet partition with newPodTarget, return if we are done
+// rolloutOneBatchPods set the CloneSet partition with newPodTarget, return if we are done
 func (c *cloneSetRolloutHandler) rolloutOneBatchPods(ctx context.Context, cloneSet *kruise.CloneSet, newPodTarget int) error {
 	// calculate what's the total pods that should be upgraded given the currentBatch in the status
 	cloneSetSize := cloneSet.Spec.Replicas
@@ -52,7 +52,7 @@ func (c *cloneSetRolloutHandler) rolloutOneBatchPods(ctx context.Context, cloneS
 	return nil
 }
 
-// VerifySpecReplicas check if the replicas in all the rollout batches add up to the right number
+// verifySpec check if the replicas in all the rollout batches add up to the right number
 func (c *cloneSetRolloutHandler) verifySpec(rolloutSpec *v1alpha1.RolloutPlan, cloneSet *kruise.CloneSet) error {
 	cloneSetSize := cloneSet.Spec.Replicas
 	// the target size has to be the same as the CloneSet size
