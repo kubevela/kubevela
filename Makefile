@@ -111,6 +111,7 @@ reviewable: manifests fmt vet lint staticcheck
 
 # Execute auto-gen code commands and ensure branch is clean.
 check-diff: reviewable
+	git --no-pager diff
 	git diff --quiet || ($(ERR) please run 'make reviewable' to include all changes && false)
 	@$(OK) branch is clean
 
