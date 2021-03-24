@@ -14,23 +14,15 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	injectorv1alpha1 "github.com/oam-dev/trait-injector/api/v1alpha1"
 	injectorcontroller "github.com/oam-dev/trait-injector/controllers"
 	"github.com/oam-dev/trait-injector/pkg/injector"
 	"github.com/oam-dev/trait-injector/pkg/plugin"
-	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
-	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
-	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
-	velacore "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
@@ -38,6 +30,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook/standard.oam.dev"
@@ -50,21 +43,10 @@ const (
 
 var (
 	setupLog           = ctrl.Log.WithName(kubevelaName)
-	scheme             = runtime.NewScheme()
+	scheme             = common.Scheme
 	waitSecretTimeout  = 90 * time.Second
 	waitSecretInterval = 2 * time.Second
 )
-
-func init() {
-	_ = clientgoscheme.AddToScheme(scheme)
-	_ = crdv1.AddToScheme(scheme)
-	_ = oamcore.AddToScheme(scheme)
-	_ = velacore.AddToScheme(scheme)
-	_ = injectorv1alpha1.AddToScheme(scheme)
-	_ = certmanager.AddToScheme(scheme)
-	_ = kruise.AddToScheme(scheme)
-	// +kubebuilder:scaffold:scheme
-}
 
 func main() {
 	var metricsAddr, logFilePath, leaderElectionNamespace string
