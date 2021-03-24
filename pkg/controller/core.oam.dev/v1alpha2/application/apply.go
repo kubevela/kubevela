@@ -183,14 +183,14 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 			outputSecretName string
 			err              error
 		)
+		pCtx := process.NewContext(h.app.Namespace, wl.Name, appFile.Name, appFile.RevisionName)
 		if wl.IsCloudResourceProducer() {
-			outputSecretName, err = appfile.SetOutputSecretNames(wl)
+			outputSecretName, err = appfile.GetOutputSecretNames(wl)
 			if err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, setting outputSecretName error", appFile.Name, wl.Name)
 			}
+			pCtx.InsertSecrets(outputSecretName, wl.RequiredSecrets)
 		}
-
-		pCtx := process.NewContext(h.app.Namespace, wl.Name, appFile.Name, appFile.RevisionName, outputSecretName, wl.RequiredSecrets)
 		if err := wl.EvalContext(pCtx); err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate context error", appFile.Name, wl.Name)
 		}

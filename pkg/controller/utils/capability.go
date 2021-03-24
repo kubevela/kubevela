@@ -46,9 +46,12 @@ const (
 	UsageTag = "+usage="
 	// ShortTag is the short alias annotation
 	ShortTag = "+short"
-	// K8sSecretSchemaTag marks the value should be set as an context
-	K8sSecretSchemaTag = "+k8sSecretSchema="
+	// InsertSecretToTag marks the value should be set as an context
+	InsertSecretToTag = "+insertSecretTo"
 )
+
+// ErrNoSectionParameterInCue means there is not parameter section in Cue template of a workload
+const ErrNoSectionParameterInCue = "capability %s doesn't contain section `parameter`"
 
 // CapabilityDefinitionInterface is the interface for Capability (WorkloadDefinition and TraitDefinition)
 type CapabilityDefinitionInterface interface {
@@ -341,7 +344,7 @@ func prepareParameterCue(capabilityName, capabilityTemplate string) (string, err
 	}
 
 	if !withParameterFlag {
-		return "", fmt.Errorf("capability %s doesn't contain section `parmeter`", capabilityName)
+		return "", fmt.Errorf(ErrNoSectionParameterInCue, capabilityName)
 	}
 	return template, nil
 }
@@ -379,8 +382,9 @@ func ConvertOpenAPISchema2SwaggerObject(data []byte) (*openapi3.Schema, error) {
 	if err != nil {
 		return nil, err
 	}
-	schemaRef := swagger.Components.Schemas["parameter"]
-	if schemaRef == nil {
+
+	schemaRef, ok := swagger.Components.Schemas[mycue.ParameterTag]
+	if !ok {
 		return nil, errors.New(util.ErrGenerateOpenAPIV2JSONSchemaForCapability)
 	}
 	return schemaRef.Value, nil

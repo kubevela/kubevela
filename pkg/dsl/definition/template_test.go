@@ -139,7 +139,7 @@ parameter: {
 	}
 
 	for _, v := range testCases {
-		ctx := process.NewContext("test", "myapp", "myapp-v1", "", "", nil)
+		ctx := process.NewContext("default", "test", "myapp", "myapp-v1")
 		wt := NewWorkloadAbstractEngine("testworkload", &PackageDiscover{})
 		assert.NoError(t, wt.Complete(ctx, v.workloadTemplate, v.params))
 		base, assists := ctx.Output()
@@ -638,7 +638,7 @@ parameter: {
 	}
 
 `
-		ctx := process.NewContext("test", "myapp", "myapp-v1", "", "", nil)
+		ctx := process.NewContext("default", "test", "myapp", "myapp-v1")
 		wt := NewWorkloadAbstractEngine("-", &PackageDiscover{})
 		if err := wt.Complete(ctx, baseTemplate, map[string]interface{}{
 			"replicas": 2,

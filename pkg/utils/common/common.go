@@ -110,7 +110,7 @@ func GetCUEParameterValue(cueStr string) (cue.Value, error) {
 	var found bool
 	for i := 0; i < tempStruct.Len(); i++ {
 		paraDef = tempStruct.Field(i)
-		if paraDef.Name == "parameter" {
+		if paraDef.Name == mycue.ParameterTag {
 			found = true
 			break
 		}

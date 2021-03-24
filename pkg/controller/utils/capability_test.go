@@ -31,6 +31,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
+	mycue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
@@ -61,7 +62,7 @@ func TestGetOpenAPISchema(t *testing.T) {
 			name:     "invalidWorkload",
 			fileDir:  TestDir,
 			fileName: "workloadNoParameter.cue",
-			want:     want{data: "", err: fmt.Errorf("capability invalidWorkload doesn't contain section `parmeter`")},
+			want:     want{data: "", err: fmt.Errorf("capability invalidWorkload doesn't contain section `parameter`")},
 		},
 	}
 
@@ -103,7 +104,7 @@ func TestFixOpenAPISchema(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			swagger, _ := openapi3.NewSwaggerLoader().LoadSwaggerFromFile(filepath.Join(TestDir, tc.inputFile))
-			schema := swagger.Components.Schemas["parameter"].Value
+			schema := swagger.Components.Schemas[mycue.ParameterTag].Value
 			fixOpenAPISchema("", schema)
 			fixedSchema, _ := schema.MarshalJSON()
 			expectedSchema, _ := ioutil.ReadFile(filepath.Join(TestDir, tc.fixedFile))
@@ -132,7 +133,7 @@ func TestGenerateOpenAPISchemaFromCapabilityParameter(t *testing.T) {
 		"GenerateOpenAPISchemaFromInvalidCapability": {
 			reason:     "generate OpenAPI schema for an invalid Workload/Trait",
 			capability: types.Capability{Name: invalidWorkloadName},
-			want:       want{data: nil, err: fmt.Errorf("capability IAmAnInvalidWorkloadDefinition doesn't contain section `parmeter`")},
+			want:       want{data: nil, err: fmt.Errorf("capability IAmAnInvalidWorkloadDefinition doesn't contain section `parameter`")},
 		},
 	}
 	for name, tc := range cases {

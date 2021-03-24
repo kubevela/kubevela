@@ -26,8 +26,8 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 )
 
-// para struct contains the parameter
-const specValue = "parameter"
+// ParameterTag is the keyword in CUE template to define users' input
+var ParameterTag = "parameter"
 
 // GetParameters get parameter from cue template
 func GetParameters(templateStr string) ([]types.Parameter, error) {
@@ -45,7 +45,7 @@ func GetParameters(templateStr string) ([]types.Parameter, error) {
 	var found bool
 	for i := 0; i < tempStruct.Len(); i++ {
 		paraDef = tempStruct.Field(i)
-		if paraDef.Name == specValue {
+		if paraDef.Name == ParameterTag {
 			found = true
 			break
 		}

@@ -42,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -846,5 +847,184 @@ spec:
 		expectError := errors.WithMessage(errors.New(`require parameter "image"`), "cannot resolve parameter settings")
 		diff := cmp.Diff(expectError, err, test.EquateErrors())
 		Expect(diff).Should(BeEmpty())
+	})
+})
+
+var _ = Describe("Test Get OutputSecretNames", func() {
+	Context("Workload will generate cloud resource secret", func() {
+		It("", func() {
+			var targetSecretName = "db-conn"
+			wl := &Workload{
+				Params: map[string]interface{}{
+					"outputSecretName": targetSecretName,
+				},
+			}
+			name, err := GetOutputSecretNames(wl)
+			Expect(err).Should(BeNil())
+			Expect(name).Should(Equal(targetSecretName))
+		})
+	})
+
+	Context("Workload will not generate cloud resource secret", func() {
+		It("", func() {
+			wl := &Workload{}
+			name, err := GetOutputSecretNames(wl)
+			Expect(err).ShouldNot(BeNil())
+			Expect(name).Should(Equal(""))
+		})
+	})
+})
+
+var _ = Describe("Test parsing Workload's insertSecretTo tag", func() {
+	var (
+		ctx              = context.Background()
+		ns               = "default"
+		targetSecretName = "db-conn"
+		data             = map[string][]byte{
+			"endpoint": []byte("aaa"),
+			"password": []byte("bbb"),
+			"username": []byte("ccc"),
+		}
+	)
+
+	Context("Workload template is not valid", func() {
+		It("", func() {
+			var (
+				template = `
+settings: {
+	// +usage=Which image would you like to use for your service
+	// +short=i
+	image: string
+
+	// +usage=Commands to run in the container
+	cmd?: [...string]
+
+	// +usage=Which port do you want customer traffic sent to
+	// +short=p
+	port: *80 | int
+
+	// +usage=Referred db secret
+	// +insertSecretTo=dbConn
+	dbSecret?: string
+
+	// +usage=Number of CPU units for the service
+	cpu?: string
+}
+`
+			)
+
+			wl := &Workload{
+				Name:     "abc",
+				Template: template,
+			}
+			By("call target function")
+			secrets, err := parseWorkloadInsertSecretTo(ctx, k8sClient, ns, wl)
+			Expect(err).Should(BeNil())
+			Expect(secrets).Should(BeNil())
+		})
+	})
+
+	Context("Workload will generate cloud resource secret", func() {
+		It("", func() {
+			var (
+				template = `
+parameter: {
+	// +usage=Which image would you like to use for your service
+	// +short=i
+	image: string
+
+	// +usage=Commands to run in the container
+	cmd?: [...string]
+
+	// +usage=Which port do you want customer traffic sent to
+	// +short=p
+	port: *80 | int
+
+	// +usage=Referred db secret
+	// +insertSecretTo=dbConn
+	dbSecret?: string
+
+	// +usage=Number of CPU units for the service
+	cpu?: string
+}
+`
+			)
+
+			wl := &Workload{
+				Name: "abc",
+				Params: map[string]interface{}{
+					"dbSecret": targetSecretName,
+				},
+				Template: template,
+			}
+			By("create secret")
+			s := &corev1.Secret{
+				TypeMeta: metav1.TypeMeta{APIVersion: "v1", Kind: "Secret"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "db-conn",
+					Namespace: "default",
+				},
+				Data: data,
+			}
+			targetRequiredSecret := []process.RequiredSecrets{
+				{
+					Name:        targetSecretName,
+					ContextName: "dbConn",
+					Namespace:   ns,
+					Data: map[string]interface{}{
+						"endpoint": "aaa",
+						"password": "bbb",
+						"username": "ccc",
+					},
+				},
+			}
+			err := k8sClient.Create(ctx, s)
+			Expect(err).Should(BeNil())
+			By("call target function")
+			secrets, err := parseWorkloadInsertSecretTo(ctx, k8sClient, ns, wl)
+			Expect(err).Should(BeNil())
+			Expect(secrets).Should(Equal(targetRequiredSecret))
+		})
+	})
+})
+
+var _ = Describe("Test IsCloudResourceProducer", func() {
+	Context("Workload is a Cloud Resource producer", func() {
+		It("", func() {
+			var targetSecretName = "db-conn"
+			wl := &Workload{
+				Params: map[string]interface{}{
+					"outputSecretName": targetSecretName,
+				},
+			}
+			Expect(wl.IsCloudResourceProducer()).Should(Equal(true))
+		})
+	})
+
+	Context("Workload is a Cloud Resource producer", func() {
+		It("", func() {
+			wl := &Workload{}
+			Expect(wl.IsCloudResourceProducer()).Should(Equal(false))
+		})
+	})
+})
+
+var _ = Describe("Test IsCloudResourceConsumer", func() {
+	Context("Workload is a Cloud Resource consumer", func() {
+		It("", func() {
+			wl := &Workload{
+				Template: "// +insertSecretTo=dbConn",
+			}
+			Expect(wl.IsCloudResourceConsumer()).Should(Equal(true))
+		})
+	})
+
+	Context("Workload is a Cloud Resource consumer", func() {
+		It("", func() {
+			wl := &Workload{
+				Template: "// +useage=dbConn",
+			}
+			Expect(wl.IsCloudResourceProducer()).Should(Equal(false))
+		})
 	})
 })

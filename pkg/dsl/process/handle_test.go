@@ -63,8 +63,13 @@ image: "myserver"
 		Ins:  svcIns,
 		Name: "service",
 	}
+	targetRequiredSecrets := []RequiredSecrets{{
+		ContextName: "conn1",
+		Data:        map[string]interface{}{"password": "123"},
+	}}
 
-	ctx := NewContext("mycomp", "myapp", "myapp-v1", "", "", nil)
+	ctx := NewContext("myns", "mycomp", "myapp", "myapp-v1")
+	ctx.InsertSecrets("db-conn", targetRequiredSecrets)
 	ctx.SetBase(base)
 	ctx.AppendAuxiliaries(svcAux)
 
@@ -93,4 +98,12 @@ image: "myserver"
 	outputsJs, err := ctxInst.Lookup("context", OutputsFieldName, "service").MarshalJSON()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\"}", string(outputsJs))
+
+	ns, err := ctxInst.Lookup("context", ContextNamespace).String()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "myns", ns)
+
+	requiredSecrets, err := ctxInst.Lookup("context", "conn1").MarshalJSON()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, "{\"password\":\"123\"}", string(requiredSecrets))
 }

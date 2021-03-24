@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	mycue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/dsl/model"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/dsl/task"
@@ -92,7 +93,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 			return errors.WithMessagef(err, "marshal parameter of workload %s", wd.name)
 		}
 		if string(bt) != "null" {
-			paramFile = fmt.Sprintf("parameter: %s", string(bt))
+			paramFile = fmt.Sprintf("%s: %s", mycue.ParameterTag, string(bt))
 		}
 	}
 	if err := bi.AddFile("parameter", paramFile); err != nil {
@@ -275,7 +276,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			return errors.WithMessagef(err, "marshal parameter of trait %s", td.name)
 		}
 		if string(bt) != "null" {
-			paramFile = fmt.Sprintf("parameter: %s", string(bt))
+			paramFile = fmt.Sprintf("%s: %s", mycue.ParameterTag, string(bt))
 		}
 	}
 	if err := bi.AddFile("parameter", paramFile); err != nil {
