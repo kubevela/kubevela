@@ -18,6 +18,15 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
+// cloneSetHandler is extension point of CloneSetController
+type cloneSetHandler interface {
+	verifySpec(rolloutSpec *v1alpha1.RolloutPlan, cloneSet *kruise.CloneSet) error
+
+	initialize(ctx context.Context, cloneSet *kruise.CloneSet) error
+
+	rolloutOneBatchPods(ctx context.Context, cloneSet *kruise.CloneSet, newPodTargets int) error
+}
+
 // CloneSetController is responsible for handle Cloneset type of workloads
 type CloneSetController struct {
 	client           client.Client
@@ -28,19 +37,8 @@ type CloneSetController struct {
 	rolloutStatus          *v1alpha1.RolloutStatus
 	workloadNamespacedName types.NamespacedName
 	cloneSet               *kruise.CloneSet
-}
 
-// NewCloneSetController creates a new Cloneset controller
-func NewCloneSetController(client client.Client, recorder event.Recorder, parentController oam.Object,
-	rolloutSpec *v1alpha1.RolloutPlan, rolloutStatus *v1alpha1.RolloutStatus, workloadName types.NamespacedName) *CloneSetController {
-	return &CloneSetController{
-		client:                 client,
-		recorder:               recorder,
-		parentController:       parentController,
-		rolloutSpec:            rolloutSpec,
-		rolloutStatus:          rolloutStatus,
-		workloadNamespacedName: workloadName,
-	}
+	handler cloneSetHandler
 }
 
 // VerifySpec verifies that the target rollout resource is consistent with the rollout spec
@@ -74,8 +72,7 @@ func (c *CloneSetController) VerifySpec(ctx context.Context) (bool, error) {
 	// record the new pod template hash
 	c.rolloutStatus.NewPodTemplateIdentifier = targetHash
 
-	// check if the rollout batch replicas added up to the Cloneset replicas
-	if verifyErr = c.verifyRolloutBatchReplicaValue(totalReplicas); verifyErr != nil {
+	if verifyErr = c.handler.verifySpec(c.rolloutSpec, c.cloneSet); verifyErr != nil {
 		return false, verifyErr
 	}
 
@@ -99,12 +96,6 @@ func (c *CloneSetController) VerifySpec(ctx context.Context) (bool, error) {
 
 // Initialize makes sure that the cloneset is under our control
 func (c *CloneSetController) Initialize(ctx context.Context) (bool, error) {
-	totalReplicas, err := c.size(ctx)
-	if err != nil {
-		c.rolloutStatus.RolloutRetry(err.Error())
-		return false, nil
-	}
-
 	if controller := metav1.GetControllerOf(c.cloneSet); controller != nil {
 		if controller.Kind == v1alpha2.AppRolloutKind && controller.APIVersion == v1alpha2.SchemeGroupVersion.String() {
 			// it's already there
@@ -117,7 +108,9 @@ func (c *CloneSetController) Initialize(ctx context.Context) (bool, error) {
 	ref := metav1.NewControllerRef(c.parentController, v1alpha2.AppRolloutKindVersionKind)
 	c.cloneSet.SetOwnerReferences(append(c.cloneSet.GetOwnerReferences(), *ref))
 	c.cloneSet.Spec.UpdateStrategy.Paused = false
-	c.cloneSet.Spec.UpdateStrategy.Partition = &intstr.IntOrString{Type: intstr.Int, IntVal: totalReplicas}
+	if err := c.handler.initialize(ctx, c.cloneSet); err != nil {
+		return false, err
+	}
 
 	// patch the CloneSet
 	if err := c.client.Patch(ctx, c.cloneSet, clonePatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
@@ -138,6 +131,10 @@ func (c *CloneSetController) RolloutOneBatchPods(ctx context.Context) (bool, err
 	newPodTarget := c.calculateNewPodTarget(int(cloneSetSize))
 	// set the Partition as the desired number of pods in old revisions.
 	clonePatch := client.MergeFrom(c.cloneSet.DeepCopyObject())
+
+	if err := c.handler.rolloutOneBatchPods(ctx, c.cloneSet, newPodTarget); err != nil {
+		return false, err
+	}
 	c.cloneSet.Spec.UpdateStrategy.Partition = &intstr.IntOrString{Type: intstr.Int,
 		IntVal: cloneSetSize - int32(newPodTarget)}
 	// patch the Cloneset
@@ -234,21 +231,6 @@ func (c *CloneSetController) size(ctx context.Context) (int32, error) {
 		return 1, nil
 	}
 	return *c.cloneSet.Spec.Replicas, nil
-}
-
-// check if the replicas in all the rollout batches add up to the right number
-func (c *CloneSetController) verifyRolloutBatchReplicaValue(totalReplicas int32) error {
-	// the target size has to be the same as the cloneset size
-	if c.rolloutSpec.TargetSize != nil && *c.rolloutSpec.TargetSize != totalReplicas {
-		return fmt.Errorf("the rollout plan is attempting to scale the cloneset, target = %d, cloneset size = %d",
-			*c.rolloutSpec.TargetSize, totalReplicas)
-	}
-	// use a common function to check if the sum of all the batches can match the cloneset size
-	err := VerifySumOfBatchSizes(c.rolloutSpec, totalReplicas)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (c *CloneSetController) fetchCloneSet(ctx context.Context) error {

@@ -244,6 +244,18 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.InactiveAfterRollingCompleted))
 	}
 
+	VerifyCloneSetSpecReplicas := func(expectReplicas int32) {
+		By("Verify CloneSet spec replicas")
+		Eventually(
+			func() bool {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: clonesetName}, &kc); err != nil {
+					return false
+				}
+				return *kc.Spec.Replicas == expectReplicas
+			},
+			time.Second*5, time.Millisecond*500).Should(BeTrue())
+	}
+
 	ApplyTwoAppVersion := func() {
 		CreateClonesetDef()
 		ApplySourceApp()
@@ -586,6 +598,68 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		VerifyRolloutOwnsCloneset()
 
 		VerifyRolloutSucceeded()
+
+		VerifyAppConfigRollingCompleted(appConfig2.Name)
+
+		VerifyAppConfigInactive(appConfig1.Name)
+
+		// Clean up
+		k8sClient.Delete(ctx, &appRollout)
+	})
+
+	It("Test cloneset scale with a manual check", func() {
+		ApplyTwoAppVersion()
+
+		By("Apply the application scale that stops after the first batch")
+		var newAppRollout v1alpha2.AppRollout
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-scale.yaml", &newAppRollout)).Should(BeNil())
+		newAppRollout.Namespace = namespace
+		batchPartition := 0
+		newAppRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(batchPartition))
+		Expect(k8sClient.Create(ctx, &newAppRollout)).Should(Succeed())
+
+		By("Wait for the rollout phase change to rolling in batches")
+		Eventually(
+			func() oamstd.RollingState {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: newAppRollout.Name}, &appRollout)
+				return appRollout.Status.RollingState
+			},
+			time.Second*60, time.Millisecond*500).Should(BeEquivalentTo(oamstd.RollingInBatchesState))
+
+		By("Wait for rollout to finish one batch")
+		Eventually(
+			func() int32 {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
+				return appRollout.Status.CurrentBatch
+			},
+			time.Second*15, time.Millisecond*500).Should(BeEquivalentTo(batchPartition))
+
+		By("Verify that the rollout stops at the first batch")
+		// wait for the batch to be ready
+		Eventually(
+			func() oamstd.BatchRollingState {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
+				return appRollout.Status.BatchRollingState
+			},
+			time.Second*30, time.Millisecond*500).Should(Equal(oamstd.BatchReadyState))
+		// wait for 15 seconds, it should stop at 1
+		time.Sleep(15 * time.Second)
+		k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
+		Expect(appRollout.Status.RollingState).Should(BeEquivalentTo(oamstd.RollingInBatchesState))
+		Expect(appRollout.Status.BatchRollingState).Should(BeEquivalentTo(oamstd.BatchReadyState))
+		Expect(appRollout.Status.CurrentBatch).Should(BeEquivalentTo(batchPartition))
+
+		VerifyRolloutOwnsCloneset()
+		VerifyCloneSetSpecReplicas(6)
+
+		By("Finish the application rollout")
+		// set the partition as the same size as the array
+		appRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(len(appRollout.Spec.RolloutPlan.
+			RolloutBatches) - 1))
+		Expect(k8sClient.Update(ctx, &appRollout)).Should(Succeed())
+
+		VerifyRolloutSucceeded()
+		VerifyCloneSetSpecReplicas(10)
 
 		VerifyAppConfigRollingCompleted(appConfig2.Name)
 

@@ -1,0 +1,18 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: AppRollout
+metadata:
+  name: scaling-e2e-test
+spec:
+  # application (revision) reference
+  targetAppRevisionName: test-e2e-rolling-v2
+  # HPA reference (optional)
+  componentList:
+    - metrics-provider
+  rolloutPlan:
+    targetSize: 10
+    rolloutStrategy: "IncreaseFirst"
+    rolloutBatches:
+      - replicas: 10%
+      - replicas: 2
+      - replicas: 2
+    batchPartition: 0
