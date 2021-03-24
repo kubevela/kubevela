@@ -18,6 +18,7 @@
   - [Define Traits](/en/cue/trait.md)
   - [Advanced Features](/en/cue/status.md)
   - [Auto-generated Schema](/en/platform-engineers/openapi-v3-json-schema.md)
+  - [Development Guide](/en/cue/development-guide.md)
 
   - Using Helm
   - [Define Components](/en/helm/component.md)
@@ -50,7 +51,6 @@
   - [vela config](/en/cli/vela_config.md)
   - [vela env](/en/cli/vela_env.md)
   - [vela init](/en/cli/vela_init.md)
-  - [vela install](/en/cli/vela_install.md)
   - [vela up](/en/cli/vela_up.md)
   - [vela version](/en/cli/vela_version.md)
   - [vela delete](/en/cli/vela_delete.md)

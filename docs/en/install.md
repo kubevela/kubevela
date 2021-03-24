@@ -224,15 +224,11 @@ Then clean up CRDs (CRDs are not removed via helm by default):
  kubectl delete crd \
   applicationconfigurations.core.oam.dev \
   applicationdeployments.core.oam.dev \
-  autoscalers.standard.oam.dev \
   components.core.oam.dev \
   containerizedworkloads.core.oam.dev \
   healthscopes.core.oam.dev \
-  issuers.cert-manager.io \
   manualscalertraits.core.oam.dev \
-  metricstraits.standard.oam.dev \
   podspecworkloads.standard.oam.dev \
-  routes.standard.oam.dev \
   scopedefinitions.core.oam.dev \
   traitdefinitions.core.oam.dev \
   workloaddefinitions.core.oam.dev

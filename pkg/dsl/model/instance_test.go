@@ -9,6 +9,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+func TestIndexMatchLine(t *testing.T) {
+	assert.Equal(t, IndexMatchLine("ax", "1"), "")
+	assert.Equal(t, IndexMatchLine("", "_|_"), "")
+	assert.Equal(t, IndexMatchLine("_|_", "_|_"), "_|_")
+	assert.Equal(t, IndexMatchLine("abc_|_xyz", "_|_"), "abc_|_xyz")
+	assert.Equal(t, IndexMatchLine("abc\n123_|_\nxyz", "_|_"), "123_|_")
+	assert.Equal(t, IndexMatchLine("abc\n_|_123\nxyz", "_|_"), "_|_123")
+	assert.Equal(t, IndexMatchLine("abc\n123_|_456\nxyz", "_|_"), "123_|_456")
+}
+
 func TestInstance(t *testing.T) {
 
 	testCases := []struct {

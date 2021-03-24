@@ -120,9 +120,33 @@ func openPrint(v cue.Value) (string, error) {
 		return "", err
 	}
 	if strings.Contains(string(ret), "_|_") {
-		return "", errors.New(string(ret))
+		return "", errors.New(IndexMatchLine(string(ret), "_|_"))
 	}
 	return string(ret), nil
+}
+
+// IndexMatchLine will index and extract the line contains the pattern.
+func IndexMatchLine(res string, pattern string) string {
+	idx := strings.Index(res, pattern)
+	if idx < 0 || idx >= len(res) {
+		// should not happen if we check contains first.
+		return ""
+	}
+	var start = -1
+	var end = len(res)
+	for i := idx; i >= 0; i-- {
+		if res[i] == '\n' {
+			start = i
+			break
+		}
+	}
+	for i := idx; i < len(res); i++ {
+		if res[i] == '\n' {
+			end = i
+			break
+		}
+	}
+	return res[start+1 : end]
 }
 
 func listOpen(expr ast.Node) {
