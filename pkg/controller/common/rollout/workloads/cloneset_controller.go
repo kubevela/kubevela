@@ -135,8 +135,7 @@ func (c *CloneSetController) RolloutOneBatchPods(ctx context.Context) (bool, err
 	if err := c.handler.rolloutOneBatchPods(ctx, c.cloneSet, newPodTarget); err != nil {
 		return false, err
 	}
-	c.cloneSet.Spec.UpdateStrategy.Partition = &intstr.IntOrString{Type: intstr.Int,
-		IntVal: cloneSetSize - int32(newPodTarget)}
+
 	// patch the Cloneset
 	if err := c.client.Patch(ctx, c.cloneSet, clonePatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
 		c.recorder.Event(c.parentController, event.Warning("Failed to update the cloneset to upgrade", err))

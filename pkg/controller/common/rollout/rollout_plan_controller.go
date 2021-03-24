@@ -402,5 +402,5 @@ func (r *Controller) GetWorkloadController() (workloads.WorkloadController, erro
 }
 
 func (r *Controller) isRolling() bool {
-	return r.sourceWorkload != nil && r.targetWorkload != nil
+	return r.sourceWorkload != nil
 }

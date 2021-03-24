@@ -3,6 +3,7 @@ package workloads
 import (
 	"context"
 	"fmt"
+	"k8s.io/klog/v2"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
@@ -49,6 +50,7 @@ func (c *cloneSetRolloutHandler) rolloutOneBatchPods(ctx context.Context, cloneS
 	// set the Partition as the desired number of pods in old revisions.
 	cloneSet.Spec.UpdateStrategy.Partition = &intstr.IntOrString{Type: intstr.Int,
 		IntVal: *cloneSetSize - int32(newPodTarget)}
+	klog.InfoS("upgrade CloneSet", "upgrade replicas", newPodTarget)
 	return nil
 }
 
