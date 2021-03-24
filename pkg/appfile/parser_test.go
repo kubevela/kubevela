@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
@@ -537,7 +538,7 @@ var _ = Describe("Test appfile parser to parse helm module", func() {
 `,
 						},
 					},
-					Helm: &v1alpha2.Helm{
+					Helm: &common.Helm{
 						Release: util.Object2RawExtension(map[string]interface{}{
 							"chart": map[string]interface{}{
 								"spec": map[string]interface{}{
@@ -550,7 +551,7 @@ var _ = Describe("Test appfile parser to parse helm module", func() {
 							"url": "http://oam.dev/catalog/",
 						}),
 					},
-					DefinitionReference: v1alpha2.WorkloadGVK{
+					DefinitionReference: common.WorkloadGVK{
 						APIVersion: "apps/v1",
 						Kind:       "Deployment",
 					},
@@ -608,7 +609,7 @@ var _ = Describe("Test appfile parser to parse helm module", func() {
 				Labels:    map[string]string{oam.LabelAppName: appName},
 			},
 			Spec: v1alpha2.ComponentSpec{
-				Helm: &v1alpha2.Helm{
+				Helm: &common.Helm{
 					Release: util.Object2RawExtension(map[string]interface{}{
 						"apiVersion": "helm.toolkit.fluxcd.io/v2beta1",
 						"kind":       "HelmRelease",

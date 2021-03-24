@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -126,7 +128,7 @@ var _ = Describe("Test applicationContext reconcile", func() {
 			Namespace: namespace,
 		},
 		Spec: v1alpha2.ApplicationRevisionSpec{
-			Components: convertComponentList2Map([]*v1alpha2.Component{co1}),
+			Components: application.ConvertComponentList2Map([]*v1alpha2.Component{co1}),
 
 			ApplicationConfiguration: util.Object2RawExtension(ac1),
 			Application:              *dummyApp,
@@ -166,7 +168,7 @@ var _ = Describe("Test applicationContext reconcile", func() {
 		},
 		Spec: v1alpha2.ApplicationRevisionSpec{
 			ApplicationConfiguration: util.Object2RawExtension(ac2),
-			Components:               convertComponentList2Map([]*v1alpha2.Component{co2}),
+			Components:               application.ConvertComponentList2Map([]*v1alpha2.Component{co2}),
 			Application:              *dummyApp,
 		}}
 	appContext := &v1alpha2.ApplicationContext{
@@ -304,12 +306,3 @@ var _ = Describe("Test applicationContext reconcile", func() {
 		}, time.Second*60, time.Millisecond*300).Should(util.NotFoundMatcher{})
 	})
 })
-
-func convertComponentList2Map(comps []*v1alpha2.Component) map[string]v1alpha2.Component {
-	objs := map[string]v1alpha2.Component{}
-	for _, comp := range comps {
-		obj := comp.DeepCopy()
-		objs[comp.Name] = *obj
-	}
-	return objs
-}

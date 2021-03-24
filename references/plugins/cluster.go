@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue"
@@ -106,7 +107,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c common.Args, 
 }
 
 // validateCapabilities validates whether helm charts are successful installed, GVK are successfully retrieved.
-func validateCapabilities(tmp types.Capability, dm discoverymapper.DiscoveryMapper, definitionName string, reference corev1alpha2.DefinitionReference) (types.Capability, error) {
+func validateCapabilities(tmp types.Capability, dm discoverymapper.DiscoveryMapper, definitionName string, reference commontypes.DefinitionReference) (types.Capability, error) {
 	var err error
 	if tmp.Install != nil {
 		tmp.Source = &types.Source{ChartName: tmp.Install.Helm.Name}
@@ -133,7 +134,7 @@ func validateCapabilities(tmp types.Capability, dm discoverymapper.DiscoveryMapp
 }
 
 // HandleDefinition will handle definition to capability
-func HandleDefinition(name, crdName string, annotation map[string]string, extension *runtime.RawExtension, tp types.CapType, applyTo []string, schematic *corev1alpha2.Schematic) (types.Capability, error) {
+func HandleDefinition(name, crdName string, annotation map[string]string, extension *runtime.RawExtension, tp types.CapType, applyTo []string, schematic *commontypes.Schematic) (types.Capability, error) {
 	var tmp types.Capability
 	tmp, err := HandleTemplate(extension, schematic, name)
 	if err != nil {
@@ -162,7 +163,7 @@ func GetDescription(annotation map[string]string) string {
 }
 
 // HandleTemplate will handle definition template to capability
-func HandleTemplate(in *runtime.RawExtension, schematic *corev1alpha2.Schematic, name string) (types.Capability, error) {
+func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, name string) (types.Capability, error) {
 	tmp, err := util.ConvertTemplateJSON2Object(name, in, schematic)
 	if err != nil {
 		return types.Capability{}, err

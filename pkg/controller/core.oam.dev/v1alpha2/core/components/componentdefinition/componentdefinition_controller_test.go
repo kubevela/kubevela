@@ -30,6 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -488,9 +489,9 @@ spec:
 			cd := v1alpha2.ComponentDefinition{}
 			cd.SetName(componentDefinitionName)
 			cd.SetNamespace(namespace)
-			cd.Spec.Workload.Definition = v1alpha2.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}
-			cd.Spec.Schematic = &v1alpha2.Schematic{
-				HELM: &v1alpha2.Helm{
+			cd.Spec.Workload.Definition = common.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}
+			cd.Spec.Schematic = &common.Schematic{
+				HELM: &common.Helm{
 					Release: util.Object2RawExtension(map[string]interface{}{
 						"chart": map[string]interface{}{
 							"spec": map[string]interface{}{

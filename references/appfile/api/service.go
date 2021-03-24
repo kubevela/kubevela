@@ -5,6 +5,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/references/appfile/template"
 )
@@ -52,7 +53,7 @@ func (s Service) RenderServiceToApplicationComponent(tm template.Manager, servic
 
 	// sort out configs by workload/trait
 	workloadKeys := map[string]interface{}{}
-	var traits []v1alpha2.ApplicationTrait
+	var traits []common.ApplicationTrait
 
 	wtype := s.GetType()
 
@@ -63,7 +64,7 @@ func (s Service) RenderServiceToApplicationComponent(tm template.Manager, servic
 
 	for k, v := range s.GetApplicationConfig() {
 		if tm.IsTrait(k) {
-			trait := v1alpha2.ApplicationTrait{
+			trait := common.ApplicationTrait{
 				Name: k,
 			}
 			pts := &runtime.RawExtension{}

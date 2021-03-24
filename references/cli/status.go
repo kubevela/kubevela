@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -259,7 +260,7 @@ func TrackDeployStatus(c common.Args, appName string, env *types.EnvMeta) (CompS
 	}
 
 	// If condition is true, we can regard appConfig is deployed successfully
-	if appObj.Status.Phase == v1alpha2.ApplicationRunning {
+	if appObj.Status.Phase == commontypes.ApplicationRunning {
 		return compStatusDeployed, "", nil
 	}
 
@@ -319,9 +320,9 @@ func trackHealthCheckingStatus(ctx context.Context, c client.Client, compName, a
 	return compStatusHealthCheckDone, HealthStatusNotDiagnosed, "", nil
 }
 
-func getWorkloadStatusFromApp(app *v1alpha2.Application, compName string) (v1alpha2.ApplicationComponentStatus, bool) {
+func getWorkloadStatusFromApp(app *v1alpha2.Application, compName string) (commontypes.ApplicationComponentStatus, bool) {
 	foundWlStatus := false
-	wlStatus := v1alpha2.ApplicationComponentStatus{}
+	wlStatus := commontypes.ApplicationComponentStatus{}
 	if app == nil {
 		return wlStatus, foundWlStatus
 	}

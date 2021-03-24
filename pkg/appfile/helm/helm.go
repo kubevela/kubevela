@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 )
 
@@ -21,7 +21,7 @@ var (
 )
 
 // RenderHelmReleaseAndHelmRepo constructs HelmRelease and HelmRepository in unstructured format
-func RenderHelmReleaseAndHelmRepo(helmSpec *v1alpha2.Helm, compName, appName, ns string, values map[string]interface{}) (*unstructured.Unstructured, *unstructured.Unstructured, error) {
+func RenderHelmReleaseAndHelmRepo(helmSpec *common.Helm, compName, appName, ns string, values map[string]interface{}) (*unstructured.Unstructured, *unstructured.Unstructured, error) {
 	releaseSpec, repoSpec, err := decodeHelmSpec(helmSpec)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "Helm spec is invalid")
@@ -98,7 +98,7 @@ func setSpecObjIntoUnstructuredObj(spec interface{}, u *unstructured.Unstructure
 	return nil
 }
 
-func decodeHelmSpec(h *v1alpha2.Helm) (*helmapi.HelmReleaseSpec, *helmapi.HelmRepositorySpec, error) {
+func decodeHelmSpec(h *common.Helm) (*helmapi.HelmReleaseSpec, *helmapi.HelmRepositorySpec, error) {
 	releaseSpec := &helmapi.HelmReleaseSpec{}
 	if err := json.Unmarshal(h.Release.Raw, releaseSpec); err != nil {
 		return nil, nil, errors.Wrap(err, "Helm release spec is invalid")

@@ -16,6 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -153,7 +154,7 @@ var _ = Describe("Test apply changes to trait", func() {
 				Namespace: "vela-system",
 			},
 			Spec: v1alpha2.TraitDefinitionSpec{
-				Reference: v1alpha2.DefinitionReference{
+				Reference: common.DefinitionReference{
 					Name: fakeTraitCRDName,
 				},
 			},

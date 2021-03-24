@@ -18,6 +18,7 @@ import (
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -124,11 +125,11 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 	return nil
 }
 
-func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.ApplicationComponentStatus, bool, error) {
-	var appStatus []v1alpha2.ApplicationComponentStatus
+func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]common.ApplicationComponentStatus, bool, error) {
+	var appStatus []common.ApplicationComponentStatus
 	var healthy = true
 	for _, wl := range appfile.Workloads {
-		var status = v1alpha2.ApplicationComponentStatus{
+		var status = common.ApplicationComponentStatus{
 			Name:    wl.Name,
 			Healthy: true,
 		}
@@ -156,9 +157,9 @@ func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.Appli
 		if err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appfile.Name, wl.Name)
 		}
-		var traitStatusList []v1alpha2.ApplicationTraitStatus
+		var traitStatusList []common.ApplicationTraitStatus
 		for _, trait := range wl.Traits {
-			var traitStatus = v1alpha2.ApplicationTraitStatus{
+			var traitStatus = common.ApplicationTraitStatus{
 				Type:    trait.Name,
 				Healthy: true,
 			}

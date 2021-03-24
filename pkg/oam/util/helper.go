@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -167,7 +168,7 @@ func GetDummyTraitDefinition(u *unstructured.Unstructured) *v1alpha2.TraitDefini
 			"kind":       u.GetKind(),
 			"name":       u.GetName(),
 		}},
-		Spec: v1alpha2.TraitDefinitionSpec{Reference: v1alpha2.DefinitionReference{Name: Dummy}},
+		Spec: v1alpha2.TraitDefinitionSpec{Reference: common.DefinitionReference{Name: Dummy}},
 	}
 }
 
@@ -181,7 +182,7 @@ func GetDummyWorkloadDefinition(u *unstructured.Unstructured) *v1alpha2.Workload
 			"kind":       u.GetKind(),
 			"name":       u.GetName(),
 		}},
-		Spec: v1alpha2.WorkloadDefinitionSpec{Reference: v1alpha2.DefinitionReference{Name: Dummy}},
+		Spec: v1alpha2.WorkloadDefinitionSpec{Reference: common.DefinitionReference{Name: Dummy}},
 	}
 }
 
@@ -306,7 +307,7 @@ func FetchWorkloadChildResources(ctx context.Context, mLog logr.Logger, r client
 }
 
 func fetchChildResources(ctx context.Context, mLog logr.Logger, r client.Reader, workload *unstructured.Unstructured,
-	wcrl []v1alpha2.ChildResourceKind) ([]*unstructured.Unstructured, error) {
+	wcrl []common.ChildResourceKind) ([]*unstructured.Unstructured, error) {
 	var childResources []*unstructured.Unstructured
 	// list by each child resource type with namespace and possible label selector
 	for _, wcr := range wcrl {
@@ -411,7 +412,7 @@ func GetDefinitionName(dm discoverymapper.DiscoveryMapper, u *unstructured.Unstr
 }
 
 // GetGVKFromDefinition help get Group Version Kind from DefinitionReference
-func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef v1alpha2.DefinitionReference) (schema.GroupVersionKind, error) {
+func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef common.DefinitionReference) (schema.GroupVersionKind, error) {
 	// if given definitionRef is empty or it's a dummy definition, return an empty GVK
 	// NOTE currently, only TraitDefinition is allowed to omit definitionRef conditionally.
 	if len(definitionRef.Name) < 1 || definitionRef.Name == Dummy {
@@ -433,8 +434,8 @@ func GetGVKFromDefinition(dm discoverymapper.DiscoveryMapper, definitionRef v1al
 }
 
 // ConvertWorkloadGVK2Definition help convert a GVK to DefinitionReference
-func ConvertWorkloadGVK2Definition(dm discoverymapper.DiscoveryMapper, def v1alpha2.WorkloadGVK) (v1alpha2.DefinitionReference, error) {
-	var reference v1alpha2.DefinitionReference
+func ConvertWorkloadGVK2Definition(dm discoverymapper.DiscoveryMapper, def common.WorkloadGVK) (common.DefinitionReference, error) {
+	var reference common.DefinitionReference
 	gv, err := schema.ParseGroupVersion(def.APIVersion)
 	if err != nil {
 		return reference, err
@@ -652,7 +653,7 @@ func ConvertComponentDef2WorkloadDef(dm discoverymapper.DiscoveryMapper, compone
 	if len(componentDef.Spec.Workload.Type) > 1 {
 		return errors.New("No need to convert ComponentDefinition")
 	}
-	var reference v1alpha2.DefinitionReference
+	var reference common.DefinitionReference
 	reference, err := ConvertWorkloadGVK2Definition(dm, componentDef.Spec.Workload.Definition)
 	if err != nil {
 		return fmt.Errorf("create DefinitionReference fail %w", err)

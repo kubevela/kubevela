@@ -16,6 +16,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	oamstd "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -111,7 +112,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		By("Get Application latest status after AppConfig created")
 		Eventually(
-			func() *v1alpha2.Revision {
+			func() *commontypes.Revision {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: newApp.Name}, &app)
 				return app.Status.LatestRevision
 			},

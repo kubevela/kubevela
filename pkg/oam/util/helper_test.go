@@ -25,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
@@ -271,7 +272,7 @@ func TestScopeRelatedUtils(t *testing.T) {
 			Namespace: namespace,
 		},
 		Spec: v1alpha2.ScopeDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: scopeDefinitionRefName,
 			},
 			WorkloadRefsPath:      scopeDefinitionWorkloadRefsPath,
@@ -371,7 +372,7 @@ func TestTraitHelper(t *testing.T) {
 			Namespace: namespace,
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: traitDefinitionRefName,
 			},
 			RevisionEnabled:    false,
@@ -474,7 +475,7 @@ func TestUtils(t *testing.T) {
 			Name: workloadDefinitionName,
 		},
 		Spec: v1alpha2.WorkloadDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: workloadDefinitionName,
 			},
 		},
@@ -561,14 +562,14 @@ func TestChildResources(t *testing.T) {
 			Name: workloadDefinitionName,
 		},
 		Spec: v1alpha2.WorkloadDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: workloadDefinitionName,
 			},
 		},
 	}
 
 	log := ctrl.Log.WithName("ManualScalarTraitReconciler")
-	crkl := []v1alpha2.ChildResourceKind{
+	crkl := []common.ChildResourceKind{
 		{
 			Kind:       "Deployment",
 			APIVersion: "apps/v1",
@@ -779,7 +780,7 @@ func TestUnstructured(t *testing.T) {
 func TestGetGVKFromDef(t *testing.T) {
 	mapper := mock.NewMockDiscoveryMapper()
 	mapper.MockKindsFor = mock.NewMockKindsFor("Abc", "v1", "v2")
-	gvk, err := util.GetGVKFromDefinition(mapper, v1alpha2.DefinitionReference{Name: "abcs.example.com"})
+	gvk, err := util.GetGVKFromDefinition(mapper, common.DefinitionReference{Name: "abcs.example.com"})
 	assert.NoError(t, err)
 	assert.Equal(t, schema.GroupVersionKind{
 		Group:   "example.com",
@@ -787,7 +788,7 @@ func TestGetGVKFromDef(t *testing.T) {
 		Kind:    "Abc",
 	}, gvk)
 
-	gvk, err = util.GetGVKFromDefinition(mapper, v1alpha2.DefinitionReference{Name: "abcs.example.com", Version: "v2"})
+	gvk, err = util.GetGVKFromDefinition(mapper, common.DefinitionReference{Name: "abcs.example.com", Version: "v2"})
 	assert.NoError(t, err)
 	assert.Equal(t, schema.GroupVersionKind{
 		Group:   "example.com",
@@ -795,7 +796,7 @@ func TestGetGVKFromDef(t *testing.T) {
 		Kind:    "Abc",
 	}, gvk)
 
-	gvk, err = util.GetGVKFromDefinition(mapper, v1alpha2.DefinitionReference{})
+	gvk, err = util.GetGVKFromDefinition(mapper, common.DefinitionReference{})
 	assert.NoError(t, err)
 	assert.Equal(t, schema.GroupVersionKind{
 		Group:   "",
@@ -803,7 +804,7 @@ func TestGetGVKFromDef(t *testing.T) {
 		Kind:    "",
 	}, gvk)
 
-	gvk, err = util.GetGVKFromDefinition(mapper, v1alpha2.DefinitionReference{Name: "dummy"})
+	gvk, err = util.GetGVKFromDefinition(mapper, common.DefinitionReference{Name: "dummy"})
 	assert.NoError(t, err)
 	assert.Equal(t, schema.GroupVersionKind{
 		Group:   "",
@@ -816,24 +817,24 @@ func TestConvertWorkloadGVK2Def(t *testing.T) {
 	mapper := mock.NewMockDiscoveryMapper()
 
 	mapper.MockRESTMapping = mock.NewMockRESTMapping("clonesets")
-	ref, err := util.ConvertWorkloadGVK2Definition(mapper, v1alpha2.WorkloadGVK{APIVersion: "apps.kruise.io/v1alpha1",
+	ref, err := util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "apps.kruise.io/v1alpha1",
 		Kind: "CloneSet"})
 	assert.NoError(t, err)
-	assert.Equal(t, v1alpha2.DefinitionReference{
+	assert.Equal(t, common.DefinitionReference{
 		Name:    "clonesets.apps.kruise.io",
 		Version: "v1alpha1",
 	}, ref)
 
 	mapper.MockRESTMapping = mock.NewMockRESTMapping("deployments")
-	ref, err = util.ConvertWorkloadGVK2Definition(mapper, v1alpha2.WorkloadGVK{APIVersion: "apps/v1",
+	ref, err = util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "apps/v1",
 		Kind: "Deployment"})
 	assert.NoError(t, err)
-	assert.Equal(t, v1alpha2.DefinitionReference{
+	assert.Equal(t, common.DefinitionReference{
 		Name:    "deployments.apps",
 		Version: "v1",
 	}, ref)
 
-	ref, err = util.ConvertWorkloadGVK2Definition(mapper, v1alpha2.WorkloadGVK{APIVersion: "/apps/v1",
+	ref, err = util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "/apps/v1",
 		Kind: "Deployment"})
 	assert.Error(t, err)
 
@@ -1057,7 +1058,7 @@ func TestComponentHelper(t *testing.T) {
 			},
 		}}}},
 		Status: v1alpha2.ComponentStatus{
-			LatestRevision: &v1alpha2.Revision{Name: revisionName2, Revision: 2},
+			LatestRevision: &common.Revision{Name: revisionName2, Revision: 2},
 		},
 	}
 
@@ -1352,7 +1353,7 @@ func TestGetDummy(t *testing.T) {
 			"kind":       u.GetKind(),
 			"name":       u.GetName(),
 		}},
-		Spec: v1alpha2.TraitDefinitionSpec{Reference: v1alpha2.DefinitionReference{Name: "dummy"}},
+		Spec: v1alpha2.TraitDefinitionSpec{Reference: common.DefinitionReference{Name: "dummy"}},
 	}, util.GetDummyTraitDefinition(u))
 	assert.Equal(t, &v1alpha2.WorkloadDefinition{
 		TypeMeta: metav1.TypeMeta{Kind: v1alpha2.WorkloadDefinitionKind, APIVersion: v1alpha2.SchemeGroupVersion.String()},
@@ -1361,7 +1362,7 @@ func TestGetDummy(t *testing.T) {
 			"kind":       u.GetKind(),
 			"name":       u.GetName(),
 		}},
-		Spec: v1alpha2.WorkloadDefinitionSpec{Reference: v1alpha2.DefinitionReference{Name: "dummy"}},
+		Spec: v1alpha2.WorkloadDefinitionSpec{Reference: common.DefinitionReference{Name: "dummy"}},
 	}, util.GetDummyWorkloadDefinition(u))
 }
 
@@ -1448,7 +1449,7 @@ func TestGetDefinitionWithClusterScope(t *testing.T) {
 			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "definitionrefrence.core.oam.dev",
 			},
 		},
@@ -1460,7 +1461,7 @@ func TestGetDefinitionWithClusterScope(t *testing.T) {
 			Namespace: "vela-app",
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "definitionrefrence",
 			},
 		},
@@ -1471,7 +1472,7 @@ func TestGetDefinitionWithClusterScope(t *testing.T) {
 			Name: "noNsDefinition",
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "definitionrefrence",
 			},
 		},
@@ -1567,7 +1568,7 @@ func TestGetWorkloadDefinition(t *testing.T) {
 			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.WorkloadDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "definitionrefrence.core.oam.dev",
 			},
 		},
@@ -1580,7 +1581,7 @@ func TestGetWorkloadDefinition(t *testing.T) {
 			Namespace: "vela-app",
 		},
 		Spec: v1alpha2.WorkloadDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "definitionrefrence.core.oam.dev",
 			},
 		},
@@ -1659,7 +1660,7 @@ func TestGetTraitDefinition(t *testing.T) {
 			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "definitionrefrence.core.oam.dev",
 			},
 		},
@@ -1672,7 +1673,7 @@ func TestGetTraitDefinition(t *testing.T) {
 			Namespace: "vela-app",
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "definitionrefrence.core.oam.dev",
 			},
 		},
@@ -1816,7 +1817,7 @@ func TestGetScopeDefiniton(t *testing.T) {
 			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.ScopeDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: scopeDefinitionRefName,
 			},
 			WorkloadRefsPath:      scopeDefinitionWorkloadRefsPath,
@@ -1834,7 +1835,7 @@ func TestGetScopeDefiniton(t *testing.T) {
 			Namespace: namespace,
 		},
 		Spec: v1alpha2.ScopeDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: scopeDefinitionRefName,
 			},
 			WorkloadRefsPath:      scopeDefinitionWorkloadRefsPath,

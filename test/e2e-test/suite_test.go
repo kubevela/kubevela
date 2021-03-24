@@ -42,6 +42,7 @@ import (
 	controllerscheme "sigs.k8s.io/controller-runtime/pkg/scheme"
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -122,7 +123,7 @@ var _ = BeforeSuite(func(done Done) {
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
 			WorkloadRefPath: "spec.workloadRef",
-			Reference: v1alpha2.DefinitionReference{
+			Reference: commontypes.DefinitionReference{
 				Name: "manualscalertraits.core.oam.dev",
 			},
 		},
@@ -146,7 +147,7 @@ var _ = BeforeSuite(func(done Done) {
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
 			WorkloadRefPath: "spec.workloadRef",
-			Reference: v1alpha2.DefinitionReference{
+			Reference: commontypes.DefinitionReference{
 				Name: "manualscalertraits-extended.core.oam.dev",
 			},
 			Extension: in,
@@ -165,10 +166,10 @@ var _ = BeforeSuite(func(done Done) {
 			Labels:    label,
 		},
 		Spec: v1alpha2.WorkloadDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: commontypes.DefinitionReference{
 				Name: "containerizedworkloads.core.oam.dev",
 			},
-			ChildResourceKinds: []v1alpha2.ChildResourceKind{
+			ChildResourceKinds: []commontypes.ChildResourceKind{
 				{
 					APIVersion: corev1.SchemeGroupVersion.String(),
 					Kind:       util.KindService,
@@ -190,7 +191,7 @@ var _ = BeforeSuite(func(done Done) {
 			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.WorkloadDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: commontypes.DefinitionReference{
 				Name: "deployments.apps",
 			},
 		},

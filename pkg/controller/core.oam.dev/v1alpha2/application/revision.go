@@ -23,6 +23,7 @@ import (
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -46,7 +47,7 @@ func (h *appHandler) GenerateRevision(ctx context.Context, ac *v1alpha2.Applicat
 	appRev := &v1alpha2.ApplicationRevision{
 		Spec: v1alpha2.ApplicationRevisionSpec{
 			Application:              *copiedApp,
-			Components:               convertComponentList2Map(comps),
+			Components:               ConvertComponentList2Map(comps),
 			ApplicationConfiguration: util.Object2RawExtension(ac),
 			ComponentDefinitions:     make(map[string]v1alpha2.ComponentDefinition),
 			WorkloadDefinitions:      make(map[string]v1alpha2.WorkloadDefinition),
@@ -105,7 +106,7 @@ func (h *appHandler) GenerateRevision(ctx context.Context, ac *v1alpha2.Applicat
 	// need to create a new appRev
 	var revision int64
 	appRev.Name, revision = utils.GetAppNextRevision(h.app)
-	h.app.Status.LatestRevision = &v1alpha2.Revision{
+	h.app.Status.LatestRevision = &common.Revision{
 		Name:         appRev.Name,
 		Revision:     revision,
 		RevisionHash: appRevisionHash,
@@ -119,11 +120,14 @@ func (h *appHandler) GenerateRevision(ctx context.Context, ac *v1alpha2.Applicat
 	return true, appRev, nil
 }
 
-func convertComponentList2Map(comps []*v1alpha2.Component) map[string]v1alpha2.Component {
-	objs := map[string]v1alpha2.Component{}
+// ConvertComponentList2Map convert to ComponentMap
+func ConvertComponentList2Map(comps []*v1alpha2.Component) map[string]common.RawComponent {
+	objs := map[string]common.RawComponent{}
 	for _, comp := range comps {
 		obj := comp.DeepCopy()
-		objs[comp.Name] = *obj
+		objs[comp.Name] = common.RawComponent{
+			Raw: util.Object2RawExtension(obj),
+		}
 	}
 	return objs
 }

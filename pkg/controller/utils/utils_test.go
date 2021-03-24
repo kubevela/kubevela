@@ -18,6 +18,7 @@ import (
 	"k8s.io/utils/pointer"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -199,7 +200,7 @@ func TestGetAppRevison(t *testing.T) {
 	revisionName, latestRevision = GetAppNextRevision(app)
 	assert.Equal(t, revisionName, "myapp-v1")
 	assert.Equal(t, latestRevision, int64(1))
-	app.Status.LatestRevision = &v1alpha2.Revision{
+	app.Status.LatestRevision = &common.Revision{
 		Name:     "myapp-v1",
 		Revision: 1,
 	}
@@ -212,7 +213,7 @@ func TestGetAppRevison(t *testing.T) {
 	revisionName, latestRevision = GetAppNextRevision(app)
 	assert.Equal(t, revisionName, "myapp-v2")
 	assert.Equal(t, latestRevision, int64(2))
-	app.Status.LatestRevision = &v1alpha2.Revision{
+	app.Status.LatestRevision = &common.Revision{
 		Name:     revisionName,
 		Revision: latestRevision,
 	}
@@ -220,7 +221,7 @@ func TestGetAppRevison(t *testing.T) {
 	revisionName, latestRevision = GetAppNextRevision(app)
 	assert.Equal(t, revisionName, "myapp-v3")
 	assert.Equal(t, latestRevision, int64(3))
-	app.Status.LatestRevision = &v1alpha2.Revision{
+	app.Status.LatestRevision = &common.Revision{
 		Name:     revisionName,
 		Revision: latestRevision,
 	}

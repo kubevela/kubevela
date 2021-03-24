@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -65,7 +66,7 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 					Labels: label,
 				},
 				Spec: v1alpha2.TraitDefinitionSpec{
-					Reference: v1alpha2.DefinitionReference{
+					Reference: common.DefinitionReference{
 						Name: "foos.example.com",
 					},
 				},
@@ -211,7 +212,7 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 				},
 			},
 			Status: v1alpha2.ComponentStatus{
-				LatestRevision: &v1alpha2.Revision{
+				LatestRevision: &common.Revision{
 					Name: "example-comp-v1",
 				},
 			},
