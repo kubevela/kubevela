@@ -4,9 +4,8 @@ metadata:
   name: rolling-test
 spec:
   # application (revision) reference
-  targetAppRevisionName: test-rolling-v3
   sourceAppRevisionName: test-rolling-v2
-  # HPA reference (optional)
+  targetAppRevisionName: test-rolling-v3
   componentList:
     - metrics-provider
   rolloutPlan:

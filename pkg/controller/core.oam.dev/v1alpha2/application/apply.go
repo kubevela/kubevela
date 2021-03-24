@@ -108,7 +108,6 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 	if err != nil {
 		return errors.Wrap(err, "cannot generate a revision of the application")
 	}
-	appRev.SetOwnerReferences(owners)
 	if isNewRevision {
 		if err = h.r.Create(ctx, appRev); err != nil {
 			return err

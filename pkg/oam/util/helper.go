@@ -509,6 +509,19 @@ func RawExtension2Unstructured(raw *runtime.RawExtension) (*unstructured.Unstruc
 	}, nil
 }
 
+// RawExtension2AppConfig converts runtime.RawExtention to ApplicationConfiguration
+func RawExtension2AppConfig(raw runtime.RawExtension) (*v1alpha2.ApplicationConfiguration, error) {
+	ac := &v1alpha2.ApplicationConfiguration{}
+	b, err := raw.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(b, ac); err != nil {
+		return nil, err
+	}
+	return ac, nil
+}
+
 // Object2Map turn the Object to a map
 func Object2Map(obj interface{}) (map[string]interface{}, error) {
 	var res map[string]interface{}

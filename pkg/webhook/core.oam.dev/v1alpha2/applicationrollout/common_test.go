@@ -1,4 +1,4 @@
-package applicationdeployment
+package applicationrollout
 
 import (
 	. "github.com/onsi/ginkgo"
