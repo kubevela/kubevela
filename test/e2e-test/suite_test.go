@@ -98,20 +98,6 @@ var _ = BeforeSuite(func(done Done) {
 		logf.Log.Error(err, "failed to create k8sClient")
 		Fail("setup failed")
 	}
-
-	// TODO: Remove this after we get rid of the integration test dir
-	By("Applying CRD of ComponentDefinition, WorkloadDefinition and TraitDefinition")
-	var componentDefinitionCRD crdv1.CustomResourceDefinition
-	Expect(common.ReadYamlToObject("../../charts/vela-core/crds/core.oam.dev_componentdefinitions.yaml", &componentDefinitionCRD)).Should(BeNil())
-	Expect(k8sClient.Create(context.Background(), &componentDefinitionCRD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-	var workloadDefinitionCRD crdv1.CustomResourceDefinition
-	Expect(common.ReadYamlToObject("../../charts/vela-core/crds/core.oam.dev_workloaddefinitions.yaml", &workloadDefinitionCRD)).Should(BeNil())
-	Expect(k8sClient.Create(context.Background(), &workloadDefinitionCRD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-	var traitDefinitionCRD crdv1.CustomResourceDefinition
-	Expect(common.ReadYamlToObject("../../charts/vela-core/crds/core.oam.dev_traitdefinitions.yaml", &traitDefinitionCRD)).Should(BeNil())
-	Expect(k8sClient.Create(context.Background(), &traitDefinitionCRD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	By("Finished setting up test environment")
 
 	// Create manual scaler trait definition
@@ -305,7 +291,6 @@ var _ = AfterSuite(func() {
 		},
 	}
 	Expect(k8sClient.Delete(context.Background(), &crd)).Should(BeNil())
-	By("Deleted the custom resource definition")
 })
 
 // reconcileAppConfigNow will trigger an immediate reconciliation on AppConfig.

@@ -24,12 +24,11 @@ import (
 
 // AppRolloutSpec defines how to describe an upgrade between different apps
 type AppRolloutSpec struct {
-	// TargetAppRevisionName contains the name of the applicationConfiguration that we need to upgrade to.
-	// Here we use an applicationConfiguration as a revision of an application, thus the name alone is suffice
+	// TargetAppRevisionName contains the name of the applicationRevision that we need to upgrade to.
 	TargetAppRevisionName string `json:"targetAppRevisionName"`
 
-	// SourceAppRevisionName contains the name of the applicationConfiguration that we need to upgrade from.
-	// it can be empty only when it's the first time to deploy the application
+	// SourceAppRevisionName contains the name of the applicationRevision that we need to upgrade from.
+	// it can be empty only when the rolling is only a scale event
 	SourceAppRevisionName string `json:"sourceAppRevisionName,omitempty"`
 
 	// The list of component to upgrade in the application.

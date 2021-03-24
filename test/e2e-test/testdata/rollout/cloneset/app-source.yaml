@@ -2,6 +2,9 @@ apiVersion: core.oam.dev/v1alpha2
 kind: Application
 metadata:
   name: test-e2e-rolling
+  annotations:
+    "app.oam.dev/rolling-components": "metrics-provider"
+    "app.oam.dev/rollout-template": "true"
 spec:
   components:
     - name: metrics-provider

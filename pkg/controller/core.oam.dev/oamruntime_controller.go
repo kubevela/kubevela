@@ -41,6 +41,9 @@ const (
 
 // Args args used by controller
 type Args struct {
+	// ApplicationConfigurationInstalled indicates if we have installed the ApplicationConfiguration CRD
+	ApplicationConfigurationInstalled bool
+
 	// RevisionLimit is the maximum number of revisions that will be maintained.
 	// The default value is 50.
 	RevisionLimit int

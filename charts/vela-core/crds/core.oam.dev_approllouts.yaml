@@ -261,10 +261,10 @@ spec:
                     type: integer
                 type: object
               sourceAppRevisionName:
-                description: SourceAppRevisionName contains the name of the applicationConfiguration that we need to upgrade from. it can be empty only when it's the first time to deploy the application
+                description: SourceAppRevisionName contains the name of the applicationRevision that we need to upgrade from. it can be empty only when the rolling is only a scale event
                 type: string
               targetAppRevisionName:
-                description: TargetAppRevisionName contains the name of the applicationConfiguration that we need to upgrade to. Here we use an applicationConfiguration as a revision of an application, thus the name alone is suffice
+                description: TargetAppRevisionName contains the name of the applicationRevision that we need to upgrade to.
                 type: string
             required:
             - rolloutPlan

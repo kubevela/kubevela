@@ -17,8 +17,6 @@ spec:
     plural: approllouts
     singular: approllout
   scope: Namespaced
-  subresources:
-    status: {}
   validation:
     openAPIV3Schema:
       description: AppRollout is the Schema for the AppRollout API

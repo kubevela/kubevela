@@ -1,4 +1,4 @@
-package applicationdeployment
+package applicationrollout
 
 import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"

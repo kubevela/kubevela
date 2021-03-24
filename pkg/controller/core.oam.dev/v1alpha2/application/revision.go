@@ -21,6 +21,8 @@ import (
 
 	"github.com/pkg/errors"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -40,7 +42,8 @@ type AppRevisionHash struct {
 }
 
 // GenerateRevision will generate revision for an Application when created/updated
-func (h *appHandler) GenerateRevision(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) (bool, *v1alpha2.ApplicationRevision, error) {
+func (h *appHandler) GenerateRevision(ctx context.Context, ac *v1alpha2.ApplicationConfiguration,
+	comps []*v1alpha2.Component) (bool, *v1alpha2.ApplicationRevision, error) {
 	copiedApp := h.app.DeepCopy()
 	// We better to remove all object status in the appRevision
 	copiedApp.Status = v1alpha2.AppStatus{}
@@ -55,8 +58,17 @@ func (h *appHandler) GenerateRevision(ctx context.Context, ac *v1alpha2.Applicat
 			ScopeDefinitions:         make(map[string]v1alpha2.ScopeDefinition),
 		},
 	}
+	// appRev should have the same annotation/label as the app
 	appRev.Namespace = h.app.Namespace
-
+	appRev.SetAnnotations(h.app.GetAnnotations())
+	appRev.SetLabels(h.app.GetLabels())
+	appRev.SetOwnerReferences([]metav1.OwnerReference{{
+		APIVersion: v1alpha2.SchemeGroupVersion.String(),
+		Kind:       v1alpha2.ApplicationKind,
+		Name:       h.app.Name,
+		UID:        h.app.UID,
+		Controller: pointer.BoolPtr(false),
+	}})
 	for _, w := range h.appfile.Workloads {
 		if w == nil {
 			continue

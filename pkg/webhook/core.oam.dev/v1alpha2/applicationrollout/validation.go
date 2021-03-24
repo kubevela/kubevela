@@ -1,7 +1,8 @@
-package applicationdeployment
+package applicationrollout
 
 import (
 	"context"
+	"fmt"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apimachineryvalidation "k8s.io/apimachinery/pkg/api/validation"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/webhook/common/rollout"
 )
 
@@ -30,31 +32,44 @@ func (h *ValidatingHandler) ValidateCreate(appRollout *v1alpha2.AppRollout) fiel
 		return allErrs
 	}
 
-	var targetApp v1alpha2.ApplicationConfiguration
-	sourceApp := &v1alpha2.ApplicationConfiguration{}
+	var targetAppRevision v1alpha2.ApplicationRevision
+	sourceAppRevision := &v1alpha2.ApplicationRevision{}
 	targetAppName := appRollout.Spec.TargetAppRevisionName
 	if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appRollout.Namespace, Name: targetAppName},
-		&targetApp); err != nil {
-		klog.ErrorS(err, "cannot locate target application", "target application",
+		&targetAppRevision); err != nil {
+		klog.ErrorS(err, "cannot locate target application revision", "target application revision",
 			klog.KRef(appRollout.Namespace, targetAppName))
-		allErrs = append(allErrs, field.NotFound(fldPath.Child("targetApplicationName"), targetAppName))
+		allErrs = append(allErrs, field.NotFound(fldPath.Child("targetAppRevisionName"), targetAppName))
 		// can't continue without target
 		return allErrs
 	}
 	sourceAppName := appRollout.Spec.SourceAppRevisionName
 	if sourceAppName != "" {
 		if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appRollout.Namespace, Name: sourceAppName},
-			sourceApp); err != nil {
-			klog.ErrorS(err, "cannot locate source application", "source application",
+			sourceAppRevision); err != nil {
+			klog.ErrorS(err, "cannot locate source application revision", "source application revision",
 				klog.KRef(appRollout.Namespace, sourceAppName))
-			allErrs = append(allErrs, field.NotFound(fldPath.Child("sourceApplicationName"), sourceAppName))
+			allErrs = append(allErrs, field.NotFound(fldPath.Child("sourceAppRevisionName"), sourceAppName))
 		}
 	} else {
-		sourceApp = nil
+		sourceAppRevision = nil
+	}
+	var sourceApp *v1alpha2.ApplicationConfiguration
+	targetApp, err := oamutil.RawExtension2AppConfig(targetAppRevision.Spec.ApplicationConfiguration)
+	if err != nil {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("TargetAppRevisionName"), targetAppName,
+			fmt.Sprintf("the targeted app revision is corrupted,  err = `%s`", err)))
+	}
+	if sourceAppRevision != nil {
+		sourceApp, err = oamutil.RawExtension2AppConfig(sourceAppRevision.Spec.ApplicationConfiguration)
+		if err != nil {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("SourceAppRevisionName"), sourceAppName,
+				fmt.Sprintf("the source app revision is corrupted,  err = `%s`", err)))
+		}
 	}
 
 	// validate the component spec
-	allErrs = append(allErrs, validateComponent(appRollout.Spec.ComponentList, &targetApp, sourceApp,
+	allErrs = append(allErrs, validateComponent(appRollout.Spec.ComponentList, targetApp, sourceApp,
 		fldPath.Child("componentList"))...)
 
 	// validate the rollout plan spec

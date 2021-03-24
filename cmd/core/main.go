@@ -77,11 +77,13 @@ func main() {
 	flag.BoolVar(&logDebug, "log-debug", false, "Enable debug logs for development purpose")
 	flag.IntVar(&controllerArgs.RevisionLimit, "revision-limit", 50,
 		"RevisionLimit is the maximum number of revisions that will be maintained. The default value is 50.")
+	flag.StringVar(&controllerArgs.CustomRevisionHookURL, "custom-revision-hook-url", "",
+		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
+	flag.BoolVar(&controllerArgs.ApplicationConfigurationInstalled, "app-config-installed", true,
+		"app-config-installed indicates if applicationConfiguration CRD is installed")
 	flag.StringVar(&healthAddr, "health-addr", ":9440", "The address the health endpoint binds to.")
 	flag.StringVar(&applyOnceOnly, "apply-once-only", "false",
 		"For the purpose of some production environment that workload or trait should not be affected if no spec change, available options: on, off, force.")
-	flag.StringVar(&controllerArgs.CustomRevisionHookURL, "custom-revision-hook-url", "",
-		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
 	flag.StringVar(&disableCaps, "disable-caps", "", "To be disabled builtin capability list.")
 	flag.StringVar(&storageDriver, "storage-driver", "Local", "Application file save to the storage driver")
 	flag.DurationVar(&syncPeriod, "informer-re-sync-interval", 60*time.Minute,

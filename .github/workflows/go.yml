@@ -123,6 +123,60 @@ jobs:
       - name: Clean up testdata
         run: make compatibility-testdata-cleanup
 
+  e2e-rollout-tests:
+    runs-on: aliyun
+    needs: detect-noop
+    if: needs.detect-noop.outputs.noop != 'true'
+
+    steps:
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v2
+
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Get dependencies
+        run: |
+          go get -v -t -d ./...
+
+      - name: Setup Kind
+        uses: engineerd/setup-kind@v0.5.0
+        with:
+          version: ${{ env.KIND_VERSION }}
+          skipClusterCreation: true
+
+      - name: Setup Kind Cluster
+        run: |
+          kind delete cluster
+          kind create cluster
+
+      - name: Load Image to kind cluster
+        run: make kind-load
+
+      - name: Run Make
+        run: make
+
+      - name: Run Make Manager
+        run: make manager
+
+      - name: Prepare for e2e tests
+        run: |
+          make e2e-cleanup
+          make e2e-setup
+
+      - name: Wait for e2e preparation ready
+        run: |
+          timeout 60 bash -c 'while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' localhost:38081/api/workloads)" != "200" ]]; do sleep 5; done' || false
+
+      - name: Run e2e rollout tests
+        run: make e2e-rollout-test
+
+      - name: Cleanup image
+        if: ${{ always() }}
+        run: make image-cleanup
+
   e2e-tests:
     runs-on: aliyun
     needs: detect-noop

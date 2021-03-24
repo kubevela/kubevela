@@ -110,8 +110,10 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		app.Status.SetConditions(errorCondition("Built", err))
 		return handler.handleErr(err)
 	}
+
 	// pass the App label and annotation to ac except some app specific ones
 	oamutil.PassLabelAndAnnotation(app, ac)
+
 	app.Status.SetConditions(readyCondition("Built"))
 	applog.Info("apply appConfig & component to the cluster")
 	// apply appConfig & component to the cluster
