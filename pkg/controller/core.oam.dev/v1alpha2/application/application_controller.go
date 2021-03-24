@@ -31,6 +31,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -78,7 +79,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	applog.Info("Start Rendering")
 
-	app.Status.Phase = v1alpha2.ApplicationRendering
+	app.Status.Phase = common.ApplicationRendering
 
 	// by default, we regard the spec is diff
 	handler := &appHandler{
@@ -121,7 +122,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	app.Status.SetConditions(readyCondition("Applied"))
-	app.Status.Phase = v1alpha2.ApplicationHealthChecking
+	app.Status.Phase = common.ApplicationHealthChecking
 	applog.Info("check application health status")
 	// check application health status
 	appCompStatus, healthy, err := handler.statusAggregate(generatedAppfile)
@@ -139,7 +140,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 	app.Status.Services = appCompStatus
 	app.Status.SetConditions(readyCondition("HealthCheck"))
-	app.Status.Phase = v1alpha2.ApplicationRunning
+	app.Status.Phase = common.ApplicationRunning
 	// Gather status of components
 	var refComps []v1alpha1.TypedReference
 	for _, comp := range comps {

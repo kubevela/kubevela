@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
@@ -47,7 +48,7 @@ var _ = Describe("Test Application apply", func() {
 				Settings: runtime.RawExtension{
 					Raw: []byte(`{"image": "oamdev/testapp:v1", "cmd": ["node", "server.js"]}`),
 				},
-				Traits: []v1alpha2.ApplicationTrait{{
+				Traits: []common.ApplicationTrait{{
 					Name: "route",
 					Properties: runtime.RawExtension{
 						Raw: []byte(`{"domain": "example.com", "http":{"/": 8080}}`),

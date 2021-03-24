@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 
@@ -56,9 +57,9 @@ var _ = Describe("Test application containing helm module", func() {
 		cd := v1alpha2.ComponentDefinition{}
 		cd.SetName(cdName)
 		cd.SetNamespace(namespace)
-		cd.Spec.Workload.Definition = v1alpha2.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}
-		cd.Spec.Schematic = &v1alpha2.Schematic{
-			HELM: &v1alpha2.Helm{
+		cd.Spec.Workload.Definition = common.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}
+		cd.Spec.Schematic = &common.Schematic{
+			HELM: &common.Helm{
 				Release: util.Object2RawExtension(map[string]interface{}{
 					"chart": map[string]interface{}{
 						"spec": map[string]interface{}{
@@ -80,8 +81,8 @@ var _ = Describe("Test application containing helm module", func() {
 		td.SetName(tdName)
 		td.SetNamespace(namespace)
 		td.Spec.AppliesToWorkloads = []string{"deployments.apps"}
-		td.Spec.Schematic = &v1alpha2.Schematic{
-			CUE: &v1alpha2.CUE{
+		td.Spec.Schematic = &common.Schematic{
+			CUE: &common.CUE{
 				Template: `patch: {
       	spec: template: {
       		metadata: labels: {
@@ -156,7 +157,7 @@ var _ = Describe("Test application containing helm module", func() {
 								"tag": "5.1.2",
 							},
 						}),
-						Traits: []v1alpha2.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Name: "scaler",
 								Properties: util.Object2RawExtension(map[string]interface{}{
@@ -232,7 +233,7 @@ var _ = Describe("Test application containing helm module", func() {
 								"tag": "5.1.3", // change 5.1.4 => 5.1.3
 							},
 						}),
-						Traits: []v1alpha2.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Name: "scaler",
 								Properties: util.Object2RawExtension(map[string]interface{}{

@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
@@ -41,8 +42,8 @@ type Workload struct {
 	HealthCheckPolicy  string
 	CustomStatusFormat string
 
-	Helm                *v1alpha2.Helm
-	DefinitionReference v1alpha2.WorkloadGVK
+	Helm                *common.Helm
+	DefinitionReference common.WorkloadGVK
 	// TODO: remove all the duplicate fields above as workload now contains the whole template
 	FullTemplate *util.Template
 
@@ -337,7 +338,7 @@ output: {
 	if err != nil {
 		return nil, nil, err
 	}
-	comp.Spec.Helm = &v1alpha2.Helm{
+	comp.Spec.Helm = &common.Helm{
 		Release:    runtime.RawExtension{Raw: rlsBytes},
 		Repository: runtime.RawExtension{Raw: repoBytes},
 	}

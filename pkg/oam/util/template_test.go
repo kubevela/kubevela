@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ktypes "k8s.io/apimachinery/pkg/types"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 )
@@ -235,13 +236,13 @@ spec:
 
 func TestNewTemplate(t *testing.T) {
 	testCases := map[string]struct {
-		tmp    *v1alpha2.Schematic
-		status *v1alpha2.Status
+		tmp    *common.Schematic
+		status *common.Status
 		ext    *runtime.RawExtension
 		exp    *Template
 	}{
 		"only tmp": {
-			tmp: &v1alpha2.Schematic{CUE: &v1alpha2.CUE{Template: "t1"}},
+			tmp: &common.Schematic{CUE: &common.CUE{Template: "t1"}},
 			exp: &Template{
 				TemplateStr: "t1",
 			},
@@ -259,8 +260,8 @@ func TestNewTemplate(t *testing.T) {
 			},
 		},
 		"tmp with status": {
-			tmp: &v1alpha2.Schematic{CUE: &v1alpha2.CUE{Template: "t1"}},
-			status: &v1alpha2.Status{
+			tmp: &common.Schematic{CUE: &common.CUE{Template: "t1"}},
+			status: &common.Status{
 				CustomStatus: "s1",
 				HealthPolicy: "h1",
 			},
@@ -271,7 +272,7 @@ func TestNewTemplate(t *testing.T) {
 			},
 		},
 		"no tmp only status": {
-			status: &v1alpha2.Status{
+			status: &common.Status{
 				CustomStatus: "s1",
 				HealthPolicy: "h1",
 			},

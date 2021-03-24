@@ -17,7 +17,7 @@ import (
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/repo"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 var (
@@ -32,7 +32,7 @@ var (
 // GetChartValuesJSONSchema fetched the Chart bundle and get JSON schema of Values
 // file.  If the Chart provides a 'values.json.schema' file, use it directly.
 // Otherwise, try to generate a JSON schema based on the Values file.
-func GetChartValuesJSONSchema(ctx context.Context, h *v1alpha2.Helm) ([]byte, error) {
+func GetChartValuesJSONSchema(ctx context.Context, h *common.Helm) ([]byte, error) {
 	releaseSpec, repoSpec, err := decodeHelmSpec(h)
 	if err != nil {
 		return nil, errors.WithMessage(err, "Helm spec is invalid")

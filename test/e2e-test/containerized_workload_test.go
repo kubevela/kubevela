@@ -17,6 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -79,10 +80,10 @@ var _ = Describe("ContainerizedWorkload", func() {
 				Labels:    label,
 			},
 			Spec: v1alpha2.WorkloadDefinitionSpec{
-				Reference: v1alpha2.DefinitionReference{
+				Reference: common.DefinitionReference{
 					Name: "containerizedworkloads.core.oam.dev",
 				},
-				ChildResourceKinds: []v1alpha2.ChildResourceKind{
+				ChildResourceKinds: []common.ChildResourceKind{
 					{
 						APIVersion: corev1.SchemeGroupVersion.String(),
 						Kind:       util.KindService,

@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -92,7 +93,7 @@ var _ = Describe("test generate revision ", func() {
 						Settings: runtime.RawExtension{
 							Raw: []byte(`{"image": "oamdev/testapp:v1", "cmd": ["node", "server.js"]}`),
 						},
-						Traits: []v1alpha2.ApplicationTrait{
+						Traits: []common.ApplicationTrait{
 							{
 								Name: td.Name,
 								Properties: runtime.RawExtension{

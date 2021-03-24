@@ -4,12 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/oam-dev/kubevela/pkg/oam/mock"
-
+	"github.com/crossplane/crossplane-runtime/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/crossplane/crossplane-runtime/pkg/test"
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,12 +18,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	. "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/component"
-
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	. "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/component"
 )
 
 var _ = Describe("Component Admission controller Test", func() {
@@ -72,7 +69,7 @@ var _ = Describe("Component Admission controller Test", func() {
 					Labels: label,
 				},
 				Spec: v1alpha2.WorkloadDefinitionSpec{
-					Reference: v1alpha2.DefinitionReference{
+					Reference: common.DefinitionReference{
 						Name: "foos.example.com",
 					},
 				},

@@ -31,6 +31,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
@@ -60,7 +61,7 @@ type CapabilityComponentDefinition struct {
 	WorkloadType    util.WorkloadType `json:"workloadType"`
 	WorkloadDefName string            `json:"workloadDefName"`
 
-	Helm *v1alpha2.Helm `json:"helm"`
+	Helm *commontypes.Helm `json:"helm"`
 	CapabilityBaseDefinition
 }
 
