@@ -7,6 +7,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
+// GetClient returns a kube client for given kubeConfigData
 func GetClient(kubeConfigData []byte) (client.Client, error) {
 	clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeConfigData)
 	if err != nil {
