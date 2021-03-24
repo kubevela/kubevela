@@ -103,6 +103,23 @@ parameter: {
 			},
 			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "apps/v1", "kind": "Deployment", "metadata": map[string]interface{}{"name": "test", "annotations": map[string]interface{}{"revision.oam.dev": "myapp-v1"}}, "spec": map[string]interface{}{"replicas": int64(2)}}},
 		},
+		{
+			workloadTemplate: `
+output:{
+	apiVersion: "apps/v1"
+    kind: "Deployment"
+	metadata: {
+      name: context.name
+    }
+    spec: replicas: parameter.replicas
+}
+parameter: {
+	replicas: *1 | int
+}
+`,
+			params:    nil,
+			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "apps/v1", "kind": "Deployment", "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"replicas": int64(1)}}},
+		},
 	}
 
 	for _, v := range testCases {
@@ -494,6 +511,57 @@ parameter: {
 				},
 				"t2service": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "v1", "kind": "Service"}},
 				"t2ingress": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "extensions/v1beta1", "kind": "Ingress"}},
+			},
+		},
+		"outputs trait with no params": {
+			traitTemplate: `
+outputs: hpa: {
+	apiVersion: "autoscaling/v2beta2"
+	kind:       "HorizontalPodAutoscaler"
+	metadata: name: context.name
+	spec: {
+		minReplicas: parameter.min
+		maxReplicas: parameter.max
+	}
+}
+parameter: {
+	min:     *1 | int
+	max:     *10 | int
+}`,
+			params: nil,
+			expWorkload: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "apps/v1",
+					"kind":       "Deployment",
+					"spec": map[string]interface{}{
+						"replicas": int64(2),
+						"selector": map[string]interface{}{
+							"matchLabels": map[string]interface{}{
+								"app.oam.dev/component": "test"}},
+						"template": map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{"app.oam.dev/component": "test"},
+							},
+							"spec": map[string]interface{}{
+								"containers": []interface{}{map[string]interface{}{
+									"envFrom": []interface{}{map[string]interface{}{
+										"configMapRef": map[string]interface{}{"name": "testgame-config"},
+									}},
+									"image": "website:0.1",
+									"name":  "main",
+									"ports": []interface{}{map[string]interface{}{"containerPort": int64(443)}}}}}}}},
+			},
+			traitName: "t2",
+			expAssObjs: map[string]runtime.Object{
+				"AuxiliaryWorkloadgameconfig": &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "v1",
+						"kind":       "ConfigMap",
+						"metadata":   map[string]interface{}{"name": "testgame-config"}, "data": map[string]interface{}{"enemies": "enemies-data", "lives": "lives-data"}},
+				},
+				"t2hpa": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "autoscaling/v2beta2", "kind": "HorizontalPodAutoscaler",
+					"metadata": map[string]interface{}{"name": "test"},
+					"spec":     map[string]interface{}{"maxReplicas": int64(10), "minReplicas": int64(1)}}},
 			},
 		},
 	}
