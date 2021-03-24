@@ -570,8 +570,15 @@ var _ = Describe("Component revision", func() {
 
 	Context("Attach a revision-enable trait the first time, workload should not be recreated", func() {
 		It("should create Component and ApplicationConfiguration", func() {
-			By("submit ApplicationConfiguration")
+			By("submit Component")
 			Expect(k8sClient.Create(ctx, &component)).Should(Succeed())
+			By("check Component exist")
+			Eventually(
+				func() error {
+					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &v1alpha2.Component{})
+				},
+				time.Second*3, time.Millisecond*500).Should(BeNil())
+			By("submit ApplicationConfiguration")
 			Expect(k8sClient.Create(ctx, &appConfig)).Should(Succeed())
 
 			By("check workload")
