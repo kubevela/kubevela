@@ -25,17 +25,17 @@ import (
 type AppDeploymentPhase string
 
 const (
-	// PHaseRolling is the phase when the AppDeployment is rolling live instances from old revisions to new ones.
+	// PhaseRolling is the phase when the AppDeployment is rolling live instances from old revisions to new ones.
 	PhaseRolling AppDeploymentPhase = "Rolling"
 
 	// PhaseCompleted is the phase when the AppDeployment is done with reconciliation.
 	PhaseCompleted AppDeploymentPhase = "Completed"
 
-	// PhaseCompleted is the phase when the AppDeployment has failed in reconciliation due to unexpected conditions.
+	// PhaseFailed is the phase when the AppDeployment has failed in reconciliation due to unexpected conditions.
 	PhaseFailed AppDeploymentPhase = "Failed"
 )
 
-// HttpMatchRequest specifies a set of criterion to be met in order for the
+// HTTPMatchRequest specifies a set of criterion to be met in order for the
 // rule to be applied to the HTTP request. For example, the following
 // restricts the rule to match only requests where the URL path
 // starts with /ratings/v2/ and the request contains a custom `end-user` header
@@ -50,8 +50,8 @@ type URIMatch struct {
 	Prefix string `json:"prefix,omitempty"`
 }
 
-// HttpRule defines the rules to match and split http traffoc across revisions.
-type HttpRule struct {
+// HTTPRule defines the rules to match and split http traffic across revisions.
+type HTTPRule struct {
 
 	// Match defines the conditions to be satisfied for the rule to be
 	// activated. All conditions inside a single match block have AND
@@ -95,8 +95,8 @@ type Traffic struct {
 	// namespace qualifier is the same as specifying the AppDeployment's namespace.
 	Gateways []string `json:"gateways,omitempty"`
 
-	// Http defines the rules to match and split http traffoc across revisions.
-	Http []HttpRule `json:"http,omitempty"`
+	// HTTP defines the rules to match and split http traffoc across revisions.
+	HTTP []HTTPRule `json:"http,omitempty"`
 }
 
 // ClusterSelector defines the rules to select a Cluster resource.
@@ -144,7 +144,7 @@ type ClusterPlacementStatus struct {
 	Replicas int `json:"replicas,omitempty"`
 }
 
-// Placement shows the cluster placement results of an app revision.
+// PlacementStatus shows the cluster placement results of an app revision.
 type PlacementStatus struct {
 	// RevisionName is the name of the AppRevision.
 	RevisionName string `json:"revisionName,omitempty"`

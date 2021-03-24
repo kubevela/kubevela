@@ -84,14 +84,14 @@ spec:
                       type: string
                     type: array
                   http:
-                    description: Http defines the rules to match and split http traffoc across revisions.
+                    description: HTTP defines the rules to match and split http traffoc across revisions.
                     items:
-                      description: HttpRule defines the rules to match and split http traffoc across revisions.
+                      description: HTTPRule defines the rules to match and split http traffic across revisions.
                       properties:
                         match:
                           description: Match defines the conditions to be satisfied for the rule to be activated. All conditions inside a single match block have AND semantics, while the list of match blocks have OR semantics. The rule is matched if any one of the match blocks succeed.
                           items:
-                            description: HttpMatchRequest specifies a set of criterion to be met in order for the rule to be applied to the HTTP request. For example, the following restricts the rule to match only requests where the URL path starts with /ratings/v2/ and the request contains a custom `end-user` header with value `jason`.
+                            description: HTTPMatchRequest specifies a set of criterion to be met in order for the rule to be applied to the HTTP request. For example, the following restricts the rule to match only requests where the URL path starts with /ratings/v2/ and the request contains a custom `end-user` header with value `jason`.
                             properties:
                               uri:
                                 description: URI defines how to match with an URI.
@@ -161,7 +161,7 @@ spec:
               placement:
                 description: Placement shows the cluster placement results of the app revisions.
                 items:
-                  description: Placement shows the cluster placement results of an app revision.
+                  description: PlacementStatus shows the cluster placement results of an app revision.
                   properties:
                     clusters:
                       description: Clusters shows cluster placement results.
