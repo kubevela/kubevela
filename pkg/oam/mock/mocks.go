@@ -168,3 +168,27 @@ func SchemeWith(o ...runtime.Object) *runtime.Scheme {
 	s.AddKnownTypes(GV, o...)
 	return s
 }
+
+// NotFoundErr describes NotFound Resource error
+type NotFoundErr struct {
+	NotFoundStatus metav1.Status
+}
+
+// NewMockNotFoundErr return a mock NotFoundErr
+func NewMockNotFoundErr() NotFoundErr {
+	return NotFoundErr{
+		NotFoundStatus: metav1.Status{
+			Reason: metav1.StatusReasonNotFound,
+		},
+	}
+}
+
+// Status returns the Status Reason
+func (mock NotFoundErr) Status() metav1.Status {
+	return mock.NotFoundStatus
+}
+
+// Error return error info
+func (mock NotFoundErr) Error() string {
+	return "Not Found Resource"
+}

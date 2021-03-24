@@ -27,6 +27,7 @@ var _ = Describe("Test application containing helm module", func() {
 		appName   = "test-app"
 		compName  = "test-comp"
 		cdName    = "webapp-chart"
+		wdName    = "webapp-chart-wd"
 		tdName    = "virtualgroup"
 	)
 	var app v1alpha2.Application
@@ -73,7 +74,6 @@ var _ = Describe("Test application containing helm module", func() {
 				}),
 			},
 		}
-
 		Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
 
 		By("Install a patch trait used to test CUE module")
@@ -287,6 +287,68 @@ var _ = Describe("Test application containing helm module", func() {
 			By("Verify new application's settings override chart default values")
 			return strings.HasSuffix(deploy.Spec.Template.Spec.Containers[0].Image, "5.1.3")
 		}, 60*time.Second, 10*time.Second).Should(BeTrue())
+	})
+
+	It("Test deploy an application containing helm module defined by workloadDefinition", func() {
+
+		workloaddef := v1alpha2.WorkloadDefinition{}
+		workloaddef.SetName(wdName)
+		workloaddef.SetNamespace(namespace)
+		workloaddef.Spec.Reference = common.DefinitionReference{Name: "deployments.apps", Version: "v1"}
+		workloaddef.Spec.Schematic = &common.Schematic{
+			HELM: &common.Helm{
+				Release: util.Object2RawExtension(map[string]interface{}{
+					"chart": map[string]interface{}{
+						"spec": map[string]interface{}{
+							"chart":   "podinfo",
+							"version": "5.1.4",
+						},
+					},
+				}),
+				Repository: util.Object2RawExtension(map[string]interface{}{
+					"url": "http://oam.dev/catalog/",
+				}),
+			},
+		}
+		By("register workloadDefinition")
+		Expect(k8sClient.Create(ctx, &workloaddef)).Should(Succeed())
+
+		appTestName := "test-app-refer-to-workloaddef"
+		appTest := v1alpha2.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appTestName,
+				Namespace: namespace,
+			},
+			Spec: v1alpha2.ApplicationSpec{
+				Components: []v1alpha2.ApplicationComponent{
+					{
+						Name:         compName,
+						WorkloadType: wdName,
+						Settings: util.Object2RawExtension(map[string]interface{}{
+							"image": map[string]interface{}{
+								"tag": "5.1.2",
+							},
+						}),
+					},
+				},
+			},
+		}
+		By("Create application")
+		Expect(k8sClient.Create(ctx, &appTest)).Should(Succeed())
+
+		ac := &v1alpha2.ApplicationContext{}
+		acName := appTestName
+		By("Verify the AppConfig is created successfully")
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac)
+		}, 30*time.Second, time.Second).Should(Succeed())
+
+		By("Verify the workload(deployment) is created successfully by Helm")
+		deploy := &appsv1.Deployment{}
+		deployName := fmt.Sprintf("%s-%s-podinfo", appTestName, compName)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
+		}, 240*time.Second, 5*time.Second).Should(Succeed())
 	})
 
 	It("Test store JSON schema of Helm Chart in ConfigMap", func() {

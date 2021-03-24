@@ -261,17 +261,18 @@ parameter: {
 			return err
 		}, time.Second*2, time.Millisecond*300).Should(BeNil())
 
-		time.Sleep(2 * time.Second)
 		Expect(pd.Exist(metav1.GroupVersionKind{
 			Group:   "example.com",
 			Version: "v1",
 			Kind:    "Foo",
 		})).Should(Equal(false))
-		Expect(pd.RefreshKubePackagesFromCluster()).ShouldNot(HaveOccurred())
-		By("test new added CRD in kube package")
-		bi = build.NewContext().NewInstance("", nil)
-		pd.ImportBuiltinPackagesFor(bi)
-		bi.AddFile("-", `
+
+		Eventually(func() error {
+			Expect(pd.RefreshKubePackagesFromCluster()).ShouldNot(HaveOccurred())
+			By("test new added CRD in kube package")
+			bi = build.NewContext().NewInstance("", nil)
+			pd.ImportBuiltinPackagesFor(bi)
+			bi.AddFile("-", `
 import ("kube/example.com/v1")
 
 output: v1.#Foo
@@ -280,7 +281,10 @@ output: {
     status: key: "test2"
 }
 `)
-		inst, err = r.Build(bi)
+			inst, err = r.Build(bi)
+			return err
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
+
 		Expect(err).Should(BeNil())
 		base, err = model.NewBase(inst.Lookup("output"))
 		Expect(err).Should(BeNil())

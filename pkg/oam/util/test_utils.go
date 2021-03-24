@@ -145,6 +145,19 @@ func UnMarshalStringToComponentDefinition(s string) (*v1alpha2.ComponentDefiniti
 	return obj, nil
 }
 
+// UnMarshalStringToWorkloadDefinition parse a string to a workloadDefinition object
+func UnMarshalStringToWorkloadDefinition(s string) (*v1alpha2.WorkloadDefinition, error) {
+	obj := &v1alpha2.WorkloadDefinition{}
+	_body, err := yaml.YAMLToJSON([]byte(s))
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(_body, obj); err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
 // UnMarshalStringToTraitDefinition parse a string to a traitDefinition object
 func UnMarshalStringToTraitDefinition(s string) (*v1alpha2.TraitDefinition, error) {
 	obj := &v1alpha2.TraitDefinition{}
