@@ -10,8 +10,9 @@ outputs: service: {
 	metadata:
 		name: context.name
 	spec: {
-		selector:
+		selector: {
 			"app.oam.dev/component": context.name
+		}
 		ports: [
 			for k, v in parameter.http {
 				port:       v
