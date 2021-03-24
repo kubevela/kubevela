@@ -155,5 +155,4 @@ func init() {
 	SchemeBuilder.Register(&AppRollout{}, &AppRolloutList{})
 	SchemeBuilder.Register(&ApplicationRevision{}, &ApplicationRevisionList{})
 	SchemeBuilder.Register(&ApplicationContext{}, &ApplicationContextList{})
-	SchemeBuilder.Register(&Cluster{}, &ClusterList{})
 }

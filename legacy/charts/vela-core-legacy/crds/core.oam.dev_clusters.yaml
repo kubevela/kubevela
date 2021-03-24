@@ -43,9 +43,9 @@ spec:
           description: ClusterStatus defines the observed state of Cluster
           type: object
       type: object
-  version: v1alpha2
+  version: v1beta1
   versions:
-  - name: v1alpha2
+  - name: v1beta1
     served: true
     storage: true
 status:

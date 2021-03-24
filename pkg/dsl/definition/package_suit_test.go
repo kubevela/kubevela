@@ -149,7 +149,7 @@ output: {
 	}
 	spec: template: spec: {
 		containers: [{
-			name:"haha",
+			name:"test",
 			image: parameter.image
 		}]
 	}
@@ -174,7 +174,7 @@ parameter: {
 					"spec": map[string]interface{}{
 						"containers": []interface{}{
 							map[string]interface{}{
-								"name":  "haha",
+								"name":  "test",
 								"image": "nginx"}}}}}},
 		})).Should(BeEquivalentTo(""))
 

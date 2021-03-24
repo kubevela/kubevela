@@ -107,27 +107,31 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 		UID:        h.app.UID,
 		Controller: pointer.BoolPtr(true),
 	}}
-	for _, comp := range comps {
-		comp.SetOwnerReferences(owners)
-		newComp := comp.DeepCopy()
-		// newComp will be updated and return the revision name instead of the component name
-		revisionName, err := h.createOrUpdateComponent(ctx, newComp)
-		if err != nil {
-			return err
-		}
-		// find the ACC that contains this component
-		for i := 0; i < len(ac.Spec.Components); i++ {
-			// update the AC using the component revision instead of component name
-			// we have to make AC immutable including the component it's pointing to
-			if ac.Spec.Components[i].ComponentName == newComp.Name {
-				ac.Spec.Components[i].RevisionName = revisionName
-				ac.Spec.Components[i].ComponentName = ""
+	isRevisionOnly := ac.Annotations[oam.AnnotationAppRevisionOnly] == "true"
+	// don't create components if revision-only annotation is set
+	if !isRevisionOnly {
+		for _, comp := range comps {
+			comp.SetOwnerReferences(owners)
+			newComp := comp.DeepCopy()
+			// newComp will be updated and return the revision name instead of the component name
+			revisionName, err := h.createOrUpdateComponent(ctx, newComp)
+			if err != nil {
+				return err
 			}
-		}
-		if comp.Spec.Helm != nil {
-			// TODO(wonderflow): do we still need to apply helm resource if the spec has no difference?
-			if err = h.applyHelmModuleResources(ctx, comp, owners); err != nil {
-				return errors.Wrap(err, "cannot apply Helm module resources")
+			// find the ACC that contains this component
+			for i := 0; i < len(ac.Spec.Components); i++ {
+				// update the AC using the component revision instead of component name
+				// we have to make AC immutable including the component it's pointing to
+				if ac.Spec.Components[i].ComponentName == newComp.Name {
+					ac.Spec.Components[i].RevisionName = revisionName
+					ac.Spec.Components[i].ComponentName = ""
+				}
+			}
+			if comp.Spec.Helm != nil {
+				// TODO(wonderflow): do we still need to apply helm resource if the spec has no difference?
+				if err = h.applyHelmModuleResources(ctx, comp, owners); err != nil {
+					return errors.Wrap(err, "cannot apply Helm module resources")
+				}
 			}
 		}
 	}
@@ -152,14 +156,18 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 		}
 	}
 
-	// the rollout will create AppContext which will launch the real K8s resources.
-	// Otherwise, we should create/update the appContext here when there if no rollout controller to take care of new versions
-	// In this case, the workload should update with the annotation `app.oam.dev/inplace-upgrade=true`
-	if _, exist := h.app.GetAnnotations()[oam.AnnotationAppRollout]; !exist && h.app.Spec.RolloutPlan == nil {
-		h.setInplace(true)
-		return h.createOrUpdateAppContext(ctx, owners)
+	// don't create appContext if revision-only annotation is set
+	if !isRevisionOnly {
+		// the rollout will create AppContext which will launch the real K8s resources.
+		// Otherwise, we should create/update the appContext here when there if no rollout controller to take care of new versions
+		// In this case, the workload should update with the annotation `app.oam.dev/inplace-upgrade=true`
+		if _, exist := h.app.GetAnnotations()[oam.AnnotationAppRollout]; !exist && h.app.Spec.RolloutPlan == nil {
+			h.setInplace(true)
+			return h.createOrUpdateAppContext(ctx, owners)
+		}
+		h.setInplace(false)
 	}
-	h.setInplace(false)
+
 	return nil
 }
 
