@@ -293,7 +293,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		newAppRollout.Spec.SourceAppRevisionName = ""
 		newAppRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
 		Expect(k8sClient.Create(ctx, &newAppRollout)).Should(Succeed())
-
+		appRollout.Name = newAppRollout.Name
 		VerifyRolloutSucceeded(newAppRollout.Spec.TargetAppRevisionName)
 		// Clean up
 		k8sClient.Delete(ctx, &appRollout)
@@ -313,12 +313,15 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		VerifyRolloutSucceeded(newAppRollout.Spec.TargetAppRevisionName)
 
 		By("Apply the application rollout that stops after the first batch")
-		newAppRollout.Spec.SourceAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
-		newAppRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 2)
 		batchPartition := 0
-		newAppRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(batchPartition))
-		newAppRollout.ResourceVersion = appRollout.ResourceVersion
-		Expect(k8sClient.Update(ctx, &newAppRollout)).Should(Succeed())
+		Eventually(
+			func() error {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
+				appRollout.Spec.SourceAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
+				appRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 2)
+				appRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(batchPartition))
+				return k8sClient.Update(ctx, &appRollout)
+			}, time.Second*5, time.Millisecond*500).Should(Succeed())
 
 		By("Wait for the rollout phase change to rolling in batches")
 		Eventually(
@@ -366,9 +369,9 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			},
 			time.Second*10, time.Millisecond*10).Should(BeEquivalentTo(oamstd.RollingInBatchesState))
 
-		VerifyRolloutSucceeded(newAppRollout.Spec.TargetAppRevisionName)
+		VerifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
 
-		VerifyAppConfigInactive(newAppRollout.Spec.SourceAppRevisionName)
+		VerifyAppConfigInactive(appRollout.Spec.SourceAppRevisionName)
 
 		// Clean up
 		k8sClient.Delete(ctx, &appRollout)
@@ -460,11 +463,15 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		VerifyRolloutSucceeded(newAppRollout.Spec.TargetAppRevisionName)
 
 		By("Finish the application rollout")
-		newAppRollout.Spec.SourceAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
-		newAppRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 2)
-		newAppRollout.Spec.RolloutPlan.BatchPartition = nil
-		newAppRollout.ResourceVersion = appRollout.ResourceVersion
-		Expect(k8sClient.Update(ctx, &newAppRollout)).Should(Succeed())
+		Eventually(
+			func() error {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
+				appRollout.Spec.SourceAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
+				appRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 2)
+				appRollout.Spec.RolloutPlan.BatchPartition = nil
+				return k8sClient.Update(ctx, &appRollout)
+			}, time.Second*5, time.Millisecond*500).Should(Succeed())
+
 		By("Wait for the rollout phase change to rolling in batches")
 		Eventually(
 			func() oamstd.RollingState {
@@ -473,8 +480,8 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			},
 			time.Second*10, time.Millisecond*10).Should(BeEquivalentTo(oamstd.RollingInBatchesState))
 
-		VerifyRolloutSucceeded(newAppRollout.Spec.TargetAppRevisionName)
-		VerifyAppConfigInactive(newAppRollout.Spec.SourceAppRevisionName)
+		VerifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
+		VerifyAppConfigInactive(appRollout.Spec.SourceAppRevisionName)
 
 		RevertBackToSource()
 	})
@@ -493,12 +500,15 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		VerifyRolloutSucceeded(newAppRollout.Spec.TargetAppRevisionName)
 
 		By("Finish the application rollout")
-		newAppRollout.Spec.SourceAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
-		newAppRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 2)
 		batchPartition := 1
-		newAppRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(batchPartition))
-		newAppRollout.ResourceVersion = appRollout.ResourceVersion
-		Expect(k8sClient.Update(ctx, &newAppRollout)).Should(Succeed())
+		Eventually(
+			func() error {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
+				appRollout.Spec.SourceAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
+				appRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 2)
+				appRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(batchPartition))
+				return k8sClient.Update(ctx, &appRollout)
+			}, time.Second*5, time.Millisecond*500).Should(Succeed())
 
 		By("Wait for the rollout phase change to rolling in batches")
 		Eventually(
