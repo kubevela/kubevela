@@ -613,5 +613,6 @@ var _ = Describe("Component revision", func() {
 	AfterEach(func() {
 		k8sClient.Delete(ctx, &appConfig)
 		k8sClient.Delete(ctx, &component)
+		k8sClient.Delete(ctx, &TraitDefinition)
 	})
 })

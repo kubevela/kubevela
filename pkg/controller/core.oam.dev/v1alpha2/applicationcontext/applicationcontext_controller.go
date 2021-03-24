@@ -11,7 +11,6 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -83,7 +82,9 @@ func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 	}
 	appConfig.Status = appContext.Status
 	// the name of the appConfig has to be the same as the appContext
-	appConfig.ObjectMeta = metav1.ObjectMeta{Namespace: appContext.Namespace, Name: appContext.Name, UID: appContext.UID}
+	appConfig.Namespace = appContext.Namespace
+	appConfig.Name = appContext.Name
+	appConfig.UID = appContext.UID
 	// call into the old ac Reconciler and copy the status back
 	acReconciler := ac.NewReconciler(r.mgr, dm, r.log, ac.WithRecorder(r.record), ac.WithApplyOnceOnlyMode(r.applyMode))
 	reconResult := acReconciler.ACReconcile(ctx, appConfig, r.log)
