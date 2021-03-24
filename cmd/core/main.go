@@ -84,7 +84,7 @@ func main() {
 		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
 	flag.StringVar(&disableCaps, "disable-caps", "", "To be disabled builtin capability list.")
 	flag.StringVar(&storageDriver, "storage-driver", "Local", "Application file save to the storage driver")
-	flag.DurationVar(&syncPeriod, "informer-re-sync-interval", 5*time.Minute,
+	flag.DurationVar(&syncPeriod, "informer-re-sync-interval", 60*time.Minute,
 		"controller shared informer lister full re-sync period")
 	flag.StringVar(&oam.SystemDefinitonNamespace, "system-definition-namespace", "vela-system", "define the namespace of the system-level definition")
 	flag.Parse()
