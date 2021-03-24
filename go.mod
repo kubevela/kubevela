@@ -52,7 +52,6 @@ require (
 	github.com/ugorji/go v1.2.1 // indirect
 	github.com/wercker/stern v0.0.0-20190705090245-4fa46dd6987f
 	github.com/wonderflow/cert-manager-api v1.0.3
-	github.com/xlab/handysort v0.0.0-20150421192137-fb3537ed64a1 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.16.0
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
@@ -62,8 +61,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 	gotest.tools v2.2.0+incompatible
 	helm.sh/helm/v3 v3.2.4
-	istio.io/api v0.0.0-20210128181506-0c4b8e54850f // indirect
-	istio.io/client-go v0.0.0-20210128182905-ee2edd059e02 // indirect
+	istio.io/client-go v0.0.0-20210128182905-ee2edd059e02
 	k8s.io/api v0.18.8
 	k8s.io/apiextensions-apiserver v0.18.6
 	k8s.io/apimachinery v0.18.8
@@ -77,7 +75,6 @@ require (
 	sigs.k8s.io/controller-runtime v0.6.2
 	sigs.k8s.io/controller-tools v0.2.4
 	sigs.k8s.io/yaml v1.2.0
-	vbom.ml/util v0.0.0-20160121211510-db5cfe13f5cc // indirect
 )
 
 replace (
