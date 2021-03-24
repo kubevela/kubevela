@@ -20,11 +20,12 @@ import (
 	"context"
 	"time"
 
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/build"
 	"github.com/google/go-cmp/cmp"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -38,17 +39,17 @@ import (
 
 var _ = Describe("Package discovery resources for definition from K8s APIServer", func() {
 
-	PIt("discovery built-in k8s resource", func() {
+	It("discovery built-in k8s resource", func() {
 
 		By("test ingress in kube package")
 		bi := build.NewContext().NewInstance("", nil)
 		pd.ImportBuiltinPackagesFor(bi)
 		err := bi.AddFile("-", `
 import (
-	network "kube/networking.k8s.io/v1beta1"
+	network "k8s.io/networking/v1beta1"
+	kube	"kube/networking.k8s.io/v1beta1"
 )
-
-output: network.#Ingress
+output: network.#Ingress & kube.#Ingress
 output: {
 	apiVersion: "networking.k8s.io/v1beta1"
 	kind:       "Ingress"
@@ -102,16 +103,45 @@ parameter: {
 										"servicePort": int64(80),
 									}}}}}}}},
 		})).Should(BeEquivalentTo(""))
+		By("test Invalid Import path")
+		bi = build.NewContext().NewInstance("", nil)
+		pd.ImportBuiltinPackagesFor(bi)
+		bi.AddFile("-", `
+import (
+	"k8s.io/networking/v1"
+	kube	"kube/networking.k8s.io/v1"
+)
+output: v1.#Deployment & kube.#Deployment
+output: {
+	metadata: {
+		"name": parameter.name
+	}
+	spec: template: spec: {
+		containers: [{
+			name:"invalid-path",
+			image: parameter.image
+		}]
+	}
+}
+parameter: {
+	name:  "myapp"
+	image: "nginx"
+}`)
+		inst, err = r.Build(bi)
+		Expect(err).Should(BeNil())
+		_, err = model.NewBase(inst.Lookup("output"))
+		Expect(err).ShouldNot(BeNil())
+		Expect(err.Error()).Should(Equal("_|_ // undefined field \"#Deployment\""))
 
 		By("test Deployment in kube package")
 		bi = build.NewContext().NewInstance("", nil)
 		pd.ImportBuiltinPackagesFor(bi)
 		bi.AddFile("-", `
 import (
-	apps "kube/apps/v1"
+	apps "k8s.io/apps/v1"
+	kube	"kube/apps/v1"
 )
-
-output: apps.#Deployment
+output: apps.#Deployment & kube.#Deployment
 output: {
 	metadata: {
 		"name": parameter.name
@@ -123,7 +153,6 @@ output: {
 		}]
 	}
 }
-
 parameter: {
 	name:  "myapp"
 	image: "nginx"
@@ -152,16 +181,17 @@ parameter: {
 		bi = build.NewContext().NewInstance("", nil)
 		pd.ImportBuiltinPackagesFor(bi)
 		bi.AddFile("-", `
-import ("kube/v1")
-
-output: v1.#Secret
+import (
+	"k8s.io/core/v1"
+	kube "kube/v1"
+)
+output: v1.#Secret & kube.#Secret
 output: {
 	metadata: {
 		"name": parameter.name
 	}
 	type:"kubevela"
 }
-
 parameter: {
 	name:  "myapp"
 }`)
@@ -181,16 +211,17 @@ parameter: {
 		bi = build.NewContext().NewInstance("", nil)
 		pd.ImportBuiltinPackagesFor(bi)
 		bi.AddFile("-", `
-import ("kube/v1")
-
-output: v1.#Service
+import (
+	"k8s.io/core/v1"
+	kube "kube/v1"
+)
+output: v1.#Service & kube.#Service
 output: {
 	metadata: {
 		"name": parameter.name
 	}
 	spec: type: "ClusterIP",
 }
-
 parameter: {
 	name:  "myapp"
 }`)
@@ -274,10 +305,12 @@ parameter: {
 			}
 			bi = build.NewContext().NewInstance("", nil)
 			pd.ImportBuiltinPackagesFor(bi)
-			if err = bi.AddFile("-", `
-import ("kube/example.com/v1")
-
-output: v1.#Foo
+			if err := bi.AddFile("-", `
+import (
+	ev1 "example.com/v1"
+	kv1 "kube/example.com/v1"
+)
+output: ev1.#Foo & kv1.#Foo
 output: {
 	spec: key: "test1"
     status: key: "test2"
