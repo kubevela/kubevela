@@ -1,6 +1,8 @@
 # Learning CUE
 
-This document will explain how to use [CUE](https://cuelang.org/) to encapsulate a given capability in Kubernetes and make it available to end users to consume in `Application` CRD. Please make sure you have already learned about `Application` custom resource before reading the following guide. 
+This document will explain how to use [CUE](https://cuelang.org/) to encapsulate and abstract a given capability in Kubernetes and
+make it available to end users to consume in `Application` CRD. Please make sure you have already learned about
+`Application` custom resource before reading the following guide. 
 
 ## Overview
 
@@ -13,6 +15,9 @@ The reasons for KubeVela supports CUE as first class templating solution can be 
  KubeVela is built with GO just like most projects in Kubernetes system. CUE is also implemented in and exposes a rich API in Go. KubeVela integrates with CUE as its core library and works as a Kubernetes controller. With the help of CUE, KubeVela can easily handle data constraint problems.
 
 > Pleas also check [The Configuration Complexity Curse](https://blog.cedriccharly.com/post/20191109-the-configuration-complexity-curse/) and [The Logic of CUE](https://cuelang.org/docs/concepts/logic/) for more details.
+
+If you haven't ever learned the basic of CUE, you can refer to [our CUE basic guide](./development-guide.md) to learn
+the basic knowledge of CUE which will be used in KubeVela.
 
 ## Parameter and Template
 
