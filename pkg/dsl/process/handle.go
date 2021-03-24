@@ -95,14 +95,14 @@ type RequiredSecrets struct {
 // NewContext create render templateContext
 func NewContext(namespace, name, appName, appRevision, outputSecretName string, requiredSecrets []RequiredSecrets) Context {
 	return &templateContext{
-		name:            name,
-		appName:         appName,
-		appRevision:     appRevision,
-		configs:         []map[string]string{},
-		auxiliaries:     []Auxiliary{},
-		namespace:       namespace,
+		name:             name,
+		appName:          appName,
+		appRevision:      appRevision,
+		configs:          []map[string]string{},
+		auxiliaries:      []Auxiliary{},
+		namespace:        namespace,
 		outputSecretName: outputSecretName,
-		requiredSecrets: requiredSecrets,
+		requiredSecrets:  requiredSecrets,
 	}
 }
 

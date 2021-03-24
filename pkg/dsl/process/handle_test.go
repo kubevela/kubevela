@@ -64,7 +64,7 @@ image: "myserver"
 		Name: "service",
 	}
 
-	ctx := NewContext("mycomp", "myapp", "myapp-v1", "", nil)
+	ctx := NewContext("mycomp", "myapp", "myapp-v1", "", "", nil)
 	ctx.SetBase(base)
 	ctx.AppendAuxiliaries(svcAux)
 

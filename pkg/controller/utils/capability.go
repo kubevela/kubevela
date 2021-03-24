@@ -52,8 +52,8 @@ const (
 
 // CapabilityDefinitionInterface is the interface for Capability (WorkloadDefinition and TraitDefinition)
 type CapabilityDefinitionInterface interface {
-	GetCapabilityObject(ctx context.Context, k8sClient client.Client, namespace, name string) (types.Capability, error)
-	GetOpenAPISchema(ctx context.Context, k8sClient client.Client, objectKey client.ObjectKey) ([]byte, error)
+	GetCapabilityObject(ctx context.Context, k8sClient client.Client, namespace, name string) (*types.Capability, error)
+	GetOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string) ([]byte, error)
 }
 
 // CapabilityComponentDefinition is the struct for ComponentDefinition
@@ -289,7 +289,6 @@ func getOpenAPISchema(capability types.Capability) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	schema, err := ConvertOpenAPISchema2SwaggerObject(openAPISchema)
 	if err != nil {
 		return nil, err
