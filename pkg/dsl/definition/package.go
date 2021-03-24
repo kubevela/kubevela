@@ -3,6 +3,7 @@ package definition
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -62,13 +63,14 @@ func (pd *PackageDiscover) RefreshKubePackagesFromCluster() error {
 
 // Exist checks if the GVK exists in the built-in packages
 func (pd *PackageDiscover) Exist(gvk metav1.GroupVersionKind) bool {
+	dgvk := convert2DGVK(gvk)
 	// package name equals to importPath
-	importPath := genPackageName(gvk.Group, gvk.Version)
+	importPath := genPackageName(dgvk)
 	pd.mutex.RLock()
 	defer pd.mutex.RUnlock()
 	pkgKinds := pd.pkgKinds[importPath]
 	for _, k := range pkgKinds {
-		if k == gvk.Kind {
+		if k == dgvk.Kind {
 			return true
 		}
 	}
@@ -95,7 +97,7 @@ func (pd *PackageDiscover) addKubeCUEPackagesFromCluster(apiSchema string) error
 	if err != nil {
 		return err
 	}
-	kinds := map[string]metav1.GroupVersionKind{}
+	dgvkMapper := make(map[string]DomainGroupVersionKind)
 	pathValue := oaInst.Value().Lookup("paths")
 	if pathValue.Exists() {
 		if st, err := pathValue.Struct(); err == nil {
@@ -104,8 +106,8 @@ func (pd *PackageDiscover) addKubeCUEPackagesFromCluster(apiSchema string) error
 				gvk := iter.Value().Lookup("post",
 					"x-kubernetes-group-version-kind")
 				if gvk.Exists() {
-					if v, err := getGVK(gvk); err == nil {
-						kinds["#"+v.Kind] = v
+					if v, err := getDGVK(gvk); err == nil {
+						dgvkMapper[v.reverseString()] = v
 					}
 				}
 			}
@@ -113,27 +115,33 @@ func (pd *PackageDiscover) addKubeCUEPackagesFromCluster(apiSchema string) error
 	}
 	oaFile, err := jsonschema.Extract(oaInst, &jsonschema.Config{
 		Root: "#/definitions",
-		Map:  openAPIMapping,
+		Map:  openAPIMapping(dgvkMapper),
 	})
 	if err != nil {
+		return err
+	}
+	kubePkg := newPackage("kube")
+	kubePkg.processOpenAPIFile(oaFile)
+	if err := kubePkg.AddSyntax(oaFile); err != nil {
 		return err
 	}
 	packages := make(map[string]*pkgInstance)
 	groupKinds := make(map[string][]string)
 
-	for k, v := range kinds {
-		apiVersion := v.Version
-		if v.Group != "" {
-			apiVersion = v.Group + "/" + apiVersion
-		}
-		def := fmt.Sprintf(`%s: {
+	for k, v := range dgvkMapper {
+		apiVersion := v.ApiVersion
+		def := fmt.Sprintf(`
+import "kube"
+
+#%s: kube.%s & {
 kind: "%s"
 apiVersion: "%s",
-}`, k, v.Kind, apiVersion)
-		pkgName := genPackageName(v.Group, v.Version)
+}`, v.Kind, k, v.Kind, apiVersion)
+		pkgName := genPackageName(v)
 		pkg, ok := packages[pkgName]
 		if !ok {
 			pkg = newPackage(pkgName)
+			pkg.Imports = []*build.Instance{kubePkg.Instance}
 		}
 
 		mykinds := groupKinds[pkgName]
@@ -146,22 +154,17 @@ apiVersion: "%s",
 		groupKinds[pkgName] = mykinds
 	}
 	for name, pkg := range packages {
-		pkg.processOpenAPIFile(oaFile)
-		if err = pkg.AddSyntax(oaFile); err != nil {
-			return err
-		}
 		pd.mount(pkg, groupKinds[name])
 	}
 	return nil
 }
 
-func genPackageName(group, version string) string {
-	res := []string{"kube"}
-	if group != "" {
-		res = append(res, group)
+func genPackageName(v DomainGroupVersionKind) string {
+	res := []string{v.Group, v.Version}
+	if v.Domain != "" {
+		res = []string{v.Domain, v.Group, v.Version}
 	}
-	// version should never be empty
-	res = append(res, version)
+
 	return strings.Join(res, "/")
 }
 
@@ -191,18 +194,57 @@ func getClusterOpenAPIClient(config *rest.Config) (*rest.RESTClient, error) {
 	return rest.UnversionedRESTClientFor(&copyConfig)
 }
 
-func openAPIMapping(pos token.Pos, a []string) ([]ast.Label, error) {
-	if len(a) < 2 {
-		return nil, errors.New("openAPIMapping format invalid")
+func openAPIMapping(dgvkMapper map[string]DomainGroupVersionKind) func(pos token.Pos, a []string) ([]ast.Label, error) {
+	const k8s_resource_prefix = "io_k8s_api_"
+	return func(pos token.Pos, a []string) ([]ast.Label, error) {
+		if len(a) < 2 {
+			return nil, errors.New("openAPIMapping format invalid")
+		}
+
+		name := strings.Replace(a[1], ".", "_", -1)
+		sv := strings.Split(a[1], ".")
+		base := sv[len(sv)-1]
+		if _, ok := dgvkMapper[name]; !ok && strings.HasPrefix(name, k8s_resource_prefix) {
+			trimName := strings.TrimPrefix(name, k8s_resource_prefix)
+			if v, ok := dgvkMapper[trimName]; ok {
+				v.Domain = "k8s.io"
+				dgvkMapper[name] = v
+				delete(dgvkMapper, trimName)
+			}
+		}
+		if base == "JSONSchemaProps" && pos != token.NoPos {
+			return []ast.Label{ast.NewIdent("_")}, nil
+		}
+
+		return []ast.Label{ast.NewIdent(name)}, nil
 	}
 
-	spl := strings.Split(a[1], ".")
-	name := spl[len(spl)-1]
+}
 
-	if name == "JSONSchemaProps" && pos != token.NoPos {
-		return []ast.Label{ast.NewIdent("_")}, nil
+type DomainGroupVersionKind struct {
+	Domain     string
+	Group      string
+	Version    string
+	Kind       string
+	ApiVersion string
+}
+
+func (dgvk DomainGroupVersionKind) reverseString() string {
+	var s = []string{dgvk.Kind, dgvk.Version}
+	s = append(s, strings.Split(dgvk.Group, ".")...)
+	domain := dgvk.Domain
+	if domain == "k8s.io" {
+		domain = "api.k8s.io"
 	}
-	return []ast.Label{ast.NewIdent("#" + name)}, nil
+
+	if domain != "" {
+		s = append(s, strings.Split(domain, ".")...)
+	}
+
+	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+		s[i], s[j] = s[j], s[i]
+	}
+	return strings.Join(s, "_")
 }
 
 type pkgInstance struct {
@@ -212,7 +254,7 @@ type pkgInstance struct {
 func newPackage(name string) *pkgInstance {
 	return &pkgInstance{
 		&build.Instance{
-			PkgName:    name,
+			PkgName:    filepath.Base(name),
 			ImportPath: name,
 		},
 	}
@@ -248,17 +290,54 @@ func (pkg *pkgInstance) processOpenAPIFile(f *ast.File) {
 	}
 }
 
-func getGVK(v cue.Value) (metav1.GroupVersionKind, error) {
-	ret := metav1.GroupVersionKind{}
-	var err error
-	ret.Group, err = v.Lookup("group").String()
+func getDGVK(v cue.Value) (DomainGroupVersionKind, error) {
+	ret := DomainGroupVersionKind{}
+	doaminGroup, err := v.Lookup("group").String()
 	if err != nil {
 		return ret, err
 	}
+	if doaminGroup != "" {
+		sv := strings.Split(doaminGroup, ".")
+		if len(sv) > 2 {
+			ret.Domain = strings.Join(sv[1:], ".")
+			ret.Group = sv[0]
+		} else {
+			ret.Group = doaminGroup
+		}
+	} else {
+		ret.Domain = "k8s.io"
+		ret.Group = "core"
+	}
+
 	ret.Version, err = v.Lookup("version").String()
 	if err != nil {
 		return ret, err
 	}
+
+	ret.ApiVersion = ret.Version
+	if doaminGroup != "" {
+		ret.ApiVersion = doaminGroup + "/" + ret.ApiVersion
+	}
 	ret.Kind, err = v.Lookup("kind").String()
 	return ret, err
+}
+
+func convert2DGVK(gvk metav1.GroupVersionKind) DomainGroupVersionKind {
+	ret := DomainGroupVersionKind{
+		Version: gvk.Version,
+		Kind:    gvk.Kind,
+	}
+	if gvk.Group == "" {
+		ret.Group = "core"
+		ret.Domain = "k8s.io"
+	} else {
+		sv := strings.Split(gvk.Group, ".")
+		if len(sv) > 2 {
+			ret.Domain = strings.Join(sv[1:], ".")
+			ret.Group = sv[0]
+		} else {
+			ret.Group = gvk.Group
+		}
+	}
+	return ret
 }

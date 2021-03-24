@@ -8,10 +8,8 @@ import (
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
-	"gotest.tools/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/oam-dev/kubevela/pkg/dsl/model"
+	"gotest.tools/assert"
 )
 
 func TestPackage(t *testing.T) {
@@ -21,7 +19,7 @@ func TestPackage(t *testing.T) {
 		"paths...": {
 			"post":{
 				"x-kubernetes-group-version-kind": {
-                    "group": "test.io",
+                    "group": "apps.test.io",
                     "kind": "Bucket",
                     "version": "v1"
                 }
@@ -29,7 +27,7 @@ func TestPackage(t *testing.T) {
 		}
 	},
     "definitions":{
-        "Bucket":{
+        "io.test.apps.v1.Bucket":{
             "properties":{
 				"apiVersion": {"type": "string"}
  				"kind": {"type": "string"}
@@ -319,7 +317,7 @@ func TestPackage(t *testing.T) {
 	bi := build.NewContext().NewInstance("", nil)
 	mypd.ImportBuiltinPackagesFor(bi)
 	bi.AddFile("-", `
-import "kube/test.io/v1"
+import "test.io/apps/v1"
 output: v1.#Bucket
 `)
 	var r cue.Runtime
@@ -330,60 +328,60 @@ output: v1.#Bucket
 
 	exceptObj := `output: close({
 	kind:                "Bucket"
-	apiVersion:          "test.io/v1"
+	apiVersion:          "apps.test.io/v1"
 	type:                "alicloud_oss_bucket"
 	acl:                 "public-read-write" | "public-read" | *"private"
 	dataRedundancyType?: "ZRS" | *"LRS"
-	dataSourceRef?:      close({
+	dataSourceRef?: {
 		dsPath: string
-	})
-	importRef?: close({
+	}
+	importRef?: {
 		importKey: string
-	})
-	output: close({
+	}
+	output: {
 		{[!~"^(bucketName|extranetEndpoint|intranetEndpoint|masterUserId)$"]: {
 											outRef: string
 		} | {
 			// Example: demoVpc.vpcId
 			valueRef: string
 		}}
-		bucketName: close({
+		bucketName: {
 			outRef: "self.name"
-		})
-		extranetEndpoint: close({
+		}
+		extranetEndpoint: {
 			outRef: "self.state.extranetEndpoint"
-		})
-		intranetEndpoint: close({
+		}
+		intranetEndpoint: {
 			outRef: "self.state.intranetEndpoint"
-		})
-		masterUserId: close({
+		}
+		masterUserId: {
 			outRef: "self.state.masterUserId"
-		})
-	})
-	profile: close({
-		baasRepo: string | close({
+		}
+	}
+	profile: {
+		baasRepo: string | {
 			// Example: demoVpc.vpcId
 			valueRef: string
-		})
+		}
 		cloudProduct: "AliCloudOSS"
-		endpoint?:    string | close({
+		endpoint?:    string | {
 			// Example: demoVpc.vpcId
 			valueRef: string
-		})
-		envType?: "testing" | "product" | close({
+		}
+		envType?: "testing" | "product" | {
 			// Example: demoVpc.vpcId
 			valueRef: string
-		})
+		}
 		provider: "alicloud"
-		region:   string | close({
+		region:   string | {
 			// Example: demoVpc.vpcId
 			valueRef: string
-		})
-		serviceAccount?: string | close({
+		}
+		serviceAccount?: string | {
 			// Example: demoVpc.vpcId
 			valueRef: string
-		})
-	})
+		}
+	}
 	storageClass?: "IA" | "Archive" | "ColdArchive" | *"Standard"
 })
 `
@@ -437,11 +435,11 @@ func TestMount(t *testing.T) {
 	assert.Equal(t, mypd.velaBuiltinPackages[0], testPkg.Instance)
 }
 
-func TestGetGVK(t *testing.T) {
+func TestGetDGVK(t *testing.T) {
 	srcTmpl := `
 {
 	"x-kubernetes-group-version-kind": {
-		"group": "test.io",
+		"group": "apps.test.io",
 		"kind": "Foo",
 		"version": "v1"
 	}
@@ -450,12 +448,14 @@ func TestGetGVK(t *testing.T) {
 	var r cue.Runtime
 	inst, err := r.Compile("-", srcTmpl)
 	assert.NilError(t, err)
-	gvk, err := getGVK(inst.Value().Lookup("x-kubernetes-group-version-kind"))
+	gvk, err := getDGVK(inst.Value().Lookup("x-kubernetes-group-version-kind"))
 	assert.NilError(t, err)
-	assert.Equal(t, gvk, metav1.GroupVersionKind{
-		Group:   "test.io",
+	assert.Equal(t, gvk, DomainGroupVersionKind{
+		Domain:  "test.io",
+		Group:   "apps",
 		Version: "v1",
 		Kind:    "Foo",
+		ApiVersion: "apps.test.io/v1",
 	})
 }
 
@@ -469,7 +469,7 @@ func TestOpenAPIMapping(t *testing.T) {
 		{
 			input:  []string{"definitions", "io.k8s.api.discovery.v1beta1.Endpoint"},
 			pos:    token.NoPos,
-			result: "[#Endpoint]",
+			result: "[io_k8s_api_discovery_v1beta1_Endpoint]",
 		},
 		{
 			input:  []string{"definitions", "io.k8s.apiextensions-apiserver.pkg.apis.apiextensions.v1.JSONSchemaProps"},
@@ -479,7 +479,7 @@ func TestOpenAPIMapping(t *testing.T) {
 		{
 			input:  []string{"definitions", "io.k8s.apiextensions-apiserver.pkg.apis.apiextensions.v1.JSONSchemaProps"},
 			pos:    token.NoPos,
-			result: "[#JSONSchemaProps]",
+			result: "[io_k8s_apiextensions-apiserver_pkg_apis_apiextensions_v1_JSONSchemaProps]",
 		},
 		{
 			input:  []string{"definitions"},
@@ -488,8 +488,9 @@ func TestOpenAPIMapping(t *testing.T) {
 		},
 	}
 
+	emptyMapper:=make(map[string]DomainGroupVersionKind)
 	for _, tCase := range testCases {
-		labels, err := openAPIMapping(tCase.pos, tCase.input)
+		labels, err := openAPIMapping(emptyMapper)(tCase.pos, tCase.input)
 		if tCase.errMsg != "" {
 			assert.Error(t, err, tCase.errMsg)
 			continue
