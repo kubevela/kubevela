@@ -67,4 +67,8 @@ const (
 	// AnnotationAppRevision indicates that the object is an application revision
 	//	its controller should not try to reconcile it
 	AnnotationAppRevision = "app.oam.dev/app-revision"
+
+	// AnnotationAppRevisionOnly the Application update should only generate revision,
+	// not any appContexts or components.
+	AnnotationAppRevisionOnly = "app.oam.dev/revision-only"
 )
