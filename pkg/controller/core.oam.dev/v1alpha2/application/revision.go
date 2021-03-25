@@ -64,8 +64,8 @@ func (h *appHandler) GenerateRevision(ctx context.Context, ac *v1alpha2.Applicat
 	appRev.SetAnnotations(h.app.GetAnnotations())
 	appRev.SetLabels(h.app.GetLabels())
 	appRev.SetOwnerReferences([]metav1.OwnerReference{{
-		APIVersion: v1alpha2.SchemeGroupVersion.String(),
-		Kind:       v1alpha2.ApplicationKind,
+		APIVersion: v1beta1.SchemeGroupVersion.String(),
+		Kind:       v1beta1.ApplicationKind,
 		Name:       h.app.Name,
 		UID:        h.app.UID,
 		Controller: pointer.BoolPtr(false),

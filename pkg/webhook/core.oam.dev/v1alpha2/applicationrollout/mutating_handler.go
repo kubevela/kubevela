@@ -14,6 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	util "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/webhook/common/rollout"
@@ -31,6 +32,11 @@ var _ admission.Handler = &MutatingHandler{}
 
 // Handle handles admission requests.
 func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	if req.Kind.Version == v1beta1.Version {
+		// TODO(roywang) this is a provisional handler func for v1beta1
+		// need a mutation webhook for v1beta1
+		return h.handleV1beta1(ctx, req)
+	}
 	obj := &v1alpha2.AppRollout{}
 
 	err := h.Decoder.Decode(req, obj)
@@ -61,6 +67,33 @@ func DefaultAppRollout(obj *v1alpha2.AppRollout) {
 
 	// default rollout plan
 	rollout.DefaultRolloutPlan(&obj.Spec.RolloutPlan)
+}
+
+func (h *MutatingHandler) handleV1beta1(_ context.Context, req admission.Request) admission.Response {
+	obj := &v1beta1.AppRollout{}
+
+	err := h.Decoder.Decode(req, obj)
+	if err != nil {
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	if obj.Spec.RevertOnDelete == nil {
+		klog.V(common.LogDebug).Info("default RevertOnDelete as false")
+		obj.Spec.RevertOnDelete = pointer.BoolPtr(false)
+	}
+	// default rollout plan
+	rollout.DefaultRolloutPlan(&obj.Spec.RolloutPlan)
+
+	marshalled, err := json.Marshal(obj)
+	if err != nil {
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
+	resp := admission.PatchResponseFromRaw(req.AdmissionRequest.Object.Raw, marshalled)
+	if len(resp.Patches) > 0 {
+		klog.V(common.LogDebugWithContent).Infof("Admit AppRollout %s/%s patches: %v", obj.Namespace, obj.Name,
+			util.DumpJSON(resp.Patches))
+	}
+	return resp
 }
 
 var _ inject.Client = &MutatingHandler{}

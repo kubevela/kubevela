@@ -13,6 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
 // ValidatingHandler handles AppRollout
@@ -27,6 +28,10 @@ var _ admission.Handler = &ValidatingHandler{}
 
 // Handle handles admission requests.
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	if req.Kind.Version == v1beta1.Version {
+		// TODO(roywang) need a validation webhook for v1beta1
+		return admission.ValidationResponse(true, "")
+	}
 	obj := &v1alpha2.AppRollout{}
 
 	err := h.Decoder.Decode(req, obj)
