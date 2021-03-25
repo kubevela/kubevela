@@ -122,7 +122,7 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 	case v1alpha1.RollingInBatchesState:
 		r.reconcileBatchInRolling(ctx, workloadController)
 
-	case v1alpha1.RolloutFailingState:
+	case v1alpha1.RolloutFailingState, v1alpha1.RolloutAbandoningState:
 		if succeed := workloadController.Finalize(ctx, false); succeed {
 			r.finalizeRollout(ctx)
 		}

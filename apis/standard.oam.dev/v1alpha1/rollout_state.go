@@ -20,6 +20,9 @@ const (
 	// RollingRetriableFailureEvent indicates that we encountered an unexpected but retriable error
 	RollingRetriableFailureEvent RolloutEvent = "RollingRetriableFailureEvent"
 
+	// RollingModifiedEvent indicates that the rolling target or source has changed
+	RollingModifiedEvent RolloutEvent = "RollingModifiedEvent"
+
 	// RollingSpecVerifiedEvent indicates that we have successfully verified that the rollout spec
 	RollingSpecVerifiedEvent RolloutEvent = "RollingSpecVerifiedEvent"
 
@@ -65,6 +68,8 @@ const (
 	RolloutFinalizing runtimev1alpha1.ConditionType = "RolloutFinalizing"
 	// RolloutFailing means the rollout is failing
 	RolloutFailing runtimev1alpha1.ConditionType = "RolloutFailing"
+	// RolloutAbandoning means that the rollout is being abandoned.
+	RolloutAbandoning runtimev1alpha1.ConditionType = "RolloutAbandoning"
 	// RolloutFailed means that the rollout failed.
 	RolloutFailed runtimev1alpha1.ConditionType = "RolloutFailed"
 	// RolloutSucceed means that the rollout is done.
@@ -142,6 +147,9 @@ func (r *RolloutStatus) getRolloutConditionType() runtimev1alpha1.ConditionType 
 	case RolloutFailingState:
 		return RolloutFailing
 
+	case RolloutAbandoningState:
+		return RolloutAbandoning
+
 	case RolloutFailedState:
 		return RolloutFailed
 
@@ -157,12 +165,6 @@ func (r *RolloutStatus) getRolloutConditionType() runtimev1alpha1.ConditionType 
 func (r *RolloutStatus) RolloutRetry(reason string) {
 	// we can still retry, no change on the state
 	r.SetConditions(NewNegativeCondition(r.getRolloutConditionType(), reason))
-}
-
-// RolloutModified is special state transition as we allow it to happen at any time
-func (r *RolloutStatus) RolloutModified() {
-	r.SetRolloutCondition(NewNegativeCondition(r.getRolloutConditionType(), "Rollout Spec is modified"))
-	r.ResetStatus()
 }
 
 // RolloutFailed is a special state transition since we need an error message
@@ -233,9 +235,19 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 			"post batch rolling state", r.BatchRollingState)
 	}()
 
-	// we have special transition for these two types of event
+	// we have special transition for these types of event since they require additional info
 	if event == RollingFailedEvent || event == RollingRetriableFailureEvent {
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
+	}
+	// special handle modified event here
+	if event == RollingModifiedEvent {
+		if r.RollingState == RolloutFailedState || r.RollingState == RolloutSucceedState {
+			r.ResetStatus()
+		} else {
+			r.SetRolloutCondition(NewNegativeCondition(r.getRolloutConditionType(), "Rollout Spec is modified"))
+			r.RollingState = RolloutAbandoningState
+		}
+		return
 	}
 
 	switch rollingState {
@@ -259,6 +271,14 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 	case RollingInBatchesState:
 		r.batchStateTransition(event)
 		return
+
+	case RolloutAbandoningState:
+		if event == RollingFinalizedEvent {
+			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
+			r.ResetStatus()
+			return
+		}
+		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
 
 	case FinalisingState:
 		if event == RollingFinalizedEvent {

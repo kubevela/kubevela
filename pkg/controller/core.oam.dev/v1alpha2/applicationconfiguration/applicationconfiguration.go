@@ -41,7 +41,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -91,12 +90,6 @@ func Setup(mgr ctrl.Manager, args core.Args, l logging.Logger) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
 		For(&v1alpha2.ApplicationConfiguration{}).
-		Watches(&source.Kind{Type: &v1alpha2.Component{}}, &ComponentHandler{
-			Client:                mgr.GetClient(),
-			Logger:                l,
-			RevisionLimit:         args.RevisionLimit,
-			CustomRevisionHookURL: args.CustomRevisionHookURL,
-		}).
 		Complete(NewReconciler(mgr, args.DiscoveryMapper,
 			l.WithValues("controller", name),
 			WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
