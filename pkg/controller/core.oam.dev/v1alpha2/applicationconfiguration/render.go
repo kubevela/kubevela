@@ -41,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -793,7 +794,7 @@ func (r *components) getDataInput(ctx context.Context, s *dagSource, ac *unstruc
 
 func isControlledByApp(ac *v1alpha2.ApplicationConfiguration) bool {
 	for _, owner := range ac.GetOwnerReferences() {
-		if owner.APIVersion == v1alpha2.SchemeGroupVersion.String() && owner.Kind == v1alpha2.ApplicationKind &&
+		if owner.APIVersion == v1beta1.SchemeGroupVersion.String() && owner.Kind == v1beta1.ApplicationKind &&
 			owner.Controller != nil && *owner.Controller {
 			return true
 		}

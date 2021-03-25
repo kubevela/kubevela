@@ -45,6 +45,7 @@ import (
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
@@ -100,8 +101,8 @@ func TestRender(t *testing.T) {
 	controlledTemplateAC := revAC.DeepCopy()
 	controlledTemplateAC.OwnerReferences = []metav1.OwnerReference{
 		{
-			APIVersion: v1alpha2.SchemeGroupVersion.String(),
-			Kind:       v1alpha2.ApplicationKind,
+			APIVersion: v1beta1.SchemeGroupVersion.String(),
+			Kind:       v1beta1.ApplicationKind,
 			Controller: pointer.BoolPtr(true),
 		},
 	}
@@ -1648,8 +1649,8 @@ func TestIsControlledByApp(t *testing.T) {
 	assert.False(t, isControlledByApp(ac))
 	// not true even the owner type checks right
 	ac.OwnerReferences = append(ac.OwnerReferences, metav1.OwnerReference{
-		APIVersion: v1alpha2.SchemeGroupVersion.String(),
-		Kind:       v1alpha2.ApplicationKind,
+		APIVersion: v1beta1.SchemeGroupVersion.String(),
+		Kind:       v1beta1.ApplicationKind,
 	})
 	assert.False(t, isControlledByApp(ac))
 	// only true when it's the controller
@@ -1657,8 +1658,8 @@ func TestIsControlledByApp(t *testing.T) {
 	assert.True(t, isControlledByApp(ac))
 	// still true when it's not the only the controller
 	ac.OwnerReferences = append(ac.OwnerReferences, metav1.OwnerReference{
-		APIVersion: v1alpha2.SchemeGroupVersion.String(),
-		Kind:       v1alpha2.AppRolloutKind,
+		APIVersion: v1beta1.SchemeGroupVersion.String(),
+		Kind:       v1beta1.AppRolloutKind,
 		Controller: pointer.BoolPtr(true),
 	})
 	assert.True(t, isControlledByApp(ac))
