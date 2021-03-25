@@ -3,6 +3,8 @@ package controllers_test
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"strconv"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -230,7 +232,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 	BeforeEach(func() {
 		By("Start to run a test, clean up previous resources")
-		namespace = "rolling-e2e-test" // + "-" + strconv.FormatInt(rand.Int63(), 16)
+		namespace = "rolling-e2e-test" + "-" + strconv.FormatInt(rand.Int63(), 16)
 		createNamespace(namespace)
 	})
 
@@ -499,6 +501,96 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
 		verifyAppConfigInactive(appRollout.Spec.SourceAppRevisionName)
+		// Clean up
+		k8sClient.Delete(ctx, &appRollout)
+	})
+
+	verifyCloneSetSpecReplicas := func(expectReplicas int32) {
+		clonesetName := appRollout.Spec.ComponentList[0]
+		By("Verify CloneSet spec replicas")
+		Eventually(
+			func() bool {
+				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: clonesetName}, &kc); err != nil {
+					return false
+				}
+				return *kc.Spec.Replicas == expectReplicas
+			},
+			time.Second*5, time.Millisecond*500).Should(BeTrue())
+		By("Verify appRollout status replicas")
+		Eventually(
+			func() bool {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
+				return appRollout.Status.UpgradedReplicas == expectReplicas && appRollout.Status.
+					UpgradedReadyReplicas == expectReplicas
+			}, time.Second*5, time.Millisecond*500).Should(BeTrue())
+	}
+
+	It("Test cloneset scale with a manual check", func() {
+		CreateClonesetDef()
+		By("Apply an application without specifying replica")
+		var newApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-empty-source.yaml", &newApp)).Should(BeNil())
+		newApp.Namespace = namespace
+		Expect(k8sClient.Create(ctx, &newApp)).Should(Succeed())
+
+		By("Get Application latest status")
+		Eventually(
+			func() *oamcomm.Revision {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: newApp.Name}, &app)
+				if app.Status.LatestRevision != nil {
+					return app.Status.LatestRevision
+				}
+				return nil
+			},
+			time.Second*30, time.Millisecond*500).ShouldNot(BeNil())
+
+		By("Apply the application scale that stops after the first batch")
+		var newAppRollout v1beta1.AppRollout
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-scale.yaml",
+			&newAppRollout)).Should(BeNil())
+		newAppRollout.Namespace = namespace
+		batchPartition := 1
+		newAppRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(batchPartition))
+		createAppRolling(&newAppRollout)
+
+		By("Wait for the rollout phase change to batch rolling ready")
+		// wait for the batch to be ready
+		Eventually(
+			func() oamstd.BatchRollingState {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
+				return appRollout.Status.BatchRollingState
+			},
+			time.Second*30, time.Millisecond*500).Should(Equal(oamstd.BatchReadyState))
+
+		By("Wait for rollout to finish one batch")
+		Eventually(
+			func() int32 {
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
+				return appRollout.Status.CurrentBatch
+			},
+			time.Second*15, time.Millisecond*500).Should(BeEquivalentTo(batchPartition))
+
+		// wait for 15 seconds, it should stop at 1
+		By("Verify that the rollout stops at the first batch")
+		time.Sleep(15 * time.Second)
+		k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
+		Expect(appRollout.Status.RollingState).Should(BeEquivalentTo(oamstd.RollingInBatchesState))
+		Expect(appRollout.Status.BatchRollingState).Should(BeEquivalentTo(oamstd.BatchReadyState))
+		Expect(appRollout.Status.CurrentBatch).Should(BeEquivalentTo(batchPartition))
+
+		verifyRolloutOwnsCloneset()
+
+		verifyCloneSetSpecReplicas(6)
+
+		By("Finish the application rollout")
+		// set the partition as the same size as the array
+		appRollout.Spec.RolloutPlan.BatchPartition = nil
+		Expect(k8sClient.Update(ctx, &appRollout)).Should(Succeed())
+
+		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
+		verifyCloneSetSpecReplicas(11)
+		verifyAppConfigInactive(appRollout.Spec.SourceAppRevisionName)
+
 		// Clean up
 		k8sClient.Delete(ctx, &appRollout)
 	})

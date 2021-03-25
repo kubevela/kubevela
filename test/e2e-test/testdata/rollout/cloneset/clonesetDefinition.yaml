@@ -104,5 +104,5 @@ spec:
             // +usage=Cloneset updateStrategy, candidates are `ReCreate`/`InPlaceIfPossible`/`InPlaceOnly`
             updateStrategyType?: string
             // +usage=Number of pods in the cloneset
-            replicas: *5 | int
+            replicas?: int
         }
