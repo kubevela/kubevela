@@ -99,7 +99,7 @@ func (h *appHandler) GenerateRevision(ctx context.Context, ac *v1alpha2.Applicat
 	if err != nil {
 		return false, nil, err
 	}
-	appRev.SetLabels(map[string]string{oam.LabelAppRevisionHash: appRevisionHash})
+	util.AddLabels(appRev, map[string]string{oam.LabelAppRevisionHash: appRevisionHash})
 
 	// check if the appRevision is different from the existing one
 	if h.app.Status.LatestRevision != nil && h.app.Status.LatestRevision.RevisionHash == appRevisionHash {
