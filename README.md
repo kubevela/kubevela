@@ -26,11 +26,11 @@ KubeVela is the platform engine to create *PaaS-like* experience on Kubernetes, 
 
 ## What problems does it solve?
 
-Building **developer centric platforms** with Kubernetes (e.g. PaaS, app platform, app delivery system etc) requires higher level primitives which is out-of-scope of Kubernetes itself. Hence, we platform teams build abstractions.
+Building **developer-centric platforms** with Kubernetes requires higher level primitives which is out-of-scope of Kubernetes itself. Hence, we platform teams build abstractions.
 
 However, great in flexibility and extensibility, the existing solutions such as IaC (Infrastructure-as-Code) and client-side templating tools all lead to ***Configuration Drift*** (i.e. the generated instances are not in line with the expected configuration) which is a nightmare in production.
 
-KubeVela allows platform teams to create and maintain developer centric abstractions with leveraging of the battle tested [Kubernetes Control Loop](https://kubernetes.io/docs/concepts/architecture/controller/) but still keeps the flexibility of IaC. Think about a plug-in that turns your Kubernetes cluster into a production ready *"PaaS"* via abstractions that are fully designed by yourself.
+KubeVela allows platform teams to create developer-centric abstractions with IaC but maintain them with the battle tested [Kubernetes Control Loop](https://kubernetes.io/docs/concepts/architecture/controller/). Think about a plug-in that turns your Kubernetes cluster into a *"PaaS"* via abstractions designed by yourself.
 
 ## Getting Started
 
@@ -43,7 +43,7 @@ KubeVela allows platform teams to create and maintain developer centric abstract
 - **Robust, repeatable and extensible approach** to create and maintain abstractions - design your abstractions with [CUE](https://cuelang.org/) or [Helm](https://helm.sh), ship them to your end users by `kubectl apply -f`, upgrade your abstractions at runtime, no restart, no recompiling, and let Kubernetes controller guarantee determinism of the abstractions, no configuration drift.
 - **Generic progressive rollout framework** - built-in rollout framework and strategies to upgrade your microservice regardless of its workload type (e.g. stateless, stateful, or even custom operators etc), seamless integration with observability systems.
 - **Multi-enviroment app delievry model (WIP)** - built-in model to deliver or rollout your apps across multiple enviroments and/or clusters, seamless integration with Service Mesh for traffic management. 
-- **Simple and Kubernetes native** - KubeVela is nothing but a simple custom controller, all its abstractions and features are defined as [Kubernetes Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) so they naturally work with any CI/CD or GitOps tools.
+- **Simple and Kubernetes native** - KubeVela is just a simple custom controller, all its app delivery abstractions and features are defined as [Kubernetes Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) so they naturally work with any CI/CD or GitOps tools.
 
 ## Documentation
 
