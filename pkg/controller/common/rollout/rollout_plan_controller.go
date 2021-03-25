@@ -63,7 +63,7 @@ func NewRolloutPlanController(client client.Client, parentController oam.Object,
 
 // Reconcile reconciles a rollout plan
 func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, status *v1alpha1.RolloutStatus) {
-	klog.InfoS("Reconcile the rollout plan", "rollout Spec", r.rolloutSpec,
+	klog.InfoS("Reconcile the rollout plan", "rollout status", r.rolloutStatus,
 		"target workload", klog.KObj(r.targetWorkload))
 	if r.sourceWorkload != nil {
 		klog.InfoS("We will do rolling upgrades", "source workload", klog.KObj(r.sourceWorkload))

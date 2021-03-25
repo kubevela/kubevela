@@ -165,21 +165,21 @@ func (c *CloneSetController) CheckOneBatchPods(ctx context.Context) (bool, error
 	if currentBatch.MaxUnavailable != nil {
 		unavail, _ = intstr.GetValueFromIntOrPercent(currentBatch.MaxUnavailable, int(cloneSetSize), true)
 	}
-	klog.InfoS("checking the rolling out progress", "current batch", currentBatch,
+	klog.InfoS("checking the rolling out progress", "current batch", c.rolloutStatus.CurrentBatch,
 		"new pod count target", newPodTarget, "new ready pod count", readyPodCount,
 		"max unavailable pod allowed", unavail)
 	c.rolloutStatus.UpgradedReadyReplicas = int32(readyPodCount)
 	// we could overshoot in the revert case when many pods are already upgraded
 	if unavail+readyPodCount >= newPodTarget {
 		// record the successful upgrade
-		klog.InfoS("all pods in current batch are ready", "current batch", currentBatch)
+		klog.InfoS("all pods in current batch are ready", "current batch", c.rolloutStatus.CurrentBatch)
 		c.recorder.Event(c.parentController, event.Normal("Batch Available",
 			fmt.Sprintf("Batch %d is available", c.rolloutStatus.CurrentBatch)))
 		c.rolloutStatus.LastAppliedPodTemplateIdentifier = c.rolloutStatus.NewPodTemplateIdentifier
 		return true, nil
 	}
 	// continue to verify
-	klog.InfoS("the batch is not ready yet", "current batch", currentBatch)
+	klog.InfoS("the batch is not ready yet", "current batch", c.rolloutStatus.CurrentBatch)
 	c.rolloutStatus.RolloutRetry("the batch is not ready yet")
 	return false, nil
 }
