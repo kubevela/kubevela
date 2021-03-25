@@ -24,13 +24,15 @@ the basic knowledge of CUE which will be used in KubeVela.
 A very simple `WorkloadDefinition` is like below:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 metadata:
   name: mydeploy
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   schematic:
     cue:
       template: |

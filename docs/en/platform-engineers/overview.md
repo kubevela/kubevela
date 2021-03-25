@@ -23,16 +23,16 @@ spec:
   components:
     - name: foo
       type: webservice
-      settings:
+      properties:
         image: crccheck/hello-world
         port: 8000
       traits:
-        - name: ingress
+        - type: ingress
           properties:
             domain: testsvc.example.com
             http:
               "/": 8000
-        - name: sidecar
+        - type: sidecar
           properties:
             name: "logging"
             image: "fluentd"

@@ -16,21 +16,23 @@ The name should be in the format: `<resource>.<group>`.
  
 For example, the Deployment resource should be defined as:
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 ...
 spec:
-  definitionRef:
-    name: deployments.apps
-    version: v1
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
 ```
 The CloneSet workload resource should be defined as:
 ```yaml
 ...
 spec:
-  definitionRef:
-    name: clonesets.apps.kruise.io
-    version: v1alpha1
+  workload:
+    definition:
+      apiVersion: apps.kruise.io/v1alpha1
+      kind: Cloneset
 ```
 
 #### 2. Qualified full name of the main workload
@@ -61,8 +63,8 @@ in case failure happens during this upgrade.
 
 For example
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 metadata:
   name: webapp-chart
 spec:

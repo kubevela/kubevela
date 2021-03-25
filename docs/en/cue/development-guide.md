@@ -365,15 +365,17 @@ Usually we define the Definition file in two parts, one is the yaml part and the
 Let's name the yaml part as `def.yaml`.
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 metadata:
   name: microservice
   annotations:
     definition.oam.dev/description: "Describes a microservice combo Deployment with Service."
 spec:
-  definitionRef:
-    name: deployment.apps
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   schematic:
     cue:
       template: |
@@ -690,7 +692,7 @@ $ mergedef.sh def.yaml def.cue > componentdef.yaml
 Then, let's create an Application named `test-app.yaml`.
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: boutique
@@ -699,7 +701,7 @@ spec:
   components:
     - name: frontend
       type: microservice
-      settings:
+      properties:
         image: registry.cn-hangzhou.aliyuncs.com/vela-samples/frontend:v0.2.2
         servicePort: 80
         containerPort: 8080

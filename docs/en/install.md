@@ -178,7 +178,7 @@ sudo mv ./vela /usr/local/bin/vela
 If you want to run application from `vela` cli, then you should sync capabilities first like below:
 
 ```shell script
-vela workloads
+vela components
 ```
 ```console
 Automatically discover capabilities successfully ✅ Add(5) Update(0) Delete(0)

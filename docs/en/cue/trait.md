@@ -12,62 +12,63 @@ Similarly, the format MUST be `outputs:<unique-name>:<full template>`.
 Below is an example for `ingress` trait.
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   name: ingress
 spec:
-  extension:
-    template: |
-      parameter: {
-        domain: string
-        http: [string]: int
-      }
-
-      // trait template can have multiple outputs in one trait
-      outputs: service: {
-        apiVersion: "v1"
-        kind: "Service"
-        spec: {
-          selector:
-            app: context.name
-          ports: [
-            for k, v in parameter.http {
-              port: v
-              targetPort: v
-            }
-          ]
+  schematic:
+    cue:
+      template: |
+        parameter: {
+        	domain: string
+        	http: [string]: int
         }
-      }
 
-      outputs: ingress: {
-        apiVersion: "networking.k8s.io/v1beta1"
-        kind: "Ingress"
-        metadata:
-          name: context.name
-        spec: {
-          rules: [{
-            host: parameter.domain
-            http: {
-              paths: [
-                for k, v in parameter.http {
-                  path: k
-                  backend: {
-                    serviceName: context.name
-                    servicePort: v
-                  }
-                }
-              ]
-            }
-          }]
+        // trait template can have multiple outputs in one trait
+        outputs: service: {
+        	apiVersion: "v1"
+        	kind:       "Service"
+        	spec: {
+        		selector:
+        			app: context.name
+        		ports: [
+        			for k, v in parameter.http {
+        				port:       v
+        				targetPort: v
+        			},
+        		]
+        	}
         }
-      }
+
+        outputs: ingress: {
+        	apiVersion: "networking.k8s.io/v1beta1"
+        	kind:       "Ingress"
+        	metadata:
+        		name: context.name
+        	spec: {
+        		rules: [{
+        			host: parameter.domain
+        			http: {
+        				paths: [
+        					for k, v in parameter.http {
+        						path: k
+        						backend: {
+        							serviceName: context.name
+        							servicePort: v
+        						}
+        					},
+        				]
+        			}
+        		}]
+        	}
+        }
 ```
 
 It can be used in the application object like below:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: testapp
@@ -75,14 +76,14 @@ spec:
   components:
     - name: express-server
       type: webservice
-      settings:
+      properties:
         cmd:
           - node
           - server.js
         image: oamdev/testapp:v1
         port: 8080
       traits:
-        - name: ingress
+        - type: ingress
           properties:
             domain: test.my.domain
             http:
@@ -96,39 +97,40 @@ You can define the for-loop inside the `outputs`, the type of `parameter` field 
 Below is an example that will generate multiple Kubernetes Services in one trait:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   name: expose
 spec:
-  extension:
-    template: |
-      parameter: {
-      	http: [string]: int
-      }
+  schematic:
+    cue:
+      template: |
+        parameter: {
+        	http: [string]: int
+        }
 
-      outputs: {
-      	for k, v in parameter.http {
-      		"\(k)": {
-      			apiVersion: "v1"
-      			kind:       "Service"
-      			spec: {
-      				selector:
-      					app: context.name
-      				ports: [{
-      					port:       v
-      					targetPort: v
-      				}]
-      			}
-      		}
-      	}
-      }
+        outputs: {
+        	for k, v in parameter.http {
+        		"\(k)": {
+        			apiVersion: "v1"
+        			kind:       "Service"
+        			spec: {
+        				selector:
+        					app: context.name
+        				ports: [{
+        					port:       v
+        					targetPort: v
+        				}]
+        			}
+        		}
+        	}
+        }
 ```
 
 The usage of this trait could be:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: testapp
@@ -136,10 +138,10 @@ spec:
   components:
     - name: express-server
       type: webservice
-      settings:
+      properties:
         ...
       traits:
-        - name: expose
+        - type: expose
           properties:
             http:
               myservice1: 8080
@@ -153,7 +155,7 @@ You could also use keyword `patch` to patch data to the component instance (befo
 Below is an example for `node-affinity` trait:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -163,36 +165,37 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  extension:
-    template: |-
-      patch: {
-      	spec: template: spec: {
-      		if parameter.affinity != _|_ {
-      			affinity: nodeAffinity: requiredDuringSchedulingIgnoredDuringExecution: nodeSelectorTerms: [{
-      				matchExpressions: [
-      					for k, v in parameter.affinity {
-      						key:      k
-      						operator: "In"
-      						values:   v
-      					},
-      				]}]
-      		}
-      		if parameter.tolerations != _|_ {
-      			tolerations: [
-      				for k, v in parameter.tolerations {
-      					effect:   "NoSchedule"
-      					key:      k
-      					operator: "Equal"
-      					value:    v
-      				}]
-      		}
-      	}
-      }
+  schematic:
+    cue:
+      template: |
+        patch: {
+        	spec: template: spec: {
+        		if parameter.affinity != _|_ {
+        			affinity: nodeAffinity: requiredDuringSchedulingIgnoredDuringExecution: nodeSelectorTerms: [{
+        				matchExpressions: [
+        					for k, v in parameter.affinity {
+        						key:      k
+        						operator: "In"
+        						values:   v
+        					},
+        				]}]
+        		}
+        		if parameter.tolerations != _|_ {
+        			tolerations: [
+        				for k, v in parameter.tolerations {
+        					effect:   "NoSchedule"
+        					key:      k
+        					operator: "Equal"
+        					value:    v
+        				}]
+        		}
+        	}
+        }
 
-      parameter: {
-      	affinity?: [string]: [...string]
-      	tolerations?: [string]: string
-      }
+        parameter: {
+        	affinity?: [string]: [...string]
+        	tolerations?: [string]: string
+        }
 ```
 
 You can use it like:
@@ -206,10 +209,10 @@ spec:
   components:
     - name: express-server
       type: webservice
-      settings:
+      properties:
         image: oamdev/testapp:v1
       traits:
-        - name: "node-affinity"
+        - type: "node-affinity"
           properties:
             affinity:
               server-owner: ["owner1","owner2"]
@@ -238,7 +241,7 @@ With this annotation, merging logic of two array lists will not follow the CUE b
 The example of strategy patch trait will like below:
  
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -248,17 +251,18 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  extension:
-    template: |-
-      patch: {
-         // +patchKey=name
-         spec: template: spec: containers: [parameter]
-      }
-      parameter: {
-         name: string
-         image: string
-         command?: [...string]
-      }
+  schematic:
+    cue:
+      template: |
+        patch: {
+        	// +patchKey=name
+        	spec: template: spec: containers: [parameter]
+        }
+        parameter: {
+        	name:  string
+        	image: string
+        	command?: [...string]
+        }
 ```
 
 The patchKey is `name` which represents the container name in this example. In this case, if the workload already has a container with the same name of this `sidecar` trait, it will be a merge operation. If the workload don't have the container with same name, it will be a sidecar container append into the `spec.template.spec.containers` array list.
@@ -268,7 +272,7 @@ The patchKey is `name` which represents the container name in this example. In t
 If patch and outputs both exist in one trait, the patch part will execute first and then the output object will be rendered out. 
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -278,26 +282,27 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  extension:
-    template: |-
-      patch: {spec: template: metadata: labels: app: context.name}
-      outputs: service: {
-        apiVersion: "v1"
-        kind: "Service"
-        metadata: name: context.name
-        spec: {
-          selector:  app: context.name
-          ports: [
-            for k, v in parameter.http {
-              port: v
-              targetPort: v
-            }
-          ]
+  schematic:
+    cue:
+      template: |
+        patch: {spec: template: metadata: labels: app: context.name}
+        outputs: service: {
+        	apiVersion: "v1"
+        	kind:       "Service"
+        	metadata: name: context.name
+        	spec: {
+        		selector: app: context.name
+        		ports: [
+        			for k, v in parameter.http {
+        				port:       v
+        				targetPort: v
+        			},
+        		]
+        	}
         }
-      }
-      parameter: {
-        http: [string]: int
-      }
+        parameter: {
+        	http: [string]: int
+        }
 ```
 
 ## Processing Trait
@@ -315,7 +320,7 @@ Then you can use the requested data from `processing.output` into `patch` or `ou
 Below is an example:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha1
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   name: auth-service
@@ -361,114 +366,119 @@ Below is an example
 2. the context.outputs.<xx> will keep all these rendered trait data and can be used in the traits after them.
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 metadata:
   name: worker
 spec:
-  definitionRef:
-    name: deployments.apps
-  extension:
-    template: |
-      output: {
-        apiVersion: "apps/v1"
-        kind:       "Deployment"
-        spec: {
-            selector: matchLabels: {
-                "app.oam.dev/component": context.name
-            }
-    
-            template: {
-                metadata: labels: {
-                    "app.oam.dev/component": context.name
-                }
-                spec: {
-                    containers: [{
-                        name:  context.name
-                        image: parameter.image
-                        ports: [{containerPort: parameter.port}]
-                        envFrom: [{
-                            configMapRef: name: context.name + "game-config"
-                        }]
-                        if parameter["cmd"] != _|_ {
-                            command: parameter.cmd
-                        }
-                    }]
-                }
-            }
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        		}
+
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": context.name
+        			}
+        			spec: {
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+        					ports: [{containerPort: parameter.port}]
+        					envFrom: [{
+        						configMapRef: name: context.name + "game-config"
+        					}]
+        					if parameter["cmd"] != _|_ {
+        						command: parameter.cmd
+        					}
+        				}]
+        			}
+        		}
+        	}
         }
-      }
 
-      outputs: gameconfig: {
-            apiVersion: "v1"
-            kind:       "ConfigMap"
-            metadata: {
-                name: context.name + "game-config"
-            }
-            data: {
-                enemies: parameter.enemies
-                lives:   parameter.lives
-            }
-      }
+        outputs: gameconfig: {
+        	apiVersion: "v1"
+        	kind:       "ConfigMap"
+        	metadata: {
+        		name: context.name + "game-config"
+        	}
+        	data: {
+        		enemies: parameter.enemies
+        		lives:   parameter.lives
+        	}
+        }
 
-      parameter: {
-      	// +usage=Which image would you like to use for your service
-      	// +short=i
-      	image: string
-      	// +usage=Commands to run in the container
-      	cmd?: [...string]
-      	lives:   string
-      	enemies: string
-        port: int
-      }
+        parameter: {
+        	// +usage=Which image would you like to use for your service
+        	// +short=i
+        	image: string
+        	// +usage=Commands to run in the container
+        	cmd?: [...string]
+        	lives:   string
+        	enemies: string
+        	port:    int
+        }
+
 
 ---
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   name: ingress
 spec:
-  extension:
-    template: |
-      parameter: {
-        domain: string
-        path: string
-        exposePort: int
-      }
-      // trait template can have multiple outputs in one trait
-      outputs: service: {
-        apiVersion: "v1"
-        kind: "Service"
-        spec: {
-          selector:
-            app: context.name
-          ports: [{
-              port: parameter.exposePort
-              targetPort: context.output.spec.template.spec.containers[0].ports[0].containerPort
-            }]
+  schematic:
+    cue:
+      template: |
+        parameter: {
+        	domain:     string
+        	path:       string
+        	exposePort: int
         }
-      }
-      outputs: ingress: {
-          apiVersion: "networking.k8s.io/v1beta1"
-          kind: "Ingress"
-          metadata:
-            name: context.name
-            labels: config: context.outputs.gameconfig.data.enemies
-          spec: {
-            rules: [{
-              host: parameter.domain
-              http: {
-                paths: [{
-                    path: parameter.path
-                    backend: {
-                      serviceName: context.name
-                      servicePort: parameter.exposePort
-                    }
-                }]
-              }
-            }]
-          }
-      }
+        // trait template can have multiple outputs in one trait
+        outputs: service: {
+        	apiVersion: "v1"
+        	kind:       "Service"
+        	spec: {
+        		selector:
+        			app: context.name
+        		ports: [{
+        			port:       parameter.exposePort
+        			targetPort: context.output.spec.template.spec.containers[0].ports[0].containerPort
+        		}]
+        	}
+        }
+        outputs: ingress: {
+        	apiVersion: "networking.k8s.io/v1beta1"
+        	kind:       "Ingress"
+        	metadata:
+        			name: context.name
+        	labels: config: context.outputs.gameconfig.data.enemies
+        	spec: {
+        		rules: [{
+        			host: parameter.domain
+        			http: {
+        				paths: [{
+        					path: parameter.path
+        					backend: {
+        						serviceName: context.name
+        						servicePort: parameter.exposePort
+        					}
+        				}]
+        			}
+        		}]
+        	}
+        }
 ```
 
 ## More Use Cases for Patch Trait
@@ -490,38 +500,39 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  extension:
-    template: |-
-      patch: {
-      	spec: template: {
-      		metadata: labels: {
-      			if parameter.type == "namespace" {
-      				"app.namespace.virtual.group": parameter.group
-      			}
-      			if parameter.type == "cluster" {
-      				"app.cluster.virtual.group": parameter.group
-      			}
-      		}
-      	}
-      }
-      parameter: {
-      	group: *"default" | string
-      	type:  *"namespace" | string
-      }
+  schematic:
+    cue:
+      template: |
+        patch: {
+        	spec: template: {
+        		metadata: labels: {
+        			if parameter.type == "namespace" {
+        				"app.namespace.virtual.group": parameter.group
+        			}
+        			if parameter.type == "cluster" {
+        				"app.cluster.virtual.group": parameter.group
+        			}
+        		}
+        	}
+        }
+        parameter: {
+        	group: *"default" | string
+        	type:  *"namespace" | string
+        }
 ```
 
 Then it could be used like:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 spec:
   ...
       traits:
-        - name: virtualgroup
-          properties:
-            group: "my-group1"
-            type: "cluster"
+      - type: virtualgroup
+        properties:
+          group: "my-group1"
+          type: "cluster"
 ```
 
 In this example, different type will use different label key.
@@ -531,7 +542,7 @@ In this example, different type will use different label key.
 Similar to common labels, you could also patch the component workload with annotations. The annotation value will be a JSON string.
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -541,22 +552,23 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  extension:
-    template: |-
-      import "encoding/json"
+  schematic:
+    cue:
+      template: |
+        import "encoding/json"
 
-      patch: {
-      	metadata: annotations: {
-      		"my.custom.autoscale.annotation": json.Marshal({
-      			"minReplicas": parameter.min
-      			"maxReplicas": parameter.max
-      		})
-      	}
-      }
-      parameter: {
-      	min: *1 | int
-      	max: *3 | int
-      }
+        patch: {
+        	metadata: annotations: {
+        		"my.custom.autoscale.annotation": json.Marshal({
+        			"minReplicas": parameter.min
+        			"maxReplicas": parameter.max
+        		})
+        	}
+        }
+        parameter: {
+        	min: *1 | int
+        	max: *3 | int
+        }
 ```
 
 ### Add Pod ENV
@@ -566,7 +578,7 @@ Inject some system environments into pod is also very common use case.
 The example could be like below, this case rely on strategy merge patch, so don't forget add `+patchKey=name` like below:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -576,27 +588,28 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  extension:
-    template: |-
-      patch: {
-      	spec: template: spec: {
-      		// +patchKey=name
-      		containers: [{
-      			name: context.name
-      			// +patchKey=name
-      			env: [
-      				for k, v in parameter.env {
-      					name:  k
-      					value: v
-      				},
-      			]
-      		}]
-      	}
-      }
+  schematic:
+    cue:
+      template: |
+        patch: {
+        	spec: template: spec: {
+        		// +patchKey=name
+        		containers: [{
+        			name: context.name
+        			// +patchKey=name
+        			env: [
+        				for k, v in parameter.env {
+        					name:  k
+        					value: v
+        				},
+        			]
+        		}]
+        	}
+        }
 
-      parameter: {
-      	env: [string]: string
-      }
+        parameter: {
+        	env: [string]: string
+        }
 ```
 
 ### Dynamically Pod Service Account
@@ -606,7 +619,7 @@ In this example, the service account was dynamically requested from an authentic
 This example put uid token in http header, you can also use request body. You may refer to [processing](#Processing-Trait) section for more details.
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -616,30 +629,31 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  extension:
-    template: |-
-      processing: {
-      	output: {
-      		credentials?: string
-      	}
-      	http: {
-      		method: *"GET" | string
-      		url:    parameter.serviceURL
-      		request: {
-      			header: {
-      				"authorization.token": parameter.uidtoken
-      			}
-      		}
-      	}
-      }
-      patch: {
-      	spec: template: spec: serviceAccountName: processing.output.credentials
-      }
+  schematic:
+    cue:
+      template: |
+        processing: {
+        	output: {
+        		credentials?: string
+        	}
+        	http: {
+        		method: *"GET" | string
+        		url:    parameter.serviceURL
+        		request: {
+        			header: {
+        				"authorization.token": parameter.uidtoken
+        			}
+        		}
+        	}
+        }
+        patch: {
+        	spec: template: spec: serviceAccountName: processing.output.credentials
+        }
 
-      parameter: {
-      	uidtoken:   string
-      	serviceURL: string
-      }
+        parameter: {
+        	uidtoken:   string
+        	serviceURL: string
+        }
 ```
 
 ### Add Init Container
@@ -651,7 +665,7 @@ Init container is useful to pre-define operations in an image and run it before 
 Below is an example of init container trait:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -661,47 +675,49 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  extension:
-    template: |-
-      patch: {
-      	spec: template: spec: {
-      		// +patchKey=name
-      		containers: [{
-      			name: context.name
-      			// +patchKey=name
-      			volumeMounts: [{
-      				name:      parameter.mountName
-      				mountPath: parameter.appMountPath
-      			}]
-      		}]
-      		initContainers: [{
-      			name:    parameter.name
-      			image:   parameter.image
-      			if parameter.command != _|_ {
-      			  command: parameter.command
-      			}
-      			// +patchKey=name
-      			volumeMounts: [{
-      				name:      parameter.mountName
-      				mountPath: parameter.initMountPath
-      			}]
-      		}]
-      		// +patchKey=name
-      		volumes: [{
-      			name:     parameter.mountName
-      			emptyDir: {}
-      		}]
-      	}
-      }
+  schematic:
+    cue:
+      template: |
+        patch: {
+        	spec: template: spec: {
+        		// +patchKey=name
+        		containers: [{
+        			name: context.name
+        			// +patchKey=name
+        			volumeMounts: [{
+        				name:      parameter.mountName
+        				mountPath: parameter.appMountPath
+        			}]
+        		}]
+        		initContainers: [{
+        			name:  parameter.name
+        			image: parameter.image
+        			if parameter.command != _|_ {
+        				command: parameter.command
+        			}
 
-      parameter: {
-      	name:  string
-      	image: string
-      	command?: [...string]
-      	mountName:     *"workdir" | string
-      	appMountPath:  string
-      	initMountPath: string
-      }
+        			// +patchKey=name
+        			volumeMounts: [{
+        				name:      parameter.mountName
+        				mountPath: parameter.initMountPath
+        			}]
+        		}]
+        		// +patchKey=name
+        		volumes: [{
+        			name: parameter.mountName
+        			emptyDir: {}
+        		}]
+        	}
+        }
+
+        parameter: {
+        	name:  string
+        	image: string
+        	command?: [...string]
+        	mountName:     *"workdir" | string
+        	appMountPath:  string
+        	initMountPath: string
+        }
 ```
 
 This case must rely on the strategy merge patch, for every array list, we add a `// +patchKey=name` annotation to avoid conflict.
@@ -709,7 +725,7 @@ This case must rely on the strategy merge patch, for every array list, we add a 
 The usage could be:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: testapp
@@ -717,10 +733,10 @@ spec:
   components:
     - name: express-server
       type: webservice
-      settings:
+      properties:
         image: oamdev/testapp:v1
       traits:
-        - name: "init-container"
+        - type: "init-container"
           properties:
             name:  "install-container"
             image: "busybox"

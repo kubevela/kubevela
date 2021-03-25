@@ -1,21 +1,23 @@
-# Defining Workload Types
+# Defining Components
 
-In this section, we will introduce more examples of using CUE to define workload types.
+In this section, we will introduce more examples of using CUE to define component types.
 
 ## Basic Usage
 
-The very basic usage of CUE in workload is to extend a Kubernetes resource as a workload type(via `WorkloadDefinition`) and expose configurable parameters to users.
+The very basic usage of CUE in component abstraction is to extend a Kubernetes resource as a component type(via `ComponentDefinition`) and expose configurable parameters to users.
 
-A Deployment as workload type:
+A Deployment as component type:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 metadata:
   name: worker
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   schematic:
     cue:
       template: |
@@ -46,15 +48,17 @@ spec:
 A Job as workload type:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 metadata:
   name: task
   annotations:
     definition.oam.dev/description: "Describes jobs that run code or a script to completion."
 spec:
-  definitionRef:
-    name: jobs.batch
+  workload:
+    definition:
+      apiVersion: batch/v1
+      kind: Job
   schematic:
     cue:
       template: |
@@ -126,15 +130,17 @@ Note that in this case, you MUST define the template of component instance in `o
 Below is the example: 
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 metadata:
   name: webserver
   annotations:
     definition.oam.dev/description: "webserver is a combo of Deployment + Service"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   schematic:
     cue:
       template: |
@@ -226,7 +232,7 @@ $ kubectl apply -f webserver.yaml
 Next, we can use the `webserver` type workload in our application, below is the example:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: webserver-demo
@@ -235,7 +241,7 @@ spec:
   components:
     - name: hello-world
       type: webserver
-      settings:
+      properties:
         image: crccheck/hello-world
         port: 8000
         env:
@@ -254,7 +260,7 @@ Wait for a while until the status of Application is `running`.
 
 ```shell
 $ kubectl get application webserver-demo -o yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: webserver-demo
@@ -263,19 +269,15 @@ metadata:
 spec:
   components:
   - name: hello-world
-    settings:
+    type: webserver  
+    properties:
       cpu: 100m
       env:
       - name: PORT
         value: "8000"
       image: crccheck/hello-world
       port: 8000
-    type: webserver
 status:
-  components:
-  - apiVersion: core.oam.dev/v1alpha2
-    kind: Component
-    name: hello-world
   ...
   services:
   - healthy: true
