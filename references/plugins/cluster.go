@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -51,7 +51,7 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c common.Arg
 	}
 
 	var templates []types.Capability
-	var workloadDefs corev1alpha2.WorkloadDefinitionList
+	var workloadDefs v1beta1.WorkloadDefinitionList
 	err = newClient.List(ctx, &workloadDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
 	if err != nil {
 		return nil, nil, fmt.Errorf("list WorkloadDefinition err: %w", err)
@@ -84,7 +84,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c common.Args, 
 		return nil, nil, err
 	}
 	var templates []types.Capability
-	var traitDefs corev1alpha2.TraitDefinitionList
+	var traitDefs v1beta1.TraitDefinitionList
 	err = newClient.List(ctx, &traitDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
 	if err != nil {
 		return nil, nil, fmt.Errorf("list TraitDefinition err: %w", err)
@@ -233,7 +233,7 @@ func SyncDefinitionToLocal(ctx context.Context, c common.Args, localDefinitionDi
 	if err != nil {
 		return nil, err
 	}
-	var workloadDef corev1alpha2.WorkloadDefinition
+	var workloadDef v1beta1.WorkloadDefinition
 	err = newClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: capabilityName}, &workloadDef)
 	if err == nil {
 		// return nil, fmt.Errorf("get WorkloadDefinition err: %w", err)
@@ -248,7 +248,7 @@ func SyncDefinitionToLocal(ctx context.Context, c common.Args, localDefinitionDi
 	}
 
 	foundCapability = false
-	var traitDef corev1alpha2.TraitDefinition
+	var traitDef v1beta1.TraitDefinition
 	err = newClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: capabilityName}, &traitDef)
 	if err == nil {
 		foundCapability = true

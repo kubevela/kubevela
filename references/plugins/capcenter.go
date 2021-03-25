@@ -17,7 +17,7 @@ import (
 	"golang.org/x/oauth2"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
@@ -170,14 +170,14 @@ func ParseAndSyncCapability(data []byte) (types.Capability, error) {
 	}
 	switch obj.GetKind() {
 	case "WorkloadDefinition":
-		var rd v1alpha2.WorkloadDefinition
+		var rd v1beta1.WorkloadDefinition
 		err = yaml.Unmarshal(data, &rd)
 		if err != nil {
 			return types.Capability{}, err
 		}
 		return HandleDefinition(rd.Name, rd.Spec.Reference.Name, rd.Annotations, rd.Spec.Extension, types.TypeWorkload, nil, rd.Spec.Schematic)
 	case "TraitDefinition":
-		var td v1alpha2.TraitDefinition
+		var td v1beta1.TraitDefinition
 		err = yaml.Unmarshal(data, &td)
 		if err != nil {
 			return types.Capability{}, err

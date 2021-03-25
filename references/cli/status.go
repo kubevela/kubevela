@@ -14,6 +14,7 @@ import (
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -127,8 +128,8 @@ func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOSt
 	return loopCheckStatus(ctx, c, ioStreams, appName, env)
 }
 
-func loadRemoteApplication(c client.Client, ns string, name string) (*v1alpha2.Application, error) {
-	app := new(v1alpha2.Application)
+func loadRemoteApplication(c client.Client, ns string, name string) (*v1beta1.Application, error) {
+	app := new(v1beta1.Application)
 	err := c.Get(context.Background(), client.ObjectKey{
 		Namespace: ns,
 		Name:      name,
@@ -150,7 +151,7 @@ func loopCheckStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOS
 			return err
 		}
 		ioStreams.Infof(white.Sprintf("  - Name: %s\n", compName))
-		ioStreams.Infof("    Type: %s\n", comp.WorkloadType)
+		ioStreams.Infof("    Type: %s\n", comp.Type)
 
 		healthColor := getHealthStatusColor(healthStatus)
 		healthInfo = strings.ReplaceAll(healthInfo, "\n", "\n\t") // format healthInfo output
@@ -175,7 +176,7 @@ func loopCheckStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOS
 			}
 			var message string
 			for _, v := range comp.Traits {
-				if v.Name == tr.Type {
+				if v.Type == tr.Type {
 					traitData, _ := util.RawExtension2Map(&v.Properties)
 					for k, v := range traitData {
 						message += fmt.Sprintf("%v=%v\n\t\t", k, v)
@@ -320,7 +321,7 @@ func trackHealthCheckingStatus(ctx context.Context, c client.Client, compName, a
 	return compStatusHealthCheckDone, HealthStatusNotDiagnosed, "", nil
 }
 
-func getWorkloadStatusFromApp(app *v1alpha2.Application, compName string) (commontypes.ApplicationComponentStatus, bool) {
+func getWorkloadStatusFromApp(app *v1beta1.Application, compName string) (commontypes.ApplicationComponentStatus, bool) {
 	foundWlStatus := false
 	wlStatus := commontypes.ApplicationComponentStatus{}
 	if app == nil {

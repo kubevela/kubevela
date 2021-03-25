@@ -168,7 +168,7 @@ func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams
 		}
 		servApp.Spec.Components = append(servApp.Spec.Components, comp)
 	}
-	servApp.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind("Application"))
+	servApp.SetGroupVersionKind(v1beta1.SchemeGroupVersion.WithKind("Application"))
 	auxiliaryObjects = append(auxiliaryObjects, addDefaultHealthScopeToApplication(servApp))
 	return servApp, auxiliaryObjects, nil
 }

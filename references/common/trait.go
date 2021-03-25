@@ -5,15 +5,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/utils/common"
-
 	plur "github.com/gertd/go-pluralize"
 	client2 "sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 
@@ -33,17 +32,17 @@ func ListTraitDefinitions(userNamespace string, c common.Args, workloadName *str
 }
 
 // ListRawTraitDefinitions will list raw definition
-func ListRawTraitDefinitions(userNamespace string, c common.Args) ([]v1alpha2.TraitDefinition, error) {
+func ListRawTraitDefinitions(userNamespace string, c common.Args) ([]v1beta1.TraitDefinition, error) {
 	client, err := c.GetClient()
 	if err != nil {
 		return nil, err
 	}
 	ctx := util.SetNamespaceInCtx(context.Background(), userNamespace)
-	traitList := v1alpha2.TraitDefinitionList{}
+	traitList := v1beta1.TraitDefinitionList{}
 	if err = client.List(ctx, &traitList, client2.InNamespace(userNamespace)); err != nil {
 		return nil, err
 	}
-	sysTraitList := v1alpha2.TraitDefinitionList{}
+	sysTraitList := v1beta1.TraitDefinitionList{}
 	if err = client.List(ctx, &sysTraitList, client2.InNamespace(oam.SystemDefinitonNamespace)); err != nil {
 		return nil, err
 	}
@@ -51,21 +50,39 @@ func ListRawTraitDefinitions(userNamespace string, c common.Args) ([]v1alpha2.Tr
 }
 
 // ListRawWorkloadDefinitions will list raw definition
-func ListRawWorkloadDefinitions(userNamespace string, c common.Args) ([]v1alpha2.WorkloadDefinition, error) {
+func ListRawWorkloadDefinitions(userNamespace string, c common.Args) ([]v1beta1.WorkloadDefinition, error) {
 	client, err := c.GetClient()
 	if err != nil {
 		return nil, err
 	}
 	ctx := util.SetNamespaceInCtx(context.Background(), userNamespace)
-	workloadList := v1alpha2.WorkloadDefinitionList{}
+	workloadList := v1beta1.WorkloadDefinitionList{}
 	if err = client.List(ctx, &workloadList); err != nil {
 		return nil, err
 	}
-	sysWorkloadList := v1alpha2.WorkloadDefinitionList{}
+	sysWorkloadList := v1beta1.WorkloadDefinitionList{}
 	if err = client.List(ctx, &sysWorkloadList, client2.InNamespace(oam.SystemDefinitonNamespace)); err != nil {
 		return nil, err
 	}
 	return append(workloadList.Items, sysWorkloadList.Items...), nil
+}
+
+// ListRawComponentDefinitions will list raw component definition
+func ListRawComponentDefinitions(userNamespace string, c common.Args) ([]v1beta1.ComponentDefinition, error) {
+	client, err := c.GetClient()
+	if err != nil {
+		return nil, err
+	}
+	ctx := util.SetNamespaceInCtx(context.Background(), userNamespace)
+	componentList := v1beta1.ComponentDefinitionList{}
+	if err = client.List(ctx, &componentList); err != nil {
+		return nil, err
+	}
+	sysComponentList := v1beta1.ComponentDefinitionList{}
+	if err = client.List(ctx, &sysComponentList, client2.InNamespace(oam.SystemDefinitonNamespace)); err != nil {
+		return nil, err
+	}
+	return append(componentList.Items, sysComponentList.Items...), nil
 }
 
 // GetTraitDefinition will get trait capability with applyTo converted

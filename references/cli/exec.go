@@ -14,7 +14,7 @@ import (
 	cmdexec "k8s.io/kubectl/pkg/cmd/exec"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -40,7 +40,7 @@ type VelaExecOptions struct {
 	context.Context
 	VelaC common.Args
 	Env   *types.EnvMeta
-	App   *v1alpha2.Application
+	App   *v1beta1.Application
 
 	f             k8scmdutil.Factory
 	kcExecOptions *cmdexec.ExecOptions

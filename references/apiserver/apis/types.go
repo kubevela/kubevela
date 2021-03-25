@@ -4,7 +4,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/apis/types"
 )
 

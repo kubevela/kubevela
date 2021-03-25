@@ -9,7 +9,6 @@ import (
 	ctypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -55,7 +54,7 @@ func CreateOrUpdateObjects(ctx context.Context, client client.Client, objects []
 
 // CreateOrUpdateApplication will create if not exist and update if exists.
 func CreateOrUpdateApplication(ctx context.Context, client client.Client, app *v1beta1.Application) error {
-	var geta v1alpha2.Application
+	var geta v1beta1.Application
 	key := ctypes.NamespacedName{Name: app.Name, Namespace: app.Namespace}
 	var exist = true
 	if err := client.Get(ctx, key, &geta); err != nil {
