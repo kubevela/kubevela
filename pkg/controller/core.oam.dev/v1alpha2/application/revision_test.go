@@ -481,4 +481,70 @@ var _ = Describe("test generate revision ", func() {
 			}, time.Second*5, time.Microsecond*500).Should(Succeed())
 		Expect(len(curACs.Items)).Should(BeEquivalentTo(1))
 	})
+
+	It("Test apply passes all label and annotation from app to appRevision", func() {
+		By("Apply the application")
+		appParser := appfile.NewApplicationParser(reconciler.Client, reconciler.dm, reconciler.pd)
+		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
+		labelKey1 := "labelKey1"
+		app.SetLabels(map[string]string{labelKey1: "true"})
+		annoKey1 := "annoKey1"
+		app.SetAnnotations(map[string]string{annoKey1: "true"})
+		generatedAppfile, err := appParser.GenerateAppFile(ctx, app.Name, &app)
+		Expect(err).Should(Succeed())
+		ac, comps, err = appParser.GenerateApplicationConfiguration(generatedAppfile, app.Namespace)
+		Expect(err).Should(Succeed())
+		handler.appfile = generatedAppfile
+		Expect(ac.Namespace).Should(Equal(app.Namespace))
+		Expect(handler.apply(context.Background(), ac, comps)).Should(Succeed())
+
+		curApp := &v1beta1.Application{}
+		Eventually(
+			func() error {
+				return handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: app.Name}, curApp)
+			}, time.Second*10, time.Millisecond*500).Should(BeNil())
+		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
+		By("Verify the created appRevision is exactly what it is")
+		curAppRevision := &v1beta1.ApplicationRevision{}
+		Eventually(
+			func() error {
+				return handler.r.Get(ctx,
+					types.NamespacedName{Namespace: ns.Name, Name: curApp.Status.LatestRevision.Name},
+					curAppRevision)
+			},
+			time.Second*5, time.Millisecond*500).Should(BeNil())
+		appHash1, err := ComputeAppRevisionHash(curAppRevision)
+		Expect(err).Should(Succeed())
+		Expect(curAppRevision.GetLabels()[oam.LabelAppRevisionHash]).Should(Equal(appHash1))
+		Expect(appHash1).Should(Equal(curApp.Status.LatestRevision.RevisionHash))
+		Expect(curAppRevision.GetLabels()[labelKey1]).Should(Equal("true"))
+		Expect(curAppRevision.GetAnnotations()[annoKey1]).Should(Equal("true"))
+		// there can be annotation change and appContext should have the exact label/annotation as app
+		annoKey2 := "testKey2"
+		app.SetAnnotations(map[string]string{annoKey2: "true"})
+		labelKey2 := "labelKey2"
+		app.SetLabels(map[string]string{labelKey2: "true"})
+		lastRevision := curApp.Status.LatestRevision.Name
+		Expect(handler.apply(context.Background(), ac, comps)).Should(Succeed())
+		Eventually(
+			func() error {
+				return handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: app.Name}, curApp)
+			}, time.Second*10, time.Millisecond*500).Should(BeNil())
+		// no new revision should be created
+		Expect(curApp.Status.LatestRevision.Name).Should(Equal(lastRevision))
+		Expect(curApp.Status.LatestRevision.RevisionHash).Should(Equal(appHash1))
+		By("Verify the appRevision is not changed")
+		// reset appRev
+		curAppRevision = &v1beta1.ApplicationRevision{}
+		Eventually(
+			func() error {
+				return handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: lastRevision}, curAppRevision)
+			}, time.Second*5, time.Millisecond*500).Should(BeNil())
+		Expect(err).Should(Succeed())
+		Expect(curAppRevision.GetLabels()[oam.LabelAppRevisionHash]).Should(Equal(appHash1))
+		Expect(curAppRevision.GetLabels()[labelKey1]).Should(BeEmpty())
+		Expect(curAppRevision.GetLabels()[labelKey2]).Should(Equal("true"))
+		Expect(curAppRevision.GetAnnotations()[annoKey1]).Should(BeEmpty())
+		Expect(curAppRevision.GetAnnotations()[annoKey2]).Should(Equal("true"))
+	})
 })
