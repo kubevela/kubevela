@@ -1,6 +1,10 @@
-# Workload Definition
+# Component Definition
 
-In the following tutorial, you will learn about definition objects with OpenFaaS workload type.
+In the following tutorial, you will learn about define your own Component Definition to extend KubeVela.
+
+Before continue, make sure you have learned the basic concept of [Definition Objects](definition-and-templates.md) in KubeVela.
+
+There're 
 
 ## Step 1: Create Workload Definition
 

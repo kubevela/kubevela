@@ -11,13 +11,16 @@
   - [Overview](/en/platform-engineers/overview.md)
   - [Application CRD](/en/application.md)
   - [Definition CRD](/en/platform-engineers/definition-and-templates.md)
+  - [Auto-generated Schema](/en/platform-engineers/openapi-v3-json-schema.md)
+  - [Defining Components](/en/platform-engineers/component.md)
+  - [Defining Traits](/en/platform-engineers/trait.md)
+  - [Defining Cloud Service](/en/platform-engineers/cloud-services.md)
 
   - Using CUE
   - [Learning CUE](/en/cue/basic.md)
-  - [Define Components](/en/cue/workload-type.md)
+  - [Define Components](/en/cue/component.md)
   - [Define Traits](/en/cue/trait.md)
   - [Advanced Features](/en/cue/status.md)
-  - [Auto-generated Schema](/en/platform-engineers/openapi-v3-json-schema.md)
   - [Development Guide](/en/cue/development-guide.md)
 
   - Using Helm
@@ -41,10 +44,6 @@
   <!-- - [Setting Monitoring Policy](/en/developers/extensions/set-metrics.md) -->
   - [Setting Up Deployment Environment](/en/developers/config-enviroments.md)
   - [Configuring data/env in Application](/en/developers/config-app.md)
-  <!-- - How-to (Out-of-dated) -->
-    <!-- - [Defining Workload Type](/en/platform-engineers/workload-type.md) -->
-    <!-- - [Defining Trait](/en/platform-engineers/trait.md) -->
-    <!-- - [Defining Cloud Service](/en/platform-engineers/cloud-services.md) -->
   <!-- - [Alternative Commands](/en/developers/alternative-cmd.md) -->
 
 - CLI References
