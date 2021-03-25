@@ -19,14 +19,14 @@ func DefaultRolloutPlan(rollout *v1alpha1.RolloutPlan) {
 		totalSize := int(*rollout.TargetSize)
 		// create the batch array
 		rollout.RolloutBatches = make([]v1alpha1.RolloutBatch, int(*rollout.NumBatches))
-		avg := intstr.FromInt(totalSize / numBatches)
-		total := 0
-		for i := 0; i < numBatches-1; i++ {
-			rollout.RolloutBatches[i].Replicas = avg
-			total += avg.IntValue()
+		total := totalSize
+		for total > 0 {
+			for i := numBatches - 1; i >= 0 && total > 0; i-- {
+				replica := rollout.RolloutBatches[i].Replicas.IntValue() + 1
+				rollout.RolloutBatches[i].Replicas = intstr.FromInt(replica)
+				total--
+			}
 		}
-		// fill out the last batch
-		rollout.RolloutBatches[numBatches-1].Replicas = intstr.FromInt(totalSize - total)
 	}
 }
 

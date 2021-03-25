@@ -80,8 +80,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	r.handleFinalizer(&appRollout)
 	targetAppRevisionName := appRollout.Spec.TargetAppRevisionName
 	sourceAppRevisionName := appRollout.Spec.SourceAppRevisionName
-
-	// handle rollout target/source change
+	// handle rollout completed
 	if appRollout.Status.RollingState == v1alpha1.RolloutSucceedState ||
 		appRollout.Status.RollingState == v1alpha1.RolloutFailedState {
 		if appRollout.Status.LastUpgradedTargetAppRevision == targetAppRevisionName &&
@@ -91,7 +90,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 			return ctrl.Result{}, nil
 		}
 	}
-
+	// handle rollout target/source change
 	if appRollout.Status.LastUpgradedTargetAppRevision != "" &&
 		appRollout.Status.LastUpgradedTargetAppRevision != targetAppRevisionName ||
 		(appRollout.Status.LastSourceAppRevision != "" && appRollout.Status.LastSourceAppRevision != sourceAppRevisionName) {
@@ -100,13 +99,16 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 		r.record.Event(&appRollout, event.Normal("Rollout Restarted",
 			"rollout target changed, restart the rollout", "new source", sourceAppRevisionName,
 			"new target", targetAppRevisionName))
-
-		if err := r.finalizeRollingAborted(ctx, appRollout.Status.LastUpgradedTargetAppRevision,
-			appRollout.Status.LastSourceAppRevision); err != nil {
-			klog.ErrorS(err, "failed to finalize the previous rolling resources ", "old source",
-				appRollout.Status.LastSourceAppRevision, "old target", appRollout.Status.LastUpgradedTargetAppRevision)
+		// we are okay to move directly to restart the rollout since we are at the terminal state
+		// however, we need to make sure we properly finalizing the existing rollout before restart if it's
+		// still in the middle of rolling out
+		if appRollout.Status.RollingState != v1alpha1.RolloutSucceedState &&
+			appRollout.Status.RollingState != v1alpha1.RolloutFailedState {
+			// continue to handle the previous resources until we are okay to move forward
+			targetAppRevisionName = appRollout.Status.LastUpgradedTargetAppRevision
+			sourceAppRevisionName = appRollout.Status.LastSourceAppRevision
 		}
-		appRollout.Status.RolloutModified()
+		appRollout.Status.StateTransition(v1alpha1.RollingModifiedEvent)
 	}
 
 	// Get the source application
@@ -162,8 +164,11 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	result, rolloutStatus := rolloutPlanController.Reconcile(ctx)
 	// make sure that the new status is copied back
 	appRollout.Status.RolloutStatus = *rolloutStatus
-	appRollout.Status.LastUpgradedTargetAppRevision = targetAppRevisionName
-	appRollout.Status.LastSourceAppRevision = sourceAppRevisionName
+	// do not update the last with new revision if we are still trying to abandon the previous rollout
+	if rolloutStatus.RollingState != v1alpha1.RolloutAbandoningState {
+		appRollout.Status.LastUpgradedTargetAppRevision = appRollout.Spec.TargetAppRevisionName
+		appRollout.Status.LastSourceAppRevision = appRollout.Spec.SourceAppRevisionName
+	}
 	if rolloutStatus.RollingState == v1alpha1.RolloutSucceedState {
 		if err = r.finalizeRollingSucceeded(ctx, sourceApp, targetApp); err != nil {
 			return ctrl.Result{}, err
@@ -194,11 +199,6 @@ func (r *Reconciler) finalizeRollingSucceeded(ctx context.Context, sourceApp *oa
 			klog.KRef(targetApp.Namespace, targetApp.GetName()))
 		return err
 	}
-	return nil
-}
-
-func (r *Reconciler) finalizeRollingAborted(ctx context.Context, sourceRevision, targetRevision string) error {
-	// TODO:  finalize the previous appcontext the best we can
 	return nil
 }
 

@@ -115,8 +115,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	oamutil.PassLabelAndAnnotation(app, ac)
 
 	app.Status.SetConditions(readyCondition("Built"))
-	applog.Info("apply appConfig & component to the cluster")
-	// apply appConfig & component to the cluster
+	applog.Info("apply application revision & component to the cluster")
+	// apply application revision & component to the cluster
 	if err := handler.apply(ctx, ac, comps); err != nil {
 		applog.Error(err, "[Handle apply]")
 		app.Status.SetConditions(errorCondition("Applied", err))
