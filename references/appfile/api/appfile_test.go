@@ -53,7 +53,7 @@ func TestBuildOAMApplication2(t *testing.T) {
 			expectApp: &v1beta1.Application{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Application",
-					APIVersion: "core.oam.dev/v1alpha2",
+					APIVersion: "core.oam.dev/v1beta1",
 				}, ObjectMeta: metav1.ObjectMeta{
 					Name: "test",
 				},
@@ -87,7 +87,7 @@ func TestBuildOAMApplication2(t *testing.T) {
 			expectApp: &v1beta1.Application{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Application",
-					APIVersion: "core.oam.dev/v1alpha2",
+					APIVersion: "core.oam.dev/v1beta1",
 				}, ObjectMeta: metav1.ObjectMeta{
 					Name: "test",
 				},

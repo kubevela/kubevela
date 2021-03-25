@@ -7,7 +7,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 )
 
@@ -32,7 +32,7 @@ func SetWorkload(app *api.Application, componentName, workloadType string, workl
 }
 
 // SetTrait will set user trait for Appfile
-func SetTrait(app *v1alpha2.Application, componentName, traitType string, traitData map[string]interface{}) error {
+func SetTrait(app *v1beta1.Application, componentName, traitType string, traitData map[string]interface{}) error {
 	if app == nil {
 		return errorAppNilPointer
 	}
@@ -51,14 +51,14 @@ func SetTrait(app *v1alpha2.Application, componentName, traitType string, traitD
 		foundComp = true
 		var added bool
 		for j, tr := range app.Spec.Components[idx].Traits {
-			if tr.Name != traitType {
+			if tr.Type != traitType {
 				continue
 			}
 			added = true
 			app.Spec.Components[idx].Traits[j].Properties.Raw = data
 		}
 		if !added {
-			app.Spec.Components[idx].Traits = append(app.Spec.Components[idx].Traits, v1alpha2.ApplicationTrait{Name: traitType, Properties: runtime.RawExtension{Raw: data}})
+			app.Spec.Components[idx].Traits = append(app.Spec.Components[idx].Traits, v1beta1.ApplicationTrait{Type: traitType, Properties: runtime.RawExtension{Raw: data}})
 		}
 	}
 	if !foundComp {
@@ -82,11 +82,11 @@ func RemoveTrait(app *api.Application, componentName, traitType string) error {
 }
 
 // RemoveComponent will remove component from Application
-func RemoveComponent(app *v1alpha2.Application, componentName string) error {
+func RemoveComponent(app *v1beta1.Application, componentName string) error {
 	if app == nil {
 		return errorAppNilPointer
 	}
-	var newComps []v1alpha2.ApplicationComponent
+	var newComps []v1beta1.ApplicationComponent
 	for _, comp := range app.Spec.Components {
 		if comp.Name == componentName {
 			continue

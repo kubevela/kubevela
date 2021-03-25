@@ -20,7 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -95,7 +95,7 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 	defDir, _ := system.GetCapabilityDir()
 	switch tp.Type {
 	case types.TypeWorkload:
-		var wd v1alpha2.WorkloadDefinition
+		var wd v1beta1.WorkloadDefinition
 		workloadData, err := ioutil.ReadFile(filepath.Clean(filepath.Join(repoDir, tp.Name+".yaml")))
 		if err != nil {
 			return err
@@ -127,7 +127,7 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 			return err
 		}
 	case types.TypeTrait:
-		var td v1alpha2.TraitDefinition
+		var td v1beta1.TraitDefinition
 		traitdata, err := ioutil.ReadFile(filepath.Clean(filepath.Join(repoDir, tp.Name+".yaml")))
 		if err != nil {
 			return err
@@ -294,9 +294,9 @@ func uninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 	var obj runtime.Object
 	switch cap.Type {
 	case types.TypeTrait:
-		obj = &v1alpha2.TraitDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultKubeVelaNS}}
+		obj = &v1beta1.TraitDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultKubeVelaNS}}
 	case types.TypeWorkload:
-		obj = &v1alpha2.WorkloadDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultKubeVelaNS}}
+		obj = &v1beta1.WorkloadDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultKubeVelaNS}}
 	case types.TypeScope:
 		return fmt.Errorf("uninstall scope capability was not supported yet")
 	case types.TypeComponentDefinition:

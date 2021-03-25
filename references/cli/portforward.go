@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -39,7 +40,7 @@ type VelaPortForwardOptions struct {
 	context.Context
 	VelaC common.Args
 	Env   *types.EnvMeta
-	App   *v1alpha2.Application
+	App   *v1beta1.Application
 
 	f                    k8scmdutil.Factory
 	kcPortForwardOptions *cmdpf.PortForwardOptions

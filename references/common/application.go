@@ -99,9 +99,9 @@ type DeleteOptions struct {
 // ListApplications lists all applications
 func ListApplications(ctx context.Context, c client.Reader, opt Option) ([]apis.ApplicationMeta, error) {
 	var applicationMetaList applicationMetaList
-	var appList corev1alpha2.ApplicationList
+	var appList corev1beta1.ApplicationList
 	if opt.AppName != "" {
-		var app corev1alpha2.Application
+		var app corev1beta1.Application
 		if err := c.Get(ctx, client.ObjectKey{Name: opt.AppName, Namespace: opt.Namespace}, &app); err != nil {
 			return applicationMetaList, err
 		}
@@ -180,7 +180,7 @@ func ListComponents(ctx context.Context, c client.Reader, opt Option) ([]apis.Co
 func RetrieveApplicationStatusByName(ctx context.Context, c client.Reader, applicationName string,
 	namespace string) (apis.ApplicationMeta, error) {
 	var applicationMeta apis.ApplicationMeta
-	var app corev1alpha2.Application
+	var app corev1beta1.Application
 	if err := c.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: namespace}, &app); err != nil {
 		return applicationMeta, err
 	}
@@ -197,7 +197,7 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 		return "", err
 	}
 	ctx := context.Background()
-	var app = new(corev1alpha2.Application)
+	var app = new(corev1beta1.Application)
 	err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Env.Namespace}, app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -467,7 +467,7 @@ func (o *AppfileOptions) ApplyApp(app *corev1beta1.Application, scopes []oam.Obj
 		Name:      app.Name,
 	}
 	o.IO.Infof("Checking if app has been deployed...\n")
-	var tmpApp corev1alpha2.Application
+	var tmpApp corev1beta1.Application
 	err := o.Kubecli.Get(context.TODO(), key, &tmpApp)
 	switch {
 	case apierrors.IsNotFound(err):

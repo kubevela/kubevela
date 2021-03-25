@@ -74,6 +74,7 @@ func NewCommand() *cobra.Command {
 		CapabilityCommandGroup(commandArgs, ioStream),
 		NewTemplateCommand(ioStream),
 		NewTraitsCommand(commandArgs, ioStream),
+		NewComponentsCommand(commandArgs, ioStream),
 		NewWorkloadsCommand(commandArgs, ioStream),
 
 		// Helper

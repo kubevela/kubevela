@@ -8,7 +8,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -56,7 +56,7 @@ func NewListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 func printApplicationList(ctx context.Context, c client.Reader, namespace string, ioStreams cmdutil.IOStreams) error {
 	table := newUITable()
 	table.AddRow("APP", "COMPONENT", "TYPE", "TRAITS", "PHASE", "HEALTHY", "STATUS", "CREATED-TIME")
-	applist := v1alpha2.ApplicationList{}
+	applist := v1beta1.ApplicationList{}
 	if err := c.List(ctx, &applist, client.InNamespace(namespace)); err != nil {
 		if apierrors.IsNotFound(err) {
 			ioStreams.Info(table.String())
@@ -85,9 +85,9 @@ func printApplicationList(ctx context.Context, c client.Reader, namespace string
 			}
 			var traits []string
 			for _, tr := range cmp.Traits {
-				traits = append(traits, tr.Name)
+				traits = append(traits, tr.Type)
 			}
-			table.AddRow(appName, cmp.Name, cmp.WorkloadType, strings.Join(traits, ","), a.Status.Phase, healthy, status, a.CreationTimestamp)
+			table.AddRow(appName, cmp.Name, cmp.Type, strings.Join(traits, ","), a.Status.Phase, healthy, status, a.CreationTimestamp)
 		}
 	}
 	ioStreams.Info(table.String())

@@ -22,8 +22,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	// +kubebuilder:scaffold:imports
@@ -34,7 +34,7 @@ var scheme *runtime.Scheme
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var definitionDir string
-var wd v1alpha2.WorkloadDefinition
+var wd corev1beta1.WorkloadDefinition
 var addonNamespace = "test-addon"
 
 func TestAppFile(t *testing.T) {
@@ -59,7 +59,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
 	scheme = runtime.NewScheme()
-	Expect(corev1alpha2.AddToScheme(scheme)).NotTo(HaveOccurred())
+	Expect(coreoam.AddToScheme(scheme)).NotTo(HaveOccurred())
 	Expect(clientgoscheme.AddToScheme(scheme)).NotTo(HaveOccurred())
 	Expect(v1beta1.AddToScheme(scheme)).NotTo(HaveOccurred())
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
@@ -83,7 +83,7 @@ var _ = BeforeSuite(func(done Done) {
 
 	def, err := ioutil.ReadFile("testdata/terraform-aliyun-oss-workloadDefinition.yaml")
 	Expect(err).Should(BeNil())
-	var terraformDefinition v1alpha2.WorkloadDefinition
+	var terraformDefinition corev1beta1.WorkloadDefinition
 	Expect(yaml.Unmarshal(def, &terraformDefinition)).Should(BeNil())
 	terraformDefinition.Namespace = addonNamespace
 	logf.Log.Info("Creating workload definition", "data", terraformDefinition)
