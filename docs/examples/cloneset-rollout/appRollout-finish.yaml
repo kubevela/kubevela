@@ -1,7 +1,7 @@
 apiVersion: core.oam.dev/v1beta1
 kind: AppRollout
 metadata:
-  name: rolling-test
+  name: rolling-example
 spec:
   # application (revision) reference
   sourceAppRevisionName: test-rolling-v1

@@ -75,10 +75,10 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	}
 
-	applySourceApp := func() {
+	applySourceApp := func(source string) {
 		By("Apply an application")
 		var newApp v1beta1.Application
-		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-source.yaml", &newApp)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/"+source, &newApp)).Should(BeNil())
 		newApp.Namespace = namespace
 		Expect(k8sClient.Create(ctx, &newApp)).Should(Succeed())
 
@@ -94,10 +94,10 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			time.Second*30, time.Millisecond*500).ShouldNot(BeNil())
 	}
 
-	applyTargetApp := func() {
+	updateApp := func(target string) {
 		By("Update the application to target spec during rolling")
 		var targetApp v1beta1.Application
-		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-target.yaml", &targetApp)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/"+target, &targetApp)).Should(BeNil())
 
 		Eventually(
 			func() error {
@@ -138,7 +138,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appRollout.Name}, &appRollout)
 				return appRollout.Status.RollingState
 			},
-			time.Second*300, time.Second).Should(Equal(oamstd.RolloutSucceedState))
+			time.Second*120, time.Second).Should(Equal(oamstd.RolloutSucceedState))
 		Expect(appRollout.Status.UpgradedReadyReplicas).Should(BeEquivalentTo(appRollout.Status.RolloutTargetTotalSize))
 		Expect(appRollout.Status.UpgradedReplicas).Should(BeEquivalentTo(appRollout.Status.RolloutTargetTotalSize))
 
@@ -186,22 +186,13 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 	applyTwoAppVersion := func() {
 		CreateClonesetDef()
-		applySourceApp()
-		applyTargetApp()
+		applySourceApp("app-source.yaml")
+		updateApp("app-target.yaml")
 	}
 
 	revertBackToSource := func() {
 		By("Revert the application back to source")
-		var sourceApp v1beta1.Application
-		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-source.yaml", &sourceApp)).Should(BeNil())
-
-		Eventually(
-			func() error {
-				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: app.Name}, &app)
-				app.Spec = sourceApp.Spec
-				return k8sClient.Update(ctx, &app)
-			},
-			time.Second*60, time.Millisecond*500).Should(Succeed())
+		updateApp("app-source.yaml")
 
 		By("Modify the application rollout with new target and source")
 		Eventually(
@@ -247,10 +238,10 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 	It("Test cloneset rollout first time (no source)", func() {
 		CreateClonesetDef()
-		applySourceApp()
+		applySourceApp("app-source.yaml")
 		By("Apply the application rollout go directly to the target")
 		var newAppRollout v1beta1.AppRollout
-		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/appRollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
 		newAppRollout.Spec.SourceAppRevisionName = ""
 		newAppRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
@@ -266,7 +257,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		By("Apply the application rollout to deploy the source")
 		var newAppRollout v1beta1.AppRollout
-		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/appRollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
 		newAppRollout.Spec.SourceAppRevisionName = ""
 		newAppRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
@@ -333,16 +324,17 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 	It("Test pause and modify rollout plan after rolling succeeded", func() {
 		CreateClonesetDef()
-		applySourceApp()
+		applySourceApp("app-more-replica.yaml")
 		By("Apply the application rollout go directly to the target")
 		var newAppRollout v1beta1.AppRollout
-		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/appRollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
 		newAppRollout.Spec.SourceAppRevisionName = ""
 		newAppRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
 		newAppRollout.Spec.RolloutPlan.BatchPartition = nil
 		newAppRollout.Spec.RolloutPlan.RolloutBatches = nil
 		// webhook would fill the batches
+
 		newAppRollout.Spec.RolloutPlan.TargetSize = pointer.Int32Ptr(5)
 		newAppRollout.Spec.RolloutPlan.NumBatches = pointer.Int32Ptr(5)
 		createAppRolling(&newAppRollout)
@@ -412,7 +404,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		By("Apply the application rollout to deploy the source")
 		var newAppRollout v1beta1.AppRollout
-		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/appRollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
 		newAppRollout.Spec.SourceAppRevisionName = ""
 		newAppRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
@@ -449,7 +441,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		By("Apply the application rollout to deploy the source")
 		var newAppRollout v1beta1.AppRollout
-		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/appRollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
 		newAppRollout.Spec.SourceAppRevisionName = ""
 		newAppRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
@@ -480,7 +472,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 	PIt("Test rolling by changing the definition", func() {
 		CreateClonesetDef()
-		applySourceApp()
+		applySourceApp("app-source.yaml")
 		By("Apply the definition change")
 		var cd, newCD v1beta1.ComponentDefinition
 		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/clonesetDefinitionModified.yaml.yaml", &newCD)).Should(BeNil())
@@ -493,7 +485,8 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			time.Second*3, time.Millisecond*300).Should(Succeed())
 		By("Apply the application rollout")
 		var newAppRollout v1beta1.AppRollout
-		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/app-rollout.yaml", &newAppRollout)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/appRollout.yaml", &newAppRollout)).Should(BeNil())
+		Expect(common.ReadYamlToObject("testdata/rollout/cloneset/appRollout.yaml", &newAppRollout)).Should(BeNil())
 		newAppRollout.Namespace = namespace
 		newAppRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(len(newAppRollout.Spec.RolloutPlan.
 			RolloutBatches) - 1))

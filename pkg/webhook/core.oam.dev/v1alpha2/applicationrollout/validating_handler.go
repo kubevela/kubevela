@@ -12,7 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
 // ValidatingHandler handles AppRollout
@@ -27,7 +27,7 @@ var _ admission.Handler = &ValidatingHandler{}
 
 // Handle handles admission requests.
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	obj := &v1alpha2.AppRollout{}
+	obj := &v1beta1.AppRollout{}
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
@@ -42,7 +42,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
 	case admissionv1beta1.Update:
-		oldObj := &v1alpha2.AppRollout{}
+		oldObj := &v1beta1.AppRollout{}
 		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldObj); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
@@ -76,6 +76,6 @@ func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 // RegisterValidatingHandler will register application configuration validation to webhook
 func RegisterValidatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
-	server.Register("/validating-core-oam-dev-v1alpha2-approllout",
+	server.Register("/validating-core-oam-dev-v1beta1-approllout",
 		&webhook.Admission{Handler: &ValidatingHandler{}})
 }

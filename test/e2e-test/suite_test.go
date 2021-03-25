@@ -116,8 +116,6 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	// For some reason, traitDefinition is created as a Cluster scope object
 	Expect(k8sClient.Create(context.Background(), &manualscalertrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	By("Created manual scalar trait definition")
-
 	// Create manual scaler trait definition with spec.extension field
 	definitionExtension := DefinitionExtension{
 		Alias: "ManualScaler",

@@ -40,18 +40,18 @@ webhooks:
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
-        path: /validating-core-oam-dev-v1alpha2-approllout
+        path: /validating-core-oam-dev-v1beta1-approllout
     {{- if .Values.admissionWebhooks.patch.enabled  }}
     failurePolicy: Ignore
     {{- else }}
     failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
     {{- end }}
-    name: validating.core.oam.dev.v1alpha2.approllouts
+    name: validating.core.oam.dev.v1beta1.approllouts
     rules:
       - apiGroups:
           - core.oam.dev
         apiVersions:
-          - v1alpha2
+          - v1beta1
         operations:
           - CREATE
           - UPDATE
