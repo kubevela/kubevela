@@ -22,7 +22,9 @@ spec:
               "app.oam.dev/component": context.name
             }
             spec: {
-                replicas: parameter.replicas
+                if parameter["replicas"] != _|_ {
+                    replicas: parameter.replicas
+                }
                 selector: matchLabels: {
                     "app.oam.dev/component": context.name
                 }

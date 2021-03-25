@@ -380,14 +380,13 @@ func (r *Controller) GetWorkloadController() (workloads.WorkloadController, erro
 
 	if r.targetWorkload.GroupVersionKind().Group == kruisev1.GroupVersion.Group {
 		if r.targetWorkload.GetKind() == reflect.TypeOf(kruisev1.CloneSet{}).Name() {
-			// check whether current rollout plan is for workload rolling or scaling
-			if r.isRolling() {
-				return workloads.NewCloneSetRolloutController(r.client, r.recorder, r.parentController,
-					r.rolloutSpec, r.rolloutStatus, target), nil
-			}
-
-			return workloads.NewCloneSetScaleController(r.client, r.recorder, r.parentController,
+			return workloads.NewCloneSetRolloutController(r.client, r.recorder, r.parentController,
 				r.rolloutSpec, r.rolloutStatus, target), nil
+			// TODO: check whether current rollout plan is for workload rolling or scaling
+			/*if r.sourceWorkload == nil {
+				return workloads.NewCloneSetScaleController(r.client, r.recorder, r.parentController,
+					r.rolloutSpec, r.rolloutStatus, target), nil
+			}*/
 		}
 	}
 
@@ -399,8 +398,4 @@ func (r *Controller) GetWorkloadController() (workloads.WorkloadController, erro
 		}
 	}
 	return nil, fmt.Errorf("the workload kind `%s` is not supported", kind)
-}
-
-func (r *Controller) isRolling() bool {
-	return r.sourceWorkload != nil
 }
