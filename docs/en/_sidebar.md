@@ -13,7 +13,7 @@
   - [Definition CRD](/en/platform-engineers/definition-and-templates.md)
   - [Auto-generated Schema](/en/platform-engineers/openapi-v3-json-schema.md)
   - [Defining Components](/en/platform-engineers/component.md)
-<!-- - [Defining Traits](/en/platform-engineers/trait.md) -->  
+  - [Defining Traits](/en/platform-engineers/trait.md)  
 <!-- - [Defining Cloud Service](/en/platform-engineers/cloud-services.md) -->
 
   - Using CUE
