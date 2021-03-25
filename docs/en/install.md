@@ -131,7 +131,28 @@ These steps will install KubeVela controller and its dependency.
     helm install --create-namespace -n vela-system --set admissionWebhooks.certManager.enabled=true kubevela kubevela/vela-core
     ```
 
-## 3. (Optional) Get KubeVela CLI
+## 3. (Optional) Install flux2
+
+This installation step is optional, it's required if you want to register [Helm Chart](https://helm.sh/) as KubeVela capabilities.
+
+KubeVela relies on several CRDs and controllers from [fluxcd/flux2](https://github.com/fluxcd/flux2).
+
+| CRD      | Controller Image |
+| ----------- | ----------- |
+| helmrepositories.source.toolkit.fluxcd.io   | fluxcd/source-controller:v0.9.0 |
+| helmcharts.source.toolkit.fluxcd.io   | - |
+| buckets.source.toolkit.fluxcd.io      | - |
+| gitrepositories.source.toolkit.fluxcd.io   | - |
+| helmreleases.helm.toolkit.fluxcd.io | fluxcd/helm-controller:v0.8.0 |
+
+You can install the whole flux2 from their [official website](https://github.com/fluxcd/flux2)
+or install the chart with minimal parts provided by KubeVela:
+
+```shell
+$ helm install --create-namespace -n flux-system helm-flux http://oam.dev/catalog/helm-flux2-0.1.0.tgz
+```
+
+## 4. (Optional) Get KubeVela CLI
 
 Here are three ways to get KubeVela Cli:
 
@@ -173,7 +194,7 @@ sudo mv ./vela /usr/local/bin/vela
 
 <!-- tabs:end -->
 
-## 4. (Optional) Sync Capability from Cluster
+## 5. (Optional) Sync Capability from Cluster
 
 If you want to run application from `vela` cli, then you should sync capabilities first like below:
 
@@ -205,7 +226,7 @@ worker    	Describes long-running, scalable, containerized services that running
           	receive external network traffic.   
 ```
 
-## 5. (Optional) Clean Up
+## 6. (Optional) Clean Up
 
 <details>
 Run:

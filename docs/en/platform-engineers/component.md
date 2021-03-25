@@ -4,117 +4,28 @@ In the following tutorial, you will learn about define your own Component Defini
 
 Before continue, make sure you have learned the basic concept of [Definition Objects](definition-and-templates.md) in KubeVela.
 
-There're 
+Usually, there are general two kinds of capability resources you can find in K8s ecosystem.
 
-## Step 1: Create Workload Definition
+1. Compose K8s built-in resources: in this case, you can easily use them by apply YAML files.
+   This is widely used as helm charts. For example, [wordpress helm chart](https://bitnami.com/stack/wordpress/helm), [mysql helm chart](https://bitnami.com/stack/mysql/helm). 
+2. CRD(Custom Resource Definition) Operator: in this case, you need to install it and create CR(Custom Resource) instance for use.
+   This is widely used such as [Promethus Operator](https://github.com/prometheus-operator/prometheus-operator), [TiDB Operator](https://github.com/pingcap/tidb-operator), etc.
 
-To register OpenFaaS as a new workload type in KubeVela, the only thing needed is to create an OAM `WorkloadDefinition` object for it. A full example can be found in this [openfaas.yaml](https://github.com/oam-dev/catalog/blob/master/registry/openfaas.yaml). Several highlights are list below.
+For both cases, they can all be extended into KubeVela as Component type.
 
-### 1. Describe The Workload Type
+## Extend helm chart as KubeVela Component
 
-```yaml
-...
-  annotations:
-    definition.oam.dev/description: "OpenFaaS function"
-...
-```
+In this case, it's very straight forward to register a helm chart as KubeVela capabilities.
 
-A one line description of this workload type. It will be shown in helper commands such as `$ vela workloads`.
+KubeVela will deploy the helm chart, and with the help of KubeVela, the extended helm charts can use all the KubeVela traits. 
 
-### 2. Register API Resource
+Refer to ["Use Helm To Extend a Component type"](https://kubevela.io/#/en/helm/component) to learn details in this case.
 
-```yaml
-...
-spec:
-  definitionRef:
-    name: functions.openfaas.com
-...
-```
+## Extend CRD Operator as KubeVela Component
 
-This is how you register OpenFaaS Function's API resource (`functions.openfaas.com`) as the workload type. KubeVela uses Kubernetes API resource discovery mechanism to manage all registered capabilities.
+In this case, you're more likely to make a CUE template to do the abstraction and encapsulation.
+KubeVela will render the CUE template, and deploy the rendered resources. This is the most native and powerful way in KubeVela.
+
+Refer to ["Use CUE to extend Component type"](https://kubevela.io/#/en/cue/component) to learn details in this case.
 
 
-### 3. Configure Installation Dependency
-
-```yaml
-...
-  extension:
-    install:
-      helm:
-        repo: openfaas
-        name: openfaas
-        namespace: openfaas
-        url: https://openfaas.github.io/faas-netes/
-        version: 6.1.2
-        ...
-```
-
-The `extension.install` field is used by KubeVela to automatically install the dependency (if any) when the new workload type is added to KubeVela. The dependency is described by a Helm chart custom resource. We highly recommend you to configure this field since otherwise, users will have to install dependencies like OpenFaaS operator manually later to user your new workload type.
-
-### 4. Define Template
-
-```yaml
-...
-    template: |
-      output: {
-        apiVersion: "openfaas.com/v1"
-        kind:       "Function"
-        spec: {
-          handler: parameter.handler
-          image: parameter.image
-          name: context.name
-        }
-      }
-      parameter: {
-        image: string
-        handler: string
-      }
- ```
-
-This is a CUE based template to define end user abstraction for this workload type. Please check the [templating documentation](../cue/workload-type.md) for more detail.
-
-Note that OpenFaaS also requires a namespace and secret configured before first-time usage:
-
-<details>
-
-```bash
-# create namespace
-$ kubectl apply -f https://raw.githubusercontent.com/openfaas/faas-netes/master/namespaces.yml
-
-# generate a random password
-$ PASSWORD=$(head -c 12 /dev/urandom | shasum| cut -d' ' -f1)
-
-$ kubectl -n openfaas create secret generic basic-auth \
-    --from-literal=basic-auth-user=admin \
-    --from-literal=basic-auth-password="$PASSWORD"
-```
-</details>
-
-## Step 2: Register New Workload Type to KubeVela
-
-As long as the definition file is ready, you just need to apply it to Kubernetes.
-
-```bash
-$ kubectl apply -f https://raw.githubusercontent.com/oam-dev/catalog/master/registry/openfaas.yaml
-```
-
-And the new workload type will immediately become available for developers to use in KubeVela.
-It may take some time to be available as the dependency (helm chart) need to install.
-
-## Step 3: Verify
-
-```bash
-$ vela workloads
-Successfully installed chart (openfaas) with release name (openfaas)
-"my-repo" has been added to your repositories
-Automatically discover capabilities successfully ✅ Add(1) Update(0) Delete(0)
-
-TYPE     	CATEGORY	DESCRIPTION
-+openfaas	workload	OpenFaaS function workload
-
-NAME      	DESCRIPTION
-openfaas  	OpenFaaS function workload
-task      	One-off task to run a piece of code or script to completion
-webservice	Long-running scalable service with stable endpoint to receive external traffic
-worker    	Long-running scalable backend worker without network endpoint
-```

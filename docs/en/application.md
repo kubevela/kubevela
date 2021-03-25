@@ -38,7 +38,7 @@ spec:
             image: "fluentd"
 ```
 
-The `type: worker` means the specification of this workload (claimed in following `settings` section) will be enforced by a `WorkloadDefinition` object named `worker` as below:
+The `type: worker` means the specification of this workload (claimed in following `properties` section) will be enforced by a `ComponentDefinition` object named `worker` as below:
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -144,7 +144,7 @@ After the `Application` resource is applied to Kubernetes cluster, the KubeVela 
 
 | Label  | Description |
 | :--: | :---------: | 
-|`workload.oam.dev/type=<workload definition name>` | The name of its corresponding `WorkloadDefinition` |
+|`workload.oam.dev/type=<component definition name>` | The name of its corresponding `ComponentDefinition` |
 |`trait.oam.dev/type=<trait definition name>` | The name of its corresponding `TraitDefinition` | 
 |`app.oam.dev/name=<app name>` | The name of the application it belongs to |
 |`app.oam.dev/component=<component name>` | The name of the component it belongs to |

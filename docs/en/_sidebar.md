@@ -13,18 +13,17 @@
   - [Definition CRD](/en/platform-engineers/definition-and-templates.md)
   - [Auto-generated Schema](/en/platform-engineers/openapi-v3-json-schema.md)
   - [Defining Components](/en/platform-engineers/component.md)
-  - [Defining Traits](/en/platform-engineers/trait.md)
-  - [Defining Cloud Service](/en/platform-engineers/cloud-services.md)
+<!-- - [Defining Traits](/en/platform-engineers/trait.md) -->  
+<!-- - [Defining Cloud Service](/en/platform-engineers/cloud-services.md) -->
 
   - Using CUE
   - [Learning CUE](/en/cue/basic.md)
-  - [Define Components](/en/cue/component.md)
+  - [Define Components in CUE](/en/cue/component.md)
   - [Define Traits](/en/cue/trait.md)
   - [Advanced Features](/en/cue/status.md)
-  - [Development Guide](/en/cue/development-guide.md)
 
   - Using Helm
-  - [Define Components](/en/helm/component.md)
+  - [Define Components in Chart](/en/helm/component.md)
   - [Attach Traits](/en/helm/trait.md)
   - [Known Limitations](/en/helm/known-issues.md)
 
