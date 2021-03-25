@@ -1,0 +1,33 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: kube-worker
+  namespace: vela-system 
+spec:
+  workload: 
+    type: deployments.apps
+  schematic:
+    kube: 
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        spec:
+          selector:
+            matchLabels:
+              app: nginx
+          template:
+            metadata:
+              labels:
+                app: nginx
+            spec:
+              containers:
+              - name: nginx
+                image: nginx:1.14.2
+                ports:
+                - containerPort: 80 
+      parameters: 
+      - name: image
+        required: true
+        type: string
+        fieldPaths: 
+        - "spec.template.spec.containers[0].image"

@@ -155,7 +155,7 @@ var _ = Describe("AppConfig renders workloads", func() {
 
 		By("Verify workloads are created")
 		Eventually(func() bool {
-			reconcileAppConfigNow(ctx, ac)
+			requestReconcileNow(ctx, ac)
 			cw := &v1alpha2.ContainerizedWorkload{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: cwName, Namespace: namespace}, cw); err != nil {
 				return false

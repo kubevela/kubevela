@@ -101,11 +101,15 @@ const (
 // CapabilityCategory defines the category of a capability
 type CapabilityCategory string
 
+// categories of capability schematic
 const (
-	// TerraformCategory means the capability is in Terraform format
 	TerraformCategory CapabilityCategory = "terraform"
-	// HelmCategory means the capability is a helm capability
+
 	HelmCategory CapabilityCategory = "helm"
+
+	KubeCategory CapabilityCategory = "kube"
+
+	CUECategory CapabilityCategory = "cue"
 )
 
 // Parameter defines a parameter for cli from capability template
