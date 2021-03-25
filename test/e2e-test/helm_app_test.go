@@ -191,7 +191,7 @@ var _ = Describe("Test application containing helm module", func() {
 		deployName := fmt.Sprintf("%s-%s-podinfo", appName, compName)
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
-		}, 240*time.Second, 5*time.Second).Should(Succeed())
+		}, 120*time.Second, 5*time.Second).Should(Succeed())
 
 		By("Verify two traits are applied to the workload")
 		Eventually(func() bool {
@@ -215,7 +215,7 @@ var _ = Describe("Test application containing helm module", func() {
 			// the default value of 'image.tag' is 5.1.4 in the chart, but settings reset it to 5.1.2
 			return strings.HasSuffix(deploy.Spec.Template.Spec.Containers[0].Image, "5.1.2")
 			// it takes pretty long time to fetch chart and install the Helm release
-		}, 240*time.Second, 10*time.Second).Should(BeTrue())
+		}, 120*time.Second, 10*time.Second).Should(BeTrue())
 
 		By("Update the application")
 		app = v1alpha2.Application{
