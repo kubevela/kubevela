@@ -6,6 +6,10 @@ import (
 	"strings"
 	"time"
 
+	types2 "github.com/oam-dev/kubevela/apis/types"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/pkg/errors"
@@ -95,7 +99,7 @@ func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 	// use the controller build-in backoff mechanism if an error occurs
 	if err != nil {
 		reconResult.RequeueAfter = 0
-	} else if appContext.Status.RollingStatus == v1alpha2.RollingTemplated {
+	} else if appContext.Status.RollingStatus == types2.RollingTemplated {
 		// makes sure that we can will reconcile shortly after the annotation is removed
 		reconResult.RequeueAfter = time.Second * 5
 	}
@@ -109,6 +113,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, compHandler *ac.Componen
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha2.ApplicationContext{}).
 		Watches(&source.Kind{Type: &v1alpha2.Component{}}, compHandler).
+		Owns(&v1beta1.Application{}).
 		Complete(r)
 }
 

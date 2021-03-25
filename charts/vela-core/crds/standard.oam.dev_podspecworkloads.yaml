@@ -5,7 +5,6 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.4
-  creationTimestamp: null
   name: podspecworkloads.standard.oam.dev
 spec:
   group: standard.oam.dev
@@ -754,7 +753,6 @@ spec:
                                 description: If specified, this must be an IANA_SVC_NAME and unique within the pod. Each named port in a pod must have a unique name. Name for the port that can be referred to by services.
                                 type: string
                               protocol:
-                                default: TCP
                                 description: Protocol for port. Must be UDP, TCP, or SCTP. Defaults to "TCP".
                                 type: string
                             required:
@@ -1484,7 +1482,6 @@ spec:
                                 description: If specified, this must be an IANA_SVC_NAME and unique within the pod. Each named port in a pod must have a unique name. Name for the port that can be referred to by services.
                                 type: string
                               protocol:
-                                default: TCP
                                 description: Protocol for port. Must be UDP, TCP, or SCTP. Defaults to "TCP".
                                 type: string
                             required:
@@ -2222,7 +2219,6 @@ spec:
                                 description: If specified, this must be an IANA_SVC_NAME and unique within the pod. Each named port in a pod must have a unique name. Name for the port that can be referred to by services.
                                 type: string
                               protocol:
-                                default: TCP
                                 description: Protocol for port. Must be UDP, TCP, or SCTP. Defaults to "TCP".
                                 type: string
                             required:

@@ -128,7 +128,7 @@ var _ = Describe("Test applicationContext reconcile", func() {
 			Namespace: namespace,
 		},
 		Spec: v1alpha2.ApplicationRevisionSpec{
-			Components: application.ConvertComponentList2Map([]*v1alpha2.Component{co1}),
+			Components: application.ConvertComponent2RawRevision([]*v1alpha2.Component{co1}),
 
 			ApplicationConfiguration: util.Object2RawExtension(ac1),
 			Application:              *dummyApp,
@@ -168,7 +168,7 @@ var _ = Describe("Test applicationContext reconcile", func() {
 		},
 		Spec: v1alpha2.ApplicationRevisionSpec{
 			ApplicationConfiguration: util.Object2RawExtension(ac2),
-			Components:               application.ConvertComponentList2Map([]*v1alpha2.Component{co2}),
+			Components:               application.ConvertComponent2RawRevision([]*v1alpha2.Component{co2}),
 			Application:              *dummyApp,
 		}}
 	appContext := &v1alpha2.ApplicationContext{

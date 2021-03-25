@@ -314,7 +314,7 @@ func fetchChildResources(ctx context.Context, mLog logr.Logger, r client.Reader,
 		crs := unstructured.UnstructuredList{}
 		crs.SetAPIVersion(wcr.APIVersion)
 		crs.SetKind(wcr.Kind)
-		mLog.Info("List child resource kind", "APIVersion", wcr.APIVersion, "Kind", wcr.Kind, "owner UID",
+		mLog.Info("List child resource kind", "APIVersion", wcr.APIVersion, "Type", wcr.Kind, "owner UID",
 			workload.GetUID())
 		if err := r.List(ctx, &crs, client.InNamespace(workload.GetNamespace()),
 			client.MatchingLabels(wcr.Selector)); err != nil {

@@ -1,4 +1,4 @@
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: application-sample
@@ -6,7 +6,7 @@ spec:
   components:
     - name: myweb
       type: worker
-      settings:
+      properties:
         image: "busybox"
         cmd:
           - sleep
@@ -14,7 +14,7 @@ spec:
         lives: "3"
         enemies: "alien"
       traits:
-        - name: ingress
+        - type: ingress
           properties:
             domain: "www.example.com"
             http:

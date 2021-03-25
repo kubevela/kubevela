@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/oam-dev/kubevela/apis/types"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -97,11 +99,11 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 		By(fmt.Sprintf("Wait for AppConfig %s to be templated", appConfigName))
 		Eventually(
-			func() v1alpha2.RollingStatus {
+			func() types.RollingStatus {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appConfigName}, &appConfig)
 				return appConfig.Status.RollingStatus
 			},
-			time.Second*60, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.RollingTemplated))
+			time.Second*60, time.Millisecond*500).Should(BeEquivalentTo(types.RollingTemplated))
 	}
 
 	ApplySourceApp := func() {
@@ -181,11 +183,11 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		var appConfig v1alpha2.ApplicationContext
 
 		Eventually(
-			func() v1alpha2.RollingStatus {
+			func() types.RollingStatus {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: targetAppName}, &appConfig)
 				return appConfig.Status.RollingStatus
 			},
-			time.Second*60, time.Second).Should(BeEquivalentTo(v1alpha2.RollingCompleted))
+			time.Second*60, time.Second).Should(BeEquivalentTo(types.RollingCompleted))
 
 		By("Wait for AppContext to resume the control of cloneset")
 		var clonesetOwner *metav1.OwnerReference
@@ -212,11 +214,11 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		var appConfig v1alpha2.ApplicationContext
 		By("Verify AppConfig is inactive")
 		Eventually(
-			func() v1alpha2.RollingStatus {
+			func() types.RollingStatus {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: appConfigName}, &appConfig)
 				return appConfig.Status.RollingStatus
 			},
-			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.InactiveAfterRollingCompleted))
+			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(types.InactiveAfterRollingCompleted))
 	}
 
 	ApplyTwoAppVersion := func() {

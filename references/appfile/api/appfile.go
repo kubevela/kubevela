@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	"github.com/oam-dev/kubevela/pkg/builtin"
@@ -128,7 +129,7 @@ func (app *AppFile) ExecuteAppfileTasks(io cmdutil.IOStreams) error {
 }
 
 // BuildOAMApplication renders Appfile into Application, Scopes and other K8s Resources.
-func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams, tm template.Manager, silence bool) (*v1alpha2.Application, []oam.Object, error) {
+func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams, tm template.Manager, silence bool) (*v1beta1.Application, []oam.Object, error) {
 	if err := app.ExecuteAppfileTasks(io); err != nil {
 		if strings.Contains(err.Error(), "'image' : not found") {
 			return nil, nil, ErrImageNotDefined
@@ -137,10 +138,10 @@ func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams
 	}
 	// auxiliaryObjects currently include OAM Scope Custom Resources and ConfigMaps
 	var auxiliaryObjects []oam.Object
-	servApp := new(v1alpha2.Application)
+	servApp := new(v1beta1.Application)
 	servApp.SetNamespace(env.Namespace)
 	servApp.SetName(app.Name)
-	servApp.Spec.Components = []v1alpha2.ApplicationComponent{}
+	servApp.Spec.Components = []v1beta1.ApplicationComponent{}
 	for serviceName, svc := range app.GetServices() {
 		if !silence {
 			io.Infof("\nRendering configs for service (%s)...\n", serviceName)
@@ -172,7 +173,7 @@ func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams
 	return servApp, auxiliaryObjects, nil
 }
 
-func addDefaultHealthScopeToApplication(app *v1alpha2.Application) *v1alpha2.HealthScope {
+func addDefaultHealthScopeToApplication(app *v1beta1.Application) *v1alpha2.HealthScope {
 	health := &v1alpha2.HealthScope{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: v1alpha2.HealthScopeGroupVersionKind.GroupVersion().String(),

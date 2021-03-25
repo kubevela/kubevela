@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/oam-dev/kubevela/apis/types"
+
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -17,6 +19,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	oamv1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -46,8 +49,8 @@ type Reconciler struct {
 
 // Reconcile is the main logic of appRollout controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr error) {
-	var appRollout oamv1alpha2.AppRollout
 
+	var appRollout v1beta1.AppRollout
 	ctx, cancel := context.WithTimeout(context.TODO(), reconcileTimeOut)
 	defer cancel()
 	ctx = oamutil.SetNamespaceInCtx(ctx, req.Namespace)
@@ -118,8 +121,9 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		// check if the source app is templated
-		if sourceApp.Status.RollingStatus != oamv1alpha2.RollingTemplated {
+		// check if the app is templated
+		if sourceApp.Status.RollingStatus != types.RollingTemplated {
+			klog.Info("source app revision is not ready for rolling yet", "application revision", sourceAppRevisionName)
 			r.record.Event(&appRollout, event.Normal("Rollout Paused",
 				"source app revision is not ready for rolling yet", "application revision", sourceApp.GetName()))
 			return ctrl.Result{RequeueAfter: 3 * time.Second}, nil
@@ -133,7 +137,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	}
 
 	// check if the app is templated
-	if targetApp.Status.RollingStatus != oamv1alpha2.RollingTemplated {
+	if targetApp.Status.RollingStatus != types.RollingTemplated {
 		r.record.Event(&appRollout, event.Normal("Rollout Paused",
 			"target app revision is not ready for rolling yet", "application revision", targetApp.GetName()))
 		return ctrl.Result{RequeueAfter: 3 * time.Second}, nil
@@ -199,7 +203,7 @@ func (r *Reconciler) finalizeRollingAborted(ctx context.Context, sourceRevision,
 }
 
 // UpdateStatus updates v1alpha2.AppRollout's Status with retry.RetryOnConflict
-func (r *Reconciler) updateStatus(ctx context.Context, appRollout *oamv1alpha2.AppRollout, opts ...client.UpdateOption) error {
+func (r *Reconciler) updateStatus(ctx context.Context, appRollout *v1beta1.AppRollout, opts ...client.UpdateOption) error {
 	status := appRollout.DeepCopy().Status
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
 		if err = r.Get(ctx, client.ObjectKey{Namespace: appRollout.Namespace, Name: appRollout.Name}, appRollout); err != nil {
@@ -210,7 +214,7 @@ func (r *Reconciler) updateStatus(ctx context.Context, appRollout *oamv1alpha2.A
 	})
 }
 
-func (r *Reconciler) handleFinalizer(appRollout *oamv1alpha2.AppRollout) {
+func (r *Reconciler) handleFinalizer(appRollout *v1beta1.AppRollout) {
 	if appRollout.DeletionTimestamp.IsZero() {
 		if !slice.ContainsString(appRollout.Finalizers, appRolloutFinalizer, nil) {
 			// TODO: add finalizer
@@ -227,8 +231,8 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
 		WithAnnotations("controller", "AppRollout")
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&oamv1alpha2.AppRollout{}).
-		Owns(&oamv1alpha2.Application{}).
+		For(&v1beta1.AppRollout{}).
+		Owns(&v1beta1.Application{}).
 		Complete(r)
 }
 

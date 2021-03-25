@@ -68,7 +68,7 @@ type WorkloadDefinitionStatus struct {
 // is used to validate the schema of the workload when it is embedded in an OAM
 // Component.
 // +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
-// +kubebuilder:resource:scope=Namespaced,categories={crossplane,oam}
+// +kubebuilder:resource:scope=Namespaced,categories={oam}
 // +kubebuilder:storageversion
 type WorkloadDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -158,7 +158,7 @@ type TraitDefinitionStatus struct {
 // to validate the schema of the trait when it is embedded in an OAM
 // ApplicationConfiguration.
 // +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
-// +kubebuilder:resource:scope=Namespaced,categories={crossplane,oam}
+// +kubebuilder:resource:scope=Namespaced,categories={oam}
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 type TraitDefinition struct {
@@ -213,7 +213,7 @@ type ScopeDefinitionSpec struct {
 // to validate the schema of the scope when it is embedded in an OAM
 // ApplicationConfiguration.
 // +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
-// +kubebuilder:resource:scope=Namespaced,categories={crossplane,oam}
+// +kubebuilder:resource:scope=Namespaced,categories={oam}
 // +kubebuilder:storageversion
 type ScopeDefinition struct {
 	metav1.TypeMeta   `json:",inline"`

@@ -13,7 +13,7 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -106,7 +106,7 @@ func (c *CloneSetController) Initialize(ctx context.Context) (bool, error) {
 	}
 
 	if controller := metav1.GetControllerOf(c.cloneSet); controller != nil {
-		if controller.Kind == v1alpha2.AppRolloutKind && controller.APIVersion == v1alpha2.SchemeGroupVersion.String() {
+		if controller.Kind == v1beta1.AppRolloutKind && controller.APIVersion == v1beta1.SchemeGroupVersion.String() {
 			// it's already there
 			return true, nil
 		}
@@ -114,7 +114,7 @@ func (c *CloneSetController) Initialize(ctx context.Context) (bool, error) {
 	// add the parent controller to the owner of the cloneset
 	// before kicking start the update and start from every pod in the old version
 	clonePatch := client.MergeFrom(c.cloneSet.DeepCopyObject())
-	ref := metav1.NewControllerRef(c.parentController, v1alpha2.AppRolloutKindVersionKind)
+	ref := metav1.NewControllerRef(c.parentController, v1beta1.AppRolloutKindVersionKind)
 	c.cloneSet.SetOwnerReferences(append(c.cloneSet.GetOwnerReferences(), *ref))
 	c.cloneSet.Spec.UpdateStrategy.Paused = false
 	c.cloneSet.Spec.UpdateStrategy.Partition = &intstr.IntOrString{Type: intstr.Int, IntVal: totalReplicas}
@@ -200,7 +200,7 @@ func (c *CloneSetController) Finalize(ctx context.Context, succeed bool) bool {
 	// remove the parent controller from the resources' owner list
 	var newOwnerList []metav1.OwnerReference
 	for _, owner := range c.cloneSet.GetOwnerReferences() {
-		if owner.Kind == v1alpha2.AppRolloutKind && owner.APIVersion == v1alpha2.SchemeGroupVersion.String() {
+		if owner.Kind == v1beta1.AppRolloutKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
 			continue
 		}
 		newOwnerList = append(newOwnerList, owner)

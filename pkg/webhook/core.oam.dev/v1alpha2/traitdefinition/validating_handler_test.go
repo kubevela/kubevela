@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
@@ -45,8 +47,8 @@ var _ = BeforeSuite(func(done Done) {
 var _ = Describe("Test TraitDefinition validating handler", func() {
 	BeforeEach(func() {
 		reqResource = metav1.GroupVersionResource{
-			Group:    v1alpha2.Group,
-			Version:  v1alpha2.Version,
+			Group:    v1beta1.Group,
+			Version:  v1beta1.Version,
 			Resource: "traitdefinitions"}
 		handler = ValidatingHandler{}
 		handler.InjectDecoder(decoder)
@@ -54,8 +56,8 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 
 	It("Test wrong resource of admission request", func() {
 		wrongReqResource := metav1.GroupVersionResource{
-			Group:    v1alpha2.Group,
-			Version:  v1alpha2.Version,
+			Group:    v1beta1.Group,
+			Version:  v1beta1.Version,
 			Resource: "foos"}
 		req = admission.Request{
 			AdmissionRequest: admissionv1beta1.AdmissionRequest{
@@ -84,7 +86,7 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 		var mockValidator TraitDefValidatorFn
 		It("Test validation passed", func() {
 			// mock a validator that always validates successfully
-			mockValidator = func(_ context.Context, _ v1alpha2.TraitDefinition) error {
+			mockValidator = func(_ context.Context, _ v1beta1.TraitDefinition) error {
 				return nil
 			}
 			handler.Validators = []TraitDefValidator{
@@ -102,7 +104,7 @@ var _ = Describe("Test TraitDefinition validating handler", func() {
 		})
 		It("Test validation failed", func() {
 			// mock a validator that always failed
-			mockValidator = func(_ context.Context, _ v1alpha2.TraitDefinition) error {
+			mockValidator = func(_ context.Context, _ v1beta1.TraitDefinition) error {
 				return errors.New("mock validator error")
 			}
 			handler.Validators = []TraitDefValidator{

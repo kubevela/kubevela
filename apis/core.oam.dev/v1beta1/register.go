@@ -93,11 +93,21 @@ var (
 	ScopeDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(ScopeDefinitionKind)
 )
 
+// AppDeployment type metadata.
+var (
+	AppDeploymentKind            = reflect.TypeOf(AppDeployment{}).Name()
+	AppDeploymentGroupKind       = schema.GroupKind{Group: Group, Kind: AppDeploymentKind}.String()
+	AppDeploymentKindAPIVersion  = ApplicationKind + "." + SchemeGroupVersion.String()
+	AppDeploymentKindVersionKind = SchemeGroupVersion.WithKind(AppDeploymentKind)
+)
+
 func init() {
 	SchemeBuilder.Register(&ComponentDefinition{}, &ComponentDefinitionList{})
 	SchemeBuilder.Register(&WorkloadDefinition{}, &WorkloadDefinitionList{})
 	SchemeBuilder.Register(&TraitDefinition{}, &TraitDefinitionList{})
+	SchemeBuilder.Register(&ScopeDefinition{}, &ScopeDefinitionList{})
 	SchemeBuilder.Register(&Application{}, &ApplicationList{})
 	SchemeBuilder.Register(&AppRollout{}, &AppRolloutList{})
 	SchemeBuilder.Register(&ApplicationRevision{}, &ApplicationRevisionList{})
+	SchemeBuilder.Register(&AppDeployment{}, &AppDeploymentList{})
 }

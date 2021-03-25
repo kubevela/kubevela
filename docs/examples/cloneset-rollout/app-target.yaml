@@ -1,4 +1,4 @@
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: test-rolling
@@ -9,7 +9,7 @@ spec:
   components:
     - name: metrics-provider
       type: clonesetservice
-      settings:
+      properties:
         cmd:
           - ./podinfo
           - stress-cpu=1

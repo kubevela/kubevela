@@ -1,4 +1,4 @@
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: testapp4
@@ -6,7 +6,7 @@ spec:
   components:
     - name: express-server4
       type: webservice
-      settings:
+      properties:
         cmd:
           - node
           - server.js

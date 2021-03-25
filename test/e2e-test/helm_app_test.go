@@ -157,7 +157,7 @@ var _ = Describe("Test application containing helm module", func() {
 								"tag": "5.1.2",
 							},
 						}),
-						Traits: []common.ApplicationTrait{
+						Traits: []v1alpha2.ApplicationTrait{
 							{
 								Name: "scaler",
 								Properties: util.Object2RawExtension(map[string]interface{}{
@@ -181,7 +181,7 @@ var _ = Describe("Test application containing helm module", func() {
 
 		ac := &v1alpha2.ApplicationContext{}
 		acName := appName
-		By("Verify the AppConfig is created successfully")
+		By("Verify the ApplicationContext is created successfully")
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac)
 		}, 30*time.Second, time.Second).Should(Succeed())
@@ -193,7 +193,7 @@ var _ = Describe("Test application containing helm module", func() {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
 		}, 240*time.Second, 5*time.Second).Should(Succeed())
 
-		By("Veriify two traits are applied to the workload")
+		By("Verify two traits are applied to the workload")
 		Eventually(func() bool {
 			if err := reconcileAppContextNow(ctx, ac); err != nil {
 				return false
@@ -215,7 +215,7 @@ var _ = Describe("Test application containing helm module", func() {
 			// the default value of 'image.tag' is 5.1.4 in the chart, but settings reset it to 5.1.2
 			return strings.HasSuffix(deploy.Spec.Template.Spec.Containers[0].Image, "5.1.2")
 			// it takes pretty long time to fetch chart and install the Helm release
-		}, 120*time.Second, 10*time.Second).Should(BeTrue())
+		}, 240*time.Second, 10*time.Second).Should(BeTrue())
 
 		By("Update the application")
 		app = v1alpha2.Application{
@@ -233,7 +233,7 @@ var _ = Describe("Test application containing helm module", func() {
 								"tag": "5.1.3", // change 5.1.4 => 5.1.3
 							},
 						}),
-						Traits: []common.ApplicationTrait{
+						Traits: []v1alpha2.ApplicationTrait{
 							{
 								Name: "scaler",
 								Properties: util.Object2RawExtension(map[string]interface{}{
@@ -254,7 +254,7 @@ var _ = Describe("Test application containing helm module", func() {
 		}
 		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(Succeed())
 
-		By("Verify the appconfig is updated")
+		By("Verify the ApplicationContext is updated")
 		deploy = &appsv1.Deployment{}
 		Eventually(func() bool {
 			ac = &v1alpha2.ApplicationContext{}
@@ -264,7 +264,7 @@ var _ = Describe("Test application containing helm module", func() {
 			return ac.GetGeneration() == 2
 		}, 15*time.Second, 3*time.Second).Should(BeTrue())
 
-		By("Veriify the changes are applied to the workload")
+		By("Verify the changes are applied to the workload")
 		Eventually(func() bool {
 			if err := reconcileAppContextNow(ctx, ac); err != nil {
 				return false
