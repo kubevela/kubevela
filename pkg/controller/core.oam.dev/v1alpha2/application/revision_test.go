@@ -40,7 +40,7 @@ var _ = Describe("test generate revision ", func() {
 	ctx := context.Background()
 
 	BeforeEach(func() {
-		namespaceName = "apply-test-" + strconv.Itoa(rand.Intn(1000))
+		namespaceName = "apply-test-" + strconv.FormatInt(rand.Int63n(10000000), 16)
 		ns = corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: namespaceName,

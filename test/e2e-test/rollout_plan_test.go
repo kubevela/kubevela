@@ -110,7 +110,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		Eventually(
 			func() error {
 				return k8sClient.Create(ctx, newAppRollout)
-			}, time.Second*5, time.Millisecond*500).Should(Succeed())
+			}, time.Second*5, time.Millisecond).Should(Succeed())
 	}
 
 	verifyRolloutOwnsCloneset := func() {

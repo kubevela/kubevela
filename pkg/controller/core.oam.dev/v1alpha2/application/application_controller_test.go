@@ -891,8 +891,7 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 
-	// Fix rollout related test in next PR
-	PIt("app generate appConfigs with annotation", func() {
+	It("app with rollout annotation", func() {
 		By("create application with rolling out annotation")
 		ns := &corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
@@ -916,26 +915,23 @@ var _ = Describe("Test Application Controller", func() {
 		}
 		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
 
-		By("Check Application Created with the correct revision")
-		curApp := &v1beta1.Application{}
-		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
-		Expect(curApp.Status.LatestRevision).ShouldNot(BeNil())
-		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
-
 		By("Check AppRevision created as expected")
+		Expect(k8sClient.Get(ctx, appKey, rolloutApp)).Should(Succeed())
 		appRevision := &v1beta1.ApplicationRevision{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: rolloutApp.Namespace,
-			Name:      curApp.Status.LatestRevision.Name,
+			Name:      utils.ConstructRevisionName(rolloutApp.Name, 1),
 		}, appRevision)).Should(BeNil())
 
 		By("Check ApplicationContext not created")
 		appContext := &v1alpha2.ApplicationContext{}
+		// no appContext same name as app exist
+		Expect(k8sClient.Get(ctx, appKey, appContext)).ShouldNot(Succeed())
+		// no appContext same name as apprevision exist
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: rolloutApp.Namespace,
 			Name:      utils.ConstructRevisionName(rolloutApp.Name, 1),
-		}, appContext)).Should(HaveOccurred())
+		}, appContext)).ShouldNot(Succeed())
 
 		By("Check Component Created with the expected workload spec")
 		var component v1alpha2.Component
@@ -945,27 +941,29 @@ var _ = Describe("Test Application Controller", func() {
 		}, &component)).Should(BeNil())
 		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
 		Expect(component.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
-		// check that the new appconfig has the correct annotation and labels
+		// check that the appconfig has the correct annotation and labels
 		ac, err := util.RawExtension2AppConfig(appRevision.Spec.ApplicationConfiguration)
 		Expect(err).Should(BeNil())
 		Expect(ac.GetAnnotations()[oam.AnnotationAppRollout]).Should(Equal(strconv.FormatBool(true)))
 		Expect(ac.GetAnnotations()["keep"]).Should(Equal("true"))
-		Expect(ac.GetLabels()[oam.LabelAppRevisionHash]).ShouldNot(BeEmpty())
 		Expect(ac.Spec.Components[0].ComponentName).Should(BeEmpty())
 		Expect(ac.Spec.Components[0].RevisionName).Should(Equal(component.Status.LatestRevision.Name))
 
 		By("Reconcile again to make sure we are not creating more appConfigs")
 		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
-		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
-		Expect(curApp.Status.LatestRevision).ShouldNot(BeNil())
-		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
-
-		By("Check no new ApplicationConfiguration created")
+		By("Verify that no new AppRevision created")
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: rolloutApp.Namespace,
+			Name:      utils.ConstructRevisionName(rolloutApp.Name, 2),
+		}, appRevision)).ShouldNot(Succeed())
+		// no appContext same name as app exist
+		Expect(k8sClient.Get(ctx, appKey, appContext)).ShouldNot(Succeed())
+		// no appContext same name as apprevision exist
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: rolloutApp.Namespace,
 			Name:      utils.ConstructRevisionName(rolloutApp.Name, 1),
-		}, appContext)).Should(HaveOccurred())
+		}, appContext)).ShouldNot(Succeed())
+
 		By("Check no new Component created")
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: rolloutApp.Namespace,
@@ -975,20 +973,26 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(component.Status.LatestRevision.Revision).ShouldNot(BeNil())
 		Expect(component.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
 
-		By("Remove rollout annotation which should not trigger any change")
+		By("Remove rollout annotation should lead to new appContext created")
+		Expect(k8sClient.Get(ctx, appKey, rolloutApp)).Should(Succeed())
 		rolloutApp.SetAnnotations(map[string]string{
 			"keep": "true",
 		})
+		Expect(k8sClient.Update(ctx, rolloutApp)).Should(BeNil())
 		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
-		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
-		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
-		Expect(curApp.Status.LatestRevision).ShouldNot(BeNil())
-		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
-		// check v2 is not created
+		// app should create an appContext
+		Expect(k8sClient.Get(ctx, appKey, appContext)).Should(Succeed())
+		Expect(appContext.Spec.ApplicationRevisionName).Should(Equal(utils.ConstructRevisionName(rolloutApp.Name, 1)))
+		By("Verify that no new AppRevision created")
 		Expect(k8sClient.Get(ctx, client.ObjectKey{
 			Namespace: rolloutApp.Namespace,
 			Name:      utils.ConstructRevisionName(rolloutApp.Name, 2),
-		}, appContext)).Should(HaveOccurred())
+		}, appRevision)).ShouldNot(Succeed())
+		// no appContext same name as apprevision exist
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: rolloutApp.Namespace,
+			Name:      utils.ConstructRevisionName(rolloutApp.Name, 1),
+		}, appContext)).ShouldNot(Succeed())
 		By("Delete Application, clean the resource")
 		Expect(k8sClient.Delete(ctx, rolloutApp)).Should(BeNil())
 	})
