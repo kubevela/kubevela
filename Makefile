@@ -273,7 +273,7 @@ else
 CUE=$(shell which cue)
 endif
 
-KUSTOMIZE_VERSION ?= 3.8.2
+KUSTOMIZE_VERSION ?= 4.0.5
 
 .PHONY: kustomize
 kustomize:
