@@ -18,6 +18,7 @@ package controllers_test
 import (
 	"context"
 	"encoding/json"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -72,6 +73,7 @@ func TestAPIs(t *testing.T) {
 
 var _ = BeforeSuite(func(done Done) {
 	By("Bootstrapping test environment")
+	rand.Seed(time.Now().UnixNano())
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 	err := clientgoscheme.AddToScheme(scheme)
 	Expect(err).Should(BeNil())

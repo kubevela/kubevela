@@ -1,7 +1,7 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: test-e2e-rolling
+  name: test-rolling-pause
   annotations:
     "app.oam.dev/rolling-components": "metrics-provider"
     "app.oam.dev/rollout-template": "true"

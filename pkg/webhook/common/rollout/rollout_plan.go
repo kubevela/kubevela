@@ -1,10 +1,12 @@
 package rollout
 
 import (
+	"fmt"
 	"net/http"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
@@ -26,6 +28,10 @@ func DefaultRolloutPlan(rollout *v1alpha1.RolloutPlan) {
 				rollout.RolloutBatches[i].Replicas = intstr.FromInt(replica)
 				total--
 			}
+		}
+		for i, batch := range rollout.RolloutBatches {
+			klog.Info(fmt.Sprintf("mutation webhook assigns rollout plan replica %d to batch `%d`",
+				batch.Replicas.IntValue(), i))
 		}
 	}
 }

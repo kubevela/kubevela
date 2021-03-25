@@ -12,7 +12,6 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
@@ -72,10 +71,10 @@ type APIApplicator struct {
 func loggingApply(msg string, desired runtime.Object) {
 	d, ok := desired.(metav1.Object)
 	if !ok {
-		klog.V(common.LogDebug).InfoS(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
+		klog.InfoS(msg, "resource", desired.GetObjectKind().GroupVersionKind().String())
 		return
 	}
-	klog.V(common.LogDebug).InfoS(msg, "name", d.GetName(), "resource", desired.GetObjectKind().GroupVersionKind().String())
+	klog.InfoS(msg, "name", d.GetName(), "resource", desired.GetObjectKind().GroupVersionKind().String())
 }
 
 // Apply applies new state to an object or create it if not exist

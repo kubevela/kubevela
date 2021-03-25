@@ -53,7 +53,7 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 
 // DefaultAppRollout will set the default value for the AppRollout®
 func DefaultAppRollout(obj *v1beta1.AppRollout) {
-	klog.InfoS("default", "name", obj.Name)
+	klog.InfoS("create default for approllout", "name", obj.Name)
 	if obj.Spec.RevertOnDelete == nil {
 		klog.V(common.LogDebug).Info("default RevertOnDelete as false")
 		obj.Spec.RevertOnDelete = pointer.BoolPtr(false)
