@@ -8,7 +8,7 @@ This documentation explains how to register and manage available *components* an
 ## Overview
 
 Essentially, a definition object in KubeVela is consisted by three section:
-- **Capability Indexer** defined by `spec.definitionRef`
+- **Capability Indexer** defined by `spec.workload` in `ComponentDefinition` and `spec.definitionRef` in `TraitDefinition`.
   - this is for discovering the provider of this capability.
 - **Interoperability Fields**
   - they are for the platform to ensure a trait can work with given workload type. Hence only `TraitDefinition` has these fields.

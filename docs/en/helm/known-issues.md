@@ -10,7 +10,7 @@ To tell KubeVela which one is the main workload, you must follow these two steps
 
 #### 1. Declare main workload's resource definition
 
-The field `.spec.definitionRef` in `WorkloadDefinition` is used to record the
+The field `.spec.definitionRef` in `ComponentDefinition` is used to record the
 resource definition of the main workload. 
 The name should be in the format: `<resource>.<group>`. 
  
