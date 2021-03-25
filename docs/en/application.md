@@ -9,7 +9,7 @@ The sample application below claimed a `backend` component with *Worker* workloa
 Moreover, the `frontend` component claimed `sidecar` and `autoscaler` traits which means the workload will be automatically injected with a `fluentd` sidecar and scale from 1-100 replicas triggered by CPU usage.
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: website
@@ -17,22 +17,22 @@ spec:
   components:
     - name: backend
       type: worker
-      settings:
+      properties:
         image: busybox
         cmd:
           - sleep
           - '1000'
     - name: frontend
       type: webservice
-      settings:
+      properties:
         image: nginx
       traits:
-        - name: autoscaler
+        - type: autoscaler
           properties:
             min: 1
             max: 10
             cpuPercent: 60
-        - name: sidecar
+        - type: sidecar
           properties:
             name: "sidecar-test"
             image: "fluentd"
@@ -41,13 +41,17 @@ spec:
 The `type: worker` means the specification of this workload (claimed in following `settings` section) will be enforced by a `WorkloadDefinition` object named `worker` as below:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 metadata:
   name: worker
   annotations:
     definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic."
 spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   schematic:
     cue:
       template: |
@@ -87,7 +91,7 @@ Hence, the `settings` section of `backend` only supports two parameters: `image`
 The similar extensible abstraction mechanism also applies to traits. For example, `name: autoscaler` in `frontend` means its trait specification (i.e. `properties` section) will be enforced by a `TraitDefinition` object named `autoscaler` as below:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:

@@ -15,8 +15,8 @@ First, register the `rds` workload type to KubeVela.
 
 ```bash
 $ cat << EOF | kubectl apply -f -
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 metadata:
   name: rds
   annotations:
@@ -24,32 +24,35 @@ metadata:
     definition.oam.dev/kind: "PostgreSQLInstance"
     definition.oam.dev/description: "RDS on Ali Cloud"
 spec:
-  definitionRef:
-    name: rdsinstances.database.alibaba.crossplane.io
-  extension:
-    template: |
-      output: {
-        apiVersion: "database.example.org/v1alpha1"
-        kind: "PostgreSQLInstance"
-        metadata:
-          name: context.name
-        spec: {
-          parameters:
-            storageGB: parameter.storage
-          compositionSelector: {
-            matchLabels:
-              provider: parameter.provider
-          }
-          writeConnectionSecretToRef:
-            name: parameter.secretname
+  workload:
+    definition:
+      apiVersion: database.example.org/v1alpha1
+      kind: PostgreSQLInstance
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "database.example.org/v1alpha1"
+        	kind:       "PostgreSQLInstance"
+        	metadata:
+        		name: context.name
+        	spec: {
+        		parameters:
+        			storageGB: parameter.storage
+        		compositionSelector: {
+        			matchLabels:
+        				provider: parameter.provider
+        		}
+        		writeConnectionSecretToRef:
+        			name: parameter.secretname
+        	}
         }
-      }
 
-      parameter: {
-        secretname: *"db-conn" | string
-        provider: *"alibaba" | string
-        storage: *20 | int
-      }
+        parameter: {
+        	secretname: *"db-conn" | string
+        	provider:   *"alibaba" | string
+        	storage:    *20 | int
+        }
 EOF
 ```
 

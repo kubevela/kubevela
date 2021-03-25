@@ -18,16 +18,17 @@ $ helm install --create-namespace -n flux-system helm-flux http://oam.dev/catalo
 Here is an example `WorkloadDefinition` about how to use Helm as schematic module.
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 metadata:
   name: webapp-chart
   annotations:
     definition.oam.dev/description: helm chart for webapp
 spec:
-  definitionRef:
-    name: deployments.apps
-    version: v1
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   schematic:
     helm:
       release:
@@ -63,7 +64,7 @@ spec:
   components:
     - name: demo-podinfo 
       type: webapp-chart 
-      settings: 
+      properties: 
         image:
           tag: "5.1.2"
 ```

@@ -95,7 +95,7 @@ You can render the schema by [form-render](https://github.com/alibaba/form-rende
 
 ## How to use the generated JSON Schema of definition
 
-When a platform builder applies a WorkloadDefinition or TraitDefinition, a ConfigMap will be created in a namespace same
+When a platform builder applies a ComponentDefinition or TraitDefinition, a ConfigMap will be created in a namespace same
 as the definition (by default it will be in `vela-system` namespace) and labeled with `definition.oam.dev=schema`.
 
 ```shell
