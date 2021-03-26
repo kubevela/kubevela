@@ -221,7 +221,7 @@ func openAPIMapping(dgvkMapper map[string]domainGroupVersionKind) func(pos token
 			return nil, errors.New("openAPIMapping format invalid")
 		}
 
-		name := strings.Replace(a[1], ".", "_", -1)
+		name := strings.ReplaceAll(a[1], ".", "_")
 
 		if _, ok := dgvkMapper[name]; !ok && strings.HasPrefix(name, K8sResourcePrefix) {
 			trimName := strings.TrimPrefix(name, K8sResourcePrefix)
