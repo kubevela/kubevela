@@ -47,9 +47,16 @@ const (
 // PackageDiscover defines the inner CUE packages loaded from K8s cluster
 type PackageDiscover struct {
 	velaBuiltinPackages []*build.Instance
-	pkgKinds            map[string][]string
+	pkgKinds            map[string][]VersionKind
 	mutex               sync.RWMutex
 	client              *rest.RESTClient
+}
+
+// VersionKind contains the resource metadata and reference name
+type VersionKind struct {
+	DefinitionName string
+	APIVersion     string
+	Kind           string
 }
 
 // NewPackageDiscover will create a PackageDiscover client with the K8s config file.
@@ -60,7 +67,7 @@ func NewPackageDiscover(config *rest.Config) (*PackageDiscover, error) {
 	}
 	pd := &PackageDiscover{
 		client:   client,
-		pkgKinds: make(map[string][]string),
+		pkgKinds: make(map[string][]VersionKind),
 	}
 	if err = pd.RefreshKubePackagesFromCluster(); err != nil {
 		return nil, err
@@ -76,7 +83,7 @@ func (pd *PackageDiscover) ImportBuiltinPackagesFor(bi *build.Instance) {
 }
 
 // ListPackageKinds list packages and their kinds
-func (pd *PackageDiscover) ListPackageKinds() map[string][]string {
+func (pd *PackageDiscover) ListPackageKinds() map[string][]VersionKind {
 	pd.mutex.RLock()
 	defer pd.mutex.RUnlock()
 	return pd.pkgKinds
@@ -99,8 +106,8 @@ func (pd *PackageDiscover) Exist(gvk metav1.GroupVersionKind) bool {
 	pd.mutex.RLock()
 	defer pd.mutex.RUnlock()
 	pkgKinds := pd.pkgKinds[importPath]
-	for _, k := range pkgKinds {
-		if k == dgvk.Kind {
+	for _, v := range pkgKinds {
+		if v.Kind == dgvk.Kind {
 			return true
 		}
 	}
@@ -108,7 +115,7 @@ func (pd *PackageDiscover) Exist(gvk metav1.GroupVersionKind) bool {
 }
 
 // mount will mount the new parsed package into PackageDiscover built-in packages
-func (pd *PackageDiscover) mount(pkg *pkgInstance, pkgKinds []string) {
+func (pd *PackageDiscover) mount(pkg *pkgInstance, pkgKinds []VersionKind) {
 	pd.mutex.Lock()
 	defer pd.mutex.Unlock()
 	for i, p := range pd.velaBuiltinPackages {
@@ -156,7 +163,7 @@ func (pd *PackageDiscover) addKubeCUEPackagesFromCluster(apiSchema string) error
 		return err
 	}
 	packages := make(map[string]*pkgInstance)
-	groupKinds := make(map[string][]string)
+	groupKinds := make(map[string][]VersionKind)
 
 	for k, v := range dgvkMapper {
 		apiVersion := v.APIVersion
@@ -168,7 +175,7 @@ kind: "%s"
 apiVersion: "%s",
 }`, v.Kind, k, v.Kind, apiVersion)
 
-		pkgBuild := func(pkgName, kind, fname string) error {
+		pkgBuild := func(dgvr domainGroupVersionKind, pkgName, fname string) error {
 			pkg, ok := packages[pkgName]
 			if !ok {
 				pkg = newPackage(pkgName)
@@ -176,7 +183,11 @@ apiVersion: "%s",
 			}
 
 			mykinds := groupKinds[pkgName]
-			mykinds = append(mykinds, "#"+kind)
+			mykinds = append(mykinds, VersionKind{
+				APIVersion:     dgvr.APIVersion,
+				Kind:           dgvr.Kind,
+				DefinitionName: "#" + dgvr.Kind,
+			})
 
 			if err := pkg.AddFile(fname, def); err != nil {
 				return err
@@ -186,10 +197,10 @@ apiVersion: "%s",
 			groupKinds[pkgName] = mykinds
 			return nil
 		}
-		if err := pkgBuild(genStandardPkgName(v), v.Kind, k); err != nil {
+		if err := pkgBuild(v, genStandardPkgName(v), k); err != nil {
 			return err
 		}
-		if err := pkgBuild(genOpenPkgName(v), v.Kind, k); err != nil {
+		if err := pkgBuild(v, genOpenPkgName(v), k); err != nil {
 			return err
 		}
 	}

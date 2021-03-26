@@ -331,11 +331,19 @@ func TestPackage(t *testing.T) {
     }
 }
 `
-	mypd := &PackageDiscover{pkgKinds: make(map[string][]string)}
+	mypd := &PackageDiscover{pkgKinds: make(map[string][]VersionKind)}
 	mypd.addKubeCUEPackagesFromCluster(openAPISchema)
-	expectPkgKinds := map[string][]string{
-		"test.io/apps/v1":      []string{"#Bucket"},
-		"kube/apps.test.io/v1": []string{"#Bucket"},
+	expectPkgKinds := map[string][]VersionKind{
+		"test.io/apps/v1": []VersionKind{{
+			DefinitionName: "#Bucket",
+			APIVersion:     "apps.test.io/v1",
+			Kind:           "Bucket",
+		}},
+		"kube/apps.test.io/v1": []VersionKind{{
+			DefinitionName: "#Bucket",
+			APIVersion:     "apps.test.io/v1",
+			Kind:           "Bucket",
+		}},
 	}
 	assert.Equal(t, cmp.Diff(mypd.ListPackageKinds(), expectPkgKinds), "")
 
@@ -463,11 +471,11 @@ func TestProcessFile(t *testing.T) {
 }
 
 func TestMount(t *testing.T) {
-	mypd := &PackageDiscover{pkgKinds: make(map[string][]string)}
+	mypd := &PackageDiscover{pkgKinds: make(map[string][]VersionKind)}
 	testPkg := newPackage("foo")
-	mypd.mount(testPkg, []string{"abc"})
+	mypd.mount(testPkg, []VersionKind{})
 	assert.Equal(t, len(mypd.velaBuiltinPackages), 1)
-	mypd.mount(testPkg, []string{"abc"})
+	mypd.mount(testPkg, []VersionKind{})
 	assert.Equal(t, len(mypd.velaBuiltinPackages), 1)
 	assert.Equal(t, mypd.velaBuiltinPackages[0], testPkg.Instance)
 }
