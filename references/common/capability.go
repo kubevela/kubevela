@@ -314,7 +314,7 @@ func uninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 	case types.TypeScope:
 		return fmt.Errorf("uninstall scope capability was not supported yet")
 	case types.TypeComponentDefinition:
-		// TODO(yangsoon): support uninstall componentDefinition here
+		obj = &v1beta1.ComponentDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultKubeVelaNS}}
 	}
 	if err := client.Delete(ctx, obj); err != nil {
 		return err
@@ -344,7 +344,9 @@ func uninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 	case types.TypeScope:
 		// TODO(wonderflow): add scope remove here.
 	case types.TypeComponentDefinition:
-		// TODO(yangsoon): add componenetDefinition remove here
+		if err := os.Remove(filepath.Join(capdir, "", cap.Name)); err != nil {
+			return err
+		}
 	}
 	ioStreams.Infof("Successfully uninstalled capability %s", cap.Name)
 	return nil

@@ -45,7 +45,7 @@ var _ = Describe("DefinitionFiles", func() {
 	deployment := types.Capability{
 		Namespace:   "testdef",
 		Name:        DeployName,
-		Type:        types.TypeWorkload,
+		Type:        types.TypeComponentDefinition,
 		CrdName:     "deployments.apps",
 		Description: "description not defined",
 		Parameters: []types.Parameter{
@@ -78,7 +78,7 @@ var _ = Describe("DefinitionFiles", func() {
 	websvc := types.Capability{
 		Namespace:   "testdef",
 		Name:        WebserviceName,
-		Type:        types.TypeWorkload,
+		Type:        types.TypeComponentDefinition,
 		Description: "description not defined",
 		Parameters: []types.Parameter{{
 			Name: "env", Type: cue.ListKind,
@@ -108,10 +108,10 @@ var _ = Describe("DefinitionFiles", func() {
 
 	// Notice!!  DefinitionPath Object is Cluster Scope object
 	// which means objects created in other DefinitionNamespace will also affect here.
-	It("getworkload", func() {
-		workloadDefs, _, err := GetWorkloadsFromCluster(context.Background(), DefinitionNamespace, common.Args{Config: cfg, Schema: scheme}, selector)
+	It("getcomponents", func() {
+		workloadDefs, _, err := GetComponentsFromCluster(context.Background(), DefinitionNamespace, common.Args{Config: cfg, Schema: scheme}, selector)
 		Expect(err).Should(BeNil())
-		logf.Log.Info(fmt.Sprintf("Getting workload definitions  %v", workloadDefs))
+		logf.Log.Info(fmt.Sprintf("Getting component definitions  %v", workloadDefs))
 		for i := range workloadDefs {
 			// CueTemplate should always be fulfilled, even those whose CueTemplateURI is assigend,
 			By("check CueTemplate is fulfilled")

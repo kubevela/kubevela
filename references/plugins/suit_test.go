@@ -55,6 +55,7 @@ var testEnv *envtest.Environment
 var definitionDir string
 var td corev1beta1.TraitDefinition
 var wd, websvcWD corev1beta1.WorkloadDefinition
+var cd, websvcCD corev1beta1.ComponentDefinition
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -101,6 +102,15 @@ var _ = BeforeSuite(func(done Done) {
 	logf.Log.Info("Creating workload definition", "data", wd)
 	Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
+	componentdata, err := ioutil.ReadFile("testdata/componentDef.yaml")
+	Expect(err).Should(BeNil())
+
+	Expect(yaml.Unmarshal(componentdata, &cd)).Should(BeNil())
+
+	cd.Namespace = DefinitionNamespace
+	logf.Log.Info("Creating component definition", "data", cd)
+	Expect(k8sClient.Create(ctx, &cd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
 	websvcWorkloadData, err := ioutil.ReadFile("testdata/websvcWorkloadDef.yaml")
 	Expect(err).Should(BeNil())
 
@@ -108,6 +118,14 @@ var _ = BeforeSuite(func(done Done) {
 	websvcWD.Namespace = DefinitionNamespace
 	logf.Log.Info("Creating workload definition whose CUE template from remote", "data", &websvcWD)
 	Expect(k8sClient.Create(ctx, &websvcWD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+	websvcComponentDefData, err := ioutil.ReadFile("testdata/websvcComponentDef.yaml")
+	Expect(err).Should(BeNil())
+
+	Expect(yaml.Unmarshal(websvcComponentDefData, &websvcCD)).Should(BeNil())
+	websvcCD.Namespace = DefinitionNamespace
+	logf.Log.Info("Creating component definition whose CUE template from remote", "data", &websvcCD)
+	Expect(k8sClient.Create(ctx, &websvcCD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	close(done)
 }, 60)

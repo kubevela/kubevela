@@ -50,7 +50,7 @@ In a word, just like the fields shown in the sample, the helm schematic module d
 Here is an example `Application`.
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: myapp

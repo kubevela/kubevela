@@ -5,7 +5,7 @@ and [virtualgroup](https://github.com/oam-dev/kubevela/blob/master/docs/examples
 to a Helm based component.
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: myapp
@@ -65,7 +65,7 @@ workload.
 Let's make several changes on the configuration of the sample application.
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: myapp
