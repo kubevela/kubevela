@@ -1,19 +1,20 @@
-# Introduction of Definition Objects
+# Introduction of Definition CRD
 
 This documentation explains how to register and manage available *components* and *traits* in your platform with
-`ComponentDefinition` and `TraitDefinition`, so your end users could "assemble" them into an `Application` resource.
+`ComponentDefinition` and `TraitDefinition`, so end users could instantiate and "assemble" them into an `Application`.
 
 > All definition objects are expected to be maintained and installed by platform team, think them as *capability providers* in your platform.
 
 ## Overview
 
 Essentially, a definition object in KubeVela is consisted by three section:
-- **Capability Indexer** defined by `spec.workload` in `ComponentDefinition` and `spec.definitionRef` in `TraitDefinition`.
-  - this is for discovering the provider of this capability.
+- **Capability Indicator** 
+  - `ComponentDefinition` uses `spec.workload` to indicate the workload type of this component.
+  - `TraitDefinition` uses `spec.definitionRef` to indicate the provider of this trait.
 - **Interoperability Fields**
   - they are for the platform to ensure a trait can work with given workload type. Hence only `TraitDefinition` has these fields.
-- **Capability Encapsulation** defined by `spec.schematic`
-  - this defines the encapsulation (i.e. templating and parametering) of this capability. For now, user can choose to use Helm or CUE as encapsulation.
+- **Capability Encapsulation and Abstraction** defined by `spec.schematic`
+  - this defines the **templating and parametering** (i.e. encapsulation) of this capability.
 
 Hence, the basic structure of definition object is as below:
 
@@ -34,9 +35,9 @@ spec:
 
 Let's explain these fields one by one.
 
-### Capability Indexer
+### Capability Indicator
 
-The indexer of given capability is declared as `spec.workload`.
+In `ComponentDefinition`, the indicator of workload type is declared as `spec.workload`.
 
 Below is a definition for *Web Service* in KubeVela: 
 
@@ -56,7 +57,7 @@ spec:
     ...        
 ```
 
-In above example, it claims to leverage Kubernetes Deployment (`apiVersion: apps/v1`, `kind: Deployment`) as the workload type to instantiate this component.
+In above example, it claims to leverage Kubernetes Deployment (`apiVersion: apps/v1`, `kind: Deployment`) as the workload type for component.
 
 ### Interoperability Fields
 
@@ -119,9 +120,9 @@ If this field is set, KubeVela core will automatically fill the workload referen
 
 Please check [scaler](https://github.com/oam-dev/kubevela/blob/master/charts/vela-core/templates/defwithtemplate/manualscale.yaml) trait as a demonstration of how to set this field.
 
-### Capability Encapsulation
+### Capability Encapsulation and Abstraction
 
-The encapsulation (i.e. templating and parameterizing) of given capability are defined in `spec.schematic` field. For example, below is the full definition of *Web Service* type in KubeVela:
+The templating and parameterizing of given capability are defined in `spec.schematic` field. For example, below is the full definition of *Web Service* type in KubeVela:
 
 <details>
 
@@ -222,8 +223,6 @@ spec:
 ```
 </details>
 
-It's by design that KubeVela supports multiple ways to define the encapsulation. Hence, we will explain this field in detail with following guides.
-- Learn about [CUE](/en/cue/basic) based capability definitions.
-- Learn about [Helm](/en/helm/component) based capability definitions.
+The specification of `schematic` is explained in following CUE and Helm specific documentations.
 
-
+Also, the `schematic` filed enables you to render UI forms directly based on them, please check the [Generate Forms from Definitions](/en/platform-engineers/openapi-v3-json-schema.md) section about how to.

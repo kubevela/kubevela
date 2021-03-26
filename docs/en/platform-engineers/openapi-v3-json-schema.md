@@ -1,24 +1,14 @@
-# Auto-generated Schema for Capability Parameters
+# Generate Forms from Definitions
 
-For any installed capabilities from [definition files](./definition-and-templates.md),
-KubeVela will automatically generate OpenAPI v3 JSON Schema for the parameters defined.
-So end users can learn how to write the Application Object from it.
+For any capabilities installed via [Definition Objects](./definition-and-templates.md),
+KubeVela will automatically generate OpenAPI v3 JSON schema based on its parameter list, and store it in a `ConfigMap` in the same `namespace` with the definition object. 
 
-Platform builders can integrate the schema API to build a new UI for their end users.
+> The default KubeVela system `namespace` is `vela-system`, the built-in capabilities and schemas are laid there.
 
-## An integration workflow
 
-In definition objects, `parameter` is always required as the entrance for encapsulation of the capabilities.
+## List Schema
 
-* CUE: the [`parameter`](../cue/component.md#Write-ComponentDefinition) is a `keyword` in CUE template.
-* HELM: the [`parameter``](../helm/component.md#Write-ComponentDefinition) is generated from `values.yaml` in HELM chart.
-
-When a new ComponentDefinition or TraitDefinition applied in K8s, KubeVela will watch the resources and 
-generate a `ConfigMap` in the same namespace with the definition object.
-
-The default KubeVela system namespace is `vela-system`, the built-in capabilities are laid there.
-
-The ConfigMap will have a common label `definition.oam.dev=schema`, so you can find easily by:
+This `ConfigMap` will have a common label `definition.oam.dev=schema`, so you can find easily by:
 
 ```shell
 $ kubectl get configmap -n vela-system -l definition.oam.dev=schema
@@ -30,10 +20,10 @@ schema-webservice   1      19s
 schema-worker       1      20s
 ```
 
-The ConfigMap name is in the format of `schema-<your-definition-name>`,
-and the `key` of ConfigMap is `openapi-v3-json-schema`.
+The `ConfigMap` name is in the format of `schema-<your-definition-name>`,
+and the data key is `openapi-v3-json-schema`.
 
-For example, we can use the following command to get the JSON Schema of `webservice`.
+For example, we can use the following command to get the JSON schema of `webservice`.
 
 ```shell
 $ kubectl get configmap schema-webservice -n vela-system -o yaml
@@ -57,11 +47,21 @@ data:
     port do you want customer traffic sent to","title":"port","type":"integer"}},"required":["image","port"],"type":"object"}'
 ```
 
-Then the platform builder can follow the [OpenAPI v3 Specification](https://github.com/OAI/OpenAPI-Specification/blob/master/versions/3.0.2.md#format)
-to build their own GUI for end users. 
+Specifically, this schema is generated based on `parameter` section in capability definition:
 
-For example, you can render the schema by [form-render](https://github.com/alibaba/form-render) or [React JSON Schema form](https://github.com/rjsf-team/react-jsonschema-form).
+* For CUE based definition: the [`parameter`](../cue/component.md#Write-ComponentDefinition) is a keyword in CUE template.
+* For Helm based definition: the [`parameter`](../helm/component.md#Write-ComponentDefinition) is generated from `values.yaml` in Helm chart.
 
-A web form rendered from the `schema-webservice` can be as below.
+## Render Form
+
+You can render above schema into a form by [form-render](https://github.com/alibaba/form-render) or [React JSON Schema form](https://github.com/rjsf-team/react-jsonschema-form) and integrate with your dashboard easily.
+
+Below is a form rendered with `form-render`:
 
 ![](../../resources/json-schema-render-example.jpg)
+
+> Hence, end users of KubeVela do NOT need to learn about definition object to use a capability, they always work with a visualized form or learn the generated schema if they want.
+
+# What's Next
+
+It's by design that KubeVela supports multiple ways to define the schematic. Hence, we will explain `.schematic` field in detail with following guides.

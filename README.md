@@ -40,7 +40,7 @@ KubeVela allows platform teams to create developer-centric abstractions with IaC
 
 ## Features
 
-- **Robust, repeatable and extensible approach** to create and maintain abstractions - design your abstractions with [CUE](https://cuelang.org/) or [Helm](https://helm.sh), ship them to your end users by `kubectl apply -f`, upgrade your abstractions at runtime, no restart, no recompiling, and let Kubernetes controller guarantee determinism of the abstractions, no configuration drift.
+- **Robust, repeatable and extensible approach to create and maintain abstractions** - design your abstractions with [CUE](https://cuelang.org/) or [Helm](https://helm.sh), ship them to end users by `kubectl apply -f`, automatically generating GUI forms, upgrade your abstractions at runtime, and let Kubernetes controller guarantee determinism of the abstractions, no configuration drift.
 - **Generic progressive rollout framework** - built-in rollout framework and strategies to upgrade your microservice regardless of its workload type (e.g. stateless, stateful, or even custom operators etc), seamless integration with observability systems.
 - **Multi-enviroment app delievry model (WIP)** - built-in model to deliver or rollout your apps across multiple enviroments and/or clusters, seamless integration with Service Mesh for traffic management. 
 - **Simple and Kubernetes native** - KubeVela is just a simple custom controller, all its app delivery abstractions and features are defined as [Kubernetes Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) so they naturally work with any CI/CD or GitOps tools.

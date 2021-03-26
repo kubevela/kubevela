@@ -1,12 +1,12 @@
 # Learning CUE
 
-This document will explain how to use [CUE](https://cuelang.org/) to encapsulate and abstract a given capability in Kubernetes and
-make it available to end users to consume in `Application` CRD. Please make sure you have already learned about
-`Application` custom resource before reading the following guide. 
+This document will explain more about how to use CUE to encapsulate and abstract a given capability in Kubernetes in detail.
+
+> Please make sure you have already learned about `Application` custom resource before reading the following guide. 
 
 ## Overview
 
-The reasons for KubeVela supports CUE as first class templating solution can be concluded as below:
+The reasons for KubeVela supports CUE as a first-class solution to design abstraction can be concluded as below:
 
 - **CUE is designed for large scale configuration.** CUE has the ability to understand a
  configuration worked on by engineers across a whole company and to safely change a value that modifies thousands of objects in a configuration. This aligns very well with KubeVela's original goal to define and ship production level applications at web scale.
@@ -18,10 +18,11 @@ The reasons for KubeVela supports CUE as first class templating solution can be 
 
 ## Prerequisites
 
+Please make sure below CLIs are present in your environment:
 * [`cue` >=v0.2.2](https://cuelang.org/docs/install/)
 * [`vela` (>v1.0.0)](https://kubevela.io/#/en/install?id=_3-optional-get-kubevela-cli)
 
-## CUE CLI basic
+## CUE CLI Basic
 
 Below is the basic CUE data, you can define both schema and value in the same file with the almost same format:
 
@@ -131,7 +132,7 @@ CUE has powerful CLI commands. Let's keep the data in a file named `first.cue` a
 
 For now, you have learned all useful CUE cli operations.
 
-## CUE language basic
+## CUE Language Basic
 
 * Data structure: Below is the basic data structure of CUE.
 
@@ -193,7 +194,7 @@ You can also define a more complex custom struct, such as:
 
 It's widely used in KubeVela to define templates and do validation.
 
-## CUE templating and reference
+## CUE Templating and References
 
 Let's try to define a CUE template with the knowledge just learned.
 

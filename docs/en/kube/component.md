@@ -1,12 +1,12 @@
-# Use Raw Kubernetes Resource To Extend a Component type
+# Defining Components with Raw Template
 
-This documentation explains how to use raw K8s resource to define an application component.
+In this section, it will introduce how to use raw template to declare app components via `ComponentDefinition`.
 
-Before reading this part, please make sure you've learned [the definition and template concepts](../platform-engineers/definition-and-templates.md).
+> Before reading this part, please make sure you've learned [the definition and template concepts](../platform-engineers/definition-and-templates.md).
 
-## Write ComponentDefinition
+## Declare `ComponentDefinition`
 
-Here is an example `ComponentDefinition` about how to use raw k8s resource as schematic module.
+Here is a raw template based `ComponentDefinition` example which provides a abstraction for worker workload type:
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -45,33 +45,16 @@ spec:
         - "spec.template.spec.containers[0].image"
 ```
 
-Just like using CUE as schematic module, we also have some rules and contracts
-to use raw k8s resource as schematic module.
-`.spec.schematic.kube` contains template of the raw k8s resource and
+In detail, the `.spec.schematic.kube` contains template of a workload resource and
 configurable parameters.
-
-- `.spec.schematic.kube.template` is the raw k8s resource in YAML format just like
-we usually defined in a YAML file.
-
-- `.spec.schematic.kube.parameters` contains a set of configurable parameters.
-`name`, `type`, and `fieldPaths` are required fields.
-`description` and `required` are optional fields.
-        
+- `.spec.schematic.kube.template` is the raw template in YAML format.
+- `.spec.schematic.kube.parameters` contains a set of configurable parameters. The `name`, `type`, and `fieldPaths` are required fields, `description` and `required` are optional fields.
   - The parameter `name` must be unique in a `ComponentDefinition`.
-
-  - `type` indicates the data type of value set to the field in a workload.
-This is a required field which will help Vela to generate a OpenAPI JSON schema
-for the parameters automatically. 
-Currently, only basic data types are allowed, including `string`, `number`, and
-`boolean`, while `array` and `object` are not.
-
-  - `fieldPaths` in the parameter specifies an array of fields within this workload
-that will be overwritten by the value of this parameter. 	
-All fields must be of the same type. 
-Fields are specified as JSON field paths without a leading dot, for example
+  - `type` indicates the data type of value set to the field. This is a required field which will help KubeVela to generate a OpenAPI JSON schema for the parameters automatically. In raw template, only basic data types are allowed, including `string`, `number`, and `boolean`, while `array` and `object` are not.
+  - `fieldPaths` in the parameter specifies an array of fields within the template that will be overwritten by the value of this parameter. Fields are specified as JSON field paths without a leading dot, for example
 `spec.replicas`, `spec.containers[0].image`.
 
-## Create an Application using Kube schematic ComponentDefinition
+## Declare an `Application`
 
 Here is an example `Application`.
 
@@ -89,13 +72,9 @@ spec:
         image: nginx:1.14.0
 ```
 
-Kube schematic workload will use data in `properties` as the values of
-parameters.
-Since parameters only support basic data type, values in `properties` should be
-formatted as simple key-value, `<parameterName>: <parameterValue>`.
-And don't forget to set value to required parameter.
+Since parameters only support basic data type, values in `properties` should be simple key-value, `<parameterName>: <parameterValue>`.
 
-Deploy the `Application` and verify the resulting workload.
+Deploy the `Application` and verify the running workload instance.
 
 ```shell
 $ kubectl get deploy

@@ -1,4 +1,4 @@
-# Using `Application` to Describe Your App
+# Introduction of Application CRD
 
 This documentation will walk through how to use `Application` object to define your apps with corresponding operational behaviors in declarative approach.
 
@@ -38,7 +38,7 @@ spec:
             image: "fluentd"
 ```
 
-The `type: worker` means the specification of this workload (claimed in following `properties` section) will be enforced by a `ComponentDefinition` object named `worker` as below:
+The `type: worker` means the specification of this component (claimed in following `properties` section) will be enforced by a `ComponentDefinition` object named `worker` as below:
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -86,7 +86,7 @@ spec:
 ```
 
 
-Hence, the `settings` section of `backend` only supports two parameters: `image` and `cmd`, this is enforced by the `parameter` list of the `.spec.template` field of the definition.
+Hence, the `properties` section of `backend` only supports two parameters: `image` and `cmd`, this is enforced by the `parameter` list of the `.spec.template` field of the definition.
 
 The similar extensible abstraction mechanism also applies to traits. For example, `name: autoscaler` in `frontend` means its trait specification (i.e. `properties` section) will be enforced by a `TraitDefinition` object named `autoscaler` as below:
 
@@ -135,7 +135,7 @@ spec:
         }
 ```
 
-All the definition objects are expected to be defined and installed by platform team. The end users will only focus on `Application` resource (either render it by tools or author it manually).
+All the definition objects are expected to be defined and installed by platform team. The end users will only focus on `Application` resource.
 
 ## Conventions and "Standard Contract"
 
