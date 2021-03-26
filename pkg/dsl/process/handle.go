@@ -53,7 +53,6 @@ type Context interface {
 	BaseContextFile() string
 	ExtendedContextFile() string
 	BaseContextLabels() map[string]string
-	SetSecrets(outputSecretName string, requiredSecrets []RequiredSecrets)
 	InsertSecrets(outputSecretName string, requiredSecrets []RequiredSecrets)
 }
 
@@ -204,10 +203,6 @@ func (ctx *templateContext) InsertSecrets(outputSecretName string, requiredSecre
 	if requiredSecrets != nil {
 		ctx.requiredSecrets = requiredSecrets
 	}
-}
-
-func (ctx *templateContext) SetSecrets(outputSecretName string, requiredSecrets []RequiredSecrets) {
-
 }
 
 func structMarshal(v string) string {

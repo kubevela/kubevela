@@ -79,6 +79,8 @@ type Workload struct {
 	FullTemplate *util.Template
 
 	engine definition.AbstractEngine
+	// OutputSecretName is the secret name which this workload will generate after it successfully generate a cloud resource
+	OutputSecretName string
 	// RequiredSecrets stores secret names which the workload needs from cloud resource component and its context
 	RequiredSecrets []process.RequiredSecrets
 }
@@ -327,8 +329,9 @@ func generateComponentFromCUEModule(c client.Client, wl *Workload, appName, revi
 		if err != nil {
 			return nil, nil, err
 		}
+		wl.OutputSecretName = outputSecretName
 	}
-	pCtx, err := PrepareProcessContext(c, wl, appName, revision, ns, outputSecretName)
+	pCtx, err := PrepareProcessContext(c, wl, appName, revision, ns)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -566,9 +569,9 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compNa
 }
 
 // PrepareProcessContext prepares a DSL process Context
-func PrepareProcessContext(k8sClient client.Client, wl *Workload, applicationName, revision, namespace, outputSecretName string) (process.Context, error) {
+func PrepareProcessContext(k8sClient client.Client, wl *Workload, applicationName, revision, namespace string) (process.Context, error) {
 	pCtx := process.NewContext(namespace, wl.Name, applicationName, revision)
-	pCtx.InsertSecrets(outputSecretName, wl.RequiredSecrets)
+	pCtx.InsertSecrets(wl.OutputSecretName, wl.RequiredSecrets)
 	userConfig := wl.GetUserConfigName()
 	if userConfig != "" {
 		cg := config.Configmap{Client: k8sClient}
@@ -623,7 +626,7 @@ func parseWorkloadInsertSecretTo(ctx context.Context, c client.Client, namespace
 			if !ok {
 				return nil, fmt.Errorf("failed to convert secret name %v to string", secretNameInterface)
 			}
-			secretData, err := extractSecret(ctx, c, namespace, fmt.Sprint(secretName))
+			secretData, err := extractSecret(ctx, c, namespace, secretName)
 			if err != nil {
 				return nil, err
 			}
