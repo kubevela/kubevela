@@ -5,7 +5,7 @@ metadata:
   namespace: default
 spec:
   components:
-    - name: myworkerapp
+    - name: mycomp
       type: kube-worker
       properties: 
         image: nginx:1.14.0

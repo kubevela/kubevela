@@ -84,7 +84,7 @@ type Schematic struct {
 
 	HELM *Helm `json:"helm,omitempty"`
 
-	// TODO(wonderflow): support HCL(terraform)/KUBE(K8s Object) here.
+	// TODO(wonderflow): support HCL(terraform)here.
 }
 
 // A Helm represents resources used by a Helm module

@@ -1,3 +1,19 @@
+/*
+Copyright 2020 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package controllers_test
 
 import (
@@ -64,14 +80,10 @@ spec:
 			},
 			time.Second*120, time.Millisecond*500).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
 		By("make sure all the resources are removed")
-		objectKey := client.ObjectKey{
-			Name: namespace,
-		}
-		Eventually(
-			func() error {
-				return k8sClient.Get(ctx, objectKey, &corev1.Namespace{})
-			},
-			time.Second*120, time.Millisecond*500).Should(&util.NotFoundMatcher{})
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: namespace}, &corev1.Namespace{})
+		}, time.Second*120, time.Millisecond*500).Should(&util.NotFoundMatcher{})
+		By("create test namespace")
 		Eventually(
 			func() error {
 				return k8sClient.Create(ctx, &ns)
@@ -140,6 +152,10 @@ spec:
 		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
+		By("make sure all the resources are removed")
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: namespace}, &corev1.Namespace{})
+		}, time.Second*120, time.Millisecond*500).Should(&util.NotFoundMatcher{})
 
 		By("Remove 'deployments.apps' from scaler's appliesToWorkloads")
 		scalerTd := v1beta1.TraitDefinition{}
