@@ -8,8 +8,9 @@ import (
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
-	"github.com/oam-dev/kubevela/pkg/dsl/model"
 	"gotest.tools/assert"
+
+	"github.com/oam-dev/kubevela/pkg/dsl/model"
 )
 
 func TestPackage(t *testing.T) {
@@ -317,7 +318,7 @@ func TestPackage(t *testing.T) {
 	bi := build.NewContext().NewInstance("", nil)
 	mypd.ImportBuiltinPackagesFor(bi)
 	bi.AddFile("-", `
-import "test.io/apps/v1"
+import "test.io.vela.io/apps/v1"
 output: v1.#Bucket
 `)
 	var r cue.Runtime
@@ -450,12 +451,12 @@ func TestGetDGVK(t *testing.T) {
 	assert.NilError(t, err)
 	gvk, err := getDGVK(inst.Value().Lookup("x-kubernetes-group-version-kind"))
 	assert.NilError(t, err)
-	assert.Equal(t, gvk, DomainGroupVersionKind{
-		Domain:  "test.io",
-		Group:   "apps",
-		Version: "v1",
-		Kind:    "Foo",
-		ApiVersion: "apps.test.io/v1",
+	assert.Equal(t, gvk, domainGroupVersionKind{
+		Domain:     "test.io",
+		Group:      "apps",
+		Version:    "v1",
+		Kind:       "Foo",
+		APIVersion: "apps.test.io/v1",
 	})
 }
 
@@ -488,7 +489,7 @@ func TestOpenAPIMapping(t *testing.T) {
 		},
 	}
 
-	emptyMapper:=make(map[string]DomainGroupVersionKind)
+	emptyMapper := make(map[string]domainGroupVersionKind)
 	for _, tCase := range testCases {
 		labels, err := openAPIMapping(emptyMapper)(tCase.pos, tCase.input)
 		if tCase.errMsg != "" {
@@ -498,5 +499,34 @@ func TestOpenAPIMapping(t *testing.T) {
 		assert.NilError(t, err)
 		assert.Equal(t, len(labels), 1)
 		assert.Equal(t, tCase.result, fmt.Sprint(labels))
+	}
+}
+
+func TestGeneratePkgName(t *testing.T) {
+	testCases := []struct {
+		dgvk          domainGroupVersionKind
+		expectPkgName string
+	}{
+		{
+			dgvk: domainGroupVersionKind{
+				Domain:  "k8s.io",
+				Group:   "networking",
+				Version: "v1",
+				Kind:    "Ingress",
+			},
+			expectPkgName: "cluster.vela.io/k8s.io/networking/v1",
+		},
+		{
+			dgvk: domainGroupVersionKind{
+				Group:   "example.com",
+				Version: "v1",
+				Kind:    "Sls",
+			},
+			expectPkgName: "cluster.vela.io/example.com/v1",
+		},
+	}
+
+	for _, tCase := range testCases {
+		assert.Equal(t, genPackageName(tCase.dgvk), tCase.expectPkgName)
 	}
 }

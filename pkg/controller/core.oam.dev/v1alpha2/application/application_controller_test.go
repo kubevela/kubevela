@@ -1418,7 +1418,7 @@ spec:
     name: deployments.apps
   extension:
     template: |
-      import "k8s.io/apps/v1"
+      import "cluster.vela.io/k8s.io/apps/v1"
       output: v1.#Deployment & {
           metadata: {
               annotations: {
