@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -33,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -201,7 +200,7 @@ var _ = Describe("Test applicationContext reconcile", func() {
 		time.Sleep(15 * time.Second)
 	})
 
-	It("Test appContext reconcil logic ", func() {
+	It("Test appContext reconcile logic ", func() {
 		By("Test AppRevision1 only have 1 workload on trait")
 		Expect(k8sClient.Create(ctx, appContext)).Should(Succeed())
 		Eventually(func() error {

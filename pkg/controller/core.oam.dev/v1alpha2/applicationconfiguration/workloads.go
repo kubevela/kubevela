@@ -5,8 +5,6 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/oam-dev/kubevela/pkg/oam"
-
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/openkruise/kruise-api/apps/v1alpha1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -14,6 +12,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 const (

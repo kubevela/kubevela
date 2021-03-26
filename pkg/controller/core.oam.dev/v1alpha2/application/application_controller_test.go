@@ -548,6 +548,7 @@ var _ = Describe("Test Application Controller", func() {
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
 		Expect(appContext.Spec.ApplicationRevisionName).Should(Equal(appRevision.Name))
+		Expect(appContext.GetAnnotations()[oam.AnnotationInplaceUpgrade]).Should(Equal("true"))
 
 		gotTrait := unstructured.Unstructured{}
 		ac, err := util.RawExtension2AppConfig(appRevision.Spec.ApplicationConfiguration)
@@ -618,6 +619,7 @@ var _ = Describe("Test Application Controller", func() {
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
 		Expect(appContext.Spec.ApplicationRevisionName).Should(Equal(appRevision.Name))
+		Expect(appContext.GetAnnotations()[oam.AnnotationInplaceUpgrade]).Should(Equal("true"))
 
 		gotTrait := unstructured.Unstructured{}
 		ac, err := util.RawExtension2AppConfig(appRevision.Spec.ApplicationConfiguration)
@@ -693,6 +695,7 @@ var _ = Describe("Test Application Controller", func() {
 			Name:      curApp.Status.LatestRevision.Name,
 		}, appRevision)).Should(BeNil())
 		Expect(appContext.Spec.ApplicationRevisionName).Should(Equal(appRevision.Name))
+		Expect(appContext.GetAnnotations()[oam.AnnotationInplaceUpgrade]).Should(Equal("true"))
 
 		Expect(json.Unmarshal(ac.Spec.Components[0].Traits[0].Trait.Raw, &gotTrait)).Should(BeNil())
 		Expect(gotTrait).Should(BeEquivalentTo(expectScalerTrait("myweb5", app.Name)))
