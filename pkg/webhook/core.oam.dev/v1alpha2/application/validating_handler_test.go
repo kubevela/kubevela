@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package application
 
 import (
@@ -39,11 +55,11 @@ var _ = Describe("Test Application Validator", func() {
 				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
 				Object: runtime.RawExtension{
 					Raw: []byte(`
-{"apiVersion":"core.oam.dev/v1alpha2",
+{"apiVersion":"core.oam.dev/v1beta1",
 "kind":"Application",
 "metadata":{"name":"application-sample"},
-"spec":{"components":[{"name":"myweb","settings":{"cmd":["sleep","1000"],"image":"busybox"},
-"traits":[{"name":"scaler","properties":{"replicas":10}}],"type":"worker"}]}}
+"spec":{"components":[{"type":"myweb","properties":{"cmd":["sleep","1000"],"image":"busybox"},
+"traits":[{"type":"scaler","properties":{"replicas":10}}],"type":"worker"}]}}
 `),
 				},
 			},
@@ -58,11 +74,11 @@ var _ = Describe("Test Application Validator", func() {
 				Operation: admissionv1beta1.Create,
 				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
 				Object: runtime.RawExtension{
-					Raw: []byte(`{"apiVersion":"core.oam.dev/v1alpha2",
+					Raw: []byte(`{"apiVersion":"core.oam.dev/v1beta1",
 "kind":"Application",
 "metadata":{"name":"application-sample"},
-"spec":{"components":[{"name":"myweb","settings":{"cmd":["sleep","1000"],"image":"busybox"},
-"traits":[{"name":"scaler","properties":{"replicas":10}}],"type":"worker1"}]}}`),
+"spec":{"components":[{"type":"myweb","properties":{"cmd":["sleep","1000"],"image":"busybox"},
+"traits":[{"type":"scaler","properties":{"replicas":10}}],"type":"worker1"}]}}`),
 				},
 			},
 		}
@@ -77,20 +93,20 @@ var _ = Describe("Test Application Validator", func() {
 				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
 				Object: runtime.RawExtension{
 					Raw: []byte(`
-{"apiVersion":"core.oam.dev/v1alpha2",
+{"apiVersion":"core.oam.dev/v1beta1",
 "kind":"Application",
 "metadata":{"name":"application-sample", "annotations": {"app.oam.dev/rollout" : "true"},}
-"spec":{"components":[{"name":"myweb","settings":{"cmd":["sleep","1000"],"image":"busybox"},
-"traits":[{"name":"scaler","properties":{"replicas":10}}],"type":"worker"}]}}
+"spec":{"components":[{"type":"myweb","properties":{"cmd":["sleep","1000"],"image":"busybox"},
+"traits":[{"type":"scaler","properties":{"replicas":10}}],"type":"worker"}]}}
 `),
 				},
 				OldObject: runtime.RawExtension{
 					Raw: []byte(`
-{"apiVersion":"core.oam.dev/v1alpha2",
+{"apiVersion":"core.oam.dev/v1beta1",
 "kind":"Application",
 "metadata":{"name":"application-sample"},
-"spec":{"components":[{"name":"myweb","settings":{"cmd":["sleep","1000"],"image":"busybox"},
-"traits":[{"name":"scaler","properties":{"replicas":10}}],"type":"worker"}]}}
+"spec":{"components":[{"type":"myweb","properties":{"cmd":["sleep","1000"],"image":"busybox"},
+"traits":[{"type":"scaler","properties":{"replicas":10}}],"type":"worker"}]}}
 `),
 				},
 			},

@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package appfile
 
 import (
@@ -12,7 +28,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
@@ -41,8 +59,8 @@ type Workload struct {
 	HealthCheckPolicy  string
 	CustomStatusFormat string
 
-	Helm                *v1alpha2.Helm
-	DefinitionReference v1alpha2.WorkloadGVK
+	Helm                *common.Helm
+	DefinitionReference common.WorkloadGVK
 	// TODO: remove all the duplicate fields above as workload now contains the whole template
 	FullTemplate *util.Template
 
@@ -145,7 +163,7 @@ func NewApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper,
 }
 
 // GenerateAppFile converts an application to an Appfile
-func (p *Parser) GenerateAppFile(ctx context.Context, name string, app *v1alpha2.Application) (*Appfile, error) {
+func (p *Parser) GenerateAppFile(ctx context.Context, name string, app *v1beta1.Application) (*Appfile, error) {
 	appfile := new(Appfile)
 	appfile.Name = name
 	var wds []*Workload
@@ -160,21 +178,20 @@ func (p *Parser) GenerateAppFile(ctx context.Context, name string, app *v1alpha2
 	return appfile, nil
 }
 
-func (p *Parser) parseWorkload(ctx context.Context, comp v1alpha2.ApplicationComponent) (*Workload, error) {
+func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComponent) (*Workload, error) {
 
-	// TODO: pass in p.dm
-	templ, err := util.LoadTemplate(ctx, p.client, comp.WorkloadType, types.TypeComponentDefinition)
+	templ, err := util.LoadTemplate(ctx, p.dm, p.client, comp.Type, types.TypeComponentDefinition)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
 	}
-	settings, err := util.RawExtension2Map(&comp.Settings)
+	settings, err := util.RawExtension2Map(&comp.Properties)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
 	}
 	workload := &Workload{
 		Traits:              []*Trait{},
 		Name:                comp.Name,
-		Type:                comp.WorkloadType,
+		Type:                comp.Type,
 		CapabilityCategory:  templ.CapabilityCategory,
 		Template:            templ.TemplateStr,
 		HealthCheckPolicy:   templ.Health,
@@ -188,11 +205,11 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1alpha2.ApplicationCom
 	for _, traitValue := range comp.Traits {
 		properties, err := util.RawExtension2Map(&traitValue.Properties)
 		if err != nil {
-			return nil, errors.Errorf("fail to parse properties of %s for %s", traitValue.Name, comp.Name)
+			return nil, errors.Errorf("fail to parse properties of %s for %s", traitValue.Type, comp.Name)
 		}
-		trait, err := p.parseTrait(ctx, traitValue.Name, properties)
+		trait, err := p.parseTrait(ctx, traitValue.Type, properties)
 		if err != nil {
-			return nil, errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Name)
+			return nil, errors.WithMessagef(err, "component(%s) parse trait(%s)", comp.Name, traitValue.Type)
 		}
 
 		workload.Traits = append(workload.Traits, trait)
@@ -211,8 +228,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1alpha2.ApplicationCom
 }
 
 func (p *Parser) parseTrait(ctx context.Context, name string, properties map[string]interface{}) (*Trait, error) {
-	// TODO: pass in p.dm
-	templ, err := util.LoadTemplate(ctx, p.client, name, types.TypeTrait)
+	templ, err := util.LoadTemplate(ctx, p.dm, p.client, name, types.TypeTrait)
 	if kerrors.IsNotFound(err) {
 		return nil, errors.Errorf("trait definition of %s not found", name)
 	}
@@ -337,7 +353,7 @@ output: {
 	if err != nil {
 		return nil, nil, err
 	}
-	comp.Spec.Helm = &v1alpha2.Helm{
+	comp.Spec.Helm = &common.Helm{
 		Release:    runtime.RawExtension{Raw: rlsBytes},
 		Repository: runtime.RawExtension{Raw: repoBytes},
 	}

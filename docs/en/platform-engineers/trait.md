@@ -1,65 +1,58 @@
 # Trait Definition
 
-In the following tutorial, you will learn about definition objects with [KubeWatch](https://github.com/wonderflow/kubewatch) as example.
+In the following tutorial, you will learn about define your own trait to extend KubeVela.
 
-> This is a fork because we make it work as CRD controller. So user could use CRD(`kubewatches.labs.bitnami.com`) to describe K8s resources they want to watch including any types of CRD.
+Before continue, make sure you have learned the basic concept of [Definition Objects](definition-and-templates.md) in KubeVela.
 
-## Step 1: Create Trait Definition
+The KubeVela trait system is very powerful. Generally, you could define a trait(e.g. "do some patch") with very low code,
+just writing some CUE template is enough. Refer to ["Defining Traits in CUE"](https://kubevela.io/#/en/cue/trait) for
+more details in this case.
 
-To register [KubeWatch](https://github.com/wonderflow/kubewatch) as a new trait in KubeVela,
-the only thing needed is to create an `TraitDefinition` object for it.
-A full example can be found in this [kubewatch.yaml](https://github.com/oam-dev/catalog/blob/master/registry/kubewatch.yaml).
+## Extend CRD Operator as Trait
+
+In the following tutorial, you will learn to extend traits into KubeVela with [KEDA](https://keda.sh/) as example.
+KEDA is a very cool Event Driven Autoscaler.
+
+### Step 1: Install the CRD controller
+
+[Install the KEDA controller](https://keda.sh/docs/2.2/deploy/) into your K8s system.
+
+### Step 2: Create Trait Definition
+
+To register KEDA as a new trait in KubeVela, the only thing needed is to create an `TraitDefinition` object for it.
+
+A full example can be found in this [keda.yaml](https://github.com/oam-dev/catalog/blob/master/registry/keda-scaler.yaml).
 Several highlights are list below.
 
-### 1. Describe The Trait Usage
+#### 1. Describe The Trait Usage
 
 ```yaml
 ...
-  name: kubewatch
-  annotations:
-    definition.oam.dev/description: "Add a watch for resource"
+name: keda-scaler
+annotations:
+  definition.oam.dev/description: "keda supports multiple event to elastically scale applications, this scaler only applies to deployment as example"
 ...
 ```
 
 We use label `definition.oam.dev/description` to add one line description for this trait.
 It will be shown in helper commands such as `$ vela traits`.
 
-### 2. Register API Resource
+#### 2. Register API Resource
 
 ```yaml
 ...
 spec:
   definitionRef:
-    name: kubewatches.labs.bitnami.com
+    name: scaledobjects.keda.sh
 ...
 ```
 
-This is how you register Kubewatch's API resource (`kubewatches.labs.bitnami.com`) as the Trait.
-
+This is how you register KEDA ScaledObject's API resource (`scaledobjects.keda.sh`) as the Trait.
 
 KubeVela uses Kubernetes API resource discovery mechanism to manage all registered capabilities.
 
 
-### 3. Configure Installation Dependency
-
-```yaml
-...
-  extension:
-    install:
-      helm:
-        repo: my-repo
-        name: kubewatch
-        url: https://wonderflow.info/kubewatch/archives/
-        version: 0.1.0
-        ...
-```
-
-The `extension.install` field is used by KubeVela to automatically install the dependency (if any) when the new workload
-type added to KubeVela. The dependency is described by a Helm chart custom resource.
-We highly recommend you to configure this field since otherwise,
-users will have to install dependencies like this kubewatch controller manually later to user your new trait.
-
-### 4. Define Workloads this trait can apply to
+#### 3. Define Workloads this trait can apply to
 
 ```yaml
 ...
@@ -70,7 +63,7 @@ spec:
 ...
 ```
 
-A trait can work on specified workload or any kinds of workload, that deponds on what you describe here.
+A trait can work on specified workload or any kinds of workload, that depends on what you describe here.
 Use `"*"` to represent your trait can work on any workloads. 
 
 You can also specify the trait can only work on K8s Deployment and Statefulset by describe like below:
@@ -85,7 +78,7 @@ spec:
 ...
 ``` 
 
-### 5. Define the field if the trait can receive workload reference
+#### 4. Define the field if the trait can receive workload reference
 
 ```yaml
 ...
@@ -101,55 +94,49 @@ from this reference.
 With the help of the OAM framework, end users will never bother writing the relationship info such like `targetReference`.
 Platform builders only need to declare this info here once, then the OAM framework will help glue them together.
 
-### 6. Define Template
+#### 5. Define Template
 
 ```yaml
 ...
-    template: |
-      outputs: kubewatch: {
-        apiVersion: "labs.bitnami.com/v1alpha1"
-        kind:       "KubeWatch"
-        spec: handler: webhook: url: parameter.webhook
+schematic:
+  cue:
+    template: |-
+      outputs: cpu-scaler: {
+      	apiVersion: "keda.sh/v1alpha1"
+      	kind:       "ScaledObject"
+      	metadata: {
+      		name: context.name
+      	}
+      	spec: {
+      		scaleTargetRef: {
+      			name: context.name
+      		}
+      		triggers: [{
+      			type: paramter.type
+      			metadata: {
+      				type:  "Utilization"
+      				value: paramter.value
+      			}
+      		}]
+      	}
       }
-      parameter: {
-        webhook: string
+      paramter: {
+      	// +usage=Types of triggering application elastic scaling, Optional: cpu, memory
+      	type: string
+      	// +usage=Value to trigger scaling actions, represented as a percentage of the requested value of the resource for the pods. like: "60"(60%)
+      	value: string
       }
  ```
 
 This is a CUE based template to define end user abstraction for this workload type. Please check the [templating documentation](../cue/trait.md) for more detail.
 
-Note that in this example, we only need to give the webhook url as parameter for using KubeWatch.
-
-## Step 2: Register New Trait to KubeVela
+### Step 2: Register New Trait to KubeVela
 
 As long as the definition file is ready, you just need to apply it to Kubernetes.
 
 ```bash
-$ kubectl apply -f https://raw.githubusercontent.com/oam-dev/catalog/master/registry/kubewatch.yaml
+$ kubectl apply -f https://raw.githubusercontent.com/oam-dev/catalog/master/registry/keda-scaler.yaml
 ```
 
 And the new trait will immediately become available for developers to use in KubeVela.
-It may take some time to be available as the dependency (helm chart) need to install.
 
-## Step 3: Verify
-
-```bash
-$ vela traits
-"my-repo" has been added to your repositories
-Successfully installed chart (kubewatch) with release name (kubewatch)
-Automatically discover capabilities successfully ✅ Add(1) Update(0) Delete(0)
-
-TYPE      	CATEGORY	DESCRIPTION
-+kubewatch	trait   	Add a watch for resource
-
-NAME     	DESCRIPTION                                                      	APPLIES TO
-autoscale	Automatically scale the app following certain triggers or metrics	webservice
-         	                                                                 	worker
-kubewatch	Add a watch for resource
-metrics  	Configure metrics targets to be monitored for the app            	webservice
-         	                                                                 	task
-rollout  	Configure canary deployment strategy to release the app          	webservice
-route    	Configure route policy to the app                                	webservice
-scaler   	Manually scale the app                                           	webservice
-        	                                                                 	worker
-```

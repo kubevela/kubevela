@@ -1,13 +1,14 @@
 # Introduction of Definition Objects
 
-This documentation explains how to register and manage available *components* and *traits* in your platform with `WorkloadDefinition` and `TraitDefinition`, so your end users could "assemble" them into a `Application` resource.
+This documentation explains how to register and manage available *components* and *traits* in your platform with
+`ComponentDefinition` and `TraitDefinition`, so your end users could "assemble" them into an `Application` resource.
 
 > All definition objects are expected to be maintained and installed by platform team, think them as *capability providers* in your platform.
 
 ## Overview
 
 Essentially, a definition object in KubeVela is consisted by three section:
-- **Capability Indexer** defined by `spec.definitionRef`
+- **Capability Indexer** defined by `spec.workload` in `ComponentDefinition` and `spec.definitionRef` in `TraitDefinition`.
   - this is for discovering the provider of this capability.
 - **Interoperability Fields**
   - they are for the platform to ensure a trait can work with given workload type. Hence only `TraitDefinition` has these fields.
@@ -17,13 +18,12 @@ Essentially, a definition object in KubeVela is consisted by three section:
 Hence, the basic structure of definition object is as below:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: XxxDefinition
 metadata:
   name: <definition name>
 spec:
-  definitionRef:
-    name: <resources>.<api-group>
+  ...
   schematic:
     cue:
       # cue template ...
@@ -36,54 +36,38 @@ Let's explain these fields one by one.
 
 ### Capability Indexer
 
-The indexer of given capability is declared as `spec.definitionRef`.
+The indexer of given capability is declared as `spec.workload`.
 
 Below is a definition for *Web Service* in KubeVela: 
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 metadata:
   name: webservice
   namespace: default
   annotations:
     definition.oam.dev/description: "Describes long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers."
 spec:
-  definitionRef:
-    name: deployments.apps
-    ...
-        
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+    ...        
 ```
 
-In above example, it claims to leverage Kubernetes Deployment (`deployments.apps`) as the workload type to instantiate this component.
-
-Below is an example of *ingress* trait:
-
-```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: TraitDefinition
-metadata:
-  name:  ingress
-spec:
-  definitionRef:
-    name: ingresses.networking.k8s.io
-    ...
-```
-
-Similarly, it claims to leverage Kubernetes Ingress (`ingresses.networking.k8s.io`) as the underlying provider of this capability.
+In above example, it claims to leverage Kubernetes Deployment (`apiVersion: apps/v1`, `kind: Deployment`) as the workload type to instantiate this component.
 
 ### Interoperability Fields
 
 The interoperability fields are **trait only**. An overall view of interoperability fields in a `TraitDefinition` is show as below.
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   name:  ingress
 spec:
-  definitionRef:
-    name: ingresses.networking.k8s.io
   appliesToWorkloads: 
     - deployments.apps
     - webservice
@@ -102,9 +86,9 @@ This field defines the constraints that what kinds of workloads this trait is al
 
 There are four approaches to denote one or a group of workload types.
 
-- `WorkloadDefinition` name, e.g., `webservice`, `worker`
-- `WorkloadDefinition` definition reference (CRD name), e.g., `deployments.apps`
-- Resource group of `WorkloadDefinition` definition reference prefixed with `*.`, e.g., `*.apps`, `*.oam.dev`. This means the trait is allowded to apply to any workloads in this group.
+- `ComponentDefinition` name, e.g., `webservice`, `worker`
+- `ComponentDefinition` definition reference (CRD name), e.g., `deployments.apps`
+- Resource group of `ComponentDefinition` definition reference prefixed with `*.`, e.g., `*.apps`, `*.oam.dev`. This means the trait is allowded to apply to any workloads in this group.
 - `*` means this trait is allowded to apply to any workloads
 
 If this field is omitted, it means this trait is allowded to apply to any workload types.
@@ -121,7 +105,6 @@ This field defines that constraints that what kinds of traits are conflicting wi
 There are four approaches to denote one or a group of workload types.
 
 - `TraitDefinition` name, e.g., `ingress`
-- `TraitDefinition` definition reference (CRD name), e.g., `ingresses.networking.k8s.io`
 - Resource group of `TraitDefinition` definition reference prefixed with `*.`, e.g., `*.networking.k8s.io`. This means the trait is conflicting with any traits in this group.
 - `*` means this trait is conflicting with any other trait.
 
@@ -138,21 +121,23 @@ Please check [scaler](https://github.com/oam-dev/kubevela/blob/master/charts/vel
 
 ### Capability Encapsulation
 
-The encapsulation (i.e. templating and parametering) of given capability are defined in `spec.schematic` field. For example, below is the full definition of *Web Service* type in KubeVela:
+The encapsulation (i.e. templating and parameterizing) of given capability are defined in `spec.schematic` field. For example, below is the full definition of *Web Service* type in KubeVela:
 
 <details>
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 metadata:
   name: webservice
   namespace: default
   annotations:
     definition.oam.dev/description: "Describes long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers."
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   schematic:
     cue:
       template: |

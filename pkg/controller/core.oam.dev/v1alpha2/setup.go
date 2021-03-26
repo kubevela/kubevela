@@ -35,7 +35,6 @@ import (
 // Setup workload controllers.
 func Setup(mgr ctrl.Manager, args controller.Args, l logging.Logger) error {
 	for _, setup := range []func(ctrl.Manager, controller.Args, logging.Logger) error{
-		applicationconfiguration.Setup,
 		containerizedworkload.Setup, manualscalertrait.Setup, healthscope.Setup,
 		application.Setup, applicationrollout.Setup, applicationcontext.Setup,
 		traitdefinition.Setup, componentdefinition.Setup,
@@ -43,6 +42,9 @@ func Setup(mgr ctrl.Manager, args controller.Args, l logging.Logger) error {
 		if err := setup(mgr, args, l); err != nil {
 			return err
 		}
+	}
+	if args.ApplicationConfigurationInstalled {
+		return applicationconfiguration.Setup(mgr, args, l)
 	}
 	return nil
 }

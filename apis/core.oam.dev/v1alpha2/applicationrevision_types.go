@@ -19,6 +19,8 @@ package v1alpha2
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
@@ -41,7 +43,8 @@ type ApplicationRevisionSpec struct {
 	ScopeDefinitions map[string]ScopeDefinition `json:"scopeDefinitions,omitempty"`
 
 	// Components records the rendered components from Application, it will contains the whole K8s CR of workload in it.
-	Components map[string]Component `json:"components,omitempty"`
+
+	Components []common.RawComponent `json:"components,omitempty"`
 
 	// ApplicationConfiguration records the rendered applicationConfiguration from Application,
 	// it will contains the whole K8s CR of trait and the reference component in it.

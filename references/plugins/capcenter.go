@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package plugins
 
 import (
@@ -17,8 +33,11 @@ import (
 	"golang.org/x/oauth2"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
@@ -162,22 +181,26 @@ func StoreRepos(repos []CapCenterConfig) error {
 }
 
 // ParseAndSyncCapability will convert config from remote center to capability
-func ParseAndSyncCapability(data []byte) (types.Capability, error) {
+func ParseAndSyncCapability(mapper discoverymapper.DiscoveryMapper, data []byte) (types.Capability, error) {
 	var obj = unstructured.Unstructured{Object: make(map[string]interface{})}
 	err := yaml.Unmarshal(data, &obj.Object)
 	if err != nil {
 		return types.Capability{}, err
 	}
 	switch obj.GetKind() {
-	case "WorkloadDefinition":
-		var rd v1alpha2.WorkloadDefinition
+	case "ComponentDefinition":
+		var rd v1beta1.ComponentDefinition
 		err = yaml.Unmarshal(data, &rd)
 		if err != nil {
 			return types.Capability{}, err
 		}
-		return HandleDefinition(rd.Name, rd.Spec.Reference.Name, rd.Annotations, rd.Spec.Extension, types.TypeWorkload, nil, rd.Spec.Schematic)
+		ref, err := util.ConvertWorkloadGVK2Definition(mapper, rd.Spec.Workload.Definition)
+		if err != nil {
+			return types.Capability{}, err
+		}
+		return HandleDefinition(rd.Name, ref.Name, rd.Annotations, rd.Spec.Extension, types.TypeComponentDefinition, nil, rd.Spec.Schematic)
 	case "TraitDefinition":
-		var td v1alpha2.TraitDefinition
+		var td v1beta1.TraitDefinition
 		err = yaml.Unmarshal(data, &td)
 		if err != nil {
 			return types.Capability{}, err
@@ -224,6 +247,11 @@ func (g *GithubCenter) SyncCapabilityFromCenter() error {
 	}
 	repoDir := filepath.Join(dir, g.centerName)
 	_, _ = system.CreateIfNotExist(repoDir)
+	c := &common.Args{}
+	dm, err := c.GetDiscoveryMapper()
+	if err != nil {
+		return err
+	}
 	var success, total int
 	for _, addon := range dirs {
 		if *addon.Type != "file" {
@@ -241,7 +269,7 @@ func (g *GithubCenter) SyncCapabilityFromCenter() error {
 				return fmt.Errorf("decode github content %s err %w", *fileContent.Path, err)
 			}
 		}
-		tmp, err := ParseAndSyncCapability(data)
+		tmp, err := ParseAndSyncCapability(dm, data)
 		if err != nil {
 			fmt.Printf("parse definition of %s err %v\n", *fileContent.Name, err)
 			continue

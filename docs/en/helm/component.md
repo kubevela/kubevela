@@ -1,33 +1,29 @@
-# Use Helm To Define a Component
+# Use Helm To Extend a Component type
 
 This documentation explains how to use Helm chart to define an application component.
 
-## Install fluxcd/flux2 as dependencies
+Before reading this part, please make sure you've learned [the definition and template concepts](../platform-engineers/definition-and-templates.md).
 
-Using helm as a workload depends on several CRDs and controllers from [fluxcd/flux2](https://github.com/fluxcd/flux2), make sure you have make them installed before continue.
+## Prerequisite
 
-It's worth to note that flux2 doesn't offer an official Helm chart to install,
-so we provide a chart which only includes minimal dependencies KubeVela relies on as an alternative choice.
+* [fluxcd/flux2](../install.md#3-optional-install-flux2), make sure you have installed the flux2 in the [installation guide](https://kubevela.io/#/en/install).
 
-Install the minimal flux2 chart provided by KubeVela:
-```shell
-$ helm install --create-namespace -n flux-system helm-flux http://oam.dev/catalog/helm-flux2-0.1.0.tgz
-```
+## Write ComponentDefinition
 
-## Write WorkloadDefinition 
-Here is an example `WorkloadDefinition` about how to use Helm as schematic module.
+Here is an example `ComponentDefinition` about how to use Helm as schematic module.
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 metadata:
   name: webapp-chart
   annotations:
     definition.oam.dev/description: helm chart for webapp
 spec:
-  definitionRef:
-    name: deployments.apps
-    version: v1
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   schematic:
     helm:
       release:
@@ -41,7 +37,7 @@ spec:
 
 Just like using CUE as schematic module, we also have some rules and contracts to use helm chart as schematic module.
 
-- `.spec.definitionRef` is required to indicate the main workload(Group/Verison/Kind) in your Helm chart.
+- `.spec.workload` is required to indicate the main workload(apiVersion/Kind) in your Helm chart.
 Only one workload allowed in one helm chart.
 For example, in our sample chart, the core workload is `deployments.apps/v1`, other resources will also be deployed but mechanism of KubeVela won't work for them.
 - `.spec.schematic.helm` contains information of Helm release & repository.
@@ -49,7 +45,7 @@ For example, in our sample chart, the core workload is `deployments.apps/v1`, ot
 There are two fields `release` and `repository` in the `.spec.schematic.helm` section, these two fields align with the APIs of `fluxcd/flux2`. Spec of `release` aligns with [`HelmReleaseSpec`](https://github.com/fluxcd/helm-controller/blob/main/docs/api/helmrelease.md) and spec of `repository` aligns with [`HelmRepositorySpec`](https://github.com/fluxcd/source-controller/blob/main/docs/api/source.md#source.toolkit.fluxcd.io/v1beta1.HelmRepository).
 In a word, just like the fields shown in the sample, the helm schematic module describes a specific Helm chart release and its repository.
 
-## Create an Application using the helm based WorkloadDefinition
+## Create an Application using the helm based ComponentDefinition
 
 Here is an example `Application`.
 
@@ -63,10 +59,11 @@ spec:
   components:
     - name: demo-podinfo 
       type: webapp-chart 
-      settings: 
+      properties: 
         image:
           tag: "5.1.2"
 ```
+
 Helm module workload will use data in `settings` as [Helm chart values](https://github.com/captainroy-hy/podinfo/blob/master/charts/podinfo/values.yaml).
 You can learn the schema of settings by reading the `README.md` of the Helm
 chart, and the schema are totally align with

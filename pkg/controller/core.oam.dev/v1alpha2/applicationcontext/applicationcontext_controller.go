@@ -1,22 +1,40 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package applicationcontext
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+
+	types2 "github.com/oam-dev/kubevela/apis/types"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -75,15 +93,19 @@ func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 		return reconcile.Result{}, errors.Wrap(err, errGetAppRevision)
 	}
 
-	// copy the status
-	acRaw := appRevision.Spec.ApplicationConfiguration
-	appConfig, err := ConvertRawExtention2AppConfig(acRaw)
+	// copy the status from appContext to appConfig
+	appConfig, err := util.RawExtension2AppConfig(appRevision.Spec.ApplicationConfiguration)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 	appConfig.Status = appContext.Status
 	// the name of the appConfig has to be the same as the appContext
-	appConfig.ObjectMeta = metav1.ObjectMeta{Namespace: appContext.Namespace, Name: appContext.Name, UID: appContext.UID}
+	appConfig.Name = appContext.Name
+	appConfig.UID = appContext.UID
+	appConfig.SetLabels(appContext.GetLabels())
+	appConfig.SetAnnotations(appContext.GetAnnotations())
+	// makes sure that the appConfig's owner is the same as the appContext
+	appConfig.SetOwnerReferences(appContext.GetOwnerReferences())
 	// call into the old ac Reconciler and copy the status back
 	acReconciler := ac.NewReconciler(r.mgr, dm, r.log, ac.WithRecorder(r.record), ac.WithApplyOnceOnlyMode(r.applyMode))
 	reconResult := acReconciler.ACReconcile(ctx, appConfig, r.log)
@@ -93,30 +115,21 @@ func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 	// use the controller build-in backoff mechanism if an error occurs
 	if err != nil {
 		reconResult.RequeueAfter = 0
+	} else if appContext.Status.RollingStatus == types2.RollingTemplated {
+		// makes sure that we can will reconcile shortly after the annotation is removed
+		reconResult.RequeueAfter = time.Second * 5
 	}
 	return reconResult, err
 }
 
-// ConvertRawExtention2AppConfig converts runtime.RawExtention to ApplicationConfiguration
-func ConvertRawExtention2AppConfig(raw runtime.RawExtension) (*v1alpha2.ApplicationConfiguration, error) {
-	ac := &v1alpha2.ApplicationConfiguration{}
-	b, err := raw.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(b, ac); err != nil {
-		return nil, err
-	}
-	return ac, nil
-}
-
 // SetupWithManager setup the controller with manager
-func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, compHandler *ac.ComponentHandler) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
 		WithAnnotations("controller", "AppRollout")
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha2.ApplicationContext{}).
-		Owns(&v1alpha2.Application{}).
+		Watches(&source.Kind{Type: &v1alpha2.Component{}}, compHandler).
+		Owns(&v1beta1.Application{}).
 		Complete(r)
 }
 
@@ -131,5 +144,11 @@ func Setup(mgr ctrl.Manager, args core.Args, l logging.Logger) error {
 		record:    record,
 		applyMode: args.ApplyMode,
 	}
-	return reconciler.SetupWithManager(mgr)
+	compHandler := &ac.ComponentHandler{
+		Client:                mgr.GetClient(),
+		Logger:                l,
+		RevisionLimit:         args.RevisionLimit,
+		CustomRevisionHookURL: args.CustomRevisionHookURL,
+	}
+	return reconciler.SetupWithManager(mgr, compHandler)
 }

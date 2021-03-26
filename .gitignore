@@ -35,7 +35,7 @@ vendor/
 
 pkg/test/vela
 config/crd/bases
-tmp/
+_tmp/
 
 references/cmd/cli/fake/source.go
 references/cmd/cli/fake/chart_source.go

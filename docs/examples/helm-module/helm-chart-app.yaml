@@ -1,4 +1,4 @@
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: myapp
@@ -6,15 +6,15 @@ metadata:
 spec:
   components:
     - name: demo-podinfo 
-      type: webapp-chart 
-      settings: 
+      type: webapp-chart
+      properties:
         image:
           tag: "5.1.2"
       traits:
-        - name: scaler
+        - type: patch-scaler
           properties:
             replicas: 2
-        - name: virtualgroup
+        - type: virtualgroup
           properties:
             group: "my-group1"
             type: "cluster"

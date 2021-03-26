@@ -68,7 +68,7 @@ aside.nav.nothing {
     line-height: 1.6em;
 }
 
-@media screen and (max-width: 1800px) {
+@media screen and (max-width: 2000px) {
     .page_toc {
         position: relative;
         left: 0;

@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package v1alpha1
 
 import (
@@ -34,22 +50,24 @@ const (
 type RollingState string
 
 const (
-	// VerifyingSpecState verify that the rollout setting is valid and the controller can locate both the
-	// target and the source
+	// VerifyingSpecState indicates that the rollout is in the stage of verifying the rollout settings
+	// and the controller can locate both the target and the source
 	VerifyingSpecState RollingState = "verifyingSpec"
-	// InitializingState rollout is initializing all the new resources
+	// InitializingState indicates that the rollout is initializing all the new resources
 	InitializingState RollingState = "initializing"
-	// RollingInBatchesState rolling out
+	// RollingInBatchesState indicates that the rollout starts rolling
 	RollingInBatchesState RollingState = "rollingInBatches"
-	// FinalisingState finalize the rolling, possibly clean up the old resources, adjust traffic
+	// FinalisingState indicates that the rollout is finalizing, possibly clean up the old resources, adjust traffic
 	FinalisingState RollingState = "finalising"
-	// RolloutSucceedState rollout successfully completed to match the desired target state
-	RolloutSucceedState RollingState = "rolloutSucceed"
-	// RolloutFailingState finalize the rollout before giving up, possibly clean up the old resources, adjust traffic
+	// RolloutFailingState indicates that the rollout is failing
+	// one needs to finalize it before mark it as failed by cleaning up the old resources, adjust traffic
 	RolloutFailingState RollingState = "rolloutFailing"
-	// RolloutFailedState rollout is failed, the target replica is not reached
-	// we can not move forward anymore
-	// we will let the client to decide when or whether to revert
+	// RolloutSucceedState indicates that rollout successfully completed to match the desired target state
+	RolloutSucceedState RollingState = "rolloutSucceed"
+	// RolloutAbandoningState indicates that the rollout is abandoned, can be restarted. This is a terminal state
+	RolloutAbandoningState RollingState = "rolloutAbandoned"
+	// RolloutFailedState indicates that rollout is failed, the target replica is not reached
+	// we can not move forward anymore, we will let the client to decide when or whether to revert.
 	RolloutFailedState RollingState = "rolloutFailed"
 )
 

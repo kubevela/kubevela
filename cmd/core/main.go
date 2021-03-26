@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package main
 
 import (
@@ -14,23 +30,15 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	injectorv1alpha1 "github.com/oam-dev/trait-injector/api/v1alpha1"
 	injectorcontroller "github.com/oam-dev/trait-injector/controllers"
 	"github.com/oam-dev/trait-injector/pkg/injector"
 	"github.com/oam-dev/trait-injector/pkg/plugin"
-	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
-	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
-	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
-	velacore "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	standardcontroller "github.com/oam-dev/kubevela/pkg/controller"
 	oamcontroller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	oamv1alpha2 "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2"
@@ -38,6 +46,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	oamwebhook "github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev"
 	velawebhook "github.com/oam-dev/kubevela/pkg/webhook/standard.oam.dev"
@@ -50,21 +59,10 @@ const (
 
 var (
 	setupLog           = ctrl.Log.WithName(kubevelaName)
-	scheme             = runtime.NewScheme()
+	scheme             = common.Scheme
 	waitSecretTimeout  = 90 * time.Second
 	waitSecretInterval = 2 * time.Second
 )
-
-func init() {
-	_ = clientgoscheme.AddToScheme(scheme)
-	_ = crdv1.AddToScheme(scheme)
-	_ = oamcore.AddToScheme(scheme)
-	_ = velacore.AddToScheme(scheme)
-	_ = injectorv1alpha1.AddToScheme(scheme)
-	_ = certmanager.AddToScheme(scheme)
-	_ = kruise.AddToScheme(scheme)
-	// +kubebuilder:scaffold:scheme
-}
 
 func main() {
 	var metricsAddr, logFilePath, leaderElectionNamespace string
@@ -95,14 +93,16 @@ func main() {
 	flag.BoolVar(&logDebug, "log-debug", false, "Enable debug logs for development purpose")
 	flag.IntVar(&controllerArgs.RevisionLimit, "revision-limit", 50,
 		"RevisionLimit is the maximum number of revisions that will be maintained. The default value is 50.")
+	flag.StringVar(&controllerArgs.CustomRevisionHookURL, "custom-revision-hook-url", "",
+		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
+	flag.BoolVar(&controllerArgs.ApplicationConfigurationInstalled, "app-config-installed", true,
+		"app-config-installed indicates if applicationConfiguration CRD is installed")
 	flag.StringVar(&healthAddr, "health-addr", ":9440", "The address the health endpoint binds to.")
 	flag.StringVar(&applyOnceOnly, "apply-once-only", "false",
 		"For the purpose of some production environment that workload or trait should not be affected if no spec change, available options: on, off, force.")
-	flag.StringVar(&controllerArgs.CustomRevisionHookURL, "custom-revision-hook-url", "",
-		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
 	flag.StringVar(&disableCaps, "disable-caps", "", "To be disabled builtin capability list.")
 	flag.StringVar(&storageDriver, "storage-driver", "Local", "Application file save to the storage driver")
-	flag.DurationVar(&syncPeriod, "informer-re-sync-interval", 5*time.Minute,
+	flag.DurationVar(&syncPeriod, "informer-re-sync-interval", 60*time.Minute,
 		"controller shared informer lister full re-sync period")
 	flag.StringVar(&oam.SystemDefinitonNamespace, "system-definition-namespace", "vela-system", "define the namespace of the system-level definition")
 	flag.Parse()

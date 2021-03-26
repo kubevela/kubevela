@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package applicationconfiguration
 
 import (
@@ -18,8 +34,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -65,7 +81,7 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 					Labels: label,
 				},
 				Spec: v1alpha2.TraitDefinitionSpec{
-					Reference: v1alpha2.DefinitionReference{
+					Reference: common.DefinitionReference{
 						Name: "foos.example.com",
 					},
 				},
@@ -211,7 +227,7 @@ var _ = Describe("ApplicationConfiguration Admission controller Test", func() {
 				},
 			},
 			Status: v1alpha2.ComponentStatus{
-				LatestRevision: &v1alpha2.Revision{
+				LatestRevision: &common.Revision{
 					Name: "example-comp-v1",
 				},
 			},

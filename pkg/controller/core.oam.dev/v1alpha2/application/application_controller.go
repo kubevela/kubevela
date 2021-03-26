@@ -1,5 +1,5 @@
 /*
-
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,7 +31,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
@@ -60,7 +61,7 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	applog := r.Log.WithValues("application", req.NamespacedName)
-	app := new(v1alpha2.Application)
+	app := new(v1beta1.Application)
 	if err := r.Get(ctx, client.ObjectKey{
 		Name:      req.Name,
 		Namespace: req.Namespace,
@@ -78,7 +79,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	applog.Info("Start Rendering")
 
-	app.Status.Phase = v1alpha2.ApplicationRendering
+	app.Status.Phase = common.ApplicationRendering
 
 	// by default, we regard the spec is diff
 	handler := &appHandler{
@@ -109,11 +110,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		app.Status.SetConditions(errorCondition("Built", err))
 		return handler.handleErr(err)
 	}
+
 	// pass the App label and annotation to ac except some app specific ones
 	oamutil.PassLabelAndAnnotation(app, ac)
+
 	app.Status.SetConditions(readyCondition("Built"))
-	applog.Info("apply appConfig & component to the cluster")
-	// apply appConfig & component to the cluster
+	applog.Info("apply application revision & component to the cluster")
+	// apply application revision & component to the cluster
 	if err := handler.apply(ctx, ac, comps); err != nil {
 		applog.Error(err, "[Handle apply]")
 		app.Status.SetConditions(errorCondition("Applied", err))
@@ -121,7 +124,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	app.Status.SetConditions(readyCondition("Applied"))
-	app.Status.Phase = v1alpha2.ApplicationHealthChecking
+	app.Status.Phase = common.ApplicationHealthChecking
 	applog.Info("check application health status")
 	// check application health status
 	appCompStatus, healthy, err := handler.statusAggregate(generatedAppfile)
@@ -139,7 +142,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 	app.Status.Services = appCompStatus
 	app.Status.SetConditions(readyCondition("HealthCheck"))
-	app.Status.Phase = v1alpha2.ApplicationRunning
+	app.Status.Phase = common.ApplicationRunning
 	// Gather status of components
 	var refComps []v1alpha1.TypedReference
 	for _, comp := range comps {
@@ -158,12 +161,12 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// If Application Own these two child objects, AC status change will notify application controller and recursively update AC again, and trigger application event again...
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha2.Application{}).
+		For(&v1beta1.Application{}).
 		Complete(r)
 }
 
-// UpdateStatus updates v1alpha2.Application's Status with retry.RetryOnConflict
-func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1alpha2.Application, opts ...client.UpdateOption) error {
+// UpdateStatus updates v1beta1.Application's Status with retry.RetryOnConflict
+func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1beta1.Application, opts ...client.UpdateOption) error {
 	status := app.DeepCopy().Status
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
 		if err = r.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: app.Name}, app); err != nil {

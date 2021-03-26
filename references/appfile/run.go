@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package appfile
 
 import (
@@ -9,12 +25,12 @@ import (
 	ctypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // Run will deploy OAM objects and other assistant K8s Objects including ConfigMap, OAM Scope Custom Resource.
-func Run(ctx context.Context, client client.Client, app *v1alpha2.Application, assistantObjects []oam.Object) error {
+func Run(ctx context.Context, client client.Client, app *v1beta1.Application, assistantObjects []oam.Object) error {
 	if err := CreateOrUpdateObjects(ctx, client, assistantObjects); err != nil {
 		return err
 	}
@@ -53,8 +69,8 @@ func CreateOrUpdateObjects(ctx context.Context, client client.Client, objects []
 }
 
 // CreateOrUpdateApplication will create if not exist and update if exists.
-func CreateOrUpdateApplication(ctx context.Context, client client.Client, app *v1alpha2.Application) error {
-	var geta v1alpha2.Application
+func CreateOrUpdateApplication(ctx context.Context, client client.Client, app *v1beta1.Application) error {
+	var geta v1beta1.Application
 	key := ctypes.NamespacedName{Name: app.Name, Namespace: app.Namespace}
 	var exist = true
 	if err := client.Get(ctx, key, &geta); err != nil {

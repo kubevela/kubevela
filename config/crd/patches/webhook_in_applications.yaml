@@ -1,0 +1,16 @@
+# The following patch enables a conversion webhook for the CRD
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: applications.core.oam.dev
+spec:
+  conversion:
+    strategy: Webhook
+    webhook:
+      clientConfig:
+        service:
+          namespace: vela-system
+          name: vela-core-webhook
+          path: /convert
+          port: 443
+      conversionReviewVersions: ["v1beta1","v1alpha2"]

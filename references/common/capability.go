@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package common
 
 import (
@@ -20,7 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -87,47 +103,45 @@ func AddCapabilityIntoCluster(c client.Client, mapper discoverymapper.DiscoveryM
 func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMapper, centerName, capabilityName string, ioStreams cmdutil.IOStreams) error {
 	dir, _ := system.GetCapCenterDir()
 	repoDir := filepath.Join(dir, centerName)
-	tp, err := GetCapabilityFromCenter(centerName, capabilityName)
+	tp, err := GetCapabilityFromCenter(mapper, centerName, capabilityName)
 	if err != nil {
 		return err
 	}
 	tp.Source = &types.Source{RepoName: centerName}
 	defDir, _ := system.GetCapabilityDir()
 	switch tp.Type {
-	case types.TypeWorkload:
-		var wd v1alpha2.WorkloadDefinition
+	case types.TypeComponentDefinition:
+		var cd v1beta1.ComponentDefinition
 		workloadData, err := ioutil.ReadFile(filepath.Clean(filepath.Join(repoDir, tp.Name+".yaml")))
 		if err != nil {
 			return err
 		}
-		if err = yaml.Unmarshal(workloadData, &wd); err != nil {
+		if err = yaml.Unmarshal(workloadData, &cd); err != nil {
 			return err
 		}
-		wd.Namespace = types.DefaultKubeVelaNS
-		ioStreams.Info("Installing workload capability " + wd.Name)
+		cd.Namespace = types.DefaultKubeVelaNS
+		ioStreams.Info("Installing component capability " + cd.Name)
 		if tp.Install != nil {
 			tp.Source.ChartName = tp.Install.Helm.Name
 			if err = helm.InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
 				return err
 			}
+			err = addSourceIntoExtension(cd.Spec.Extension, tp.Source)
+			if err != nil {
+				return err
+			}
 		}
-		gvk, err := util.GetGVKFromDefinition(mapper, wd.Spec.Reference)
-		if err != nil {
-			return err
+		if cd.Spec.Workload.Type == "" {
+			tp.CrdInfo = &types.CRDInfo{
+				APIVersion: cd.Spec.Workload.Definition.APIVersion,
+				Kind:       cd.Spec.Workload.Definition.Kind,
+			}
 		}
-		tp.CrdInfo = &types.CRDInfo{
-			APIVersion: gvk.GroupVersion().String(),
-			Kind:       gvk.Kind,
-		}
-		err = addSourceIntoExtension(wd.Spec.Extension, tp.Source)
-		if err != nil {
-			return err
-		}
-		if err = client.Create(context.Background(), &wd); err != nil && !apierrors.IsAlreadyExists(err) {
+		if err = client.Create(context.Background(), &cd); err != nil && !apierrors.IsAlreadyExists(err) {
 			return err
 		}
 	case types.TypeTrait:
-		var td v1alpha2.TraitDefinition
+		var td v1beta1.TraitDefinition
 		traitdata, err := ioutil.ReadFile(filepath.Clean(filepath.Join(repoDir, tp.Name+".yaml")))
 		if err != nil {
 			return err
@@ -142,6 +156,10 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 			if err = helm.InstallHelmChart(ioStreams, tp.Install.Helm); err != nil {
 				return err
 			}
+			err = addSourceIntoExtension(td.Spec.Extension, tp.Source)
+			if err != nil {
+				return err
+			}
 		}
 		if err = HackForStandardTrait(tp, client); err != nil {
 			return err
@@ -154,17 +172,13 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 			APIVersion: gvk.GroupVersion().String(),
 			Kind:       gvk.Kind,
 		}
-		err = addSourceIntoExtension(td.Spec.Extension, tp.Source)
-		if err != nil {
-			return err
-		}
 		if err = client.Create(context.Background(), &td); err != nil && !apierrors.IsAlreadyExists(err) {
 			return err
 		}
 	case types.TypeScope:
 		// TODO(wonderflow): support install scope here
-	case types.TypeComponentDefinition:
-		// TODO(yangsoon): support ComponentDefinition here
+	case types.TypeWorkload:
+		return fmt.Errorf("unsupported capability type %v", types.TypeWorkload)
 	}
 
 	success := plugins.SinkTemp2Local([]types.Capability{tp}, defDir)
@@ -194,10 +208,10 @@ func HackForStandardTrait(tp types.Capability, client client.Client) error {
 }
 
 // GetCapabilityFromCenter will list all synced capabilities from cap center and return the specified one
-func GetCapabilityFromCenter(repoName, addonName string) (types.Capability, error) {
+func GetCapabilityFromCenter(mapper discoverymapper.DiscoveryMapper, repoName, addonName string) (types.Capability, error) {
 	dir, _ := system.GetCapCenterDir()
 	repoDir := filepath.Join(dir, repoName)
-	templates, err := plugins.LoadCapabilityFromSyncedCenter(repoDir)
+	templates, err := plugins.LoadCapabilityFromSyncedCenter(mapper, repoDir)
 	if err != nil {
 		return types.Capability{}, err
 	}
@@ -294,9 +308,9 @@ func uninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 	var obj runtime.Object
 	switch cap.Type {
 	case types.TypeTrait:
-		obj = &v1alpha2.TraitDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultKubeVelaNS}}
+		obj = &v1beta1.TraitDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultKubeVelaNS}}
 	case types.TypeWorkload:
-		obj = &v1alpha2.WorkloadDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultKubeVelaNS}}
+		obj = &v1beta1.WorkloadDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultKubeVelaNS}}
 	case types.TypeScope:
 		return fmt.Errorf("uninstall scope capability was not supported yet")
 	case types.TypeComponentDefinition:
@@ -364,7 +378,11 @@ func ListCapabilities(userNamespace string, c common.Args, capabilityCenterName 
 }
 
 func listCenterCapabilities(userNamespace string, c common.Args, repoDir string) ([]types.Capability, error) {
-	templates, err := plugins.LoadCapabilityFromSyncedCenter(repoDir)
+	dm, err := c.GetDiscoveryMapper()
+	if err != nil {
+		return nil, err
+	}
+	templates, err := plugins.LoadCapabilityFromSyncedCenter(dm, repoDir)
 	if err != nil {
 		return templates, err
 	}

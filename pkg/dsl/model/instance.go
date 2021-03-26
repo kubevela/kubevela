@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package model
 
 import (
@@ -120,9 +136,33 @@ func openPrint(v cue.Value) (string, error) {
 		return "", err
 	}
 	if strings.Contains(string(ret), "_|_") {
-		return "", errors.New(string(ret))
+		return "", errors.New(IndexMatchLine(string(ret), "_|_"))
 	}
 	return string(ret), nil
+}
+
+// IndexMatchLine will index and extract the line contains the pattern.
+func IndexMatchLine(res string, pattern string) string {
+	idx := strings.Index(res, pattern)
+	if idx < 0 || idx >= len(res) {
+		// should not happen if we check contains first.
+		return ""
+	}
+	var start = -1
+	var end = len(res)
+	for i := idx; i >= 0; i-- {
+		if res[i] == '\n' {
+			start = i
+			break
+		}
+	}
+	for i := idx; i < len(res); i++ {
+		if res[i] == '\n' {
+			end = i
+			break
+		}
+	}
+	return res[start+1 : end]
 }
 
 func listOpen(expr ast.Node) {

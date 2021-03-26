@@ -20,29 +20,17 @@ import (
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
-
-// A WorkloadTypeDescriptor refer to a Workload Type
-type WorkloadTypeDescriptor struct {
-	// Type ref to a WorkloadDefinition via name
-	Type string `json:"type,omitempty"`
-	// Definition mutually exclusive to workload.type, a embedded WorkloadDefinition
-	Definition WorkloadGVK `json:"definition,omitempty"`
-}
-
-// WorkloadGVK refer to a Workload Type
-type WorkloadGVK struct {
-	APIVersion string `json:"apiVersion"`
-	Kind       string `json:"kind"`
-}
 
 // ComponentDefinitionSpec defines the desired state of ComponentDefinition
 type ComponentDefinitionSpec struct {
 	// Workload is a workload type descriptor
-	Workload WorkloadTypeDescriptor `json:"workload"`
+	Workload common.WorkloadTypeDescriptor `json:"workload"`
 
 	// ChildResourceKinds are the list of GVK of the child resources this workload generates
-	ChildResourceKinds []ChildResourceKind `json:"childResourceKinds,omitempty"`
+	ChildResourceKinds []common.ChildResourceKind `json:"childResourceKinds,omitempty"`
 
 	// RevisionLabel indicates which label for underlying resources(e.g. pods) of this workload
 	// can be used by trait to create resource selectors(e.g. label selector for pods).
@@ -56,11 +44,11 @@ type ComponentDefinitionSpec struct {
 
 	// Status defines the custom health policy and status message for workload
 	// +optional
-	Status *Status `json:"status,omitempty"`
+	Status *common.Status `json:"status,omitempty"`
 
 	// Schematic defines the data format and template of the encapsulation of the workload
 	// +optional
-	Schematic *Schematic `json:"schematic,omitempty"`
+	Schematic *common.Schematic `json:"schematic,omitempty"`
 
 	// Extension is used for extension needs by OAM platform builders
 	// +optional

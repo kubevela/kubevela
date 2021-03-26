@@ -28,16 +28,17 @@ import (
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/pointer"
 
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
 	"github.com/oam-dev/kubevela/pkg/dsl/model"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 var _ = Describe("Package discovery resources for definition from K8s APIServer", func() {
 
-	It("discovery built-in k8s resource", func() {
+	PIt("discovery built-in k8s resource", func() {
 
 		By("test ingress in kube package")
 		bi := build.NewContext().NewInstance("", nil)
@@ -282,13 +283,20 @@ parameter: {
 			},
 		}
 		Expect(k8sClient.Create(context.Background(), &crd1)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		time.Sleep(2 * time.Second)
+
+		mapper, err := discoverymapper.New(cfg)
+		Expect(err).ShouldNot(HaveOccurred())
+		Eventually(func() error {
+			_, err := mapper.RESTMapping(schema.GroupKind{Group: "example.com", Kind: "Foo"}, "v1")
+			return err
+		}, time.Second*2, time.Millisecond*300).Should(BeNil())
+
 		Expect(pd.Exist(metav1.GroupVersionKind{
 			Group:   "example.com",
 			Version: "v1",
 			Kind:    "Foo",
 		})).Should(Equal(false))
-		Expect(pd.RefreshKubePackagesFromCluster()).ShouldNot(HaveOccurred())
+
 		By("test new added CRD in kube package")
 		Eventually(func() error {
 			if err := pd.RefreshKubePackagesFromCluster(); err != nil {
@@ -304,7 +312,9 @@ output: {
 	spec: key: "test1"
     status: key: "test2"
 }
-`)
+`); err != nil {
+				return err
+			}
 			inst, err = r.Build(bi)
 			if err != nil {
 				return err

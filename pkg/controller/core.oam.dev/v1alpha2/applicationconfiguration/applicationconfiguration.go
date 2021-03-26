@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	types2 "github.com/oam-dev/kubevela/apis/types"
+
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
@@ -39,7 +41,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
@@ -89,12 +90,6 @@ func Setup(mgr ctrl.Manager, args core.Args, l logging.Logger) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
 		For(&v1alpha2.ApplicationConfiguration{}).
-		Watches(&source.Kind{Type: &v1alpha2.Component{}}, &ComponentHandler{
-			Client:                mgr.GetClient(),
-			Logger:                l,
-			RevisionLimit:         args.RevisionLimit,
-			CustomRevisionHookURL: args.CustomRevisionHookURL,
-		}).
 		Complete(NewReconciler(mgr, args.DiscoveryMapper,
 			l.WithValues("controller", name),
 			WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
@@ -295,7 +290,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 			log.Info(msg)
 			r.record.Event(ac, event.Normal(reasonRevision, msg))
 			ac.SetConditions(v1alpha1.Unavailable())
-			ac.Status.RollingStatus = v1alpha2.InactiveAfterRollingCompleted
+			ac.Status.RollingStatus = types2.InactiveAfterRollingCompleted
 			// TODO: GC the traits/workloads
 			return reconcile.Result{}
 		}

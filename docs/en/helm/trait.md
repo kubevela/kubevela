@@ -13,15 +13,15 @@ metadata:
 spec:
   components:
     - name: demo-podinfo 
-      type: webapp-chart 
-      settings: 
+      type: webapp-chart
+      properties: 
         image:
           tag: "5.1.2"
       traits:
-        - name: scaler
+        - type: scaler
           properties:
             replicas: 4
-        - name: virtualgroup
+        - type: virtualgroup
           properties:
             group: "my-group1"
             type: "cluster"
@@ -73,15 +73,15 @@ metadata:
 spec:
   components:
     - name: demo-podinfo 
-      type: webapp-chart 
-      settings: 
+      type: webapp-chart
+      properties: 
         image:
           tag: "5.1.3" # 5.1.2 => 5.1.3 
       traits:
-        - name: scaler
+        - type: scaler
           properties:
             replicas: 2 # 4 => 2
-        - name: virtualgroup
+        - type: virtualgroup
           properties:
             group: "my-group2" # my-group1 => my-group2
             type: "cluster"

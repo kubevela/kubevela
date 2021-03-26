@@ -1,8 +1,8 @@
 # Building Developer Experience with KubeVela
 
-To achieve best user experience for your platform, we highly recommend platform builders to create simple and user friendly UI for end users instead of exposing full platform level details to them. Some common practices include building GUI console, adopting DSL, or creating a user friendly command line tool.
+To achieve best user experience for your platform, we recommend platform builders to create simple and user friendly UI for end users instead of exposing full platform level details to them. Some common practices include building GUI console, adopting DSL, or creating a user friendly command line tool.
 
-As an proof-of-concept of building developer experience with KubeVela, we developed a tool named `Appfile` as well. This tool enables developers to deploy any application with a single file and a single command: `vela up`.
+As an proof-of-concept of building developer experience with KubeVela, we developed a client-side tool named `Appfile` as well. This tool enables developers to deploy any application with a single file and a single command: `vela up`.
 
 Now let's walk through its experience.
 

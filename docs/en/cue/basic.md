@@ -1,6 +1,8 @@
 # Learning CUE
 
-This document will explain how to use [CUE](https://cuelang.org/) to encapsulate a given capability in Kubernetes and make it available to end users to consume in `Application` CRD. Please make sure you have already learned about `Application` custom resource before reading the following guide. 
+This document will explain how to use [CUE](https://cuelang.org/) to encapsulate and abstract a given capability in Kubernetes and
+make it available to end users to consume in `Application` CRD. Please make sure you have already learned about
+`Application` custom resource before reading the following guide. 
 
 ## Overview
 
@@ -14,107 +16,28 @@ The reasons for KubeVela supports CUE as first class templating solution can be 
 
 > Pleas also check [The Configuration Complexity Curse](https://blog.cedriccharly.com/post/20191109-the-configuration-complexity-curse/) and [The Logic of CUE](https://cuelang.org/docs/concepts/logic/) for more details.
 
-## Parameter and Template
+## Prerequisites
 
-A very simple `WorkloadDefinition` is like below:
+* [`cue` >=v0.2.2](https://cuelang.org/docs/install/)
+* [`vela` (>v1.0.0)](https://kubevela.io/#/en/install?id=_3-optional-get-kubevela-cli)
 
-```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
-metadata:
-  name: mydeploy
-spec:
-  definitionRef:
-    name: deployments.apps
-  schematic:
-    cue:
-      template: |
-        parameter: {
-        	name:  string
-        	image: string
-        }
-        output: {
-        	apiVersion: "apps/v1"
-        	kind:       "Deployment"
-        	spec: {
-        		selector: matchLabels: {
-        			"app.oam.dev/component": parameter.name
-        		}
-        		template: {
-        			metadata: labels: {
-        				"app.oam.dev/component": parameter.name
-        			}
-        			spec: {
-        				containers: [{
-        					name:  parameter.name
-        					image: parameter.image
-        				}]
-        			}
-        		}
-        	}
-        }
+## CUE CLI basic
+
+Below is the basic CUE data, you can define both schema and value in the same file with the almost same format:
+
 ```
-
-The `template` field in this definition is a CUE module, it defines two keywords for KubeVela to build the application abstraction:
-- The `parameter` defines the input parameters from end user, i.e. the configurable fields in the abstraction.
-- The `output` defines the template for the abstraction. 
-
-## CUE Template Step by Step
-
-Let's say as the platform team, we only want to allow end user configure `image` and `name` fields in the `Application` abstraction, and automatically generate all rest of the fields. How can we use CUE to achieve this?
-
-We can start from the final resource we envision the platform will generate based on user inputs, for example:
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-meadata:
-  name: mytest # user inputs
-spec:
-  template:
-    spec:
-      containers:
-      - name: mytest # user inputs
-        env:
-        - name: a
-          value: b
-        image: nginx:v1 # user inputs
-    metadata:
-      labels:
-        app.oam.dev/component: mytest # generate by user inputs
-  selector:
-    matchLabels:
-      app.oam.dev/component: mytest # generate by user inputs
-```  
-
-Then we can just convert this YAML to JSON and put the whole JSON object into the `output` keyword field:
-                                                                                                            
-```cue
-output: {
-    apiVersion: "apps/v1"
-    kind:       "Deployment"
-    metadata: name: "mytest"
-    spec: {
-        selector: matchLabels: {
-            "app.oam.dev/component": "mytest"
-        }
-        template: {
-            metadata: labels: {
-                "app.oam.dev/component": "mytest"
-            }
-            spec: {
-                containers: [{
-                    name:  "mytest"
-                    image: "nginx:v1"
-                    env: [{name:"a",value:"b"}]
-                }]
-            }
-        }
-    }
+a: 1.5
+a: float
+b: 1
+b: int
+d: [1, 2, 3]
+g: {
+	h: "abc"
 }
+e: string
 ```
 
-Since CUE as a superset of JSON, we can use:
+CUE is a superset of JSON, we can use it like json with following convenience:
 
 * C style comments,
 * quotes may be omitted from field names without special characters,
@@ -122,141 +45,267 @@ Since CUE as a superset of JSON, we can use:
 * comma after last element in list is allowed,
 * outer curly braces are optional.
 
-After that, we can then add `parameter` keyword, and use it as a variable reference, this is the very basic CUE feature for templating.
+CUE has powerful CLI commands. Let's keep the data in a file named `first.cue` and try. 
 
-```cue
-parameter: {
-    name: string
-    image: string
-}
-output: {
-    apiVersion: "apps/v1"
-    kind:       "Deployment"
-    spec: {
-        selector: matchLabels: {
-            "app.oam.dev/component": parameter.name
-        }
-        template: {
-            metadata: labels: {
-                "app.oam.dev/component": parameter.name
-            }
-            spec: {
-                containers: [{
-                    name:  parameter.name
-                    image: parameter.image
-                }]
-            }
-        }
+* Format the CUE file. If you're using Goland or similar JetBrains IDE,
+  you can [configure save on format](https://wonderflow.info/posts/2020-11-02-goland-cuelang-format/) instead.
+  This command will not only format the CUE, but also point out the wrong schema. That's very useful.
+    ```shell
+    cue fmt first.cue
+    ```
+
+* Schema Check, besides `cue fmt`, you can also use `vue vet` to check schema.
+    ```shell
+    cue vet first.cue
+    ```
+
+* Calculate/Render the result. `cue eval` will calculate the CUE file and render out the result.
+  You can see the results don't contain `a: float` and `b: int`, because these two variables are calculated.
+  While the `e: string` doesn't have definitive results, so it keeps as it is.
+    ```shell
+   $ cue eval first.cue
+    a: 1.5
+    b: 1
+    d: [1, 2, 3]
+    g: {
+    h: "abc"
     }
+    e: string
+    ```
+
+* Render for specified result. For example, we want only know the result of `b` in the file, then we can specify the parameter `-e`.
+    ```shell
+    $ cue eval -e b first.cue
+    1
+    ```
+
+* Export the result. `cue export` will export the result with final value. It will report an error if some variables are not definitive.
+    ```shell
+    $ cue export first.cue
+    e: cannot convert incomplete value "string" to JSON:
+        ./first.cue:9:4
+    ```
+  We can complete the value by giving a value to `e`, for example:
+    ```shell
+    echo "e: \"abc\"" >> first.cue
+    ```
+  Then, the command will work. By default, the result will be rendered in json format.
+    ```shell
+    $ cue export first.cue
+    {
+        "a": 1.5,
+        "b": 1,
+        "d": [
+            1,
+            2,
+            3
+        ],
+        "g": {
+            "h": "abc"
+        },
+        "e": "abc"
+    }
+    ```
+
+* Export the result in YAML format.
+    ```shell
+    $ cue export first.cue --out yaml
+    a: 1.5
+    b: 1
+    d:
+    - 1
+    - 2
+    - 3
+    g:
+      h: abc
+    e: abc
+    ```
+
+* Export the result for specified variable.
+    ```shell
+    $ cue export -e g first.cue
+    {
+        "h": "abc"
+    }
+    ```
+
+For now, you have learned all useful CUE cli operations.
+
+## CUE language basic
+
+* Data structure: Below is the basic data structure of CUE.
+
+```shell
+// float
+a: 1.5
+
+// int
+b: 1
+
+// string
+c: "blahblahblah"
+
+// array
+d: [1, 2, 3, 1, 2, 3, 1, 2, 3]
+
+// bool
+e: true
+
+// struct
+f: {
+	a: 1.5
+	b: 1
+	d: [1, 2, 3, 1, 2, 3, 1, 2, 3]
+	g: {
+		h: "abc"
+	}
+}
+
+// null
+j: null
+```
+
+* Define a custom CUE type. You can use a `#` symbol to specify some variable represents a CUE type.
+
+```
+#abc: string
+```
+
+Let's name it `second.cue`. Then the `cue export` won't complain as the `#abc` is a type not incomplete value.
+
+```shell
+$ cue export second.cue
+{}
+```
+
+You can also define a more complex custom struct, such as:
+
+```
+#abc: {
+  x: int
+  y: string
+  z: {
+    a: float
+    b: bool
+  }
 }
 ```
 
-Finally, you can put the above CUE module in the `template` field of `WorkloadDefinition` object and give it a name. Then end users can now author `Application` resource reference this definition as workload type and only have `name` and `image` as configurable parameters.
+It's widely used in KubeVela to define templates and do validation.
 
-## Advanced CUE Templating
+## CUE templating and reference
 
-In this section, we will introduce advanced CUE templating features supports in KubeVela.  
+Let's try to define a CUE template with the knowledge just learned.
 
-### Structural Parameter
+1. Define a struct variable `parameter`.
 
-This is the most commonly used feature. It enables us to expose complex data structure for end users. For example, environment variable list.
+```shell
+parameter: {
+	name: string
+	image: string
+}
+```
 
-A simple guide is as below:
+Let's save it in a file called `deployment.cue`.
 
-1. Define a type in the CUE template, it includes a struct (`other`), a string and an integer.
+2. Define a more complex struct variable `template` and reference the variable `parameter`.
 
-    ```
-    #Config: {
-       name:  string
-       value: int
-       other: {
-         key: string
-         value: string
-       }
-    }
-    ```
+```
+template: {
+	apiVersion: "apps/v1"
+	kind:       "Deployment"
+	spec: {
+		selector: matchLabels: {
+			"app.oam.dev/component": parameter.name
+		}
+		template: {
+			metadata: labels: {
+				"app.oam.dev/component": parameter.name
+			}
+			spec: {
+				containers: [{
+					name:  parameter.name
+					image: parameter.image
+				}]
+			}}}
+}
+```
 
-2. In the `parameter` section, reference above type and define it as `[...#Config]`. Then it can accept inputs from end users as an array list.
+People who are familiar with Kubernetes may have understood that is a template of K8s Deployment. The `parameter` part
+is the parameters of the template.
 
-    ```
-    parameter: {
-       name: string
-       image: string
-       configSingle: #Config
-       config: [...#Config] # array list parameter
-    }
-    ```
+Add it into the `deployment.cue`.
 
-3. In the `output` section, simply do templating as other parameters.
+4. Then, let's add the value by adding following code block:
 
-    ```
-    output: {
-       ...
-             spec: {
-                 containers: [{
-                     name:  parameter.name
-                     image: parameter.image
-                     env: parameter.config
-                 }]
-             }
+```
+parameter:{
+   name: "mytest"
+   image: "nginx:v1"
+}
+```
+
+5. Finally, let's export it in yaml:
+
+```shell
+$ cue export deployment.cue -e template --out yaml
+apiVersion: apps/v1
+kind: Deployment
+spec:
+  template:
+    spec:
+      containers:
+      - name: mytest
+        image: nginx:v1
+    metadata:
+      labels:
+        app.oam.dev/component: mytest
+  selector:
+    matchLabels:
+      app.oam.dev/component: mytest
+```
+
+## Advanced CUE Schematic
+
+* Open struct and list. Using `...` in a list or struct means the object is open.
+
+   -  A list like `[...string]` means it can hold multiple string elements.
+      If we don't add `...`, then `[string]` means the list can only have one `string` element in it.
+   -  A struct like below means the struct can contain unknown fields. 
+      ```
+      {
+        abc: string   
         ...
-    }
-    ```
+      }
+      ```
 
-4. As long as you install a workload definition object (e.g. `mydeploy`) with above template in the system, a new field `config` will be available to use like below:
-   
-  ```yaml
-  apiVersion: core.oam.dev/v1alpha2
-  kind: Application
-  metadata:
-    name: website
-  spec:
-    components:
-      - name: backend
-        type: mydeploy
-        settings:
-          image: crccheck/hello-world
-          name: mysvc
-          config: # a complex parameter
-           - name: a
-             value: 1
-             other:
-               key: mykey
-               value: myvalue
-  ```
+* Operator  `|`, it represents a value could be both case. Below is an example that the variable `a` could be in string or int type.
 
+```shell
+a: string | int
+```
 
-### Conditional Parameter
+* Default Value, we can use `*` symbol to represent a default value for variable. That's usually used with `|`,
+  which represents a default value for some type. Below is an example that variable `a` is `int` and it's default value is `1`.
 
-Conditional parameter can be used to do `if..else` logic in template.
+```shell
+a: *1 | int
+```
 
-Below is an example that when `useENV=true`, it will render env section, otherwise, it will not.
+* Optional Variable. In some cases, a variable could not be used, they're optional variables, we can use `?:` to define it.
+  In the below example, `a` is an optional variable, `x` and `z` in `#my` is optional while `y` is a required variable.
 
 ```
-parameter: {
-    name:   string
-    image:  string
-    useENV: bool
-}
-output: {
-    ...
-    spec: {
-        containers: [{
-            name:  parameter.name
-            image: parameter.image
-            if parameter.useENV == true {
-                env: [{name: "my-env", value: "my-value"}]
-            }
-        }]
-    }
-    ...
+a ?: int
+
+#my: {
+x ?: string
+y : int
+z ?:float
 }
 ```
 
-### Optional and Default Value
-
-Optional parameter can be skipped, that usually works together with conditional logic. 
-
+Optional variables can be skipped, that usually works together with conditional logic.
 Specifically, if some field does not exit, the CUE grammar is `if _variable_ != _|_`, the example is like below:
 
 ```
@@ -280,14 +329,55 @@ output: {
 }
 ```
 
-Default Value is marked with a `*` prefix. It's used like 
+* Operator  `&`, it used to calculate two variables.
+
+```shell
+a: *1 | int
+b: 3
+c: a & b
+```
+
+Saving it in `third.cue` file.
+
+You can evaluate the result by using `cue eval`:
+
+```shell
+$ cue eval third.cue
+a: 1
+b: 3
+c: 3
+```
+
+* Conditional statement, it's really useful when you have some cascade operations that different value affects different results.
+  So you can do `if..else` logic in the template.
+
+```shell
+price: number
+feel: *"good" | string
+// Feel bad if price is too high
+if price > 100 {
+    feel: "bad"
+}
+price: 200
+```
+
+Saving it in `fourth.cue` file.
+
+You can evaluate the result by using `cue eval`:
+
+```shell
+$ cue eval fourth.cue
+price: 200
+feel:  "bad"
+```
+
+Another example is to use bool type as prameter.
 
 ```
 parameter: {
-    name: string
-    image: *"nginx:v1" | string
-    port: *80 | int
-    number: *123.4 | float
+    name:   string
+    image:  string
+    useENV: bool
 }
 output: {
     ...
@@ -295,66 +385,80 @@ output: {
         containers: [{
             name:  parameter.name
             image: parameter.image
+            if parameter.useENV == true {
+                env: [{name: "my-env", value: "my-value"}]
+            }
         }]
     }
     ...
 }
 ```
 
-So if a parameter field is neither a parameter with default value nor a conditional field, it's a required value.
 
-### Loop 
-
-#### Loop for Map
-
-```cue
-parameter: {
-    name:  string
-    image: string
-    env: [string]: string
-}
-output: {
-    spec: {
-        containers: [{
-            name:  parameter.name
-            image: parameter.image
-            env: [
-                for k, v in parameter.env {
-                    name:  k
-                    value: v
-                },
-            ]
-        }]
+* For Loop: if you want to avoid duplicate, you may want to use for loop.
+  - Loop for Map
+    ```cue
+    parameter: {
+        name:  string
+        image: string
+        env: [string]: string
     }
-}
-```
-
-#### Loop for Slice
-
-```cue
-parameter: {
-    name:  string
-    image: string
-    env: [...{name:string,value:string}]
-}
-output: {
-  ...
-     spec: {
-        containers: [{
-            name:  parameter.name
-            image: parameter.image
-            env: [
-                for _, v in parameter.env {
-                    name:  v.name
-                    value: v.value
-                },
-            ]
-        }]
+    output: {
+        spec: {
+            containers: [{
+                name:  parameter.name
+                image: parameter.image
+                env: [
+                    for k, v in parameter.env {
+                        name:  k
+                        value: v
+                    },
+                ]
+            }]
+        }
     }
-}
-```
+    ```
+  - Loop for type
+    ```
+    #a: {
+        "hello": "Barcelona"
+        "nihao": "Shanghai"
+    }
+    
+    for k, v in #a {
+        "\(k)": {
+            nameLen: len(v)
+            value:   v
+        }
+    }
+    ```
+  -  Loop for Slice
+    ```cue
+    parameter: {
+        name:  string
+        image: string
+        env: [...{name:string,value:string}]
+    }
+    output: {
+      ...
+         spec: {
+            containers: [{
+                name:  parameter.name
+                image: parameter.image
+                env: [
+                    for _, v in parameter.env {
+                        name:  v.name
+                        value: v.value
+                    },
+                ]
+            }]
+        }
+    }
+    ```
 
-### Import CUE Internal Packages
+Note that we use `"\( _my-statement_ )"` for inner calculation in string.
+
+## Import CUE Internal Packages
 
 CUE has many [internal packages](https://pkg.go.dev/cuelang.org/go@v0.2.2/pkg) which also can be used in KubeVela.
 
@@ -378,7 +482,7 @@ output: {
 }
 ```
 
-### Import Kube Package
+## Import Kube Package
 
 KubeVela automatically generates all K8s resources as internal packages by reading K8s openapi from the
 installed K8s cluster.

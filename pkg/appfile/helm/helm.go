@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package helm
 
 import (
@@ -11,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 )
 
@@ -21,7 +37,7 @@ var (
 )
 
 // RenderHelmReleaseAndHelmRepo constructs HelmRelease and HelmRepository in unstructured format
-func RenderHelmReleaseAndHelmRepo(helmSpec *v1alpha2.Helm, compName, appName, ns string, values map[string]interface{}) (*unstructured.Unstructured, *unstructured.Unstructured, error) {
+func RenderHelmReleaseAndHelmRepo(helmSpec *common.Helm, compName, appName, ns string, values map[string]interface{}) (*unstructured.Unstructured, *unstructured.Unstructured, error) {
 	releaseSpec, repoSpec, err := decodeHelmSpec(helmSpec)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "Helm spec is invalid")
@@ -98,7 +114,7 @@ func setSpecObjIntoUnstructuredObj(spec interface{}, u *unstructured.Unstructure
 	return nil
 }
 
-func decodeHelmSpec(h *v1alpha2.Helm) (*helmapi.HelmReleaseSpec, *helmapi.HelmRepositorySpec, error) {
+func decodeHelmSpec(h *common.Helm) (*helmapi.HelmReleaseSpec, *helmapi.HelmRepositorySpec, error) {
 	releaseSpec := &helmapi.HelmReleaseSpec{}
 	if err := json.Unmarshal(h.Release.Raw, releaseSpec); err != nil {
 		return nil, nil, errors.Wrap(err, "Helm release spec is invalid")

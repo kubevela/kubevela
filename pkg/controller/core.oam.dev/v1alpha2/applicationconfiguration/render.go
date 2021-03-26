@@ -24,6 +24,8 @@ import (
 	"strconv"
 	"strings"
 
+	types2 "github.com/oam-dev/kubevela/apis/types"
+
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
@@ -39,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -113,10 +116,10 @@ func (r *components) Render(ctx context.Context, ac *v1alpha2.ApplicationConfigu
 			}
 		}
 		// we need to do a template roll out if it's not done yet
-		needRolloutTemplate = ac.Status.RollingStatus != v1alpha2.RollingTemplated
-	} else if ac.Status.RollingStatus == v1alpha2.RollingTemplated {
+		needRolloutTemplate = ac.Status.RollingStatus != types2.RollingTemplated
+	} else if ac.Status.RollingStatus == types2.RollingTemplated {
 		klog.InfoS("mark the ac rolling status as completed", "appConfig", klog.KRef(ac.Namespace, ac.Name))
-		ac.Status.RollingStatus = v1alpha2.RollingCompleted
+		ac.Status.RollingStatus = types2.RollingCompleted
 	}
 
 	for _, acc := range ac.Spec.Components {
@@ -130,7 +133,7 @@ func (r *components) Render(ctx context.Context, ac *v1alpha2.ApplicationConfigu
 		}
 		workloads = append(workloads, w)
 		if isComponentRolling && needRolloutTemplate {
-			ac.Status.RollingStatus = v1alpha2.RollingTemplating
+			ac.Status.RollingStatus = types2.RollingTemplating
 		}
 	}
 	workloadsAllClear := true
@@ -148,9 +151,9 @@ func (r *components) Render(ctx context.Context, ac *v1alpha2.ApplicationConfigu
 		res = append(res, *workloads[i])
 	}
 	// set the ac rollingStatus to be RollingTemplated if all workloads are going to be applied
-	if workloadsAllClear && ac.Status.RollingStatus == v1alpha2.RollingTemplating {
+	if workloadsAllClear && ac.Status.RollingStatus == types2.RollingTemplating {
 		klog.InfoS("mark the ac rolling status as templated", "appConfig", klog.KRef(ac.Namespace, ac.Name))
-		ac.Status.RollingStatus = v1alpha2.RollingTemplated
+		ac.Status.RollingStatus = types2.RollingTemplated
 	}
 
 	return res, ds, nil
@@ -791,7 +794,7 @@ func (r *components) getDataInput(ctx context.Context, s *dagSource, ac *unstruc
 
 func isControlledByApp(ac *v1alpha2.ApplicationConfiguration) bool {
 	for _, owner := range ac.GetOwnerReferences() {
-		if owner.APIVersion == v1alpha2.SchemeGroupVersion.String() && owner.Kind == v1alpha2.ApplicationKind &&
+		if owner.APIVersion == v1beta1.SchemeGroupVersion.String() && owner.Kind == v1beta1.ApplicationKind &&
 			owner.Controller != nil && *owner.Controller {
 			return true
 		}

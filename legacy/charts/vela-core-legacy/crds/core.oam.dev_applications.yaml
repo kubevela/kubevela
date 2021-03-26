@@ -5,7 +5,6 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.4
-  creationTimestamp: null
   name: applications.core.oam.dev
 spec:
   group: core.oam.dev
@@ -17,8 +16,6 @@ spec:
     plural: applications
     singular: application
   scope: Namespaced
-  subresources:
-    status: {}
   validation:
     openAPIV3Schema:
       description: Application is the Schema for the applications API
@@ -40,13 +37,13 @@ spec:
                 properties:
                   name:
                     type: string
+                  properties:
+                    type: object
+                    
                   scopes:
                     additionalProperties:
                       type: string
                     description: scopes in ApplicationComponent defines the component-level scopes the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
-                    type: object
-                    
-                  settings:
                     type: object
                     
                   traits:
@@ -54,21 +51,19 @@ spec:
                     items:
                       description: ApplicationTrait defines the trait of application
                       properties:
-                        name:
-                          type: string
                         properties:
                           type: object
                           
+                        type:
+                          type: string
                       required:
-                      - name
-                      - properties
+                      - type
                       type: object
                     type: array
                   type:
                     type: string
                 required:
                 - name
-                - settings
                 - type
                 type: object
               type: array
@@ -434,6 +429,9 @@ spec:
   version: v1alpha2
   versions:
   - name: v1alpha2
+    served: true
+    storage: false
+  - name: v1beta1
     served: true
     storage: true
 status:

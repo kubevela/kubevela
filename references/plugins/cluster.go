@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package plugins
 
 import (
@@ -11,7 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -50,7 +67,7 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c common.Arg
 	}
 
 	var templates []types.Capability
-	var workloadDefs corev1alpha2.WorkloadDefinitionList
+	var workloadDefs v1beta1.WorkloadDefinitionList
 	err = newClient.List(ctx, &workloadDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
 	if err != nil {
 		return nil, nil, fmt.Errorf("list WorkloadDefinition err: %w", err)
@@ -83,7 +100,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c common.Args, 
 		return nil, nil, err
 	}
 	var templates []types.Capability
-	var traitDefs corev1alpha2.TraitDefinitionList
+	var traitDefs v1beta1.TraitDefinitionList
 	err = newClient.List(ctx, &traitDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
 	if err != nil {
 		return nil, nil, fmt.Errorf("list TraitDefinition err: %w", err)
@@ -106,7 +123,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c common.Args, 
 }
 
 // validateCapabilities validates whether helm charts are successful installed, GVK are successfully retrieved.
-func validateCapabilities(tmp types.Capability, dm discoverymapper.DiscoveryMapper, definitionName string, reference corev1alpha2.DefinitionReference) (types.Capability, error) {
+func validateCapabilities(tmp types.Capability, dm discoverymapper.DiscoveryMapper, definitionName string, reference commontypes.DefinitionReference) (types.Capability, error) {
 	var err error
 	if tmp.Install != nil {
 		tmp.Source = &types.Source{ChartName: tmp.Install.Helm.Name}
@@ -133,7 +150,7 @@ func validateCapabilities(tmp types.Capability, dm discoverymapper.DiscoveryMapp
 }
 
 // HandleDefinition will handle definition to capability
-func HandleDefinition(name, crdName string, annotation map[string]string, extension *runtime.RawExtension, tp types.CapType, applyTo []string, schematic *corev1alpha2.Schematic) (types.Capability, error) {
+func HandleDefinition(name, crdName string, annotation map[string]string, extension *runtime.RawExtension, tp types.CapType, applyTo []string, schematic *commontypes.Schematic) (types.Capability, error) {
 	var tmp types.Capability
 	tmp, err := HandleTemplate(extension, schematic, name)
 	if err != nil {
@@ -162,7 +179,7 @@ func GetDescription(annotation map[string]string) string {
 }
 
 // HandleTemplate will handle definition template to capability
-func HandleTemplate(in *runtime.RawExtension, schematic *corev1alpha2.Schematic, name string) (types.Capability, error) {
+func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, name string) (types.Capability, error) {
 	tmp, err := util.ConvertTemplateJSON2Object(name, in, schematic)
 	if err != nil {
 		return types.Capability{}, err
@@ -232,7 +249,7 @@ func SyncDefinitionToLocal(ctx context.Context, c common.Args, localDefinitionDi
 	if err != nil {
 		return nil, err
 	}
-	var workloadDef corev1alpha2.WorkloadDefinition
+	var workloadDef v1beta1.WorkloadDefinition
 	err = newClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: capabilityName}, &workloadDef)
 	if err == nil {
 		// return nil, fmt.Errorf("get WorkloadDefinition err: %w", err)
@@ -247,7 +264,7 @@ func SyncDefinitionToLocal(ctx context.Context, c common.Args, localDefinitionDi
 	}
 
 	foundCapability = false
-	var traitDef corev1alpha2.TraitDefinition
+	var traitDef v1beta1.TraitDefinition
 	err = newClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: capabilityName}, &traitDef)
 	if err == nil {
 		foundCapability = true
