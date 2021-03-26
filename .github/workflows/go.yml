@@ -257,6 +257,9 @@ jobs:
       - name: Static Check
         run: go run honnef.co/go/tools/cmd/staticcheck -- ./...
 
+      - name: License Header Check
+        run: make check-license-header
+
   lint:
     runs-on: ubuntu-20.04
     needs: detect-noop

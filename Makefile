@@ -295,3 +295,6 @@ start-dashboard:
 
 swagger-gen:
 	$(GOBIN)/swag init -g apiserver/route.go -d pkg/ -o references/apiserver/docs/
+
+check-license-header:
+	./hack/licence/header-check.sh
