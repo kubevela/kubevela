@@ -47,7 +47,7 @@ const (
 	// ShortTag is the short alias annotation
 	ShortTag = "+short"
 	// InsertSecretToTag marks the value should be set as an context
-	InsertSecretToTag = "+insertSecretTo"
+	InsertSecretToTag = "+insertSecretTo="
 )
 
 // ErrNoSectionParameterInCue means there is not parameter section in Cue template of a workload

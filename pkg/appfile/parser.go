@@ -671,7 +671,8 @@ func (wl *Workload) IsCloudResourceProducer() bool {
 
 // IsCloudResourceConsumer checks whether a workload is cloud resource consumer role
 func (wl *Workload) IsCloudResourceConsumer() bool {
-	matched, err := regexp.Match(regexp.QuoteMeta(utils.InsertSecretToTag), []byte(wl.Template))
+	requiredSecretTag := strings.TrimRight(utils.InsertSecretToTag, "=")
+	matched, err := regexp.Match(regexp.QuoteMeta(requiredSecretTag), []byte(wl.Template))
 	if err != nil || !matched {
 		return false
 	}

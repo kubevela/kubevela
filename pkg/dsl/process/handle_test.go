@@ -73,7 +73,7 @@ image: "myserver"
 	ctx.SetBase(base)
 	ctx.AppendAuxiliaries(svcAux)
 
-	ctxInst, err := r.Compile("-", ctx.BaseContextFile())
+	ctxInst, err := r.Compile("-", ctx.ExtendedContextFile())
 	if err != nil {
 		t.Error(err)
 		return

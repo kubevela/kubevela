@@ -51,7 +51,9 @@ type Context interface {
 	SetConfigs(configs []map[string]string)
 	Output() (model.Instance, []Auxiliary)
 	BaseContextFile() string
+	ExtendedContextFile() string
 	BaseContextLabels() map[string]string
+	SetSecrets(outputSecretName string, requiredSecrets []RequiredSecrets)
 	InsertSecrets(outputSecretName string, requiredSecrets []RequiredSecrets)
 }
 
@@ -161,6 +163,23 @@ func (ctx *templateContext) BaseContextFile() string {
 	return fmt.Sprintf("context: %s", structMarshal(buff))
 }
 
+// ExtendedContextFile return cue format string of templateContext and extended secret context
+func (ctx *templateContext) ExtendedContextFile() string {
+	context := ctx.BaseContextFile()
+
+	var bareSecret string
+	if len(ctx.requiredSecrets) > 0 {
+		for _, s := range ctx.requiredSecrets {
+			data, _ := json.Marshal(s.Data)
+			bareSecret += s.ContextName + ":" + string(data) + "\n"
+		}
+	}
+	if bareSecret != "" {
+		return context + "\n" + bareSecret
+	}
+	return context
+}
+
 func (ctx *templateContext) BaseContextLabels() map[string]string {
 	return map[string]string{
 		// appName is oam.LabelAppName
@@ -177,6 +196,7 @@ func (ctx *templateContext) Output() (model.Instance, []Auxiliary) {
 	return ctx.base, ctx.auxiliaries
 }
 
+// InsertSecrets will add cloud resource secret stuff to context
 func (ctx *templateContext) InsertSecrets(outputSecretName string, requiredSecrets []RequiredSecrets) {
 	if outputSecretName != "" {
 		ctx.outputSecretName = outputSecretName
@@ -184,6 +204,10 @@ func (ctx *templateContext) InsertSecrets(outputSecretName string, requiredSecre
 	if requiredSecrets != nil {
 		ctx.requiredSecrets = requiredSecrets
 	}
+}
+
+func (ctx *templateContext) SetSecrets(outputSecretName string, requiredSecrets []RequiredSecrets) {
+
 }
 
 func structMarshal(v string) string {

@@ -100,7 +100,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return errors.WithMessagef(err, "invalid parameter of workload %s", wd.name)
 	}
 
-	if err := bi.AddFile("-", ctx.BaseContextFile()); err != nil {
+	if err := bi.AddFile("-", ctx.ExtendedContextFile()); err != nil {
 		return err
 	}
 	wd.pd.ImportBuiltinPackagesFor(bi)
@@ -282,7 +282,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	if err := bi.AddFile("parameter", paramFile); err != nil {
 		return errors.WithMessagef(err, "invalid parameter of trait %s", td.name)
 	}
-	if err := bi.AddFile("context", ctx.BaseContextFile()); err != nil {
+	if err := bi.AddFile("context", ctx.ExtendedContextFile()); err != nil {
 		return errors.WithMessagef(err, "invalid context of trait %s", td.name)
 	}
 	td.pd.ImportBuiltinPackagesFor(bi)
