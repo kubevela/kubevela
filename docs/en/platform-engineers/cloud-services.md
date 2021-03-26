@@ -1,15 +1,22 @@
 # Cloud Service
 
-In this tutorial, we will add a Alibaba Cloud's RDS service as a new workload type in KubeVela.
+KubeVela can help you to provision and consume cloud resources with your apps very well.
 
-## Step 1: Install and configure Crossplane
+## Provision
 
-We use Crossplane as the cloud resource operator for Kubernetes. This tutorial has been verified with Crossplane `version 0.14`.
-Please follow the Crossplane [Documentation](https://crossplane.io/docs/), especially the `Install & Configure` and `Compose Infrastructure` sections to configure Crossplane with your cloud account.
+In this section, we will add a Alibaba Cloud's RDS service as a new workload type in KubeVela.
 
-**Note: When installing crossplane helm chart, please don't set `alpha.oam.enabled=true` as OAM crds are already installed by KubeVela.**
+### Step 1: Install and configure Crossplane
 
-## Step 2: Add Workload Definition
+We use [Crossplane](https://crossplane.io/) as the cloud resource operator for Kubernetes.
+This tutorial has been verified with Crossplane `version 0.14`.
+Please follow the Crossplane [Documentation](https://crossplane.io/docs/), 
+especially the `Install & Configure` and `Compose Infrastructure` sections to configure
+Crossplane with your cloud account.
+
+**Note: When installing crossplane helm chart, please DON'T set `alpha.oam.enabled=true` as OAM crds are already installed by KubeVela.**
+
+## Step 2: Add Component Definition
 
 First, register the `rds` workload type to KubeVela.
 
@@ -58,86 +65,121 @@ EOF
 
 ## Step 3: Verify
 
-Check if the new workload type is added:
+Use RDS component in an [Application](../application.md) to provide cloud resources.
 
-```console
-$ vela workloads
-Synchronizing capabilities from cluster⌛ ...
-Sync capabilities successfully ✅ Add(1) Update(0) Delete(0)
-TYPE	CATEGORY	DESCRIPTION     
-+rds	workload	RDS on Ali Cloud
+As we have claimed an RDS instance with ComponentDefinition name `rds`.
+The component in the application should refer to this type.
 
-Listing workload capabilities ...
-
-NAME      	DESCRIPTION                             
-rds       	RDS on Ali Cloud                        
-task      	One-time task/job                       
-webservice	Long running service with network routes
-worker    	Backend worker without ports exposed    
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: mydatabase
+spec:
+  components:
+    - name: myrds
+      type: rds
+      properties:
+        name: "alibaba-rds"
+        storage: 20
+        secretname: "myrds-conn"
 ```
 
-(Optional) Define RDS component in an application
-
-<details>
-
-Let's first create an [Appfile](../developers/learn-appfile.md). We will claim an RDS instance with workload type of `rds`. You may need to change the variables of the `database` service to reflect your configuration.
-
-```bash
-$ cat << EOF > vela.yaml
-name: test-rds
-
-services:
-  database:
-    type: rds
-    name: alibabaRds
-    storage: 20
-
-  checkdb:
-    type: webservice
-    image: nginx
-    name: checkdb
-    env:
-      - name: PGDATABASE
-        value: postgres
-      - name: PGHOST
-        valueFrom:
-          secretKeyRef:
-            name: db-conn
-            key: endpoint
-      - name: PGUSER
-        valueFrom:
-          secretKeyRef:
-            name: db-conn
-            key: username
-      - name: PGPASSWORD
-        valueFrom:
-          secretKeyRef:
-            name: db-conn
-            key: password
-      - name: PGPORT
-        valueFrom:
-          secretKeyRef:
-            name: db-conn
-            key: port
-EOF
-```
-
-Next, we could deploy the application with `$ vela up`.
-
-## Verify the database status
+Apply the application into the K8s system.
 
 The database provision will take some time (> 5 min) to be ready.
-In our Appfile, we created another service called `checkdb`. The database will write all the connecting credentials in a secret which we put into the `checkdb` service as environmental variables. To verify the database configuration, we simply print out the environmental variables of the `checkdb` service:   
-`$ vela exec test-rds -- printenv`   
-After confirming the service is `checkdb`, we shall see the printout of the database information:
 
-```console
-PGUSER=myuser
-PGPASSWORD=<password>
-PGPORT=1921
-PGDATABASE=postgres
-PGHOST=<hostname>
-...
+// TBD: add status check , or should database is created result.
+
+
+## Consuming
+
+In this section, we will consume the cloud resources created.
+
+> ** Note: We highly recommend that you should split the cloud resource provision and consuming in different applications.**
+** Because the cloud resources can have standalone Lifecycle Management.**
+> But it also works if you combine the resources provision and consuming within an App.
+
+### Step 1 Define a ComponentDefinition consume from secrets
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: webserver
+  annotations:
+    definition.oam.dev/description: "webserver to consume cloud resources"
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        		}
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": context.name
+        			}
+        			spec: {
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+
+        					if parameter["cmd"] != _|_ {
+        						command: parameter.cmd
+        					}
+        					env: [{
+        						name:  "DB_NAME"
+        						value: mySecret.dbName
+        					}, {
+        						name:  "DB_PASSWORD"
+        						value: mySecret.password
+        					}]
+        				}]
+        			}
+        		}
+        	}
+        }
+        mySecret: {
+        	dbName:   string
+        	password: string
+        }
+        parameter: {
+        	image: string
+        	//+InsertSecretTo=mySecret
+        	mysecret: string
+        	cmd?: [...string]
+        }       
 ```
-</details>
 
+The key point is the annotation `//+InsertSecretTo=mySecret`,
+KubeVela will know the parameter is a K8s secret, it will parse the secret and bind the data into the CUE struct `mySecret`.
+
+Then the `output` can reference the `mySecret` struct for the data value. The name `mySecret` can be any name.
+It's just an example in this case. The `+InsertSecretTo` is keyword, it defines the data binding mechanism.
+
+Then create an Application to consume the data.
+
+```yaml
+apiVersion: core.oam.dev/v1alpha2
+kind: Application
+metadata:
+  name: data-consumer
+spec:
+  components:
+    - name: myweb
+      type: webserver
+      settings:
+        image: "nginx"
+        mysecret: "mydb-outputs"
+```
+
+// TBD show the result
