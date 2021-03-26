@@ -296,7 +296,7 @@ parameter: {
 			}
 			bi = build.NewContext().NewInstance("", nil)
 			pd.ImportBuiltinPackagesFor(bi)
-			bi.AddFile("-", `
+			if err := bi.AddFile("-", `
 import ("example.com/v1")
 
 output: v1.#Foo
@@ -304,7 +304,9 @@ output: {
 	spec: key: "test1"
     status: key: "test2"
 }
-`)
+`); err != nil {
+				return err
+			}
 			inst, err = r.Build(bi)
 			if err != nil {
 				return err
