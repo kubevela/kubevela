@@ -21,54 +21,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/types"
 )
-
-// CUE defines the encapsulation in CUE format
-type CUE struct {
-	// Template defines the abstraction template data of the capability, it will replace the old CUE template in extension field.
-	// Template is a required field if CUE is defined in Capability Definition.
-	Template string `json:"template"`
-}
-
-// Schematic defines the encapsulation of this capability(workload/trait/scope),
-// the encapsulation can be defined in different ways, e.g. CUE/HCL(terraform)/KUBE(K8s Object)/HELM, etc...
-type Schematic struct {
-	CUE *CUE `json:"cue,omitempty"`
-
-	HELM *Helm `json:"helm,omitempty"`
-
-	// TODO(wonderflow): support HCL(terraform)/KUBE(K8s Object) here.
-}
-
-// A DefinitionReference refers to a CustomResourceDefinition by name.
-type DefinitionReference struct {
-	// Name of the referenced CustomResourceDefinition.
-	Name string `json:"name"`
-
-	// Version indicate which version should be used if CRD has multiple versions
-	// by default it will use the first one if not specified
-	Version string `json:"version,omitempty"`
-}
-
-// A ChildResourceKind defines a child Kubernetes resource kind with a selector
-type ChildResourceKind struct {
-	// APIVersion of the child resource
-	APIVersion string `json:"apiVersion"`
-
-	// Kind of the child resource
-	Kind string `json:"kind"`
-
-	// Selector to select the child resources that the workload wants to expose to traits
-	Selector map[string]string `json:"selector,omitempty"`
-}
 
 // A WorkloadDefinitionSpec defines the desired state of a WorkloadDefinition.
 type WorkloadDefinitionSpec struct {
 	// Reference to the CustomResourceDefinition that defines this workload kind.
-	Reference DefinitionReference `json:"definitionRef"`
+	Reference common.DefinitionReference `json:"definitionRef"`
 
 	// ChildResourceKinds are the list of GVK of the child resources this workload generates
-	ChildResourceKinds []ChildResourceKind `json:"childResourceKinds,omitempty"`
+	ChildResourceKinds []common.ChildResourceKind `json:"childResourceKinds,omitempty"`
 
 	// RevisionLabel indicates which label for underlying resources(e.g. pods) of this workload
 	// can be used by trait to create resource selectors(e.g. label selector for pods).
@@ -82,11 +46,11 @@ type WorkloadDefinitionSpec struct {
 
 	// Status defines the custom health policy and status message for workload
 	// +optional
-	Status *Status `json:"status,omitempty"`
+	Status *common.Status `json:"status,omitempty"`
 
 	// Schematic defines the data format and template of the encapsulation of the workload
 	// +optional
-	Schematic *Schematic `json:"schematic,omitempty"`
+	Schematic *common.Schematic `json:"schematic,omitempty"`
 
 	// Extension is used for extension needs by OAM platform builders
 	// +optional
@@ -99,16 +63,6 @@ type WorkloadDefinitionStatus struct {
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
 }
 
-// Status defines the loop back status of the abstraction by using CUE template
-type Status struct {
-	// CustomStatus defines the custom status message that could display to user
-	// +optional
-	CustomStatus string `json:"customStatus,omitempty"`
-	// HealthPolicy defines the health check policy for the abstraction
-	// +optional
-	HealthPolicy string `json:"healthPolicy,omitempty"`
-}
-
 // +kubebuilder:object:root=true
 
 // A WorkloadDefinition registers a kind of Kubernetes custom resource as a
@@ -116,7 +70,7 @@ type Status struct {
 // is used to validate the schema of the workload when it is embedded in an OAM
 // Component.
 // +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
-// +kubebuilder:resource:scope=Namespaced,categories={crossplane,oam}
+// +kubebuilder:resource:scope=Namespaced,categories={oam}
 type WorkloadDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -147,7 +101,7 @@ type WorkloadDefinitionList struct {
 // A TraitDefinitionSpec defines the desired state of a TraitDefinition.
 type TraitDefinitionSpec struct {
 	// Reference to the CustomResourceDefinition that defines this trait kind.
-	Reference DefinitionReference `json:"definitionRef,omitempty"`
+	Reference common.DefinitionReference `json:"definitionRef,omitempty"`
 
 	// Revision indicates whether a trait is aware of component revision
 	// +optional
@@ -178,11 +132,11 @@ type TraitDefinitionSpec struct {
 
 	// Schematic defines the data format and template of the encapsulation of the trait
 	// +optional
-	Schematic *Schematic `json:"schematic,omitempty"`
+	Schematic *common.Schematic `json:"schematic,omitempty"`
 
 	// Status defines the custom health policy and status message for trait
 	// +optional
-	Status *Status `json:"status,omitempty"`
+	Status *common.Status `json:"status,omitempty"`
 
 	// Extension is used for extension needs by OAM platform builders
 	// +optional
@@ -205,7 +159,7 @@ type TraitDefinitionStatus struct {
 // to validate the schema of the trait when it is embedded in an OAM
 // ApplicationConfiguration.
 // +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
-// +kubebuilder:resource:scope=Namespaced,categories={crossplane,oam}
+// +kubebuilder:resource:scope=Namespaced,categories={oam}
 // +kubebuilder:subresource:status
 type TraitDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -237,7 +191,7 @@ type TraitDefinitionList struct {
 // A ScopeDefinitionSpec defines the desired state of a ScopeDefinition.
 type ScopeDefinitionSpec struct {
 	// Reference to the CustomResourceDefinition that defines this scope kind.
-	Reference DefinitionReference `json:"definitionRef"`
+	Reference common.DefinitionReference `json:"definitionRef"`
 
 	// WorkloadRefsPath indicates if/where a scope accepts workloadRef objects
 	WorkloadRefsPath string `json:"workloadRefsPath,omitempty"`
@@ -259,7 +213,7 @@ type ScopeDefinitionSpec struct {
 // to validate the schema of the scope when it is embedded in an OAM
 // ApplicationConfiguration.
 // +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
-// +kubebuilder:resource:scope=Namespaced,categories={crossplane,oam}
+// +kubebuilder:resource:scope=Namespaced,categories={oam}
 type ScopeDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -312,24 +266,13 @@ type ComponentSpec struct {
 
 	// HelmRelease records a Helm release used by a Helm module workload.
 	// +optional
-	Helm *Helm `json:"helm,omitempty"`
+	Helm *common.Helm `json:"helm,omitempty"`
 
 	// Parameters exposed by this component. ApplicationConfigurations that
 	// reference this component may specify values for these parameters, which
 	// will in turn be injected into the embedded workload.
 	// +optional
 	Parameters []ComponentParameter `json:"parameters,omitempty"`
-}
-
-// A Helm represents resources used by a Helm module
-type Helm struct {
-	// Release records a Helm release used by a Helm module workload.
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Release runtime.RawExtension `json:"release"`
-
-	// HelmRelease records a Helm repository used by a Helm module workload.
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Repository runtime.RawExtension `json:"repository"`
 }
 
 // A ComponentStatus represents the observed state of a Component.
@@ -342,24 +285,15 @@ type ComponentStatus struct {
 
 	// LatestRevision of component
 	// +optional
-	LatestRevision *Revision `json:"latestRevision,omitempty"`
+	LatestRevision *common.Revision `json:"latestRevision,omitempty"`
 
 	// One Component should only be used by one AppConfig
-}
-
-// Revision has name and revision number
-type Revision struct {
-	Name     string `json:"name"`
-	Revision int64  `json:"revision"`
-
-	// RevisionHash record the hash value of the spec of ApplicationRevision object.
-	RevisionHash string `json:"revisionHash,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
 // A Component describes how an OAM workload kind may be instantiated.
-// +kubebuilder:resource:categories={crossplane,oam}
+// +kubebuilder:resource:categories={oam}
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:JSONPath=".spec.workload.kind",name=WORKLOAD-KIND,type=string
 // +kubebuilder:printcolumn:name="age",type="date",JSONPath=".metadata.creationTimestamp"
@@ -535,20 +469,6 @@ type HistoryWorkload struct {
 // A ApplicationStatus represents the state of the entire application.
 type ApplicationStatus string
 
-// RollingStatus represents the rollout phases
-type RollingStatus string
-
-const (
-	// RollingTemplating means that the AC is rolling and need template
-	RollingTemplating RollingStatus = "RollingTemplating"
-	// RollingTemplated means that the AC is rolling and it already templated
-	RollingTemplated RollingStatus = "RollingTemplated"
-	// RollingCompleted means that the AC is the new active revision of the application
-	RollingCompleted RollingStatus = "RollingCompleted"
-	// InactiveAfterRollingCompleted means that the AC is the inactive revision after the rolling is finished
-	InactiveAfterRollingCompleted RollingStatus = "InactiveAfterRollingCompleted"
-)
-
 // An ApplicationConfigurationStatus represents the observed state of a
 // ApplicationConfiguration.
 type ApplicationConfigurationStatus struct {
@@ -561,7 +481,7 @@ type ApplicationConfigurationStatus struct {
 	Dependency DependencyStatus `json:"dependency,omitempty"`
 
 	// RollingStatus indicates what phase are we in the rollout phase
-	RollingStatus RollingStatus `json:"rollingStatus,omitempty"`
+	RollingStatus types.RollingStatus `json:"rollingStatus,omitempty"`
 
 	// Workloads created by this ApplicationConfiguration.
 	Workloads []WorkloadStatus `json:"workloads,omitempty"`
@@ -603,7 +523,7 @@ type DependencyToObject struct {
 // +kubebuilder:object:root=true
 
 // An ApplicationConfiguration represents an OAM application.
-// +kubebuilder:resource:shortName=appconfig,categories={crossplane,oam}
+// +kubebuilder:resource:shortName=appconfig,categories={oam}
 // +kubebuilder:subresource:status
 type ApplicationConfiguration struct {
 	metav1.TypeMeta   `json:",inline"`

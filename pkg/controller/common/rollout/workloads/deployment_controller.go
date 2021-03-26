@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package workloads
 
 import (
@@ -14,7 +30,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -318,7 +334,7 @@ func (c *DeploymentController) fetchDeployments(ctx context.Context) error {
 func (c *DeploymentController) claimDeployment(ctx context.Context, deploy *apps.Deployment, initSize bool) error {
 	deployPatch := client.MergeFrom(deploy.DeepCopyObject())
 	if controller := metav1.GetControllerOf(deploy); controller == nil {
-		ref := metav1.NewControllerRef(c.parentController, v1alpha2.AppRolloutKindVersionKind)
+		ref := metav1.NewControllerRef(c.parentController, v1beta1.AppRolloutKindVersionKind)
 		deploy.SetOwnerReferences(append(deploy.GetOwnerReferences(), *ref))
 	}
 	deploy.Spec.Paused = false
@@ -459,7 +475,7 @@ func (c *DeploymentController) releaseDeployment(ctx context.Context, deploy *ap
 	var newOwnerList []metav1.OwnerReference
 	found := false
 	for _, owner := range deploy.GetOwnerReferences() {
-		if owner.Kind == v1alpha2.AppRolloutKind && owner.APIVersion == v1alpha2.SchemeGroupVersion.String() {
+		if owner.Kind == v1beta1.AppRolloutKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
 			found = true
 			continue
 		}

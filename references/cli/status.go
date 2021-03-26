@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package cli
 
 import (
@@ -12,7 +28,9 @@ import (
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -126,8 +144,8 @@ func printAppStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOSt
 	return loopCheckStatus(ctx, c, ioStreams, appName, env)
 }
 
-func loadRemoteApplication(c client.Client, ns string, name string) (*v1alpha2.Application, error) {
-	app := new(v1alpha2.Application)
+func loadRemoteApplication(c client.Client, ns string, name string) (*v1beta1.Application, error) {
+	app := new(v1beta1.Application)
 	err := c.Get(context.Background(), client.ObjectKey{
 		Namespace: ns,
 		Name:      name,
@@ -149,7 +167,7 @@ func loopCheckStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOS
 			return err
 		}
 		ioStreams.Infof(white.Sprintf("  - Name: %s\n", compName))
-		ioStreams.Infof("    Type: %s\n", comp.WorkloadType)
+		ioStreams.Infof("    Type: %s\n", comp.Type)
 
 		healthColor := getHealthStatusColor(healthStatus)
 		healthInfo = strings.ReplaceAll(healthInfo, "\n", "\n\t") // format healthInfo output
@@ -174,7 +192,7 @@ func loopCheckStatus(ctx context.Context, c client.Client, ioStreams cmdutil.IOS
 			}
 			var message string
 			for _, v := range comp.Traits {
-				if v.Name == tr.Type {
+				if v.Type == tr.Type {
 					traitData, _ := util.RawExtension2Map(&v.Properties)
 					for k, v := range traitData {
 						message += fmt.Sprintf("%v=%v\n\t\t", k, v)
@@ -259,7 +277,7 @@ func TrackDeployStatus(c common.Args, appName string, env *types.EnvMeta) (CompS
 	}
 
 	// If condition is true, we can regard appConfig is deployed successfully
-	if appObj.Status.Phase == v1alpha2.ApplicationRunning {
+	if appObj.Status.Phase == commontypes.ApplicationRunning {
 		return compStatusDeployed, "", nil
 	}
 
@@ -319,9 +337,9 @@ func trackHealthCheckingStatus(ctx context.Context, c client.Client, compName, a
 	return compStatusHealthCheckDone, HealthStatusNotDiagnosed, "", nil
 }
 
-func getWorkloadStatusFromApp(app *v1alpha2.Application, compName string) (v1alpha2.ApplicationComponentStatus, bool) {
+func getWorkloadStatusFromApp(app *v1beta1.Application, compName string) (commontypes.ApplicationComponentStatus, bool) {
 	foundWlStatus := false
-	wlStatus := v1alpha2.ApplicationComponentStatus{}
+	wlStatus := commontypes.ApplicationComponentStatus{}
 	if app == nil {
 		return wlStatus, foundWlStatus
 	}

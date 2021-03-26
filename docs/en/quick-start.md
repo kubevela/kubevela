@@ -17,7 +17,7 @@ Check the status until we see `status` is `running` and services are `healthy`:
 
 ```bash
 $  kubectl get application first-vela-app -o yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   generation: 1
@@ -28,11 +28,11 @@ spec:
   components:
   - name: express-server
     type: webservice
-    settings:
+    properties:
       image: crccheck/hello-world
       port: 8000
     traits:
-    - name: ingress
+    - type: ingress
       properties:
         domain: testsvc.example.com
         http:

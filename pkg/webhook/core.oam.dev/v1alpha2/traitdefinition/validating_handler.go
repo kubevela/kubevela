@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package traitdefinition
 
 import (
@@ -14,7 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -26,7 +42,7 @@ const (
 	failInfoDefRefOmitted = "if definition reference is omitted, patch or output with GVK is required"
 )
 
-var traitDefGVR = v1alpha2.SchemeGroupVersion.WithResource("traitdefinitions")
+var traitDefGVR = v1beta1.SchemeGroupVersion.WithResource("traitdefinitions")
 
 // ValidatingHandler handles validation of trait definition
 type ValidatingHandler struct {
@@ -41,14 +57,14 @@ type ValidatingHandler struct {
 
 // TraitDefValidator validate trait definition
 type TraitDefValidator interface {
-	Validate(context.Context, v1alpha2.TraitDefinition) error
+	Validate(context.Context, v1beta1.TraitDefinition) error
 }
 
 // TraitDefValidatorFn implements TraitDefValidator
-type TraitDefValidatorFn func(context.Context, v1alpha2.TraitDefinition) error
+type TraitDefValidatorFn func(context.Context, v1beta1.TraitDefinition) error
 
 // Validate implements TraitDefValidator method
-func (fn TraitDefValidatorFn) Validate(ctx context.Context, td v1alpha2.TraitDefinition) error {
+func (fn TraitDefValidatorFn) Validate(ctx context.Context, td v1beta1.TraitDefinition) error {
 	return fn(ctx, td)
 }
 
@@ -56,7 +72,7 @@ var _ admission.Handler = &ValidatingHandler{}
 
 // Handle validate trait definition
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	obj := &v1alpha2.TraitDefinition{}
+	obj := &v1beta1.TraitDefinition{}
 	if req.Resource.String() != traitDefGVR.String() {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", traitDefGVR))
 	}
@@ -114,7 +130,7 @@ func RegisterValidatingHandler(mgr manager.Manager, args controller.Args) {
 // or it has a patch and outputs, and all outputs must have GVK
 // TODO(roywang) currently we only validate whether it contains CUE template.
 // Further validation, e.g., output with GVK, valid patch, etc, remains to be done.
-func ValidateDefinitionReference(_ context.Context, td v1alpha2.TraitDefinition) error {
+func ValidateDefinitionReference(_ context.Context, td v1beta1.TraitDefinition) error {
 	if len(td.Spec.Reference.Name) > 0 {
 		return nil
 	}

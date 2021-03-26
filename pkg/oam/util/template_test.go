@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package util
 
 import (
@@ -10,8 +26,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ktypes "k8s.io/apimachinery/pkg/types"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam/mock"
 )
 
 func TestLoadComponentTemplate(t *testing.T) {
@@ -80,7 +99,7 @@ spec:
 	tclient := test.MockClient{
 		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj runtime.Object) error {
 			switch o := obj.(type) {
-			case *v1alpha2.ComponentDefinition:
+			case *v1beta1.ComponentDefinition:
 				cd, err := UnMarshalStringToComponentDefinition(componentDefintion)
 				if err != nil {
 					return err
@@ -90,8 +109,114 @@ spec:
 			return nil
 		},
 	}
+	tdm := mock.NewMockDiscoveryMapper()
+	tdm.MockKindsFor = mock.NewMockKindsFor("Deployment", "v1")
+	temp, err := LoadTemplate(context.TODO(), tdm, &tclient, "worker", types.TypeComponentDefinition)
 
-	temp, err := LoadTemplate(context.TODO(), &tclient, "worker", types.TypeComponentDefinition)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	var r cue.Runtime
+	inst, err := r.Compile("-", temp.TemplateStr)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	instDest, err := r.Compile("-", cueTemplate)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	s1, _ := inst.Value().String()
+	s2, _ := instDest.Value().String()
+	if s1 != s2 {
+		t.Errorf("parsered template is not correct")
+	}
+}
+
+func TestLoadWorkloadTemplate(t *testing.T) {
+	cueTemplate := `
+      context: {
+         name: "test"
+      }
+      output: {
+      	apiVersion: "apps/v1"
+      	kind:       "Deployment"
+      	spec: {
+      		selector: matchLabels: {
+      			"app.oam.dev/component": context.name
+      		}
+      
+      		template: {
+      			metadata: labels: {
+      				"app.oam.dev/component": context.name
+      			}
+      
+      			spec: {
+      				containers: [{
+      					name:  context.name
+      					image: parameter.image
+      
+      					if parameter["cmd"] != _|_ {
+      						command: parameter.cmd
+      					}
+      				}]
+      			}
+      		}
+      
+      		selector:
+      			matchLabels:
+      				"app.oam.dev/component": context.name
+      	}
+      }
+      
+      parameter: {
+      	// +usage=Which image would you like to use for your service
+      	// +short=i
+      	image: string
+      
+      	cmd?: [...string]
+      }
+      `
+
+	var workloadDefintion = `
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: worker
+  namespace: default
+  annotations:
+    definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  extension:
+    template: |
+` + cueTemplate
+
+	// Create mock client
+	tclient := test.MockClient{
+		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj runtime.Object) error {
+			switch o := obj.(type) {
+			case *v1alpha2.WorkloadDefinition:
+				cd, err := UnMarshalStringToWorkloadDefinition(workloadDefintion)
+				if err != nil {
+					return err
+				}
+				*o = *cd
+			case *v1alpha2.ComponentDefinition:
+				err := mock.NewMockNotFoundErr()
+				return err
+			}
+			return nil
+		},
+	}
+	tdm := mock.NewMockDiscoveryMapper()
+	tdm.MockKindsFor = mock.NewMockKindsFor("Deployment", "v1")
+	temp, err := LoadTemplate(context.TODO(), tdm, &tclient, "worker", types.TypeComponentDefinition)
 
 	if err != nil {
 		t.Error(err)
@@ -198,7 +323,7 @@ spec:
 	tclient := test.MockClient{
 		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj runtime.Object) error {
 			switch o := obj.(type) {
-			case *v1alpha2.TraitDefinition:
+			case *v1beta1.TraitDefinition:
 				wd, err := UnMarshalStringToTraitDefinition(traitDefintion)
 				if err != nil {
 					return err
@@ -209,7 +334,9 @@ spec:
 		},
 	}
 
-	temp, err := LoadTemplate(context.TODO(), &tclient, "ingress", types.TypeTrait)
+	tdm := mock.NewMockDiscoveryMapper()
+	tdm.MockKindsFor = mock.NewMockKindsFor("Deployment", "v1")
+	temp, err := LoadTemplate(context.TODO(), tdm, &tclient, "ingress", types.TypeTrait)
 
 	if err != nil {
 		t.Error(err)
@@ -235,13 +362,13 @@ spec:
 
 func TestNewTemplate(t *testing.T) {
 	testCases := map[string]struct {
-		tmp    *v1alpha2.Schematic
-		status *v1alpha2.Status
+		tmp    *common.Schematic
+		status *common.Status
 		ext    *runtime.RawExtension
 		exp    *Template
 	}{
 		"only tmp": {
-			tmp: &v1alpha2.Schematic{CUE: &v1alpha2.CUE{Template: "t1"}},
+			tmp: &common.Schematic{CUE: &common.CUE{Template: "t1"}},
 			exp: &Template{
 				TemplateStr: "t1",
 			},
@@ -259,8 +386,8 @@ func TestNewTemplate(t *testing.T) {
 			},
 		},
 		"tmp with status": {
-			tmp: &v1alpha2.Schematic{CUE: &v1alpha2.CUE{Template: "t1"}},
-			status: &v1alpha2.Status{
+			tmp: &common.Schematic{CUE: &common.CUE{Template: "t1"}},
+			status: &common.Status{
 				CustomStatus: "s1",
 				HealthPolicy: "h1",
 			},
@@ -271,7 +398,7 @@ func TestNewTemplate(t *testing.T) {
 			},
 		},
 		"no tmp only status": {
-			status: &v1alpha2.Status{
+			status: &common.Status{
 				CustomStatus: "s1",
 				HealthPolicy: "h1",
 			},

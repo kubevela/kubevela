@@ -1,7 +1,7 @@
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: test-rolling
+  name: test-rolling-pause
   annotations:
     "app.oam.dev/rolling-components": "metrics-provider"
     "app.oam.dev/rollout-template": "true"
@@ -9,10 +9,11 @@ spec:
   components:
     - name: metrics-provider
       type: clonesetservice
-      settings:
+      properties:
         cmd:
           - ./podinfo
           - stress-cpu=1
-        image: stefanprodan/podinfo:4.0.6
+        image: stefanprodan/podinfo:4.0.3
         port: 8080
         updateStrategyType: InPlaceIfPossible
+        replicas: 10

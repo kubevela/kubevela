@@ -1,4 +1,4 @@
-# Core Concepts
+# Core Concepts of KubeVela
 
 *"KubeVela is a scalable way to create PaaS-like experience on Kubernetes"*
 
@@ -30,7 +30,7 @@ Having an "application" concept is important to for any app-centric platform to 
 An example of `website` application with two components (i.e. `frontend` and `backend`) could be modeled as below:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: website
@@ -38,21 +38,21 @@ spec:
   components:
     - name: backend
       type: worker
-      settings:
+      properties:
         image: busybox
         cmd:
           - sleep
           - '1000'
     - name: frontend
       type: webservice
-      settings:
+      properties:
         image: nginx
       traits:
-        - name: autoscaler
+        - type: autoscaler
           properties:
             min: 1
             max: 10
-        - name: sidecar
+        - type: sidecar
           properties:
             name: "sidecar-test"
             image: "fluentd"

@@ -1,10 +1,28 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package rollout
 
 import (
+	"fmt"
 	"net/http"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
@@ -19,14 +37,18 @@ func DefaultRolloutPlan(rollout *v1alpha1.RolloutPlan) {
 		totalSize := int(*rollout.TargetSize)
 		// create the batch array
 		rollout.RolloutBatches = make([]v1alpha1.RolloutBatch, int(*rollout.NumBatches))
-		avg := intstr.FromInt(totalSize / numBatches)
-		total := 0
-		for i := 0; i < numBatches-1; i++ {
-			rollout.RolloutBatches[i].Replicas = avg
-			total += avg.IntValue()
+		total := totalSize
+		for total > 0 {
+			for i := numBatches - 1; i >= 0 && total > 0; i-- {
+				replica := rollout.RolloutBatches[i].Replicas.IntValue() + 1
+				rollout.RolloutBatches[i].Replicas = intstr.FromInt(replica)
+				total--
+			}
 		}
-		// fill out the last batch
-		rollout.RolloutBatches[numBatches-1].Replicas = intstr.FromInt(totalSize - total)
+		for i, batch := range rollout.RolloutBatches {
+			klog.Info(fmt.Sprintf("mutation webhook assigns rollout plan replica %d to batch `%d`",
+				batch.Replicas.IntValue(), i))
+		}
 	}
 }
 

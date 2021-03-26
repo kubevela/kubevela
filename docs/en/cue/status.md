@@ -30,8 +30,8 @@ Trait will not have the `context.ouput`, other fields are the same.
 The example of health check likes below:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 spec:
   status:
     healthPolicy: |
@@ -40,7 +40,7 @@ spec:
 ```
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 spec:
   status:
@@ -54,12 +54,13 @@ spec:
 The health check result will be recorded into the `Application` resource.
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 spec:
   components:
   - name: myweb
-    settings:
+    type: worker    
+    properties:
       cmd:
       - sleep
       - "1000"
@@ -67,12 +68,11 @@ spec:
       image: busybox
       lives: "3"
     traits:
-    - name: ingress
+    - type: ingress
       properties:
         domain: www.example.com
         http:
           /: 80
-    type: worker
 status:
   ...
   services:
@@ -115,8 +115,8 @@ Trait will not have the `context.ouput`, other fields are the same.
 Please refer to [this doc](https://github.com/oam-dev/kubevela/blob/master/docs/examplesapp-with-status/template.yaml) for the complete example.
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 spec:
   status:
     customStatus: |-
@@ -125,7 +125,7 @@ spec:
 ```
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 spec:
   status:

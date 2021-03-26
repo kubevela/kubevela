@@ -1,5 +1,5 @@
 /*
-
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -81,6 +83,9 @@ var _ = BeforeSuite(func(done Done) {
 	err = v1alpha2.SchemeBuilder.AddToScheme(testScheme)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = v1beta1.SchemeBuilder.AddToScheme(testScheme)
+	Expect(err).NotTo(HaveOccurred())
+
 	err = scheme.AddToScheme(testScheme)
 	Expect(err).NotTo(HaveOccurred())
 	// +kubebuilder:scaffold:scheme
@@ -96,12 +101,12 @@ var _ = BeforeSuite(func(done Done) {
 	ctx := context.Background()
 	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
 	Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
-	wd := &v1alpha2.ComponentDefinition{}
+	wd := &v1beta1.ComponentDefinition{}
 	wDDefJson, _ := yaml.YAMLToJSON([]byte(cDDefYaml))
 	Expect(json.Unmarshal(wDDefJson, wd)).Should(BeNil())
 	Expect(k8sClient.Create(ctx, wd)).Should(BeNil())
 
-	td := &v1alpha2.TraitDefinition{}
+	td := &v1beta1.TraitDefinition{}
 	tDDefJson, _ := yaml.YAMLToJSON([]byte(tDDefYaml))
 	Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
 	Expect(k8sClient.Create(ctx, td)).Should(BeNil())
@@ -117,7 +122,7 @@ var _ = AfterSuite(func() {
 
 const (
 	cDDefYaml = `
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
   name: worker
@@ -170,7 +175,7 @@ spec:
       	cmd?: [...string]
       }`
 	tDDefYaml = `
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -197,6 +202,5 @@ spec:
       	//+short=r
       	replicas: *1 | int
       }
-
 `
 )

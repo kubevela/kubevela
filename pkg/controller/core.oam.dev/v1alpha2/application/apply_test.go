@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package application
 
 import (
@@ -15,12 +31,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
 
 var _ = Describe("Test Application apply", func() {
 	var handler appHandler
-	var app *v1alpha2.Application
+	var app *v1beta1.Application
 	var namespaceName string
 	var ns corev1.Namespace
 
@@ -32,23 +49,23 @@ var _ = Describe("Test Application apply", func() {
 				Name: namespaceName,
 			},
 		}
-		app = &v1alpha2.Application{
+		app = &v1beta1.Application{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Application",
-				APIVersion: "core.oam.dev/v1alpha2",
+				APIVersion: "core.oam.dev/v1beta1",
 			},
 		}
 		app.Namespace = namespaceName
-		app.Spec = v1alpha2.ApplicationSpec{
-			Components: []v1alpha2.ApplicationComponent{{
-				WorkloadType: "webservice",
-				Name:         "express-server",
-				Scopes:       map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
-				Settings: runtime.RawExtension{
+		app.Spec = v1beta1.ApplicationSpec{
+			Components: []v1beta1.ApplicationComponent{{
+				Type:   "webservice",
+				Name:   "express-server",
+				Scopes: map[string]string{"healthscopes.core.oam.dev": "myapp-default-health"},
+				Properties: runtime.RawExtension{
 					Raw: []byte(`{"image": "oamdev/testapp:v1", "cmd": ["node", "server.js"]}`),
 				},
-				Traits: []v1alpha2.ApplicationTrait{{
-					Name: "route",
+				Traits: []v1beta1.ApplicationTrait{{
+					Type: "route",
 					Properties: runtime.RawExtension{
 						Raw: []byte(`{"domain": "example.com", "http":{"/": 8080}}`),
 					},

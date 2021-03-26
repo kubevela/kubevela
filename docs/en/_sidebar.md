@@ -1,30 +1,33 @@
 - Overview
   - [Introduction](/en/introduction.md)
-  - [Core Concepts](/en/concepts.md)
+  - [How it Works](/en/concepts.md)
 
 - Getting Started
   - [Installation](/en/install.md)
   - [Quick Start](/en/quick-start.md)
 
-- Platform Team Guide
-  - Application Abstraction
+- Platform Builder Guide
+  - Design Abstraction
   - [Overview](/en/platform-engineers/overview.md)
   - [Application CRD](/en/application.md)
   - [Definition CRD](/en/platform-engineers/definition-and-templates.md)
+  - [Auto-generated Schema](/en/platform-engineers/openapi-v3-json-schema.md)
+  - [Defining Components](/en/platform-engineers/component.md)
+  - [Defining Traits](/en/platform-engineers/trait.md)  
+<!-- - [Defining Cloud Service](/en/platform-engineers/cloud-services.md) -->
 
   - Using CUE
   - [Learning CUE](/en/cue/basic.md)
-  - [Define Components](/en/cue/workload-type.md)
+  - [Define Components in CUE](/en/cue/component.md)
   - [Define Traits](/en/cue/trait.md)
   - [Advanced Features](/en/cue/status.md)
-  - [Auto-generated Schema](/en/platform-engineers/openapi-v3-json-schema.md)
 
   - Using Helm
-  - [Define Components](/en/helm/component.md)
+  - [Define Components in Chart](/en/helm/component.md)
   - [Attach Traits](/en/helm/trait.md)
   - [Known Limitations](/en/helm/known-issues.md)
 
-- End User Guide (Experimental)
+- Developer Experience Guide
   - Appfile
   - [Overview](/en/quick-start-appfile.md)
   - [Learning Appfile](/en/developers/learn-appfile.md)
@@ -34,23 +37,18 @@
   - [Check Application Logs](/en/developers/check-logs.md)
   - [Execute Commands in Container](/en/developers/exec-cmd.md)  
   - [Managing Capabilities](/en/developers/cap-center.md)
-  - [Setting Routes](/en/developers/extensions/set-route.md)
-  - [Setting Auto-scaling Policy](/en/developers/extensions/set-autoscale.md)
-  - [Setting Rollout Strategy](/en/developers/extensions/set-rollout.md)
-  - [Setting Monitoring Policy](/en/developers/extensions/set-metrics.md)
+  <!-- - [Setting Routes](/en/developers/extensions/set-route.md) -->
+  <!-- - [Setting Auto-scaling Policy](/en/developers/extensions/set-autoscale.md) -->
+  <!-- - [Setting Rollout Strategy](/en/developers/extensions/set-rollout.md) -->
+  <!-- - [Setting Monitoring Policy](/en/developers/extensions/set-metrics.md) -->
   - [Setting Up Deployment Environment](/en/developers/config-enviroments.md)
   - [Configuring data/env in Application](/en/developers/config-app.md)
-  <!-- - How-to (Out-of-dated) -->
-    <!-- - [Defining Workload Type](/en/platform-engineers/workload-type.md) -->
-    <!-- - [Defining Trait](/en/platform-engineers/trait.md) -->
-    <!-- - [Defining Cloud Service](/en/platform-engineers/cloud-services.md) -->
   <!-- - [Alternative Commands](/en/developers/alternative-cmd.md) -->
 
 - CLI References
   - [vela config](/en/cli/vela_config.md)
   - [vela env](/en/cli/vela_env.md)
   - [vela init](/en/cli/vela_init.md)
-  - [vela install](/en/cli/vela_install.md)
   - [vela up](/en/cli/vela_up.md)
   - [vela version](/en/cli/vela_version.md)
   - [vela delete](/en/cli/vela_delete.md)

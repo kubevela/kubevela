@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package rollout
 
 import (
@@ -63,7 +79,7 @@ func NewRolloutPlanController(client client.Client, parentController oam.Object,
 
 // Reconcile reconciles a rollout plan
 func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, status *v1alpha1.RolloutStatus) {
-	klog.InfoS("Reconcile the rollout plan", "rollout Spec", r.rolloutSpec,
+	klog.InfoS("Reconcile the rollout plan", "rollout status", r.rolloutStatus,
 		"target workload", klog.KObj(r.targetWorkload))
 	if r.sourceWorkload != nil {
 		klog.InfoS("We will do rolling upgrades", "source workload", klog.KObj(r.sourceWorkload))
@@ -122,7 +138,7 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 	case v1alpha1.RollingInBatchesState:
 		r.reconcileBatchInRolling(ctx, workloadController)
 
-	case v1alpha1.RolloutFailingState:
+	case v1alpha1.RolloutFailingState, v1alpha1.RolloutAbandoningState:
 		if succeed := workloadController.Finalize(ctx, false); succeed {
 			r.finalizeRollout(ctx)
 		}

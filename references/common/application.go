@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package common
 
 import (
@@ -22,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
@@ -54,7 +71,7 @@ type AppfileOptions struct {
 // BuildResult is the export struct from AppFile yaml or AppFile object
 type BuildResult struct {
 	appFile     *api.AppFile
-	application *corev1alpha2.Application
+	application *corev1beta1.Application
 	scopes      []oam.Object
 }
 
@@ -98,9 +115,9 @@ type DeleteOptions struct {
 // ListApplications lists all applications
 func ListApplications(ctx context.Context, c client.Reader, opt Option) ([]apis.ApplicationMeta, error) {
 	var applicationMetaList applicationMetaList
-	var appList corev1alpha2.ApplicationList
+	var appList corev1beta1.ApplicationList
 	if opt.AppName != "" {
-		var app corev1alpha2.Application
+		var app corev1beta1.Application
 		if err := c.Get(ctx, client.ObjectKey{Name: opt.AppName, Namespace: opt.Namespace}, &app); err != nil {
 			return applicationMetaList, err
 		}
@@ -179,7 +196,7 @@ func ListComponents(ctx context.Context, c client.Reader, opt Option) ([]apis.Co
 func RetrieveApplicationStatusByName(ctx context.Context, c client.Reader, applicationName string,
 	namespace string) (apis.ApplicationMeta, error) {
 	var applicationMeta apis.ApplicationMeta
-	var app corev1alpha2.Application
+	var app corev1beta1.Application
 	if err := c.Get(ctx, client.ObjectKey{Name: applicationName, Namespace: namespace}, &app); err != nil {
 		return applicationMeta, err
 	}
@@ -196,7 +213,7 @@ func (o *DeleteOptions) DeleteApp() (string, error) {
 		return "", err
 	}
 	ctx := context.Background()
-	var app = new(corev1alpha2.Application)
+	var app = new(corev1beta1.Application)
 	err := o.Client.Get(ctx, client.ObjectKey{Name: o.AppName, Namespace: o.Env.Namespace}, app)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -460,13 +477,13 @@ func (o *AppfileOptions) saveToAppDir(f *api.AppFile) error {
 // - for create, it displays app status along with information of url, metrics, ssh, logging.
 // - for update, it rolls out a canary deployment and prints its information. User can verify the canary deployment.
 //   This will wait for user approval. If approved, it continues upgrading the whole; otherwise, it would rollback.
-func (o *AppfileOptions) ApplyApp(app *corev1alpha2.Application, scopes []oam.Object) error {
+func (o *AppfileOptions) ApplyApp(app *corev1beta1.Application, scopes []oam.Object) error {
 	key := apitypes.NamespacedName{
 		Namespace: app.Namespace,
 		Name:      app.Name,
 	}
 	o.IO.Infof("Checking if app has been deployed...\n")
-	var tmpApp corev1alpha2.Application
+	var tmpApp corev1beta1.Application
 	err := o.Kubecli.Get(context.TODO(), key, &tmpApp)
 	switch {
 	case apierrors.IsNotFound(err):
@@ -483,7 +500,7 @@ func (o *AppfileOptions) ApplyApp(app *corev1alpha2.Application, scopes []oam.Ob
 	return nil
 }
 
-func (o *AppfileOptions) apply(app *corev1alpha2.Application, scopes []oam.Object) error {
+func (o *AppfileOptions) apply(app *corev1beta1.Application, scopes []oam.Object) error {
 	if err := appfile.Run(context.TODO(), o.Kubecli, app, scopes); err != nil {
 		return err
 	}
@@ -491,7 +508,7 @@ func (o *AppfileOptions) apply(app *corev1alpha2.Application, scopes []oam.Objec
 }
 
 // Info shows the status of each service in the Appfile
-func (o *AppfileOptions) Info(app *corev1alpha2.Application) string {
+func (o *AppfileOptions) Info(app *corev1beta1.Application) string {
 	appName := app.Name
 	var appUpMessage = "✅ App has been deployed 🚀🚀🚀\n" +
 		fmt.Sprintf("    Port forward: vela port-forward %s\n", appName) +

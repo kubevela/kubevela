@@ -5,7 +5,6 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.4
-  creationTimestamp: null
   name: approllouts.core.oam.dev
 spec:
   group: core.oam.dev
@@ -17,8 +16,6 @@ spec:
     plural: approllouts
     singular: approllout
   scope: Namespaced
-  subresources:
-    status: {}
   validation:
     openAPIV3Schema:
       description: AppRollout is the Schema for the AppRollout API
@@ -346,6 +343,9 @@ spec:
   version: v1alpha2
   versions:
   - name: v1alpha2
+    served: true
+    storage: false
+  - name: v1beta1
     served: true
     storage: true
 status:

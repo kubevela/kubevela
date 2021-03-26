@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -126,7 +128,7 @@ var _ = Describe("Test applicationContext reconcile", func() {
 			Namespace: namespace,
 		},
 		Spec: v1alpha2.ApplicationRevisionSpec{
-			Components: convertComponentList2Map([]*v1alpha2.Component{co1}),
+			Components: application.ConvertComponent2RawRevision([]*v1alpha2.Component{co1}),
 
 			ApplicationConfiguration: util.Object2RawExtension(ac1),
 			Application:              *dummyApp,
@@ -166,7 +168,7 @@ var _ = Describe("Test applicationContext reconcile", func() {
 		},
 		Spec: v1alpha2.ApplicationRevisionSpec{
 			ApplicationConfiguration: util.Object2RawExtension(ac2),
-			Components:               convertComponentList2Map([]*v1alpha2.Component{co2}),
+			Components:               application.ConvertComponent2RawRevision([]*v1alpha2.Component{co2}),
 			Application:              *dummyApp,
 		}}
 	appContext := &v1alpha2.ApplicationContext{
@@ -219,9 +221,19 @@ var _ = Describe("Test applicationContext reconcile", func() {
 		}, time.Second*60, time.Millisecond*300).Should(BeNil())
 
 		By("Test revision have both workload and trait , switch AppContext to revision2")
-		Expect(k8sClient.Get(ctx, key, appContext)).Should(BeNil())
-		appContext.Spec.ApplicationRevisionName = arName2
-		Expect(k8sClient.Update(ctx, appContext)).Should(Succeed())
+		Eventually(func() error {
+			updateContext := new(v1alpha2.ApplicationContext)
+			err := k8sClient.Get(ctx, key, updateContext)
+			if err != nil {
+				return err
+			}
+			updateContext.Spec.ApplicationRevisionName = arName2
+			err = k8sClient.Update(ctx, updateContext)
+			if err != nil {
+				return err
+			}
+			return nil
+		}, time.Second*60, time.Microsecond*300).Should(BeNil())
 		Eventually(func() error {
 			appCtx := new(v1alpha2.ApplicationContext)
 			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appContextName}, appCtx)
@@ -274,9 +286,19 @@ var _ = Describe("Test applicationContext reconcile", func() {
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: arName1}, ar1)).Should(BeNil())
 		ar1.Spec.ApplicationConfiguration = util.Object2RawExtension(ac1)
 		Expect(k8sClient.Update(ctx, ar1)).Should(Succeed())
-		Expect(k8sClient.Get(ctx, key, appContext)).Should(BeNil())
-		appContext.Spec.ApplicationRevisionName = arName1
-		Expect(k8sClient.Update(ctx, appContext)).Should(Succeed())
+		Eventually(func() error {
+			updateContext := new(v1alpha2.ApplicationContext)
+			err := k8sClient.Get(ctx, key, updateContext)
+			if err != nil {
+				return err
+			}
+			updateContext.Spec.ApplicationRevisionName = arName1
+			err = k8sClient.Update(ctx, updateContext)
+			if err != nil {
+				return err
+			}
+			return nil
+		}, time.Second*60, time.Microsecond*300).Should(BeNil())
 		Eventually(func() error {
 			mt := new(v1alpha2.ManualScalerTrait)
 			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: traitName1}, mt)
@@ -295,21 +317,22 @@ var _ = Describe("Test applicationContext reconcile", func() {
 		ac2.Spec.Components[0].Traits = []v1alpha2.ComponentTrait{}
 		ar1.Spec.ApplicationConfiguration = util.Object2RawExtension(ac2)
 		Expect(k8sClient.Update(ctx, ar2)).Should(BeNil())
-		Expect(k8sClient.Get(ctx, key, appContext)).Should(BeNil())
-		appContext.Spec.ApplicationRevisionName = arName2
-		Expect(k8sClient.Update(ctx, appContext)).Should(Succeed())
+		Eventually(func() error {
+			updateContext := new(v1alpha2.ApplicationContext)
+			err := k8sClient.Get(ctx, key, updateContext)
+			if err != nil {
+				return err
+			}
+			updateContext.Spec.ApplicationRevisionName = arName2
+			err = k8sClient.Update(ctx, updateContext)
+			if err != nil {
+				return err
+			}
+			return nil
+		}, time.Second*60, time.Microsecond*300).Should(BeNil())
 		Eventually(func() error {
 			mt := new(v1alpha2.ManualScalerTrait)
 			return k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: traitName2}, mt)
 		}, time.Second*60, time.Millisecond*300).Should(util.NotFoundMatcher{})
 	})
 })
-
-func convertComponentList2Map(comps []*v1alpha2.Component) map[string]v1alpha2.Component {
-	objs := map[string]v1alpha2.Component{}
-	for _, comp := range comps {
-		obj := comp.DeepCopy()
-		objs[comp.Name] = *obj
-	}
-	return objs
-}

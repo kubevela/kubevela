@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package controllers_test
 
 import (
@@ -17,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -156,7 +173,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Get Component latest status after ControllerRevision created")
 			Eventually(
-				func() *v1alpha2.Revision {
+				func() *commontypes.Revision {
 					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, cmpV1)
 					return cmpV1.Status.LatestRevision
 				},
@@ -208,7 +225,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Get Component latest status after ControllerRevision created")
 			Eventually(
-				func() *v1alpha2.Revision {
+				func() *commontypes.Revision {
 					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, cmpV1)
 					return cmpV1.Status.LatestRevision
 				},
@@ -252,7 +269,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 			cmpV1 := &v1alpha2.Component{}
 			By("Get Component latest status after ControllerRevision created")
 			Eventually(
-				func() *v1alpha2.Revision {
+				func() *commontypes.Revision {
 					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, cmpV1)
 					return cmpV1.Status.LatestRevision
 				},
@@ -295,6 +312,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 			By("Check ContainerizedWorkload workload's image field has been changed to v2")
 			cwWlV2 := &v1alpha2.ContainerizedWorkload{}
 			Eventually(func() string {
+				reconcileAppConfigNow(ctx, &appConfigWithRevisionName)
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, cwWlV2)
 				return cwWlV2.Spec.Containers[0].Image
 			}, time.Second*60, time.Microsecond*500).Should(Equal(imageV2))
@@ -328,7 +346,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Get Component latest status after ControllerRevision created")
 			Eventually(
-				func() *v1alpha2.Revision {
+				func() *commontypes.Revision {
 					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &comp1)
 					return comp1.Status.LatestRevision
 				},
@@ -357,7 +375,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Get Component latest status after ControllerRevision created")
 			Eventually(
-				func() *v1alpha2.Revision {
+				func() *commontypes.Revision {
 					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &comp2)
 					if comp2.Status.LatestRevision != nil && comp2.Status.LatestRevision.Revision > 1 {
 						return comp2.Status.LatestRevision
@@ -372,11 +390,12 @@ var _ = Describe("Versioning mechanism of components", func() {
 			var w2 unstructured.Unstructured
 			Eventually(
 				func() error {
+					reconcileAppConfigNow(ctx, &appconfig)
 					w2.SetAPIVersion("example.com/v1")
 					w2.SetKind("Bar")
 					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: revisionNameV2}, &w2)
 				},
-				time.Second*100, time.Millisecond*500).Should(BeNil())
+				time.Second*30, time.Millisecond*500).Should(BeNil())
 			k2, _, _ := unstructured.NestedString(w2.Object, "spec", "key")
 			Expect(k2).Should(BeEquivalentTo("v2"), fmt.Sprintf("%v", w2.Object))
 
@@ -458,6 +477,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 			var w2 unstructured.Unstructured
 			Eventually(
 				func() string {
+					reconcileAppConfigNow(ctx, &appconfig)
 					w2.SetAPIVersion("example.com/v1")
 					w2.SetKind("Bar")
 					err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &w2)
@@ -467,7 +487,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 					k2, _, _ := unstructured.NestedString(w2.Object, "spec", "key")
 					return k2
 				},
-				time.Second*120, time.Millisecond*500).Should(BeEquivalentTo("v2"))
+				time.Second*30, time.Millisecond*500).Should(BeEquivalentTo("v2"))
 
 			By("Check AppConfig status")
 			Eventually(
@@ -534,7 +554,7 @@ var _ = Describe("Component revision", func() {
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
 			RevisionEnabled: true,
-			Reference: v1alpha2.DefinitionReference{
+			Reference: commontypes.DefinitionReference{
 				Name: "manualscalertraits.core.oam.dev",
 			},
 			WorkloadRefPath: "spec.workloadRef",
@@ -570,8 +590,15 @@ var _ = Describe("Component revision", func() {
 
 	Context("Attach a revision-enable trait the first time, workload should not be recreated", func() {
 		It("should create Component and ApplicationConfiguration", func() {
-			By("submit ApplicationConfiguration")
+			By("submit Component")
 			Expect(k8sClient.Create(ctx, &component)).Should(Succeed())
+			By("check Component exist")
+			Eventually(
+				func() error {
+					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &v1alpha2.Component{})
+				},
+				time.Second*3, time.Millisecond*500).Should(BeNil())
+			By("submit ApplicationConfiguration")
 			Expect(k8sClient.Create(ctx, &appConfig)).Should(Succeed())
 
 			By("check workload")
@@ -605,5 +632,6 @@ var _ = Describe("Component revision", func() {
 	AfterEach(func() {
 		k8sClient.Delete(ctx, &appConfig)
 		k8sClient.Delete(ctx, &component)
+		k8sClient.Delete(ctx, &TraitDefinition)
 	})
 })

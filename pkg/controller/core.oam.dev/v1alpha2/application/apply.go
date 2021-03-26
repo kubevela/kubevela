@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package application
 
 import (
@@ -18,7 +34,9 @@ import (
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
@@ -47,7 +65,7 @@ func readyCondition(tpy string) runtimev1alpha1.Condition {
 
 type appHandler struct {
 	r       *Reconciler
-	app     *v1alpha2.Application
+	app     *v1beta1.Application
 	appfile *appfile.Appfile
 	logger  logr.Logger
 }
@@ -72,8 +90,8 @@ func (h *appHandler) handleErr(err error) (ctrl.Result, error) {
 // 4. garbage collect unused components
 func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) error {
 	owners := []metav1.OwnerReference{{
-		APIVersion: v1alpha2.SchemeGroupVersion.String(),
-		Kind:       v1alpha2.ApplicationKind,
+		APIVersion: v1beta1.SchemeGroupVersion.String(),
+		Kind:       v1beta1.ApplicationKind,
 		Name:       h.app.Name,
 		UID:        h.app.UID,
 		Controller: pointer.BoolPtr(true),
@@ -102,11 +120,11 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 			}
 		}
 	}
+	ac.SetOwnerReferences(owners)
 	isNewRevision, appRev, err := h.GenerateRevision(ctx, ac, comps)
 	if err != nil {
 		return errors.Wrap(err, "cannot generate a revision of the application")
 	}
-	appRev.SetOwnerReferences(owners)
 	if isNewRevision {
 		if err = h.r.Create(ctx, appRev); err != nil {
 			return err
@@ -124,11 +142,11 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 	return nil
 }
 
-func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.ApplicationComponentStatus, bool, error) {
-	var appStatus []v1alpha2.ApplicationComponentStatus
+func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]common.ApplicationComponentStatus, bool, error) {
+	var appStatus []common.ApplicationComponentStatus
 	var healthy = true
 	for _, wl := range appfile.Workloads {
-		var status = v1alpha2.ApplicationComponentStatus{
+		var status = common.ApplicationComponentStatus{
 			Name:    wl.Name,
 			Healthy: true,
 		}
@@ -156,9 +174,9 @@ func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]v1alpha2.Appli
 		if err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appfile.Name, wl.Name)
 		}
-		var traitStatusList []v1alpha2.ApplicationTraitStatus
+		var traitStatusList []common.ApplicationTraitStatus
 		for _, trait := range wl.Traits {
-			var traitStatus = v1alpha2.ApplicationTraitStatus{
+			var traitStatus = common.ApplicationTraitStatus{
 				Type:    trait.Name,
 				Healthy: true,
 			}

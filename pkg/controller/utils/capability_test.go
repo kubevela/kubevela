@@ -29,7 +29,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"gotest.tools/assert"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
@@ -68,8 +68,8 @@ func TestGetOpenAPISchema(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			data, _ := ioutil.ReadFile(filepath.Join(tc.fileDir, tc.fileName))
-			schematic := &v1alpha2.Schematic{
-				CUE: &v1alpha2.CUE{
+			schematic := &common.Schematic{
+				CUE: &common.CUE{
 					Template: string(data),
 				},
 			}

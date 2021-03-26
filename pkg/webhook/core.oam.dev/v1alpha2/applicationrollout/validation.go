@@ -1,7 +1,24 @@
-package applicationdeployment
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package applicationrollout
 
 import (
 	"context"
+	"fmt"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apimachineryvalidation "k8s.io/apimachinery/pkg/api/validation"
@@ -11,12 +28,14 @@ import (
 	"k8s.io/kubectl/pkg/util/slice"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/webhook/common/rollout"
 )
 
 // ValidateCreate validates the AppRollout on creation
-func (h *ValidatingHandler) ValidateCreate(appRollout *v1alpha2.AppRollout) field.ErrorList {
+func (h *ValidatingHandler) ValidateCreate(appRollout *v1beta1.AppRollout) field.ErrorList {
 	klog.InfoS("validate create", "name", appRollout.Name)
 	allErrs := apimachineryvalidation.ValidateObjectMeta(&appRollout.ObjectMeta, true,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
@@ -30,31 +49,44 @@ func (h *ValidatingHandler) ValidateCreate(appRollout *v1alpha2.AppRollout) fiel
 		return allErrs
 	}
 
-	var targetApp v1alpha2.ApplicationConfiguration
-	sourceApp := &v1alpha2.ApplicationConfiguration{}
+	var targetAppRevision v1beta1.ApplicationRevision
+	sourceAppRevision := &v1beta1.ApplicationRevision{}
 	targetAppName := appRollout.Spec.TargetAppRevisionName
 	if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appRollout.Namespace, Name: targetAppName},
-		&targetApp); err != nil {
-		klog.ErrorS(err, "cannot locate target application", "target application",
+		&targetAppRevision); err != nil {
+		klog.ErrorS(err, "cannot locate target application revision", "target application revision",
 			klog.KRef(appRollout.Namespace, targetAppName))
-		allErrs = append(allErrs, field.NotFound(fldPath.Child("targetApplicationName"), targetAppName))
+		allErrs = append(allErrs, field.NotFound(fldPath.Child("targetAppRevisionName"), targetAppName))
 		// can't continue without target
 		return allErrs
 	}
 	sourceAppName := appRollout.Spec.SourceAppRevisionName
 	if sourceAppName != "" {
 		if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appRollout.Namespace, Name: sourceAppName},
-			sourceApp); err != nil {
-			klog.ErrorS(err, "cannot locate source application", "source application",
+			sourceAppRevision); err != nil {
+			klog.ErrorS(err, "cannot locate source application revision", "source application revision",
 				klog.KRef(appRollout.Namespace, sourceAppName))
-			allErrs = append(allErrs, field.NotFound(fldPath.Child("sourceApplicationName"), sourceAppName))
+			allErrs = append(allErrs, field.NotFound(fldPath.Child("sourceAppRevisionName"), sourceAppName))
 		}
 	} else {
-		sourceApp = nil
+		sourceAppRevision = nil
+	}
+	var sourceApp *v1alpha2.ApplicationConfiguration
+	targetApp, err := oamutil.RawExtension2AppConfig(targetAppRevision.Spec.ApplicationConfiguration)
+	if err != nil {
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("TargetAppRevisionName"), targetAppName,
+			fmt.Sprintf("the targeted app revision is corrupted,  err = `%s`", err)))
+	}
+	if sourceAppRevision != nil {
+		sourceApp, err = oamutil.RawExtension2AppConfig(sourceAppRevision.Spec.ApplicationConfiguration)
+		if err != nil {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("SourceAppRevisionName"), sourceAppName,
+				fmt.Sprintf("the source app revision is corrupted,  err = `%s`", err)))
+		}
 	}
 
 	// validate the component spec
-	allErrs = append(allErrs, validateComponent(appRollout.Spec.ComponentList, &targetApp, sourceApp,
+	allErrs = append(allErrs, validateComponent(appRollout.Spec.ComponentList, targetApp, sourceApp,
 		fldPath.Child("componentList"))...)
 
 	// validate the rollout plan spec
@@ -108,7 +140,7 @@ func validateComponent(componentList []string, targetApp, sourceApp *v1alpha2.Ap
 }
 
 // ValidateUpdate validates the AppRollout on update
-func (h *ValidatingHandler) ValidateUpdate(new, old *v1alpha2.AppRollout) field.ErrorList {
+func (h *ValidatingHandler) ValidateUpdate(new, old *v1beta1.AppRollout) field.ErrorList {
 	klog.InfoS("validate update", "name", new.Name)
 	errList := h.ValidateCreate(new)
 	fldPath := field.NewPath("spec").Child("rolloutPlan")

@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package appfile
 
 import (
@@ -11,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/appfile/api"
@@ -55,12 +72,12 @@ func Validate(app *api.Application) error {
 }
 
 // LoadApplication will load application from cluster.
-func LoadApplication(namespace, appName string, c common.Args) (*v1alpha2.Application, error) {
+func LoadApplication(namespace, appName string, c common.Args) (*v1beta1.Application, error) {
 	newClient, err := c.GetClient()
 	if err != nil {
 		return nil, err
 	}
-	app := &v1alpha2.Application{}
+	app := &v1beta1.Application{}
 	if err := newClient.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: appName}, app); err != nil {
 		return nil, err
 	}
@@ -78,7 +95,7 @@ func Save(app *api.Application, envName string) error {
 }
 
 // GetComponents will get oam components from Appfile.
-func GetComponents(app *v1alpha2.Application) []string {
+func GetComponents(app *v1beta1.Application) []string {
 	var components []string
 	for _, cmp := range app.Spec.Components {
 		components = append(components, cmp.Name)
@@ -97,12 +114,12 @@ func GetServiceConfig(app *api.Application, componentName string) (string, map[s
 }
 
 // GetApplicationSettings will get service type and it's configuration
-func GetApplicationSettings(app *v1alpha2.Application, componentName string) (string, map[string]interface{}) {
+func GetApplicationSettings(app *v1beta1.Application, componentName string) (string, map[string]interface{}) {
 	for _, comp := range app.Spec.Components {
 		if comp.Name == componentName {
 			data := map[string]interface{}{}
-			_ = json.Unmarshal(comp.Settings.Raw, &data)
-			return comp.WorkloadType, data
+			_ = json.Unmarshal(comp.Properties.Raw, &data)
+			return comp.Type, data
 		}
 	}
 	return "", make(map[string]interface{})
@@ -142,7 +159,7 @@ func GetTraits(app *api.Application, componentName string) (map[string]map[strin
 }
 
 // GetAppConfig will get AppConfig from K8s cluster.
-func GetAppConfig(ctx context.Context, c client.Client, app *v1alpha2.Application, env *types.EnvMeta) (*v1alpha2.ApplicationConfiguration, error) {
+func GetAppConfig(ctx context.Context, c client.Client, app *v1beta1.Application, env *types.EnvMeta) (*v1alpha2.ApplicationConfiguration, error) {
 	appConfig := &v1alpha2.ApplicationConfiguration{}
 	if err := c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: app.Name}, appConfig); err != nil {
 		return nil, err

@@ -1,4 +1,4 @@
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: first-vela-app
@@ -6,11 +6,11 @@ spec:
   components:
     - name: express-server
       type: webservice
-      settings:
+      properties:
         image: crccheck/hello-world
         port: 8000
       traits:
-        - name: ingress
+        - type: ingress
           properties:
             domain: testsvc.example.com
             http:

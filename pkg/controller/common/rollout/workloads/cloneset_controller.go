@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package workloads
 
 import (
@@ -13,7 +29,7 @@ import (
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
@@ -106,7 +122,7 @@ func (c *CloneSetController) Initialize(ctx context.Context) (bool, error) {
 	}
 
 	if controller := metav1.GetControllerOf(c.cloneSet); controller != nil {
-		if controller.Kind == v1alpha2.AppRolloutKind && controller.APIVersion == v1alpha2.SchemeGroupVersion.String() {
+		if controller.Kind == v1beta1.AppRolloutKind && controller.APIVersion == v1beta1.SchemeGroupVersion.String() {
 			// it's already there
 			return true, nil
 		}
@@ -114,7 +130,7 @@ func (c *CloneSetController) Initialize(ctx context.Context) (bool, error) {
 	// add the parent controller to the owner of the cloneset
 	// before kicking start the update and start from every pod in the old version
 	clonePatch := client.MergeFrom(c.cloneSet.DeepCopyObject())
-	ref := metav1.NewControllerRef(c.parentController, v1alpha2.AppRolloutKindVersionKind)
+	ref := metav1.NewControllerRef(c.parentController, v1beta1.AppRolloutKindVersionKind)
 	c.cloneSet.SetOwnerReferences(append(c.cloneSet.GetOwnerReferences(), *ref))
 	c.cloneSet.Spec.UpdateStrategy.Paused = false
 	c.cloneSet.Spec.UpdateStrategy.Partition = &intstr.IntOrString{Type: intstr.Int, IntVal: totalReplicas}
@@ -165,21 +181,21 @@ func (c *CloneSetController) CheckOneBatchPods(ctx context.Context) (bool, error
 	if currentBatch.MaxUnavailable != nil {
 		unavail, _ = intstr.GetValueFromIntOrPercent(currentBatch.MaxUnavailable, int(cloneSetSize), true)
 	}
-	klog.InfoS("checking the rolling out progress", "current batch", currentBatch,
+	klog.InfoS("checking the rolling out progress", "current batch", c.rolloutStatus.CurrentBatch,
 		"new pod count target", newPodTarget, "new ready pod count", readyPodCount,
 		"max unavailable pod allowed", unavail)
 	c.rolloutStatus.UpgradedReadyReplicas = int32(readyPodCount)
 	// we could overshoot in the revert case when many pods are already upgraded
 	if unavail+readyPodCount >= newPodTarget {
 		// record the successful upgrade
-		klog.InfoS("all pods in current batch are ready", "current batch", currentBatch)
+		klog.InfoS("all pods in current batch are ready", "current batch", c.rolloutStatus.CurrentBatch)
 		c.recorder.Event(c.parentController, event.Normal("Batch Available",
 			fmt.Sprintf("Batch %d is available", c.rolloutStatus.CurrentBatch)))
 		c.rolloutStatus.LastAppliedPodTemplateIdentifier = c.rolloutStatus.NewPodTemplateIdentifier
 		return true, nil
 	}
 	// continue to verify
-	klog.InfoS("the batch is not ready yet", "current batch", currentBatch)
+	klog.InfoS("the batch is not ready yet", "current batch", c.rolloutStatus.CurrentBatch)
 	c.rolloutStatus.RolloutRetry("the batch is not ready yet")
 	return false, nil
 }
@@ -200,7 +216,7 @@ func (c *CloneSetController) Finalize(ctx context.Context, succeed bool) bool {
 	// remove the parent controller from the resources' owner list
 	var newOwnerList []metav1.OwnerReference
 	for _, owner := range c.cloneSet.GetOwnerReferences() {
-		if owner.Kind == v1alpha2.AppRolloutKind && owner.APIVersion == v1alpha2.SchemeGroupVersion.String() {
+		if owner.Kind == v1beta1.AppRolloutKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
 			continue
 		}
 		newOwnerList = append(newOwnerList, owner)

@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package applicationconfiguration
 
 import (
@@ -6,12 +22,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 )
 
 var (
@@ -179,7 +195,7 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 					{
 						workloadDefinition: v1alpha2.WorkloadDefinition{
 							Spec: v1alpha2.WorkloadDefinitionSpec{
-								Reference: v1alpha2.DefinitionReference{
+								Reference: common.DefinitionReference{
 									Name: "TestWorkload",
 								},
 							},
@@ -228,7 +244,7 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 					{
 						workloadDefinition: v1alpha2.WorkloadDefinition{
 							Spec: v1alpha2.WorkloadDefinitionSpec{
-								Reference: v1alpha2.DefinitionReference{
+								Reference: common.DefinitionReference{
 									Name: "TestWorkload", // matched CRD name
 								},
 							},
@@ -252,7 +268,7 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 					{
 						workloadDefinition: v1alpha2.WorkloadDefinition{
 							Spec: v1alpha2.WorkloadDefinitionSpec{
-								Reference: v1alpha2.DefinitionReference{
+								Reference: common.DefinitionReference{
 									Name: "testworkloads.example.com", // matched CRD group
 								},
 							},
@@ -268,7 +284,7 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 					{
 						workloadDefinition: v1alpha2.WorkloadDefinition{
 							Spec: v1alpha2.WorkloadDefinitionSpec{
-								Reference: v1alpha2.DefinitionReference{
+								Reference: common.DefinitionReference{
 									Name: "testworkload2s.example.com",
 								},
 							},
@@ -294,7 +310,7 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 						workloadDefinition: v1alpha2.WorkloadDefinition{
 							ObjectMeta: v1.ObjectMeta{Name: "TestWorkload"},
 							Spec: v1alpha2.WorkloadDefinitionSpec{
-								Reference: v1alpha2.DefinitionReference{
+								Reference: common.DefinitionReference{
 									Name: "TestWorkload1.example.foo",
 								},
 							},
@@ -325,7 +341,7 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 								Name: "TestWorkload",
 							},
 							Spec: v1alpha2.WorkloadDefinitionSpec{
-								Reference: v1alpha2.DefinitionReference{
+								Reference: common.DefinitionReference{
 									Name: "testworkloads.example.foo", // dismatched CRD group
 								},
 							},
@@ -356,7 +372,7 @@ func TestValidateTraitAppliableToWorkloadFn(t *testing.T) {
 								Name: "TestWorkload",
 							},
 							Spec: v1alpha2.WorkloadDefinitionSpec{
-								Reference: v1alpha2.DefinitionReference{
+								Reference: common.DefinitionReference{
 									Name: "bar.example.com", // dismatched CRD name
 								},
 							},
@@ -458,7 +474,7 @@ func TestValidateTraitConflictFn(t *testing.T) {
 					Name: traitDefName2,
 				},
 				Spec: v1alpha2.TraitDefinitionSpec{
-					Reference: v1alpha2.DefinitionReference{
+					Reference: common.DefinitionReference{
 						Name: "foo.example.com",
 					},
 				},
@@ -483,7 +499,7 @@ func TestValidateTraitConflictFn(t *testing.T) {
 					Name: traitDefName2,
 				},
 				Spec: v1alpha2.TraitDefinitionSpec{
-					Reference: v1alpha2.DefinitionReference{
+					Reference: common.DefinitionReference{
 						Name: "foo.example.com",
 					},
 				},

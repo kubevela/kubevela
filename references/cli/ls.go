@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package cli
 
 import (
@@ -8,7 +24,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -56,7 +72,7 @@ func NewListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 func printApplicationList(ctx context.Context, c client.Reader, namespace string, ioStreams cmdutil.IOStreams) error {
 	table := newUITable()
 	table.AddRow("APP", "COMPONENT", "TYPE", "TRAITS", "PHASE", "HEALTHY", "STATUS", "CREATED-TIME")
-	applist := v1alpha2.ApplicationList{}
+	applist := v1beta1.ApplicationList{}
 	if err := c.List(ctx, &applist, client.InNamespace(namespace)); err != nil {
 		if apierrors.IsNotFound(err) {
 			ioStreams.Info(table.String())
@@ -85,9 +101,9 @@ func printApplicationList(ctx context.Context, c client.Reader, namespace string
 			}
 			var traits []string
 			for _, tr := range cmp.Traits {
-				traits = append(traits, tr.Name)
+				traits = append(traits, tr.Type)
 			}
-			table.AddRow(appName, cmp.Name, cmp.WorkloadType, strings.Join(traits, ","), a.Status.Phase, healthy, status, a.CreationTimestamp)
+			table.AddRow(appName, cmp.Name, cmp.Type, strings.Join(traits, ","), a.Status.Phase, healthy, status, a.CreationTimestamp)
 		}
 	}
 	ioStreams.Info(table.String())
