@@ -24,6 +24,7 @@ import (
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/parser"
 	"cuelang.org/go/cue/token"
+	"github.com/google/go-cmp/cmp"
 	"gotest.tools/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -332,17 +333,11 @@ func TestPackage(t *testing.T) {
 `
 	mypd := &PackageDiscover{pkgKinds: make(map[string][]string)}
 	mypd.addKubeCUEPackagesFromCluster(openAPISchema)
-	bi := build.NewContext().NewInstance("", nil)
-	mypd.ImportBuiltinPackagesFor(bi)
-	bi.AddFile("-", `
-import "test.io/apps/v1"
-output: v1.#Bucket
-`)
-	var r cue.Runtime
-	inst, err := r.Build(bi)
-	assert.NilError(t, err)
-	base, err := model.NewBase(inst.Value())
-	assert.NilError(t, err)
+	expectPkgKinds := map[string][]string{
+		"test.io/apps/v1":      []string{"#Bucket"},
+		"kube/apps.test.io/v1": []string{"#Bucket"},
+	}
+	assert.Equal(t, cmp.Diff(mypd.ListPackageKinds(), expectPkgKinds), "")
 
 	exceptObj := `output: close({
 	kind:                "Bucket"
@@ -403,6 +398,30 @@ output: v1.#Bucket
 	storageClass?: "IA" | "Archive" | "ColdArchive" | *"Standard"
 })
 `
+	bi := build.NewContext().NewInstance("", nil)
+	mypd.ImportBuiltinPackagesFor(bi)
+	bi.AddFile("-", `
+import "test.io/apps/v1"
+output: v1.#Bucket
+`)
+	var r cue.Runtime
+	inst, err := r.Build(bi)
+	assert.NilError(t, err)
+	base, err := model.NewBase(inst.Value())
+	assert.NilError(t, err)
+	assert.Equal(t, base.String(), exceptObj)
+
+	bi = build.NewContext().NewInstance("", nil)
+	mypd.ImportBuiltinPackagesFor(bi)
+	bi.AddFile("-", `
+import "kube/apps.test.io/v1"
+output: v1.#Bucket
+`)
+
+	inst, err = r.Build(bi)
+	assert.NilError(t, err)
+	base, err = model.NewBase(inst.Value())
+	assert.NilError(t, err)
 	assert.Equal(t, base.String(), exceptObj)
 }
 
@@ -541,8 +560,9 @@ func TestOpenAPIMapping(t *testing.T) {
 
 func TestGeneratePkgName(t *testing.T) {
 	testCases := []struct {
-		dgvk          domainGroupVersionKind
-		expectPkgName string
+		dgvk        domainGroupVersionKind
+		sdPkgName   string
+		openPkgName string
 	}{
 		{
 			dgvk: domainGroupVersionKind{
@@ -551,7 +571,8 @@ func TestGeneratePkgName(t *testing.T) {
 				Version: "v1",
 				Kind:    "Ingress",
 			},
-			expectPkgName: "k8s.io/networking/v1",
+			sdPkgName:   "k8s.io/networking/v1",
+			openPkgName: "kube/networking.k8s.io",
 		},
 		{
 			dgvk: domainGroupVersionKind{
@@ -559,12 +580,13 @@ func TestGeneratePkgName(t *testing.T) {
 				Version: "v1",
 				Kind:    "Sls",
 			},
-			expectPkgName: "example.com/v1",
+			sdPkgName:   "example.com/v1",
+			openPkgName: "kube/example.com/v1",
 		},
 	}
 
 	for _, tCase := range testCases {
-		assert.Equal(t, genPackageName(tCase.dgvk), tCase.expectPkgName)
+		assert.Equal(t, genStandardPkgName(tCase.dgvk), tCase.sdPkgName)
 	}
 }
 

@@ -38,6 +38,8 @@ import (
 )
 
 const (
+	// BuiltinPackageDomain Specify the domain of the built-in package
+	BuiltinPackageDomain = "kube"
 	// K8sResourcePrefix Indicates that the definition comes from kubernetes
 	K8sResourcePrefix = "io_k8s_api_"
 )
@@ -73,6 +75,13 @@ func (pd *PackageDiscover) ImportBuiltinPackagesFor(bi *build.Instance) {
 	bi.Imports = append(bi.Imports, pd.velaBuiltinPackages...)
 }
 
+// ListPackageKinds list packages and their kinds
+func (pd *PackageDiscover) ListPackageKinds() map[string][]string {
+	pd.mutex.RLock()
+	defer pd.mutex.RUnlock()
+	return pd.pkgKinds
+}
+
 // RefreshKubePackagesFromCluster will use K8s client to load/refresh all K8s open API as a reference kube package using in template
 func (pd *PackageDiscover) RefreshKubePackagesFromCluster() error {
 	body, err := pd.client.Get().AbsPath("/openapi/v2").Do(context.Background()).Raw()
@@ -86,7 +95,7 @@ func (pd *PackageDiscover) RefreshKubePackagesFromCluster() error {
 func (pd *PackageDiscover) Exist(gvk metav1.GroupVersionKind) bool {
 	dgvk := convert2DGVK(gvk)
 	// package name equals to importPath
-	importPath := genPackageName(dgvk)
+	importPath := genStandardPkgName(dgvk)
 	pd.mutex.RLock()
 	defer pd.mutex.RUnlock()
 	pkgKinds := pd.pkgKinds[importPath]
@@ -158,21 +167,31 @@ import "kube"
 kind: "%s"
 apiVersion: "%s",
 }`, v.Kind, k, v.Kind, apiVersion)
-		pkgName := genPackageName(v)
-		pkg, ok := packages[pkgName]
-		if !ok {
-			pkg = newPackage(pkgName)
-			pkg.Imports = []*build.Instance{kubePkg.Instance}
+
+		pkgBuild := func(pkgName, kind, fname string) error {
+			pkg, ok := packages[pkgName]
+			if !ok {
+				pkg = newPackage(pkgName)
+				pkg.Imports = []*build.Instance{kubePkg.Instance}
+			}
+
+			mykinds := groupKinds[pkgName]
+			mykinds = append(mykinds, "#"+kind)
+
+			if err := pkg.AddFile(fname, def); err != nil {
+				return err
+			}
+
+			packages[pkgName] = pkg
+			groupKinds[pkgName] = mykinds
+			return nil
 		}
-
-		mykinds := groupKinds[pkgName]
-		mykinds = append(mykinds, v.Kind)
-
-		if err := pkg.AddFile(k, def); err != nil {
+		if err := pkgBuild(genStandardPkgName(v), v.Kind, k); err != nil {
 			return err
 		}
-		packages[pkgName] = pkg
-		groupKinds[pkgName] = mykinds
+		if err := pkgBuild(genOpenPkgName(v), v.Kind, k); err != nil {
+			return err
+		}
 	}
 	for name, pkg := range packages {
 		pd.mount(pkg, groupKinds[name])
@@ -180,7 +199,11 @@ apiVersion: "%s",
 	return nil
 }
 
-func genPackageName(v domainGroupVersionKind) string {
+func genOpenPkgName(v domainGroupVersionKind) string {
+	return BuiltinPackageDomain + "/" + v.APIVersion
+}
+
+func genStandardPkgName(v domainGroupVersionKind) string {
 	res := []string{v.Group, v.Version}
 	if v.Domain != "" {
 		res = []string{v.Domain, v.Group, v.Version}

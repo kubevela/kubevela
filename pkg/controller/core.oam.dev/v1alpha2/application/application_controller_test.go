@@ -1423,8 +1423,11 @@ spec:
     name: deployments.apps
   extension:
     template: |
-      import "k8s.io/apps/v1"
-      output: v1.#Deployment & {
+      import (
+          "k8s.io/apps/v1"
+          appsv1 "kube/apps/v1"
+      )
+      output: v1.#Deployment & appsv1.#Deployment & {
           metadata: {
               annotations: {
                   if context["config"] != _|_ {

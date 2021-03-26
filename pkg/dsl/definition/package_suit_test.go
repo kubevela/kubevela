@@ -46,9 +46,10 @@ var _ = Describe("Package discovery resources for definition from K8s APIServer"
 		err := bi.AddFile("-", `
 import (
 	network "k8s.io/networking/v1beta1"
+	kube	"kube/networking.k8s.io/v1beta1"
 )
 
-output: network.#Ingress
+output: network.#Ingress & kube.#Ingress
 output: {
 	apiVersion: "networking.k8s.io/v1beta1"
 	kind:       "Ingress"
@@ -108,9 +109,10 @@ parameter: {
 		bi.AddFile("-", `
 import (
 	"k8s.io/networking/v1"
+	kube	"kube/networking.k8s.io/v1"
 )
 
-output: v1.#Deployment
+output: v1.#Deployment & kube.#Deployment
 output: {
 	metadata: {
 		"name": parameter.name
@@ -139,9 +141,10 @@ parameter: {
 		bi.AddFile("-", `
 import (
 	apps "k8s.io/apps/v1"
+	kube	"kube/apps/v1"
 )
 
-output: apps.#Deployment
+output: apps.#Deployment & kube.#Deployment
 output: {
 	metadata: {
 		"name": parameter.name
@@ -182,9 +185,12 @@ parameter: {
 		bi = build.NewContext().NewInstance("", nil)
 		pd.ImportBuiltinPackagesFor(bi)
 		bi.AddFile("-", `
-import ("k8s.io/core/v1")
+import (
+	"k8s.io/core/v1"
+	kube "kube/v1"
+)
 
-output: v1.#Secret
+output: v1.#Secret & kube.#Secret
 output: {
 	metadata: {
 		"name": parameter.name
@@ -211,9 +217,12 @@ parameter: {
 		bi = build.NewContext().NewInstance("", nil)
 		pd.ImportBuiltinPackagesFor(bi)
 		bi.AddFile("-", `
-import ("k8s.io/core/v1")
+import (
+	"k8s.io/core/v1"
+	kube "kube/v1"
+)
 
-output: v1.#Service
+output: v1.#Service & kube.#Service
 output: {
 	metadata: {
 		"name": parameter.name
@@ -305,7 +314,10 @@ parameter: {
 			bi = build.NewContext().NewInstance("", nil)
 			pd.ImportBuiltinPackagesFor(bi)
 			if err := bi.AddFile("-", `
-import ("example.com/v1")
+import (
+	"example.com/v1"
+	"kube/example.com/v1"
+)
 
 output: v1.#Foo
 output: {
