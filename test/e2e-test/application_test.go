@@ -121,7 +121,7 @@ var _ = Describe("Application Normal tests", func() {
 				}
 				return nil
 			},
-			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(replicas))
+			time.Second*30, time.Millisecond*500).Should(BeNil())
 	}
 
 	BeforeEach(func() {
@@ -154,7 +154,7 @@ var _ = Describe("Application Normal tests", func() {
 		verifyWorkloadRunningExpected("myweb", 3, "stefanprodan/podinfo:4.0.3")
 
 		By("Update app with trait and workload image updated")
-		updateApp("app3.yaml")
+		updateApp("app4.yaml")
 		By("Apply the application rollout go directly to the target")
 		verifyWorkloadRunningExpected("myweb", 1, "stefanprodan/podinfo:5.0.2")
 	})
