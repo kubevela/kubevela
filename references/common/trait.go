@@ -39,8 +39,12 @@ func ListRawTraitDefinitions(userNamespace string, c common.Args) ([]v1beta1.Tra
 	}
 	ctx := util.SetNamespaceInCtx(context.Background(), userNamespace)
 	traitList := v1beta1.TraitDefinitionList{}
-	if err = client.List(ctx, &traitList, client2.InNamespace(userNamespace)); err != nil {
+	ns := ctx.Value(util.AppDefinitionNamespace).(string)
+	if err = client.List(ctx, &traitList, client2.InNamespace(ns)); err != nil {
 		return nil, err
+	}
+	if ns == oam.SystemDefinitonNamespace {
+		return traitList.Items, nil
 	}
 	sysTraitList := v1beta1.TraitDefinitionList{}
 	if err = client.List(ctx, &sysTraitList, client2.InNamespace(oam.SystemDefinitonNamespace)); err != nil {
@@ -57,8 +61,12 @@ func ListRawWorkloadDefinitions(userNamespace string, c common.Args) ([]v1beta1.
 	}
 	ctx := util.SetNamespaceInCtx(context.Background(), userNamespace)
 	workloadList := v1beta1.WorkloadDefinitionList{}
-	if err = client.List(ctx, &workloadList); err != nil {
+	ns := ctx.Value(util.AppDefinitionNamespace).(string)
+	if err = client.List(ctx, &workloadList, client2.InNamespace(ns)); err != nil {
 		return nil, err
+	}
+	if ns == oam.SystemDefinitonNamespace {
+		return workloadList.Items, nil
 	}
 	sysWorkloadList := v1beta1.WorkloadDefinitionList{}
 	if err = client.List(ctx, &sysWorkloadList, client2.InNamespace(oam.SystemDefinitonNamespace)); err != nil {
@@ -74,9 +82,13 @@ func ListRawComponentDefinitions(userNamespace string, c common.Args) ([]v1beta1
 		return nil, err
 	}
 	ctx := util.SetNamespaceInCtx(context.Background(), userNamespace)
+	ns := ctx.Value(util.AppDefinitionNamespace).(string)
 	componentList := v1beta1.ComponentDefinitionList{}
-	if err = client.List(ctx, &componentList); err != nil {
+	if err = client.List(ctx, &componentList, client2.InNamespace(ns)); err != nil {
 		return nil, err
+	}
+	if ns == oam.SystemDefinitonNamespace {
+		return componentList.Items, nil
 	}
 	sysComponentList := v1beta1.ComponentDefinitionList{}
 	if err = client.List(ctx, &sysComponentList, client2.InNamespace(oam.SystemDefinitonNamespace)); err != nil {
