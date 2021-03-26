@@ -100,11 +100,11 @@ Deploy the `Application` and verify the resulting workload.
 ```shell
 $ kubectl get deploy
 NAME                     READY   UP-TO-DATE   AVAILABLE   AGE
-mycomp-v1                1/1     1            1           66m
+mycomp                   1/1     1            1           66m
 ```
 And check the parameter works.
 ```shell
-$ kubectl get deployment mycomp-v1 -o json | jq '.spec.template.spec.containers[0].image'
+$ kubectl get deployment mycomp -o json | jq '.spec.template.spec.containers[0].image'
 "nginx:1.14.0"
 ```
 

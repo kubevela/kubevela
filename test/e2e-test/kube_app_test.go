@@ -203,14 +203,17 @@ spec:
 
 		ac := &v1alpha2.ApplicationContext{}
 		acName := appName
-		By("Verify the ApplicationContext is created successfully")
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac)
-		}, 30*time.Second, time.Second).Should(Succeed())
+		By("Verify the ApplicationContext is created & reconciled successfully")
+		Eventually(func() bool {
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
+				return false
+			}
+			return len(ac.Status.Workloads) > 0
+		}, 15*time.Second, time.Second).Should(BeTrue())
 
 		By("Verify the workload(deployment) is created successfully")
 		deploy := &appsv1.Deployment{}
-		deployName := fmt.Sprintf("%s-v1", compName)
+		deployName := ac.Status.Workloads[0].Reference.Name
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
@@ -270,18 +273,19 @@ spec:
 		}
 		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(Succeed())
 
-		By("Verify the ApplicationContext is updated")
-		deploy = &appsv1.Deployment{}
+		By("Verify the ApplicationContext is update successfully")
 		Eventually(func() bool {
-			ac = &v1alpha2.ApplicationContext{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
 				return false
 			}
-			return ac.GetGeneration() == 2
-		}, 15*time.Second, 3*time.Second).Should(BeTrue())
+			return ac.Generation == 2
+		}, 10*time.Second, time.Second).Should(BeTrue())
+
+		By("Verify the workload(deployment) is created successfully")
+		deploy = &appsv1.Deployment{}
+		deployName = ac.Status.Workloads[0].Reference.Name
 
 		By("Verify the changes are applied to the workload")
-		deployName = fmt.Sprintf("%s-v2", compName)
 		Eventually(func() bool {
 			requestReconcileNow(ctx, ac)
 			deploy := &appsv1.Deployment{}
@@ -347,14 +351,17 @@ spec:
 
 		ac := &v1alpha2.ApplicationContext{}
 		acName := appTestName
-		By("Verify the AppConfig is created successfully")
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac)
-		}, 30*time.Second, time.Second).Should(Succeed())
+		By("Verify the ApplicationContext is created & reconciled successfully")
+		Eventually(func() bool {
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
+				return false
+			}
+			return len(ac.Status.Workloads) > 0
+		}, 15*time.Second, time.Second).Should(BeTrue())
 
 		By("Verify the workload(deployment) is created successfully")
 		deploy := &appsv1.Deployment{}
-		deployName := fmt.Sprintf("%s-v1", compName)
+		deployName := ac.Status.Workloads[0].Reference.Name
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
 		}, 15*time.Second, 3*time.Second).Should(Succeed())
