@@ -312,7 +312,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 			By("Check ContainerizedWorkload workload's image field has been changed to v2")
 			cwWlV2 := &v1alpha2.ContainerizedWorkload{}
 			Eventually(func() string {
-				reconcileAppConfigNow(ctx, &appConfigWithRevisionName)
+				requestReconcileNow(ctx, &appConfigWithRevisionName)
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, cwWlV2)
 				return cwWlV2.Spec.Containers[0].Image
 			}, time.Second*60, time.Microsecond*500).Should(Equal(imageV2))
@@ -358,7 +358,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 			var w1 unstructured.Unstructured
 			Eventually(
 				func() error {
-					reconcileAppConfigNow(ctx, &appconfig)
+					requestReconcileNow(ctx, &appconfig)
 					w1.SetAPIVersion("example.com/v1")
 					w1.SetKind("Bar")
 					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: revisionNameV1}, &w1)
@@ -390,7 +390,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 			var w2 unstructured.Unstructured
 			Eventually(
 				func() error {
-					reconcileAppConfigNow(ctx, &appconfig)
+					requestReconcileNow(ctx, &appconfig)
 					w2.SetAPIVersion("example.com/v1")
 					w2.SetKind("Bar")
 					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: revisionNameV2}, &w2)
@@ -477,7 +477,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 			var w2 unstructured.Unstructured
 			Eventually(
 				func() string {
-					reconcileAppConfigNow(ctx, &appconfig)
+					requestReconcileNow(ctx, &appconfig)
 					w2.SetAPIVersion("example.com/v1")
 					w2.SetKind("Bar")
 					err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &w2)

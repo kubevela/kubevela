@@ -21,9 +21,14 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/format"
+	json2cue "cuelang.org/go/encoding/json"
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,6 +49,11 @@ import (
 const (
 	// AppfileBuiltinConfig defines the built-in config variable
 	AppfileBuiltinConfig = "config"
+)
+
+// constant error information
+const (
+	errInvalidValueType = "require %q type parameter value"
 )
 
 // Workload is component
@@ -271,6 +281,11 @@ func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1a
 			if err != nil {
 				return nil, nil, err
 			}
+		case types.KubeCategory:
+			comp, acComp, err = generateComponentFromKubeModule(p.client, wl, app.Name, app.RevisionName, ns)
+			if err != nil {
+				return nil, nil, err
+			}
 		default:
 			comp, acComp, err = generateComponentFromCUEModule(p.client, wl, app.Name, app.RevisionName, ns)
 			if err != nil {
@@ -318,6 +333,124 @@ func generateComponentFromCUEModule(c client.Client, wl *Workload, appName, revi
 	comp.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
 
 	return comp, acComp, nil
+}
+
+func generateComponentFromKubeModule(c client.Client, wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+	kubeObj := &unstructured.Unstructured{}
+	err := json.Unmarshal(wl.FullTemplate.Kube.Template.Raw, kubeObj)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "cannot decode Kube template into K8s object")
+	}
+
+	paramValues, err := resolveKubeParameters(wl.FullTemplate.Kube.Parameters, wl.Params)
+	if err != nil {
+		return nil, nil, errors.WithMessage(err, "cannot resolve parameter settings")
+	}
+	if err := setParameterValuesToKubeObj(kubeObj, paramValues); err != nil {
+		return nil, nil, errors.WithMessage(err, "cannot set parameters value")
+	}
+
+	// convert structured kube obj into CUE (go ==marshal==> json ==decoder==> cue)
+	objRaw, err := kubeObj.MarshalJSON()
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "cannot marshal kube object")
+	}
+	ins, err := json2cue.Decode(&cue.Runtime{}, "", objRaw)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "cannot decode object into CUE")
+	}
+	cueRaw, err := format.Node(ins.Value().Syntax())
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "cannot format CUE")
+	}
+
+	// NOTE a hack way to enable using CUE capabilities on KUBE schematic workload
+	wl.Template = fmt.Sprintf(`
+output: { 
+	%s 
+}`, string(cueRaw))
+
+	// re-use the way CUE module generates comp & acComp
+	comp, acComp, err := generateComponentFromCUEModule(c, wl, appName, revision, ns)
+	if err != nil {
+		return nil, nil, err
+	}
+	return comp, acComp, nil
+}
+
+// a helper map whose key is parameter name
+type paramValueSettings map[string]paramValueSetting
+type paramValueSetting struct {
+	Value      interface{}
+	ValueType  common.ParameterValueType
+	FieldPaths []string
+}
+
+func resolveKubeParameters(params []common.KubeParameter, settings map[string]interface{}) (paramValueSettings, error) {
+	supported := map[string]*common.KubeParameter{}
+	for _, p := range params {
+		supported[p.Name] = p.DeepCopy()
+	}
+
+	values := make(paramValueSettings)
+	for name, v := range settings {
+		// check unsupported parameter setting
+		if supported[name] == nil {
+			return nil, errors.Errorf("unsupported parameter %q", name)
+		}
+		// construct helper map
+		values[name] = paramValueSetting{
+			Value:      v,
+			ValueType:  supported[name].ValueType,
+			FieldPaths: supported[name].FieldPaths,
+		}
+	}
+
+	// check required parameter
+	for _, p := range params {
+		if p.Required != nil && *p.Required {
+			if _, ok := values[p.Name]; !ok {
+				return nil, errors.Errorf("require parameter %q", p.Name)
+			}
+		}
+	}
+	return values, nil
+}
+
+func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values paramValueSettings) error {
+	paved := fieldpath.Pave(obj.Object)
+	for paramName, v := range values {
+		for _, f := range v.FieldPaths {
+			switch v.ValueType {
+			case common.StringType:
+				vString, ok := v.Value.(string)
+				if !ok {
+					return errors.Errorf(errInvalidValueType, v.ValueType)
+				}
+				if err := paved.SetString(f, vString); err != nil {
+					return errors.Wrapf(err, "cannot set parameter %q to field %q", paramName, f)
+				}
+			case common.NumberType:
+				switch v.Value.(type) {
+				case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+					if err := paved.SetValue(f, v.Value); err != nil {
+						return errors.Wrapf(err, "cannot set parameter %q to field %q", paramName, f)
+					}
+				default:
+					return errors.Errorf(errInvalidValueType, v.ValueType)
+				}
+			case common.BooleanType:
+				vBoolean, ok := v.Value.(bool)
+				if !ok {
+					return errors.Errorf(errInvalidValueType, v.ValueType)
+				}
+				if err := paved.SetValue(f, vBoolean); err != nil {
+					return errors.Wrapf(err, "cannot set parameter %q to field %q", paramName, f)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func generateComponentFromHelmModule(c client.Client, wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {

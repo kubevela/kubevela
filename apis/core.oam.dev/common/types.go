@@ -23,6 +23,51 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
+// Kube defines the encapsulation in raw Kubernetes resource format
+type Kube struct {
+	// Template defines the raw Kubernetes resource
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Template runtime.RawExtension `json:"template"`
+
+	// Parameters defines configurable parameters
+	Parameters []KubeParameter `json:"parameters,omitempty"`
+}
+
+// ParameterValueType refers to a data type of parameter
+type ParameterValueType string
+
+// data types of parameter value
+const (
+	StringType  ParameterValueType = "string"
+	NumberType  ParameterValueType = "number"
+	BooleanType ParameterValueType = "boolean"
+)
+
+// A KubeParameter defines a configurable parameter of a component.
+type KubeParameter struct {
+	// Name of this parameter
+	Name string `json:"name"`
+
+	// +kubebuilder:validation:Enum:=string;number;boolean
+	// ValueType indicates the type of the parameter value, and
+	// only supports basic data types: string, number, boolean.
+	ValueType ParameterValueType `json:"type"`
+
+	// FieldPaths specifies an array of fields within this workload that will be
+	// overwritten by the value of this parameter. 	All fields must be of the
+	// same type. Fields are specified as JSON field paths without a leading
+	// dot, for example 'spec.replicas'.
+	FieldPaths []string `json:"fieldPaths"`
+
+	// +kubebuilder:default:=false
+	// Required specifies whether or not a value for this parameter must be
+	// supplied when authoring an Application.
+	Required *bool `json:"required,omitempty"`
+
+	// Description of this parameter.
+	Description *string `json:"description,omitempty"`
+}
+
 // CUE defines the encapsulation in CUE format
 type CUE struct {
 	// Template defines the abstraction template data of the capability, it will replace the old CUE template in extension field.
@@ -33,11 +78,13 @@ type CUE struct {
 // Schematic defines the encapsulation of this capability(workload/trait/scope),
 // the encapsulation can be defined in different ways, e.g. CUE/HCL(terraform)/KUBE(K8s Object)/HELM, etc...
 type Schematic struct {
+	KUBE *Kube `json:"kube,omitempty"`
+
 	CUE *CUE `json:"cue,omitempty"`
 
 	HELM *Helm `json:"helm,omitempty"`
 
-	// TODO(wonderflow): support HCL(terraform)/KUBE(K8s Object) here.
+	// TODO(wonderflow): support HCL(terraform)here.
 }
 
 // A Helm represents resources used by a Helm module

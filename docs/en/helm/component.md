@@ -64,7 +64,7 @@ spec:
           tag: "5.1.2"
 ```
 
-Helm module workload will use data in `settings` as [Helm chart values](https://github.com/captainroy-hy/podinfo/blob/master/charts/podinfo/values.yaml).
+Helm module workload will use data in `properties` as [Helm chart values](https://github.com/captainroy-hy/podinfo/blob/master/charts/podinfo/values.yaml).
 You can learn the schema of settings by reading the `README.md` of the Helm
 chart, and the schema are totally align with
 [`values.yaml`](https://github.com/captainroy-hy/podinfo/blob/master/charts/podinfo/values.yaml)

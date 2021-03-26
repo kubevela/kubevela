@@ -1,0 +1,19 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: myapp
+  namespace: default
+spec:
+  components:
+    - name: mycomp
+      type: kube-worker
+      properties: 
+        image: nginx:1.14.0
+      traits:
+        - type: scaler
+          properties:
+            replicas: 2
+        - type: virtualgroup
+          properties:
+            group: "my-group1"
+            type: "cluster"

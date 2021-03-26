@@ -42,6 +42,7 @@ type Template struct {
 	CapabilityCategory types.CapabilityCategory
 	Reference          common.WorkloadGVK
 	Helm               *common.Helm
+	Kube               *common.Kube
 	// TODO: Add scope definition too
 	ComponentDefinition *v1beta1.ComponentDefinition
 	WorkloadDefinition  *v1beta1.WorkloadDefinition
@@ -158,6 +159,10 @@ func NewTemplate(schematic *common.Schematic, status *common.Status, raw *runtim
 			tmp.Helm = schematic.HELM
 			tmp.CapabilityCategory = types.HelmCategory
 			return tmp, nil
+		}
+		if schematic.KUBE != nil {
+			tmp.Kube = schematic.KUBE
+			tmp.CapabilityCategory = types.KubeCategory
 		}
 	}
 

@@ -19,6 +19,7 @@ package controllers_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math/rand"
 	"testing"
 	"time"
@@ -294,15 +295,19 @@ var _ = AfterSuite(func() {
 	Expect(k8sClient.Delete(context.Background(), &crd)).Should(BeNil())
 })
 
-// reconcileAppConfigNow will trigger an immediate reconciliation on AppConfig.
+// requestReconcileNow will trigger an immediate reconciliation on K8s object.
 // Some test cases may fail for timeout to wait a scheduled reconciliation.
 // This is a workaround to avoid long-time wait before next scheduled
 // reconciliation.
-func reconcileAppConfigNow(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) error {
-	u := ac.DeepCopy()
-	u.SetAnnotations(map[string]string{
+func requestReconcileNow(ctx context.Context, o runtime.Object) {
+	By(fmt.Sprintf("Requset reconcile %q now",
+		o.GetObjectKind().GroupVersionKind().String()))
+	oCopy := o.DeepCopyObject()
+	oMeta, ok := oCopy.(metav1.Object)
+	Expect(ok).Should(BeTrue())
+	oMeta.SetAnnotations(map[string]string{
 		"app.oam.dev/requestreconcile": time.Now().String(),
 	})
-	u.SetResourceVersion("")
-	return k8sClient.Patch(ctx, u, client.Merge)
+	oMeta.SetResourceVersion("")
+	Expect(k8sClient.Patch(ctx, oCopy, client.Merge)).Should(Succeed())
 }

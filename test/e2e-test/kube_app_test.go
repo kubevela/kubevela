@@ -1,5 +1,5 @@
 /*
-Copyright 2021 The KubeVela Authors.
+Copyright 2020 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,34 +20,57 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/ghodss/yaml"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Test application containing helm module", func() {
+var _ = Describe("Test application containing kube module", func() {
 	ctx := context.Background()
 	var (
-		namespace = "helm-test-ns"
+		namespace = "kube-test-ns"
 		appName   = "test-app"
 		compName  = "test-comp"
-		cdName    = "webapp-chart"
-		wdName    = "webapp-chart-wd"
-		tdName    = "virtualgroup"
+		cdName    = "test-kube-worker"
+		wdName    = "test-kube-worker-wd"
+		tdName    = "test-virtualgroup"
 	)
-	var app v1alpha2.Application
+	var app v1beta1.Application
 	var ns corev1.Namespace
+
+	var testTemplate = func() runtime.RawExtension {
+		yamlStr := `apiVersion: apps/v1
+kind: Deployment
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+      ports:
+      - containerPort: 80 `
+		b, _ := yaml.YAMLToJSON([]byte(yamlStr))
+		return runtime.RawExtension{Raw: b}
+	}
 
 	BeforeEach(func() {
 		ns = corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
@@ -57,43 +80,38 @@ var _ = Describe("Test application containing helm module", func() {
 			},
 			time.Second*120, time.Millisecond*500).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
 		By("make sure all the resources are removed")
-		objectKey := client.ObjectKey{
-			Name: namespace,
-		}
-		Eventually(
-			func() error {
-				return k8sClient.Get(ctx, objectKey, &corev1.Namespace{})
-			},
-			time.Second*120, time.Millisecond*500).Should(&util.NotFoundMatcher{})
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: namespace}, &corev1.Namespace{})
+		}, time.Second*120, time.Millisecond*500).Should(&util.NotFoundMatcher{})
+		By("create test namespace")
 		Eventually(
 			func() error {
 				return k8sClient.Create(ctx, &ns)
 			},
 			time.Second*3, time.Millisecond*300).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-		cd := v1alpha2.ComponentDefinition{}
+		cd := v1beta1.ComponentDefinition{}
 		cd.SetName(cdName)
 		cd.SetNamespace(namespace)
 		cd.Spec.Workload.Definition = common.WorkloadGVK{APIVersion: "apps/v1", Kind: "Deployment"}
 		cd.Spec.Schematic = &common.Schematic{
-			HELM: &common.Helm{
-				Release: util.Object2RawExtension(map[string]interface{}{
-					"chart": map[string]interface{}{
-						"spec": map[string]interface{}{
-							"chart":   "podinfo",
-							"version": "5.1.4",
-						},
+			KUBE: &common.Kube{
+				Template: testTemplate(),
+				Parameters: []common.KubeParameter{
+					{
+						Name:        "image",
+						ValueType:   common.StringType,
+						FieldPaths:  []string{"spec.template.spec.containers[0].image"},
+						Required:    pointer.BoolPtr(true),
+						Description: pointer.StringPtr("test description"),
 					},
-				}),
-				Repository: util.Object2RawExtension(map[string]interface{}{
-					"url": "http://oam.dev/catalog/",
-				}),
+				},
 			},
 		}
 		Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
 
 		By("Install a patch trait used to test CUE module")
-		td := v1alpha2.TraitDefinition{}
+		td := v1beta1.TraitDefinition{}
 		td.SetName(tdName)
 		td.SetNamespace(namespace)
 		td.Spec.AppliesToWorkloads = []string{"deployments.apps"}
@@ -120,7 +138,7 @@ var _ = Describe("Test application containing helm module", func() {
 		Expect(k8sClient.Create(ctx, &td)).Should(Succeed())
 
 		By("Add 'deployments.apps' to scaler's appliesToWorkloads")
-		scalerTd := v1alpha2.TraitDefinition{}
+		scalerTd := v1beta1.TraitDefinition{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "scaler", Namespace: "vela-system"}, &scalerTd)).Should(Succeed())
 		scalerTd.Spec.AppliesToWorkloads = []string{"deployments.apps", "webservice", "worker"}
 		scalerTd.SetResourceVersion("")
@@ -129,46 +147,47 @@ var _ = Describe("Test application containing helm module", func() {
 
 	AfterEach(func() {
 		By("Clean up resources after a test")
-		k8sClient.DeleteAllOf(ctx, &v1alpha2.Application{}, client.InNamespace(namespace))
-		k8sClient.DeleteAllOf(ctx, &v1alpha2.ComponentDefinition{}, client.InNamespace(namespace))
-		k8sClient.DeleteAllOf(ctx, &v1alpha2.WorkloadDefinition{}, client.InNamespace(namespace))
-		k8sClient.DeleteAllOf(ctx, &v1alpha2.TraitDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
-		time.Sleep(15 * time.Second)
+		By("make sure all the resources are removed")
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: namespace}, &corev1.Namespace{})
+		}, time.Second*120, time.Millisecond*500).Should(&util.NotFoundMatcher{})
 
 		By("Remove 'deployments.apps' from scaler's appliesToWorkloads")
-		scalerTd := v1alpha2.TraitDefinition{}
+		scalerTd := v1beta1.TraitDefinition{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "scaler", Namespace: "vela-system"}, &scalerTd)).Should(Succeed())
 		scalerTd.Spec.AppliesToWorkloads = []string{"webservice", "worker"}
 		scalerTd.SetResourceVersion("")
 		Expect(k8sClient.Patch(ctx, &scalerTd, client.Merge)).Should(Succeed())
 	})
 
-	It("Test deploy an application containing helm module", func() {
-		app = v1alpha2.Application{
+	It("Test deploy an application containing kube module", func() {
+		app = v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      appName,
 				Namespace: namespace,
 			},
-			Spec: v1alpha2.ApplicationSpec{
-				Components: []v1alpha2.ApplicationComponent{
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
 					{
-						Name:         compName,
-						WorkloadType: cdName,
-						Settings: util.Object2RawExtension(map[string]interface{}{
-							"image": map[string]interface{}{
-								"tag": "5.1.2",
-							},
+						Name: compName,
+						Type: cdName,
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "nginx:1.14.0",
 						}),
-						Traits: []v1alpha2.ApplicationTrait{
+						Traits: []v1beta1.ApplicationTrait{
 							{
-								Name: "scaler",
+								Type: "scaler",
 								Properties: util.Object2RawExtension(map[string]interface{}{
 									"replicas": 2,
 								}),
 							},
 							{
-								Name: tdName,
+								Type: tdName,
 								Properties: util.Object2RawExtension(map[string]interface{}{
 									"group": "my-group",
 									"type":  "cluster",
@@ -189,12 +208,12 @@ var _ = Describe("Test application containing helm module", func() {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac)
 		}, 30*time.Second, time.Second).Should(Succeed())
 
-		By("Verify the workload(deployment) is created successfully by Helm")
+		By("Verify the workload(deployment) is created successfully")
 		deploy := &appsv1.Deployment{}
-		deployName := fmt.Sprintf("%s-%s-podinfo", appName, compName)
+		deployName := fmt.Sprintf("%s-v1", compName)
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
-		}, 120*time.Second, 5*time.Second).Should(Succeed())
+		}, 30*time.Second, 3*time.Second).Should(Succeed())
 
 		By("Verify two traits are applied to the workload")
 		Eventually(func() bool {
@@ -212,37 +231,33 @@ var _ = Describe("Test application containing helm module", func() {
 			if *deploy.Spec.Replicas != 2 {
 				return false
 			}
-			By("Verify application's settings override chart default values")
-			// the default value of 'image.tag' is 5.1.4 in the chart, but settings reset it to 5.1.2
-			return strings.HasSuffix(deploy.Spec.Template.Spec.Containers[0].Image, "5.1.2")
-			// it takes pretty long time to fetch chart and install the Helm release
-		}, 120*time.Second, 10*time.Second).Should(BeTrue())
+			By("Verify parameter is applied")
+			return deploy.Spec.Template.Spec.Containers[0].Image == "nginx:1.14.0"
+		}, 15*time.Second, 3*time.Second).Should(BeTrue())
 
 		By("Update the application")
-		app = v1alpha2.Application{
+		app = v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      appName,
 				Namespace: namespace,
 			},
-			Spec: v1alpha2.ApplicationSpec{
-				Components: []v1alpha2.ApplicationComponent{
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
 					{
-						Name:         compName,
-						WorkloadType: cdName,
-						Settings: util.Object2RawExtension(map[string]interface{}{
-							"image": map[string]interface{}{
-								"tag": "5.1.3", // change 5.1.4 => 5.1.3
-							},
+						Name: compName,
+						Type: cdName,
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "nginx:1.14.1", // nginx:1.14.0 => nginx:1.14.1
 						}),
-						Traits: []v1alpha2.ApplicationTrait{
+						Traits: []v1beta1.ApplicationTrait{
 							{
-								Name: "scaler",
+								Type: "scaler",
 								Properties: util.Object2RawExtension(map[string]interface{}{
 									"replicas": 3, // change 2 => 3
 								}),
 							},
 							{
-								Name: tdName,
+								Type: tdName,
 								Properties: util.Object2RawExtension(map[string]interface{}{
 									"group": "my-group-0", // change my-group => my-group-0
 									"type":  "cluster",
@@ -266,6 +281,7 @@ var _ = Describe("Test application containing helm module", func() {
 		}, 15*time.Second, 3*time.Second).Should(BeTrue())
 
 		By("Verify the changes are applied to the workload")
+		deployName = fmt.Sprintf("%s-v2", compName)
 		Eventually(func() bool {
 			requestReconcileNow(ctx, ac)
 			deploy := &appsv1.Deployment{}
@@ -278,55 +294,49 @@ var _ = Describe("Test application containing helm module", func() {
 				return false
 			}
 			By("Verify new scaler trait is applied")
-			// TODO(roywang) how to enforce scaler controller reconcile
-			// immediately? e2e test cannot wait 5min for reconciliation.
-			if *deploy.Spec.Replicas == 2 {
+			if *deploy.Spec.Replicas != 3 {
 				return false
 			}
-			By("Verify new application's settings override chart default values")
-			return strings.HasSuffix(deploy.Spec.Template.Spec.Containers[0].Image, "5.1.3")
+			By("Verify new parameter is applied")
+			return deploy.Spec.Template.Spec.Containers[0].Image == "nginx:1.14.1"
 		}, 60*time.Second, 10*time.Second).Should(BeTrue())
 	})
 
-	It("Test deploy an application containing helm module defined by workloadDefinition", func() {
-
-		workloaddef := v1alpha2.WorkloadDefinition{}
+	It("Test deploy an application containing kube module defined by workloadDefinition", func() {
+		workloaddef := v1beta1.WorkloadDefinition{}
 		workloaddef.SetName(wdName)
 		workloaddef.SetNamespace(namespace)
 		workloaddef.Spec.Reference = common.DefinitionReference{Name: "deployments.apps", Version: "v1"}
 		workloaddef.Spec.Schematic = &common.Schematic{
-			HELM: &common.Helm{
-				Release: util.Object2RawExtension(map[string]interface{}{
-					"chart": map[string]interface{}{
-						"spec": map[string]interface{}{
-							"chart":   "podinfo",
-							"version": "5.1.4",
-						},
+			KUBE: &common.Kube{
+				Template: testTemplate(),
+				Parameters: []common.KubeParameter{
+					{
+						Name:        "image",
+						ValueType:   common.StringType,
+						FieldPaths:  []string{"spec.template.spec.containers[0].image"},
+						Required:    pointer.BoolPtr(true),
+						Description: pointer.StringPtr("test description"),
 					},
-				}),
-				Repository: util.Object2RawExtension(map[string]interface{}{
-					"url": "http://oam.dev/catalog/",
-				}),
+				},
 			},
 		}
 		By("register workloadDefinition")
 		Expect(k8sClient.Create(ctx, &workloaddef)).Should(Succeed())
 
 		appTestName := "test-app-refer-to-workloaddef"
-		appTest := v1alpha2.Application{
+		appTest := v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      appTestName,
 				Namespace: namespace,
 			},
-			Spec: v1alpha2.ApplicationSpec{
-				Components: []v1alpha2.ApplicationComponent{
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
 					{
-						Name:         compName,
-						WorkloadType: wdName,
-						Settings: util.Object2RawExtension(map[string]interface{}{
-							"image": map[string]interface{}{
-								"tag": "5.1.2",
-							},
+						Name: compName,
+						Type: cdName,
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "nginx:1.14.0",
 						}),
 					},
 				},
@@ -342,15 +352,15 @@ var _ = Describe("Test application containing helm module", func() {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac)
 		}, 30*time.Second, time.Second).Should(Succeed())
 
-		By("Verify the workload(deployment) is created successfully by Helm")
+		By("Verify the workload(deployment) is created successfully")
 		deploy := &appsv1.Deployment{}
-		deployName := fmt.Sprintf("%s-%s-podinfo", appTestName, compName)
+		deployName := fmt.Sprintf("%s-v1", compName)
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
-		}, 240*time.Second, 5*time.Second).Should(Succeed())
+		}, 15*time.Second, 3*time.Second).Should(Succeed())
 	})
 
-	It("Test store JSON schema of Helm Chart in ConfigMap", func() {
+	It("Test store JSON schema of Kube parameter in ConfigMap", func() {
 		By("Get the ConfigMap")
 		cmName := fmt.Sprintf("schema-%s", cdName)
 		Eventually(func() error {
