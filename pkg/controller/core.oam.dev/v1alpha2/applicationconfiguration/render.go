@@ -194,11 +194,14 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 		oam.AnnotationAppGeneration: strconv.Itoa(int(ac.Generation)),
 	}
 	util.AddAnnotations(w, compInfoAnnotations)
-
+	var inplaceUpgrade string
+	if acAnnotations := ac.GetAnnotations(); acAnnotations != nil {
+		inplaceUpgrade = acAnnotations[oam.AnnotationInplaceUpgrade]
+	}
 	// pass through labels and annotation from app-config to workload
 	util.PassLabelAndAnnotation(ac, w)
 	// don't pass the following annotation as those are for appConfig only
-	util.RemoveAnnotations(w, []string{oam.AnnotationAppRollout, oam.AnnotationRollingComponent})
+	util.RemoveAnnotations(w, []string{oam.AnnotationAppRollout, oam.AnnotationRollingComponent, oam.AnnotationInplaceUpgrade})
 	ref := metav1.NewControllerRef(ac, v1alpha2.ApplicationConfigurationGroupVersionKind)
 	w.SetNamespace(ac.GetNamespace())
 
@@ -216,7 +219,7 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 
 		// pass through labels and annotation from app-config to trait
 		util.PassLabelAndAnnotation(ac, t)
-		util.RemoveAnnotations(t, []string{oam.AnnotationAppRollout, oam.AnnotationRollingComponent})
+		util.RemoveAnnotations(t, []string{oam.AnnotationAppRollout, oam.AnnotationRollingComponent, oam.AnnotationInplaceUpgrade})
 		traits = append(traits, &Trait{Object: *t, Definition: *traitDef})
 		traitDefs = append(traitDefs, *traitDef)
 	}
@@ -250,7 +253,8 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 			if err != nil {
 				return nil, err
 			}
-			SetAppWorkloadInstanceName(acc.ComponentName, w, revision)
+			// Pass inpalce upgrade into it
+			SetAppWorkloadInstanceName(acc.ComponentName, w, revision, inplaceUpgrade)
 			if isComponentRolling && needRolloutTemplate {
 				// we have a special logic to emit the workload as a template so that the rollout
 				// controller can take over.
