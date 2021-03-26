@@ -1418,7 +1418,7 @@ spec:
     name: deployments.apps
   extension:
     template: |
-      import "cluster.vela.io/k8s.io/apps/v1"
+      import "k8s.io/apps/v1"
       output: v1.#Deployment & {
           metadata: {
               annotations: {
@@ -1477,8 +1477,8 @@ spec:
     cue:
       template: |
         import (
-        	kubev1 "cluster.vela.io/k8s.io/core/v1"
-        	network "cluster.vela.io/k8s.io/networking/v1beta1"
+        	kubev1 "k8s.io/core/v1"
+        	network "k8s.io/networking/v1beta1"
         )
 
         parameter: {

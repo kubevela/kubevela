@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/parser"
@@ -318,7 +320,7 @@ func TestPackage(t *testing.T) {
 	bi := build.NewContext().NewInstance("", nil)
 	mypd.ImportBuiltinPackagesFor(bi)
 	bi.AddFile("-", `
-import "test.io.vela.io/apps/v1"
+import "test.io/apps/v1"
 output: v1.#Bucket
 `)
 	var r cue.Runtime
@@ -458,6 +460,26 @@ func TestGetDGVK(t *testing.T) {
 		Kind:       "Foo",
 		APIVersion: "apps.test.io/v1",
 	})
+
+	srcTmpl = `
+{
+	"x-kubernetes-group-version-kind": {
+		"group": "test.io",
+		"kind": "Foo",
+		"version": "v1"
+	}
+}
+`
+	inst, err = r.Compile("-", srcTmpl)
+	assert.NilError(t, err)
+	gvk, err = getDGVK(inst.Value().Lookup("x-kubernetes-group-version-kind"))
+	assert.NilError(t, err)
+	assert.Equal(t, gvk, domainGroupVersionKind{
+		Group:      "test.io",
+		Version:    "v1",
+		Kind:       "Foo",
+		APIVersion: "test.io/v1",
+	})
 }
 
 func TestOpenAPIMapping(t *testing.T) {
@@ -514,7 +536,7 @@ func TestGeneratePkgName(t *testing.T) {
 				Version: "v1",
 				Kind:    "Ingress",
 			},
-			expectPkgName: "cluster.vela.io/k8s.io/networking/v1",
+			expectPkgName: "k8s.io/networking/v1",
 		},
 		{
 			dgvk: domainGroupVersionKind{
@@ -522,11 +544,46 @@ func TestGeneratePkgName(t *testing.T) {
 				Version: "v1",
 				Kind:    "Sls",
 			},
-			expectPkgName: "cluster.vela.io/example.com/v1",
+			expectPkgName: "example.com/v1",
 		},
 	}
 
 	for _, tCase := range testCases {
 		assert.Equal(t, genPackageName(tCase.dgvk), tCase.expectPkgName)
+	}
+}
+
+func TestReverseString(t *testing.T) {
+	testCases := []struct {
+		gvr           metav1.GroupVersionKind
+		reverseString string
+	}{
+		{
+			gvr: metav1.GroupVersionKind{
+				Group:   "apps",
+				Version: "v1",
+				Kind:    "Deployment",
+			},
+			reverseString: "io_k8s_api_apps_v1_Deployment",
+		},
+		{
+			gvr: metav1.GroupVersionKind{
+				Group:   "example.com",
+				Version: "v1",
+				Kind:    "Sls",
+			},
+			reverseString: "com_example_v1_Sls",
+		},
+		{
+			gvr: metav1.GroupVersionKind{
+				Version: "v1",
+				Kind:    "Pod",
+			},
+			reverseString: "io_k8s_api_core_v1_Pod",
+		},
+	}
+
+	for _, tCase := range testCases {
+		assert.Equal(t, convert2DGVK(tCase.gvr).reverseString(), tCase.reverseString)
 	}
 }

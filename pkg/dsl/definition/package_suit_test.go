@@ -44,7 +44,7 @@ var _ = Describe("Package discovery resources for definition from K8s APIServer"
 		pd.ImportBuiltinPackagesFor(bi)
 		err := bi.AddFile("-", `
 import (
-	network "cluster.vela.io/k8s.io/networking/v1beta1"
+	network "k8s.io/networking/v1beta1"
 )
 
 output: network.#Ingress
@@ -101,13 +101,43 @@ parameter: {
 										"servicePort": int64(80),
 									}}}}}}}},
 		})).Should(BeEquivalentTo(""))
+		By("test Invalid Import path")
+		bi = build.NewContext().NewInstance("", nil)
+		pd.ImportBuiltinPackagesFor(bi)
+		bi.AddFile("-", `
+import (
+	"k8s.io/networking/v1"
+)
+
+output: v1.#Deployment
+output: {
+	metadata: {
+		"name": parameter.name
+	}
+	spec: template: spec: {
+		containers: [{
+			name:"invalid-path",
+			image: parameter.image
+		}]
+	}
+}
+
+parameter: {
+	name:  "myapp"
+	image: "nginx"
+}`)
+		inst, err = r.Build(bi)
+		Expect(err).Should(BeNil())
+		_, err = model.NewBase(inst.Lookup("output"))
+		Expect(err).ShouldNot(BeNil())
+		Expect(err.Error()).Should(Equal("_|_ // undefined field \"#Deployment\"\n"))
 
 		By("test Deployment in kube package")
 		bi = build.NewContext().NewInstance("", nil)
 		pd.ImportBuiltinPackagesFor(bi)
 		bi.AddFile("-", `
 import (
-	apps "cluster.vela.io/k8s.io/apps/v1"
+	apps "k8s.io/apps/v1"
 )
 
 output: apps.#Deployment
@@ -151,7 +181,7 @@ parameter: {
 		bi = build.NewContext().NewInstance("", nil)
 		pd.ImportBuiltinPackagesFor(bi)
 		bi.AddFile("-", `
-import ("cluster.vela.io/k8s.io/core/v1")
+import ("k8s.io/core/v1")
 
 output: v1.#Secret
 output: {
@@ -180,7 +210,7 @@ parameter: {
 		bi = build.NewContext().NewInstance("", nil)
 		pd.ImportBuiltinPackagesFor(bi)
 		bi.AddFile("-", `
-import ("cluster.vela.io/k8s.io/core/v1")
+import ("k8s.io/core/v1")
 
 output: v1.#Service
 output: {
@@ -260,10 +290,14 @@ parameter: {
 		})).Should(Equal(false))
 		Expect(pd.RefreshKubePackagesFromCluster()).ShouldNot(HaveOccurred())
 		By("test new added CRD in kube package")
-		bi = build.NewContext().NewInstance("", nil)
-		pd.ImportBuiltinPackagesFor(bi)
-		bi.AddFile("-", `
-import ("cluster.vela.io/example.com/v1")
+		Eventually(func() error {
+			if err := pd.RefreshKubePackagesFromCluster(); err != nil {
+				return err
+			}
+			bi = build.NewContext().NewInstance("", nil)
+			pd.ImportBuiltinPackagesFor(bi)
+			bi.AddFile("-", `
+import ("example.com/v1")
 
 output: v1.#Foo
 output: {
@@ -271,8 +305,13 @@ output: {
     status: key: "test2"
 }
 `)
-		inst, err = r.Build(bi)
-		Expect(err).Should(BeNil())
+			inst, err = r.Build(bi)
+			if err != nil {
+				return err
+			}
+			return nil
+		}, time.Second*5, time.Millisecond*300).Should(BeNil())
+
 		base, err = model.NewBase(inst.Lookup("output"))
 		Expect(err).Should(BeNil())
 		data, err = base.Unstructured()

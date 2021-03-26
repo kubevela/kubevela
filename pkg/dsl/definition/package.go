@@ -22,8 +22,6 @@ import (
 )
 
 const (
-	// BuiltinPackageDomain Specify the domain of the built-in package
-	BuiltinPackageDomain = "cluster.vela.io"
 	// K8sResourcePrefix Indicates that the definition comes from kubernetes
 	K8sResourcePrefix = "io_k8s_api_"
 )
@@ -167,9 +165,9 @@ apiVersion: "%s",
 }
 
 func genPackageName(v domainGroupVersionKind) string {
-	res := []string{BuiltinPackageDomain, v.Group, v.Version}
+	res := []string{v.Group, v.Version}
 	if v.Domain != "" {
-		res = []string{BuiltinPackageDomain, v.Domain, v.Group, v.Version}
+		res = []string{v.Domain, v.Group, v.Version}
 	}
 
 	return strings.Join(res, "/")
@@ -217,7 +215,8 @@ func openAPIMapping(dgvkMapper map[string]domainGroupVersionKind) func(pos token
 				delete(dgvkMapper, trimName)
 			}
 		}
-		if filepath.Base(a[1]) == "JSONSchemaProps" && pos != token.NoPos {
+
+		if strings.HasSuffix(a[1], ".JSONSchemaProps") && pos != token.NoPos {
 			return []ast.Label{ast.NewIdent("_")}, nil
 		}
 
