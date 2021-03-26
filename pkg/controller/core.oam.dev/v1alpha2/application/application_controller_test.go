@@ -1477,8 +1477,8 @@ spec:
     cue:
       template: |
         import (
-        	kubev1 "k8s.io/core/v1"
-        	network "k8s.io/networking/v1beta1"
+        	kubev1 "cluster.vela.io/k8s.io/core/v1"
+        	network "cluster.vela.io/k8s.io/networking/v1beta1"
         )
 
         parameter: {
