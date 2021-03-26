@@ -3,6 +3,9 @@ package applicationconfiguration
 import (
 	"fmt"
 	"reflect"
+	"strconv"
+
+	"github.com/oam-dev/kubevela/pkg/oam"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/openkruise/kruise-api/apps/v1alpha1"
@@ -22,9 +25,14 @@ const (
 
 // SetAppWorkloadInstanceName sets the name of the workload instance depends on the component revision
 // and the workload kind
-func SetAppWorkloadInstanceName(componentName string, w *unstructured.Unstructured, revision int) {
-	// TODO: we can get the workloadDefinition name from w.GetLabels()["oam.WorkloadTypeLabel"]
-	// and use a special field like "use-inplace-upgrade" in the definition to allow configurable behavior
+func SetAppWorkloadInstanceName(componentName string, w *unstructured.Unstructured, revision int, inplaceUpgrade string) {
+
+	if inplaceUpgrade == strconv.FormatBool(true) {
+		klog.InfoS("we reuse the component name for resources that support in-place upgrade",
+			"GVK", w.GroupVersionKind(), "instance name", componentName, oam.AnnotationInplaceUpgrade, true)
+		w.SetName(componentName)
+		return
+	}
 
 	// we hard code the behavior depends on the workload group/kind for now. The only in-place upgradable resources
 	// we support is cloneset/statefulset for now. We can easily add more later.

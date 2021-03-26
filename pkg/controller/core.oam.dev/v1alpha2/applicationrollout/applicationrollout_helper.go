@@ -199,7 +199,8 @@ func (r *Reconciler) fetchWorkload(ctx context.Context, componentName string,
 		return nil, errors.Wrap(err, fmt.Sprintf("failed to get component given revision %s", targetAcc.RevisionName))
 	}
 	// reuse the same appConfig controller logic that determines the workload name given an ACC
-	applicationconfiguration.SetAppWorkloadInstanceName(componentName, w, revision)
+	// inplaceUpgrade not used in rollout now
+	applicationconfiguration.SetAppWorkloadInstanceName(componentName, w, revision, "")
 	// get the real workload object from api-server given GVK and name
 	workload, err := oamutil.GetObjectGivenGVKAndName(ctx, r, w.GroupVersionKind(), targetApp.GetNamespace(), w.GetName())
 	if err != nil {

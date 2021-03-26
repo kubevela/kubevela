@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
@@ -52,6 +53,12 @@ type appHandler struct {
 	app     *v1beta1.Application
 	appfile *appfile.Appfile
 	logger  logr.Logger
+	inplace bool
+}
+
+// setInplace will mark if the application should upgrade the workload within the same instance(name never changed)
+func (h *appHandler) setInplace(isInplace bool) {
+	h.inplace = isInplace
 }
 
 func (h *appHandler) handleErr(err error) (ctrl.Result, error) {
@@ -119,10 +126,14 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 		}
 	}
 
-	// we only need to create appContext here if there is no rollout controller to take care of new versions
+	// the rollout will create AppContext which will launch the real K8s resources.
+	// Otherwise, we should create/update the appContext here when there if no rollout controller to take care of new versions
+	// In this case, the workload should update with the annotation `app.oam.dev/inplace-upgrade=true`
 	if _, exist := h.app.GetAnnotations()[oam.AnnotationAppRollout]; !exist && h.app.Spec.RolloutPlan == nil {
+		h.setInplace(true)
 		return h.createOrUpdateAppContext(ctx, owners)
 	}
+	h.setInplace(false)
 	return nil
 }
 
@@ -291,7 +302,14 @@ func (h *appHandler) createOrUpdateAppContext(ctx context.Context, owners []meta
 	}
 	appLabel[oam.LabelAppRevisionHash] = h.app.Status.LatestRevision.RevisionHash
 	appContext.SetLabels(appLabel)
-	appContext.SetAnnotations(h.app.GetAnnotations())
+
+	appAnnotation := h.app.GetAnnotations()
+	if appAnnotation == nil {
+		appAnnotation = make(map[string]string)
+	}
+	appAnnotation[oam.AnnotationInplaceUpgrade] = strconv.FormatBool(h.inplace)
+	appContext.SetAnnotations(appAnnotation)
+
 	key := ctypes.NamespacedName{Name: appContext.Name, Namespace: appContext.Namespace}
 
 	if err := h.r.Get(ctx, key, &curAppContext); err != nil {
