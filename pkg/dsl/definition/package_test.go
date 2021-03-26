@@ -575,11 +575,11 @@ func TestReverseString(t *testing.T) {
 	}{
 		{
 			gvr: metav1.GroupVersionKind{
-				Group:   "apps",
+				Group:   "networking.k8s.io",
 				Version: "v1",
-				Kind:    "Deployment",
+				Kind:    "NetworkPolicy",
 			},
-			reverseString: "io_k8s_api_apps_v1_Deployment",
+			reverseString: "io_k8s_api_networking_v1_NetworkPolicy",
 		},
 		{
 			gvr: metav1.GroupVersionKind{
