@@ -1,10 +1,11 @@
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: AppRollout
 metadata:
-  name: rolling-test
+  name: rolling-example
 spec:
   # application (revision) reference
-  targetAppRevisionName: test-rolling-v1
+  sourceAppRevisionName: test-rolling-v1
+  targetAppRevisionName: test-rolling-v2
   componentList:
     - metrics-provider
   rolloutPlan:

@@ -18,6 +18,7 @@ package controllers_test
 import (
 	"context"
 	"encoding/json"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -72,6 +73,7 @@ func TestAPIs(t *testing.T) {
 
 var _ = BeforeSuite(func(done Done) {
 	By("Bootstrapping test environment")
+	rand.Seed(time.Now().UnixNano())
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 	err := clientgoscheme.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
@@ -116,8 +118,6 @@ var _ = BeforeSuite(func(done Done) {
 	}
 	// For some reason, traitDefinition is created as a Cluster scope object
 	Expect(k8sClient.Create(context.Background(), &manualscalertrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	By("Created manual scalar trait definition")
-
 	// Create manual scaler trait definition with spec.extension field
 	definitionExtension := DefinitionExtension{
 		Alias: "ManualScaler",

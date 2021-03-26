@@ -16,3 +16,4 @@ spec:
         image: stefanprodan/podinfo:5.0.2
         port: 8080
         updateStrategyType: InPlaceIfPossible
+        replicas: 5

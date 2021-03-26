@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	util "github.com/oam-dev/kubevela/pkg/utils"
 	"github.com/oam-dev/kubevela/pkg/webhook/common/rollout"
@@ -31,7 +31,7 @@ var _ admission.Handler = &MutatingHandler{}
 
 // Handle handles admission requests.
 func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	obj := &v1alpha2.AppRollout{}
+	obj := &v1beta1.AppRollout{}
 
 	err := h.Decoder.Decode(req, obj)
 	if err != nil {
@@ -52,8 +52,8 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 }
 
 // DefaultAppRollout will set the default value for the AppRollout®
-func DefaultAppRollout(obj *v1alpha2.AppRollout) {
-	klog.InfoS("default", "name", obj.Name)
+func DefaultAppRollout(obj *v1beta1.AppRollout) {
+	klog.InfoS("create default for approllout", "name", obj.Name)
 	if obj.Spec.RevertOnDelete == nil {
 		klog.V(common.LogDebug).Info("default RevertOnDelete as false")
 		obj.Spec.RevertOnDelete = pointer.BoolPtr(false)
@@ -82,6 +82,6 @@ func (h *MutatingHandler) InjectDecoder(d *admission.Decoder) error {
 // RegisterMutatingHandler will register component mutation handler to the webhook
 func RegisterMutatingHandler(mgr manager.Manager) {
 	server := mgr.GetWebhookServer()
-	server.Register("/mutating-core-oam-dev-v1alpha2-approllout",
+	server.Register("/mutating-core-oam-dev-v1beta1-approllout",
 		&webhook.Admission{Handler: &MutatingHandler{}})
 }

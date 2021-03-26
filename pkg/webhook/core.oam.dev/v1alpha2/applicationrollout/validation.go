@@ -12,13 +12,14 @@ import (
 	"k8s.io/kubectl/pkg/util/slice"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/webhook/common/rollout"
 )
 
 // ValidateCreate validates the AppRollout on creation
-func (h *ValidatingHandler) ValidateCreate(appRollout *v1alpha2.AppRollout) field.ErrorList {
+func (h *ValidatingHandler) ValidateCreate(appRollout *v1beta1.AppRollout) field.ErrorList {
 	klog.InfoS("validate create", "name", appRollout.Name)
 	allErrs := apimachineryvalidation.ValidateObjectMeta(&appRollout.ObjectMeta, true,
 		apimachineryvalidation.NameIsDNSSubdomain, field.NewPath("metadata"))
@@ -32,8 +33,8 @@ func (h *ValidatingHandler) ValidateCreate(appRollout *v1alpha2.AppRollout) fiel
 		return allErrs
 	}
 
-	var targetAppRevision v1alpha2.ApplicationRevision
-	sourceAppRevision := &v1alpha2.ApplicationRevision{}
+	var targetAppRevision v1beta1.ApplicationRevision
+	sourceAppRevision := &v1beta1.ApplicationRevision{}
 	targetAppName := appRollout.Spec.TargetAppRevisionName
 	if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appRollout.Namespace, Name: targetAppName},
 		&targetAppRevision); err != nil {
@@ -123,7 +124,7 @@ func validateComponent(componentList []string, targetApp, sourceApp *v1alpha2.Ap
 }
 
 // ValidateUpdate validates the AppRollout on update
-func (h *ValidatingHandler) ValidateUpdate(new, old *v1alpha2.AppRollout) field.ErrorList {
+func (h *ValidatingHandler) ValidateUpdate(new, old *v1beta1.AppRollout) field.ErrorList {
 	klog.InfoS("validate update", "name", new.Name)
 	errList := h.ValidateCreate(new)
 	fldPath := field.NewPath("spec").Child("rolloutPlan")
