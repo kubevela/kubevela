@@ -330,6 +330,10 @@ outputs: ingress: {
 	}}
 
 	ac3cm := &v12.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
 		Data: map[string]string{
 			"test": "test-value",
 		},

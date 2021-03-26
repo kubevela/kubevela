@@ -1,5 +1,8 @@
 # Kubecon 2020 NA Kubevela Tutorial
 
+> :warning: This is an outdated tutorial only applies to the old version of kubevela.
+Before you read, you need to know what you are doing.
+
 ## Pre-requisites
 
 * Kubernetes cluster version >1.16
