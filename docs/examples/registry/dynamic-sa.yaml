@@ -1,4 +1,4 @@
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -8,27 +8,27 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  extension:
-    template: |-
-      processing: {
-      	output: {
-      		credentials?: string
-      	}
-      	http: {
-      		method: *"GET" | string
-      		url:    parameter.serviceURL
-      		request: {
-      			header: {
-      				"authorization.token": parameter.uidtoken
-      			}
-      		}
-      	}
-      }
-      patch: {
-      	spec: template: spec: serviceAccountName: processing.output.credentials
-      }
-
-      parameter: {
-      	uidtoken:   string
-      	serviceURL: string
-      }
+  schematic:
+    cue:
+      template: |-
+        processing: {
+          output: {
+              credentials?: string
+          }
+          http: {
+              method: *"GET" | string
+              url:    parameter.serviceURL
+              request: {
+                  header: {
+                      "authorization.token": parameter.uidtoken
+                  }
+              }
+          }
+        }
+        patch: {
+          spec: template: spec: serviceAccountName: processing.output.credentials
+        }
+        parameter: {
+          uidtoken:   string
+          serviceURL: string
+        }

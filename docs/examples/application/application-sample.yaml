@@ -15,11 +15,11 @@ spec:
         - type: scaler
           properties:
             replicas: 10
-        - kind: sidecar
+        - type: sidecar
           properties:
             name: "sidecar-test"
             image: "nginx"
-        - kind: kservice
+        - type: kservice
           properties:
             http:
               server: 80
