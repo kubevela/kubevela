@@ -51,6 +51,11 @@ const (
 	AppfileBuiltinConfig = "config"
 )
 
+// constant error information
+const (
+	errInvalidValueType = "require %q type parameter value"
+)
+
 // Workload is component
 type Workload struct {
 	Name               string
@@ -374,33 +379,30 @@ output: {
 }
 
 // a helper map whose key is parameter name
-type parameterValueSettings map[string]struct {
-	value      interface{}
-	valueType  common.ParameterValueType
-	fieldPaths []string
+type paramValueSettings map[string]paramValueSetting
+type paramValueSetting struct {
+	Value      interface{}
+	ValueType  common.ParameterValueType
+	FieldPaths []string
 }
 
-func resolveKubeParameters(params []common.KubeParameter, settings map[string]interface{}) (parameterValueSettings, error) {
+func resolveKubeParameters(params []common.KubeParameter, settings map[string]interface{}) (paramValueSettings, error) {
 	supported := map[string]*common.KubeParameter{}
 	for _, p := range params {
 		supported[p.Name] = p.DeepCopy()
 	}
 
-	values := make(parameterValueSettings)
+	values := make(paramValueSettings)
 	for name, v := range settings {
 		// check unsupported parameter setting
 		if supported[name] == nil {
 			return nil, errors.Errorf("unsupported parameter %q", name)
 		}
 		// construct helper map
-		values[name] = struct {
-			value      interface{}
-			valueType  common.ParameterValueType
-			fieldPaths []string
-		}{
-			value:      v,
-			valueType:  supported[name].ValueType,
-			fieldPaths: supported[name].FieldPaths,
+		values[name] = paramValueSetting{
+			Value:      v,
+			ValueType:  supported[name].ValueType,
+			FieldPaths: supported[name].FieldPaths,
 		}
 	}
 
@@ -415,32 +417,32 @@ func resolveKubeParameters(params []common.KubeParameter, settings map[string]in
 	return values, nil
 }
 
-func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values parameterValueSettings) error {
-	errInvalidValueType := "require %q type parameter value"
+func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values paramValueSettings) error {
 	paved := fieldpath.Pave(obj.Object)
 	for paramName, v := range values {
-		for _, f := range v.fieldPaths {
-			switch v.valueType {
+		for _, f := range v.FieldPaths {
+			switch v.ValueType {
 			case common.StringType:
-				vString, ok := v.value.(string)
+				vString, ok := v.Value.(string)
 				if !ok {
-					return errors.Errorf(errInvalidValueType, v.valueType)
+					return errors.Errorf(errInvalidValueType, v.ValueType)
 				}
 				if err := paved.SetString(f, vString); err != nil {
 					return errors.Wrapf(err, "cannot set parameter %q to field %q", paramName, f)
 				}
 			case common.NumberType:
-				vFloat64, ok := v.value.(float64)
-				if !ok {
-					return errors.Errorf(errInvalidValueType, v.valueType)
-				}
-				if err := paved.SetNumber(f, vFloat64); err != nil {
-					return errors.Wrapf(err, "cannot set parameter %q to field %q", paramName, f)
+				switch v.Value.(type) {
+				case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+					if err := paved.SetValue(f, v.Value); err != nil {
+						return errors.Wrapf(err, "cannot set parameter %q to field %q", paramName, f)
+					}
+				default:
+					return errors.Errorf(errInvalidValueType, v.ValueType)
 				}
 			case common.BooleanType:
-				vBoolean, ok := v.value.(bool)
+				vBoolean, ok := v.Value.(bool)
 				if !ok {
-					return errors.Errorf(errInvalidValueType, v.valueType)
+					return errors.Errorf(errInvalidValueType, v.ValueType)
 				}
 				if err := paved.SetValue(f, vBoolean); err != nil {
 					return errors.Wrapf(err, "cannot set parameter %q to field %q", paramName, f)
