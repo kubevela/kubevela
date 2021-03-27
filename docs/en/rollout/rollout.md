@@ -48,8 +48,11 @@ spec:
 ## User Experience Workflow
 Here is the end to end user experience
 
-1. Install CloneSet based workloadDefinition
-
+1. Install Open Kurise and CloneSet based workloadDefinition
+```shell
+helm install kruise https://github.com/openkruise/kruise/releases/download/v0.7.0/kruise-chart.tgz
+```
+   
 ```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
