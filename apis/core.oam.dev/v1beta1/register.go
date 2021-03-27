@@ -93,6 +93,14 @@ var (
 	ScopeDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(ScopeDefinitionKind)
 )
 
+// ResourceTracker type metadata.
+var (
+	ResourceTrackerKind            = reflect.TypeOf(ResourceTracker{}).Name()
+	ResourceTrackerGroupKind       = schema.GroupKind{Group: Group, Kind: ResourceTrackerKind}.String()
+	ResourceTrackerKindAPIVersion  = ResourceTrackerKind + "." + SchemeGroupVersion.String()
+	ResourceTrackerKindVersionKind = SchemeGroupVersion.WithKind(ResourceTrackerKind)
+)
+
 // AppDeployment type metadata.
 var (
 	AppDeploymentKind            = reflect.TypeOf(AppDeployment{}).Name()
@@ -110,4 +118,5 @@ func init() {
 	SchemeBuilder.Register(&AppRollout{}, &AppRolloutList{})
 	SchemeBuilder.Register(&ApplicationRevision{}, &ApplicationRevisionList{})
 	SchemeBuilder.Register(&AppDeployment{}, &AppDeploymentList{})
+	SchemeBuilder.Register(&ResourceTracker{}, &ResourceTrackerList{})
 }

@@ -324,8 +324,9 @@ func generateComponentFromCUEModule(c client.Client, wl *Workload, appName, revi
 			Name:       sc.Name,
 		}})
 	}
-
-	comp.Namespace = ns
+	if len(comp.Namespace) == 0 {
+		comp.Namespace = ns
+	}
 	if comp.Labels == nil {
 		comp.Labels = map[string]string{}
 	}

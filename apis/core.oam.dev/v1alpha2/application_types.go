@@ -43,6 +43,9 @@ type AppStatus struct {
 	// Services record the status of the application services
 	Services []common.ApplicationComponentStatus `json:"services,omitempty"`
 
+	// ResourceTracker record the status of the ResourceTracker
+	ResourceTracker *runtimev1alpha1.TypedReference `json:"resourceTracker,omitempty"`
+
 	// LatestRevision of the application configuration it generates
 	// +optional
 	LatestRevision *common.Revision `json:"latestRevision,omitempty"`

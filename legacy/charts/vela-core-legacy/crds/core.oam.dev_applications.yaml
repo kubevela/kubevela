@@ -367,6 +367,26 @@ spec:
               - name
               - revision
               type: object
+            resourceTracker:
+              description: ResourceTracker record the status of the ResourceTracker
+              properties:
+                apiVersion:
+                  description: APIVersion of the referenced object.
+                  type: string
+                kind:
+                  description: Kind of the referenced object.
+                  type: string
+                name:
+                  description: Name of the referenced object.
+                  type: string
+                uid:
+                  description: UID of the referenced object.
+                  type: string
+              required:
+              - apiVersion
+              - kind
+              - name
+              type: object
             rollingState:
               description: RollingState is the Rollout State
               type: string

@@ -22,6 +22,7 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -42,7 +44,12 @@ import (
 )
 
 // RolloutReconcileWaitTime is the time to wait before reconcile again an application still in rollout phase
-const RolloutReconcileWaitTime = time.Second * 3
+const (
+	RolloutReconcileWaitTime      = time.Second * 3
+	resourceTrackerFinalizer      = "resourceTracker.finalizer.core.oam.dev"
+	errUpdateApplicationStatus    = "cannot update application status"
+	errUpdateApplicationFinalizer = "cannot update application finalizer"
+)
 
 // Reconciler reconciles a Application object
 type Reconciler struct {
@@ -72,21 +79,35 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
-	// TODO: check finalizer
-	if app.DeletionTimestamp != nil {
-		return ctrl.Result{}, nil
-	}
-
-	applog.Info("Start Rendering")
-
-	app.Status.Phase = common.ApplicationRendering
-
-	// by default, we regard the spec is diff
 	handler := &appHandler{
 		r:      r,
 		app:    app,
 		logger: applog,
 	}
+
+	if app.ObjectMeta.DeletionTimestamp.IsZero() {
+		if registerFinalizers(app) {
+			applog.Info("Register new finalizer", "application", app.Namespace+"/"+app.Name, "finalizers", app.ObjectMeta.Finalizers)
+			return reconcile.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+		}
+	} else {
+		needUpdate, err := handler.removeResourceTracker(ctx)
+		if err != nil {
+			applog.Error(err, "Failed to remove application resourceTracker")
+			app.Status.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
+			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
+		}
+		if needUpdate {
+			applog.Info("remove finalizer of application", "application", app.Namespace+"/"+app.Name, "finalizers", app.ObjectMeta.Finalizers)
+			return ctrl.Result{}, errors.Wrap(r.Update(ctx, app), errUpdateApplicationFinalizer)
+		}
+		// deleting and no need to handle finalizer
+		return reconcile.Result{}, nil
+	}
+
+	applog.Info("Start Rendering")
+
+	app.Status.Phase = common.ApplicationRendering
 
 	applog.Info("parse template")
 	// parse template
@@ -120,6 +141,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		app.Status.SetConditions(errorCondition("Built", err))
 		return handler.handleErr(err)
 	}
+
+	err = handler.handleResourceTracker(ctx, comps, ac)
+	if err != nil {
+		applog.Error(err, "[Handle resourceTracker]")
+		return handler.handleErr(err)
+	}
+
 	// pass the App label and annotation to ac except some app specific ones
 	oamutil.PassLabelAndAnnotation(app, ac)
 
@@ -164,6 +192,15 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 	app.Status.Components = refComps
 	return ctrl.Result{}, r.UpdateStatus(ctx, app)
+}
+
+// if any finalizers newly registered, return true
+func registerFinalizers(app *v1beta1.Application) bool {
+	if !meta.FinalizerExists(&app.ObjectMeta, resourceTrackerFinalizer) && app.Status.ResourceTracker != nil {
+		meta.AddFinalizer(&app.ObjectMeta, resourceTrackerFinalizer)
+		return true
+	}
+	return false
 }
 
 // SetupWithManager install to manager

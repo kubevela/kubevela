@@ -230,3 +230,21 @@ type ScopeDefinitionList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ScopeDefinition `json:"items"`
 }
+
+// +kubebuilder:object:root=true
+
+// An ResourceTracker represents a tracker for track cross namespace resources
+// +kubebuilder:resource:scope=Cluster,categories={oam}
+type ResourceTracker struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+
+// ResourceTrackerList contains a list of ResourceTracker
+type ResourceTrackerList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ResourceTracker `json:"items"`
+}

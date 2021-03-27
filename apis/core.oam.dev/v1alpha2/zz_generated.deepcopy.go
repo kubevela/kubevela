@@ -144,6 +144,11 @@ func (in *AppStatus) DeepCopyInto(out *AppStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.ResourceTracker != nil {
+		in, out := &in.ResourceTracker, &out.ResourceTracker
+		*out = new(v1alpha1.TypedReference)
+		**out = **in
+	}
 	if in.LatestRevision != nil {
 		in, out := &in.LatestRevision, &out.LatestRevision
 		*out = new(common.Revision)
