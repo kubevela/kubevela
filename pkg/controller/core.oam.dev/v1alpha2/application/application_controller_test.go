@@ -26,6 +26,8 @@ import (
 	"strconv"
 	"time"
 
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -1321,6 +1323,58 @@ var _ = Describe("Test Application Controller", func() {
 		Expect(assert.ObjectsAreEqual(expDeployment, gotD)).Should(BeEquivalentTo(true))
 		By("Delete Application, clean the resource")
 		Expect(k8sClient.Delete(ctx, appImportPkg)).Should(BeNil())
+	})
+	It("revision should exist in created workload render by context.appRevision", func() {
+
+		expDeployment := getExpDeployment("myweb", "revision-app1")
+		expDeployment.Labels["workload.oam.dev/type"] = "cd1"
+		expDeployment.Spec.Template.Spec.Containers[0].Command = nil
+		expDeployment.Spec.Template.Labels["app.oam.dev/revision"] = "revision-app1-v1"
+		ns := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vela-test-app-revisionname",
+			},
+		}
+		Expect(k8sClient.Create(ctx, ns)).Should(BeNil())
+
+		cd := &v1beta1.ComponentDefinition{}
+		Expect(common2.ReadYamlToObject("testdata/revision/cd1.yaml", cd)).Should(BeNil())
+		cd.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, cd.DeepCopyObject())).Should(BeNil())
+
+		app := &v1beta1.Application{}
+		Expect(common2.ReadYamlToObject("testdata/revision/app1.yaml", app)).Should(BeNil())
+		app.SetNamespace(ns.Name)
+		Expect(k8sClient.Create(ctx, app.DeepCopyObject())).Should(BeNil())
+
+		appKey := client.ObjectKey{
+			Name:      app.Name,
+			Namespace: app.Namespace,
+		}
+		reconcileRetry(reconciler, reconcile.Request{NamespacedName: appKey})
+		By("Check Application Created with the correct revision")
+		curApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
+		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+		Expect(curApp.Status.LatestRevision).ShouldNot(BeNil())
+		Expect(curApp.Status.LatestRevision.Revision).Should(BeEquivalentTo(1))
+
+		By("Check Component Created with the expected workload spec")
+		var component v1alpha2.Component
+		Expect(k8sClient.Get(ctx, client.ObjectKey{
+			Namespace: app.Namespace,
+			Name:      "myweb",
+		}, &component)).Should(BeNil())
+		Expect(component.ObjectMeta.Labels).Should(BeEquivalentTo(map[string]string{oam.LabelAppName: app.Name}))
+		Expect(component.Status.LatestRevision).ShouldNot(BeNil())
+
+		// check the workload created should be the same as the raw data in the component
+		gotD := &v1.Deployment{}
+		Expect(json.Unmarshal(component.Spec.Workload.Raw, gotD)).Should(BeNil())
+		fmt.Println(cmp.Diff(expDeployment, gotD))
+		Expect(assert.ObjectsAreEqual(expDeployment, gotD)).Should(BeEquivalentTo(true))
+		By("Delete Application, clean the resource")
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
 	})
 })
 

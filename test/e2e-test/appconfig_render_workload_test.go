@@ -127,6 +127,7 @@ var _ = Describe("AppConfig renders workloads", func() {
 				},
 			}))
 		Expect(k8sClient.Create(ctx, co)).Should(Succeed())
+		verifyComponentCreated("AC render 0", namespace, compName)
 
 		By("Create ApplicationConfiguration")
 		ac := ac(

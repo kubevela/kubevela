@@ -65,11 +65,13 @@ func readyCondition(tpy string) runtimev1alpha1.Condition {
 }
 
 type appHandler struct {
-	r       *Reconciler
-	app     *v1beta1.Application
-	appfile *appfile.Appfile
-	logger  logr.Logger
-	inplace bool
+	r             *Reconciler
+	app           *v1beta1.Application
+	appfile       *appfile.Appfile
+	logger        logr.Logger
+	inplace       bool
+	isNewRevision bool
+	revisionHash  string
 }
 
 // setInplace will mark if the application should upgrade the workload within the same instance(name never changed)
@@ -95,7 +97,7 @@ func (h *appHandler) handleErr(err error) (ctrl.Result, error) {
 // 2. update AC's components using the component revision name
 // 3. update or create the AC with new revision and remember it in the application status
 // 4. garbage collect unused components
-func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) error {
+func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevision, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) error {
 	owners := []metav1.OwnerReference{{
 		APIVersion: v1beta1.SchemeGroupVersion.String(),
 		Kind:       v1beta1.ApplicationKind,
@@ -128,16 +130,22 @@ func (h *appHandler) apply(ctx context.Context, ac *v1alpha2.ApplicationConfigur
 		}
 	}
 	ac.SetOwnerReferences(owners)
-	isNewRevision, appRev, err := h.GenerateRevision(ctx, ac, comps)
-	if err != nil {
-		return errors.Wrap(err, "cannot generate a revision of the application")
-	}
-	if isNewRevision {
+	h.FinalizeAppRevision(appRev, ac, comps)
+
+	var err error
+	if h.isNewRevision {
+		var revisionNum int64
+		appRev.Name, revisionNum = utils.GetAppNextRevision(h.app)
+		// only new revision update the status
+		if err = h.UpdateRevisionStatus(ctx, appRev.Name, h.revisionHash, revisionNum); err != nil {
+			return err
+		}
 		if err = h.r.Create(ctx, appRev); err != nil {
 			return err
 		}
 	} else {
-		if err = h.r.Update(ctx, appRev); err != nil {
+		err = h.r.Update(ctx, appRev)
+		if err != nil {
 			return err
 		}
 	}

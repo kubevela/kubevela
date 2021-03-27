@@ -1,0 +1,10 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: revision-app1
+spec:
+  components:
+    - name: myweb
+      type: cd1
+      properties:
+        image: busybox
