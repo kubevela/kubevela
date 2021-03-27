@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 
@@ -300,8 +301,6 @@ var _ = AfterSuite(func() {
 // This is a workaround to avoid long-time wait before next scheduled
 // reconciliation.
 func requestReconcileNow(ctx context.Context, o runtime.Object) {
-	By(fmt.Sprintf("Requset reconcile %q now",
-		o.GetObjectKind().GroupVersionKind().String()))
 	oCopy := o.DeepCopyObject()
 	oMeta, ok := oCopy.(metav1.Object)
 	Expect(ok).Should(BeTrue())
@@ -309,5 +308,13 @@ func requestReconcileNow(ctx context.Context, o runtime.Object) {
 		"app.oam.dev/requestreconcile": time.Now().String(),
 	})
 	oMeta.SetResourceVersion("")
+	By(fmt.Sprintf("Requset reconcile %q now", oMeta.GetName()))
 	Expect(k8sClient.Patch(ctx, oCopy, client.Merge)).Should(Succeed())
+}
+
+// randomNamespaceName generates a random name based on the basic name.
+// Running each ginkgo case in a new namespace with a random name can avoid
+// waiting a long time to GC namesapce.
+func randomNamespaceName(basic string) string {
+	return fmt.Sprintf("%s-%s", basic, strconv.FormatInt(rand.Int63(), 16))
 }

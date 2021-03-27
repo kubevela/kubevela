@@ -121,7 +121,7 @@ var _ = Describe("Application Normal tests", func() {
 				}
 				return nil
 			},
-			time.Second*30, time.Millisecond*500).Should(BeNil())
+			time.Second*60, time.Millisecond*500).Should(BeNil())
 	}
 
 	BeforeEach(func() {

@@ -42,13 +42,13 @@ import (
 var _ = Describe("Test application containing kube module", func() {
 	ctx := context.Background()
 	var (
-		namespace = "kube-test-ns"
-		appName   = "test-app"
-		compName  = "test-comp"
-		cdName    = "test-kube-worker"
-		wdName    = "test-kube-worker-wd"
-		tdName    = "test-virtualgroup"
+		appName  = "test-app"
+		compName = "test-comp"
+		cdName   = "test-kube-worker"
+		wdName   = "test-kube-worker-wd"
+		tdName   = "test-virtualgroup"
 	)
+	var namespace string
 	var app v1beta1.Application
 	var ns corev1.Namespace
 
@@ -73,17 +73,8 @@ spec:
 	}
 
 	BeforeEach(func() {
+		namespace = randomNamespaceName("kube-e2e-test")
 		ns = corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
-		Eventually(
-			func() error {
-				return k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))
-			},
-			time.Second*120, time.Millisecond*500).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
-		By("make sure all the resources are removed")
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: namespace}, &corev1.Namespace{})
-		}, time.Second*120, time.Millisecond*500).Should(&util.NotFoundMatcher{})
-		By("create test namespace")
 		Eventually(
 			func() error {
 				return k8sClient.Create(ctx, &ns)
@@ -151,11 +142,8 @@ spec:
 		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
+		By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
-		By("make sure all the resources are removed")
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: namespace}, &corev1.Namespace{})
-		}, time.Second*120, time.Millisecond*500).Should(&util.NotFoundMatcher{})
 
 		By("Remove 'deployments.apps' from scaler's appliesToWorkloads")
 		scalerTd := v1beta1.TraitDefinition{}
