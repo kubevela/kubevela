@@ -18,7 +18,6 @@ package appdeployment
 
 import (
 	"math/rand"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -62,9 +61,6 @@ var _ = BeforeSuite(func(done Done) {
 	rand.Seed(time.Now().UnixNano())
 
 	By("bootstrapping test environment")
-	if _, set := os.LookupEnv("COMPATIBILITY_TEST"); set {
-		return
-	}
 	logf.Log.Info("start application suit test")
 	testEnv = &envtest.Environment{
 		UseExistingCluster: pointer.BoolPtr(false),
