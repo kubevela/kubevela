@@ -230,7 +230,9 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		handler.appfile = generatedAppfile
 		Expect(ac.Namespace).Should(Equal(app.Namespace))
-		Expect(handler.apply(context.Background(), ac, comps)).Should(Succeed())
+		appRev, err := handler.GenerateAppRevision(ctx)
+		Expect(err).Should(Succeed())
+		Expect(handler.apply(context.Background(), appRev, ac, comps)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
 		Eventually(
@@ -275,7 +277,9 @@ var _ = Describe("test generate revision ", func() {
 		annoKey2 := "testKey2"
 		app.SetAnnotations(map[string]string{annoKey2: "true"})
 		lastRevision := curApp.Status.LatestRevision.Name
-		Expect(handler.apply(context.Background(), ac, comps)).Should(Succeed())
+		appRev, err = handler.GenerateAppRevision(ctx)
+		Expect(err).Should(Succeed())
+		Expect(handler.apply(context.Background(), appRev, ac, comps)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx,
@@ -322,7 +326,9 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		handler.appfile = generatedAppfile
 		handler.app = &app
-		Expect(handler.apply(context.Background(), ac, comps)).Should(Succeed())
+		appRev, err = handler.GenerateAppRevision(ctx)
+		Expect(err).Should(Succeed())
+		Expect(handler.apply(context.Background(), appRev, ac, comps)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx,
@@ -372,7 +378,9 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		handler.appfile = generatedAppfile
 		Expect(ac.Namespace).Should(Equal(app.Namespace))
-		Expect(handler.apply(context.Background(), ac, comps)).Should(Succeed())
+		appRev, err := handler.GenerateAppRevision(ctx)
+		Expect(err).Should(Succeed())
+		Expect(handler.apply(context.Background(), appRev, ac, comps)).Should(Succeed())
 		curApp := &v1beta1.Application{}
 		Eventually(
 			func() error {
@@ -415,7 +423,9 @@ var _ = Describe("test generate revision ", func() {
 		annoKey2 := "testKey2"
 		app.SetAnnotations(map[string]string{annoKey2: "true"})
 		lastRevision := curApp.Status.LatestRevision.Name
-		Expect(handler.apply(context.Background(), ac, comps)).Should(Succeed())
+		appRev, err = handler.GenerateAppRevision(ctx)
+		Expect(err).Should(Succeed())
+		Expect(handler.apply(context.Background(), appRev, ac, comps)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx,
@@ -463,7 +473,9 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		handler.appfile = generatedAppfile
 		handler.app = &app
-		Expect(handler.apply(context.Background(), ac, comps)).Should(Succeed())
+		appRev, err = handler.GenerateAppRevision(ctx)
+		Expect(err).Should(Succeed())
+		Expect(handler.apply(context.Background(), appRev, ac, comps)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx,
@@ -514,7 +526,9 @@ var _ = Describe("test generate revision ", func() {
 		Expect(err).Should(Succeed())
 		handler.appfile = generatedAppfile
 		Expect(ac.Namespace).Should(Equal(app.Namespace))
-		Expect(handler.apply(context.Background(), ac, comps)).Should(Succeed())
+		appRev, err := handler.GenerateAppRevision(ctx)
+		Expect(err).Should(Succeed())
+		Expect(handler.apply(context.Background(), appRev, ac, comps)).Should(Succeed())
 
 		curApp := &v1beta1.Application{}
 		Eventually(
@@ -543,7 +557,9 @@ var _ = Describe("test generate revision ", func() {
 		labelKey2 := "labelKey2"
 		app.SetLabels(map[string]string{labelKey2: "true"})
 		lastRevision := curApp.Status.LatestRevision.Name
-		Expect(handler.apply(context.Background(), ac, comps)).Should(Succeed())
+		appRev, err = handler.GenerateAppRevision(ctx)
+		Expect(err).Should(Succeed())
+		Expect(handler.apply(context.Background(), appRev, ac, comps)).Should(Succeed())
 		Eventually(
 			func() error {
 				return handler.r.Get(ctx, types.NamespacedName{Namespace: ns.Name, Name: app.Name}, curApp)

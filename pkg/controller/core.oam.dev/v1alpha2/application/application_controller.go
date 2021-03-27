@@ -102,6 +102,16 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	app.Status.SetConditions(readyCondition("Parsed"))
 	handler.appfile = generatedAppfile
+
+	appRev, err := handler.GenerateAppRevision(ctx)
+	if err != nil {
+		applog.Error(err, "[Handle Calculate Revision]")
+		app.Status.SetConditions(errorCondition("Parsed", err))
+		return handler.handleErr(err)
+	}
+	// Record the revision so it can be used to render data in context.appRevision
+	generatedAppfile.RevisionName = appRev.Name
+
 	applog.Info("build template")
 	// build template to applicationconfig & component
 	ac, comps, err := appParser.GenerateApplicationConfiguration(generatedAppfile, app.Namespace)
@@ -110,14 +120,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		app.Status.SetConditions(errorCondition("Built", err))
 		return handler.handleErr(err)
 	}
-
 	// pass the App label and annotation to ac except some app specific ones
 	oamutil.PassLabelAndAnnotation(app, ac)
 
 	app.Status.SetConditions(readyCondition("Built"))
 	applog.Info("apply application revision & component to the cluster")
 	// apply application revision & component to the cluster
-	if err := handler.apply(ctx, ac, comps); err != nil {
+	if err := handler.apply(ctx, appRev, ac, comps); err != nil {
 		applog.Error(err, "[Handle apply]")
 		app.Status.SetConditions(errorCondition("Applied", err))
 		return handler.handleErr(err)
