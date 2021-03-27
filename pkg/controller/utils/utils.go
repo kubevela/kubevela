@@ -19,6 +19,7 @@ package utils
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -248,4 +249,48 @@ func ComputeSpecHash(spec interface{}) (string, error) {
 	}
 	specHashLabel := strconv.FormatUint(specHash, 16)
 	return specHashLabel, nil
+}
+
+// ErrRequeueSoon implements interface NeedRequeueSoon
+type ErrRequeueSoon struct {
+	err error
+}
+
+// Error implements error
+func (e *ErrRequeueSoon) Error() string {
+	if e.err != nil {
+		return fmt.Sprintf("resource should re-queue soon after this error occurs: %s",
+			e.err.Error())
+	}
+	return "resource should re-queue soon after this error occurs"
+}
+
+// NeedRequeueSoon implements interface requeueSoon
+func (e *ErrRequeueSoon) NeedRequeueSoon() bool {
+	return true
+}
+
+// RequeueSoonAfterErr wraps the real error and notify its receiver to requeue
+// the resource soon.
+func RequeueSoonAfterErr(err error) *ErrRequeueSoon {
+	return &ErrRequeueSoon{err}
+}
+
+// NeedRequeueSoonAfterErr checks any error in err's chain that asks to requeue
+// the resource after it occurs.
+func NeedRequeueSoonAfterErr(err error) bool {
+	type requeueSoon interface {
+		NeedRequeueSoon() bool
+	}
+	for err != nil {
+		// nolint:errorlint
+		n, ok := err.(requeueSoon)
+		if ok {
+			return n.NeedRequeueSoon()
+		}
+		if err = errors.Unwrap(err); err == nil {
+			return false
+		}
+	}
+	return false
 }

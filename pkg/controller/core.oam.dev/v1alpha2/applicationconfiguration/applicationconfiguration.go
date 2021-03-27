@@ -43,6 +43,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	types2 "github.com/oam-dev/kubevela/apis/types"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	ctrlutil "github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -50,8 +51,9 @@ import (
 )
 
 const (
-	reconcileTimeout = 1 * time.Minute
-	dependCheckWait  = 10 * time.Second
+	reconcileTimeout  = 1 * time.Minute
+	dependCheckWait   = 10 * time.Second
+	reconcileAfterErr = 30 * time.Second
 )
 
 // Reconcile error strings.
@@ -250,7 +252,14 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (reconcile.R
 // ACReconcile contains all the reconcile logic of an AC, it can be used by other controller
 func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2.ApplicationConfiguration,
 	log logging.Logger) (result reconcile.Result) {
-
+	var reconcileErr error
+	defer func() {
+		// requeue soon if an error occurs and it requests an reconciliation
+		// scheduled in short time
+		if ctrlutil.NeedRequeueSoonAfterErr(reconcileErr) {
+			result = reconcile.Result{RequeueAfter: reconcileAfterErr}
+		}
+	}()
 	acPatch := ac.DeepCopy()
 	// execute the posthooks at the end no matter what
 	defer func() {
@@ -300,6 +309,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 		log.Info("Cannot render components", "error", err)
 		r.record.Event(ac, event.Warning(reasonCannotRenderComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errRenderComponents)))
+		reconcileErr = err
 		return reconcile.Result{}
 	}
 	log.Debug("Successfully rendered components", "workloads", len(workloads))
@@ -310,6 +320,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 		log.Debug("Cannot apply workload", "error", err)
 		r.record.Event(ac, event.Warning(reasonCannotApplyComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyComponents)))
+		reconcileErr = err
 		return reconcile.Result{}
 	}
 	log.Debug("Successfully applied components", "workloads", len(workloads))

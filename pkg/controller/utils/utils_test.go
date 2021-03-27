@@ -24,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -247,4 +248,26 @@ func TestGetAppRevison(t *testing.T) {
 	revisionName, latestRevision = GetAppNextRevision(app)
 	assert.Equal(t, revisionName, "myapp-v4")
 	assert.Equal(t, latestRevision, int64(4))
+}
+
+func TestNeedRequeueSoonAfterErr(t *testing.T) {
+	err := errors.New("boom")
+	assert.False(t, NeedRequeueSoonAfterErr(err), "not requeue if normal error occurs")
+
+	reqErr := RequeueSoonAfterErr(err)
+	assert.True(t, NeedRequeueSoonAfterErr(reqErr), "requeu if requeueSoonAfterErr occrs")
+
+	wrappedReqErr := errors.Wrap(reqErr, "wrapped error")
+	assert.True(t, NeedRequeueSoonAfterErr(wrappedReqErr),
+		"requque if requeueSoonAfterErr is wrapped in a err's chain")
+
+	nilErr := func() error { return nil }
+	assert.False(t, NeedRequeueSoonAfterErr(nilErr()), "not requeue if no error occurs")
+
+	reqErr = RequeueSoonAfterErr(nilErr())
+	assert.True(t, NeedRequeueSoonAfterErr(reqErr), "requeue if requeueSoonAfterErr occurs")
+
+	wrappedReqErr = errors.Wrap(reqErr, "wrapped error")
+	assert.True(t, NeedRequeueSoonAfterErr(wrappedReqErr),
+		"requque if requeueSoonAfterErr is wrapped in a err's chain")
 }
