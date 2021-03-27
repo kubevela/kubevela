@@ -39,13 +39,13 @@ NAME                            AGE
 demo-podinfo-scaler-3x1sfcd34   2m
 ```
 ```shell
-$ kubectl get deployment mycomp-v1 -o json | jq .spec.replicas
+$ kubectl get deployment mycomp -o json | jq .spec.replicas
 2
 ```
 
 Check the virtualgroup trait.
 ```shell
-$ kubectl get deployment mycomp-v1 -o json | jq .spec.template.metadata.labels
+$ kubectl get deployment mycomp -o json | jq .spec.template.metadata.labels
 {
   "app.cluster.virtual.group": "my-group1",
   "app.kubernetes.io/name": "myapp"
@@ -84,23 +84,21 @@ spec:
 
 Apply the new configuration and check the results after several seconds.
 
-> After updating, the workload name is changed from `mycomp-v1` to `mycomp-v2`.
-
 Check the new parameter works.
 ```shell
-$ kubectl get deployment mycomp-v2 -o json | jq '.spec.template.spec.containers[0].image'
+$ kubectl get deployment mycomp -o json | jq '.spec.template.spec.containers[0].image'
 "nginx:1.14.1"
 ```
 
 Check the scaler trait.
 ```shell
-$ kubectl get deployment mycomp-v2 -o json | jq .spec.replicas
+$ kubectl get deployment mycomp -o json | jq .spec.replicas
 4
 ```
 
 Check the virtualgroup trait.
 ```shell
-$ kubectl get deployment mycomp-v2 -o json | jq .spec.template.metadata.labels
+$ kubectl get deployment mycomp -o json | jq .spec.template.metadata.labels
 {
   "app.cluster.virtual.group": "my-group2",
   "app.kubernetes.io/name": "myapp"

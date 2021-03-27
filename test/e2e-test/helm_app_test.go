@@ -39,32 +39,19 @@ import (
 var _ = Describe("Test application containing helm module", func() {
 	ctx := context.Background()
 	var (
-		namespace = "helm-test-ns"
-		appName   = "test-app"
-		compName  = "test-comp"
-		cdName    = "webapp-chart"
-		wdName    = "webapp-chart-wd"
-		tdName    = "virtualgroup"
+		appName  = "test-app"
+		compName = "test-comp"
+		cdName   = "webapp-chart"
+		wdName   = "webapp-chart-wd"
+		tdName   = "virtualgroup"
 	)
+	var namespace string
 	var app v1alpha2.Application
 	var ns corev1.Namespace
 
 	BeforeEach(func() {
+		namespace = randomNamespaceName("helm-e2e-test")
 		ns = corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
-		Eventually(
-			func() error {
-				return k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))
-			},
-			time.Second*120, time.Millisecond*500).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
-		By("make sure all the resources are removed")
-		objectKey := client.ObjectKey{
-			Name: namespace,
-		}
-		Eventually(
-			func() error {
-				return k8sClient.Get(ctx, objectKey, &corev1.Namespace{})
-			},
-			time.Second*120, time.Millisecond*500).Should(&util.NotFoundMatcher{})
 		Eventually(
 			func() error {
 				return k8sClient.Create(ctx, &ns)
@@ -133,8 +120,8 @@ var _ = Describe("Test application containing helm module", func() {
 		k8sClient.DeleteAllOf(ctx, &v1alpha2.ComponentDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1alpha2.WorkloadDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1alpha2.TraitDefinition{}, client.InNamespace(namespace))
+		By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
-		time.Sleep(15 * time.Second)
 
 		By("Remove 'deployments.apps' from scaler's appliesToWorkloads")
 		scalerTd := v1alpha2.TraitDefinition{}
@@ -285,7 +272,7 @@ var _ = Describe("Test application containing helm module", func() {
 			}
 			By("Verify new application's settings override chart default values")
 			return strings.HasSuffix(deploy.Spec.Template.Spec.Containers[0].Image, "5.1.3")
-		}, 60*time.Second, 10*time.Second).Should(BeTrue())
+		}, 120*time.Second, 10*time.Second).Should(BeTrue())
 	})
 
 	It("Test deploy an application containing helm module defined by workloadDefinition", func() {

@@ -19,8 +19,6 @@ package controllers_test
 import (
 	"context"
 	"fmt"
-	"math/rand"
-	"strconv"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -236,7 +234,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 	BeforeEach(func() {
 		By("Start to run a test, clean up previous resources")
-		namespaceName = "rolling-e2e-test" + "-" + strconv.FormatInt(rand.Int63(), 16)
+		namespaceName = randomNamespaceName("rolling-e2e-test")
 		createNamespace()
 	})
 

@@ -42,13 +42,13 @@ import (
 var _ = Describe("Test application containing kube module", func() {
 	ctx := context.Background()
 	var (
-		namespace = "kube-test-ns"
-		appName   = "test-app"
-		compName  = "test-comp"
-		cdName    = "test-kube-worker"
-		wdName    = "test-kube-worker-wd"
-		tdName    = "test-virtualgroup"
+		appName  = "test-app"
+		compName = "test-comp"
+		cdName   = "test-kube-worker"
+		wdName   = "test-kube-worker-wd"
+		tdName   = "test-virtualgroup"
 	)
+	var namespace string
 	var app v1beta1.Application
 	var ns corev1.Namespace
 
@@ -73,17 +73,8 @@ spec:
 	}
 
 	BeforeEach(func() {
+		namespace = randomNamespaceName("kube-e2e-test")
 		ns = corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
-		Eventually(
-			func() error {
-				return k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))
-			},
-			time.Second*120, time.Millisecond*500).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
-		By("make sure all the resources are removed")
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: namespace}, &corev1.Namespace{})
-		}, time.Second*120, time.Millisecond*500).Should(&util.NotFoundMatcher{})
-		By("create test namespace")
 		Eventually(
 			func() error {
 				return k8sClient.Create(ctx, &ns)
@@ -151,11 +142,8 @@ spec:
 		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespace))
 		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespace))
+		By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationForeground))).Should(Succeed())
-		By("make sure all the resources are removed")
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: namespace}, &corev1.Namespace{})
-		}, time.Second*120, time.Millisecond*500).Should(&util.NotFoundMatcher{})
 
 		By("Remove 'deployments.apps' from scaler's appliesToWorkloads")
 		scalerTd := v1beta1.TraitDefinition{}
@@ -203,14 +191,17 @@ spec:
 
 		ac := &v1alpha2.ApplicationContext{}
 		acName := appName
-		By("Verify the ApplicationContext is created successfully")
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac)
-		}, 30*time.Second, time.Second).Should(Succeed())
+		By("Verify the ApplicationContext is created & reconciled successfully")
+		Eventually(func() bool {
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
+				return false
+			}
+			return len(ac.Status.Workloads) > 0
+		}, 15*time.Second, time.Second).Should(BeTrue())
 
 		By("Verify the workload(deployment) is created successfully")
 		deploy := &appsv1.Deployment{}
-		deployName := fmt.Sprintf("%s-v1", compName)
+		deployName := ac.Status.Workloads[0].Reference.Name
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
 		}, 30*time.Second, 3*time.Second).Should(Succeed())
@@ -270,18 +261,19 @@ spec:
 		}
 		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(Succeed())
 
-		By("Verify the ApplicationContext is updated")
-		deploy = &appsv1.Deployment{}
+		By("Verify the ApplicationContext is update successfully")
 		Eventually(func() bool {
-			ac = &v1alpha2.ApplicationContext{}
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
 				return false
 			}
-			return ac.GetGeneration() == 2
-		}, 15*time.Second, 3*time.Second).Should(BeTrue())
+			return ac.Generation == 2
+		}, 10*time.Second, time.Second).Should(BeTrue())
+
+		By("Verify the workload(deployment) is created successfully")
+		deploy = &appsv1.Deployment{}
+		deployName = ac.Status.Workloads[0].Reference.Name
 
 		By("Verify the changes are applied to the workload")
-		deployName = fmt.Sprintf("%s-v2", compName)
 		Eventually(func() bool {
 			requestReconcileNow(ctx, ac)
 			deploy := &appsv1.Deployment{}
@@ -347,14 +339,17 @@ spec:
 
 		ac := &v1alpha2.ApplicationContext{}
 		acName := appTestName
-		By("Verify the AppConfig is created successfully")
-		Eventually(func() error {
-			return k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac)
-		}, 30*time.Second, time.Second).Should(Succeed())
+		By("Verify the ApplicationContext is created & reconciled successfully")
+		Eventually(func() bool {
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
+				return false
+			}
+			return len(ac.Status.Workloads) > 0
+		}, 15*time.Second, time.Second).Should(BeTrue())
 
 		By("Verify the workload(deployment) is created successfully")
 		deploy := &appsv1.Deployment{}
-		deployName := fmt.Sprintf("%s-v1", compName)
+		deployName := ac.Status.Workloads[0].Reference.Name
 		Eventually(func() error {
 			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
 		}, 15*time.Second, 3*time.Second).Should(Succeed())
