@@ -87,9 +87,17 @@ func LoadInstalledCapabilityWithType(userNamespace string, c common.Args, capT t
 		return caps, nil
 	case types.TypeScope:
 	case types.TypeComponentDefinition:
-		// TODO(yangsoon): support ComponentDefinition here
+		caps, _, err := GetComponentsFromCluster(context.TODO(), userNamespace, c, nil)
+		if err != nil {
+			return nil, err
+		}
+		systemCaps, _, err := GetComponentsFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
+		if err != nil {
+			return nil, err
+		}
+		caps = append(caps, systemCaps...)
+		return caps, nil
 	}
-
 	return nil, nil
 }
 

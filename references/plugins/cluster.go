@@ -43,7 +43,7 @@ const DescriptionUndefined = "description not defined"
 
 // GetCapabilitiesFromCluster will get capability from K8s cluster
 func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, error) {
-	workloads, _, err := GetWorkloadsFromCluster(ctx, namespace, c, selector)
+	workloads, _, err := GetComponentsFromCluster(ctx, namespace, c, selector)
 	if err != nil {
 		return nil, err
 	}
@@ -82,6 +82,45 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c common.Arg
 		}
 		tmp.Namespace = namespace
 		if tmp, err = validateCapabilities(tmp, dm, wd.Name, wd.Spec.Reference); err != nil {
+			return nil, nil, err
+		}
+		templates = append(templates, tmp)
+	}
+	return templates, templateErrors, nil
+}
+
+// GetComponentsFromCluster will get capability from K8s cluster
+func GetComponentsFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, []error, error) {
+	newClient, err := c.GetClient()
+	if err != nil {
+		return nil, nil, err
+	}
+	dm, err := discoverymapper.New(c.Config)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var templates []types.Capability
+	var componentsDefs v1beta1.ComponentDefinitionList
+	err = newClient.List(ctx, &componentsDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
+	if err != nil {
+		return nil, nil, fmt.Errorf("list ComponentDefinition err: %w", err)
+	}
+
+	var templateErrors []error
+	for _, cd := range componentsDefs.Items {
+		ref, err := util.ConvertWorkloadGVK2Definition(dm, cd.Spec.Workload.Definition)
+		if err != nil {
+			templateErrors = append(templateErrors, errors.Wrapf(err, "convert workload definition `%s` failed", cd.Name))
+			continue
+		}
+		tmp, err := HandleDefinition(cd.Name, ref.Name, cd.Annotations, cd.Spec.Extension, types.TypeComponentDefinition, nil, cd.Spec.Schematic)
+		if err != nil {
+			templateErrors = append(templateErrors, errors.Wrapf(err, "handle workload template `%s` failed", cd.Name))
+			continue
+		}
+		tmp.Namespace = namespace
+		if tmp, err = validateCapabilities(tmp, dm, cd.Name, ref); err != nil {
 			return nil, nil, err
 		}
 		templates = append(templates, tmp)
