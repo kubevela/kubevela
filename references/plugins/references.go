@@ -38,6 +38,8 @@ const (
 	// ReferenceSourcePath is the location for source reference
 	ReferenceSourcePath = "hack/references"
 
+	// ComponentDefinitionTypePath is the URL path for component typed capability
+	ComponentDefinitionTypePath = "component-types"
 	// WorkloadTypePath is the URL path for workload typed capability
 	WorkloadTypePath = "workload-types"
 	// TraitPath is the URL path for trait typed capability
@@ -223,9 +225,13 @@ func (ref *MarkdownReference) CreateMarkdown(caps []types.Capability, baseRefPat
 		case types.TypeWorkload:
 			capabilityType = WorkloadTypePath
 			specificationType = "workload type"
+		case types.TypeComponentDefinition:
+			capabilityType = ComponentDefinitionTypePath
+			specificationType = "component type"
 		case types.TypeTrait:
 			capabilityType = TraitPath
 			specificationType = "trait"
+
 		default:
 			return fmt.Errorf("the type of the capability is not right")
 		}

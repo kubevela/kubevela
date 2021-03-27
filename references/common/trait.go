@@ -39,7 +39,7 @@ func ListTraitDefinitions(userNamespace string, c common.Args, workloadName *str
 	if err != nil {
 		return traitList, err
 	}
-	workloads, err := plugins.LoadInstalledCapabilityWithType(userNamespace, c, types.TypeWorkload)
+	workloads, err := plugins.LoadInstalledCapabilityWithType(userNamespace, c, types.TypeComponentDefinition)
 	if err != nil {
 		return traitList, err
 	}
@@ -120,7 +120,7 @@ func GetTraitDefinition(userNamespace string, c common.Args, workloadName *strin
 	if err != nil {
 		return traitDef, err
 	}
-	workloadsCap, err := plugins.LoadInstalledCapabilityWithType(userNamespace, c, types.TypeWorkload)
+	workloadsCap, err := plugins.LoadInstalledCapabilityWithType(userNamespace, c, types.TypeComponentDefinition)
 	if err != nil {
 		return traitDef, err
 	}

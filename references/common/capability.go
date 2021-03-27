@@ -344,7 +344,7 @@ func uninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 	case types.TypeScope:
 		// TODO(wonderflow): add scope remove here.
 	case types.TypeComponentDefinition:
-		if err := os.Remove(filepath.Join(capdir, "", cap.Name)); err != nil {
+		if err := os.Remove(filepath.Join(capdir, "components", cap.Name)); err != nil {
 			return err
 		}
 	}
@@ -392,7 +392,7 @@ func listCenterCapabilities(userNamespace string, c common.Args, repoDir string)
 		return templates, nil
 	}
 	baseDir := filepath.Base(repoDir)
-	workloads := gatherWorkloads(userNamespace, c, templates)
+	workloads := gatherComponents(userNamespace, c, templates)
 	for i, p := range templates {
 		status := checkInstallStatus(userNamespace, c, baseDir, p)
 		convertedApplyTo := ConvertApplyTo(p.AppliesTo, workloads)
@@ -437,13 +437,13 @@ func RemoveCapabilityCenter(centerName string) (string, error) {
 	return message, err
 }
 
-func gatherWorkloads(userNamespace string, c common.Args, templates []types.Capability) []types.Capability {
-	workloads, err := plugins.LoadInstalledCapabilityWithType(userNamespace, c, types.TypeWorkload)
+func gatherComponents(userNamespace string, c common.Args, templates []types.Capability) []types.Capability {
+	workloads, err := plugins.LoadInstalledCapabilityWithType(userNamespace, c, types.TypeComponentDefinition)
 	if err != nil {
 		workloads = make([]types.Capability, 0)
 	}
 	for _, t := range templates {
-		if t.Type == types.TypeWorkload {
+		if t.Type == types.TypeComponentDefinition {
 			workloads = append(workloads, t)
 		}
 	}

@@ -115,11 +115,11 @@ func (s *APIServer) setupRoute(staticPath string) http.Handler {
 			}
 		}
 	}
-	// workload related api
-	workload := api.Group(util.WorkloadDefinitionPath)
+	// component related api
+	workload := api.Group(util.ComponentDefinitionPath)
 	{
-		workload.GET("/:workloadName", s.GetWorkload)
-		workload.PUT("/:workloadName", s.UpdateWorkload)
+		workload.GET("/:componentName", s.GetWorkload)
+		workload.PUT("/:componentName", s.UpdateWorkload)
 		workload.GET("/", s.ListWorkload)
 		workload.GET("", s.ListWorkload)
 	}
