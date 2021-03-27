@@ -46,6 +46,14 @@ type revision struct {
 	Replicas int
 }
 
+func newRevision(rev, cluster string, replica int) *revision {
+	return &revision{
+		RevisionName: rev,
+		ClusterName:  cluster,
+		Replicas:     replica,
+	}
+}
+
 func (rd *revisionsDiff) Empty() bool {
 	return len(rd.Del) == 0 && len(rd.Mod) == 0 && len(rd.Add) == 0
 }

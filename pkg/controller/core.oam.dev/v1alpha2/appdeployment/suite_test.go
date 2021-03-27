@@ -62,10 +62,12 @@ var _ = BeforeSuite(func(done Done) {
 
 	By("bootstrapping test environment")
 	logf.Log.Info("start application suit test")
+
 	testEnv = &envtest.Environment{
 		UseExistingCluster: pointer.BoolPtr(false),
 		CRDDirectoryPaths: []string{
 			filepath.Join("../../../../..", "charts", "vela-core", "crds"),
+			"testdata/istio",
 		},
 	}
 

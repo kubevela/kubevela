@@ -88,11 +88,9 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	defer func() {
 		if retErr == nil {
 			if res.Requeue || res.RequeueAfter > 0 {
-				klog.InfoS("Finished reconciling appDeployment", "controller request", req, "time spent",
-					time.Since(startTime), "result", res)
+				klog.InfoS("Finished reconciling appDeployment", "controller request", req, "time spent", time.Since(startTime), "result", res)
 			} else {
-				klog.InfoS("Finished reconcile appDeployment", "controller  request", req, "time spent",
-					time.Since(startTime))
+				klog.InfoS("Finished reconcile appDeployment", "controller  request", req, "time spent", time.Since(startTime))
 			}
 		} else {
 			klog.Errorf("Failed to reconcile appDeployment %s: %v", req, retErr)
@@ -143,11 +141,18 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 		}
 	}
 
-	if err := r.applyTraffic(ctx, appDeployment); err != nil {
-		return ctrl.Result{}, err
+	appDeployment.Status.Phase = oamcore.PhaseCompleted
+	appDeployment.Status.Placement = makePlacement(
+		append(append(diff.Add, diff.Mod...), diff.Unchanged...),
+	)
+
+	if appDeployment.Spec.Traffic != nil {
+		if err := r.applyTraffic(ctx, appDeployment); err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
-	return ctrl.Result{}, r.setStatusComplete(ctx, appDeployment, diff)
+	return ctrl.Result{}, r.updateStatus(ctx, appDeployment)
 }
 
 func (r *Reconciler) handleFinalizer(ctx context.Context, appd *oamcore.AppDeployment) error {
@@ -172,23 +177,11 @@ func (r *Reconciler) deleteExternalResources(ctx context.Context, appd *oamcore.
 			if isHostCluster(c.ClusterName) {
 				continue
 			}
-			revsDel = append(revsDel, &revision{
-				RevisionName: p.RevisionName,
-				ClusterName:  c.ClusterName,
-				Replicas:     c.Replicas,
-			})
+			revsDel = append(revsDel, newRevision(p.RevisionName, c.ClusterName, c.Replicas))
 		}
 	}
 
 	return r.deleteRevisions(ctx, appd, revsDel)
-}
-
-func (r *Reconciler) setStatusComplete(ctx context.Context, appd *oamcore.AppDeployment, diff *revisionsDiff, opts ...client.UpdateOption) error {
-	appd.Status.Phase = oamcore.PhaseCompleted
-	appd.Status.Placement = makePlacement(
-		append(append(diff.Add, diff.Mod...), diff.Unchanged...),
-	)
-	return r.updateStatus(ctx, appd, opts...)
 }
 
 func (r *Reconciler) getClientForCluster(ctx context.Context, cluster, ns string) (client.Client, error) {
@@ -412,11 +405,7 @@ func (r *Reconciler) calculateDiff(appd *oamcore.AppDeployment) *revisionsDiff {
 
 			curReplicas, ok := curDict[key]
 
-			toAdd := &revision{
-				RevisionName: rev.RevisionName,
-				ClusterName:  clusterName,
-				Replicas:     p.Distribution.Replicas,
-			}
+			toAdd := newRevision(rev.RevisionName, clusterName, p.Distribution.Replicas)
 			if !ok {
 				// need to add
 				d.Add = append(d.Add, toAdd)
@@ -444,11 +433,7 @@ func (r *Reconciler) calculateDiff(appd *oamcore.AppDeployment) *revisionsDiff {
 				continue
 			}
 			// need to del
-			d.Del = append(d.Del, &revision{
-				RevisionName: p.RevisionName,
-				ClusterName:  c.ClusterName,
-				Replicas:     c.Replicas,
-			})
+			d.Del = append(d.Del, newRevision(p.RevisionName, c.ClusterName, c.Replicas))
 		}
 	}
 	return d
@@ -469,6 +454,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *Reconciler) applyTraffic(ctx context.Context, appd *oamcore.AppDeployment) (err error) {
+
 	vsvc := &istioclientv1beta1.VirtualService{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: istioclientv1beta1.SchemeGroupVersion.String(),
@@ -517,6 +503,9 @@ func (r *Reconciler) applyTraffic(ctx context.Context, appd *oamcore.AppDeployme
 		}
 	}
 
+	for _, svc := range svcs {
+		fmt.Println("haha", svc.Name, svc.Namespace)
+	}
 	for clusterName := range affectedClusters {
 		var kubecli client.Client
 		if isHostCluster(clusterName) {

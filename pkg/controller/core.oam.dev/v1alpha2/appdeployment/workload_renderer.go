@@ -60,7 +60,7 @@ func (r *workloadRenderer) Render(ctx context.Context,
 		if err != nil {
 			return nil, err
 		}
-		traits, err := convertWorkloadTraits(comp.Name, comp.Name, acc.Traits)
+		traits, err := convertWorkloadTraits(comp.Name, comp.Namespace, acc.Traits)
 		if err != nil {
 			return nil, err
 		}
