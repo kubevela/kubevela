@@ -1,6 +1,6 @@
-# Advanced Features
+# Status Write Back
 
-By using CUE as encapsulation method, some advanced features such as status write back could be easily achieved.
+This documentation will explain how to achieve status write back by using CUE templates in definition objects.
 
 ## Health Check
 

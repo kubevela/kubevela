@@ -1,10 +1,9 @@
-# Attach Traits to Kube Based Components
+# Attach Traits to Raw Template Based Components
 
-Most traits in KubeVela can be attached to Kube based component seamlessly. 
-In this sample application below, we add two traits,
+In this sample, we will attach two traits,
 [scaler](https://github.com/oam-dev/kubevela/blob/master/charts/vela-core/templates/defwithtemplate/manualscale.yaml)
 and
-[virtualgroup](https://github.com/oam-dev/kubevela/blob/master/docs/examples/kube-module/virtual-group-td.yaml), to a Kube based component.
+[virtualgroup](https://github.com/oam-dev/kubevela/blob/master/docs/examples/kube-module/virtual-group-td.yaml) to a component
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -28,11 +27,11 @@ spec:
             type: "cluster"
 ```
 
-## Verify traits work correctly
+## Verify
 
 Deploy the application and verify traits work.
 
-Check the scaler trait.
+Check the `scaler` trait.
 ```shell
 $ kubectl get manualscalertrait
 NAME                            AGE
@@ -43,7 +42,7 @@ $ kubectl get deployment mycomp -o json | jq .spec.replicas
 2
 ```
 
-Check the virtualgroup trait.
+Check the `virtualgroup` trait.
 ```shell
 $ kubectl get deployment mycomp -o json | jq .spec.template.metadata.labels
 {
@@ -84,19 +83,21 @@ spec:
 
 Apply the new configuration and check the results after several seconds.
 
-Check the new parameter works.
+> After updating, the workload instance name will be updated from `mycomp-v1` to `mycomp-v2`.
+
+Check the new property value.
 ```shell
 $ kubectl get deployment mycomp -o json | jq '.spec.template.spec.containers[0].image'
 "nginx:1.14.1"
 ```
 
-Check the scaler trait.
+Check the `scaler` trait.
 ```shell
 $ kubectl get deployment mycomp -o json | jq .spec.replicas
 4
 ```
 
-Check the virtualgroup trait.
+Check the `virtualgroup` trait.
 ```shell
 $ kubectl get deployment mycomp -o json | jq .spec.template.metadata.labels
 {

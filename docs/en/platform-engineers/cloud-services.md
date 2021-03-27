@@ -1,24 +1,29 @@
-# Cloud Service
+# Defining Cloud Database as Component
 
-KubeVela can help you to provision and consume cloud resources with your apps very well.
+KubeVela provides unified abstraction even for cloud services.
 
-## Provision
+## Should a Cloud Service be a Component or Trait?
 
-In this section, we will add a Alibaba Cloud's RDS service as a new workload type in KubeVela.
+The following practice could be considered:
+- Use `ComponentDefinition` if:
+  - you want to allow your end users explicitly claim a "instance" of the cloud service and consume it, and release the "instance" when deleting the application.
+- Use `TraitDefinition` if:
+  - you don't want to give your end users any control/workflow of claiming or releasing the cloud service, you only want to give them a way to consume a cloud service which could even be managed by some other system. A `Service Binding` trait is widely used in this case.
 
-### Step 1: Install and configure Crossplane
+In this documentation, we will add a Alibaba Cloud's RDS (Relational Database Service) as a component.
 
-We use [Crossplane](https://crossplane.io/) as the cloud resource operator for Kubernetes.
-This tutorial has been verified with Crossplane `version 0.14`.
-Please follow the Crossplane [Documentation](https://crossplane.io/docs/), 
-especially the `Install & Configure` and `Compose Infrastructure` sections to configure
+## Step 1: Install and Configure Crossplane
+
+KubeVela uses [Crossplane](https://crossplane.io/) as the cloud service operator.
+
+> This tutorial has been tested with Crossplane version `0.14`. Please follow the [Crossplane documentation](https://crossplane.io/docs/), especially the `Install & Configure` and `Compose Infrastructure` sections to configure
 Crossplane with your cloud account.
 
-**Note: When installing crossplane helm chart, please DON'T set `alpha.oam.enabled=true` as OAM crds are already installed by KubeVela.**
+**Note: When installing Crossplane via Helm chart, please DON'T set `alpha.oam.enabled=true` as all OAM features are already installed by KubeVela.**
 
 ## Step 2: Add Component Definition
 
-First, register the `rds` workload type to KubeVela.
+Register the `rds` component to KubeVela.
 
 ```bash
 $ cat << EOF | kubectl apply -f -
@@ -65,10 +70,7 @@ EOF
 
 ## Step 3: Verify
 
-Use RDS component in an [Application](../application.md) to provide cloud resources.
-
-As we have claimed an RDS instance with ComponentDefinition name `rds`.
-The component in the application should refer to this type.
+Instantiate RDS component in an [Application](../application.md) to provide cloud resources.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -85,22 +87,18 @@ spec:
         secretname: "myrds-conn"
 ```
 
-Apply the application into the K8s system.
+Apply above application to Kubernetes and a RDS instance will be automatically provisioned (may take some time, ~5 mins).
 
-The database provision will take some time (> 5 min) to be ready.
-
-// TBD: add status check , or should database is created result.
+> TBD: add status check , show database create result.
 
 
-## Consuming
+## Step 4: Consuming The Cloud Service
 
-In this section, we will consume the cloud resources created.
+In this section, we will show how another component consumes the RDS instance.
 
-> ** Note: We highly recommend that you should split the cloud resource provision and consuming in different applications.**
-** Because the cloud resources can have standalone Lifecycle Management.**
-> But it also works if you combine the resources provision and consuming within an App.
+> Note: we recommend to define the cloud resource claiming to an independent application if that cloud resource has standalone lifecycle. Otherwise, it could be defined in the same application of the consumer component.
 
-### Step 1 Define a ComponentDefinition consume from secrets
+### `ComponentDefinition` With Secret Reference
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -155,18 +153,14 @@ spec:
         parameter: {
         	image: string
         	//+InsertSecretTo=mySecret
-        	mysecret: string
+        	dbConnection: string
         	cmd?: [...string]
         }       
 ```
 
-The key point is the annotation `//+InsertSecretTo=mySecret`,
-KubeVela will know the parameter is a K8s secret, it will parse the secret and bind the data into the CUE struct `mySecret`.
+With the `//+InsertSecretTo=mySecret` annotation, KubeVela knows this parameter value comes from a Kubernetes Secret (whose name is set by user), so it will inject its data to `mySecret` which is referenced as environment variable in the template.
 
-Then the `output` can reference the `mySecret` struct for the data value. The name `mySecret` can be any name.
-It's just an example in this case. The `+InsertSecretTo` is keyword, it defines the data binding mechanism.
-
-Then create an Application to consume the data.
+Then declare an application to consume the RDS instance.
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -177,9 +171,9 @@ spec:
   components:
     - name: myweb
       type: webserver
-      settings:
+      properties:
         image: "nginx"
-        mysecret: "mydb-outputs"
+        dbConnection: "mydb-outputs"
 ```
 
 // TBD show the result

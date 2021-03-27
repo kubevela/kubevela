@@ -22,10 +22,14 @@ This template based workflow make it possible for platform team enforce best pra
 
 Below are the core building blocks in KubeVela that make this happen.
 
-## Application
+## `Application`
 The *Application* is the core API of KubeVela. It allows developers to work with a single artifact to capture the complete application definition with simplified primitives.
 
-Having an "application" concept is important to for any app-centric platform to simplify administrative tasks and can serve as an anchor to avoid configuration drifts during operation. Also, as an abstraction object, `Application` provides a much simpler path for on-boarding Kubernetes capabilities without relying on low level details. For example, a developer will be able to model a "web service" without defining a detailed Kubernetes Deployment + Service combo each time, or claim the auto-scaling requirements without referring to the underlying KEDA ScaleObject.
+### Why Choose `Application` as the Main Abstraction
+
+Having an "application" concept is important to any developer-centric platform to simplify administrative tasks and can serve as an anchor to avoid configuration drifts during operation. Also, as an abstraction object, `Application` provides a much simpler path for on-boarding Kubernetes capabilities without relying on low level details. For example, a developer will be able to model a "web service" without defining a detailed Kubernetes Deployment + Service combo each time, or claim the auto-scaling requirements without referring to the underlying KEDA ScaleObject.
+
+### Example
 
 An example of `website` application with two components (i.e. `frontend` and `backend`) could be modeled as below:
 
@@ -58,25 +62,27 @@ spec:
             image: "fluentd"
 ```
 
-### Components
+## Building the Abstraction
 
-For each of the components in `Application`, its `.type` field references the detailed definition of this component (such as its workload type, template, parameters, etc.), and `.settings` are the user input values to instantiate it. Some typical component types are *Long Running Web Service*, *One-time Off Task* or *Redis Database*.
+Unlike most of the higher level platforms, the `Application` abstraction in KubeVela is fully extensible and does not even have fixed schema. Instead, it is composed by building blocks (app components and traits etc.) that allow you to onboard platform capabilities to this application definition with your own abstractions.
 
-All supported component types expected to be pre-installed in the platform, or provided by component providers such as 3rd-party software vendors.
+The building blocks to abstraction and model platform capabilities named `ComponentDefinition` and `TraitDefinition`.
 
-### Traits
+### ComponentDefinition
 
-Optionally, each component has a `.traits` section that augments its component instance with operational behaviors such as load balancing policy, network ingress routing, auto-scaling policies, or upgrade strategies, etc.
+You can think of `ComponentDefinition` as a *template* for workload type. It contains template, parametering and workload characteristic information as a declarative API resource. 
 
-Essentially, traits are operational features provided by the platform, note that KubeVela allows users bring their own traits as well. To attach a trait, use `.name` field to reference the specific trait definition, and `.properties` field to set detailed configuration values of the given trait.
+Hence, the `Application` abstraction essentially declares how users want to **instantiate** given component definitions. Specifically, the `.type` field references the name of installed `ComponentDefinition` and `.properties` are the user set values to instantiate it. 
 
-We also reference component types and traits as *"capabilities"* in KubeVela. 
+Some typical component definitions are *Long Running Web Service*, *One-time Off Task* or *Redis Database*. All component definitions expected to be pre-installed in the platform, or provided by component providers such as 3rd-party software vendors.
 
-## Definitions
+### TraitDefinition
 
-Both the schemas of workload settings and trait properties in `Application` are enforced by a set of definition objects. The platform teams or component providers are responsible for registering and managing definition objects in target cluster following [workload definition](https://github.com/oam-dev/spec/blob/master/4.workload_types.md) and [trait definition](https://github.com/oam-dev/spec/blob/master/6.traits.md) specifications in Open Application Model (OAM). 
+Optionally, each component has a `.traits` section that augments the component instance with operational behaviors such as load balancing policy, network ingress routing, auto-scaling policies, or upgrade strategies, etc.
 
-Specifically, definition object carries the templating information of this capability. Currently, KubeVela supports [Helm](http://helm.sh/) charts and [CUE](https://github.com/cuelang/cue) modules as definitions which means you could use KubeVela to deploy Helm charts and CUE modules as application components, or claim them as traits. More capability types support such as [Terraform](https://www.terraform.io/) is also work in progress.
+You can think of traits as operational features provided by the platform. To attach a trait to component instance, the user will use `.type` field to reference the specific `TraitDefinition`, and `.properties` field to set property values of the given trait. Similarly, `TraitDefiniton` also allows you to define *template* for operational features.
+
+We also reference component definitions and trait definitions as *"capability definitions"* in KubeVela. 
 
 ## Environment
 Before releasing an application to production, it's important to test the code in testing/staging workspaces. In KubeVela, we describe these workspaces as "deployment environments" or "environments" for short. Each environment has its own configuration (e.g., domain, Kubernetes cluster and namespace, configuration data, access control policy, etc.) to allow user to create different deployment environments such as "test" and "production".

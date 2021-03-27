@@ -11,25 +11,35 @@
   - [Overview](/en/platform-engineers/overview.md)
   - [Application CRD](/en/application.md)
   - [Definition CRD](/en/platform-engineers/definition-and-templates.md)
-  - [Auto-generated Schema](/en/platform-engineers/openapi-v3-json-schema.md)
-  - [Defining Components](/en/platform-engineers/component.md)
-  - [Defining Traits](/en/platform-engineers/trait.md)  
-<!-- - [Defining Cloud Service](/en/platform-engineers/cloud-services.md) -->
 
-  - Using CUE
+  - Visualization
+  - [Generate Forms from Definitions](/en/platform-engineers/openapi-v3-json-schema.md)
+
+  - Defining Components
+  
+  - CUE
+  - [How-to](/en/cue/component.md)
   - [Learning CUE](/en/cue/basic.md)
-  - [Define Components in CUE](/en/cue/component.md)
-  - [Define Traits](/en/cue/trait.md)
-  - [Advanced Features](/en/cue/status.md)
 
-  - Using Helm
-  - [Define Components in Chart](/en/helm/component.md)
+  - Helm
+  - [How-to](/en/helm/component.md)
   - [Attach Traits](/en/helm/trait.md)
   - [Known Limitations](/en/helm/known-issues.md)
   
-  - Using Raw Kube
-  - [Define Components With Raw K8s](/en/kube/component.md)
+  - Raw Template
+  - [How-to](/en/kube/component.md)
   - [Attach Traits](/en/kube/trait.md)
+
+  - Defining Traits
+  - [How-to](/en/cue/trait.md)
+  - [Patch Traits](/en/cue/patch-trait.md)
+  - [Status Write Back](/en/cue/status.md)
+  - [Advanced Features](/en/cue/advanced.md)
+
+  - Hands-on Lab
+  - [Debug, Test and Dry-run](/en/platform-engineers/debug-test-cue.md)
+  - [Defining KEDA as Autoscaling Trait](/en/platform-engineers/keda.md)  
+  <!-- - [Defining Cloud Database as Component](/en/platform-engineers/cloud-services.md) -->
 
 - Developer Experience Guide
   - Appfile
