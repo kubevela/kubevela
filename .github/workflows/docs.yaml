@@ -1,8 +1,8 @@
 name: docs
 on:
   push:
-#    paths:
-#      - 'docs/**'
+    paths:
+      - 'docs/**'
     branches:
       - master
       - release-*
