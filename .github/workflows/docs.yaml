@@ -5,14 +5,28 @@ on:
       - 'docs/**'
     branches:
       - master
+      - release-*
 jobs:
-  update-docs:
+  latest:
     runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/master' }}
     steps:
       - uses: actions/checkout@v1
       - name: Push to GitHub Repo
         uses: sunny0826/auto-docs-action@v0.1.7
         env:
           SSH_PRIVATE_KEY: ${{ secrets.GH_PAGES_DEPLOY }}
+        with:
+          gh-page: git@github.com:oam-dev/kubevela.io.git
+  released:
+    runs-on: ubuntu-latest
+    if: ${{ github.ref != 'refs/heads/master' }}
+    steps:
+      - uses: actions/checkout@v1
+      - name: Push to GitHub Repo
+        uses: sunny0826/auto-docs-action@v0.1.7
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GH_PAGES_DEPLOY }}
+          VERSION: ${{ github.ref }}
         with:
           gh-page: git@github.com:oam-dev/kubevela.io.git
