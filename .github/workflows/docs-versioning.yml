@@ -1,0 +1,17 @@
+name: docs-versioning
+on:
+  push:
+    branches:
+      - 'release-**'
+jobs:
+  add-new-version-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Push to GitHub Repo
+        uses: sunny0826/auto-docs-action@v0.1.7
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GH_PAGES_DEPLOY }}
+          VERSION: ${{ github.ref }}
+        with:
+          gh-page: git@github.com:oam-dev/kubevela.io.git
