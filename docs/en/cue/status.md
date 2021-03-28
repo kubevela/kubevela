@@ -49,7 +49,7 @@ spec:
    ...
 ```
 
-> Please refer to [this doc](https://github.com/oam-dev/kubevela/blob/master/docs/examplesapp-with-status/template.yaml) for the complete example.
+> Please refer to [this doc](https://github.com/oam-dev/kubevela/blob/master/docs/examples/app-with-status/template.yaml) for the complete example.
 
 The health check result will be recorded into the `Application` resource.
 
@@ -112,7 +112,7 @@ context:{
 Trait will not have the `context.ouput`, other fields are the same.
 
 
-Please refer to [this doc](https://github.com/oam-dev/kubevela/blob/master/docs/examplesapp-with-status/template.yaml) for the complete example.
+Please refer to [this doc](https://github.com/oam-dev/kubevela/blob/master/docs/examples/app-with-status/template.yaml) for the complete example.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1

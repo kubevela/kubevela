@@ -130,7 +130,7 @@ Above application resource will generate and manage following Kubernetes resourc
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
-meadata:
+metadata:
   name: backend
   ... # skip tons of metadata info
 spec:

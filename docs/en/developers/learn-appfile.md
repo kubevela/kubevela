@@ -33,7 +33,7 @@ Under the hood, `Appfile` will build the image from source code, and then genera
 
 ## Schema
 
-> Before learning about Appfile's detailed schema, we recommend you to get familiar with [core concepts](../../../concepts.md) in KubeVela.
+> Before learning about Appfile's detailed schema, we recommend you to get familiar with [core concepts](../concepts.md) in KubeVela.
 
 
 ```yaml
@@ -70,7 +70,7 @@ services:
   
 ```
 
-> To learn about how to set the properties of specific workload type or trait, please check the [reference documentation guide](../../check-ref-doc.md).
+> To learn about how to set the properties of specific workload type or trait, please check the [reference documentation guide](./check-ref-doc.md).
 
 ## Example Workflow
 
