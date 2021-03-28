@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: Sync to kubevela.io Repo
-        uses: wonderflow/auto-docs-action@v0.2.2
+        uses: wonderflow/auto-docs-action@v0.2.3
         env:
           SSH_PRIVATE_KEY: ${{ secrets.GH_PAGES_DEPLOY }}
           VERSION: ${{ github.ref }}
