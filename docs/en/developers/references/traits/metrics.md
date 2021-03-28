@@ -1,4 +1,6 @@
-# Metrics
+---
+title:  Metrics
+---
 
 ## Description
 

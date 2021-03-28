@@ -1,10 +1,12 @@
-# Quick Start
+---
+title:  Quick Start
+---
 
 Welcome to KubeVela! In this guide, we'll walk you through how to install KubeVela, and deploy your first simple application.
 
 ## Step 1: Install
 
-Make sure you have finished and verified the installation following [this guide](./install.md).
+Make sure you have finished and verified the installation following [this guide](./install).
 
 ## Step 2: Deploy Your First Application
 
@@ -88,8 +90,8 @@ Hello World
 
 Here are some recommended next steps:
 
-- Learn KubeVela starting from its [core concepts](./concepts.md)
-- Learn more details about [`Application`](./application.md) and understand how it works.
+- Learn KubeVela starting from its [core concepts](./concepts)
+- Learn more details about [`Application`](./application) and understand how it works.
 - Join `#kubevela` channel in CNCF [Slack](https://cloud-native.slack.com) and/or [Gitter](https://gitter.im/oam-dev/community)
 
 Welcome onboard and sail Vela!

@@ -1,4 +1,6 @@
-# Ingress
+---
+title:  Ingress
+---
 
 ## Description
 

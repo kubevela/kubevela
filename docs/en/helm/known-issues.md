@@ -1,4 +1,6 @@
-# Known Limitations and Issues
+---
+title:  Known Limitations and Issues
+---
 
 ## Limitations
 
@@ -73,7 +75,7 @@ The known issues will be fixed in following releases.
 
 ### Rollout Strategy
 
-For now, Helm based components cannot benefit from [application level rollout strategy](https://github.com/oam-dev/kubevela/blob/master/design/vela-core/rollout-design.md#applicationdeployment-workflow). As shown in [this sample](./trait.md#update-an-applicatiion), if the application is updated, it can only be rollouted directly without canary or blue-green approach.
+For now, Helm based components cannot benefit from [application level rollout strategy](https://github.com/oam-dev/kubevela/blob/master/design/vela-core/rollout-design.md#applicationdeployment-workflow). As shown in [this sample](./trait#update-an-applicatiion), if the application is updated, it can only be rollouted directly without canary or blue-green approach.
 
 ### Updating Traits Properties may Also Lead to Pods Restart
 

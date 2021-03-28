@@ -1,4 +1,6 @@
-# Defining Traits
+---
+title:  Defining Traits
+---
 
 In this section we will introduce how to define a trait.
 

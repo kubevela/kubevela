@@ -1,4 +1,6 @@
-# Defining Cloud Database as Component
+---
+title:  Defining Cloud Database as Component
+---
 
 KubeVela provides unified abstraction even for cloud services.
 
@@ -70,7 +72,7 @@ EOF
 
 ## Step 3: Verify
 
-Instantiate RDS component in an [Application](../application.md) to provide cloud resources.
+Instantiate RDS component in an [Application](../application) to provide cloud resources.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1

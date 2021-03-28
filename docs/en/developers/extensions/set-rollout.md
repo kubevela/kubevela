@@ -1,6 +1,8 @@
-# Setting Rollout Strategy
+---
+title:  Setting Rollout Strategy
+---
 
-> Note: rollout is one of the extension capabilities [installed from cap center](../cap-center.md),
+> Note: rollout is one of the extension capabilities [installed from cap center](../cap-center),
 > please install it if you can't find it in `vela traits`.
 
 The `rollout` section is used to configure Canary strategy to release your app.
@@ -24,7 +26,7 @@ services:
       domain: "example.com"
 ```
 
-> The full specification of `rollout` could show up by `$ vela show rollout` or be found on [its reference documentation](../references/traits/rollout.md)
+> The full specification of `rollout` could show up by `$ vela show rollout` or be found on [its reference documentation](../references/traits/rollout)
 
 Apply this `appfile.yaml`:
 

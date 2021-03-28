@@ -1,8 +1,10 @@
-# Defining Components with Raw Template
+---
+title:  Defining Components with Raw Template
+---
 
 In this section, it will introduce how to use raw template to declare app components via `ComponentDefinition`.
 
-> Before reading this part, please make sure you've learned [the definition and template concepts](../platform-engineers/definition-and-templates.md).
+> Before reading this part, please make sure you've learned [the definition and template concepts](../platform-engineers/definition-and-templates).
 
 ## Declare `ComponentDefinition`
 

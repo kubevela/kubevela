@@ -1,4 +1,6 @@
-# The Reference Documentation of Capabilities
+---
+title:  The Reference Documentation of Capabilities
+---
 
 In this documentation, we will show how to check the detailed schema of a given capability (i.e. component type or trait). 
 
@@ -100,12 +102,12 @@ Note that for all the built-in capabilities, we already published their referenc
 
 
 - Workload Types
-	- [webservice](workload-types/webservice.md)
-	- [task](workload-types/task.md)
-	- [worker](workload-types/worker.md)
+	- [webservice](workload-types/webservice)
+	- [task](workload-types/task)
+	- [worker](workload-types/worker)
 - Traits
-	- [route](traits/route.md)
-	- [autoscale](traits/autoscale.md)
-	- [rollout](traits/rollout.md)
-	- [metrics](traits/metrics.md)
-	- [scaler](traits/scaler.md)
+	- [route](traits/route)
+	- [autoscale](traits/autoscale)
+	- [rollout](traits/rollout)
+	- [metrics](traits/metrics)
+	- [scaler](traits/scaler)

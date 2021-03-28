@@ -1,4 +1,6 @@
-# Worker
+---
+title:  Worker
+---
 
 ## Description
 

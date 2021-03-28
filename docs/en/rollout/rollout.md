@@ -1,4 +1,6 @@
-# KubeVela Rollout 
+---
+title:  KubeVela Rollout 
+---
 `Rollout` or `Upgrade` is one of the most essential "day 2" operation on any application
 . KubeVela, as an application centric platform, definitely needs to provide a customized solution
 to alleviate the burden on the application operators.

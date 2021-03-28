@@ -1,4 +1,6 @@
-# Status Write Back
+---
+title:  Status Write Back
+---
 
 This documentation will explain how to achieve status write back by using CUE templates in definition objects.
 

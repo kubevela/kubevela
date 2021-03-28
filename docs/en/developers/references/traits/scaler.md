@@ -1,4 +1,6 @@
-# Scaler
+---
+title:  Scaler
+---
 
 ## Description
 

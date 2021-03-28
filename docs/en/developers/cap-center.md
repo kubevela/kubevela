@@ -1,4 +1,6 @@
-# Managing Capabilities
+---
+title:  Managing Capabilities
+---
 
 In KubeVela, developers can install more capabilities (i.e. new component types and traits) from any GitHub repo that contains OAM definition files. We call these GitHub repos as _Capability Centers_. 
 
