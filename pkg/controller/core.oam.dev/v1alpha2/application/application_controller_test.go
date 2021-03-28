@@ -1480,8 +1480,11 @@ spec:
     name: deployments.apps
   extension:
     template: |
-      import "kube/apps/v1"
-      output: v1.#Deployment & {
+      import (
+          "k8s.io/apps/v1"
+          appsv1 "kube/apps/v1"
+      )
+      output: v1.#Deployment & appsv1.#Deployment & {
           metadata: {
               annotations: {
                   if context["config"] != _|_ {
@@ -1539,8 +1542,8 @@ spec:
     cue:
       template: |
         import (
-        	kubev1 "kube/v1"
-        	network "kube/networking.k8s.io/v1beta1"
+        	kubev1 "k8s.io/core/v1"
+        	network "k8s.io/networking/v1beta1"
         )
 
         parameter: {

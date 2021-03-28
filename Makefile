@@ -277,7 +277,7 @@ kustomize:
 ifeq (, $(shell kustomize version | grep $(KUSTOMIZE_VERSION)))
 	@{ \
 	set -e ;\
-	echo 'installing kustomize-v$(KUSTOMIZE_VERSION)' ;\
+	echo 'installing kustomize-v$(KUSTOMIZE_VERSION) into $(GOBIN)' ;\
 	curl -s https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash -s $(KUSTOMIZE_VERSION) $(GOBIN);\
 	echo 'Install succeed' ;\
 	}

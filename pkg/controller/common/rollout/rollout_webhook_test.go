@@ -110,6 +110,8 @@ func TestMakeHTTPRequest(t *testing.T) {
 		},
 	}
 	for testName, tt := range tests {
+		// deep copy it before going to goroutine
+		tt := tt
 		t.Run(testName, func(t *testing.T) {
 			// generate a test server so we can capture and inspect the request
 			testServer := NewMock(tt.httpParameter.method, tt.httpParameter.statusCode, tt.httpParameter.body)
