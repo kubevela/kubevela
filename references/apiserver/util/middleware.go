@@ -60,16 +60,17 @@ const (
 
 // RESTful API paths
 const (
-	RootPath               = "/api"
-	EnvironmentPath        = "/envs"
-	ApplicationPath        = "/apps"
-	WorkloadDefinitionPath = "/workloads"
-	ScopeDefinitionPath    = "/scopes"
-	TraitDefinitionPath    = "/traits"
-	CapabilityPath         = "/capabilities"
-	CapabilityCenterPath   = "/capability-centers"
-	VersionPath            = "/version"
-	Definition             = "/definitions"
+	RootPath                = "/api"
+	EnvironmentPath         = "/envs"
+	ApplicationPath         = "/apps"
+	WorkloadDefinitionPath  = "/workloads"
+	ComponentDefinitionPath = "/components"
+	ScopeDefinitionPath     = "/scopes"
+	TraitDefinitionPath     = "/traits"
+	CapabilityPath          = "/capabilities"
+	CapabilityCenterPath    = "/capability-centers"
+	VersionPath             = "/version"
+	Definition              = "/definitions"
 )
 
 // NoRoute is a handler which is invoked when there is no route matches.

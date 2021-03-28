@@ -28,7 +28,7 @@ import (
 var (
 	deployment = types.Capability{
 		Name: "deployment",
-		Type: types.TypeWorkload,
+		Type: types.TypeComponentDefinition,
 		Parameters: []types.Parameter{
 			{
 				Name:     "image",
@@ -39,7 +39,7 @@ var (
 	}
 	statefulset = types.Capability{
 		Name: "statefulset",
-		Type: types.TypeWorkload,
+		Type: types.TypeComponentDefinition,
 		Parameters: []types.Parameter{
 			{
 				Name:     "image",
@@ -77,7 +77,7 @@ func TestLocalSink(t *testing.T) {
 		"Test Only Workload": {
 			dir:    "vela-test2",
 			tmps:   []types.Capability{deployment, statefulset},
-			Type:   types.TypeWorkload,
+			Type:   types.TypeComponentDefinition,
 			expDef: []types.Capability{deployment, statefulset},
 		},
 		"Test Only Trait": {
@@ -95,7 +95,7 @@ func TestLocalSink(t *testing.T) {
 		"Test Both have Workload and trait But want Workload": {
 			dir:    "vela-test4",
 			tmps:   []types.Capability{deployment, route, statefulset},
-			Type:   types.TypeWorkload,
+			Type:   types.TypeComponentDefinition,
 			expDef: []types.Capability{deployment, statefulset},
 		},
 		"Test Both have Workload and trait But want Trait": {

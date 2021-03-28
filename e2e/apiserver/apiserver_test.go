@@ -224,8 +224,8 @@ var _ = ginkgo.Describe("API", func() {
 			gomega.Expect(r.Data.(string)).To(gomega.ContainSubstring(output))
 		})
 
-		ginkgo.It("should list all WorkloadDefinitions", func() {
-			resp, err := http.Get(util.URL("/workloads/"))
+		ginkgo.It("should list all ComponentDefinitions", func() {
+			resp, err := http.Get(util.URL("/components/"))
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			defer resp.Body.Close()
 			result, err := ioutil.ReadAll(resp.Body)

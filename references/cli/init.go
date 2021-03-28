@@ -199,7 +199,7 @@ func formatAndGetUsage(p *types.Parameter) string {
 
 // Workload asks user to choose workload type from installed workloads
 func (o *appInitOptions) Workload() error {
-	workloads, err := plugins.LoadInstalledCapabilityWithType(o.Env.Namespace, o.c, types.TypeWorkload)
+	workloads, err := plugins.LoadInstalledCapabilityWithType(o.Env.Namespace, o.c, types.TypeComponentDefinition)
 	if err != nil {
 		return err
 	}

@@ -63,12 +63,12 @@ func LoadAllInstalledCapability(userNamespace string, c common.Args) ([]types.Ca
 // LoadInstalledCapabilityWithType will load cap list by type
 func LoadInstalledCapabilityWithType(userNamespace string, c common.Args, capT types.CapType) ([]types.Capability, error) {
 	switch capT {
-	case types.TypeWorkload:
-		caps, _, err := GetWorkloadsFromCluster(context.TODO(), userNamespace, c, nil)
+	case types.TypeComponentDefinition:
+		caps, _, err := GetComponentsFromCluster(context.TODO(), userNamespace, c, nil)
 		if err != nil {
 			return nil, err
 		}
-		systemCaps, _, err := GetWorkloadsFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
+		systemCaps, _, err := GetComponentsFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -86,17 +86,7 @@ func LoadInstalledCapabilityWithType(userNamespace string, c common.Args, capT t
 		caps = append(caps, systemCaps...)
 		return caps, nil
 	case types.TypeScope:
-	case types.TypeComponentDefinition:
-		caps, _, err := GetComponentsFromCluster(context.TODO(), userNamespace, c, nil)
-		if err != nil {
-			return nil, err
-		}
-		systemCaps, _, err := GetComponentsFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
-		if err != nil {
-			return nil, err
-		}
-		caps = append(caps, systemCaps...)
-		return caps, nil
+	case types.TypeWorkload:
 	}
 	return nil, nil
 }
@@ -179,7 +169,7 @@ func GetSubDir(dir string, capT types.CapType) string {
 	case types.TypeScope:
 		return filepath.Join(dir, "scopes")
 	case types.TypeComponentDefinition:
-		// TODO(yangsoon): support componentdefinition here
+		return filepath.Join(dir, "components")
 	}
 	return dir
 }
@@ -210,7 +200,7 @@ func SinkTemp2Local(templates []types.Capability, dir string) int {
 func RemoveLegacyTemps(retainedTemps []types.Capability, dir string) int {
 	success := 0
 	var retainedFiles []string
-	subDirs := []string{GetSubDir(dir, types.TypeWorkload), GetSubDir(dir, types.TypeTrait)}
+	subDirs := []string{GetSubDir(dir, types.TypeComponentDefinition), GetSubDir(dir, types.TypeTrait)}
 	for _, tmp := range retainedTemps {
 		subDir := GetSubDir(dir, tmp.Type)
 		tmpFilePath := filepath.Join(subDir, tmp.Name)

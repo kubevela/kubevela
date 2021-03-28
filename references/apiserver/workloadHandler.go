@@ -31,11 +31,11 @@ func (s *APIServer) UpdateWorkload(c *gin.Context) {
 
 // GetWorkload gets a workload by name
 func (s *APIServer) GetWorkload(c *gin.Context) {
-	var workloadType = c.Param("workloadName")
+	var workloadType = c.Param("componentName")
 	var capability types.Capability
 	var err error
 
-	if capability, err = plugins.GetInstalledCapabilityWithCapName(types.TypeWorkload, workloadType); err != nil {
+	if capability, err = plugins.GetInstalledCapabilityWithCapName(types.TypeComponentDefinition, workloadType); err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
 	}
@@ -44,18 +44,18 @@ func (s *APIServer) GetWorkload(c *gin.Context) {
 
 // ListWorkload lists all workloads in the cluster
 func (s *APIServer) ListWorkload(c *gin.Context) {
-	var workloadDefinitionList []apis.WorkloadMeta
-	workloads, err := plugins.LoadInstalledCapabilityWithType("default", s.c, types.TypeWorkload)
+	var componentDefinitionList []apis.WorkloadMeta
+	workloads, err := plugins.LoadInstalledCapabilityWithType("default", s.c, types.TypeComponentDefinition)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err)
 		return
 	}
 	for _, w := range workloads {
-		workloadDefinitionList = append(workloadDefinitionList, apis.WorkloadMeta{
+		componentDefinitionList = append(componentDefinitionList, apis.WorkloadMeta{
 			Name:        w.Name,
 			Parameters:  w.Parameters,
 			Description: w.Description,
 		})
 	}
-	util.AssembleResponse(c, workloadDefinitionList, err)
+	util.AssembleResponse(c, componentDefinitionList, err)
 }

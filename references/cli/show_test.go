@@ -43,7 +43,7 @@ func TestCreateTestDir(t *testing.T) {
 }
 
 func TestGenerateSideBar(t *testing.T) {
-	workloadName := "workload1"
+	workloadName := "component1"
 	traitName := "trait1"
 
 	cases := map[string]struct {
@@ -51,12 +51,12 @@ func TestGenerateSideBar(t *testing.T) {
 		capabilities []types.Capability
 		want         error
 	}{
-		"WorkloadTypeAndTraitCapability": {
+		"ComponentTypeAndTraitCapability": {
 			reason: "valid capabilities",
 			capabilities: []types.Capability{
 				{
 					Name: workloadName,
-					Type: types.TypeWorkload,
+					Type: types.TypeComponentDefinition,
 				},
 				{
 					Name: traitName,
@@ -101,7 +101,7 @@ func TestGenerateCustomCSS(t *testing.T) {
 }
 
 func TestGenerateREADME(t *testing.T) {
-	workloadName := "workload1"
+	workloadName := "component1"
 	traitName := "trait1"
 
 	cases := map[string]struct {
@@ -109,12 +109,12 @@ func TestGenerateREADME(t *testing.T) {
 		capabilities []types.Capability
 		want         error
 	}{
-		"WorkloadTypeAndTraitCapability": {
+		"ComponentTypeAndTraitCapability": {
 			reason: "valid capabilities",
 			capabilities: []types.Capability{
 				{
 					Name: workloadName,
-					Type: types.TypeWorkload,
+					Type: types.TypeComponentDefinition,
 				},
 				{
 					Name: traitName,
@@ -134,8 +134,8 @@ func TestGenerateREADME(t *testing.T) {
 			assert.NoError(t, err)
 			for _, c := range tc.capabilities {
 				switch c.Type {
-				case types.TypeWorkload:
-					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, plugins.WorkloadTypePath, c.Name))
+				case types.TypeComponentDefinition:
+					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, plugins.ComponentDefinitionTypePath, c.Name))
 				case types.TypeTrait:
 					assert.Contains(t, string(data), fmt.Sprintf("  - [%s](%s/%s.md)\n", c.Name, plugins.TraitPath, c.Name))
 				}
@@ -149,7 +149,7 @@ func TestGetWorkloadAndTraits(t *testing.T) {
 		workloads []string
 		traits    []string
 	}
-	workloadName := "workload1"
+	workloadName := "component1"
 	traitName := "trait1"
 	scopeName := "scope1"
 
@@ -158,12 +158,12 @@ func TestGetWorkloadAndTraits(t *testing.T) {
 		capabilities []types.Capability
 		want         want
 	}{
-		"WorkloadTypeAndTraitCapability": {
+		"ComponentTypeAndTraitCapability": {
 			reason: "valid capabilities",
 			capabilities: []types.Capability{
 				{
 					Name: workloadName,
-					Type: types.TypeWorkload,
+					Type: types.TypeComponentDefinition,
 				},
 				{
 					Name: traitName,
@@ -191,7 +191,7 @@ func TestGetWorkloadAndTraits(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			gotWorkloads, gotTraits := getWorkloadsAndTraits(tc.capabilities)
+			gotWorkloads, gotTraits := getComponentsAndTraits(tc.capabilities)
 			assert.Equal(t, tc.want, want{workloads: gotWorkloads, traits: gotTraits})
 		})
 	}
