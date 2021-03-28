@@ -84,4 +84,4 @@ $ kubectl get deployment myapp-demo-podinfo -o json | jq '.spec.template.spec.co
 
 KubeVela will automatically generate OpenAPI v3 JSON schema based on [`values.schema.json`](https://helm.sh/docs/topics/charts/#schema-files) in the Helm chart, and store it in a `ConfigMap` in the same `namespace` with the definition object. Furthermore, if `values.schema.json` is not provided by the chart author, KubeVela will generate OpenAPI v3 JSON schema based on its `values.yaml` file automatically. 
 
-Please check the [Generate Forms from Definitions](en/platform-engineers/openapi-v3-json-schema) guide for more detail of using this schema to render GUI forms. 
+Please check the [Generate Forms from Definitions](/en/platform-engineers/openapi-v3-json-schema.md) guide for more detail of using this schema to render GUI forms. 
