@@ -41,6 +41,8 @@ type ApplicationComponent struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties runtime.RawExtension `json:"properties,omitempty"`
 
+	EnvMappings map[string]EnvMapping `json:"envMappings,omitempty"`
+
 	// Traits define the trait of one component, the type must be array to keep the order.
 	Traits []ApplicationTrait `json:"traits,omitempty"`
 
@@ -48,6 +50,14 @@ type ApplicationComponent struct {
 	// scopes in ApplicationComponent defines the component-level scopes
 	// the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
 	Scopes map[string]string `json:"scopes,omitempty"`
+}
+
+// EnvMappings is used to map environments from secret
+type EnvMapping struct {
+	Secret string `json:"secret"`
+	Namespace string `json:"namespace,omitempty"`
+	Key string `json:"key,omitempty"`
+	Value string `json:"value,omitempty"`
 }
 
 // ApplicationSpec is the spec of Application

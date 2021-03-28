@@ -55,6 +55,8 @@ const (
 	AppfileBuiltinConfig = "config"
 )
 
+const EnvMappingsParam = "envMappings"
+
 // constant error information
 const (
 	errInvalidValueType = "require %q type parameter value"
@@ -83,6 +85,9 @@ type Workload struct {
 	OutputSecretName string
 	// RequiredSecrets stores secret names which the workload needs from cloud resource component and its context
 	RequiredSecrets []process.RequiredSecrets
+	envMappingsRaw  map[string]v1beta1.EnvMapping
+	// EnvMappings is used to map environments from secret
+	EnvMappings []v1.EnvVar
 }
 
 // GetUserConfigName get user config from AppFile, it will contain config file in it.
@@ -197,7 +202,6 @@ func (p *Parser) GenerateAppFile(ctx context.Context, name string, app *v1beta1.
 }
 
 func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComponent) (*Workload, error) {
-
 	templ, err := util.LoadTemplate(ctx, p.dm, p.client, comp.Type, types.TypeComponentDefinition)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
@@ -219,6 +223,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComp
 		FullTemplate:        templ,
 		Params:              settings,
 		engine:              definition.NewWorkloadAbstractEngine(comp.Name, p.pd),
+		envMappingsRaw:      comp.EnvMappings,
 	}
 	for _, traitValue := range comp.Traits {
 		properties, err := util.RawExtension2Map(&traitValue.Properties)
@@ -296,6 +301,14 @@ func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1a
 			wl.RequiredSecrets = requiredSecrets
 		}
 
+		if wl.envMappingsRaw != nil {
+			envMappings, err := parseWorkloadEnvMapping(ctx, p.client, ns, wl.envMappingsRaw)
+			if err != nil {
+				return nil, nil, err
+			}
+			wl.EnvMappings = envMappings
+		}
+
 		switch wl.CapabilityCategory {
 		case types.HelmCategory:
 			comp, acComp, err = generateComponentFromHelmModule(p.client, wl, app.Name, app.RevisionName, ns)
@@ -331,6 +344,7 @@ func generateComponentFromCUEModule(c client.Client, wl *Workload, appName, revi
 		}
 		wl.OutputSecretName = outputSecretName
 	}
+
 	pCtx, err := PrepareProcessContext(c, wl, appName, revision, ns)
 	if err != nil {
 		return nil, nil, err
@@ -571,7 +585,8 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compNa
 // PrepareProcessContext prepares a DSL process Context
 func PrepareProcessContext(k8sClient client.Client, wl *Workload, applicationName, revision, namespace string) (process.Context, error) {
 	pCtx := process.NewContext(namespace, wl.Name, applicationName, revision)
-	pCtx.InsertSecrets(wl.OutputSecretName, wl.RequiredSecrets)
+	pCtx.InsertSecrets(wl.OutputSecretName, wl.RequiredSecrets, wl.EnvMappings)
+
 	userConfig := wl.GetUserConfigName()
 	if userConfig != "" {
 		cg := config.Configmap{Client: k8sClient}
@@ -680,4 +695,41 @@ func (wl *Workload) IsCloudResourceConsumer() bool {
 		return false
 	}
 	return true
+}
+
+func parseWorkloadEnvMapping(ctx context.Context, c client.Client, namespace string, envMappings map[string]v1beta1.EnvMapping) ([]v1.EnvVar, error) {
+	var envs []v1.EnvVar
+	for envName, v := range envMappings {
+		// Secret from another component could not be checked, or the whole application will fail, which means we could
+		// not support secret value which contain variables.
+		// secretData, err := extractSecret(ctx, c, namespace, v.Secret)
+		//if err != nil {
+		//	return nil, err
+		//}
+		if v.Value != "" {
+			//TODO(zzxwill) need to find a way to extract `value: oss-conn.bucket + "/" + oss-conn.endpoint`
+			envs = append(envs, v1.EnvVar{Name: envName, Value: v.Value})
+			continue
+		}
+		var secretKey string
+		if v.Key != "" {
+			secretKey = v.Key
+		} else {
+			secretKey = envName
+		}
+
+		//secretValue, ok := secretData[secretKey]
+		//if !ok {
+		//	return nil, fmt.Errorf("failed to retrieve key %s from secret %s in namespace %s", v.Key, v.Secret, namespace)
+		//}
+		//secretValueStr, ok := secretValue.(string)
+		//if !ok {
+		//	return nil, fmt.Errorf("failed to convert %s to string type", secretValue)
+		//}
+		valueFrom := v1.EnvVarSource{SecretKeyRef: &v1.SecretKeySelector{Key: secretKey}}
+		valueFrom.SecretKeyRef.Name = v.Secret
+		envs = append(envs, v1.EnvVar{Name: envName, ValueFrom: &valueFrom})
+		continue
+	}
+	return envs, nil
 }
