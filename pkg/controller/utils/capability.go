@@ -25,6 +25,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -62,6 +63,7 @@ type CapabilityComponentDefinition struct {
 	WorkloadDefName string            `json:"workloadDefName"`
 
 	Helm *commontypes.Helm `json:"helm"`
+	Kube *commontypes.Kube `json:"kube"`
 	CapabilityBaseDefinition
 }
 
@@ -105,6 +107,43 @@ func (def *CapabilityComponentDefinition) GetOpenAPISchema(ctx context.Context, 
 	return getOpenAPISchema(*capability)
 }
 
+// GetKubeSchematicOpenAPISchema gets OpenAPI v3 schema based on kube schematic parameters
+func (def *CapabilityComponentDefinition) GetKubeSchematicOpenAPISchema(params []commontypes.KubeParameter) ([]byte, error) {
+	required := []string{}
+	properties := map[string]*openapi3.Schema{}
+	for _, p := range params {
+		var tmp *openapi3.Schema
+		switch p.ValueType {
+		case commontypes.StringType:
+			tmp = openapi3.NewStringSchema()
+		case commontypes.NumberType:
+			tmp = openapi3.NewFloat64Schema()
+		case commontypes.BooleanType:
+			tmp = openapi3.NewBoolSchema()
+		default:
+			tmp = openapi3.NewStringSchema()
+		}
+		if p.Required != nil && *p.Required {
+			required = append(required, p.Name)
+		}
+		// save FieldPaths into description
+		tmp.Description = fmt.Sprintf("The value will be applied to fields: [%s].", strings.Join(p.FieldPaths, ","))
+		if p.Description != nil {
+			tmp.Description = fmt.Sprintf("%s\n %s", tmp.Description, *p.Description)
+		}
+		properties[p.Name] = tmp
+	}
+	s := openapi3.NewObjectSchema().WithProperties(properties)
+	if len(required) > 0 {
+		s.Required = required
+	}
+	b, err := s.MarshalJSON()
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot marshal generated schema into json")
+	}
+	return b, nil
+}
+
 // StoreOpenAPISchema stores OpenAPI v3 schema in ConfigMap from WorkloadDefinition
 func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string) error {
 	var jsonSchema []byte
@@ -112,6 +151,8 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 	switch def.WorkloadType {
 	case util.HELMDef:
 		jsonSchema, err = helm.GetChartValuesJSONSchema(ctx, def.Helm)
+	case util.KubeDef:
+		jsonSchema, err = def.GetKubeSchematicOpenAPISchema(def.Kube.Parameters)
 	default:
 		jsonSchema, err = def.GetOpenAPISchema(ctx, k8sClient, namespace, name)
 	}

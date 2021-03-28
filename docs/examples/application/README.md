@@ -55,59 +55,62 @@ containers: [{
 ### output
 Generate a new cr, which is generally associated with workload cr
 
-## Workload Definition
-The following workload definition is to generate a deployment
+## ComponentDefinition
+The following ComponentDefinition is to generate a deployment
 ```
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 metadata:
   name: worker
   annotations:
     definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
 spec:
-  definitionRef:
-    name: deployments.apps
-  extension:
-    template: |
-      output: {
-      	apiVersion: "apps/v1"
-      	kind:       "Deployment"
-      	spec: {
-      		selector: matchLabels: {
-      			"app.oam.dev/component": context.name
-      		}
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        output: {
+          apiVersion: "apps/v1"
+          kind:       "Deployment"
+          spec: {
+            selector: matchLabels: {
+              "app.oam.dev/component": context.name
+            }
 
-      		template: {
-      			metadata: labels: {
-      				"app.oam.dev/component": context.name
-      			}
+            template: {
+              metadata: labels: {
+                "app.oam.dev/component": context.name
+              }
 
-      			spec: {
-      				containers: [{
-      					name:  context.name
-      					image: parameter.image
+              spec: {
+                containers: [{
+                  name:  context.name
+                  image: parameter.image
 
-      					if parameter["cmd"] != _|_ {
-      						command: parameter.cmd
-      					}
-      				}]
-      			}
-      		}
-      	}
-      }
+                  if parameter["cmd"] != _|_ {
+                    command: parameter.cmd
+                  }
+                }]
+              }
+            }
+          }
+        }
 
-      parameter: {
-      	// +usage=Which image would you like to use for your service
-      	// +short=i
-      	image: string
+        parameter: {
+          // +usage=Which image would you like to use for your service
+          // +short=i
+          image: string
 
-      	cmd?: [...string]
-      }
+          cmd?: [...string]
+        }
 ```
 
 If defined an application as follows
 ```
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: application-sample
@@ -115,7 +118,7 @@ spec:
   components:
     - name: myweb
       type: worker
-      settings:
+      properties:
         image: "busybox"
         cmd:
         - sleep
@@ -145,7 +148,7 @@ spec:
 
 Define a trait Definition that appends service to workload(worker) , as shown below
 ```
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -155,31 +158,32 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  extension:
-    template: |-
-      patch: {spec: template: metadata: labels: app: context.name}
-      outputs: service: {
-        apiVersion: "v1"
-        kind: "Service"
-        metadata: name: context.name
-        spec: {
-          selector:  app: context.name
-          ports: [
-            for k, v in parameter.http {
-              port: v
-              targetPort: v
-            }
-          ]
+  schematic:
+    cue:
+      template: |-
+        patch: {spec: template: metadata: labels: app: context.name}
+        outputs: service: {
+          apiVersion: "v1"
+          kind: "Service"
+          metadata: name: context.name
+          spec: {
+            selector:  app: context.name
+            ports: [
+              for k, v in parameter.http {
+                port: v
+                targetPort: v
+              }
+            ]
+          }
         }
-      }
-      parameter: {
-        http: [string]: int
-      }
+        parameter: {
+          http: [string]: int
+        }
 ```
 
 If add service capability to the application, as follows
 ```
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: application-sample
@@ -187,13 +191,13 @@ spec:
   components:
     - name: myweb
       type: worker
-      settings:
+      properties:
         image: "busybox"
         cmd:
         - sleep
         - "1000"
       traits:
-        - name: kservice
+        - type: kservice
           properties:
             http:
               server: 80
@@ -238,7 +242,7 @@ spec:
 
 Define a trait Definition that scale workload(worker) replicas
 ```
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -248,32 +252,33 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  extension:
-    template: |-
-      patch: {
-         spec: replicas: parameter.replicas
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }
+  schematic:
+    cue:
+      template: |-
+        patch: {
+          spec: replicas: parameter.replicas
+        }
+        parameter: {
+          //+short=r
+          replicas: *1 | int
+        }
 ```
 If add scaler capability to the application, as follows
 ```
   components:
     - name: myweb
       type: worker
-      settings:
+      properties:
         image: "busybox"
         cmd:
         - sleep
         - "1000"
       traits:
-        - name: kservice
+        - type: kservice
           properties:
             http:
               server: 80           
-        - name: scaler
+        - type: scaler
           properties:
             replicas: 10
 ```
@@ -307,7 +312,7 @@ spec:
 
 Define a trait Definition that append containers to workload(worker)
 ```
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -317,22 +322,23 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
-  extension:
-    template: |-
-      patch: {
-         // +patchKey=name
-         spec: template: spec: containers: [parameter]
-      }
-      parameter: {
-         name: string
-         image: string
-         command?: [...string]
-      }
+  schematic:
+    cue:
+      template: |-
+        patch: {
+          // +patchKey=name
+          spec: template: spec: containers: [parameter]
+        }
+        parameter: {
+          name: string
+          image: string
+          command?: [...string]
+        }
 ```
 
 If add sidercar capability to the application, as follows
 ```
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: application-sample
@@ -340,20 +346,20 @@ spec:
   components:
     - name: myweb
       type: worker
-      settings:
+      properties:
         image: "busybox"
         cmd:
         - sleep
         - "1000"
       traits:
-        - name: scaler
+        - type: scaler
           properties:
             replicas: 10
-        - name: sidercar
+        - type: sidecar
           properties:
             name: "sidecar-test"
             image: "nginx"
-        - name: kservice
+        - type: kservice
           properties:
             http:
               server: 80

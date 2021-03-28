@@ -143,12 +143,9 @@ e2e-api-test:
 	ginkgo -v -r e2e/apiserver
 	ginkgo -v -r e2e/application
 
-e2e-rollout-test:
-	ginkgo -v --focus="Cloneset based rollout tests" ./test/e2e-test/
-
 e2e-test:
 	# Run e2e test
-	ginkgo -v --skip="Cloneset based rollout tests" ./test/e2e-test
+	ginkgo -v ./test/e2e-test
 	@$(OK) tests pass
 
 compatibility-test: vet lint staticcheck generate-compatibility-testdata
@@ -277,10 +274,10 @@ KUSTOMIZE_VERSION ?= 3.8.2
 
 .PHONY: kustomize
 kustomize:
-ifeq (, $(shell which kustomize))
+ifeq (, $(shell kustomize version | grep $(KUSTOMIZE_VERSION)))
 	@{ \
 	set -e ;\
-	echo 'installing kustomize-v$(KUSTOMIZE_VERSION)' ;\
+	echo 'installing kustomize-v$(KUSTOMIZE_VERSION) into $(GOBIN)' ;\
 	curl -s https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash -s $(KUSTOMIZE_VERSION) $(GOBIN);\
 	echo 'Install succeed' ;\
 	}

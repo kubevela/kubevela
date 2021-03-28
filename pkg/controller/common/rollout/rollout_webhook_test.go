@@ -110,6 +110,8 @@ func TestMakeHTTPRequest(t *testing.T) {
 		},
 	}
 	for testName, tt := range tests {
+		// deep copy it before going to goroutine
+		tt := tt
 		t.Run(testName, func(t *testing.T) {
 			// generate a test server so we can capture and inspect the request
 			testServer := NewMock(tt.httpParameter.method, tt.httpParameter.statusCode, tt.httpParameter.body)
@@ -119,8 +121,8 @@ func TestMakeHTTPRequest(t *testing.T) {
 			}
 			gotReply, gotCode, gotErr := makeHTTPRequest(ctx, "http://"+tt.url, tt.method, tt.payload)
 			if gotCode != tt.want.statusCode {
-				t.Errorf("\n%s\nr.Reconcile(...): want code `%d`, got code:`%d`\n", testName, tt.want.statusCode,
-					gotCode)
+				t.Errorf("\n%s\nr.Reconcile(...): want code `%d`, got code:`%d` got err: %v \n", testName, tt.want.statusCode,
+					gotCode, gotErr)
 			}
 			if gotCode == -1 {
 				// we don't know exactly what error we should get when the network call failed

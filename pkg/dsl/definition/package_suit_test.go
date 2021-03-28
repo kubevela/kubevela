@@ -20,11 +20,12 @@ import (
 	"context"
 	"time"
 
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/build"
 	"github.com/google/go-cmp/cmp"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -38,7 +39,7 @@ import (
 
 var _ = Describe("Package discovery resources for definition from K8s APIServer", func() {
 
-	PIt("discovery built-in k8s resource", func() {
+	It("discovery built-in k8s resource", func() {
 
 		By("test ingress in kube package")
 		bi := build.NewContext().NewInstance("", nil)
@@ -48,7 +49,6 @@ import (
 	network "k8s.io/networking/v1beta1"
 	kube	"kube/networking.k8s.io/v1beta1"
 )
-
 output: network.#Ingress & kube.#Ingress
 output: {
 	apiVersion: "networking.k8s.io/v1beta1"
@@ -111,7 +111,6 @@ import (
 	"k8s.io/networking/v1"
 	kube	"kube/networking.k8s.io/v1"
 )
-
 output: v1.#Deployment & kube.#Deployment
 output: {
 	metadata: {
@@ -133,7 +132,7 @@ parameter: {
 		Expect(err).Should(BeNil())
 		_, err = model.NewBase(inst.Lookup("output"))
 		Expect(err).ShouldNot(BeNil())
-		Expect(err.Error()).Should(Equal("_|_ // undefined field \"#Deployment\"\n"))
+		Expect(err.Error()).Should(Equal("_|_ // undefined field \"#Deployment\""))
 
 		By("test Deployment in kube package")
 		bi = build.NewContext().NewInstance("", nil)
@@ -143,7 +142,6 @@ import (
 	apps "k8s.io/apps/v1"
 	kube	"kube/apps/v1"
 )
-
 output: apps.#Deployment & kube.#Deployment
 output: {
 	metadata: {
@@ -156,7 +154,6 @@ output: {
 		}]
 	}
 }
-
 parameter: {
 	name:  "myapp"
 	image: "nginx"
@@ -189,7 +186,6 @@ import (
 	"k8s.io/core/v1"
 	kube "kube/v1"
 )
-
 output: v1.#Secret & kube.#Secret
 output: {
 	metadata: {
@@ -197,7 +193,6 @@ output: {
 	}
 	type:"kubevela"
 }
-
 parameter: {
 	name:  "myapp"
 }`)
@@ -221,7 +216,6 @@ import (
 	"k8s.io/core/v1"
 	kube "kube/v1"
 )
-
 output: v1.#Service & kube.#Service
 output: {
 	metadata: {
@@ -229,7 +223,6 @@ output: {
 	}
 	spec: type: "ClusterIP",
 }
-
 parameter: {
 	name:  "myapp"
 }`)
@@ -315,11 +308,10 @@ parameter: {
 			pd.ImportBuiltinPackagesFor(bi)
 			if err := bi.AddFile("-", `
 import (
-	"example.com/v1"
-	"kube/example.com/v1"
+	ev1 "example.com/v1"
+	kv1 "kube/example.com/v1"
 )
-
-output: v1.#Foo
+output: ev1.#Foo & kv1.#Foo
 output: {
 	spec: key: "test1"
     status: key: "test2"

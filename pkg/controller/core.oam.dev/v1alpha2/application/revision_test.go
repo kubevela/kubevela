@@ -266,6 +266,8 @@ var _ = Describe("test generate revision ", func() {
 		Expect(curAC.GetLabels()[oam.LabelAppRevisionHash]).Should(Equal(appHash1))
 		Expect(curAC.Spec.ApplicationRevisionName).Should(Equal(curApp.Status.LatestRevision.Name))
 		Expect(curAC.GetAnnotations()[annoKey1]).ShouldNot(BeEmpty())
+		Expect(curAC.GetAnnotations()[oam.AnnotationInplaceUpgrade]).Should(Equal("true"))
+
 		Expect(metav1.GetControllerOf(curAC)).ShouldNot(BeNil())
 		Expect(metav1.GetControllerOf(curAC).Kind).Should(Equal(v1alpha2.ApplicationKind))
 		By("Apply the application again without any spec change")

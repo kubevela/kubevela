@@ -19,8 +19,6 @@ package controllers_test
 import (
 	"context"
 	"fmt"
-	"math/rand"
-	"strconv"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -42,7 +40,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
-var _ = FDescribe("Cloneset based rollout tests", func() {
+var _ = Describe("Cloneset based rollout tests", func() {
 	ctx := context.Background()
 	var namespaceName, appRolloutName string
 	var ns corev1.Namespace
@@ -236,7 +234,7 @@ var _ = FDescribe("Cloneset based rollout tests", func() {
 
 	BeforeEach(func() {
 		By("Start to run a test, clean up previous resources")
-		namespaceName = "rolling-e2e-test" + "-" + strconv.FormatInt(rand.Int63(), 16)
+		namespaceName = randomNamespaceName("rolling-e2e-test")
 		createNamespace()
 	})
 

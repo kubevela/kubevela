@@ -27,6 +27,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -668,4 +670,181 @@ var _ = Describe("Test appfile parser to parse helm module", func() {
 		Expect(diff).ShouldNot(BeEmpty())
 	})
 
+})
+
+var _ = Describe("Test appfile parser to parse kube module", func() {
+	var (
+		appName  = "test-app"
+		compName = "test-comp"
+	)
+	var testTemplate = func() runtime.RawExtension {
+		yamlStr := `apiVersion: apps/v1
+kind: Deployment
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+      ports:
+      - containerPort: 80 `
+		b, _ := yaml.YAMLToJSON([]byte(yamlStr))
+		return runtime.RawExtension{Raw: b}
+	}
+	var expectWorkload = func() runtime.RawExtension {
+		yamlStr := `apiVersion: apps/v1
+kind: Deployment
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.14.0
+      ports:
+      - containerPort: 80 `
+		b, _ := yaml.YAMLToJSON([]byte(yamlStr))
+		return runtime.RawExtension{Raw: b}
+	}
+	var testAppfile = func() *Appfile {
+		return &Appfile{
+			Name: appName,
+			Workloads: []*Workload{
+				{
+					Name:               compName,
+					Type:               "kube-worker",
+					CapabilityCategory: oamtypes.KubeCategory,
+					Params: map[string]interface{}{
+						"image": "nginx:1.14.0",
+					},
+					engine: definition.NewWorkloadAbstractEngine(compName, pd),
+					Traits: []*Trait{
+						{
+							Name: "scaler",
+							Params: map[string]interface{}{
+								"replicas": float64(10),
+							},
+							engine: definition.NewTraitAbstractEngine("scaler", pd),
+							Template: `
+      outputs: scaler: {
+      	apiVersion: "core.oam.dev/v1alpha2"
+      	kind:       "ManualScalerTrait"
+      	spec: {
+      		replicaCount: parameter.replicas
+      	}
+      }
+      parameter: {
+      	//+short=r
+      	replicas: *1 | int
+      }
+`,
+						},
+					},
+					FullTemplate: &util.Template{
+						Kube: &common.Kube{
+							Template: testTemplate(),
+							Parameters: []common.KubeParameter{
+								{
+									Name:       "image",
+									ValueType:  common.StringType,
+									Required:   pointer.BoolPtr(true),
+									FieldPaths: []string{"spec.template.spec.containers[0].image"},
+								},
+							},
+						},
+					},
+					DefinitionReference: common.WorkloadGVK{
+						APIVersion: "apps/v1",
+						Kind:       "Deployment",
+					},
+				},
+			},
+		}
+
+	}
+
+	manuscaler := util.Object2RawExtension(&unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "core.oam.dev/v1alpha2",
+			"kind":       "ManualScalerTrait",
+			"metadata": map[string]interface{}{
+				"labels": map[string]interface{}{
+					"app.oam.dev/component":  compName,
+					"app.oam.dev/name":       appName,
+					"trait.oam.dev/type":     "scaler",
+					"trait.oam.dev/resource": "scaler",
+				},
+			},
+			"spec": map[string]interface{}{"replicaCount": int64(10)},
+		},
+	})
+
+	It("Test application containing kube module", func() {
+		By("Generate ApplicationConfiguration and Components")
+		ac, components, err := NewApplicationParser(k8sClient, dm, pd).GenerateApplicationConfiguration(testAppfile(), "default")
+		Expect(err).To(BeNil())
+
+		expectAppConfig := &v1alpha2.ApplicationConfiguration{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ApplicationConfiguration",
+				APIVersion: "core.oam.dev/v1alpha2",
+			}, ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: "default",
+				Labels:    map[string]string{oam.LabelAppName: appName},
+			},
+			Spec: v1alpha2.ApplicationConfigurationSpec{
+				Components: []v1alpha2.ApplicationConfigurationComponent{
+					{
+						ComponentName: compName,
+						Traits: []v1alpha2.ComponentTrait{
+							{
+								Trait: manuscaler,
+							},
+						},
+					},
+				},
+			},
+		}
+		expectComponent := &v1alpha2.Component{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Component",
+				APIVersion: "core.oam.dev/v1alpha2",
+			}, ObjectMeta: metav1.ObjectMeta{
+				Name:      compName,
+				Namespace: "default",
+				Labels:    map[string]string{oam.LabelAppName: appName},
+			},
+			Spec: v1alpha2.ComponentSpec{
+				Workload: expectWorkload(),
+			},
+		}
+		By("Verify expected ApplicationConfiguration")
+		diff := cmp.Diff(ac, expectAppConfig)
+		Expect(diff).Should(BeEmpty())
+		By("Verify expected Component")
+		diff = cmp.Diff(components[0], expectComponent)
+		Expect(diff).ShouldNot(BeEmpty())
+	})
+
+	It("Test missing set required parameter", func() {
+		appfile := testAppfile()
+		// remove parameter settings
+		appfile.Workloads[0].Params = nil
+		_, _, err := NewApplicationParser(k8sClient, dm, pd).GenerateApplicationConfiguration(appfile, "default")
+
+		expectError := errors.WithMessage(errors.New(`require parameter "image"`), "cannot resolve parameter settings")
+		diff := cmp.Diff(expectError, err, test.EquateErrors())
+		Expect(diff).Should(BeEmpty())
+	})
 })

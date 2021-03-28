@@ -19,7 +19,9 @@ package controllers_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 
@@ -294,15 +296,25 @@ var _ = AfterSuite(func() {
 	Expect(k8sClient.Delete(context.Background(), &crd)).Should(BeNil())
 })
 
-// reconcileAppConfigNow will trigger an immediate reconciliation on AppConfig.
+// requestReconcileNow will trigger an immediate reconciliation on K8s object.
 // Some test cases may fail for timeout to wait a scheduled reconciliation.
 // This is a workaround to avoid long-time wait before next scheduled
 // reconciliation.
-func reconcileAppConfigNow(ctx context.Context, ac *v1alpha2.ApplicationConfiguration) error {
-	u := ac.DeepCopy()
-	u.SetAnnotations(map[string]string{
+func requestReconcileNow(ctx context.Context, o runtime.Object) {
+	oCopy := o.DeepCopyObject()
+	oMeta, ok := oCopy.(metav1.Object)
+	Expect(ok).Should(BeTrue())
+	oMeta.SetAnnotations(map[string]string{
 		"app.oam.dev/requestreconcile": time.Now().String(),
 	})
-	u.SetResourceVersion("")
-	return k8sClient.Patch(ctx, u, client.Merge)
+	oMeta.SetResourceVersion("")
+	By(fmt.Sprintf("Requset reconcile %q now", oMeta.GetName()))
+	Expect(k8sClient.Patch(ctx, oCopy, client.Merge)).Should(Succeed())
+}
+
+// randomNamespaceName generates a random name based on the basic name.
+// Running each ginkgo case in a new namespace with a random name can avoid
+// waiting a long time to GC namesapce.
+func randomNamespaceName(basic string) string {
+	return fmt.Sprintf("%s-%s", basic, strconv.FormatInt(rand.Int63(), 16))
 }

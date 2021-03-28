@@ -1,0 +1,13 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-e2e
+spec:
+  components:
+    - name: myweb
+      type: worker
+      properties:
+        image: "stefanprodan/podinfo:4.0.3"
+        cmd:
+          - ./podinfo
+          - stress-cpu=1

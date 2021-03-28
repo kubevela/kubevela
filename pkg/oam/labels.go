@@ -59,6 +59,10 @@ const (
 	// the application controller should treat it differently
 	AnnotationAppRollout = "app.oam.dev/rollout-template"
 
+	// AnnotationInplaceUpgrade indicates the workload should upgrade with the the same name
+	// the name of the workload instance should not changing along with the revision
+	AnnotationInplaceUpgrade = "app.oam.dev/inplace-upgrade"
+
 	// AnnotationRollingComponent indicates that the component is rolling out
 	// this is to enable any concerned controllers to handle the first component apply logic differently
 	// the value of the annotation is a list of component name of all the new component

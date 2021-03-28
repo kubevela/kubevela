@@ -26,6 +26,10 @@
   - [Define Components in Chart](/en/helm/component.md)
   - [Attach Traits](/en/helm/trait.md)
   - [Known Limitations](/en/helm/known-issues.md)
+  
+  - Using Raw Kube
+  - [Define Components With Raw K8s](/en/kube/component.md)
+  - [Attach Traits](/en/kube/trait.md)
 
 - Developer Experience Guide
   - Appfile

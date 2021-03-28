@@ -165,7 +165,8 @@ func (pd *PackageDiscover) addKubeCUEPackagesFromCluster(apiSchema string) error
 	packages := make(map[string]*pkgInstance)
 	groupKinds := make(map[string][]VersionKind)
 
-	for k, v := range dgvkMapper {
+	for k := range dgvkMapper {
+		v := dgvkMapper[k]
 		apiVersion := v.APIVersion
 		def := fmt.Sprintf(`
 import "kube"
@@ -175,7 +176,7 @@ kind: "%s"
 apiVersion: "%s",
 }`, v.Kind, k, v.Kind, apiVersion)
 
-		pkgBuild := func(dgvr domainGroupVersionKind, pkgName, fname string) error {
+		pkgBuild := func(pkgName string) error {
 			pkg, ok := packages[pkgName]
 			if !ok {
 				pkg = newPackage(pkgName)
@@ -184,12 +185,12 @@ apiVersion: "%s",
 
 			mykinds := groupKinds[pkgName]
 			mykinds = append(mykinds, VersionKind{
-				APIVersion:     dgvr.APIVersion,
-				Kind:           dgvr.Kind,
-				DefinitionName: "#" + dgvr.Kind,
+				APIVersion:     v.APIVersion,
+				Kind:           v.Kind,
+				DefinitionName: "#" + v.Kind,
 			})
 
-			if err := pkg.AddFile(fname, def); err != nil {
+			if err := pkg.AddFile(v.reverseString(), def); err != nil {
 				return err
 			}
 
@@ -197,10 +198,10 @@ apiVersion: "%s",
 			groupKinds[pkgName] = mykinds
 			return nil
 		}
-		if err := pkgBuild(v, genStandardPkgName(v), k); err != nil {
+		if err := pkgBuild(genStandardPkgName(v)); err != nil {
 			return err
 		}
-		if err := pkgBuild(v, genOpenPkgName(v), k); err != nil {
+		if err := pkgBuild(genOpenPkgName(v)); err != nil {
 			return err
 		}
 	}

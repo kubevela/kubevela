@@ -18,9 +18,9 @@ package application
 
 import (
 	"context"
-	"math/rand"
 	"strconv"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -43,7 +43,7 @@ var _ = Describe("Test Application apply", func() {
 
 	BeforeEach(func() {
 		ctx := context.TODO()
-		namespaceName = "apply-test-" + strconv.Itoa(rand.Intn(1000))
+		namespaceName = "apply-test-" + strconv.Itoa(time.Now().Second()) + "-" + strconv.Itoa(time.Now().Nanosecond())
 		ns = corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: namespaceName,

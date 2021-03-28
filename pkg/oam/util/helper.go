@@ -106,6 +106,9 @@ const (
 	// ComponentDef describe a workload of Defined by ComponentDefinition
 	ComponentDef WorkloadType = "ComponentDef"
 
+	// KubeDef describe a workload refer to raw K8s resource
+	KubeDef WorkloadType = "KubeDef"
+
 	// HELMDef describe a workload refer to HELM
 	HELMDef WorkloadType = "HelmDef"
 

@@ -48,6 +48,9 @@ func (h *handler) CreateWorkloadDefinition(ctx context.Context) (util.WorkloadTy
 	if h.cd.Spec.Schematic != nil && h.cd.Spec.Schematic.HELM != nil {
 		workloadType = util.HELMDef
 	}
+	if h.cd.Spec.Schematic != nil && h.cd.Spec.Schematic.KUBE != nil {
+		workloadType = util.KubeDef
+	}
 
 	wd := new(v1alpha2.WorkloadDefinition)
 	err := h.Get(ctx, client.ObjectKey{Namespace: h.cd.Namespace, Name: workloadName}, wd)
