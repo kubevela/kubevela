@@ -1,5 +1,5 @@
 ---
-title:  Known Limitations and Issues
+title:  Known Limitations
 ---
 
 ## Limitations

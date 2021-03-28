@@ -1,5 +1,5 @@
 ---
-title:  Attach Traits to Raw Template Based Components
+title:  Attach Traits
 ---
 
 In this sample, we will attach two traits,

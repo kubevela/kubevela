@@ -1,5 +1,5 @@
 ---
-title:  Core Concepts of KubeVela
+title:  How it Works
 ---
 
 *"KubeVela is a scalable way to create PaaS-like experience on Kubernetes"*

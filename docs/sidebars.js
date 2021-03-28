@@ -85,11 +85,11 @@ module.exports = {
         },
         {
           'Command Line Tool (CLI)': [
+            'developers/config-enviroments',
             'developers/port-forward',
             'developers/check-logs',
             'developers/exec-cmd',
             'developers/cap-center',
-            'developers/config-enviroments',
             'developers/config-app',
           ]
         },

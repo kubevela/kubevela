@@ -1,5 +1,5 @@
 ---
-title:  The Application Abstraction
+title:  Overview
 ---
 
 This documentation will explain what is `Application` object and why you need it.

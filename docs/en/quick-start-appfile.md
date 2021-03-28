@@ -1,5 +1,5 @@
 ---
-title:  Building Developer Experience with KubeVela
+title:  Overview
 ---
 
 To achieve best user experience for your platform, we recommend platform builders to create simple and user friendly UI for end users instead of exposing full platform level details to them. Some common practices include building GUI console, adopting DSL, or creating a user friendly command line tool.

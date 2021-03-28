@@ -1,5 +1,5 @@
 ---
-title:  Introduction to KubeVela
+title:  Introduction
 slug: / 
 
 ---

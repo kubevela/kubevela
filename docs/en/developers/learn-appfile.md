@@ -1,5 +1,5 @@
 ---
-title:  Appfile
+title:  Learning Appfile
 ---
 
 A sample `Appfile` is as below:

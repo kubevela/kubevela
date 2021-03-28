@@ -1,5 +1,5 @@
 ---
-title:  Defining Components with Raw Template
+title:  How-to
 ---
 
 In this section, it will introduce how to use raw template to declare app components via `ComponentDefinition`.

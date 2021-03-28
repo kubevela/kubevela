@@ -1,5 +1,5 @@
 ---
-title:  Introduction of Definition CRD
+title:  Definition CRD
 ---
 
 This documentation explains how to register and manage available *components* and *traits* in your platform with

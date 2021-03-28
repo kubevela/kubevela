@@ -1,5 +1,5 @@
 ---
-title:  Check Logs of Container
+title:  Check Application Logs
 ---
 
 ```bash
