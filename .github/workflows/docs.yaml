@@ -1,6 +1,6 @@
 name: docs
 on:
-  push:
+  pull_request:
     paths:
       - 'docs/**'
     branches:
