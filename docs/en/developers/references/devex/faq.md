@@ -1,4 +1,6 @@
-# FAQ
+---
+title:  FAQ
+---
 
 - [Compare to X](#Compare-to-X)
   * [What is the difference between KubeVela and Helm?](#What-is-the-difference-between-KubeVela-and-Helm?)
@@ -299,4 +301,4 @@ $ minikube addons enable metrics-server
 ```
 
 
-Have fun to [set autoscale](../../extensions/set-autoscale.md) on your application.
+Have fun to [set autoscale](../../extensions/set-autoscale) on your application.

@@ -1,4 +1,9 @@
-# Install KubeVela
+---
+title:  Installation
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
 ## 1. Setup Kubernetes cluster
 
@@ -10,10 +15,14 @@ If you don't have K8s cluster from Cloud Provider, you may pick either Minikube 
 
 > NOTE: If you are not using minikube or kind, please make sure to [install or enable ingress-nginx](https://kubernetes.github.io/ingress-nginx/deploy/) by yourself.
 
-<!-- tabs:start -->
-
-#### **Minikube**
-
+<Tabs
+className="unique-tabs"
+defaultValue="minikube"
+values={[
+{label: 'Minikube', value: 'minikube'},
+{label: 'KinD', value: 'kind'},
+]}>
+<TabItem value="minikube">
 Follow the minikube [installation guide](https://minikube.sigs.k8s.io/docs/start/).
 
 Once minikube is installed, create a cluster:
@@ -28,7 +37,8 @@ Install ingress:
 minikube addons enable ingress
 ``` 
 
-#### **KinD**
+  </TabItem>
+  <TabItem value="kind">
 
 Follow [this guide](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) to install kind.
 
@@ -61,7 +71,9 @@ Then install [ingress for kind](https://kind.sigs.k8s.io/docs/user/ingress/#ingr
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/static/provider/kind/deploy.yaml
 ```
 
-<!-- tabs:end -->
+  </TabItem>
+</Tabs>
+
 
 ## 2. Install KubeVela Controller
 
@@ -156,11 +168,17 @@ $ helm install --create-namespace -n flux-system helm-flux http://oam.dev/catalo
 
 Here are three ways to get KubeVela Cli:
 
-<!-- tabs:start -->
+<Tabs
+    className="unique-tabs"
+    defaultValue="script"
+    values={[
+        {label: 'Script', value: 'script'},
+        {label: 'Homebrew', value: 'homebrew'},
+        {label: 'Download directly from releases', value: 'download'},
+    ]}>
+<TabItem value="script">
 
-#### **Script**
-
-**macOS/Linux**
+** macOS/Linux **
 
 ```shell script
 curl -fsSl https://kubevela.io/install.sh | bash
@@ -171,13 +189,15 @@ curl -fsSl https://kubevela.io/install.sh | bash
 ```shell script
 powershell -Command "iwr -useb https://kubevela.io/install.ps1 | iex"
 ```
-#### **Homebrew**
+</TabItem>
+<TabItem value="homebrew">
+
 **macOS/Linux**
 ```shell script
 brew install kubevela
 ```
-
-#### **Download directly from releases**
+</TabItem>
+<TabItem value="download">
 
 - Download the latest `vela` binary from the [releases page](https://github.com/oam-dev/kubevela/releases).
 - Unpack the `vela` binary and add it to `$PATH` to get started.
@@ -192,7 +212,8 @@ sudo mv ./vela /usr/local/bin/vela
 > The new version of MacOS is stricter about running software you've downloaded that isn't signed with an Apple developer key. And we haven't supported that for KubeVela yet.  
 > You can open your 'System Preference' -> 'Security & Privacy' -> General, click the 'Allow Anyway' to temporarily fix it.
 
-<!-- tabs:end -->
+</TabItem>
+</Tabs>
 
 ## 5. (Optional) Sync Capability from Cluster
 

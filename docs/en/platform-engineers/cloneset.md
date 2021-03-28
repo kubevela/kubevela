@@ -1,4 +1,6 @@
-## Extend CRD Operator as Component Type
+---
+title:  Extend CRD Operator as Component Type
+---
 
 Let's use [OpenKruise](https://github.com/openkruise/kruise) as example of extend CRD as KubeVela Component.
 **The mechanism works for all CRD Operators**.

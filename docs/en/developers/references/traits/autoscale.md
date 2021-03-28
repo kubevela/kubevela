@@ -1,4 +1,6 @@
-# Autoscale
+---
+title:  Autoscale
+---
 
 ## Description
 

@@ -1,8 +1,10 @@
-# Defining Components with CUE
+---
+title:  How-to
+---
 
 In this section, it will introduce how to use [CUE](https://cuelang.org/) to declare app components via `ComponentDefinition`.
 
-> Before reading this part, please make sure you've learned the [Definition CRD](../platform-engineers/definition-and-templates.md) in KubeVela.
+> Before reading this part, please make sure you've learned the [Definition CRD](../platform-engineers/definition-and-templates) in KubeVela.
 
 ## Declare `ComponentDefinition`
 
@@ -208,7 +210,7 @@ output: {
 
 It's common that a component definition is composed by multiple API resources, for example, a `webserver` component that is composed by a Deployment and a Service. CUE is a great solution to achieve this in simplified primitives.
 
-> Another approach to do composition in KubeVela of course is [using Helm](/en/helm/component.md).
+> Another approach to do composition in KubeVela of course is [using Helm](/docs/helm/component).
 
 ## How-to
 
@@ -352,4 +354,4 @@ hello-world-trait-7bdcff98f7   ClusterIP   <your ip>       <none>        8000/TC
 
 ## What's Next
 
-Please check the [Learning CUE](./basic.md) documentation about why we support CUE as first-class templating solution and more details about using CUE efficiently.
+Please check the [Learning CUE](./basic) documentation about why we support CUE as first-class templating solution and more details about using CUE efficiently.

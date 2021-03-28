@@ -1,4 +1,6 @@
-# Introduction of Application CRD
+---
+title:  Application CRD
+---
 
 This documentation will walk through how to use `Application` object to define your apps with corresponding operational behaviors in declarative approach.
 

@@ -1,4 +1,6 @@
-# Learning CUE
+---
+title:  Learning CUE
+---
 
 This document will explain more about how to use CUE to encapsulate and abstract a given capability in Kubernetes in detail.
 

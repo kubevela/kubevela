@@ -1,4 +1,6 @@
-# Introduction of Definition CRD
+---
+title:  Definition CRD
+---
 
 This documentation explains how to register and manage available *components* and *traits* in your platform with
 `ComponentDefinition` and `TraitDefinition`, so end users could instantiate and "assemble" them into an `Application`.
@@ -225,4 +227,4 @@ spec:
 
 The specification of `schematic` is explained in following CUE and Helm specific documentations.
 
-Also, the `schematic` filed enables you to render UI forms directly based on them, please check the [Generate Forms from Definitions](/en/platform-engineers/openapi-v3-json-schema.md) section about how to.
+Also, the `schematic` filed enables you to render UI forms directly based on them, please check the [Generate Forms from Definitions](/docs/platform-engineers/openapi-v3-json-schema) section about how to.

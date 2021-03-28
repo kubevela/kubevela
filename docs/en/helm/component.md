@@ -1,12 +1,14 @@
-# Defining Components with Helm
+---
+title:  How-to
+---
 
 In this section, it will introduce how to declare Helm charts as app components via `ComponentDefinition`.
 
-> Before reading this part, please make sure you've learned [the definition and template concepts](../platform-engineers/definition-and-templates.md).
+> Before reading this part, please make sure you've learned [the definition and template concepts](../platform-engineers/definition-and-templates).
 
 ## Prerequisite
 
-* [fluxcd/flux2](../install.md#3-optional-install-flux2), make sure you have installed the flux2 in the [installation guide](https://kubevela.io/#/en/install).
+* [fluxcd/flux2](../install#3-optional-install-flux2), make sure you have installed the flux2 in the [installation guide](/docs/install).
 
 ## Declare `ComponentDefinition`
 
@@ -36,7 +38,7 @@ spec:
 ```
 
 In detail:
-- `.spec.workload` is required to indicate the workload type of this Helm based component. Please also check for [Known Limitations](/en/helm/known-issues?id=workload-type-indicator) if you have multiple workloads packaged in one chart.
+- `.spec.workload` is required to indicate the workload type of this Helm based component. Please also check for [Known Limitations](/docs/helm/known-issues?id=workload-type-indicator) if you have multiple workloads packaged in one chart.
 - `.spec.schematic.helm` contains information of Helm `release` and `repository` which leverages `fluxcd/flux2`.
   - i.e. the pec of `release` aligns with [`HelmReleaseSpec`](https://github.com/fluxcd/helm-controller/blob/main/docs/api/helmrelease.md) and spec of `repository` aligns with [`HelmRepositorySpec`](https://github.com/fluxcd/source-controller/blob/main/docs/api/source.md#source.toolkit.fluxcd.io/v1beta1.HelmRepository).
 
@@ -84,4 +86,4 @@ $ kubectl get deployment myapp-demo-podinfo -o json | jq '.spec.template.spec.co
 
 KubeVela will automatically generate OpenAPI v3 JSON schema based on [`values.schema.json`](https://helm.sh/docs/topics/charts/#schema-files) in the Helm chart, and store it in a `ConfigMap` in the same `namespace` with the definition object. Furthermore, if `values.schema.json` is not provided by the chart author, KubeVela will generate OpenAPI v3 JSON schema based on its `values.yaml` file automatically. 
 
-Please check the [Generate Forms from Definitions](/en/platform-engineers/openapi-v3-json-schema.md) guide for more detail of using this schema to render GUI forms. 
+Please check the [Generate Forms from Definitions](/docs/platform-engineers/openapi-v3-json-schema) guide for more detail of using this schema to render GUI forms. 

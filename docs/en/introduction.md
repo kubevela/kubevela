@@ -1,4 +1,8 @@
-# Introduction to KubeVela
+---
+title:  Introduction
+slug: / 
+
+---
 
 ![alt](../resources/KubeVela-01.png)
 
@@ -62,4 +66,4 @@ KubeVela is a Kubernetes plugin for building upper layer platforms. It leverages
 
 ## Getting Started
 
-[Install KubeVela](./install.md) into any Kubernetes cluster to get started.
+[Install KubeVela](./install) into any Kubernetes cluster to get started.

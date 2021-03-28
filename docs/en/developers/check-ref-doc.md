@@ -1,4 +1,6 @@
-# The Reference Documentation Guide of Capabilities
+---
+title:  The Reference Documentation Guide of Capabilities
+---
 
 In this documentation, we will show how to check the detailed schema of a given capability (i.e. workload type or trait). 
 

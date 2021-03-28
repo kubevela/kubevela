@@ -1,4 +1,6 @@
-# Attach Traits to Helm Based Components
+---
+title:  Attach Traits
+---
 
 Traits in KubeVela can be attached to Helm based component seamlessly.
 

@@ -1,4 +1,6 @@
-# Attach Traits to Raw Template Based Components
+---
+title:  Attach Traits
+---
 
 In this sample, we will attach two traits,
 [scaler](https://github.com/oam-dev/kubevela/blob/master/charts/vela-core/templates/defwithtemplate/manualscale.yaml)

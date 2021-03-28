@@ -1,4 +1,6 @@
-# Define resources located in defferent namespace with application
+---
+title:  Define resources located in defferent namespace with application
+---
 
 In this section, we will introduce how to use cue template create resources (workload/trait) in different namespace with the application.
 

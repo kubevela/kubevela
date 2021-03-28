@@ -1,4 +1,6 @@
-# Advanced Features
+---
+title:  Advanced Features
+---
 
 As a Data Configuration Language, CUE allows you to do some advanced templating magic in definition objects.
 

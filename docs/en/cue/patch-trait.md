@@ -1,4 +1,6 @@
-# Patch Trait
+---
+title:  Patch Traits
+---
 
 **Patch** is a very common pattern of trait definitions, i.e. the app operators can amend/path attributes to the component instance (normally the workload) to enable certain operational features such as sidecar or node affinity rules (and this should be done **before** the resources applied to target cluster).
 
