@@ -49,6 +49,7 @@ import (
 const (
 	appDeploymentFinalizer = "finalizers.appdeployment.oam.dev"
 	reconcileTimeOut       = 60 * time.Second
+	secretKeyConfig        = "config"
 )
 
 var (
@@ -198,14 +199,14 @@ func (r *Reconciler) getClientForCluster(ctx context.Context, cluster, ns string
 	if err := r.Client.Get(ctx, key, secret); err != nil {
 		return nil, err
 	}
-	return clustermanager.GetClient(secret.Data["config"])
+	return clustermanager.GetClient(secret.Data[secretKeyConfig])
 }
 
 func (r *Reconciler) deleteRevisions(ctx context.Context, appd *oamcore.AppDeployment, revisions []*revision) (err error) {
 	for _, rev := range revisions {
 		klog.InfoS("delete revision", "revision", rev.RevisionName, "cluster", rev.ClusterName)
 
-		workloads, err := r.getWorkloadsForRevision(ctx, rev.RevisionName, appd.Namespace)
+		workloads, err := r.getWorkloadsFromRevision(ctx, rev.RevisionName, appd.Namespace)
 		if err != nil {
 			return err
 		}
@@ -221,11 +222,11 @@ func (r *Reconciler) deleteRevisions(ctx context.Context, appd *oamcore.AppDeplo
 		}
 
 		for _, wl := range workloads {
-			if err := kubecli.Delete(ctx, wl.Object); err != nil {
+			if err := kubecli.Delete(ctx, wl.Object); err != nil && !apierrors.IsNotFound(err) {
 				return err
 			}
 			for _, tr := range wl.traits {
-				if err := kubecli.Delete(ctx, tr.Object); err != nil {
+				if err := kubecli.Delete(ctx, tr.Object); err != nil && !apierrors.IsNotFound(err) {
 					return err
 				}
 			}
@@ -243,7 +244,7 @@ func (r *Reconciler) applyRevisions(ctx context.Context, appd *oamcore.AppDeploy
 	for _, rev := range revisions {
 		klog.InfoS("apply revision", "revision", rev.RevisionName, "cluster", rev.ClusterName)
 
-		workloads, err := r.getWorkloadsForRevision(ctx, rev.RevisionName, appd.Namespace)
+		workloads, err := r.getWorkloadsFromRevision(ctx, rev.RevisionName, appd.Namespace)
 		if err != nil {
 			return err
 		}
@@ -301,7 +302,7 @@ func (r *Reconciler) getCluster(ctx context.Context, name, ns string) (*oamcore.
 	return &obj, nil
 }
 
-func (r *Reconciler) getWorkloadsForRevision(ctx context.Context, revName, ns string) ([]*workload, error) {
+func (r *Reconciler) getWorkloadsFromRevision(ctx context.Context, revName, ns string) ([]*workload, error) {
 	var appRev oamcore.ApplicationRevision
 	key := client.ObjectKey{
 		Name:      revName,
@@ -441,7 +442,12 @@ func (r *Reconciler) calculateDiff(appd *oamcore.AppDeployment) *revisionsDiff {
 
 // UpdateStatus updates AppDeployment's Status with retry.RetryOnConflict
 func (r *Reconciler) updateStatus(ctx context.Context, appd *oamcore.AppDeployment, opts ...client.UpdateOption) error {
+	status := appd.DeepCopy().Status
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+		if err = r.Client.Get(ctx, client.ObjectKey{Namespace: appd.Namespace, Name: appd.Name}, appd); err != nil {
+			return
+		}
+		appd.Status = status
 		return r.Client.Status().Update(ctx, appd, opts...)
 	})
 }
@@ -551,11 +557,7 @@ func removeString(slice []string, s string) (result []string) {
 }
 
 // Setup adds a controller that reconciles AppDeployment.
-func Setup(mgr ctrl.Manager, _ controller.Args, _ logging.Logger) error {
-	dm, err := discoverymapper.New(mgr.GetConfig())
-	if err != nil {
-		return fmt.Errorf("create discovery dm fail %w", err)
-	}
-	r := NewReconciler(mgr.GetClient(), mgr.GetScheme(), dm)
+func Setup(mgr ctrl.Manager, args controller.Args, _ logging.Logger) error {
+	r := NewReconciler(mgr.GetClient(), mgr.GetScheme(), args.DiscoveryMapper)
 	return r.SetupWithManager(mgr)
 }

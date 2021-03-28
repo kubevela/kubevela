@@ -107,68 +107,67 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 		UID:        h.app.UID,
 		Controller: pointer.BoolPtr(true),
 	}}
-	isRevisionOnly := ac.Annotations[oam.AnnotationAppRevisionOnly] == "true"
-	// don't create components if revision-only annotation is set
-	if !isRevisionOnly {
-		for _, comp := range comps {
-			comp.SetOwnerReferences(owners)
-			newComp := comp.DeepCopy()
-			// newComp will be updated and return the revision name instead of the component name
-			revisionName, err := h.createOrUpdateComponent(ctx, newComp)
-			if err != nil {
-				return err
+
+	// don't create components and AC if revision-only annotation is set
+	if ac.Annotations[oam.AnnotationAppRevisionOnly] == "true" {
+		return h.createOrUpdateAppRevision(ctx, appRev)
+	}
+
+	for _, comp := range comps {
+		comp.SetOwnerReferences(owners)
+		newComp := comp.DeepCopy()
+		// newComp will be updated and return the revision name instead of the component name
+		revisionName, err := h.createOrUpdateComponent(ctx, newComp)
+		if err != nil {
+			return err
+		}
+		// find the ACC that contains this component
+		for i := 0; i < len(ac.Spec.Components); i++ {
+			// update the AC using the component revision instead of component name
+			// we have to make AC immutable including the component it's pointing to
+			if ac.Spec.Components[i].ComponentName == newComp.Name {
+				ac.Spec.Components[i].RevisionName = revisionName
+				ac.Spec.Components[i].ComponentName = ""
 			}
-			// find the ACC that contains this component
-			for i := 0; i < len(ac.Spec.Components); i++ {
-				// update the AC using the component revision instead of component name
-				// we have to make AC immutable including the component it's pointing to
-				if ac.Spec.Components[i].ComponentName == newComp.Name {
-					ac.Spec.Components[i].RevisionName = revisionName
-					ac.Spec.Components[i].ComponentName = ""
-				}
-			}
-			if comp.Spec.Helm != nil {
-				// TODO(wonderflow): do we still need to apply helm resource if the spec has no difference?
-				if err = h.applyHelmModuleResources(ctx, comp, owners); err != nil {
-					return errors.Wrap(err, "cannot apply Helm module resources")
-				}
+		}
+		if comp.Spec.Helm != nil {
+			// TODO(wonderflow): do we still need to apply helm resource if the spec has no difference?
+			if err = h.applyHelmModuleResources(ctx, comp, owners); err != nil {
+				return errors.Wrap(err, "cannot apply Helm module resources")
 			}
 		}
 	}
 	ac.SetOwnerReferences(owners)
 	h.FinalizeAppRevision(appRev, ac, comps)
 
-	var err error
+	if err := h.createOrUpdateAppRevision(ctx, appRev); err != nil {
+		return err
+	}
+
+	// the rollout will create AppContext which will launch the real K8s resources.
+	// Otherwise, we should create/update the appContext here when there if no rollout controller to take care of new versions
+	// In this case, the workload should update with the annotation `app.oam.dev/inplace-upgrade=true`
+	if _, exist := h.app.GetAnnotations()[oam.AnnotationAppRollout]; !exist && h.app.Spec.RolloutPlan == nil {
+		h.setInplace(true)
+		return h.createOrUpdateAppContext(ctx, owners)
+	}
+	h.setInplace(false)
+
+	return nil
+}
+
+func (h *appHandler) createOrUpdateAppRevision(ctx context.Context, appRev *v1beta1.ApplicationRevision) error {
 	if h.isNewRevision {
 		var revisionNum int64
 		appRev.Name, revisionNum = utils.GetAppNextRevision(h.app)
 		// only new revision update the status
-		if err = h.UpdateRevisionStatus(ctx, appRev.Name, h.revisionHash, revisionNum); err != nil {
+		if err := h.UpdateRevisionStatus(ctx, appRev.Name, h.revisionHash, revisionNum); err != nil {
 			return err
 		}
-		if err = h.r.Create(ctx, appRev); err != nil {
-			return err
-		}
-	} else {
-		err = h.r.Update(ctx, appRev)
-		if err != nil {
-			return err
-		}
+		return h.r.Create(ctx, appRev)
 	}
 
-	// don't create appContext if revision-only annotation is set
-	if !isRevisionOnly {
-		// the rollout will create AppContext which will launch the real K8s resources.
-		// Otherwise, we should create/update the appContext here when there if no rollout controller to take care of new versions
-		// In this case, the workload should update with the annotation `app.oam.dev/inplace-upgrade=true`
-		if _, exist := h.app.GetAnnotations()[oam.AnnotationAppRollout]; !exist && h.app.Spec.RolloutPlan == nil {
-			h.setInplace(true)
-			return h.createOrUpdateAppContext(ctx, owners)
-		}
-		h.setInplace(false)
-	}
-
-	return nil
+	return h.r.Update(ctx, appRev)
 }
 
 func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]common.ApplicationComponentStatus, bool, error) {
