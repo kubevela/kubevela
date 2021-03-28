@@ -1,0 +1,21 @@
+name: docs
+on:
+  push:
+    paths:
+      - 'docs/**'
+    branches:
+      - master
+      - release-*
+jobs:
+  website:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Sync to kubevela.io Repo
+        uses: wonderflow/auto-docs-action@v0.2.3
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.GH_PAGES_DEPLOY }}
+          VERSION: ${{ github.ref }}
+          COMMIT_ID: ${{ github.sha }}
+        with:
+          gh-page: git@github.com:oam-dev/kubevela.io.git
