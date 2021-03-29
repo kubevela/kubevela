@@ -90,7 +90,7 @@
    $ kubectl apply -f appdeployment-2-traffic.yaml
    ```
 
-   Note that for traffic split to work, your must have the following labels set in pods (This is automatically set in default `webservice` workload template):
+   Note that for traffic split to work, your must have the following labels set in pods (This is automatically set by KubeVela Revision Mechanism):
 
    ```shell
    "app.oam.dev/component": "testsvc"
