@@ -343,7 +343,7 @@ func getCommonLabels(contextLabels map[string]string) map[string]string {
 		case process.ContextName:
 			commonLabels[oam.LabelAppComponent] = v
 		case process.ContextAppRevision:
-			// TODO(wonderflow): do we need to add appRevision into common labels ? Actually it's appConfig name in our current design.
+			commonLabels[oam.LabelAppRevision] = v
 		}
 	}
 	return commonLabels
