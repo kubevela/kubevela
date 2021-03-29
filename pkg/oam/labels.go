@@ -23,6 +23,8 @@ const (
 	LabelAppName = "app.oam.dev/name"
 	// LabelAppRevision records the name of Application, it's equal to name of AppConfig created by Application
 	LabelAppRevision = "app.oam.dev/appRevision"
+	// LabelAppDeployment records the name of AppDeployment.
+	LabelAppDeployment = "app.oam.dev/appDeployment"
 	// LabelAppComponent records the name of Component
 	LabelAppComponent = "app.oam.dev/component"
 	// LabelAppComponentRevision records the revision name of Component

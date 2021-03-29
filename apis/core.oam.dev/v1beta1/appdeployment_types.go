@@ -157,7 +157,7 @@ type PlacementStatus struct {
 type AppDeploymentSpec struct {
 
 	// Traffic defines the traffic rules to apply across revisions.
-	Traffic Traffic `json:"traffic,omitempty"`
+	Traffic *Traffic `json:"traffic,omitempty"`
 
 	// AppRevision specifies  AppRevision resources to and the rules to apply to them.
 	AppRevisions []AppRevision `json:"appRevisions,omitempty"`

@@ -107,6 +107,12 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 		UID:        h.app.UID,
 		Controller: pointer.BoolPtr(true),
 	}}
+
+	// don't create components and AC if revision-only annotation is set
+	if ac.Annotations[oam.AnnotationAppRevisionOnly] == "true" {
+		return h.createOrUpdateAppRevision(ctx, appRev)
+	}
+
 	for _, comp := range comps {
 		comp.SetOwnerReferences(owners)
 		newComp := comp.DeepCopy()
@@ -134,22 +140,8 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 	ac.SetOwnerReferences(owners)
 	h.FinalizeAppRevision(appRev, ac, comps)
 
-	var err error
-	if h.isNewRevision {
-		var revisionNum int64
-		appRev.Name, revisionNum = utils.GetAppNextRevision(h.app)
-		// only new revision update the status
-		if err = h.UpdateRevisionStatus(ctx, appRev.Name, h.revisionHash, revisionNum); err != nil {
-			return err
-		}
-		if err = h.r.Create(ctx, appRev); err != nil {
-			return err
-		}
-	} else {
-		err = h.r.Update(ctx, appRev)
-		if err != nil {
-			return err
-		}
+	if err := h.createOrUpdateAppRevision(ctx, appRev); err != nil {
+		return err
 	}
 
 	// the rollout will create AppContext which will launch the real K8s resources.
@@ -160,7 +152,22 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 		return h.createOrUpdateAppContext(ctx, owners)
 	}
 	h.setInplace(false)
+
 	return nil
+}
+
+func (h *appHandler) createOrUpdateAppRevision(ctx context.Context, appRev *v1beta1.ApplicationRevision) error {
+	if h.isNewRevision {
+		var revisionNum int64
+		appRev.Name, revisionNum = utils.GetAppNextRevision(h.app)
+		// only new revision update the status
+		if err := h.UpdateRevisionStatus(ctx, appRev.Name, h.revisionHash, revisionNum); err != nil {
+			return err
+		}
+		return h.r.Create(ctx, appRev)
+	}
+
+	return h.r.Update(ctx, appRev)
 }
 
 func (h *appHandler) statusAggregate(appfile *appfile.Appfile) ([]common.ApplicationComponentStatus, bool, error) {

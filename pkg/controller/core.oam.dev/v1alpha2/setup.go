@@ -21,6 +21,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/appdeployment"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationcontext"
@@ -36,7 +37,7 @@ import (
 func Setup(mgr ctrl.Manager, args controller.Args, l logging.Logger) error {
 	for _, setup := range []func(ctrl.Manager, controller.Args, logging.Logger) error{
 		containerizedworkload.Setup, manualscalertrait.Setup, healthscope.Setup,
-		application.Setup, applicationrollout.Setup, applicationcontext.Setup,
+		application.Setup, applicationrollout.Setup, applicationcontext.Setup, appdeployment.Setup,
 		traitdefinition.Setup, componentdefinition.Setup,
 	} {
 		if err := setup(mgr, args, l); err != nil {

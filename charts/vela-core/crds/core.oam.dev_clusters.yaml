@@ -15,7 +15,7 @@ spec:
     singular: cluster
   scope: Namespaced
   versions:
-  - name: v1alpha2
+  - name: v1beta1
     schema:
       openAPIV3Schema:
         description: Cluster is the Schema for the clusters API
