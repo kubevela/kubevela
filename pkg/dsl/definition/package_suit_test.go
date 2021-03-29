@@ -40,7 +40,7 @@ import (
 
 var _ = Describe("Package discovery resources for definition from K8s APIServer", func() {
 
-	PIt("discovery built-in k8s resource", func() {
+	It("discovery built-in k8s resource", func() {
 
 		By("test ingress in kube package")
 		bi := build.NewContext().NewInstance("", nil)
@@ -313,7 +313,7 @@ parameter: {
 				return errors.New("crd(example.com/v1.Foo) not register to openAPI")
 			}
 			return nil
-		}, time.Second*10, time.Millisecond*300).Should(BeNil())
+		}, time.Second*30, time.Millisecond*300).Should(BeNil())
 
 		bi = build.NewContext().NewInstance("", nil)
 		pd.ImportBuiltinPackagesFor(bi)
