@@ -22,7 +22,7 @@ The reasons for KubeVela supports CUE as a first-class solution to design abstra
 
 Please make sure below CLIs are present in your environment:
 * [`cue` >=v0.2.2](https://cuelang.org/docs/install/)
-* [`vela` (>v1.0.0)](https://kubevela.io/#/en/install?id=_3-optional-get-kubevela-cli)
+* [`vela` (>v1.0.0)](../install#4-optional-get-kubevela-cli)
 
 ## CUE CLI Basic
 
