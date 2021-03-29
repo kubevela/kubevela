@@ -7,7 +7,7 @@ on:
       - master
       - release-*
 jobs:
-  check-docs:
+  format-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
