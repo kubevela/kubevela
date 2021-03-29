@@ -75,7 +75,8 @@ metadata:
   labels:
     usage: production
 spec:
-  kubeconfig: ...
+  kubeconfigSecretRef:
+    name: kubeconfig-cluster-1
 ```
 
 ## Technical details
