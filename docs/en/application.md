@@ -180,7 +180,6 @@ After the `Application` resource is applied to Kubernetes cluster, the KubeVela 
 > TBD: the revision names and labels for resource instances are currently work in progress.
 
 ## Run Application
-Please should make sure those workloads and traits definition installed already.
 
 
 Apply application yaml above, then you'll get the application started
