@@ -136,6 +136,31 @@ spec:
         	cpuUtil: *50 | int
         }
 ```
+The application also have a sidecar trait.
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "add sidecar to the app"
+  name: sidecar
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  schematic:
+    cue:
+      template: |-
+        patch: {
+           // +patchKey=name
+           spec: template: spec: containers: [parameter]
+        }
+        parameter: {
+           name: string
+           image: string
+           command?: [...string]
+        }
+```
 
 All the definition objects are expected to be defined and installed by platform team. The end users will only focus on `Application` resource.
 
@@ -154,4 +179,46 @@ After the `Application` resource is applied to Kubernetes cluster, the KubeVela 
 
 > TBD: the revision names and labels for resource instances are currently work in progress.
 
-> TBD: a demo for kubectl apply above Application CR and show full detailed underlying resources.
+## Run Application
+Please should make sure those workloads and traits definition installed already.
+
+
+Apply application yaml above, then you'll get the application started
+```shell
+$ kubectl get application -o yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+ name: website
+....
+status:
+  components:
+  - apiVersion: core.oam.dev/v1alpha2
+    kind: Component
+    name: backend
+  - apiVersion: core.oam.dev/v1alpha2
+    kind: Component
+    name: frontend
+....
+  status: running
+
+```
+
+Check the status of frontend workload. The fluentd container has been injected into the pod 
+```shell
+$ kubectl get deploy frontend
+NAME       READY   UP-TO-DATE   AVAILABLE   AGE
+frontend   1/1     1            1           100m
+```
+Check the status of backend workload
+```shell
+$ kubectl get deploy backend
+NAME      READY   UP-TO-DATE   AVAILABLE   AGE
+backend   1/1     1            1           100m
+```
+Check the status of HPA 
+```shell
+$ kubectl get HorizontalPodAutoscaler frontend
+NAME       REFERENCE             TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
+frontend   Deployment/frontend   <unknown>/50%   1         10        1          101m
+```
