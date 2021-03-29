@@ -4,7 +4,7 @@ module.exports = {
   tagline: 'Make shipping applications more enjoyable.',
   url: 'https://kubevela.io',
   baseUrl: '/',
-  onBrokenLinks: 'warn',
+  onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
   favicon: 'img/favicon.ico',
   organizationName: 'oam-dev', // Usually your GitHub org/user name.
