@@ -1,5 +1,5 @@
 ---
-title: AppDeployment Tutorial
+title: Multi-Revision, Multi-Cluster Deploy
 ---
 
 The files needed for the tutorial are in [`docs/examples/appdeployment`](https://github.com/oam-dev/kubevela/tree/master/docs/examples/appdeployment), 

@@ -18,6 +18,14 @@ module.exports = {
     },
     {
       type: 'category',
+      label: 'Progressive Rollout',
+      items:[
+        "rollout/appdeploy",
+        "rollout/rollout"
+      ]
+    },
+    {
+      type: 'category',
       label: 'Platform Builder Guide',
       items: [
         {
@@ -69,12 +77,6 @@ module.exports = {
                   'platform-engineers/keda'
               ]
             }
-          ]
-        },
-        {
-          "Progressive Rollout":[
-              "rollout/appdeploy",
-              "rollout/rollout"
           ]
         }
       ],
