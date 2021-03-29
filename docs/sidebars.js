@@ -72,6 +72,11 @@ module.exports = {
               ]
             },
             {
+              'Defining Cloud Service': [
+                'platform-engineers/cloud-services',
+              ]
+            },
+            {
               'Hands-on Lab': [
                   'platform-engineers/debug-test-cue',
                   'platform-engineers/keda'
