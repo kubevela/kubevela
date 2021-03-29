@@ -145,7 +145,7 @@ e2e-api-test:
 
 e2e-test:
 	# Run e2e test
-	ginkgo -v ./test/e2e-test
+	ginkgo -v -focus "Test app created normally" ./test/e2e-test
 	@$(OK) tests pass
 
 compatibility-test: vet lint staticcheck generate-compatibility-testdata
