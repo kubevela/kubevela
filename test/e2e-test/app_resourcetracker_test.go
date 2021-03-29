@@ -486,7 +486,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("failed generate same namespace workload")
 			}
 			sameDeplpoy := same.Items[0]
-			if len(sameDeplpoy.OwnerReferences) != 1 || sameDeplpoy.OwnerReferences[0].Kind != v1alpha2.ApplicationConfigurationKind {
+			if len(sameDeplpoy.OwnerReferences) != 1 || sameDeplpoy.OwnerReferences[0].Kind != v1beta1.ApplicationKind {
 				return fmt.Errorf("same ns deploy have error ownerReference")
 			}
 			err = k8sClient.List(ctx, cross, crossOpts...)
@@ -539,7 +539,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 				return fmt.Errorf("failed generate same namespace workload")
 			}
 			sameDeplpoy := same.Items[0]
-			if len(sameDeplpoy.OwnerReferences) != 1 || sameDeplpoy.OwnerReferences[0].Kind != v1alpha2.ApplicationConfigurationKind {
+			if len(sameDeplpoy.OwnerReferences) != 1 || sameDeplpoy.OwnerReferences[0].Kind != v1beta1.ApplicationKind {
 				return fmt.Errorf("same ns deploy have error ownerReference")
 			}
 			err = k8sClient.List(ctx, cross, crossOpts...)
