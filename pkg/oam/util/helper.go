@@ -27,6 +27,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-logr/logr"
@@ -132,25 +134,37 @@ type ConditionedObject interface {
 
 // LocateParentAppConfig locate the parent application configuration object
 func LocateParentAppConfig(ctx context.Context, client client.Client, oamObject oam.Object) (oam.Object, error) {
-	var acName string
-	var eventObj = &v1alpha2.ApplicationConfiguration{}
+
 	// locate the appConf name from the owner list
 	for _, o := range oamObject.GetOwnerReferences() {
-		// TODO(wonderflow): this function maybe not work in the case AC was created by Application and the Application is the ownerRef here.
 		if o.Kind == v1alpha2.ApplicationConfigurationKind {
-			acName = o.Name
-			break
+			var eventObj = &v1alpha2.ApplicationConfiguration{}
+			acName := o.Name
+			if len(acName) > 0 {
+				nn := types.NamespacedName{
+					Name:      acName,
+					Namespace: oamObject.GetNamespace(),
+				}
+				if err := client.Get(ctx, nn, eventObj); err != nil {
+					return nil, err
+				}
+				return eventObj, nil
+			}
 		}
-	}
-	if len(acName) > 0 {
-		nn := types.NamespacedName{
-			Name:      acName,
-			Namespace: oamObject.GetNamespace(),
+		if o.Kind == v1beta1.ApplicationKind {
+			var eventObj = &v1beta1.Application{}
+			appName := o.Name
+			if len(appName) > 0 {
+				nn := types.NamespacedName{
+					Name:      appName,
+					Namespace: oamObject.GetNamespace(),
+				}
+				if err := client.Get(ctx, nn, eventObj); err != nil {
+					return nil, err
+				}
+				return eventObj, nil
+			}
 		}
-		if err := client.Get(ctx, nn, eventObj); err != nil {
-			return nil, err
-		}
-		return eventObj, nil
 	}
 	return nil, errors.Errorf(ErrLocateAppConfig)
 }

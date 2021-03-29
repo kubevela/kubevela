@@ -102,6 +102,13 @@ func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 	// the name of the appConfig has to be the same as the appContext
 	appConfig.Name = appContext.Name
 	appConfig.UID = appContext.UID
+	for _, owner := range appContext.GetOwnerReferences() {
+		// if the appContext is created by Application, set the AppConfig UID to align with the application
+		if owner.Kind == v1beta1.ApplicationKind {
+			appConfig.UID = owner.UID
+			break
+		}
+	}
 	appConfig.SetLabels(appContext.GetLabels())
 	appConfig.SetAnnotations(appContext.GetAnnotations())
 	// makes sure that the appConfig's owner is the same as the appContext
