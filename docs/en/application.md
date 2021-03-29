@@ -151,7 +151,6 @@ After the `Application` resource is applied to Kubernetes cluster, the KubeVela 
 |`app.oam.dev/name=<app name>` | The name of the application it belongs to |
 |`app.oam.dev/component=<component name>` | The name of the component it belongs to |
 |`trait.oam.dev/resource=<name of trait resource instance>` | The name of trait resource instance |
-
-> TBD: the revision names and labels for resource instances are currently work in progress.
+|`app.oam.dev/appRevision=<name of app revision>` | The name of the application revision it belongs to |
 
 > TBD: a demo for kubectl apply above Application CR and show full detailed underlying resources.

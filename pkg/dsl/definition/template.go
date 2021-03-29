@@ -146,7 +146,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader, ns string) (map[string]interface{}, error) {
 
 	var root = initRoot(ctx.BaseContextLabels())
-	var commonLabels = getCommonLabels(ctx.BaseContextLabels())
+	var commonLabels = GetCommonLabels(ctx.BaseContextLabels())
 
 	base, assists := ctx.Output()
 	componentWorkload, err := base.Unstructured()
@@ -334,7 +334,8 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	return nil
 }
 
-func getCommonLabels(contextLabels map[string]string) map[string]string {
+// GetCommonLabels will convert context based labels to OAM standard labels
+func GetCommonLabels(contextLabels map[string]string) map[string]string {
 	var commonLabels = map[string]string{}
 	for k, v := range contextLabels {
 		switch k {
@@ -343,7 +344,7 @@ func getCommonLabels(contextLabels map[string]string) map[string]string {
 		case process.ContextName:
 			commonLabels[oam.LabelAppComponent] = v
 		case process.ContextAppRevision:
-			// TODO(wonderflow): do we need to add appRevision into common labels ? Actually it's appConfig name in our current design.
+			commonLabels[oam.LabelAppRevision] = v
 		}
 	}
 	return commonLabels
@@ -359,7 +360,7 @@ func initRoot(contextLabels map[string]string) map[string]interface{} {
 
 func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, ns string) (map[string]interface{}, error) {
 	var root = initRoot(ctx.BaseContextLabels())
-	var commonLabels = getCommonLabels(ctx.BaseContextLabels())
+	var commonLabels = GetCommonLabels(ctx.BaseContextLabels())
 
 	_, assists := ctx.Output()
 	outputs := make(map[string]interface{})

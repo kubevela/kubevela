@@ -287,7 +287,8 @@ var _ = Describe("Test appFile parser", func() {
 	It("application without-trait will only create appfile with workload", func() {
 		// TestApp is test data
 		var TestApp = &Appfile{
-			Name: "test",
+			RevisionName: "test-v1",
+			Name:         "test",
 			Workloads: []*Workload{
 				{
 					Name: "myweb",
@@ -385,10 +386,11 @@ var _ = Describe("Test appFile parser", func() {
 				"kind":       "ManualScalerTrait",
 				"metadata": map[string]interface{}{
 					"labels": map[string]interface{}{
-						"app.oam.dev/component":  "myweb",
-						"app.oam.dev/name":       "test",
-						"trait.oam.dev/type":     "scaler",
-						"trait.oam.dev/resource": "scaler",
+						"app.oam.dev/component":   "myweb",
+						"app.oam.dev/appRevision": "test-v1",
+						"app.oam.dev/name":        "test",
+						"trait.oam.dev/type":      "scaler",
+						"trait.oam.dev/resource":  "scaler",
 					},
 				},
 				"spec": map[string]interface{}{"replicaCount": int64(10)},
@@ -443,9 +445,10 @@ var _ = Describe("Test appFile parser", func() {
 				"kind":       "Deployment",
 				"metadata": map[string]interface{}{
 					"labels": map[string]interface{}{
-						"workload.oam.dev/type": "worker",
-						"app.oam.dev/component": "myweb",
-						"app.oam.dev/name":      "test",
+						"workload.oam.dev/type":   "worker",
+						"app.oam.dev/component":   "myweb",
+						"app.oam.dev/appRevision": "test-v1",
+						"app.oam.dev/name":        "test",
 					},
 				},
 				"spec": map[string]interface{}{
@@ -507,7 +510,8 @@ var _ = Describe("Test appfile parser to parse helm module", func() {
 
 	It("Test application containing helm module", func() {
 		appFile := &Appfile{
-			Name: appName,
+			Name:         appName,
+			RevisionName: appName + "-v1",
 			Workloads: []*Workload{
 				{
 					Name:               compName,
@@ -571,10 +575,11 @@ var _ = Describe("Test appfile parser to parse helm module", func() {
 				"kind":       "ManualScalerTrait",
 				"metadata": map[string]interface{}{
 					"labels": map[string]interface{}{
-						"app.oam.dev/component":  compName,
-						"app.oam.dev/name":       appName,
-						"trait.oam.dev/type":     "scaler",
-						"trait.oam.dev/resource": "scaler",
+						"app.oam.dev/component":   compName,
+						"app.oam.dev/name":        appName,
+						"trait.oam.dev/type":      "scaler",
+						"trait.oam.dev/resource":  "scaler",
+						"app.oam.dev/appRevision": appName + "-v1",
 					},
 				},
 				"spec": map[string]interface{}{"replicaCount": int64(10)},
@@ -655,9 +660,10 @@ var _ = Describe("Test appfile parser to parse helm module", func() {
 					"kind":       "Deployment",
 					"metadata": map[string]interface{}{
 						"labels": map[string]interface{}{
-							"workload.oam.dev/type": "webapp-chart",
-							"app.oam.dev/component": compName,
-							"app.oam.dev/name":      appName,
+							"workload.oam.dev/type":   "webapp-chart",
+							"app.oam.dev/component":   compName,
+							"app.oam.dev/name":        appName,
+							"app.oam.dev/appRevision": appName + "-v1",
 						},
 					},
 				}),
@@ -719,7 +725,8 @@ spec:
 	}
 	var testAppfile = func() *Appfile {
 		return &Appfile{
-			Name: appName,
+			RevisionName: appName + "-v1",
+			Name:         appName,
 			Workloads: []*Workload{
 				{
 					Name:               compName,
@@ -780,10 +787,11 @@ spec:
 			"kind":       "ManualScalerTrait",
 			"metadata": map[string]interface{}{
 				"labels": map[string]interface{}{
-					"app.oam.dev/component":  compName,
-					"app.oam.dev/name":       appName,
-					"trait.oam.dev/type":     "scaler",
-					"trait.oam.dev/resource": "scaler",
+					"app.oam.dev/component":   compName,
+					"app.oam.dev/name":        appName,
+					"app.oam.dev/appRevision": appName + "-v1",
+					"trait.oam.dev/type":      "scaler",
+					"trait.oam.dev/resource":  "scaler",
 				},
 			},
 			"spec": map[string]interface{}{"replicaCount": int64(10)},

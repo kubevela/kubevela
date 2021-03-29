@@ -534,12 +534,8 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compNa
 		return nil, nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", compName, appName)
 	}
 
-	labels := map[string]string{
-		oam.WorkloadTypeLabel: wl.Type,
-		oam.LabelAppName:      appName,
-		oam.LabelAppComponent: compName,
-	}
-	util.AddLabels(componentWorkload, labels)
+	var commonLabels = definition.GetCommonLabels(pCtx.BaseContextLabels())
+	util.AddLabels(componentWorkload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: wl.Type}))
 
 	component := &v1alpha2.Component{}
 	// we need to marshal the workload to byte array before sending them to the k8s
@@ -551,11 +547,7 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compNa
 		if err != nil {
 			return nil, nil, errors.Wrapf(err, "evaluate trait=%s template for component=%s app=%s", assist.Name, compName, appName)
 		}
-		labels := map[string]string{
-			oam.TraitTypeLabel:    assist.Type,
-			oam.LabelAppName:      appName,
-			oam.LabelAppComponent: compName,
-		}
+		labels := util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.TraitTypeLabel: assist.Type})
 		if assist.Name != "" {
 			labels[oam.TraitResource] = assist.Name
 		}

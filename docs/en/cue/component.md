@@ -175,7 +175,7 @@ spec:
 
 KubeVela allows you to reference the runtime information of your application via `conext` keyword.
 
-The most widely used context is application name(`context.appName`) and component name(`context.name`).
+The most widely used context is application name(`context.appName`) component name(`context.name`).
 
 ```cue
 context: {
@@ -204,7 +204,17 @@ output: {
 
 > Note that `context` information are auto-injected before resources are applied to target cluster.
 
-> TBD: full available information in CUE `context`.
+### Full available information in CUE `context`
+
+| Context Variable  | Description |
+| :--: | :---------: |
+| `context.appRevision` | The revision of the application |
+| `context.appName` | The name of the application |
+| `context.name` | The name of the component of the application |
+| `context.namespace` | The namespace of the application |
+| `context.output` | The rendered workload API resource of the component, this usually used in trait |
+| `context.outputs.<resourceName>` | The rendered trait API resource of the component, this usually used in trait |
+
 
 ## Composition
 
