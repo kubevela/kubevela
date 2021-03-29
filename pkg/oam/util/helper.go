@@ -27,8 +27,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-logr/logr"
@@ -151,7 +149,7 @@ func LocateParentAppConfig(ctx context.Context, client client.Client, oamObject 
 				return eventObj, nil
 			}
 		}
-		if o.Kind == v1beta1.ApplicationKind {
+		if o.Kind == v1alpha2.ApplicationContextKind {
 			var eventObj = &v1alpha2.ApplicationContext{}
 			appName := o.Name
 			if len(appName) > 0 {
