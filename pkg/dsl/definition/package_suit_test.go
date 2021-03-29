@@ -300,9 +300,8 @@ parameter: {
 			Kind:    "Foo",
 		})).Should(Equal(false))
 
-		By("test new added CRD in kube package")
+		By("test new added CRD in kube package +1")
 		Eventually(func() error {
-
 			if err := pd.RefreshKubePackagesFromCluster(); err != nil {
 				return err
 			}
