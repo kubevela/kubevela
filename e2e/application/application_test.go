@@ -171,6 +171,10 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 						a: "mysvc",
 					},
 					{
+						q: "what would you configure for parameter 'addRevisionLabel' (optional, default is false):",
+						a: "N",
+					},
+					{
 						q: "Which image would you like to use for your service ",
 						a: "nginx:latest",
 					},

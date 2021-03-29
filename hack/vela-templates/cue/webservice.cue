@@ -4,11 +4,17 @@ output: {
 	spec: {
 		selector: matchLabels: {
 			"app.oam.dev/component": context.name
+			if parameter.addRevisionLabel {
+				"app.oam.dev/appRevision": context.appRevision
+			}
 		}
 
 		template: {
 			metadata: labels: {
 				"app.oam.dev/component": context.name
+				if parameter.addRevisionLabel {
+					"app.oam.dev/appRevision": context.appRevision
+				}
 			}
 
 			spec: {
@@ -75,4 +81,7 @@ parameter: {
 	}]
 	// +usage=Number of CPU units for the service, like `0.5` (0.5 CPU core), `1` (1 CPU core)
 	cpu?: string
+
+	// If addRevisionLabel is true, the appRevision label will be added to the underlying pods 
+	addRevisionLabel: *false | bool
 }
