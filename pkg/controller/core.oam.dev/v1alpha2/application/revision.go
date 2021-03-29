@@ -286,7 +286,7 @@ func ComputeAppRevisionHash(appRevision *v1beta1.ApplicationRevision) (string, e
 		if err != nil {
 			return "", err
 		}
-		appRevisionHash.TraitDefinitionHash[key] = hash
+		appRevisionHash.ScopeDefinitionHash[key] = hash
 	}
 	// compute the hash of the entire structure
 	return utils.ComputeSpecHash(&appRevisionHash)
