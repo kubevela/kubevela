@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -39,8 +41,8 @@ import (
 
 // getTargetApps try to locate the target appRevision and appContext that is responsible for the target
 // we will create a new appContext when it's not found
-func (r *Reconciler) getTargetApps(ctx context.Context, targetAppRevisionName string) (*v1alpha2.ApplicationRevision,
-	*v1alpha2.ApplicationContext, error) {
+func (r *Reconciler) getTargetApps(ctx context.Context, componentList []string,
+	targetAppRevisionName string) (*v1alpha2.ApplicationRevision, *v1alpha2.ApplicationContext, error) {
 	var appRevision v1alpha2.ApplicationRevision
 	var appContext v1alpha2.ApplicationContext
 	namespaceName := oamutil.GetDefinitionNamespaceWithCtx(ctx)
@@ -55,7 +57,7 @@ func (r *Reconciler) getTargetApps(ctx context.Context, targetAppRevisionName st
 		if apierrors.IsNotFound(err) {
 			klog.InfoS("target application context does not exist, create one", "target application revision",
 				klog.KRef(namespaceName, targetAppRevisionName))
-			appContext, err = r.createAppContext(ctx, &appRevision)
+			appContext, err = r.createAppContext(ctx, componentList, &appRevision)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -66,7 +68,7 @@ func (r *Reconciler) getTargetApps(ctx context.Context, targetAppRevisionName st
 		}
 	}
 	// set the AC as rolling
-	err := r.prepareAppContextForRollout(ctx, &appContext)
+	err := r.prepareAppContextForRollout(ctx, componentList, &appContext)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -74,8 +76,8 @@ func (r *Reconciler) getTargetApps(ctx context.Context, targetAppRevisionName st
 }
 
 // getTargetApps try to locate the source appRevision and appContext that is responsible for the source
-func (r *Reconciler) getSourceAppContexts(ctx context.Context, sourceAppRevisionName string) (*v1alpha2.
-	ApplicationRevision, *v1alpha2.ApplicationContext, error) {
+func (r *Reconciler) getSourceAppContexts(ctx context.Context, componentList []string,
+	sourceAppRevisionName string) (*v1alpha2.ApplicationRevision, *v1alpha2.ApplicationContext, error) {
 	var appRevision v1alpha2.ApplicationRevision
 	var appContext v1alpha2.ApplicationContext
 	namespaceName := oamutil.GetDefinitionNamespaceWithCtx(ctx)
@@ -94,21 +96,25 @@ func (r *Reconciler) getSourceAppContexts(ctx context.Context, sourceAppRevision
 		return nil, nil, err
 	}
 	// set the AC as rolling
-	err := r.prepareAppContextForRollout(ctx, &appContext)
+	err := r.prepareAppContextForRollout(ctx, componentList, &appContext)
 	if err != nil {
 		return nil, nil, err
 	}
 	return &appRevision, &appContext, nil
 }
 
-func (r *Reconciler) prepareAppContextForRollout(ctx context.Context, appContext *v1alpha2.ApplicationContext) error {
+func (r *Reconciler) prepareAppContextForRollout(ctx context.Context, componentList []string,
+	appContext *v1alpha2.ApplicationContext) error {
 	oamutil.AddAnnotations(appContext, map[string]string{oam.AnnotationAppRollout: strconv.FormatBool(true)})
+	// pass the rolling component to the app
+	oamutil.AddAnnotations(appContext, map[string]string{
+		oam.AnnotationRollingComponent: strings.Join(componentList, common.RollingComponentsSep)})
 	oamutil.RemoveAnnotations(appContext, []string{oam.AnnotationAppRevision})
 	return r.Update(ctx, appContext)
 }
 
-func (r *Reconciler) createAppContext(ctx context.Context, appRevision *v1alpha2.ApplicationRevision) (v1alpha2.
-	ApplicationContext, error) {
+func (r *Reconciler) createAppContext(ctx context.Context, componentList []string,
+	appRevision *v1alpha2.ApplicationRevision) (v1alpha2.ApplicationContext, error) {
 	namespaceName := oamutil.GetDefinitionNamespaceWithCtx(ctx)
 	appContext := v1alpha2.ApplicationContext{
 		ObjectMeta: metav1.ObjectMeta{
@@ -131,6 +137,9 @@ func (r *Reconciler) createAppContext(ctx context.Context, appRevision *v1alpha2
 	}
 	// set the AC as rolling
 	oamutil.AddAnnotations(&appContext, map[string]string{oam.AnnotationAppRollout: strconv.FormatBool(true)})
+	// pass the rolling component to the app
+	oamutil.AddAnnotations(&appContext, map[string]string{
+		oam.AnnotationRollingComponent: strings.Join(componentList, common.RollingComponentsSep)})
 	err := r.Create(ctx, &appContext)
 	return appContext, err
 }

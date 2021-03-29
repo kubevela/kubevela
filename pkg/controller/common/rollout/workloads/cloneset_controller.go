@@ -222,6 +222,10 @@ func (c *CloneSetController) Finalize(ctx context.Context, succeed bool) bool {
 		newOwnerList = append(newOwnerList, owner)
 	}
 	c.cloneSet.SetOwnerReferences(newOwnerList)
+	// pause the resource when the rollout failed so we can try again next time
+	if !succeed {
+		c.cloneSet.Spec.UpdateStrategy.Paused = true
+	}
 	// patch the CloneSet
 	if err := c.client.Patch(ctx, c.cloneSet, clonePatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
 		c.recorder.Event(c.parentController, event.Warning("Failed to the finalize the cloneset", err))

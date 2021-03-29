@@ -22,7 +22,6 @@ import (
 	"net/http"
 
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -70,10 +69,6 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 // DefaultAppRollout will set the default value for the AppRollout®
 func DefaultAppRollout(obj *v1beta1.AppRollout) {
 	klog.InfoS("create default for approllout", "name", obj.Name)
-	if obj.Spec.RevertOnDelete == nil {
-		klog.V(common.LogDebug).Info("default RevertOnDelete as false")
-		obj.Spec.RevertOnDelete = pointer.BoolPtr(false)
-	}
 
 	// default rollout plan
 	rollout.DefaultRolloutPlan(&obj.Spec.RolloutPlan)

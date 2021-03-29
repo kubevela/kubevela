@@ -64,8 +64,12 @@ const (
 	RolloutFailingState RollingState = "rolloutFailing"
 	// RolloutSucceedState indicates that rollout successfully completed to match the desired target state
 	RolloutSucceedState RollingState = "rolloutSucceed"
-	// RolloutAbandoningState indicates that the rollout is abandoned, can be restarted. This is a terminal state
-	RolloutAbandoningState RollingState = "rolloutAbandoned"
+	// RolloutAbandoningState indicates that the rollout is being abandoned
+	// we need to finalize it by cleaning up the old resources, adjust traffic and return control back to its owner
+	RolloutAbandoningState RollingState = "rolloutAbandoning"
+	// RolloutDeletingState indicates that the rollout is being deleted
+	// we need to finalize it by cleaning up the old resources, adjust traffic and return control back to its owner
+	RolloutDeletingState RollingState = "RolloutDeletingState"
 	// RolloutFailedState indicates that rollout is failed, the target replica is not reached
 	// we can not move forward anymore, we will let the client to decide when or whether to revert.
 	RolloutFailedState RollingState = "rolloutFailed"

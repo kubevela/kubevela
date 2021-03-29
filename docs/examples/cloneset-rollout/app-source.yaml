@@ -3,7 +3,6 @@ kind: Application
 metadata:
   name: test-rolling
   annotations:
-    "app.oam.dev/rolling-components": "metrics-provider"
     "app.oam.dev/rollout-template": "true"
 spec:
   components:

@@ -39,6 +39,9 @@ const (
 	// RollingModifiedEvent indicates that the rolling target or source has changed
 	RollingModifiedEvent RolloutEvent = "RollingModifiedEvent"
 
+	// RollingDeletedEvent indicates that the rolling is being deleted
+	RollingDeletedEvent RolloutEvent = "RollingDeletedEvent"
+
 	// RollingSpecVerifiedEvent indicates that we have successfully verified that the rollout spec
 	RollingSpecVerifiedEvent RolloutEvent = "RollingSpecVerifiedEvent"
 
@@ -86,6 +89,8 @@ const (
 	RolloutFailing runtimev1alpha1.ConditionType = "RolloutFailing"
 	// RolloutAbandoning means that the rollout is being abandoned.
 	RolloutAbandoning runtimev1alpha1.ConditionType = "RolloutAbandoning"
+	// RolloutDeleting means that the rollout is being deleted.
+	RolloutDeleting runtimev1alpha1.ConditionType = "RolloutDeleting"
 	// RolloutFailed means that the rollout failed.
 	RolloutFailed runtimev1alpha1.ConditionType = "RolloutFailed"
 	// RolloutSucceed means that the rollout is done.
@@ -166,8 +171,8 @@ func (r *RolloutStatus) getRolloutConditionType() runtimev1alpha1.ConditionType 
 	case RolloutAbandoningState:
 		return RolloutAbandoning
 
-	case RolloutFailedState:
-		return RolloutFailed
+	case RolloutDeletingState:
+		return RolloutDeleting
 
 	case RolloutSucceedState:
 		return RolloutSucceed
@@ -266,6 +271,16 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 		return
 	}
 
+	// special handle deleted event here, it's a
+	if event == RollingDeletedEvent {
+		if r.RollingState == RolloutFailedState || r.RollingState == RolloutSucceedState {
+			panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
+		}
+		r.SetRolloutCondition(NewNegativeCondition(r.getRolloutConditionType(), "Rollout is being deleted"))
+		r.RollingState = RolloutDeletingState
+		return
+	}
+
 	switch rollingState {
 	case VerifyingSpecState:
 		if event == RollingSpecVerifiedEvent {
@@ -296,6 +311,14 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 		}
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
 
+	case RolloutDeletingState:
+		if event == RollingFinalizedEvent {
+			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
+			r.RollingState = RolloutFailedState
+			return
+		}
+		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
+
 	case FinalisingState:
 		if event == RollingFinalizedEvent {
 			r.SetRolloutCondition(NewPositiveCondition(r.getRolloutConditionType()))
@@ -312,10 +335,7 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 		}
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
 
-	case RolloutSucceedState:
-		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
-
-	case RolloutFailedState:
+	case RolloutSucceedState, RolloutFailedState:
 		panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
 
 	default:
