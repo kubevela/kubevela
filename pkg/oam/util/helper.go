@@ -136,6 +136,7 @@ func LocateParentAppConfig(ctx context.Context, client client.Client, oamObject 
 	var eventObj = &v1alpha2.ApplicationConfiguration{}
 	// locate the appConf name from the owner list
 	for _, o := range oamObject.GetOwnerReferences() {
+		// TODO(wonderflow): this function maybe not work in the case AC was created by Application and the Application is the ownerRef here.
 		if o.Kind == v1alpha2.ApplicationConfigurationKind {
 			acName = o.Name
 			break
