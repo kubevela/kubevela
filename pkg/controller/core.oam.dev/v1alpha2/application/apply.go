@@ -189,7 +189,7 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 			if err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, setting outputSecretName error", appFile.Name, wl.Name)
 			}
-			pCtx.InsertSecrets(outputSecretName, wl.RequiredSecrets, wl.EnvMappings)
+			pCtx.InsertSecrets(outputSecretName, wl.RequiredSecrets)
 		}
 		if err := wl.EvalContext(pCtx); err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate context error", appFile.Name, wl.Name)

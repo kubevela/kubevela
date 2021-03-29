@@ -483,22 +483,6 @@ spec:
                 items:
                   description: ApplicationComponent describe the component of application
                   properties:
-                    envMappings:
-                      additionalProperties:
-                        description: EnvMappings is used to map environments from secret
-                        properties:
-                          key:
-                            type: string
-                          namespace:
-                            type: string
-                          secret:
-                            type: string
-                          value:
-                            type: string
-                        required:
-                        - secret
-                        type: object
-                      type: object
                     name:
                       type: string
                     properties:
