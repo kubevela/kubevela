@@ -11,7 +11,8 @@ outputs: service: {
 		name: context.name
 	spec: {
 		selector: {
-			"app.oam.dev/component": context.name
+			"app.oam.dev/component":   context.name
+			"app.oam.dev/appRevision": context.appRevision
 		}
 		ports: [
 			for k, v in parameter.http {
