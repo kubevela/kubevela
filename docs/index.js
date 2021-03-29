@@ -62,7 +62,7 @@ export default function Home() {
           <p className="hero__subtitle">{siteConfig.tagline}</p>
           <div
             className={clsx(styles.heroButtons, 'name', 'margin-vert--md')}>
-            <Button href={useBaseUrl('docs/install')}>Get Started</Button>
+            <Button href={useBaseUrl('docs/quick-start')}>Get Started</Button>
             <Button href={useBaseUrl('docs/')}>Learn More</Button>
           </div>
         </div>

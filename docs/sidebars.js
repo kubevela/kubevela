@@ -71,6 +71,12 @@ module.exports = {
             }
           ]
         },
+        {
+          "Progressive Rollout":[
+              "rollout/appdeploy",
+              "rollout/rollout"
+          ]
+        }
       ],
     },
     {
