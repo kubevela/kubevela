@@ -152,7 +152,7 @@ func LocateParentAppConfig(ctx context.Context, client client.Client, oamObject 
 			}
 		}
 		if o.Kind == v1beta1.ApplicationKind {
-			var eventObj = &v1beta1.Application{}
+			var eventObj = &v1alpha2.ApplicationContext{}
 			appName := o.Name
 			if len(appName) > 0 {
 				nn := types.NamespacedName{
