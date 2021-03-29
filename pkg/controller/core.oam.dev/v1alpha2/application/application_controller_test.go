@@ -26,12 +26,6 @@ import (
 	"strconv"
 	"time"
 
-	v1beta12 "k8s.io/api/networking/v1beta1"
-
-	"k8s.io/apimachinery/pkg/util/intstr"
-
-	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -41,9 +35,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1beta12 "k8s.io/api/networking/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -54,6 +50,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 // TODO: Refactor the tests to not copy and paste duplicated code 10 times

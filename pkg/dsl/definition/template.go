@@ -414,7 +414,6 @@ func getResourceFromObj(obj *unstructured.Unstructured, client client.Reader, na
 	if outputsResource != "" {
 		labels[oam.TraitResource] = outputsResource
 	}
-	// TODO： delete the revision
 	if obj.GetName() != "" {
 		u, err := util.GetObjectGivenGVKAndName(context.Background(), client, obj.GroupVersionKind(), namespace, obj.GetName())
 		if err != nil {
