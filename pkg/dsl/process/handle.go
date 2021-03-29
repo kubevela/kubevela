@@ -48,11 +48,11 @@ const (
 type Context interface {
 	SetBase(base model.Instance)
 	AppendAuxiliaries(auxiliaries ...Auxiliary)
-	SetConfigs(configs []map[string]string)
 	Output() (model.Instance, []Auxiliary)
 	BaseContextFile() string
 	ExtendedContextFile() string
 	BaseContextLabels() map[string]string
+	SetConfigs(configs []map[string]string)
 	InsertSecrets(outputSecretName string, requiredSecrets []RequiredSecrets)
 }
 

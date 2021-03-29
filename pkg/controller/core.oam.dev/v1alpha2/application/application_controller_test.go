@@ -26,6 +26,10 @@ import (
 	"strconv"
 	"time"
 
+	v1beta12 "k8s.io/api/networking/v1beta1"
+
+	"k8s.io/apimachinery/pkg/util/intstr"
+
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 
 	. "github.com/onsi/ginkgo"
@@ -126,9 +130,10 @@ var _ = Describe("Test Application Controller", func() {
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
-					"workload.oam.dev/type": "worker",
-					"app.oam.dev/component": compName,
-					"app.oam.dev/name":      appName,
+					"workload.oam.dev/type":   "worker",
+					"app.oam.dev/component":   compName,
+					"app.oam.dev/name":        appName,
+					"app.oam.dev/appRevision": appName + "-v1",
 				},
 			},
 			Spec: v1.DeploymentSpec{
@@ -164,10 +169,11 @@ var _ = Describe("Test Application Controller", func() {
 			"kind":       "ManualScalerTrait",
 			"metadata": map[string]interface{}{
 				"labels": map[string]interface{}{
-					"trait.oam.dev/type":     "scaler",
-					"app.oam.dev/component":  compName,
-					"app.oam.dev/name":       appName,
-					"trait.oam.dev/resource": "scaler",
+					"trait.oam.dev/type":      "scaler",
+					"app.oam.dev/component":   compName,
+					"app.oam.dev/name":        appName,
+					"app.oam.dev/appRevision": appName + "-v1",
+					"trait.oam.dev/resource":  "scaler",
 				},
 			},
 			"spec": map[string]interface{}{
@@ -557,10 +563,11 @@ spec:
 			"kind":       "Service",
 			"metadata": map[string]interface{}{
 				"labels": map[string]interface{}{
-					"trait.oam.dev/type":     "AuxiliaryWorkload",
-					"app.oam.dev/name":       "app-with-composedworkload-trait",
-					"app.oam.dev/component":  "myweb-composed-3",
-					"trait.oam.dev/resource": "service",
+					"trait.oam.dev/type":      "AuxiliaryWorkload",
+					"app.oam.dev/name":        "app-with-composedworkload-trait",
+					"app.oam.dev/appRevision": "app-with-composedworkload-trait-v1",
+					"app.oam.dev/component":   "myweb-composed-3",
+					"trait.oam.dev/resource":  "service",
 				},
 			},
 			"spec": map[string]interface{}{
@@ -754,7 +761,7 @@ spec:
 		fmt.Println(cmp.Diff(expDeployment6, gotD2))
 		Expect(gotD2).Should(BeEquivalentTo(expDeployment6))
 
-		By("update component5 with new spec, rename component6 it should create new component ")
+		By("Update Application with new revision, component5 with new spec, rename component6 it should create new component ")
 
 		curApp.SetNamespace(app.Namespace)
 		curApp.Spec.Components[0] = v1beta1.ApplicationComponent{
@@ -809,6 +816,7 @@ spec:
 		}, component5)).Should(BeNil())
 		Expect(json.Unmarshal(component5.Spec.Workload.Raw, gotD)).Should(BeNil())
 		expDeployment.Spec.Template.Spec.Containers[0].Image = "busybox3"
+		expDeployment.Labels["app.oam.dev/appRevision"] = app.Name + "-v2"
 		Expect(gotD).Should(BeEquivalentTo(expDeployment))
 
 		expDeployment7 := getExpDeployment("myweb7", app.Name)
@@ -820,6 +828,7 @@ spec:
 		Expect(component7.ObjectMeta.Labels).Should(BeEquivalentTo(map[string]string{oam.LabelAppName: app.Name}))
 		gotD3 := &v1.Deployment{}
 		Expect(json.Unmarshal(component7.Spec.Workload.Raw, gotD3)).Should(BeNil())
+		expDeployment7.Labels["app.oam.dev/appRevision"] = app.Name + "-v2"
 		fmt.Println(cmp.Diff(gotD3, expDeployment7))
 		Expect(gotD3).Should(BeEquivalentTo(expDeployment7))
 		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
@@ -1134,10 +1143,11 @@ spec:
 			"kind":       "ConfigMap",
 			"metadata": map[string]interface{}{
 				"labels": map[string]interface{}{
-					"trait.oam.dev/type":     "AuxiliaryWorkload",
-					"app.oam.dev/component":  compName,
-					"app.oam.dev/name":       app.Name,
-					"trait.oam.dev/resource": "gameconfig",
+					"trait.oam.dev/type":      "AuxiliaryWorkload",
+					"app.oam.dev/component":   compName,
+					"app.oam.dev/name":        app.Name,
+					"trait.oam.dev/resource":  "gameconfig",
+					"app.oam.dev/appRevision": app.Name + "-v1",
 				},
 			},
 			"data": map[string]interface{}{
@@ -1154,10 +1164,11 @@ spec:
 			"kind":       "Ingress",
 			"metadata": map[string]interface{}{
 				"labels": map[string]interface{}{
-					"trait.oam.dev/type":     "ingress",
-					"trait.oam.dev/resource": "ingress",
-					"app.oam.dev/component":  compName,
-					"app.oam.dev/name":       app.Name,
+					"trait.oam.dev/type":      "ingress",
+					"trait.oam.dev/resource":  "ingress",
+					"app.oam.dev/component":   compName,
+					"app.oam.dev/name":        app.Name,
+					"app.oam.dev/appRevision": app.Name + "-v1",
 				},
 			},
 			"spec": map[string]interface{}{
@@ -1177,10 +1188,11 @@ spec:
 			"kind":       "Service",
 			"metadata": map[string]interface{}{
 				"labels": map[string]interface{}{
-					"trait.oam.dev/type":     "ingress",
-					"trait.oam.dev/resource": "service",
-					"app.oam.dev/component":  compName,
-					"app.oam.dev/name":       app.Name,
+					"trait.oam.dev/type":      "ingress",
+					"trait.oam.dev/resource":  "service",
+					"app.oam.dev/component":   compName,
+					"app.oam.dev/name":        app.Name,
+					"app.oam.dev/appRevision": app.Name + "-v1",
 				},
 			},
 			"spec": map[string]interface{}{
@@ -1379,8 +1391,41 @@ spec:
 		}, appRevision)).Should(BeNil())
 		appConfig, err := util.RawExtension2AppConfig(appRevision.Spec.ApplicationConfiguration)
 		Expect(err).ShouldNot(HaveOccurred())
-		Expect(string(appConfig.Spec.Components[0].Traits[0].Trait.Raw)).Should(BeEquivalentTo("{\"apiVersion\":\"v1\",\"kind\":\"Service\",\"metadata\":{\"labels\":{\"app.oam.dev/component\":\"myweb\",\"app.oam.dev/name\":\"app-import-pkg\",\"trait.oam.dev/resource\":\"service\",\"trait.oam.dev/type\":\"ingress-import\"},\"name\":\"myweb\"},\"spec\":{\"ports\":[{\"port\":80,\"targetPort\":80}],\"selector\":{\"app.oam.dev/component\":\"myweb\"}}}"))
-		Expect(string(appConfig.Spec.Components[0].Traits[1].Trait.Raw)).Should(BeEquivalentTo("{\"apiVersion\":\"networking.k8s.io/v1beta1\",\"kind\":\"Ingress\",\"metadata\":{\"labels\":{\"app.oam.dev/component\":\"myweb\",\"app.oam.dev/name\":\"app-import-pkg\",\"trait.oam.dev/resource\":\"ingress\",\"trait.oam.dev/type\":\"ingress-import\"},\"name\":\"myweb\"},\"spec\":{\"rules\":[{\"host\":\"abc.com\",\"http\":{\"paths\":[{\"backend\":{\"serviceName\":\"myweb\",\"servicePort\":80},\"path\":\"/\"}]}}]}}"))
+		var gotSvc corev1.Service
+		Expect(json.Unmarshal(appConfig.Spec.Components[0].Traits[0].Trait.Raw, &gotSvc)).ShouldNot(HaveOccurred())
+		Expect(cmp.Diff(&gotSvc, &corev1.Service{
+			TypeMeta: metav1.TypeMeta{Kind: "Service", APIVersion: "v1"},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "myweb",
+				Labels: map[string]string{
+					"app.oam.dev/component":   "myweb",
+					"app.oam.dev/name":        "app-import-pkg",
+					"trait.oam.dev/resource":  "service",
+					"trait.oam.dev/type":      "ingress-import",
+					"app.oam.dev/appRevision": "app-import-pkg-v1",
+				}},
+			Spec: corev1.ServiceSpec{
+				Ports:    []corev1.ServicePort{{Port: 80, TargetPort: intstr.FromInt(80)}},
+				Selector: map[string]string{"app.oam.dev/component": "myweb"},
+			}})).Should(BeEquivalentTo(""))
+		var gotIngress v1beta12.Ingress
+		Expect(json.Unmarshal(appConfig.Spec.Components[0].Traits[1].Trait.Raw, &gotIngress)).ShouldNot(HaveOccurred())
+		Expect(cmp.Diff(&gotIngress, &v1beta12.Ingress{
+			TypeMeta: metav1.TypeMeta{Kind: "Ingress", APIVersion: "networking.k8s.io/v1beta1"},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "myweb",
+				Labels: map[string]string{
+					"app.oam.dev/component":   "myweb",
+					"app.oam.dev/name":        "app-import-pkg",
+					"trait.oam.dev/resource":  "ingress",
+					"trait.oam.dev/type":      "ingress-import",
+					"app.oam.dev/appRevision": "app-import-pkg-v1",
+				}},
+			Spec: v1beta12.IngressSpec{Rules: []v1beta12.IngressRule{{Host: "abc.com",
+				IngressRuleValue: v1beta12.IngressRuleValue{HTTP: &v1beta12.HTTPIngressRuleValue{Paths: []v1beta12.HTTPIngressPath{{
+					Path:    "/",
+					Backend: v1beta12.IngressBackend{ServiceName: "myweb", ServicePort: intstr.FromInt(80)}}}}}}},
+			}})).Should(BeEquivalentTo(""))
 
 		By("Check ApplicationContext created")
 		appContext := &v1alpha2.ApplicationContext{}
