@@ -106,7 +106,7 @@ var _ = Describe("Application Normal tests", func() {
 
 	verifyWorkloadRunningExpected := func(workloadName string, replicas int32, image string) {
 		var workload v1.Deployment
-		By("Verify AppConfig is inactive")
+		By("Verify Workload running as expected")
 		Eventually(
 			func() error {
 				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: workloadName}, &workload); err != nil {

@@ -182,7 +182,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				}
 				return ""
 			},
-			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.ApplicationConfigurationKind))
+			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.ApplicationContextKind))
 		Expect(clonesetOwner.Name).Should(BeEquivalentTo(targetAppName))
 		Expect(kc.Status.UpdatedReplicas).Should(BeEquivalentTo(*kc.Spec.Replicas))
 		Expect(kc.Status.UpdatedReadyReplicas).Should(BeEquivalentTo(*kc.Spec.Replicas))

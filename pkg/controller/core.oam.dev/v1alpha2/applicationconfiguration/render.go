@@ -202,7 +202,8 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 	util.PassLabelAndAnnotation(ac, w)
 	// don't pass the following annotation as those are for appConfig only
 	util.RemoveAnnotations(w, []string{oam.AnnotationAppRollout, oam.AnnotationRollingComponent, oam.AnnotationInplaceUpgrade})
-	ref := metav1.NewControllerRef(ac, v1alpha2.ApplicationConfigurationGroupVersionKind)
+	ref := getOwnerFromAC(ac)
+
 	// Don't override if the resources already has namespace, it was set by user or the application controller which is by design.
 	if len(w.GetNamespace()) == 0 {
 		w.SetNamespace(ac.GetNamespace())
@@ -815,6 +816,18 @@ func isControlledByApp(ac *v1alpha2.ApplicationConfiguration) bool {
 		}
 	}
 	return false
+}
+
+// getOwnerFromAC will check and get the real owner, if the owner is Application, it will use ApplicationContext as owner
+// or it will make the AC as the owner
+func getOwnerFromAC(ac *v1alpha2.ApplicationConfiguration) *metav1.OwnerReference {
+	for _, owner := range ac.GetOwnerReferences() {
+		if owner.APIVersion == v1beta1.SchemeGroupVersion.String() && owner.Kind == v1beta1.ApplicationKind &&
+			owner.Controller != nil && *owner.Controller {
+			return metav1.NewControllerRef(ac, v1alpha2.ApplicationContextGroupVersionKind)
+		}
+	}
+	return metav1.NewControllerRef(ac, v1alpha2.ApplicationConfigurationGroupVersionKind)
 }
 
 func matchValue(conds []v1alpha2.ConditionRequirement, val string, paved, ac *fieldpath.Paved) (bool, string) {
