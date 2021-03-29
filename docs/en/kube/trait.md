@@ -2,6 +2,8 @@
 title:  Attach Traits
 ---
 
+All traits in the KubeVela system works well with the Raw K8s Object Template based Component. 
+
 In this sample, we will attach two traits,
 [scaler](https://github.com/oam-dev/kubevela/blob/master/charts/vela-core/templates/defwithtemplate/manualscale.yaml)
 and

@@ -272,11 +272,11 @@ Then clean up CRDs (CRDs are not removed via helm by default):
 ```
 </details>
 
-## 7. (Optional) Upgrade
+# Upgrade
 
-If you have used helm to install an old version of vela. This installation step can help you upgrade to the new version kubevela chart.
+If you have already installed KubeVela and wants to upgrade to the new version, you could follow below instructions.
 
-First you need to add some new crds and upgrade several crds version to v1beta1.
+## Step 1. Upgrade KubeVela CRDs
 
 ```shell
 kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_componentdefinitions.yaml
@@ -290,8 +290,8 @@ kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/chart
 kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_applicationcontexts.yaml
 ```
 
-Then use helm to update the kubevela chart.
+## Step 2. Upgrade KubeVela helm chart
 
 ```
-helm upgrade --install --create-namespace --namespace vela-system  kubevela kubevela/vela-core --version 1.0.0-rc2
+helm upgrade --install --create-namespace --namespace vela-system  kubevela kubevela/vela-core --version <the_new_version>
 ```

@@ -221,7 +221,7 @@ spec:
 
 ### [Optional] Configure another workload type
 
-By now we have deployed a *[Web Service](references/workload-types/webservice)*, which is the default workload type in KubeVela. We can also add another service of *[Task](references/workload-types/task)* type in the same app:
+By now we have deployed a *[Web Service](references/component-types/webservice)*, which is the default workload type in KubeVela. We can also add another service of *[Task](references/component-types/task)* type in the same app:
 
 ```yaml
 services:

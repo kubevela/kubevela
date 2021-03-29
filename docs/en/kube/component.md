@@ -2,7 +2,7 @@
 title:  How-to
 ---
 
-In this section, it will introduce how to use raw template to declare app components via `ComponentDefinition`.
+In this section, it will introduce how to use raw K8s Object to declare app components via `ComponentDefinition`.
 
 > Before reading this part, please make sure you've learned [the definition and template concepts](../platform-engineers/definition-and-templates).
 
