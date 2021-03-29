@@ -17,12 +17,15 @@ limitations under the License.
 package model
 
 import (
+	"fmt"
 	"testing"
 
 	"cuelang.org/go/cue"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	mycue "github.com/oam-dev/kubevela/pkg/cue"
 )
 
 func TestIndexMatchLine(t *testing.T) {
@@ -164,7 +167,7 @@ metadata: name: parameter.name
 `,
 	}
 	_, err = ins.Unstructured()
-	assert.Equal(t, err.Error(), `metadata.name: reference "parameter" not found`)
+	assert.Equal(t, err.Error(), fmt.Sprintf(`metadata.name: reference "%s" not found`, mycue.ParameterTag))
 	ins = &instance{
 		v: `
 apiVersion: "apps/v1"

@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	mycue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/dsl/model"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/dsl/task"
@@ -92,14 +93,14 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 			return errors.WithMessagef(err, "marshal parameter of workload %s", wd.name)
 		}
 		if string(bt) != "null" {
-			paramFile = fmt.Sprintf("parameter: %s", string(bt))
+			paramFile = fmt.Sprintf("%s: %s", mycue.ParameterTag, string(bt))
 		}
 	}
 	if err := bi.AddFile("parameter", paramFile); err != nil {
 		return errors.WithMessagef(err, "invalid parameter of workload %s", wd.name)
 	}
 
-	if err := bi.AddFile("-", ctx.BaseContextFile()); err != nil {
+	if err := bi.AddFile("-", ctx.ExtendedContextFile()); err != nil {
 		return err
 	}
 	wd.pd.ImportBuiltinPackagesFor(bi)
@@ -275,13 +276,13 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			return errors.WithMessagef(err, "marshal parameter of trait %s", td.name)
 		}
 		if string(bt) != "null" {
-			paramFile = fmt.Sprintf("parameter: %s", string(bt))
+			paramFile = fmt.Sprintf("%s: %s", mycue.ParameterTag, string(bt))
 		}
 	}
 	if err := bi.AddFile("parameter", paramFile); err != nil {
 		return errors.WithMessagef(err, "invalid parameter of trait %s", td.name)
 	}
-	if err := bi.AddFile("context", ctx.BaseContextFile()); err != nil {
+	if err := bi.AddFile("context", ctx.ExtendedContextFile()); err != nil {
 		return errors.WithMessagef(err, "invalid context of trait %s", td.name)
 	}
 	td.pd.ImportBuiltinPackagesFor(bi)
