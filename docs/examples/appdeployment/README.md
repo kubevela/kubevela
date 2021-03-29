@@ -90,11 +90,11 @@
    $ kubectl apply -f appdeployment-2-traffic.yaml
    ```
 
-   Note that for traffic split to work, your must have the following labels set in pods (This is automatically set by KubeVela Revision Mechanism):
+   Note that for traffic split to work, your must set the following pod labels in workload cue templates (see [webservice.cue](https://github.com/oam-dev/kubevela/blob/master/hack/vela-templates/cue/webservice.cue)):
 
    ```shell
-   "app.oam.dev/component": "testsvc"
-   "app.oam.dev/appRevision": "example-app-v1"
+   "app.oam.dev/component": context.name
+   "app.oam.dev/appRevision": context.appRevision
    ```
 
 1. Now you can check that there will 1 deployment and 1 pod per revision.
