@@ -106,6 +106,12 @@ func (pd *PackageDiscover) Exist(gvk metav1.GroupVersionKind) bool {
 	pd.mutex.RLock()
 	defer pd.mutex.RUnlock()
 	pkgKinds := pd.pkgKinds[importPath]
+	for pkg, kinds := range pd.pkgKinds {
+		if strings.HasPrefix(pkg, "kube/") || strings.Contains(pkg, "k8s.io") {
+			continue
+		}
+		fmt.Println(pkg, kinds)
+	}
 	for _, v := range pkgKinds {
 		if v.Kind == dgvk.Kind {
 			return true

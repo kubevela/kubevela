@@ -314,7 +314,7 @@ parameter: {
 				return errors.New("crd(example.com/v1.Foo) not register to openAPI")
 			}
 			return nil
-		}, time.Second*5, time.Millisecond*300).Should(BeNil())
+		}, time.Second*10, time.Millisecond*300).Should(BeNil())
 
 		bi = build.NewContext().NewInstance("", nil)
 		pd.ImportBuiltinPackagesFor(bi)
