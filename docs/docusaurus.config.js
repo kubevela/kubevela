@@ -83,10 +83,6 @@ module.exports = {
               href: 'https://slack.cncf.io/'
             },
             {
-              label: 'WeChat',
-              href: 'https://wj.qq.com/s2/7438465/6bd6',
-            },
-            {
               label: 'Gitter',
               href: 'https://gitter.im/oam-dev/community',
             },
