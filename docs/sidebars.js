@@ -99,6 +99,7 @@ module.exports = {
       type: 'category',
       label: 'CLI References',
       items: [
+        'cli/vela_components',
         'cli/vela_config',
         'cli/vela_env',
         'cli/vela_init',

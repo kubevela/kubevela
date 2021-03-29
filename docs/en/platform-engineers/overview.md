@@ -17,7 +17,7 @@ KubeVela allows platform teams to create developer-centric abstractions with DSL
 First of all, KubeVela introduces an `Application` CRD as its main abstraction that could capture all needed resources to run the application, and exposes configurable parameters for end users. Every application is composed by multiple components, and each of them is defined by workload specification and traits (operational behaviors). For example:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: application-sample
