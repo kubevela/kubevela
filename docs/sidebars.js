@@ -20,8 +20,8 @@ module.exports = {
       type: 'category',
       label: 'Progressive Rollout',
       items:[
-        "rollout/appdeploy",
-        "rollout/rollout"
+        "rollout/rollout",
+        "rollout/appdeploy"
       ]
     },
     {
