@@ -18,6 +18,7 @@ package definition
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -39,7 +40,7 @@ import (
 
 var _ = Describe("Package discovery resources for definition from K8s APIServer", func() {
 
-	PIt("discovery built-in k8s resource", func() {
+	It("discovery built-in k8s resource", func() {
 
 		By("test ingress in kube package")
 		bi := build.NewContext().NewInstance("", nil)
@@ -304,9 +305,19 @@ parameter: {
 			if err := pd.RefreshKubePackagesFromCluster(); err != nil {
 				return err
 			}
-			bi = build.NewContext().NewInstance("", nil)
-			pd.ImportBuiltinPackagesFor(bi)
-			if err := bi.AddFile("-", `
+			if !pd.Exist(metav1.GroupVersionKind{
+				Group:   "example.com",
+				Version: "v1",
+				Kind:    "Foo",
+			}) {
+				return errors.New("crd(example.com/v1.Foo) not register to openAPI")
+			}
+			return nil
+		}, time.Second*30, time.Millisecond*300).Should(BeNil())
+
+		bi = build.NewContext().NewInstance("", nil)
+		pd.ImportBuiltinPackagesFor(bi)
+		err = bi.AddFile("-", `
 import (
 	ev1 "example.com/v1"
 	kv1 "kube/example.com/v1"
@@ -316,16 +327,10 @@ output: {
 	spec: key: "test1"
     status: key: "test2"
 }
-`); err != nil {
-				return err
-			}
-			inst, err = r.Build(bi)
-			if err != nil {
-				return err
-			}
-			return nil
-		}, time.Second*5, time.Millisecond*300).Should(BeNil())
-
+`)
+		Expect(err).Should(BeNil())
+		inst, err = r.Build(bi)
+		Expect(err).Should(BeNil())
 		base, err = model.NewBase(inst.Lookup("output"))
 		Expect(err).Should(BeNil())
 		data, err = base.Unstructured()
