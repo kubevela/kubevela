@@ -5,6 +5,8 @@ title:  Installation
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
+If you have installed the kubevale chart before, please read the [Upgrade](#7-optional-upgrade) step directly.
+
 ## 1. Setup Kubernetes cluster
 
 Requirements:
@@ -223,7 +225,6 @@ If you want to run application from `vela` cli, then you should sync capabilitie
 vela components
 ```
 ```console
-vela components
 NAME      	NAMESPACE  	WORKLOAD        	DESCRIPTION
 task      	vela-system	jobs.batch      	Describes jobs that run code or a script to completion.
 webservice	vela-system	deployments.apps	Describes long-running, scalable, containerized services
@@ -251,8 +252,14 @@ Then clean up CRDs (CRDs are not removed via helm by default):
 
 ```shell script
  kubectl delete crd \
+  appdeployments.core.oam.dev \
   applicationconfigurations.core.oam.dev \
+  applicationcontexts.core.oam.dev \
   applicationdeployments.core.oam.dev \
+  applicationrevisions.core.oam.dev \
+  applications.core.oam.dev \
+  approllouts.core.oam.dev \
+  componentdefinitions.core.oam.dev \
   components.core.oam.dev \
   containerizedworkloads.core.oam.dev \
   healthscopes.core.oam.dev \
@@ -263,3 +270,27 @@ Then clean up CRDs (CRDs are not removed via helm by default):
   workloaddefinitions.core.oam.dev
 ```
 </details>
+
+## 7. (Optional) Upgrade
+
+If you have used helm to install an old version of vela. This installation step can help you upgrade to the new version kubevela chart.
+
+First you need to add some new crds and upgrade several crds version to v1beta1.
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_componentdefinitions.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_workloaddefinitions.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_traitdefinitions.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_applications.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_approllouts.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_applicationrevisions.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_scopedefinitions.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_appdeployments.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_applicationcontexts.yaml
+```
+
+Then use helm to update the kubevela chart.
+
+```
+helm upgrade --install --create-namespace --namespace vela-system  kubevela kubevela/vela-core --version 1.0.0-rc2
+```

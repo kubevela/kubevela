@@ -39,7 +39,7 @@ import (
 
 var _ = Describe("Package discovery resources for definition from K8s APIServer", func() {
 
-	It("discovery built-in k8s resource", func() {
+	PIt("discovery built-in k8s resource", func() {
 
 		By("test ingress in kube package")
 		bi := build.NewContext().NewInstance("", nil)
