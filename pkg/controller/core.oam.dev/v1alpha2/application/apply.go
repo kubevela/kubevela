@@ -110,7 +110,6 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 
 	// don't create components and AC if revision-only annotation is set
 	if ac.Annotations[oam.AnnotationAppRevisionOnly] == "true" {
-		h.FinalizeAppRevision(appRev, ac, comps)
 		return h.createOrUpdateAppRevision(ctx, appRev)
 	}
 

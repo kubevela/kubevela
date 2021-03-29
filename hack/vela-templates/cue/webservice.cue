@@ -3,14 +3,12 @@ output: {
 	kind:       "Deployment"
 	spec: {
 		selector: matchLabels: {
-			"app.oam.dev/component":   context.name
-			"app.oam.dev/appRevision": context.appRevision
+			"app.oam.dev/component": context.name
 		}
 
 		template: {
 			metadata: labels: {
-				"app.oam.dev/component":   context.name
-				"app.oam.dev/appRevision": context.appRevision
+				"app.oam.dev/component": context.name
 			}
 
 			spec: {
