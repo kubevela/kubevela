@@ -136,9 +136,9 @@ module.exports = {
       label: 'Capability References',
       items: [
         'developers/references/README',
-        'developers/references/workload-types/webservice',
-        'developers/references/workload-types/task',
-        'developers/references/workload-types/worker',
+        'developers/references/component-types/webservice',
+        'developers/references/component-types/task',
+        'developers/references/component-types/worker',
         'developers/references/traits/route',
         'developers/references/traits/metrics',
         'developers/references/traits/scaler',

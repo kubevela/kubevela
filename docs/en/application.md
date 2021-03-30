@@ -90,7 +90,9 @@ spec:
 
 Hence, the `properties` section of `backend` only supports two parameters: `image` and `cmd`, this is enforced by the `parameter` list of the `.spec.template` field of the definition.
 
-The similar extensible abstraction mechanism also applies to traits. For example, `name: autoscaler` in `frontend` means its trait specification (i.e. `properties` section) will be enforced by a `TraitDefinition` object named `autoscaler` as below:
+The similar extensible abstraction mechanism also applies to traits.
+For example, `type: autoscaler` in `frontend` means its trait specification (i.e. `properties` section)
+will be enforced by a `TraitDefinition` object named `autoscaler` as below:
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -136,7 +138,9 @@ spec:
         	cpuUtil: *50 | int
         }
 ```
-The application also have a sidecar trait.
+
+The application also have a `sidecar` trait.
+
 ```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
@@ -162,11 +166,13 @@ spec:
         }
 ```
 
-All the definition objects are expected to be defined and installed by platform team. The end users will only focus on `Application` resource.
+All the definition objects are expected to be defined and installed by platform team.
+The end users will only focus on `Application` resource.
 
 ## Conventions and "Standard Contract"
 
-After the `Application` resource is applied to Kubernetes cluster, the KubeVela runtime will generate and manage the underlying resources instances following below "standard contract" and conventions.
+After the `Application` resource is applied to Kubernetes cluster,
+the KubeVela runtime will generate and manage the underlying resources instances following below "standard contract" and conventions.
 
 
 | Label  | Description |
@@ -178,10 +184,11 @@ After the `Application` resource is applied to Kubernetes cluster, the KubeVela 
 |`trait.oam.dev/resource=<name of trait resource instance>` | The name of trait resource instance |
 |`app.oam.dev/appRevision=<name of app revision>` | The name of the application revision it belongs to |
 
+
 ## Run Application
 
-
 Apply application yaml above, then you'll get the application started
+
 ```shell
 $ kubectl get application -o yaml
 apiVersion: core.oam.dev/v1beta1
@@ -202,19 +209,24 @@ status:
 
 ```
 
-Check the status of frontend workload. The fluentd container has been injected into the pod 
+You could see a Deployment named `frontend` with a container `fluentd` injected is running.
+
 ```shell
 $ kubectl get deploy frontend
 NAME       READY   UP-TO-DATE   AVAILABLE   AGE
 frontend   1/1     1            1           100m
 ```
-Check the status of backend workload
+
+Another Deployment is also running named `backend`.
+
 ```shell
 $ kubectl get deploy backend
 NAME      READY   UP-TO-DATE   AVAILABLE   AGE
 backend   1/1     1            1           100m
 ```
-Check the status of HPA 
+
+An HPA was also created by the `autoscaler` trait. 
+
 ```shell
 $ kubectl get HorizontalPodAutoscaler frontend
 NAME       REFERENCE             TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
