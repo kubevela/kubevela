@@ -5,7 +5,7 @@ title:  Installation
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-If you have installed the kubevale chart before, please read the [Upgrade](#7-optional-upgrade) step directly.
+If you have installed the kubevale chart before, please read the [Upgrade](#upgrade) step directly.
 
 ## 1. Setup Kubernetes cluster
 
@@ -276,7 +276,19 @@ Then clean up CRDs (CRDs are not removed via helm by default):
 
 If you have already installed KubeVela and wants to upgrade to the new version, you could follow below instructions.
 
-## Step 1. Upgrade KubeVela CRDs
+## Step 1. Update helm repo
+
+```shell
+helm repo update
+```
+
+you can get the new version kubevela chart by run:
+
+```shell
+helm search repo kubevela/vela-core -l
+```
+
+## Step 2. Upgrade KubeVela CRDs
 
 ```shell
 kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_componentdefinitions.yaml
@@ -290,8 +302,18 @@ kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/chart
 kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_applicationcontexts.yaml
 ```
 
-## Step 2. Upgrade KubeVela helm chart
+> Tips: If you meet errors like `* is invalid: spec.scope: Invalid value: "Namespaced": filed is immutable`. Please delete the crd with the error.
+and re-apply the kubevela crds.
 
+```shell
+ kubectl delete crd \
+  scopedefinitions.core.oam.dev \
+  traitdefinitions.core.oam.dev \
+  workloaddefinitions.core.oam.dev
 ```
+
+## Step 3. Upgrade KubeVela helm chart
+
+```shell
 helm upgrade --install --create-namespace --namespace vela-system  kubevela kubevela/vela-core --version <the_new_version>
 ```
