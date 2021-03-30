@@ -5,7 +5,7 @@ metadata:
 spec:
   # application (revision) reference
   sourceAppRevisionName: test-rolling-v2
-  targetAppRevisionName: test-rolling-v3
+  targetAppRevisionName: test-rolling-v1
   componentList:
     - metrics-provider
   rolloutPlan:

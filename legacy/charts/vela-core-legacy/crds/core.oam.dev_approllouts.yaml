@@ -37,7 +37,7 @@ spec:
                 type: string
               type: array
             revertOnDelete:
-              description: RevertOnDelete revert the rollout when the rollout CR is deleted It will remove the target app from the kubernetes if it's set to true
+              description: RevertOnDelete revert the failed rollout when the rollout CR is deleted It will revert the change back to the source version at once (not in batches) Default is false
               type: boolean
             rolloutPlan:
               description: RolloutPlan is the details on how to rollout the resources

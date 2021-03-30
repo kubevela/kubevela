@@ -21,15 +21,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/types"
-
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
-	"k8s.io/kubectl/pkg/util/slice"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -37,6 +36,7 @@ import (
 	oamv1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/common/rollout"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -45,6 +45,8 @@ import (
 )
 
 const (
+	errUpdateAppRollout = "failed to update the app rollout"
+
 	appRolloutFinalizer = "finalizers.approllout.oam.dev"
 
 	reconcileTimeOut = 60 * time.Second
@@ -65,7 +67,6 @@ type Reconciler struct {
 
 // Reconcile is the main logic of appRollout controller
 func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr error) {
-
 	var appRollout v1beta1.AppRollout
 	ctx, cancel := context.WithTimeout(context.TODO(), reconcileTimeOut)
 	defer cancel()
@@ -92,21 +93,25 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	klog.InfoS("Start to reconcile ", "appRollout", klog.KObj(&appRollout))
-
-	r.handleFinalizer(&appRollout)
+	if len(appRollout.Status.RollingState) == 0 {
+		appRollout.Status.ResetStatus()
+	}
 	targetAppRevisionName := appRollout.Spec.TargetAppRevisionName
 	sourceAppRevisionName := appRollout.Spec.SourceAppRevisionName
-	// handle rollout completed
-	if appRollout.Status.RollingState == v1alpha1.RolloutSucceedState ||
-		appRollout.Status.RollingState == v1alpha1.RolloutFailedState {
-		if appRollout.Status.LastUpgradedTargetAppRevision == targetAppRevisionName &&
-			appRollout.Status.LastSourceAppRevision == sourceAppRevisionName {
-			klog.InfoS("rollout completed, no need to reconcile", "source", sourceAppRevisionName,
-				"target", targetAppRevisionName)
-			return ctrl.Result{}, nil
-		}
+
+	// handle app Finalizer
+	doneReconcile, res, retErr := r.handleFinalizer(ctx, &appRollout)
+	if doneReconcile {
+		return res, retErr
 	}
-	// handle rollout target/source change
+
+	// no need to proceed if rollout is already in a terminal state and there is no source/target change
+	doneReconcile = r.handleRollingTerminated(appRollout, targetAppRevisionName, sourceAppRevisionName)
+	if doneReconcile {
+		return reconcile.Result{}, nil
+	}
+
+	// handle rollout target/source change,
 	if appRollout.Status.LastUpgradedTargetAppRevision != "" &&
 		appRollout.Status.LastUpgradedTargetAppRevision != targetAppRevisionName ||
 		(appRollout.Status.LastSourceAppRevision != "" && appRollout.Status.LastSourceAppRevision != sourceAppRevisionName) {
@@ -123,11 +128,17 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 			// continue to handle the previous resources until we are okay to move forward
 			targetAppRevisionName = appRollout.Status.LastUpgradedTargetAppRevision
 			sourceAppRevisionName = appRollout.Status.LastSourceAppRevision
+		} else {
+			// so that we don't think we are modified again
+			appRollout.Status.LastUpgradedTargetAppRevision = targetAppRevisionName
+			appRollout.Status.LastSourceAppRevision = sourceAppRevisionName
 		}
 		appRollout.Status.StateTransition(v1alpha1.RollingModifiedEvent)
 	}
 
-	// Get the source application
+	//TODO: handle deleting/abandoning state differently
+
+	// Get the source application first
 	var sourceApRev *oamv1alpha2.ApplicationRevision
 	var sourceApp *oamv1alpha2.ApplicationContext
 	var err error
@@ -135,7 +146,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 		klog.Info("source app fields not filled, this is a scale operation")
 		sourceApp = nil
 	} else {
-		sourceApRev, sourceApp, err = r.getSourceAppContexts(ctx, sourceAppRevisionName)
+		sourceApRev, sourceApp, err = r.getSourceAppContexts(ctx,
+			appRollout.Spec.ComponentList, appRollout.Status.RollingState, sourceAppRevisionName)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -144,21 +156,24 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 			klog.Info("source app revision is not ready for rolling yet", "application revision", sourceAppRevisionName)
 			r.record.Event(&appRollout, event.Normal("Rollout Paused",
 				"source app revision is not ready for rolling yet", "application revision", sourceApp.GetName()))
-			return ctrl.Result{RequeueAfter: 3 * time.Second}, nil
+			return ctrl.Result{RequeueAfter: 3 * time.Second}, r.updateStatus(ctx, &appRollout)
 		}
 	}
 
-	// Get the target application revision
-	targetAppRev, targetApp, err := r.getTargetApps(ctx, targetAppRevisionName)
+	// Get the target application revision after the source app is templated
+	targetAppRev, targetApp, err := r.getTargetApps(ctx, appRollout.Spec.ComponentList,
+		appRollout.Status.RollingState, targetAppRevisionName)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+	// this ensures that we handle the target app init only once
+	appRollout.Status.StateTransition(v1alpha1.AppLocatedEvent)
 
 	// check if the app is templated
 	if targetApp.Status.RollingStatus != types.RollingTemplated {
 		r.record.Event(&appRollout, event.Normal("Rollout Paused",
 			"target app revision is not ready for rolling yet", "application revision", targetApp.GetName()))
-		return ctrl.Result{RequeueAfter: 3 * time.Second}, nil
+		return ctrl.Result{RequeueAfter: 3 * time.Second}, r.updateStatus(ctx, &appRollout)
 	}
 
 	// we get the real workloads from the spec of the revisions
@@ -167,13 +182,12 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 		klog.ErrorS(err, "cannot fetch the workloads to upgrade", "target application",
 			klog.KRef(req.Namespace, targetAppRevisionName), "source application", klog.KRef(req.Namespace, sourceAppRevisionName),
 			"commonComponent", appRollout.Spec.ComponentList)
-		return ctrl.Result{RequeueAfter: 5 * time.Second}, client.IgnoreNotFound(err)
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, r.updateStatus(ctx, &appRollout)
 	}
 	klog.InfoS("get the target workload we need to work on", "targetWorkload", klog.KObj(targetWorkload))
 	if sourceWorkload != nil {
 		klog.InfoS("get the source workload we need to work on", "sourceWorkload", klog.KObj(sourceWorkload))
 	}
-
 	// reconcile the rollout part of the spec given the target and source workload
 	rolloutPlanController := rollout.NewRolloutPlanController(r, &appRollout, r.record,
 		&appRollout.Spec.RolloutPlan, &appRollout.Status.RolloutStatus, targetWorkload, sourceWorkload)
@@ -186,14 +200,64 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 		appRollout.Status.LastSourceAppRevision = appRollout.Spec.SourceAppRevisionName
 	}
 	if rolloutStatus.RollingState == v1alpha1.RolloutSucceedState {
+		klog.InfoS("rollout succeeded, record the source and target app revision", "source", sourceAppRevisionName,
+			"target", targetAppRevisionName)
 		if err = r.finalizeRollingSucceeded(ctx, sourceApp, targetApp); err != nil {
 			return ctrl.Result{}, err
 		}
-		klog.InfoS("rollout succeeded, record the source and target app revision", "source", sourceAppRevisionName,
-			"target", targetAppRevisionName)
+	} else if rolloutStatus.RollingState == v1alpha1.RolloutFailedState {
+		klog.InfoS("rollout failed, record the source and target app revision", "source", sourceAppRevisionName,
+			"target", targetAppRevisionName, "revert on deletion", appRollout.Spec.RevertOnDelete)
+
 	}
 	// update the appRollout status
 	return result, r.updateStatus(ctx, &appRollout)
+}
+
+// handle adding and handle finalizer logic, it turns if we should continue to reconcile
+func (r *Reconciler) handleFinalizer(ctx context.Context, appRollout *v1beta1.AppRollout) (bool, reconcile.Result, error) {
+	if appRollout.DeletionTimestamp.IsZero() {
+		if !meta.FinalizerExists(&appRollout.ObjectMeta, appRolloutFinalizer) {
+			meta.AddFinalizer(&appRollout.ObjectMeta, appRolloutFinalizer)
+			klog.InfoS("Register new app rollout finalizers", "rollout", appRollout.Name,
+				"finalizers", appRollout.ObjectMeta.Finalizers)
+			return true, reconcile.Result{}, errors.Wrap(r.Update(ctx, appRollout), errUpdateAppRollout)
+		}
+	} else if meta.FinalizerExists(&appRollout.ObjectMeta, appRolloutFinalizer) {
+		if appRollout.Status.RollingState == v1alpha1.RolloutSucceedState {
+			klog.InfoS("Safe to delete the succeeded rollout", "rollout", appRollout.Name)
+			meta.RemoveFinalizer(&appRollout.ObjectMeta, appRolloutFinalizer)
+			return true, reconcile.Result{}, errors.Wrap(r.Update(ctx, appRollout), errUpdateAppRollout)
+		}
+		if appRollout.Status.RollingState == v1alpha1.RolloutFailedState {
+			klog.InfoS("delete the rollout in deleted state", "rollout", appRollout.Name)
+			if appRollout.Spec.RevertOnDelete {
+				klog.InfoS("need to revert the failed rollout", "rollout", appRollout.Name)
+			}
+			meta.RemoveFinalizer(&appRollout.ObjectMeta, appRolloutFinalizer)
+			return true, reconcile.Result{}, errors.Wrap(r.Update(ctx, appRollout), errUpdateAppRollout)
+		}
+		// still need to finalize
+		klog.Info("perform clean up", "app rollout", appRollout.Name)
+		r.record.Event(appRollout, event.Normal("Rollout ", "rollout target deleted, release the resources"))
+		appRollout.Status.StateTransition(v1alpha1.RollingDeletedEvent)
+	}
+	return false, reconcile.Result{}, nil
+}
+
+func (r *Reconciler) handleRollingTerminated(appRollout v1beta1.AppRollout, targetAppRevisionName string,
+	sourceAppRevisionName string) bool {
+	// handle rollout completed
+	if appRollout.Status.RollingState == v1alpha1.RolloutSucceedState ||
+		appRollout.Status.RollingState == v1alpha1.RolloutFailedState {
+		if appRollout.Status.LastUpgradedTargetAppRevision == targetAppRevisionName &&
+			appRollout.Status.LastSourceAppRevision == sourceAppRevisionName {
+			klog.InfoS("rollout completed, no need to reconcile", "source", sourceAppRevisionName,
+				"target", targetAppRevisionName)
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Reconciler) finalizeRollingSucceeded(ctx context.Context, sourceApp *oamv1alpha2.ApplicationContext,
@@ -209,7 +273,7 @@ func (r *Reconciler) finalizeRollingSucceeded(ctx context.Context, sourceApp *oa
 		}
 	}
 	// remove the rollout annotation so that the target appConfig controller can take over the rest of the work
-	oamutil.RemoveAnnotations(targetApp, []string{oam.AnnotationAppRollout})
+	oamutil.RemoveAnnotations(targetApp, []string{oam.AnnotationAppRollout, oam.AnnotationRollingComponent})
 	if err := r.Update(ctx, targetApp); err != nil {
 		klog.ErrorS(err, "cannot remove the rollout annotation", "target application",
 			klog.KRef(targetApp.Namespace, targetApp.GetName()))
@@ -219,27 +283,15 @@ func (r *Reconciler) finalizeRollingSucceeded(ctx context.Context, sourceApp *oa
 }
 
 // UpdateStatus updates v1alpha2.AppRollout's Status with retry.RetryOnConflict
-func (r *Reconciler) updateStatus(ctx context.Context, appRollout *v1beta1.AppRollout, opts ...client.UpdateOption) error {
+func (r *Reconciler) updateStatus(ctx context.Context, appRollout *v1beta1.AppRollout) error {
 	status := appRollout.DeepCopy().Status
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
 		if err = r.Get(ctx, client.ObjectKey{Namespace: appRollout.Namespace, Name: appRollout.Name}, appRollout); err != nil {
 			return
 		}
 		appRollout.Status = status
-		return r.Status().Update(ctx, appRollout, opts...)
+		return r.Status().Update(ctx, appRollout)
 	})
-}
-
-func (r *Reconciler) handleFinalizer(appRollout *v1beta1.AppRollout) {
-	if appRollout.DeletionTimestamp.IsZero() {
-		if !slice.ContainsString(appRollout.Finalizers, appRolloutFinalizer, nil) {
-			// TODO: add finalizer
-			klog.Info("add finalizer")
-		}
-	} else if slice.ContainsString(appRollout.Finalizers, appRolloutFinalizer, nil) {
-		// TODO: perform finalize
-		klog.Info("perform clean up")
-	}
 }
 
 // SetupWithManager setup the controller with manager

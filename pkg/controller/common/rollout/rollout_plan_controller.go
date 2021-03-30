@@ -59,10 +59,6 @@ func NewRolloutPlanController(client client.Client, parentController oam.Object,
 	rolloutSpec *v1alpha1.RolloutPlan, rolloutStatus *v1alpha1.RolloutStatus,
 	targetWorkload, sourceWorkload *unstructured.Unstructured) *Controller {
 	initializedRolloutStatus := rolloutStatus.DeepCopy()
-	// use Mutation webhook?
-	if len(initializedRolloutStatus.RollingState) == 0 {
-		initializedRolloutStatus.ResetStatus()
-	}
 	if len(initializedRolloutStatus.BatchRollingState) == 0 {
 		initializedRolloutStatus.BatchRollingState = v1alpha1.BatchInitializingState
 	}
@@ -138,7 +134,7 @@ func (r *Controller) Reconcile(ctx context.Context) (res reconcile.Result, statu
 	case v1alpha1.RollingInBatchesState:
 		r.reconcileBatchInRolling(ctx, workloadController)
 
-	case v1alpha1.RolloutFailingState, v1alpha1.RolloutAbandoningState:
+	case v1alpha1.RolloutFailingState, v1alpha1.RolloutAbandoningState, v1alpha1.RolloutDeletingState:
 		if succeed := workloadController.Finalize(ctx, false); succeed {
 			r.finalizeRollout(ctx)
 		}
