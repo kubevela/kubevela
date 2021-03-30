@@ -23,8 +23,6 @@ import (
 	"strconv"
 	"testing"
 
-	types2 "github.com/oam-dev/kubevela/apis/types"
-
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -46,6 +44,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	oamtype "github.com/oam-dev/kubevela/apis/types"
 	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
@@ -112,8 +111,11 @@ func TestRender(t *testing.T) {
 		oam.AnnotationRollingComponent: componentName,
 		"keep":                         strconv.FormatBool(true),
 	})
-	controlledNoneTemplateAC := controlledTemplateAC.DeepCopy()
-	controlledNoneTemplateAC.Status.RollingStatus = types2.RollingTemplated
+	controlledTemplatedAC := controlledTemplateAC.DeepCopy()
+	controlledTemplatedAC.Status.RollingStatus = oamtype.RollingTemplated
+	// ac will render template again if the status is not templated
+	controlledForceTemplateAC := controlledTemplatedAC.DeepCopy()
+	controlledForceTemplateAC.Status.RollingStatus = oamtype.RollingTemplating
 
 	ref := metav1.NewControllerRef(ac, v1alpha2.ApplicationConfigurationGroupVersionKind)
 	errTrait := errors.New("errTrait")
@@ -763,11 +765,90 @@ func TestRender(t *testing.T) {
 					return t, nil
 				}),
 			},
-			args: args{ac: controlledNoneTemplateAC},
+			args: args{ac: controlledTemplatedAC},
 			want: want{
 				w: []Workload{
 					{
 						SkipApply:             true,
+						ComponentName:         componentName,
+						ComponentRevisionName: revisionName2,
+						Workload: func() *unstructured.Unstructured {
+							w := &unstructured.Unstructured{}
+							w.SetNamespace(namespace)
+							w.SetName(revisionName2)
+							w.SetOwnerReferences([]metav1.OwnerReference{*ref})
+							w.SetAnnotations(map[string]string{
+								oam.AnnotationAppGeneration: "0",
+							})
+							return w
+						}(),
+						RevisionEnabled: true,
+					},
+				},
+			},
+		},
+		"Success-With-Force-Template-Deployment": {
+			reason: "We force render the workload as long as the status is not templated",
+			fields: fields{
+				client: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
+					switch defObj := obj.(type) {
+					case *v1alpha2.Component:
+						ccomp := v1alpha2.Component{
+							Status: v1alpha2.ComponentStatus{
+								LatestRevision: &common.Revision{Name: revisionName2},
+							},
+						}
+						ccomp.DeepCopyInto(defObj)
+					case *v1alpha2.TraitDefinition:
+						ttrait := v1alpha2.TraitDefinition{ObjectMeta: metav1.ObjectMeta{Name: traitName},
+							Spec: v1alpha2.TraitDefinitionSpec{RevisionEnabled: true}}
+						ttrait.DeepCopyInto(defObj)
+					case *v1.ControllerRevision:
+						rev := &v1.ControllerRevision{
+							ObjectMeta: metav1.ObjectMeta{Name: revisionName, Namespace: namespace},
+							Data: runtime.RawExtension{Object: &v1alpha2.Component{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      componentName,
+									Namespace: namespace,
+								},
+								Spec: v1alpha2.ComponentSpec{
+									Workload: runtime.RawExtension{
+										Object: &unstructured.Unstructured{},
+									},
+								},
+								Status: v1alpha2.ComponentStatus{
+									LatestRevision: &common.Revision{Name: revisionName2},
+								},
+							}},
+							Revision: 2,
+						}
+						rev.DeepCopyInto(defObj)
+					}
+					return nil
+				})},
+				params: ParameterResolveFn(func(_ []v1alpha2.ComponentParameter, _ []v1alpha2.ComponentParameterValue) ([]Parameter, error) {
+					return nil, nil
+				}),
+				workload: ResourceRenderFn(func(_ []byte, _ ...Parameter) (*unstructured.Unstructured, error) {
+					w := &unstructured.Unstructured{
+						Object: map[string]interface{}{
+							"apiVersion": "apps/v1",
+							"kind":       "Deployment",
+						},
+					}
+					return w, nil
+				}),
+				trait: ResourceRenderFn(func(_ []byte, _ ...Parameter) (*unstructured.Unstructured, error) {
+					t := &unstructured.Unstructured{}
+					t.SetName(traitName)
+					return t, nil
+				}),
+			},
+			args: args{ac: controlledForceTemplateAC},
+			want: want{
+				w: []Workload{
+					{
+						SkipApply:             false,
 						ComponentName:         componentName,
 						ComponentRevisionName: revisionName2,
 						Workload: func() *unstructured.Unstructured {
@@ -790,13 +871,12 @@ func TestRender(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), tc.fields.params,
 				tc.fields.workload, tc.fields.trait}
-			needTemplating := tc.args.ac.Status.RollingStatus != types2.RollingTemplated
+			needTemplating := tc.args.ac.Status.RollingStatus != oamtype.RollingTemplated
 			_, isRolling := tc.args.ac.GetAnnotations()[oam.AnnotationAppRollout]
 			got, _, err := r.Render(context.Background(), tc.args.ac)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nr.Render(...): -want error, +got error:\n%s\n", tc.reason, diff)
 			}
-
 			if isControlledByApp(tc.args.ac) {
 				// test the case of application generated AC
 				if diff := cmp.Diff(tc.want.w[0].ComponentName, got[0].ComponentName); diff != "" {
@@ -808,11 +888,11 @@ func TestRender(t *testing.T) {
 				if diff := cmp.Diff(tc.want.w[0].Workload.GetName(), got[0].Workload.GetName()); diff != "" {
 					t.Errorf("\n%s\nr.Render(...): -want, +got:\n%s\n", tc.reason, diff)
 				}
-				if _, exit := got[0].Workload.GetAnnotations()[oam.AnnotationAppRollout]; exit {
+				if _, exist := got[0].Workload.GetAnnotations()[oam.AnnotationAppRollout]; exist {
 					t.Errorf("\n%s\nr.Render(...) workload should not get annotation:%s\n", tc.reason,
 						oam.AnnotationAppRollout)
 				}
-				if _, exit := got[0].Workload.GetAnnotations()[oam.AnnotationRollingComponent]; exit {
+				if _, exist := got[0].Workload.GetAnnotations()[oam.AnnotationRollingComponent]; exist {
 					t.Errorf("\n%s\nr.Render(...) workload  should not get annotation:%s\n", tc.reason,
 						oam.AnnotationRollingComponent)
 				}
@@ -820,7 +900,7 @@ func TestRender(t *testing.T) {
 					t.Errorf("\n%s\nr.Render(...) workload should get annotation:%s\n", tc.reason,
 						"keep")
 				}
-				if _, exit := got[0].Traits[0].Object.GetAnnotations()[oam.AnnotationRollingComponent]; exit {
+				if _, exist := got[0].Traits[0].Object.GetAnnotations()[oam.AnnotationRollingComponent]; exist {
 					t.Errorf("\n%s\nr.Render(...): trait should not get annotation:%s\n", tc.reason,
 						oam.AnnotationRollingComponent)
 				}
@@ -836,7 +916,7 @@ func TestRender(t *testing.T) {
 						if got[0].SkipApply {
 							t.Errorf("\n%s\nr.Render(...): template workload should not be skipped\n", tc.reason)
 						}
-						if tc.args.ac.Status.RollingStatus != types2.RollingTemplated {
+						if tc.args.ac.Status.RollingStatus != oamtype.RollingTemplated {
 							t.Errorf("\n%s\nr.Render(...): ac status should be templated but got %s\n", tc.reason,
 								ac.Status.RollingStatus)
 						}

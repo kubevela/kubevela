@@ -41,10 +41,11 @@ type AppRolloutSpec struct {
 	// RolloutPlan is the details on how to rollout the resources
 	RolloutPlan v1alpha1.RolloutPlan `json:"rolloutPlan"`
 
-	// RevertOnDelete revert the rollout when the rollout CR is deleted
-	// It will remove the target app from the kubernetes if it's set to true
+	// RevertOnDelete revert the failed rollout when the rollout CR is deleted
+	// It will revert the change back to the source version at once (not in batches)
+	// Default is false
 	// +optional
-	RevertOnDelete *bool `json:"revertOnDelete,omitempty"`
+	RevertOnDelete bool `json:"revertOnDelete,omitempty"`
 }
 
 // AppRolloutStatus defines the observed state of AppRollout
