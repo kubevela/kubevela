@@ -283,14 +283,14 @@ func (r *Reconciler) finalizeRollingSucceeded(ctx context.Context, sourceApp *oa
 }
 
 // UpdateStatus updates v1alpha2.AppRollout's Status with retry.RetryOnConflict
-func (r *Reconciler) updateStatus(ctx context.Context, appRollout *v1beta1.AppRollout, opts ...client.UpdateOption) error {
+func (r *Reconciler) updateStatus(ctx context.Context, appRollout *v1beta1.AppRollout) error {
 	status := appRollout.DeepCopy().Status
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
 		if err = r.Get(ctx, client.ObjectKey{Namespace: appRollout.Namespace, Name: appRollout.Name}, appRollout); err != nil {
 			return
 		}
 		appRollout.Status = status
-		return r.Status().Update(ctx, appRollout, opts...)
+		return r.Status().Update(ctx, appRollout)
 	})
 }
 
