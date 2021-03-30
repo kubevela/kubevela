@@ -261,8 +261,11 @@ func SyncDefinitionToLocal(ctx context.Context, c common.Args, localDefinitionDi
 		foundCapability = true
 	}
 	if foundCapability {
-		mapper := &discoverymapper.DefaultDiscoveryMapper{}
-		ref, err := util.ConvertWorkloadGVK2Definition(mapper, componentDef.Spec.Workload.Definition)
+		dm, err := c.GetDiscoveryMapper()
+		if err != nil {
+			return nil, err
+		}
+		ref, err := util.ConvertWorkloadGVK2Definition(dm, componentDef.Spec.Workload.Definition)
 		if err != nil {
 			return nil, err
 		}
