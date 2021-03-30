@@ -34,9 +34,9 @@ KubeVela allows platform teams to create developer-centric abstractions with IaC
 
 ## Getting Started
 
-- [Installation](https://kubevela.io/#/en/install)
-- [Quick start](https://kubevela.io/#/en/quick-start)
-- [How it works](https://kubevela.io/#/en/concepts)
+- [Installation](https://kubevela.io/docs/install)
+- [Quick start](https://kubevela.io/docs/quick-start)
+- [How it works](https://kubevela.io/docs/concepts)
 
 ## Features
 

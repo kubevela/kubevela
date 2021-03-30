@@ -18,7 +18,7 @@ contributing to `kubevela` or build a PoC (Proof of Concept).
 3. ginkgo 1.14.0+ (just for [E2E test](./CONTRIBUTING.md#e2e-test))
 4. golangci-lint 1.31.0+, it will install automatically if you run `make`, you can [install it manually](https://golangci-lint.run/usage/install/#local-installation) if the installation is too slow.
 
-We also recommend you to learn about KubeVela's [design](https://kubevela.io/#/en/concepts) before dive into its code.
+We also recommend you to learn about KubeVela's [design](https://kubevela.io/docs/concepts) before dive into its code.
 
 ### Build
 
@@ -86,7 +86,7 @@ helm uninstall -n vela-system kubevela
 
 ### Use
 
-You can try use your local built binaries follow [the documentation](https://kubevela.io/#/en/quick-start).
+You can try use your local built binaries follow [the documentation](https://kubevela.io/docs/quick-start).
 
 ## Testing
 
@@ -108,6 +108,22 @@ Start to test.
 
 ```
 make e2e-test
+```
+
+### Contribute Docs
+
+Please read [the documentation](https://github.com/oam-dev/kubevela/tree/master/docs/README.md) before contributing to the docs.
+
+- Build docs
+
+```shell script
+make docs-build
+```
+
+- Local development and preview
+
+```shell script
+make docs-start
 ```
 
 ## Make a pull request

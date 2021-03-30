@@ -21,7 +21,7 @@ module.exports = {
       label: 'Rollout Features',
       items:[
         "rollout/rollout",
-        "rollout/appdeploy"
+        'rollout/appdeploy'
       ]
     },
     {

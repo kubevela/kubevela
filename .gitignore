@@ -55,3 +55,6 @@ references/dashboard/src/.umi-production/
 
 # Swagger: generate Restful API
 references/apiserver/docs/index.html
+
+# check docs
+git-page/
