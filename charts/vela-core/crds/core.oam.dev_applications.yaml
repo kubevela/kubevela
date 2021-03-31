@@ -28,7 +28,29 @@ spec:
     singular: application
   scope: Namespaced
   versions:
-  - name: v1alpha2
+  - additionalPrinterColumns:
+    - jsonPath: .spec.components[*].name
+      name: COMPONENT
+      type: string
+    - jsonPath: .spec.components[*].type
+      name: TYPE
+      type: string
+    - jsonPath: .spec.components[*].traits[*].name
+      name: TRAIT
+      type: string
+    - jsonPath: .status.status
+      name: PHASE
+      type: string
+    - jsonPath: .status.services[*].healthy
+      name: HEALTHY
+      type: boolean
+    - jsonPath: .status.services[*].message
+      name: STATUS
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha2
     schema:
       openAPIV3Schema:
         description: Application is the Schema for the applications API
@@ -463,7 +485,29 @@ spec:
     storage: false
     subresources:
       status: {}
-  - name: v1beta1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.components[*].name
+      name: COMPONENT
+      type: string
+    - jsonPath: .spec.components[*].type
+      name: TYPE
+      type: string
+    - jsonPath: .spec.components[*].traits[*].type
+      name: TRAIT
+      type: string
+    - jsonPath: .status.status
+      name: PHASE
+      type: string
+    - jsonPath: .status.services[*].healthy
+      name: HEALTHY
+      type: boolean
+    - jsonPath: .status.services[*].message
+      name: STATUS
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1beta1
     schema:
       openAPIV3Schema:
         description: Application is the Schema for the applications API

@@ -7,6 +7,28 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.2.4
   name: applications.core.oam.dev
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .spec.components[*].name
+    name: COMPONENT
+    type: string
+  - JSONPath: .spec.components[*].type
+    name: TYPE
+    type: string
+  - JSONPath: .spec.components[*].traits[*].type
+    name: TRAIT
+    type: string
+  - JSONPath: .status.status
+    name: PHASE
+    type: string
+  - JSONPath: .status.services[*].healthy
+    name: HEALTHY
+    type: boolean
+  - JSONPath: .status.services[*].message
+    name: STATUS
+    type: string
+  - JSONPath: .metadata.creationTimestamp
+    name: AGE
+    type: date
   group: core.oam.dev
   names:
     categories:
