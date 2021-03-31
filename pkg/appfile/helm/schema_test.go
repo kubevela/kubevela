@@ -54,7 +54,7 @@ func TestGenerateSchemaFromValues(t *testing.T) {
 
 func TestGetChartValuesJSONSchema(t *testing.T) {
 	testHelm := testData("podinfo", "5.1.4", "http://oam.dev/catalog")
-	wantSchema, err := ioutil.ReadFile("./testdata/values.schema.json")
+	wantSchema, err := ioutil.ReadFile("./testdata/podinfo.values.schema.json")
 	if err != nil {
 		t.Error(err, "cannot load expected data")
 	}
@@ -240,6 +240,37 @@ func TestMakeSwaggerCompatible(t *testing.T) {
   ]
 }}`,
 			want: `{"objectArray":{"items":{"enum":null,"properties":{"f0":{"enum":["v0"],"type":"string"},"f1":{"enum":["v1"],"type":"string"},"f2":{"enum":["v2"],"type":"string"}},"required":["f0","f1","f2"],"type":"object"},"type":"array"}}`,
+		},
+		{
+			caseName: "object type array embeds object type array",
+			testdata: `{
+  "objectArray": {
+    "type": "array",
+    "items": [
+      {
+        "type": "array",
+        "items": [
+          {
+            "type": "object",
+            "required": [
+              "f0"
+            ],
+            "properties": {
+              "f0": {
+                "type": "string",
+                "enum": [
+                  "v0"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+`,
+			want: `{"objectArray":{"items":{"enum":null,"items":{"enum":null,"properties":{"f0":{"enum":["v0"],"type":"string"}},"required":["f0"],"type":"object"},"type":"array"},"type":"array"}}`,
 		},
 	}
 

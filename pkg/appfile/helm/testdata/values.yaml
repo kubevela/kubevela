@@ -104,9 +104,10 @@ ingress:
   annotations: {}
     # kubernetes.io/ingress.class: nginx
     # kubernetes.io/tls-acme: "true"
-  path: /*
-  hosts: []
-#    - podinfo.local
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
   tls: []
   #  - secretName: chart-example-tls
   #    hosts:
