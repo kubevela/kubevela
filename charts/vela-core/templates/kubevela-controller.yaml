@@ -120,6 +120,7 @@ spec:
             {{ if ne .Values.disableCaps "" }}
             - "--disable-caps={{ .Values.disableCaps }}"
             {{ end }}
+            - "--system-definition-namespace={{ .Values.systemDefinitionNamespace }}"
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:
