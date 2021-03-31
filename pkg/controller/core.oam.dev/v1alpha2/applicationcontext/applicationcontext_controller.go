@@ -24,8 +24,6 @@ import (
 
 	types2 "github.com/oam-dev/kubevela/apis/types"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/pkg/errors"
@@ -129,7 +127,6 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, compHandler *ac.Componen
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha2.ApplicationContext{}).
 		Watches(&source.Kind{Type: &v1alpha2.Component{}}, compHandler).
-		Owns(&v1beta1.Application{}).
 		Complete(r)
 }
 
