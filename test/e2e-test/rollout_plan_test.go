@@ -486,7 +486,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				appRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 2)
 				appRollout.Spec.RolloutPlan.BatchPartition = nil
 				return k8sClient.Update(ctx, &appRollout)
-			}, time.Second*5, time.Millisecond*500).Should(Succeed())
+			}, time.Second*10, time.Millisecond*500).Should(Succeed())
 
 		By("Wait for the rollout phase change to rolling in batches")
 		Eventually(
