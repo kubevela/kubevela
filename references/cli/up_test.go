@@ -36,7 +36,6 @@ func TestUp(t *testing.T) {
 	env := types.EnvMeta{
 		Name:      "up",
 		Namespace: "env-up",
-		Issuer:    "up",
 	}
 	o := common.AppfileOptions{
 		IO:  ioStream,

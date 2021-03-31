@@ -64,16 +64,6 @@ func fixNewSchemaValidationCheck(crds []string) error {
 			}
 			ioutil.WriteFile(crd, []byte(strings.Join(newData, "\n")), 0644)
 		}
-		// fix issue https://github.com/oam-dev/kubevela/issues/993
-		if strings.HasSuffix(crd, "legacy/charts/vela-core-legacy/crds/standard.oam.dev_routes.yaml") {
-			for _, line := range strings.Split(string(data), "\n") {
-				if strings.Contains(line, "default: Issuer") {
-					continue
-				}
-				newData = append(newData, line)
-			}
-			ioutil.WriteFile(crd, []byte(strings.Join(newData, "\n")), 0644)
-		}
 	}
 	return nil
 }
