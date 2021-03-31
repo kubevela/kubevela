@@ -9,9 +9,14 @@ metadata:
 spec:
   group: core.oam.dev
   names:
+    categories:
+    - oam
     kind: ApplicationRevision
     listKind: ApplicationRevisionList
     plural: applicationrevisions
+    shortNames:
+    - apprev
+    - revisions
     singular: applicationrevision
   scope: Namespaced
   validation:

@@ -7,6 +7,16 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.2.4
   name: componentdefinitions.core.oam.dev
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .spec.workload.definition.kind
+    name: WORKLOAD_KIND
+    type: string
+  - JSONPath: .metadata.annotations.definition\.oam\.dev/description
+    name: DESCRIPTION
+    type: string
+  - JSONPath: .metadata.creationTimestamp
+    name: AGE
+    type: date
   group: core.oam.dev
   names:
     categories:
@@ -14,6 +24,8 @@ spec:
     kind: ComponentDefinition
     listKind: ComponentDefinitionList
     plural: componentdefinitions
+    shortNames:
+    - comp
     singular: componentdefinition
   scope: Namespaced
   subresources:

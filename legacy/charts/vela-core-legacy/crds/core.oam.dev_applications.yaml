@@ -23,7 +23,7 @@ spec:
   - JSONPath: .status.services[*].healthy
     name: HEALTHY
     type: boolean
-  - JSONPath: .status.services[*].message
+  - JSONPath: .status.services[*].traits[*].message
     name: STATUS
     type: string
   - JSONPath: .metadata.creationTimestamp
@@ -36,6 +36,8 @@ spec:
     kind: Application
     listKind: ApplicationList
     plural: applications
+    shortNames:
+    - apps
     singular: application
   scope: Namespaced
   validation:

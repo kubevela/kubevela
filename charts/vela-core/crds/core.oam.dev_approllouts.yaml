@@ -14,6 +14,9 @@ spec:
     kind: AppRollout
     listKind: AppRolloutList
     plural: approllouts
+    shortNames:
+    - approllout
+    - rollout
     singular: approllout
   scope: Namespaced
   versions:
@@ -366,19 +369,19 @@ spec:
     subresources:
       status: {}
   - additionalPrinterColumns:
-    - jsonPath: .status.rolloutStatus.rolloutTargetSize
+    - jsonPath: .status.rolloutTargetSize
       name: TARGET
       type: string
-    - jsonPath: .status.rolloutStatus.upgradedReplicas
+    - jsonPath: .status.upgradedReplicas
       name: UPGRADED
       type: string
-    - jsonPath: .status.rolloutStatus.upgradedReadyReplicas
+    - jsonPath: .status.upgradedReadyReplicas
       name: READY
       type: string
-    - jsonPath: .status.rolloutStatus.batchRollingState
+    - jsonPath: .status.batchRollingState
       name: BATCH_ROLLING_STATE
       type: string
-    - jsonPath: .status.rolloutStatus.rollingState
+    - jsonPath: .status.rollingState
       name: ROLLING_STATE
       type: string
     - jsonPath: .metadata.creationTimestamp

@@ -14,10 +14,22 @@ spec:
     kind: ComponentDefinition
     listKind: ComponentDefinitionList
     plural: componentdefinitions
+    shortNames:
+    - comp
     singular: componentdefinition
   scope: Namespaced
   versions:
-  - name: v1alpha2
+  - additionalPrinterColumns:
+    - jsonPath: .spec.workload.definition.kind
+      name: WORKLOAD_KIND
+      type: string
+    - jsonPath: .metadata.annotations.definition\.oam\.dev/description
+      name: DESCRIPTION
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha2
     schema:
       openAPIV3Schema:
         description: ComponentDefinition is the Schema for the componentdefinitions API
@@ -206,7 +218,17 @@ spec:
     storage: false
     subresources:
       status: {}
-  - name: v1beta1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.workload.definition.kind
+      name: WORKLOAD_KIND
+      type: string
+    - jsonPath: .metadata.annotations.definition\.oam\.dev/description
+      name: DESCRIPTION
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1beta1
     schema:
       openAPIV3Schema:
         description: ComponentDefinition is the Schema for the componentdefinitions API

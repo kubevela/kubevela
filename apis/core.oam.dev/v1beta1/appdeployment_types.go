@@ -178,7 +178,7 @@ type AppDeploymentStatus struct {
 
 // AppDeployment is the Schema for the AppDeployment API
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:categories={oam}
+// +kubebuilder:resource:categories={oam},shortName=appdeploy
 // +kubebuilder:subresource:status
 type AppDeployment struct {
 	metav1.TypeMeta   `json:",inline"`

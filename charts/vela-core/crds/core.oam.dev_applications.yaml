@@ -25,6 +25,8 @@ spec:
     kind: Application
     listKind: ApplicationList
     plural: applications
+    shortNames:
+    - apps
     singular: application
   scope: Namespaced
   versions:
@@ -44,7 +46,7 @@ spec:
     - jsonPath: .status.services[*].healthy
       name: HEALTHY
       type: boolean
-    - jsonPath: .status.services[*].message
+    - jsonPath: .status.services[*].traits[*].message
       name: STATUS
       type: string
     - jsonPath: .metadata.creationTimestamp
@@ -501,7 +503,7 @@ spec:
     - jsonPath: .status.services[*].healthy
       name: HEALTHY
       type: boolean
-    - jsonPath: .status.services[*].message
+    - jsonPath: .status.services[*].traits[*].message
       name: STATUS
       type: string
     - jsonPath: .metadata.creationTimestamp

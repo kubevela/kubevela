@@ -7,10 +7,6 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.2.4
   name: workloaddefinitions.core.oam.dev
 spec:
-  additionalPrinterColumns:
-  - JSONPath: .spec.definitionRef.name
-    name: DEFINITION-NAME
-    type: string
   group: core.oam.dev
   names:
     categories:
@@ -18,6 +14,8 @@ spec:
     kind: WorkloadDefinition
     listKind: WorkloadDefinitionList
     plural: workloaddefinitions
+    shortNames:
+    - workload
     singular: workloaddefinition
   scope: Namespaced
   subresources: {}

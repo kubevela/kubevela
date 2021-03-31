@@ -67,9 +67,11 @@ type WorkloadDefinitionStatus struct {
 // valid OAM workload kind by referencing its CustomResourceDefinition. The CRD
 // is used to validate the schema of the workload when it is embedded in an OAM
 // Component.
-// +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
-// +kubebuilder:resource:scope=Namespaced,categories={oam}
+// +kubebuilder:resource:scope=Namespaced,categories={oam},shortName=workload
 // +kubebuilder:storageversion
+// +kubebuilder:printcolumn:name="DEFINITION-NAME",type=string,JSONPath=".spec.definitionRef.name"
+// +kubebuilder:printcolumn:name="DESCRIPTION",type=string,JSONPath=".metadata.annotations.definition\\.oam\\.dev/description"
+// +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp"
 type WorkloadDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -157,10 +159,12 @@ type TraitDefinitionStatus struct {
 // OAM trait kind by referencing its CustomResourceDefinition. The CRD is used
 // to validate the schema of the trait when it is embedded in an OAM
 // ApplicationConfiguration.
-// +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
-// +kubebuilder:resource:scope=Namespaced,categories={oam}
+// +kubebuilder:resource:scope=Namespaced,categories={oam},shortName=trait
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
+// +kubebuilder:printcolumn:name="APPLIES-TO",type=string,JSONPath=".spec.appliesToWorkloads"
+// +kubebuilder:printcolumn:name="DESCRIPTION",type=string,JSONPath=".metadata.annotations.definition\\.oam\\.dev/description"
+// +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp"
 type TraitDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
