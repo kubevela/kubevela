@@ -234,7 +234,7 @@ spec:
         replicas: 5
 ```
 
-5. Apply the application rollout that upgarde the application from v1 to v2
+5. Apply the application rollout that upgrade the application from v1 to v2
 ```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: AppRollout
