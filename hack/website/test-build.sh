@@ -24,12 +24,6 @@ git clone --single-branch --depth 1 https://github.com/oam-dev/kubevela.io.git g
 echo "sidebars updates"
 cat ${docs_path}/sidebars.js > git-page/sidebars.js
 
-echo "docusaurus.config updates"
-cat ${docs_path}/docusaurus.config.js >  git-page/docusaurus.config.js
-
-echo "index info updates"
-cat ${docs_path}/index.js > git-page/src/pages/index.js
-
 echo "clear en docs"
 rm -r git-page/docs/*
 echo "clear zh docs"
@@ -59,3 +53,31 @@ fi
 
 echo "run build"
 npm run build
+
+# Check for release only
+SUB='release-'
+if [[ "$VERSION" == *"$SUB"* ]]
+then
+
+  # release-x.y -> vx.y
+  version=$(echo $VERSION|sed -e 's/\/*.*\/*-/v/g')
+  echo "updating website for version $version"
+
+  if grep -q $version versions.json; then
+    rm -r versioned_docs/version-${version}/
+    rm versioned_sidebars/version-${version}-sidebars.json
+    sed -i.bak "/${version}/d" versions.json
+    rm versions.json.bak
+  fi
+
+  yarn add nodejieba
+  if [ -e yarn.lock ]; then
+  yarn install --frozen-lockfile
+  elif [ -e package-lock.json ]; then
+  npm ci
+  else
+  npm i
+  fi
+
+  yarn run docusaurus docs:version $version
+fi
