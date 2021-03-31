@@ -208,9 +208,13 @@ func handleItemsOfArrayType(t map[string]interface{}) {
 	}
 	if t["type"] == "array" {
 		if i, ok := t["items"].([]interface{}); ok {
-			itemSpec, _ := i[0].(map[string]interface{})
-			itemSpec["enum"] = nil
-			t["items"] = itemSpec
+			if len(i) > 0 {
+				if itemSpec, ok := i[0].(map[string]interface{}); ok {
+					handleItemsOfArrayType(itemSpec)
+					itemSpec["enum"] = nil
+					t["items"] = itemSpec
+				}
+			}
 		}
 	}
 }
