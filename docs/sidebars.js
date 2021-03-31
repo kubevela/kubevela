@@ -63,27 +63,33 @@ module.exports = {
                   'kube/trait',
               ]
             },
-            {
-              'Defining Traits': [
-                  'cue/trait',
-                  'cue/patch-trait',
-                  'cue/status',
-                  'cue/advanced',
-              ]
-            },
-            {
-              'Defining Cloud Service': [
-                'platform-engineers/cloud-services',
-              ]
-            },
-            {
-              'Hands-on Lab': [
-                  'platform-engineers/debug-test-cue',
-                  'platform-engineers/keda'
-              ]
-            }
           ]
-        }
+        },
+        {
+          type: 'category',
+          label: 'Defining Traits',
+          items: [
+            'cue/trait',
+            'cue/patch-trait',
+            'cue/status',
+            'cue/advanced',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Defining Cloud Service',
+          items: [
+            'platform-engineers/cloud-services'
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Hands-on Lab',
+          items: [
+            'platform-engineers/debug-test-cue',
+            'platform-engineers/keda'
+          ]
+        },
       ],
     },
     {
