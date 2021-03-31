@@ -32,6 +32,7 @@ spec:
             - --namespace={{ .Release.Namespace }}
             - --secret-name={{ template "kubevela.fullname" . }}-admission
             - --patch-failure-policy={{ .Values.admissionWebhooks.failurePolicy }}
+            - --crds=applications.core.oam.dev
       restartPolicy: OnFailure
       serviceAccountName: {{ template "kubevela.fullname" . }}-admission
       {{- with .Values.admissionWebhooks.patch.affinity }}

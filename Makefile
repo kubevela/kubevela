@@ -144,10 +144,8 @@ docker-push:
 e2e-setup:
 	helm install --create-namespace -n flux-system helm-flux http://oam.dev/catalog/helm-flux2-0.1.0.tgz
 	helm install kruise https://github.com/openkruise/kruise/releases/download/v0.7.0/kruise-chart.tgz
-	helm repo add jetstack https://charts.jetstack.io
 	helm repo update
-	helm upgrade --install --create-namespace --namespace cert-manager cert-manager jetstack/cert-manager --version v1.2.0  --set installCRDs=true --wait
-	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set admissionWebhooks.certManager.enabled=true --set image.repository=vela-core-test --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
+	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
 	ginkgo version
 	ginkgo -v -r e2e/setup
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela -n vela-system --timeout=600s

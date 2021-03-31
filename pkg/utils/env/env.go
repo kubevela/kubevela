@@ -25,22 +25,15 @@ import (
 	"os"
 	"path/filepath"
 
-	acmev1 "github.com/wonderflow/cert-manager-api/pkg/apis/acme/v1"
-	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
-	v1 "github.com/wonderflow/cert-manager-api/pkg/apis/meta/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
-
-// ProductionACMEServer is the production ACME Server from let's encrypt
-const ProductionACMEServer = "https://acme-v02.api.letsencrypt.org/directory"
 
 // GetEnvDirByName will get env dir from name
 func GetEnvDirByName(name string) string {
@@ -79,9 +72,6 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 		if envArgs.Email == "" {
 			envArgs.Email = old.Email
 		}
-		if envArgs.Issuer == "" {
-			envArgs.Issuer = old.Issuer
-		}
 		if envArgs.Namespace == "" {
 			envArgs.Namespace = old.Namespace
 		}
@@ -101,33 +91,6 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 		if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envArgs.Namespace}}); err != nil {
 			return message, err
 		}
-	}
-
-	// Create Issuer For SSL if both email and domain are all set.
-	if envArgs.Email != "" && envArgs.Domain != "" {
-		issuerName := "oam-env-" + envArgs.Name
-		if err := c.Create(ctx, &certmanager.Issuer{
-			ObjectMeta: metav1.ObjectMeta{Name: issuerName, Namespace: envArgs.Namespace},
-			Spec: certmanager.IssuerSpec{
-				IssuerConfig: certmanager.IssuerConfig{
-					ACME: &acmev1.ACMEIssuer{
-						Email:  envArgs.Email,
-						Server: ProductionACMEServer,
-						PrivateKey: v1.SecretKeySelector{
-							LocalObjectReference: v1.LocalObjectReference{Name: "oam-env-" + envArgs.Name + ".key"},
-						},
-						Solvers: []acmev1.ACMEChallengeSolver{{
-							HTTP01: &acmev1.ACMEChallengeSolverHTTP01{
-								Ingress: &acmev1.ACMEChallengeSolverHTTP01Ingress{Class: pointer.StringPtr("nginx")},
-							},
-						}},
-					},
-				},
-			},
-		}); err != nil && !apierrors.IsAlreadyExists(err) {
-			return message, err
-		}
-		envArgs.Issuer = issuerName
 	}
 
 	data, err := json.Marshal(envArgs)
