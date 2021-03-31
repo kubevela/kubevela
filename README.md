@@ -14,7 +14,7 @@
 
 # KubeVela
 
-KubeVela is the platform engine to create *PaaS-like* experience on Kubernetes, in a scalable approach.
+KubeVela is the platform engine to create *developer-centric* experience on Kubernetes, in a scalable approach.
 
 ## Community
 
@@ -22,15 +22,13 @@ KubeVela is the platform engine to create *PaaS-like* experience on Kubernetes, 
 - Gitter: [Discussion](https://gitter.im/oam-dev/community)
 - Bi-weekly Community Call: [Meeting Notes](https://docs.google.com/document/d/1nqdFEyULekyksFHtFvgvFAYE-0AMHKoS3RMnaKsarjs)
 
-> NOTE: KubeVela is still iterating quickly. It's currently under pre-beta release.
-
 ## What problems does it solve?
 
 Building **developer-centric platforms** with Kubernetes requires higher level primitives which is out-of-scope of Kubernetes itself. Hence, we platform teams build abstractions.
 
 However, great in flexibility and extensibility, the existing solutions such as IaC (Infrastructure-as-Code) and client-side templating tools all lead to ***Configuration Drift*** (i.e. the generated instances are not in line with the expected configuration) which is a nightmare in production.
 
-KubeVela allows platform teams to create developer-centric abstractions with IaC but maintain them with the battle tested [Kubernetes Control Loop](https://kubernetes.io/docs/concepts/architecture/controller/). Think about a plug-in that turns your Kubernetes cluster into a *"PaaS"* via abstractions designed by yourself.
+KubeVela allows platform teams to create developer-centric abstractions with IaC but maintain them with the battle tested [Kubernetes Control Loop](https://kubernetes.io/docs/concepts/architecture/controller/). Think about a plug-in that turns your Kubernetes cluster into a *Heroku* via abstractions designed by yourself.
 
 ## Getting Started
 
