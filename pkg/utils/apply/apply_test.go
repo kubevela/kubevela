@@ -31,6 +31,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 )
 
 var ctx = context.Background()
@@ -347,6 +349,15 @@ func TestMustBeControllableBy(t *testing.T) {
 				Controller: &controller,
 			}}}},
 			want: errors.Errorf("existing object is not controlled by UID %q", uid),
+		},
+		"cross namespace resource": {
+			reason: "A cross namespace resource have a resourceTracker owner, skip check UID",
+			u:      uid,
+			current: &testObject{ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
+				UID:        uid,
+				Controller: &controller,
+				Kind:       v1beta1.ResourceTrackerKind,
+			}}}},
 		},
 	}
 

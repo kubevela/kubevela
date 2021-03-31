@@ -19,6 +19,9 @@ package apply
 import (
 	"context"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam"
+
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,8 +30,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // Applicator applies new state to an object or create it if not exist.
@@ -175,7 +176,10 @@ func MustBeControllableBy(u types.UID) ApplyOption {
 		if c == nil {
 			return nil
 		}
-
+		// if workload is a cross namespace resource, skip check UID
+		if c.Kind == v1beta1.ResourceTrackerKind {
+			return nil
+		}
 		if c.UID != u {
 			return errors.Errorf("existing object is not controlled by UID %q", u)
 		}

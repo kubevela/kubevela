@@ -552,6 +552,158 @@ var _ = Describe("Test application cross namespace resource", func() {
 			return nil
 		}, time.Second*60, time.Microsecond*300).Should(BeNil())
 	})
+
+	It("Update a cross namespace workload of application", func() {
+		// install  component definition
+		crossCdJson, _ := yaml.YAMLToJSON([]byte(crossCompDefYaml))
+		ccd := new(v1beta1.ComponentDefinition)
+		Expect(json.Unmarshal(crossCdJson, ccd)).Should(BeNil())
+		Expect(k8sClient.Create(ctx, ccd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		var (
+			appName       = "test-app-5"
+			app           = new(v1beta1.Application)
+			componentName = "test-app-5-comp"
+		)
+		app = &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
+					v1beta1.ApplicationComponent{
+						Name:       componentName,
+						Type:       "cross-worker",
+						Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox"}`)},
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		By("check resource tracker has been created and app status ")
+		resourceTracker := new(v1beta1.ResourceTracker)
+		Eventually(func() error {
+			app := new(v1beta1.Application)
+			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app); err != nil {
+				return fmt.Errorf("app not found %v", err)
+			}
+			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker); err != nil {
+				return err
+			}
+			if app.Status.Phase != common.ApplicationRunning {
+				return fmt.Errorf("application status is not running")
+			}
+			if app.Status.ResourceTracker == nil || app.Status.ResourceTracker.UID != resourceTracker.UID {
+				return fmt.Errorf("appication status error ")
+			}
+			return nil
+		}, time.Second*600, time.Microsecond*300).Should(BeNil())
+		By("check resource is generated correctly")
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
+		var workload appsv1.Deployment
+		Eventually(func() error {
+			appContext := &v1alpha2.ApplicationContext{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, appContext); err != nil {
+				return fmt.Errorf("cannot generate AppContext %v", err)
+			}
+			component := &v1alpha2.Component{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: componentName}, component); err != nil {
+				return fmt.Errorf("cannot generate component %v", err)
+			}
+			if component.ObjectMeta.Labels[oam.LabelAppName] != appName {
+				return fmt.Errorf("component error label ")
+			}
+			depolys := new(appsv1.DeploymentList)
+			opts := []client.ListOption{
+				client.InNamespace(crossNamespace),
+				client.MatchingLabels{
+					oam.LabelAppName: appName,
+				},
+			}
+			err := k8sClient.List(ctx, depolys, opts...)
+			if err != nil || len(depolys.Items) != 1 {
+				return fmt.Errorf("error workload number %v", err)
+			}
+			workload = depolys.Items[0]
+			if len(workload.OwnerReferences) != 1 || workload.OwnerReferences[0].UID != resourceTracker.UID {
+				return fmt.Errorf("wrokload ownerreference error")
+			}
+			if workload.Spec.Template.Spec.Containers[0].Image != "busybox" {
+				return fmt.Errorf("container image not match")
+			}
+			return nil
+		}, time.Second*50, time.Microsecond*300).Should(BeNil())
+
+		By("update application and check resource status")
+		Eventually(func() error {
+			checkApp := new(v1beta1.Application)
+			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, checkApp)
+			if err != nil {
+				return err
+			}
+			checkApp.Spec.Components[0].Properties = runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"nginx"}`)}
+			err = k8sClient.Update(ctx, checkApp)
+			if err != nil {
+				return err
+			}
+			return nil
+		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+
+		Eventually(func() error {
+			appContext := &v1alpha2.ApplicationContext{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, appContext); err != nil {
+				return fmt.Errorf("cannot generate AppContext %v", err)
+			}
+			component := &v1alpha2.Component{}
+			if err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: componentName}, component); err != nil {
+				return fmt.Errorf("cannot generate component %v", err)
+			}
+			if component.ObjectMeta.Labels[oam.LabelAppName] != appName {
+				return fmt.Errorf("component error label ")
+			}
+			depolys := new(appsv1.DeploymentList)
+			opts := []client.ListOption{
+				client.InNamespace(crossNamespace),
+				client.MatchingLabels{
+					oam.LabelAppName: appName,
+				},
+			}
+			err := k8sClient.List(ctx, depolys, opts...)
+			if err != nil || len(depolys.Items) != 1 {
+				return fmt.Errorf("error workload number %v", err)
+			}
+			workload = depolys.Items[0]
+			if len(workload.OwnerReferences) != 1 || workload.OwnerReferences[0].UID != resourceTracker.UID {
+				return fmt.Errorf("wrokload ownerreference error")
+			}
+			if workload.Spec.Template.Spec.Containers[0].Image != "nginx" {
+				return fmt.Errorf("container image not match")
+			}
+			return nil
+		}, time.Second*60, time.Microsecond*1000).Should(BeNil())
+
+		By("deleting application will remove resourceTracker and related workload will be removed")
+		time.Sleep(3 * time.Second) // wait informer cache to be synced
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appName}, app)).Should(BeNil())
+		Expect(k8sClient.Delete(ctx, app)).Should(BeNil())
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker)
+			if err == nil {
+				return fmt.Errorf("resourceTracker still exist")
+			}
+			if !apierrors.IsNotFound(err) {
+				return err
+			}
+			err = k8sClient.Get(ctx, types.NamespacedName{Namespace: crossNamespace, Name: workload.GetName()}, &workload)
+			if err == nil {
+				return fmt.Errorf("wrokload still exist")
+			}
+			if !apierrors.IsNotFound(err) {
+				return err
+			}
+			return nil
+		}, time.Second*30, time.Microsecond*300).Should(BeNil())
+	})
 })
 
 func generateResourceTrackerKey(namespace string, name string) types.NamespacedName {
