@@ -1,5 +1,5 @@
 {{- if .Values.admissionWebhooks.enabled -}}
-apiVersion: admissionregistration.k8s.io/v1beta1
+apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: {{ template "kubevela.fullname" . }}-admission
@@ -21,6 +21,7 @@ webhooks:
     failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
     {{- end }}
     name: validating.core.oam.dev.v1alpha2.applicationconfigurations
+    sideEffects: None
     rules:
       - apiGroups:
           - core.oam.dev
@@ -47,6 +48,7 @@ webhooks:
     failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
     {{- end }}
     name: validating.core.oam.dev.v1beta1.approllouts
+    sideEffects: None
     rules:
       - apiGroups:
           - core.oam.dev
@@ -73,6 +75,7 @@ webhooks:
     failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
     {{- end }}
     name: validating.core.oam.dev.v1alpha2.components
+    sideEffects: None
     rules:
       - apiGroups:
           - core.oam.dev
@@ -99,6 +102,9 @@ webhooks:
     failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
     {{- end }}
     name: validating.core.oam.dev.v1alpha2.traitdefinitions
+    sideEffects: None
+    admissionReviewVersions:
+      - v1beta1
     rules:
       - apiGroups:
           - core.oam.dev
@@ -118,32 +124,12 @@ webhooks:
       service:
         name: {{ template "kubevela.name" . }}-webhook
         namespace: {{ .Release.Namespace }}
-        path: /validate-standard-oam-dev-v1alpha1-metricstrait
-    {{- if .Values.admissionWebhooks.patch.enabled  }}
-    failurePolicy: Ignore
-    {{- else }}
-    failurePolicy: {{ .Values.admissionWebhooks.failurePolicy }}
-    {{- end }}
-    name: vmetricstrait.kb.io
-    rules:
-      - apiGroups:
-          - standard.oam.dev
-        apiVersions:
-          - v1alpha1
-        operations:
-          - CREATE
-          - UPDATE
-          - DELETE
-        resources:
-          - metricstraits
-  - clientConfig:
-      caBundle: Cg==
-      service:
-        name: {{ template "kubevela.name" . }}-webhook
-        namespace: {{ .Release.Namespace }}
         path: /validate-standard-oam-dev-v1alpha1-podspecworkload
     failurePolicy: Fail
     name: vcontainerized.kb.io
+    admissionReviewVersions:
+      - v1beta1
+    sideEffects: None
     rules:
       - apiGroups:
           - standard.oam.dev
