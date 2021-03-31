@@ -18,6 +18,15 @@ package workloads
 
 import (
 	"context"
+
+	"github.com/crossplane/crossplane-runtime/pkg/event"
+	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 // WorkloadController is the interface that all type of cloneSet controller implements
@@ -49,4 +58,45 @@ type WorkloadController interface {
 	// For example, we may remove the source object to prevent scalar traits to ever work
 	// and the finalize rollout web hooks will be called after this call succeeds
 	Finalize(ctx context.Context, succeed bool) bool
+}
+
+// cloneSetController is the place to hold fields needed for handle Cloneset type of workloads
+type cloneSetController struct {
+	client           client.Client
+	recorder         event.Recorder
+	parentController oam.Object
+
+	rolloutSpec            *v1alpha1.RolloutPlan
+	rolloutStatus          *v1alpha1.RolloutStatus
+	workloadNamespacedName types.NamespacedName
+	cloneSet               *kruise.CloneSet
+}
+
+// size fetches the Cloneset and returns the replicas (not the actual number of pods)
+func (c *cloneSetController) size(ctx context.Context) (int32, error) {
+	if c.cloneSet == nil {
+		err := c.fetchCloneSet(ctx)
+		if err != nil {
+			return 0, err
+		}
+	}
+	// default is 1
+	if c.cloneSet.Spec.Replicas == nil {
+		return 1, nil
+	}
+	return *c.cloneSet.Spec.Replicas, nil
+}
+
+func (c *cloneSetController) fetchCloneSet(ctx context.Context) error {
+	// get the cloneSet
+	workload := kruise.CloneSet{}
+	err := c.client.Get(ctx, c.workloadNamespacedName, &workload)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			c.recorder.Event(c.parentController, event.Warning("Failed to get the Cloneset", err))
+		}
+		return err
+	}
+	c.cloneSet = &workload
+	return nil
 }

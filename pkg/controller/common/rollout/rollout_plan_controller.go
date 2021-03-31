@@ -166,7 +166,7 @@ func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadContro
 	}
 
 	// makes sure that the current batch and replica count in the status are validate
-	err := r.validateRollingBatchStatus(int(r.rolloutStatus.RolloutTargetTotalSize))
+	err := r.validateRollingBatchStatus(int(r.rolloutStatus.RolloutTargetSize))
 	if err != nil {
 		r.rolloutStatus.RolloutFailing(err.Error())
 		return
@@ -392,13 +392,25 @@ func (r *Controller) GetWorkloadController() (workloads.WorkloadController, erro
 
 	if r.targetWorkload.GroupVersionKind().Group == kruisev1.GroupVersion.Group {
 		if r.targetWorkload.GetKind() == reflect.TypeOf(kruisev1.CloneSet{}).Name() {
-			return workloads.NewCloneSetController(r.client, r.recorder, r.parentController,
+			return workloads.NewCloneSetScaleController(r.client, r.recorder, r.parentController,
 				r.rolloutSpec, r.rolloutStatus, target), nil
+			/*
+				// check whether current rollout plan is for workload rolling or scaling
+				if r.sourceWorkload != nil {
+					return workloads.NewCloneSetRolloutController(r.client, r.recorder, r.parentController,
+						r.rolloutSpec, r.rolloutStatus, target), nil
+				}
+
+				return workloads.NewCloneSetScaleController(r.client, r.recorder, r.parentController,
+					r.rolloutSpec, r.rolloutStatus, target), nil
+
+			*/
 		}
 	}
 
 	if r.targetWorkload.GroupVersionKind().Group == apps.GroupName {
 		if r.targetWorkload.GetKind() == reflect.TypeOf(apps.Deployment{}).Name() {
+			// TODO: create deployment scale controller when current rollout plan is for scale
 			return workloads.NewDeploymentController(r.client, r.recorder, r.parentController,
 				r.rolloutSpec, r.rolloutStatus, source, target), nil
 		}
