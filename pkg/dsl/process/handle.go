@@ -157,7 +157,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	}
 
 	if ctx.outputSecretName != "" {
-		buff += fmt.Sprintf("%s:\"%s\"", OutputSecretName, ctx.outputSecretName)
+		buff += fmt.Sprintf("%s: \"%s\"\n", OutputSecretName, ctx.outputSecretName)
 	}
 	return fmt.Sprintf("context: %s", structMarshal(buff))
 }
