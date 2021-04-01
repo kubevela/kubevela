@@ -18,4 +18,4 @@ jobs:
         env:
           VERSION: ${{ github.ref }}
         run: |
-          sh ./hack/website/test-build.sh
+          bash ./hack/website/test-build.sh

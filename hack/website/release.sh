@@ -1,4 +1,4 @@
-#!/bin/sh -l
+#!/bin/bash -l
 #
 # Copyright 2021. The KubeVela Authors.
 #

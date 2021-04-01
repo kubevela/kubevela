@@ -20,4 +20,4 @@ jobs:
           VERSION: ${{ github.ref }}
           COMMIT_ID: ${{ github.sha }}
         run: |
-          sh ./hack/website/release.sh
+          bash ./hack/website/release.sh
