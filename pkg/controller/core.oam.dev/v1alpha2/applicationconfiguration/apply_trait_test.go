@@ -273,7 +273,7 @@ spec:
 					return 0
 				}
 				return traitObj.GetGeneration()
-			}, 5*time.Second, time.Second).Should(Equal(int64(2)))
+			}, 20*time.Second, time.Second).Should(Equal(int64(2)))
 
 			By("Check labels are removed")
 			_, found, _ := unstructured.NestedString(traitObj.UnstructuredContent(), "metadata", "labels", "test.label")

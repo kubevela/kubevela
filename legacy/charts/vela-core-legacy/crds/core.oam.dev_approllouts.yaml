@@ -7,6 +7,25 @@ metadata:
     controller-gen.kubebuilder.io/version: v0.2.4
   name: approllouts.core.oam.dev
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.rolloutTargetSize
+    name: TARGET
+    type: string
+  - JSONPath: .status.upgradedReplicas
+    name: UPGRADED
+    type: string
+  - JSONPath: .status.upgradedReadyReplicas
+    name: READY
+    type: string
+  - JSONPath: .status.batchRollingState
+    name: BATCH-STATE
+    type: string
+  - JSONPath: .status.rollingState
+    name: ROLLING-STATE
+    type: string
+  - JSONPath: .metadata.creationTimestamp
+    name: AGE
+    type: date
   group: core.oam.dev
   names:
     categories:
@@ -14,6 +33,9 @@ spec:
     kind: AppRollout
     listKind: AppRolloutList
     plural: approllouts
+    shortNames:
+    - approllout
+    - rollout
     singular: approllout
   scope: Namespaced
   validation:

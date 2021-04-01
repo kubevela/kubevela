@@ -9,13 +9,22 @@ metadata:
 spec:
   group: core.oam.dev
   names:
+    categories:
+    - oam
     kind: ApplicationRevision
     listKind: ApplicationRevisionList
     plural: applicationrevisions
+    shortNames:
+    - apprev
+    - revisions
     singular: applicationrevision
   scope: Namespaced
   versions:
-  - name: v1alpha2
+  - additionalPrinterColumns:
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha2
     schema:
       openAPIV3Schema:
         description: ApplicationRevision is the Schema for the ApplicationRevision API
@@ -1058,7 +1067,12 @@ spec:
         type: object
     served: true
     storage: false
-  - name: v1beta1
+    subresources: {}
+  - additionalPrinterColumns:
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1beta1
     schema:
       openAPIV3Schema:
         description: ApplicationRevision is the Schema for the ApplicationRevision API
@@ -2102,6 +2116,7 @@ spec:
         type: object
     served: true
     storage: true
+    subresources: {}
 status:
   acceptedNames:
     kind: ""

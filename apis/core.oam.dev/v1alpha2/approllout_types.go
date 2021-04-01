@@ -61,8 +61,14 @@ type AppRolloutStatus struct {
 
 // AppRollout is the Schema for the AppRollout API
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:categories={oam}
+// +kubebuilder:resource:categories={oam},shortName=approllout;rollout
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="TARGET",type=string,JSONPath=`.status.rolloutStatus.rolloutTargetSize`
+// +kubebuilder:printcolumn:name="UPGRADED",type=string,JSONPath=`.status.rolloutStatus.upgradedReplicas`
+// +kubebuilder:printcolumn:name="READY",type=string,JSONPath=`.status.rolloutStatus.upgradedReadyReplicas`
+// +kubebuilder:printcolumn:name="BATCH-STATE",type=string,JSONPath=`.status.rolloutStatus.batchRollingState`
+// +kubebuilder:printcolumn:name="ROLLING-STATE",type=string,JSONPath=`.status.rolloutStatus.rollingState`
+// +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp"
 type AppRollout struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -14,10 +14,32 @@ spec:
     kind: AppRollout
     listKind: AppRolloutList
     plural: approllouts
+    shortNames:
+    - approllout
+    - rollout
     singular: approllout
   scope: Namespaced
   versions:
-  - name: v1alpha2
+  - additionalPrinterColumns:
+    - jsonPath: .status.rolloutStatus.rolloutTargetSize
+      name: TARGET
+      type: string
+    - jsonPath: .status.rolloutStatus.upgradedReplicas
+      name: UPGRADED
+      type: string
+    - jsonPath: .status.rolloutStatus.upgradedReadyReplicas
+      name: READY
+      type: string
+    - jsonPath: .status.rolloutStatus.batchRollingState
+      name: BATCH-STATE
+      type: string
+    - jsonPath: .status.rolloutStatus.rollingState
+      name: ROLLING-STATE
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1alpha2
     schema:
       openAPIV3Schema:
         description: AppRollout is the Schema for the AppRollout API
@@ -346,7 +368,26 @@ spec:
     storage: false
     subresources:
       status: {}
-  - name: v1beta1
+  - additionalPrinterColumns:
+    - jsonPath: .status.rolloutTargetSize
+      name: TARGET
+      type: string
+    - jsonPath: .status.upgradedReplicas
+      name: UPGRADED
+      type: string
+    - jsonPath: .status.upgradedReadyReplicas
+      name: READY
+      type: string
+    - jsonPath: .status.batchRollingState
+      name: BATCH-STATE
+      type: string
+    - jsonPath: .status.rollingState
+      name: ROLLING-STATE
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: AGE
+      type: date
+    name: v1beta1
     schema:
       openAPIV3Schema:
         description: AppRollout is the Schema for the AppRollout API
