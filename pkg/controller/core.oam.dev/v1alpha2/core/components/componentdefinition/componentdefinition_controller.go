@@ -31,7 +31,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/types"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
@@ -72,6 +74,17 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		Client: r.Client,
 		dm:     r.dm,
 		cd:     &componentDefinition,
+	}
+
+	if handler.cd.Spec.Workload.Type == "" {
+		err := utils.RefreshPackageDiscover(r.dm, r.pd, handler.cd.Spec.Workload.Definition,
+			common.DefinitionReference{}, types.TypeComponentDefinition)
+		if err != nil {
+			klog.ErrorS(err, "cannot refresh packageDiscover")
+			r.record.Event(&componentDefinition, event.Warning("cannot refresh packageDiscover", err))
+			return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
+				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
+		}
 	}
 
 	workloadType, err := handler.CreateWorkloadDefinition(ctx)

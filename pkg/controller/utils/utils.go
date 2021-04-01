@@ -32,16 +32,22 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -248,4 +254,30 @@ func ComputeSpecHash(spec interface{}) (string, error) {
 	}
 	specHashLabel := strconv.FormatUint(specHash, 16)
 	return specHashLabel, nil
+}
+
+// RefreshPackageDiscover help refresh package discover
+func RefreshPackageDiscover(dm discoverymapper.DiscoveryMapper, pd *definition.PackageDiscover, workloadGVK commontypes.WorkloadGVK,
+	workloadref commontypes.DefinitionReference, def oamtypes.CapType) error {
+	var gvk schema.GroupVersionKind
+	var err error
+	switch def {
+	case oamtypes.TypeComponentDefinition:
+		gv, err := schema.ParseGroupVersion(workloadGVK.APIVersion)
+		if err != nil {
+			return err
+		}
+		gvk = gv.WithKind(workloadGVK.Kind)
+	case oamtypes.TypeTrait:
+		gvk, err = util.GetGVKFromDefinition(dm, workloadref)
+		if err != nil {
+			return err
+		}
+	case oamtypes.TypeWorkload, oamtypes.TypeScope:
+	}
+	exist := pd.Exist(metav1.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind})
+	if !exist {
+		return pd.RefreshKubePackagesFromCluster()
+	}
+	return nil
 }

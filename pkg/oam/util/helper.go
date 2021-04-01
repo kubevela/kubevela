@@ -97,6 +97,9 @@ const (
 
 	// ErrCreateConvertedWorklaodDefinition is the error while apply a WorkloadDefinition
 	ErrCreateConvertedWorklaodDefinition = "cannot create converted WorkloadDefinition %s: %v"
+
+	// ErrRefreshPackageDiscover is the error while refresh PackageDiscover
+	ErrRefreshPackageDiscover = "cannot refresh PackageDiscover : %v"
 )
 
 // WorkloadType describe the workload type of ComponentDefinition
