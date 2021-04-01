@@ -132,8 +132,12 @@ module.exports = {
       {
         docs: {
           sidebarPath: require.resolve('./sidebars.js'),
-          editUrl:
-            'https://github.com/oam-dev/kubevela.io/edit/main/',
+          editUrl: function ({
+            locale,
+            docPath,
+          }) {
+            return `https://github.com/oam-dev/kubevela/edit/master/docs/${locale}/${docPath}`;
+          },
           showLastUpdateAuthor: true,
           showLastUpdateTime: true,
           includeCurrentVersion: true,
