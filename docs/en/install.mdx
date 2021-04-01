@@ -118,16 +118,13 @@ These steps will install KubeVela controller and its dependency.
     helm install --create-namespace -n vela-system kubevela kubevela/vela-core --version <next_version>-rc-master
     ```
     ```console
-   NAME: kubevela
-   LAST DEPLOYED: Sat Mar  6 21:03:11 2021
-   NAMESPACE: vela-system
-   STATUS: deployed
-   REVISION: 1
-   NOTES:
-   1. Get the application URL by running these commands:
-     export POD_NAME=$(kubectl get pods --namespace vela-system -l "app.kubernetes.io/name=vela-core,app.kubernetes.io/instance=kubevela" -o jsonpath="{.items[0].metadata.name}")
-     echo "Visit http://127.0.0.1:8080 to use your application"
-     kubectl --namespace vela-system port-forward $POD_NAME 8080:80
+    NAME: kubevela
+    LAST DEPLOYED: Thu Apr  1 19:41:30 2021
+    NAMESPACE: vela-system
+    STATUS: deployed
+    REVISION: 1
+    NOTES:
+    Welcome to use the KubeVela! Enjoy your shipping application journey!
    ```
 
 4. Install Kubevela with cert-manager (optional)
