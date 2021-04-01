@@ -93,7 +93,7 @@ spec:
         		}
         		writeConnectionSecretToRef: {
         			namespace: context.namespace
-        			name:      context.outputSecretName
+        			name:      parameter.secretName
         		}
         		providerConfigRef: {
         			name: "default"
@@ -102,15 +102,14 @@ spec:
         	}
         }
         parameter: {
-        	engine:          *"mysql" | string
-        	engineVersion:   *"8.0" | string
-        	instanceClass:   *"rds.mysql.c1.large" | string
-        	username:        string
+        	engine:        *"mysql" | string
+        	engineVersion: *"8.0" | string
+        	instanceClass: *"rds.mysql.c1.large" | string
+        	username:      string
+        	secretName:    string
         }
-```
 
-Noted: In application, application developers need to use property `outputSecretName` as the secret name which is used to store all connection
-items of cloud resource connections information.
+```
 
 ### Step 2: Prepare TraitDefinition `service-binding` to do env-secret mapping
 
@@ -222,7 +221,7 @@ spec:
         engineVersion: "8.0"
         instanceClass: rds.mysql.c1.large
         username: oamtest
-        outputSecretName: db-conn
+        secretName: db-conn
 
 ```
 
@@ -273,7 +272,7 @@ spec:
         		dataRedundancyType: parameter.dataRedundancyType
         		writeConnectionSecretToRef: {
         			namespace: context.namespace
-        			name:      context.outputSecretName
+        			name:      parameter.secretName
         		}
         		providerConfigRef: {
         			name: "default"
@@ -286,8 +285,8 @@ spec:
         	acl:                *"private" | string
         	storageClass:       *"Standard" | string
         	dataRedundancyType: *"LRS" | string
+        	secretName:         string
         }
-
 ```
 
 Update the application to also consume cloud resource OSS.
@@ -329,13 +328,13 @@ spec:
         engineVersion: "8.0"
         instanceClass: rds.mysql.c1.large
         username: oamtest
-        outputSecretName: db-conn
+        secretName: db-conn
 
     - name: sample-oss
       type: alibaba-oss
       properties:
         name: velaweb
-        outputSecretName: oss-conn
+        secretName: oss-conn
 ```
 
 Apply it and verify the application.
@@ -376,7 +375,7 @@ spec:
         engineVersion: "8.0"
         instanceClass: rds.mysql.c1.large
         username: oamtest
-        outputSecretName: db-conn
+        secretName: db-conn
 ```
 
 Apply the application to Kubernetes and a RDS instance will be automatically provisioned (may take some time, ~2 mins).
