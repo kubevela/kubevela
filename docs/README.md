@@ -1,7 +1,6 @@
 # Contributing to KubeVela Docs
 
-[Here](https://github.com/oam-dev/kubevela.io) is the source code of [Kubevela website](http://kubevela.io/). 
-It's built by [Docusaurus 2](https://v2.docusaurus.io/), a modern static website generator.
+[Here](https://github.com/oam-dev/kubevela/tree/master/docs) is the source documentation of [Kubevela website](http://kubevela.io/).
 Any files modifid here will trigger the `check-docs` Github action to run and validate the docs could be build successfully into the website.
 Any changes on these files(`docs/en/*`, `resource/*`, `sidebars.js`) will be submitted to the corresponding locations of the repo 
 [kubevela.io](https://github.com/oam-dev/kubevela.io). The Github-Action there will parse the document and publish it to the Kubevela Website automatically.
