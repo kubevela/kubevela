@@ -22,14 +22,12 @@ This template based workflow make it possible for platform team enforce best pra
 
 ![alt](../resources/what-is-kubevela.png)
 
-Below are the core building blocks in KubeVela that make this happen.
+Below are the core concepts in KubeVela that make this happen.
 
 ## `Application`
-The *Application* is the core API of KubeVela. It allows developers to work with a single artifact to capture the complete application definition with simplified primitives.
+The *Application* is the core API of KubeVela. It allows developers to work with a single artifact to capture the complete application deployment with simplified primitives.
 
-### Why Choose `Application` as the Main Abstraction
-
-Having an "application" concept is important to any developer-centric platform to simplify administrative tasks and can serve as an anchor to avoid configuration drifts during operation. Also, as an abstraction object, `Application` provides a much simpler path for on-boarding Kubernetes capabilities without relying on low level details. For example, a developer will be able to model a "web service" without defining a detailed Kubernetes Deployment + Service combo each time, or claim the auto-scaling requirements without referring to the underlying KEDA ScaleObject.
+In application delivery platform, having an "application" concept is important to simplify administrative tasks and can serve as an anchor to avoid configuration drifts during operation. Also, it provides a much simpler path for on-boarding Kubernetes capabilities to application delivery process without relying on low level details. For example, a developer will be able to model a "web service" without defining a detailed Kubernetes Deployment + Service combo each time, or claim the auto-scaling requirements without referring to the underlying KEDA ScaleObject.
 
 ### Example
 
@@ -66,15 +64,15 @@ spec:
 
 ## Building the Abstraction
 
-Unlike most of the higher level platforms, the `Application` abstraction in KubeVela is fully extensible and does not even have fixed schema. Instead, it is composed by building blocks (app components and traits etc.) that allow you to onboard platform capabilities to this application definition with your own abstractions.
+Unlike most of the higher level abstractions, the `Application` resource in KubeVela is a LEGO-style object and does not even have fixed schema. Instead, it is composed by building blocks (app components and traits etc.) that allow you to on-board platform capabilities to this application definition via your own abstractions.
 
 The building blocks to abstraction and model platform capabilities named `ComponentDefinition` and `TraitDefinition`.
 
 ### ComponentDefinition
 
-You can think of `ComponentDefinition` as a *template* for workload type. It contains template, parametering and workload characteristic information as a declarative API resource. 
+`ComponentDefinition` is a pre-defined *template* for the deployable workload. It contains template, parametering and workload characteristic information as a declarative API resource. 
 
-Hence, the `Application` abstraction essentially declares how users want to **instantiate** given component definitions. Specifically, the `.type` field references the name of installed `ComponentDefinition` and `.properties` are the user set values to instantiate it. 
+Hence, the `Application` abstraction essentially declares how the user want to **instantiate** given component definitions in target cluster. Specifically, the `.type` field references the name of installed `ComponentDefinition` and `.properties` are the user set values to instantiate it. 
 
 Some typical component definitions are *Long Running Web Service*, *One-time Off Task* or *Redis Database*. All component definitions expected to be pre-installed in the platform, or provided by component providers such as 3rd-party software vendors.
 
@@ -82,7 +80,7 @@ Some typical component definitions are *Long Running Web Service*, *One-time Off
 
 Optionally, each component has a `.traits` section that augments the component instance with operational behaviors such as load balancing policy, network ingress routing, auto-scaling policies, or upgrade strategies, etc.
 
-You can think of traits as operational features provided by the platform. To attach a trait to component instance, the user will use `.type` field to reference the specific `TraitDefinition`, and `.properties` field to set property values of the given trait. Similarly, `TraitDefiniton` also allows you to define *template* for operational features.
+Traits are operational features provided by the platform. To attach a trait to component instance, the user will declare `.type` field to reference the specific `TraitDefinition`, and `.properties` field to set property values of the given trait. Similarly, `TraitDefiniton` also allows you to define *template* for operational features.
 
 We also reference component definitions and trait definitions as *"capability definitions"* in KubeVela. 
 
@@ -103,4 +101,4 @@ The overall architecture of KubeVela is shown as below:
 
 ![alt](../resources/arch.png)
 
-Specifically, the application controller is responsible for application abstraction and encapsulation (i.e. the controller for `Application` and `Definition`). The rollout controller will handle progressive rollout strategy with the whole application as a unit. The multi-env deployment engine (*currently WIP*) is responsible for deploying the application across multiple clusters and environments. 
+Specifically, the application controller is responsible for application abstraction and encapsulation (i.e. the controller for `Application` and `Definition`). The rollout controller will handle progressive rollout strategy with the whole application as a unit. The multi-cluster deployment engine is responsible for deploying the application across multiple clusters and environments with traffic shifting and rollout features supported. 

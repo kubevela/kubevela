@@ -18,7 +18,7 @@ We design KubeVela rollout solutions with the following principles in mind
   related logic. The trait and application related logic can be easily encapsulated into its own
   package.
 - Second, the core rollout related logic is easily extensible to support different type of
-  workloads, i.e. Deployment, Cloneset, Statefulset, Daemonset or even customized workloads.
+  workloads, i.e. Deployment, CloneSet, Statefulset, DaemonSet or even customized workloads.
 - Thirdly, the core rollout related logic has a well documented state machine that
   does state transition explicitly.
 - Finally, the controllers can support all the rollout/upgrade needs of an application running
@@ -49,9 +49,9 @@ spec:
 ```
 
 ## User Experience Workflow
-Here is the end to end user experience
+Here is the end to end user experience based on [CloneSet](https://openkruise.io/en-us/docs/cloneset.html)
 
-1. Install Open Kurise and CloneSet based workloadDefinition
+1. Install CloneSet and create a `ComponentDefinition` for it.
 ```shell
 helm install kruise https://github.com/openkruise/kruise/releases/download/v0.7.0/kruise-chart.tgz
 ```

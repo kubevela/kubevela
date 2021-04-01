@@ -1,21 +1,22 @@
 ---
-title: Multi-Version Multi-Cluster Application Deployment
+title: Multi-Cluster Application Deployment
 ---
 
 # Introduction
 
-KubeVela provides Application CRD which templates the low level resources and exposes high level parameters to users. But that's not enough -- it often requires a couple of standard techniques to deploy an application in production:
-
-- Rolling upgrade: To continuously deploy apps requires to rollout in a safe manner which usually involves step by step rollout batches and analysis.
+Modern application infrastructure involves multiple clusters to ensure high availability and maximize service throughput. In this section, we will introduce how to use KubeVela to achieve application deployment across multiple clusters with following features supported:
+- Rolling Upgrade: To continuously deploy apps requires to rollout in a safe manner which usually involves step by step rollout batches and analysis.
 - Traffic shifting: When rolling upgrade an app, it needs to split the traffic onto both the old and new revisions to verify the new version while preserving service availability.
-- Multi-cluster: Modern application infrastructure involves multiple clusters to ensure high availability and maximize service throughput.
 
 ## AppDeployment CRD
 
-The AppDeployment CRD has been provided to satisfy such requirements. Here's an overview of the API:
+The `AppDeployment` CRD has been provided to satisfy such requirements. Here's an overview of the API:
 
 ```yaml
+apiVersion: core.oam.dev/v1beta1
 kind: AppDeployment
+metadata:
+  name: sample-appdeploy
 spec:
   traffic:
     hosts:
@@ -76,6 +77,7 @@ spec:
 The clusters selected in the `placement` part from above is defined in Cluster CRD. Here's what it looks like:
 
 ```yaml
+apiVersion: core.oam.dev/v1beta1
 kind: Cluster
 metadata:
   name: prod-cluster-1
@@ -89,7 +91,8 @@ spec:
 The secret must contain the kubeconfig credentials in `config` field:
 
 ```yaml
-kind: secret:
+apiVersion: v1
+kind: Secret
 metadata:
   name: kubeconfig-cluster-1
 data:
@@ -130,7 +133,7 @@ You must run all commands in that directory.
    example-app-v1   116s
    ```
 
-   With above annotation this won't create any pod instances.
+   > Note: with `app.oam.dev/revision-only: "true"` annotation, above `Application` resource won't create any pod instances and leave the real deployment process to `AppDeployment`.
 
 1. Then use the above AppRevision to create an AppDeployment.
 
@@ -138,7 +141,7 @@ You must run all commands in that directory.
    $ kubectl apply -f appdeployment-1.yaml
    ```
 
-   > Note that in order to AppDeployment to work, your workload object must have a `spec.replicas` field for scaling.
+   > Note: in order to AppDeployment to work, your workload object must have a `spec.replicas` field for scaling.
 
 1. Now you can check that there will 1 deployment and 2 pod instances deployed
 
