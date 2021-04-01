@@ -146,7 +146,7 @@ func (ctx *templateContext) BaseContextFile() string {
 
 	if len(ctx.configs) > 0 {
 		bt, _ := json.Marshal(ctx.configs)
-		buff += ConfigFieldName + ": " + string(bt)
+		buff += ConfigFieldName + ": " + string(bt) + "\n"
 	}
 
 	if len(ctx.requiredSecrets) > 0 {
