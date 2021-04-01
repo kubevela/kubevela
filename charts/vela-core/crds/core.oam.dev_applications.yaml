@@ -37,16 +37,13 @@ spec:
     - jsonPath: .spec.components[*].type
       name: TYPE
       type: string
-    - jsonPath: .spec.components[*].traits[*].name
-      name: TRAIT
-      type: string
     - jsonPath: .status.status
       name: PHASE
       type: string
     - jsonPath: .status.services[*].healthy
       name: HEALTHY
       type: boolean
-    - jsonPath: .status.services[*].traits[*].message
+    - jsonPath: .status.services[*].message
       name: STATUS
       type: string
     - jsonPath: .metadata.creationTimestamp
@@ -494,16 +491,13 @@ spec:
     - jsonPath: .spec.components[*].type
       name: TYPE
       type: string
-    - jsonPath: .spec.components[*].traits[*].type
-      name: TRAIT
-      type: string
     - jsonPath: .status.status
       name: PHASE
       type: string
     - jsonPath: .status.services[*].healthy
       name: HEALTHY
       type: boolean
-    - jsonPath: .status.services[*].traits[*].message
+    - jsonPath: .status.services[*].message
       name: STATUS
       type: string
     - jsonPath: .metadata.creationTimestamp

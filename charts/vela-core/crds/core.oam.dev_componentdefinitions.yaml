@@ -21,7 +21,7 @@ spec:
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.workload.definition.kind
-      name: WORKLOAD_KIND
+      name: WORKLOAD-KIND
       type: string
     - jsonPath: .metadata.annotations.definition\.oam\.dev/description
       name: DESCRIPTION
@@ -220,7 +220,7 @@ spec:
       status: {}
   - additionalPrinterColumns:
     - jsonPath: .spec.workload.definition.kind
-      name: WORKLOAD_KIND
+      name: WORKLOAD-KIND
       type: string
     - jsonPath: .metadata.annotations.definition\.oam\.dev/description
       name: DESCRIPTION

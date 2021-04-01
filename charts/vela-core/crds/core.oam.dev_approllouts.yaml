@@ -31,10 +31,10 @@ spec:
       name: READY
       type: string
     - jsonPath: .status.rolloutStatus.batchRollingState
-      name: BATCH_ROLLING_STATE
+      name: BATCH-STATE
       type: string
     - jsonPath: .status.rolloutStatus.rollingState
-      name: ROLLING_STATE
+      name: ROLLING-STATE
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: AGE
@@ -379,10 +379,10 @@ spec:
       name: READY
       type: string
     - jsonPath: .status.batchRollingState
-      name: BATCH_ROLLING_STATE
+      name: BATCH-STATE
       type: string
     - jsonPath: .status.rollingState
-      name: ROLLING_STATE
+      name: ROLLING-STATE
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: AGE

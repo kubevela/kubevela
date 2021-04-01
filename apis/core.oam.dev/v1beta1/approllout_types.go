@@ -69,8 +69,8 @@ type AppRolloutStatus struct {
 // +kubebuilder:printcolumn:name="TARGET",type=string,JSONPath=`.status.rolloutTargetSize`
 // +kubebuilder:printcolumn:name="UPGRADED",type=string,JSONPath=`.status.upgradedReplicas`
 // +kubebuilder:printcolumn:name="READY",type=string,JSONPath=`.status.upgradedReadyReplicas`
-// +kubebuilder:printcolumn:name="BATCH_ROLLING_STATE",type=string,JSONPath=`.status.batchRollingState`
-// +kubebuilder:printcolumn:name="ROLLING_STATE",type=string,JSONPath=`.status.rollingState`
+// +kubebuilder:printcolumn:name="BATCH-STATE",type=string,JSONPath=`.status.batchRollingState`
+// +kubebuilder:printcolumn:name="ROLLING-STATE",type=string,JSONPath=`.status.rollingState`
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp"
 type AppRollout struct {
 	metav1.TypeMeta   `json:",inline"`

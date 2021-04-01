@@ -9,7 +9,7 @@ metadata:
 spec:
   additionalPrinterColumns:
   - JSONPath: .spec.workload.definition.kind
-    name: WORKLOAD_KIND
+    name: WORKLOAD-KIND
     type: string
   - JSONPath: .metadata.annotations.definition\.oam\.dev/description
     name: DESCRIPTION

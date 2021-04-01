@@ -18,10 +18,10 @@ spec:
     name: READY
     type: string
   - JSONPath: .status.batchRollingState
-    name: BATCH_ROLLING_STATE
+    name: BATCH-STATE
     type: string
   - JSONPath: .status.rollingState
-    name: ROLLING_STATE
+    name: ROLLING-STATE
     type: string
   - JSONPath: .metadata.creationTimestamp
     name: AGE
