@@ -30,6 +30,35 @@ spec:
             type: string
           metadata:
             type: object
+          status:
+            description: ResourceTrackerStatus define the status of resourceTracker
+            properties:
+              trackresources:
+                items:
+                  description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference namespaced-scoped objects
+                  properties:
+                    apiVersion:
+                      description: APIVersion of the referenced object.
+                      type: string
+                    kind:
+                      description: Kind of the referenced object.
+                      type: string
+                    name:
+                      description: Name of the referenced object.
+                      type: string
+                    namespace:
+                      description: Namespace of the referenced object.
+                      type: string
+                    uid:
+                      description: UID of the referenced object.
+                      type: string
+                  required:
+                  - apiVersion
+                  - kind
+                  - name
+                  type: object
+                type: array
+            type: object
         type: object
     served: true
     storage: true

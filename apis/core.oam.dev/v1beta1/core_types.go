@@ -20,6 +20,7 @@ import (
 	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
@@ -242,6 +243,34 @@ type ScopeDefinitionList struct {
 type ResourceTracker struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Status ResourceTrackerStatus `json:"status,omitempty"`
+}
+
+// ResourceTrackerStatus define the status of resourceTracker
+type ResourceTrackerStatus struct {
+	TrackedResource []TypedReference `json:"trackresources,omitempty"`
+}
+
+// A TypedReference refers to an object by Name, Kind, and APIVersion. It is
+// commonly used to reference namespaced-scoped objects
+type TypedReference struct {
+	// APIVersion of the referenced object.
+	APIVersion string `json:"apiVersion"`
+
+	// Kind of the referenced object.
+	Kind string `json:"kind"`
+
+	// Name of the referenced object.
+	Name string `json:"name"`
+
+	// Namespace of the referenced object.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+
+	// UID of the referenced object.
+	// +optional
+	UID types.UID `json:"uid,omitempty"`
 }
 
 // +kubebuilder:object:root=true

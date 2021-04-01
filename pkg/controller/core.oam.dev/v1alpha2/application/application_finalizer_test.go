@@ -186,7 +186,7 @@ var _ = Describe("Test finalizer related func", func() {
 		By("[TEST] Clean up resources after an integration test")
 	})
 
-	It("Test getResourceTrackerAndOwnReference func", func() {
+	It("Test getResourceTrackerOwnerReference func", func() {
 		app := getApp("app-1", namespace, "worker")
 		handler = appHandler{
 			r:      reconciler,
@@ -195,17 +195,16 @@ var _ = Describe("Test finalizer related func", func() {
 		}
 		checkRt := new(v1beta1.ResourceTracker)
 		Expect(k8sClient.Get(ctx, getTrackerKey(namespace, app.Name), checkRt)).Should(util.NotFoundMatcher{})
-		rt, owner, err := handler.getResourceTrackerAndOwnReference(ctx)
+		owner, err := handler.getResourceTrackerOwnerReference(ctx)
 		Expect(err).Should(BeNil())
-		Expect(rt.UID).Should(BeEquivalentTo(owner.UID))
 		Expect(owner.Kind).Should(BeEquivalentTo(v1beta1.ResourceTrackerKind))
 		checkRt = new(v1beta1.ResourceTracker)
 		Expect(k8sClient.Get(ctx, getTrackerKey(namespace, app.Name), checkRt)).Should(BeNil())
-		Expect(checkRt.UID).Should(BeEquivalentTo(rt.UID))
+		Expect(checkRt.UID).Should(BeEquivalentTo(owner.UID))
 		Expect(k8sClient.Delete(ctx, checkRt)).Should(BeNil())
 	})
 
-	It("Test getResourceTrackerAndOwnReference func with already exsit resourceTracker", func() {
+	It("Test getResourceTrackerOwnerReference func with already exsit resourceTracker", func() {
 		app := getApp("app-2", namespace, "worker")
 		handler = appHandler{
 			r:      reconciler,
@@ -218,12 +217,11 @@ var _ = Describe("Test finalizer related func", func() {
 			},
 		}
 		Expect(k8sClient.Create(ctx, rt)).Should(BeNil())
-		checkRt, owner, err := handler.getResourceTrackerAndOwnReference(ctx)
+		owner, err := handler.getResourceTrackerOwnerReference(ctx)
 		Expect(err).Should(BeNil())
-		Expect(rt.UID).Should(BeEquivalentTo(checkRt.UID))
 		Expect(owner.Kind).Should(BeEquivalentTo(v1beta1.ResourceTrackerKind))
-		Expect(checkRt.UID).Should(BeEquivalentTo(owner.UID))
-		Expect(k8sClient.Delete(ctx, checkRt)).Should(BeNil())
+		Expect(rt.UID).Should(BeEquivalentTo(owner.UID))
+		Expect(k8sClient.Delete(ctx, rt)).Should(BeNil())
 	})
 
 	It("Test finalizeResourceTracker func with need update ", func() {
