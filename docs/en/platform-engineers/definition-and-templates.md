@@ -2,8 +2,7 @@
 title:  Definition CRD
 ---
 
-This documentation explains how to register and manage available *components* and *traits* in your platform with
-`ComponentDefinition` and `TraitDefinition`, so end users could instantiate and "assemble" them into an `Application`.
+This documentation explains `ComponentDefinition` and `TraitDefinition` in detail.
 
 > All definition objects are expected to be maintained and installed by platform team, think them as *capability providers* in your platform.
 

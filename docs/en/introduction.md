@@ -22,7 +22,7 @@ In the end, developers complain those platforms are too rigid and slow in respon
 
 For platform builders, KubeVela serves as a framework that relieves the pains of building developer focused platforms by doing the following:
 
-- Developer Centric. KubeVela abstracts away the infrastructure level primitives by introducing the *Application* concept as main API, and then building operational features around the applications' needs only.
+- Developer Centric. KubeVela abstracts away the infrastructure level primitives by introducing the *Application* concept to capture a full deployment of microservices, and then building operational features around the applications' needs only.
  
 - Extending Natively. The *Application* is composed of modularized building blocks that support [CUELang](https://github.com/cuelang/cue) and [Helm](https://helm.sh) as template engines. This enable you to abstract Kubernetes capabilities in LEGO-style and ship them to end users via plain `kubectl apply -f`. Changes made to the abstraction templates take effect at runtime, neither recompilation nor redeployment of KubeVela is required.
 

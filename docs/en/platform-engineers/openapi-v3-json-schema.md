@@ -62,8 +62,6 @@ Below is a form rendered with `form-render`:
 
 ![](../../resources/json-schema-render-example.jpg)
 
-> Hence, end users of KubeVela do NOT need to learn about definition object to use a capability, they always work with a visualized form or learn the generated schema if they want.
-
 # What's Next
 
 It's by design that KubeVela supports multiple ways to define the schematic. Hence, we will explain `.schematic` field in detail with following guides.

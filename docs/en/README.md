@@ -4,7 +4,7 @@
 
 # KubeVela
 
-KubeVela is the platform engine to create *PaaS-like* experience on Kubernetes, in a scalable approach.
+KubeVela is a modern application delivery system
 
 ## Community
 
