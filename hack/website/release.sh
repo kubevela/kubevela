@@ -17,12 +17,20 @@
 
 set -e
 
-docs_path="./docs"
+if [[ -n "$SSH_DEPLOY_KEY" ]]
+then
+  mkdir -p ~/.ssh
+  echo "$SSH_DEPLOY_KEY" > ~/.ssh/id_rsa
+  chmod 600 ~/.ssh/id_rsa
+fi
 
-git clone --single-branch --depth 1 https://github.com/oam-dev/kubevela.io.git git-page
+echo "git clone"
+git config --global user.email "yangsoonlx@gmail.com"
+git config --global user.name "kubevela-bot"
+git clone --single-branch --depth 1 git@github.com:oam-dev/kubevela.io.git git-page
 
 echo "sidebars updates"
-cat ${docs_path}/sidebars.js > git-page/sidebars.js
+cat docs/sidebars.js > git-page/sidebars.js
 
 echo "clear en docs"
 rm -r git-page/docs/*
@@ -32,27 +40,14 @@ echo "clear resources"
 rm -r git-page/resources/*
 
 echo "update resources"
-cp -R ${docs_path}/resources/* git-page/resources/
+cp -R docs/resources/* git-page/resources/
 
 echo "update docs"
-cp -R ${docs_path}/en/* git-page/docs/
-cp -R ${docs_path}/zh-CN/* git-page/i18n/zh/docusaurus-plugin-content-docs/
+cp -R docs/en/* git-page/docs/
+cp -R docs/zh-CN/* git-page/i18n/zh/docusaurus-plugin-content-docs/
 
-echo "check docs"
+echo "git push"
 cd git-page
-
-echo "install node package"
-yarn add nodejieba
-if [ -e yarn.lock ]; then
-yarn install --frozen-lockfile
-elif [ -e package-lock.json ]; then
-npm ci
-else
-npm i
-fi
-
-echo "run build"
-npm run build
 
 # Check for release only
 SUB='release-'
@@ -80,4 +75,13 @@ then
   fi
 
   yarn run docusaurus docs:version $version
+fi
+
+if git diff --quiet
+then
+  echo "nothing need to push, finished!"
+else
+  git add .
+  git commit -m "sync commit $COMMIT_ID from kubevela-$VERSION"
+  git push origin main
 fi

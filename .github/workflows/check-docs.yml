@@ -15,5 +15,7 @@ jobs:
         with:
           node-version: '12.x'
       - name: Test Build
+        env:
+          VERSION: ${{ github.ref }}
         run: |
-          sh ./hack/website/test-build.sh
+          bash ./hack/website/test-build.sh
