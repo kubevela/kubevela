@@ -275,9 +275,23 @@ func RefreshPackageDiscover(dm discoverymapper.DiscoveryMapper, pd *definition.P
 		}
 	case oamtypes.TypeWorkload, oamtypes.TypeScope:
 	}
-	exist := pd.Exist(metav1.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind})
-	if !exist {
-		return pd.RefreshKubePackagesFromCluster()
+	fmt.Printf("look gvk %v\n", gvk)
+	targetGVK := metav1.GroupVersionKind{
+		Group:   gvk.Group,
+		Version: gvk.Version,
+		Kind:    gvk.Kind,
+	}
+	if exist := pd.Exist(targetGVK); exist {
+		return nil
+	}
+
+	if err := pd.RefreshKubePackagesFromCluster(); err != nil {
+		return err
+	}
+
+	// Test whether the refresh is successful
+	if exist := pd.Exist(targetGVK); !exist {
+		return fmt.Errorf("get CRD %s error", targetGVK.String())
 	}
 	return nil
 }

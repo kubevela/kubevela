@@ -23,6 +23,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/utils/pointer"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -272,4 +276,95 @@ spec:
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: invalidTraitDefinitionName, Namespace: namespace}, gotTraitDefinition)).Should(BeNil())
 		})
 	})
+
+	FContext("When the CUE Template in TraitDefinition import new added CRD", func() {
+		It("Applying ComponentDefinition", func() {
+			By("create new crd")
+			newCrd := crdv1.CustomResourceDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "foo.example.com",
+				},
+				Spec: crdv1.CustomResourceDefinitionSpec{
+					Group: "example.com",
+					Names: crdv1.CustomResourceDefinitionNames{
+						Kind:     "Foo",
+						ListKind: "FooList",
+						Plural:   "foo",
+						Singular: "foo",
+					},
+					Versions: []crdv1.CustomResourceDefinitionVersion{{
+						Name:         "v1",
+						Served:       true,
+						Storage:      true,
+						Subresources: &crdv1.CustomResourceSubresources{Status: &crdv1.CustomResourceSubresourceStatus{}},
+						Schema: &crdv1.CustomResourceValidation{
+							OpenAPIV3Schema: &crdv1.JSONSchemaProps{
+								Type: "object",
+								Properties: map[string]crdv1.JSONSchemaProps{
+									"spec": {
+										Type:                   "object",
+										XPreserveUnknownFields: pointer.BoolPtr(true),
+										Properties: map[string]crdv1.JSONSchemaProps{
+											"key": {Type: "string"},
+										}},
+									"status": {
+										Type:                   "object",
+										XPreserveUnknownFields: pointer.BoolPtr(true),
+										Properties: map[string]crdv1.JSONSchemaProps{
+											"key":      {Type: "string"},
+											"app-hash": {Type: "string"},
+										}}}}}},
+					},
+					Scope: crdv1.NamespaceScoped,
+				},
+			}
+			Expect(k8sClient.Create(context.Background(), &newCrd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+			traitDef := `
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "Configures replicas for your service."
+  name: test-refresh
+  namespace: default
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  definitionRef:
+    name: foo.example.com
+  schematic:
+    cue:
+      template: |
+        import (
+          ev1 "example.com/v1"
+        )
+        output: ev1.#Foo
+        output: {
+          spec: key: parameter.key1
+          status: key: parameter.key2
+        }
+        parameter: {
+          key1: string
+          key2: string
+        }
+`
+			var td v1beta1.TraitDefinition
+			Expect(yaml.Unmarshal([]byte(traitDef), &td)).Should(BeNil())
+			Expect(k8sClient.Create(ctx, &td)).Should(Succeed())
+			//req := reconcile.Request{NamespacedName: client.ObjectKey{Name: "test-refresh", Namespace: "default"}}
+
+			//By("Check whether ConfigMap is created")
+			//reconcileRetry(&r, req)
+			//var cm corev1.ConfigMap
+			//name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, "test-refresh")
+			//Eventually(func() bool {
+			//	err := k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: name}, &cm)
+			//	return err == nil
+			//}, 10*time.Second, time.Second).Should(BeTrue())
+			//Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+		})
+	})
+
 })

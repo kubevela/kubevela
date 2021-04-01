@@ -22,6 +22,10 @@ import (
 	"testing"
 	"time"
 
+	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -62,6 +66,7 @@ var _ = BeforeSuite(func(done Done) {
 
 	err = oamCore.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
+	Expect(crdv1.AddToScheme(scheme.Scheme)).Should(BeNil())
 
 	By("Create the k8s client")
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
@@ -77,11 +82,14 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	dm, err := discoverymapper.New(mgr.GetConfig())
 	Expect(err).ToNot(HaveOccurred())
+	pd, err := definition.NewPackageDiscover(cfg)
+	Expect(err).ToNot(HaveOccurred())
 
 	r = Reconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 		dm:     dm,
+		pd:     pd,
 	}
 	Expect(r.SetupWithManager(mgr)).ToNot(HaveOccurred())
 	controllerDone = make(chan struct{}, 1)
