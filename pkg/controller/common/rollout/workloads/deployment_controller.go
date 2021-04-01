@@ -300,7 +300,7 @@ func (c *DeploymentController) calculateInitialTargetSize(ctx context.Context) b
 // check if the replicas in all the rollout batches add up to the right number
 func (c *DeploymentController) verifyRolloutBatchReplicaValue(totalReplicas int32) error {
 	// use a common function to check if the sum of all the batches can match the Deployment size
-	err := verifyBatchSettingsInRollout(c.rolloutSpec, totalReplicas)
+	err := verifyBatchesWithRollout(c.rolloutSpec, totalReplicas)
 	if err != nil {
 		return err
 	}

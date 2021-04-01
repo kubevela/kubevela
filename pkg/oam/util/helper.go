@@ -716,3 +716,27 @@ func ConvertComponentDef2WorkloadDef(dm discoverymapper.DiscoveryMapper, compone
 	workloadDef.Spec.Schematic = componentDef.Spec.Schematic
 	return nil
 }
+
+// Min for int
+func Min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// Max for int
+func Max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// Abs for int
+func Abs(a int) int {
+	if a < 0 {
+		return -a
+	}
+	return a
+}

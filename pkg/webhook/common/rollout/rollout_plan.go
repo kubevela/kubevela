@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
@@ -53,9 +54,12 @@ func DefaultRolloutPlan(rollout *v1alpha1.RolloutPlan) {
 }
 
 // ValidateCreate validate the rollout plan
-func ValidateCreate(rollout *v1alpha1.RolloutPlan, rootPath *field.Path) field.ErrorList {
+func ValidateCreate(client client.Client, rollout *v1alpha1.RolloutPlan, rootPath *field.Path) field.ErrorList {
 	var allErrs field.ErrorList
-	// TODO: The total number of num in the batches match the current target resource pod size
+
+	if rollout.RolloutBatches == nil {
+		allErrs = append(allErrs, field.Required(rootPath.Child("rolloutBatches"), "the rollout has to have batches"))
+	}
 
 	// the rollout batch partition is either automatic or positive
 	if rollout.BatchPartition != nil && *rollout.BatchPartition < 0 {
@@ -78,6 +82,10 @@ func ValidateCreate(rollout *v1alpha1.RolloutPlan, rootPath *field.Path) field.E
 	// validate the webhooks
 	allErrs = append(allErrs, validateWebhook(rollout, rootPath)...)
 
+	// validate the rollout batches
+	allErrs = append(allErrs, validateRolloutBatches(rollout, rootPath)...)
+
+	// TODO: The total number of num in the batches match the current target resource pod size
 	return allErrs
 }
 
@@ -115,8 +123,28 @@ func validateWebhook(rollout *v1alpha1.RolloutPlan, rootPath *field.Path) (allEr
 	return allErrs
 }
 
+func validateRolloutBatches(rollout *v1alpha1.RolloutPlan, rootPath *field.Path) (allErrs field.ErrorList) {
+	if rollout.RolloutBatches != nil {
+		batchesPath := rootPath.Child("rolloutBatches")
+		for i, rb := range rollout.RolloutBatches {
+			rolloutBatchPath := batchesPath.Index(i)
+			// validate rb.Replicas with a common total number
+			value, err := intstr.GetValueFromIntOrPercent(&rb.Replicas, 100, true)
+			if err != nil {
+				allErrs = append(allErrs, field.Invalid(rolloutBatchPath.Child("replicas"),
+					rb.Replicas, fmt.Sprintf("invalid replica value, err = %s", err)))
+			} else if value <= 0 {
+				allErrs = append(allErrs, field.Invalid(rolloutBatchPath.Child("replicas"),
+					value, "negative replica value"))
+			}
+		}
+	}
+	return allErrs
+}
+
 // ValidateUpdate validate if one can change the rollout plan from the previous psec
-func ValidateUpdate(new *v1alpha1.RolloutPlan, prev *v1alpha1.RolloutPlan, rootPath *field.Path) field.ErrorList {
+func ValidateUpdate(client client.Client, new *v1alpha1.RolloutPlan, prev *v1alpha1.RolloutPlan,
+	rootPath *field.Path) field.ErrorList {
 	// TODO: Enforce that only a few fields can change after a rollout plan is set
 	var allErrs field.ErrorList
 

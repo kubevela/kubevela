@@ -136,7 +136,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 		appRollout.Status.StateTransition(v1alpha1.RollingModifiedEvent)
 	}
 
-	//TODO: handle deleting/abandoning state differently
+	//TODO: handle deleting/abandoning state differently in a big fork
 
 	// Get the source application first
 	var sourceApRev *oamv1alpha2.ApplicationRevision

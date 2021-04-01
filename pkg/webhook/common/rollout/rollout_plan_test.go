@@ -19,6 +19,8 @@ package rollout
 import (
 	"testing"
 
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -95,5 +97,40 @@ func TestDefaultRolloutPlan_NotEnough(t *testing.T) {
 	}
 	if rollout.RolloutBatches[4].Replicas.IntValue() != 1 {
 		t.Errorf("batch 4's replica %d does not equal to 1", rollout.RolloutBatches[4].Replicas.IntValue())
+	}
+}
+
+func TestValidateIllegalReplicas(t *testing.T) {
+	illegalReplica := &v1alpha1.RolloutPlan{
+		RolloutBatches: []v1alpha1.RolloutBatch{
+			{
+				Replicas: intstr.FromString("0.2"),
+			},
+		},
+	}
+	if errList := validateRolloutBatches(illegalReplica, field.NewPath("spec")); len(errList) != 1 {
+		t.Error("should invalidate illegal replica value")
+	}
+
+	illegalReplica = &v1alpha1.RolloutPlan{
+		RolloutBatches: []v1alpha1.RolloutBatch{
+			{
+				Replicas: intstr.FromString("ab"),
+			},
+		},
+	}
+	if errList := validateRolloutBatches(illegalReplica, field.NewPath("spec")); len(errList) != 1 {
+		t.Error("should invalidate illegal replica value")
+	}
+	// negative replica case
+	negativeReplica := &v1alpha1.RolloutPlan{
+		RolloutBatches: []v1alpha1.RolloutBatch{
+			{
+				Replicas: intstr.FromInt(-1),
+			},
+		},
+	}
+	if errList := validateRolloutBatches(negativeReplica, field.NewPath("spec")); len(errList) == 0 {
+		t.Error("should invalidate negative replica value")
 	}
 }

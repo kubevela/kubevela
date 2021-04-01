@@ -25,9 +25,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
-// verifyBatchSettingsInRollout verifies that the the sum of all the batch replicas is valid given the total replica
+// verifyBatchesWithRollout verifies that the the sum of all the batch replicas is valid given the total replica
 // each batch replica can be absolute or a percentage
-func verifyBatchSettingsInRollout(rolloutSpec *v1alpha1.RolloutPlan, totalReplicas int32) error {
+func verifyBatchesWithRollout(rolloutSpec *v1alpha1.RolloutPlan, totalReplicas int32) error {
 	// if not set, the sum of all the batch sizes minus the last batch cannot be more than the totalReplicas
 	totalRollout := 0
 	for i := 0; i < len(rolloutSpec.RolloutBatches)-1; i++ {
@@ -56,31 +56,33 @@ func verifyBatchSettingsInRollout(rolloutSpec *v1alpha1.RolloutPlan, totalReplic
 
 // verifyBatchesWithScale verifies that executing batches finally reach the target size starting from original size
 func verifyBatchesWithScale(rolloutSpec *v1alpha1.RolloutPlan, originalSize, targetSize int) error {
-	increase := targetSize > originalSize
 	totalRollout := originalSize
 	for i := 0; i < len(rolloutSpec.RolloutBatches)-1; i++ {
 		rb := rolloutSpec.RolloutBatches[i]
-		batchSize, _ := intstr.GetValueFromIntOrPercent(&rb.Replicas, targetSize, true)
-		if increase {
+		if targetSize > originalSize {
+			batchSize, _ := intstr.GetValueFromIntOrPercent(&rb.Replicas, targetSize-originalSize, true)
 			totalRollout += batchSize
 		} else {
+			batchSize, _ := intstr.GetValueFromIntOrPercent(&rb.Replicas, originalSize-targetSize, true)
 			totalRollout -= batchSize
 		}
 	}
-	if increase {
+	if targetSize > originalSize {
 		if totalRollout >= targetSize {
 			return fmt.Errorf("the rollout plan increased too much, total batch size = %d, targetSize size = %d",
 				totalRollout, targetSize)
 		}
-	} else if totalRollout <= targetSize {
-		return fmt.Errorf("the rollout plan reduced too much, total batch size = %d, targetSize size = %d",
-			totalRollout, originalSize)
+	} else if targetSize < originalSize {
+		if totalRollout <= targetSize {
+			return fmt.Errorf("the rollout plan reduced too much, total batch size = %d, targetSize size = %d",
+				totalRollout, originalSize)
+		}
 	}
 	// include the last batch if it has an int value
 	// we ignore the last batch percentage since it is very likely to cause rounding errors
 	lastBatch := rolloutSpec.RolloutBatches[len(rolloutSpec.RolloutBatches)-1]
 	if lastBatch.Replicas.Type == intstr.Int {
-		if increase {
+		if targetSize > originalSize {
 			totalRollout += int(lastBatch.Replicas.IntVal)
 		} else {
 			totalRollout -= int(lastBatch.Replicas.IntVal)
@@ -103,11 +105,14 @@ func calculateNewBatchTarget(rolloutSpec *v1alpha1.RolloutPlan, originalSize, ta
 			"current batch", currentBatch, "new  pod target", newPodTarget)
 		return newPodTarget
 	}
-	for i := 0; i <= currentBatch; i++ {
-		batchSize, _ := intstr.GetValueFromIntOrPercent(&rolloutSpec.RolloutBatches[i].Replicas, originalSize, true)
+	for i := 0; i <= currentBatch && i < len(rolloutSpec.RolloutBatches); i++ {
 		if targetSize > originalSize {
+			batchSize, _ := intstr.GetValueFromIntOrPercent(&rolloutSpec.RolloutBatches[i].Replicas, targetSize-originalSize,
+				true)
 			newPodTarget += batchSize
 		} else {
+			batchSize, _ := intstr.GetValueFromIntOrPercent(&rolloutSpec.RolloutBatches[i].Replicas, originalSize-targetSize,
+				true)
 			newPodTarget -= batchSize
 		}
 	}

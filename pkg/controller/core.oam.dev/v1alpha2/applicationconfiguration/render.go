@@ -135,11 +135,11 @@ func (r *components) Render(ctx context.Context, ac *v1alpha2.ApplicationConfigu
 			return nil, nil, err
 		}
 		workloads = append(workloads, w)
+		// TODO: handle rolling status better when there are multiple components
 		if isComponentRolling && needRolloutTemplate {
 			ac.Status.RollingStatus = oamtype.RollingTemplating
 		}
 	}
-	workloadsAllClear := true
 	ds := &v1alpha2.DependencyStatus{}
 	res := make([]Workload, 0, len(ac.Spec.Components))
 	for i, acc := range ac.Spec.Components {
@@ -148,15 +148,7 @@ func (r *components) Render(ctx context.Context, ac *v1alpha2.ApplicationConfigu
 			return nil, nil, err
 		}
 		ds.Unsatisfied = append(ds.Unsatisfied, unsatisfied...)
-		if workloads[i].HasDep {
-			workloadsAllClear = false
-		}
 		res = append(res, *workloads[i])
-	}
-	// set the ac rollingStatus to be RollingTemplated if all workloads are going to be applied
-	if workloadsAllClear && ac.Status.RollingStatus == oamtype.RollingTemplating {
-		klog.InfoS("mark the ac rolling status as templated", "appConfig", klog.KRef(ac.Namespace, ac.Name))
-		ac.Status.RollingStatus = oamtype.RollingTemplated
 	}
 
 	return res, ds, nil

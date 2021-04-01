@@ -36,12 +36,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	types2 "github.com/oam-dev/kubevela/apis/types"
+	oamtype "github.com/oam-dev/kubevela/apis/types"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -289,7 +290,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 			log.Info(msg)
 			r.record.Event(ac, event.Normal(reasonRevision, msg))
 			ac.SetConditions(v1alpha1.Unavailable())
-			ac.Status.RollingStatus = types2.InactiveAfterRollingCompleted
+			ac.Status.RollingStatus = oamtype.InactiveAfterRollingCompleted
 			// TODO: GC the traits/workloads
 			return reconcile.Result{}
 		}
@@ -311,6 +312,12 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 		r.record.Event(ac, event.Warning(reasonCannotApplyComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyComponents)))
 		return reconcile.Result{}
+	}
+	// only change the status after the apply succeeds
+	// TODO: take into account the templating object may not be applied if there are dependencies
+	if ac.Status.RollingStatus == oamtype.RollingTemplating {
+		klog.InfoS("mark the ac rolling status as templated", "appConfig", klog.KRef(ac.Namespace, ac.Name))
+		ac.Status.RollingStatus = oamtype.RollingTemplated
 	}
 	log.Debug("Successfully applied components", "workloads", len(workloads))
 	r.record.Event(ac, event.Normal(reasonApplyComponents, "Successfully applied components", "workloads", strconv.Itoa(len(workloads))))

@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package workloads
 
 import (
@@ -15,6 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 // CloneSetScaleController is responsible for handle scale Cloneset type of workloads
@@ -121,6 +138,7 @@ func (s *CloneSetScaleController) Initialize(ctx context.Context) (bool, error) 
 	clonePatch := client.MergeFrom(s.cloneSet.DeepCopyObject())
 	ref := metav1.NewControllerRef(s.parentController, v1beta1.AppRolloutKindVersionKind)
 	s.cloneSet.SetOwnerReferences(append(s.cloneSet.GetOwnerReferences(), *ref))
+	s.cloneSet.Spec.UpdateStrategy.Paused = false
 
 	// patch the CloneSet
 	if err := s.client.Patch(ctx, s.cloneSet, clonePatch, client.FieldOwner(s.parentController.GetUID())); err != nil {
@@ -166,7 +184,7 @@ func (s *CloneSetScaleController) CheckOneBatchPods(ctx context.Context) (bool, 
 	err := s.fetchCloneSet(ctx)
 	if err != nil {
 		s.rolloutStatus.RolloutRetry(err.Error())
-		// nolint: nilerr
+		// nolint:nilerr
 		return false, nil
 	}
 	newPodTarget := calculateNewBatchTarget(s.rolloutSpec, int(s.rolloutStatus.RolloutOriginalSize),
@@ -184,11 +202,10 @@ func (s *CloneSetScaleController) CheckOneBatchPods(ctx context.Context) (bool, 
 		"max unavailable pod allowed", unavail)
 	s.rolloutStatus.UpgradedReadyReplicas = int32(readyPodCount)
 	targetReached := false
-	if s.rolloutStatus.RolloutOriginalSize < s.rolloutStatus.RolloutTargetSize {
-		if unavail+readyPodCount >= newPodTarget {
-			targetReached = true
-		}
-	} else if readyPodCount <= newPodTarget {
+	// nolint
+	if s.rolloutStatus.RolloutOriginalSize <= s.rolloutStatus.RolloutTargetSize && unavail+readyPodCount >= newPodTarget {
+		targetReached = true
+	} else if s.rolloutStatus.RolloutOriginalSize > s.rolloutStatus.RolloutTargetSize && readyPodCount <= newPodTarget {
 		targetReached = true
 	}
 	if targetReached {
@@ -206,9 +223,43 @@ func (s *CloneSetScaleController) CheckOneBatchPods(ctx context.Context) (bool, 
 	return false, nil
 }
 
-// FinalizeOneBatch makes sure that all works in this batch are done
+// FinalizeOneBatch makes sure that the current batch and replica count in the status are validate
 func (s *CloneSetScaleController) FinalizeOneBatch(ctx context.Context) (bool, error) {
-	// nothing to do for cloneset for now
+	status := s.rolloutStatus
+	spec := s.rolloutSpec
+	if spec.BatchPartition != nil && *spec.BatchPartition < status.CurrentBatch {
+		err := fmt.Errorf("the current batch value in the status is greater than the batch partition")
+		klog.ErrorS(err, "we have moved past the user defined partition", "user specified batch partition",
+			*spec.BatchPartition, "current batch we are working on", status.CurrentBatch)
+		return false, err
+	}
+	// special case the equal case
+	if s.rolloutStatus.RolloutOriginalSize == s.rolloutStatus.RolloutTargetSize {
+		return true, nil
+	}
+	// we just make sure the target is right
+	finishedPodCount := int(status.UpgradedReplicas)
+	currentBatch := int(status.CurrentBatch)
+	// calculate the pod target just before the current batch
+	preBatchTarget := calculateNewBatchTarget(s.rolloutSpec, int(s.rolloutStatus.RolloutOriginalSize),
+		int(s.rolloutStatus.RolloutTargetSize), currentBatch-1)
+	// calculate the pod target with the current batch
+	curBatchTarget := calculateNewBatchTarget(s.rolloutSpec, int(s.rolloutStatus.RolloutOriginalSize),
+		int(s.rolloutStatus.RolloutTargetSize), currentBatch)
+	// the recorded number should be at least as much as the all the pods before the current batch
+	if finishedPodCount <= util.Min(preBatchTarget, curBatchTarget) {
+		err := fmt.Errorf("the upgraded replica in the status is less than the lower bound")
+		klog.ErrorS(err, "rollout status inconsistent", "existing pod target", finishedPodCount,
+			"the lower bound", util.Min(preBatchTarget, curBatchTarget))
+		return false, err
+	}
+	// the recorded number should be not as much as the all the pods including the active batch
+	if finishedPodCount > util.Max(preBatchTarget, curBatchTarget) {
+		err := fmt.Errorf("the upgraded replica in the status is greater than the upper bound")
+		klog.ErrorS(err, "rollout status inconsistent", "existing pod target", finishedPodCount,
+			"the upper bound", util.Max(preBatchTarget, curBatchTarget))
+		return false, err
+	}
 	return true, nil
 }
 
