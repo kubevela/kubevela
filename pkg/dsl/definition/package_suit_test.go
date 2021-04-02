@@ -589,8 +589,8 @@ parameter: {
 
 		Expect(pd.Exist(metav1.GroupVersionKind{
 			Group:   "example.com",
-			Version: "Bar",
-			Kind:    "Foo",
+			Version: "v1",
+			Kind:    "Bar",
 		})).Should(Equal(false))
 
 		By("test new added CRD in kube package")
