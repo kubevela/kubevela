@@ -23,19 +23,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/utils/pointer"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
 	corev1 "k8s.io/api/core/v1"
+	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -137,15 +137,15 @@ spec:
 			Expect(yaml.Unmarshal([]byte(validTraitDefinition), &def)).Should(BeNil())
 			def.Namespace = namespace
 			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
+			reconcileRetry(&r, req)
 
 			By("Check whether ConfigMap is created")
-			reconcileRetry(&r, req)
 			var cm corev1.ConfigMap
 			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, traitDefinitionName)
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
 				return err == nil
-			}, 10*time.Second, time.Second).Should(BeTrue())
+			}, 15*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
 
 			By("Check whether ConfigMapRef refer to right")
@@ -208,9 +208,9 @@ spec:
 			var def v1alpha2.TraitDefinition
 			Expect(yaml.Unmarshal([]byte(validTraitDefinition), &def)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
-
-			By("Check whether ConfigMap is created")
 			reconcileRetry(&r, req)
+			By("Check whether ConfigMap is created")
+
 			var cm corev1.ConfigMap
 			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, traitDefinitionName)
 			Eventually(func() bool {
@@ -277,9 +277,12 @@ spec:
 		})
 	})
 
-	FContext("When the CUE Template in TraitDefinition import new added CRD", func() {
-		It("Applying ComponentDefinition", func() {
-			By("create new crd")
+	Context("When the CUE Template in TraitDefinition import new added CRD", func() {
+		var traitDefinitionName = "test-refresh"
+		var namespace = "default"
+
+		It("Applying TraitDefinition", func() {
+			By("Create new CRD")
 			newCrd := crdv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "foo.example.com",
@@ -353,17 +356,17 @@ spec:
 			var td v1beta1.TraitDefinition
 			Expect(yaml.Unmarshal([]byte(traitDef), &td)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &td)).Should(Succeed())
-			//req := reconcile.Request{NamespacedName: client.ObjectKey{Name: "test-refresh", Namespace: "default"}}
+			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: traitDefinitionName, Namespace: namespace}}
 
-			//By("Check whether ConfigMap is created")
-			//reconcileRetry(&r, req)
-			//var cm corev1.ConfigMap
-			//name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, "test-refresh")
-			//Eventually(func() bool {
-			//	err := k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: name}, &cm)
-			//	return err == nil
-			//}, 10*time.Second, time.Second).Should(BeTrue())
-			//Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+			By("Check whether ConfigMap is created")
+			var cm corev1.ConfigMap
+			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, traitDefinitionName)
+			Eventually(func() bool {
+				reconcileRetry(&r, req)
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
+				return err == nil
+			}, 20*time.Second, time.Second).Should(BeTrue())
+			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
 		})
 	})
 

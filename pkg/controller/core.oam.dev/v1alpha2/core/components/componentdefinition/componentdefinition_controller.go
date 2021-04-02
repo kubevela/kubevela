@@ -80,8 +80,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		err := utils.RefreshPackageDiscover(r.dm, r.pd, handler.cd.Spec.Workload.Definition,
 			common.DefinitionReference{}, types.TypeComponentDefinition)
 		if err != nil {
-			klog.ErrorS(err, "cannot refresh packageDiscover")
-			r.record.Event(&componentDefinition, event.Warning("cannot refresh packageDiscover", err))
+			klog.ErrorS(err, "cannot discover the open api of the CRD")
+			r.record.Event(&componentDefinition, event.Warning("cannot discover the open api of the CRD", err))
 			return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
 				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
 		}
@@ -109,7 +109,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		def.Kube = componentDefinition.Spec.Schematic.KUBE
 	default:
 	}
-	err = def.StoreOpenAPISchema(ctx, r, req.Namespace, req.Name)
+	err = def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name)
 	if err != nil {
 		klog.ErrorS(err, "cannot store capability in ConfigMap")
 		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot store capability in ConfigMap", err))

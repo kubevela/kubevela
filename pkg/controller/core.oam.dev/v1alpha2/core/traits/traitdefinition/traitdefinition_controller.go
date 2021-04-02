@@ -84,7 +84,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	var def utils.CapabilityTraitDefinition
 	def.Name = req.NamespacedName.Name
 
-	err := def.StoreOpenAPISchema(ctx, r, req.Namespace, req.Name)
+	err := def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name)
 	if err != nil {
 		klog.ErrorS(err, "cannot store capability in ConfigMap")
 		r.record.Event(&(def.TraitDefinition), event.Warning("cannot store capability in ConfigMap", err))

@@ -275,7 +275,6 @@ func RefreshPackageDiscover(dm discoverymapper.DiscoveryMapper, pd *definition.P
 		}
 	case oamtypes.TypeWorkload, oamtypes.TypeScope:
 	}
-	fmt.Printf("look gvk %v\n", gvk)
 	targetGVK := metav1.GroupVersionKind{
 		Group:   gvk.Group,
 		Version: gvk.Version,

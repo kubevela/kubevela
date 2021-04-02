@@ -22,21 +22,20 @@ import (
 	"fmt"
 	"time"
 
-	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/utils/pointer"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
 	corev1 "k8s.io/api/core/v1"
+	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -169,9 +168,9 @@ spec:
 			// API server will convert blank namespace to `default`
 			def.Namespace = namespace
 			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
+			reconcileRetry(&r, req)
 
 			By("Check whether ConfigMap is created")
-			reconcileRetry(&r, req)
 			var cm corev1.ConfigMap
 			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
 			Eventually(func() bool {
@@ -260,9 +259,9 @@ spec:
 			var def v1alpha2.ComponentDefinition
 			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &def)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
+			reconcileRetry(&r, req)
 
 			By("Check whether ConfigMap is created")
-			reconcileRetry(&r, req)
 			var cm corev1.ConfigMap
 			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
 			Eventually(func() bool {
@@ -469,9 +468,9 @@ spec:
 			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &def)).Should(BeNil())
 			def.Namespace = namespace
 			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
-
-			By("Check whether WorkloadDefinition is created")
 			reconcileRetry(&r, req)
+			By("Check whether WorkloadDefinition is created")
+
 			var wd v1alpha2.WorkloadDefinition
 			var wdName = componentDefinitionName
 			Eventually(func() bool {
@@ -512,9 +511,9 @@ spec:
 			}
 			By("Create ComponentDefinition")
 			Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
+			reconcileRetry(&r, req)
 
 			By("Check whether WorkloadDefinition is created")
-			reconcileRetry(&r, req)
 			var wd v1alpha2.WorkloadDefinition
 			var wdName = componentDefinitionName
 			Eventually(func() bool {
@@ -615,7 +614,7 @@ spec:
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
 				return err == nil
-			}, 10*time.Second, time.Second).Should(BeTrue())
+			}, 15*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
 
 			By("Check whether ConfigMapRef refer to right")
@@ -626,8 +625,10 @@ spec:
 		})
 	})
 
-	FContext("When the CUE Template in ComponentDefinition import new added CRD", func() {
-		It("Applying ComponentDefinition", func() {
+	Context("When the CUE Template in ComponentDefinition import new added CRD", func() {
+		var componentDefinationName = "test-refresh"
+		var namespace = "default"
+		It("Applying ComponentDefinition import new crd in CUE Template, should create a ConfigMap", func() {
 			By("create new crd")
 			newCrd := crdv1.CustomResourceDefinition{
 				ObjectMeta: metav1.ObjectMeta{
@@ -699,26 +700,26 @@ spec:
 			var cd v1beta1.ComponentDefinition
 			Expect(yaml.Unmarshal([]byte(componentDef), &cd)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
-			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: "test-refresh", Namespace: "default"}}
+			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinationName, Namespace: namespace}}
+			reconcileRetry(&r, req)
 
 			By("check workload")
 			var wd v1beta1.WorkloadDefinition
-			var wdName = "test-refresh"
+			var wdName = componentDefinationName
 			Eventually(func() bool {
-				reconcileRetry(&r, req)
-				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: wdName}, &wd)
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: wdName}, &wd)
 				return err == nil
 			}, 20*time.Second, time.Second).Should(BeTrue())
 
-			//By("Check whether ConfigMap is created")
-			//var cm corev1.ConfigMap
-			//name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, "test-refresh")
-			//reconcileRetry(&r, req)
-			//Eventually(func() bool {
-			//	err := k8sClient.Get(ctx, client.ObjectKey{Namespace: "default", Name: name}, &cm)
-			//	return err == nil
-			//}, 20*time.Second, time.Second).Should(BeTrue())
-			//Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+			By("Check whether ConfigMap is created")
+			var cm corev1.ConfigMap
+			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinationName)
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
+				return err == nil
+			}, 15*time.Second, time.Second).Should(BeTrue())
+			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
 		})
+
 	})
 })

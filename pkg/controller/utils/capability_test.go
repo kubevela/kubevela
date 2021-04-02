@@ -75,7 +75,7 @@ func TestGetOpenAPISchema(t *testing.T) {
 				},
 			}
 			capability, _ := util.ConvertTemplateJSON2Object(tc.name, nil, schematic)
-			schema, err := getOpenAPISchema(capability)
+			schema, err := getOpenAPISchema(capability, pd)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\ngetOpenAPISchema(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
@@ -138,7 +138,7 @@ func TestGenerateOpenAPISchemaFromCapabilityParameter(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got, err := generateOpenAPISchemaFromCapabilityParameter(tc.capability)
+			got, err := generateOpenAPISchemaFromCapabilityParameter(tc.capability, pd)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\ngetDefinition(...): -want error, +got error:\n%s", tc.reason, diff)
 			}

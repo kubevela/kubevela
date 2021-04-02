@@ -113,7 +113,7 @@ spec:
 			Expect(capability).Should(Not(BeNil()))
 
 			By("Test GetOpenAPISchema")
-			schema, err := def.GetOpenAPISchema(ctx, k8sClient, namespace, componentDefinitionName)
+			schema, err := def.GetOpenAPISchema(ctx, k8sClient, pd, namespace, componentDefinitionName)
 			Expect(err).Should(BeNil())
 			Expect(schema).Should(Not(BeNil()))
 
@@ -179,7 +179,7 @@ spec:
 
 			By("Test GetOpenAPISchema")
 			var expectedSchema = "{\"properties\":{\"replicas\":{\"default\":1,\"description\":\"Replicas of the workload\",\"title\":\"replicas\",\"type\":\"integer\"}},\"required\":[\"replicas\"],\"type\":\"object\"}"
-			schema, err := def.GetOpenAPISchema(ctx, k8sClient, namespace, traitDefinitionName)
+			schema, err := def.GetOpenAPISchema(ctx, k8sClient, pd, namespace, traitDefinitionName)
 			Expect(err).Should(BeNil())
 			Expect(string(schema)).Should(Equal(expectedSchema))
 		})

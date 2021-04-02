@@ -22,12 +22,10 @@ import (
 	"testing"
 	"time"
 
-	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-
-	"github.com/oam-dev/kubevela/pkg/dsl/definition"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -36,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	oamCore "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
@@ -55,6 +54,7 @@ var _ = BeforeSuite(func(done Done) {
 	useExistCluster := false
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
+			"./testdata/crd",
 			filepath.Join("../../../../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
 		},
 		UseExistingCluster: &useExistCluster,
@@ -64,8 +64,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
 
-	err = oamCore.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
+	Expect(oamCore.AddToScheme(scheme.Scheme)).Should(BeNil())
 	Expect(crdv1.AddToScheme(scheme.Scheme)).Should(BeNil())
 
 	By("Create the k8s client")
@@ -80,9 +79,12 @@ var _ = BeforeSuite(func(done Done) {
 		Port:               48081,
 	})
 	Expect(err).ToNot(HaveOccurred())
+
+	pd, err := definition.NewPackageDiscover(cfg)
+	Expect(err).ToNot(HaveOccurred())
 	dm, err := discoverymapper.New(mgr.GetConfig())
 	Expect(err).ToNot(HaveOccurred())
-	pd, err := definition.NewPackageDiscover(cfg)
+	_, err = dm.Refresh()
 	Expect(err).ToNot(HaveOccurred())
 
 	r = Reconciler{
