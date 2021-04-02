@@ -178,10 +178,15 @@ e2e-cleanup:
 	# Clean up
 	rm -rf ~/.vela
 
+DANGLING_IMAGE := $(shell docker images --filter "dangling=true" -q --no-trunc)
 image-cleanup:
 # Delete Docker image
 ifneq ($(shell docker images -q vela-core-test:$(GIT_COMMIT)),)
 	docker image rm -f vela-core-test:$(GIT_COMMIT)
+endif
+	docker stop $(docker ps -aq)
+ifneq ($(DANGLING_IMAGE),)
+	docker image rm -f $(DANGLING_IMAGE)
 endif
 
 # load docker image to the kind cluster
