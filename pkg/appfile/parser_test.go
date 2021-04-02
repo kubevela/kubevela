@@ -57,7 +57,8 @@ var expectedExceptApp = &Appfile{
 				"image": "busybox",
 				"cmd":   []interface{}{"sleep", "1000"},
 			},
-			Template: `
+			FullTemplate: &util.Template{
+				TemplateStr: `
       output: {
         apiVersion: "apps/v1"
       	kind:       "Deployment"
@@ -96,6 +97,7 @@ var expectedExceptApp = &Appfile{
       
       	cmd?: [...string]
       }`,
+			},
 			Traits: []*Trait{
 				{
 					Name: "scaler",
@@ -306,7 +308,8 @@ var _ = Describe("Test appFile parser", func() {
 						}},
 					},
 					engine: definition.NewWorkloadAbstractEngine("myweb", pd),
-					Template: `
+					FullTemplate: &util.Template{
+						TemplateStr: `
       output: {
         apiVersion: "apps/v1"
       	kind:       "Deployment"
@@ -348,6 +351,7 @@ var _ = Describe("Test appFile parser", func() {
       
       	cmd?: [...string]
       }`,
+					},
 					Traits: []*Trait{
 						{
 							Name: "scaler",
@@ -545,22 +549,24 @@ var _ = Describe("Test appfile parser to parse helm module", func() {
 `,
 						},
 					},
-					Helm: &common.Helm{
-						Release: util.Object2RawExtension(map[string]interface{}{
-							"chart": map[string]interface{}{
-								"spec": map[string]interface{}{
-									"chart":   "podinfo",
-									"version": "5.1.4",
+					FullTemplate: &util.Template{
+						Reference: common.WorkloadGVK{
+							APIVersion: "apps/v1",
+							Kind:       "Deployment",
+						},
+						Helm: &common.Helm{
+							Release: util.Object2RawExtension(map[string]interface{}{
+								"chart": map[string]interface{}{
+									"spec": map[string]interface{}{
+										"chart":   "podinfo",
+										"version": "5.1.4",
+									},
 								},
-							},
-						}),
-						Repository: util.Object2RawExtension(map[string]interface{}{
-							"url": "http://oam.dev/catalog/",
-						}),
-					},
-					DefinitionReference: common.WorkloadGVK{
-						APIVersion: "apps/v1",
-						Kind:       "Deployment",
+							}),
+							Repository: util.Object2RawExtension(map[string]interface{}{
+								"url": "http://oam.dev/catalog/",
+							}),
+						},
 					},
 				},
 			},
@@ -770,10 +776,10 @@ spec:
 								},
 							},
 						},
-					},
-					DefinitionReference: common.WorkloadGVK{
-						APIVersion: "apps/v1",
-						Kind:       "Deployment",
+						Reference: common.WorkloadGVK{
+							APIVersion: "apps/v1",
+							Kind:       "Deployment",
+						},
 					},
 				},
 			},
@@ -922,8 +928,8 @@ settings: {
 			)
 
 			wl := &Workload{
-				Name:     "abc",
-				Template: template,
+				Name:         "abc",
+				FullTemplate: &util.Template{TemplateStr: template},
 			}
 			By("call target function")
 			secrets, err := parseWorkloadInsertSecretTo(ctx, k8sClient, ns, wl)
@@ -963,7 +969,7 @@ parameter: {
 				Params: map[string]interface{}{
 					"dbSecret": targetSecretName,
 				},
-				Template: template,
+				FullTemplate: &util.Template{TemplateStr: template},
 			}
 			By("create secret")
 			s := &corev1.Secret{
@@ -1021,7 +1027,7 @@ var _ = Describe("Test IsCloudResourceConsumer", func() {
 	Context("Workload is a Cloud Resource consumer", func() {
 		It("", func() {
 			wl := &Workload{
-				Template: "// +insertSecretTo=dbConn",
+				FullTemplate: &util.Template{TemplateStr: "// +insertSecretTo=dbConn"},
 			}
 			Expect(wl.IsCloudResourceConsumer()).Should(Equal(true))
 		})
@@ -1030,7 +1036,7 @@ var _ = Describe("Test IsCloudResourceConsumer", func() {
 	Context("Workload is a Cloud Resource consumer", func() {
 		It("", func() {
 			wl := &Workload{
-				Template: "// +useage=dbConn",
+				FullTemplate: &util.Template{TemplateStr: "// +useage=dbConn"},
 			}
 			Expect(wl.IsCloudResourceProducer()).Should(Equal(false))
 		})

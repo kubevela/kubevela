@@ -68,17 +68,8 @@ type Workload struct {
 	Params             map[string]interface{}
 	Traits             []*Trait
 	Scopes             []Scope
-
-	Template           string
-	HealthCheckPolicy  string
-	CustomStatusFormat string
-
-	Helm                *common.Helm
-	DefinitionReference common.WorkloadGVK
-	// TODO: remove all the duplicate fields above as workload now contains the whole template
-	FullTemplate *util.Template
-
-	engine definition.AbstractEngine
+	FullTemplate       *util.Template
+	engine             definition.AbstractEngine
 	// OutputSecretName is the secret name which this workload will generate after it successfully generate a cloud resource
 	OutputSecretName string
 	// RequiredSecrets stores secret names which the workload needs from cloud resource component and its context
@@ -103,17 +94,17 @@ func (wl *Workload) GetUserConfigName() string {
 
 // EvalContext eval workload template and set result to context
 func (wl *Workload) EvalContext(ctx process.Context) error {
-	return wl.engine.Complete(ctx, wl.Template, wl.Params)
+	return wl.engine.Complete(ctx, wl.FullTemplate.TemplateStr, wl.Params)
 }
 
 // EvalStatus eval workload status
 func (wl *Workload) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
-	return wl.engine.Status(ctx, cli, ns, wl.CustomStatusFormat)
+	return wl.engine.Status(ctx, cli, ns, wl.FullTemplate.CustomStatus)
 }
 
 // EvalHealth eval workload health check
 func (wl *Workload) EvalHealth(ctx process.Context, client client.Client, namespace string) (bool, error) {
-	return wl.engine.HealthCheck(ctx, client, namespace, wl.HealthCheckPolicy)
+	return wl.engine.HealthCheck(ctx, client, namespace, wl.FullTemplate.Health)
 }
 
 // Scope defines the scope of workload
@@ -207,18 +198,13 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComp
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
 	}
 	workload := &Workload{
-		Traits:              []*Trait{},
-		Name:                comp.Name,
-		Type:                comp.Type,
-		CapabilityCategory:  templ.CapabilityCategory,
-		Template:            templ.TemplateStr,
-		HealthCheckPolicy:   templ.Health,
-		CustomStatusFormat:  templ.CustomStatus,
-		DefinitionReference: templ.Reference,
-		Helm:                templ.Helm,
-		FullTemplate:        templ,
-		Params:              settings,
-		engine:              definition.NewWorkloadAbstractEngine(comp.Name, p.pd),
+		Traits:             []*Trait{},
+		Name:               comp.Name,
+		Type:               comp.Type,
+		CapabilityCategory: templ.CapabilityCategory,
+		FullTemplate:       templ,
+		Params:             settings,
+		engine:             definition.NewWorkloadAbstractEngine(comp.Name, p.pd),
 	}
 	for _, traitValue := range comp.Traits {
 		properties, err := util.RawExtension2Map(&traitValue.Properties)
@@ -398,7 +384,7 @@ func generateComponentFromKubeModule(c client.Client, wl *Workload, appName, rev
 	}
 
 	// NOTE a hack way to enable using CUE capabilities on KUBE schematic workload
-	wl.Template = fmt.Sprintf(`
+	wl.FullTemplate.TemplateStr = fmt.Sprintf(`
 output: { 
 	%s 
 }`, string(cueRaw))
@@ -487,19 +473,19 @@ func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values paramVal
 }
 
 func generateComponentFromHelmModule(c client.Client, wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
-	gv, err := schema.ParseGroupVersion(wl.DefinitionReference.APIVersion)
+	gv, err := schema.ParseGroupVersion(wl.FullTemplate.Reference.APIVersion)
 	if err != nil {
 		return nil, nil, err
 	}
-	targetWokrloadGVK := gv.WithKind(wl.DefinitionReference.Kind)
+	targetWorkloadGVK := gv.WithKind(wl.FullTemplate.Reference.Kind)
 
 	// NOTE this is a hack way to enable using CUE module capabilities on Helm module workload
 	// construct an empty base workload according to its GVK
-	wl.Template = fmt.Sprintf(`
+	wl.FullTemplate.TemplateStr = fmt.Sprintf(`
 output: {
 	apiVersion: "%s"
 	kind: "%s"
-}`, targetWokrloadGVK.GroupVersion().String(), targetWokrloadGVK.Kind)
+}`, targetWorkloadGVK.GroupVersion().String(), targetWorkloadGVK.Kind)
 
 	// re-use the way CUE module generates comp & acComp
 	comp, acComp, err := generateComponentFromCUEModule(c, wl, appName, revision, ns)
@@ -507,7 +493,7 @@ output: {
 		return nil, nil, err
 	}
 
-	release, repo, err := helm.RenderHelmReleaseAndHelmRepo(wl.Helm, wl.Name, appName, ns, wl.Params)
+	release, repo, err := helm.RenderHelmReleaseAndHelmRepo(wl.FullTemplate.Helm, wl.Name, appName, ns, wl.Params)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -593,7 +579,7 @@ func GetOutputSecretNames(workloads *Workload) (string, error) {
 
 func parseWorkloadInsertSecretTo(ctx context.Context, c client.Client, namespace string, wl *Workload) ([]process.RequiredSecrets, error) {
 	var requiredSecret []process.RequiredSecrets
-	api, err := utils.GenerateOpenAPISchemaFromDefinition(wl.Name, wl.Template)
+	api, err := utils.GenerateOpenAPISchemaFromDefinition(wl.Name, wl.FullTemplate.TemplateStr)
 	if err != nil {
 		if !errors.Is(err, errors.Errorf(utils.ErrNoSectionParameterInCue, wl.Name)) {
 			return nil, nil
@@ -667,7 +653,7 @@ func (wl *Workload) IsCloudResourceProducer() bool {
 // IsCloudResourceConsumer checks whether a workload is cloud resource consumer role
 func (wl *Workload) IsCloudResourceConsumer() bool {
 	requiredSecretTag := strings.TrimRight(utils.InsertSecretToTag, "=")
-	matched, err := regexp.Match(regexp.QuoteMeta(requiredSecretTag), []byte(wl.Template))
+	matched, err := regexp.Match(regexp.QuoteMeta(requiredSecretTag), []byte(wl.FullTemplate.TemplateStr))
 	if err != nil || !matched {
 		return false
 	}
