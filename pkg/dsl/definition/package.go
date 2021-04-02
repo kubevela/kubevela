@@ -120,6 +120,7 @@ func (pd *PackageDiscover) mount(pkg *pkgInstance, pkgKinds []VersionKind) {
 	defer pd.mutex.Unlock()
 	for i, p := range pd.velaBuiltinPackages {
 		if p.ImportPath == pkg.ImportPath {
+			pd.pkgKinds[pkg.ImportPath] = pkgKinds
 			pd.velaBuiltinPackages[i] = pkg.Instance
 			return
 		}
@@ -257,7 +258,7 @@ func openAPIMapping(dgvkMapper map[string]domainGroupVersionKind) func(pos token
 		}
 
 		name := strings.ReplaceAll(a[1], ".", "_")
-
+		name = strings.ReplaceAll(name, "-", "_")
 		if _, ok := dgvkMapper[name]; !ok && strings.HasPrefix(name, K8sResourcePrefix) {
 			trimName := strings.TrimPrefix(name, K8sResourcePrefix)
 			if v, ok := dgvkMapper[trimName]; ok {
@@ -299,7 +300,7 @@ func (dgvk domainGroupVersionKind) reverseString() string {
 	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
 		s[i], s[j] = s[j], s[i]
 	}
-	return strings.Join(s, "_")
+	return strings.ReplaceAll(strings.Join(s, "_"), "-", "_")
 }
 
 type pkgInstance struct {

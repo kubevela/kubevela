@@ -544,7 +544,7 @@ func TestOpenAPIMapping(t *testing.T) {
 		{
 			input:  []string{"definitions", "io.k8s.apiextensions-apiserver.pkg.apis.apiextensions.v1.JSONSchemaProps"},
 			pos:    token.NoPos,
-			result: "[io_k8s_apiextensions-apiserver_pkg_apis_apiextensions_v1_JSONSchemaProps]",
+			result: "[io_k8s_apiextensions_apiserver_pkg_apis_apiextensions_v1_JSONSchemaProps]",
 		},
 		{
 			input:  []string{"definitions"},
