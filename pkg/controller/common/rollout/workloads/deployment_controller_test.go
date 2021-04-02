@@ -17,6 +17,7 @@
 package workloads
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -26,6 +27,45 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
+
+func TestVerifySpec4Deployment(t *testing.T) {
+	ctx := context.TODO()
+	type want struct {
+		consistent bool
+		err        error
+	}
+	cases := map[string]struct {
+		c             *DeploymentController
+		totalReplicas int32
+		want          want
+	}{
+		"BatchSizeMismatchesDeploymentSize": {
+			c: &DeploymentController{
+				rolloutSpec: &v1alpha1.RolloutPlan{
+					RolloutBatches: []v1alpha1.RolloutBatch{{
+						Replicas: intstr.FromInt(1),
+					},
+					},
+				},
+			},
+			totalReplicas: 3,
+			want:          want{consistent: true, err: nil},
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			consistent, err := tc.c.VerifySpec(ctx)
+			if diff := cmp.Diff(tc.want, err, test.EquateErrors()); diff != "" {
+				t.Errorf("\n%s\nverifyRolloutBatchReplicaValue(...): -want error, +got error:\n%s", name, diff)
+			}
+			if diff := cmp.Diff(tc.want.consistent, consistent); diff != "" {
+				t.Errorf("\n%s\ngetDefinition(...): -want, +got:\n%s", name, diff)
+			}
+		})
+	}
+
+}
 
 func TestVerifyRolloutBatchReplicaValue4Deployment(t *testing.T) {
 	cases := map[string]struct {
