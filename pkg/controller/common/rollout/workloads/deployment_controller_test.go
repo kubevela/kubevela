@@ -56,7 +56,7 @@ func TestVerifySpec4Deployment(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			consistent, err := tc.c.VerifySpec(ctx)
-			if diff := cmp.Diff(tc.want, err, test.EquateErrors()); diff != "" {
+			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nverifyRolloutBatchReplicaValue(...): -want error, +got error:\n%s", name, diff)
 			}
 			if diff := cmp.Diff(tc.want.consistent, consistent); diff != "" {
@@ -64,7 +64,6 @@ func TestVerifySpec4Deployment(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestVerifyRolloutBatchReplicaValue4Deployment(t *testing.T) {

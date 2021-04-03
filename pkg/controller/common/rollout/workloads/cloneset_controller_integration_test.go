@@ -24,7 +24,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	v1 "k8s.io/api/apps/v1"
+	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -35,13 +35,13 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-var _ = Describe("deployment controller", func() {
+var _ = Describe("cloneset controller", func() {
 	var (
-		c              DeploymentController
+		c              CloneSetController
 		ns             corev1.Namespace
 		name           string
 		namespace      string
-		deploy         v1.Deployment
+		cloneSet       kruise.CloneSet
 		namespacedName client.ObjectKey
 	)
 	Context("VerifySpec", func() {
@@ -50,7 +50,7 @@ var _ = Describe("deployment controller", func() {
 			name = "rollout1"
 			appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
 			namespacedName = client.ObjectKey{Name: name, Namespace: namespace}
-			c = DeploymentController{
+			c = CloneSetController{
 				client: k8sClient,
 				rolloutSpec: &v1alpha1.RolloutPlan{
 					RolloutBatches: []v1alpha1.RolloutBatch{{
@@ -62,6 +62,7 @@ var _ = Describe("deployment controller", func() {
 				parentController: &appRollout,
 				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
 					WithAnnotations("controller", "AppRollout"),
+				workloadNamespacedName: namespacedName,
 			}
 
 			ns = corev1.Namespace{
@@ -73,22 +74,18 @@ var _ = Describe("deployment controller", func() {
 			Expect(k8sClient.Create(ctx, &ns)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
 		})
 
-		It("Could not fetch deployment workload", func() {
+		It("Could not fetch CloneSet workload", func() {
 			consistent, err := c.VerifySpec(ctx)
 			Expect(err).Should(BeNil())
 			Expect(consistent).Should(BeFalse())
 		})
 
-		It("the source deployment is still being reconciled, need to be paused", func() {
-			By("setting more fields for controller")
-			c.sourceNamespacedName = namespacedName
-			c.targetNamespacedName = namespacedName
-
-			By("Create a deployment")
-			deploy = v1.Deployment{
-				TypeMeta:   metav1.TypeMeta{APIVersion: "apps/v1", Kind: "Deployment"},
+		It("there is no difference between the source and target", func() {
+			By("Create a CloneSet")
+			cloneSet = kruise.CloneSet{
+				TypeMeta:   metav1.TypeMeta{APIVersion: "apps.kruise.io/v1alpha1", Kind: "CloneSet"},
 				ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
-				Spec: v1.DeploymentSpec{
+				Spec: kruise.CloneSetSpec{
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{"env": "staging"},
 					},
@@ -98,29 +95,25 @@ var _ = Describe("deployment controller", func() {
 					},
 				},
 			}
-			Expect(k8sClient.Create(ctx, &deploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			Expect(k8sClient.Create(ctx, &cloneSet)).Should(Succeed())
 
 			By("verify")
 			consistent, err := c.VerifySpec(ctx)
-			Expect(err).Should(Equal(fmt.Errorf("the source deployment rollout1 is still being reconciled, need to be paused")))
+			Expect(err).Should(Equal(fmt.Errorf("there is no difference between the source and target, hash = ")))
 			Expect(consistent).Should(BeFalse())
 
 			By("clean up")
-			var d v1.Deployment
-			k8sClient.Get(ctx, namespacedName, &d)
-			k8sClient.Delete(ctx, &d)
+			var w kruise.CloneSet
+			k8sClient.Get(ctx, namespacedName, &w)
+			k8sClient.Delete(ctx, &w)
 		})
 
-		It("spec is valid", func() {
-			By("setting more fields for controller")
-			c.sourceNamespacedName = namespacedName
-			c.targetNamespacedName = namespacedName
-
-			By("Create a deployment")
-			deploy = v1.Deployment{
-				TypeMeta:   metav1.TypeMeta{APIVersion: "apps/v1", Kind: "Deployment"},
+		It("the cloneset is in the middle of updating", func() {
+			By("Create a CloneSet")
+			cloneSet = kruise.CloneSet{
+				TypeMeta:   metav1.TypeMeta{APIVersion: "apps.kruise.io/v1alpha1", Kind: "CloneSet"},
 				ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
-				Spec: v1.DeploymentSpec{
+				Spec: kruise.CloneSetSpec{
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{"env": "staging"},
 					},
@@ -128,10 +121,46 @@ var _ = Describe("deployment controller", func() {
 						ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"env": "staging"}},
 						Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: name, Image: "nginx"}}},
 					},
-					Paused: true,
 				},
 			}
-			Expect(k8sClient.Create(ctx, &deploy)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, &cloneSet)).Should(Succeed())
+
+			By("setting more field for CloneSetController")
+			c.rolloutStatus.LastAppliedPodTemplateIdentifier = "abc"
+
+			By("verify")
+			consistent, err := c.VerifySpec(ctx)
+			Expect(err).Should(Equal(fmt.Errorf("the cloneset rollout1 is in the middle of updating, need to be paused first")))
+			Expect(consistent).Should(BeFalse())
+
+			By("clean up")
+			var w kruise.CloneSet
+			k8sClient.Get(ctx, namespacedName, &w)
+			k8sClient.Delete(ctx, &w)
+		})
+
+		It("xxx", func() {
+			By("Create a CloneSet")
+			cloneSet = kruise.CloneSet{
+				TypeMeta:   metav1.TypeMeta{APIVersion: "apps.kruise.io/v1alpha1", Kind: "CloneSet"},
+				ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
+				Spec: kruise.CloneSetSpec{
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{"env": "staging"},
+					},
+					Template: corev1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"env": "staging"}},
+						Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: name, Image: "nginx"}}},
+					},
+					UpdateStrategy: kruise.CloneSetUpdateStrategy{
+						Paused: true,
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, &cloneSet)).Should(Succeed())
+
+			By("setting more field for CloneSetController")
+			c.rolloutStatus.LastAppliedPodTemplateIdentifier = "abc"
 
 			By("verify")
 			consistent, err := c.VerifySpec(ctx)
@@ -139,9 +168,9 @@ var _ = Describe("deployment controller", func() {
 			Expect(consistent).Should(BeTrue())
 
 			By("clean up")
-			var d v1.Deployment
-			k8sClient.Get(ctx, namespacedName, &d)
-			k8sClient.Delete(ctx, &d)
+			var w kruise.CloneSet
+			k8sClient.Get(ctx, namespacedName, &w)
+			k8sClient.Delete(ctx, &w)
 		})
 	})
 })

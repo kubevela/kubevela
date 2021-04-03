@@ -24,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -38,8 +39,6 @@ var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var ctx = context.Background()
-
-//var controllerDone chan struct{}
 var mgr manager.Manager
 
 func TestRollout(t *testing.T) {
@@ -52,9 +51,11 @@ var _ = BeforeSuite(func(done Done) {
 	useExistCluster := false
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("../../../../..", "charts/vela-core/crds"), // this has all the required CRDs,
+			filepath.Join("../../../../..", "charts/vela-core/crds"),
+			"testdata",
 		},
-		UseExistingCluster: &useExistCluster,
+		ErrorIfCRDPathMissing: true,
+		UseExistingCluster:    &useExistCluster,
 	}
 	var err error
 	cfg, err = testEnv.Start()
@@ -63,6 +64,8 @@ var _ = BeforeSuite(func(done Done) {
 
 	err = oamCore.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
+
+	Expect(kruise.AddToScheme(scheme.Scheme)).NotTo(HaveOccurred())
 
 	By("Create the k8s client")
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
@@ -77,19 +80,14 @@ var _ = BeforeSuite(func(done Done) {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	//controllerDone = make(chan struct{}, 1)
 	go func() {
 		defer GinkgoRecover()
-		//Expect(mgr.Start(controllerDone)).ToNot(HaveOccurred())
 	}()
 
 	close(done)
 }, 60)
 
 var _ = AfterSuite(func() {
-	//By("Stop the controller")
-	//close(controllerDone)
-
 	By("Tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())

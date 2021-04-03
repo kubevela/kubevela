@@ -87,5 +87,86 @@ func TestVerifyRolloutBatchReplicaValue4Cloneset(t *testing.T) {
 			}
 		})
 	}
-
 }
+
+//func TestVerifySpec(t *testing.T) {
+//	useExistCluster := false
+//	testEnv = &envtest.Environment{
+//		UseExistingCluster: &useExistCluster,
+//	}
+//	cfg, err := testEnv.Start()
+//	assert.NoError(t, err)
+//
+//	err = oamCore.AddToScheme(scheme.Scheme)
+//	assert.NoError(t, err)
+//
+//	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+//	assert.NoError(t, err)
+//
+//	mgr, err = ctrl.NewManager(cfg, ctrl.Options{
+//		Scheme:             scheme.Scheme,
+//		MetricsBindAddress: "0",
+//		Port:               48081,
+//	})
+//	assert.NoError(t, err)
+//
+//
+//	var (
+//		namespace  = "rollout-ns"
+//		name       = "rollout1"
+//		appRollout = v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
+//		//namespacedName = client.ObjectKey{Name: name, Namespace: namespace}
+//		ctx = context.TODO()
+//
+//		ns = corev1.Namespace{
+//			ObjectMeta: metav1.ObjectMeta{
+//				Name: namespace,
+//			},
+//		}
+//	)
+//	assert.NoError(t, k8sClient.Create(ctx, &ns))
+//
+//	type want struct {
+//		consistent bool
+//		err        error
+//	}
+//	cases := map[string]struct {
+//		c    *CloneSetController
+//		want want
+//	}{
+//		"CouldNotFetchClonesetWorkload": {
+//			c: &CloneSetController{
+//				client: k8sClient,
+//				rolloutSpec: &v1alpha1.RolloutPlan{
+//					RolloutBatches: []v1alpha1.RolloutBatch{{
+//						Replicas: intstr.FromInt(1),
+//					},
+//					},
+//				},
+//				rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
+//				parentController: &appRollout,
+//				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+//					WithAnnotations("controller", "AppRollout"),
+//			},
+//			want: want{
+//				consistent: false,
+//				err:        nil,
+//			},
+//		},
+//		"the source deployment is still being reconciled, need to be paused": {
+//
+//		},
+//	}
+//
+//	for name, tc := range cases {
+//		t.Run(name, func(t *testing.T) {
+//			consistent, err := tc.c.VerifySpec(ctx)
+//			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
+//				t.Errorf("\n%s\nVerifySpec(...): -want error, +got error:\n%s", name, diff)
+//			}
+//			if diff := cmp.Diff(tc.want.consistent, consistent); diff != "" {
+//				t.Errorf("\n%s\nVerifySpec(...): -want, +got:\n%s", name, diff)
+//			}
+//		})
+//	}
+//}
