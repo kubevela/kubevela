@@ -23,14 +23,14 @@ import (
 
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -44,7 +44,9 @@ const (
 	InsertSecretToTag = "+insertSecretTo="
 )
 
-// Template includes its string, health and its category
+// Template is a helper struct for processing capability including
+// ComponentDefinition, TraitDefinition, ScopeDefinition.
+// It mainly collects schematic and status data of a capability definition.
 type Template struct {
 	TemplateStr        string
 	Health             string
@@ -59,48 +61,28 @@ type Template struct {
 	TraitDefinition     *v1beta1.TraitDefinition
 }
 
-// GetScopeGVK Get ScopeDefinition
-func GetScopeGVK(ctx context.Context, cli client.Reader, dm discoverymapper.DiscoveryMapper,
-	name string) (schema.GroupVersionKind, error) {
-	var gvk schema.GroupVersionKind
-	sd := new(v1alpha2.ScopeDefinition)
-	err := oamutil.GetDefinition(ctx, cli, sd, name)
-	if err != nil {
-		return gvk, err
-	}
-
-	return oamutil.GetGVKFromDefinition(dm, sd.Spec.Reference)
-}
-
-// LoadTemplate Get template according to key
-func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli client.Reader, key string, kd types.CapType) (*Template, error) {
+// LoadTemplate gets the capability definition from cluster and resolve it.
+// It returns a helper struct, Template, which will be used for further
+// processing.
+func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli client.Reader, capName string, capType types.CapType) (*Template, error) {
 	// Application Controller only load template from ComponentDefinition and TraitDefinition
-	switch kd {
+	switch capType {
 	case types.TypeComponentDefinition:
-		var schematic *common.Schematic
-		var status *common.Status
-		var extension *runtime.RawExtension
-
 		cd := new(v1beta1.ComponentDefinition)
-		err := oamutil.GetDefinition(ctx, cli, cd, key)
+		err := oamutil.GetDefinition(ctx, cli, cd, capName)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				wd := new(v1beta1.WorkloadDefinition)
-				if err := oamutil.GetDefinition(ctx, cli, wd, key); err != nil {
-					return nil, errors.WithMessagef(err, "LoadTemplate from workloadDefinition [%s] ", key)
+				if err := oamutil.GetDefinition(ctx, cli, wd, capName); err != nil {
+					return nil, errors.WithMessagef(err, "LoadTemplate from workloadDefinition [%s] ", capName)
 				}
-				schematic, status, extension = wd.Spec.Schematic, wd.Spec.Status, wd.Spec.Extension
-				tmpl, err := NewTemplate(schematic, status, extension)
+				tmpl, err := newTemplateOfWorkloadDefinition(wd)
 				if err != nil {
-					return nil, errors.WithMessagef(err, "Create template [%s] from workload definition", key)
+					return nil, err
 				}
-				if cd.Annotations["type"] == string(types.TerraformCategory) {
-					tmpl.CapabilityCategory = types.TerraformCategory
-				}
-				tmpl.WorkloadDefinition = wd
 				gvk, err := oamutil.GetGVKFromDefinition(dm, wd.Spec.Reference)
 				if err != nil {
-					return nil, errors.WithMessagef(err, "Get GVK from workload definition [%s]", key)
+					return nil, errors.WithMessagef(err, "Get GVK from workload definition [%s]", capName)
 				}
 				tmpl.Reference = common.WorkloadGVK{
 					APIVersion: gvk.GroupVersion().String(),
@@ -108,105 +90,168 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 				}
 				return tmpl, nil
 			}
-			return nil, errors.WithMessagef(err, "LoadTemplate from ComponentDefinition [%s] ", key)
+			return nil, errors.WithMessagef(err, "LoadTemplate from ComponentDefinition [%s] ", capName)
 		}
-		schematic, status, extension = cd.Spec.Schematic, cd.Spec.Status, cd.Spec.Extension
-		tmpl, err := NewTemplate(schematic, status, extension)
+		tmpl, err := newTemplateOfCompDefinition(cd)
 		if err != nil {
-			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return nil, err
 		}
-		if cd.Annotations["type"] == string(types.TerraformCategory) {
-			tmpl.CapabilityCategory = types.TerraformCategory
-		}
-		tmpl.ComponentDefinition = cd
-		tmpl.Reference = cd.Spec.Workload.Definition
 		return tmpl, nil
 
 	case types.TypeTrait:
 		td := new(v1beta1.TraitDefinition)
-		err := oamutil.GetDefinition(ctx, cli, td, key)
+		err := oamutil.GetDefinition(ctx, cli, td, capName)
 		if err != nil {
-			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", capName)
 		}
-		var capabilityCategory types.CapabilityCategory
-		if td.Annotations["type"] == string(types.TerraformCategory) {
-			capabilityCategory = types.TerraformCategory
-		}
-		tmpl, err := NewTemplate(td.Spec.Schematic, td.Spec.Status, td.Spec.Extension)
+		tmpl, err := newTemplateOfTraitDefinition(td)
 		if err != nil {
-			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
+			return nil, err
 		}
-		if tmpl == nil {
-			return nil, errors.New("no template found in definition")
-		}
-		tmpl.CapabilityCategory = capabilityCategory
-		tmpl.TraitDefinition = td
 		return tmpl, nil
 	case types.TypeScope:
 		// TODO: add scope template support
 	default:
-		return nil, fmt.Errorf("kind(%s) of %s not supported", kd, key)
+		return nil, fmt.Errorf("kind(%s) of %s not supported", capType, capName)
 	}
-	return nil, fmt.Errorf("kind(%s) of %s not supported", kd, key)
+	return nil, fmt.Errorf("kind(%s) of %s not supported", capType, capName)
 }
 
-// NewTemplate will create template for inner AbstractEngine using.
-func NewTemplate(schematic *common.Schematic, status *common.Status, raw *runtime.RawExtension) (*Template, error) {
-	tmp := &Template{}
+// DryRunTemplateLoader return a function that do the same work as
+// LoadTemplate, but load template from provided ones before loading from
+// cluster through LoadTemplate
+func DryRunTemplateLoader(defs []oam.Object) TemplateLoaderFn {
+	return TemplateLoaderFn(func(ctx context.Context, dm discoverymapper.DiscoveryMapper, r client.Reader, capName string, capType types.CapType) (*Template, error) {
+		// retrieve provided cap definitions
+		for _, def := range defs {
+			if unstructDef, ok := def.(*unstructured.Unstructured); ok {
+				if unstructDef.GetKind() == v1beta1.ComponentDefinitionKind &&
+					capType == types.TypeComponentDefinition && unstructDef.GetName() == capName {
+					compDef := &v1beta1.ComponentDefinition{}
+					if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructDef.Object, compDef); err != nil {
+						return nil, errors.Wrap(err, "invalid component definition")
+					}
+					tmpl, err := newTemplateOfCompDefinition(compDef)
+					if err != nil {
+						return nil, errors.WithMessagef(err, "cannot load template of component definition %q", capName)
+					}
+					return tmpl, nil
+				}
+				if unstructDef.GetKind() == v1beta1.TraitDefinitionKind &&
+					capType == types.TypeTrait && unstructDef.GetName() == capName {
+					traitDef := &v1beta1.TraitDefinition{}
+					if err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructDef.Object, traitDef); err != nil {
+						return nil, errors.Wrap(err, "invalid trait definition")
+					}
+					tmpl, err := newTemplateOfTraitDefinition(traitDef)
+					if err != nil {
+						return nil, errors.WithMessagef(err, "cannot load template of trait definition %q", capName)
+					}
+					return tmpl, nil
+				}
+				// TODO(roywang) add support for ScopeDefinition
+			}
+		}
+		// not found in provided cap definitions
+		// then try to retrieve from cluster
+		tmpl, err := LoadTemplate(ctx, dm, r, capName, capType)
+		if err != nil {
+			return nil, errors.WithMessagef(err, "cannot load template %q from cluster and provided ones", capName)
+		}
+		return tmpl, nil
+	})
+}
 
-	if status != nil {
-		tmp.CustomStatus = status.CustomStatus
-		tmp.Health = status.HealthPolicy
+func newTemplateOfCompDefinition(compDef *v1beta1.ComponentDefinition) (*Template, error) {
+	tmpl := &Template{
+		Reference:           compDef.Spec.Workload.Definition,
+		ComponentDefinition: compDef,
 	}
-	if schematic != nil {
-		if schematic.CUE != nil {
-			tmp.TemplateStr = schematic.CUE.Template
-			// CUE module has highest priority
-			// no need to check other schematic types
-			return tmp, nil
+	if err := loadSchematicToTemplate(tmpl, compDef.Spec.Status, compDef.Spec.Schematic, compDef.Spec.Extension); err != nil {
+		return nil, errors.WithMessage(err, "cannot load template")
+	}
+	if compDef.Annotations["type"] == string(types.TerraformCategory) {
+		tmpl.CapabilityCategory = types.TerraformCategory
+	}
+	return tmpl, nil
+}
+
+func newTemplateOfTraitDefinition(traitDef *v1beta1.TraitDefinition) (*Template, error) {
+	tmpl := &Template{
+		TraitDefinition: traitDef,
+	}
+	if err := loadSchematicToTemplate(tmpl, traitDef.Spec.Status, traitDef.Spec.Schematic, traitDef.Spec.Extension); err != nil {
+		return nil, errors.WithMessage(err, "cannot load template")
+	}
+	return tmpl, nil
+}
+
+func newTemplateOfWorkloadDefinition(wlDef *v1beta1.WorkloadDefinition) (*Template, error) {
+	tmpl := &Template{
+		WorkloadDefinition: wlDef,
+	}
+	if err := loadSchematicToTemplate(tmpl, wlDef.Spec.Status, wlDef.Spec.Schematic, wlDef.Spec.Extension); err != nil {
+		return nil, errors.WithMessage(err, "cannot load template")
+	}
+	return tmpl, nil
+}
+
+// loadSchematicToTemplate loads common data that all kind definitions have.
+func loadSchematicToTemplate(tmpl *Template, sts *common.Status, schem *common.Schematic, ext *runtime.RawExtension) error {
+	if sts != nil {
+		tmpl.CustomStatus = sts.CustomStatus
+		tmpl.Health = sts.HealthPolicy
+	}
+
+	if schem != nil {
+		if schem.CUE != nil {
+			tmpl.CapabilityCategory = types.CUECategory
+			tmpl.TemplateStr = schem.CUE.Template
 		}
-		if schematic.HELM != nil {
-			tmp.Helm = schematic.HELM
-			tmp.CapabilityCategory = types.HelmCategory
-			return tmp, nil
+		if schem.HELM != nil {
+			tmpl.CapabilityCategory = types.HelmCategory
+			tmpl.Helm = schem.HELM
+			return nil
 		}
-		if schematic.KUBE != nil {
-			tmp.Kube = schematic.KUBE
-			tmp.CapabilityCategory = types.KubeCategory
+		if schem.KUBE != nil {
+			tmpl.CapabilityCategory = types.KubeCategory
+			tmpl.Kube = schem.KUBE
+			return nil
 		}
 	}
 
-	extension := map[string]interface{}{}
-	if tmp.TemplateStr == "" && raw != nil {
-		if err := json.Unmarshal(raw.Raw, &extension); err != nil {
-			return nil, err
+	if tmpl.TemplateStr == "" && ext != nil {
+		tmpl.CapabilityCategory = types.CUECategory
+		extension := map[string]interface{}{}
+		if err := json.Unmarshal(ext.Raw, &extension); err != nil {
+			return errors.Wrap(err, "cannot parse capability extension")
 		}
 		if extTemplate, ok := extension["template"]; ok {
 			if tmpStr, ok := extTemplate.(string); ok {
-				tmp.TemplateStr = tmpStr
+				tmpl.TemplateStr = tmpStr
+				return nil
 			}
 		}
 	}
-	return tmp, nil
+	return nil
 }
 
 // ConvertTemplateJSON2Object convert spec.extension to object
 func ConvertTemplateJSON2Object(capabilityName string, in *runtime.RawExtension, schematic *common.Schematic) (types.Capability, error) {
 	var t types.Capability
 	t.Name = capabilityName
-	capTemplate, err := NewTemplate(schematic, nil, in)
-
-	if err != nil {
-		return t, errors.Wrapf(err, "parse cue template")
-	}
 	if in != nil && in.Raw != nil {
 		err := json.Unmarshal(in.Raw, &t)
 		if err != nil {
 			return t, errors.Wrapf(err, "parse extension fail")
 		}
 	}
+	capTemplate := &Template{}
+	if err := loadSchematicToTemplate(capTemplate, nil, schematic, in); err != nil {
+		return t, errors.WithMessage(err, "cannot resolve schematic")
+	}
 	if capTemplate.TemplateStr != "" {
 		t.CueTemplate = capTemplate.TemplateStr
 	}
-	return t, err
+	return t, nil
 }

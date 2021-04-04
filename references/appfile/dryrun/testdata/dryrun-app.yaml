@@ -1,0 +1,22 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-dryrun 
+spec:
+  components:
+    - name: myweb
+      type: myworker
+      properties:
+        image: "busybox"
+        cmd:
+          - sleep
+          - "1000"
+        lives: "3"
+        enemies: "alien"
+      traits:
+        - type: myingress
+          properties:
+            domain: "www.example.com"
+            http:
+              "/": 80
+

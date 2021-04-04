@@ -134,12 +134,13 @@ func ValidateDefinitionReference(_ context.Context, td v1beta1.TraitDefinition) 
 	if len(td.Spec.Reference.Name) > 0 {
 		return nil
 	}
-	tmp, err := appfile.NewTemplate(td.Spec.Schematic, td.Spec.Status, td.Spec.Extension)
+	cap, err := appfile.ConvertTemplateJSON2Object(td.Name, td.Spec.Extension, td.Spec.Schematic)
 	if err != nil {
-		return errors.Wrap(err, errValidateDefRef)
+		return errors.WithMessage(err, errValidateDefRef)
 	}
-	if len(tmp.TemplateStr) == 0 {
+	if cap.CueTemplate == "" {
 		return errors.New(failInfoDefRefOmitted)
+
 	}
 	return nil
 }

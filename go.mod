@@ -7,6 +7,7 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.1.1
 	github.com/Netflix/go-expect v0.0.0-20180615182759-c93bf25de8e8
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
+	github.com/aryann/difflib v0.0.0-20210328193216-ff5ff6dc229b
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/briandowns/spinner v1.11.1
 	github.com/coreos/prometheus-operator v0.41.1

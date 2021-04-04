@@ -25,14 +25,17 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -42,19 +45,39 @@ const (
 	AppfileBuiltinConfig = "config"
 )
 
+// TemplateLoaderFn load template of a capability definition
+type TemplateLoaderFn func(context.Context, discoverymapper.DiscoveryMapper, client.Reader, string, types.CapType) (*Template, error)
+
+// LoadTemplate load template of a capability definition
+func (fn TemplateLoaderFn) LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, c client.Reader, capName string, capType types.CapType) (*Template, error) {
+	return fn(ctx, dm, c, capName, capType)
+}
+
 // Parser is an application parser
 type Parser struct {
-	client client.Client
-	dm     discoverymapper.DiscoveryMapper
-	pd     *definition.PackageDiscover
+	client     client.Client
+	dm         discoverymapper.DiscoveryMapper
+	pd         *definition.PackageDiscover
+	tmplLoader TemplateLoaderFn
 }
 
 // NewApplicationParser create appfile parser
 func NewApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper, pd *definition.PackageDiscover) *Parser {
 	return &Parser{
-		client: cli,
-		dm:     dm,
-		pd:     pd,
+		client:     cli,
+		dm:         dm,
+		pd:         pd,
+		tmplLoader: LoadTemplate,
+	}
+}
+
+// NewDryRunApplicationParser create an appfile parser for DryRun
+func NewDryRunApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper, pd *definition.PackageDiscover, defs []oam.Object) *Parser {
+	return &Parser{
+		client:     cli,
+		dm:         dm,
+		pd:         pd,
+		tmplLoader: DryRunTemplateLoader(defs),
 	}
 }
 
@@ -81,7 +104,7 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 // parseWorkload resolve an ApplicationComponent and generate a Workload
 // containing ALL information required by an Appfile.
 func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComponent, appName, ns string) (*Workload, error) {
-	templ, err := LoadTemplate(ctx, p.dm, p.client, comp.Type, types.TypeComponentDefinition)
+	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, comp.Type, types.TypeComponentDefinition)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
 	}
@@ -132,7 +155,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComp
 		workload.Traits = append(workload.Traits, trait)
 	}
 	for scopeType, instanceName := range comp.Scopes {
-		gvk, err := GetScopeGVK(ctx, p.client, p.dm, scopeType)
+		gvk, err := getScopeGVK(ctx, p.client, p.dm, scopeType)
 		if err != nil {
 			return nil, err
 		}
@@ -145,7 +168,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComp
 }
 
 func (p *Parser) parseTrait(ctx context.Context, name string, properties map[string]interface{}) (*Trait, error) {
-	templ, err := LoadTemplate(ctx, p.dm, p.client, name, types.TypeTrait)
+	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, name, types.TypeTrait)
 	if kerrors.IsNotFound(err) {
 		return nil, errors.Errorf("trait definition of %s not found", name)
 	}
@@ -249,4 +272,16 @@ func getComponentSetting(settingParamName string, params map[string]interface{})
 		return secretName, nil
 	}
 	return nil, fmt.Errorf("failed to get the value of component setting %s", settingParamName)
+}
+
+func getScopeGVK(ctx context.Context, cli client.Reader, dm discoverymapper.DiscoveryMapper,
+	name string) (schema.GroupVersionKind, error) {
+	var gvk schema.GroupVersionKind
+	sd := new(v1alpha2.ScopeDefinition)
+	err := util.GetDefinition(ctx, cli, sd, name)
+	if err != nil {
+		return gvk, err
+	}
+
+	return util.GetGVKFromDefinition(dm, sd.Spec.Reference)
 }

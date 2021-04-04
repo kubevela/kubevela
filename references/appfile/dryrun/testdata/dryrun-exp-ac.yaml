@@ -1,0 +1,51 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: ApplicationConfiguration
+metadata:
+  creationTimestamp: null
+  labels:
+    app.oam.dev/name: app-dryrun
+  name: app-dryrun
+spec:
+  components:
+  - componentName: myweb
+    traits:
+    - trait:
+        apiVersion: v1
+        kind: Service
+        metadata:
+          labels:
+            app.oam.dev/appRevision: ""
+            app.oam.dev/component: myweb
+            app.oam.dev/name: app-dryrun
+            trait.oam.dev/resource: service
+            trait.oam.dev/type: myingress
+          name: myweb
+        spec:
+          ports:
+          - port: 80
+            targetPort: 80
+          selector:
+            app.oam.dev/component: myweb
+    - trait:
+        apiVersion: networking.k8s.io/v1beta1
+        kind: Ingress
+        metadata:
+          labels:
+            app.oam.dev/appRevision: ""
+            app.oam.dev/component: myweb
+            app.oam.dev/name: app-dryrun
+            trait.oam.dev/resource: ingress
+            trait.oam.dev/type: myingress
+          name: myweb
+        spec:
+          rules:
+          - host: www.example.com
+            http:
+              paths:
+              - backend:
+                  serviceName: myweb
+                  servicePort: 80
+                path: /
+status:
+  dependency: {}
+  observedGeneration: 0
