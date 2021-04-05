@@ -70,8 +70,10 @@ func (h *MutatingHandler) Handle(ctx context.Context, req admission.Request) adm
 func DefaultAppRollout(obj *v1beta1.AppRollout) {
 	klog.InfoS("create default for approllout", "name", obj.Name)
 
-	// default rollout plan
-	rollout.DefaultRolloutPlan(&obj.Spec.RolloutPlan)
+	// default rollout plan (scale is different)
+	if obj.Spec.SourceAppRevisionName != "" {
+		rollout.DefaultRolloutPlan(&obj.Spec.RolloutPlan)
+	}
 }
 
 var _ inject.Client = &MutatingHandler{}

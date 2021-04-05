@@ -353,16 +353,11 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		newAppRollout.Namespace = namespaceName
 		newAppRollout.Spec.SourceAppRevisionName = ""
 		newAppRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
+		newAppRollout.Spec.RolloutPlan.TargetSize = pointer.Int32Ptr(10)
 		newAppRollout.Spec.RolloutPlan.BatchPartition = nil
-		newAppRollout.Spec.RolloutPlan.RolloutBatches = nil
-		// webhook would fill the batches
-		var replicas int32 = 10
-		newAppRollout.Spec.RolloutPlan.TargetSize = pointer.Int32Ptr(replicas)
-		newAppRollout.Spec.RolloutPlan.NumBatches = pointer.Int32Ptr(replicas)
-		appRolloutName = newAppRollout.Name
 		createAppRolling(&newAppRollout)
-
-		By("Wait for the rollout phase change to initialize")
+		appRolloutName = newAppRollout.Name
+		By("Wait for the rollout phase change to rollingInBatches")
 		Eventually(
 			func() oamstd.RollingState {
 				appRollout = v1beta1.AppRollout{}

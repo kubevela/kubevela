@@ -916,9 +916,9 @@ func TestRender(t *testing.T) {
 						if got[0].SkipApply {
 							t.Errorf("\n%s\nr.Render(...): template workload should not be skipped\n", tc.reason)
 						}
-						if tc.args.ac.Status.RollingStatus != oamtype.RollingTemplated {
+						if tc.args.ac.Status.RollingStatus != oamtype.RollingTemplating {
 							t.Errorf("\n%s\nr.Render(...): ac status should be templated but got %s\n", tc.reason,
-								ac.Status.RollingStatus)
+								tc.args.ac.Status.RollingStatus)
 						}
 					}
 

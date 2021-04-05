@@ -100,6 +100,27 @@ func TestDefaultRolloutPlan_NotEnough(t *testing.T) {
 	}
 }
 
+func TestFillRolloutBatches_WithPositiveOriginalSize(t *testing.T) {
+	var numBatch int32 = 4
+	rollout := &v1alpha1.RolloutPlan{
+		RolloutBatches: make([]v1alpha1.RolloutBatch, numBatch),
+	}
+	FillRolloutBatches(rollout, 9, 4)
+
+	if rollout.RolloutBatches[0].Replicas.IntValue() != 2 {
+		t.Errorf("batch 0's replica %d does not equal to 2", rollout.RolloutBatches[0].Replicas.IntValue())
+	}
+	if rollout.RolloutBatches[1].Replicas.IntValue() != 2 {
+		t.Errorf("batch 1's replica %d does not equal to 2", rollout.RolloutBatches[1].Replicas.IntValue())
+	}
+	if rollout.RolloutBatches[2].Replicas.IntValue() != 2 {
+		t.Errorf("batch 2's replica %d does not equal to 2", rollout.RolloutBatches[2].Replicas.IntValue())
+	}
+	if rollout.RolloutBatches[3].Replicas.IntValue() != 3 {
+		t.Errorf("batch 3's replica %d does not equal to 3", rollout.RolloutBatches[3].Replicas.IntValue())
+	}
+}
+
 func TestValidateIllegalReplicas(t *testing.T) {
 	illegalReplica := &v1alpha1.RolloutPlan{
 		RolloutBatches: []v1alpha1.RolloutBatch{

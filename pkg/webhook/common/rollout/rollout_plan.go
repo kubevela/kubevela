@@ -35,20 +35,24 @@ func DefaultRolloutPlan(rollout *v1alpha1.RolloutPlan) {
 		// create the rollout batch based on the total size and num batches if it's not set
 		// leave it for the validator to validate more if they are both set
 		numBatches := int(*rollout.NumBatches)
-		totalSize := int(*rollout.TargetSize)
 		// create the batch array
-		rollout.RolloutBatches = make([]v1alpha1.RolloutBatch, int(*rollout.NumBatches))
-		total := totalSize
-		for total > 0 {
-			for i := numBatches - 1; i >= 0 && total > 0; i-- {
-				replica := rollout.RolloutBatches[i].Replicas.IntValue() + 1
-				rollout.RolloutBatches[i].Replicas = intstr.FromInt(replica)
-				total--
-			}
-		}
+		rollout.RolloutBatches = make([]v1alpha1.RolloutBatch, numBatches)
+		FillRolloutBatches(rollout, int(*rollout.TargetSize), numBatches)
 		for i, batch := range rollout.RolloutBatches {
-			klog.Info(fmt.Sprintf("mutation webhook assigns rollout plan replica %d to batch `%d`",
-				batch.Replicas.IntValue(), i))
+			klog.InfoS("mutation webhook assigns rollout plan", "batch", i, "replica",
+				batch.Replicas.IntValue())
+		}
+	}
+}
+
+// FillRolloutBatches fills the replicas in each batch depends on the total size and number of batches
+func FillRolloutBatches(rollout *v1alpha1.RolloutPlan, totalSize int, numBatches int) {
+	total := totalSize
+	for total > 0 {
+		for i := numBatches - 1; i >= 0 && total > 0; i-- {
+			replica := rollout.RolloutBatches[i].Replicas.IntValue() + 1
+			rollout.RolloutBatches[i].Replicas = intstr.FromInt(replica)
+			total--
 		}
 	}
 }
