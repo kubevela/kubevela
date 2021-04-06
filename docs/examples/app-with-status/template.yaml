@@ -80,6 +80,7 @@ spec:
       message: "type: "+ context.outputs.service.spec.type +",\t clusterIP:"+ context.outputs.service.spec.clusterIP+",\t ports:"+ "\(context.outputs.service.spec.ports[0].port)"+",\t domain"+context.outputs.ingress.spec.rules[0].host
     healthPolicy: |
       isHealth: len(context.outputs.service.spec.clusterIP) > 0
+  podDisruptive: "no"
   schematic:
     cue:
       template: |

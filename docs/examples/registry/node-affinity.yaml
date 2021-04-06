@@ -9,6 +9,7 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
+  podDisruptive: "yes"
   schematic:
     cue:
       template: |-

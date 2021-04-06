@@ -12,6 +12,7 @@ spec:
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
+  podDisruptive: "yes"
   schematic:
     cue:
       template: |

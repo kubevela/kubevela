@@ -8,6 +8,7 @@ metadata:
 spec:
   appliesToWorkloads:
     - webservice # this should be some knative like workload
+  podDisruptive: "yes"
   schematic:
     cue:
       template: |-

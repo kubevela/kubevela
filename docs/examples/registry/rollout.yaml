@@ -12,6 +12,7 @@ spec:
     name: canaries.flagger.app
   workloadRefPath: spec.targetRef
   revisionEnabled: true
+  podDisruptive: "yes"
   extension:
     install:
       helm:
