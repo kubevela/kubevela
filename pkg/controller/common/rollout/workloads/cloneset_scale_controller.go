@@ -247,7 +247,7 @@ func (s *CloneSetScaleController) FinalizeOneBatch(ctx context.Context) (bool, e
 	curBatchTarget := calculateNewBatchTarget(s.rolloutSpec, int(s.rolloutStatus.RolloutOriginalSize),
 		int(s.rolloutStatus.RolloutTargetSize), currentBatch)
 	// the recorded number should be at least as much as the all the pods before the current batch
-	if finishedPodCount <= util.Min(preBatchTarget, curBatchTarget) {
+	if finishedPodCount < util.Min(preBatchTarget, curBatchTarget) {
 		err := fmt.Errorf("the upgraded replica in the status is less than the lower bound")
 		klog.ErrorS(err, "rollout status inconsistent", "existing pod target", finishedPodCount,
 			"the lower bound", util.Min(preBatchTarget, curBatchTarget))
