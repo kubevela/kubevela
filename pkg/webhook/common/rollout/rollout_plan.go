@@ -137,7 +137,7 @@ func validateRolloutBatches(rollout *v1alpha1.RolloutPlan, rootPath *field.Path)
 			if err != nil {
 				allErrs = append(allErrs, field.Invalid(rolloutBatchPath.Child("replicas"),
 					rb.Replicas, fmt.Sprintf("invalid replica value, err = %s", err)))
-			} else if value <= 0 {
+			} else if value < 0 {
 				allErrs = append(allErrs, field.Invalid(rolloutBatchPath.Child("replicas"),
 					value, "negative replica value"))
 			}
