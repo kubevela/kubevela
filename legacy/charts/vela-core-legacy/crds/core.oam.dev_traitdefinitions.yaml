@@ -71,6 +71,13 @@ spec:
               description: Extension is used for extension needs by OAM platform builders
               type: object
               
+            podDisruptive:
+              description: 'PodDisruptive specifies whether using the trait will cause the pod to restart Valid values are: - "unknown" (default): disruptive unknown - "yes": cause the pod to restart - "no": will not cause the pod restart'
+              enum:
+              - unknown
+              - "yes"
+              - "no"
+              type: string
             revisionEnabled:
               description: Revision indicates whether a trait is aware of component revision
               type: boolean
