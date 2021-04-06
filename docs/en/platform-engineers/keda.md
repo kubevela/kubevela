@@ -69,7 +69,7 @@ In this step, we will define the schematic of KEDA based autoscaling trait, i.e.
 schematic:
   cue:
     template: |-
-      outputs: cpu-scaler: {
+      outputs: kedaScaler: {
       	apiVersion: "keda.sh/v1alpha1"
       	kind:       "ScaledObject"
       	metadata: {
@@ -80,17 +80,17 @@ schematic:
       			name: context.name
       		}
       		triggers: [{
-      			type: paramter.type
+      			type: parameter.triggerType
       			metadata: {
       				type:  "Utilization"
-      				value: paramter.value
+      				value: parameter.value
       			}
       		}]
       	}
       }
-      paramter: {
+      parameter: {
       	// +usage=Types of triggering application elastic scaling, Optional: cpu, memory
-      	type: string
+      	triggerType: string
       	// +usage=Value to trigger scaling actions, represented as a percentage of the requested value of the resource for the pods. like: "60"(60%)
       	value: string
       }
