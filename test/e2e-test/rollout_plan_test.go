@@ -195,7 +195,15 @@ var _ = Describe("Cloneset based rollout tests", func() {
 			time.Second*30, time.Millisecond*500).Should(BeEquivalentTo(v1alpha2.ApplicationContextKind))
 		Expect(clonesetOwner.Name).Should(BeEquivalentTo(targetAppName))
 		Expect(kc.Status.UpdatedReplicas).Should(BeEquivalentTo(*kc.Spec.Replicas))
-		Expect(kc.Status.UpdatedReadyReplicas).Should(BeEquivalentTo(*kc.Spec.Replicas))
+		// make sure all pods are upgraded
+		image := kc.Spec.Template.Spec.Containers[0].Image
+		podList := corev1.PodList{}
+		Expect(k8sClient.List(ctx, &podList, client.MatchingLabels(kc.Spec.Template.Labels))).Should(Succeed())
+		Expect(len(podList.Items)).Should(BeEquivalentTo(*kc.Spec.Replicas))
+		for _, pod := range podList.Items {
+			Expect(pod.Spec.Containers[0].Image).Should(Equal(image))
+			Expect(pod.Status.Phase).Should(Equal(corev1.PodRunning))
+		}
 	}
 
 	verifyAppConfigInactive := func(appContextName string) {
