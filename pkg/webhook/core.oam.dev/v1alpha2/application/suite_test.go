@@ -41,6 +41,8 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -52,6 +54,10 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 var testScheme = runtime.NewScheme()
 var decoder *admission.Decoder
+var dm discoverymapper.DiscoveryMapper
+var pd *definition.PackageDiscover
+var ctx = context.Background()
+var handler *ValidatingHandler
 
 func TestAPIs(t *testing.T) {
 
@@ -93,6 +99,19 @@ var _ = BeforeSuite(func(done Done) {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
+
+	dm, err = discoverymapper.New(cfg)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(dm).ToNot(BeNil())
+
+	pd, err = definition.NewPackageDiscover(cfg)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(pd).ToNot(BeNil())
+
+	handler = &ValidatingHandler{
+		dm: dm,
+		pd: pd,
+	}
 
 	decoder, err = admission.NewDecoder(testScheme)
 	Expect(err).Should(BeNil())

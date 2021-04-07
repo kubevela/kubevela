@@ -117,7 +117,9 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	if err != nil {
 		return errors.WithMessagef(err, "invalid output of workload %s", wd.name)
 	}
-	ctx.SetBase(base)
+	if err := ctx.SetBase(base); err != nil {
+		return err
+	}
 
 	// we will support outputs for workload composition, and it will become trait in AppConfig.
 	outputs := inst.Lookup(OutputsFieldName)
@@ -137,7 +139,9 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		if err != nil {
 			return errors.WithMessagef(err, "invalid outputs(%s) of workload %s", fieldInfo.Name, wd.name)
 		}
-		ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: AuxiliaryWorkload, Name: fieldInfo.Name})
+		if err := ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: AuxiliaryWorkload, Name: fieldInfo.Name}); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -314,7 +318,9 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			if err != nil {
 				return errors.WithMessagef(err, "invalid outputs(resource=%s) of trait %s", fieldInfo.Name, td.name)
 			}
-			ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, Name: fieldInfo.Name})
+			if err := ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, Name: fieldInfo.Name}); err != nil {
+				return err
+			}
 		}
 	}
 
