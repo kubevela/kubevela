@@ -253,7 +253,7 @@ type ResourceTrackerStatus struct {
 }
 
 // A TypedReference refers to an object by Name, Kind, and APIVersion. It is
-// commonly used to reference cross namespace objects
+// commonly used to reference across-namespace objects
 type TypedReference struct {
 	// APIVersion of the referenced object.
 	APIVersion string `json:"apiVersion"`

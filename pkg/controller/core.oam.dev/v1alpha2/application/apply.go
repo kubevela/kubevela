@@ -138,7 +138,7 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 			return err
 		}
 		if needTracker {
-			if err := h.recodeAcrossWorkload(comp, revisionName); err != nil {
+			if err := h.recodeTrackedWorkload(comp, revisionName); err != nil {
 				return err
 			}
 		}
@@ -491,7 +491,7 @@ func (h *appHandler) removeResourceTracker(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func (h *appHandler) recodeAcrossWorkload(comp *v1alpha2.Component, compRevisionName string) error {
+func (h *appHandler) recodeTrackedWorkload(comp *v1alpha2.Component, compRevisionName string) error {
 	workloadName, err := h.getWorkloadName(comp.Spec.Workload, comp.Name, compRevisionName)
 	if err != nil {
 		return err
@@ -502,7 +502,7 @@ func (h *appHandler) recodeAcrossWorkload(comp *v1alpha2.Component, compRevision
 	return nil
 }
 
-// check component trait namespace, if it's namespace is different with application, set resourceTracker as its owner reference
+// checkResourceTrackerForTrait check component trait namespace, if it's namespace is different with application, set resourceTracker as its ownerReference
 // and recode trait in handler acrossNamespace field
 func (h *appHandler) checkResourceTrackerForTrait(ctx context.Context, comp v1alpha2.ApplicationConfigurationComponent, compName string) error {
 	for i, ct := range comp.Traits {
@@ -619,6 +619,7 @@ func (h *appHandler) garbageCollection(ctx context.Context) error {
 			}
 		}
 	}
+	// update resourceTracker status, recode applied across-namespace resources
 	rt.Status.TrackedResources = h.acrossNsResources
 	if err := h.r.Update(ctx, rt); err != nil {
 		return err
@@ -631,7 +632,7 @@ func (h *appHandler) garbageCollection(ctx context.Context) error {
 	return nil
 }
 
-// handleResourceTracker check the namespace of  all components and traits
+// handleResourceTracker check the namespace of  all workloads and traits
 // if one resource is across-namespace create resourceTracker and set in appHandler field
 func (h *appHandler) handleResourceTracker(ctx context.Context, components []*v1alpha2.Component, ac *v1alpha2.ApplicationConfiguration) error {
 	resourceTracker := new(v1beta1.ResourceTracker)
