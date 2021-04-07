@@ -152,13 +152,13 @@ e2e-setup:
 
 e2e-api-test:
 	# Run e2e test
-	ginkgo -v -skipPackage capability,setup,apiserver,application -r e2e
-	ginkgo -v -r e2e/apiserver
-	ginkgo -v -r e2e/application
+	ginkgo -v -race -skipPackage capability,setup,apiserver,application -r e2e
+	ginkgo -v -race -r e2e/apiserver
+	ginkgo -v -race -r e2e/application
 
 e2e-test:
 	# Run e2e test
-	ginkgo -v ./test/e2e-test
+	ginkgo -v -race -coverprofile=e2e-coverage.txt ./test/e2e-test
 	@$(OK) tests pass
 
 compatibility-test: vet lint staticcheck generate-compatibility-testdata

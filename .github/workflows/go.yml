@@ -178,6 +178,14 @@ jobs:
       - name: Run e2e tests
         run: make e2e-test
 
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./e2e-coverage.txt
+          flags: e2etests
+          name: codecov-umbrella
+
       - name: Cleanup image
         if: ${{ always() }}
         run: make image-cleanup
