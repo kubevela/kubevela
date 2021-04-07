@@ -70,15 +70,15 @@ func readyCondition(tpy string) runtimev1alpha1.Condition {
 }
 
 type appHandler struct {
-	r                 *Reconciler
-	app               *v1beta1.Application
-	appfile           *appfile.Appfile
-	logger            logr.Logger
-	inplace           bool
-	isNewRevision     bool
-	revisionHash      string
-	acrossNsResources []v1beta1.TypedReference
-	resourceTracker   *v1beta1.ResourceTracker
+	r                        *Reconciler
+	app                      *v1beta1.Application
+	appfile                  *appfile.Appfile
+	logger                   logr.Logger
+	inplace                  bool
+	isNewRevision            bool
+	revisionHash             string
+	acrossNamespaceResources []v1beta1.TypedReference
+	resourceTracker          *v1beta1.ResourceTracker
 }
 
 // setInplace will mark if the application should upgrade the workload within the same instance(name never changed)
@@ -564,7 +564,7 @@ func (h *appHandler) getTraitName(ctx context.Context, componentName string, ct 
 	return traitName, nil
 }
 
-// recodeTrackedResource append cross namespace resource to apphandler's acrossNsResources field
+// recodeTrackedResource append cross namespace resource to apphandler's acrossNamespaceResources field
 func (h *appHandler) recodeTrackedResource(resourceName string, resource runtime.RawExtension) error {
 	u, err := oamutil.RawExtension2Unstructured(&resource)
 	if err != nil {
@@ -575,7 +575,7 @@ func (h *appHandler) recodeTrackedResource(resourceName string, resource runtime
 	tr.Namespace = u.GetNamespace()
 	tr.APIVersion = u.GetAPIVersion()
 	tr.Kind = u.GetKind()
-	h.acrossNsResources = append(h.acrossNsResources, *tr)
+	h.acrossNamespaceResources = append(h.acrossNamespaceResources, *tr)
 	return nil
 }
 
@@ -593,14 +593,14 @@ func (h *appHandler) garbageCollection(ctx context.Context) error {
 		return err
 	}
 	applied := map[v1beta1.TypedReference]bool{}
-	if len(h.acrossNsResources) == 0 {
+	if len(h.acrossNamespaceResources) == 0 {
 		h.app.Status.ResourceTracker = nil
 		if err := h.r.Delete(ctx, rt); err != nil {
 			return err
 		}
 		return nil
 	}
-	for _, resource := range h.acrossNsResources {
+	for _, resource := range h.acrossNamespaceResources {
 		applied[resource] = true
 	}
 	for _, ref := range rt.Status.TrackedResources {
@@ -620,8 +620,8 @@ func (h *appHandler) garbageCollection(ctx context.Context) error {
 		}
 	}
 	// update resourceTracker status, recode applied across-namespace resources
-	rt.Status.TrackedResources = h.acrossNsResources
-	if err := h.r.Update(ctx, rt); err != nil {
+	rt.Status.TrackedResources = h.acrossNamespaceResources
+	if err := h.r.Status().Update(ctx, rt); err != nil {
 		return err
 	}
 	h.app.Status.ResourceTracker = &runtimev1alpha1.TypedReference{

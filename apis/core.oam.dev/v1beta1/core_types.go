@@ -237,6 +237,7 @@ type ScopeDefinitionList struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // An ResourceTracker represents a tracker for track cross namespace resources
 // +kubebuilder:resource:scope=Cluster,categories={oam}

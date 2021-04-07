@@ -16,6 +16,8 @@ spec:
     plural: resourcetrackers
     singular: resourcetracker
   scope: Cluster
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       description: An ResourceTracker represents a tracker for track cross namespace resources
