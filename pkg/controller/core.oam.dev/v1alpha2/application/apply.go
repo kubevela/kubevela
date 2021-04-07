@@ -446,11 +446,11 @@ func (h *appHandler) checkResourceNeedResourceTracker(ctx context.Context, resou
 	}
 	if checkResourceDiffWithApp(u, h.app.Namespace) {
 		needTracker = true
-		ref, err := h.getResourceTrackerOwnerReference(ctx)
+		ref, err := h.genResourceTrackerOwnerReference(ctx)
 		if err != nil {
 			return needTracker, err
 		}
-
+		// set resourceTracker as the ownerReference of workload/trait
 		u.SetOwnerReferences([]metav1.OwnerReference{*ref})
 		raw := oamutil.Object2RawExtension(u)
 		*resource = raw
@@ -459,7 +459,9 @@ func (h *appHandler) checkResourceNeedResourceTracker(ctx context.Context, resou
 	return needTracker, nil
 }
 
-func (h *appHandler) getResourceTrackerOwnerReference(ctx context.Context) (*metav1.OwnerReference, error) {
+// genResourceTrackerOwnerReference check the related resourceTracker whether have been created.
+// If not, create it. And return the ownerReference of this resourceTracker.
+func (h *appHandler) genResourceTrackerOwnerReference(ctx context.Context) (*metav1.OwnerReference, error) {
 	if h.resourceTracker != nil {
 		return metav1.NewControllerRef(h.resourceTracker, v1beta1.ResourceTrackerKindVersionKind), nil
 	}
@@ -480,6 +482,7 @@ func (h *appHandler) getResourceTrackerOwnerReference(ctx context.Context) (*met
 		}
 		return nil, err
 	}
+	// cache resourceTracker to avoid get it using k8sClient everytime
 	h.resourceTracker = resourceTracker
 	return metav1.NewControllerRef(resourceTracker, v1beta1.ResourceTrackerKindVersionKind), nil
 }
@@ -570,6 +573,7 @@ func (h *appHandler) getTraitName(ctx context.Context, componentName string, ct 
 	return traitName, nil
 }
 
+// recodeTrackedResource append cross namespace resource to apphandler's crossNsResource field
 func (h *appHandler) recodeTrackedResource(resourceName string, resource runtime.RawExtension) error {
 	u, err := oamutil.RawExtension2Unstructured(&resource)
 	if err != nil {
@@ -585,7 +589,7 @@ func (h *appHandler) recodeTrackedResource(resourceName string, resource runtime
 }
 
 // Now if workloads or traits are in the same namespace with application, applicationContext will take over gc workloads and traits.
-// Here we cover the case in witch a cross namespace component or one of its cross namespace resource is removed from an application.
+// Here we cover the case in witch a cross namespace component or one of its cross namespace trait is removed from an application.
 func (h *appHandler) garbageCollection(ctx context.Context) error {
 	rt := new(v1beta1.ResourceTracker)
 	err := h.r.Get(ctx, ctypes.NamespacedName{Name: h.generateResourceTrackerName()}, rt)

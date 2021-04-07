@@ -249,11 +249,11 @@ type ResourceTracker struct {
 
 // ResourceTrackerStatus define the status of resourceTracker
 type ResourceTrackerStatus struct {
-	TrackedResource []TypedReference `json:"trackresources,omitempty"`
+	TrackedResource []TypedReference `json:"trackedresources,omitempty"`
 }
 
 // A TypedReference refers to an object by Name, Kind, and APIVersion. It is
-// commonly used to reference namespaced-scoped objects
+// commonly used to reference cross namespace objects
 type TypedReference struct {
 	// APIVersion of the referenced object.
 	APIVersion string `json:"apiVersion"`
