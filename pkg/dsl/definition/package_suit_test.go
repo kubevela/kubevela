@@ -19,6 +19,7 @@ package definition
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -27,10 +28,21 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/build"
 	"github.com/google/go-cmp/cmp"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	certificatesv1beta1 "k8s.io/api/certificates/v1beta1"
+	coordinationv1 "k8s.io/api/coordination/v1"
+	corev1 "k8s.io/api/core/v1"
+	discoveryv1beta1 "k8s.io/api/discovery/v1beta1"
+	networkingv1 "k8s.io/api/networking/v1"
+	policyv1beta1 "k8s.io/api/policy/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime"
+	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/pointer"
 
 	"github.com/oam-dev/kubevela/pkg/dsl/model"
@@ -39,6 +51,50 @@ import (
 )
 
 var _ = Describe("Package discovery resources for definition from K8s APIServer", func() {
+	It("check that all built-in k8s resource are registered", func() {
+		var localSchemeBuilder = runtime.SchemeBuilder{
+			admissionregistrationv1.AddToScheme,
+			appsv1.AddToScheme,
+			batchv1.AddToScheme,
+			certificatesv1beta1.AddToScheme,
+			coordinationv1.AddToScheme,
+			corev1.AddToScheme,
+			discoveryv1beta1.AddToScheme,
+			networkingv1.AddToScheme,
+			policyv1beta1.AddToScheme,
+			rbacv1.AddToScheme,
+		}
+
+		var localScheme = runtime.NewScheme()
+		localSchemeBuilder.AddToScheme(localScheme)
+		types := localScheme.AllKnownTypes()
+		for typ := range types {
+			if strings.HasSuffix(typ.Kind, "List") {
+				continue
+			}
+			if strings.HasSuffix(typ.Kind, "Options") {
+				continue
+			}
+			switch typ.Kind {
+			case "WatchEvent":
+				continue
+			case "APIGroup", "APIVersions":
+				continue
+			case "RangeAllocation", "ComponentStatus", "Status":
+				continue
+			case "SerializedReference", "EndpointSlice":
+				continue
+			case "PodStatusResult", "EphemeralContainers":
+				continue
+			}
+
+			Expect(pd.Exist(metav1.GroupVersionKind{
+				Group:   typ.Group,
+				Version: typ.Version,
+				Kind:    typ.Kind,
+			})).Should(BeTrue(), typ.String())
+		}
+	})
 
 	It("discovery built-in k8s resource with kube prefix", func() {
 

@@ -105,7 +105,10 @@ func (pd *PackageDiscover) Exist(gvk metav1.GroupVersionKind) bool {
 	importPath := genStandardPkgName(dgvk)
 	pd.mutex.RLock()
 	defer pd.mutex.RUnlock()
-	pkgKinds := pd.pkgKinds[importPath]
+	pkgKinds, ok := pd.pkgKinds[importPath]
+	if !ok {
+		pkgKinds = pd.pkgKinds[genOpenPkgName(dgvk)]
+	}
 	for _, v := range pkgKinds {
 		if v.Kind == dgvk.Kind {
 			return true
