@@ -36,12 +36,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	types2 "github.com/oam-dev/kubevela/apis/types"
+	oamtype "github.com/oam-dev/kubevela/apis/types"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -258,13 +259,15 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 		for name, hook := range r.postHooks {
 			exeResult, err := hook.Exec(ctx, ac, log)
 			if err != nil {
-				log.Debug("Failed to execute post-hooks", "hook name", name, "error", err, "requeue-after", result.RequeueAfter)
+				log.Debug("Failed to execute post-hooks", "hook name", name, "error", err,
+					"requeue-after", result.RequeueAfter)
 				r.record.Event(ac, event.Warning(reasonCannotExecutePosthooks, err))
 				ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errExecutePosthooks)))
 				result = exeResult
 				return
 			}
-			r.record.Event(ac, event.Normal(reasonExecutePosthook, "Successfully executed a posthook", "posthook name", name))
+			r.record.Event(ac, event.Normal(reasonExecutePosthook, "Successfully executed a posthook",
+				"posthook name", name))
 		}
 	}()
 
@@ -289,7 +292,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 			log.Info(msg)
 			r.record.Event(ac, event.Normal(reasonRevision, msg))
 			ac.SetConditions(v1alpha1.Unavailable())
-			ac.Status.RollingStatus = types2.InactiveAfterRollingCompleted
+			ac.Status.RollingStatus = oamtype.InactiveAfterRollingCompleted
 			// TODO: GC the traits/workloads
 			return reconcile.Result{}
 		}
@@ -303,7 +306,8 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 		return reconcile.Result{}
 	}
 	log.Debug("Successfully rendered components", "workloads", len(workloads))
-	r.record.Event(ac, event.Normal(reasonRenderComponents, "Successfully rendered components", "workloads", strconv.Itoa(len(workloads))))
+	r.record.Event(ac, event.Normal(reasonRenderComponents, "Successfully rendered components",
+		"workloads", strconv.Itoa(len(workloads))))
 
 	applyOpts := []apply.ApplyOption{apply.MustBeControllableBy(ac.GetUID()), applyOnceOnly(ac, r.applyOnceOnlyMode, log)}
 	if err := r.workloads.Apply(ctx, ac.Status.Workloads, workloads, applyOpts...); err != nil {
@@ -312,8 +316,15 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyComponents)))
 		return reconcile.Result{}
 	}
+	// only change the status after the apply succeeds
+	// TODO: take into account the templating object may not be applied if there are dependencies
+	if ac.Status.RollingStatus == oamtype.RollingTemplating {
+		klog.InfoS("mark the ac rolling status as templated", "appConfig", klog.KRef(ac.Namespace, ac.Name))
+		ac.Status.RollingStatus = oamtype.RollingTemplated
+	}
 	log.Debug("Successfully applied components", "workloads", len(workloads))
-	r.record.Event(ac, event.Normal(reasonApplyComponents, "Successfully applied components", "workloads", strconv.Itoa(len(workloads))))
+	r.record.Event(ac, event.Normal(reasonApplyComponents, "Successfully applied components",
+		"workloads", strconv.Itoa(len(workloads))))
 
 	// Kubernetes garbage collection will (by default) reap workloads and traits
 	// when the appconfig that controls them (in the controller reference sense)
@@ -415,7 +426,8 @@ func (r *OAMApplicationReconciler) updateStatus(ctx context.Context, ac, acPatch
 		var ul unstructured.UnstructuredList
 		ul.SetKind(w.Workload.GetKind())
 		ul.SetAPIVersion(w.Workload.GetAPIVersion())
-		if err := r.client.List(ctx, &ul, client.MatchingLabels{oam.LabelAppName: ac.Name, oam.LabelAppComponent: w.ComponentName, oam.LabelOAMResourceType: oam.ResourceTypeWorkload}); err != nil {
+		if err := r.client.List(ctx, &ul, client.MatchingLabels{oam.LabelAppName: ac.Name,
+			oam.LabelAppComponent: w.ComponentName, oam.LabelOAMResourceType: oam.ResourceTypeWorkload}); err != nil {
 			continue
 		}
 		for _, v := range ul.Items {
@@ -693,7 +705,8 @@ func applyOnceOnly(ac *v1alpha2.ApplicationConfiguration, mode core.ApplyOnceOnl
 			dLabels[oam.LabelOAMResourceType] != oam.ResourceTypeTrait {
 			// this ApplyOption only works for workload and trait
 			// skip if the resource is not workload nor trait, e.g., scope
-			log.Info("ignore apply only once check, because resourceType is not workload or trait", oam.LabelOAMResourceType, dLabels[oam.LabelOAMResourceType])
+			log.Info("ignore apply only once check, because resourceType is not workload or trait",
+				oam.LabelOAMResourceType, dLabels[oam.LabelOAMResourceType])
 			return nil
 		}
 
@@ -714,7 +727,8 @@ func applyOnceOnly(ac *v1alpha2.ApplicationConfiguration, mode core.ApplyOnceOnl
 					// the workload matches applied resource
 					createdBefore = true
 					// for workload, when revision enabled, only when revision changed that can trigger to create a new one
-					if dLabels[oam.LabelOAMResourceType] == oam.ResourceTypeWorkload && w.AppliedComponentRevision == dLabels[oam.LabelAppComponentRevision] {
+					if dLabels[oam.LabelOAMResourceType] == oam.ResourceTypeWorkload &&
+						w.AppliedComponentRevision == dLabels[oam.LabelAppComponentRevision] {
 						// the revision is not changed, so return an error to abort creating it
 						return &GenerationUnchanged{}
 					}
@@ -746,7 +760,8 @@ func applyOnceOnly(ac *v1alpha2.ApplicationConfiguration, mode core.ApplyOnceOnl
 				message = "apply only once with mode: force, but resource updated, will create new"
 			}
 			log.Info(message, "appConfig", ac.Name, "gvk", desired.GetObjectKind().GroupVersionKind(), "name", d.GetName(),
-				"resourceType", dLabels[oam.LabelOAMResourceType], "appliedCompRevision", appliedRevision, "labeledCompRevision", dLabels[oam.LabelAppComponentRevision],
+				"resourceType", dLabels[oam.LabelOAMResourceType], "appliedCompRevision", appliedRevision,
+				"labeledCompRevision", dLabels[oam.LabelAppComponentRevision],
 				"appliedGeneration", appliedGeneration, "labeledGeneration", dAnnots[oam.AnnotationAppGeneration])
 
 			// no recorded workloads nor traits matches the applied resource

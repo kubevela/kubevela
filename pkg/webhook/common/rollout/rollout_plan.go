@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
@@ -34,28 +35,35 @@ func DefaultRolloutPlan(rollout *v1alpha1.RolloutPlan) {
 		// create the rollout batch based on the total size and num batches if it's not set
 		// leave it for the validator to validate more if they are both set
 		numBatches := int(*rollout.NumBatches)
-		totalSize := int(*rollout.TargetSize)
 		// create the batch array
-		rollout.RolloutBatches = make([]v1alpha1.RolloutBatch, int(*rollout.NumBatches))
-		total := totalSize
-		for total > 0 {
-			for i := numBatches - 1; i >= 0 && total > 0; i-- {
-				replica := rollout.RolloutBatches[i].Replicas.IntValue() + 1
-				rollout.RolloutBatches[i].Replicas = intstr.FromInt(replica)
-				total--
-			}
-		}
+		rollout.RolloutBatches = make([]v1alpha1.RolloutBatch, numBatches)
+		FillRolloutBatches(rollout, int(*rollout.TargetSize), numBatches)
 		for i, batch := range rollout.RolloutBatches {
-			klog.Info(fmt.Sprintf("mutation webhook assigns rollout plan replica %d to batch `%d`",
-				batch.Replicas.IntValue(), i))
+			klog.InfoS("mutation webhook assigns rollout plan", "batch", i, "replica",
+				batch.Replicas.IntValue())
+		}
+	}
+}
+
+// FillRolloutBatches fills the replicas in each batch depends on the total size and number of batches
+func FillRolloutBatches(rollout *v1alpha1.RolloutPlan, totalSize int, numBatches int) {
+	total := totalSize
+	for total > 0 {
+		for i := numBatches - 1; i >= 0 && total > 0; i-- {
+			replica := rollout.RolloutBatches[i].Replicas.IntValue() + 1
+			rollout.RolloutBatches[i].Replicas = intstr.FromInt(replica)
+			total--
 		}
 	}
 }
 
 // ValidateCreate validate the rollout plan
-func ValidateCreate(rollout *v1alpha1.RolloutPlan, rootPath *field.Path) field.ErrorList {
+func ValidateCreate(client client.Client, rollout *v1alpha1.RolloutPlan, rootPath *field.Path) field.ErrorList {
 	var allErrs field.ErrorList
-	// TODO: The total number of num in the batches match the current target resource pod size
+
+	if rollout.RolloutBatches == nil {
+		allErrs = append(allErrs, field.Required(rootPath.Child("rolloutBatches"), "the rollout has to have batches"))
+	}
 
 	// the rollout batch partition is either automatic or positive
 	if rollout.BatchPartition != nil && *rollout.BatchPartition < 0 {
@@ -78,6 +86,10 @@ func ValidateCreate(rollout *v1alpha1.RolloutPlan, rootPath *field.Path) field.E
 	// validate the webhooks
 	allErrs = append(allErrs, validateWebhook(rollout, rootPath)...)
 
+	// validate the rollout batches
+	allErrs = append(allErrs, validateRolloutBatches(rollout, rootPath)...)
+
+	// TODO: The total number of num in the batches match the current target resource pod size
 	return allErrs
 }
 
@@ -115,8 +127,28 @@ func validateWebhook(rollout *v1alpha1.RolloutPlan, rootPath *field.Path) (allEr
 	return allErrs
 }
 
+func validateRolloutBatches(rollout *v1alpha1.RolloutPlan, rootPath *field.Path) (allErrs field.ErrorList) {
+	if rollout.RolloutBatches != nil {
+		batchesPath := rootPath.Child("rolloutBatches")
+		for i, rb := range rollout.RolloutBatches {
+			rolloutBatchPath := batchesPath.Index(i)
+			// validate rb.Replicas with a common total number
+			value, err := intstr.GetValueFromIntOrPercent(&rb.Replicas, 100, true)
+			if err != nil {
+				allErrs = append(allErrs, field.Invalid(rolloutBatchPath.Child("replicas"),
+					rb.Replicas, fmt.Sprintf("invalid replica value, err = %s", err)))
+			} else if value < 0 {
+				allErrs = append(allErrs, field.Invalid(rolloutBatchPath.Child("replicas"),
+					value, "negative replica value"))
+			}
+		}
+	}
+	return allErrs
+}
+
 // ValidateUpdate validate if one can change the rollout plan from the previous psec
-func ValidateUpdate(new *v1alpha1.RolloutPlan, prev *v1alpha1.RolloutPlan, rootPath *field.Path) field.ErrorList {
+func ValidateUpdate(client client.Client, new *v1alpha1.RolloutPlan, prev *v1alpha1.RolloutPlan,
+	rootPath *field.Path) field.ErrorList {
 	// TODO: Enforce that only a few fields can change after a rollout plan is set
 	var allErrs field.ErrorList
 

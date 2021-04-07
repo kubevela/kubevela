@@ -21,8 +21,6 @@ import (
 	"fmt"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
-	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -34,35 +32,29 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-// CloneSetController is responsible for handle Cloneset type of workloads
-type CloneSetController struct {
-	client           client.Client
-	recorder         event.Recorder
-	parentController oam.Object
-
-	rolloutSpec            *v1alpha1.RolloutPlan
-	rolloutStatus          *v1alpha1.RolloutStatus
-	workloadNamespacedName types.NamespacedName
-	cloneSet               *kruise.CloneSet
+// CloneSetRolloutController is responsible for handle rollout Cloneset type of workloads
+type CloneSetRolloutController struct {
+	cloneSetController
 }
 
-// NewCloneSetController creates a new Cloneset controller
-func NewCloneSetController(client client.Client, recorder event.Recorder, parentController oam.Object,
-	rolloutSpec *v1alpha1.RolloutPlan, rolloutStatus *v1alpha1.RolloutStatus, workloadName types.NamespacedName) *CloneSetController {
-	return &CloneSetController{
-		client:                 client,
-		recorder:               recorder,
-		parentController:       parentController,
-		rolloutSpec:            rolloutSpec,
-		rolloutStatus:          rolloutStatus,
-		workloadNamespacedName: workloadName,
+// NewCloneSetRolloutController creates a new Cloneset rollout controller
+func NewCloneSetRolloutController(client client.Client, recorder event.Recorder, parentController oam.Object,
+	rolloutSpec *v1alpha1.RolloutPlan, rolloutStatus *v1alpha1.RolloutStatus, workloadName types.NamespacedName) *CloneSetRolloutController {
+	return &CloneSetRolloutController{
+		cloneSetController: cloneSetController{
+			client:                 client,
+			recorder:               recorder,
+			parentController:       parentController,
+			rolloutSpec:            rolloutSpec,
+			rolloutStatus:          rolloutStatus,
+			workloadNamespacedName: workloadName,
+		},
 	}
 }
 
 // VerifySpec verifies that the target rollout resource is consistent with the rollout spec
-func (c *CloneSetController) VerifySpec(ctx context.Context) (bool, error) {
+func (c *CloneSetRolloutController) VerifySpec(ctx context.Context) (bool, error) {
 	var verifyErr error
-
 	defer func() {
 		if verifyErr != nil {
 			klog.Error(verifyErr)
@@ -71,16 +63,22 @@ func (c *CloneSetController) VerifySpec(ctx context.Context) (bool, error) {
 	}()
 
 	// fetch the cloneset and get its current size
-	totalReplicas, verifyErr := c.size(ctx)
+	currentReplicas, verifyErr := c.size(ctx)
 	if verifyErr != nil {
 		// do not fail the rollout because we can't get the resource
 		c.rolloutStatus.RolloutRetry(verifyErr.Error())
 		// nolint: nilerr
 		return false, nil
 	}
-	// record the size
-	klog.InfoS("record the target size", "total replicas", totalReplicas)
-	c.rolloutStatus.RolloutTargetTotalSize = totalReplicas
+
+	// the cloneset size has to be the same as the current size
+	if c.cloneSet.Spec.Replicas != nil && *c.cloneSet.Spec.Replicas != c.cloneSet.Status.Replicas {
+		verifyErr = fmt.Errorf("the cloneset is still scaling, target = %d, cloneset size = %d",
+			*c.cloneSet.Spec.Replicas, c.cloneSet.Status.Replicas)
+		// we can wait for the cloneset scale operation to finish
+		c.rolloutStatus.RolloutRetry(verifyErr.Error())
+		return false, nil
+	}
 
 	// make sure that the updateRevision is different from what we have already done
 	targetHash := c.cloneSet.Status.UpdateRevision
@@ -91,9 +89,14 @@ func (c *CloneSetController) VerifySpec(ctx context.Context) (bool, error) {
 	c.rolloutStatus.NewPodTemplateIdentifier = targetHash
 
 	// check if the rollout batch replicas added up to the Cloneset replicas
-	if verifyErr = c.verifyRolloutBatchReplicaValue(totalReplicas); verifyErr != nil {
+	if verifyErr = c.verifyRolloutBatchReplicaValue(currentReplicas); verifyErr != nil {
 		return false, verifyErr
 	}
+
+	// record the size
+	klog.InfoS("record the target size", "total replicas", currentReplicas)
+	c.rolloutStatus.RolloutTargetSize = currentReplicas
+	c.rolloutStatus.RolloutOriginalSize = currentReplicas
 
 	// check if the cloneset is disabled
 	if !c.cloneSet.Spec.UpdateStrategy.Paused {
@@ -114,7 +117,7 @@ func (c *CloneSetController) VerifySpec(ctx context.Context) (bool, error) {
 }
 
 // Initialize makes sure that the cloneset is under our control
-func (c *CloneSetController) Initialize(ctx context.Context) (bool, error) {
+func (c *CloneSetRolloutController) Initialize(ctx context.Context) (bool, error) {
 	totalReplicas, err := c.size(ctx)
 	if err != nil {
 		c.rolloutStatus.RolloutRetry(err.Error())
@@ -148,10 +151,15 @@ func (c *CloneSetController) Initialize(ctx context.Context) (bool, error) {
 
 // RolloutOneBatchPods calculates the number of pods we can upgrade once according to the rollout spec
 // and then set the partition accordingly, return if we are done
-func (c *CloneSetController) RolloutOneBatchPods(ctx context.Context) (bool, error) {
+func (c *CloneSetRolloutController) RolloutOneBatchPods(ctx context.Context) (bool, error) {
 	// calculate what's the total pods that should be upgraded given the currentBatch in the status
-	cloneSetSize, _ := c.size(ctx)
-	newPodTarget := c.calculateNewPodTarget(int(cloneSetSize))
+	cloneSetSize, err := c.size(ctx)
+	if err != nil {
+		c.rolloutStatus.RolloutRetry(err.Error())
+		return false, nil
+	}
+
+	newPodTarget := calculateNewBatchTarget(c.rolloutSpec, 0, int(cloneSetSize), int(c.rolloutStatus.CurrentBatch))
 	// set the Partition as the desired number of pods in old revisions.
 	clonePatch := client.MergeFrom(c.cloneSet.DeepCopyObject())
 	c.cloneSet.Spec.UpdateStrategy.Partition = &intstr.IntOrString{Type: intstr.Int,
@@ -170,10 +178,14 @@ func (c *CloneSetController) RolloutOneBatchPods(ctx context.Context) (bool, err
 	return true, nil
 }
 
-// CheckOneBatchPods checks to see if the pods are all available according to the rollout plan
-func (c *CloneSetController) CheckOneBatchPods(ctx context.Context) (bool, error) {
-	cloneSetSize, _ := c.size(ctx)
-	newPodTarget := c.calculateNewPodTarget(int(cloneSetSize))
+// CheckOneBatchPods checks to see if enough pods are upgraded according to the rollout plan
+func (c *CloneSetRolloutController) CheckOneBatchPods(ctx context.Context) (bool, error) {
+	cloneSetSize, err := c.size(ctx)
+	if err != nil {
+		c.rolloutStatus.RolloutRetry(err.Error())
+		return false, nil
+	}
+	newPodTarget := calculateNewBatchTarget(c.rolloutSpec, 0, int(cloneSetSize), int(c.rolloutStatus.CurrentBatch))
 	// get the number of ready pod from cloneset
 	readyPodCount := int(c.cloneSet.Status.UpdatedReadyReplicas)
 	currentBatch := c.rolloutSpec.RolloutBatches[c.rolloutStatus.CurrentBatch]
@@ -200,14 +212,41 @@ func (c *CloneSetController) CheckOneBatchPods(ctx context.Context) (bool, error
 	return false, nil
 }
 
-// FinalizeOneBatch makes sure that the rollout status are updated correctly
-func (c *CloneSetController) FinalizeOneBatch(ctx context.Context) (bool, error) {
-	// nothing to do for cloneset for now
+// FinalizeOneBatch makes sure that the upgradedReplicas and current batch in the status are valid according to the spec
+func (c *CloneSetRolloutController) FinalizeOneBatch(ctx context.Context) (bool, error) {
+	status := c.rolloutStatus
+	spec := c.rolloutSpec
+	if spec.BatchPartition != nil && *spec.BatchPartition < status.CurrentBatch {
+		err := fmt.Errorf("the current batch value in the status is greater than the batch partition")
+		klog.ErrorS(err, "we have moved past the user defined partition", "user specified batch partition",
+			*spec.BatchPartition, "current batch we are working on", status.CurrentBatch)
+		return false, err
+	}
+	upgradedReplicas := int(status.UpgradedReplicas)
+	currentBatch := int(status.CurrentBatch)
+	// calculate the lower bound of the possible pod count just before the current batch
+	podCount := calculateNewBatchTarget(c.rolloutSpec, 0, int(c.rolloutStatus.RolloutTargetSize), currentBatch-1)
+	// the recorded number should be at least as much as the all the pods before the current batch
+	if podCount > upgradedReplicas {
+		err := fmt.Errorf("the upgraded replica in the status is less than all the pods in the previous batch")
+		klog.ErrorS(err, "rollout status inconsistent", "upgraded num status", upgradedReplicas,
+			"pods in all the previous batches", podCount)
+		return false, err
+	}
+	// calculate the upper bound with the current batch
+	podCount = calculateNewBatchTarget(c.rolloutSpec, 0, int(c.rolloutStatus.RolloutTargetSize), currentBatch)
+	// the recorded number should be not as much as the all the pods including the active batch
+	if podCount < upgradedReplicas {
+		err := fmt.Errorf("the upgraded replica in the status is greater than all the pods in the current batch")
+		klog.ErrorS(err, "rollout status inconsistent", "total target size", c.rolloutStatus.RolloutTargetSize,
+			"upgraded num status", upgradedReplicas, "pods in the batches including the current batch", podCount)
+		return false, err
+	}
 	return true, nil
 }
 
 // Finalize makes sure the Cloneset is all upgraded
-func (c *CloneSetController) Finalize(ctx context.Context, succeed bool) bool {
+func (c *CloneSetRolloutController) Finalize(ctx context.Context, succeed bool) bool {
 	if err := c.fetchCloneSet(ctx); err != nil {
 		c.rolloutStatus.RolloutRetry(err.Error())
 		return false
@@ -241,69 +280,18 @@ func (c *CloneSetController) Finalize(ctx context.Context, succeed bool) bool {
 // ---------------------------------------------
 // The functions below are helper functions
 // ---------------------------------------------
-// size fetches the Cloneset and returns the replicas (not the actual number of pods)
-func (c *CloneSetController) size(ctx context.Context) (int32, error) {
-	if c.cloneSet == nil {
-		err := c.fetchCloneSet(ctx)
-		if err != nil {
-			return 0, err
-		}
-	}
-	// default is 1
-	if c.cloneSet.Spec.Replicas == nil {
-		return 1, nil
-	}
-	return *c.cloneSet.Spec.Replicas, nil
-}
 
 // check if the replicas in all the rollout batches add up to the right number
-func (c *CloneSetController) verifyRolloutBatchReplicaValue(totalReplicas int32) error {
+func (c *CloneSetRolloutController) verifyRolloutBatchReplicaValue(currentReplicas int32) error {
 	// the target size has to be the same as the cloneset size
-	if c.rolloutSpec.TargetSize != nil && *c.rolloutSpec.TargetSize != totalReplicas {
+	if c.rolloutSpec.TargetSize != nil && *c.rolloutSpec.TargetSize != currentReplicas {
 		return fmt.Errorf("the rollout plan is attempting to scale the cloneset, target = %d, cloneset size = %d",
-			*c.rolloutSpec.TargetSize, totalReplicas)
+			*c.rolloutSpec.TargetSize, currentReplicas)
 	}
 	// use a common function to check if the sum of all the batches can match the cloneset size
-	err := VerifySumOfBatchSizes(c.rolloutSpec, totalReplicas)
+	err := verifyBatchesWithRollout(c.rolloutSpec, currentReplicas)
 	if err != nil {
 		return err
 	}
 	return nil
-}
-
-func (c *CloneSetController) fetchCloneSet(ctx context.Context) error {
-	// get the cloneSet
-	workload := kruise.CloneSet{}
-	err := c.client.Get(ctx, c.workloadNamespacedName, &workload)
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			c.recorder.Event(c.parentController, event.Warning("Failed to get the Cloneset", err))
-		}
-		return err
-	}
-	c.cloneSet = &workload
-	return nil
-}
-
-func (c *CloneSetController) calculateNewPodTarget(cloneSetSize int) int {
-	currentBatch := int(c.rolloutStatus.CurrentBatch)
-	newPodTarget := 0
-	if currentBatch == len(c.rolloutSpec.RolloutBatches)-1 {
-		newPodTarget = cloneSetSize
-		// special handle the last batch, we ignore the rest of the batch in case there are rounding errors
-		klog.InfoS("use the cloneset size as the total pod target for the last rolling batch",
-			"current batch", currentBatch, "new version pod target", newPodTarget)
-	} else {
-		for i, r := range c.rolloutSpec.RolloutBatches {
-			batchSize, _ := intstr.GetValueFromIntOrPercent(&r.Replicas, cloneSetSize, true)
-			if i <= currentBatch {
-				newPodTarget += batchSize
-			} else {
-				break
-			}
-		}
-		klog.InfoS("Calculated the number of new version pod", "current batch", currentBatch,
-			"new version pod target", newPodTarget)
-	}
-	return newPodTarget
 }

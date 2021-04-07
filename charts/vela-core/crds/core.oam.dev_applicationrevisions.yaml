@@ -413,8 +413,12 @@ spec:
                       rollingState:
                         description: RollingState is the Rollout State
                         type: string
+                      rolloutOriginalSize:
+                        description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+                        format: int32
+                        type: integer
                       rolloutTargetSize:
-                        description: RolloutTargetTotalSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+                        description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
                         format: int32
                         type: integer
                       services:
@@ -1461,8 +1465,12 @@ spec:
                       rollingState:
                         description: RollingState is the Rollout State
                         type: string
+                      rolloutOriginalSize:
+                        description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+                        format: int32
+                        type: integer
                       rolloutTargetSize:
-                        description: RolloutTargetTotalSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+                        description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
                         format: int32
                         type: integer
                       services:

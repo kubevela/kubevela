@@ -27,7 +27,6 @@ import (
 	apps "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -162,13 +161,6 @@ func (r *Controller) reconcileBatchInRolling(ctx context.Context, workloadContro
 	if r.rolloutSpec.Paused {
 		r.recorder.Event(r.parentController, event.Normal("Rollout paused", "Rollout paused"))
 		r.rolloutStatus.SetConditions(v1alpha1.NewPositiveCondition(v1alpha1.BatchPaused))
-		return
-	}
-
-	// makes sure that the current batch and replica count in the status are validate
-	err := r.validateRollingBatchStatus(int(r.rolloutStatus.RolloutTargetTotalSize))
-	if err != nil {
-		r.rolloutStatus.RolloutFailing(err.Error())
 		return
 	}
 
@@ -330,53 +322,6 @@ func (r *Controller) finalizeRollout(ctx context.Context) {
 	r.rolloutStatus.StateTransition(v1alpha1.RollingFinalizedEvent)
 }
 
-// verify that the upgradedReplicas and current batch in the status are valid according to the spec
-func (r *Controller) validateRollingBatchStatus(totalSize int) error {
-	status := r.rolloutStatus
-	spec := r.rolloutSpec
-	podCount := 0
-	if spec.BatchPartition != nil && *spec.BatchPartition < status.CurrentBatch {
-		err := fmt.Errorf("the current batch value in the status is greater than the batch partition")
-		klog.ErrorS(err, "we have moved past the user defined partition", "user specified batch partition",
-			*spec.BatchPartition, "current batch we are working on", status.CurrentBatch)
-		return err
-	}
-	upgradedReplicas := int(status.UpgradedReplicas)
-	currentBatch := int(status.CurrentBatch)
-	// calculate the lower bound of the possible pod count just before the current batch
-	for i, r := range spec.RolloutBatches {
-		if i < currentBatch {
-			batchSize, _ := intstr.GetValueFromIntOrPercent(&r.Replicas, totalSize, true)
-			podCount += batchSize
-		} else {
-			break
-		}
-	}
-	// the recorded number should be at least as much as the all the pods before the current batch
-	if podCount > upgradedReplicas {
-		err := fmt.Errorf("the upgraded replica in the status is less than all the pods in the previous batch")
-		klog.ErrorS(err, "rollout status inconsistent", "upgraded num status", upgradedReplicas, "pods in all the previous batches", podCount)
-		return err
-	}
-	// calculate the upper bound with the current batch
-	if currentBatch == len(spec.RolloutBatches)-1 {
-		// avoid round up problems
-		podCount = totalSize
-	} else {
-		batchSize, _ := intstr.GetValueFromIntOrPercent(&spec.RolloutBatches[currentBatch].Replicas,
-			totalSize, true)
-		podCount += batchSize
-	}
-	// the recorded number should be not as much as the all the pods including the active batch
-	if podCount < upgradedReplicas {
-		err := fmt.Errorf("the upgraded replica in the status is greater than all the pods in the current batch")
-		klog.ErrorS(err, "rollout status inconsistent", "total target size", totalSize,
-			"upgraded num status", upgradedReplicas, "pods in the batches including the current batch", podCount)
-		return err
-	}
-	return nil
-}
-
 // GetWorkloadController pick the right workload controller to work on the workload
 func (r *Controller) GetWorkloadController() (workloads.WorkloadController, error) {
 	kind := r.targetWorkload.GetObjectKind().GroupVersionKind().Kind
@@ -392,13 +337,19 @@ func (r *Controller) GetWorkloadController() (workloads.WorkloadController, erro
 
 	if r.targetWorkload.GroupVersionKind().Group == kruisev1.GroupVersion.Group {
 		if r.targetWorkload.GetKind() == reflect.TypeOf(kruisev1.CloneSet{}).Name() {
-			return workloads.NewCloneSetController(r.client, r.recorder, r.parentController,
+			// check whether current rollout plan is for workload rolling or scaling
+			if r.sourceWorkload != nil {
+				return workloads.NewCloneSetRolloutController(r.client, r.recorder, r.parentController,
+					r.rolloutSpec, r.rolloutStatus, target), nil
+			}
+			return workloads.NewCloneSetScaleController(r.client, r.recorder, r.parentController,
 				r.rolloutSpec, r.rolloutStatus, target), nil
 		}
 	}
 
 	if r.targetWorkload.GroupVersionKind().Group == apps.GroupName {
 		if r.targetWorkload.GetKind() == reflect.TypeOf(apps.Deployment{}).Name() {
+			// TODO: create deployment scale controller when current rollout plan is for scale
 			return workloads.NewDeploymentController(r.client, r.recorder, r.parentController,
 				r.rolloutSpec, r.rolloutStatus, source, target), nil
 		}

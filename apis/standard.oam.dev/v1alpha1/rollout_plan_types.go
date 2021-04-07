@@ -247,9 +247,13 @@ type RolloutStatus struct {
 	// Conditions represents the latest available observations of a CloneSet's current state.
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
 
-	// RolloutTargetTotalSize is the size of the target resources. This is determined once the initial spec verification
+	// RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification
 	// and does not change until the rollout is restarted
-	RolloutTargetTotalSize int32 `json:"rolloutTargetSize,omitempty"`
+	RolloutOriginalSize int32 `json:"rolloutOriginalSize,omitempty"`
+
+	// RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification
+	// and does not change until the rollout is restarted
+	RolloutTargetSize int32 `json:"rolloutTargetSize,omitempty"`
 
 	// NewPodTemplateIdentifier is a string that uniquely represent the new pod template
 	// each workload type could use different ways to identify that so we cannot compare between resources
