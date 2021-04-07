@@ -622,7 +622,7 @@ func (h *appHandler) garbageCollection(ctx context.Context) error {
 			err := h.r.Delete(ctx, resource)
 			if err != nil {
 				if apierrors.IsNotFound(err) {
-					return nil
+					continue
 				}
 				return err
 			}
