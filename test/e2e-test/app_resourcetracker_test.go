@@ -162,11 +162,11 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if len(workload.OwnerReferences) != 1 || workload.OwnerReferences[0].UID != resourceTracker.UID {
 				return fmt.Errorf("wrokload ownerreference error")
 			}
-			if len(checkRt.Status.TrackedResource) != 1 {
+			if len(checkRt.Status.TrackedResources) != 1 {
 				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
 			}
-			if checkRt.Status.TrackedResource[0].Name != workload.Name {
-				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", checkRt.Status.TrackedResource[0].Name, workload.Name)
+			if checkRt.Status.TrackedResources[0].Name != workload.Name {
+				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", checkRt.Status.TrackedResources[0].Name, workload.Name)
 			}
 			return nil
 		}, time.Second*50, time.Microsecond*300).Should(BeNil())
@@ -306,11 +306,11 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if len(trait.OwnerReferences) != 1 || trait.OwnerReferences[0].UID != resourceTracker.UID {
 				return fmt.Errorf("trait owner reference missmatch")
 			}
-			if len(resourceTracker.Status.TrackedResource) != 1 {
+			if len(resourceTracker.Status.TrackedResources) != 1 {
 				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
 			}
-			if resourceTracker.Status.TrackedResource[0].Name != trait.Name {
-				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResource[0].Name, trait.Name)
+			if resourceTracker.Status.TrackedResources[0].Name != trait.Name {
+				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResources[0].Name, trait.Name)
 			}
 			return nil
 		}, time.Second*60, time.Microsecond*300).Should(BeNil())
@@ -386,11 +386,11 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if len(trait.OwnerReferences) != 1 || trait.OwnerReferences[0].UID != resourceTracker.UID {
 				return fmt.Errorf("trait owner reference missmatch")
 			}
-			if len(resourceTracker.Status.TrackedResource) != 1 {
+			if len(resourceTracker.Status.TrackedResources) != 1 {
 				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
 			}
-			if resourceTracker.Status.TrackedResource[0].Name != trait.Name {
-				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResource[0].Name, trait.Name)
+			if resourceTracker.Status.TrackedResources[0].Name != trait.Name {
+				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResources[0].Name, trait.Name)
 			}
 			return nil
 		}, time.Second*60, time.Microsecond*300).Should(BeNil())
@@ -522,11 +522,11 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if app.Status.ResourceTracker == nil || app.Status.ResourceTracker.UID != resourceTracker.UID {
 				return fmt.Errorf("app status resourceTracker error")
 			}
-			if len(resourceTracker.Status.TrackedResource) != 1 {
+			if len(resourceTracker.Status.TrackedResources) != 1 {
 				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
 			}
-			if resourceTracker.Status.TrackedResource[0].Name != crossDeplpoy.Name {
-				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResource[0].Name, crossDeplpoy.Name)
+			if resourceTracker.Status.TrackedResources[0].Name != crossDeplpoy.Name {
+				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResources[0].Name, crossDeplpoy.Name)
 			}
 			return nil
 		}, time.Second*60, time.Microsecond*300).Should(BeNil())
@@ -662,11 +662,11 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if workload.Spec.Template.Spec.Containers[0].Image != "busybox" {
 				return fmt.Errorf("container image not match")
 			}
-			if len(resourceTracker.Status.TrackedResource) != 1 {
+			if len(resourceTracker.Status.TrackedResources) != 1 {
 				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
 			}
-			if resourceTracker.Status.TrackedResource[0].Name != workload.Name {
-				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResource[0].Name, workload.Name)
+			if resourceTracker.Status.TrackedResources[0].Name != workload.Name {
+				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResources[0].Name, workload.Name)
 			}
 			return nil
 		}, time.Second*50, time.Microsecond*300).Should(BeNil())
@@ -719,11 +719,11 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if err := k8sClient.Get(ctx, generateResourceTrackerKey(app.Namespace, app.Name), resourceTracker); err != nil {
 				return err
 			}
-			if len(resourceTracker.Status.TrackedResource) != 1 {
+			if len(resourceTracker.Status.TrackedResources) != 1 {
 				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
 			}
-			if resourceTracker.Status.TrackedResource[0].Name != workload.Name {
-				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResource[0].Name, workload.Name)
+			if resourceTracker.Status.TrackedResources[0].Name != workload.Name {
+				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResources[0].Name, workload.Name)
 			}
 			return nil
 		}, time.Second*60, time.Microsecond*1000).Should(BeNil())
@@ -827,17 +827,17 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if app.Status.ResourceTracker == nil || app.Status.ResourceTracker.UID != resourceTracker.UID {
 				return fmt.Errorf("app status resourceTracker error")
 			}
-			if len(resourceTracker.Status.TrackedResource) != 2 {
+			if len(resourceTracker.Status.TrackedResources) != 2 {
 				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
 			}
-			if resourceTracker.Status.TrackedResource[0].Namespace != crossNamespace || resourceTracker.Status.TrackedResource[1].Namespace != crossNamespace {
+			if resourceTracker.Status.TrackedResources[0].Namespace != crossNamespace || resourceTracker.Status.TrackedResources[1].Namespace != crossNamespace {
 				return fmt.Errorf("resourceTracker recorde namespace mismatch")
 			}
-			if resourceTracker.Status.TrackedResource[0].Name != deploy1.Name && resourceTracker.Status.TrackedResource[1].Name != deploy1.Name {
-				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResource[0].Name, deploy1.Name)
+			if resourceTracker.Status.TrackedResources[0].Name != deploy1.Name && resourceTracker.Status.TrackedResources[1].Name != deploy1.Name {
+				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResources[0].Name, deploy1.Name)
 			}
-			if resourceTracker.Status.TrackedResource[0].Name != deploy2.Name && resourceTracker.Status.TrackedResource[1].Name != deploy2.Name {
-				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResource[0].Name, deploy2.Name)
+			if resourceTracker.Status.TrackedResources[0].Name != deploy2.Name && resourceTracker.Status.TrackedResources[1].Name != deploy2.Name {
+				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", resourceTracker.Status.TrackedResources[0].Name, deploy2.Name)
 			}
 			return nil
 		}, time.Second*60, time.Microsecond*300).Should(BeNil())
@@ -886,7 +886,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if app.Status.ResourceTracker.UID != checkRt.UID {
 				return fmt.Errorf("error app status resourceTracker UID")
 			}
-			if len(checkRt.Status.TrackedResource) != 1 {
+			if len(checkRt.Status.TrackedResources) != 1 {
 				return fmt.Errorf("error resourceTracker  status trackedResource")
 			}
 			return nil
@@ -977,7 +977,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if err != nil || len(mts.Items) != 1 {
 				return fmt.Errorf("failed generate cross namespace trait")
 			}
-			if len(resourceTracker.Status.TrackedResource) != 2 {
+			if len(resourceTracker.Status.TrackedResources) != 2 {
 				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
 			}
 			trait := mts.Items[0]
@@ -993,7 +993,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if deploy.OwnerReferences[0].UID != resourceTracker.UID {
 				return fmt.Errorf("deploy owner reference missmatch")
 			}
-			for _, resource := range resourceTracker.Status.TrackedResource {
+			for _, resource := range resourceTracker.Status.TrackedResources {
 				if resource.Kind == deploy.Kind && resource.Name != deploy.Name {
 					return fmt.Errorf("deploy name mismatch ")
 				}
@@ -1035,7 +1035,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if err != nil || len(mts.Items) != 0 {
 				return fmt.Errorf("cross namespace trait still exist")
 			}
-			if len(resourceTracker.Status.TrackedResource) != 1 {
+			if len(resourceTracker.Status.TrackedResources) != 1 {
 				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
 			}
 			deploys := new(appsv1.DeploymentList)
@@ -1047,7 +1047,7 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if len(deploy.OwnerReferences) != 1 || deploy.OwnerReferences[0].UID != resourceTracker.UID {
 				return fmt.Errorf("deploy owner reference missmatch")
 			}
-			if resourceTracker.Status.TrackedResource[0].Name != deploy.Name {
+			if resourceTracker.Status.TrackedResources[0].Name != deploy.Name {
 				return fmt.Errorf("error to record deploy name in app status")
 			}
 			return nil
@@ -1142,11 +1142,11 @@ var _ = Describe("Test application cross namespace resource", func() {
 			if len(workload.OwnerReferences) != 1 || workload.OwnerReferences[0].UID != resourceTracker.UID {
 				return fmt.Errorf("wrokload ownerreference error")
 			}
-			if len(checkRt.Status.TrackedResource) != 1 {
+			if len(checkRt.Status.TrackedResources) != 1 {
 				return fmt.Errorf("resourceTracker status recode trackedResource length missmatch")
 			}
-			if checkRt.Status.TrackedResource[0].Name != workload.Name {
-				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", checkRt.Status.TrackedResource[0].Name, workload.Name)
+			if checkRt.Status.TrackedResources[0].Name != workload.Name {
+				return fmt.Errorf("resourceTracker status recode trackedResource name mismatch recorded %s, actually %s", checkRt.Status.TrackedResources[0].Name, workload.Name)
 			}
 			return nil
 		}, time.Second*60, time.Microsecond*300).Should(BeNil())

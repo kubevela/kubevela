@@ -70,15 +70,15 @@ func readyCondition(tpy string) runtimev1alpha1.Condition {
 }
 
 type appHandler struct {
-	r               *Reconciler
-	app             *v1beta1.Application
-	appfile         *appfile.Appfile
-	logger          logr.Logger
-	inplace         bool
-	isNewRevision   bool
-	revisionHash    string
-	crossNsResource []v1beta1.TypedReference
-	resourceTracker *v1beta1.ResourceTracker
+	r                 *Reconciler
+	app               *v1beta1.Application
+	appfile           *appfile.Appfile
+	logger            logr.Logger
+	inplace           bool
+	isNewRevision     bool
+	revisionHash      string
+	acrossNsResources []v1beta1.TypedReference
+	resourceTracker   *v1beta1.ResourceTracker
 }
 
 // setInplace will mark if the application should upgrade the workload within the same instance(name never changed)
@@ -127,7 +127,7 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 
 	for _, comp := range comps {
 		comp.SetOwnerReferences(owners)
-		needTracker, err := h.checkResourceNeedResourceTracker(ctx, &comp.Spec.Workload)
+		needTracker, err := h.checkAndSetResourceTracker(&comp.Spec.Workload)
 		if err != nil {
 			return err
 		}
@@ -138,11 +138,7 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 			return err
 		}
 		if needTracker {
-			workloadName, err := h.getWorkloadName(comp.Spec.Workload, comp.Name, revisionName)
-			if err != nil {
-				return err
-			}
-			if err = h.recodeTrackedResource(workloadName, newComp.Spec.Workload); err != nil {
+			if err := h.recodeAcrossWorkload(comp, revisionName); err != nil {
 				return err
 			}
 		}
@@ -153,20 +149,8 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 			if ac.Spec.Components[i].ComponentName == newComp.Name {
 				ac.Spec.Components[i].RevisionName = revisionName
 				ac.Spec.Components[i].ComponentName = ""
-				for j, ct := range ac.Spec.Components[i].Traits {
-					needTracker, err := h.checkResourceNeedResourceTracker(ctx, &ac.Spec.Components[i].Traits[j].Trait)
-					if err != nil {
-						return err
-					}
-					if needTracker {
-						traitName, err := h.getTraitName(ctx, newComp.Name, ac.Spec.Components[i].Traits[j].DeepCopy(), &ct.Trait)
-						if err != nil {
-							return err
-						}
-						if err = h.recodeTrackedResource(traitName, ct.Trait); err != nil {
-							return err
-						}
-					}
+				if err := h.checkResourceTrackerForTrait(ctx, ac.Spec.Components[i], newComp.Name); err != nil {
+					return err
 				}
 			}
 		}
@@ -436,20 +420,17 @@ func (h *appHandler) applyHelmModuleResources(ctx context.Context, comp *v1alpha
 	return nil
 }
 
-// checkResourceNeedResourceTracker check if resource's namespace is different with application, if yes set resourceTracker as
+// checkAndSetResourceTracker check if resource's namespace is different with application, if yes set resourceTracker as
 // resource's ownerReference
-func (h *appHandler) checkResourceNeedResourceTracker(ctx context.Context, resource *runtime.RawExtension) (bool, error) {
-	u, err := oamutil.RawExtension2Unstructured(resource)
+func (h *appHandler) checkAndSetResourceTracker(resource *runtime.RawExtension) (bool, error) {
 	needTracker := false
+	u, err := oamutil.RawExtension2Unstructured(resource)
 	if err != nil {
-		return needTracker, err
+		return false, err
 	}
 	if checkResourceDiffWithApp(u, h.app.Namespace) {
 		needTracker = true
-		ref, err := h.genResourceTrackerOwnerReference(ctx)
-		if err != nil {
-			return needTracker, err
-		}
+		ref := h.genResourceTrackerOwnerReference()
 		// set resourceTracker as the ownerReference of workload/trait
 		u.SetOwnerReferences([]metav1.OwnerReference{*ref})
 		raw := oamutil.Object2RawExtension(u)
@@ -461,30 +442,8 @@ func (h *appHandler) checkResourceNeedResourceTracker(ctx context.Context, resou
 
 // genResourceTrackerOwnerReference check the related resourceTracker whether have been created.
 // If not, create it. And return the ownerReference of this resourceTracker.
-func (h *appHandler) genResourceTrackerOwnerReference(ctx context.Context) (*metav1.OwnerReference, error) {
-	if h.resourceTracker != nil {
-		return metav1.NewControllerRef(h.resourceTracker, v1beta1.ResourceTrackerKindVersionKind), nil
-	}
-	resourceTracker := new(v1beta1.ResourceTracker)
-	key := ctypes.NamespacedName{Name: h.generateResourceTrackerName()}
-	err := h.r.Get(ctx, key, resourceTracker)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			resourceTracker = &v1beta1.ResourceTracker{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: h.generateResourceTrackerName(),
-				},
-			}
-			if err = h.r.Client.Create(ctx, resourceTracker); err != nil {
-				return nil, err
-			}
-			return metav1.NewControllerRef(resourceTracker, v1beta1.ResourceTrackerKindVersionKind), nil
-		}
-		return nil, err
-	}
-	// cache resourceTracker to avoid get it using k8sClient everytime
-	h.resourceTracker = resourceTracker
-	return metav1.NewControllerRef(resourceTracker, v1beta1.ResourceTrackerKindVersionKind), nil
+func (h *appHandler) genResourceTrackerOwnerReference() *metav1.OwnerReference {
+	return metav1.NewControllerRef(h.resourceTracker, v1beta1.ResourceTrackerKindVersionKind)
 }
 
 func (h *appHandler) generateResourceTrackerName() string {
@@ -532,6 +491,38 @@ func (h *appHandler) removeResourceTracker(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+func (h *appHandler) recodeAcrossWorkload(comp *v1alpha2.Component, compRevisionName string) error {
+	workloadName, err := h.getWorkloadName(comp.Spec.Workload, comp.Name, compRevisionName)
+	if err != nil {
+		return err
+	}
+	if err = h.recodeTrackedResource(workloadName, comp.Spec.Workload); err != nil {
+		return err
+	}
+	return nil
+}
+
+// check component trait namespace, if it's namespace is different with application, set resourceTracker as its owner reference
+// and recode trait in handler acrossNamespace field
+func (h *appHandler) checkResourceTrackerForTrait(ctx context.Context, comp v1alpha2.ApplicationConfigurationComponent, compName string) error {
+	for i, ct := range comp.Traits {
+		needTracker, err := h.checkAndSetResourceTracker(&comp.Traits[i].Trait)
+		if err != nil {
+			return err
+		}
+		if needTracker {
+			traitName, err := h.getTraitName(ctx, compName, comp.Traits[i].DeepCopy(), &ct.Trait)
+			if err != nil {
+				return err
+			}
+			if err = h.recodeTrackedResource(traitName, ct.Trait); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // getWorkloadName generate workload name. By default the workload's name will be generated by applicationContext, this func is for application controller
 // get name of crossNamespace workload. The logic of this func is same with the way of appConfig generating workloadName
 func (h *appHandler) getWorkloadName(w runtime.RawExtension, componentName string, revisionName string) (string, error) {
@@ -573,7 +564,7 @@ func (h *appHandler) getTraitName(ctx context.Context, componentName string, ct 
 	return traitName, nil
 }
 
-// recodeTrackedResource append cross namespace resource to apphandler's crossNsResource field
+// recodeTrackedResource append cross namespace resource to apphandler's acrossNsResources field
 func (h *appHandler) recodeTrackedResource(resourceName string, resource runtime.RawExtension) error {
 	u, err := oamutil.RawExtension2Unstructured(&resource)
 	if err != nil {
@@ -584,7 +575,7 @@ func (h *appHandler) recodeTrackedResource(resourceName string, resource runtime
 	tr.Namespace = u.GetNamespace()
 	tr.APIVersion = u.GetAPIVersion()
 	tr.Kind = u.GetKind()
-	h.crossNsResource = append(h.crossNsResource, *tr)
+	h.acrossNsResources = append(h.acrossNsResources, *tr)
 	return nil
 }
 
@@ -602,17 +593,17 @@ func (h *appHandler) garbageCollection(ctx context.Context) error {
 		return err
 	}
 	applied := map[v1beta1.TypedReference]bool{}
-	if len(h.crossNsResource) == 0 {
+	if len(h.acrossNsResources) == 0 {
 		h.app.Status.ResourceTracker = nil
 		if err := h.r.Delete(ctx, rt); err != nil {
 			return err
 		}
 		return nil
 	}
-	for _, resource := range h.crossNsResource {
+	for _, resource := range h.acrossNsResources {
 		applied[resource] = true
 	}
-	for _, ref := range rt.Status.TrackedResource {
+	for _, ref := range rt.Status.TrackedResources {
 		if !applied[ref] {
 			resource := new(unstructured.Unstructured)
 			resource.SetAPIVersion(ref.APIVersion)
@@ -628,7 +619,7 @@ func (h *appHandler) garbageCollection(ctx context.Context) error {
 			}
 		}
 	}
-	rt.Status.TrackedResource = h.crossNsResource
+	rt.Status.TrackedResources = h.acrossNsResources
 	if err := h.r.Update(ctx, rt); err != nil {
 		return err
 	}
@@ -637,5 +628,57 @@ func (h *appHandler) garbageCollection(ctx context.Context) error {
 		Kind:       v1beta1.ResourceTrackerGroupKind,
 		APIVersion: v1beta1.ResourceTrackerKindAPIVersion,
 		UID:        rt.UID}
+	return nil
+}
+
+// handleResourceTracker check the namespace of  all components and traits
+// if one resource is across-namespace create resourceTracker and set in appHandler field
+func (h *appHandler) handleResourceTracker(ctx context.Context, components []*v1alpha2.Component, ac *v1alpha2.ApplicationConfiguration) error {
+	resourceTracker := new(v1beta1.ResourceTracker)
+	needTracker := false
+	for _, c := range components {
+		u, err := oamutil.RawExtension2Unstructured(&c.Spec.Workload)
+		if err != nil {
+			return err
+		}
+		if checkResourceDiffWithApp(u, h.app.Namespace) {
+			needTracker = true
+			break
+		}
+	}
+outLoop:
+	for _, acComponent := range ac.Spec.Components {
+		for _, t := range acComponent.Traits {
+			u, err := oamutil.RawExtension2Unstructured(&t.Trait)
+			if err != nil {
+				return err
+			}
+			if checkResourceDiffWithApp(u, h.app.Namespace) {
+				needTracker = true
+				break outLoop
+			}
+		}
+	}
+	if needTracker {
+		// check weather related resourceTracker is existed, if not create it
+		err := h.r.Get(ctx, ctypes.NamespacedName{Name: h.generateResourceTrackerName()}, resourceTracker)
+		if err == nil {
+			h.resourceTracker = resourceTracker
+			return nil
+		}
+		if apierrors.IsNotFound(err) {
+			resourceTracker = &v1beta1.ResourceTracker{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: h.generateResourceTrackerName(),
+				},
+			}
+			if err = h.r.Client.Create(ctx, resourceTracker); err != nil {
+				return err
+			}
+			h.resourceTracker = resourceTracker
+			return nil
+		}
+		return err
+	}
 	return nil
 }
