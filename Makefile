@@ -158,8 +158,10 @@ e2e-api-test:
 
 e2e-test:
 	# Run e2e test
-	ginkgo -v -race -coverprofile=e2e-coverage.txt -coverpkg=./pkg/... ./test/e2e-test
+	ginkgo -v -race -coverprofile=e2e-coverage.txt -coverpkg=github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout,github.com/oam-dev/kubevela/pkg/webhook/core.oam.dev/v1alpha2/applicationrollout,github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationcontext ./test/e2e-test
 	@$(OK) tests pass
+	pwd
+	ls
 
 compatibility-test: vet lint staticcheck generate-compatibility-testdata
 	# Run compatibility test with old crd
