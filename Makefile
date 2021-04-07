@@ -158,7 +158,7 @@ e2e-api-test:
 
 e2e-test:
 	# Run e2e test
-	ginkgo -v -race -coverprofile=e2e-coverage.txt ./test/e2e-test
+	ginkgo -v -race -coverprofile=e2e-coverage.txt -coverpkg=./pkg/... ./test/e2e-test
 	@$(OK) tests pass
 
 compatibility-test: vet lint staticcheck generate-compatibility-testdata
