@@ -166,6 +166,88 @@ var _ = Describe("Test application controller finalizer logic", func() {
 		checkRt := new(v1beta1.ResourceTracker)
 		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name), checkRt)).Should(util.NotFoundMatcher{})
 	})
+
+	It("Test cross namespace workload, then update the app to change the namespace", func() {
+		appName := "app-3"
+		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
+		app := getApp(appName, namespace, "cross-worker")
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+
+		By("Create a cross workload app")
+		_, err := reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+		Expect(err).Should(BeNil())
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+		Expect(len(checkApp.Finalizers)).Should(BeEquivalentTo(0))
+		rt := &v1beta1.ResourceTracker{}
+		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name), rt)).Should(BeNil())
+		_, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+		Expect(err).Should(BeNil())
+		checkApp = new(v1beta1.Application)
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(len(checkApp.Finalizers)).Should(BeEquivalentTo(1))
+		Expect(checkApp.Finalizers[0]).Should(BeEquivalentTo(resourceTrackerFinalizer))
+		Expect(checkApp.Status.ResourceTracker.UID).Should(BeEquivalentTo(rt.UID))
+		Expect(len(rt.Status.TrackedResources)).Should(BeEquivalentTo(1))
+		By("Update the app, set type to normal-worker")
+		checkApp.Spec.Components[0].Type = "normal-worker"
+		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
+		_, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+		Expect(err).Should(BeNil())
+		checkApp = new(v1beta1.Application)
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.ResourceTracker).Should(BeNil())
+		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name), rt)).Should(util.NotFoundMatcher{})
+		Expect(k8sClient.Delete(ctx, checkApp)).Should(BeNil())
+		_, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+		Expect(err).Should(BeNil())
+	})
+
+	It("Test cross namespace workload and trait, then update the app to delete trait ", func() {
+		appName := "app-4"
+		appKey := types.NamespacedName{Namespace: namespace, Name: appName}
+		app := getApp(appName, namespace, "cross-worker")
+		app.Spec.Components[0].Traits = []v1beta1.ApplicationTrait{
+			{
+				Type:       "cross-scaler",
+				Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
+			},
+		}
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		By("Create a cross workload trait app")
+		_, err := reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+		Expect(err).Should(BeNil())
+		checkApp := &v1beta1.Application{}
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Phase).Should(Equal(common.ApplicationRunning))
+		Expect(len(checkApp.Finalizers)).Should(BeEquivalentTo(0))
+		rt := &v1beta1.ResourceTracker{}
+		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name), rt)).Should(BeNil())
+		_, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+		Expect(err).Should(BeNil())
+		checkApp = new(v1beta1.Application)
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(len(checkApp.Finalizers)).Should(BeEquivalentTo(1))
+		Expect(checkApp.Finalizers[0]).Should(BeEquivalentTo(resourceTrackerFinalizer))
+		Expect(checkApp.Status.ResourceTracker.UID).Should(BeEquivalentTo(rt.UID))
+		Expect(len(rt.Status.TrackedResources)).Should(BeEquivalentTo(2))
+		By("Update the app, set type to normal-worker")
+		checkApp.Spec.Components[0].Traits = nil
+		Expect(k8sClient.Update(ctx, checkApp)).Should(BeNil())
+		_, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+		Expect(err).Should(BeNil())
+		rt = &v1beta1.ResourceTracker{}
+		checkApp = new(v1beta1.Application)
+		Expect(k8sClient.Get(ctx, appKey, checkApp)).Should(BeNil())
+		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name), rt)).Should(BeNil())
+		Expect(checkApp.Status.ResourceTracker.UID).Should(BeEquivalentTo(rt.UID))
+		Expect(len(rt.Status.TrackedResources)).Should(BeEquivalentTo(1))
+		Expect(k8sClient.Delete(ctx, checkApp)).Should(BeNil())
+		_, err = reconciler.Reconcile(ctrl.Request{NamespacedName: appKey})
+		Expect(err).Should(BeNil())
+		Expect(k8sClient.Get(ctx, getTrackerKey(checkApp.Namespace, checkApp.Name), rt)).Should(util.NotFoundMatcher{})
+	})
 })
 
 var _ = Describe("Test finalizer related func", func() {
@@ -184,46 +266,6 @@ var _ = Describe("Test finalizer related func", func() {
 
 	AfterEach(func() {
 		By("[TEST] Clean up resources after an integration test")
-	})
-
-	It("Test getResourceTrackerAndOwnReference func", func() {
-		app := getApp("app-1", namespace, "worker")
-		handler = appHandler{
-			r:      reconciler,
-			app:    app,
-			logger: reconciler.Log.WithValues("application", "finalizer-func-test"),
-		}
-		checkRt := new(v1beta1.ResourceTracker)
-		Expect(k8sClient.Get(ctx, getTrackerKey(namespace, app.Name), checkRt)).Should(util.NotFoundMatcher{})
-		rt, owner, err := handler.getResourceTrackerAndOwnReference(ctx)
-		Expect(err).Should(BeNil())
-		Expect(rt.UID).Should(BeEquivalentTo(owner.UID))
-		Expect(owner.Kind).Should(BeEquivalentTo(v1beta1.ResourceTrackerKind))
-		checkRt = new(v1beta1.ResourceTracker)
-		Expect(k8sClient.Get(ctx, getTrackerKey(namespace, app.Name), checkRt)).Should(BeNil())
-		Expect(checkRt.UID).Should(BeEquivalentTo(rt.UID))
-		Expect(k8sClient.Delete(ctx, checkRt)).Should(BeNil())
-	})
-
-	It("Test getResourceTrackerAndOwnReference func with already exsit resourceTracker", func() {
-		app := getApp("app-2", namespace, "worker")
-		handler = appHandler{
-			r:      reconciler,
-			app:    app,
-			logger: reconciler.Log.WithValues("application", "finalizer-func-test"),
-		}
-		rt := &v1beta1.ResourceTracker{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: namespace + "-" + app.GetName(),
-			},
-		}
-		Expect(k8sClient.Create(ctx, rt)).Should(BeNil())
-		checkRt, owner, err := handler.getResourceTrackerAndOwnReference(ctx)
-		Expect(err).Should(BeNil())
-		Expect(rt.UID).Should(BeEquivalentTo(checkRt.UID))
-		Expect(owner.Kind).Should(BeEquivalentTo(v1beta1.ResourceTrackerKind))
-		Expect(checkRt.UID).Should(BeEquivalentTo(owner.UID))
-		Expect(k8sClient.Delete(ctx, checkRt)).Should(BeNil())
 	})
 
 	It("Test finalizeResourceTracker func with need update ", func() {

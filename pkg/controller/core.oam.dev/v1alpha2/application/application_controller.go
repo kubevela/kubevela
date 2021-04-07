@@ -145,6 +145,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	err = handler.handleResourceTracker(ctx, comps, ac)
 	if err != nil {
 		applog.Error(err, "[Handle resourceTracker]")
+		app.Status.SetConditions(errorCondition("Handle resourceTracker", err))
 		return handler.handleErr(err)
 	}
 
@@ -180,6 +181,12 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	app.Status.Services = appCompStatus
 	app.Status.SetConditions(readyCondition("HealthCheck"))
 	app.Status.Phase = common.ApplicationRunning
+	err = handler.garbageCollection(ctx)
+	if err != nil {
+		applog.Error(err, "[Garbage collection]")
+		app.Status.SetConditions(errorCondition("GarbageCollection", err))
+		return handler.handleErr(err)
+	}
 	// Gather status of components
 	var refComps []v1alpha1.TypedReference
 	for _, comp := range comps {

@@ -50,7 +50,4 @@ spec:
         			}}}
         }
 ```
-## Limitations
-If you update definition by changing the `metadata.namespace` field. KubeVela will create new resources in the new namespace but not delete old resources.
-We wil fix the limitation in the near future.
 
