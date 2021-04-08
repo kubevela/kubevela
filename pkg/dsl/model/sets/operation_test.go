@@ -111,6 +111,23 @@ containers: [{
 }, ...]
 `,
 		},
+		{
+			base: `containers: [close({name: "x1"}),close({name: "x2", envs:[{name: "OPS",value: string},...]}),...]`,
+			patch: `
+// +patchKey=name
+containers: [{name: "x2", envs: [close({name: "OPS", value: "OAM"})]}]`,
+			result: `// +patchKey=name
+containers: [close({
+	name: "x1"
+}), close({
+	name: "x2"
+	envs: [close({
+		name:  "OPS"
+		value: "OAM"
+	}), ...]
+}), ...]
+`,
+		},
 
 		{
 			base: `containers: [{name: "x1"},{name: "x2", envs:[ {name: "OPS",value: string},...]},...]`,
@@ -160,7 +177,7 @@ containers: [{
 
 	for i, tcase := range testCase {
 		v, _ := StrategyUnify(tcase.base, tcase.patch)
-		assert.Equal(t, v, tcase.result, fmt.Sprintf("testPatch for case(no:%d)", i))
+		assert.Equal(t, v, tcase.result, fmt.Sprintf("testPatch for case(no:%d) %s", i, v))
 	}
 }
 
