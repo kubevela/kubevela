@@ -262,27 +262,49 @@ spec:
     app: test-app
   type: ClusterIP
 ```
+
 ### Test CUE Template with `Kube` package
 
-KubeVela automatically generates internal CUE packages for all built-in Kubernetes API resources, so you can import them in CUE template. This could simplify how you write the template because some default values are already there, and the imported package will help you validate the template.
+KubeVela automatically generates internal CUE packages for all built-in Kubernetes API resources including CRDs.
+You can import them in CUE template to simplify your templates and help you do the validation.
 
-Let's try to define a template with help of `kube` package, in kubevela you can use `vela system cue-packages` list all 
-build-in `kube` package which kubevela support.
+There are two kinds of ways to import internal `kube` packages.
 
-```shell
-$ vela system cue-packages
-DEFINITION-NAME                	IMPORT-PATH                         	 USAGE
-#Deployment                    	k8s.io/apps/v1                      	Kube Object for apps/v1.Deployment
-#Service                       	k8s.io/core/v1                      	Kube Object for v1.Service
-#Secret                        	k8s.io/core/v1                      	Kube Object for v1.Secret
-#Node                          	k8s.io/core/v1                      	Kube Object for v1.Node
-#PersistentVolume              	k8s.io/core/v1                      	Kube Object for v1.PersistentVolume
-#Endpoints                     	k8s.io/core/v1                      	Kube Object for v1.Endpoints
-#Pod                           	k8s.io/core/v1                      	Kube Object for v1.Pod
-```
+1. Import them with fixed style: `kube/<apiVersion>` and using it by `Kind`.
+    ```cue
+    import (
+     apps "kube/apps/v1"
+     corev1 "kube/v1"
+    )
+    // output is validated by Deployment.
+    output: apps.#Deployment
+    outputs: service: corev1.#Service
+   ```
+   This way is very easy to remember and use because it aligns with the K8s Object usage, only need to add a prefix `kube/` before `apiVersion`.
+   While this way only supported in KubeVela, so you can only debug and test it with [`vela system dry-run`](#dry-run-the-application).
+   
+2. Import them with third-party packages style. You can run `vela system cue-packages` to list all build-in `kube` packages
+   to know the `third-party packages` supported currently.
+    ```shell
+    $ vela system cue-packages
+    DEFINITION-NAME                	IMPORT-PATH                         	 USAGE
+    #Deployment                    	k8s.io/apps/v1                      	Kube Object for apps/v1.Deployment
+    #Service                       	k8s.io/core/v1                      	Kube Object for v1.Service
+    #Secret                        	k8s.io/core/v1                      	Kube Object for v1.Secret
+    #Node                          	k8s.io/core/v1                      	Kube Object for v1.Node
+    #PersistentVolume              	k8s.io/core/v1                      	Kube Object for v1.PersistentVolume
+    #Endpoints                     	k8s.io/core/v1                      	Kube Object for v1.Endpoints
+    #Pod                           	k8s.io/core/v1                      	Kube Object for v1.Pod
+    ```
+   In fact, they are all built-in packages, but you can import them with the `import-path` like the `third-party packages`.
+   In this way, you could debug with `cue` cli client.
+   
 
-We can also debug and test `def.cue` file which import `kube` package in our local. But we need download the cue package in local environment.
-First you should create a test directory, and init it to a cue module.
+#### A workflow to debug with `kube` packages
+
+Here's a workflow that you can debug and test the CUE template with `cue` command line tool and use **exactly the same CUE template** in KubeVela.
+
+1. Create a test directory, and init cue module.
 
 ```shell
 mkdir cue-debug && cd cue-debug/
@@ -290,13 +312,12 @@ cue mod init oam.dev
 touch def.cue
 ```
 
-In this example, we need import `Deployment` and `Serivice` CUE definition from package.
-The powerful `cue` cli support gen CUE definition from Go code.
+2. Download the `third-party packages` by using `cue` cli.
 
-The `cue get go` can fetches Go packages using Go’s package manager and makes their definitions available 
-through the CUE module’s `gen` directory using the same package naming conventions as in Go.
+In Kubevela, we don't need to download these packages as they're automatically generated from K8s API.
+But for local test with `cue` cli, we need to download these Go modules(`go get`) and convert them to CUE format files(`cue get`).
 
-So, for use `Deployment` and `Serivice` in our cue module, we need download the CUE definitions for the `core` and `apps` Kubernetes types
+So, by using K8s `Deployment` and `Serivice`, we need download and convert to CUE definitions for the `core` and `apps` Kubernetes modules like below:
 
 ```shell
 go get k8s.io/api/core/v1
@@ -306,7 +327,7 @@ go get k8s.io/api/apps/v1
 cue get go k8s.io/api/apps/v1
 ```
 
-After download the CUE definitions, The module directory should has the following contents:
+After that, the module directory will show the following contents:
 
 ```shell
 ├── cue.mod
@@ -332,10 +353,14 @@ import (
 )
 ```
 
-In order to use the CUE Template that we test in local directly apply to the kubevela, 
-we need align the path in `gen` directory with the path provided by kubevela. Just copy
-the `apps` and `core` from `gen/k8s.io/api` to `gen/k8s.io`(Note, To avoid import path loss, we should keep 
+Our goal is to test template locally and use the same template in KubeVela.
+So we need to refactor our local CUE module directories a bit to align with the import path provided by KubeVela, 
+
+3. Refactor directories hierarchy.
+
+Copy the `apps` and `core` from `gen/k8s.io/api` to `gen/k8s.io`(Note, To avoid import path loss, we should keep 
 the source directory `apps` and `core` in `gen/k8s.io/api`).
+
 The modified module directory should like:
 
 ```shell
