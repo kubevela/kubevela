@@ -9,6 +9,7 @@ spec:
     - webservice
     - worker
     - deployments.apps
+  podDisruptive: true
   extension:
     template: |-
       patch: {

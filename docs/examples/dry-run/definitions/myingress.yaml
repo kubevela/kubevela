@@ -5,6 +5,7 @@ metadata:
 spec:
   appliesToWorkloads:
     - "*"
+  podDisruptive: false
   schematic:
     cue:
       template: |

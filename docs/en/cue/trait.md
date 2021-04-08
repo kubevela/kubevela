@@ -68,6 +68,7 @@ kind: TraitDefinition
 metadata:
   name: ingress
 spec:
+  podDisruptive: false
   schematic:
     cue:
       template: |
