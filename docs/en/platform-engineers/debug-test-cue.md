@@ -302,9 +302,9 @@ There are two kinds of ways to import internal `kube` packages.
 
 #### A workflow to debug with `kube` packages
 
-Here's a workflow that you can debug and test the CUE template with `cue` command line tool and use **exactly the same CUE template** in KubeVela.
+Here's a workflow that you can debug and test the CUE template with `cue` CLI and use **exactly the same CUE template** in KubeVela.
 
-1. Create a test directory, and init cue module.
+1. Create a test directory, Init CUE modules.
 
 ```shell
 mkdir cue-debug && cd cue-debug/
@@ -313,11 +313,10 @@ go mod init oam.dev
 touch def.cue
 ```
 
-2. Download the `third-party packages` by using `cue` cli.
+2. Download the `third-party packages` by using `cue` CLI.
 
-In Kubevela, we don't need to download these packages as they're automatically generated from K8s API.
-But for local test with `cue` cli, we need to use `cue get go` fetches Go packages and convert them to CUE format files.
-
+In KubeVela, we don't need to download these packages as they're automatically generated from K8s API.
+But for local test, we need to use `cue get go` to fetch Go packages and convert them to CUE format files.
 
 So, by using K8s `Deployment` and `Serivice`, we need download and convert to CUE definitions for the `core` and `apps` Kubernetes modules like below:
 
@@ -345,7 +344,7 @@ After that, the module directory will show the following contents:
 └── go.sum
 ```
 
-The package import path in `def.cue` file is the path in `gen` directory, like:
+The package import path in CUE template should be:
 
 ```cue
 import (
@@ -354,16 +353,17 @@ import (
 )
 ```
 
+3. Refactor directory hierarchy.
+
 Our goal is to test template locally and use the same template in KubeVela.
-So we need to refactor our local CUE module directories a bit to align with the import path provided by KubeVela, 
+So we need to refactor our local CUE module directories a bit to align with the import path provided by KubeVela,
 
-3. Refactor directories hierarchy.
-
-Copy the `apps` and `core` from `cue.mod/gen/k8s.io/api` to `cue.mod/gen/k8s.io`(Note, To avoid import path loss, we should keep 
-the source directory `apps` and `core` in `gen/k8s.io/api`).
+Copy the `apps` and `core` from `cue.mod/gen/k8s.io/api` to `cue.mod/gen/k8s.io`.
+(Note we should keep the source directory `apps` and `core` in `gen/k8s.io/api` to avoid package dependency issues).
 
 ```bash
-cp -r cue.mod/gen/k8s.io/api/apps cue.mod/gen/k8s.io/api/core cue.mod/gen/k8s.io
+cp -r cue.mod/gen/k8s.io/api/apps cue.mod/gen/k8s.io
+cp -r cue.mod/gen/k8s.io/api/core cue.mod/gen/k8s.io
 ```
 
 The modified module directory should like:
@@ -387,7 +387,7 @@ The modified module directory should like:
 └── go.sum
 ```
 
-So, you can import the package use the following path:
+So, you can import the package use the following path that aligns with KubeVela:
 
 ```cue
 import (
@@ -396,7 +396,9 @@ import (
 )
 ```
 
-Finally, we can test CUE Template which use the `Kube` package. Copy the cue file below to `def.cue`.
+4. Test and Run.
+
+Finally, we can test CUE Template which use the `Kube` package.
 
 ```cue
 import (
