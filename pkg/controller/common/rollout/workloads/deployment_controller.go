@@ -73,9 +73,7 @@ func (c *DeploymentController) VerifySpec(ctx context.Context) (bool, error) {
 	defer func() {
 		if verifyErr != nil {
 			klog.Error(verifyErr)
-			if c.recorder != nil && c.parentController != nil {
-				c.recorder.Event(c.parentController, event.Warning("VerifyFailed", verifyErr))
-			}
+			c.recorder.Event(c.parentController, event.Warning("VerifyFailed", verifyErr))
 		}
 	}()
 
@@ -83,9 +81,7 @@ func (c *DeploymentController) VerifySpec(ctx context.Context) (bool, error) {
 	targetTotalReplicas, verifyErr := c.calculateTargetTotalSize(ctx)
 	if verifyErr != nil {
 		// do not fail the rollout just because we can't get the resource
-		if c.rolloutSpec != nil {
-			c.rolloutStatus.RolloutRetry(verifyErr.Error())
-		}
+		c.rolloutStatus.RolloutRetry(verifyErr.Error())
 		// nolint:nilerr
 		return false, nil
 	}

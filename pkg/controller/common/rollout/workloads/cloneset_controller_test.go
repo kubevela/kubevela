@@ -32,17 +32,19 @@ func TestVerifyRolloutBatchReplicaValue4CloneSet(t *testing.T) {
 	// error and nil error for `err := VerifySumOfBatchSizes(c.rolloutSpec, totalReplicas)` is enough.
 	var int2 int32 = 2
 	cases := map[string]struct {
-		c             *CloneSetController
+		c             *CloneSetRolloutController
 		totalReplicas int32
 		want          error
 	}{
 		"ClonsetTargetSizeIsNotAvaialbe": {
-			c: &CloneSetController{
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					TargetSize: &int2,
-					RolloutBatches: []v1alpha1.RolloutBatch{{
-						Replicas: intstr.FromInt(1),
-					},
+			c: &CloneSetRolloutController{
+				cloneSetController{
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						TargetSize: &int2,
+						RolloutBatches: []v1alpha1.RolloutBatch{{
+							Replicas: intstr.FromInt(1),
+						},
+						},
 					},
 				},
 			},
@@ -50,11 +52,13 @@ func TestVerifyRolloutBatchReplicaValue4CloneSet(t *testing.T) {
 			want:          fmt.Errorf("the rollout plan is attempting to scale the cloneset, target = 2, cloneset size = 3"),
 		},
 		"BatchSizeMismatchesClonesetSize": {
-			c: &CloneSetController{
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{{
-						Replicas: intstr.FromInt(1),
-					},
+			c: &CloneSetRolloutController{
+				cloneSetController{
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						RolloutBatches: []v1alpha1.RolloutBatch{{
+							Replicas: intstr.FromInt(1),
+						},
+						},
 					},
 				},
 			},
@@ -62,14 +66,16 @@ func TestVerifyRolloutBatchReplicaValue4CloneSet(t *testing.T) {
 			want:          fmt.Errorf("the rollout plan batch size mismatch, total batch size = 1, totalReplicas size = 3"),
 		},
 		"BatchSizeMatchesCloneSetSize": {
-			c: &CloneSetController{
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{
-						{
-							Replicas: intstr.FromInt(1),
-						},
-						{
-							Replicas: intstr.FromInt(2),
+			c: &CloneSetRolloutController{
+				cloneSetController{
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						RolloutBatches: []v1alpha1.RolloutBatch{
+							{
+								Replicas: intstr.FromInt(1),
+							},
+							{
+								Replicas: intstr.FromInt(2),
+							},
 						},
 					},
 				},

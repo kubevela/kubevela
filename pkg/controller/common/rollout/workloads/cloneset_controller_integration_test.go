@@ -38,7 +38,7 @@ import (
 
 var _ = Describe("cloneset controller", func() {
 	var (
-		c              CloneSetController
+		c              CloneSetRolloutController
 		ns             corev1.Namespace
 		name           string
 		namespace      string
@@ -59,15 +59,16 @@ var _ = Describe("cloneset controller", func() {
 			}
 			rolloutStatus := &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState}
 			workloadNamespacedName := client.ObjectKey{Name: name, Namespace: namespace}
-			got := NewCloneSetController(k8sClient, recorder, parentController, rolloutSpec, rolloutStatus, workloadNamespacedName)
-			c := &CloneSetController{
-				client:                 k8sClient,
-				recorder:               recorder,
-				parentController:       parentController,
-				rolloutSpec:            rolloutSpec,
-				rolloutStatus:          rolloutStatus,
-				workloadNamespacedName: workloadNamespacedName,
-			}
+			got := NewCloneSetRolloutController(k8sClient, recorder, parentController, rolloutSpec, rolloutStatus, workloadNamespacedName)
+			c := &CloneSetRolloutController{
+				cloneSetController{
+					client:                 k8sClient,
+					recorder:               recorder,
+					parentController:       parentController,
+					rolloutSpec:            rolloutSpec,
+					rolloutStatus:          rolloutStatus,
+					workloadNamespacedName: workloadNamespacedName,
+				}}
 			Expect(got).Should(Equal(c))
 		})
 	})
@@ -78,20 +79,21 @@ var _ = Describe("cloneset controller", func() {
 			name = "rollout1"
 			appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
 			namespacedName = client.ObjectKey{Name: name, Namespace: namespace}
-			c = CloneSetController{
-				client: k8sClient,
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{{
-						Replicas: intstr.FromInt(1),
+			c = CloneSetRolloutController{
+				cloneSetController{
+					client: k8sClient,
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						RolloutBatches: []v1alpha1.RolloutBatch{{
+							Replicas: intstr.FromInt(1),
+						},
+						},
 					},
-					},
-				},
-				rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
-				parentController: &appRollout,
-				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
-					WithAnnotations("controller", "AppRollout"),
-				workloadNamespacedName: namespacedName,
-			}
+					rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
+					parentController: &appRollout,
+					recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+						WithAnnotations("controller", "AppRollout"),
+					workloadNamespacedName: namespacedName,
+				}}
 
 			ns = corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
@@ -221,20 +223,21 @@ var _ = Describe("cloneset controller", func() {
 		It("successfully initialized CloneSet", func() {
 			By("Create a CloneSet")
 			appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name, UID: "567890"}}
-			c = CloneSetController{
-				client: k8sClient,
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{{
-						Replicas: intstr.FromInt(1),
+			c = CloneSetRolloutController{
+				cloneSetController{
+					client: k8sClient,
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						RolloutBatches: []v1alpha1.RolloutBatch{{
+							Replicas: intstr.FromInt(1),
+						},
+						},
 					},
-					},
-				},
-				rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
-				parentController: &appRollout,
-				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
-					WithAnnotations("controller", "AppRollout"),
-				workloadNamespacedName: namespacedName,
-			}
+					rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
+					parentController: &appRollout,
+					recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+						WithAnnotations("controller", "AppRollout"),
+					workloadNamespacedName: namespacedName,
+				}}
 			cloneSet = kruise.CloneSet{
 				TypeMeta: metav1.TypeMeta{APIVersion: "apps.kruise.io/v1alpha1", Kind: "CloneSet"},
 				ObjectMeta: metav1.ObjectMeta{
@@ -269,20 +272,21 @@ var _ = Describe("cloneset controller", func() {
 
 		It("failed to get totalReplicas due to no CloneSet", func() {
 			appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
-			c = CloneSetController{
-				client: k8sClient,
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{{
-						Replicas: intstr.FromInt(1),
+			c = CloneSetRolloutController{
+				cloneSetController{
+					client: k8sClient,
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						RolloutBatches: []v1alpha1.RolloutBatch{{
+							Replicas: intstr.FromInt(1),
+						},
+						},
 					},
-					},
-				},
-				rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
-				parentController: &appRollout,
-				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
-					WithAnnotations("controller", "AppRollout"),
-				workloadNamespacedName: namespacedName,
-			}
+					rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
+					parentController: &appRollout,
+					recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+						WithAnnotations("controller", "AppRollout"),
+					workloadNamespacedName: namespacedName,
+				}}
 
 			By("initializing")
 			initialized, err := c.Initialize(ctx)
@@ -294,20 +298,21 @@ var _ = Describe("cloneset controller", func() {
 			By("Create a CloneSet")
 			var controllered = true
 			appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
-			c = CloneSetController{
-				client: k8sClient,
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{{
-						Replicas: intstr.FromInt(1),
+			c = CloneSetRolloutController{
+				cloneSetController{
+					client: k8sClient,
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						RolloutBatches: []v1alpha1.RolloutBatch{{
+							Replicas: intstr.FromInt(1),
+						},
+						},
 					},
-					},
-				},
-				rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
-				parentController: &appRollout,
-				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
-					WithAnnotations("controller", "AppRollout"),
-				workloadNamespacedName: namespacedName,
-			}
+					rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
+					parentController: &appRollout,
+					recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+						WithAnnotations("controller", "AppRollout"),
+					workloadNamespacedName: namespacedName,
+				}}
 			cloneSet = kruise.CloneSet{
 				TypeMeta: metav1.TypeMeta{APIVersion: "apps.kruise.io/v1alpha1", Kind: "CloneSet"},
 				ObjectMeta: metav1.ObjectMeta{
@@ -350,20 +355,21 @@ var _ = Describe("cloneset controller", func() {
 		It("failed to patch the owner of CloneSet", func() {
 			By("Create a CloneSet")
 			appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
-			c = CloneSetController{
-				client: k8sClient,
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{{
-						Replicas: intstr.FromInt(1),
+			c = CloneSetRolloutController{
+				cloneSetController{
+					client: k8sClient,
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						RolloutBatches: []v1alpha1.RolloutBatch{{
+							Replicas: intstr.FromInt(1),
+						},
+						},
 					},
-					},
-				},
-				rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
-				parentController: &appRollout,
-				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
-					WithAnnotations("controller", "AppRollout"),
-				workloadNamespacedName: namespacedName,
-			}
+					rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
+					parentController: &appRollout,
+					recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+						WithAnnotations("controller", "AppRollout"),
+					workloadNamespacedName: namespacedName,
+				}}
 			cloneSet = kruise.CloneSet{
 				TypeMeta: metav1.TypeMeta{APIVersion: "apps.kruise.io/v1alpha1", Kind: "CloneSet"},
 				ObjectMeta: metav1.ObjectMeta{
@@ -417,23 +423,24 @@ var _ = Describe("cloneset controller", func() {
 		It("successfully rollout, current batch number is not equal to the expected one", func() {
 			By("Create a CloneSet")
 			appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
-			c = CloneSetController{
-				client: k8sClient,
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{{
-						Replicas: intstr.FromInt(1),
+			c = CloneSetRolloutController{
+				cloneSetController{
+					client: k8sClient,
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						RolloutBatches: []v1alpha1.RolloutBatch{{
+							Replicas: intstr.FromInt(1),
+						},
+						},
 					},
+					rolloutStatus: &v1alpha1.RolloutStatus{
+						RollingState: v1alpha1.RolloutSucceedState,
+						CurrentBatch: int32(2),
 					},
-				},
-				rolloutStatus: &v1alpha1.RolloutStatus{
-					RollingState: v1alpha1.RolloutSucceedState,
-					CurrentBatch: int32(2),
-				},
-				parentController: &appRollout,
-				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
-					WithAnnotations("controller", "AppRollout"),
-				workloadNamespacedName: namespacedName,
-			}
+					parentController: &appRollout,
+					recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+						WithAnnotations("controller", "AppRollout"),
+					workloadNamespacedName: namespacedName,
+				}}
 			cloneSet = kruise.CloneSet{
 				TypeMeta: metav1.TypeMeta{APIVersion: "apps.kruise.io/v1alpha1", Kind: "CloneSet"},
 				ObjectMeta: metav1.ObjectMeta{
@@ -469,31 +476,32 @@ var _ = Describe("cloneset controller", func() {
 		It("successfully rollout, current batch number is equal to the expected one", func() {
 			By("Create a CloneSet")
 			appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
-			c = CloneSetController{
-				client: k8sClient,
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{
-						{
-							Replicas: intstr.FromInt(1),
-						},
+			c = CloneSetRolloutController{
+				cloneSetController{
+					client: k8sClient,
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						RolloutBatches: []v1alpha1.RolloutBatch{
+							{
+								Replicas: intstr.FromInt(1),
+							},
 
-						{
-							Replicas: intstr.FromInt(2),
-						},
-						{
-							Replicas: intstr.FromInt(3),
+							{
+								Replicas: intstr.FromInt(2),
+							},
+							{
+								Replicas: intstr.FromInt(3),
+							},
 						},
 					},
-				},
-				rolloutStatus: &v1alpha1.RolloutStatus{
-					RollingState: v1alpha1.RolloutSucceedState,
-					CurrentBatch: int32(2),
-				},
-				parentController: &appRollout,
-				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
-					WithAnnotations("controller", "AppRollout"),
-				workloadNamespacedName: namespacedName,
-			}
+					rolloutStatus: &v1alpha1.RolloutStatus{
+						RollingState: v1alpha1.RolloutSucceedState,
+						CurrentBatch: int32(2),
+					},
+					parentController: &appRollout,
+					recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+						WithAnnotations("controller", "AppRollout"),
+					workloadNamespacedName: namespacedName,
+				}}
 			cloneSet = kruise.CloneSet{
 				TypeMeta: metav1.TypeMeta{APIVersion: "apps.kruise.io/v1alpha1", Kind: "CloneSet"},
 				ObjectMeta: metav1.ObjectMeta{
@@ -546,23 +554,24 @@ var _ = Describe("cloneset controller", func() {
 		It("failed to check batch Pod when current batch number is less than expected one", func() {
 			By("Create a CloneSet")
 			appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
-			c = CloneSetController{
-				client: k8sClient,
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{{
-						Replicas: intstr.FromInt(1),
+			c = CloneSetRolloutController{
+				cloneSetController{
+					client: k8sClient,
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						RolloutBatches: []v1alpha1.RolloutBatch{{
+							Replicas: intstr.FromInt(1),
+						},
+						},
 					},
+					rolloutStatus: &v1alpha1.RolloutStatus{
+						RollingState: v1alpha1.RolloutSucceedState,
+						CurrentBatch: int32(0),
 					},
-				},
-				rolloutStatus: &v1alpha1.RolloutStatus{
-					RollingState: v1alpha1.RolloutSucceedState,
-					CurrentBatch: int32(0),
-				},
-				parentController: &appRollout,
-				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
-					WithAnnotations("controller", "AppRollout"),
-				workloadNamespacedName: namespacedName,
-			}
+					parentController: &appRollout,
+					recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+						WithAnnotations("controller", "AppRollout"),
+					workloadNamespacedName: namespacedName,
+				}}
 			cloneSet = kruise.CloneSet{
 				TypeMeta: metav1.TypeMeta{APIVersion: "apps.kruise.io/v1alpha1", Kind: "CloneSet"},
 				ObjectMeta: metav1.ObjectMeta{
@@ -598,23 +607,24 @@ var _ = Describe("cloneset controller", func() {
 		It("failed to check batch Pod when current batch number exceeds the expected ones", func() {
 			By("Create a CloneSet")
 			appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
-			c = CloneSetController{
-				client: k8sClient,
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{{
-						Replicas: intstr.FromInt(1),
+			c = CloneSetRolloutController{
+				cloneSetController{
+					client: k8sClient,
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						RolloutBatches: []v1alpha1.RolloutBatch{{
+							Replicas: intstr.FromInt(1),
+						},
+						},
 					},
+					rolloutStatus: &v1alpha1.RolloutStatus{
+						RollingState: v1alpha1.RolloutSucceedState,
+						CurrentBatch: int32(2),
 					},
-				},
-				rolloutStatus: &v1alpha1.RolloutStatus{
-					RollingState: v1alpha1.RolloutSucceedState,
-					CurrentBatch: int32(2),
-				},
-				parentController: &appRollout,
-				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
-					WithAnnotations("controller", "AppRollout"),
-				workloadNamespacedName: namespacedName,
-			}
+					parentController: &appRollout,
+					recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+						WithAnnotations("controller", "AppRollout"),
+					workloadNamespacedName: namespacedName,
+				}}
 			cloneSet = kruise.CloneSet{
 				TypeMeta: metav1.TypeMeta{APIVersion: "apps.kruise.io/v1alpha1", Kind: "CloneSet"},
 				ObjectMeta: metav1.ObjectMeta{
@@ -673,31 +683,32 @@ var _ = Describe("cloneset controller", func() {
 
 			By("add CloneSetController properties")
 			cloneSet.Status.UpdatedReadyReplicas = 2
-			c = CloneSetController{
-				client: k8sClient,
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{
-						{
-							Replicas: intstr.FromInt(1),
-						},
-						{
-							Replicas: intstr.FromInt(1),
-						},
-						{
-							Replicas: intstr.FromInt(2),
+			c = CloneSetRolloutController{
+				cloneSetController{
+					client: k8sClient,
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						RolloutBatches: []v1alpha1.RolloutBatch{
+							{
+								Replicas: intstr.FromInt(1),
+							},
+							{
+								Replicas: intstr.FromInt(1),
+							},
+							{
+								Replicas: intstr.FromInt(2),
+							},
 						},
 					},
-				},
-				rolloutStatus: &v1alpha1.RolloutStatus{
-					RollingState: v1alpha1.RolloutSucceedState,
-					CurrentBatch: int32(2),
-				},
-				parentController: &appRollout,
-				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
-					WithAnnotations("controller", "AppRollout"),
-				workloadNamespacedName: namespacedName,
-				cloneSet:               &cloneSet,
-			}
+					rolloutStatus: &v1alpha1.RolloutStatus{
+						RollingState: v1alpha1.RolloutSucceedState,
+						CurrentBatch: int32(2),
+					},
+					parentController: &appRollout,
+					recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+						WithAnnotations("controller", "AppRollout"),
+					workloadNamespacedName: namespacedName,
+					cloneSet:               &cloneSet,
+				}}
 
 			By("checking")
 			done, err := c.CheckOneBatchPods(ctx)
@@ -708,15 +719,6 @@ var _ = Describe("cloneset controller", func() {
 			var w kruise.CloneSet
 			k8sClient.Get(ctx, namespacedName, &w)
 			k8sClient.Delete(ctx, &w)
-		})
-	})
-
-	Context("TestFinalizeOneBatch", func() {
-		It("finalize one batch", func() {
-			c = CloneSetController{}
-			finalized, err := c.FinalizeOneBatch(context.TODO())
-			Expect(finalized).Should(BeTrue())
-			Expect(err).Should(BeNil())
 		})
 	})
 
@@ -739,22 +741,24 @@ var _ = Describe("cloneset controller", func() {
 		It("failed to fetch CloneSet", func() {
 			By("finalizing")
 			appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name, UID: "123456"}}
-			c = CloneSetController{
-				client: k8sClient,
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{{
-						Replicas: intstr.FromInt(1),
+			c = CloneSetRolloutController{
+				cloneSetController{
+					client: k8sClient,
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						RolloutBatches: []v1alpha1.RolloutBatch{{
+							Replicas: intstr.FromInt(1),
+						},
+						},
 					},
+					rolloutStatus: &v1alpha1.RolloutStatus{
+						RollingState: v1alpha1.RolloutSucceedState,
+						CurrentBatch: int32(0),
 					},
+					parentController: &appRollout,
+					recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+						WithAnnotations("controller", "AppRollout"),
+					workloadNamespacedName: namespacedName,
 				},
-				rolloutStatus: &v1alpha1.RolloutStatus{
-					RollingState: v1alpha1.RolloutSucceedState,
-					CurrentBatch: int32(0),
-				},
-				parentController: &appRollout,
-				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
-					WithAnnotations("controller", "AppRollout"),
-				workloadNamespacedName: namespacedName,
 			}
 			finalized := c.Finalize(ctx, true)
 			Expect(finalized).Should(BeFalse())
@@ -763,23 +767,24 @@ var _ = Describe("cloneset controller", func() {
 		It("successfully to finalize CloneSet", func() {
 			By("Create a CloneSet")
 			appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name, UID: "123456"}}
-			c = CloneSetController{
-				client: k8sClient,
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{{
-						Replicas: intstr.FromInt(1),
+			c = CloneSetRolloutController{
+				cloneSetController{
+					client: k8sClient,
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						RolloutBatches: []v1alpha1.RolloutBatch{{
+							Replicas: intstr.FromInt(1),
+						},
+						},
 					},
+					rolloutStatus: &v1alpha1.RolloutStatus{
+						RollingState: v1alpha1.RolloutSucceedState,
+						CurrentBatch: int32(0),
 					},
-				},
-				rolloutStatus: &v1alpha1.RolloutStatus{
-					RollingState: v1alpha1.RolloutSucceedState,
-					CurrentBatch: int32(0),
-				},
-				parentController: &appRollout,
-				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
-					WithAnnotations("controller", "AppRollout"),
-				workloadNamespacedName: namespacedName,
-			}
+					parentController: &appRollout,
+					recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+						WithAnnotations("controller", "AppRollout"),
+					workloadNamespacedName: namespacedName,
+				}}
 			cloneSet = kruise.CloneSet{
 				TypeMeta: metav1.TypeMeta{APIVersion: "apps.kruise.io/v1alpha1", Kind: "CloneSet"},
 				ObjectMeta: metav1.ObjectMeta{
