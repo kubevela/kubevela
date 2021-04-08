@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gosuri/uitable"
+
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -51,7 +53,7 @@ func printCUEPackageList(c common.Args, ioStreams cmdutil.IOStreams) error {
 		return fmt.Errorf("get cue package discover: %w", err)
 	}
 
-	table := newUITable()
+	table := uitable.New()
 	table.AddRow("DEFINITION-NAME", "IMPORT-PATH", " USAGE")
 
 	packages := pd.ListPackageKinds()

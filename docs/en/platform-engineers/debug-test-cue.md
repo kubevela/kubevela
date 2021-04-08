@@ -262,114 +262,114 @@ spec:
     app: test-app
   type: ClusterIP
 ```
-
-
-## Dry-Run the `Application`
-
-When CUE template is good, we can use `vela system dry-run` to dry run and check the rendered resources in real Kubernetes cluster. This command will exactly execute the same render logic in KubeVela's `Application` Controller adn output the result for you.
-
-First, we need use `mergedef.sh` to merge the definition and cue files.
-
-```shell
-$ mergedef.sh def.yaml def.cue > componentdef.yaml
-```
-
-Then, let's create an Application named `test-app.yaml`.
-
-```yaml
-apiVersion: core.oam.dev/v1beta1
-kind: Application
-metadata:
-  name: boutique
-  namespace: default
-spec:
-  components:
-    - name: frontend
-      type: microservice
-      properties:
-        image: registry.cn-hangzhou.aliyuncs.com/vela-samples/frontend:v0.2.2
-        servicePort: 80
-        containerPort: 8080
-        env:
-          PORT: "8080"
-        cpu: "100m"
-        memory: "64Mi"
-```
-
-Dry run the application by using `vela system dry-run`.
-
-```shell
-$ vela system dry-run -f test-app.yaml -d componentdef.yaml
----
-# Application(boutique) -- Comopnent(frontend)
----
-
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  labels:
-    app.oam.dev/component: frontend
-    app.oam.dev/name: boutique
-    workload.oam.dev/type: microservice
-  name: frontend
-  namespace: default
-spec:
-  selector:
-    matchLabels:
-      app: frontend
-  template:
-    metadata:
-      labels:
-        app: frontend
-        version: v1
-    spec:
-      containers:
-      - env:
-        - name: PORT
-          value: "8080"
-        image: registry.cn-hangzhou.aliyuncs.com/vela-samples/frontend:v0.2.2
-        name: frontend
-        ports:
-        - containerPort: 8080
-        resources:
-          requests:
-            cpu: 100m
-            memory: 64Mi
-      serviceAccountName: default
-      terminationGracePeriodSeconds: 30
-
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app: frontend
-    app.oam.dev/component: frontend
-    app.oam.dev/name: boutique
-    trait.oam.dev/resource: service
-    trait.oam.dev/type: AuxiliaryWorkload
-  name: frontend
-spec:
-  ports:
-  - port: 80
-    targetPort: 8080
-  selector:
-    app: frontend
-  type: ClusterIP
-
----
-```
-
-### Import `kube` Package
+### Test CUE Template with `Kube` package
 
 KubeVela automatically generates internal CUE packages for all built-in Kubernetes API resources, so you can import them in CUE template. This could simplify how you write the template because some default values are already there, and the imported package will help you validate the template.
 
-Let's try to define a template with help of `kube` package:
+Let's try to define a template with help of `kube` package, in kubevela you can use `vela system cue-packages` list all 
+build-in `kube` package which kubevela support.
+
+```shell
+$ vela system cue-packages
+DEFINITION-NAME                	IMPORT-PATH                         	 USAGE
+#Deployment                    	k8s.io/apps/v1                      	Kube Object for apps/v1.Deployment
+#Service                       	k8s.io/core/v1                      	Kube Object for v1.Service
+#Secret                        	k8s.io/core/v1                      	Kube Object for v1.Secret
+#Node                          	k8s.io/core/v1                      	Kube Object for v1.Node
+#PersistentVolume              	k8s.io/core/v1                      	Kube Object for v1.PersistentVolume
+#Endpoints                     	k8s.io/core/v1                      	Kube Object for v1.Endpoints
+#Pod                           	k8s.io/core/v1                      	Kube Object for v1.Pod
+```
+
+We can also debug and test `def.cue` file which import `kube` package in our local. But we need download the cue package in local environment.
+First you should create a test directory, and init it to a cue module.
+
+```shell
+mkdir cue-debug && cd cue-debug/
+cue mod init oam.dev
+touch def.cue
+```
+
+In this example, we need import `Deployment` and `Serivice` CUE definition from package.
+The powerful `cue` cli support gen CUE definition from Go code.
+
+The `cue get go` can fetches Go packages using Go’s package manager and makes their definitions available 
+through the CUE module’s `gen` directory using the same package naming conventions as in Go.
+
+So, for use `Deployment` and `Serivice` in our cue module, we need download the CUE definitions for the `core` and `apps` Kubernetes types
+
+```shell
+go get k8s.io/api/core/v1
+cue get go k8s.io/api/core/v1
+
+go get k8s.io/api/apps/v1
+cue get go k8s.io/api/apps/v1
+```
+
+After download the CUE definitions, The module directory should has the following contents:
+
+```shell
+├── cue.mod
+│   ├── gen
+│   │   └── k8s.io
+│   │       ├── api
+│   │       │   ├── apps
+│   │       │   └── core
+│   │       └── apimachinery
+│   │           └── pkg
+│   ├── module.cue
+│   ├── pkg
+│   └── usr
+└── def.cue
+```
+
+The package import path in `def.cue` file is the path in `gen` directory, like:
 
 ```cue
 import (
-   apps "kube/apps/v1"
-   corev1 "kube/v1"
+   apps "k8s.io/api/apps/v1"
+   corev1 "k8s.io/api/core/v1"
+)
+```
+
+In order to use the CUE Template that we test in local directly apply to the kubevela, 
+we need align the path in `gen` directory with the path provided by kubevela. Just copy
+the `apps` and `core` from `gen/k8s.io/api` to `gen/k8s.io`(Note, To avoid import path loss, we should keep 
+the source directory `apps` and `core` in `gen/k8s.io/api`).
+The modified module directory should like:
+
+```shell
+├── cue.mod
+│   ├── gen
+│   │   └── k8s.io
+│   │       ├── api
+│   │       │   ├── apps
+│   │       │   └── core
+│   │       ├── apimachinery
+│   │       │   └── pkg
+│   │       ├── apps
+│   │       └── core
+│   ├── module.cue
+│   ├── pkg
+│   └── usr
+└── def.cue
+```
+
+So, you can import the package use the following path:
+
+```cue
+import (
+   apps "k8s.io/apps/v1"
+   corev1 "k8s.io/core/v1"
+)
+```
+
+Finally, we can test CUE Template which use the `Kube` package. Copy the cue file below to `def.cue`.
+
+```cue
+import (
+   apps "k8s.io/apps/v1"
+   corev1 "k8s.io/core/v1"
 )
 
 // output is validated by Deployment.
@@ -467,16 +467,166 @@ parameter: {
 	cpu?:    string
 	memory?: string
 }
+
+// mock context data
+context: {
+    name: "test"
+}
+
+// mock parameter data
+parameter: {
+	image:          "test-image"
+	servicePort:    8000
+	env: {
+        "HELLO": "WORLD"
+    }
+}
 ```
 
-Then merge them.
+Use `cue export` to see the export result.
 
 ```shell
-mergedef.sh def.yaml def.cue > componentdef.yaml
+$ cue export def.cue --out yaml
+output:
+  metadata:
+    name: test
+    namespace: default
+  spec:
+    selector:
+      matchLabels:
+        app: test
+    template:
+      metadata:
+        labels:
+          app: test
+          version: v1
+      spec:
+        terminationGracePeriodSeconds: 30
+        containers:
+        - name: test
+          image: test-image
+          ports:
+          - containerPort: 8000
+          env:
+          - name: HELLO
+            value: WORLD
+          resources:
+            requests: {}
+outputs:
+  service:
+    metadata:
+      name: test
+      labels:
+        app: test
+    spec:
+      selector:
+        app: test
+      ports:
+      - port: 8000
+        targetPort: 8000
+parameter:
+  version: v1
+  image: test-image
+  servicePort: 8000
+  podShutdownGraceSeconds: 30
+  env:
+    HELLO: WORLD
+context:
+  name: test
 ```
 
-And dry run to see the rendered resources:
+## Dry-Run the `Application`
+
+When CUE template is good, we can use `vela system dry-run` to dry run and check the rendered resources in real Kubernetes cluster. This command will exactly execute the same render logic in KubeVela's `Application` Controller adn output the result for you.
+
+First, we need use `mergedef.sh` to merge the definition and cue files.
 
 ```shell
-vela system dry-run -f test-app.yaml -d componentdef.yaml
+$ mergedef.sh def.yaml def.cue > componentdef.yaml
+```
+
+Then, let's create an Application named `test-app.yaml`.
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: boutique
+  namespace: default
+spec:
+  components:
+    - name: frontend
+      type: microservice
+      properties:
+        image: registry.cn-hangzhou.aliyuncs.com/vela-samples/frontend:v0.2.2
+        servicePort: 80
+        containerPort: 8080
+        env:
+          PORT: "8080"
+        cpu: "100m"
+        memory: "64Mi"
+```
+
+Dry run the application by using `vela system dry-run`.
+
+```shell
+$ vela system dry-run -f test-app.yaml -d componentdef.yaml
+---
+# Application(boutique) -- Comopnent(frontend)
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.oam.dev/component: frontend
+    app.oam.dev/name: boutique
+    workload.oam.dev/type: microservice
+  name: frontend
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+        version: v1
+    spec:
+      containers:
+      - env:
+        - name: PORT
+          value: "8080"
+        image: registry.cn-hangzhou.aliyuncs.com/vela-samples/frontend:v0.2.2
+        name: frontend
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 100m
+            memory: 64Mi
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 30
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: frontend
+    app.oam.dev/component: frontend
+    app.oam.dev/name: boutique
+    trait.oam.dev/resource: service
+    trait.oam.dev/type: AuxiliaryWorkload
+  name: frontend
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+  selector:
+    app: frontend
+  type: ClusterIP
+
+---
 ```
