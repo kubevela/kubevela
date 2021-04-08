@@ -34,8 +34,8 @@ cat docs/sidebars.js > git-page/sidebars.js
 
 echo "clear en docs"
 rm -r git-page/docs/*
-echo "clear zh docs"
-rm -r git-page/i18n/zh/docusaurus-plugin-content-docs/*
+#echo "clear zh docs"
+#rm -r git-page/i18n/zh/docusaurus-plugin-content-docs/*
 echo "clear resources"
 rm -r git-page/resources/*
 
@@ -44,7 +44,7 @@ cp -R docs/resources/* git-page/resources/
 
 echo "update docs"
 cp -R docs/en/* git-page/docs/
-cp -R docs/zh-CN/* git-page/i18n/zh/docusaurus-plugin-content-docs/
+#cp -R docs/zh-CN/* git-page/i18n/zh/docusaurus-plugin-content-docs/
 
 echo "git push"
 cd git-page
