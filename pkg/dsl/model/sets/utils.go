@@ -31,7 +31,7 @@ import (
 
 func lookUp(node ast.Node, paths ...string) (ast.Node, error) {
 	if len(paths) == 0 {
-		return node, nil
+		return peelCloseExpr(node), nil
 	}
 	key := paths[0]
 	switch x := node.(type) {
@@ -56,6 +56,9 @@ func lookUp(node ast.Node, paths ...string) (ast.Node, error) {
 			}
 		}
 	case *ast.CallExpr:
+		if it, ok := x.Fun.(*ast.Ident); ok && it.Name == "close" && len(x.Args) == 1 {
+			return lookUp(x.Args[0], paths...)
+		}
 		for index, arg := range x.Args {
 			if strconv.Itoa(index) == key {
 				return lookUp(arg, paths[1:]...)
@@ -65,14 +68,20 @@ func lookUp(node ast.Node, paths ...string) (ast.Node, error) {
 	return nil, notFoundErr
 }
 
+func peelCloseExpr(node ast.Node) ast.Node {
+	x, ok := node.(*ast.CallExpr)
+	if !ok {
+		return node
+	}
+	if it, ok := x.Fun.(*ast.Ident); ok && it.Name == "close" && len(x.Args) == 1 {
+		return x.Args[0]
+	}
+	return node
+}
+
 func lookField(node ast.Node, key string) ast.Node {
 	if field, ok := node.(*ast.Field); ok {
 		if labelStr(field.Label) == key {
-			if x, ok := field.Value.(*ast.CallExpr); ok && len(x.Args) == 1 {
-				if it, ok := x.Fun.(*ast.Ident); ok && it.Name == "close" {
-					return x.Args[0]
-				}
-			}
 			return field.Value
 		}
 	}

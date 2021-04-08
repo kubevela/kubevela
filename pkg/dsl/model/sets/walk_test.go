@@ -123,7 +123,7 @@ func TestWalk(t *testing.T) {
 				t.Error(err)
 			}
 
-			assert.Equal(t, n, node)
+			assert.Equal(t, n, node, nsrc)
 		}).walk(f)
 	}
 
