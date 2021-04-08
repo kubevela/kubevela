@@ -14,7 +14,7 @@
 
 # KubeVela
 
-KubeVela is a modern application engine that exposes higher level API for self-service experience.
+KubeVela is a modern application engine that adapts to your application's needs, not the other way around.
 
 ## Community
 
@@ -24,15 +24,11 @@ KubeVela is a modern application engine that exposes higher level API for self-s
 
 ## What problems does it solve?
 
-Managing microservices on hybrid infrastructure with constantly changing user requirements is painful. This in turn makes continuous delivery at scale a nearly impossible task.
+Traditional Platform-as-a-Service (PaaS) system enables easy application deployments and everything just works, but this happiness disappears when your application outgrows the capabilities of your platform.
 
-Hence, as the platform team, we build abstractions to manage such complexity and enforce best practices in the deployment workflow.
+KubeVela is a modern application engine whose capabilities are actually Infrastructure-as-Code (IaC) components coded by you or come from the ecosystem. Think of it as a *Heroku* which is fully programmable to serve your needs as you grow and expand.
 
-However, great in flexibility and extensibility, existing solutions such as IaC (Infrastructure-as-Code) and client-side templating tools all lead to *Configuration Drift* (i.e. the generated instances are not in line with the expected configuration) which is a nightmare in production.
-
-KubeVela solves this by allowing platform teams to manage complexities with IaC, expose abstractions as self-service capabilities, and enforce the consistent standard with [Kubernetes Control Loop](https://kubernetes.io/docs/concepts/architecture/controller/). Rollout model and strategies are also built-in so deployment confidence in hybrid environments is guaranteed.
-
-Think about a *Heroku* fully designed by yourself.
+As a plus, KubeVela leverages [Kubernetes Control Loop](https://kubernetes.io/docs/concepts/architecture/controller/) to enforce all those abstractions so they will never leave *configuration drift* (i.e. the running instances are not in line with the expected configuration) in your clusters.
 
 ## Getting Started
 
@@ -42,10 +38,10 @@ Think about a *Heroku* fully designed by yourself.
 
 ## Features
 
-- **Robust, repeatable and extensible approach to manage abstractions** - design and enforce best practices with [CUE](https://cuelang.org/) or [Helm](https://helm.sh) templates, ship them to end users with `kubectl`, automatically generating GUI forms for capabilities, and let Kubernetes controller guarantee determinism of the abstractions, no configuration drift.
-- **Generic progressive rollout framework** - built-in rollout framework and strategies to upgrade your microservice regardless of its workload type (e.g. stateless, stateful, or even custom operators etc), seamless integration with observability systems.
-- **Multi-cluster multi-revision application deployment** - built-in model to deploy or rollout your apps across multiple enviroments and/or clusters, seamless integrated with Service Mesh for traffic shifting. 
-- **Simple and Kubernetes native** - KubeVela is just a simple custom controller, all its abstractions and features are defined as [Kubernetes Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) so they naturally work with any CI/CD or GitOps tools.
+- **Zero-restriction deployment** - design and express platform capabilities with [CUE](https://cuelang.org/) or [Helm](https://helm.sh) per needs of your application, and let Kubernetes controller guarantee the deployment determinism. GUI forms are automatically generated for capabilities so even your dashboard are fully extensible.
+- **Generic progressive rollout framework** - built-in rollout framework and strategies to upgrade your microservice regardless of its workload type (e.g. stateless, stateful, or even custom operators etc).
+- **Multi-cluster multi-revision application deployment** - built-in model to deploy or rollout your apps across hybrid infrastructures, with Service Mesh for traffic shifting. 
+- **Simple and native** - KubeVela is a just simple Kubernetes custom controller, all its capabilities are defined as [Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) so they naturally work with any CI/CD or GitOps tools that works with Kubernetes.
 
 ## Documentation
 
