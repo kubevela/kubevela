@@ -309,21 +309,20 @@ Here's a workflow that you can debug and test the CUE template with `cue` comman
 ```shell
 mkdir cue-debug && cd cue-debug/
 cue mod init oam.dev
+go mod init oam.dev
 touch def.cue
 ```
 
 2. Download the `third-party packages` by using `cue` cli.
 
 In Kubevela, we don't need to download these packages as they're automatically generated from K8s API.
-But for local test with `cue` cli, we need to download these Go modules(`go get`) and convert them to CUE format files(`cue get`).
+But for local test with `cue` cli, we need to use `cue get go` fetches Go packages and convert them to CUE format files.
+
 
 So, by using K8s `Deployment` and `Serivice`, we need download and convert to CUE definitions for the `core` and `apps` Kubernetes modules like below:
 
 ```shell
-go get k8s.io/api/core/v1
 cue get go k8s.io/api/core/v1
-
-go get k8s.io/api/apps/v1
 cue get go k8s.io/api/apps/v1
 ```
 
@@ -341,7 +340,9 @@ After that, the module directory will show the following contents:
 │   ├── module.cue
 │   ├── pkg
 │   └── usr
-└── def.cue
+├── def.cue
+├── go.mod
+└── go.sum
 ```
 
 The package import path in `def.cue` file is the path in `gen` directory, like:
@@ -358,8 +359,12 @@ So we need to refactor our local CUE module directories a bit to align with the 
 
 3. Refactor directories hierarchy.
 
-Copy the `apps` and `core` from `gen/k8s.io/api` to `gen/k8s.io`(Note, To avoid import path loss, we should keep 
+Copy the `apps` and `core` from `cue.mod/gen/k8s.io/api` to `cue.mod/gen/k8s.io`(Note, To avoid import path loss, we should keep 
 the source directory `apps` and `core` in `gen/k8s.io/api`).
+
+```bash
+cp -r cue.mod/gen/k8s.io/api/apps cue.mod/gen/k8s.io/api/core cue.mod/gen/k8s.io
+```
 
 The modified module directory should like:
 
@@ -377,7 +382,9 @@ The modified module directory should like:
 │   ├── module.cue
 │   ├── pkg
 │   └── usr
-└── def.cue
+├── def.cue
+├── go.mod
+└── go.sum
 ```
 
 So, you can import the package use the following path:
