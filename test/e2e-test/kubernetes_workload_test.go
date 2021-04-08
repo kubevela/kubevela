@@ -154,6 +154,17 @@ var _ = Describe("Test kubernetes native workloads", func() {
 		}
 		logf.Log.Info("Creating component", "Name", comp.Name, "Namespace", comp.Namespace)
 		Expect(k8sClient.Create(ctx, &comp)).Should(BeNil())
+
+		By("Check component created as expected")
+		Eventually(
+			func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{
+					Namespace: namespace,
+					Name:      componentName,
+				}, &v1alpha2.Component{})
+			},
+			time.Second*5, time.Millisecond*100).Should(BeNil())
+
 		// Create a manualscaler trait CR
 		var replica int32 = 5
 		mts := v1alpha2.ManualScalerTrait{
