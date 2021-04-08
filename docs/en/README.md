@@ -4,7 +4,7 @@
 
 # KubeVela
 
-KubeVela is a modern application delivery system
+KubeVela is a modern application engine that adapts to your application's needs, not the other way around.
 
 ## Community
 
