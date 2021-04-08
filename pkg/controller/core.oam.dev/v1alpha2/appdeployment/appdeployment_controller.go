@@ -19,7 +19,6 @@ package appdeployment
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
@@ -510,7 +509,7 @@ func (r *Reconciler) applyTraffic(ctx context.Context, appd *oamcore.AppDeployme
 	}
 
 	for _, svc := range svcs {
-		fmt.Println("haha", svc.Name, svc.Namespace)
+		klog.Infof("service name: %s, namespace: %s", svc.Name, svc.Namespace)
 	}
 	for clusterName := range affectedClusters {
 		var kubecli client.Client
