@@ -14,8 +14,6 @@ spec:
     kind: RolloutTrait
     listKind: RolloutTraitList
     plural: rollouttraits
-    shortNames:
-    - rot
     singular: rollouttrait
   scope: Namespaced
   subresources:

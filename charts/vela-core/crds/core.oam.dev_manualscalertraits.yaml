@@ -14,8 +14,6 @@ spec:
     kind: ManualScalerTrait
     listKind: ManualScalerTraitList
     plural: manualscalertraits
-    shortNames:
-    - mst
     singular: manualscalertrait
   scope: Namespaced
   versions:

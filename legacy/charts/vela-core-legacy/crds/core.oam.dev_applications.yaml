@@ -16,7 +16,6 @@ spec:
     plural: applications
     shortNames:
     - app
-    - apps
     singular: application
   scope: Namespaced
   validation:

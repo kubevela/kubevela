@@ -16,7 +16,6 @@ spec:
     plural: applicationconfigurations
     shortNames:
     - appconfig
-    - config
     singular: applicationconfiguration
   scope: Namespaced
   subresources:

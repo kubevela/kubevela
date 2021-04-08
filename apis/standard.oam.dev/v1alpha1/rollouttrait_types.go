@@ -42,7 +42,7 @@ type RolloutTraitSpec struct {
 // RolloutTrait is the Schema for the RolloutTrait API
 // +kubebuilder:object:root=true
 // +genclient
-// +kubebuilder:resource:categories={oam},shortName=rot
+// +kubebuilder:resource:categories={oam}
 // +kubebuilder:subresource:status
 type RolloutTrait struct {
 	metav1.TypeMeta   `json:",inline"`

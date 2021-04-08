@@ -15,7 +15,6 @@ spec:
     listKind: TraitDefinitionList
     plural: traitdefinitions
     shortNames:
-    - td
     - trait
     singular: traitdefinition
   scope: Namespaced

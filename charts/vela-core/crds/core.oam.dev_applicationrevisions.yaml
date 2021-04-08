@@ -16,7 +16,6 @@ spec:
     plural: applicationrevisions
     shortNames:
     - apprev
-    - revision
     singular: applicationrevision
   scope: Namespaced
   versions:

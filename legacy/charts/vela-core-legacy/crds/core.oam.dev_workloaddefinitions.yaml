@@ -15,7 +15,6 @@ spec:
     listKind: WorkloadDefinitionList
     plural: workloaddefinitions
     shortNames:
-    - wd
     - workload
     singular: workloaddefinition
   scope: Namespaced

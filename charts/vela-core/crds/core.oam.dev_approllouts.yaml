@@ -16,7 +16,6 @@ spec:
     plural: approllouts
     shortNames:
     - approllout
-    - rollout
     singular: approllout
   scope: Namespaced
   versions:

@@ -16,7 +16,6 @@ spec:
     plural: applicationcontexts
     shortNames:
     - appcontext
-    - context
     singular: applicationcontext
   scope: Namespaced
   subresources:

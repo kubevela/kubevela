@@ -15,7 +15,7 @@ spec:
     listKind: ResourceTrackerList
     plural: resourcetrackers
     shortNames:
-    - rt
+    - tracker
     singular: resourcetracker
   scope: Cluster
   subresources:

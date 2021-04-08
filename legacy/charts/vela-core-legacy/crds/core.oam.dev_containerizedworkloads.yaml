@@ -14,8 +14,6 @@ spec:
     kind: ContainerizedWorkload
     listKind: ContainerizedWorkloadList
     plural: containerizedworkloads
-    shortNames:
-    - cw
     singular: containerizedworkload
   scope: Namespaced
   subresources:

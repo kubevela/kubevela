@@ -63,7 +63,7 @@ type AppRolloutStatus struct {
 
 // AppRollout is the Schema for the AppRollout API
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:categories={oam},shortName=approllout;rollout
+// +kubebuilder:resource:categories={oam},shortName=approllout
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="TARGET",type=string,JSONPath=`.status.rolloutTargetSize`
