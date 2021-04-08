@@ -188,6 +188,11 @@ func (c *CloneSetRolloutController) CheckOneBatchPods(ctx context.Context) (bool
 	newPodTarget := calculateNewBatchTarget(c.rolloutSpec, 0, int(cloneSetSize), int(c.rolloutStatus.CurrentBatch))
 	// get the number of ready pod from cloneset
 	readyPodCount := int(c.cloneSet.Status.UpdatedReadyReplicas)
+	if len(c.rolloutSpec.RolloutBatches) <= int(c.rolloutStatus.CurrentBatch) {
+		klog.Info("somehow, currentBatch number exceeded the rolloutBatches spec.", "current batch",
+			c.rolloutStatus.CurrentBatch)
+		return false, nil
+	}
 	currentBatch := c.rolloutSpec.RolloutBatches[c.rolloutStatus.CurrentBatch]
 	unavail := 0
 	if currentBatch.MaxUnavailable != nil {
