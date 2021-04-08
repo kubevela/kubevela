@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/build"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
@@ -37,6 +38,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -104,12 +106,12 @@ func (def *CapabilityComponentDefinition) GetCapabilityObject(ctx context.Contex
 }
 
 // GetOpenAPISchema gets OpenAPI v3 schema by WorkloadDefinition name
-func (def *CapabilityComponentDefinition) GetOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string) ([]byte, error) {
+func (def *CapabilityComponentDefinition) GetOpenAPISchema(ctx context.Context, k8sClient client.Client, pd *definition.PackageDiscover, namespace, name string) ([]byte, error) {
 	capability, err := def.GetCapabilityObject(ctx, k8sClient, namespace, name)
 	if err != nil {
 		return nil, err
 	}
-	return getOpenAPISchema(*capability)
+	return getOpenAPISchema(*capability, pd)
 }
 
 // GetKubeSchematicOpenAPISchema gets OpenAPI v3 schema based on kube schematic parameters
@@ -150,7 +152,7 @@ func (def *CapabilityComponentDefinition) GetKubeSchematicOpenAPISchema(params [
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema in ConfigMap from WorkloadDefinition
-func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string) error {
+func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, pd *definition.PackageDiscover, namespace, name string) error {
 	var jsonSchema []byte
 	var err error
 	switch def.WorkloadType {
@@ -159,7 +161,7 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 	case util.KubeDef:
 		jsonSchema, err = def.GetKubeSchematicOpenAPISchema(def.Kube.Parameters)
 	default:
-		jsonSchema, err = def.GetOpenAPISchema(ctx, k8sClient, namespace, name)
+		jsonSchema, err = def.GetOpenAPISchema(ctx, k8sClient, pd, namespace, name)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to generate OpenAPI v3 JSON schema for capability %s: %w", def.Name, err)
@@ -210,17 +212,17 @@ func (def *CapabilityTraitDefinition) GetCapabilityObject(ctx context.Context, k
 }
 
 // GetOpenAPISchema gets OpenAPI v3 schema by TraitDefinition name
-func (def *CapabilityTraitDefinition) GetOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string) ([]byte, error) {
+func (def *CapabilityTraitDefinition) GetOpenAPISchema(ctx context.Context, k8sClient client.Client, pd *definition.PackageDiscover, namespace, name string) ([]byte, error) {
 	capability, err := def.GetCapabilityObject(ctx, k8sClient, namespace, name)
 	if err != nil {
 		return nil, err
 	}
-	return getOpenAPISchema(*capability)
+	return getOpenAPISchema(*capability, pd)
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema from TraitDefinition in ConfigMap
-func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, namespace, name string) error {
-	jsonSchema, err := def.GetOpenAPISchema(ctx, k8sClient, namespace, name)
+func (def *CapabilityTraitDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, pd *definition.PackageDiscover, namespace, name string) error {
+	jsonSchema, err := def.GetOpenAPISchema(ctx, k8sClient, pd, namespace, name)
 	if err != nil {
 		return fmt.Errorf(util.ErrGenerateOpenAPIV2JSONSchemaForCapability, def.Name, err)
 	}
@@ -287,8 +289,8 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 }
 
 // getDefinition is the main function for GetDefinition API
-func getOpenAPISchema(capability types.Capability) ([]byte, error) {
-	openAPISchema, err := generateOpenAPISchemaFromCapabilityParameter(capability)
+func getOpenAPISchema(capability types.Capability, pd *definition.PackageDiscover) ([]byte, error) {
+	openAPISchema, err := generateOpenAPISchemaFromCapabilityParameter(capability, pd)
 	if err != nil {
 		return nil, err
 	}
@@ -306,26 +308,43 @@ func getOpenAPISchema(capability types.Capability) ([]byte, error) {
 }
 
 // generateOpenAPISchemaFromCapabilityParameter returns the parameter of a definition in cue.Value format
-func generateOpenAPISchemaFromCapabilityParameter(capability types.Capability) ([]byte, error) {
-	return GenerateOpenAPISchemaFromDefinition(capability.Name, capability.CueTemplate)
+func generateOpenAPISchemaFromCapabilityParameter(capability types.Capability, pd *definition.PackageDiscover) ([]byte, error) {
+	template, err := prepareParameterCue(capability.Name, capability.CueTemplate)
+	if err != nil {
+		return nil, err
+	}
+	var cueInst *cue.Instance
+	template += mycue.BaseTemplate
+	if pd == nil {
+		var r cue.Runtime
+		cueInst, err = r.Compile("-", template)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		bi := build.NewContext().NewInstance("", nil)
+		err = bi.AddFile("-", template)
+		if err != nil {
+			return nil, err
+		}
+		pd.ImportBuiltinPackagesFor(bi)
+
+		var r cue.Runtime
+		cueInst, err = r.Build(bi)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return common.GenOpenAPI(cueInst)
 }
 
 // GenerateOpenAPISchemaFromDefinition returns the parameter of a definition
 func GenerateOpenAPISchemaFromDefinition(definitionName, cueTemplate string) ([]byte, error) {
-	template, err := prepareParameterCue(definitionName, cueTemplate)
-	if err != nil {
-		return nil, err
+	capability := types.Capability{
+		Name:        definitionName,
+		CueTemplate: cueTemplate,
 	}
-
-	// append context section in CUE string
-	template += mycue.BaseTemplate
-
-	var r cue.Runtime
-	cueInst, err := r.Compile("-", template)
-	if err != nil {
-		return nil, err
-	}
-	return common.GenOpenAPI(cueInst)
+	return generateOpenAPISchemaFromCapabilityParameter(capability, nil)
 }
 
 // prepareParameterCue cuts `parameter` section form definition .cue file

@@ -31,7 +31,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/types"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
@@ -68,10 +70,21 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
+	if traitdefinition.Spec.Reference.Name != "" {
+		err := utils.RefreshPackageDiscover(r.dm, r.pd, common.WorkloadGVK{},
+			traitdefinition.Spec.Reference, types.TypeTrait)
+		if err != nil {
+			klog.ErrorS(err, "cannot refresh packageDiscover")
+			r.record.Event(&traitdefinition, event.Warning("cannot refresh packageDiscover", err))
+			return ctrl.Result{}, util.PatchCondition(ctx, r, &traitdefinition,
+				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
+		}
+	}
+
 	var def utils.CapabilityTraitDefinition
 	def.Name = req.NamespacedName.Name
 
-	err := def.StoreOpenAPISchema(ctx, r, req.Namespace, req.Name)
+	err := def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name)
 	if err != nil {
 		klog.ErrorS(err, "cannot store capability in ConfigMap")
 		r.record.Event(&(def.TraitDefinition), event.Warning("cannot store capability in ConfigMap", err))

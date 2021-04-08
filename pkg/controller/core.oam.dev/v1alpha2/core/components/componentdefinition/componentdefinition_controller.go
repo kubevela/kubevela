@@ -31,7 +31,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/types"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
@@ -74,6 +76,17 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		cd:     &componentDefinition,
 	}
 
+	if handler.cd.Spec.Workload.Type == "" {
+		err := utils.RefreshPackageDiscover(r.dm, r.pd, handler.cd.Spec.Workload.Definition,
+			common.DefinitionReference{}, types.TypeComponentDefinition)
+		if err != nil {
+			klog.ErrorS(err, "cannot discover the open api of the CRD")
+			r.record.Event(&componentDefinition, event.Warning("cannot discover the open api of the CRD", err))
+			return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
+				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
+		}
+	}
+
 	workloadType, err := handler.CreateWorkloadDefinition(ctx)
 	if err != nil {
 		klog.ErrorS(err, "cannot create converted WorkloadDefinition")
@@ -96,7 +109,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		def.Kube = componentDefinition.Spec.Schematic.KUBE
 	default:
 	}
-	err = def.StoreOpenAPISchema(ctx, r, req.Namespace, req.Name)
+	err = def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name)
 	if err != nil {
 		klog.ErrorS(err, "cannot store capability in ConfigMap")
 		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot store capability in ConfigMap", err))
