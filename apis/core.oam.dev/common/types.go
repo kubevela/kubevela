@@ -112,22 +112,6 @@ type WorkloadGVK struct {
 	Kind       string `json:"kind"`
 }
 
-// DisruptiveProperty describes whether when a trait is applied to an Application,
-// it will cause the pod to restart due to changes in some fields.
-// +kubebuilder:validation:Enum=unknown;yes;no;
-type DisruptiveProperty string
-
-const (
-	// UnknownDisruptive means disruptive unknown.
-	UnknownDisruptive DisruptiveProperty = "unknown"
-
-	// Disruptive means will cause the pod to restart.
-	Disruptive DisruptiveProperty = "yes"
-
-	// NonDisruptive means will not cause the pod restart
-	NonDisruptive DisruptiveProperty = "no"
-)
-
 // A DefinitionReference refers to a CustomResourceDefinition by name.
 type DefinitionReference struct {
 	// Name of the referenced CustomResourceDefinition.

@@ -76,7 +76,7 @@ spec:
   conflictsWith: 
     - service
   workloadRefPath: spec.wrokloadRef
-  podDisruptive: no
+  podDisruptive: false
 ```
 
 Let's explain them in detail.
@@ -116,7 +116,7 @@ If this field is omitted, it means this trait is NOT conflicting with any traits
 ##### `.spec.workloadRefPath`
 
 This field defines the field path of the trait which is used to store the reference of the workload to which the trait is applied.
-- It accepts a string as value, e.g., `spec.workloadRef`.  
+- It accepts a string as value, e.g., `spec.workloadRef`.
 
 If this field is set, KubeVela core will automatically fill the workload reference into target field of the trait. Then the trait controller can get the workload reference from the trait latter. So this field usually accompanies with the traits whose controllers relying on the workload reference at runtime. 
 
@@ -125,9 +125,10 @@ Please check [scaler](https://github.com/oam-dev/kubevela/blob/master/charts/vel
 ##### `.spec.podDisruptive`
 
 This field defines that adding/updating the trait will disruptive the pod or not.
-In this example, the answer is `no`, so it will not affect the pod when the trait is added or updated.
-If the field is `yes`, then it will cause the pod to disruptive and restart when the trait is added or updated.
-By default, the value is `unknown` which means this character is undefined in this trait.
+In this example, the answer is not, so the field is `false`, it will not affect the pod when the trait is added or updated.
+If the field is `true`, then it will cause the pod to disruptive and restart when the trait is added or updated.
+By default, the value is `false` which means this trait will not affect.
+Please take care of this field, it's really important and useful for serious large scale production usage scenarios.
 
 ### Capability Encapsulation and Abstraction
 

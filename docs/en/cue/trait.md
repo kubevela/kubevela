@@ -68,6 +68,7 @@ kind: TraitDefinition
 metadata:
   name: ingress
 spec:
+  podDisruptive: false
   schematic:
     cue:
       template: |
@@ -140,8 +141,5 @@ spec:
             http:
               "/api": 8080
 ```
-
-When we deploy/upgrade an Application, some field of trait changed will cause the pod to restart, We should add `podDisruptive`
-to tell user whether applying this trait will cause the pod to restart.
 
 CUE based trait definitions can also enable many other advanced scenarios such as patching and data passing. They will be explained in detail in the following documentations.

@@ -21,6 +21,7 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
+  podDisruptive: true
   schematic:
     cue:
       template: |
@@ -54,7 +55,12 @@ spec:
         }
 ```
 
-The patch trait above assumes the target component instance have `spec.template.spec.affinity` field. Hence we need to use `appliesToWorkloads` to enforce the trait only applies to those workload types have this field.
+The patch trait above assumes the target component instance have `spec.template.spec.affinity` field.
+Hence, we need to use `appliesToWorkloads` to enforce the trait only applies to those workload types have this field.
+
+Another important field is `podDisruptive`, this patch trait will patch to the pod template field,
+so changes on any field of this trait will cause the pod to restart, We should add `podDisruptive` and make it to be true
+to tell users that applying this trait will cause the pod to restart.
 
 
 Now the users could declare they want to add node affinity rules to the component instance as below:
@@ -112,6 +118,7 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
+  podDisruptive: true
   schematic:
     cue:
       template: |
@@ -141,6 +148,7 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
+  podDisruptive: true
   schematic:
     cue:
       template: |
@@ -185,6 +193,7 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
+  podDisruptive: true
   schematic:
     cue:
       template: |
@@ -235,6 +244,7 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
+  podDisruptive: false
   schematic:
     cue:
       template: |
@@ -258,7 +268,7 @@ spec:
 
 Inject system environments into Pod is also very common use case.
 
-> This case rely on strategy merge patch, so don't forget add `+patchKey=name` as below:
+> This case relies on strategy merge patch, so don't forget add `+patchKey=name` as below:
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -271,6 +281,7 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
+  podDisruptive: true
   schematic:
     cue:
       template: |
@@ -312,6 +323,7 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
+  podDisruptive: true
   schematic:
     cue:
       template: |
@@ -358,6 +370,7 @@ spec:
   appliesToWorkloads:
     - webservice
     - worker
+  podDisruptive: true
   schematic:
     cue:
       template: |

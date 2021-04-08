@@ -11,7 +11,7 @@ spec:
   workloadRefPath: spec.workloadRef
   definitionRef:
     name: routes.standard.oam.dev
-  podDisruptive: "no"
+  podDisruptive: false
   extension:
     install:
       helm:

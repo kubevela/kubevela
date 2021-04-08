@@ -112,13 +112,9 @@ type TraitDefinitionSpec struct {
 	// +optional
 	WorkloadRefPath string `json:"workloadRefPath,omitempty"`
 
-	// PodDisruptive specifies whether using the trait will cause the pod to restart.
-	// Valid values are:
-	// - "unknown" (default): disruptive unknown
-	// - "yes": cause the pod to restart
-	// - "no": will not cause the pod restart
+	// PodDisruptive specifies whether using the trait will cause the pod to restart or not.
 	// +optional
-	PodDisruptive common.DisruptiveProperty `json:"podDisruptive,omitempty"`
+	PodDisruptive bool `json:"podDisruptive,omitempty"`
 
 	// AppliesToWorkloads specifies the list of workload kinds this trait
 	// applies to. Workload kinds are specified in kind.group/version format,

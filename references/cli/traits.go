@@ -65,11 +65,7 @@ func printTraitList(userNamespace string, c common2.Args, ioStreams cmdutil.IOSt
 	}
 	table.AddRow("NAME", "NAMESPACE", "APPLIES-TO", "CONFLICTS-WITH", "POD-DISRUPTIVE", "DESCRIPTION")
 	for _, t := range traitDefinitionList {
-		var podDisruptive = t.Spec.PodDisruptive
-		if t.Spec.PodDisruptive == "" {
-			podDisruptive = "unknown"
-		}
-		table.AddRow(t.Name, t.Namespace, strings.Join(t.Spec.AppliesToWorkloads, ","), strings.Join(t.Spec.ConflictsWith, ","), podDisruptive, plugins.GetDescription(t.Annotations))
+		table.AddRow(t.Name, t.Namespace, strings.Join(t.Spec.AppliesToWorkloads, ","), strings.Join(t.Spec.ConflictsWith, ","), t.Spec.PodDisruptive, plugins.GetDescription(t.Annotations))
 	}
 	ioStreams.Info(table.String())
 	return nil

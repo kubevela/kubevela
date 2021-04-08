@@ -12,7 +12,7 @@ spec:
   workloadRefPath: spec.workloadRef
   definitionRef:
     name: autoscalers.standard.oam.dev
-  podDisruptive: "yes"
+  podDisruptive: true
   extension:
     install:
       helm:

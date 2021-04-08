@@ -4,7 +4,7 @@ metadata:
   name: expose
   namespace: vela-system
 spec:
-  podDisruptive: "no"
+  podDisruptive: false
   schematic:
     cue:
       template: |-
