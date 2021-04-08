@@ -9,9 +9,13 @@ metadata:
 spec:
   group: standard.oam.dev
   names:
+    categories:
+    - oam
     kind: RolloutTrait
     listKind: RolloutTraitList
     plural: rollouttraits
+    shortNames:
+    - rot
     singular: rollouttrait
   scope: Namespaced
   versions:

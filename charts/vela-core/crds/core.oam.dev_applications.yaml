@@ -26,6 +26,7 @@ spec:
     listKind: ApplicationList
     plural: applications
     shortNames:
+    - app
     - apps
     singular: application
   scope: Namespaced

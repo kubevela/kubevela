@@ -15,6 +15,7 @@ spec:
     listKind: ComponentDefinitionList
     plural: componentdefinitions
     shortNames:
+    - cd
     - comp
     singular: componentdefinition
   scope: Namespaced

@@ -16,6 +16,7 @@ spec:
     plural: appdeployments
     shortNames:
     - appdeploy
+    - appdpy
     singular: appdeployment
   scope: Namespaced
   versions:

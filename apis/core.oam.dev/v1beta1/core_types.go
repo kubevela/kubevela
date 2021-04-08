@@ -68,7 +68,7 @@ type WorkloadDefinitionStatus struct {
 // valid OAM workload kind by referencing its CustomResourceDefinition. The CRD
 // is used to validate the schema of the workload when it is embedded in an OAM
 // Component.
-// +kubebuilder:resource:scope=Namespaced,categories={oam},shortName=workload
+// +kubebuilder:resource:scope=Namespaced,categories={oam},shortName=wd;workload
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="DEFINITION-NAME",type=string,JSONPath=".spec.definitionRef.name"
 // +kubebuilder:printcolumn:name="DESCRIPTION",type=string,JSONPath=".metadata.annotations.definition\\.oam\\.dev/description"
@@ -164,7 +164,7 @@ type TraitDefinitionStatus struct {
 // OAM trait kind by referencing its CustomResourceDefinition. The CRD is used
 // to validate the schema of the trait when it is embedded in an OAM
 // ApplicationConfiguration.
-// +kubebuilder:resource:scope=Namespaced,categories={oam},shortName=trait
+// +kubebuilder:resource:scope=Namespaced,categories={oam},shortName=td;trait
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
 // +kubebuilder:printcolumn:name="APPLIES-TO",type=string,JSONPath=".spec.appliesToWorkloads"
@@ -222,7 +222,7 @@ type ScopeDefinitionSpec struct {
 // to validate the schema of the scope when it is embedded in an OAM
 // ApplicationConfiguration.
 // +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
-// +kubebuilder:resource:scope=Namespaced,categories={oam}
+// +kubebuilder:resource:scope=Namespaced,categories={oam},shortName=sd;scope
 // +kubebuilder:storageversion
 type ScopeDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -244,7 +244,7 @@ type ScopeDefinitionList struct {
 // +kubebuilder:subresource:status
 
 // An ResourceTracker represents a tracker for track cross namespace resources
-// +kubebuilder:resource:scope=Cluster,categories={oam}
+// +kubebuilder:resource:scope=Cluster,categories={oam},shortName=rt
 type ResourceTracker struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

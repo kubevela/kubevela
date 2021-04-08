@@ -389,7 +389,7 @@ var _ oam.Workload = &ContainerizedWorkload{}
 // +kubebuilder:object:root=true
 
 // A ContainerizedWorkload is a workload that runs OCI containers.
-// +kubebuilder:resource:categories={oam}
+// +kubebuilder:resource:categories={oam},shortName=cw
 // +kubebuilder:subresource:status
 type ContainerizedWorkload struct {
 	metav1.TypeMeta   `json:",inline"`

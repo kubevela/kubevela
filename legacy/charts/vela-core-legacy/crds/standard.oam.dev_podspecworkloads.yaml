@@ -14,6 +14,8 @@ spec:
     kind: PodSpecWorkload
     listKind: PodSpecWorkloadList
     plural: podspecworkloads
+    shortNames:
+    - psw
     singular: podspecworkload
   scope: Namespaced
   subresources:

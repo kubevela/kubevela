@@ -43,7 +43,7 @@ type ManualScalerTraitStatus struct {
 // +kubebuilder:object:root=true
 
 // A ManualScalerTrait determines how many replicas a workload should have.
-// +kubebuilder:resource:categories={oam}
+// +kubebuilder:resource:categories={oam},shortName=mst
 // +kubebuilder:subresource:status
 type ManualScalerTrait struct {
 	metav1.TypeMeta   `json:",inline"`

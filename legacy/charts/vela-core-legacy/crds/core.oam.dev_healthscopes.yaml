@@ -18,6 +18,8 @@ spec:
     kind: HealthScope
     listKind: HealthScopeList
     plural: healthscopes
+    shortNames:
+    - hs
     singular: healthscope
   scope: Namespaced
   subresources:

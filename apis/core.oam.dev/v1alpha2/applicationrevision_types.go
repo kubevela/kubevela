@@ -55,7 +55,7 @@ type ApplicationRevisionSpec struct {
 
 // ApplicationRevision is the Schema for the ApplicationRevision API
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:categories={oam},shortName=apprev;revisions
+// +kubebuilder:resource:categories={oam},shortName=apprev;revision
 // +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp"
 type ApplicationRevision struct {
 	metav1.TypeMeta   `json:",inline"`

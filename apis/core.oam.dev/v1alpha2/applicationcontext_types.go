@@ -28,7 +28,7 @@ type ApplicationContextSpec struct {
 
 // ApplicationContext is the Schema for the ApplicationContext API
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:shortName=appcontext,categories={oam}
+// +kubebuilder:resource:shortName=appcontext;context,categories={oam}
 // +kubebuilder:subresource:status
 type ApplicationContext struct {
 	metav1.TypeMeta   `json:",inline"`
