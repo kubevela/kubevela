@@ -222,7 +222,7 @@ type ScopeDefinitionSpec struct {
 // to validate the schema of the scope when it is embedded in an OAM
 // ApplicationConfiguration.
 // +kubebuilder:printcolumn:JSONPath=".spec.definitionRef.name",name=DEFINITION-NAME,type=string
-// +kubebuilder:resource:scope=Namespaced,categories={oam}
+// +kubebuilder:resource:scope=Namespaced,categories={oam},shortName=scope
 // +kubebuilder:storageversion
 type ScopeDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -244,7 +244,7 @@ type ScopeDefinitionList struct {
 // +kubebuilder:subresource:status
 
 // An ResourceTracker represents a tracker for track cross namespace resources
-// +kubebuilder:resource:scope=Cluster,categories={oam}
+// +kubebuilder:resource:scope=Cluster,categories={oam},shortName=tracker
 type ResourceTracker struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

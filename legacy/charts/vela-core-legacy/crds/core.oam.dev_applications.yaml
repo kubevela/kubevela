@@ -15,7 +15,7 @@ spec:
     listKind: ApplicationList
     plural: applications
     shortNames:
-    - apps
+    - app
     singular: application
   scope: Namespaced
   validation:

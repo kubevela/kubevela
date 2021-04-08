@@ -18,6 +18,8 @@ spec:
     kind: ScopeDefinition
     listKind: ScopeDefinitionList
     plural: scopedefinitions
+    shortNames:
+    - scope
     singular: scopedefinition
   scope: Namespaced
   subresources: {}
