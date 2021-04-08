@@ -1,0 +1,10 @@
+name: Timed Task
+on:
+  schedule:
+    - cron: '30 11 * * *'
+jobs:
+  clean-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cleanup image
+        run: docker rmi $(docker images --filter "dangling=true" -q --no-trunc)
