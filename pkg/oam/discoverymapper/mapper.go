@@ -59,12 +59,13 @@ func New(c *rest.Config) (DiscoveryMapper, error) {
 // Prefer lazy discovery, because resources created after refresh can not be found
 func (d *DefaultDiscoveryMapper) GetMapper() (meta.RESTMapper, error) {
 	d.mutex.RLock()
-	if d.mapper == nil {
-		d.mutex.RUnlock()
+	mapper := d.mapper
+	d.mutex.RUnlock()
+
+	if mapper == nil {
 		return d.Refresh()
 	}
-	d.mutex.RUnlock()
-	return d.mapper, nil
+	return mapper, nil
 }
 
 // Refresh will re-create the mapper by getting the new resource from K8s API by using discovery client

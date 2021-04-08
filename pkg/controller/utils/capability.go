@@ -313,38 +313,38 @@ func generateOpenAPISchemaFromCapabilityParameter(capability types.Capability, p
 	if err != nil {
 		return nil, err
 	}
+	var cueInst *cue.Instance
 	template += mycue.BaseTemplate
-	bi := build.NewContext().NewInstance("", nil)
-	err = bi.AddFile("-", template)
-	if err != nil {
-		return nil, err
-	}
-	pd.ImportBuiltinPackagesFor(bi)
+	if pd == nil {
+		var r cue.Runtime
+		cueInst, err = r.Compile("-", template)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		bi := build.NewContext().NewInstance("", nil)
+		err = bi.AddFile("-", template)
+		if err != nil {
+			return nil, err
+		}
+		pd.ImportBuiltinPackagesFor(bi)
 
-	var r cue.Runtime
-	cueInst, err := r.Build(bi)
-	if err != nil {
-		return nil, err
+		var r cue.Runtime
+		cueInst, err = r.Build(bi)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return common.GenOpenAPI(cueInst)
 }
 
 // GenerateOpenAPISchemaFromDefinition returns the parameter of a definition
 func GenerateOpenAPISchemaFromDefinition(definitionName, cueTemplate string) ([]byte, error) {
-	template, err := prepareParameterCue(definitionName, cueTemplate)
-	if err != nil {
-		return nil, err
+	capability := types.Capability{
+		Name:        definitionName,
+		CueTemplate: cueTemplate,
 	}
-
-	// append context section in CUE string
-	template += mycue.BaseTemplate
-
-	var r cue.Runtime
-	cueInst, err := r.Compile("-", template)
-	if err != nil {
-		return nil, err
-	}
-	return common.GenOpenAPI(cueInst)
+	return generateOpenAPISchemaFromCapabilityParameter(capability, nil)
 }
 
 // prepareParameterCue cuts `parameter` section form definition .cue file
