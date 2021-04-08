@@ -509,7 +509,7 @@ func (r *Reconciler) applyTraffic(ctx context.Context, appd *oamcore.AppDeployme
 	}
 
 	for _, svc := range svcs {
-		klog.Infof("service name: %s, namespace: %s", svc.Name, svc.Namespace)
+		klog.InfoS("service", "name", svc.Name, "namespace", svc.Namespace)
 	}
 	for clusterName := range affectedClusters {
 		var kubecli client.Client
