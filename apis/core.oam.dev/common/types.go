@@ -113,7 +113,7 @@ type WorkloadGVK struct {
 }
 
 // DisruptiveProperty describes whether when a trait is applied to an Application,
-// it will cause the pod to restart due to changes in some fields
+// it will cause the pod to restart due to changes in some fields.
 // +kubebuilder:validation:Enum=unknown;yes;no;
 type DisruptiveProperty string
 
