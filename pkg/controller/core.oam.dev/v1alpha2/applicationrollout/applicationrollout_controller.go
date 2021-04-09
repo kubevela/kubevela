@@ -113,11 +113,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	}
 
 	// handle rollout target/source change (only if it's not deleting already)
-	if appRollout.Status.RollingState != v1alpha1.RolloutDeletingState &&
-		((appRollout.Status.LastUpgradedTargetAppRevision != "" &&
-			appRollout.Status.LastUpgradedTargetAppRevision != targetAppRevisionName) ||
-			(appRollout.Status.LastSourceAppRevision != "" && appRollout.Status.
-				LastSourceAppRevision != sourceAppRevisionName)) {
+	if isRolloutModified(appRollout) {
 		klog.InfoS("rollout target changed, restart the rollout", "new source", sourceAppRevisionName,
 			"new target", targetAppRevisionName)
 		r.record.Event(&appRollout, event.Normal("Rollout Restarted",
@@ -239,6 +235,15 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	}
 	// update the appRollout status
 	return result, r.updateStatus(ctx, &appRollout)
+}
+
+// check if either the source or the target of the appRollout has changed
+func isRolloutModified(appRollout v1beta1.AppRollout) bool {
+	return appRollout.Status.RollingState != v1alpha1.RolloutDeletingState &&
+		((appRollout.Status.LastUpgradedTargetAppRevision != "" &&
+			appRollout.Status.LastUpgradedTargetAppRevision != appRollout.Spec.TargetAppRevisionName) ||
+			(appRollout.Status.LastSourceAppRevision != "" &&
+				appRollout.Status.LastSourceAppRevision != appRollout.Spec.SourceAppRevisionName))
 }
 
 // handle adding and handle finalizer logic, it turns if we should continue to reconcile

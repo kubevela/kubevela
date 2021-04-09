@@ -282,7 +282,7 @@ func (s *CloneSetScaleController) Finalize(ctx context.Context, succeed bool) bo
 	}
 	if !isOwner {
 		// nothing to do if we are already not the owner
-		klog.InfoS("the cloneset is already released", "cloneSet", s.cloneSet.Name)
+		klog.InfoS("the cloneset is already released and not controlled by rollout", "cloneSet", s.cloneSet.Name)
 		return true
 	}
 
