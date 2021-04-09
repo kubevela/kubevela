@@ -5,8 +5,6 @@ WORKDIR /workspace
 # Copy the Go Modules manifests
 COPY go.mod go.mod
 COPY go.sum go.sum
-# Set GOPROXY if downloading slowly
-RUN go env -w GOPROXY=https://goproxy.cn,https://goproxy.io,direct
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
 RUN go mod download
@@ -32,11 +30,15 @@ RUN GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE:-alpine:latest}
 # This is required by daemon connnecting with cri
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates bash
 
 WORKDIR /
 
 ARG TARGETARCH
-COPY --from=builder /workspace/manager-${TARGETARCH} /manager
+COPY --from=builder /workspace/manager-${TARGETARCH} /usr/local/bin/manager
 
-ENTRYPOINT ["/manager"]
+COPY entrypoint.sh /usr/local/bin/
+
+ENTRYPOINT ["entrypoint.sh"]
+
+CMD ["manager"]

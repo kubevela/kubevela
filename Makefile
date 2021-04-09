@@ -36,7 +36,6 @@ GOBIN=$(shell go env GOBIN)
 endif
 
 # Image URL to use all building/pushing image targets
-VELA_IMAGE           ?= vela:latest
 VELA_CORE_IMAGE      ?= vela-core:latest
 VELA_CORE_TEST_IMAGE ?= vela-core-test:$(GIT_COMMIT)
 
