@@ -17,15 +17,14 @@ limitations under the License.
 package model
 
 import (
+	"regexp"
 	"strings"
-
-	"github.com/pkg/errors"
-
-	"cuelang.org/go/cue/build"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
+	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/format"
+	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/oam-dev/kubevela/pkg/dsl/model/sets"
@@ -135,34 +134,26 @@ func openPrint(v cue.Value) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if strings.Contains(string(ret), "_|_") {
-		return "", errors.New(IndexMatchLine(string(ret), "_|_"))
+
+	errInfo, contain := IndexMatchLine(string(ret), "_|_")
+	if contain {
+		return "", errors.New(errInfo)
 	}
 	return string(ret), nil
 }
 
 // IndexMatchLine will index and extract the line contains the pattern.
-func IndexMatchLine(res string, pattern string) string {
-	idx := strings.Index(res, pattern)
-	if idx < 0 || idx >= len(res) {
-		// should not happen if we check contains first.
-		return ""
-	}
-	var start = -1
-	var end = len(res)
-	for i := idx; i >= 0; i-- {
-		if res[i] == '\n' {
-			start = i
-			break
+func IndexMatchLine(ret, target string) (string, bool) {
+	if strings.Contains(ret, target) {
+		if target == "_|_" {
+			r := regexp.MustCompile(`_\|_[\s]//.*`)
+			match := r.FindAllString(ret, -1)
+			if len(match) > 0 {
+				return strings.Join(match, ","), true
+			}
 		}
 	}
-	for i := idx; i < len(res); i++ {
-		if res[i] == '\n' {
-			end = i
-			break
-		}
-	}
-	return res[start+1 : end]
+	return "", false
 }
 
 func listOpen(expr ast.Node) {
