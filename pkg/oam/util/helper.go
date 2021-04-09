@@ -46,6 +46,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
@@ -696,8 +697,8 @@ func MergeMapOverrideWithDst(src, dst map[string]string) map[string]string {
 }
 
 // ConvertComponentDef2WorkloadDef help convert a ComponentDefinition to WorkloadDefinition
-func ConvertComponentDef2WorkloadDef(dm discoverymapper.DiscoveryMapper, componentDef *v1alpha2.ComponentDefinition,
-	workloadDef *v1alpha2.WorkloadDefinition) error {
+func ConvertComponentDef2WorkloadDef(dm discoverymapper.DiscoveryMapper, componentDef *v1beta1.ComponentDefinition,
+	workloadDef *v1beta1.WorkloadDefinition) error {
 	if len(componentDef.Spec.Workload.Type) > 1 {
 		return errors.New("No need to convert ComponentDefinition")
 	}

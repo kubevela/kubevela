@@ -32,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -57,7 +57,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	klog.InfoS("Reconciling TraitDefinition...", "Name", definitionName, "Namespace", req.Namespace)
 	ctx := context.Background()
 
-	var traitdefinition v1alpha2.TraitDefinition
+	var traitdefinition v1beta1.TraitDefinition
 	if err := r.Get(ctx, req.NamespacedName, &traitdefinition); err != nil {
 		if kerrors.IsNotFound(err) {
 			err = nil
@@ -106,7 +106,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("TraitDefinition")).
 		WithAnnotations("controller", "TraitDefinition")
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha2.TraitDefinition{}).
+		For(&v1beta1.TraitDefinition{}).
 		Complete(r)
 }
 

@@ -35,6 +35,7 @@ import (
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
@@ -63,8 +64,8 @@ type CapabilityDefinitionInterface interface {
 
 // CapabilityComponentDefinition is the struct for ComponentDefinition
 type CapabilityComponentDefinition struct {
-	Name                string                       `json:"name"`
-	ComponentDefinition v1alpha2.ComponentDefinition `json:"componentDefinition"`
+	Name                string                      `json:"name"`
+	ComponentDefinition v1beta1.ComponentDefinition `json:"componentDefinition"`
 
 	WorkloadType    util.WorkloadType `json:"workloadType"`
 	WorkloadDefName string            `json:"workloadDefName"`
@@ -76,7 +77,7 @@ type CapabilityComponentDefinition struct {
 
 // GetCapabilityObject gets types.Capability object by WorkloadDefinition name
 func (def *CapabilityComponentDefinition) GetCapabilityObject(ctx context.Context, k8sClient client.Client, namespace, name string) (*types.Capability, error) {
-	var componentDefinition v1alpha2.ComponentDefinition
+	var componentDefinition v1beta1.ComponentDefinition
 	var capability types.Capability
 	objectKey := client.ObjectKey{
 		Namespace: namespace,
@@ -313,27 +314,27 @@ func generateOpenAPISchemaFromCapabilityParameter(capability types.Capability, p
 	if err != nil {
 		return nil, err
 	}
-	var cueInst *cue.Instance
+
 	template += mycue.BaseTemplate
 	if pd == nil {
 		var r cue.Runtime
-		cueInst, err = r.Compile("-", template)
+		cueInst, err := r.Compile("-", template)
 		if err != nil {
 			return nil, err
 		}
-	} else {
-		bi := build.NewContext().NewInstance("", nil)
-		err = bi.AddFile("-", template)
-		if err != nil {
-			return nil, err
-		}
-		pd.ImportBuiltinPackagesFor(bi)
+		return common.GenOpenAPI(cueInst)
+	}
+	bi := build.NewContext().NewInstance("", nil)
+	err = bi.AddFile("-", template)
+	if err != nil {
+		return nil, err
+	}
+	pd.ImportBuiltinPackagesFor(bi)
 
-		var r cue.Runtime
-		cueInst, err = r.Build(bi)
-		if err != nil {
-			return nil, err
-		}
+	var r cue.Runtime
+	cueInst, err := r.Build(bi)
+	if err != nil {
+		return nil, err
 	}
 	return common.GenOpenAPI(cueInst)
 }
