@@ -329,10 +329,8 @@ func generateOpenAPISchemaFromCapabilityParameter(capability types.Capability, p
 	if err != nil {
 		return nil, err
 	}
-	pd.ImportBuiltinPackagesFor(bi)
 
-	var r cue.Runtime
-	cueInst, err := r.Build(bi)
+	cueInst, err := pd.ImportPackagesAndBuildInstance(bi)
 	if err != nil {
 		return nil, err
 	}
