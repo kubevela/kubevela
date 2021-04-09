@@ -23,10 +23,10 @@ RUN GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
     go build -a -ldflags "-s -w -X github.com/oam-dev/kubevela/version.VelaVersion=${VERSION:-undefined} -X github.com/oam-dev/kubevela/version.GitRevision=${GITVERSION:-undefined}" \
     -o manager-${TARGETARCH} main.go
 
-# Use alpine as base image to reduce image size
+# Use alpine as base image due to the discussion in issue #1448
 # You can replace distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
-# Could use `--build-arg=BASE_IMAGE=gcr.io/distroless/static:nonroot` to overwrite
+# Overwrite `BASE_IMAGE` by passing `--build-arg=BASE_IMAGE=gcr.io/distroless/static:nonroot`
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE:-alpine:latest}
 # This is required by daemon connnecting with cri
