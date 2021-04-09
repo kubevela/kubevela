@@ -1,10 +1,12 @@
 # Build the manager binary
-FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.14 as builder
+FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:1.14-alpine as builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests
 COPY go.mod go.mod
 COPY go.sum go.sum
+# Set GOPROXY if downloading slowly
+RUN go env -w GOPROXY=https://goproxy.cn,https://goproxy.io,direct
 # cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
 RUN go mod download
@@ -19,20 +21,18 @@ COPY version/ version/
 ARG TARGETARCH
 ARG VERSION
 ARG GITVERSION
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} GO111MODULE=on \
-    go build -a -ldflags "-X github.com/oam-dev/kubevela/version.VelaVersion=${VERSION:-undefined} -X github.com/oam-dev/kubevela/version.GitRevision=${GITVERSION:-undefined}" \
+RUN GO111MODULE=on CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} \
+    go build -a -ldflags "-s -w -X github.com/oam-dev/kubevela/version.VelaVersion=${VERSION:-undefined} -X github.com/oam-dev/kubevela/version.GitRevision=${GITVERSION:-undefined}" \
     -o manager-${TARGETARCH} main.go
 
-# Use ubuntu as base image for convenience.
+# Use alpine as base image to reduce image size
 # You can replace distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 # Could use `--build-arg=BASE_IMAGE=gcr.io/distroless/static:nonroot` to overwrite
 ARG BASE_IMAGE
-FROM ${BASE_IMAGE:-ubuntu:latest}
+FROM ${BASE_IMAGE:-alpine:latest}
 # This is required by daemon connnecting with cri
-RUN ln -s /usr/bin/* /usr/sbin/ && apt-get update -y \
-  && apt-get install --no-install-recommends -y ca-certificates \
-  && apt-get clean && rm -rf /var/log/*log /var/lib/apt/lists/* /var/log/apt/* /var/lib/dpkg/*-old /var/cache/debconf/*-old
+RUN apk add --no-cache ca-certificates
 
 WORKDIR /
 

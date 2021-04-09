@@ -3,10 +3,11 @@ VELA_VERSION ?= master
 # Repo info
 GIT_COMMIT          ?= git-$(shell git rev-parse --short HEAD)
 GIT_COMMIT_LONG     ?= $(shell git rev-parse HEAD)
-VELA_VERSION_VAR    := github.com/oam-dev/kubevela/version.VelaVersion
-VELA_GITVERSION_VAR := github.com/oam-dev/kubevela/version.GitRevision
-LDFLAGS             ?= "-X $(VELA_VERSION_VAR)=$(VELA_VERSION) -X $(VELA_GITVERSION_VAR)=$(GIT_COMMIT)"
+VELA_VERSION_KEY    := github.com/oam-dev/kubevela/version.VelaVersion
+VELA_GITVERSION_KEY := github.com/oam-dev/kubevela/version.GitRevision
+LDFLAGS             ?= "-s -w -X $(VELA_VERSION_KEY)=$(VELA_VERSION) -X $(VELA_GITVERSION_KEY)=$(GIT_COMMIT)"
 
+GOBUILD_ENV = GO111MODULE=on CGO_ENABLED=0
 GOX         = go run github.com/mitchellh/gox
 TARGETS     := darwin/amd64 linux/amd64 windows/amd64
 DIST_DIRS   := find * -type d -exec
@@ -34,6 +35,11 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
+# Image URL to use all building/pushing image targets
+VELA_IMAGE           ?= vela:latest
+VELA_CORE_IMAGE      ?= vela-core:latest
+VELA_CORE_TEST_IMAGE ?= vela-core-test:$(GIT_COMMIT)
+
 all: build
 
 # Run tests
@@ -42,16 +48,13 @@ test: vet lint staticcheck
 	go test -race -covermode=atomic ./references/apiserver/... ./references/appfile/... ./references/cli/... ./references/common/... ./references/plugins/...
 	@$(OK) unit-tests pass
 
-# Build manager binary
-build: fmt vet lint staticcheck
-	go run hack/chart/generate.go
-	go build -o bin/vela -ldflags ${LDFLAGS} references/cmd/cli/main.go
-	git checkout references/cmd/cli/fake/chart_source.go
+# Build vela cli binary
+build: fmt vet lint staticcheck vela-cli
 	@$(OK) build succeed
 
 vela-cli:
 	go run hack/chart/generate.go
-	go build -o bin/vela -ldflags ${LDFLAGS} references/cmd/cli/main.go
+	$(GOBUILD_ENV) go build -o bin/vela -a -ldflags $(LDFLAGS) ./references/cmd/cli/main.go
 	git checkout references/cmd/cli/fake/chart_source.go
 
 dashboard-build:
@@ -87,8 +90,10 @@ generate-source:
 	go run hack/frontend/source.go
 
 cross-build:
+	rm -rf _bin
 	go run hack/chart/generate.go
-	GO111MODULE=on CGO_ENABLED=0 $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/{{.OS}}-{{.Arch}}/vela" -osarch='$(TARGETS)' ./references/cmd/cli/
+	$(GOBUILD_ENV) $(GOX) -ldflags $(LDFLAGS) -parallel=2 -output="_bin/{{.OS}}-{{.Arch}}/vela" -osarch='$(TARGETS)' ./references/cmd/cli
+	git checkout references/cmd/cli/fake/chart_source.go
 
 compress:
 	( \
@@ -120,7 +125,7 @@ staticcheck: staticchecktool
 	$(STATICCHECK) ./...
 
 lint: golangci
-	$(GOLANGCILINT) run  ./...
+	$(GOLANGCILINT) run ./...
 
 reviewable: manifests fmt vet lint staticcheck
 	go mod tidy
@@ -133,11 +138,11 @@ check-diff: reviewable
 
 # Build the docker image
 docker-build:
-	docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) . -t ${IMG}
+	docker build --build-arg=VERSION=$(VELA_VERSION) --build-arg=GITVERSION=$(GIT_COMMIT) -t $(VELA_CORE_IMAGE) .
 
 # Push the docker image
 docker-push:
-	docker push ${IMG}
+	docker push $(VELA_CORE_IMAGE)
 
 e2e-setup:
 	helm install --create-namespace -n flux-system helm-flux http://oam.dev/catalog/helm-flux2-0.1.0.tgz
@@ -179,25 +184,22 @@ e2e-cleanup:
 
 image-cleanup:
 # Delete Docker image
-ifneq ($(shell docker images -q vela-core-test:$(GIT_COMMIT)),)
-	docker image rm -f vela-core-test:$(GIT_COMMIT)
+ifneq ($(shell docker images -q $(VELA_CORE_TEST_IMAGE)),)
+	docker rmi -f $(VELA_CORE_TEST_IMAGE)
 endif
 
 # load docker image to the kind cluster
 kind-load:
-	docker build -t vela-core-test:$(GIT_COMMIT) .
-	kind load docker-image vela-core-test:$(GIT_COMMIT) || { echo >&2 "kind not installed or error loading image: $(IMAGE)"; exit 1; }
-
-# Image URL to use all building/pushing image targets
-IMG ?= vela-core:latest
+	docker build -t $(VELA_CORE_TEST_IMAGE) .
+	kind load docker-image $(VELA_CORE_TEST_IMAGE) || { echo >&2 "kind not installed or error loading image: $(VELA_CORE_TEST_IMAGE)"; exit 1; }
 
 # Run tests
 core-test: fmt vet manifests
 	go test ./pkg/... -coverprofile cover.out
 
-# Build manager binary
+# Build vela core manager binary
 manager: fmt vet lint manifests
-	go build -o bin/manager ./cmd/core/main.go
+	$(GOBUILD_ENV) go build -o bin/manager -a -ldflags $(LDFLAGS) ./cmd/core/main.go
 
 # Run against the configured Kubernetes cluster in ~/.kube/config
 core-run: fmt vet manifests
