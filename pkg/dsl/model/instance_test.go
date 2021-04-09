@@ -28,14 +28,43 @@ import (
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
 )
 
-func TestIndexMatchLine(t *testing.T) {
-	assert.Equal(t, IndexMatchLine("ax", "1"), "")
-	assert.Equal(t, IndexMatchLine("", "_|_"), "")
-	assert.Equal(t, IndexMatchLine("_|_", "_|_"), "_|_")
-	assert.Equal(t, IndexMatchLine("abc_|_xyz", "_|_"), "abc_|_xyz")
-	assert.Equal(t, IndexMatchLine("abc\n123_|_\nxyz", "_|_"), "123_|_")
-	assert.Equal(t, IndexMatchLine("abc\n_|_123\nxyz", "_|_"), "_|_123")
-	assert.Equal(t, IndexMatchLine("abc\n123_|_456\nxyz", "_|_"), "123_|_456")
+func TestGetCompileError(t *testing.T) {
+	testcases := []struct {
+		src     string
+		wantErr bool
+		errInfo string
+	}{{
+		src: ` env: [{
+	name:  "HELLO"
+	value: "_A_|_B_|_C_"
+}]`,
+		wantErr: false,
+		errInfo: "",
+	}, {
+		src: ` env: [{
+	name:  conflicting
+	value:  _|_ // conflicting values "ENV_LEVEL" and "JAVA_TOOL_OPTIONS"
+}]`,
+		wantErr: true,
+		errInfo: "_|_ // conflicting values \"ENV_LEVEL\" and \"JAVA_TOOL_OPTIONS\"",
+	}, {
+		src: ` env: [{
+	name:  conflicting-1
+	value:  _|_ // conflicting values "ENV_LEVEL" and "JAVA_TOOL_OPTIONS"
+	},{
+	name:  conflicting-2
+	value:  _|_ // conflicting values "HELLO" and "WORLD"
+}]`,
+		wantErr: true,
+		errInfo: "_|_ // conflicting values \"ENV_LEVEL\" and \"JAVA_TOOL_OPTIONS\"," +
+			"_|_ // conflicting values \"HELLO\" and \"WORLD\"",
+	}}
+	for _, tt := range testcases {
+		errInfo, contains := IndexMatchLine(tt.src, "_|_")
+		assert.Equal(t, tt.wantErr, contains)
+		assert.Equal(t, tt.errInfo, errInfo)
+	}
+
 }
 
 func TestInstance(t *testing.T) {
