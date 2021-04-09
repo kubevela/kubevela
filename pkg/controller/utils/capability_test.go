@@ -31,8 +31,8 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
@@ -74,7 +74,7 @@ func TestGetOpenAPISchema(t *testing.T) {
 					Template: string(data),
 				},
 			}
-			capability, _ := util.ConvertTemplateJSON2Object(tc.name, nil, schematic)
+			capability, _ := appfile.ConvertTemplateJSON2Object(tc.name, nil, schematic)
 			schema, err := getOpenAPISchema(capability, pd)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\ngetOpenAPISchema(...): -want error, +got error:\n%s", tc.reason, diff)

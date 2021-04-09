@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package util
+package appfile
 
 import (
 	"context"
@@ -32,6 +32,16 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+)
+
+const (
+	// UsageTag is usage comment annotation
+	UsageTag = "+usage="
+	// ShortTag is the short alias annotation
+	ShortTag = "+short"
+	// InsertSecretToTag marks the value should be set as an context
+	InsertSecretToTag = "+insertSecretTo="
 )
 
 // Template includes its string, health and its category
@@ -54,12 +64,12 @@ func GetScopeGVK(ctx context.Context, cli client.Reader, dm discoverymapper.Disc
 	name string) (schema.GroupVersionKind, error) {
 	var gvk schema.GroupVersionKind
 	sd := new(v1alpha2.ScopeDefinition)
-	err := GetDefinition(ctx, cli, sd, name)
+	err := oamutil.GetDefinition(ctx, cli, sd, name)
 	if err != nil {
 		return gvk, err
 	}
 
-	return GetGVKFromDefinition(dm, sd.Spec.Reference)
+	return oamutil.GetGVKFromDefinition(dm, sd.Spec.Reference)
 }
 
 // LoadTemplate Get template according to key
@@ -72,11 +82,11 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 		var extension *runtime.RawExtension
 
 		cd := new(v1beta1.ComponentDefinition)
-		err := GetDefinition(ctx, cli, cd, key)
+		err := oamutil.GetDefinition(ctx, cli, cd, key)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				wd := new(v1beta1.WorkloadDefinition)
-				if err := GetDefinition(ctx, cli, wd, key); err != nil {
+				if err := oamutil.GetDefinition(ctx, cli, wd, key); err != nil {
 					return nil, errors.WithMessagef(err, "LoadTemplate from workloadDefinition [%s] ", key)
 				}
 				schematic, status, extension = wd.Spec.Schematic, wd.Spec.Status, wd.Spec.Extension
@@ -88,7 +98,7 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 					tmpl.CapabilityCategory = types.TerraformCategory
 				}
 				tmpl.WorkloadDefinition = wd
-				gvk, err := GetGVKFromDefinition(dm, wd.Spec.Reference)
+				gvk, err := oamutil.GetGVKFromDefinition(dm, wd.Spec.Reference)
 				if err != nil {
 					return nil, errors.WithMessagef(err, "Get GVK from workload definition [%s]", key)
 				}
@@ -114,7 +124,7 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 
 	case types.TypeTrait:
 		td := new(v1beta1.TraitDefinition)
-		err := GetDefinition(ctx, cli, td, key)
+		err := oamutil.GetDefinition(ctx, cli, td, key)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", key)
 		}
