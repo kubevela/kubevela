@@ -38,10 +38,10 @@ As a plus, KubeVela leverages [Kubernetes Control Loop](https://kubernetes.io/do
 
 ## Features
 
-- **Zero-restriction deployment** - design and express platform capabilities with [CUE](https://cuelang.org/) or [Helm](https://helm.sh) per needs of your application, and let Kubernetes controller guarantee the deployment determinism. GUI forms are automatically generated for capabilities so even your dashboard are fully extensible.
+- **Zero-restriction platform** - design and express platform capabilities with [CUE](https://cuelang.org/) or [Helm](https://helm.sh) per needs of your application, and let Kubernetes controller guarantee the deployment determinism. GUI forms are automatically generated for capabilities so even your dashboard are fully extensible.
 - **Generic progressive rollout framework** - built-in rollout framework and strategies to upgrade your microservice regardless of its workload type (e.g. stateless, stateful, or even custom operators etc).
 - **Multi-cluster multi-revision application deployment** - built-in model to deploy or rollout your apps across hybrid infrastructures, with Service Mesh for traffic shifting. 
-- **Simple and native** - KubeVela is a just simple Kubernetes custom controller, all its capabilities are defined as [Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) so they naturally work with any CI/CD or GitOps tools that works with Kubernetes.
+- **Simple and native** - KubeVela is a just simple Kubernetes custom controller, all its capabilities are defined as [Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) so they naturally work with any CI/CD or GitOps tools which work with Kubernetes.
 
 ## Documentation
 
