@@ -259,11 +259,18 @@ func (c *CloneSetRolloutController) Finalize(ctx context.Context, succeed bool) 
 	clonePatch := client.MergeFrom(c.cloneSet.DeepCopyObject())
 	// remove the parent controller from the resources' owner list
 	var newOwnerList []metav1.OwnerReference
+	isOwner := false
 	for _, owner := range c.cloneSet.GetOwnerReferences() {
 		if owner.Kind == v1beta1.AppRolloutKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
+			isOwner = true
 			continue
 		}
 		newOwnerList = append(newOwnerList, owner)
+	}
+	if !isOwner {
+		// nothing to do if we are already not the owner
+		klog.InfoS("the cloneset is already released and not controlled by rollout", "cloneSet", c.cloneSet.Name)
+		return true
 	}
 	c.cloneSet.SetOwnerReferences(newOwnerList)
 	// pause the resource when the rollout failed so we can try again next time

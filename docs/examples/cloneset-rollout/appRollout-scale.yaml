@@ -8,10 +8,7 @@ spec:
   componentList:
     - metrics-provider
   rolloutPlan:
-    targetSize: 6
-    rolloutStrategy: "IncreaseFirst"
+    targetSize: 5
     rolloutBatches:
       - replicas: 1
-      - replicas: 20%
-      - replicas: 40%
-      - replicas: 40%
+      - replicas: 3
