@@ -116,5 +116,5 @@ func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
 	Eventually(func() error {
 		_, err := r.Reconcile(req)
 		return err
-	}, 20*time.Second, time.Second).Should(BeNil())
+	}, 15*time.Second, time.Second).Should(BeNil())
 }
