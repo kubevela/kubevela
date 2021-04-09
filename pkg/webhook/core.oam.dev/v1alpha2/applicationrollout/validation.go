@@ -49,45 +49,46 @@ func (h *ValidatingHandler) ValidateCreate(appRollout *v1beta1.AppRollout) field
 		return allErrs
 	}
 
-	var targetAppRevision v1beta1.ApplicationRevision
-	sourceAppRevision := &v1beta1.ApplicationRevision{}
-	targetAppName := appRollout.Spec.TargetAppRevisionName
-	if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appRollout.Namespace, Name: targetAppName},
-		&targetAppRevision); err != nil {
-		klog.ErrorS(err, "cannot locate target application revision", "target application revision",
-			klog.KRef(appRollout.Namespace, targetAppName))
-		allErrs = append(allErrs, field.NotFound(fldPath.Child("targetAppRevisionName"), targetAppName))
-		// can't continue without target
-		return allErrs
-	}
-	sourceAppName := appRollout.Spec.SourceAppRevisionName
-	if sourceAppName != "" {
-		if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appRollout.Namespace, Name: sourceAppName},
-			sourceAppRevision); err != nil {
-			klog.ErrorS(err, "cannot locate source application revision", "source application revision",
-				klog.KRef(appRollout.Namespace, sourceAppName))
-			allErrs = append(allErrs, field.NotFound(fldPath.Child("sourceAppRevisionName"), sourceAppName))
+	if appRollout.DeletionTimestamp.IsZero() {
+		var targetAppRevision v1beta1.ApplicationRevision
+		sourceAppRevision := &v1beta1.ApplicationRevision{}
+		targetAppName := appRollout.Spec.TargetAppRevisionName
+		if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appRollout.Namespace, Name: targetAppName},
+			&targetAppRevision); err != nil {
+			klog.ErrorS(err, "cannot locate target application revision", "target application revision",
+				klog.KRef(appRollout.Namespace, targetAppName))
+			allErrs = append(allErrs, field.NotFound(fldPath.Child("targetAppRevisionName"), targetAppName))
+			// can't continue without target
+			return allErrs
 		}
-	} else {
-		sourceAppRevision = nil
-	}
-	var sourceApp *v1alpha2.ApplicationConfiguration
-	targetApp, err := oamutil.RawExtension2AppConfig(targetAppRevision.Spec.ApplicationConfiguration)
-	if err != nil {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("TargetAppRevisionName"), targetAppName,
-			fmt.Sprintf("the targeted app revision is corrupted,  err = `%s`", err)))
-	}
-	if sourceAppRevision != nil {
-		sourceApp, err = oamutil.RawExtension2AppConfig(sourceAppRevision.Spec.ApplicationConfiguration)
+		sourceAppName := appRollout.Spec.SourceAppRevisionName
+		if sourceAppName != "" {
+			if err := h.Get(context.Background(), ktypes.NamespacedName{Namespace: appRollout.Namespace, Name: sourceAppName},
+				sourceAppRevision); err != nil {
+				klog.ErrorS(err, "cannot locate source application revision", "source application revision",
+					klog.KRef(appRollout.Namespace, sourceAppName))
+				allErrs = append(allErrs, field.NotFound(fldPath.Child("sourceAppRevisionName"), sourceAppName))
+			}
+		} else {
+			sourceAppRevision = nil
+		}
+		var sourceApp *v1alpha2.ApplicationConfiguration
+		targetApp, err := oamutil.RawExtension2AppConfig(targetAppRevision.Spec.ApplicationConfiguration)
 		if err != nil {
-			allErrs = append(allErrs, field.Invalid(fldPath.Child("SourceAppRevisionName"), sourceAppName,
-				fmt.Sprintf("the source app revision is corrupted,  err = `%s`", err)))
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("TargetAppRevisionName"), targetAppName,
+				fmt.Sprintf("the targeted app revision is corrupted,  err = `%s`", err)))
 		}
+		if sourceAppRevision != nil {
+			sourceApp, err = oamutil.RawExtension2AppConfig(sourceAppRevision.Spec.ApplicationConfiguration)
+			if err != nil {
+				allErrs = append(allErrs, field.Invalid(fldPath.Child("SourceAppRevisionName"), sourceAppName,
+					fmt.Sprintf("the source app revision is corrupted,  err = `%s`", err)))
+			}
+		}
+		// validate the component spec
+		allErrs = append(allErrs, validateComponent(appRollout.Spec.ComponentList, targetApp, sourceApp,
+			fldPath.Child("componentList"))...)
 	}
-
-	// validate the component spec
-	allErrs = append(allErrs, validateComponent(appRollout.Spec.ComponentList, targetApp, sourceApp,
-		fldPath.Child("componentList"))...)
 
 	// validate the rollout plan spec
 	allErrs = append(allErrs, rollout.ValidateCreate(h, &appRollout.Spec.RolloutPlan, fldPath.Child("rolloutPlan"))...)

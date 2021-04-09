@@ -272,12 +272,20 @@ func (s *CloneSetScaleController) Finalize(ctx context.Context, succeed bool) bo
 	clonePatch := client.MergeFrom(s.cloneSet.DeepCopyObject())
 	// remove the parent controller from the resources' owner list
 	var newOwnerList []metav1.OwnerReference
+	isOwner := false
 	for _, owner := range s.cloneSet.GetOwnerReferences() {
 		if owner.Kind == v1beta1.AppRolloutKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
+			isOwner = true
 			continue
 		}
 		newOwnerList = append(newOwnerList, owner)
 	}
+	if !isOwner {
+		// nothing to do if we are already not the owner
+		klog.InfoS("the cloneset is already released", "cloneSet", s.cloneSet.Name)
+		return true
+	}
+
 	s.cloneSet.SetOwnerReferences(newOwnerList)
 	// patch the CloneSet
 	if err := s.client.Patch(ctx, s.cloneSet, clonePatch, client.FieldOwner(s.parentController.GetUID())); err != nil {

@@ -265,9 +265,12 @@ func (r *RolloutStatus) StateTransition(event RolloutEvent) {
 	}
 	// special handle modified event here
 	if event == RollingModifiedEvent {
+		if r.RollingState == RolloutDeletingState {
+			panic(fmt.Errorf(invalidRollingStateTransition, rollingState, event))
+		}
 		if r.RollingState == RolloutFailedState || r.RollingState == RolloutSucceedState {
 			r.ResetStatus()
-		} else if r.RollingState != RolloutDeletingState {
+		} else {
 			r.SetRolloutCondition(NewNegativeCondition(r.getRolloutConditionType(), "Rollout Spec is modified"))
 			r.RollingState = RolloutAbandoningState
 			r.BatchRollingState = BatchInitializingState
