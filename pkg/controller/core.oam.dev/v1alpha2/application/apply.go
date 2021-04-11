@@ -154,8 +154,9 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 				}
 			}
 		}
-		if comp.Spec.Helm != nil {
-			// TODO(wonderflow): do we still need to apply helm resource if the spec has no difference?
+		// isNewRevision indicates app's newly created or spec has changed
+		// skip applying helm resources if no spec change
+		if h.isNewRevision && comp.Spec.Helm != nil {
 			if err = h.applyHelmModuleResources(ctx, comp, owners); err != nil {
 				return errors.Wrap(err, "cannot apply Helm module resources")
 			}
