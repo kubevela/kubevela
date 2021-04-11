@@ -596,6 +596,10 @@ func (h *appHandler) garbageCollection(ctx context.Context) error {
 	if len(h.acrossNamespaceResources) == 0 {
 		h.app.Status.ResourceTracker = nil
 		if err := h.r.Delete(ctx, rt); err != nil {
+			if apierrors.IsNotFound(err) {
+				klog.InfoS("resource Tracker has been deleted", "resourceTracker name", h.generateResourceTrackerName())
+				return nil
+			}
 			return err
 		}
 		return nil
