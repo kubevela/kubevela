@@ -1,5 +1,7 @@
 /*
-Copyright 2020 The KubeVela Authors.
+Copyright 2021 The KubeVela Authors.
+
+The code is inspired from the Kind repo at https://github.com/kubernetes-sigs/kind/blob/main/pkg/cmd/kind/load/docker-image/docker-image.go
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -37,7 +39,6 @@ func LoadDockerImages(imageNames []string) error {
 	return LoadDockerImagesWithFlags(imageNames, "", nil)
 }
 
-// LoadDockerImagesWithFlags refer to https://github.com/kubernetes-sigs/kind/blob/main/pkg/cmd/kind/load/docker-image/docker-image.go
 func LoadDockerImagesWithFlags(imageNames []string, flagName string, flagNodes []string) error {
 	provider := cluster.NewProvider(
 		cluster.ProviderWithDocker(),
