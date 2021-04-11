@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package util
+package appfile
 
 import (
 	"context"
@@ -31,6 +31,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 func TestLoadComponentTemplate(t *testing.T) {
@@ -100,7 +101,7 @@ spec:
 		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj runtime.Object) error {
 			switch o := obj.(type) {
 			case *v1beta1.ComponentDefinition:
-				cd, err := UnMarshalStringToComponentDefinition(componentDefintion)
+				cd, err := oamutil.UnMarshalStringToComponentDefinition(componentDefintion)
 				if err != nil {
 					return err
 				}
@@ -202,7 +203,7 @@ spec:
 		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj runtime.Object) error {
 			switch o := obj.(type) {
 			case *v1alpha2.WorkloadDefinition:
-				cd, err := UnMarshalStringToWorkloadDefinition(workloadDefintion)
+				cd, err := oamutil.UnMarshalStringToWorkloadDefinition(workloadDefintion)
 				if err != nil {
 					return err
 				}
@@ -324,7 +325,7 @@ spec:
 		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj runtime.Object) error {
 			switch o := obj.(type) {
 			case *v1beta1.TraitDefinition:
-				wd, err := UnMarshalStringToTraitDefinition(traitDefintion)
+				wd, err := oamutil.UnMarshalStringToTraitDefinition(traitDefintion)
 				if err != nil {
 					return err
 				}

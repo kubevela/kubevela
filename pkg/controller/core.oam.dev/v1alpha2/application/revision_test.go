@@ -224,9 +224,9 @@ var _ = Describe("test generate revision ", func() {
 		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 		annoKey1 := "testKey1"
 		app.SetAnnotations(map[string]string{annoKey1: "true"})
-		generatedAppfile, err := appParser.GenerateAppFile(ctx, app.Name, &app)
+		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
 		Expect(err).Should(Succeed())
-		ac, comps, err = appParser.GenerateApplicationConfiguration(generatedAppfile, app.Namespace)
+		ac, comps, err = generatedAppfile.GenerateApplicationConfiguration()
 		Expect(err).Should(Succeed())
 		handler.appfile = generatedAppfile
 		Expect(ac.Namespace).Should(Equal(app.Namespace))
@@ -320,9 +320,9 @@ var _ = Describe("test generate revision ", func() {
 		}
 		// persist the app
 		Expect(k8sClient.Update(ctx, &app)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		generatedAppfile, err = appParser.GenerateAppFile(ctx, app.Name, &app)
+		generatedAppfile, err = appParser.GenerateAppFile(ctx, &app)
 		Expect(err).Should(Succeed())
-		ac, comps, err = appParser.GenerateApplicationConfiguration(generatedAppfile, app.Namespace)
+		ac, comps, err = generatedAppfile.GenerateApplicationConfiguration()
 		Expect(err).Should(Succeed())
 		handler.appfile = generatedAppfile
 		handler.app = &app
@@ -372,9 +372,9 @@ var _ = Describe("test generate revision ", func() {
 		ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 		// mark the app as rollout
 		app.SetAnnotations(map[string]string{oam.AnnotationAppRollout: strconv.FormatBool(true)})
-		generatedAppfile, err := appParser.GenerateAppFile(ctx, app.Name, &app)
+		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
 		Expect(err).Should(Succeed())
-		ac, comps, err = appParser.GenerateApplicationConfiguration(generatedAppfile, app.Namespace)
+		ac, comps, err = generatedAppfile.GenerateApplicationConfiguration()
 		Expect(err).Should(Succeed())
 		handler.appfile = generatedAppfile
 		Expect(ac.Namespace).Should(Equal(app.Namespace))
@@ -467,9 +467,9 @@ var _ = Describe("test generate revision ", func() {
 		}
 		// persist the app
 		Expect(k8sClient.Update(ctx, &app)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-		generatedAppfile, err = appParser.GenerateAppFile(ctx, app.Name, &app)
+		generatedAppfile, err = appParser.GenerateAppFile(ctx, &app)
 		Expect(err).Should(Succeed())
-		ac, comps, err = appParser.GenerateApplicationConfiguration(generatedAppfile, app.Namespace)
+		ac, comps, err = generatedAppfile.GenerateApplicationConfiguration()
 		Expect(err).Should(Succeed())
 		handler.appfile = generatedAppfile
 		handler.app = &app
@@ -520,9 +520,9 @@ var _ = Describe("test generate revision ", func() {
 		app.SetLabels(map[string]string{labelKey1: "true"})
 		annoKey1 := "annoKey1"
 		app.SetAnnotations(map[string]string{annoKey1: "true"})
-		generatedAppfile, err := appParser.GenerateAppFile(ctx, app.Name, &app)
+		generatedAppfile, err := appParser.GenerateAppFile(ctx, &app)
 		Expect(err).Should(Succeed())
-		ac, comps, err = appParser.GenerateApplicationConfiguration(generatedAppfile, app.Namespace)
+		ac, comps, err = generatedAppfile.GenerateApplicationConfiguration()
 		Expect(err).Should(Succeed())
 		handler.appfile = generatedAppfile
 		Expect(ac.Namespace).Should(Equal(app.Namespace))

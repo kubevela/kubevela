@@ -63,7 +63,7 @@ func ApplyTerraform(app *v1beta1.Application, k8sClient client.Client, ioStream 
 	appParser := appfile.NewApplicationParser(k8sClient, dm, pd)
 
 	ctx := util2.SetNamespaceInCtx(context.Background(), namespace)
-	appFile, err := appParser.GenerateAppFile(ctx, app.Name, app)
+	appFile, err := appParser.GenerateAppFile(ctx, app)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse appfile: %w", err)
 	}
@@ -83,7 +83,7 @@ func ApplyTerraform(app *v1beta1.Application, k8sClient client.Client, ioStream 
 			name := wl.Name
 			ioStream.Infof("\nApplying cloud resources %s\n", name)
 
-			tf, err := getTerraformJSONFiles(k8sClient, wl, appFile.Name, revisionName, namespace)
+			tf, err := getTerraformJSONFiles(wl, appFile.Name, revisionName, namespace)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get Terraform JSON files from workload %s: %w", name, err)
 			}
@@ -197,8 +197,8 @@ func generateSecretFromTerraformOutput(k8sClient client.Client, outputList []str
 }
 
 // getTerraformJSONFiles gets Terraform JSON files or modules from workload
-func getTerraformJSONFiles(k8sClient client.Client, wl *appfile.Workload, applicationName, revisionName string, namespace string) ([]byte, error) {
-	pCtx, err := appfile.PrepareProcessContext(k8sClient, wl, applicationName, revisionName, namespace)
+func getTerraformJSONFiles(wl *appfile.Workload, applicationName, revisionName string, namespace string) ([]byte, error) {
+	pCtx, err := appfile.PrepareProcessContext(wl, applicationName, revisionName, namespace)
 	if err != nil {
 		return nil, err
 	}

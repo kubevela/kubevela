@@ -102,12 +102,12 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 
 			ctx := oamutil.SetNamespaceInCtx(context.Background(), velaEnv.Namespace)
 
-			appFile, err := parser.GenerateAppFile(ctx, app.Name, app)
+			appFile, err := parser.GenerateAppFile(ctx, app)
 			if err != nil {
 				return errors.WithMessage(err, "generate appFile")
 			}
 
-			ac, comps, err := parser.GenerateApplicationConfiguration(appFile, app.Namespace)
+			ac, comps, err := appFile.GenerateApplicationConfiguration()
 			if err != nil {
 				return errors.WithMessage(err, "generate OAM objects")
 			}

@@ -37,20 +37,12 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/appfile/helm"
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
-)
-
-const (
-	// UsageTag is usage comment annotation
-	UsageTag = "+usage="
-	// ShortTag is the short alias annotation
-	ShortTag = "+short"
-	// InsertSecretToTag marks the value should be set as an context
-	InsertSecretToTag = "+insertSecretTo="
 )
 
 // ErrNoSectionParameterInCue means there is not parameter section in Cue template of a workload
@@ -96,9 +88,9 @@ func (def *CapabilityComponentDefinition) GetCapabilityObject(ctx context.Contex
 		if err := k8sClient.Get(ctx, objectKey, wd); err != nil {
 			return nil, fmt.Errorf("failed to get WorkloadDefinition that ComponentDefinition refers to")
 		}
-		capability, err = util.ConvertTemplateJSON2Object(name, wd.Spec.Extension, wd.Spec.Schematic)
+		capability, err = appfile.ConvertTemplateJSON2Object(name, wd.Spec.Extension, wd.Spec.Schematic)
 	default:
-		capability, err = util.ConvertTemplateJSON2Object(name, componentDefinition.Spec.Extension, componentDefinition.Spec.Schematic)
+		capability, err = appfile.ConvertTemplateJSON2Object(name, componentDefinition.Spec.Extension, componentDefinition.Spec.Schematic)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert ComponentDefinition to Capability Object")
 		}
@@ -205,7 +197,7 @@ func (def *CapabilityTraitDefinition) GetCapabilityObject(ctx context.Context, k
 		return &capability, fmt.Errorf("failed to get WorkloadDefinition %s: %w", def.Name, err)
 	}
 	def.TraitDefinition = traitDefinition
-	capability, err = util.ConvertTemplateJSON2Object(name, traitDefinition.Spec.Extension, traitDefinition.Spec.Schematic)
+	capability, err = appfile.ConvertTemplateJSON2Object(name, traitDefinition.Spec.Extension, traitDefinition.Spec.Schematic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert WorkloadDefinition to Capability Object")
 	}
@@ -384,11 +376,11 @@ func fixOpenAPISchema(name string, schema *openapi3.Schema) {
 	}
 
 	description := schema.Description
-	if strings.Contains(description, UsageTag) {
-		description = strings.Split(description, UsageTag)[1]
+	if strings.Contains(description, appfile.UsageTag) {
+		description = strings.Split(description, appfile.UsageTag)[1]
 	}
-	if strings.Contains(description, ShortTag) {
-		description = strings.Split(description, ShortTag)[0]
+	if strings.Contains(description, appfile.ShortTag) {
+		description = strings.Split(description, appfile.ShortTag)[0]
 		description = strings.TrimSpace(description)
 	}
 	schema.Description = description
