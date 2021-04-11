@@ -75,6 +75,7 @@ require (
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 	sigs.k8s.io/controller-runtime v0.6.2
 	sigs.k8s.io/controller-tools v0.2.4
+	sigs.k8s.io/kind v0.9.0
 	sigs.k8s.io/yaml v1.2.0
 )
 
