@@ -106,13 +106,6 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComp
 		}
 		workload.RequiredSecrets = requiredSecrets
 	}
-	if workload.IsCloudResourceConsumer() {
-		requiredSecrets, err := parseWorkloadInsertSecretTo(ctx, p.client, ns, workload)
-		if err != nil {
-			return nil, err
-		}
-		workload.RequiredSecrets = requiredSecrets
-	}
 
 	userConfig := workload.GetUserConfigName()
 	if userConfig != "" {
