@@ -339,6 +339,11 @@ var _ = Describe("Versioning mechanism of components", func() {
 			Expect(common.ReadYamlToObject("testdata/revision/comp-v1.yaml", &comp1)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &comp1)).Should(Succeed())
 
+			By("Check component should already existed")
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Namespace: comp1.Namespace, Name: comp1.Name}, &v1alpha2.Component{})
+			}, time.Second*10, time.Microsecond*500).Should(BeNil())
+
 			By("Create AppConfig with component")
 			var appconfig v1alpha2.ApplicationConfiguration
 			Expect(common.ReadYamlToObject("testdata/revision/app.yaml", &appconfig)).Should(BeNil())
