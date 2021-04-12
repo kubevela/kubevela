@@ -69,7 +69,9 @@ spec:
           - '1000'
 ```
 
-In this sample, we also attached `sidecar` and `autoscaler` traits to the `frontend` component. So after deployed, the `frontend` component instance (a Kubernetes Deployment workload) will be automatically injected with a `fluentd` sidecar and automatically scale from 1-100 replicas based on CPU usage.
+In this sample, we also attached `sidecar` and `autoscaler` traits to the `frontend` component.
+So after deployed, the `frontend` component instance (a Kubernetes Deployment workload) will be automatically injected
+with a `fluentd` sidecar and automatically scale from 1-10 replicas based on CPU usage.
 
 ### Deploy the Application
 

@@ -3,6 +3,7 @@ module.exports = {
     {
       type: 'category',
       label: 'Overview',
+      collapsed: false,
       items: [
         'introduction',
       ],
@@ -10,6 +11,7 @@ module.exports = {
     {
       type: 'category',
       label: 'Getting Started',
+      collapsed: false,
       items: [
         'install',
         'quick-start',
@@ -19,15 +21,29 @@ module.exports = {
     {
       type: 'category',
       label: 'Application Deployment',
+      collapsed: false,
       items:[
         'application',
         "rollout/rollout",
-        'rollout/appdeploy'
+        'rollout/appdeploy',
+        {
+          'More Operations': [
+            'end-user/explore',
+            'end-user/expose',
+            'end-user/scale',
+            'end-user/labels',
+            'end-user/sidecar',
+            'end-user/cloud-resources',
+            'end-user/volumes',
+            'end-user/monitoring',
+          ]
+        },
       ]
     },
     {
       type: 'category',
       label: 'Platform Operation Guide',
+      collapsed: false,
       items: [
         'platform-engineers/overview',
         'platform-engineers/definition-and-templates',
@@ -155,6 +171,11 @@ module.exports = {
       items: [
         'roadmap',
       ],
+    },
+    {
+      'Appendix': [
+        'advanced-install',
+      ]
     },
     {
       type: 'doc',

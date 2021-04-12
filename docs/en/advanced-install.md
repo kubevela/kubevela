@@ -52,13 +52,11 @@ Welcome to use the KubeVela! Enjoy your shipping application journey!
 
 ### Step 1. Update Helm repo
 
+
+You can explore the newly released chart versions of KubeVela by run:
+
 ```shell
 helm repo update
-```
-
-you can get the new version kubevela chart by run:
-
-```shell
 helm search repo kubevela/vela-core -l
 ```
 

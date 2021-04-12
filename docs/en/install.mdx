@@ -94,7 +94,8 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/mast
     ```shell script
     helm install --create-namespace -n vela-system kubevela kubevela/vela-core
     ```
-    By default, it will enable the webhook with a self-signed certificate provided by [kube-webhook-certgen](https://github.com/jet/kube-webhook-certgen)
+    By default, it will enable the webhook with a self-signed certificate provided by [kube-webhook-certgen](https://github.com/jet/kube-webhook-certgen).
+    You can also [install it with `cert-manager`](./advanced-install#install-kubevela-with-cert-manager).
 
 ## 3. Get KubeVela CLI
 
@@ -191,3 +192,5 @@ worker    	vela-system	deployments.apps	Describes long-running, scalable, contai
 These capabilities are built-in so they are ready to use if showed up. KubeVela is designed to be programmable and fully self-service, so the assumption is more capabilities will be added later per your own needs. 
 
 Also, whenever new capabilities are added in the platform, you will immediately see them in above output.
+
+> See the [advanced installation guide](./advanced-install) to learn more about installation details.
