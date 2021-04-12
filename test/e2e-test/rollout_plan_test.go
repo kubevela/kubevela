@@ -272,10 +272,9 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 	AfterEach(func() {
 		By("Clean up resources after a test")
+		k8sClient.Delete(ctx, &app)
 		k8sClient.Delete(ctx, &appRollout)
 		verifyRolloutDeleted()
-		By("Delete the application")
-		k8sClient.Delete(ctx, &app)
 		By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
 		// delete the namespaceName with all its resources
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationBackground))).Should(BeNil())

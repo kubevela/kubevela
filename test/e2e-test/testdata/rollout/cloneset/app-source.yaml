@@ -14,5 +14,5 @@ spec:
           - stress-cpu=1
         image: stefanprodan/podinfo:4.0.3
         port: 8080
-        updateStrategyType: InPlaceIfPossible
+        updateStrategyType: InPlaceOnly
         replicas: 5
