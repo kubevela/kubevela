@@ -458,6 +458,17 @@ spec:
                         - type
                         type: object
                       type: array
+                    workloadDefinition:
+                      description: WorkloadDefinition is the definition of a WorkloadDefinition, such as deployments/apps.v1
+                      properties:
+                        apiVersion:
+                          type: string
+                        kind:
+                          type: string
+                      required:
+                      - apiVersion
+                      - kind
+                      type: object
                   required:
                   - healthy
                   - name
@@ -916,6 +927,17 @@ spec:
                         - type
                         type: object
                       type: array
+                    workloadDefinition:
+                      description: WorkloadDefinition is the definition of a WorkloadDefinition, such as deployments/apps.v1
+                      properties:
+                        apiVersion:
+                          type: string
+                        kind:
+                          type: string
+                      required:
+                      - apiVersion
+                      - kind
+                      type: object
                   required:
                   - healthy
                   - name
