@@ -1,16 +1,16 @@
 ---
-title: Multi-Cluster Application Deployment
+title: Multi-Cluster Deployment
 ---
 
-# Introduction
+## Introduction
 
 Modern application infrastructure involves multiple clusters to ensure high availability and maximize service throughput. In this section, we will introduce how to use KubeVela to achieve application deployment across multiple clusters with following features supported:
 - Rolling Upgrade: To continuously deploy apps requires to rollout in a safe manner which usually involves step by step rollout batches and analysis.
 - Traffic shifting: When rolling upgrade an app, it needs to split the traffic onto both the old and new revisions to verify the new version while preserving service availability.
 
-## AppDeployment CRD
+### AppDeployment
 
-The `AppDeployment` CRD has been provided to satisfy such requirements. Here's an overview of the API:
+The `AppDeployment` API in KubeVela is provided to satisfy such requirements. Here's an overview of the API:
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -72,7 +72,7 @@ spec:
             replicas: 5
 ```
 
-## Cluster CRD
+### Cluster
 
 The clusters selected in the `placement` part from above is defined in Cluster CRD. Here's what it looks like:
 
@@ -99,7 +99,7 @@ data:
   config: ... # kubeconfig data
 ```
 
-# Quickstart
+## Quickstart
 
 Here's a step-by-step tutorial for you to try out. All of the yaml files are from [`docs/examples/appdeployment/`](https://github.com/oam-dev/kubevela/tree/master/docs/examples/appdeployment).
 You must run all commands in that directory.

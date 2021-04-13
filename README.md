@@ -22,13 +22,22 @@ KubeVela is a modern application engine that adapts to your application's needs,
 - Gitter: [Discussion](https://gitter.im/oam-dev/community)
 - Bi-weekly Community Call: [Meeting Notes](https://docs.google.com/document/d/1nqdFEyULekyksFHtFvgvFAYE-0AMHKoS3RMnaKsarjs)
 
-## What problems does it solve?
+## Introduction
 
-Platform-as-a-Service (PaaS) systems enable easy application deployments and everything just works, but this happiness disappears when your application outgrows the capabilities of your platform. This is inevitable regardless of that PaaS is built on Kubernetes or not - the root cause is its inflexible abstractions.
+*Developers simply want to deploy.*
 
-KubeVela solves this problem by "Platform-as-Code". Essentially, KubeVela is a Kubernetes add-on that enables you to define platform features (such as workloads, operational behaviors, and cloud services) as reusable [CUE](https://cuelang.org/) or [Helm](https://helm.sh) components, per needs of your application deployment. And when your needs grow, your platform capabilities expand naturally in a programmable approach.
+Traditional Platform-as-a-Service (PaaS) systems enable easy application deployments, but this happiness disappears when your application outgrows the capabilities of your platform. This is inevitable regardless of your PaaS is built on Kubernetes or not - the root cause is its inflexibility.
 
-Perfect in flexibility, X-as-Code tends to lead to configuration drift (i.e. the running instances are not in line with the expected configuration). That's why KubeVela is fully built with Kubernetes (instead of a client-side tool), i.e. all its abstractions and capabilities are modeled as code but enforced via battle tested [Kubernetes Control Loop](https://kubernetes.io/docs/concepts/architecture/controller/) which will never leave configuration drift in your clusters.
+KubeVela is a modern application deployment system that adapts to your needs. Essentially, KubeVela enables you to define platform capabilities (such as workloads, operational behaviors, and cloud services) as reusable [CUE](https://cuelang.org/) or [Helm](https://helm.sh) components, per needs of your application deployment. And when your needs grow, your platform capabilities expand naturally in a programmable approach.
+
+Perfect in flexibility though, X-as-Code tends to lead to configuration drift. That's why KubeVela is fully built as a [Kubernetes Controller](https://kubernetes.io/docs/concepts/architecture/controller/) instead of a client-side tool, i.e. all its capabilities are modeled as code but enforced with battle tested reconciling loops which will never leave inconsistency in your clusters. Think about *Platform-as-Code* enabled by Kubernetes, CUE and Helm.
+
+With developer experience in mind, KubeVela exposes those programmable platform capabilities as application-centric API shown as below:
+- Components - deployable/provisionable entities that composed your application deployment
+  - e.g. a Kubernetes workload, a MySQL database, or a AWS OSS bucket
+- Traits - attachable operational features per your needs
+  - e.g. autoscaling rules, rollout strategies, ingress rules, sidecars, security policies etc
+- Application - full description of your application deployment assembled with components and traits.
 
 ## Getting Started
 
@@ -38,7 +47,7 @@ Perfect in flexibility, X-as-Code tends to lead to configuration drift (i.e. the
 
 ## Features
 
-- **Zero-restriction platform** - design and express platform capabilities with CUE and Helm per needs of your application, and let Kubernetes controller guarantee the deployment determinism. GUI forms are automatically generated for capabilities so even your dashboard are fully extensible.
+- **Zero-restriction application deployment system** - design and express platform capabilities with CUE and Helm per needs of your application, and let Kubernetes controller guarantee the determinism in the application deployment. GUI forms are automatically generated for capabilities so even your dashboard are fully extensible.
 - **Generic progressive rollout framework** - built-in rollout framework and strategies to upgrade your microservice regardless of its workload type (e.g. stateless, stateful, or even custom operators etc).
 - **Multi-cluster multi-revision application deployment** - built-in model to deploy or rollout your apps across hybrid infrastructures, with Service Mesh for traffic shifting. 
 - **Simple and native** - KubeVela is a just simple Kubernetes custom controller, all its capabilities are defined as [Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) so they naturally work with any CI/CD or GitOps tools which work with Kubernetes.

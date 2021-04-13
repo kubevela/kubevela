@@ -18,30 +18,20 @@ module.exports = {
     },
     {
       type: 'category',
-      label: 'Define Application',
+      label: 'Application Deployment',
       items:[
-        'platform-engineers/overview',
         'application',
-      ]
-    },
-    {
-      type: 'category',
-      label: 'Rollout Application',
-      items:[
         "rollout/rollout",
         'rollout/appdeploy'
       ]
     },
     {
       type: 'category',
-      label: 'Platform Builder Guide',
+      label: 'Platform Operation Guide',
       items: [
+        'platform-engineers/overview',
         'platform-engineers/definition-and-templates',
-        {
-          'Visualization': [
-            'platform-engineers/openapi-v3-json-schema'
-          ]
-        },
+        'platform-engineers/openapi-v3-json-schema',
         {
           type: 'category',
           label: 'Defining Components',
@@ -65,6 +55,13 @@ module.exports = {
                   'kube/trait',
               ]
             },
+            {
+              type: 'category',
+              label: 'Defining Cloud Service',
+              items: [
+                'platform-engineers/cloud-services'
+              ]
+            },
           ]
         },
         {
@@ -79,13 +76,6 @@ module.exports = {
         },
         {
           type: 'category',
-          label: 'Defining Cloud Service',
-          items: [
-            'platform-engineers/cloud-services'
-          ]
-        },
-        {
-          type: 'category',
           label: 'Hands-on Lab',
           items: [
             'platform-engineers/debug-test-cue',
@@ -96,7 +86,7 @@ module.exports = {
     },
     {
       type: 'category',
-      label: 'Developer Experience Guide',
+      label: 'Using KubeVela CLI',
       items: [
         {
           'Appfile': [
@@ -105,7 +95,7 @@ module.exports = {
           ]
         },
         {
-          'Command Line Tool (CLI)': [
+          'Managing Applications': [
             'developers/config-enviroments',
             'developers/port-forward',
             'developers/check-logs',
@@ -118,39 +108,45 @@ module.exports = {
     },
     {
       type: 'category',
-      label: 'CLI References',
+      label: 'References',
       items: [
-        'cli/vela_components',
-        'cli/vela_config',
-        'cli/vela_env',
-        'cli/vela_init',
-        'cli/vela_up',
-        'cli/vela_version',
-        'cli/vela_exec',
-        'cli/vela_logs',
-        'cli/vela_ls',
-        'cli/vela_port-forward',
-        'cli/vela_show',
-        'cli/vela_status',
-        'cli/vela_workloads',
-        'cli/vela_traits',
-        'cli/vela_system',
-        'cli/vela_template',
-        'cli/vela_cap',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Capability References',
-      items: [
-        'developers/references/README',
-        'developers/references/component-types/webservice',
-        'developers/references/component-types/task',
-        'developers/references/component-types/worker',
-        'developers/references/traits/route',
-        'developers/references/traits/metrics',
-        'developers/references/traits/scaler',
-        'developers/references/restful-api/rest',
+        {
+          type: 'category',
+          label: 'CLI',
+          items: [
+            'cli/vela_components',
+            'cli/vela_config',
+            'cli/vela_env',
+            'cli/vela_init',
+            'cli/vela_up',
+            'cli/vela_version',
+            'cli/vela_exec',
+            'cli/vela_logs',
+            'cli/vela_ls',
+            'cli/vela_port-forward',
+            'cli/vela_show',
+            'cli/vela_status',
+            'cli/vela_workloads',
+            'cli/vela_traits',
+            'cli/vela_system',
+            'cli/vela_template',
+            'cli/vela_cap',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'Capabilities',
+          items: [
+            'developers/references/README',
+            'developers/references/component-types/webservice',
+            'developers/references/component-types/task',
+            'developers/references/component-types/worker',
+            'developers/references/traits/route',
+            'developers/references/traits/metrics',
+            'developers/references/traits/scaler',
+            'developers/references/restful-api/rest',
+          ],
+        },
       ],
     },
     {
