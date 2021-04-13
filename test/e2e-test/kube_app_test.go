@@ -197,7 +197,7 @@ spec:
 				return false
 			}
 			return len(ac.Status.Workloads) > 0
-		}, 15*time.Second, time.Second).Should(BeTrue())
+		}, 60*time.Second, time.Second).Should(BeTrue())
 
 		By("Verify the workload(deployment) is created successfully")
 		deploy := &appsv1.Deployment{}
