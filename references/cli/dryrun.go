@@ -32,16 +32,15 @@ import (
 	"sigs.k8s.io/yaml"
 
 	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	appfile2 "github.com/oam-dev/kubevela/references/appfile"
+	"github.com/oam-dev/kubevela/references/appfile/dryrun"
 )
 
-type dryRunOptions struct {
+type dryRunCmdOptions struct {
 	cmdutil.IOStreams
 	applicationFile string
 	definitionFile  string
@@ -49,7 +48,7 @@ type dryRunOptions struct {
 
 // NewDryRunCommand creates `dry-run` command
 func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	o := &dryRunOptions{IOStreams: ioStreams}
+	o := &dryRunCmdOptions{IOStreams: ioStreams}
 	cmd := &cobra.Command{
 		Use:                   "dry-run",
 		DisableFlagsInUseLine: true,
@@ -69,17 +68,10 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			if err != nil {
 				return err
 			}
+			objs := []oam.Object{}
 			if o.definitionFile != "" {
-				objs, err := ReadObjectsFromFile(o.definitionFile)
+				objs, err = ReadObjectsFromFile(o.definitionFile)
 				if err != nil {
-					return err
-				}
-				for _, obj := range objs {
-					if obj.GetNamespace() == "" {
-						obj.SetNamespace(velaEnv.Namespace)
-					}
-				}
-				if err = appfile2.CreateOrUpdateObjects(context.TODO(), newClient, objs); err != nil {
 					return err
 				}
 			}
@@ -98,16 +90,9 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 				return errors.WithMessagef(err, "read application file: %s", o.applicationFile)
 			}
 
-			parser := appfile.NewApplicationParser(newClient, dm, pd)
-
+			dryRunOpt := dryrun.NewDryRunOption(newClient, dm, pd, objs)
 			ctx := oamutil.SetNamespaceInCtx(context.Background(), velaEnv.Namespace)
-
-			appFile, err := parser.GenerateAppFile(ctx, app)
-			if err != nil {
-				return errors.WithMessage(err, "generate appFile")
-			}
-
-			ac, comps, err := appFile.GenerateApplicationConfiguration()
+			ac, comps, err := dryRunOpt.ExecuteDryRun(ctx, app)
 			if err != nil {
 				return errors.WithMessage(err, "generate OAM objects")
 			}
@@ -140,7 +125,7 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 	}
 
 	cmd.Flags().StringVarP(&o.applicationFile, "file", "f", "./app.yaml", "application file name")
-	cmd.Flags().StringVarP(&o.definitionFile, "definition", "d", "", "specify a definition file or directory, it will automatically applied to the K8s cluster")
+	cmd.Flags().StringVarP(&o.definitionFile, "definition", "d", "", "specify a definition file or directory, it will only be used in dry-run rather than applied to K8s cluster")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }

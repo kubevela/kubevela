@@ -82,6 +82,7 @@ func SystemCommandGroup(c common.Args, ioStream cmdutil.IOStreams) *cobra.Comman
 			types.TagCommandType: types.TypeSystem,
 		},
 	}
+	cmd.AddCommand(NewLiveDiffCommand(c, ioStream))
 	cmd.AddCommand(NewDryRunCommand(c, ioStream))
 	cmd.AddCommand(NewAdminInfoCommand(ioStream))
 	cmd.AddCommand(NewCUEPackageCommand(c, ioStream))

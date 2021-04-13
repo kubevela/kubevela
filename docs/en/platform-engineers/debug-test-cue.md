@@ -664,3 +664,485 @@ spec:
 
 ---
 ```
+
+`-d` or `--definitions` is a useful flag permitting user to provide capability
+definitions used in the application from local files.
+`dry-run` cmd will prioritize the provided capabilities than the living
+ones in the cluster.
+If the capability is not found in local files and cluster, it will raise an error.
+
+## Live-Diff the `Application`
+
+`vela system live-diff` allows users to have a preview of what would change if
+upgrade an application.
+It basically generates a diff between the specific revision of an application 
+and the result of `vela system dry-run`.
+The result shows the changes (added/modified/removed/no_change) of the application as well as its sub-resources, such as components and traits.
+`live-diff` will not make any changes to the living cluster, so it's very
+helpful if you want to update an application but worry about the unknown results
+that may be produced.
+
+Let's prepare an application and deploy it.
+
+> ComponentDefinitions and TraitDefinitions used in this sample are stored in 
+`./doc/examples/live-diff/definitions`.
+
+```yaml
+# app.yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: livediff-demo
+spec:
+  components:
+    - name: myweb-1
+      type: myworker
+      properties:
+        image: "busybox"
+        cmd:
+          - sleep
+          - "1000"
+        lives: "3"
+        enemies: "alien"
+      traits:
+        - type: myingress
+          properties:
+            domain: "www.example.com"
+            http:
+              "/": 80
+        - type: myscaler
+          properties:
+            replicas: 2
+    - name: myweb-2
+      type: myworker
+      properties:
+        image: "busybox"
+        cmd:
+          - sleep
+          - "1000"
+        lives: "3"
+        enemies: "alien"
+```
+
+```shell
+kubectl apply ./doc/examples/live-diff/definitions
+kubectl apply ./doc/examples/live-diff/app.yaml
+```
+
+Then, assume we want to update the application with below configuration.
+To preview changes brought by updating while not really apply updated
+configuration into the cluster, we can use `live-diff` here.
+
+```yaml
+# app-updated.yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: livediff-demo
+spec:
+  components:
+    - name: myweb-1
+      type: myworker
+      properties:
+        image: "busybox"
+        cmd:
+          - sleep
+          - "2000" # change a component property
+        lives: "3"
+        enemies: "alien"
+      traits:
+        - type: myingress
+          properties:
+            domain: "www.example.com"
+            http:
+              "/": 90 # change a trait
+        # - type: myscaler # remove a trait
+        #   properties:
+        #     replicas: 2
+    - name: myweb-2
+      type: myworker
+      properties: # no change on component property
+        image: "busybox"
+        cmd:
+          - sleep
+          - "1000"
+        lives: "3"
+        enemies: "alien"
+      traits:
+        - type: myingress # add a trait
+          properties:
+            domain: "www.example.com"
+            http:
+              "/": 90
+    - name: myweb-3  # add a component
+      type: myworker
+      properties:
+        image: "busybox"
+        cmd:
+          - sleep
+          - "1000"
+        lives: "3"
+        enemies: "alien"
+      traits:
+        - type: myingress
+          properties:
+            domain: "www.example.com"
+            http:
+              "/": 90
+```
+
+```shell
+vela system live-diff -f  ./doc/examples/live-diff/app-modified.yaml -r livediff-demo-v1
+```
+
+`-r` or `--revision` is a flag that specifies the name of a living
+`ApplicationRevision` with which you want to compare the updated application.
+
+`-c` or `--context` is a flag that specifies the number of lines shown around a
+change.
+The unchanged lines which are out of the context of a change will be omitted.
+It's useful if the diff result contains a lot of unchanged content while
+you just want to focus on the changed ones.
+
+<details><summary> Click to view diff result </summary>
+
+```shell
+---
+# Application (application-sample) has been modified(*)
+---
+  apiVersion: core.oam.dev/v1beta1
+  kind: Application
+  metadata:
+    creationTimestamp: null
+-   name: application-sample
++   name: livediff-demo
+    namespace: default
+  spec:
+    components:
+    - name: myweb-1
++     properties:
++       cmd:
++       - sleep
++       - "2000"
++       enemies: alien
++       image: busybox
++       lives: "3"
++     traits:
++     - properties:
++         domain: www.example.com
++         http:
++           /: 90
++       type: myingress
++     type: myworker
++   - name: myweb-2
+      properties:
+        cmd:
+        - sleep
+        - "1000"
+        enemies: alien
+        image: busybox
+        lives: "3"
+      traits:
+      - properties:
+          domain: www.example.com
+          http:
+-           /: 80
++           /: 90
+        type: myingress
+-     - properties:
+-         replicas: 2
+-       type: myscaler
+      type: myworker
+-   - name: myweb-2
++   - name: myweb-3
+      properties:
+        cmd:
+        - sleep
+        - "1000"
+        enemies: alien
+        image: busybox
+        lives: "3"
++     traits:
++     - properties:
++         domain: www.example.com
++         http:
++           /: 90
++       type: myingress
+      type: myworker
+  status:
+    batchRollingState: ""
+    currentBatch: 0
+    rollingState: ""
+    upgradedReadyReplicas: 0
+    upgradedReplicas: 0
+  
+---
+## Component (myweb-1) has been modified(*)
+---
+  apiVersion: core.oam.dev/v1alpha2
+  kind: Component
+  metadata:
+    creationTimestamp: null
+    labels:
+-     app.oam.dev/name: application-sample
++     app.oam.dev/name: livediff-demo
+    name: myweb-1
+  spec:
+    workload:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app.oam.dev/appRevision: ""
+          app.oam.dev/component: myweb-1
+-         app.oam.dev/name: application-sample
++         app.oam.dev/name: livediff-demo
+          workload.oam.dev/type: myworker
+      spec:
+        selector:
+          matchLabels:
+            app.oam.dev/component: myweb-1
+        template:
+          metadata:
+            labels:
+              app.oam.dev/component: myweb-1
+          spec:
+            containers:
+            - command:
+              - sleep
+-             - "1000"
++             - "2000"
+              image: busybox
+              name: myweb-1
+  status:
+    observedGeneration: 0
+  
+---
+### Component (myweb-1) / Trait (myingress/ingress) has been modified(*)
+---
+  apiVersion: networking.k8s.io/v1beta1
+  kind: Ingress
+  metadata:
+    labels:
+      app.oam.dev/appRevision: ""
+      app.oam.dev/component: myweb-1
+-     app.oam.dev/name: application-sample
++     app.oam.dev/name: livediff-demo
+      trait.oam.dev/resource: ingress
+      trait.oam.dev/type: myingress
+    name: myweb-1
+  spec:
+    rules:
+    - host: www.example.com
+      http:
+        paths:
+        - backend:
+            serviceName: myweb-1
+-           servicePort: 80
++           servicePort: 90
+          path: /
+  
+---
+### Component (myweb-1) / Trait (myingress/service) has been modified(*)
+---
+  apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app.oam.dev/appRevision: ""
+      app.oam.dev/component: myweb-1
+-     app.oam.dev/name: application-sample
++     app.oam.dev/name: livediff-demo
+      trait.oam.dev/resource: service
+      trait.oam.dev/type: myingress
+    name: myweb-1
+  spec:
+    ports:
+-   - port: 80
+-     targetPort: 80
++   - port: 90
++     targetPort: 90
+    selector:
+      app.oam.dev/component: myweb-1
+  
+---
+### Component (myweb-1) / Trait (myscaler/scaler) has been removed(-)
+---
+- apiVersion: core.oam.dev/v1alpha2
+- kind: ManualScalerTrait
+- metadata:
+-   labels:
+-     app.oam.dev/appRevision: ""
+-     app.oam.dev/component: myweb-1
+-     app.oam.dev/name: application-sample
+-     trait.oam.dev/resource: scaler
+-     trait.oam.dev/type: myscaler
+- spec:
+-   replicaCount: 2
+  
+---
+## Component (myweb-2) has been modified(*)
+---
+  apiVersion: core.oam.dev/v1alpha2
+  kind: Component
+  metadata:
+    creationTimestamp: null
+    labels:
+-     app.oam.dev/name: application-sample
++     app.oam.dev/name: livediff-demo
+    name: myweb-2
+  spec:
+    workload:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app.oam.dev/appRevision: ""
+          app.oam.dev/component: myweb-2
+-         app.oam.dev/name: application-sample
++         app.oam.dev/name: livediff-demo
+          workload.oam.dev/type: myworker
+      spec:
+        selector:
+          matchLabels:
+            app.oam.dev/component: myweb-2
+        template:
+          metadata:
+            labels:
+              app.oam.dev/component: myweb-2
+          spec:
+            containers:
+            - command:
+              - sleep
+              - "1000"
+              image: busybox
+              name: myweb-2
+  status:
+    observedGeneration: 0
+  
+---
+### Component (myweb-2) / Trait (myingress/ingress) has been added(+)
+---
++ apiVersion: networking.k8s.io/v1beta1
++ kind: Ingress
++ metadata:
++   labels:
++     app.oam.dev/appRevision: ""
++     app.oam.dev/component: myweb-2
++     app.oam.dev/name: livediff-demo
++     trait.oam.dev/resource: ingress
++     trait.oam.dev/type: myingress
++   name: myweb-2
++ spec:
++   rules:
++   - host: www.example.com
++     http:
++       paths:
++       - backend:
++           serviceName: myweb-2
++           servicePort: 90
++         path: /
+  
+---
+### Component (myweb-2) / Trait (myingress/service) has been added(+)
+---
++ apiVersion: v1
++ kind: Service
++ metadata:
++   labels:
++     app.oam.dev/appRevision: ""
++     app.oam.dev/component: myweb-2
++     app.oam.dev/name: livediff-demo
++     trait.oam.dev/resource: service
++     trait.oam.dev/type: myingress
++   name: myweb-2
++ spec:
++   ports:
++   - port: 90
++     targetPort: 90
++   selector:
++     app.oam.dev/component: myweb-2
+  
+---
+## Component (myweb-3) has been added(+)
+---
++ apiVersion: core.oam.dev/v1alpha2
++ kind: Component
++ metadata:
++   creationTimestamp: null
++   labels:
++     app.oam.dev/name: livediff-demo
++   name: myweb-3
++ spec:
++   workload:
++     apiVersion: apps/v1
++     kind: Deployment
++     metadata:
++       labels:
++         app.oam.dev/appRevision: ""
++         app.oam.dev/component: myweb-3
++         app.oam.dev/name: livediff-demo
++         workload.oam.dev/type: myworker
++     spec:
++       selector:
++         matchLabels:
++           app.oam.dev/component: myweb-3
++       template:
++         metadata:
++           labels:
++             app.oam.dev/component: myweb-3
++         spec:
++           containers:
++           - command:
++             - sleep
++             - "1000"
++             image: busybox
++             name: myweb-3
++ status:
++   observedGeneration: 0
+  
+---
+### Component (myweb-3) / Trait (myingress/ingress) has been added(+)
+---
++ apiVersion: networking.k8s.io/v1beta1
++ kind: Ingress
++ metadata:
++   labels:
++     app.oam.dev/appRevision: ""
++     app.oam.dev/component: myweb-3
++     app.oam.dev/name: livediff-demo
++     trait.oam.dev/resource: ingress
++     trait.oam.dev/type: myingress
++   name: myweb-3
++ spec:
++   rules:
++   - host: www.example.com
++     http:
++       paths:
++       - backend:
++           serviceName: myweb-3
++           servicePort: 90
++         path: /
+  
+---
+### Component (myweb-3) / Trait (myingress/service) has been added(+)
+---
++ apiVersion: v1
++ kind: Service
++ metadata:
++   labels:
++     app.oam.dev/appRevision: ""
++     app.oam.dev/component: myweb-3
++     app.oam.dev/name: livediff-demo
++     trait.oam.dev/resource: service
++     trait.oam.dev/type: myingress
++   name: myweb-3
++ spec:
++   ports:
++   - port: 90
++     targetPort: 90
++   selector:
++     app.oam.dev/component: myweb-3
+```
+
+</details>
