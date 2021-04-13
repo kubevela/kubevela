@@ -25,7 +25,7 @@ then
 fi
 
 echo "git clone"
-git config --global user.email "yangsoonlx@gmail.com"
+git config --global user.email "kubevela.bot@aliyun.com"
 git config --global user.name "kubevela-bot"
 git clone --single-branch --depth 1 git@github.com:oam-dev/kubevela.io.git git-page
 
