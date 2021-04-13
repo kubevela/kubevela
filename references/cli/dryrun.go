@@ -40,15 +40,16 @@ import (
 	"github.com/oam-dev/kubevela/references/appfile/dryrun"
 )
 
-type dryRunCmdOptions struct {
+// DryRunCmdOptions contains dry-run cmd options
+type DryRunCmdOptions struct {
 	cmdutil.IOStreams
-	applicationFile string
-	definitionFile  string
+	ApplicationFile string
+	DefinitionFile  string
 }
 
 // NewDryRunCommand creates `dry-run` command
 func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	o := &dryRunCmdOptions{IOStreams: ioStreams}
+	o := &DryRunCmdOptions{IOStreams: ioStreams}
 	cmd := &cobra.Command{
 		Use:                   "dry-run",
 		DisableFlagsInUseLine: true,
@@ -59,75 +60,85 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			newClient, err := c.GetClient()
-			if err != nil {
-				return err
-			}
-
 			velaEnv, err := GetEnv(cmd)
 			if err != nil {
 				return err
 			}
-			objs := []oam.Object{}
-			if o.definitionFile != "" {
-				objs, err = ReadObjectsFromFile(o.definitionFile)
-				if err != nil {
-					return err
-				}
-			}
-			pd, err := c.GetPackageDiscover()
+			buff, err := DryRunApplication(o, c, velaEnv.Namespace)
 			if err != nil {
 				return err
-			}
-
-			dm, err := discoverymapper.New(c.Config)
-			if err != nil {
-				return err
-			}
-
-			app, err := readApplicationFromFile(o.applicationFile)
-			if err != nil {
-				return errors.WithMessagef(err, "read application file: %s", o.applicationFile)
-			}
-
-			dryRunOpt := dryrun.NewDryRunOption(newClient, dm, pd, objs)
-			ctx := oamutil.SetNamespaceInCtx(context.Background(), velaEnv.Namespace)
-			ac, comps, err := dryRunOpt.ExecuteDryRun(ctx, app)
-			if err != nil {
-				return errors.WithMessage(err, "generate OAM objects")
-			}
-			var buff = bytes.Buffer{}
-			var components = make(map[string]runtime.RawExtension)
-			for _, comp := range comps {
-				components[comp.Name] = comp.Spec.Workload
-			}
-			for _, c := range ac.Spec.Components {
-				buff.Write([]byte(fmt.Sprintf("---\n# Application(%s) -- Comopnent(%s) \n---\n\n", ac.Name, c.ComponentName)))
-				result, err := yaml.Marshal(components[c.ComponentName])
-				if err != nil {
-					return errors.WithMessage(err, "marshal result for component "+c.ComponentName+" object in yaml format")
-				}
-				buff.Write(result)
-				buff.Write([]byte("\n---\n"))
-				for _, t := range c.Traits {
-					result, err := yaml.Marshal(t.Trait)
-					if err != nil {
-						return errors.WithMessage(err, "marshal result for component "+c.ComponentName+" object in yaml format")
-					}
-					buff.Write(result)
-					buff.Write([]byte("\n---\n"))
-				}
-				buff.Write([]byte("\n"))
 			}
 			o.Info(buff.String())
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVarP(&o.applicationFile, "file", "f", "./app.yaml", "application file name")
-	cmd.Flags().StringVarP(&o.definitionFile, "definition", "d", "", "specify a definition file or directory, it will only be used in dry-run rather than applied to K8s cluster")
+	cmd.Flags().StringVarP(&o.ApplicationFile, "file", "f", "./app.yaml", "application file name")
+	cmd.Flags().StringVarP(&o.DefinitionFile, "definition", "d", "", "specify a definition file or directory, it will only be used in dry-run rather than applied to K8s cluster")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
+}
+
+// DryRunApplication will dry-run an application and return the render result
+func DryRunApplication(cmdOption *DryRunCmdOptions, c common.Args, namespace string) (bytes.Buffer, error) {
+	var buff = bytes.Buffer{}
+
+	newClient, err := c.GetClient()
+	if err != nil {
+		return buff, err
+	}
+	objs := []oam.Object{}
+	if cmdOption.DefinitionFile != "" {
+		objs, err = ReadObjectsFromFile(cmdOption.DefinitionFile)
+		if err != nil {
+			return buff, err
+		}
+	}
+	pd, err := c.GetPackageDiscover()
+	if err != nil {
+		return buff, err
+	}
+
+	dm, err := discoverymapper.New(c.Config)
+	if err != nil {
+		return buff, err
+	}
+
+	app, err := readApplicationFromFile(cmdOption.ApplicationFile)
+	if err != nil {
+		return buff, errors.WithMessagef(err, "read application file: %s", cmdOption.ApplicationFile)
+	}
+
+	dryRunOpt := dryrun.NewDryRunOption(newClient, dm, pd, objs)
+	ctx := oamutil.SetNamespaceInCtx(context.Background(), namespace)
+	ac, comps, err := dryRunOpt.ExecuteDryRun(ctx, app)
+	if err != nil {
+		return buff, errors.WithMessage(err, "generate OAM objects")
+	}
+
+	var components = make(map[string]runtime.RawExtension)
+	for _, comp := range comps {
+		components[comp.Name] = comp.Spec.Workload
+	}
+	for _, c := range ac.Spec.Components {
+		buff.Write([]byte(fmt.Sprintf("---\n# Application(%s) -- Comopnent(%s) \n---\n\n", ac.Name, c.ComponentName)))
+		result, err := yaml.Marshal(components[c.ComponentName])
+		if err != nil {
+			return buff, errors.WithMessage(err, "marshal result for component "+c.ComponentName+" object in yaml format")
+		}
+		buff.Write(result)
+		buff.Write([]byte("\n---\n"))
+		for _, t := range c.Traits {
+			result, err := yaml.Marshal(t.Trait)
+			if err != nil {
+				return buff, errors.WithMessage(err, "marshal result for component "+c.ComponentName+" object in yaml format")
+			}
+			buff.Write(result)
+			buff.Write([]byte("\n---\n"))
+		}
+		buff.Write([]byte("\n"))
+	}
+	return buff, nil
 }
 
 // ReadObjectsFromFile will read objects from file or dir in the format of yaml
