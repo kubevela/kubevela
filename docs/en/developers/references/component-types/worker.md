@@ -11,11 +11,7 @@ Describes long-running, scalable, containerized services that running at backend
 List of all configuration options for a `Worker` workload type.
 
 ```yaml
-name: my-app-name
-
-services:
-  my-service-name:
-    type: worker
+...
     image: oamdev/testapp:v1
     cmd: ["node", "server.js"]
 ```

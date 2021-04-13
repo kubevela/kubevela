@@ -64,7 +64,7 @@ spec:
 
 ## Building the Abstraction
 
-Unlike most of the higher level abstractions, the `Application` resource in KubeVela is a LEGO-style object and does not even have fixed schema. Instead, it is composed by building blocks (app components and traits etc.) that allow you to on-board platform capabilities to this application definition via your own abstractions.
+The `Application` resource in KubeVela is a LEGO-style object and does not even have fixed schema. Instead, it is composed by building blocks (app components and traits etc.) that allow you to on-board platform capabilities to this application definition via your own abstractions.
 
 The building blocks to abstraction and model platform capabilities named `ComponentDefinition` and `TraitDefinition`.
 

@@ -1,5 +1,5 @@
 ---
-title:  Generate Forms from Definitions
+title:  Generating UI Forms
 ---
 
 For any capabilities installed via [Definition Objects](./definition-and-templates),

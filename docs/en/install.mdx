@@ -5,17 +5,17 @@ title:  Installation
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-If you have installed the kubevale chart before, please read the [Upgrade](#upgrade) step directly.
+> For upgrading existing KubeVela, please read the [upgrade guide](./advanced-install#upgrade).
 
-## 1. Setup Kubernetes cluster
+## 1. Choose Kubernetes Cluster
 
 Requirements:
 - Kubernetes cluster >= v1.15.0
-- kubectl installed and configured
+- `kubectl` installed and configured
 
-If you don't have K8s cluster from Cloud Provider, you may pick either Minikube or KinD as local cluster testing option.
+KubeVela is a simple custom controller that can be installed on any Kubernetes cluster including managed offerings or your own clusters. The only requirement is please ensure [ingress-nginx](https://kubernetes.github.io/ingress-nginx/deploy/) is installed and enabled.
 
-> NOTE: If you are not using minikube or kind, please make sure to [install or enable ingress-nginx](https://kubernetes.github.io/ingress-nginx/deploy/) by yourself.
+For for local deployment and test, you could use `minikube` or `kind`.
 
 <Tabs
 className="unique-tabs"
@@ -28,7 +28,7 @@ values={[
 
 Follow the minikube [installation guide](https://minikube.sigs.k8s.io/docs/start/).
 
-Once minikube is installed, create a cluster:
+Then spins up a minikube cluster
 
 ```shell script
 minikube start
@@ -80,8 +80,6 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/mast
 
 ## 2. Install KubeVela Controller
 
-These steps will install KubeVela controller and its dependency.
-
 1. Add helm chart repo for KubeVela
     ```shell script
     helm repo add kubevela https://kubevelacharts.oss-cn-hangzhou.aliyuncs.com/core
@@ -97,74 +95,10 @@ These steps will install KubeVela controller and its dependency.
     helm install --create-namespace -n vela-system kubevela kubevela/vela-core
     ```
     By default, it will enable the webhook with a self-signed certificate provided by [kube-webhook-certgen](https://github.com/jet/kube-webhook-certgen)
-   
-    If you want to try the latest master branch, add flag `--devel` in command `helm search` to choose a pre-release
-    version in format `<next_version>-rc-master` which means the next release candidate version build on `master` branch,
-    like `0.4.0-rc-master`.
-   
-    ```shell script
-    helm search repo kubevela/vela-core -l --devel
-    ```
-    ```console
-        NAME                     	CHART VERSION        	APP VERSION          	DESCRIPTION
-        kubevela/vela-core       	0.4.0-rc-master         0.4.0-rc-master         A Helm chart for KubeVela core
-        kubevela/vela-core       	0.3.2  	                0.3.2                   A Helm chart for KubeVela core
-        kubevela/vela-core       	0.3.1        	        0.3.1               	A Helm chart for KubeVela core
-    ```
-   
-    And try the following command to install it.
-   
-    ```shell script
-    helm install --create-namespace -n vela-system kubevela kubevela/vela-core --version <next_version>-rc-master
-    ```
-    ```console
-    NAME: kubevela
-    LAST DEPLOYED: Thu Apr  1 19:41:30 2021
-    NAMESPACE: vela-system
-    STATUS: deployed
-    REVISION: 1
-    NOTES:
-    Welcome to use the KubeVela! Enjoy your shipping application journey!
-   ```
 
-4. Install Kubevela with cert-manager (optional)
-   
-   If cert-manager has been installed, it can be used to take care about generating certs. 
+## 3. Get KubeVela CLI
 
-   You need to install cert-manager before the kubevela chart.
-    ```shell script
-    helm repo add jetstack https://charts.jetstack.io
-    helm repo update
-    helm install cert-manager jetstack/cert-manager --namespace cert-manager --version v1.2.0 --create-namespace --set installCRDs=true
-    ```
-   
-    Install kubevela with enabled certmanager:
-    ```shell script
-    helm install --create-namespace -n vela-system --set admissionWebhooks.certManager.enabled=true kubevela kubevela/vela-core
-    ```
-
-## 3. (Optional) Install flux2
-
-This installation step is optional, it's required if you want to register [Helm Chart](https://helm.sh/) as KubeVela capabilities.
-
-KubeVela relies on several CRDs and controllers from [fluxcd/flux2](https://github.com/fluxcd/flux2).
-
-| CRD      | Controller Image |
-| ----------- | ----------- |
-| helmrepositories.source.toolkit.fluxcd.io   | fluxcd/source-controller:v0.9.0 |
-| helmcharts.source.toolkit.fluxcd.io   | - |
-| buckets.source.toolkit.fluxcd.io      | - |
-| gitrepositories.source.toolkit.fluxcd.io   | - |
-| helmreleases.helm.toolkit.fluxcd.io | fluxcd/helm-controller:v0.8.0 |
-
-You can install the whole flux2 from their [official website](https://github.com/fluxcd/flux2)
-or install the chart with minimal parts provided by KubeVela:
-
-```shell
-$ helm install --create-namespace -n flux-system helm-flux http://oam.dev/catalog/helm-flux2-0.1.0.tgz
-```
-
-## 4. (Optional) Get KubeVela CLI
+Using KubeVela CLI gives you a simplified workflow with optimized output comparing to using `kubectl`. It is not mandatory though.
 
 Here are three ways to get KubeVela Cli:
 
@@ -222,9 +156,23 @@ sudo mv ./vela /usr/local/bin/vela
 </TabItem>
 </Tabs>
 
-## 5. (Optional) Sync Capability from Cluster
 
-If you want to run application from `vela` cli, then you should sync capabilities first like below:
+## 4. Enable Helm Support
+
+KubeVela leverages Helm controller from [Flux v2](https://github.com/fluxcd/flux2) to deploy [Helm](https://helm.sh/) based components.
+
+You can enable this feature by installing a minimal Flux v2 chart as below:
+
+```shell
+$ helm install --create-namespace -n flux-system helm-flux http://oam.dev/catalog/helm-flux2-0.1.0.tgz
+```
+
+Or you could install full Flux v2 following its own guide of course.
+
+
+## 5. Verify
+
+Checking available application components and traits by `vela` CLI tool:
 
 ```shell script
 vela components
@@ -240,84 +188,6 @@ worker    	vela-system	deployments.apps	Describes long-running, scalable, contai
           	           	                	to receive external network traffic.
 ```
 
-## 6. (Optional) Clean Up
+These capabilities are built-in so they are ready to use if showed up. KubeVela is designed to be programmable and fully self-service, so the assumption is more capabilities will be added later per your own needs. 
 
-<details>
-Run:
-
-```shell script
-helm uninstall -n vela-system kubevela
-rm -r ~/.vela
-```
-
-This will uninstall KubeVela server component and its dependency components.
-This also cleans up local CLI cache.
-
-Then clean up CRDs (CRDs are not removed via helm by default):
-
-```shell script
- kubectl delete crd \
-  appdeployments.core.oam.dev \
-  applicationconfigurations.core.oam.dev \
-  applicationcontexts.core.oam.dev \
-  applicationdeployments.core.oam.dev \
-  applicationrevisions.core.oam.dev \
-  applications.core.oam.dev \
-  approllouts.core.oam.dev \
-  componentdefinitions.core.oam.dev \
-  components.core.oam.dev \
-  containerizedworkloads.core.oam.dev \
-  healthscopes.core.oam.dev \
-  manualscalertraits.core.oam.dev \
-  podspecworkloads.standard.oam.dev \
-  scopedefinitions.core.oam.dev \
-  traitdefinitions.core.oam.dev \
-  workloaddefinitions.core.oam.dev
-```
-</details>
-
-# Upgrade
-
-If you have already installed KubeVela and wants to upgrade to the new version, you could follow below instructions.
-
-## Step 1. Update helm repo
-
-```shell
-helm repo update
-```
-
-you can get the new version kubevela chart by run:
-
-```shell
-helm search repo kubevela/vela-core -l
-```
-
-## Step 2. Upgrade KubeVela CRDs
-
-```shell
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_componentdefinitions.yaml
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_workloaddefinitions.yaml
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_traitdefinitions.yaml
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_applications.yaml
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_approllouts.yaml
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_applicationrevisions.yaml
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_scopedefinitions.yaml
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_appdeployments.yaml
-kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/charts/vela-core/crds/core.oam.dev_applicationcontexts.yaml
-```
-
-> Tips: If you meet errors like `* is invalid: spec.scope: Invalid value: "Namespaced": filed is immutable`. Please delete the crd with the error.
-and re-apply the kubevela crds.
-
-```shell
- kubectl delete crd \
-  scopedefinitions.core.oam.dev \
-  traitdefinitions.core.oam.dev \
-  workloaddefinitions.core.oam.dev
-```
-
-## Step 3. Upgrade KubeVela helm chart
-
-```shell
-helm upgrade --install --create-namespace --namespace vela-system  kubevela kubevela/vela-core --version <the_new_version>
-```
+Also, whenever new capabilities are added in the platform, you will immediately see them in above output.

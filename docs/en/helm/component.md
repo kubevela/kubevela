@@ -8,7 +8,7 @@ In this section, it will introduce how to declare Helm charts as app components 
 
 ## Prerequisite
 
-* [fluxcd/flux2](../install#3-optional-install-flux2), make sure you have installed the flux2 in the [installation guide](/docs/install).
+* Make sure you have enabled Helm support in the [installation guide](/docs/install).
 
 ## Declare `ComponentDefinition`
 
