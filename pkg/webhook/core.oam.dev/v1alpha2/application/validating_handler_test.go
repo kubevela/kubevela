@@ -17,8 +17,6 @@ limitations under the License.
 package application
 
 import (
-	"context"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
@@ -28,9 +26,6 @@ import (
 )
 
 var _ = Describe("Test Application Validator", func() {
-	ctx := context.Background()
-	handler := &ValidatingHandler{}
-
 	BeforeEach(func() {
 		Expect(handler.InjectClient(k8sClient)).Should(BeNil())
 		Expect(handler.InjectDecoder(decoder)).Should(BeNil())
