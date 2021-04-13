@@ -18,6 +18,7 @@ package applicationconfiguration
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/ghodss/yaml"
@@ -198,14 +199,28 @@ spec:
               removed: bar
               valueChanged: bar`
 		Expect(yaml.Unmarshal([]byte(appConfigYAML), &appConfig)).Should(BeNil())
-		By("Creat appConfig & check successfully")
-		Expect(k8sClient.Create(ctx, &appConfig)).Should(Succeed())
-		Eventually(func() error {
-			return k8sClient.Get(ctx, appConfigKey, &appConfig)
-		}, time.Second, 300*time.Millisecond).Should(BeNil())
 
-		By("Reconcile")
-		reconcileRetry(reconciler, req)
+		By("Creat appConfig & check trait is created")
+		Expect(k8sClient.Create(ctx, &appConfig)).Should(Succeed())
+		Eventually(func() int64 {
+			reconcileRetry(reconciler, req)
+			if err := k8sClient.Get(ctx, appConfigKey, &appConfig); err != nil {
+				return 0
+			}
+			if appConfig.Status.Workloads == nil {
+				reconcileRetry(reconciler, req)
+				return 0
+			}
+			var traitObj unstructured.Unstructured
+			traitName := appConfig.Status.Workloads[0].Traits[0].Reference.Name
+			traitObj.SetAPIVersion("example.com/v1")
+			traitObj.SetKind("Bar")
+			if err := k8sClient.Get(ctx,
+				client.ObjectKey{Namespace: namespace, Name: traitName}, &traitObj); err != nil {
+				return 0
+			}
+			return traitObj.GetGeneration()
+		}, 3*time.Second, 500*time.Millisecond).Should(Equal(int64(1)))
 	})
 
 	AfterEach(func() {
@@ -272,6 +287,11 @@ spec:
 					client.ObjectKey{Namespace: namespace, Name: traitName}, &traitObj); err != nil {
 					return 0
 				}
+
+				// TODO(roywang) 2021/04/13 remove below 'By' if this case no longer breaks.
+				v, _, _ := unstructured.NestedString(traitObj.UnstructuredContent(), "spec", "valueChanged")
+				By(fmt.Sprintf(`trait field: want "foo", got %q`, v))
+
 				return traitObj.GetGeneration()
 			}, 60*time.Second, time.Second).Should(Equal(int64(2)))
 
