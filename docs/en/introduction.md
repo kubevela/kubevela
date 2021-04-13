@@ -22,25 +22,27 @@ In the end, developers complain those platforms are too rigid and slow in respon
 
 For platform builders, KubeVela serves as a framework that relieves the pains of building developer focused platforms by doing the following:
 
-- Developer Centric. KubeVela abstracts away the infrastructure level primitives by introducing the *Application* concept to capture a full deployment of microservices, and then building operational features around the applications' needs only.
+- Developer Centric. KubeVela introduces the Application as the main API to capture a full deployment of microservices, and builds features around the application needs only. Progressive rollout and multi-cluster deployment are provided out-of-box. No infrastructure level concerns, simply deploy.
  
-- Extending Natively. The *Application* is composed of modularized building blocks that support [CUELang](https://github.com/cuelang/cue) and [Helm](https://helm.sh) as template engines. This enable you to abstract Kubernetes capabilities in LEGO-style and ship them to end users via plain `kubectl apply -f`. Changes made to the abstraction templates take effect at runtime, neither recompilation nor redeployment of KubeVela is required.
+- Extending Natively. In KubeVela, all platform features (such as workloads, operational behaviors, and cloud services) are defined as reusable [CUE](https://github.com/cuelang/cue) and/or [Helm](https://helm.sh) components, per needs of the application deployment. And when application's needs grow, your platform capabilities expand naturally in a programmable approach.
 
-- Simple yet Reliable Abstraction Mechanism. Unlike most IaC (Infrastructure-as-Code) solutions, the abstractions in KubeVela is built with [Kubernetes Control Loop](https://kubernetes.io/docs/concepts/architecture/controller/) so they will never leave *Configuration Drift* in your cluster. As a [Kubernetes Custom Resource](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/), KubeVela works with any CI/CD or GitOps tools seamlessly, no integration effort needed.
+- Simple yet Reliable. Perfect in flexibility though, X-as-Code may lead to configuration drift (i.e. the running instances are not in line with the expected configuration). KubeVela solves this by modeling its capabilities as code but enforce them via Kubernetes control loop which will never leave inconsistency in your clusters. This also makes KubeVela work with any CI/CD or GitOps tools via declarative API without integration burden.
 
 With KubeVela, the platform builders finally have the tooling supports to design easy-to-use abstractions and ship them to end-users with high confidence and low turn around time. 
 
-For end-users (e.g. app developers), such abstractions built with KubeVela will enable them to design and ship applications to Kubernetes with minimal effort - instead of managing a handful infrastructure details, a simple application definition that can be easily integrated with any CI/CD pipeline is all they need.
+For end-users (e.g. app developers and operators), these abstractions will enable them to design and ship applications to Kubernetes clusters with minimal effort, and instead of managing a handful infrastructure details, a simple application definition that can be easily integrated with any CI/CD pipeline is all they need.
 
 ## Comparisons
 
 ### KubeVela vs. Platform-as-a-Service (PaaS) 
 
-The typical examples are Heroku and Cloud Foundry. They provide full application management capabilities and aim to improve developer experience and efficiency. In this context, KubeVela can provide similar experience.
+The typical examples are Heroku and Cloud Foundry. They provide full application management capabilities and aim to improve developer experience and efficiency. In this context, KubeVela shares the same goal.
 
 Though the biggest difference lies in **flexibility**.
 
-KubeVela is a Kubernetes plug-in that enabling you to serve end users with simplicity by defining your own abstractions, and this is achieved by templating Kubernetes API resources as application-centric abstractions in your cluster. Comparing to this mechanism, most existing PaaS systems are highly restricted and inflexible, i.e. they have to enforce constraints in the type of supported applications and capabilities, and as application needs grows, they always outgrow the capabilities of a PaaS system - this will never happen in KubeVela. 
+KubeVela is a Kubernetes add-on that enabling you to serve end users with programmable building blocks which are fully flexible and coded by yourself. Comparing to this mechanism, traditional PaaS systems are highly restricted, i.e. they have to enforce constraints in the type of supported applications and capabilities, and as application needs grows, you always outgrow the capabilities of the PaaS system - this will never happen in KubeVela platform.
+
+So think of KubeVela as a Heroku that is fully extensible to serve your needs as you grow.
 
 ### KubeVela vs. Serverless  
 
@@ -52,17 +54,17 @@ Kubernetes based serverless platforms such as Knative, OpenFaaS can be easily in
 
 The typical example is Hashicorp's Waypoint. Waypoint is a developer facing tool which introduces a consistent workflow (i.e., build, deploy, release) to ship applications on top of different platforms.
 
-KubeVela can be integrated into Waypoint as a supported platform. In this case, developers could use the Waypoint workflow to manage applications with leverage of abstractions (e.g. application, rollout, ingress, autoscaling etc) you built via KubeVela.
+KubeVela can be integrated into such tools as an application platform. In this case, developers could use the Waypoint workflow to manage applications with leverage of abstractions (e.g. application, rollout, ingress, autoscaling etc) you built via KubeVela.
 
 ### KubeVela vs. Helm 
 
-Helm is a package manager for Kubernetes that provides package, install, and upgrade a set of YAML files for Kubernetes as a unit. KubeVela leverages Helm heavily to package the capability dependencies and Helm is also one of the core templating engines behind *Application* abstraction.
+Helm is a package manager for Kubernetes that provides package, install, and upgrade a set of YAML files for Kubernetes as a unit. KubeVela can patch, deploy and rollout Helm packaged application components, and it also leverages Helm to manage the capability dependencies in system level.
 
-Though KubeVela itself is not a package manager, it's a core engine for platform builders to create upper layer platforms in easy and repeatable approach.
+Though KubeVela itself is not a package manager, it's a core engine for platform builders to create developer-centric deployment system with easy and repeatable approach.
 
 ### KubeVela vs. Kubernetes
 
-KubeVela is a Kubernetes plugin for building higher level abstractions. It leverages [Open Application Model](https://github.com/oam-dev/spec) and the native Kubernetes extensibility to resolve a hard problem - making shipping applications enjoyable on Kubernetes.
+KubeVela is a Kubernetes add-on for building developer-centric deployment system. It leverages [Open Application Model](https://github.com/oam-dev/spec) and the native Kubernetes extensibility to resolve a hard problem - making shipping applications enjoyable on Kubernetes.
 
 ## Getting Started
 
