@@ -56,6 +56,9 @@ vela-cli:
 	$(GOBUILD_ENV) go build -o bin/vela -a -ldflags $(LDFLAGS) ./references/cmd/cli/main.go
 	git checkout references/cmd/cli/fake/chart_source.go
 
+kubectl-vela:
+	$(GOBUILD_ENV) go build -o bin/kubectl-vela -a -ldflags $(LDFLAGS) ./cmd/plugin/main.go
+
 dashboard-build:
 	cd references/dashboard && npm install && cd ..
 
