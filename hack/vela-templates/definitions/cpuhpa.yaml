@@ -2,14 +2,13 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "Configures replicas for your service by patch replicas field."
-  name: scaler
+    definition.oam.dev/description: "configure k8s HPA with CPU metrics for Deployment"
+  name: cpuscaler
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   appliesToWorkloads:
     - webservice
     - worker
-  podDisruptive: false
   schematic:
     cue:
       template: |
