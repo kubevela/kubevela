@@ -136,7 +136,7 @@ const cueTemplate appCreateMode = "appFile"
 ```go
 type appConfigValue struct {
     appName string       `json:"appName"`
-    defintion runtime.RawExtension `json:"defintion"` // the content
+    definition runtime.RawExtension `json:"definition"` // the content
     definitionName string `json:"definitionName"` // use to find the definition
     definitionType string `json:"definitionType"`
 }
@@ -161,7 +161,7 @@ const cueTemplate appUpdateMode = "appFile"
 ```go
 
 type appConfigValue struct {
-    defintion runtime.RawExtension `json:"defintion"` // the content
+    definition runtime.RawExtension `json:"definition"` // the content
 }
 ```
 

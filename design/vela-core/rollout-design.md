@@ -179,7 +179,7 @@ just change the application, and the system will pick up the change, then apply 
  depends on the workload type and we will list each in the 
  [rollout with different workload](#Rollout plan work with different type of workloads) section
  . This special AC logic is also the real magic for the other rollout scenario to work as AC
-  controller is the only entity that is directly responsible for emiting the workload to the k8s.
+  controller is the only entity that is directly responsible for emitting the workload to the k8s.
    
    
 #### ApplicationDeployment workflow 

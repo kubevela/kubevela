@@ -142,7 +142,7 @@ Besides the condition in `apply-once-only`, `apply-once-only-force` has one more
 
 Three available options are provided to a vela-core runtime setup flag named `apply-one-only`, referring to three modes:
 
-- off - `apply-once-only` is disabeld, this is the default option
+- off - `apply-once-only` is disabled, this is the default option
 - on - `apply-once-only` is enabled
 - force - `apply-once-only-force` is enabled
 
