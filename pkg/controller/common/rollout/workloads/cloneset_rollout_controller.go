@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -165,7 +166,7 @@ func (c *CloneSetRolloutController) RolloutOneBatchPods(ctx context.Context) (bo
 	c.cloneSet.Spec.UpdateStrategy.Partition = &intstr.IntOrString{Type: intstr.Int,
 		IntVal: cloneSetSize - int32(newPodTarget)}
 	// patch the Cloneset
-	if err := c.client.Patch(ctx, c.cloneSet, clonePatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
+	if err = c.client.Patch(ctx, c.cloneSet, clonePatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
 		c.recorder.Event(c.parentController, event.Warning("Failed to update the cloneset to upgrade", err))
 		c.rolloutStatus.RolloutRetry(err.Error())
 		return false, nil
@@ -189,9 +190,10 @@ func (c *CloneSetRolloutController) CheckOneBatchPods(ctx context.Context) (bool
 	// get the number of ready pod from cloneset
 	readyPodCount := int(c.cloneSet.Status.UpdatedReadyReplicas)
 	if len(c.rolloutSpec.RolloutBatches) <= int(c.rolloutStatus.CurrentBatch) {
-		klog.Info("somehow, currentBatch number exceeded the rolloutBatches spec.", "current batch",
+		err = errors.New("somehow, currentBatch number exceeded the rolloutBatches spec")
+		klog.ErrorS(err, "total batch", len(c.rolloutSpec.RolloutBatches), "current batch",
 			c.rolloutStatus.CurrentBatch)
-		return false, nil
+		return false, err
 	}
 	currentBatch := c.rolloutSpec.RolloutBatches[c.rolloutStatus.CurrentBatch]
 	unavail := 0

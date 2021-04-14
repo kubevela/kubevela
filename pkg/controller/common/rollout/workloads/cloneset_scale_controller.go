@@ -190,12 +190,13 @@ func (s *CloneSetScaleController) CheckOneBatchPods(ctx context.Context) (bool, 
 	newPodTarget := calculateNewBatchTarget(s.rolloutSpec, int(s.rolloutStatus.RolloutOriginalSize),
 		int(s.rolloutStatus.RolloutTargetSize), int(s.rolloutStatus.CurrentBatch))
 	// get the number of ready pod from cloneset
+	// TODO: should we use the replica number when we shrink?
 	readyPodCount := int(s.cloneSet.Status.ReadyReplicas)
 	currentBatch := s.rolloutSpec.RolloutBatches[s.rolloutStatus.CurrentBatch]
 	unavail := 0
 	if currentBatch.MaxUnavailable != nil {
 		unavail, _ = intstr.GetValueFromIntOrPercent(currentBatch.MaxUnavailable,
-			int(s.rolloutStatus.RolloutOriginalSize), true)
+			util.Abs(int(s.rolloutStatus.RolloutTargetSize-s.rolloutStatus.RolloutOriginalSize)), true)
 	}
 	klog.InfoS("checking the scaling progress", "current batch", s.rolloutStatus.CurrentBatch,
 		"new pod count target", newPodTarget, "new ready pod count", readyPodCount,
