@@ -101,7 +101,7 @@ func asyncLog(reader io.Reader, stream cmdutil.IOStreams) {
 // buildImage will build a image with name and context.
 func (b *Build) buildImage(io cmdutil.IOStreams, image string) error {
 	//nolint:gosec
-	// TODO(hongchaodeng): remove this dependency by using go lib
+	// keep docker binary command due to the issue #416 https://github.com/oam-dev/kubevela/issues/416
 	cmd := exec.Command("docker", "build", "-t", image, "-f", b.Docker.File, b.Docker.Context)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
