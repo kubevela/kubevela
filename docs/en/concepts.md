@@ -16,11 +16,11 @@ First of all, KubeVela introduces a workflow with separate of concerns as below:
 
 Below is how this workflow looks like:
 
-![alt](../resources/how-it-works.png)
+![alt](resources/how-it-works.png)
 
 This template based workflow make it possible for platform team enforce best practices and deployment confidence with a set of Kubernetes CRDs, and give end users a *PaaS-like* experience (*i.e. app-centric, higher level abstractions, self-service operations etc*) by natural.
 
-![alt](../resources/what-is-kubevela.png)
+![alt](resources/what-is-kubevela.png)
 
 Below are the core concepts in KubeVela that make this happen.
 
@@ -93,12 +93,12 @@ Currently, a KubeVela `environment` only maps to a Kubernetes namespace, while t
 
 The main concepts of KubeVela could be shown as below:
 
-![alt](../resources/concepts.png)
+![alt](resources/concepts.png)
 
 ## Architecture
 
 The overall architecture of KubeVela is shown as below:
 
-![alt](../resources/arch.png)
+![alt](resources/arch.png)
 
 Specifically, the application controller is responsible for application abstraction and encapsulation (i.e. the controller for `Application` and `Definition`). The rollout controller will handle progressive rollout strategy with the whole application as a unit. The multi-cluster deployment engine is responsible for deploying the application across multiple clusters and environments with traffic shifting and rollout features supported. 

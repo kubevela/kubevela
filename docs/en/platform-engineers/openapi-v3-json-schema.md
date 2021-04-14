@@ -60,7 +60,7 @@ You can render above schema into a form by [form-render](https://github.com/alib
 
 Below is a form rendered with `form-render`:
 
-![](../../resources/json-schema-render-example.jpg)
+![](../resources/json-schema-render-example.jpg)
 
 # What's Next
 

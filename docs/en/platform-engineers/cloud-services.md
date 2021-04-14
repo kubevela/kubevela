@@ -239,7 +239,7 @@ Handling connection for 80
 Handling connection for 80
 ```
 
-![](../../resources/crossplane-visit-application.jpg)
+![](../resources/crossplane-visit-application.jpg)
 
 ## Provisioning and consuming cloud resource in a single application v2 (two cloud resources)
 
@@ -347,7 +347,7 @@ Handling connection for 80
 Handling connection for 80
 ```
 
-![](../../resources/crossplane-visit-application-v2.jpg)
+![](../resources/crossplane-visit-application-v2.jpg)
 
 ## Provisioning and consuming cloud resource in different applications
 
@@ -552,4 +552,4 @@ $ kubectl port-forward deployment/express-server 80:80
 
 We can see the cloud resource is successfully consumed by the application.
 
-![](../../resources/crossplane-visit-application.jpg)
+![](../resources/crossplane-visit-application.jpg)
