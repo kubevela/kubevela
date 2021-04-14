@@ -18,6 +18,7 @@ package common
 
 import (
 	v1alpha12 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	terraform "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -84,7 +85,7 @@ type Schematic struct {
 
 	HELM *Helm `json:"helm,omitempty"`
 
-	// TODO(wonderflow): support HCL(terraform)here.
+	Terraform *Terraform `json:"terraform,omitempty"`
 }
 
 // A Helm represents resources used by a Helm module
@@ -96,6 +97,27 @@ type Helm struct {
 	// HelmRelease records a Helm repository used by a Helm module workload.
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Repository runtime.RawExtension `json:"repository"`
+}
+
+// Terraform is the struct to describe cloud resources managed by Hashicorp Terraform
+type Terraform struct {
+	// Configuration is Terraform Configuration
+	Configuration string `json:"configuration"`
+
+	// Type specifies which Terraform configuration it is, HCL or JSON syntax
+	// +kubebuilder:default:=hcl
+	// +kubebuilder:validation:Enum:=hcl,json
+	Type string `json:"type,omitempty"`
+
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Variable runtime.RawExtension `json:"variable"`
+
+	// WriteConnectionSecretToReference specifies the namespace and name of a
+	// Secret to which any connection details for this managed resource should
+	// be written. Connection details frequently include the endpoint, username,
+	// and password required to connect to the managed resource.
+	// +optional
+	WriteConnectionSecretToReference *terraform.SecretReference `json:"writeConnectionSecretToRef,omitempty"`
 }
 
 // A WorkloadTypeDescriptor refer to a Workload Type

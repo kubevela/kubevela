@@ -194,6 +194,8 @@ func (af *Appfile) GenerateApplicationConfiguration() (*v1alpha2.ApplicationConf
 			if err != nil {
 				return nil, nil, err
 			}
+		case types.TerraformCategory:
+			comp, acComp, err = generateComponentFromTerraformModule(wl, af.Name, af.RevisionName, af.Namespace)
 		default:
 			comp, acComp, err = generateComponentFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
 			if err != nil {
@@ -342,6 +344,49 @@ output: {
 	if err != nil {
 		return nil, nil, err
 	}
+	return comp, acComp, nil
+}
+
+func generateComponentFromTerraformModule(wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+	var (
+		comp   *v1alpha2.Component
+		acComp *v1alpha2.ApplicationConfigurationComponent
+		err    error
+	)
+
+	pCtx, err := PrepareProcessContext(wl, appName, revision, ns)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, tr := range wl.Traits {
+		if err := tr.EvalContext(pCtx); err != nil {
+			return nil, nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
+		}
+	}
+
+	comp, acComp, err = evalWorkloadWithContext(pCtx, wl, appName, wl.Name)
+	if err != nil {
+		return nil, nil, err
+	}
+	comp.Name = wl.Name
+	acComp.ComponentName = comp.Name
+
+	for _, sc := range wl.Scopes {
+		acComp.Scopes = append(acComp.Scopes, v1alpha2.ComponentScope{ScopeReference: v1alpha1.TypedReference{
+			APIVersion: sc.GVK.GroupVersion().String(),
+			Kind:       sc.GVK.Kind,
+			Name:       sc.Name,
+		}})
+	}
+	if len(comp.Namespace) == 0 {
+		comp.Namespace = ns
+	}
+	if comp.Labels == nil {
+		comp.Labels = map[string]string{}
+	}
+	comp.Labels[oam.LabelAppName] = appName
+	comp.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
+
 	return comp, acComp, nil
 }
 

@@ -17,6 +17,7 @@
 package v1beta1
 
 import (
+	terraform "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -41,6 +42,8 @@ type ApplicationComponent struct {
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Properties runtime.RawExtension `json:"properties,omitempty"`
 
+	TerraformProperties TerraformProperties `json:"terraformProperties,omitempty"`
+
 	// Traits define the trait of one component, the type must be array to keep the order.
 	Traits []ApplicationTrait `json:"traits,omitempty"`
 
@@ -48,6 +51,18 @@ type ApplicationComponent struct {
 	// scopes in ApplicationComponent defines the component-level scopes
 	// the format is <scope-type:scope-instance-name> pairs, the key represents type of `ScopeDefinition` while the value represent the name of scope instance.
 	Scopes map[string]string `json:"scopes,omitempty"`
+}
+
+type TerraformProperties struct {
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Variable runtime.RawExtension `json:"variable"`
+
+	// WriteConnectionSecretToReference specifies the namespace and name of a
+	// Secret to which any connection details for this managed resource should
+	// be written. Connection details frequently include the endpoint, username,
+	// and password required to connect to the managed resource.
+	// +optional
+	WriteConnectionSecretToReference *terraform.SecretReference `json:"writeConnectionSecretToRef,omitempty"`
 }
 
 // ApplicationSpec is the spec of Application

@@ -22,7 +22,6 @@ require (
 	github.com/gin-contrib/static v0.0.0-20200815103939-31fb0c56a3d1
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-logr/logr v0.4.0
-	github.com/go-logr/zapr v0.4.0 // indirect
 	github.com/go-openapi/jsonreference v0.19.5 // indirect
 	github.com/go-openapi/spec v0.19.8 // indirect
 	github.com/go-openapi/swag v0.19.11 // indirect
@@ -36,8 +35,9 @@ require (
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/mholt/archiver/v3 v3.3.0
 	github.com/mitchellh/hashstructure/v2 v2.0.1
+	github.com/oam-dev/terraform-controller v0.0.0-20210414093823-482b376c1fdd
 	github.com/olekukonko/tablewriter v0.0.2
-	github.com/onsi/ginkgo v1.13.0
+	github.com/onsi/ginkgo v1.14.1
 	github.com/onsi/gomega v1.10.3
 	github.com/openkruise/kruise-api v0.7.0
 	github.com/pkg/errors v0.9.1
