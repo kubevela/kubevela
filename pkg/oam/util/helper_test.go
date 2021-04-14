@@ -2054,3 +2054,29 @@ spec:
 	assert.Equal(t, expectWd.Spec.Status, wd.Spec.Status)
 	assert.Equal(t, expectWd.Spec.Schematic, wd.Spec.Schematic)
 }
+
+func TestExtractRevisionNum(t *testing.T) {
+	testcases := []struct {
+		appRevision     string
+		wantRevisionNum string
+	}{{
+		appRevision:     "myapp-v1",
+		wantRevisionNum: "1",
+	}, {
+		appRevision:     "new-app-v2",
+		wantRevisionNum: "2",
+	}, {
+		appRevision:     "v1-v10",
+		wantRevisionNum: "10",
+	}, {
+		appRevision:     "v10-v1-v1",
+		wantRevisionNum: "1",
+	}, {
+		appRevision:     "myapp-v1-v2",
+		wantRevisionNum: "2",
+	}}
+
+	for _, tt := range testcases {
+		assert.Equal(t, tt.wantRevisionNum, util.ExtractRevisionNum(tt.appRevision))
+	}
+}

@@ -111,29 +111,3 @@ image: "myserver"
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "{\"password\":\"123\"}", string(requiredSecrets))
 }
-
-func TestExtractRevisionNum(t *testing.T) {
-	testcases := []struct {
-		appRevision     string
-		wantRevisionNum string
-	}{{
-		appRevision:     "myapp-v1",
-		wantRevisionNum: "1",
-	}, {
-		appRevision:     "new-app-v2",
-		wantRevisionNum: "2",
-	}, {
-		appRevision:     "v1-v10",
-		wantRevisionNum: "10",
-	}, {
-		appRevision:     "v10-v1-v1",
-		wantRevisionNum: "1",
-	}, {
-		appRevision:     "myapp-v1-v2",
-		wantRevisionNum: "2",
-	}}
-
-	for _, tt := range testcases {
-		assert.Equal(t, tt.wantRevisionNum, extractRevisionNum(tt.appRevision))
-	}
-}

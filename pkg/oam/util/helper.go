@@ -721,6 +721,13 @@ func ConvertComponentDef2WorkloadDef(dm discoverymapper.DiscoveryMapper, compone
 	return nil
 }
 
+// ExtractRevisionNum  extract revision number from appRevision name
+func ExtractRevisionNum(appRevision string) string {
+	app := strings.Split(appRevision, "-")
+	vision := app[len(app)-1]
+	return strings.Replace(vision, "v", "", 1)
+}
+
 // Min for int
 func Min(a, b int) int {
 	if a < b {

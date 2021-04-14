@@ -25,6 +25,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/oam-dev/kubevela/pkg/dsl/model"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (
@@ -161,7 +162,7 @@ func (ctx *templateContext) BaseContextFile() string {
 	buff += fmt.Sprintf(ContextName+": \"%s\"\n", ctx.name)
 	buff += fmt.Sprintf(ContextAppName+": \"%s\"\n", ctx.appName)
 	buff += fmt.Sprintf(ContextAppRevision+": \"%s\"\n", ctx.appRevision)
-	buff += fmt.Sprintf(ContextAppRevisionNum+": %s\n", extractRevisionNum(ctx.appRevision))
+	buff += fmt.Sprintf(ContextAppRevisionNum+": %s\n", util.ExtractRevisionNum(ctx.appRevision))
 	buff += fmt.Sprintf(ContextNamespace+": \"%s\"\n", ctx.namespace)
 
 	if ctx.base != nil {
@@ -256,10 +257,4 @@ func structMarshal(v string) string {
 		return v
 	}
 	return fmt.Sprintf("{%s}", v)
-}
-
-func extractRevisionNum(appRevision string) string {
-	app := strings.Split(appRevision, "-")
-	vision := app[len(app)-1]
-	return strings.Replace(vision, "v", "", 1)
 }
