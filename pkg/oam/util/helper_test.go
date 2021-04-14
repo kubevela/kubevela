@@ -2088,6 +2088,10 @@ func TestExtractRevisionNum(t *testing.T) {
 		appRevision:     "v1",
 		wantRevisionNum: 0,
 		hasError:        true,
+	}, {
+		appRevision:     "myapp-a1",
+		wantRevisionNum: 0,
+		hasError:        true,
 	}}
 
 	for _, tt := range testcases {

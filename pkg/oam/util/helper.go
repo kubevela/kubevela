@@ -729,6 +729,10 @@ func ExtractRevisionNum(appRevision string) (int, error) {
 	if len(splits) == 1 {
 		return 0, fmt.Errorf("bad revison name")
 	}
+	// check some bad appRevision name, eg:myapp-a1
+	if !strings.HasPrefix(splits[len(splits)-1], "v") {
+		return 0, fmt.Errorf("bad revison name")
+	}
 	return strconv.Atoi(strings.TrimPrefix(splits[len(splits)-1], "v"))
 }
 
