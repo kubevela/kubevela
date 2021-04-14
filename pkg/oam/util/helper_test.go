@@ -2054,3 +2054,50 @@ spec:
 	assert.Equal(t, expectWd.Spec.Status, wd.Spec.Status)
 	assert.Equal(t, expectWd.Spec.Schematic, wd.Spec.Schematic)
 }
+
+func TestExtractRevisionNum(t *testing.T) {
+	testcases := []struct {
+		appRevision     string
+		wantRevisionNum int
+		hasError        bool
+	}{{
+		appRevision:     "myapp-v1",
+		wantRevisionNum: 1,
+		hasError:        false,
+	}, {
+		appRevision:     "new-app-v2",
+		wantRevisionNum: 2,
+		hasError:        false,
+	}, {
+		appRevision:     "v1-v10",
+		wantRevisionNum: 10,
+		hasError:        false,
+	}, {
+		appRevision:     "v10-v1-v1",
+		wantRevisionNum: 1,
+		hasError:        false,
+	}, {
+		appRevision:     "myapp-v1-v2",
+		wantRevisionNum: 2,
+		hasError:        false,
+	}, {
+		appRevision:     "myapp-v1-vv",
+		wantRevisionNum: 0,
+		hasError:        true,
+	}, {
+		appRevision:     "v1",
+		wantRevisionNum: 0,
+		hasError:        true,
+	}, {
+		appRevision:     "myapp-a1",
+		wantRevisionNum: 0,
+		hasError:        true,
+	}}
+
+	for _, tt := range testcases {
+		revision, err := util.ExtractRevisionNum(tt.appRevision)
+		hasError := err != nil
+		assert.Equal(t, tt.wantRevisionNum, revision)
+		assert.Equal(t, tt.hasError, hasError)
+	}
+}

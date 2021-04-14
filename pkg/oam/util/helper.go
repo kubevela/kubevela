@@ -24,6 +24,7 @@ import (
 	"hash/fnv"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -719,6 +720,20 @@ func ConvertComponentDef2WorkloadDef(dm discoverymapper.DiscoveryMapper, compone
 	workloadDef.Spec.Status = componentDef.Spec.Status
 	workloadDef.Spec.Schematic = componentDef.Spec.Schematic
 	return nil
+}
+
+// ExtractRevisionNum  extract revision number from appRevision name
+func ExtractRevisionNum(appRevision string) (int, error) {
+	splits := strings.Split(appRevision, "-")
+	// check some bad appRevision name, eg:v1, appv2
+	if len(splits) == 1 {
+		return 0, fmt.Errorf("bad revison name")
+	}
+	// check some bad appRevision name, eg:myapp-a1
+	if !strings.HasPrefix(splits[len(splits)-1], "v") {
+		return 0, fmt.Errorf("bad revison name")
+	}
+	return strconv.Atoi(strings.TrimPrefix(splits[len(splits)-1], "v"))
 }
 
 // Min for int
