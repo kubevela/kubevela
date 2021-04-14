@@ -64,21 +64,16 @@ doc-gen:
 	go run hack/docgen/gen.go
 	go run hack/references/generate.go
 
+PWD := $(shell pwd)
 docs-build:
-ifneq ($(wildcard git-page),)
-	rm -rf git-page
-endif
-	sh ./hack/website/test-build.sh
+	docker run -it -v $(PWD)/docs/sidebars.js:/workspace/kubevela.io/sidebars.js \
+	 -v $(PWD)/docs/en:/workspace/kubevela.io/docs \
+	 yangsoon/kubevela.io:v1 -t build
 
 docs-start:
-ifeq ($(wildcard git-page),)
-	git clone --single-branch --depth 1 https://github.com/oam-dev/kubevela.io.git git-page
-endif
-	rm -r git-page/docs
-	rm git-page/sidebars.js
-	cat docs/sidebars.js > git-page/sidebars.js
-	cp -R docs/en git-page/docs
-	cd git-page && yarn install && yarn start
+	docker run -it -p 3000:3000 -v $(PWD)/docs/sidebars.js:/workspace/kubevela.io/sidebars.js \
+	 -v $(PWD)/docs/en:/workspace/kubevela.io/docs \
+	 yangsoon/kubevela.io:v1 -t start
 
 api-gen:
 	swag init -g references/apiserver/route.go --output references/apiserver/docs
