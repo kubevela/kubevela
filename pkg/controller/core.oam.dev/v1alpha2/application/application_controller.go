@@ -54,11 +54,12 @@ const (
 // Reconciler reconciles a Application object
 type Reconciler struct {
 	client.Client
-	dm         discoverymapper.DiscoveryMapper
-	pd         *definition.PackageDiscover
-	Log        logr.Logger
-	Scheme     *runtime.Scheme
-	applicator apply.Applicator
+	dm               discoverymapper.DiscoveryMapper
+	pd               *definition.PackageDiscover
+	Log              logr.Logger
+	Scheme           *runtime.Scheme
+	applicator       apply.Applicator
+	appRevisionLimit int
 }
 
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications,verbs=get;list;watch;create;update;patch;delete
@@ -181,7 +182,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	app.Status.Services = appCompStatus
 	app.Status.SetConditions(readyCondition("HealthCheck"))
 	app.Status.Phase = common.ApplicationRunning
-	err = handler.garbageCollection(ctx)
+	err = garbageCollection(ctx, handler)
 	if err != nil {
 		applog.Error(err, "[Garbage collection]")
 		app.Status.SetConditions(errorCondition("GarbageCollection", err))
@@ -233,12 +234,13 @@ func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1beta1.Application,
 // Setup adds a controller that reconciles AppRollout.
 func Setup(mgr ctrl.Manager, args core.Args, _ logging.Logger) error {
 	reconciler := Reconciler{
-		Client:     mgr.GetClient(),
-		Log:        ctrl.Log.WithName("Application"),
-		Scheme:     mgr.GetScheme(),
-		dm:         args.DiscoveryMapper,
-		pd:         args.PackageDiscover,
-		applicator: apply.NewAPIApplicator(mgr.GetClient()),
+		Client:           mgr.GetClient(),
+		Log:              ctrl.Log.WithName("Application"),
+		Scheme:           mgr.GetScheme(),
+		dm:               args.DiscoveryMapper,
+		pd:               args.PackageDiscover,
+		applicator:       apply.NewAPIApplicator(mgr.GetClient()),
+		appRevisionLimit: args.AppRevisionLimit,
 	}
 	return reconciler.SetupWithManager(mgr)
 }

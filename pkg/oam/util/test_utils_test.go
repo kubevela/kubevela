@@ -20,6 +20,10 @@ import (
 	"fmt"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
 	"github.com/stretchr/testify/assert"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -217,5 +221,127 @@ func TestErrorMatcher(t *testing.T) {
 
 		assert.Equal(t, tc.want.failureMessage, matcher.FailureMessage(tc.input.input))
 		assert.Equal(t, tc.want.negatedFailureMessage, matcher.NegatedFailureMessage(tc.input.input))
+	}
+}
+
+func TestCheckAppRevision(t *testing.T) {
+	testcases := map[string]struct {
+		revs       []v1beta1.ApplicationRevision
+		collection []int
+		want       bool
+		hasError   bool
+	}{
+		"match": {
+			revs: []v1beta1.ApplicationRevision{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "app-v1",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "app-v2",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "app-v3",
+					},
+				},
+			},
+			collection: []int{1, 2, 3},
+			want:       true,
+			hasError:   false,
+		},
+		"lengthNotMatch": {
+			revs: []v1beta1.ApplicationRevision{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "app-v1",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "app-v2",
+					},
+				},
+			},
+			collection: []int{1, 2, 3},
+			want:       false,
+			hasError:   false,
+		},
+		"notMatch": {
+			revs: []v1beta1.ApplicationRevision{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "app-v1",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "app-v2",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "app-v4",
+					},
+				},
+			},
+			collection: []int{1, 2, 3},
+			want:       false,
+			hasError:   false,
+		},
+		"testSort": {
+			revs: []v1beta1.ApplicationRevision{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "app-v1",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "app-v3",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "app-v2",
+					},
+				},
+			},
+			collection: []int{3, 2, 1},
+			want:       true,
+			hasError:   false,
+		},
+		"testErrorName": {
+			revs: []v1beta1.ApplicationRevision{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "app-v1",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "app-v3",
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "app-vs",
+					},
+				},
+			},
+			collection: []int{3, 2, 1},
+			want:       false,
+			hasError:   true,
+		},
+	}
+	for name, testcase := range testcases {
+		t.Log(fmt.Sprint("Running test: ", name))
+		checkEqual, err := CheckAppRevision(testcase.revs, testcase.collection)
+		hasError := err != nil
+		assert.Equal(t, checkEqual, testcase.want)
+		assert.Equal(t, hasError, testcase.hasError)
 	}
 }
