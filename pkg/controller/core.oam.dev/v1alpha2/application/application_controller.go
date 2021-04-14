@@ -114,7 +114,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
 
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
-	generatedAppfile, err := appParser.GenerateAppFile(ctx, app.Name, app)
+	generatedAppfile, err := appParser.GenerateAppFile(ctx, app)
 	if err != nil {
 		applog.Error(err, "[Handle Parse]")
 		app.Status.SetConditions(errorCondition("Parsed", err))
@@ -135,7 +135,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	applog.Info("build template")
 	// build template to applicationconfig & component
-	ac, comps, err := appParser.GenerateApplicationConfiguration(generatedAppfile, app.Namespace)
+	ac, comps, err := generatedAppfile.GenerateApplicationConfiguration()
 	if err != nil {
 		applog.Error(err, "[Handle GenerateApplicationConfiguration]")
 		app.Status.SetConditions(errorCondition("Built", err))

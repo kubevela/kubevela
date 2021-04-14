@@ -15,7 +15,6 @@ env:
   # Common versions
   GO_VERSION: '1.14'
   GOLANGCI_VERSION: 'v1.38'
-  DOCKER_BUILDX_VERSION: 'v0.4.2'
   KIND_VERSION: 'v0.7.0'
 
 jobs:
@@ -167,6 +166,8 @@ jobs:
         run: |
           make e2e-cleanup
           make e2e-setup
+          helm lint ./charts/vela-core
+          helm test -n vela-system kubevela --timeout 5m
 
       - name: Wait for e2e preparation ready
         run: |

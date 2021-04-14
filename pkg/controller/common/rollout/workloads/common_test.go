@@ -92,6 +92,20 @@ var (
 			},
 		},
 	}
+
+	rolloutOverFlowSpec = &v1alpha1.RolloutPlan{
+		RolloutBatches: []v1alpha1.RolloutBatch{
+			{
+				Replicas: intstr.FromString("140%"),
+			},
+			{
+				Replicas: intstr.FromInt(1),
+			},
+			{
+				Replicas: intstr.FromString("40%"),
+			},
+		},
+	}
 )
 
 func TestCalculateNewBatchTarget(t *testing.T) {
@@ -139,7 +153,7 @@ func TestCalculateNewBatchTarget(t *testing.T) {
 }
 
 func TestCalculateNewBatchTargetCornerCases(t *testing.T) {
-	// test batch size overflow
+	// test current batch overflow
 	if got := calculateNewBatchTarget(rolloutMixedSpec, 2, 12, 4); got != 12 {
 		t.Errorf("calculateNewBatchTarget() = %v, want %v", got, 12)
 	}
@@ -155,7 +169,7 @@ func TestCalculateNewBatchTargetCornerCases(t *testing.T) {
 	}
 }
 
-func TestVerifyBatchesWithRollout(t *testing.T) {
+func TestVerifyBatchesWithRolloutNormal(t *testing.T) {
 	if err := verifyBatchesWithRollout(rolloutMixedSpec, 10); err != nil {
 		t.Errorf("verifyBatchesWithRollout() = %v, want nil", err)
 	}
@@ -171,6 +185,9 @@ func TestVerifyBatchesWithRollout(t *testing.T) {
 	if err := verifyBatchesWithRollout(rolloutMixedSpec, 6); err == nil {
 		t.Errorf("verifyBatchesWithRollout() = %v, want error", nil)
 	}
+}
+
+func TestVerifyBatchesWithRolloutRelaxed(t *testing.T) {
 	// last batch as a percentage always succeeds
 	if err := verifyBatchesWithRollout(rolloutRelaxSpec, 10); err != nil {
 		t.Errorf("verifyBatchesWithRollout() = %v, want nil", err)
@@ -185,6 +202,22 @@ func TestVerifyBatchesWithRollout(t *testing.T) {
 	if err := verifyBatchesWithRollout(rolloutRelaxSpec, 6); err == nil {
 		t.Errorf("verifyBatchesWithRollout() = %v, want error", nil)
 	}
+	// overflow always fail
+	if err := verifyBatchesWithRollout(rolloutOverFlowSpec, 10); err == nil {
+		t.Errorf("verifyBatchesWithRollout() = %v, want error", nil)
+	}
+	if err := verifyBatchesWithRollout(rolloutOverFlowSpec, 100); err == nil {
+		t.Errorf("verifyBatchesWithRollout() = %v, want error", nil)
+	}
+	if err := verifyBatchesWithRollout(rolloutOverFlowSpec, 1); err == nil {
+		t.Errorf("verifyBatchesWithRollout() = %v, want error", nil)
+	}
+	if err := verifyBatchesWithRollout(rolloutOverFlowSpec, 0); err == nil {
+		t.Errorf("verifyBatchesWithRollout() = %v, want error", nil)
+	}
+}
+
+func TestVerifyBatchesWithRolloutNumeric(t *testing.T) {
 	// test hard number
 	if err := verifyBatchesWithRollout(rolloutNumericSpec, 6); err == nil {
 		t.Errorf("verifyBatchesWithRollout() = %v, want error", nil)
@@ -197,30 +230,149 @@ func TestVerifyBatchesWithRollout(t *testing.T) {
 	}
 }
 
-func Test_verifyBatchesWithScale(t *testing.T) {
-	if err := verifyBatchesWithScale(rolloutMixedSpec, 10, 0); err != nil {
-		t.Errorf("verifyBatchesWithRollout() = %v, want nil", err)
+func Test_VerifyBatchesWithScalePassCases(t *testing.T) {
+	tests := map[string]struct {
+		rolloutSpec  *v1alpha1.RolloutPlan
+		originalSize int
+		targetSize   int
+	}{
+		"percent equal case 1": {
+			rolloutSpec:  rolloutPercentSpec,
+			originalSize: 12,
+			targetSize:   12,
+		},
+		"percent equal case 2": {
+			rolloutSpec:  rolloutPercentSpec,
+			originalSize: 0,
+			targetSize:   0,
+		},
+		"percent increase case": {
+			rolloutSpec:  rolloutPercentSpec,
+			originalSize: 12,
+			targetSize:   22,
+		},
+		"percent decrease case 1": {
+			rolloutSpec:  rolloutPercentSpec,
+			originalSize: 27,
+			targetSize:   7,
+		},
+		"percent decrease case 2": {
+			rolloutSpec:  rolloutPercentSpec,
+			originalSize: 27,
+			targetSize:   0,
+		},
+		"relax increase 1": {
+			rolloutSpec:  rolloutRelaxSpec,
+			originalSize: 12,
+			targetSize:   32,
+		},
+		"relax increase 2": {
+			rolloutSpec:  rolloutRelaxSpec,
+			originalSize: 12,
+			targetSize:   22,
+		},
+		"mix increase 1": {
+			rolloutSpec:  rolloutMixedSpec,
+			originalSize: 13,
+			targetSize:   26,
+		},
+		"mix increase 2": {
+			rolloutSpec:  rolloutMixedSpec,
+			originalSize: 30,
+			targetSize:   42,
+		},
+		"mix decrease 1": {
+			rolloutSpec:  rolloutMixedSpec,
+			originalSize: 32,
+			targetSize:   20,
+		},
+		"mix decrease 2": {
+			rolloutSpec:  rolloutMixedSpec,
+			originalSize: 12,
+			targetSize:   0,
+		},
+		"numeric increase": {
+			rolloutSpec:  rolloutNumericSpec,
+			originalSize: 16,
+			targetSize:   26,
+		},
+		"numeric decrease": {
+			rolloutSpec:  rolloutNumericSpec,
+			originalSize: 13,
+			targetSize:   3,
+		},
 	}
-	if err := verifyBatchesWithScale(rolloutMixedSpec, 30, 42); err != nil {
-		t.Errorf("verifyBatchesWithRollout() = %v, want nil", err)
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			if err := verifyBatchesWithScale(tt.rolloutSpec, tt.originalSize, tt.targetSize); err != nil {
+				t.Errorf("verifyBatchesWithScale() error = %v, want pass", err)
+			}
+		})
 	}
-	if err := verifyBatchesWithScale(rolloutMixedSpec, 13, 26); err != nil {
-		t.Errorf("verifyBatchesWithRollout() = %v, want nil", err)
+}
+
+func Test_VerifyBatchesWithScaleFailCases(t *testing.T) {
+	tests := map[string]struct {
+		rolloutSpec  *v1alpha1.RolloutPlan
+		originalSize int
+		targetSize   int
+	}{
+		"total percent more than 100 increase": {
+			rolloutSpec:  rolloutOverFlowSpec,
+			originalSize: 12,
+			targetSize:   115,
+		},
+		"total percent more than 100 decrease": {
+			rolloutSpec:  rolloutOverFlowSpec,
+			originalSize: 312,
+			targetSize:   15,
+		},
+		"total percent more than 100 equal": {
+			rolloutSpec:  rolloutOverFlowSpec,
+			originalSize: 12,
+			targetSize:   12,
+		},
+		"percent increase case less than batch number": {
+			rolloutSpec:  rolloutPercentSpec,
+			originalSize: 12,
+			targetSize:   15,
+		},
+		"percent decrease case": {
+			rolloutSpec:  rolloutPercentSpec,
+			originalSize: 10,
+			targetSize:   7,
+		},
+		"relax increase too little": {
+			rolloutSpec:  rolloutRelaxSpec,
+			originalSize: 12,
+			targetSize:   17,
+		},
+		"mix increase": {
+			rolloutSpec:  rolloutMixedSpec,
+			originalSize: 13,
+			targetSize:   20,
+		},
+		"mix decrease": {
+			rolloutSpec:  rolloutMixedSpec,
+			originalSize: 42,
+			targetSize:   33,
+		},
+		"numeric increase": {
+			rolloutSpec:  rolloutNumericSpec,
+			originalSize: 16,
+			targetSize:   32,
+		},
+		"numeric decrease": {
+			rolloutSpec:  rolloutNumericSpec,
+			originalSize: 13,
+			targetSize:   10,
+		},
 	}
-	if err := verifyBatchesWithScale(rolloutMixedSpec, 13, 20); err == nil {
-		t.Errorf("verifyBatchesWithRollout() = %v, want error", nil)
-	}
-	if err := verifyBatchesWithScale(rolloutMixedSpec, 42, 10); err == nil {
-		t.Errorf("verifyBatchesWithRollout() = %v, want error", nil)
-	}
-	// test hard batch numbers
-	if err := verifyBatchesWithScale(rolloutNumericSpec, 22, 32); err != nil {
-		t.Errorf("verifyBatchesWithRollout() = %v, want nil", err)
-	}
-	if err := verifyBatchesWithScale(rolloutNumericSpec, 22, 12); err != nil {
-		t.Errorf("verifyBatchesWithRollout() = %v, want nil", err)
-	}
-	if err := verifyBatchesWithScale(rolloutNumericSpec, 42, 30); err == nil {
-		t.Errorf("verifyBatchesWithRollout() = %v, want error", nil)
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			if err := verifyBatchesWithScale(tt.rolloutSpec, tt.originalSize, tt.targetSize); err == nil {
+				t.Errorf("verifyBatchesWithScale passed, want fail")
+			}
+		})
 	}
 }

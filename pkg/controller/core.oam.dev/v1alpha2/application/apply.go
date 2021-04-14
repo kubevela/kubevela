@@ -38,6 +38,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
@@ -154,8 +155,9 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 				}
 			}
 		}
-		if comp.Spec.Helm != nil {
-			// TODO(wonderflow): do we still need to apply helm resource if the spec has no difference?
+		// isNewRevision indicates app's newly created or spec has changed
+		// skip applying helm resources if no spec change
+		if h.isNewRevision && comp.Spec.Helm != nil {
 			if err = h.applyHelmModuleResources(ctx, comp, owners); err != nil {
 				return errors.Wrap(err, "cannot apply Helm module resources")
 			}
@@ -596,7 +598,7 @@ func (h *appHandler) garbageCollection(ctx context.Context) error {
 	if len(h.acrossNamespaceResources) == 0 {
 		h.app.Status.ResourceTracker = nil
 		if err := h.r.Delete(ctx, rt); err != nil {
-			return err
+			return client.IgnoreNotFound(err)
 		}
 		return nil
 	}

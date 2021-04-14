@@ -24,6 +24,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/oam-dev/kubevela/pkg/builtin/kind"
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -100,7 +101,7 @@ func asyncLog(reader io.Reader, stream cmdutil.IOStreams) {
 // buildImage will build a image with name and context.
 func (b *Build) buildImage(io cmdutil.IOStreams, image string) error {
 	//nolint:gosec
-	// TODO(hongchaodeng): remove this dependency by using go lib
+	// keep docker binary command due to the issue #416 https://github.com/oam-dev/kubevela/issues/416
 	cmd := exec.Command("docker", "build", "-t", image, "-f", b.Docker.File, b.Docker.Context)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -129,26 +130,9 @@ func (b *Build) pushImage(io cmdutil.IOStreams, image string) error {
 	io.Infof("pushing image (%s)...\n", image)
 	switch {
 	case b.Push.Local == "kind":
-		//nolint:gosec
-		cmd := exec.Command("kind", "load", "docker-image", image)
-		stdout, err := cmd.StdoutPipe()
+		err := kind.LoadDockerImage(image)
 		if err != nil {
-			io.Errorf("pushImage(kind) exec command error, message:%s\n", err.Error())
-			return err
-		}
-		stderr, err := cmd.StderrPipe()
-		if err != nil {
-			io.Errorf("pushImage(kind) exec command error, message:%s\n", err.Error())
-			return err
-		}
-		if err := cmd.Start(); err != nil {
-			io.Errorf("pushImage(kind) exec command error, message:%s\n", err.Error())
-			return err
-		}
-		go asyncLog(stdout, io)
-		go asyncLog(stderr, io)
-		if err := cmd.Wait(); err != nil {
-			io.Errorf("pushImage(kind) wait for command execution error:%s", err.Error())
+			io.Errorf("pushImage(kind) load docker image error, message:%s", err)
 			return err
 		}
 		return nil

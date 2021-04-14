@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeVela Authors.
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -197,7 +197,7 @@ spec:
 				return false
 			}
 			return len(ac.Status.Workloads) > 0
-		}, 15*time.Second, time.Second).Should(BeTrue())
+		}, 60*time.Second, time.Second).Should(BeTrue())
 
 		By("Verify the workload(deployment) is created successfully")
 		deploy := &appsv1.Deployment{}

@@ -23,7 +23,7 @@ import (
 // APIs copied from fluxcd/source-controller/api/v1beta1 @ api/v0.7.4
 
 /*
-   Copyright 2020 The Flux CD contributors.
+   Copyright 2021 The Flux CD contributors.
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at

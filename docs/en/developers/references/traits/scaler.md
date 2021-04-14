@@ -11,11 +11,7 @@ Configures replicas for your service.
 List of all configuration options for a `Scaler` trait.
 
 ```yaml
-name: my-app-name
-
-services:
-  my-service-name:
-    ...
+...
     scaler:
       replicas: 100
 ```

@@ -1,8 +1,8 @@
 ---
-title:  Define and Consume Cloud Resource
+title:  Crossplane
 ---
 
-KubeVela provides unified abstraction even for cloud services.
+Cloud services is also part of your application deployment.
 
 ## Should a Cloud Service be a Component or Trait?
 
@@ -17,7 +17,7 @@ In a single application, they are in form of Traits, and in multiple application
 
 ## Install and Configure Crossplane
 
-KubeVela uses [Crossplane](https://crossplane.io/) as the cloud service operator. Please Refer to [Installation](https://github.com/crossplane/provider-alibaba/releases/tag/v0.5.0) 
+This guide will use [Crossplane](https://crossplane.io/) as the cloud service provider. Please Refer to [Installation](https://github.com/crossplane/provider-alibaba/releases/tag/v0.5.0) 
 to install Crossplane Alibaba provider v0.5.0.
 
 If you'd like to configure any other Crossplane providers, please refer to [Crossplane Select a Getting Started Configuration](https://crossplane.io/docs/v1.1/getting-started/install-configure.html#select-a-getting-started-configuration).

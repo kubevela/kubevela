@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package util
+package appfile
 
 import (
 	"context"
@@ -22,6 +22,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/runtime"
 	ktypes "k8s.io/apimachinery/pkg/types"
@@ -30,7 +31,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
+	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 func TestLoadComponentTemplate(t *testing.T) {
@@ -100,7 +103,7 @@ spec:
 		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj runtime.Object) error {
 			switch o := obj.(type) {
 			case *v1beta1.ComponentDefinition:
-				cd, err := UnMarshalStringToComponentDefinition(componentDefintion)
+				cd, err := oamutil.UnMarshalStringToComponentDefinition(componentDefintion)
 				if err != nil {
 					return err
 				}
@@ -202,7 +205,7 @@ spec:
 		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj runtime.Object) error {
 			switch o := obj.(type) {
 			case *v1alpha2.WorkloadDefinition:
-				cd, err := UnMarshalStringToWorkloadDefinition(workloadDefintion)
+				cd, err := oamutil.UnMarshalStringToWorkloadDefinition(workloadDefintion)
 				if err != nil {
 					return err
 				}
@@ -324,7 +327,7 @@ spec:
 		MockGet: func(ctx context.Context, key ktypes.NamespacedName, obj runtime.Object) error {
 			switch o := obj.(type) {
 			case *v1beta1.TraitDefinition:
-				wd, err := UnMarshalStringToTraitDefinition(traitDefintion)
+				wd, err := oamutil.UnMarshalStringToTraitDefinition(traitDefintion)
 				if err != nil {
 					return err
 				}
@@ -360,41 +363,45 @@ spec:
 	}
 }
 
-func TestNewTemplate(t *testing.T) {
+func TestLoadSchematicToTemplate(t *testing.T) {
 	testCases := map[string]struct {
-		tmp    *common.Schematic
+		schem  *common.Schematic
 		status *common.Status
 		ext    *runtime.RawExtension
-		exp    *Template
+		want   *Template
 	}{
 		"only tmp": {
-			tmp: &common.Schematic{CUE: &common.CUE{Template: "t1"}},
-			exp: &Template{
-				TemplateStr: "t1",
+			schem: &common.Schematic{CUE: &common.CUE{Template: "t1"}},
+			want: &Template{
+				TemplateStr:        "t1",
+				CapabilityCategory: types.CUECategory,
 			},
 		},
 		"no tmp,but has extension": {
 			ext: &runtime.RawExtension{Raw: []byte(`{"template":"t1"}`)},
-			exp: &Template{
-				TemplateStr: "t1",
+			want: &Template{
+				TemplateStr:        "t1",
+				CapabilityCategory: types.CUECategory,
 			},
 		},
 		"no tmp,but has extension without temp": {
 			ext: &runtime.RawExtension{Raw: []byte(`{"template":{"t1":"t2"}}`)},
-			exp: &Template{
-				TemplateStr: "",
+			want: &Template{
+				TemplateStr:        "",
+				CapabilityCategory: types.CUECategory,
 			},
 		},
 		"tmp with status": {
-			tmp: &common.Schematic{CUE: &common.CUE{Template: "t1"}},
+			schem: &common.Schematic{CUE: &common.CUE{Template: "t1"}},
 			status: &common.Status{
 				CustomStatus: "s1",
 				HealthPolicy: "h1",
 			},
-			exp: &Template{
-				TemplateStr:  "t1",
-				CustomStatus: "s1",
-				Health:       "h1",
+			want: &Template{
+				TemplateStr:        "t1",
+				CustomStatus:       "s1",
+				Health:             "h1",
+				CapabilityCategory: types.CUECategory,
 			},
 		},
 		"no tmp only status": {
@@ -402,15 +409,97 @@ func TestNewTemplate(t *testing.T) {
 				CustomStatus: "s1",
 				HealthPolicy: "h1",
 			},
-			exp: &Template{
+			want: &Template{
 				CustomStatus: "s1",
 				Health:       "h1",
 			},
 		},
 	}
 	for reason, casei := range testCases {
-		gtmp, err := NewTemplate(casei.tmp, casei.status, casei.ext)
+		gtmp := &Template{}
+		err := loadSchematicToTemplate(gtmp, casei.status, casei.schem, casei.ext)
 		assert.NoError(t, err, reason)
-		assert.Equal(t, gtmp, casei.exp, reason)
+		assert.Equal(t, casei.want, gtmp, reason)
+	}
+}
+
+func TestDryRunTemplateLoader(t *testing.T) {
+	compDefStr := `
+apiVersion: core.oam.dev/v1alpha2
+kind: ComponentDefinition
+metadata:
+  name: myworker
+spec:
+  status:
+    customStatus: testCustomStatus
+    healthPolicy: testHealthPolicy 
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: testCUE `
+
+	traitDefStr := `
+apiVersion: core.oam.dev/v1alpha2
+kind: TraitDefinition
+metadata:
+  name: myingress
+spec:
+  status:
+    customStatus: testCustomStatus
+    healthPolicy: testHealthPolicy 
+  appliesToWorkloads:
+    - webservice
+    - worker
+  schematic:
+    cue:
+      template: testCUE `
+
+	compDef, _ := oamutil.UnMarshalStringToComponentDefinition(compDefStr)
+	traitDef, _ := oamutil.UnMarshalStringToTraitDefinition(traitDefStr)
+	unstrctCompDef, _ := oamutil.Object2Unstructured(compDef)
+	unstrctTraitDef, _ := oamutil.Object2Unstructured(traitDef)
+
+	expectedCompTmpl := &Template{
+		TemplateStr:        "testCUE",
+		Health:             "testHealthPolicy",
+		CustomStatus:       "testCustomStatus",
+		CapabilityCategory: types.CUECategory,
+		Reference: common.WorkloadGVK{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+		},
+		Helm:                nil,
+		Kube:                nil,
+		ComponentDefinition: compDef,
+	}
+
+	expectedTraitTmpl := &Template{
+		TemplateStr:        "testCUE",
+		Health:             "testHealthPolicy",
+		CustomStatus:       "testCustomStatus",
+		CapabilityCategory: types.CUECategory,
+		Helm:               nil,
+		Kube:               nil,
+		TraitDefinition:    traitDef,
+	}
+
+	dryRunLoadTemplate := DryRunTemplateLoader([]oam.Object{unstrctCompDef, unstrctTraitDef})
+	compTmpl, err := dryRunLoadTemplate(nil, nil, nil, "myworker", types.TypeComponentDefinition)
+	if err != nil {
+		t.Error("failed load template of component defintion", err)
+	}
+	if diff := cmp.Diff(expectedCompTmpl, compTmpl); diff != "" {
+		t.Fatal("failed load template of component defintion", diff)
+	}
+
+	traitTmpl, err := dryRunLoadTemplate(nil, nil, nil, "myingress", types.TypeTrait)
+	if err != nil {
+		t.Error("failed load template of component defintion", err)
+	}
+	if diff := cmp.Diff(expectedTraitTmpl, traitTmpl); diff != "" {
+		t.Fatal("failed load template of trait definition ", diff)
 	}
 }

@@ -26,13 +26,13 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
-func TestDefaultRolloutPlan_EvenlyDivid(t *testing.T) {
+func TestDefaultRolloutPlan_EvenlyDivide(t *testing.T) {
 	var numBatch int32 = 5
 	rollout := &v1alpha1.RolloutPlan{
 		TargetSize: &numBatch,
 		NumBatches: &numBatch,
 	}
-	DefaultRolloutPlan(rollout)
+	DefaultRolloutBatches(rollout)
 
 	if len(rollout.RolloutBatches) != int(numBatch) {
 		t.Errorf("number of batch %d does not equal to %d ", len(rollout.RolloutBatches), numBatch)
@@ -50,7 +50,7 @@ func TestDefaultRolloutPlan_HasRemanence(t *testing.T) {
 		TargetSize: pointer.Int32Ptr(8),
 		NumBatches: &numBatch,
 	}
-	DefaultRolloutPlan(rollout)
+	DefaultRolloutBatches(rollout)
 
 	if len(rollout.RolloutBatches) != int(numBatch) {
 		t.Errorf("number of batch %d does not equal to %d ", len(rollout.RolloutBatches), numBatch)
@@ -78,7 +78,7 @@ func TestDefaultRolloutPlan_NotEnough(t *testing.T) {
 		TargetSize: pointer.Int32Ptr(4),
 		NumBatches: &numBatch,
 	}
-	DefaultRolloutPlan(rollout)
+	DefaultRolloutBatches(rollout)
 
 	if len(rollout.RolloutBatches) != int(numBatch) {
 		t.Errorf("number of batch %d does not equal to %d ", len(rollout.RolloutBatches), numBatch)

@@ -203,11 +203,17 @@ var _ = Describe("Test applicationContext reconcile", func() {
 	It("Test appContext reconcile logic ", func() {
 		By("Test AppRevision1 only have 1 workload on trait")
 		Expect(k8sClient.Create(ctx, appContext)).Should(Succeed())
+		updateTime := time.Now()
 		Eventually(func() error {
 			appCtx := new(v1alpha2.ApplicationContext)
 			err := k8sClient.Get(ctx, key, appCtx)
 			if err != nil {
 				return err
+			}
+			now := time.Now()
+			if now.Sub(updateTime) > 4*time.Second {
+				requestReconcileNow(ctx, appCtx)
+				updateTime = now
 			}
 			if len(appCtx.Status.Workloads) != 1 {
 				return fmt.Errorf("appContext status error:the number of workloads not right")
@@ -233,11 +239,17 @@ var _ = Describe("Test applicationContext reconcile", func() {
 			}
 			return nil
 		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+		updateTime = time.Now()
 		Eventually(func() error {
 			appCtx := new(v1alpha2.ApplicationContext)
 			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: namespace, Name: appContextName}, appCtx)
 			if err != nil {
 				return err
+			}
+			now := time.Now()
+			if now.Sub(updateTime) > 4*time.Second {
+				requestReconcileNow(ctx, appCtx)
+				updateTime = now
 			}
 			if len(appCtx.Status.Workloads) != 1 {
 				return fmt.Errorf("appContext status error:the number of workloads not right")

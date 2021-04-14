@@ -31,9 +31,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
-	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
 const (
@@ -134,12 +134,13 @@ func ValidateDefinitionReference(_ context.Context, td v1beta1.TraitDefinition) 
 	if len(td.Spec.Reference.Name) > 0 {
 		return nil
 	}
-	tmp, err := util.NewTemplate(td.Spec.Schematic, td.Spec.Status, td.Spec.Extension)
+	cap, err := appfile.ConvertTemplateJSON2Object(td.Name, td.Spec.Extension, td.Spec.Schematic)
 	if err != nil {
-		return errors.Wrap(err, errValidateDefRef)
+		return errors.WithMessage(err, errValidateDefRef)
 	}
-	if len(tmp.TemplateStr) == 0 {
+	if cap.CueTemplate == "" {
 		return errors.New(failInfoDefRefOmitted)
+
 	}
 	return nil
 }

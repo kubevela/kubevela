@@ -1,14 +1,43 @@
 ---
-title:  Application CRD
+title: Deploy Application
 ---
 
-This documentation will walk through how to use `Application` object to define your apps with corresponding operational behaviors in declarative approach.
+This documentation will walk through a full application deployment workflow on KubeVela platform.
 
-## Example
+## Introduction
 
-The sample application below claimed a `backend` component with *Worker* workload type, and a `frontend` component with *Web Service* workload type.
+KubeVela is a fully self-service platform. All capabilities an application deployment needs are maintained as building block modules in this platform. Specifically:
+- Components - deployable/provisionable entities that composed your application deployment
+  - e.g. a Kubernetes workload, a MySQL database, or a AWS OSS bucket
+- Traits - attachable operational features per your needs
+  - e.g. autoscaling rules, rollout strategies, ingress rules, sidecars, security policies etc
 
-Moreover, the `frontend` component claimed `sidecar` and `autoscaler` traits which means the workload will be automatically injected with a `fluentd` sidecar and scale from 1-100 replicas triggered by CPU usage.
+## Step 1: Check Capabilities in the Platform
+
+As user of this platform, you could check available components you can deploy, and available traits you can attach.
+
+```console
+kubectl get componentdefinitions -n vela-system
+NAME         WORKLOAD-KIND   DESCRIPTION                                                                                                                                                AGE
+task         Job             Describes jobs that run code or a script to completion.                                                                                                    5h52m
+webservice   Deployment      Describes long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers.           5h52m
+worker       Deployment      Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic.   5h52m
+```
+
+```console
+kubectl get traitdefinitions -n vela-system
+NAME      APPLIES-TO                DESCRIPTION                                                                                                                           AGE
+ingress   ["webservice","worker"]   Configures K8s ingress and service to enable web traffic for your service. Please use route trait in cap center for advanced usage.   6h8m
+scaler    ["webservice","worker"]   Configures replicas for your service.                                                                                                 6h8m
+```
+
+To show the specification for given capability, you could use `vela` CLI. For example, `vela show webservice` will return full schema of *Web Service* component and `vela show webservice --web` will open its capability reference documentation in your browser.
+
+## Step 2: Design and Deploy Application
+
+In KubeVela, `Application` is the main API to define your application deployment based on available capabilities. Every `Application` could contain multiple components, each of them can be attached with a number of traits per needs. 
+
+Now let's define an application composed by *Web Service* and *Worker* components.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -17,13 +46,6 @@ metadata:
   name: website
 spec:
   components:
-    - name: backend
-      type: worker
-      properties:
-        image: busybox
-        cmd:
-          - sleep
-          - '1000'
     - name: frontend
       type: webservice
       properties:
@@ -38,11 +60,20 @@ spec:
           properties:
             name: "sidecar-test"
             image: "fluentd"
+    - name: backend
+      type: worker
+      properties:
+        image: busybox
+        cmd:
+          - sleep
+          - '1000'
 ```
+
+In this sample, we also attached `sidecar` and `autoscaler` traits to the `frontend` component. So after deployed, the `frontend` component instance (a Kubernetes Deployment workload) will be automatically injected with a `fluentd` sidecar and automatically scale from 1-100 replicas based on CPU usage.
 
 ### Deploy the Application
 
-Apply application yaml above, then you'll get the application started
+Apply application YAML to Kubernetes, you'll get the application becomes `running`.
 
 ```shell
 $ kubectl get application -o yaml
@@ -64,7 +95,9 @@ status:
 
 ```
 
-You could see a Deployment named `frontend` with a container `fluentd` injected is running.
+### Verify the Deployment
+
+You could see a Deployment named `frontend` is running, with port exposed, and with a container `fluentd` injected.
 
 ```shell
 $ kubectl get deploy frontend
@@ -87,151 +120,3 @@ $ kubectl get HorizontalPodAutoscaler frontend
 NAME       REFERENCE             TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
 frontend   Deployment/frontend   <unknown>/50%   1         10        1          101m
 ```
-
-
-## Under the Hood
-
-In above sample, the `type: worker` means the specification of this component (claimed in following `properties` section) will be enforced by a `ComponentDefinition` object named `worker` as below:
-
-```yaml
-apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
-metadata:
-  name: worker
-  annotations:
-    definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic."
-spec:
-  workload:
-    definition:
-      apiVersion: apps/v1
-      kind: Deployment
-  schematic:
-    cue:
-      template: |
-        output: {
-          apiVersion: "apps/v1"
-          kind:       "Deployment"
-          spec: {
-            selector: matchLabels: {
-              "app.oam.dev/component": context.name
-            }
-            template: {
-              metadata: labels: {
-                "app.oam.dev/component": context.name
-              }
-              spec: {
-                containers: [{
-                  name:  context.name
-                  image: parameter.image
-
-                  if parameter["cmd"] != _|_ {
-                    command: parameter.cmd
-                  }
-                }]
-              }
-            }
-          }
-        }
-        parameter: {
-          image: string
-          cmd?: [...string]
-        }
-```
-
-
-Hence, the `properties` section of `backend` only supports two parameters: `image` and `cmd`, this is enforced by the `parameter` list of the `.spec.template` field of the definition.
-
-The similar extensible abstraction mechanism also applies to traits.
-For example, `type: autoscaler` in `frontend` means its trait specification (i.e. `properties` section)
-will be enforced by a `TraitDefinition` object named `autoscaler` as below:
-
-```yaml
-apiVersion: core.oam.dev/v1beta1
-kind: TraitDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: "configure k8s HPA for Deployment"
-  name: hpa
-spec:
-  appliesToWorkloads:
-    - webservice
-    - worker
-  schematic:
-    cue:
-      template: |
-        outputs: hpa: {
-          apiVersion: "autoscaling/v2beta2"
-          kind:       "HorizontalPodAutoscaler"
-          metadata: name: context.name
-          spec: {
-            scaleTargetRef: {
-              apiVersion: "apps/v1"
-              kind:       "Deployment"
-              name:       context.name
-            }
-            minReplicas: parameter.min
-            maxReplicas: parameter.max
-            metrics: [{
-              type: "Resource"
-              resource: {
-                name: "cpu"
-                target: {
-                  type:               "Utilization"
-                  averageUtilization: parameter.cpuUtil
-                }
-              }
-            }]
-          }
-        }
-        parameter: {
-          min:     *1 | int
-          max:     *10 | int
-          cpuUtil: *50 | int
-        }
-```
-
-The application also have a `sidecar` trait.
-
-```yaml
-apiVersion: core.oam.dev/v1beta1
-kind: TraitDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: "add sidecar to the app"
-  name: sidecar
-spec:
-  appliesToWorkloads:
-    - webservice
-    - worker
-  schematic:
-    cue:
-      template: |-
-        patch: {
-           // +patchKey=name
-           spec: template: spec: containers: [parameter]
-        }
-        parameter: {
-           name: string
-           image: string
-           command?: [...string]
-        }
-```
-
-All the definition objects are expected to be declared and installed by platform team and end users will only focus on `Application` resource.
-
-Please note that the end users of KubeVela do NOT need to know about definition objects, they learn how to use a given capability with visualized forms (or the JSON schema of parameters if they prefer). Please check the [Generate Forms from Definitions](/docs/platform-engineers/openapi-v3-json-schema) section about how this is achieved.
-
-### Conventions and "Standard Contract"
-
-After the `Application` resource is applied to Kubernetes cluster,
-the KubeVela runtime will generate and manage the underlying resources instances following below "standard contract" and conventions.
-
-
-| Label  | Description |
-| :--: | :---------: | 
-|`workload.oam.dev/type=<component definition name>` | The name of its corresponding `ComponentDefinition` |
-|`trait.oam.dev/type=<trait definition name>` | The name of its corresponding `TraitDefinition` | 
-|`app.oam.dev/name=<app name>` | The name of the application it belongs to |
-|`app.oam.dev/component=<component name>` | The name of the component it belongs to |
-|`trait.oam.dev/resource=<name of trait resource instance>` | The name of trait resource instance |
-|`app.oam.dev/appRevision=<name of app revision>` | The name of the application revision it belongs to |

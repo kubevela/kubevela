@@ -28,9 +28,9 @@ import (
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
-// DefaultRolloutPlan set the default values for a rollout plan
+// DefaultRolloutBatches set the default values for a rollout batches
 // This is called by the mutation webhooks and before the validators
-func DefaultRolloutPlan(rollout *v1alpha1.RolloutPlan) {
+func DefaultRolloutBatches(rollout *v1alpha1.RolloutPlan) {
 	if rollout.TargetSize != nil && rollout.NumBatches != nil && rollout.RolloutBatches == nil {
 		// create the rollout batch based on the total size and num batches if it's not set
 		// leave it for the validator to validate more if they are both set
@@ -42,6 +42,13 @@ func DefaultRolloutPlan(rollout *v1alpha1.RolloutPlan) {
 			klog.InfoS("mutation webhook assigns rollout plan", "batch", i, "replica",
 				batch.Replicas.IntValue())
 		}
+	}
+}
+
+// DefaultRolloutPlan set the default values for a rollout plan
+func DefaultRolloutPlan(rollout *v1alpha1.RolloutPlan) {
+	if len(rollout.RolloutStrategy) == 0 {
+		rollout.RolloutStrategy = v1alpha1.IncreaseFirstRolloutStrategyType
 	}
 }
 
@@ -80,7 +87,7 @@ func ValidateCreate(client client.Client, rollout *v1alpha1.RolloutPlan, rootPat
 	if rollout.RolloutStrategy != v1alpha1.IncreaseFirstRolloutStrategyType &&
 		rollout.RolloutStrategy != v1alpha1.DecreaseFirstRolloutStrategyType {
 		allErrs = append(allErrs, field.Invalid(rootPath.Child("rolloutStrategy"),
-			rollout.RolloutStrategy, "the rollout webhook type can only be initialize or finalize webhook"))
+			rollout.RolloutStrategy, "the rolloutStrategy can only be IncreaseFirst or DecreaseFirst"))
 	}
 
 	// validate the webhooks

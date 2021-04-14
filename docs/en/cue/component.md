@@ -209,6 +209,7 @@ output: {
 | Context Variable  | Description |
 | :--: | :---------: |
 | `context.appRevision` | The revision of the application |
+| `context.appRevisionNum` | The revision number(`int` type) of the application, e.g., `context.appRevisionNum` will be `1` if `context.appRevision` is `app-v1`|
 | `context.appName` | The name of the application |
 | `context.name` | The name of the component of the application |
 | `context.namespace` | The namespace of the application |

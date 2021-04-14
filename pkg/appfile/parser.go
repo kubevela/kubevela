@@ -18,31 +18,21 @@ package appfile
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/format"
-	json2cue "cuelang.org/go/encoding/json"
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
-	"github.com/oam-dev/kubevela/pkg/appfile/helm"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	velacue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -55,129 +45,53 @@ const (
 	AppfileBuiltinConfig = "config"
 )
 
-// constant error information
-const (
-	errInvalidValueType = "require %q type parameter value"
-)
+// TemplateLoaderFn load template of a capability definition
+type TemplateLoaderFn func(context.Context, discoverymapper.DiscoveryMapper, client.Reader, string, types.CapType) (*Template, error)
 
-// Workload is component
-type Workload struct {
-	Name               string
-	Type               string
-	CapabilityCategory types.CapabilityCategory
-	Params             map[string]interface{}
-	Traits             []*Trait
-	Scopes             []Scope
-	FullTemplate       *util.Template
-	engine             definition.AbstractEngine
-	// OutputSecretName is the secret name which this workload will generate after it successfully generate a cloud resource
-	OutputSecretName string
-	// RequiredSecrets stores secret names which the workload needs from cloud resource component and its context
-	RequiredSecrets []process.RequiredSecrets
-}
-
-// GetUserConfigName get user config from AppFile, it will contain config file in it.
-func (wl *Workload) GetUserConfigName() string {
-	if wl.Params == nil {
-		return ""
-	}
-	t, ok := wl.Params[AppfileBuiltinConfig]
-	if !ok {
-		return ""
-	}
-	ts, ok := t.(string)
-	if !ok {
-		return ""
-	}
-	return ts
-}
-
-// EvalContext eval workload template and set result to context
-func (wl *Workload) EvalContext(ctx process.Context) error {
-	return wl.engine.Complete(ctx, wl.FullTemplate.TemplateStr, wl.Params)
-}
-
-// EvalStatus eval workload status
-func (wl *Workload) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
-	return wl.engine.Status(ctx, cli, ns, wl.FullTemplate.CustomStatus)
-}
-
-// EvalHealth eval workload health check
-func (wl *Workload) EvalHealth(ctx process.Context, client client.Client, namespace string) (bool, error) {
-	return wl.engine.HealthCheck(ctx, client, namespace, wl.FullTemplate.Health)
-}
-
-// Scope defines the scope of workload
-type Scope struct {
-	Name string
-	GVK  schema.GroupVersionKind
-}
-
-// Trait is ComponentTrait
-type Trait struct {
-	// The Name is name of TraitDefinition, actually it's a type of the trait instance
-	Name               string
-	CapabilityCategory types.CapabilityCategory
-	Params             map[string]interface{}
-
-	Template           string
-	HealthCheckPolicy  string
-	CustomStatusFormat string
-
-	FullTemplate *util.Template
-	engine       definition.AbstractEngine
-}
-
-// EvalContext eval trait template and set result to context
-func (trait *Trait) EvalContext(ctx process.Context) error {
-	return trait.engine.Complete(ctx, trait.Template, trait.Params)
-}
-
-// EvalStatus eval trait status
-func (trait *Trait) EvalStatus(ctx process.Context, cli client.Client, ns string) (string, error) {
-	return trait.engine.Status(ctx, cli, ns, trait.CustomStatusFormat)
-}
-
-// EvalHealth eval trait health check
-func (trait *Trait) EvalHealth(ctx process.Context, client client.Client, namespace string) (bool, error) {
-	return trait.engine.HealthCheck(ctx, client, namespace, trait.HealthCheckPolicy)
-}
-
-// Appfile describes application
-type Appfile struct {
-	Name         string
-	RevisionName string
-	Workloads    []*Workload
-}
-
-// TemplateValidate validate Template format
-func (af *Appfile) TemplateValidate() error {
-	return nil
+// LoadTemplate load template of a capability definition
+func (fn TemplateLoaderFn) LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, c client.Reader, capName string, capType types.CapType) (*Template, error) {
+	return fn(ctx, dm, c, capName, capType)
 }
 
 // Parser is an application parser
 type Parser struct {
-	client client.Client
-	dm     discoverymapper.DiscoveryMapper
-	pd     *definition.PackageDiscover
+	client     client.Client
+	dm         discoverymapper.DiscoveryMapper
+	pd         *definition.PackageDiscover
+	tmplLoader TemplateLoaderFn
 }
 
 // NewApplicationParser create appfile parser
 func NewApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper, pd *definition.PackageDiscover) *Parser {
 	return &Parser{
-		client: cli,
-		dm:     dm,
-		pd:     pd,
+		client:     cli,
+		dm:         dm,
+		pd:         pd,
+		tmplLoader: LoadTemplate,
+	}
+}
+
+// NewDryRunApplicationParser create an appfile parser for DryRun
+func NewDryRunApplicationParser(cli client.Client, dm discoverymapper.DiscoveryMapper, pd *definition.PackageDiscover, defs []oam.Object) *Parser {
+	return &Parser{
+		client:     cli,
+		dm:         dm,
+		pd:         pd,
+		tmplLoader: DryRunTemplateLoader(defs),
 	}
 }
 
 // GenerateAppFile converts an application to an Appfile
-func (p *Parser) GenerateAppFile(ctx context.Context, name string, app *v1beta1.Application) (*Appfile, error) {
+func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) (*Appfile, error) {
+	ns := app.Namespace
+	appName := app.Name
+
 	appfile := new(Appfile)
-	appfile.Name = name
+	appfile.Name = appName
+	appfile.Namespace = ns
 	var wds []*Workload
 	for _, comp := range app.Spec.Components {
-		wd, err := p.parseWorkload(ctx, comp)
+		wd, err := p.parseWorkload(ctx, comp, appName, ns)
 		if err != nil {
 			return nil, err
 		}
@@ -187,9 +101,10 @@ func (p *Parser) GenerateAppFile(ctx context.Context, name string, app *v1beta1.
 	return appfile, nil
 }
 
-func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComponent) (*Workload, error) {
-
-	templ, err := util.LoadTemplate(ctx, p.dm, p.client, comp.Type, types.TypeComponentDefinition)
+// parseWorkload resolve an ApplicationComponent and generate a Workload
+// containing ALL information required by an Appfile.
+func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComponent, appName, ns string) (*Workload, error) {
+	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, comp.Type, types.TypeComponentDefinition)
 	if err != nil && !kerrors.IsNotFound(err) {
 		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
 	}
@@ -206,6 +121,27 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComp
 		Params:             settings,
 		engine:             definition.NewWorkloadAbstractEngine(comp.Name, p.pd),
 	}
+
+	if workload.IsCloudResourceConsumer() {
+		requiredSecrets, err := parseWorkloadInsertSecretTo(ctx, p.client, ns, workload)
+		if err != nil {
+			return nil, err
+		}
+		workload.RequiredSecrets = requiredSecrets
+	}
+
+	userConfig := workload.GetUserConfigName()
+	if userConfig != "" {
+		cg := config.Configmap{Client: p.client}
+		// TODO(wonderflow): envName should not be namespace when we have serverside env
+		var envName = ns
+		data, err := cg.GetConfigData(config.GenConfigMapName(appName, workload.Name, userConfig), envName)
+		if err != nil {
+			return nil, errors.Wrapf(err, "get config=%s for app=%s in namespace=%s", userConfig, appName, ns)
+		}
+		workload.UserConfigs = data
+	}
+
 	for _, traitValue := range comp.Traits {
 		properties, err := util.RawExtension2Map(&traitValue.Properties)
 		if err != nil {
@@ -219,7 +155,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComp
 		workload.Traits = append(workload.Traits, trait)
 	}
 	for scopeType, instanceName := range comp.Scopes {
-		gvk, err := util.GetScopeGVK(ctx, p.client, p.dm, scopeType)
+		gvk, err := getScopeGVK(ctx, p.client, p.dm, scopeType)
 		if err != nil {
 			return nil, err
 		}
@@ -232,7 +168,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComp
 }
 
 func (p *Parser) parseTrait(ctx context.Context, name string, properties map[string]interface{}) (*Trait, error) {
-	templ, err := util.LoadTemplate(ctx, p.dm, p.client, name, types.TypeTrait)
+	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, name, types.TypeTrait)
 	if kerrors.IsNotFound(err) {
 		return nil, errors.Errorf("trait definition of %s not found", name)
 	}
@@ -251,322 +187,6 @@ func (p *Parser) parseTrait(ctx context.Context, name string, properties map[str
 	}, nil
 }
 
-// GenerateApplicationConfiguration converts an appFile to applicationConfig & Components
-func (p *Parser) GenerateApplicationConfiguration(app *Appfile, ns string) (*v1alpha2.ApplicationConfiguration,
-	[]*v1alpha2.Component, error) {
-	appconfig := &v1alpha2.ApplicationConfiguration{}
-	appconfig.SetGroupVersionKind(v1alpha2.ApplicationConfigurationGroupVersionKind)
-	appconfig.Name = app.Name
-	appconfig.Namespace = ns
-
-	if appconfig.Labels == nil {
-		appconfig.Labels = map[string]string{}
-	}
-	appconfig.Labels[oam.LabelAppName] = app.Name
-
-	var components []*v1alpha2.Component
-	ctx := context.Background()
-
-	for _, wl := range app.Workloads {
-		var (
-			comp   *v1alpha2.Component
-			acComp *v1alpha2.ApplicationConfigurationComponent
-			err    error
-		)
-
-		if wl.IsCloudResourceConsumer() {
-			requiredSecrets, err := parseWorkloadInsertSecretTo(ctx, p.client, ns, wl)
-			if err != nil {
-				return nil, nil, err
-			}
-			wl.RequiredSecrets = requiredSecrets
-		}
-
-		switch wl.CapabilityCategory {
-		case types.HelmCategory:
-			comp, acComp, err = generateComponentFromHelmModule(p.client, wl, app.Name, app.RevisionName, ns)
-			if err != nil {
-				return nil, nil, err
-			}
-		case types.KubeCategory:
-			comp, acComp, err = generateComponentFromKubeModule(p.client, wl, app.Name, app.RevisionName, ns)
-			if err != nil {
-				return nil, nil, err
-			}
-		default:
-			comp, acComp, err = generateComponentFromCUEModule(p.client, wl, app.Name, app.RevisionName, ns)
-			if err != nil {
-				return nil, nil, err
-			}
-		}
-		components = append(components, comp)
-		appconfig.Spec.Components = append(appconfig.Spec.Components, *acComp)
-	}
-	return appconfig, components, nil
-}
-
-func generateComponentFromCUEModule(c client.Client, wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
-	var (
-		outputSecretName string
-		err              error
-	)
-	if wl.IsCloudResourceProducer() {
-		outputSecretName, err = GetOutputSecretNames(wl)
-		if err != nil {
-			return nil, nil, err
-		}
-		wl.OutputSecretName = outputSecretName
-	}
-	pCtx, err := PrepareProcessContext(c, wl, appName, revision, ns)
-	if err != nil {
-		return nil, nil, err
-	}
-	for _, tr := range wl.Traits {
-		if err := tr.EvalContext(pCtx); err != nil {
-			return nil, nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
-		}
-	}
-	var comp *v1alpha2.Component
-	var acComp *v1alpha2.ApplicationConfigurationComponent
-	comp, acComp, err = evalWorkloadWithContext(pCtx, wl, appName, wl.Name)
-	if err != nil {
-		return nil, nil, err
-	}
-	comp.Name = wl.Name
-	acComp.ComponentName = comp.Name
-
-	for _, sc := range wl.Scopes {
-		acComp.Scopes = append(acComp.Scopes, v1alpha2.ComponentScope{ScopeReference: v1alpha1.TypedReference{
-			APIVersion: sc.GVK.GroupVersion().String(),
-			Kind:       sc.GVK.Kind,
-			Name:       sc.Name,
-		}})
-	}
-	if len(comp.Namespace) == 0 {
-		comp.Namespace = ns
-	}
-	if comp.Labels == nil {
-		comp.Labels = map[string]string{}
-	}
-	comp.Labels[oam.LabelAppName] = appName
-	comp.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
-
-	return comp, acComp, nil
-}
-
-func generateComponentFromKubeModule(c client.Client, wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
-	kubeObj := &unstructured.Unstructured{}
-	err := json.Unmarshal(wl.FullTemplate.Kube.Template.Raw, kubeObj)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "cannot decode Kube template into K8s object")
-	}
-
-	paramValues, err := resolveKubeParameters(wl.FullTemplate.Kube.Parameters, wl.Params)
-	if err != nil {
-		return nil, nil, errors.WithMessage(err, "cannot resolve parameter settings")
-	}
-	if err := setParameterValuesToKubeObj(kubeObj, paramValues); err != nil {
-		return nil, nil, errors.WithMessage(err, "cannot set parameters value")
-	}
-
-	// convert structured kube obj into CUE (go ==marshal==> json ==decoder==> cue)
-	objRaw, err := kubeObj.MarshalJSON()
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "cannot marshal kube object")
-	}
-	ins, err := json2cue.Decode(&cue.Runtime{}, "", objRaw)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "cannot decode object into CUE")
-	}
-	cueRaw, err := format.Node(ins.Value().Syntax())
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "cannot format CUE")
-	}
-
-	// NOTE a hack way to enable using CUE capabilities on KUBE schematic workload
-	wl.FullTemplate.TemplateStr = fmt.Sprintf(`
-output: { 
-	%s 
-}`, string(cueRaw))
-
-	// re-use the way CUE module generates comp & acComp
-	comp, acComp, err := generateComponentFromCUEModule(c, wl, appName, revision, ns)
-	if err != nil {
-		return nil, nil, err
-	}
-	return comp, acComp, nil
-}
-
-// a helper map whose key is parameter name
-type paramValueSettings map[string]paramValueSetting
-type paramValueSetting struct {
-	Value      interface{}
-	ValueType  common.ParameterValueType
-	FieldPaths []string
-}
-
-func resolveKubeParameters(params []common.KubeParameter, settings map[string]interface{}) (paramValueSettings, error) {
-	supported := map[string]*common.KubeParameter{}
-	for _, p := range params {
-		supported[p.Name] = p.DeepCopy()
-	}
-
-	values := make(paramValueSettings)
-	for name, v := range settings {
-		// check unsupported parameter setting
-		if supported[name] == nil {
-			return nil, errors.Errorf("unsupported parameter %q", name)
-		}
-		// construct helper map
-		values[name] = paramValueSetting{
-			Value:      v,
-			ValueType:  supported[name].ValueType,
-			FieldPaths: supported[name].FieldPaths,
-		}
-	}
-
-	// check required parameter
-	for _, p := range params {
-		if p.Required != nil && *p.Required {
-			if _, ok := values[p.Name]; !ok {
-				return nil, errors.Errorf("require parameter %q", p.Name)
-			}
-		}
-	}
-	return values, nil
-}
-
-func setParameterValuesToKubeObj(obj *unstructured.Unstructured, values paramValueSettings) error {
-	paved := fieldpath.Pave(obj.Object)
-	for paramName, v := range values {
-		for _, f := range v.FieldPaths {
-			switch v.ValueType {
-			case common.StringType:
-				vString, ok := v.Value.(string)
-				if !ok {
-					return errors.Errorf(errInvalidValueType, v.ValueType)
-				}
-				if err := paved.SetString(f, vString); err != nil {
-					return errors.Wrapf(err, "cannot set parameter %q to field %q", paramName, f)
-				}
-			case common.NumberType:
-				switch v.Value.(type) {
-				case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
-					if err := paved.SetValue(f, v.Value); err != nil {
-						return errors.Wrapf(err, "cannot set parameter %q to field %q", paramName, f)
-					}
-				default:
-					return errors.Errorf(errInvalidValueType, v.ValueType)
-				}
-			case common.BooleanType:
-				vBoolean, ok := v.Value.(bool)
-				if !ok {
-					return errors.Errorf(errInvalidValueType, v.ValueType)
-				}
-				if err := paved.SetValue(f, vBoolean); err != nil {
-					return errors.Wrapf(err, "cannot set parameter %q to field %q", paramName, f)
-				}
-			}
-		}
-	}
-	return nil
-}
-
-func generateComponentFromHelmModule(c client.Client, wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
-	gv, err := schema.ParseGroupVersion(wl.FullTemplate.Reference.APIVersion)
-	if err != nil {
-		return nil, nil, err
-	}
-	targetWorkloadGVK := gv.WithKind(wl.FullTemplate.Reference.Kind)
-
-	// NOTE this is a hack way to enable using CUE module capabilities on Helm module workload
-	// construct an empty base workload according to its GVK
-	wl.FullTemplate.TemplateStr = fmt.Sprintf(`
-output: {
-	apiVersion: "%s"
-	kind: "%s"
-}`, targetWorkloadGVK.GroupVersion().String(), targetWorkloadGVK.Kind)
-
-	// re-use the way CUE module generates comp & acComp
-	comp, acComp, err := generateComponentFromCUEModule(c, wl, appName, revision, ns)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	release, repo, err := helm.RenderHelmReleaseAndHelmRepo(wl.FullTemplate.Helm, wl.Name, appName, ns, wl.Params)
-	if err != nil {
-		return nil, nil, err
-	}
-	rlsBytes, err := json.Marshal(release.Object)
-	if err != nil {
-		return nil, nil, err
-	}
-	repoBytes, err := json.Marshal(repo.Object)
-	if err != nil {
-		return nil, nil, err
-	}
-	comp.Spec.Helm = &common.Helm{
-		Release:    runtime.RawExtension{Raw: rlsBytes},
-		Repository: runtime.RawExtension{Raw: repoBytes},
-	}
-	return comp, acComp, nil
-}
-
-// evalWorkloadWithContext evaluate the workload's template to generate component and ACComponent
-func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compName string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
-	base, assists := pCtx.Output()
-	componentWorkload, err := base.Unstructured()
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", compName, appName)
-	}
-
-	var commonLabels = definition.GetCommonLabels(pCtx.BaseContextLabels())
-	util.AddLabels(componentWorkload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: wl.Type}))
-
-	component := &v1alpha2.Component{}
-	// we need to marshal the workload to byte array before sending them to the k8s
-	component.Spec.Workload = util.Object2RawExtension(componentWorkload)
-
-	acComponent := &v1alpha2.ApplicationConfigurationComponent{}
-	for _, assist := range assists {
-		tr, err := assist.Ins.Unstructured()
-		if err != nil {
-			return nil, nil, errors.Wrapf(err, "evaluate trait=%s template for component=%s app=%s", assist.Name, compName, appName)
-		}
-		labels := util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.TraitTypeLabel: assist.Type})
-		if assist.Name != "" {
-			labels[oam.TraitResource] = assist.Name
-		}
-		util.AddLabels(tr, labels)
-		acComponent.Traits = append(acComponent.Traits, v1alpha2.ComponentTrait{
-			// we need to marshal the trait to byte array before sending them to the k8s
-			Trait: util.Object2RawExtension(tr),
-		})
-	}
-	return component, acComponent, nil
-}
-
-// PrepareProcessContext prepares a DSL process Context
-func PrepareProcessContext(k8sClient client.Client, wl *Workload, applicationName, revision, namespace string) (process.Context, error) {
-	pCtx := process.NewContext(namespace, wl.Name, applicationName, revision)
-	pCtx.InsertSecrets(wl.OutputSecretName, wl.RequiredSecrets)
-	userConfig := wl.GetUserConfigName()
-	if userConfig != "" {
-		cg := config.Configmap{Client: k8sClient}
-		// TODO(wonderflow): envName should not be namespace when we have serverside env
-		var envName = namespace
-		data, err := cg.GetConfigData(config.GenConfigMapName(applicationName, wl.Name, userConfig), envName)
-		if err != nil {
-			return nil, errors.Wrapf(err, "get config=%s for app=%s in namespace=%s", userConfig, applicationName, namespace)
-		}
-		pCtx.SetConfigs(data)
-	}
-	if err := wl.EvalContext(pCtx); err != nil {
-		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", applicationName, namespace)
-	}
-	return pCtx, nil
-}
-
 // GetOutputSecretNames set all secret names, which are generated by cloud resource, to context
 func GetOutputSecretNames(workloads *Workload) (string, error) {
 	secretName, err := getComponentSetting(process.OutputSecretName, workloads.Params)
@@ -579,43 +199,54 @@ func GetOutputSecretNames(workloads *Workload) (string, error) {
 
 func parseWorkloadInsertSecretTo(ctx context.Context, c client.Client, namespace string, wl *Workload) ([]process.RequiredSecrets, error) {
 	var requiredSecret []process.RequiredSecrets
-	api, err := utils.GenerateOpenAPISchemaFromDefinition(wl.Name, wl.FullTemplate.TemplateStr)
+	cueStr := velacue.BaseTemplate + wl.FullTemplate.TemplateStr
+	r := cue.Runtime{}
+	ins, err := r.Compile("-", cueStr)
 	if err != nil {
-		if !errors.Is(err, errors.Errorf(utils.ErrNoSectionParameterInCue, wl.Name)) {
-			return nil, nil
-		}
-		return nil, err
+		return nil, errors.Wrap(err, "cannot compile CUE template")
 	}
-
-	schema, err := utils.ConvertOpenAPISchema2SwaggerObject(api)
+	params := ins.Lookup("parameter")
+	if !params.Exists() {
+		return nil, nil
+	}
+	paramsSt, err := params.Struct()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "cannot resolve parameters in CUE template")
 	}
-	for k, v := range schema.Properties {
-		description := v.Value.Description
-		if strings.Contains(description, utils.InsertSecretToTag) {
-			contextName := strings.Split(description, utils.InsertSecretToTag)[1]
-			contextName = strings.TrimSpace(contextName)
-			secretNameInterface, err := getComponentSetting(k, wl.Params)
-			if err != nil {
-				return nil, err
+	for i := 0; i < paramsSt.Len(); i++ {
+		fieldInfo := paramsSt.Field(i)
+		fName := fieldInfo.Name
+		cgs := fieldInfo.Value.Doc()
+		for _, cg := range cgs {
+			for _, comment := range cg.List {
+				if comment == nil {
+					continue
+				}
+				if strings.Contains(comment.Text, InsertSecretToTag) {
+					contextName := strings.Split(comment.Text, InsertSecretToTag)[1]
+					contextName = strings.TrimSpace(contextName)
+					secretNameInterface, err := getComponentSetting(fName, wl.Params)
+					if err != nil {
+						return nil, err
+					}
+					secretName, ok := secretNameInterface.(string)
+					if !ok {
+						return nil, fmt.Errorf("failed to convert secret name %v to string", secretNameInterface)
+					}
+					secretData, err := extractSecret(ctx, c, namespace, secretName)
+					if err != nil {
+						return nil, err
+					}
+					requiredSecret = append(requiredSecret, process.RequiredSecrets{
+						Name:        secretName,
+						ContextName: contextName,
+						Namespace:   namespace,
+						Data:        secretData,
+					})
+				}
 			}
-			secretName, ok := secretNameInterface.(string)
-			if !ok {
-				return nil, fmt.Errorf("failed to convert secret name %v to string", secretNameInterface)
-			}
-			secretData, err := extractSecret(ctx, c, namespace, secretName)
-			if err != nil {
-				return nil, err
-			}
-
-			requiredSecret = append(requiredSecret, process.RequiredSecrets{
-				Name:        secretName,
-				ContextName: contextName,
-				Namespace:   namespace,
-				Data:        secretData,
-			})
 		}
+
 	}
 	return requiredSecret, nil
 }
@@ -643,19 +274,14 @@ func getComponentSetting(settingParamName string, params map[string]interface{})
 	return nil, fmt.Errorf("failed to get the value of component setting %s", settingParamName)
 }
 
-// IsCloudResourceProducer checks whether a workload is cloud resource producer role
-func (wl *Workload) IsCloudResourceProducer() bool {
-	var existed bool
-	_, existed = wl.Params[process.OutputSecretName]
-	return existed
-}
-
-// IsCloudResourceConsumer checks whether a workload is cloud resource consumer role
-func (wl *Workload) IsCloudResourceConsumer() bool {
-	requiredSecretTag := strings.TrimRight(utils.InsertSecretToTag, "=")
-	matched, err := regexp.Match(regexp.QuoteMeta(requiredSecretTag), []byte(wl.FullTemplate.TemplateStr))
-	if err != nil || !matched {
-		return false
+func getScopeGVK(ctx context.Context, cli client.Reader, dm discoverymapper.DiscoveryMapper,
+	name string) (schema.GroupVersionKind, error) {
+	var gvk schema.GroupVersionKind
+	sd := new(v1alpha2.ScopeDefinition)
+	err := util.GetDefinition(ctx, cli, sd, name)
+	if err != nil {
+		return gvk, err
 	}
-	return true
+
+	return util.GetGVKFromDefinition(dm, sd.Spec.Reference)
 }

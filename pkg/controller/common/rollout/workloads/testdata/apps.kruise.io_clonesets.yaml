@@ -1,0 +1,459 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.9
+  creationTimestamp: null
+  name: clonesets.apps.kruise.io
+spec:
+  additionalPrinterColumns:
+  - JSONPath: .spec.replicas
+    description: The desired number of pods.
+    name: DESIRED
+    type: integer
+  - JSONPath: .status.updatedReplicas
+    description: The number of pods updated.
+    name: UPDATED
+    type: integer
+  - JSONPath: .status.updatedReadyReplicas
+    description: The number of pods updated and ready.
+    name: UPDATED_READY
+    type: integer
+  - JSONPath: .status.readyReplicas
+    description: The number of pods ready.
+    name: READY
+    type: integer
+  - JSONPath: .status.replicas
+    description: The number of currently all pods.
+    name: TOTAL
+    type: integer
+  - JSONPath: .metadata.creationTimestamp
+    description: CreationTimestamp is a timestamp representing the server time when
+      this object was created. It is not guaranteed to be set in happens-before order
+      across separate operations. Clients may not set this value. It is represented
+      in RFC3339 form and is in UTC.
+    name: AGE
+    type: date
+  group: apps.kruise.io
+  names:
+    kind: CloneSet
+    listKind: CloneSetList
+    plural: clonesets
+    shortNames:
+    - clone
+    singular: cloneset
+  scope: Namespaced
+  subresources:
+    scale:
+      labelSelectorPath: .status.labelSelector
+      specReplicasPath: .spec.replicas
+      statusReplicasPath: .status.replicas
+    status: {}
+  validation:
+    openAPIV3Schema:
+      description: CloneSet is the Schema for the clonesets API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: CloneSetSpec defines the desired state of CloneSet
+          properties:
+            lifecycle:
+              description: Lifecycle defines the lifecycle hooks for Pods pre-delete,
+                in-place update.
+              properties:
+                inPlaceUpdate:
+                  description: InPlaceUpdate is the hook before Pod to update and
+                    after Pod has been updated.
+                  properties:
+                    finalizersHandler:
+                      items:
+                        type: string
+                      type: array
+                    labelsHandler:
+                      additionalProperties:
+                        type: string
+                      type: object
+                  type: object
+                preDelete:
+                  description: PreDelete is the hook before Pod to be deleted.
+                  properties:
+                    finalizersHandler:
+                      items:
+                        type: string
+                      type: array
+                    labelsHandler:
+                      additionalProperties:
+                        type: string
+                      type: object
+                  type: object
+              type: object
+            minReadySeconds:
+              description: Minimum number of seconds for which a newly created pod
+                should be ready without any of its container crashing, for it to be
+                considered available. Defaults to 0 (pod will be considered available
+                as soon as it is ready)
+              format: int32
+              type: integer
+            replicas:
+              description: Replicas is the desired number of replicas of the given
+                Template. These are replicas in the sense that they are instantiations
+                of the same Template. If unspecified, defaults to 1.
+              format: int32
+              type: integer
+            revisionHistoryLimit:
+              description: RevisionHistoryLimit is the maximum number of revisions
+                that will be maintained in the CloneSet's revision history. The revision
+                history consists of all revisions not represented by a currently applied
+                CloneSetSpec version. The default value is 10.
+              format: int32
+              type: integer
+            scaleStrategy:
+              description: ScaleStrategy indicates the ScaleStrategy that will be
+                employed to create and delete Pods in the CloneSet.
+              properties:
+                podsToDelete:
+                  description: PodsToDelete is the names of Pod should be deleted.
+                    Note that this list will be truncated for non-existing pod names.
+                  items:
+                    type: string
+                  type: array
+              type: object
+            selector:
+              description: 'Selector is a label query over pods that should match
+                the replica count. It must match the pod template''s labels. More
+                info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors'
+              properties:
+                matchExpressions:
+                  description: matchExpressions is a list of label selector requirements.
+                    The requirements are ANDed.
+                  items:
+                    description: A label selector requirement is a selector that contains
+                      values, a key, and an operator that relates the key and values.
+                    properties:
+                      key:
+                        description: key is the label key that the selector applies
+                          to.
+                        type: string
+                      operator:
+                        description: operator represents a key's relationship to a
+                          set of values. Valid operators are In, NotIn, Exists and
+                          DoesNotExist.
+                        type: string
+                      values:
+                        description: values is an array of string values. If the operator
+                          is In or NotIn, the values array must be non-empty. If the
+                          operator is Exists or DoesNotExist, the values array must
+                          be empty. This array is replaced during a strategic merge
+                          patch.
+                        items:
+                          type: string
+                        type: array
+                    required:
+                    - key
+                    - operator
+                    type: object
+                  type: array
+                matchLabels:
+                  additionalProperties:
+                    type: string
+                  description: matchLabels is a map of {key,value} pairs. A single
+                    {key,value} in the matchLabels map is equivalent to an element
+                    of matchExpressions, whose key field is "key", the operator is
+                    "In", and the values array contains only "value". The requirements
+                    are ANDed.
+                  type: object
+              type: object
+            template:
+              description: Template describes the pods that will be created.
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+            updateStrategy:
+              description: UpdateStrategy indicates the UpdateStrategy that will be
+                employed to update Pods in the CloneSet when a revision is made to
+                Template.
+              properties:
+                inPlaceUpdateStrategy:
+                  description: InPlaceUpdateStrategy contains strategies for in-place
+                    update.
+                  properties:
+                    gracePeriodSeconds:
+                      description: GracePeriodSeconds is the timespan between set
+                        Pod status to not-ready and update images in Pod spec when
+                        in-place update a Pod.
+                      format: int32
+                      type: integer
+                  type: object
+                maxSurge:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  description: 'The maximum number of pods that can be scheduled above
+                    the desired replicas during the update. Value can be an absolute
+                    number (ex: 5) or a percentage of desired pods (ex: 10%). Absolute
+                    number is calculated from percentage by rounding up. Defaults
+                    to 0.'
+                  x-kubernetes-int-or-string: true
+                maxUnavailable:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  description: 'The maximum number of pods that can be unavailable
+                    during the update. Value can be an absolute number (ex: 5) or
+                    a percentage of desired pods (ex: 10%). Absolute number is calculated
+                    from percentage by rounding up by default. When maxSurge > 0,
+                    absolute number is calculated from percentage by rounding down.
+                    Defaults to 20%.'
+                  x-kubernetes-int-or-string: true
+                partition:
+                  anyOf:
+                  - type: integer
+                  - type: string
+                  description: 'Partition is the desired number of pods in old revisions.
+                    Value can be an absolute number (ex: 5) or a percentage of desired
+                    pods (ex: 10%). Absolute number is calculated from percentage
+                    by rounding up by default. It means when partition is set during
+                    pods updating, (replicas - partition value) number of pods will
+                    be updated. Default value is 0.'
+                  x-kubernetes-int-or-string: true
+                paused:
+                  description: Paused indicates that the CloneSet is paused. Default
+                    value is false
+                  type: boolean
+                priorityStrategy:
+                  description: Priorities are the rules for calculating the priority
+                    of updating pods. Each pod to be updated, will pass through these
+                    terms and get a sum of weights.
+                  properties:
+                    orderPriority:
+                      description: 'Order priority terms, pods will be sorted by the
+                        value of orderedKey. For example: ``` orderPriority: - orderedKey:
+                        key1 - orderedKey: key2 ``` First, all pods which have key1
+                        in labels will be sorted by the value of key1. Then, the left
+                        pods which have no key1 but have key2 in labels will be sorted
+                        by the value of key2 and put behind those pods have key1.'
+                      items:
+                        description: UpdatePriorityOrder defines order priority.
+                        properties:
+                          orderedKey:
+                            description: Calculate priority by value of this key.
+                              Values of this key, will be sorted by GetInt(val). GetInt
+                              method will find the last int in value, such as getting
+                              5 in value '5', getting 10 in value 'sts-10'.
+                            type: string
+                        required:
+                        - orderedKey
+                        type: object
+                      type: array
+                    weightPriority:
+                      description: Weight priority terms, pods will be sorted by the
+                        sum of all terms weight.
+                      items:
+                        description: UpdatePriorityWeightTerm defines weight priority.
+                        properties:
+                          matchSelector:
+                            description: MatchSelector is used to select by pod's
+                              labels.
+                            properties:
+                              matchExpressions:
+                                description: matchExpressions is a list of label selector
+                                  requirements. The requirements are ANDed.
+                                items:
+                                  description: A label selector requirement is a selector
+                                    that contains values, a key, and an operator that
+                                    relates the key and values.
+                                  properties:
+                                    key:
+                                      description: key is the label key that the selector
+                                        applies to.
+                                      type: string
+                                    operator:
+                                      description: operator represents a key's relationship
+                                        to a set of values. Valid operators are In,
+                                        NotIn, Exists and DoesNotExist.
+                                      type: string
+                                    values:
+                                      description: values is an array of string values.
+                                        If the operator is In or NotIn, the values
+                                        array must be non-empty. If the operator is
+                                        Exists or DoesNotExist, the values array must
+                                        be empty. This array is replaced during a
+                                        strategic merge patch.
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                  - key
+                                  - operator
+                                  type: object
+                                type: array
+                              matchLabels:
+                                additionalProperties:
+                                  type: string
+                                description: matchLabels is a map of {key,value} pairs.
+                                  A single {key,value} in the matchLabels map is equivalent
+                                  to an element of matchExpressions, whose key field
+                                  is "key", the operator is "In", and the values array
+                                  contains only "value". The requirements are ANDed.
+                                type: object
+                            type: object
+                          weight:
+                            description: Weight associated with matching the corresponding
+                              matchExpressions, in the range 1-100.
+                            format: int32
+                            type: integer
+                        required:
+                        - matchSelector
+                        - weight
+                        type: object
+                      type: array
+                  type: object
+                scatterStrategy:
+                  description: ScatterStrategy defines the scatter rules to make pods
+                    been scattered when update. This will avoid pods with the same
+                    key-value to be updated in one batch. - Note that pods will be
+                    scattered after priority sort. So, although priority strategy
+                    and scatter strategy can be applied together, we suggest to use
+                    either one of them. - If scatterStrategy is used, we suggest to
+                    just use one term. Otherwise, the update order can be hard to
+                    understand.
+                  items:
+                    properties:
+                      key:
+                        type: string
+                      value:
+                        type: string
+                    required:
+                    - key
+                    - value
+                    type: object
+                  type: array
+                type:
+                  description: Type indicates the type of the CloneSetUpdateStrategy.
+                    Default is ReCreate.
+                  type: string
+              type: object
+            volumeClaimTemplates:
+              description: VolumeClaimTemplates is a list of claims that pods are
+                allowed to reference. Note that PVC will be deleted when its pod has
+                been deleted.
+              items:
+                description: PersistentVolumeClaim is a user's request for and claim
+                  to a persistent volume
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              type: array
+          required:
+          - selector
+          - template
+          type: object
+        status:
+          description: CloneSetStatus defines the observed state of CloneSet
+          properties:
+            availableReplicas:
+              description: AvailableReplicas is the number of Pods created by the
+                CloneSet controller that have a Ready Condition for at least minReadySeconds.
+              format: int32
+              type: integer
+            collisionCount:
+              description: CollisionCount is the count of hash collisions for the
+                CloneSet. The CloneSet controller uses this field as a collision avoidance
+                mechanism when it needs to create the name for the newest ControllerRevision.
+              format: int32
+              type: integer
+            conditions:
+              description: Conditions represents the latest available observations
+                of a CloneSet's current state.
+              items:
+                description: CloneSetCondition describes the state of a CloneSet at
+                  a certain point.
+                properties:
+                  lastTransitionTime:
+                    description: Last time the condition transitioned from one status
+                      to another.
+                    format: date-time
+                    type: string
+                  message:
+                    description: A human readable message indicating details about
+                      the transition.
+                    type: string
+                  reason:
+                    description: The reason for the condition's last transition.
+                    type: string
+                  status:
+                    description: Status of the condition, one of True, False, Unknown.
+                    type: string
+                  type:
+                    description: Type of CloneSet condition.
+                    type: string
+                required:
+                - status
+                - type
+                type: object
+              type: array
+            labelSelector:
+              description: LabelSelector is label selectors for query over pods that
+                should match the replica count used by HPA.
+              type: string
+            observedGeneration:
+              description: ObservedGeneration is the most recent generation observed
+                for this CloneSet. It corresponds to the CloneSet's generation, which
+                is updated on mutation by the API Server.
+              format: int64
+              type: integer
+            readyReplicas:
+              description: ReadyReplicas is the number of Pods created by the CloneSet
+                controller that have a Ready Condition.
+              format: int32
+              type: integer
+            replicas:
+              description: Replicas is the number of Pods created by the CloneSet
+                controller.
+              format: int32
+              type: integer
+            updateRevision:
+              description: UpdateRevision, if not empty, indicates the latest revision
+                of the CloneSet.
+              type: string
+            updatedReadyReplicas:
+              description: UpdatedReadyReplicas is the number of Pods created by the
+                CloneSet controller from the CloneSet version indicated by updateRevision
+                and have a Ready Condition.
+              format: int32
+              type: integer
+            updatedReplicas:
+              description: UpdatedReplicas is the number of Pods created by the CloneSet
+                controller from the CloneSet version indicated by updateRevision.
+              format: int32
+              type: integer
+          required:
+          - availableReplicas
+          - readyReplicas
+          - replicas
+          - updatedReadyReplicas
+          - updatedReplicas
+          type: object
+      type: object
+  version: v1alpha1
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

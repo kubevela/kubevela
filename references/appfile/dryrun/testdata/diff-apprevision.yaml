@@ -1,0 +1,269 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ApplicationRevision
+metadata:
+  annotations:
+  name: livediff-demo-v1
+  namespace: default
+spec:
+  application:
+    apiVersion: core.oam.dev/v1beta1
+    kind: Application
+    metadata: {}
+    spec:
+      components:
+      - name: myweb-1
+        properties:
+          cmd:
+          - sleep
+          - "1000"
+          enemies: alien
+          image: busybox
+          lives: "3"
+        traits:
+        - properties:
+            domain: www.example.com
+            http:
+              /: 80
+          type: myingress
+        - properties:
+            replicas: 2
+          type: myscaler
+        type: myworker
+      - name: myweb-2
+        properties:
+          cmd:
+          - sleep
+          - "1000"
+          enemies: alien
+          image: busybox
+          lives: "3"
+        type: myworker
+    status:
+      batchRollingState: ""
+      currentBatch: 0
+      rollingState: ""
+      upgradedReadyReplicas: 0
+      upgradedReplicas: 0
+  applicationConfiguration:
+    apiVersion: core.oam.dev/v1alpha2
+    kind: ApplicationConfiguration
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/last-applied-configuration: |
+          {"apiVersion":"core.oam.dev/v1beta1","kind":"Application","metadata":{"annotations":{},"name":"livediff-demo","namespace":"default"},"spec":{"components":[{"name":"myweb-1","properties":{"cmd":["sleep","1000"],"enemies":"alien","image":"busybox","lives":"3"},"traits":[{"properties":{"domain":"www.example.com","http":{"/":80}},"type":"myingress"},{"properties":{"replicas":2},"type":"myscaler"}],"type":"myworker"},{"name":"myweb-2","properties":{"cmd":["sleep","1000"],"enemies":"alien","image":"busybox","lives":"3"},"type":"myworker"}]}}
+      labels:
+        app.oam.dev/name: livediff-demo
+      name: livediff-demo
+      namespace: default
+      ownerReferences:
+      - apiVersion: core.oam.dev/v1beta1
+        controller: true
+        kind: Application
+        name: livediff-demo
+        uid: afdaa0dc-b226-4045-a255-2c282f258481
+    spec:
+      components:
+      - revisionName: myweb-1-v1
+        traits:
+        - trait:
+            apiVersion: v1
+            kind: Service
+            metadata:
+              labels:
+                app.oam.dev/appRevision: livediff-demo-v1
+                app.oam.dev/component: myweb-1
+                app.oam.dev/name: livediff-demo
+                trait.oam.dev/resource: service
+                trait.oam.dev/type: myingress
+              name: myweb-1
+            spec:
+              ports:
+              - port: 80
+                targetPort: 80
+              selector:
+                app.oam.dev/component: myweb-1
+        - trait:
+            apiVersion: networking.k8s.io/v1beta1
+            kind: Ingress
+            metadata:
+              labels:
+                app.oam.dev/appRevision: livediff-demo-v1
+                app.oam.dev/component: myweb-1
+                app.oam.dev/name: livediff-demo
+                trait.oam.dev/resource: ingress
+                trait.oam.dev/type: myingress
+              name: myweb-1
+            spec:
+              rules:
+              - host: www.example.com
+                http:
+                  paths:
+                  - backend:
+                      serviceName: myweb-1
+                      servicePort: 80
+                    path: /
+        - trait:
+            apiVersion: core.oam.dev/v1alpha2
+            kind: ManualScalerTrait
+            metadata:
+              labels:
+                app.oam.dev/appRevision: livediff-demo-v1
+                app.oam.dev/component: myweb-1
+                app.oam.dev/name: livediff-demo
+                trait.oam.dev/resource: scaler
+                trait.oam.dev/type: myscaler
+            spec:
+              replicaCount: 2
+      - revisionName: myweb-2-v1
+    status:
+      dependency: {}
+      observedGeneration: 0
+  componentDefinitions:
+    myworker:
+      apiVersion: core.oam.dev/v1beta1
+      kind: ComponentDefinition
+      metadata: {}
+      spec:
+        schematic:
+          cue:
+            template: "import (\n   apps \"kube/apps/v1\"\n)\noutput: apps.#Deployment\noutput:
+              {\n\tspec: {\n\t\tselector: matchLabels: {\n\t\t\t\"app.oam.dev/component\":
+              context.name\n\t\t}\n\n\t\ttemplate: {\n\t\t\tmetadata: labels: {\n\t\t\t\t\"app.oam.dev/component\":
+              context.name\n\t\t\t}\n\n\t\t\tspec: {\n\t\t\t\tcontainers: [{\n\t\t\t\t\tname:
+              \ context.name\n\t\t\t\t\timage: parameter.image\n\n\t\t\t\t\tif parameter[\"cmd\"]
+              != _|_ {\n\t\t\t\t\t\tcommand: parameter.cmd\n\t\t\t\t\t}\n\t\t\t\t}]\n\t\t\t}\n\t\t}\n\t}\n}\n\nparameter:
+              {\n\t// +usage=Which image would you like to use for your service\n\t//
+              +short=i\n\timage: string\n\t// +usage=Commands to run in the container\n\tcmd?:
+              [...string]\n}\n"
+        workload:
+          definition:
+            apiVersion: apps/v1
+            kind: Deployment
+      status: {}
+  components:
+  - raw:
+      apiVersion: core.oam.dev/v1alpha2
+      kind: Component
+      metadata:
+        labels:
+          app.oam.dev/name: livediff-demo
+        name: myweb-1
+        namespace: default
+        ownerReferences:
+        - apiVersion: core.oam.dev/v1beta1
+          controller: true
+          kind: Application
+          name: livediff-demo
+          uid: afdaa0dc-b226-4045-a255-2c282f258481
+      spec:
+        workload:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            labels:
+              app.oam.dev/appRevision: livediff-demo-v1
+              app.oam.dev/component: myweb-1
+              app.oam.dev/name: livediff-demo
+              workload.oam.dev/type: myworker
+          spec:
+            selector:
+              matchLabels:
+                app.oam.dev/component: myweb-1
+            template:
+              metadata:
+                labels:
+                  app.oam.dev/component: myweb-1
+              spec:
+                containers:
+                - command:
+                  - sleep
+                  - "1000"
+                  image: busybox
+                  name: myweb-1
+      status:
+        observedGeneration: 0
+  - raw:
+      apiVersion: core.oam.dev/v1alpha2
+      kind: Component
+      metadata:
+        labels:
+          app.oam.dev/name: livediff-demo
+        name: myweb-2
+        namespace: default
+        ownerReferences:
+        - apiVersion: core.oam.dev/v1beta1
+          controller: true
+          kind: Application
+          name: livediff-demo
+          uid: afdaa0dc-b226-4045-a255-2c282f258481
+      spec:
+        workload:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            labels:
+              app.oam.dev/appRevision: livediff-demo-v1
+              app.oam.dev/component: myweb-2
+              app.oam.dev/name: livediff-demo
+              workload.oam.dev/type: myworker
+          spec:
+            selector:
+              matchLabels:
+                app.oam.dev/component: myweb-2
+            template:
+              metadata:
+                labels:
+                  app.oam.dev/component: myweb-2
+              spec:
+                containers:
+                - command:
+                  - sleep
+                  - "1000"
+                  image: busybox
+                  name: myweb-2
+      status:
+        observedGeneration: 0
+  traitDefinitions:
+    myingress:
+      apiVersion: core.oam.dev/v1beta1
+      kind: TraitDefinition
+      metadata: {}
+      spec:
+        appliesToWorkloads:
+        - '*'
+        definitionRef:
+          name: ""
+        schematic:
+          cue:
+            template: "import (\n\tkubev1 \"kube/v1\"\n\tnetwork \"kube/networking.k8s.io/v1beta1\"\n)\n\nparameter:
+              {\n\tdomain: string\n\thttp: [string]: int\n}\n\noutputs: {\nservice:
+              kubev1.#Service\ningress: network.#Ingress\n}\n\n// trait template can
+              have multiple outputs in one trait\noutputs: service: {\n\tmetadata:\n\t\tname:
+              context.name\n\tspec: {\n\t\tselector:\n\t\t\t\"app.oam.dev/component\":
+              context.name\n\t\tports: [\n\t\t\tfor k, v in parameter.http {\n\t\t\t\tport:
+              \      v\n\t\t\t\ttargetPort: v\n\t\t\t},\n\t\t]\n\t}\n}\n\noutputs:
+              ingress: {\n\tmetadata:\n\t\tname: context.name\n\tspec: {\n\t\trules:
+              [{\n\t\t\thost: parameter.domain\n\t\t\thttp: {\n\t\t\t\tpaths: [\n\t\t\t\t\tfor
+              k, v in parameter.http {\n\t\t\t\t\t\tpath: k\n\t\t\t\t\t\tbackend:
+              {\n\t\t\t\t\t\t\tserviceName: context.name\n\t\t\t\t\t\t\tservicePort:
+              v\n\t\t\t\t\t\t}\n\t\t\t\t\t},\n\t\t\t\t]\n\t\t\t}\n\t\t}]\n\t}\n}\n"
+      status: {}
+    myscaler:
+      apiVersion: core.oam.dev/v1beta1
+      kind: TraitDefinition
+      metadata: {}
+      spec:
+        appliesToWorkloads:
+        - webservice
+        - worker
+        definitionRef:
+          name: manualscalertraits.core.oam.dev
+        schematic:
+          cue:
+            template: "outputs: scaler: {\n\tapiVersion: \"core.oam.dev/v1alpha2\"\n\tkind:
+              \      \"ManualScalerTrait\"\n\tspec: {\n\t\treplicaCount: parameter.replicas\n\t}\n}\nparameter:
+              {\n\t//+short=r\n\t//+usage=Replicas of the workload\n\treplicas: *1
+              | int\n}\n"
+        workloadRefPath: spec.workloadRef
+      status: {}
+

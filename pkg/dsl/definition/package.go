@@ -82,6 +82,20 @@ func (pd *PackageDiscover) ImportBuiltinPackagesFor(bi *build.Instance) {
 	bi.Imports = append(bi.Imports, pd.velaBuiltinPackages...)
 }
 
+// ImportPackagesAndBuildInstance Combine import built-in packages and build cue template together to avoid data race
+func (pd *PackageDiscover) ImportPackagesAndBuildInstance(bi *build.Instance) (inst *cue.Instance, err error) {
+	pd.ImportBuiltinPackagesFor(bi)
+
+	var r cue.Runtime
+	pd.mutex.Lock()
+	defer pd.mutex.Unlock()
+	cueInst, err := r.Build(bi)
+	if err != nil {
+		return nil, err
+	}
+	return cueInst, err
+}
+
 // ListPackageKinds list packages and their kinds
 func (pd *PackageDiscover) ListPackageKinds() map[string][]VersionKind {
 	pd.mutex.RLock()
@@ -132,6 +146,30 @@ func (pd *PackageDiscover) mount(pkg *pkgInstance, pkgKinds []VersionKind) {
 	pd.velaBuiltinPackages = append(pd.velaBuiltinPackages, pkg.Instance)
 }
 
+func (pd *PackageDiscover) pkgBuild(packages map[string]*pkgInstance, pkgName string,
+	dGVK domainGroupVersionKind, def string, kubePkg *pkgInstance, groupKinds map[string][]VersionKind) error {
+	pkg, ok := packages[pkgName]
+	if !ok {
+		pkg = newPackage(pkgName)
+		pkg.Imports = []*build.Instance{kubePkg.Instance}
+	}
+
+	mykinds := groupKinds[pkgName]
+	mykinds = append(mykinds, VersionKind{
+		APIVersion:     dGVK.APIVersion,
+		Kind:           dGVK.Kind,
+		DefinitionName: "#" + dGVK.Kind,
+	})
+
+	if err := pkg.AddFile(dGVK.reverseString(), def); err != nil {
+		return err
+	}
+
+	packages[pkgName] = pkg
+	groupKinds[pkgName] = mykinds
+	return nil
+}
+
 func (pd *PackageDiscover) addKubeCUEPackagesFromCluster(apiSchema string) error {
 	var r cue.Runtime
 	oaInst, err := r.Compile("-", apiSchema)
@@ -180,32 +218,10 @@ kind: "%s"
 apiVersion: "%s",
 }`, v.Kind, k, v.Kind, apiVersion)
 
-		pkgBuild := func(pkgName string) error {
-			pkg, ok := packages[pkgName]
-			if !ok {
-				pkg = newPackage(pkgName)
-				pkg.Imports = []*build.Instance{kubePkg.Instance}
-			}
-
-			mykinds := groupKinds[pkgName]
-			mykinds = append(mykinds, VersionKind{
-				APIVersion:     v.APIVersion,
-				Kind:           v.Kind,
-				DefinitionName: "#" + v.Kind,
-			})
-
-			if err := pkg.AddFile(v.reverseString(), def); err != nil {
-				return err
-			}
-
-			packages[pkgName] = pkg
-			groupKinds[pkgName] = mykinds
-			return nil
-		}
-		if err := pkgBuild(genStandardPkgName(v)); err != nil {
+		if err := pd.pkgBuild(packages, genStandardPkgName(v), v, def, kubePkg, groupKinds); err != nil {
 			return err
 		}
-		if err := pkgBuild(genOpenPkgName(v)); err != nil {
+		if err := pd.pkgBuild(packages, genOpenPkgName(v), v, def, kubePkg, groupKinds); err != nil {
 			return err
 		}
 	}

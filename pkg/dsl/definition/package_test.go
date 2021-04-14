@@ -407,26 +407,22 @@ func TestPackage(t *testing.T) {
 })
 `
 	bi := build.NewContext().NewInstance("", nil)
-	mypd.ImportBuiltinPackagesFor(bi)
 	bi.AddFile("-", `
 import "test.io/apps/v1"
 output: v1.#Bucket
 `)
-	var r cue.Runtime
-	inst, err := r.Build(bi)
+	inst, err := mypd.ImportPackagesAndBuildInstance(bi)
 	assert.NilError(t, err)
 	base, err := model.NewBase(inst.Value())
 	assert.NilError(t, err)
 	assert.Equal(t, base.String(), exceptObj)
 
 	bi = build.NewContext().NewInstance("", nil)
-	mypd.ImportBuiltinPackagesFor(bi)
 	bi.AddFile("-", `
 import "kube/apps.test.io/v1"
 output: v1.#Bucket
 `)
-
-	inst, err = r.Build(bi)
+	inst, err = mypd.ImportPackagesAndBuildInstance(bi)
 	assert.NilError(t, err)
 	base, err = model.NewBase(inst.Value())
 	assert.NilError(t, err)

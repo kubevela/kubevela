@@ -153,7 +153,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: appRolloutName}, &appRollout)
 				return apierrors.IsNotFound(err)
 			},
-			time.Second*30, time.Microsecond*100).Should(BeTrue())
+			time.Second*3, time.Millisecond*500).Should(BeTrue())
 	}
 
 	verifyRolloutSucceeded := func(targetAppName string) {
@@ -198,7 +198,8 @@ var _ = Describe("Cloneset based rollout tests", func() {
 		// make sure all pods are upgraded
 		image := kc.Spec.Template.Spec.Containers[0].Image
 		podList := corev1.PodList{}
-		Expect(k8sClient.List(ctx, &podList, client.MatchingLabels(kc.Spec.Template.Labels))).Should(Succeed())
+		Expect(k8sClient.List(ctx, &podList, client.MatchingLabels(kc.Spec.Template.Labels),
+			client.InNamespace(namespaceName))).Should(Succeed())
 		Expect(len(podList.Items)).Should(BeEquivalentTo(*kc.Spec.Replicas))
 		for _, pod := range podList.Items {
 			Expect(pod.Spec.Containers[0].Image).Should(Equal(image))
@@ -271,10 +272,9 @@ var _ = Describe("Cloneset based rollout tests", func() {
 
 	AfterEach(func() {
 		By("Clean up resources after a test")
+		k8sClient.Delete(ctx, &app)
 		k8sClient.Delete(ctx, &appRollout)
 		verifyRolloutDeleted()
-		By("Delete the application")
-		k8sClient.Delete(ctx, &app)
 		By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
 		// delete the namespaceName with all its resources
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationBackground))).Should(BeNil())

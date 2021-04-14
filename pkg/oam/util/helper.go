@@ -24,6 +24,7 @@ import (
 	"hash/fnv"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,6 +47,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
@@ -696,8 +698,8 @@ func MergeMapOverrideWithDst(src, dst map[string]string) map[string]string {
 }
 
 // ConvertComponentDef2WorkloadDef help convert a ComponentDefinition to WorkloadDefinition
-func ConvertComponentDef2WorkloadDef(dm discoverymapper.DiscoveryMapper, componentDef *v1alpha2.ComponentDefinition,
-	workloadDef *v1alpha2.WorkloadDefinition) error {
+func ConvertComponentDef2WorkloadDef(dm discoverymapper.DiscoveryMapper, componentDef *v1beta1.ComponentDefinition,
+	workloadDef *v1beta1.WorkloadDefinition) error {
 	if len(componentDef.Spec.Workload.Type) > 1 {
 		return errors.New("No need to convert ComponentDefinition")
 	}
@@ -718,6 +720,20 @@ func ConvertComponentDef2WorkloadDef(dm discoverymapper.DiscoveryMapper, compone
 	workloadDef.Spec.Status = componentDef.Spec.Status
 	workloadDef.Spec.Schematic = componentDef.Spec.Schematic
 	return nil
+}
+
+// ExtractRevisionNum  extract revision number from appRevision name
+func ExtractRevisionNum(appRevision string) (int, error) {
+	splits := strings.Split(appRevision, "-")
+	// check some bad appRevision name, eg:v1, appv2
+	if len(splits) == 1 {
+		return 0, fmt.Errorf("bad revison name")
+	}
+	// check some bad appRevision name, eg:myapp-a1
+	if !strings.HasPrefix(splits[len(splits)-1], "v") {
+		return 0, fmt.Errorf("bad revison name")
+	}
+	return strconv.Atoi(strings.TrimPrefix(splits[len(splits)-1], "v"))
 }
 
 // Min for int

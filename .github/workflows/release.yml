@@ -83,3 +83,13 @@ jobs:
           asset_path: ./_bin/sha256sums.txt
           asset_name: sha256sums.txt
           asset_content_type: text/plain
+      - uses: actions/setup-node@v1
+        with:
+          node-version: '12.x'
+      - name: Sync release to kubevela.io Repo
+        env:
+          SSH_DEPLOY_KEY: ${{ secrets.GH_PAGES_DEPLOY }}
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+          COMMIT_ID: ${{ github.sha }}
+        run: |
+          bash ./hack/website/release.sh

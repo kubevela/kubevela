@@ -11,11 +11,7 @@ Describes long-running, scalable, containerized services that have a stable netw
 List of all configuration options for a `Webservice` workload type.
 
 ```yaml
-name: my-app-name
-
-services:
-  my-service-name:
-    type: webservice # could be skipped
+...
     image: oamdev/testapp:v1
     cmd: ["node", "server.js"]
     port: 8080

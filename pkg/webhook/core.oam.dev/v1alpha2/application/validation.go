@@ -30,9 +30,17 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.App
 	var componentErrs field.ErrorList
 	// try to generate an app file
 	appParser := appfile.NewApplicationParser(h.Client, h.dm, h.pd)
-	if _, err := appParser.GenerateAppFile(ctx, app.Name, app); err != nil {
+
+	af, err := appParser.GenerateAppFile(ctx, app)
+	if err != nil {
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("spec"), app, err.Error()))
+		// cannot generate appfile, no need to validate further
+		return componentErrs
 	}
+	if err := appParser.ValidateCUESchematicAppfile(af); err != nil {
+		componentErrs = append(componentErrs, field.Invalid(field.NewPath("schematic"), app, err.Error()))
+	}
+
 	return componentErrs
 }
 

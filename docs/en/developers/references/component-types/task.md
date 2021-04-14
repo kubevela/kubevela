@@ -11,11 +11,7 @@ Describes jobs that run code or a script to completion.
 List of all configuration options for a `Task` workload type.
 
 ```yaml
-name: my-app-name
-
-services:
-  my-service-name:
-    type: task
+...
     image: perl
     count: 10
     cmd: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]

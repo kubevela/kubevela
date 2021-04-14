@@ -22,12 +22,11 @@ import (
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
-
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -35,7 +34,7 @@ import (
 type handler struct {
 	client.Client
 	dm discoverymapper.DiscoveryMapper
-	cd *v1alpha2.ComponentDefinition
+	cd *v1beta1.ComponentDefinition
 }
 
 func (h *handler) CreateWorkloadDefinition(ctx context.Context) (util.WorkloadType, error) {
@@ -52,7 +51,7 @@ func (h *handler) CreateWorkloadDefinition(ctx context.Context) (util.WorkloadTy
 		workloadType = util.KubeDef
 	}
 
-	wd := new(v1alpha2.WorkloadDefinition)
+	wd := new(v1beta1.WorkloadDefinition)
 	err := h.Get(ctx, client.ObjectKey{Namespace: h.cd.Namespace, Name: workloadName}, wd)
 	if err != nil {
 		switch workloadType {
@@ -68,8 +67,8 @@ func (h *handler) CreateWorkloadDefinition(ctx context.Context) (util.WorkloadTy
 				return workloadType, fmt.Errorf("convert WorkloadDefinition %s error %w", h.cd.Name, err)
 			}
 			owners := []metav1.OwnerReference{{
-				APIVersion: v1alpha2.SchemeGroupVersion.String(),
-				Kind:       v1alpha2.ComponentDefinitionKind,
+				APIVersion: v1beta1.SchemeGroupVersion.String(),
+				Kind:       v1beta1.ComponentDefinitionKind,
 				Name:       h.cd.Name,
 				UID:        h.cd.UID,
 				Controller: pointer.BoolPtr(true),

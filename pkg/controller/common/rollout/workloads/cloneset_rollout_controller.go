@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -165,7 +166,7 @@ func (c *CloneSetRolloutController) RolloutOneBatchPods(ctx context.Context) (bo
 	c.cloneSet.Spec.UpdateStrategy.Partition = &intstr.IntOrString{Type: intstr.Int,
 		IntVal: cloneSetSize - int32(newPodTarget)}
 	// patch the Cloneset
-	if err := c.client.Patch(ctx, c.cloneSet, clonePatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
+	if err = c.client.Patch(ctx, c.cloneSet, clonePatch, client.FieldOwner(c.parentController.GetUID())); err != nil {
 		c.recorder.Event(c.parentController, event.Warning("Failed to update the cloneset to upgrade", err))
 		c.rolloutStatus.RolloutRetry(err.Error())
 		return false, nil
@@ -188,6 +189,12 @@ func (c *CloneSetRolloutController) CheckOneBatchPods(ctx context.Context) (bool
 	newPodTarget := calculateNewBatchTarget(c.rolloutSpec, 0, int(cloneSetSize), int(c.rolloutStatus.CurrentBatch))
 	// get the number of ready pod from cloneset
 	readyPodCount := int(c.cloneSet.Status.UpdatedReadyReplicas)
+	if len(c.rolloutSpec.RolloutBatches) <= int(c.rolloutStatus.CurrentBatch) {
+		err = errors.New("somehow, currentBatch number exceeded the rolloutBatches spec")
+		klog.ErrorS(err, "total batch", len(c.rolloutSpec.RolloutBatches), "current batch",
+			c.rolloutStatus.CurrentBatch)
+		return false, err
+	}
 	currentBatch := c.rolloutSpec.RolloutBatches[c.rolloutStatus.CurrentBatch]
 	unavail := 0
 	if currentBatch.MaxUnavailable != nil {
@@ -254,11 +261,18 @@ func (c *CloneSetRolloutController) Finalize(ctx context.Context, succeed bool) 
 	clonePatch := client.MergeFrom(c.cloneSet.DeepCopyObject())
 	// remove the parent controller from the resources' owner list
 	var newOwnerList []metav1.OwnerReference
+	isOwner := false
 	for _, owner := range c.cloneSet.GetOwnerReferences() {
 		if owner.Kind == v1beta1.AppRolloutKind && owner.APIVersion == v1beta1.SchemeGroupVersion.String() {
+			isOwner = true
 			continue
 		}
 		newOwnerList = append(newOwnerList, owner)
+	}
+	if !isOwner {
+		// nothing to do if we are already not the owner
+		klog.InfoS("the cloneset is already released and not controlled by rollout", "cloneSet", c.cloneSet.Name)
+		return true
 	}
 	c.cloneSet.SetOwnerReferences(newOwnerList)
 	// pause the resource when the rollout failed so we can try again next time

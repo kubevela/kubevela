@@ -34,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/yaml"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -48,7 +47,7 @@ var _ = Describe("Apply TraitDefinition to store its schema to ConfigMap Test", 
 		It("Apply TraitDefinition", func() {
 			By("Apply TraitDefinition")
 			var validTraitDefinition = `
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   namespace: ns-tr-def
@@ -79,7 +78,7 @@ spec:
         }
 `
 
-			var def v1alpha2.TraitDefinition
+			var def v1beta1.TraitDefinition
 			Expect(yaml.Unmarshal([]byte(validTraitDefinition), &def)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &def)).Should(Not(Succeed()))
 		})
@@ -103,7 +102,7 @@ spec:
 		It("Apply TraitDefinition", func() {
 			By("Apply TraitDefinition")
 			var validTraitDefinition = `
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -133,7 +132,7 @@ spec:
         }
 `
 
-			var def v1alpha2.TraitDefinition
+			var def v1beta1.TraitDefinition
 			Expect(yaml.Unmarshal([]byte(validTraitDefinition), &def)).Should(BeNil())
 			def.Namespace = namespace
 			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
@@ -174,7 +173,7 @@ spec:
 		It("Apply TraitDefinition", func() {
 			By("Apply TraitDefinition")
 			var validTraitDefinition = `
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   namespace: ns-tr-def
@@ -205,7 +204,7 @@ spec:
         }
 `
 
-			var def v1alpha2.TraitDefinition
+			var def v1beta1.TraitDefinition
 			Expect(yaml.Unmarshal([]byte(validTraitDefinition), &def)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())
 			reconcileRetry(&r, req)
@@ -243,7 +242,7 @@ spec:
 		It("Applying invalid TraitDefinition", func() {
 			By("Apply the TraitDefinition")
 			var invalidTraitDefinition = `
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   namespace: ns-tr-def
@@ -269,10 +268,10 @@ spec:
         }
 `
 
-			var invalidDef v1alpha2.TraitDefinition
+			var invalidDef v1beta1.TraitDefinition
 			Expect(yaml.Unmarshal([]byte(invalidTraitDefinition), &invalidDef)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &invalidDef)).Should(Succeed())
-			gotTraitDefinition := &v1alpha2.TraitDefinition{}
+			gotTraitDefinition := &v1beta1.TraitDefinition{}
 			Expect(k8sClient.Get(ctx, client.ObjectKey{Name: invalidTraitDefinitionName, Namespace: namespace}, gotTraitDefinition)).Should(BeNil())
 		})
 	})
@@ -324,7 +323,7 @@ spec:
 			Expect(k8sClient.Create(context.Background(), &newCrd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 			traitDef := `
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -365,7 +364,7 @@ spec:
 				reconcileRetry(&r, req)
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
 				return err == nil
-			}, 20*time.Second, time.Second).Should(BeTrue())
+			}, 30*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
 		})
 	})

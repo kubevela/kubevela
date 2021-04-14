@@ -91,6 +91,10 @@ image: "myserver"
 	assert.Equal(t, nil, err)
 	assert.Equal(t, "myapp-v1", myAppRevision)
 
+	myAppRevisionNum, err := ctxInst.Lookup("context", ContextAppRevisionNum).Int64()
+	assert.Equal(t, nil, err)
+	assert.Equal(t, int64(1), myAppRevisionNum)
+
 	inputJs, err := ctxInst.Lookup("context", OutputFieldName).MarshalJSON()
 	assert.Equal(t, nil, err)
 	assert.Equal(t, `{"image":"myserver"}`, string(inputJs))

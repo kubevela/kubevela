@@ -1,5 +1,5 @@
 ---
-title:  The Reference Documentation of Capabilities
+title:  Overview
 ---
 
 In this documentation, we will show how to check the detailed schema of a given capability (i.e. component type or trait). 

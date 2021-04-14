@@ -25,7 +25,7 @@ then
 fi
 
 echo "git clone"
-git config --global user.email "yangsoonlx@gmail.com"
+git config --global user.email "kubevela.bot@aliyun.com"
 git config --global user.name "kubevela-bot"
 git clone --single-branch --depth 1 git@github.com:oam-dev/kubevela.io.git git-page
 
@@ -49,7 +49,38 @@ cp -R docs/en/* git-page/docs/
 echo "git push"
 cd git-page
 
-# Check for release only
+# Check for release created only
+SUB='v'
+if [[ "$VERSION" == "$SUB"* ]]
+then
+  # vx.y.z -> vx.y
+  sub="."
+  major="$(cut -d"$sub" -f1 <<<"$VERSION")"
+  minor="$(cut -d"$sub" -f2 <<<"$VERSION")"
+
+  version=${major}.${minor}
+  echo "updating website for version $version"
+
+  if grep -q $version versions.json; then
+    rm -r versioned_docs/version-${version}/
+    rm versioned_sidebars/version-${version}-sidebars.json
+    sed -i.bak "/${version}/d" versions.json
+    rm versions.json.bak
+  fi
+
+  yarn add nodejieba
+  if [ -e yarn.lock ]; then
+  yarn install --frozen-lockfile
+  elif [ -e package-lock.json ]; then
+  npm ci
+  else
+  npm i
+  fi
+
+  yarn run docusaurus docs:version $version
+fi
+
+# Check for release branch update only
 SUB='release-'
 if [[ "$VERSION" == *"$SUB"* ]]
 then
@@ -76,6 +107,8 @@ then
 
   yarn run docusaurus docs:version $version
 fi
+
+
 
 if git diff --quiet
 then

@@ -103,9 +103,8 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	if err := bi.AddFile("-", ctx.ExtendedContextFile()); err != nil {
 		return err
 	}
-	wd.pd.ImportBuiltinPackagesFor(bi)
-	var r cue.Runtime
-	inst, err := r.Build(bi)
+
+	inst, err := wd.pd.ImportPackagesAndBuildInstance(bi)
 	if err != nil {
 		return err
 	}
@@ -118,7 +117,9 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	if err != nil {
 		return errors.WithMessagef(err, "invalid output of workload %s", wd.name)
 	}
-	ctx.SetBase(base)
+	if err := ctx.SetBase(base); err != nil {
+		return err
+	}
 
 	// we will support outputs for workload composition, and it will become trait in AppConfig.
 	outputs := inst.Lookup(OutputsFieldName)
@@ -138,7 +139,9 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		if err != nil {
 			return errors.WithMessagef(err, "invalid outputs(%s) of workload %s", fieldInfo.Name, wd.name)
 		}
-		ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: AuxiliaryWorkload, Name: fieldInfo.Name})
+		if err := ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: AuxiliaryWorkload, Name: fieldInfo.Name}); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -285,52 +288,54 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 	if err := bi.AddFile("context", ctx.ExtendedContextFile()); err != nil {
 		return errors.WithMessagef(err, "invalid context of trait %s", td.name)
 	}
-	td.pd.ImportBuiltinPackagesFor(bi)
 
-	instances := cue.Build([]*build.Instance{bi})
-	for _, inst := range instances {
-		if err := inst.Value().Err(); err != nil {
-			return errors.WithMessagef(err, "invalid template of trait %s after merge with parameter and context", td.name)
+	inst, err := td.pd.ImportPackagesAndBuildInstance(bi)
+	if err != nil {
+		return err
+	}
+
+	if err := inst.Value().Err(); err != nil {
+		return errors.WithMessagef(err, "invalid template of trait %s after merge with parameter and context", td.name)
+	}
+	processing := inst.Lookup("processing")
+	if processing.Exists() {
+		if inst, err = task.Process(inst); err != nil {
+			return errors.WithMessagef(err, "invalid process of trait %s", td.name)
 		}
-		processing := inst.Lookup("processing")
-		var err error
-		if processing.Exists() {
-			if inst, err = task.Process(inst); err != nil {
-				return errors.WithMessagef(err, "invalid process of trait %s", td.name)
+	}
+	outputs := inst.Lookup(OutputsFieldName)
+	if outputs.Exists() {
+		st, err := outputs.Struct()
+		if err != nil {
+			return errors.WithMessagef(err, "invalid outputs of trait %s", td.name)
+		}
+		for i := 0; i < st.Len(); i++ {
+			fieldInfo := st.Field(i)
+			if fieldInfo.IsDefinition || fieldInfo.IsHidden || fieldInfo.IsOptional {
+				continue
 			}
-		}
-
-		outputs := inst.Lookup(OutputsFieldName)
-		if outputs.Exists() {
-			st, err := outputs.Struct()
+			other, err := model.NewOther(fieldInfo.Value)
 			if err != nil {
-				return errors.WithMessagef(err, "invalid outputs of trait %s", td.name)
+				return errors.WithMessagef(err, "invalid outputs(resource=%s) of trait %s", fieldInfo.Name, td.name)
 			}
-			for i := 0; i < st.Len(); i++ {
-				fieldInfo := st.Field(i)
-				if fieldInfo.IsDefinition || fieldInfo.IsHidden || fieldInfo.IsOptional {
-					continue
-				}
-				other, err := model.NewOther(fieldInfo.Value)
-				if err != nil {
-					return errors.WithMessagef(err, "invalid outputs(resource=%s) of trait %s", fieldInfo.Name, td.name)
-				}
-				ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, Name: fieldInfo.Name})
-			}
-		}
-
-		patcher := inst.Lookup(PatchFieldName)
-		if patcher.Exists() {
-			base, _ := ctx.Output()
-			p, err := model.NewOther(patcher)
-			if err != nil {
-				return errors.WithMessagef(err, "invalid patch of trait %s", td.name)
-			}
-			if err := base.Unify(p); err != nil {
-				return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
+			if err := ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, Name: fieldInfo.Name}); err != nil {
+				return err
 			}
 		}
 	}
+
+	patcher := inst.Lookup(PatchFieldName)
+	if patcher.Exists() {
+		base, _ := ctx.Output()
+		p, err := model.NewOther(patcher)
+		if err != nil {
+			return errors.WithMessagef(err, "invalid patch of trait %s", td.name)
+		}
+		if err := base.Unify(p); err != nil {
+			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
+		}
+	}
+
 	return nil
 }
 

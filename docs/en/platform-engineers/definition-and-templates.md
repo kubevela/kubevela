@@ -1,14 +1,12 @@
 ---
-title:  Definition CRD
+title:  Programmable Building Blocks
 ---
 
 This documentation explains `ComponentDefinition` and `TraitDefinition` in detail.
 
-> All definition objects are expected to be maintained and installed by platform team, think them as *capability providers* in your platform.
-
 ## Overview
 
-Essentially, a definition object in KubeVela is consisted by three section:
+Essentially, a definition object in KubeVela is a programmable build block. A definition object normally includes several information to model a certain platform capability that would used in further application deployment:
 - **Capability Indicator** 
   - `ComponentDefinition` uses `spec.workload` to indicate the workload type of this component.
   - `TraitDefinition` uses `spec.definitionRef` to indicate the provider of this trait.
@@ -132,7 +130,7 @@ Please take care of this field, it's really important and useful for serious lar
 
 ### Capability Encapsulation and Abstraction
 
-The templating and parameterizing of given capability are defined in `spec.schematic` field. For example, below is the full definition of *Web Service* type in KubeVela:
+The programmable template of given capability are defined in `spec.schematic` field. For example, below is the full definition of *Web Service* type in KubeVela:
 
 <details>
 

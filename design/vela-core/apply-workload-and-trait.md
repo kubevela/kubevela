@@ -152,7 +152,7 @@ status:
 # update with original manifest fails
 # reconciling also fails for cannot applying trait
 ```
-Additonally, if a trait has no immutable field, update will eliminate all fields set by others.
+Additionally, if a trait has no immutable field, update will eliminate all fields set by others.
 ```yaml
 # original trait manifest
 kind: Bar
