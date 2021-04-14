@@ -40,7 +40,7 @@ In KubeVela, `Application` is the main API to define your application deployment
 Now let's define an application composed by *Web Service* and *Worker* components.
 
 ```yaml
-# docsample.yaml
+# sample.yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
@@ -79,7 +79,7 @@ with a `fluentd` sidecar and automatically scale from 1-10 replicas based on CPU
 Apply application YAML to Kubernetes:
 
 ```shell
-$ kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/docsample.yaml
+$ kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/enduser/sample.yaml
 application.core.oam.dev/website created
 ```
 

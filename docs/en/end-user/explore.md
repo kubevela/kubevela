@@ -1,8 +1,10 @@
 ---
-title: Explore
+title: Explore Applications
 ---
 
-## Explore Applications
+We will introduce how to explore application related resources in this section.
+
+## List Application
 
 ```shell
 $ kubectl get application
