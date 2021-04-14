@@ -24,7 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 )
 
 // ScopeKind contains the type metadata for a kind of an OAM scope resource.
@@ -39,20 +39,20 @@ type WorkloadKind schema.GroupVersionKind
 // A Conditioned may have conditions set or retrieved. Conditions are typically
 // indicate the status of both a resource and its reconciliation process.
 type Conditioned interface {
-	SetConditions(c ...runtimev1alpha1.Condition)
-	GetCondition(runtimev1alpha1.ConditionType) runtimev1alpha1.Condition
+	SetConditions(c ...runtimev1.Condition)
+	GetCondition(runtimev1.ConditionType) runtimev1.Condition
 }
 
 // A WorkloadReferencer may reference an OAM workload.
 type WorkloadReferencer interface {
-	GetWorkloadReference() runtimev1alpha1.TypedReference
-	SetWorkloadReference(runtimev1alpha1.TypedReference)
+	GetWorkloadReference() runtimev1.TypedReference
+	SetWorkloadReference(runtimev1.TypedReference)
 }
 
 // A WorkloadsReferencer may reference an OAM workload.
 type WorkloadsReferencer interface {
-	GetWorkloadReferences() []runtimev1alpha1.TypedReference
-	AddWorkloadReference(runtimev1alpha1.TypedReference)
+	GetWorkloadReferences() []runtimev1.TypedReference
+	AddWorkloadReference(runtimev1.TypedReference)
 }
 
 // A Finalizer manages the finalizers on the resource.

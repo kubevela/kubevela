@@ -25,7 +25,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/format"
 	json2cue "cuelang.org/go/encoding/json"
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -250,7 +250,7 @@ func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string) 
 	acComp.ComponentName = comp.Name
 
 	for _, sc := range wl.Scopes {
-		acComp.Scopes = append(acComp.Scopes, v1alpha2.ComponentScope{ScopeReference: v1alpha1.TypedReference{
+		acComp.Scopes = append(acComp.Scopes, v1alpha2.ComponentScope{ScopeReference: v1.TypedReference{
 			APIVersion: sc.GVK.GroupVersion().String(),
 			Kind:       sc.GVK.Kind,
 			Name:       sc.Name,

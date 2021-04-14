@@ -27,11 +27,9 @@ import (
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 
@@ -54,33 +52,33 @@ var (
 
 func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 	mockClient := test.NewMockClient()
-	cwRef := runtimev1alpha1.TypedReference{}
+	cwRef := runtimev1.TypedReference{}
 	cwRef.SetGroupVersionKind(corev1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload))
-	deployRef := runtimev1alpha1.TypedReference{}
+	deployRef := runtimev1.TypedReference{}
 	deployRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDeployment))
-	svcRef := runtimev1alpha1.TypedReference{}
+	svcRef := runtimev1.TypedReference{}
 	svcRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindService))
 	cw := corev1alpha2.ContainerizedWorkload{
 		Status: corev1alpha2.ContainerizedWorkloadStatus{
-			Resources: []runtimev1alpha1.TypedReference{deployRef, svcRef},
+			Resources: []runtimev1.TypedReference{deployRef, svcRef},
 		},
 	}
 
 	tests := []struct {
 		caseName  string
 		mockGetFn test.MockGetFn
-		wlRef     runtimev1alpha1.TypedReference
+		wlRef     runtimev1.TypedReference
 		expect    *WorkloadHealthCondition
 	}{
 		{
 			caseName: "not matched checker",
-			wlRef:    runtimev1alpha1.TypedReference{},
+			wlRef:    runtimev1.TypedReference{},
 			expect:   nil,
 		},
 		{
 			caseName: "healthy workload",
 			wlRef:    cwRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if o, ok := obj.(*corev1alpha2.ContainerizedWorkload); ok {
 					*o = cw
 					return nil
@@ -104,7 +102,7 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for deployment not ready",
 			wlRef:    cwRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if o, ok := obj.(*corev1alpha2.ContainerizedWorkload); ok {
 					*o = cw
 					return nil
@@ -128,7 +126,7 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for ContainerizedWorkload not found",
 			wlRef:    cwRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				return errMockErr
 			},
 			expect: &WorkloadHealthCondition{
@@ -138,7 +136,7 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for deployment not found",
 			wlRef:    cwRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if o, ok := obj.(*corev1alpha2.ContainerizedWorkload); ok {
 					*o = cw
 					return nil
@@ -155,7 +153,7 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for service not found",
 			wlRef:    cwRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				switch o := obj.(type) {
 				case *corev1alpha2.ContainerizedWorkload:
 					*o = cw
@@ -192,24 +190,24 @@ func TestCheckContainerziedWorkloadHealth(t *testing.T) {
 
 func TestCheckDeploymentHealth(t *testing.T) {
 	mockClient := test.NewMockClient()
-	deployRef := runtimev1alpha1.TypedReference{}
+	deployRef := runtimev1.TypedReference{}
 	deployRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDeployment))
 
 	tests := []struct {
 		caseName  string
 		mockGetFn test.MockGetFn
-		wlRef     runtimev1alpha1.TypedReference
+		wlRef     runtimev1.TypedReference
 		expect    *WorkloadHealthCondition
 	}{
 		{
 			caseName: "not matched checker",
-			wlRef:    runtimev1alpha1.TypedReference{},
+			wlRef:    runtimev1.TypedReference{},
 			expect:   nil,
 		},
 		{
 			caseName: "healthy workload",
 			wlRef:    deployRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if o, ok := obj.(*apps.Deployment); ok {
 					*o = apps.Deployment{
 						Spec: apps.DeploymentSpec{
@@ -229,7 +227,7 @@ func TestCheckDeploymentHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for deployment not ready",
 			wlRef:    deployRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if o, ok := obj.(*apps.Deployment); ok {
 					*o = apps.Deployment{
 						Spec: apps.DeploymentSpec{
@@ -249,7 +247,7 @@ func TestCheckDeploymentHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for deployment not found",
 			wlRef:    deployRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				return errMockErr
 			},
 			expect: &WorkloadHealthCondition{
@@ -273,24 +271,24 @@ func TestCheckDeploymentHealth(t *testing.T) {
 
 func TestCheckStatefulsetHealth(t *testing.T) {
 	mockClient := test.NewMockClient()
-	stsRef := runtimev1alpha1.TypedReference{}
+	stsRef := runtimev1.TypedReference{}
 	stsRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindStatefulSet))
 
 	tests := []struct {
 		caseName  string
 		mockGetFn test.MockGetFn
-		wlRef     runtimev1alpha1.TypedReference
+		wlRef     runtimev1.TypedReference
 		expect    *WorkloadHealthCondition
 	}{
 		{
 			caseName: "not matched checker",
-			wlRef:    runtimev1alpha1.TypedReference{},
+			wlRef:    runtimev1.TypedReference{},
 			expect:   nil,
 		},
 		{
 			caseName: "healthy workload",
 			wlRef:    stsRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if o, ok := obj.(*apps.StatefulSet); ok {
 					*o = apps.StatefulSet{
 						Spec: apps.StatefulSetSpec{
@@ -310,7 +308,7 @@ func TestCheckStatefulsetHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for statefulset not ready",
 			wlRef:    stsRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if o, ok := obj.(*apps.StatefulSet); ok {
 					*o = apps.StatefulSet{
 						Spec: apps.StatefulSetSpec{
@@ -330,7 +328,7 @@ func TestCheckStatefulsetHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for statefulset not found",
 			wlRef:    stsRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				return errMockErr
 			},
 			expect: &WorkloadHealthCondition{
@@ -354,24 +352,24 @@ func TestCheckStatefulsetHealth(t *testing.T) {
 
 func TestCheckDaemonsetHealth(t *testing.T) {
 	mockClient := test.NewMockClient()
-	dstRef := runtimev1alpha1.TypedReference{}
+	dstRef := runtimev1.TypedReference{}
 	dstRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDaemonSet))
 
 	tests := []struct {
 		caseName  string
 		mockGetFn test.MockGetFn
-		wlRef     runtimev1alpha1.TypedReference
+		wlRef     runtimev1.TypedReference
 		expect    *WorkloadHealthCondition
 	}{
 		{
 			caseName: "not matched checker",
-			wlRef:    runtimev1alpha1.TypedReference{},
+			wlRef:    runtimev1.TypedReference{},
 			expect:   nil,
 		},
 		{
 			caseName: "healthy workload",
 			wlRef:    dstRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if o, ok := obj.(*apps.DaemonSet); ok {
 					*o = apps.DaemonSet{
 						Status: apps.DaemonSetStatus{
@@ -388,7 +386,7 @@ func TestCheckDaemonsetHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for daemonset not ready",
 			wlRef:    dstRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if o, ok := obj.(*apps.DaemonSet); ok {
 					*o = apps.DaemonSet{
 						Status: apps.DaemonSetStatus{
@@ -405,7 +403,7 @@ func TestCheckDaemonsetHealth(t *testing.T) {
 		{
 			caseName: "unhealthy for daemonset not found",
 			wlRef:    dstRef,
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				return errMockErr
 			},
 			expect: &WorkloadHealthCondition{
@@ -430,7 +428,7 @@ func TestCheckDaemonsetHealth(t *testing.T) {
 func TestCheckUnknownWorkload(t *testing.T) {
 	mockError := errors.New("mock error")
 	mockClient := test.NewMockClient()
-	unknownWL := runtimev1alpha1.TypedReference{}
+	unknownWL := runtimev1.TypedReference{}
 	tests := []struct {
 		caseName  string
 		mockGetFn test.MockGetFn
@@ -438,7 +436,7 @@ func TestCheckUnknownWorkload(t *testing.T) {
 	}{
 		{
 			caseName: "cannot get workload",
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				return mockError
 			},
 			expect: &WorkloadHealthCondition{
@@ -448,7 +446,7 @@ func TestCheckUnknownWorkload(t *testing.T) {
 		},
 		{
 			caseName: "unknown workload with status",
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				o, _ := obj.(*unstructured.Unstructured)
 				*o = unstructured.Unstructured{}
 				o.Object = make(map[string]interface{})
@@ -463,7 +461,7 @@ func TestCheckUnknownWorkload(t *testing.T) {
 		},
 		{
 			caseName: "unknown workload without status",
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				o, _ := obj.(*unstructured.Unstructured)
 				*o = unstructured.Unstructured{}
 				return nil
@@ -489,7 +487,7 @@ func TestCheckUnknownWorkload(t *testing.T) {
 }
 
 func TestCheckVersionEnabledComponent(t *testing.T) {
-	deployRef := runtimev1alpha1.TypedReference{}
+	deployRef := runtimev1.TypedReference{}
 	deployRef.SetGroupVersionKind(apps.SchemeGroupVersion.WithKind(kindDeployment))
 	deployRef.Name = "main-workload"
 	deployObj := apps.Deployment{
@@ -523,7 +521,7 @@ func TestCheckVersionEnabledComponent(t *testing.T) {
 	}{
 		{
 			caseName: "peer workload is healthy",
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if o, ok := obj.(*apps.Deployment); ok {
 					if key.Name == "main-workload" {
 						deployObj.DeepCopyInto(o)
@@ -541,7 +539,7 @@ func TestCheckVersionEnabledComponent(t *testing.T) {
 				}
 				return nil
 			},
-			mockListFn: func(ctx context.Context, list runtime.Object, opts ...client.ListOption) error {
+			mockListFn: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				l, _ := list.(*unstructured.UnstructuredList)
 				u := unstructured.Unstructured{}
 				u.SetAPIVersion("apps/v1")
@@ -556,7 +554,7 @@ func TestCheckVersionEnabledComponent(t *testing.T) {
 		},
 		{
 			caseName: "peer workload is unhealthy",
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if o, ok := obj.(*apps.Deployment); ok {
 					if key.Name == "main-workload" {
 						deployObj.DeepCopyInto(o)
@@ -575,7 +573,7 @@ func TestCheckVersionEnabledComponent(t *testing.T) {
 				}
 				return nil
 			},
-			mockListFn: func(ctx context.Context, list runtime.Object, opts ...client.ListOption) error {
+			mockListFn: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				l, _ := list.(*unstructured.UnstructuredList)
 				u := unstructured.Unstructured{}
 				u.SetAPIVersion("apps/v1")
@@ -590,7 +588,7 @@ func TestCheckVersionEnabledComponent(t *testing.T) {
 		},
 		{
 			caseName: "error occurs when get peer workload",
-			mockGetFn: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+			mockGetFn: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 				if o, ok := obj.(*apps.Deployment); ok {
 					deployObj.DeepCopyInto(o)
 				}
@@ -604,7 +602,7 @@ func TestCheckVersionEnabledComponent(t *testing.T) {
 				}
 				return nil
 			},
-			mockListFn: func(ctx context.Context, list runtime.Object, opts ...client.ListOption) error {
+			mockListFn: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 				return errMockErr
 			},
 			expect: &WorkloadHealthCondition{
@@ -651,12 +649,12 @@ func TestPeerHealthConditionsSort(t *testing.T) {
 			want := make(PeerHealthConditions, len(tc.w))
 			for i, v := range tc.d {
 				data[i] = WorkloadHealthCondition{
-					TargetWorkload: runtimev1alpha1.TypedReference{Name: v},
+					TargetWorkload: runtimev1.TypedReference{Name: v},
 				}
 			}
 			for i, v := range tc.w {
 				want[i] = WorkloadHealthCondition{
-					TargetWorkload: runtimev1alpha1.TypedReference{Name: v},
+					TargetWorkload: runtimev1.TypedReference{Name: v},
 				}
 			}
 			sort.Sort(data)

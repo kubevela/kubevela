@@ -29,7 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
@@ -141,7 +141,7 @@ func NewReconciler(m ctrl.Manager, o ...ReconcilerOption) *Reconciler {
 }
 
 // Reconcile an OAM HealthScope by keeping track of its health status.
-func (r *Reconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("request", req)
 	log.Debug("Reconciling")
 
@@ -201,7 +201,7 @@ func (r *Reconciler) GetScopeHealthStatus(ctx context.Context, healthScope *v1al
 	wg.Add(len(scopeWLRefs))
 
 	for _, workloadRef := range scopeWLRefs {
-		go func(resRef runtimev1alpha1.TypedReference) {
+		go func(resRef runtimev1.TypedReference) {
 			defer wg.Done()
 			var wlHealthCondition *WorkloadHealthCondition
 

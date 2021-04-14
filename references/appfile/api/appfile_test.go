@@ -20,7 +20,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/assert"
 	v12 "k8s.io/api/core/v1"

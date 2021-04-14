@@ -22,7 +22,7 @@ import (
 	"context"
 	"fmt"
 
-	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	cpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -52,10 +52,9 @@ type Reconciler struct {
 }
 
 // Reconcile is the main logic for ComponentDefinition controller
-func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	definitionName := req.NamespacedName.Name
 	klog.InfoS("Reconciling ComponentDefinition", "Name", definitionName, "Namespace", req.Namespace)
-	ctx := context.Background()
 
 	var componentDefinition v1beta1.ComponentDefinition
 	if err := r.Get(ctx, req.NamespacedName, &componentDefinition); err != nil {
@@ -83,7 +82,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			klog.ErrorS(err, "cannot discover the open api of the CRD")
 			r.record.Event(&componentDefinition, event.Warning("cannot discover the open api of the CRD", err))
 			return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
-				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
+				cpv1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
 		}
 	}
 
@@ -92,7 +91,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.ErrorS(err, "cannot create converted WorkloadDefinition")
 		r.record.Event(&componentDefinition, event.Warning("cannot store capability in ConfigMap", err))
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateConvertedWorklaodDefinition, componentDefinition.Name, err)))
+			cpv1.ReconcileError(fmt.Errorf(util.ErrCreateConvertedWorklaodDefinition, componentDefinition.Name, err)))
 	}
 	klog.InfoS("Successfully create WorkloadDefinition", "name", componentDefinition.Name)
 
@@ -114,7 +113,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.ErrorS(err, "cannot store capability in ConfigMap")
 		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot store capability in ConfigMap", err))
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.ComponentDefinition),
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
+			cpv1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
 	}
 
 	if err := r.Status().Update(ctx, &def.ComponentDefinition); err != nil {

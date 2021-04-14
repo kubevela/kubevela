@@ -21,9 +21,9 @@ limitations under the License.
 package v1alpha2
 
 import (
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	standard_oam_devv1alpha1 "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -134,7 +134,7 @@ func (in *AppStatus) DeepCopyInto(out *AppStatus) {
 	in.RolloutStatus.DeepCopyInto(&out.RolloutStatus)
 	if in.Components != nil {
 		in, out := &in.Components, &out.Components
-		*out = make([]v1alpha1.TypedReference, len(*in))
+		*out = make([]v1.TypedReference, len(*in))
 		copy(*out, *in)
 	}
 	if in.Services != nil {
@@ -146,7 +146,7 @@ func (in *AppStatus) DeepCopyInto(out *AppStatus) {
 	}
 	if in.ResourceTracker != nil {
 		in, out := &in.ResourceTracker, &out.ResourceTracker
-		*out = new(v1alpha1.TypedReference)
+		*out = new(v1.TypedReference)
 		**out = **in
 	}
 	if in.LatestRevision != nil {
@@ -607,7 +607,7 @@ func (in *ApplicationSpec) DeepCopyInto(out *ApplicationSpec) {
 	}
 	if in.RolloutPlan != nil {
 		in, out := &in.RolloutPlan, &out.RolloutPlan
-		*out = new(standard_oam_devv1alpha1.RolloutPlan)
+		*out = new(v1alpha1.RolloutPlan)
 		(*in).DeepCopyInto(*out)
 	}
 }
@@ -1305,7 +1305,7 @@ func (in *ContainerizedWorkloadStatus) DeepCopyInto(out *ContainerizedWorkloadSt
 	in.ConditionedStatus.DeepCopyInto(&out.ConditionedStatus)
 	if in.Resources != nil {
 		in, out := &in.Resources, &out.Resources
-		*out = make([]v1alpha1.TypedReference, len(*in))
+		*out = make([]v1.TypedReference, len(*in))
 		copy(*out, *in)
 	}
 }
@@ -1650,7 +1650,7 @@ func (in *HealthScopeSpec) DeepCopyInto(out *HealthScopeSpec) {
 	}
 	if in.WorkloadReferences != nil {
 		in, out := &in.WorkloadReferences, &out.WorkloadReferences
-		*out = make([]v1alpha1.TypedReference, len(*in))
+		*out = make([]v1.TypedReference, len(*in))
 		copy(*out, *in)
 	}
 }

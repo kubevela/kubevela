@@ -56,7 +56,6 @@ import (
 
 var reconciler *OAMApplicationReconciler
 var componentHandler *ComponentHandler
-var mgrclose chan struct{}
 var testEnv *envtest.Environment
 var cfg *rest.Config
 var k8sClient client.Client
@@ -117,8 +116,7 @@ var _ = BeforeSuite(func(done Done) {
 	By("Creating Reconciler for appconfig")
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{Scheme: scheme, MetricsBindAddress: "0"})
 	Expect(err).Should(BeNil())
-	mgrclose = make(chan struct{})
-	go mgr.Start(mgrclose)
+	go mgr.Start(ctx)
 
 	// Create a crd for appconfig dependency test
 	crd = crdv1.CustomResourceDefinition{
@@ -242,12 +240,12 @@ var _ = AfterSuite(func() {
 	By("Tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
-	close(mgrclose)
 })
 
 func reconcileRetry(r reconcile.Reconciler, req reconcile.Request) {
+	ctx := context.Background()
 	Eventually(func() error {
-		_, err := r.Reconcile(req)
+		_, err := r.Reconcile(ctx, req)
 		return err
 	}, 3*time.Second, time.Second).Should(BeNil())
 }

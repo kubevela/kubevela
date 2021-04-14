@@ -15,7 +15,7 @@ The schema is also clean and easy to understand.
 // RouteSpec defines the desired state of Route
 type RouteSpec struct {
 	// WorkloadReference to the workload whose metrics needs to be exposed
-	WorkloadReference runtimev1alpha1.TypedReference `json:"workloadRef,omitempty"`
+	WorkloadReference runtimev1.TypedReference `json:"workloadRef,omitempty"`
 
 	// Host is the host of the route
 	Host string `json:"host"`
@@ -47,7 +47,7 @@ type Rule struct {
 	CustomHeaders map[string]string `json:"customHeaders,omitempty"`
 
 	// DefaultBackend will become the ingress default backend if the backend is not available
-	DefaultBackend runtimev1alpha1.TypedReference `json:"defaultBackend,omitempty"`
+	DefaultBackend runtimev1.TypedReference `json:"defaultBackend,omitempty"`
 
 	// Backend indicate how to connect backend service
 	// If it's nil, will auto discovery

@@ -17,7 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -28,12 +28,12 @@ type RolloutTraitSpec struct {
 	// TargetRef references a target resource that contains the newer version
 	// of the software. We assumed that new resource already exists.
 	// This is the only resource we work on if the resource is a stateful resource (cloneset/statefulset)
-	TargetRef runtimev1alpha1.TypedReference `json:"targetRef"`
+	TargetRef runtimev1.TypedReference `json:"targetRef"`
 
 	// SourceRef references the list of resources that contains the older version
 	// of the software. We assume that it's the first time to deploy when we cannot find any source.
 	// +optional
-	SourceRef []runtimev1alpha1.TypedReference `json:"sourceRef,omitempty"`
+	SourceRef []runtimev1.TypedReference `json:"sourceRef,omitempty"`
 
 	// RolloutPlan is the details on how to rollout the resources
 	RolloutPlan RolloutPlan `json:"rolloutPlan"`
@@ -68,21 +68,21 @@ func init() {
 var _ oam.Trait = &RolloutTrait{}
 
 // SetConditions for set CR condition
-func (tr *RolloutTrait) SetConditions(c ...runtimev1alpha1.Condition) {
+func (tr *RolloutTrait) SetConditions(c ...runtimev1.Condition) {
 	tr.Status.SetConditions(c...)
 }
 
 // GetCondition for get CR condition
-func (tr *RolloutTrait) GetCondition(c runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+func (tr *RolloutTrait) GetCondition(c runtimev1.ConditionType) runtimev1.Condition {
 	return tr.Status.GetCondition(c)
 }
 
 // GetWorkloadReference of this MetricsTrait.
-func (tr *RolloutTrait) GetWorkloadReference() runtimev1alpha1.TypedReference {
+func (tr *RolloutTrait) GetWorkloadReference() runtimev1.TypedReference {
 	return tr.Spec.TargetRef
 }
 
 // SetWorkloadReference of this MetricsTrait.
-func (tr *RolloutTrait) SetWorkloadReference(r runtimev1alpha1.TypedReference) {
+func (tr *RolloutTrait) SetWorkloadReference(r runtimev1.TypedReference) {
 	tr.Spec.TargetRef = r
 }

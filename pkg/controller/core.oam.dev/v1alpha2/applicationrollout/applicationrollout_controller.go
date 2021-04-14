@@ -67,7 +67,7 @@ type Reconciler struct {
 
 // Reconcile is the main logic of appRollout controller
 // nolint:gocyclo
-func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (res reconcile.Result, retErr error) {
 	var appRollout v1beta1.AppRollout
 	ctx, cancel := context.WithTimeout(context.TODO(), reconcileTimeOut)
 	defer cancel()
@@ -212,7 +212,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 		klog.InfoS("get the source workload we need to work on", "sourceWorkload", klog.KObj(sourceWorkload))
 	}
 	// reconcile the rollout part of the spec given the target and source workload
-	rolloutPlanController := rollout.NewRolloutPlanController(r, &appRollout, r.record,
+	rolloutPlanController := rollout.NewRolloutPlanController(r.Client, &appRollout, r.record,
 		&appRollout.Spec.RolloutPlan, &appRollout.Status.RolloutStatus, targetWorkload, sourceWorkload)
 	result, rolloutStatus := rolloutPlanController.Reconcile(ctx)
 	// make sure that the new status is copied back

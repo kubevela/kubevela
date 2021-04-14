@@ -79,7 +79,7 @@ func NewReconciler(cli client.Client, sch *runtime.Scheme, dm discoverymapper.Di
 // +kubebuilder:rbac:groups=core.oam.dev,resources=clusters/status,verbs=get;update;patch
 
 // Reconcile is the main logic of appDeployment controller
-func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (res reconcile.Result, retErr error) {
 	appDeployment := &oamcore.AppDeployment{}
 	ctx, cancel := context.WithTimeout(context.TODO(), reconcileTimeOut)
 	defer cancel()

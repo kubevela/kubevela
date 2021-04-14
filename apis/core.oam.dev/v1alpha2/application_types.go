@@ -19,7 +19,7 @@ package v1alpha2
 import (
 	"k8s.io/apimachinery/pkg/runtime"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
@@ -38,13 +38,13 @@ type AppStatus struct {
 	Phase common.ApplicationPhase `json:"status,omitempty"`
 
 	// Components record the related Components created by Application Controller
-	Components []runtimev1alpha1.TypedReference `json:"components,omitempty"`
+	Components []runtimev1.TypedReference `json:"components,omitempty"`
 
 	// Services record the status of the application services
 	Services []common.ApplicationComponentStatus `json:"services,omitempty"`
 
 	// ResourceTracker record the status of the ResourceTracker
-	ResourceTracker *runtimev1alpha1.TypedReference `json:"resourceTracker,omitempty"`
+	ResourceTracker *runtimev1.TypedReference `json:"resourceTracker,omitempty"`
 
 	// LatestRevision of the application configuration it generates
 	// +optional

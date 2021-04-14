@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"strings"
 
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -104,7 +104,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	switch req.Operation {
-	case admissionv1beta1.Delete:
+	case admissionv1.Delete:
 		if len(req.OldObject.Raw) != 0 {
 			if err := h.Decoder.DecodeRaw(req.OldObject, app); err != nil {
 				return admission.Errored(http.StatusBadRequest, err)
@@ -113,7 +113,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 			// TODO(wonderflow): we can audit delete or something else here.
 			klog.Info("deleting Application Configuration", req.Name)
 		}
-	case admissionv1beta1.Update:
+	case admissionv1.Update:
 		oldApp := &v1alpha2.ApplicationConfiguration{}
 		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldApp); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
@@ -122,7 +122,7 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if allErrs := h.ValidateUpdate(ctx, app, oldApp); len(allErrs) > 0 {
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
-	case admissionv1beta1.Create:
+	case admissionv1.Create:
 		if allErrs := h.ValidateCreate(ctx, app); len(allErrs) > 0 {
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}

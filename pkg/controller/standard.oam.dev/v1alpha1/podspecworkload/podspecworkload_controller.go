@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"reflect"
 
-	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	cpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -73,8 +73,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=standard.oam.dev,resources=podspecworkloads/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=,resources=services,verbs=get;list;watch;create;update;patch;delete
-func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.log.WithValues("podspecworkload", req.NamespacedName)
 	log.Info("Reconcile podspecworkload workload")
 
@@ -98,7 +97,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		log.Error(err, "Failed to render a deployment")
 		r.record.Event(eventObj, event.Warning(errRenderDeployment, err))
 		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderDeployment)))
+			util.PatchCondition(ctx, r, &workload, cpv1.ReconcileError(errors.Wrap(err, errRenderDeployment)))
 	}
 	// server side apply
 	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(workload.GetUID())}
@@ -106,14 +105,14 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		log.Error(err, "Failed to apply to a deployment")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyDeployment)))
+			util.PatchCondition(ctx, r, &workload, cpv1.ReconcileError(errors.Wrap(err, errApplyDeployment)))
 	}
 	r.record.Event(eventObj, event.Normal("Deployment created",
 		fmt.Sprintf("Workload `%s` successfully patched a deployment `%s`",
 			workload.Name, deploy.Name)))
 
 	// record the new deployment
-	workload.Status.Resources = []cpv1alpha1.TypedReference{
+	workload.Status.Resources = []cpv1.TypedReference{
 		{
 			APIVersion: deploy.GetObjectKind().GroupVersionKind().GroupVersion().String(),
 			Kind:       deploy.GetObjectKind().GroupVersionKind().Kind,
@@ -131,21 +130,21 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			log.Error(err, "Failed to render a service")
 			r.record.Event(eventObj, event.Warning(errRenderService, err))
 			return util.ReconcileWaitResult,
-				util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderService)))
+				util.PatchCondition(ctx, r, &workload, cpv1.ReconcileError(errors.Wrap(err, errRenderService)))
 		}
 		// server side apply the service
 		if err := r.Patch(ctx, service, client.Apply, applyOpts...); err != nil {
 			log.Error(err, "Failed to apply a service")
 			r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 			return util.ReconcileWaitResult,
-				util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyService)))
+				util.PatchCondition(ctx, r, &workload, cpv1.ReconcileError(errors.Wrap(err, errApplyService)))
 		}
 		r.record.Event(eventObj, event.Normal("Service created",
 			fmt.Sprintf("Workload `%s` successfully server side patched a service `%s`",
 				workload.Name, service.Name)))
 
 		// record the new service
-		workload.Status.Resources = append(workload.Status.Resources, cpv1alpha1.TypedReference{
+		workload.Status.Resources = append(workload.Status.Resources, cpv1.TypedReference{
 			APIVersion: service.GetObjectKind().GroupVersionKind().GroupVersion().String(),
 			Kind:       service.GetObjectKind().GroupVersionKind().Kind,
 			Name:       service.GetName(),
@@ -156,7 +155,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err := r.UpdateStatus(ctx, &workload); err != nil {
 		return util.ReconcileWaitResult, err
 	}
-	return ctrl.Result{}, util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileSuccess())
+	return ctrl.Result{}, util.PatchCondition(ctx, r, &workload, cpv1.ReconcileSuccess())
 }
 
 // create a corresponding deployment

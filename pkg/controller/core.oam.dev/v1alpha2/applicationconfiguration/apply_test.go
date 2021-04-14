@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
@@ -79,7 +79,7 @@ func TestApplyWorkloads(t *testing.T) {
 		},
 		Spec: v1alpha2.HealthScopeSpec{
 			// set an empty ref to enable wrokloadRefs field
-			WorkloadReferences: []v1alpha1.TypedReference{
+			WorkloadReferences: []v1.TypedReference{
 				{
 					APIVersion: "",
 					Kind:       "",
@@ -101,7 +101,7 @@ func TestApplyWorkloads(t *testing.T) {
 			Kind:       "scopeKind",
 		},
 		Spec: v1alpha2.HealthScopeSpec{
-			WorkloadReferences: []v1alpha1.TypedReference{
+			WorkloadReferences: []v1.TypedReference{
 				{
 					APIVersion: workload.GetAPIVersion(),
 					Kind:       workload.GetKind(),
@@ -190,14 +190,14 @@ func TestApplyWorkloads(t *testing.T) {
 			reason:     "Applied workloads refs to scopes.",
 			applicator: ApplyFn(func(_ context.Context, o runtime.Object, _ ...apply.ApplyOption) error { return nil }),
 			rawClient: &test.MockClient{
-				MockGet: func(_ context.Context, key client.ObjectKey, obj runtime.Object) error {
+				MockGet: func(_ context.Context, key client.ObjectKey, obj client.Object) error {
 					if scopeDef, ok := obj.(*v1alpha2.ScopeDefinition); ok {
 						*scopeDef = scopeDefinition
 						return nil
 					}
 					return nil
 				},
-				MockUpdate: func(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+				MockUpdate: func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 					return nil
 				},
 			},
@@ -209,14 +209,14 @@ func TestApplyWorkloads(t *testing.T) {
 				}},
 				ws: []v1alpha2.WorkloadStatus{
 					{
-						Reference: v1alpha1.TypedReference{
+						Reference: v1.TypedReference{
 							APIVersion: workload.GetAPIVersion(),
 							Kind:       workload.GetKind(),
 							Name:       workload.GetName(),
 						},
 						Scopes: []v1alpha2.WorkloadScope{
 							{
-								Reference: v1alpha1.TypedReference{
+								Reference: v1.TypedReference{
 									APIVersion: scope.GetAPIVersion(),
 									Kind:       scope.GetKind(),
 									Name:       scope.GetName(),
@@ -231,14 +231,14 @@ func TestApplyWorkloads(t *testing.T) {
 			reason:     "Scope already has workloadRef.",
 			applicator: ApplyFn(func(_ context.Context, o runtime.Object, _ ...apply.ApplyOption) error { return nil }),
 			rawClient: &test.MockClient{
-				MockGet: func(_ context.Context, key client.ObjectKey, obj runtime.Object) error {
+				MockGet: func(_ context.Context, key client.ObjectKey, obj client.Object) error {
 					if scopeDef, ok := obj.(*v1alpha2.ScopeDefinition); ok {
 						*scopeDef = scopeDefinition
 						return nil
 					}
 					return nil
 				},
-				MockUpdate: func(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+				MockUpdate: func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 					return fmt.Errorf("update is not expected in this test")
 				},
 			},
@@ -250,14 +250,14 @@ func TestApplyWorkloads(t *testing.T) {
 				}},
 				ws: []v1alpha2.WorkloadStatus{
 					{
-						Reference: v1alpha1.TypedReference{
+						Reference: v1.TypedReference{
 							APIVersion: workload.GetAPIVersion(),
 							Kind:       workload.GetKind(),
 							Name:       workload.GetName(),
 						},
 						Scopes: []v1alpha2.WorkloadScope{
 							{
-								Reference: v1alpha1.TypedReference{
+								Reference: v1.TypedReference{
 									APIVersion: scope.GetAPIVersion(),
 									Kind:       scope.GetKind(),
 									Name:       scope.GetName(),
@@ -272,7 +272,7 @@ func TestApplyWorkloads(t *testing.T) {
 			reason:     "Removes workload refs from scopes.",
 			applicator: ApplyFn(func(_ context.Context, o runtime.Object, _ ...apply.ApplyOption) error { return nil }),
 			rawClient: &test.MockClient{
-				MockGet: func(_ context.Context, key client.ObjectKey, obj runtime.Object) error {
+				MockGet: func(_ context.Context, key client.ObjectKey, obj client.Object) error {
 					if key.Name == scope.GetName() {
 						scope := obj.(*unstructured.Unstructured)
 
@@ -296,7 +296,7 @@ func TestApplyWorkloads(t *testing.T) {
 					}
 					return nil
 				},
-				MockUpdate: func(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+				MockUpdate: func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 					return nil
 				},
 			},
@@ -308,14 +308,14 @@ func TestApplyWorkloads(t *testing.T) {
 				}},
 				ws: []v1alpha2.WorkloadStatus{
 					{
-						Reference: v1alpha1.TypedReference{
+						Reference: v1.TypedReference{
 							APIVersion: workload.GetAPIVersion(),
 							Kind:       workload.GetKind(),
 							Name:       workload.GetName(),
 						},
 						Scopes: []v1alpha2.WorkloadScope{
 							{
-								Reference: v1alpha1.TypedReference{
+								Reference: v1.TypedReference{
 									APIVersion: scope.GetAPIVersion(),
 									Kind:       scope.GetKind(),
 									Name:       scope.GetName(),
@@ -330,7 +330,7 @@ func TestApplyWorkloads(t *testing.T) {
 			reason:     "ScopeDefinition not found should not block dereference",
 			applicator: ApplyFn(func(_ context.Context, o runtime.Object, _ ...apply.ApplyOption) error { return nil }),
 			rawClient: &test.MockClient{
-				MockGet: func(_ context.Context, key client.ObjectKey, obj runtime.Object) error {
+				MockGet: func(_ context.Context, key client.ObjectKey, obj client.Object) error {
 					if key.Name == scope.GetName() {
 						scope := obj.(*unstructured.Unstructured)
 
@@ -362,14 +362,14 @@ func TestApplyWorkloads(t *testing.T) {
 				}},
 				ws: []v1alpha2.WorkloadStatus{
 					{
-						Reference: v1alpha1.TypedReference{
+						Reference: v1.TypedReference{
 							APIVersion: workload.GetAPIVersion(),
 							Kind:       workload.GetKind(),
 							Name:       workload.GetName(),
 						},
 						Scopes: []v1alpha2.WorkloadScope{
 							{
-								Reference: v1alpha1.TypedReference{
+								Reference: v1.TypedReference{
 									APIVersion: scope.GetAPIVersion(),
 									Kind:       scope.GetKind(),
 									Name:       scope.GetName(),
@@ -417,7 +417,7 @@ func TestFinalizeWorkloadScopes(t *testing.T) {
 			Kind:       "scopeKind",
 		},
 		Spec: v1alpha2.HealthScopeSpec{
-			WorkloadReferences: []v1alpha1.TypedReference{
+			WorkloadReferences: []v1.TypedReference{
 				{
 					APIVersion: workload.GetAPIVersion(),
 					Kind:       workload.GetKind(),
@@ -450,14 +450,14 @@ func TestFinalizeWorkloadScopes(t *testing.T) {
 		Status: v1alpha2.ApplicationConfigurationStatus{
 			Workloads: []v1alpha2.WorkloadStatus{
 				{
-					Reference: v1alpha1.TypedReference{
+					Reference: v1.TypedReference{
 						APIVersion: workload.GetAPIVersion(),
 						Kind:       workload.GetKind(),
 						Name:       workload.GetName(),
 					},
 					Scopes: []v1alpha2.WorkloadScope{
 						{
-							Reference: v1alpha1.TypedReference{
+							Reference: v1.TypedReference{
 								APIVersion: scope.GetAPIVersion(),
 								Kind:       scope.GetKind(),
 								Name:       scope.GetName(),
@@ -480,7 +480,7 @@ func TestFinalizeWorkloadScopes(t *testing.T) {
 			caseName:   "Finalization successes",
 			applicator: ApplyFn(func(_ context.Context, o runtime.Object, _ ...apply.ApplyOption) error { return nil }),
 			rawClient: &test.MockClient{
-				MockGet: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+				MockGet: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 					if key.Name == scope.GetName() {
 						scope := obj.(*unstructured.Unstructured)
 
@@ -505,7 +505,7 @@ func TestFinalizeWorkloadScopes(t *testing.T) {
 
 					return nil
 				},
-				MockUpdate: func(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+				MockUpdate: func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 					return nil
 				},
 			},
@@ -516,10 +516,10 @@ func TestFinalizeWorkloadScopes(t *testing.T) {
 			caseName:   "Finalization fails for error",
 			applicator: ApplyFn(func(_ context.Context, o runtime.Object, _ ...apply.ApplyOption) error { return nil }),
 			rawClient: &test.MockClient{
-				MockGet: func(ctx context.Context, key types.NamespacedName, obj runtime.Object) error {
+				MockGet: func(ctx context.Context, key types.NamespacedName, obj client.Object) error {
 					return errMock
 				},
-				MockUpdate: func(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+				MockUpdate: func(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 					return nil
 				},
 			},
@@ -585,7 +585,7 @@ func TestApplyOutputRef(t *testing.T) {
 				outputs: map[string]v1alpha2.DataOutput{
 					"test": {
 						OutputStore: v1alpha2.StoreReference{
-							TypedReference: v1alpha1.TypedReference{
+							TypedReference: v1.TypedReference{
 								APIVersion: refConfigMap.GetAPIVersion(),
 								Kind:       refConfigMap.GetKind(),
 								Name:       refConfigMap.GetName(),
@@ -626,7 +626,7 @@ func TestApplyOutputRef(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			wl := workloads{
 				rawClient: &test.MockClient{
-					MockGet: test.MockGetFn(func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+					MockGet: test.MockGetFn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 						if obj.GetObjectKind().GroupVersionKind().Kind == "Workload" {
 							b, err := json.Marshal(tc.args.workload)
 							if err != nil {
@@ -712,7 +712,7 @@ func TestApplyInputRef(t *testing.T) {
 				workload: workload.DeepCopy(),
 				inputs: []v1alpha2.DataInput{{
 					InputStore: v1alpha2.StoreReference{
-						TypedReference: v1alpha1.TypedReference{
+						TypedReference: v1.TypedReference{
 							APIVersion: refConfigMap.GetAPIVersion(),
 							Kind:       refConfigMap.GetKind(),
 							Name:       refConfigMap.GetName(),
@@ -752,7 +752,7 @@ func TestApplyInputRef(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			wl := workloads{
 				rawClient: &test.MockClient{
-					MockGet: test.MockGetFn(func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+					MockGet: test.MockGetFn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 						if obj.GetObjectKind().GroupVersionKind().Kind == "Workload" {
 							b, err := json.Marshal(tc.args.workload)
 							if err != nil {

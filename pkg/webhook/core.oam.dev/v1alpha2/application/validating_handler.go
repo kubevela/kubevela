@@ -22,7 +22,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/inject"
@@ -76,11 +76,11 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 	ctx = util.SetNamespaceInCtx(ctx, app.Namespace)
 	switch req.Operation {
-	case admissionv1beta1.Create:
+	case admissionv1.Create:
 		if allErrs := h.ValidateCreate(ctx, app); len(allErrs) > 0 {
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
-	case admissionv1beta1.Update:
+	case admissionv1.Update:
 		oldApp := &v1beta1.Application{}
 		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldApp); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)

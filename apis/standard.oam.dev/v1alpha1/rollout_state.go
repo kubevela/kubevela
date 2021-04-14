@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
@@ -81,40 +81,40 @@ const (
 // These are valid conditions of the rollout.
 const (
 	// RolloutSpecVerifying indicates that the rollout just started with verification
-	RolloutSpecVerifying runtimev1alpha1.ConditionType = "RolloutSpecVerifying"
+	RolloutSpecVerifying runtimev1.ConditionType = "RolloutSpecVerifying"
 	// RolloutInitializing means we start to initialize the cluster
-	RolloutInitializing runtimev1alpha1.ConditionType = "RolloutInitializing"
+	RolloutInitializing runtimev1.ConditionType = "RolloutInitializing"
 	// RolloutInProgress means we are upgrading resources.
-	RolloutInProgress runtimev1alpha1.ConditionType = "RolloutInProgress"
+	RolloutInProgress runtimev1.ConditionType = "RolloutInProgress"
 	// RolloutFinalizing means the rollout is finalizing
-	RolloutFinalizing runtimev1alpha1.ConditionType = "RolloutFinalizing"
+	RolloutFinalizing runtimev1.ConditionType = "RolloutFinalizing"
 	// RolloutFailing means the rollout is failing
-	RolloutFailing runtimev1alpha1.ConditionType = "RolloutFailing"
+	RolloutFailing runtimev1.ConditionType = "RolloutFailing"
 	// RolloutAbandoning means that the rollout is being abandoned.
-	RolloutAbandoning runtimev1alpha1.ConditionType = "RolloutAbandoning"
+	RolloutAbandoning runtimev1.ConditionType = "RolloutAbandoning"
 	// RolloutDeleting means that the rollout is being deleted.
-	RolloutDeleting runtimev1alpha1.ConditionType = "RolloutDeleting"
+	RolloutDeleting runtimev1.ConditionType = "RolloutDeleting"
 	// RolloutFailed means that the rollout failed.
-	RolloutFailed runtimev1alpha1.ConditionType = "RolloutFailed"
+	RolloutFailed runtimev1.ConditionType = "RolloutFailed"
 	// RolloutSucceed means that the rollout is done.
-	RolloutSucceed runtimev1alpha1.ConditionType = "RolloutSucceed"
+	RolloutSucceed runtimev1.ConditionType = "RolloutSucceed"
 	// BatchInitializing
-	BatchInitializing runtimev1alpha1.ConditionType = "BatchInitializing"
+	BatchInitializing runtimev1.ConditionType = "BatchInitializing"
 	// BatchPaused
-	BatchPaused runtimev1alpha1.ConditionType = "BatchPaused"
+	BatchPaused runtimev1.ConditionType = "BatchPaused"
 	// BatchVerifying
-	BatchVerifying runtimev1alpha1.ConditionType = "BatchVerifying"
+	BatchVerifying runtimev1.ConditionType = "BatchVerifying"
 	// BatchRolloutFailed
-	BatchRolloutFailed runtimev1alpha1.ConditionType = "BatchRolloutFailed"
+	BatchRolloutFailed runtimev1.ConditionType = "BatchRolloutFailed"
 	// BatchFinalizing
-	BatchFinalizing runtimev1alpha1.ConditionType = "BatchFinalizing"
+	BatchFinalizing runtimev1.ConditionType = "BatchFinalizing"
 	// BatchReady
-	BatchReady runtimev1alpha1.ConditionType = "BatchReady"
+	BatchReady runtimev1.ConditionType = "BatchReady"
 )
 
 // NewPositiveCondition creates a positive condition type
-func NewPositiveCondition(condType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
-	return runtimev1alpha1.Condition{
+func NewPositiveCondition(condType runtimev1.ConditionType) runtimev1.Condition {
+	return runtimev1.Condition{
 		Type:               condType,
 		Status:             v1.ConditionTrue,
 		LastTransitionTime: metav1.NewTime(time.Now()),
@@ -122,8 +122,8 @@ func NewPositiveCondition(condType runtimev1alpha1.ConditionType) runtimev1alpha
 }
 
 // NewNegativeCondition creates a false condition type
-func NewNegativeCondition(condType runtimev1alpha1.ConditionType, message string) runtimev1alpha1.Condition {
-	return runtimev1alpha1.Condition{
+func NewNegativeCondition(condType runtimev1.ConditionType, message string) runtimev1.Condition {
+	return runtimev1.Condition{
 		Type:               condType,
 		Status:             v1.ConditionFalse,
 		LastTransitionTime: metav1.NewTime(time.Now()),
@@ -135,7 +135,7 @@ const invalidRollingStateTransition = "the rollout state transition from `%s` st
 
 const invalidBatchRollingStateTransition = "the batch rolling state transition from `%s` state  with `%s` is invalid"
 
-func (r *RolloutStatus) getRolloutConditionType() runtimev1alpha1.ConditionType {
+func (r *RolloutStatus) getRolloutConditionType() runtimev1.ConditionType {
 	// figure out which condition type should we put in the condition depends on its state
 	switch r.RollingState {
 	case VerifyingSpecState:
@@ -220,7 +220,7 @@ func (r *RolloutStatus) ResetStatus() {
 
 // SetRolloutCondition sets the supplied condition, replacing any existing condition
 // of the same type unless they are identical.
-func (r *RolloutStatus) SetRolloutCondition(new runtimev1alpha1.Condition) {
+func (r *RolloutStatus) SetRolloutCondition(new runtimev1.Condition) {
 	exists := false
 	for i, existing := range r.Conditions {
 		if existing.Type != new.Type {

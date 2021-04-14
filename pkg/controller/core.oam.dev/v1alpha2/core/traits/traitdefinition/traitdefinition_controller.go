@@ -22,7 +22,7 @@ import (
 	"context"
 	"fmt"
 
-	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	cpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -52,10 +52,9 @@ type Reconciler struct {
 }
 
 // Reconcile is the main logic for TraitDefinition controller
-func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	definitionName := req.NamespacedName.Name
 	klog.InfoS("Reconciling TraitDefinition...", "Name", definitionName, "Namespace", req.Namespace)
-	ctx := context.Background()
 
 	var traitdefinition v1beta1.TraitDefinition
 	if err := r.Get(ctx, req.NamespacedName, &traitdefinition); err != nil {
@@ -77,7 +76,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			klog.ErrorS(err, "cannot refresh packageDiscover")
 			r.record.Event(&traitdefinition, event.Warning("cannot refresh packageDiscover", err))
 			return ctrl.Result{}, util.PatchCondition(ctx, r, &traitdefinition,
-				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
+				cpv1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
 		}
 	}
 
@@ -89,7 +88,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		klog.ErrorS(err, "cannot store capability in ConfigMap")
 		r.record.Event(&(def.TraitDefinition), event.Warning("cannot store capability in ConfigMap", err))
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &def.TraitDefinition,
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
+			cpv1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
 	}
 
 	if err := r.Status().Update(ctx, &def.TraitDefinition); err != nil {

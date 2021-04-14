@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/google/go-cmp/cmp"
@@ -50,7 +50,7 @@ var _ reconcile.Reconciler = &OAMApplicationReconciler{}
 
 type acParam func(*v1alpha2.ApplicationConfiguration)
 
-func withConditions(c ...runtimev1alpha1.Condition) acParam {
+func withConditions(c ...runtimev1.Condition) acParam {
 	return func(ac *v1alpha2.ApplicationConfiguration) {
 		ac.SetConditions(c...)
 	}
@@ -81,6 +81,7 @@ func ac(p ...acParam) *v1alpha2.ApplicationConfiguration {
 }
 
 func TestReconciler(t *testing.T) {
+	ctx := context.Background()
 	errBoom := errors.New("boom")
 	errUnexpectedStatus := errors.New("unexpected status")
 
@@ -104,7 +105,7 @@ func TestReconciler(t *testing.T) {
 	depStatus := v1alpha2.DependencyStatus{
 		Unsatisfied: []v1alpha2.UnstaifiedDependency{{
 			From: v1alpha2.DependencyFromObject{
-				TypedReference: runtimev1alpha1.TypedReference{
+				TypedReference: runtimev1.TypedReference{
 					APIVersion: workload.GetAPIVersion(),
 					Kind:       workload.GetKind(),
 					Name:       workload.GetName(),
@@ -112,7 +113,7 @@ func TestReconciler(t *testing.T) {
 				FieldPath: "status.key",
 			},
 			To: v1alpha2.DependencyToObject{
-				TypedReference: runtimev1alpha1.TypedReference{
+				TypedReference: runtimev1.TypedReference{
 					APIVersion: workload.GetAPIVersion(),
 					Kind:       workload.GetKind(),
 					Name:       workload.GetName(),
@@ -122,7 +123,7 @@ func TestReconciler(t *testing.T) {
 		}},
 	}
 
-	mockGetAppConfigFn := func(_ context.Context, key client.ObjectKey, obj runtime.Object) error {
+	mockGetAppConfigFn := func(_ context.Context, key client.ObjectKey, obj client.Object) error {
 		if o, ok := obj.(*v1alpha2.ApplicationConfiguration); ok {
 			*o = v1alpha2.ApplicationConfiguration{
 				ObjectMeta: metav1.ObjectMeta{
@@ -167,8 +168,8 @@ func TestReconciler(t *testing.T) {
 				m: &mock.Manager{
 					Client: &test.MockClient{
 						MockGet: mockGetAppConfigFn,
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o runtime.Object) error {
-							want := ac(withConditions(runtimev1alpha1.ReconcileError(errors.Wrap(errBoom, errRenderComponents))))
+						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o client.Object) error {
+							want := ac(withConditions(runtimev1.ReconcileError(errors.Wrap(errBoom, errRenderComponents))))
 							if diff := cmp.Diff(want, o.(*v1alpha2.ApplicationConfiguration)); diff != "" {
 								t.Errorf("\nclient.Status().Update(): -want, +got:\n%s", diff)
 								return errUnexpectedStatus
@@ -194,8 +195,8 @@ func TestReconciler(t *testing.T) {
 				m: &mock.Manager{
 					Client: &test.MockClient{
 						MockGet: mockGetAppConfigFn,
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o runtime.Object) error {
-							want := ac(withConditions(runtimev1alpha1.ReconcileError(errors.Wrap(errBoom, errApplyComponents))))
+						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o client.Object) error {
+							want := ac(withConditions(runtimev1.ReconcileError(errors.Wrap(errBoom, errApplyComponents))))
 							if diff := cmp.Diff(want, o.(*v1alpha2.ApplicationConfiguration)); diff != "" {
 								t.Errorf("\nclient.Status().Update(): -want, +got:\n%s", diff)
 								return errUnexpectedStatus
@@ -225,8 +226,8 @@ func TestReconciler(t *testing.T) {
 					Client: &test.MockClient{
 						MockGet:    mockGetAppConfigFn,
 						MockDelete: test.NewMockDeleteFn(errBoom),
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o runtime.Object) error {
-							want := ac(withConditions(runtimev1alpha1.ReconcileError(errors.Wrap(errBoom, errGCComponent))))
+						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o client.Object) error {
+							want := ac(withConditions(runtimev1.ReconcileError(errors.Wrap(errBoom, errGCComponent))))
 							if diff := cmp.Diff(want, o.(*v1alpha2.ApplicationConfiguration)); diff != "" {
 								t.Errorf("\nclient.Status().Update(): -want, +got:\n%s", diff)
 								return errUnexpectedStatus
@@ -259,12 +260,12 @@ func TestReconciler(t *testing.T) {
 					Client: &test.MockClient{
 						MockGet:    mockGetAppConfigFn,
 						MockDelete: test.NewMockDeleteFn(nil),
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o runtime.Object) error {
+						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o client.Object) error {
 							want := ac(
-								withConditions(runtimev1alpha1.ReconcileSuccess()),
+								withConditions(runtimev1.ReconcileSuccess()),
 								withWorkloadStatuses(v1alpha2.WorkloadStatus{
 									ComponentName: componentName,
-									Reference: runtimev1alpha1.TypedReference{
+									Reference: runtimev1.TypedReference{
 										APIVersion: workload.GetAPIVersion(),
 										Kind:       workload.GetKind(),
 										Name:       workload.GetName(),
@@ -278,12 +279,12 @@ func TestReconciler(t *testing.T) {
 							}
 							return nil
 						}),
-						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(o runtime.Object) error {
+						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(o client.Object) error {
 							want := ac(
-								withConditions(runtimev1alpha1.ReconcileSuccess()),
+								withConditions(runtimev1.ReconcileSuccess()),
 								withWorkloadStatuses(v1alpha2.WorkloadStatus{
 									ComponentName: componentName,
-									Reference: runtimev1alpha1.TypedReference{
+									Reference: runtimev1.TypedReference{
 										APIVersion: workload.GetAPIVersion(),
 										Kind:       workload.GetKind(),
 										Name:       workload.GetName(),
@@ -323,9 +324,9 @@ func TestReconciler(t *testing.T) {
 					Client: &test.MockClient{
 						MockGet:    mockGetAppConfigFn,
 						MockDelete: test.NewMockDeleteFn(nil),
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o runtime.Object) error {
+						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o client.Object) error {
 							want := ac(
-								withConditions(runtimev1alpha1.ReconcileError(errors.Wrap(errBoom, errExecutePrehooks))),
+								withConditions(runtimev1.ReconcileError(errors.Wrap(errBoom, errExecutePrehooks))),
 							)
 							if diff := cmp.Diff(want, o.(*v1alpha2.ApplicationConfiguration), cmpopts.EquateEmpty()); diff != "" {
 								t.Errorf("\nclient.Status().Update(): -want, +got:\n%s", diff)
@@ -368,20 +369,20 @@ func TestReconciler(t *testing.T) {
 					Client: &test.MockClient{
 						MockGet:    mockGetAppConfigFn,
 						MockDelete: test.NewMockDeleteFn(nil),
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o runtime.Object) error {
+						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o client.Object) error {
 							want := ac(
 								withWorkloadStatuses(v1alpha2.WorkloadStatus{
 									ComponentName: componentName,
-									Reference: runtimev1alpha1.TypedReference{
+									Reference: runtimev1.TypedReference{
 										APIVersion: workload.GetAPIVersion(),
 										Kind:       workload.GetKind(),
 										Name:       workload.GetName(),
 									},
 								}),
 							)
-							want.SetConditions(runtimev1alpha1.ReconcileSuccess())
+							want.SetConditions(runtimev1.ReconcileSuccess())
 							diff := cmp.Diff(want, o.(*v1alpha2.ApplicationConfiguration), cmpopts.EquateEmpty())
-							want.SetConditions(runtimev1alpha1.ReconcileError(errors.Wrap(errBoom, errExecutePosthooks)))
+							want.SetConditions(runtimev1.ReconcileError(errors.Wrap(errBoom, errExecutePosthooks)))
 							diffPost := cmp.Diff(want, o.(*v1alpha2.ApplicationConfiguration), cmpopts.EquateEmpty())
 							if diff != "" && diffPost != "" {
 								t.Errorf("\nclient.Status().Update(): -want, +got:\n%s, \n%s", diff, diffPost)
@@ -389,18 +390,18 @@ func TestReconciler(t *testing.T) {
 							}
 							return nil
 						}),
-						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(o runtime.Object) error {
+						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(o client.Object) error {
 							want := ac(
 								withWorkloadStatuses(v1alpha2.WorkloadStatus{
 									ComponentName: componentName,
-									Reference: runtimev1alpha1.TypedReference{
+									Reference: runtimev1.TypedReference{
 										APIVersion: workload.GetAPIVersion(),
 										Kind:       workload.GetKind(),
 										Name:       workload.GetName(),
 									},
 								}),
 							)
-							want.SetConditions(runtimev1alpha1.ReconcileSuccess())
+							want.SetConditions(runtimev1.ReconcileSuccess())
 							if diff := cmp.Diff(want, o.(*v1alpha2.ApplicationConfiguration), cmpopts.EquateEmpty()); diff != "" {
 								t.Errorf("\nclient.Status().Update(): -want, +got:\n%s", diff)
 								return errUnexpectedStatus
@@ -439,12 +440,12 @@ func TestReconciler(t *testing.T) {
 					Client: &test.MockClient{
 						MockGet:    mockGetAppConfigFn,
 						MockDelete: test.NewMockDeleteFn(nil),
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o runtime.Object) error {
+						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o client.Object) error {
 							want := ac(
-								withConditions(runtimev1alpha1.ReconcileError(errors.Wrap(errBoom, errExecutePrehooks))),
+								withConditions(runtimev1.ReconcileError(errors.Wrap(errBoom, errExecutePrehooks))),
 							)
 							diff := cmp.Diff(want, o.(*v1alpha2.ApplicationConfiguration), cmpopts.EquateEmpty())
-							want.SetConditions(runtimev1alpha1.ReconcileError(errors.Wrap(errBoom, errExecutePosthooks)))
+							want.SetConditions(runtimev1.ReconcileError(errors.Wrap(errBoom, errExecutePosthooks)))
 							diffPost := cmp.Diff(want, o.(*v1alpha2.ApplicationConfiguration), cmpopts.EquateEmpty())
 							if diff != "" && diffPost != "" {
 								t.Errorf("\nclient.Status().Update(): -want, +got:\n%s, \n%s", diff, diffPost)
@@ -490,12 +491,12 @@ func TestReconciler(t *testing.T) {
 					Client: &test.MockClient{
 						MockGet:    mockGetAppConfigFn,
 						MockDelete: test.NewMockDeleteFn(nil),
-						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o runtime.Object) error {
+						MockStatusUpdate: test.NewMockStatusUpdateFn(nil, func(o client.Object) error {
 							want := ac(
-								withConditions(runtimev1alpha1.ReconcileSuccess()),
+								withConditions(runtimev1.ReconcileSuccess()),
 								withWorkloadStatuses(v1alpha2.WorkloadStatus{
 									ComponentName: componentName,
-									Reference: runtimev1alpha1.TypedReference{
+									Reference: runtimev1.TypedReference{
 										APIVersion: workload.GetAPIVersion(),
 										Kind:       workload.GetKind(),
 										Name:       workload.GetName(),
@@ -508,12 +509,12 @@ func TestReconciler(t *testing.T) {
 							}
 							return nil
 						}),
-						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(o runtime.Object) error {
+						MockStatusPatch: test.NewMockStatusPatchFn(nil, func(o client.Object) error {
 							want := ac(
-								withConditions(runtimev1alpha1.ReconcileSuccess()),
+								withConditions(runtimev1.ReconcileSuccess()),
 								withWorkloadStatuses(v1alpha2.WorkloadStatus{
 									ComponentName: componentName,
-									Reference: runtimev1alpha1.TypedReference{
+									Reference: runtimev1.TypedReference{
 										APIVersion: workload.GetAPIVersion(),
 										Kind:       workload.GetKind(),
 										Name:       workload.GetName(),
@@ -555,7 +556,7 @@ func TestReconciler(t *testing.T) {
 			args: args{
 				m: &mock.Manager{
 					Client: &test.MockClient{
-						MockGet: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+						MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 							o, _ := obj.(*v1alpha2.ApplicationConfiguration)
 							*o = v1alpha2.ApplicationConfiguration{
 								Spec: v1alpha2.ApplicationConfigurationSpec{
@@ -564,7 +565,7 @@ func TestReconciler(t *testing.T) {
 											ComponentName: componentName,
 											Scopes: []v1alpha2.ComponentScope{
 												{
-													ScopeReference: runtimev1alpha1.TypedReference{
+													ScopeReference: runtimev1.TypedReference{
 														APIVersion: "core.oam.dev/v1alpha2",
 														Kind:       "HealthScope",
 														Name:       "example-healthscope",
@@ -577,7 +578,7 @@ func TestReconciler(t *testing.T) {
 							}
 							return nil
 						},
-						MockUpdate: test.NewMockUpdateFn(nil, func(o runtime.Object) error {
+						MockUpdate: test.NewMockUpdateFn(nil, func(o client.Object) error {
 							want := ac()
 							if diff := cmp.Diff(want.GetFinalizers(), o.(*v1alpha2.ApplicationConfiguration).GetFinalizers(), cmpopts.EquateEmpty()); diff != "" {
 								t.Errorf("\nclient.Update(): -want, +got:\n%s", diff)
@@ -598,7 +599,7 @@ func TestReconciler(t *testing.T) {
 			args: args{
 				m: &mock.Manager{
 					Client: &test.MockClient{
-						MockGet: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+						MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 							o, _ := obj.(*v1alpha2.ApplicationConfiguration)
 							*o = v1alpha2.ApplicationConfiguration{ObjectMeta: metav1.ObjectMeta{
 								DeletionTimestamp: &now,
@@ -606,7 +607,7 @@ func TestReconciler(t *testing.T) {
 							}}
 							return nil
 						},
-						MockUpdate: test.NewMockUpdateFn(nil, func(o runtime.Object) error {
+						MockUpdate: test.NewMockUpdateFn(nil, func(o client.Object) error {
 							want := &v1alpha2.ApplicationConfiguration{ObjectMeta: metav1.ObjectMeta{
 								DeletionTimestamp: &now,
 								Finalizers:        []string{},
@@ -630,7 +631,7 @@ func TestReconciler(t *testing.T) {
 			args: args{
 				m: &mock.Manager{
 					Client: &test.MockClient{
-						MockGet: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+						MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 							o, _ := obj.(*v1alpha2.ApplicationConfiguration)
 							*o = v1alpha2.ApplicationConfiguration{ObjectMeta: metav1.ObjectMeta{
 								DeletionTimestamp: &now,
@@ -638,7 +639,7 @@ func TestReconciler(t *testing.T) {
 							}}
 							return nil
 						},
-						MockUpdate: test.NewMockUpdateFn(nil, func(o runtime.Object) error {
+						MockUpdate: test.NewMockUpdateFn(nil, func(o client.Object) error {
 							want := &v1alpha2.ApplicationConfiguration{ObjectMeta: metav1.ObjectMeta{
 								DeletionTimestamp: &now,
 								Finalizers:        []string{workloadScopeFinalizer},
@@ -667,7 +668,7 @@ func TestReconciler(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			r := NewReconciler(tc.args.m, nil, logging.NewNopLogger(), tc.args.o...)
-			got, err := r.Reconcile(reconcile.Request{})
+			got, err := r.Reconcile(ctx, reconcile.Request{})
 
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nr.Reconcile(...): -want error, +got error:\n%s", tc.reason, diff)
@@ -708,14 +709,14 @@ func TestWorkloadStatus(t *testing.T) {
 			},
 			want: v1alpha2.WorkloadStatus{
 				ComponentName: componentName,
-				Reference: runtimev1alpha1.TypedReference{
+				Reference: runtimev1.TypedReference{
 					APIVersion: workload.GetAPIVersion(),
 					Kind:       workload.GetKind(),
 					Name:       workload.GetName(),
 				},
 				Traits: []v1alpha2.WorkloadTrait{
 					{
-						Reference: runtimev1alpha1.TypedReference{
+						Reference: runtimev1.TypedReference{
 							APIVersion: trait.GetAPIVersion(),
 							Kind:       trait.GetKind(),
 							Name:       trait.GetName(),
@@ -769,14 +770,14 @@ func TestEligible(t *testing.T) {
 				namespace: namespace,
 				ws: []v1alpha2.WorkloadStatus{
 					{
-						Reference: runtimev1alpha1.TypedReference{
+						Reference: runtimev1.TypedReference{
 							APIVersion: workload.GetAPIVersion(),
 							Kind:       workload.GetKind(),
 							Name:       workload.GetName(),
 						},
 						Traits: []v1alpha2.WorkloadTrait{
 							{
-								Reference: runtimev1alpha1.TypedReference{
+								Reference: runtimev1.TypedReference{
 									APIVersion: trait.GetAPIVersion(),
 									Kind:       trait.GetKind(),
 									Name:       trait.GetName(),
@@ -795,14 +796,14 @@ func TestEligible(t *testing.T) {
 				namespace: namespace,
 				ws: []v1alpha2.WorkloadStatus{
 					{
-						Reference: runtimev1alpha1.TypedReference{
+						Reference: runtimev1.TypedReference{
 							APIVersion: workload.GetAPIVersion(),
 							Kind:       workload.GetKind(),
 							Name:       workload.GetName(),
 						},
 						Traits: []v1alpha2.WorkloadTrait{
 							{
-								Reference: runtimev1alpha1.TypedReference{
+								Reference: runtimev1.TypedReference{
 									APIVersion: trait.GetAPIVersion(),
 									Kind:       trait.GetKind(),
 									Name:       trait.GetName(),
@@ -820,14 +821,14 @@ func TestEligible(t *testing.T) {
 				namespace: namespace,
 				ws: []v1alpha2.WorkloadStatus{
 					{
-						Reference: runtimev1alpha1.TypedReference{
+						Reference: runtimev1.TypedReference{
 							APIVersion: workload.GetAPIVersion(),
 							Kind:       workload.GetKind(),
 							Name:       workload.GetName(),
 						},
 						Traits: []v1alpha2.WorkloadTrait{
 							{
-								Reference: runtimev1alpha1.TypedReference{
+								Reference: runtimev1.TypedReference{
 									APIVersion: trait.GetAPIVersion(),
 									Kind:       trait.GetKind(),
 									Name:       trait.GetName(),
@@ -852,16 +853,16 @@ func TestEligible(t *testing.T) {
 }
 
 func TestIsRevisionWorkload(t *testing.T) {
-	if true != IsRevisionWorkload(v1alpha2.WorkloadStatus{ComponentName: "compName", Reference: runtimev1alpha1.TypedReference{Name: "compName-rev1"}}, nil) {
+	if true != IsRevisionWorkload(v1alpha2.WorkloadStatus{ComponentName: "compName", Reference: runtimev1.TypedReference{Name: "compName-rev1"}}, nil) {
 		t.Error("workloadName has componentName as prefix is revisionWorkload")
 	}
-	if true != IsRevisionWorkload(v1alpha2.WorkloadStatus{ComponentName: "compName", Reference: runtimev1alpha1.TypedReference{Name: "speciedName"}}, []Workload{{ComponentName: "compName", RevisionEnabled: true}}) {
+	if true != IsRevisionWorkload(v1alpha2.WorkloadStatus{ComponentName: "compName", Reference: runtimev1.TypedReference{Name: "speciedName"}}, []Workload{{ComponentName: "compName", RevisionEnabled: true}}) {
 		t.Error("workloadName has componentName same and revisionEnabled is revisionWorkload")
 	}
-	if false != IsRevisionWorkload(v1alpha2.WorkloadStatus{ComponentName: "compName", Reference: runtimev1alpha1.TypedReference{Name: "speciedName"}}, []Workload{{ComponentName: "compName", RevisionEnabled: false}}) {
+	if false != IsRevisionWorkload(v1alpha2.WorkloadStatus{ComponentName: "compName", Reference: runtimev1.TypedReference{Name: "speciedName"}}, []Workload{{ComponentName: "compName", RevisionEnabled: false}}) {
 		t.Error("workloadName has componentName same and revisionEnabled is false")
 	}
-	if false != IsRevisionWorkload(v1alpha2.WorkloadStatus{ComponentName: "compName", Reference: runtimev1alpha1.TypedReference{Name: "speciedName"}}, []Workload{{ComponentName: "compName-notmatch", RevisionEnabled: true}}) {
+	if false != IsRevisionWorkload(v1alpha2.WorkloadStatus{ComponentName: "compName", Reference: runtimev1.TypedReference{Name: "speciedName"}}, []Workload{{ComponentName: "compName-notmatch", RevisionEnabled: true}}) {
 		t.Error("workload with no prefix and no componentName match is not revisionEnabled ")
 	}
 }
@@ -917,7 +918,7 @@ func TestDependency(t *testing.T) {
 	readyDataPassingOutput := v1alpha2.DataOutput{
 		Name: "test-ready-dataoutput",
 		OutputStore: v1alpha2.StoreReference{
-			TypedReference: runtimev1alpha1.TypedReference{
+			TypedReference: runtimev1.TypedReference{
 				APIVersion: refConfigMap.GetAPIVersion(),
 				Kind:       refConfigMap.GetKind(),
 				Name:       refConfigMap.GetName(),
@@ -934,7 +935,7 @@ func TestDependency(t *testing.T) {
 	unreadyDataPassingOutput := v1alpha2.DataOutput{
 		Name: "test-unready-dataoutput",
 		OutputStore: v1alpha2.StoreReference{
-			TypedReference: runtimev1alpha1.TypedReference{
+			TypedReference: runtimev1.TypedReference{
 				APIVersion: refConfigMap.GetAPIVersion(),
 				Kind:       refConfigMap.GetKind(),
 				Name:       refConfigMap.GetName(),
@@ -951,7 +952,7 @@ func TestDependency(t *testing.T) {
 
 	readyDataPassingInput := v1alpha2.DataInput{
 		InputStore: v1alpha2.StoreReference{
-			TypedReference: runtimev1alpha1.TypedReference{
+			TypedReference: runtimev1.TypedReference{
 				APIVersion: refConfigMap.GetAPIVersion(),
 				Kind:       refConfigMap.GetKind(),
 				Name:       refConfigMap.GetName(),
@@ -967,7 +968,7 @@ func TestDependency(t *testing.T) {
 	}
 	unreadyDataPassingInput := v1alpha2.DataInput{
 		InputStore: v1alpha2.StoreReference{
-			TypedReference: runtimev1alpha1.TypedReference{
+			TypedReference: runtimev1.TypedReference{
 				APIVersion: refConfigMap.GetAPIVersion(),
 				Kind:       refConfigMap.GetKind(),
 				Name:       refConfigMap.GetName(),
@@ -1027,7 +1028,7 @@ func TestDependency(t *testing.T) {
 					Unsatisfied: []v1alpha2.UnstaifiedDependency{{
 						Reason: "status.key not found in object",
 						From: v1alpha2.DependencyFromObject{
-							TypedReference: runtimev1alpha1.TypedReference{
+							TypedReference: runtimev1.TypedReference{
 								APIVersion: unreadyWorkload.GetAPIVersion(),
 								Kind:       unreadyWorkload.GetKind(),
 								Name:       unreadyWorkload.GetName(),
@@ -1035,7 +1036,7 @@ func TestDependency(t *testing.T) {
 							FieldPath: "status.key",
 						},
 						To: v1alpha2.DependencyToObject{
-							TypedReference: runtimev1alpha1.TypedReference{
+							TypedReference: runtimev1.TypedReference{
 								APIVersion: unreadyWorkload.GetAPIVersion(),
 								Kind:       unreadyWorkload.GetKind(),
 								Name:       unreadyWorkload.GetName(),
@@ -1110,7 +1111,7 @@ func TestDependency(t *testing.T) {
 					Unsatisfied: []v1alpha2.UnstaifiedDependency{{
 						Reason: "status.key not found in object",
 						From: v1alpha2.DependencyFromObject{
-							TypedReference: runtimev1alpha1.TypedReference{
+							TypedReference: runtimev1.TypedReference{
 								APIVersion: unreadyTrait.GetAPIVersion(),
 								Kind:       unreadyTrait.GetKind(),
 								Name:       unreadyTrait.GetName(),
@@ -1118,7 +1119,7 @@ func TestDependency(t *testing.T) {
 							FieldPath: "status.key",
 						},
 						To: v1alpha2.DependencyToObject{
-							TypedReference: runtimev1alpha1.TypedReference{
+							TypedReference: runtimev1.TypedReference{
 								APIVersion: unreadyWorkload.GetAPIVersion(),
 								Kind:       unreadyWorkload.GetKind(),
 								Name:       unreadyWorkload.GetName(),
@@ -1196,7 +1197,7 @@ func TestDependency(t *testing.T) {
 					Unsatisfied: []v1alpha2.UnstaifiedDependency{{
 						Reason: "status.key not found in object",
 						From: v1alpha2.DependencyFromObject{
-							TypedReference: runtimev1alpha1.TypedReference{
+							TypedReference: runtimev1.TypedReference{
 								APIVersion: unreadyWorkload.GetAPIVersion(),
 								Kind:       unreadyWorkload.GetKind(),
 								Name:       unreadyWorkload.GetName(),
@@ -1204,7 +1205,7 @@ func TestDependency(t *testing.T) {
 							FieldPath: "status.key",
 						},
 						To: v1alpha2.DependencyToObject{
-							TypedReference: runtimev1alpha1.TypedReference{
+							TypedReference: runtimev1.TypedReference{
 								APIVersion: unreadyTrait.GetAPIVersion(),
 								Kind:       unreadyTrait.GetKind(),
 								Name:       unreadyTrait.GetName(),
@@ -1284,7 +1285,7 @@ func TestDependency(t *testing.T) {
 					Unsatisfied: []v1alpha2.UnstaifiedDependency{{
 						Reason: "status.key not found in object",
 						From: v1alpha2.DependencyFromObject{
-							TypedReference: runtimev1alpha1.TypedReference{
+							TypedReference: runtimev1.TypedReference{
 								APIVersion: unreadyTrait.GetAPIVersion(),
 								Kind:       unreadyTrait.GetKind(),
 								Name:       unreadyTrait.GetName(),
@@ -1292,7 +1293,7 @@ func TestDependency(t *testing.T) {
 							FieldPath: "status.key",
 						},
 						To: v1alpha2.DependencyToObject{
-							TypedReference: runtimev1alpha1.TypedReference{
+							TypedReference: runtimev1.TypedReference{
 								APIVersion: unreadyTrait.GetAPIVersion(),
 								Kind:       unreadyTrait.GetKind(),
 								Name:       unreadyTrait.GetName(),
@@ -1422,7 +1423,7 @@ func TestDependency(t *testing.T) {
 					Unsatisfied: []v1alpha2.UnstaifiedDependency{{
 						Reason: "got(test) expected to be ",
 						From: v1alpha2.DependencyFromObject{
-							TypedReference: runtimev1alpha1.TypedReference{
+							TypedReference: runtimev1.TypedReference{
 								APIVersion: readyWorkload.GetAPIVersion(),
 								Kind:       readyWorkload.GetKind(),
 								Name:       readyWorkload.GetName(),
@@ -1430,7 +1431,7 @@ func TestDependency(t *testing.T) {
 							FieldPath: "",
 						},
 						To: v1alpha2.DependencyToObject{
-							TypedReference: runtimev1alpha1.TypedReference{
+							TypedReference: runtimev1.TypedReference{
 								APIVersion: refConfigMap.GetAPIVersion(),
 								Kind:       refConfigMap.GetKind(),
 								Name:       refConfigMap.GetName(),
@@ -1470,7 +1471,7 @@ func TestDependency(t *testing.T) {
 					Unsatisfied: []v1alpha2.UnstaifiedDependency{{
 						Reason: "got(test) expected to be ",
 						From: v1alpha2.DependencyFromObject{
-							TypedReference: runtimev1alpha1.TypedReference{
+							TypedReference: runtimev1.TypedReference{
 								APIVersion: readyWorkload.GetAPIVersion(),
 								Kind:       readyWorkload.GetKind(),
 								Name:       readyWorkload.GetName(),
@@ -1478,7 +1479,7 @@ func TestDependency(t *testing.T) {
 							FieldPath: "",
 						},
 						To: v1alpha2.DependencyToObject{
-							TypedReference: runtimev1alpha1.TypedReference{
+							TypedReference: runtimev1.TypedReference{
 								APIVersion: refConfigMap.GetAPIVersion(),
 								Kind:       refConfigMap.GetKind(),
 								Name:       refConfigMap.GetName(),
@@ -1518,7 +1519,7 @@ func TestDependency(t *testing.T) {
 					Unsatisfied: []v1alpha2.UnstaifiedDependency{{
 						Reason: "got(test) expected to be ",
 						From: v1alpha2.DependencyFromObject{
-							TypedReference: runtimev1alpha1.TypedReference{
+							TypedReference: runtimev1.TypedReference{
 								APIVersion: refConfigMap.GetAPIVersion(),
 								Kind:       refConfigMap.GetKind(),
 								Name:       refConfigMap.GetName(),
@@ -1526,7 +1527,7 @@ func TestDependency(t *testing.T) {
 							FieldPath: "",
 						},
 						To: v1alpha2.DependencyToObject{
-							TypedReference: runtimev1alpha1.TypedReference{
+							TypedReference: runtimev1.TypedReference{
 								APIVersion: readyWorkload.GetAPIVersion(),
 								Kind:       readyWorkload.GetKind(),
 								Name:       readyWorkload.GetName(),
@@ -1544,7 +1545,7 @@ func TestDependency(t *testing.T) {
 			c := components{
 				dm: mapper,
 				client: &test.MockClient{
-					MockGet: test.MockGetFn(func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+					MockGet: test.MockGetFn(func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 						if obj.GetObjectKind().GroupVersionKind().Kind == "Workload" {
 							b, err := json.Marshal(tc.args.wl)
 							if err != nil {
@@ -1672,7 +1673,7 @@ func TestPatchExtraField(t *testing.T) {
 						ComponentRevisionName: "test-v1",
 						Traits: []v1alpha2.WorkloadTrait{
 							{
-								Reference: runtimev1alpha1.TypedReference{
+								Reference: runtimev1.TypedReference{
 									APIVersion: "apiVersion1",
 									Kind:       "kind1",
 									Name:       "trait1",
@@ -1690,7 +1691,7 @@ func TestPatchExtraField(t *testing.T) {
 						Traits: []v1alpha2.WorkloadTrait{
 							{
 								Status: "add this too",
-								Reference: runtimev1alpha1.TypedReference{
+								Reference: runtimev1.TypedReference{
 									APIVersion: "apiVersion1",
 									Kind:       "kind1",
 									Name:       "trait1",
@@ -1709,7 +1710,7 @@ func TestPatchExtraField(t *testing.T) {
 						Traits: []v1alpha2.WorkloadTrait{
 							{
 								Status: "add this too",
-								Reference: runtimev1alpha1.TypedReference{
+								Reference: runtimev1.TypedReference{
 									APIVersion: "apiVersion1",
 									Kind:       "kind1",
 									Name:       "trait1",
@@ -1728,7 +1729,7 @@ func TestPatchExtraField(t *testing.T) {
 						ComponentRevisionName: "test-v1",
 						Traits: []v1alpha2.WorkloadTrait{
 							{
-								Reference: runtimev1alpha1.TypedReference{
+								Reference: runtimev1.TypedReference{
 									APIVersion: "apiVersion1",
 									Kind:       "kind1",
 									Name:       "trait1",
@@ -1746,7 +1747,7 @@ func TestPatchExtraField(t *testing.T) {
 						Traits: []v1alpha2.WorkloadTrait{
 							{
 								Status: "add this too",
-								Reference: runtimev1alpha1.TypedReference{
+								Reference: runtimev1.TypedReference{
 									APIVersion: "apiVersion1",
 									Kind:       "kind1",
 									Name:       "trait2",
@@ -1764,7 +1765,7 @@ func TestPatchExtraField(t *testing.T) {
 						ComponentRevisionName: "test-v1",
 						Traits: []v1alpha2.WorkloadTrait{
 							{
-								Reference: runtimev1alpha1.TypedReference{
+								Reference: runtimev1.TypedReference{
 									APIVersion: "apiVersion1",
 									Kind:       "kind1",
 									Name:       "trait1",
@@ -1783,7 +1784,7 @@ func TestPatchExtraField(t *testing.T) {
 						ComponentRevisionName: "test-v1",
 						Traits: []v1alpha2.WorkloadTrait{
 							{
-								Reference: runtimev1alpha1.TypedReference{
+								Reference: runtimev1.TypedReference{
 									APIVersion: "apiVersion1",
 									Kind:       "kind1",
 									Name:       "trait1",
@@ -1801,7 +1802,7 @@ func TestPatchExtraField(t *testing.T) {
 						Traits: []v1alpha2.WorkloadTrait{
 							{
 								Status: "add this too",
-								Reference: runtimev1alpha1.TypedReference{
+								Reference: runtimev1.TypedReference{
 									APIVersion: "apiVersion1",
 									Kind:       "kind1",
 									Name:       "trait1",
@@ -1818,7 +1819,7 @@ func TestPatchExtraField(t *testing.T) {
 						ComponentRevisionName: "test-v1",
 						Traits: []v1alpha2.WorkloadTrait{
 							{
-								Reference: runtimev1alpha1.TypedReference{
+								Reference: runtimev1.TypedReference{
 									APIVersion: "apiVersion1",
 									Kind:       "kind1",
 									Name:       "trait1",
@@ -1843,7 +1844,7 @@ func TestPatchExtraField(t *testing.T) {
 
 func TestUpdateStatus(t *testing.T) {
 
-	mockGetAppConfigFn := func(_ context.Context, key client.ObjectKey, obj runtime.Object) error {
+	mockGetAppConfigFn := func(_ context.Context, key client.ObjectKey, obj client.Object) error {
 		if o, ok := obj.(*v1alpha2.ApplicationConfiguration); ok {
 			*o = v1alpha2.ApplicationConfiguration{
 				ObjectMeta: metav1.ObjectMeta{

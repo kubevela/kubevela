@@ -19,7 +19,7 @@ package healthscope
 import (
 	"context"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	kuberuntime "k8s.io/apimachinery/pkg/runtime"
@@ -39,7 +39,7 @@ var (
 )
 
 // CheckPodSpecWorkloadHealth check health condition of podspecworkloads.standard.oam.dev
-func CheckPodSpecWorkloadHealth(ctx context.Context, c client.Client, ref runtimev1alpha1.TypedReference, namespace string) *WorkloadHealthCondition {
+func CheckPodSpecWorkloadHealth(ctx context.Context, c client.Client, ref runtimev1.TypedReference, namespace string) *WorkloadHealthCondition {
 	if ref.GroupVersionKind() != podSpecWorkloadGVK {
 		return nil
 	}
@@ -58,10 +58,10 @@ func CheckPodSpecWorkloadHealth(ctx context.Context, c client.Client, ref runtim
 	r.TargetWorkload.UID = workloadObj.GetUID()
 
 	childRefsData, _, _ := unstructured.NestedSlice(workloadObj.Object, "status", "resources")
-	childRefs := []runtimev1alpha1.TypedReference{}
+	childRefs := []runtimev1.TypedReference{}
 	for _, v := range childRefsData {
 		v := v.(map[string]interface{})
-		tmpChildRef := &runtimev1alpha1.TypedReference{}
+		tmpChildRef := &runtimev1.TypedReference{}
 		if err := kuberuntime.DefaultUnstructuredConverter.FromUnstructured(v, tmpChildRef); err != nil {
 			r.HealthStatus = StatusUnhealthy
 			r.Diagnosis = errors.Wrap(err, errHealthCheck).Error()

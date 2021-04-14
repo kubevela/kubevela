@@ -38,7 +38,7 @@ import (
 
 	"github.com/oam-dev/kubevela/pkg/oam"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 )
 
 const (
@@ -80,15 +80,15 @@ type ScopeHealthCondition = v1alpha2.ScopeHealthCondition
 // A WorloadHealthChecker checks health status of specified resource
 // and saves status into an HealthCondition object.
 type WorloadHealthChecker interface {
-	Check(context.Context, client.Client, runtimev1alpha1.TypedReference, string) *WorkloadHealthCondition
+	Check(context.Context, client.Client, runtimev1.TypedReference, string) *WorkloadHealthCondition
 }
 
 // WorkloadHealthCheckFn checks health status of specified resource
 // and saves status into an HealthCondition object.
-type WorkloadHealthCheckFn func(context.Context, client.Client, runtimev1alpha1.TypedReference, string) *WorkloadHealthCondition
+type WorkloadHealthCheckFn func(context.Context, client.Client, runtimev1.TypedReference, string) *WorkloadHealthCondition
 
 // Check the health status of specified resource
-func (fn WorkloadHealthCheckFn) Check(ctx context.Context, c client.Client, tr runtimev1alpha1.TypedReference, ns string) *WorkloadHealthCondition {
+func (fn WorkloadHealthCheckFn) Check(ctx context.Context, c client.Client, tr runtimev1.TypedReference, ns string) *WorkloadHealthCondition {
 	r := fn(ctx, c, tr, ns)
 	if r == nil {
 		return r
@@ -117,7 +117,7 @@ func (fn WorkloadHealthCheckFn) Check(ctx context.Context, c client.Client, tr r
 }
 
 // CheckContainerziedWorkloadHealth check health condition of ContainerizedWorkload
-func CheckContainerziedWorkloadHealth(ctx context.Context, c client.Client, ref runtimev1alpha1.TypedReference, namespace string) *WorkloadHealthCondition {
+func CheckContainerziedWorkloadHealth(ctx context.Context, c client.Client, ref runtimev1.TypedReference, namespace string) *WorkloadHealthCondition {
 	if ref.GroupVersionKind() != v1alpha2.SchemeGroupVersion.WithKind(kindContainerizedWorkload) {
 		return nil
 	}
@@ -141,7 +141,7 @@ func CheckContainerziedWorkloadHealth(ctx context.Context, c client.Client, ref 
 	return r
 }
 
-func updateChildResourcesCondition(ctx context.Context, c client.Client, namespace string, r *WorkloadHealthCondition, ref runtimev1alpha1.TypedReference, childRefs []runtimev1alpha1.TypedReference) {
+func updateChildResourcesCondition(ctx context.Context, c client.Client, namespace string, r *WorkloadHealthCondition, ref runtimev1.TypedReference, childRefs []runtimev1.TypedReference) {
 	subConditions := []*WorkloadHealthCondition{}
 	if len(childRefs) != 2 {
 		// one deployment and one svc are required by containerizedworkload
@@ -180,7 +180,7 @@ func updateChildResourcesCondition(ctx context.Context, c client.Client, namespa
 }
 
 // CheckDeploymentHealth checks health condition of Deployment
-func CheckDeploymentHealth(ctx context.Context, client client.Client, ref runtimev1alpha1.TypedReference, namespace string) *WorkloadHealthCondition {
+func CheckDeploymentHealth(ctx context.Context, client client.Client, ref runtimev1.TypedReference, namespace string) *WorkloadHealthCondition {
 	if ref.GroupVersionKind() != apps.SchemeGroupVersion.WithKind(kindDeployment) {
 		return nil
 	}
@@ -214,7 +214,7 @@ func CheckDeploymentHealth(ctx context.Context, client client.Client, ref runtim
 }
 
 // CheckStatefulsetHealth checks health condition of StatefulSet
-func CheckStatefulsetHealth(ctx context.Context, client client.Client, ref runtimev1alpha1.TypedReference, namespace string) *WorkloadHealthCondition {
+func CheckStatefulsetHealth(ctx context.Context, client client.Client, ref runtimev1.TypedReference, namespace string) *WorkloadHealthCondition {
 	if ref.GroupVersionKind() != apps.SchemeGroupVersion.WithKind(kindStatefulSet) {
 		return nil
 	}
@@ -247,7 +247,7 @@ func CheckStatefulsetHealth(ctx context.Context, client client.Client, ref runti
 }
 
 // CheckDaemonsetHealth checks health condition of DaemonSet
-func CheckDaemonsetHealth(ctx context.Context, client client.Client, ref runtimev1alpha1.TypedReference, namespace string) *WorkloadHealthCondition {
+func CheckDaemonsetHealth(ctx context.Context, client client.Client, ref runtimev1.TypedReference, namespace string) *WorkloadHealthCondition {
 	if ref.GroupVersionKind() != apps.SchemeGroupVersion.WithKind(kindDaemonSet) {
 		return nil
 	}
@@ -276,13 +276,13 @@ func CheckDaemonsetHealth(ctx context.Context, client client.Client, ref runtime
 }
 
 // CheckByHealthCheckTrait checks health condition through HealthCheckTrait.
-func CheckByHealthCheckTrait(ctx context.Context, c client.Client, wlRef runtimev1alpha1.TypedReference, ns string) *WorkloadHealthCondition {
+func CheckByHealthCheckTrait(ctx context.Context, c client.Client, wlRef runtimev1.TypedReference, ns string) *WorkloadHealthCondition {
 	// TODO(roywang) implement HealthCheckTrait feature
 	return nil
 }
 
 // CheckUnknownWorkload handles unknown type workloads.
-func CheckUnknownWorkload(ctx context.Context, c client.Client, wlRef runtimev1alpha1.TypedReference, ns string) *WorkloadHealthCondition {
+func CheckUnknownWorkload(ctx context.Context, c client.Client, wlRef runtimev1.TypedReference, ns string) *WorkloadHealthCondition {
 	healthCondition := &WorkloadHealthCondition{
 		TargetWorkload: wlRef,
 		HealthStatus:   StatusUnknown,
@@ -330,7 +330,7 @@ func getAppConfigNameFromLabel(o metav1.Object) string {
 	return appName
 }
 
-func getVersioningPeerWorkloadRefs(ctx context.Context, c client.Reader, wlRef runtimev1alpha1.TypedReference, ns string) ([]runtimev1alpha1.TypedReference, error) {
+func getVersioningPeerWorkloadRefs(ctx context.Context, c client.Reader, wlRef runtimev1.TypedReference, ns string) ([]runtimev1.TypedReference, error) {
 	o := &unstructured.Unstructured{}
 	o.SetGroupVersionKind(wlRef.GroupVersionKind())
 	if err := c.Get(ctx, client.ObjectKey{Namespace: ns, Name: wlRef.Name}, o); err != nil {
@@ -344,7 +344,7 @@ func getVersioningPeerWorkloadRefs(ctx context.Context, c client.Reader, wlRef r
 		return nil, nil
 	}
 
-	peerRefs := []runtimev1alpha1.TypedReference{}
+	peerRefs := []runtimev1.TypedReference{}
 	l := &unstructured.UnstructuredList{}
 	l.SetGroupVersionKind(wlRef.GroupVersionKind())
 
@@ -362,7 +362,7 @@ func getVersioningPeerWorkloadRefs(ctx context.Context, c client.Reader, wlRef r
 		if obj.GetName() == o.GetName() {
 			continue
 		}
-		tmpRef := runtimev1alpha1.TypedReference{}
+		tmpRef := runtimev1.TypedReference{}
 		tmpRef.SetGroupVersionKind(obj.GroupVersionKind())
 		tmpRef.Name = obj.GetName()
 		peerRefs = append(peerRefs, tmpRef)

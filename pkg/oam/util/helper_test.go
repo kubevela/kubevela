@@ -20,13 +20,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"hash/adler32"
 	"os"
 	"reflect"
 	"testing"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	"github.com/crossplane/crossplane-runtime/pkg/resource/fake"
+	"github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -118,7 +118,7 @@ func TestLocateParentAppConfig(t *testing.T) {
 	}{
 		"LocateParentAppConfig fail when getAppConfig fails": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					return getErr
 				},
 				oamObj: &mockComp,
@@ -131,7 +131,7 @@ func TestLocateParentAppConfig(t *testing.T) {
 
 		"LocateParentAppConfig fail when no ApplicationConfiguration in OwnerReferences": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					return getErr
 				},
 				oamObj: &mockCompWithEmptyOwnerRef,
@@ -143,7 +143,7 @@ func TestLocateParentAppConfig(t *testing.T) {
 		},
 		"LocateParentAppConfig success": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					o, _ := obj.(*v1alpha2.ApplicationConfiguration)
 					ac := mockAC
 					*o = ac
@@ -187,7 +187,7 @@ func TestFetchWorkloadTraitReference(t *testing.T) {
 		},
 		Spec: v1alpha2.ManualScalerTraitSpec{
 			ReplicaCount: 3,
-			WorkloadReference: v1alpha1.TypedReference{
+			WorkloadReference: v1.TypedReference{
 				APIVersion: "apiversion",
 				Kind:       "Kind",
 			},
@@ -231,7 +231,7 @@ func TestFetchWorkloadTraitReference(t *testing.T) {
 		"FetchWorkload fails when getWorkload fails": {
 			fields: fields{
 				trait: &manualScalar,
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					return workloadErr
 				},
 			},
@@ -243,7 +243,7 @@ func TestFetchWorkloadTraitReference(t *testing.T) {
 		"FetchWorkload succeeds when getWorkload succeeds": {
 			fields: fields{
 				trait: &manualScalar,
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					o, _ := obj.(*unstructured.Unstructured)
 					*o = *uwl
 					return nil
@@ -334,7 +334,7 @@ func TestScopeRelatedUtils(t *testing.T) {
 	}{
 		"FetchScopeDefinition fail when getScopeDefinition fails": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					return getErr
 				},
 			},
@@ -346,7 +346,7 @@ func TestScopeRelatedUtils(t *testing.T) {
 
 		"FetchScopeDefinition Success": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					o, _ := obj.(*v1alpha2.ScopeDefinition)
 					sd := mockScopeDefinition
 					*o = sd
@@ -427,7 +427,7 @@ func TestTraitHelper(t *testing.T) {
 	}{
 		"FetchTraitDefinition fail when getTraitDefinition fails": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					return getErr
 				},
 			},
@@ -439,7 +439,7 @@ func TestTraitHelper(t *testing.T) {
 
 		"FetchTraitDefinition Success": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					o, _ := obj.(*v1alpha2.TraitDefinition)
 					td := mockTraitDefinition
 					*o = td
@@ -514,7 +514,7 @@ func TestUtils(t *testing.T) {
 	}{
 		"FetchWorkloadDefinition fail when getWorkloadDefinition fails": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					return getErr
 				},
 			},
@@ -526,7 +526,7 @@ func TestUtils(t *testing.T) {
 
 		"FetchWorkloadDefinition Success": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					o, _ := obj.(*v1alpha2.WorkloadDefinition)
 					w := workloadDefinition
 					*o = w
@@ -619,7 +619,7 @@ func TestChildResources(t *testing.T) {
 			UID: "NotWorkloadUID",
 		},
 	})
-	var nilListFunc test.ObjectFn = func(o runtime.Object) error {
+	var nilListFunc test.ObjectListFn = func(o client.ObjectList) error {
 		u := &unstructured.Unstructured{}
 		l := o.(*unstructured.UnstructuredList)
 		l.Items = []unstructured.Unstructured{*u}
@@ -627,7 +627,7 @@ func TestChildResources(t *testing.T) {
 	}
 	type fields struct {
 		getFunc  test.ObjectFn
-		listFunc test.ObjectFn
+		listFunc test.ObjectListFn
 	}
 	type want struct {
 		crks []*unstructured.Unstructured
@@ -640,7 +640,7 @@ func TestChildResources(t *testing.T) {
 	}{
 		"FetchWorkloadChildResources fail when getWorkloadDefinition fails": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					return getErr
 				},
 				listFunc: nilListFunc,
@@ -652,7 +652,7 @@ func TestChildResources(t *testing.T) {
 		},
 		"FetchWorkloadChildResources return nothing when the workloadDefinition doesn't have child list": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					o, _ := obj.(*v1alpha2.WorkloadDefinition)
 					*o = workloadDefinition
 					return nil
@@ -666,14 +666,14 @@ func TestChildResources(t *testing.T) {
 		},
 		"FetchWorkloadChildResources Success": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					o, _ := obj.(*v1alpha2.WorkloadDefinition)
 					w := workloadDefinition
 					w.Spec.ChildResourceKinds = crkl
 					*o = w
 					return nil
 				},
-				listFunc: func(o runtime.Object) error {
+				listFunc: func(o client.ObjectList) error {
 					l := o.(*unstructured.UnstructuredList)
 					switch l.GetKind() {
 					case util.KindDeployment:
@@ -695,14 +695,14 @@ func TestChildResources(t *testing.T) {
 		},
 		"FetchWorkloadChildResources with many resources only pick the child one": {
 			fields: fields{
-				getFunc: func(obj runtime.Object) error {
+				getFunc: func(obj client.Object) error {
 					o, _ := obj.(*v1alpha2.WorkloadDefinition)
 					w := workloadDefinition
 					w.Spec.ChildResourceKinds = crkl
 					*o = w
 					return nil
 				},
-				listFunc: func(o runtime.Object) error {
+				listFunc: func(o client.ObjectList) error {
 					l := o.(*unstructured.UnstructuredList)
 					l.Items = []unstructured.Unstructured{oResource, oResource, oResource, oResource,
 						oResource, oResource, oResource}
@@ -834,12 +834,12 @@ func TestConvertWorkloadGVK2Def(t *testing.T) {
 	mapper := mock.NewMockDiscoveryMapper()
 
 	mapper.MockRESTMapping = mock.NewMockRESTMapping("clonesets")
-	ref, err := util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "apps.kruise.io/v1alpha1",
+	ref, err := util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "apps.kruise.io/v1",
 		Kind: "CloneSet"})
 	assert.NoError(t, err)
 	assert.Equal(t, common.DefinitionReference{
 		Name:    "clonesets.apps.kruise.io",
-		Version: "v1alpha1",
+		Version: "v1",
 	}, ref)
 
 	mapper.MockRESTMapping = mock.NewMockRESTMapping("deployments")
@@ -986,11 +986,12 @@ func TestDeepHashObject(t *testing.T) {
 }
 
 func TestPatchCondition(t *testing.T) {
+	workload := v1alpha1.PodSpecWorkload{}
 	type args struct {
 		ctx       context.Context
 		r         client.StatusClient
 		workload  util.ConditionedObject
-		condition []v1alpha1.Condition
+		condition []v1.Condition
 	}
 	patchErr := fmt.Errorf("eww")
 	tests := []struct {
@@ -1005,10 +1006,7 @@ func TestPatchCondition(t *testing.T) {
 				r: &test.MockClient{
 					MockStatusPatch: test.NewMockStatusPatchFn(nil),
 				},
-				workload: &fake.Target{},
-				condition: []v1alpha1.Condition{
-					{},
-				},
+				workload: &workload,
 			},
 			expected: nil,
 		},
@@ -1019,8 +1017,8 @@ func TestPatchCondition(t *testing.T) {
 				r: &test.MockClient{
 					MockStatusPatch: test.NewMockStatusPatchFn(patchErr),
 				},
-				workload: &fake.Target{},
-				condition: []v1alpha1.Condition{
+				workload:  &workload,
+				condition: []v1.Condition{
 					{},
 				},
 			},
@@ -1079,7 +1077,7 @@ func TestComponentHelper(t *testing.T) {
 		},
 	}
 
-	client := &test.MockClient{MockGet: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+	client := &test.MockClient{MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 		if o, ok := obj.(*v1alpha2.Component); ok {
 			switch key.Name {
 			case componentName:
@@ -1438,7 +1436,7 @@ func TestGetDefinitionError(t *testing.T) {
 	errNotFound := apierrors.NewNotFound(schema.GroupResource{Group: "core.oma.dev", Resource: "traitDefinition"}, "mock")
 	errNeedNamespace := fmt.Errorf("an empty namespace may not be set when a resource name is provided")
 
-	getFunc := func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+	getFunc := func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 		ns := key.Namespace
 		if ns != "" {
 			return errNotFound
@@ -1506,7 +1504,7 @@ func TestGetDefinitionWithClusterScope(t *testing.T) {
 		mockIndexer[key] = tdList[i]
 	}
 
-	getFunc := func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+	getFunc := func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 		var namespacedName string
 		if key.Namespace != "" {
 			namespacedName = key.Namespace + "/" + key.Name
@@ -1619,7 +1617,7 @@ func TestGetWorkloadDefinition(t *testing.T) {
 
 		"app defintion will overlay system definition": {
 			fields: fields{
-				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					o := obj.(*v1alpha2.WorkloadDefinition)
 					if key.Namespace == "vela-system" {
 						*o = sysWorkloadDefinition
@@ -1637,7 +1635,7 @@ func TestGetWorkloadDefinition(t *testing.T) {
 
 		"return system definiton when cannot find in app ns": {
 			fields: fields{
-				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					if key.Namespace == "vela-system" {
 						o := obj.(*v1alpha2.WorkloadDefinition)
 						*o = sysWorkloadDefinition
@@ -1710,7 +1708,7 @@ func TestGetTraitDefinition(t *testing.T) {
 	}{
 		"app defintion will overlay system definition": {
 			fields: fields{
-				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					o := obj.(*v1alpha2.TraitDefinition)
 					if key.Namespace == "vela-system" {
 						*o = sysTraitDefinition
@@ -1728,7 +1726,7 @@ func TestGetTraitDefinition(t *testing.T) {
 
 		"return system definiton when cannot find in app ns": {
 			fields: fields{
-				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					if key.Namespace == "vela-system" {
 						o := obj.(*v1alpha2.TraitDefinition)
 						*o = sysTraitDefinition
@@ -1784,7 +1782,7 @@ func TestGetDefinition(t *testing.T) {
 		},
 	}
 
-	cli := test.MockClient{MockGet: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+	cli := test.MockClient{MockGet: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 		o := obj.(*v1alpha2.TraitDefinition)
 		switch key.Namespace {
 		case "vela-system":
@@ -1872,7 +1870,7 @@ func TestGetScopeDefiniton(t *testing.T) {
 	}{
 		"app defintion will overlay system definition": {
 			fields: fields{
-				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					o := obj.(*v1alpha2.ScopeDefinition)
 					if key.Namespace == "vela-system" {
 						*o = sysScopeDefinition
@@ -1890,7 +1888,7 @@ func TestGetScopeDefiniton(t *testing.T) {
 
 		"return system definiton when cannot find in app ns": {
 			fields: fields{
-				getFunc: func(ctx context.Context, key client.ObjectKey, obj runtime.Object) error {
+				getFunc: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 					if key.Namespace == "vela-system" {
 						o := obj.(*v1alpha2.ScopeDefinition)
 						*o = sysScopeDefinition

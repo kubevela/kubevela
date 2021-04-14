@@ -17,7 +17,7 @@ limitations under the License.
 package v1alpha2
 
 import (
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -31,13 +31,13 @@ type ManualScalerTraitSpec struct {
 	ReplicaCount int32 `json:"replicaCount"`
 
 	// WorkloadReference to the workload this trait applies to.
-	WorkloadReference runtimev1alpha1.TypedReference `json:"workloadRef"`
+	WorkloadReference runtimev1.TypedReference `json:"workloadRef"`
 }
 
 // A ManualScalerTraitStatus represents the observed state of a
 // ManualScalerTrait.
 type ManualScalerTraitStatus struct {
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	runtimev1.ConditionedStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true

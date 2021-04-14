@@ -20,7 +20,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/go-logr/logr"
@@ -60,13 +60,11 @@ type Reconciler struct {
 	Scheme     *runtime.Scheme
 	applicator apply.Applicator
 }
-
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications/status,verbs=get;update;patch
 
 // Reconcile process app event
-func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	applog := r.Log.WithValues("application", req.NamespacedName)
 	app := new(v1beta1.Application)
 	if err := r.Get(ctx, client.ObjectKey{
@@ -94,7 +92,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		needUpdate, err := handler.removeResourceTracker(ctx)
 		if err != nil {
 			applog.Error(err, "Failed to remove application resourceTracker")
-			app.Status.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
+			app.Status.SetConditions(v1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
 			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
 		}
 		if needUpdate {
@@ -188,9 +186,9 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return handler.handleErr(err)
 	}
 	// Gather status of components
-	var refComps []v1alpha1.TypedReference
+	var refComps []v1.TypedReference
 	for _, comp := range comps {
-		refComps = append(refComps, v1alpha1.TypedReference{
+		refComps = append(refComps, v1.TypedReference{
 			APIVersion: comp.APIVersion,
 			Kind:       comp.Kind,
 			Name:       comp.Name,

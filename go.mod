@@ -11,7 +11,7 @@ require (
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/briandowns/spinner v1.11.1
 	github.com/coreos/prometheus-operator v0.41.1
-	github.com/crossplane/crossplane-runtime v0.10.0
+	github.com/crossplane/crossplane-runtime v0.13.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v1.7.1
 	github.com/evanphx/json-patch v4.9.0+incompatible
@@ -38,7 +38,7 @@ require (
 	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/oam-dev/trait-injector v0.0.0-20200331033130-0a27b176ffc4
 	github.com/olekukonko/tablewriter v0.0.2
-	github.com/onsi/ginkgo v1.13.0
+	github.com/onsi/ginkgo v1.14.1
 	github.com/onsi/gomega v1.10.3
 	github.com/openkruise/kruise-api v0.7.0
 	github.com/pkg/errors v0.9.1
@@ -61,33 +61,30 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 	gotest.tools v2.2.0+incompatible
-	helm.sh/helm/v3 v3.2.4
+	helm.sh/helm/v3 v3.5.3
 	istio.io/api v0.0.0-20210128181506-0c4b8e54850f
 	istio.io/client-go v0.0.0-20210128182905-ee2edd059e02
-	k8s.io/api v0.18.8
-	k8s.io/apiextensions-apiserver v0.18.6
-	k8s.io/apimachinery v0.18.8
-	k8s.io/cli-runtime v0.18.6
-	k8s.io/client-go v12.0.0+incompatible
+	k8s.io/api v0.20.2
+	k8s.io/apiextensions-apiserver v0.20.2
+	k8s.io/apimachinery v0.20.2
+	k8s.io/cli-runtime v0.20.2
+	k8s.io/client-go v0.20.2
 	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.4.0
-	k8s.io/kube-openapi v0.0.0-20200410145947-bcb3869e6f29
-	k8s.io/kubectl v0.18.6
+	k8s.io/kube-openapi v0.0.0-20201113171705-d219536bb9fd
+	k8s.io/kubectl v0.20.2
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
-	sigs.k8s.io/controller-runtime v0.6.2
+	sigs.k8s.io/controller-runtime v0.8.0
 	sigs.k8s.io/controller-tools v0.2.4
 	sigs.k8s.io/kind v0.9.0
 	sigs.k8s.io/yaml v1.2.0
 )
 
 replace (
-	github.com/Azure/go-autorest => github.com/Azure/go-autorest v12.2.0+incompatible // https://github.com/kubernetes/client-go/issues/628
 	// fix build issue https://github.com/docker/distribution/issues/2406
 	github.com/docker/distribution => github.com/docker/distribution v0.0.0-20191216044856-a8371794149d
 	github.com/docker/docker => github.com/moby/moby v17.12.0-ce-rc1.0.20200618181300-9dc6525e6118+incompatible
 	github.com/wercker/stern => github.com/oam-dev/stern v1.13.0-alpha
 	// fix build issue https://github.com/ory/dockertest/issues/208
 	golang.org/x/sys => golang.org/x/sys v0.0.0-20210320140829-1e4c9ba3b0c4
-	// clint-go had a buggy release, https://github.com/kubernetes/client-go/issues/749
-	k8s.io/client-go => k8s.io/client-go v0.18.8
 )

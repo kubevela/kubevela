@@ -20,7 +20,7 @@ import (
 	"context"
 	"net/http"
 
-	admissionv1beta1 "k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	apimachineryvalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -56,11 +56,11 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 	}
 
 	switch req.AdmissionRequest.Operation {
-	case admissionv1beta1.Create:
+	case admissionv1.Create:
 		if allErrs := ValidateCreate(obj); len(allErrs) > 0 {
 			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
 		}
-	case admissionv1beta1.Update:
+	case admissionv1.Update:
 		oldObj := &v1alpha1.PodSpecWorkload{}
 		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldObj); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)

@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"strings"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
@@ -146,7 +146,7 @@ func (a *workloads) Apply(ctx context.Context, status []v1alpha2.WorkloadStatus,
 				return err
 			}
 		}
-		workloadRef := runtimev1alpha1.TypedReference{
+		workloadRef := runtimev1.TypedReference{
 			APIVersion: wl.Workload.GetAPIVersion(),
 			Kind:       wl.Workload.GetKind(),
 			Name:       wl.Workload.GetName(),
@@ -344,7 +344,7 @@ func findDereferencedScopes(statusScopes []v1alpha2.WorkloadScope, scopes []unst
 	return toBeDeferenced
 }
 
-func (a *workloads) applyScope(ctx context.Context, wl Workload, s unstructured.Unstructured, workloadRef runtimev1alpha1.TypedReference) error {
+func (a *workloads) applyScope(ctx context.Context, wl Workload, s unstructured.Unstructured, workloadRef runtimev1.TypedReference) error {
 	// get ScopeDefinition
 	scopeDefinition, err := util.FetchScopeDefinition(ctx, a.rawClient, a.dm, &s)
 	if err != nil {
@@ -388,7 +388,7 @@ func (a *workloads) applyScope(ctx context.Context, wl Workload, s unstructured.
 
 // applyScopeRemoval remove the workload reference from the scope's reference list.
 // If the scope or scope definition is not found(deleted), it's still regarded as remove successfully.
-func (a *workloads) applyScopeRemoval(ctx context.Context, namespace string, wr runtimev1alpha1.TypedReference, s v1alpha2.WorkloadScope) error {
+func (a *workloads) applyScopeRemoval(ctx context.Context, namespace string, wr runtimev1.TypedReference, s v1alpha2.WorkloadScope) error {
 	scopeObject := unstructured.Unstructured{}
 	scopeObject.SetAPIVersion(s.Reference.APIVersion)
 	scopeObject.SetKind(s.Reference.Kind)

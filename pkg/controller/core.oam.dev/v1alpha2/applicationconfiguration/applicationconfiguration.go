@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
@@ -205,7 +205,7 @@ func NewReconciler(m ctrl.Manager, dm discoverymapper.DiscoveryMapper, log loggi
 
 // Reconcile an OAM ApplicationConfigurations by rendering and instantiating its
 // Components and Traits.
-func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
+func (r *OAMApplicationReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("request", req)
 	log.Debug("Reconciling")
 
@@ -232,7 +232,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (reconcile.R
 			log.Debug("Failed to finalize workloads", "workloads status", ac.Status.Workloads,
 				"error", err)
 			r.record.Event(ac, event.Warning(reasonCannotFinalizeWorkloads, err))
-			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errFinalizeWorkloads)))
+			ac.SetConditions(v1.ReconcileError(errors.Wrap(err, errFinalizeWorkloads)))
 			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 		}
 		return reconcile.Result{}, errors.Wrap(r.client.Update(ctx, ac), errUpdateAppConfigStatus)
@@ -262,7 +262,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 				log.Debug("Failed to execute post-hooks", "hook name", name, "error", err,
 					"requeue-after", result.RequeueAfter)
 				r.record.Event(ac, event.Warning(reasonCannotExecutePosthooks, err))
-				ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errExecutePosthooks)))
+				ac.SetConditions(v1.ReconcileError(errors.Wrap(err, errExecutePosthooks)))
 				result = exeResult
 				return
 			}
@@ -277,7 +277,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 		if err != nil {
 			log.Debug("Failed to execute pre-hooks", "hook name", name, "error", err, "requeue-after", result.RequeueAfter)
 			r.record.Event(ac, event.Warning(reasonCannotExecutePrehooks, err))
-			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errExecutePrehooks)))
+			ac.SetConditions(v1.ReconcileError(errors.Wrap(err, errExecutePrehooks)))
 			return result
 		}
 		r.record.Event(ac, event.Normal(reasonExecutePrehook, "Successfully executed a prehook", "prehook name ", name))
@@ -291,7 +291,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 			msg := "Encounter an application revision, no need to reconcile"
 			log.Info(msg)
 			r.record.Event(ac, event.Normal(reasonRevision, msg))
-			ac.SetConditions(v1alpha1.Unavailable())
+			ac.SetConditions(v1.Unavailable())
 			ac.Status.RollingStatus = oamtype.InactiveAfterRollingCompleted
 			// TODO: GC the traits/workloads
 			return reconcile.Result{}
@@ -302,7 +302,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 	if err != nil {
 		log.Info("Cannot render components", "error", err)
 		r.record.Event(ac, event.Warning(reasonCannotRenderComponents, err))
-		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errRenderComponents)))
+		ac.SetConditions(v1.ReconcileError(errors.Wrap(err, errRenderComponents)))
 		return reconcile.Result{}
 	}
 	log.Debug("Successfully rendered components", "workloads", len(workloads))
@@ -313,7 +313,7 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 	if err := r.workloads.Apply(ctx, ac.Status.Workloads, workloads, applyOpts...); err != nil {
 		log.Debug("Cannot apply workload", "error", err)
 		r.record.Event(ac, event.Warning(reasonCannotApplyComponents, err))
-		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyComponents)))
+		ac.SetConditions(v1.ReconcileError(errors.Wrap(err, errApplyComponents)))
 		return reconcile.Result{}
 	}
 	// only change the status after the apply succeeds
@@ -341,13 +341,13 @@ func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2
 		if err != nil {
 			log.Debug("confirm component can't be garbage collected", "error", err)
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
-			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGCComponent)))
+			ac.SetConditions(v1.ReconcileError(errors.Wrap(err, errGCComponent)))
 			return reconcile.Result{}
 		}
 		if err := r.client.Delete(ctx, &e); resource.IgnoreNotFound(err) != nil {
 			log.Debug("Cannot garbage collect component", "error", err)
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
-			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGCComponent)))
+			ac.SetConditions(v1.ReconcileError(errors.Wrap(err, errGCComponent)))
 			return reconcile.Result{}
 		}
 		log.Debug("Garbage collected resource")
@@ -438,7 +438,7 @@ func (r *OAMApplicationReconciler) updateStatus(ctx context.Context, ac, acPatch
 			// Trait will not work for these remaining workload
 			historyWorkloads = append(historyWorkloads, v1alpha2.HistoryWorkload{
 				Revision: v.GetName(),
-				Reference: v1alpha1.TypedReference{
+				Reference: v1.TypedReference{
 					APIVersion: v.GetAPIVersion(),
 					Kind:       v.GetKind(),
 					Name:       v.GetName(),
@@ -450,7 +450,7 @@ func (r *OAMApplicationReconciler) updateStatus(ctx context.Context, ac, acPatch
 	ac.Status.HistoryWorkloads = historyWorkloads
 	// patch the extra fields in the status that is wiped by the Status() function
 	patchExtraStatusField(&ac.Status, acPatch.Status)
-	ac.SetConditions(v1alpha1.ReconcileSuccess())
+	ac.SetConditions(v1.ReconcileSuccess())
 }
 
 func updateObservedGeneration(ac *v1alpha2.ApplicationConfiguration) {
@@ -571,7 +571,7 @@ func (w Workload) Status() v1alpha2.WorkloadStatus {
 		ComponentName:         w.ComponentName,
 		ComponentRevisionName: w.ComponentRevisionName,
 		DependencyUnsatisfied: w.HasDep,
-		Reference: v1alpha1.TypedReference{
+		Reference: v1.TypedReference{
 			APIVersion: w.Workload.GetAPIVersion(),
 			Kind:       w.Workload.GetKind(),
 			Name:       w.Workload.GetName(),
@@ -583,7 +583,7 @@ func (w Workload) Status() v1alpha2.WorkloadStatus {
 		if tr.Definition.Name == util.Dummy && tr.Definition.Spec.Reference.Name == util.Dummy {
 			acw.Traits[i].Message = util.DummyTraitMessage
 		}
-		acw.Traits[i].Reference = v1alpha1.TypedReference{
+		acw.Traits[i].Reference = v1.TypedReference{
 			APIVersion: w.Traits[i].Object.GetAPIVersion(),
 			Kind:       w.Traits[i].Object.GetKind(),
 			Name:       w.Traits[i].Object.GetName(),
@@ -591,7 +591,7 @@ func (w Workload) Status() v1alpha2.WorkloadStatus {
 		acw.Traits[i].DependencyUnsatisfied = tr.HasDep
 	}
 	for i, s := range w.Scopes {
-		acw.Scopes[i].Reference = v1alpha1.TypedReference{
+		acw.Scopes[i].Reference = v1.TypedReference{
 			APIVersion: s.GetAPIVersion(),
 			Kind:       s.GetKind(),
 			Name:       s.GetName(),
@@ -633,16 +633,16 @@ func IsRevisionWorkload(status v1alpha2.WorkloadStatus, w []Workload) bool {
 }
 
 func eligible(namespace string, ws []v1alpha2.WorkloadStatus, w []Workload) []unstructured.Unstructured {
-	applied := make(map[v1alpha1.TypedReference]bool)
+	applied := make(map[v1.TypedReference]bool)
 	for _, wl := range w {
-		r := v1alpha1.TypedReference{
+		r := v1.TypedReference{
 			APIVersion: wl.Workload.GetAPIVersion(),
 			Kind:       wl.Workload.GetKind(),
 			Name:       wl.Workload.GetName(),
 		}
 		applied[r] = true
 		for _, t := range wl.Traits {
-			r := v1alpha1.TypedReference{
+			r := v1.TypedReference{
 				APIVersion: t.Object.GetAPIVersion(),
 				Kind:       t.Object.GetKind(),
 				Name:       t.Object.GetName(),
@@ -690,7 +690,7 @@ func (e *GenerationUnchanged) Error() string {
 // applyOnceOnly is an ApplyOption that controls the applying mechanism for workload and trait.
 // More detail refers to the ApplyOnceOnlyMode type annotation
 func applyOnceOnly(ac *v1alpha2.ApplicationConfiguration, mode core.ApplyOnceOnlyMode, log logging.Logger) apply.ApplyOption {
-	return func(_ context.Context, existing, desired runtime.Object) error {
+	return func(_ context.Context, existing, desired client.Object) error {
 		if mode == core.ApplyOnceOnlyOff {
 			return nil
 		}

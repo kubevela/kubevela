@@ -17,7 +17,7 @@
 package v1beta1
 
 import (
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -59,7 +59,7 @@ type ComponentDefinitionSpec struct {
 // ComponentDefinitionStatus is the status of ComponentDefinition
 type ComponentDefinitionStatus struct {
 	// ConditionedStatus reflects the observed status of a resource
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	runtimev1.ConditionedStatus `json:",inline"`
 	// ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
 	ConfigMapRef string `json:"configMapRef,omitempty"`
 }
@@ -82,12 +82,12 @@ type ComponentDefinition struct {
 }
 
 // SetConditions set condition for WorkloadDefinition
-func (cd *ComponentDefinition) SetConditions(c ...runtimev1alpha1.Condition) {
+func (cd *ComponentDefinition) SetConditions(c ...runtimev1.Condition) {
 	cd.Status.SetConditions(c...)
 }
 
 // GetCondition gets condition from WorkloadDefinition
-func (cd *ComponentDefinition) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+func (cd *ComponentDefinition) GetCondition(conditionType runtimev1.ConditionType) runtimev1.Condition {
 	return cd.Status.GetCondition(conditionType)
 }
 

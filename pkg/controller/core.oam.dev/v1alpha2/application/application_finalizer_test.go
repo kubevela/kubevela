@@ -25,7 +25,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/ghodss/yaml"
 
@@ -276,7 +276,7 @@ var _ = Describe("Test finalizer related func", func() {
 			},
 		}
 		Expect(k8sClient.Create(ctx, rt)).Should(BeNil())
-		app.Status.ResourceTracker = &runtimev1alpha1.TypedReference{
+		app.Status.ResourceTracker = &runtimev1.TypedReference{
 			Name:       rt.Name,
 			Kind:       v1beta1.ResourceTrackerGroupKind,
 			APIVersion: v1beta1.ResourceTrackerKindAPIVersion,

@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	cpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
@@ -293,7 +293,7 @@ func SetNamespaceInCtx(ctx context.Context, namespace string) context.Context {
 }
 
 // GetDefinition get definition from two level namespace
-func GetDefinition(ctx context.Context, cli client.Reader, definition runtime.Object, definitionName string) error {
+func GetDefinition(ctx context.Context, cli client.Reader, definition client.Object, definitionName string) error {
 	if dns := os.Getenv(DefinitionNamespaceEnv); dns != "" {
 		if err := cli.Get(ctx, types.NamespacedName{Name: definitionName, Namespace: dns}, definition); err == nil {
 			return nil
@@ -375,7 +375,7 @@ func fetchChildResources(ctx context.Context, mLog logr.Logger, r client.Reader,
 
 // PatchCondition condition for a conditioned object
 func PatchCondition(ctx context.Context, r client.StatusClient, workload ConditionedObject,
-	condition ...cpv1alpha1.Condition) error {
+	condition ...cpv1.Condition) error {
 	workloadPatch := client.MergeFrom(workload.DeepCopyObject())
 	workload.SetConditions(condition...)
 	return errors.Wrap(

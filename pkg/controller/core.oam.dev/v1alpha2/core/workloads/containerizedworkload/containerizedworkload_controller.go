@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"strings"
 
-	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	cpv1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/go-logr/logr"
@@ -76,8 +76,7 @@ type Reconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
-func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.log.WithValues("containerizedworkload", req.NamespacedName)
 	log.Info("Reconcile container workload")
 
@@ -101,7 +100,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		log.Error(err, "Failed to render a deployment")
 		r.record.Event(eventObj, event.Warning(errRenderWorkload, err))
 		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderWorkload)))
+			util.PatchCondition(ctx, r, &workload, cpv1.ReconcileError(errors.Wrap(err, errRenderWorkload)))
 	}
 	// server side apply, only the fields we set are touched
 	applyOpts := []client.PatchOption{client.ForceOwnership, client.FieldOwner(workload.GetUID())}
@@ -109,7 +108,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		log.Error(err, "Failed to apply to a deployment")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyDeployment)))
+			util.PatchCondition(ctx, r, &workload, cpv1.ReconcileError(errors.Wrap(err, errApplyDeployment)))
 	}
 	r.record.Event(eventObj, event.Normal("Deployment created",
 		fmt.Sprintf("Workload `%s` successfully server side patched a deployment `%s`",
@@ -121,14 +120,14 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		log.Error(err, "Failed to render configmaps")
 		r.record.Event(eventObj, event.Warning(errRenderWorkload, err))
 		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderWorkload)))
+			util.PatchCondition(ctx, r, &workload, cpv1.ReconcileError(errors.Wrap(err, errRenderWorkload)))
 	}
 	for _, cm := range configmaps {
 		if err := r.Patch(ctx, cm, client.Apply, configMapApplyOpts...); err != nil {
 			log.Error(err, "Failed to apply a configmap")
 			r.record.Event(eventObj, event.Warning(errApplyConfigMap, err))
 			return util.ReconcileWaitResult,
-				util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyConfigMap)))
+				util.PatchCondition(ctx, r, &workload, cpv1.ReconcileError(errors.Wrap(err, errApplyConfigMap)))
 		}
 		r.record.Event(eventObj, event.Normal("ConfigMap created",
 			fmt.Sprintf("Workload `%s` successfully server side patched a configmap `%s`",
@@ -141,14 +140,14 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		log.Error(err, "Failed to render a service")
 		r.record.Event(eventObj, event.Warning(errRenderService, err))
 		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errRenderService)))
+			util.PatchCondition(ctx, r, &workload, cpv1.ReconcileError(errors.Wrap(err, errRenderService)))
 	}
 	// server side apply the service
 	if err := r.Patch(ctx, service, client.Apply, applyOpts...); err != nil {
 		log.Error(err, "Failed to apply a service")
 		r.record.Event(eventObj, event.Warning(errApplyDeployment, err))
 		return util.ReconcileWaitResult,
-			util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileError(errors.Wrap(err, errApplyService)))
+			util.PatchCondition(ctx, r, &workload, cpv1.ReconcileError(errors.Wrap(err, errApplyService)))
 	}
 	r.record.Event(eventObj, event.Normal("Service created",
 		fmt.Sprintf("Workload `%s` successfully server side patched a service `%s`",
@@ -161,13 +160,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	workload.Status.Resources = nil
 	// record the new deployment, new service
 	workload.Status.Resources = append(workload.Status.Resources,
-		cpv1alpha1.TypedReference{
+		cpv1.TypedReference{
 			APIVersion: deploy.GetObjectKind().GroupVersionKind().GroupVersion().String(),
 			Kind:       deploy.GetObjectKind().GroupVersionKind().Kind,
 			Name:       deploy.GetName(),
 			UID:        deploy.UID,
 		},
-		cpv1alpha1.TypedReference{
+		cpv1.TypedReference{
 			APIVersion: service.GetObjectKind().GroupVersionKind().GroupVersion().String(),
 			Kind:       service.GetObjectKind().GroupVersionKind().Kind,
 			Name:       service.GetName(),
@@ -178,7 +177,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err := r.UpdateStatus(ctx, &workload); err != nil {
 		return util.ReconcileWaitResult, err
 	}
-	return ctrl.Result{}, util.PatchCondition(ctx, r, &workload, cpv1alpha1.ReconcileSuccess())
+	return ctrl.Result{}, util.PatchCondition(ctx, r, &workload, cpv1.ReconcileSuccess())
 }
 
 // UpdateStatus updates v1alpha2.ContainerizedWorkload's Status with retry.RetryOnConflict

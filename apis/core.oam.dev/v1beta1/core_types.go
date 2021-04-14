@@ -17,7 +17,7 @@
 package v1beta1
 
 import (
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -59,7 +59,7 @@ type WorkloadDefinitionSpec struct {
 
 // WorkloadDefinitionStatus is the status of WorkloadDefinition
 type WorkloadDefinitionStatus struct {
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	runtimev1.ConditionedStatus `json:",inline"`
 }
 
 // +kubebuilder:object:root=true
@@ -82,12 +82,12 @@ type WorkloadDefinition struct {
 }
 
 // SetConditions set condition for WorkloadDefinition
-func (wd *WorkloadDefinition) SetConditions(c ...runtimev1alpha1.Condition) {
+func (wd *WorkloadDefinition) SetConditions(c ...runtimev1.Condition) {
 	wd.Status.SetConditions(c...)
 }
 
 // GetCondition gets condition from WorkloadDefinition
-func (wd *WorkloadDefinition) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+func (wd *WorkloadDefinition) GetCondition(conditionType runtimev1.ConditionType) runtimev1.Condition {
 	return wd.Status.GetCondition(conditionType)
 }
 
@@ -153,7 +153,7 @@ type TraitDefinitionSpec struct {
 // TraitDefinitionStatus is the status of TraitDefinition
 type TraitDefinitionStatus struct {
 	// ConditionedStatus reflects the observed status of a resource
-	runtimev1alpha1.ConditionedStatus `json:",inline"`
+	runtimev1.ConditionedStatus `json:",inline"`
 	// ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
 	ConfigMapRef string `json:"configMapRef,omitempty"`
 }
@@ -179,12 +179,12 @@ type TraitDefinition struct {
 }
 
 // SetConditions set condition for TraitDefinition
-func (td *TraitDefinition) SetConditions(c ...runtimev1alpha1.Condition) {
+func (td *TraitDefinition) SetConditions(c ...runtimev1.Condition) {
 	td.Status.SetConditions(c...)
 }
 
 // GetCondition gets condition from TraitDefinition
-func (td *TraitDefinition) GetCondition(conditionType runtimev1alpha1.ConditionType) runtimev1alpha1.Condition {
+func (td *TraitDefinition) GetCondition(conditionType runtimev1.ConditionType) runtimev1.Condition {
 	return td.Status.GetCondition(conditionType)
 }
 

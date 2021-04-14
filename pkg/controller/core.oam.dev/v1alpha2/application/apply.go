@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1 "github.com/crossplane/crossplane-runtime/apis/common/v1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/go-logr/logr"
@@ -51,21 +51,21 @@ import (
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-func errorCondition(tpy string, err error) runtimev1alpha1.Condition {
-	return runtimev1alpha1.Condition{
-		Type:               runtimev1alpha1.ConditionType(tpy),
+func errorCondition(tpy string, err error) runtimev1.Condition {
+	return runtimev1.Condition{
+		Type:               runtimev1.ConditionType(tpy),
 		Status:             v1.ConditionFalse,
 		LastTransitionTime: metav1.NewTime(time.Now()),
-		Reason:             runtimev1alpha1.ReasonReconcileError,
+		Reason:             runtimev1.ReasonReconcileError,
 		Message:            err.Error(),
 	}
 }
 
-func readyCondition(tpy string) runtimev1alpha1.Condition {
-	return runtimev1alpha1.Condition{
-		Type:               runtimev1alpha1.ConditionType(tpy),
+func readyCondition(tpy string) runtimev1.Condition {
+	return runtimev1.Condition{
+		Type:               runtimev1.ConditionType(tpy),
 		Status:             v1.ConditionTrue,
-		Reason:             runtimev1alpha1.ReasonAvailable,
+		Reason:             runtimev1.ReasonAvailable,
 		LastTransitionTime: metav1.NewTime(time.Now()),
 	}
 }
@@ -224,7 +224,7 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 			}
 		}
 
-		workloadHealth, err := wl.EvalHealth(pCtx, h.r, h.app.Namespace)
+		workloadHealth, err := wl.EvalHealth(pCtx, h.r.Client, h.app.Namespace)
 		if err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appFile.Name, wl.Name)
 		}
@@ -234,7 +234,7 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 			healthy = false
 		}
 
-		status.Message, err = wl.EvalStatus(pCtx, h.r, h.app.Namespace)
+		status.Message, err = wl.EvalStatus(pCtx, h.r.Client, h.app.Namespace)
 		if err != nil {
 			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appFile.Name, wl.Name)
 		}
@@ -244,7 +244,7 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 				Type:    trait.Name,
 				Healthy: true,
 			}
-			traitHealth, err := trait.EvalHealth(pCtx, h.r, h.app.Namespace)
+			traitHealth, err := trait.EvalHealth(pCtx, h.r.Client, h.app.Namespace)
 			if err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, check health error", appFile.Name, wl.Name, trait.Name)
 			}
@@ -253,7 +253,7 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 				traitStatus.Healthy = false
 				healthy = false
 			}
-			traitStatus.Message, err = trait.EvalStatus(pCtx, h.r, h.app.Namespace)
+			traitStatus.Message, err = trait.EvalStatus(pCtx, h.r.Client, h.app.Namespace)
 			if err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate status message error", appFile.Name, wl.Name, trait.Name)
 			}
@@ -303,7 +303,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 		updatedComp.Spec.Helm.Repository.Object = nil
 	}
 	if len(preRevisionName) != 0 {
-		needNewRevision, err := utils.CompareWithRevision(ctx, h.r,
+		needNewRevision, err := utils.CompareWithRevision(ctx, h.r.Client,
 			logging.NewLogrLogger(h.logger), compName, compNameSpace, preRevisionName, &updatedComp.Spec)
 		if err != nil {
 			return "", errors.Wrap(err, fmt.Sprintf("compare with existing controllerRevision %s failed",
@@ -327,7 +327,7 @@ func (h *appHandler) createOrUpdateComponent(ctx context.Context, comp *v1alpha2
 		if curComp.Status.LatestRevision == nil || curComp.Status.LatestRevision.Name == preRevisionName {
 			return false, nil
 		}
-		needNewRevision, err := utils.CompareWithRevision(ctx, h.r, logging.NewLogrLogger(h.logger), compName,
+		needNewRevision, err := utils.CompareWithRevision(ctx, h.r.Client, logging.NewLogrLogger(h.logger), compName,
 			compNameSpace, curComp.Status.LatestRevision.Name, &updatedComp.Spec)
 		if err != nil {
 			// retry no matter what
@@ -626,7 +626,7 @@ func (h *appHandler) garbageCollection(ctx context.Context) error {
 	if err := h.r.Status().Update(ctx, rt); err != nil {
 		return err
 	}
-	h.app.Status.ResourceTracker = &runtimev1alpha1.TypedReference{
+	h.app.Status.ResourceTracker = &runtimev1.TypedReference{
 		Name:       rt.Name,
 		Kind:       v1beta1.ResourceTrackerGroupKind,
 		APIVersion: v1beta1.ResourceTrackerKindAPIVersion,
