@@ -102,6 +102,6 @@ kubectl --namespace monitoring port-forward `kubectl -n monitoring get pods -l p
 
 Then access the Prometheus dashboard via http://localhost:9090/targets
 
-![Prometheus Dashboard](../../../resources/metrics.jpg)
+![Prometheus Dashboard](../../resources/metrics.jpg)
 
 </details>

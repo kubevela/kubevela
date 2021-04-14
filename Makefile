@@ -74,10 +74,10 @@ docs-start:
 ifeq ($(wildcard git-page),)
 	git clone --single-branch --depth 1 https://github.com/oam-dev/kubevela.io.git git-page
 endif
-	rm -r git-page/docs && rm -r git-page/resources
+	rm -r git-page/docs
 	rm git-page/sidebars.js
 	cat docs/sidebars.js > git-page/sidebars.js
-	cp -R docs/en git-page/docs && cp -R docs/resources git-page/resources
+	cp -R docs/en git-page/docs
 	cd git-page && yarn install && yarn start
 
 api-gen:

@@ -4,7 +4,7 @@ slug: /
 
 ---
 
-![alt](../resources/KubeVela-01.png)
+![alt](resources/KubeVela-01.png)
 
 ## Motivation
 

@@ -270,7 +270,7 @@ Metrics server is already enabled.
 
 Metrics server has to be enabled in `Operations/Add-ons` section of [Alibaba Cloud console](https://cs.console.aliyun.com/) as below.
 
-![](../../../../resources/install-metrics-server-in-ASK.jpg)
+![](../../../resources/install-metrics-server-in-ASK.jpg)
 
 Please refer to [metrics server debug guide](https://help.aliyun.com/document_detail/176515.html) if you hit more issue.
 
