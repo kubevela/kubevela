@@ -72,7 +72,7 @@ webhooks:
     {{- if .Values.admissionWebhooks.patch.enabled  }}
     failurePolicy: Ignore
     {{- else }}
-    failurePolicy: Fails
+    failurePolicy: Fail
     {{- end }}
     name: mutating.core.oam-dev.v1alpha2.components
     sideEffects: None
@@ -99,7 +99,7 @@ webhooks:
     {{- if .Values.admissionWebhooks.patch.enabled  }}
     failurePolicy: Ignore
     {{- else }}
-    failurePolicy: Fails
+    failurePolicy: Fail
     {{- end }}
     name: mcontainerized.kb.io
     sideEffects: None
