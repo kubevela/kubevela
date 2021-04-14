@@ -1,7 +1,24 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package appfile
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -10,14 +27,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/appfile/api"
 	"github.com/oam-dev/kubevela/references/appfile/template"
 )
 
 // NewEmptyApplication new empty application, only set tm
-func NewEmptyApplication() (*api.Application, error) {
-	tm, err := template.Load()
+func NewEmptyApplication(namespace string, c common.Args) (*api.Application, error) {
+	tm, err := template.Load(namespace, c)
 	if err != nil {
 		return nil, err
 	}
@@ -52,58 +71,22 @@ func Validate(app *api.Application) error {
 	return nil
 }
 
-// IsNotFound is application not found error
-func IsNotFound(appName string, err error) bool {
-	return err != nil && err.Error() == fmt.Sprintf(`application "%s" not found`, appName)
-}
-
-// LoadApplication will load application with env and name from default vela home dir.
-func LoadApplication(envName, appName string) (*api.Application, error) {
-	app, err := GetStorage().Get(envName, appName)
+// LoadApplication will load application from cluster.
+func LoadApplication(namespace, appName string, c common.Args) (*v1beta1.Application, error) {
+	newClient, err := c.GetClient()
 	if err != nil {
 		return nil, err
 	}
-	err = Validate(app)
-	return app, err
+	app := &v1beta1.Application{}
+	if err := newClient.Get(context.TODO(), client.ObjectKey{Namespace: namespace, Name: appName}, app); err != nil {
+		return nil, err
+	}
+	return app, nil
 }
 
 // Delete will delete an app along with it's appfile.
 func Delete(envName, appName string) error {
 	return GetStorage().Delete(envName, appName)
-}
-
-// List will list all apps
-func List(envName string) ([]*api.Application, error) {
-	respApps, err := GetStorage().List(envName)
-	if err != nil {
-		return nil, err
-	}
-	var apps []*api.Application
-	for _, resp := range respApps {
-		app := NewApplication(resp.AppFile, resp.Tm)
-		err := Validate(app)
-		if err != nil {
-			return nil, err
-		}
-		apps = append(apps, app)
-	}
-	return apps, nil
-}
-
-// MatchAppByComp will get application with componentName without AppName.
-func MatchAppByComp(envName, compName string) (*api.Application, error) {
-	apps, err := List(envName)
-	if err != nil {
-		return nil, err
-	}
-	for _, subapp := range apps {
-		for _, v := range GetComponents(subapp) {
-			if v == compName {
-				return subapp, nil
-			}
-		}
-	}
-	return nil, fmt.Errorf("no app found contains %s in env %s", compName, envName)
 }
 
 // Save will save appfile into default dir.
@@ -112,10 +95,10 @@ func Save(app *api.Application, envName string) error {
 }
 
 // GetComponents will get oam components from Appfile.
-func GetComponents(app *api.Application) []string {
+func GetComponents(app *v1beta1.Application) []string {
 	var components []string
-	for name := range app.Services {
-		components = append(components, name)
+	for _, cmp := range app.Spec.Components {
+		components = append(components, cmp.Name)
 	}
 	sort.Strings(components)
 	return components
@@ -128,6 +111,18 @@ func GetServiceConfig(app *api.Application, componentName string) (string, map[s
 		return "", make(map[string]interface{})
 	}
 	return svc.GetType(), svc.GetApplicationConfig()
+}
+
+// GetApplicationSettings will get service type and it's configuration
+func GetApplicationSettings(app *v1beta1.Application, componentName string) (string, map[string]interface{}) {
+	for _, comp := range app.Spec.Components {
+		if comp.Name == componentName {
+			data := map[string]interface{}{}
+			_ = json.Unmarshal(comp.Properties.Raw, &data)
+			return comp.Type, data
+		}
+	}
+	return "", make(map[string]interface{})
 }
 
 // GetWorkload will get workload type and it's configuration
@@ -163,33 +158,11 @@ func GetTraits(app *api.Application, componentName string) (map[string]map[strin
 	return traitsData, nil
 }
 
-// GetTraitsByType will get trait configuration with specified component and trait type, we assume one type of trait can only attach to a component once.
-func GetTraitsByType(app *api.Application, componentName, traitType string) (map[string]interface{}, error) {
-	service, ok := app.Services[componentName]
-	if !ok {
-		return nil, fmt.Errorf("service name (%s) doesn't exist", componentName)
-	}
-	t, ok := service[traitType]
-	if !ok {
-		return make(map[string]interface{}), nil
-	}
-	return t.(map[string]interface{}), nil
-}
-
 // GetAppConfig will get AppConfig from K8s cluster.
-func GetAppConfig(ctx context.Context, c client.Client, app *api.Application, env *types.EnvMeta) (*v1alpha2.ApplicationConfiguration, error) {
+func GetAppConfig(ctx context.Context, c client.Client, app *v1beta1.Application, env *types.EnvMeta) (*v1alpha2.ApplicationConfiguration, error) {
 	appConfig := &v1alpha2.ApplicationConfiguration{}
 	if err := c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: app.Name}, appConfig); err != nil {
 		return nil, err
 	}
 	return appConfig, nil
-}
-
-// GetApplication will get Application from K8s cluster.
-func GetApplication(ctx context.Context, c client.Client, app *api.Application, env *types.EnvMeta) (*v1alpha2.Application, error) {
-	appl := &v1alpha2.Application{}
-	if err := c.Get(ctx, client.ObjectKey{Namespace: env.Namespace, Name: app.Name}, appl); err != nil {
-		return nil, err
-	}
-	return appl, nil
 }

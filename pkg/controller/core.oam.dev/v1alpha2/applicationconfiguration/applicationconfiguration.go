@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Crossplane Authors.
+Copyright 2021 The Crossplane Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/pkg/event"
+	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
+	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,19 +36,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
-
-	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	"github.com/crossplane/crossplane-runtime/pkg/meta"
-	"github.com/crossplane/crossplane-runtime/pkg/resource"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	oamtype "github.com/oam-dev/kubevela/apis/types"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -85,22 +85,12 @@ const (
 
 // Setup adds a controller that reconciles ApplicationConfigurations.
 func Setup(mgr ctrl.Manager, args core.Args, l logging.Logger) error {
-	dm, err := discoverymapper.New(mgr.GetConfig())
-	if err != nil {
-		return fmt.Errorf("create discovery dm fail %w", err)
-	}
 	name := "oam/" + strings.ToLower(v1alpha2.ApplicationConfigurationGroupKind)
 
 	return ctrl.NewControllerManagedBy(mgr).
 		Named(name).
 		For(&v1alpha2.ApplicationConfiguration{}).
-		Watches(&source.Kind{Type: &v1alpha2.Component{}}, &ComponentHandler{
-			Client:                mgr.GetClient(),
-			Logger:                l,
-			RevisionLimit:         args.RevisionLimit,
-			CustomRevisionHookURL: args.CustomRevisionHookURL,
-		}).
-		Complete(NewReconciler(mgr, dm,
+		Complete(NewReconciler(mgr, args.DiscoveryMapper,
 			l.WithValues("controller", name),
 			WithRecorder(event.NewAPIRecorder(mgr.GetEventRecorderFor(name))),
 			WithApplyOnceOnlyMode(args.ApplyMode)))
@@ -215,7 +205,7 @@ func NewReconciler(m ctrl.Manager, dm discoverymapper.DiscoveryMapper, log loggi
 
 // Reconcile an OAM ApplicationConfigurations by rendering and instantiating its
 // Components and Traits.
-func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reconcile.Result, returnErr error) {
+func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (reconcile.Result, error) {
 	log := r.log.WithValues("request", req)
 	log.Debug("Reconciling")
 
@@ -230,7 +220,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		}
 		return reconcile.Result{}, errors.Wrap(err, errGetAppConfig)
 	}
-	acPatch := ac.DeepCopy()
+
 	ctx = util.SetNamespaceInCtx(ctx, ac.Namespace)
 	if ac.ObjectMeta.DeletionTimestamp.IsZero() {
 		if registerFinalizers(ac) {
@@ -240,7 +230,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 	} else {
 		if err := r.workloads.Finalize(ctx, ac); err != nil {
 			log.Debug("Failed to finalize workloads", "workloads status", ac.Status.Workloads,
-				"error", err, "requeue-after", result.RequeueAfter)
+				"error", err)
 			r.record.Event(ac, event.Warning(reasonCannotFinalizeWorkloads, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errFinalizeWorkloads)))
 			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
@@ -248,30 +238,36 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		return reconcile.Result{}, errors.Wrap(r.client.Update(ctx, ac), errUpdateAppConfigStatus)
 	}
 
-	// make sure this is the last functional defer function to be called
-	defer func() {
-		// always update ac status and set the error
-		returnErr = errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
-		// Make sure if error occurs, reconcile will not happen too frequency
-		if returnErr != nil {
-			result.RequeueAfter = 0
-		}
-	}()
+	reconResult := r.ACReconcile(ctx, ac, log)
+	// always update ac status and set the error
+	err := errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
+	// use the controller build-in backoff mechanism if an error occurs
+	if err != nil {
+		reconResult.RequeueAfter = 0
+	}
+	return reconResult, err
+}
 
+// ACReconcile contains all the reconcile logic of an AC, it can be used by other controller
+func (r *OAMApplicationReconciler) ACReconcile(ctx context.Context, ac *v1alpha2.ApplicationConfiguration,
+	log logging.Logger) (result reconcile.Result) {
+
+	acPatch := ac.DeepCopy()
 	// execute the posthooks at the end no matter what
 	defer func() {
 		updateObservedGeneration(ac)
 		for name, hook := range r.postHooks {
 			exeResult, err := hook.Exec(ctx, ac, log)
 			if err != nil {
-				log.Debug("Failed to execute post-hooks", "hook name", name, "error", err, "requeue-after", result.RequeueAfter)
+				log.Debug("Failed to execute post-hooks", "hook name", name, "error", err,
+					"requeue-after", result.RequeueAfter)
 				r.record.Event(ac, event.Warning(reasonCannotExecutePosthooks, err))
 				ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errExecutePosthooks)))
 				result = exeResult
-				returnErr = errors.Wrap(r.UpdateStatus(ctx, ac), errUpdateAppConfigStatus)
 				return
 			}
-			r.record.Event(ac, event.Normal(reasonExecutePosthook, "Successfully executed a posthook", "posthook name", name))
+			r.record.Event(ac, event.Normal(reasonExecutePosthook, "Successfully executed a posthook",
+				"posthook name", name))
 		}
 	}()
 
@@ -282,7 +278,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 			log.Debug("Failed to execute pre-hooks", "hook name", name, "error", err, "requeue-after", result.RequeueAfter)
 			r.record.Event(ac, event.Warning(reasonCannotExecutePrehooks, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errExecutePrehooks)))
-			return result, nil
+			return result
 		}
 		r.record.Event(ac, event.Normal(reasonExecutePrehook, "Successfully executed a prehook", "prehook name ", name))
 	}
@@ -296,9 +292,9 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 			log.Info(msg)
 			r.record.Event(ac, event.Normal(reasonRevision, msg))
 			ac.SetConditions(v1alpha1.Unavailable())
-			ac.Status.RollingStatus = v1alpha2.InactiveAfterRollingCompleted
+			ac.Status.RollingStatus = oamtype.InactiveAfterRollingCompleted
 			// TODO: GC the traits/workloads
-			return reconcile.Result{}, nil
+			return reconcile.Result{}
 		}
 	}
 
@@ -307,20 +303,28 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 		log.Info("Cannot render components", "error", err)
 		r.record.Event(ac, event.Warning(reasonCannotRenderComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errRenderComponents)))
-		return reconcile.Result{}, nil
+		return reconcile.Result{}
 	}
 	log.Debug("Successfully rendered components", "workloads", len(workloads))
-	r.record.Event(ac, event.Normal(reasonRenderComponents, "Successfully rendered components", "workloads", strconv.Itoa(len(workloads))))
+	r.record.Event(ac, event.Normal(reasonRenderComponents, "Successfully rendered components",
+		"workloads", strconv.Itoa(len(workloads))))
 
 	applyOpts := []apply.ApplyOption{apply.MustBeControllableBy(ac.GetUID()), applyOnceOnly(ac, r.applyOnceOnlyMode, log)}
 	if err := r.workloads.Apply(ctx, ac.Status.Workloads, workloads, applyOpts...); err != nil {
 		log.Debug("Cannot apply workload", "error", err)
 		r.record.Event(ac, event.Warning(reasonCannotApplyComponents, err))
 		ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errApplyComponents)))
-		return reconcile.Result{}, nil
+		return reconcile.Result{}
+	}
+	// only change the status after the apply succeeds
+	// TODO: take into account the templating object may not be applied if there are dependencies
+	if ac.Status.RollingStatus == oamtype.RollingTemplating {
+		klog.InfoS("mark the ac rolling status as templated", "appConfig", klog.KRef(ac.Namespace, ac.Name))
+		ac.Status.RollingStatus = oamtype.RollingTemplated
 	}
 	log.Debug("Successfully applied components", "workloads", len(workloads))
-	r.record.Event(ac, event.Normal(reasonApplyComponents, "Successfully applied components", "workloads", strconv.Itoa(len(workloads))))
+	r.record.Event(ac, event.Normal(reasonApplyComponents, "Successfully applied components",
+		"workloads", strconv.Itoa(len(workloads))))
 
 	// Kubernetes garbage collection will (by default) reap workloads and traits
 	// when the appconfig that controls them (in the controller reference sense)
@@ -338,13 +342,13 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 			log.Debug("confirm component can't be garbage collected", "error", err)
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGCComponent)))
-			return reconcile.Result{}, nil
+			return reconcile.Result{}
 		}
 		if err := r.client.Delete(ctx, &e); resource.IgnoreNotFound(err) != nil {
 			log.Debug("Cannot garbage collect component", "error", err)
 			record.Event(ac, event.Warning(reasonCannotGGComponents, err))
 			ac.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, errGCComponent)))
-			return reconcile.Result{}, nil
+			return reconcile.Result{}
 		}
 		log.Debug("Garbage collected resource")
 		record.Event(ac, event.Normal(reasonGGComponent, "Successfully garbage collected component"))
@@ -361,7 +365,7 @@ func (r *OAMApplicationReconciler) Reconcile(req reconcile.Request) (result reco
 	}
 
 	// the defer function will do the final status update
-	return reconcile.Result{RequeueAfter: waitTime}, nil
+	return reconcile.Result{RequeueAfter: waitTime}
 }
 
 // confirmDeleteOnApplyOnceMode will confirm whether the workload can be delete or not in apply once only enabled mode
@@ -422,7 +426,8 @@ func (r *OAMApplicationReconciler) updateStatus(ctx context.Context, ac, acPatch
 		var ul unstructured.UnstructuredList
 		ul.SetKind(w.Workload.GetKind())
 		ul.SetAPIVersion(w.Workload.GetAPIVersion())
-		if err := r.client.List(ctx, &ul, client.MatchingLabels{oam.LabelAppName: ac.Name, oam.LabelAppComponent: w.ComponentName, oam.LabelOAMResourceType: oam.ResourceTypeWorkload}); err != nil {
+		if err := r.client.List(ctx, &ul, client.MatchingLabels{oam.LabelAppName: ac.Name,
+			oam.LabelAppComponent: w.ComponentName, oam.LabelOAMResourceType: oam.ResourceTypeWorkload}); err != nil {
 			continue
 		}
 		for _, v := range ul.Items {
@@ -700,7 +705,8 @@ func applyOnceOnly(ac *v1alpha2.ApplicationConfiguration, mode core.ApplyOnceOnl
 			dLabels[oam.LabelOAMResourceType] != oam.ResourceTypeTrait {
 			// this ApplyOption only works for workload and trait
 			// skip if the resource is not workload nor trait, e.g., scope
-			log.Info("ignore apply only once check, because resourceType is not workload or trait", oam.LabelOAMResourceType, dLabels[oam.LabelOAMResourceType])
+			log.Info("ignore apply only once check, because resourceType is not workload or trait",
+				oam.LabelOAMResourceType, dLabels[oam.LabelOAMResourceType])
 			return nil
 		}
 
@@ -721,7 +727,8 @@ func applyOnceOnly(ac *v1alpha2.ApplicationConfiguration, mode core.ApplyOnceOnl
 					// the workload matches applied resource
 					createdBefore = true
 					// for workload, when revision enabled, only when revision changed that can trigger to create a new one
-					if dLabels[oam.LabelOAMResourceType] == oam.ResourceTypeWorkload && w.AppliedComponentRevision == dLabels[oam.LabelAppComponentRevision] {
+					if dLabels[oam.LabelOAMResourceType] == oam.ResourceTypeWorkload &&
+						w.AppliedComponentRevision == dLabels[oam.LabelAppComponentRevision] {
 						// the revision is not changed, so return an error to abort creating it
 						return &GenerationUnchanged{}
 					}
@@ -753,7 +760,8 @@ func applyOnceOnly(ac *v1alpha2.ApplicationConfiguration, mode core.ApplyOnceOnl
 				message = "apply only once with mode: force, but resource updated, will create new"
 			}
 			log.Info(message, "appConfig", ac.Name, "gvk", desired.GetObjectKind().GroupVersionKind(), "name", d.GetName(),
-				"resourceType", dLabels[oam.LabelOAMResourceType], "appliedCompRevision", appliedRevision, "labeledCompRevision", dLabels[oam.LabelAppComponentRevision],
+				"resourceType", dLabels[oam.LabelOAMResourceType], "appliedCompRevision", appliedRevision,
+				"labeledCompRevision", dLabels[oam.LabelAppComponentRevision],
 				"appliedGeneration", appliedGeneration, "labeledGeneration", dAnnots[oam.AnnotationAppGeneration])
 
 			// no recorded workloads nor traits matches the applied resource

@@ -1,28 +1,40 @@
-# Core Concepts
+---
+title:  How it Works
+---
+
+*"KubeVela is a scalable way to create PaaS-like experience on Kubernetes"*
 
 In this documentation, we will explain the core idea of KubeVela and clarify some technical terms that are widely used in the project.
 
-## Separate of Concerns
+## Overview
 
 First of all, KubeVela introduces a workflow with separate of concerns as below:
-- **Platform**
-  - Responsibility: defining templates for deployment environments and reusable modules such as component types, operational behaviors, and registering them into the cluster.
-  - Example: *infrastructure operators, platform builders*.
+- **Platform Team**
+  - Defining templates for deployment environments and reusable capability modules to compose an application, and registering them into the cluster.
 - **End Users**
-  - Responsibility: choose a deployment environment, model and assemble the app with available modules, and deploy the app to target environment.
-  - Example: *app developers, app operators*.
+  - Choose a deployment environment, model and assemble the app with available modules, and deploy the app to target environment.
+
+Below is how this workflow looks like:
 
 ![alt](../resources/how-it-works.png)
 
-## Application
-The *Application* is the core API of KubeVela. Its main purpose is for **application encapsulation and abstraction**, i.e. it allows developers to work with a single artifact to capture the complete application definition with simplified primitives.
+This template based workflow make it possible for platform team enforce best practices and deployment confidence with a set of Kubernetes CRDs, and give end users a *PaaS-like* experience (*i.e. app-centric, higher level abstractions, self-service operations etc*) by natural.
 
-Application encapsulation is important to simplify administrative tasks and can serve as an anchor to avoid configuration drifts during operation. Also, as an abstraction object, `Application` provided a much simpler path for on-boarding Kubernetes capabilities without relying on low level details. For example, a developer will be able to model a "web service" without defining detailed Kubernetes Deployment + Service combo each time, or claim the auto-scaling requirements without referring to the underlying KEDA ScaleObject.
+![alt](../resources/what-is-kubevela.png)
+
+Below are the core concepts in KubeVela that make this happen.
+
+## `Application`
+The *Application* is the core API of KubeVela. It allows developers to work with a single artifact to capture the complete application deployment with simplified primitives.
+
+In application delivery platform, having an "application" concept is important to simplify administrative tasks and can serve as an anchor to avoid configuration drifts during operation. Also, it provides a much simpler path for on-boarding Kubernetes capabilities to application delivery process without relying on low level details. For example, a developer will be able to model a "web service" without defining a detailed Kubernetes Deployment + Service combo each time, or claim the auto-scaling requirements without referring to the underlying KEDA ScaleObject.
+
+### Example
 
 An example of `website` application with two components (i.e. `frontend` and `backend`) could be modeled as below:
 
 ```yaml
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: website
@@ -30,48 +42,50 @@ spec:
   components:
     - name: backend
       type: worker
-      settings:
+      properties:
         image: busybox
         cmd:
           - sleep
           - '1000'
     - name: frontend
       type: webservice
-      settings:
+      properties:
         image: nginx
       traits:
-        - name: autoscaler
+        - type: autoscaler
           properties:
             min: 1
             max: 10
-        - name: sidecar
+        - type: sidecar
           properties:
             name: "sidecar-test"
             image: "fluentd"
 ```
 
-### Workload Types
+## Building the Abstraction
 
-For each of the components in `Application`, its `.type` field represents the runtime characteristic of this component (i.e. workload type) and `.settings` claims the configurations to instantiate it. Some typical component types are *Long Running Web Service*, *One-time Off Task* or *Redis Database*.
+The `Application` resource in KubeVela is a LEGO-style object and does not even have fixed schema. Instead, it is composed by building blocks (app components and traits etc.) that allow you to on-board platform capabilities to this application definition via your own abstractions.
 
-All supported component types expected to be pre-installed in the platform, or, provided by component providers such as 3rd-party software owner.
+The building blocks to abstraction and model platform capabilities named `ComponentDefinition` and `TraitDefinition`.
 
-### Traits
+### ComponentDefinition
 
-Optionally, each component has a `.traits` section that augments its component instance with operational behaviors such as load balancing policy, network ingress routing, auto-scaling policies, or upgrade strategies, etc. Its `.name` field references the specific trait definition, and `.properties` sets detailed configuration values of the given trait.
+`ComponentDefinition` is a pre-defined *template* for the deployable workload. It contains template, parametering and workload characteristic information as a declarative API resource. 
 
-The supported traits are mostly operational features provided by the platform, but the platform also allows users bring their own traits.
+Hence, the `Application` abstraction essentially declares how the user want to **instantiate** given component definitions in target cluster. Specifically, the `.type` field references the name of installed `ComponentDefinition` and `.properties` are the user set values to instantiate it. 
 
-We also reference workload type and trait as "application/capability modules" in KubeVela.
+Some typical component definitions are *Long Running Web Service*, *One-time Off Task* or *Redis Database*. All component definitions expected to be pre-installed in the platform, or provided by component providers such as 3rd-party software vendors.
 
-## Definitions
+### TraitDefinition
 
-Both the schemas of workload settings and trait properties in `Application` are enforced by application modules that are pre-defined separately in a set of definition objects. The platform teams or component providers are responsible for registering and managing definitions in target cluster following [workload definition](https://github.com/oam-dev/spec/blob/master/4.workload_types.md) and [trait definition](https://github.com/oam-dev/spec/blob/master/6.traits.md) specifications in Open Application Model (OAM). 
+Optionally, each component has a `.traits` section that augments the component instance with operational behaviors such as load balancing policy, network ingress routing, auto-scaling policies, or upgrade strategies, etc.
 
-Currently, KubeVela supports [CUE](https://github.com/cuelang/cue) as the module type in definitions, with more types such as Helm and Terraform are coming in following releases. In the case of Helm, a chart could be directly referenced as a component type in `Application` and its `values.yaml` will become the component's specification.
+Traits are operational features provided by the platform. To attach a trait to component instance, the user will declare `.type` field to reference the specific `TraitDefinition`, and `.properties` field to set property values of the given trait. Similarly, `TraitDefiniton` also allows you to define *template* for operational features.
+
+We also reference component definitions and trait definitions as *"capability definitions"* in KubeVela. 
 
 ## Environment
-Before releasing an application to production, it's important to test the code in testing/staging workspaces. In KubeVela, we describe these workspaces as "deployment environments" or "environments" for short. Each environment has its own configuration (e.g., domain, Kubernetes cluster and namespace, configuration data, access control policy etc.) to allow user to create different deployment environments such as "test" and "production".
+Before releasing an application to production, it's important to test the code in testing/staging workspaces. In KubeVela, we describe these workspaces as "deployment environments" or "environments" for short. Each environment has its own configuration (e.g., domain, Kubernetes cluster and namespace, configuration data, access control policy, etc.) to allow user to create different deployment environments such as "test" and "production".
 
 Currently, a KubeVela `environment` only maps to a Kubernetes namespace, while the cluster level environment is work in progress.
 
@@ -85,13 +99,6 @@ The main concepts of KubeVela could be shown as below:
 
 The overall architecture of KubeVela is shown as below:
 
-![alt](../../resources/kubevela-runtime.png)
+![alt](../resources/arch.png)
 
-The encapsulation engine in KubeVela is responsible for application abstraction and encapsulation (i.e. the controller for `Application` and `Definition`).
-
-The deployment engine (*currently WIP*) is responsible for progressive rollout of the application (i.e. the controller for `AppDeployment`).
-
-
-## What's Next
-
-Now that you have grasped the core ideas of KubeVela, let's learn more details about [Application Encapsulation and Abstraction](platform-engineers/overview.md) feature.
+Specifically, the application controller is responsible for application abstraction and encapsulation (i.e. the controller for `Application` and `Definition`). The rollout controller will handle progressive rollout strategy with the whole application as a unit. The multi-cluster deployment engine is responsible for deploying the application across multiple clusters and environments with traffic shifting and rollout features supported. 

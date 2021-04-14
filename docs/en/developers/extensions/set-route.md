@@ -1,11 +1,33 @@
-# Setting Routes
-
-> Note: route is one of the extension capabilities [installed from cap center](../cap-center.md),
-> please install it if you can't find it in `vela traits`.
-
+---
+title:  Setting Routes
+---
 
 The `route` section is used to configure the access to your app.
 
+## Prerequisite
+Make sure route trait controller is installed in your cluster
+
+Install route trait controller with helm
+
+1. Add helm chart repo for route trait
+    ```shell script
+    helm repo add oam.catalog  http://oam.dev/catalog/
+    ```
+
+2. Update the chart repo
+    ```shell script
+    helm repo update
+    ```
+
+3. Install route trait controller
+    ```shell script
+    helm install --create-namespace -n vela-system routetrait oam.catalog/routetrait
+
+
+> Note: route is one of the extension capabilities [installed from cap center](../cap-center),
+> please install it if you can't find it in `vela traits`.
+   
+## Setting route policy
 Add routing config under `express-server`:
 
 ```yaml
@@ -20,7 +42,7 @@ services:
           rewriteTarget: /
 ```
 
-> The full specification of `route` could show up by `$ vela show route` or be found on [its reference documentation](../references/traits/route.md)
+> The full specification of `route` could show up by `$ vela show route` or be found on [its reference documentation](../references/traits/route)
 
 Apply again:
 
@@ -50,7 +72,7 @@ Services:
       - route: 	Visiting URL: http://example.com	IP: <ingress-IP-address>
 ```
 
-**In [kind cluster setup](../../install.md#kind)**, you can visit the service via localhost:
+**In [kind cluster setup](../../install#kind)**, you can visit the service via localhost:
 
 > If not in kind cluster, replace 'localhost' with ingress address
 

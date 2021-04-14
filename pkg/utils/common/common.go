@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package common
 
 import (
@@ -16,14 +32,18 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/ghodss/yaml"
+	injectorv1alpha1 "github.com/oam-dev/trait-injector/api/v1alpha1"
+	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
+	istioclientv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
+	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
-	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
-	"github.com/oam-dev/kubevela/apis/types"
+	oamcore "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	oamstandard "github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
 )
 
@@ -34,21 +54,25 @@ var (
 
 func init() {
 	_ = clientgoscheme.AddToScheme(Scheme)
+	_ = crdv1.AddToScheme(Scheme)
+	_ = oamcore.AddToScheme(Scheme)
+	_ = oamstandard.AddToScheme(Scheme)
+	_ = istioclientv1beta1.AddToScheme(Scheme)
 	_ = certmanager.AddToScheme(Scheme)
-	_ = core.AddToScheme(Scheme)
-	_ = v1alpha1.AddToScheme(Scheme)
+	_ = injectorv1alpha1.AddToScheme(Scheme)
+	_ = kruise.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
 // InitBaseRestConfig will return reset config for create controller runtime client
-func InitBaseRestConfig() (types.Args, error) {
+func InitBaseRestConfig() (Args, error) {
 	restConf, err := config.GetConfig()
 	if err != nil {
 		fmt.Println("get kubeConfig err", err)
 		os.Exit(1)
 	}
 
-	return types.Args{
+	return Args{
 		Config: restConf,
 		Schema: Scheme,
 	}, nil
@@ -86,7 +110,7 @@ func GetCUEParameterValue(cueStr string) (cue.Value, error) {
 	var found bool
 	for i := 0; i < tempStruct.Len(); i++ {
 		paraDef = tempStruct.Field(i)
-		if paraDef.Name == "parameter" {
+		if paraDef.Name == mycue.ParameterTag {
 			found = true
 			break
 		}
@@ -156,4 +180,13 @@ func AskToChooseOneService(svcNames []string) (string, error) {
 		return "", fmt.Errorf("choosing service err %w", err)
 	}
 	return svcName, nil
+}
+
+// ReadYamlToObject will read a yaml K8s object to runtime.Object
+func ReadYamlToObject(path string, object k8sruntime.Object) error {
+	data, err := ioutil.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return err
+	}
+	return yaml.Unmarshal(data, object)
 }

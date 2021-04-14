@@ -1,4 +1,6 @@
-# Check Logs of Container
+---
+title:  Check Application Logs
+---
 
 ```bash
 $ vela logs testapp

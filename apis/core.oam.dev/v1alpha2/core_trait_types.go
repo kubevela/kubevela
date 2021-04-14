@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeVela Authors.
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ type ManualScalerTraitStatus struct {
 // +kubebuilder:object:root=true
 
 // A ManualScalerTrait determines how many replicas a workload should have.
-// +kubebuilder:resource:categories={crossplane,oam}
+// +kubebuilder:resource:categories={oam}
 // +kubebuilder:subresource:status
 type ManualScalerTrait struct {
 	metav1.TypeMeta   `json:",inline"`

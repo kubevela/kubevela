@@ -1,6 +1,8 @@
-# Managing Capabilities
+---
+title:  Managing Capabilities
+---
 
-In KubeVela, developers can install more capabilities (i.e. new workload types and traits) from any GitHub repo that contains OAM definition files. We call these GitHub repos as _Capability Centers_. 
+In KubeVela, developers can install more capabilities (i.e. new component types and traits) from any GitHub repo that contains OAM definition files. We call these GitHub repos as _Capability Centers_. 
 
 KubeVela is able to discover OAM definition files in this repo automatically and sync them to your own KubeVela platform.
 
@@ -44,88 +46,88 @@ Or, list all available capabilities in certain center.
 
 ```bash
 $ vela cap ls my-center
-NAME     	CENTER   	TYPE 	DEFINITION                  	STATUS     	APPLIES-TO
-kubewatch	my-center	trait	kubewatches.labs.bitnami.com	uninstalled	[]
+NAME               	CENTER   	TYPE               	DEFINITION                    	STATUS     	APPLIES-TO
+clonesetservice    	my-center	componentDefinition	clonesets.apps.kruise.io      	uninstalled	[]
 ```
 
 ## Install a capability from capability center
 
-Now let's try to install the new trait named `kubewatch` from `my-center` to your own KubeVela platform.
+Now let's try to install the new component named `clonesetservice` from `my-center` to your own KubeVela platform.
 
-> [KubeWatch](https://github.com/bitnami-labs/kubewatch) is a Kubernetes plugin that watches events and publishes notifications to Slack channel etc. We can use it as a trait to watch important changes of your app and notify the platform administrators via Slack.
+You need to install OpenKruise first.
 
-Install `kubewatch` trait from `my-center`.
+```shell
+helm install kruise https://github.com/openkruise/kruise/releases/download/v0.7.0/kruise-chart.tgz
+```
+
+Install `clonesetservice` component from `my-center`.
 
 ```bash
-$ vela cap install my-center/kubewatch
-Installing trait capability kubewatch
-"my-repo" has been added to your repositories
-2020/11/06 16:19:30 [debug] creating 1 resource(s)
-2020/11/06 16:19:30 [debug] CRD kubewatches.labs.bitnami.com is already present. Skipping.
-2020/11/06 16:19:37 [debug] creating 3 resource(s)
-Successfully installed chart (kubewatch) with release name (kubewatch)
-Successfully installed capability kubewatch from my-center
+$ vela cap install my-center/clonesetservice
+Installing component capability clonesetservice
+Successfully installed capability clonesetservice from my-center
 ```
 
 ## Use the newly installed capability
 
-Let's check the `kubewatch` trait appears in your platform firstly:
+Let's check the `clonesetservice` appears in your platform firstly:
 
 ```bash
-$ vela traits
-Synchronizing capabilities from cluster⌛ ...
-Sync capabilities successfully ✅ (no changes)
-TYPE      	CATEGORY	DESCRIPTION
-kubewatch 	trait   	Add a watch for resource
-...
+$ vela components
+NAME           	NAMESPACE  	WORKLOAD                	DESCRIPTION
+clonesetservice	vela-system	clonesets.apps.kruise.io	Describes long-running, scalable, containerized services
+               	           	                        	that have a stable network endpoint to receive external
+               	           	                        	network traffic from customers. If workload type is skipped
+               	           	                        	for any service defined in Appfile, it will be defaulted to
+               	           	                        	`webservice` type.
 ```
 
 Great! Now let's deploy an app via Appfile.
-
 
 ```bash
 $ cat << EOF > vela.yaml
 name: testapp
 services:
   testsvc:
-    type: webservice
+    type: clonesetservice
     image: crccheck/hello-world
     port: 8000
-    route:
-      domain: testsvc.example.com
 EOF
 ```
 
 ```bash
 $ vela up
+Parsing vela appfile ...
+Load Template ...
+
+Rendering configs for service (testsvc)...
+Writing deploy config to (.vela/deploy.yaml)
+
+Applying application ...
+Checking if app has been deployed...
+App has not been deployed, creating a new deployment...
+Updating:  core.oam.dev/v1alpha2, Kind=HealthScope in default
+✅ App has been deployed 🚀🚀🚀
+    Port forward: vela port-forward testapp
+             SSH: vela exec testapp
+         Logging: vela logs testapp
+      App status: vela status testapp
+  Service status: vela status testapp --svc testsvc
 ```
 
-Then let's add `kubewatch` as a trait in this Appfile.
+then you can Get a cloneset in your environment.
 
-```bash
-$ cat << EOF >> vela.yaml
-    kubewatch:
-      webhook: https://hooks.slack.com/<your-token>
-EOF
+```shell
+$ kubectl get clonesets.apps.kruise.io
+NAME      DESIRED   UPDATED   UPDATED_READY   READY   TOTAL   AGE
+testsvc   1         1         1               1       1       46s
 ```
-
-> The `https://hooks.slack.com/<your-token>` is the Slack channel that your platform administrators are keeping an eye on.
-
-Update the deployment:
-
-```
-$ vela up
-```
-
-Now, your platform administrators should receive notifications whenever important changes happen to your app. For example, a fresh new deployment.
-
-![Image of Kubewatch](../../resources/kubewatch-notif.jpg)
 
 ## Uninstall a capability
 
 > NOTE: make sure no apps are using the capability before uninstalling.
 
 ```bash
-$ vela cap uninstall my-center/kubewatch
-Successfully removed chart (kubewatch) with release name (kubewatch)
+$ vela cap uninstall my-center/clonesetservice
+Successfully uninstalled capability clonesetservice
 ```

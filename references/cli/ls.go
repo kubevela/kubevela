@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package cli
 
 import (
@@ -5,25 +21,24 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/references/apiserver/apis"
-	"github.com/oam-dev/kubevela/references/appfile"
-	"github.com/oam-dev/kubevela/references/common"
 )
 
 // NewListCommand creates `ls` command and its nested children command
-func NewListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewListCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	ctx := context.Background()
 	cmd := &cobra.Command{
 		Use:                   "ls",
 		Aliases:               []string{"list"},
 		DisableFlagsInUseLine: true,
-		Short:                 "List services",
-		Long:                  "List services of all applications",
+		Short:                 "List applications",
+		Long:                  "List all applications in cluster",
 		Example:               `vela ls`,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return c.SetConfig()
@@ -33,98 +48,64 @@ func NewListCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
-			appName, err := cmd.Flags().GetString(App)
+			namespace, err := cmd.Flags().GetString(Namespace)
 			if err != nil {
 				return err
 			}
-			printComponentList(ctx, newClient, appName, env, ioStreams)
-			return nil
+			if namespace == "" {
+				namespace = env.Namespace
+			}
+			return printApplicationList(ctx, newClient, namespace, ioStreams)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeApp,
 		},
 	}
-	cmd.PersistentFlags().StringP(App, "", "", "specify the name of application")
+	cmd.PersistentFlags().StringP(Namespace, "n", "", "specify the namespace the application want to list, default is the current env namespace")
 	return cmd
 }
 
-func printComponentList(ctx context.Context, c client.Reader, appName string, env *types.EnvMeta,
-	ioStreams cmdutil.IOStreams) {
-	deployedComponentList, err := common.ListComponents(ctx, c, common.Option{
-		AppName:   appName,
-		Namespace: env.Namespace,
-	})
-	if err != nil {
-		ioStreams.Infof("listing services: %s\n", err)
-		return
+func printApplicationList(ctx context.Context, c client.Reader, namespace string, ioStreams cmdutil.IOStreams) error {
+	table := newUITable()
+	table.AddRow("APP", "COMPONENT", "TYPE", "TRAITS", "PHASE", "HEALTHY", "STATUS", "CREATED-TIME")
+	applist := v1beta1.ApplicationList{}
+	if err := c.List(ctx, &applist, client.InNamespace(namespace)); err != nil {
+		if apierrors.IsNotFound(err) {
+			ioStreams.Info(table.String())
+			return nil
+		}
+		return err
 	}
 
-	fetcher := func(name string) (*v1alpha2.Application, error) {
-		var app = new(v1alpha2.Application)
-		err := c.Get(ctx, client.ObjectKey{Name: name, Namespace: env.Namespace}, app)
-		return app, err
-	}
-	all := mergeStagingComponents(deployedComponentList, env, ioStreams, fetcher)
-	table := newUITable()
-	table.AddRow("SERVICE", "APP", "TYPE", "TRAITS", "STATUS", "CREATED-TIME")
-	for _, a := range all {
-		traitAlias := strings.Join(a.TraitNames, ",")
-		table.AddRow(a.Name, a.App, a.WorkloadName, traitAlias, a.Status, a.CreatedTime)
+	for _, a := range applist.Items {
+		for idx, cmp := range a.Spec.Components {
+			var appName = a.Name
+			if idx > 0 {
+				appName = "├─"
+				if idx == len(a.Spec.Components)-1 {
+					appName = "└─"
+				}
+			}
+			var healthy, status string
+			if len(a.Status.Services) > idx {
+				if a.Status.Services[idx].Healthy {
+					healthy = "healthy"
+				} else {
+					healthy = "unhealthy"
+				}
+				status = a.Status.Services[idx].Message
+			}
+			var traits []string
+			for _, tr := range cmp.Traits {
+				traits = append(traits, tr.Type)
+			}
+			table.AddRow(appName, cmp.Name, cmp.Type, strings.Join(traits, ","), a.Status.Phase, healthy, status, a.CreationTimestamp)
+		}
 	}
 	ioStreams.Info(table.String())
-}
-
-func mergeStagingComponents(deployed []apis.ComponentMeta, env *types.EnvMeta, ioStreams cmdutil.IOStreams, fetcher func(name string) (*v1alpha2.Application, error)) []apis.ComponentMeta {
-	localApps, err := appfile.List(env.Name)
-	if err != nil {
-		ioStreams.Error("list application err", err)
-		return deployed
-	}
-	var all []apis.ComponentMeta
-	for _, app := range localApps {
-		appl, err := fetcher(app.Name)
-		if err != nil {
-			ioStreams.Errorf("fetch app %s err %v\n", app.Name, err)
-			continue
-		}
-		for _, c := range appl.Spec.Components {
-			traits := []string{}
-			for _, t := range c.Traits {
-				traits = append(traits, t.Name)
-			}
-			compMeta, exist := GetCompMeta(deployed, app.Name, c.Name)
-			if !exist {
-				all = append(all, apis.ComponentMeta{
-					Name:         c.Name,
-					App:          app.Name,
-					WorkloadName: c.WorkloadType,
-					TraitNames:   traits,
-					Status:       types.StatusStaging,
-					CreatedTime:  app.CreateTime.String(),
-				})
-				continue
-			}
-			compMeta.TraitNames = traits
-			compMeta.WorkloadName = c.WorkloadType
-			if appl.Status.Phase != v1alpha2.ApplicationRunning {
-				compMeta.Status = types.StatusStaging
-			}
-			all = append(all, compMeta)
-		}
-	}
-	return all
-}
-
-// GetCompMeta gets meta of a component
-func GetCompMeta(deployed []apis.ComponentMeta, appName, compName string) (apis.ComponentMeta, bool) {
-	for _, v := range deployed {
-		if v.Name == compName && v.App == appName {
-			return v, true
-		}
-	}
-	return apis.ComponentMeta{}, false
+	return nil
 }

@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package cli
 
 import (
@@ -14,12 +30,12 @@ import (
 	cmdexec "k8s.io/kubectl/pkg/cmd/exec"
 	k8scmdutil "k8s.io/kubectl/pkg/cmd/util"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
-	"github.com/oam-dev/kubevela/references/appfile/api"
 )
 
 const (
@@ -38,9 +54,9 @@ type VelaExecOptions struct {
 	ServiceName string
 
 	context.Context
-	VelaC types.Args
+	VelaC common.Args
 	Env   *types.EnvMeta
-	App   *api.Application
+	App   *v1beta1.Application
 
 	f             k8scmdutil.Factory
 	kcExecOptions *cmdexec.ExecOptions
@@ -48,7 +64,7 @@ type VelaExecOptions struct {
 }
 
 // NewExecCommand creates `exec` command
-func NewExecCommand(c types.Args, ioStreams util.IOStreams) *cobra.Command {
+func NewExecCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 	o := &VelaExecOptions{
 		kcExecOptions: &cmdexec.ExecOptions{
 			StreamOptions: cmdexec.StreamOptions{
@@ -122,7 +138,7 @@ func (o *VelaExecOptions) Init(ctx context.Context, c *cobra.Command, argsIn []s
 		return err
 	}
 	o.Env = env
-	app, err := appfile.LoadApplication(env.Name, o.Args[0])
+	app, err := appfile.LoadApplication(env.Namespace, o.Args[0], o.VelaC)
 	if err != nil {
 		return err
 	}
@@ -167,8 +183,10 @@ func (o *VelaExecOptions) getComponentName() (string, error) {
 	svcName := o.ServiceName
 
 	if svcName != "" {
-		if _, exist := o.App.Services[svcName]; exist {
-			return svcName, nil
+		for _, cc := range o.App.Spec.Components {
+			if cc.Name == svcName {
+				return svcName, nil
+			}
 		}
 		o.Cmd.Printf("The service name '%s' is not valid\n", svcName)
 	}
@@ -189,7 +207,7 @@ func (o *VelaExecOptions) getPodName(compName string) (string, error) {
 		}).String(),
 	})
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 	if podList != nil && len(podList.Items) == 0 {
 		return "", fmt.Errorf("cannot get pods")

@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package applicationconfiguration
 
 import (
@@ -19,6 +35,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -313,14 +330,10 @@ func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 }
 
 // RegisterValidatingHandler will register application configuration validation to webhook
-func RegisterValidatingHandler(mgr manager.Manager) error {
+func RegisterValidatingHandler(mgr manager.Manager, args controller.Args) {
 	server := mgr.GetWebhookServer()
-	mapper, err := discoverymapper.New(mgr.GetConfig())
-	if err != nil {
-		return err
-	}
 	server.Register("/validating-core-oam-dev-v1alpha2-applicationconfigurations", &webhook.Admission{Handler: &ValidatingHandler{
-		Mapper: mapper,
+		Mapper: args.DiscoveryMapper,
 		Validators: []AppConfigValidator{
 			AppConfigValidateFunc(ValidateRevisionNameFn),
 			AppConfigValidateFunc(ValidateWorkloadNameForVersioningFn),
@@ -329,5 +342,4 @@ func RegisterValidatingHandler(mgr manager.Manager) error {
 			// TODO(wonderflow): Add more validation logic here.
 		},
 	}})
-	return nil
 }

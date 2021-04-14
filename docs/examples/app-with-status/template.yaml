@@ -1,0 +1,127 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: nworker
+  annotations:
+    definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend. They do NOT have network endpoint to receive external network traffic."
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  status:
+    healthPolicy: |
+      isHealth: (context.output.status.readyReplicas > 0) && (context.output.status.readyReplicas == context.output.status.replicas)
+    customStatus: |-
+      message: "type: " + context.output.spec.template.spec.containers[0].image + ",\t enemies:" + context.outputs.gameconfig.data.enemies
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        		}
+
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": context.name
+        			}
+
+        			spec: {
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+        					envFrom: [{
+        						configMapRef: name: context.name + "game-config"
+        					}]
+        					if parameter["cmd"] != _|_ {
+        						command: parameter.cmd
+        					}
+        				}]
+        			}
+        		}
+        	}
+        }
+
+        outputs: gameconfig: {
+        	apiVersion: "v1"
+        	kind:       "ConfigMap"
+        	metadata: {
+        		name: context.name + "game-config"
+        	}
+        	data: {
+        		enemies: parameter.enemies
+        		lives:   parameter.lives
+        	}
+        }
+
+        parameter: {
+        	// +usage=Which image would you like to use for your service
+        	// +short=i
+        	image: string
+        	// +usage=Commands to run in the container
+        	cmd?: [...string]
+        	lives:   string
+        	enemies: string
+        }
+
+
+---
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: ingress
+spec:
+  status:
+    customStatus: |-
+      message: "type: "+ context.outputs.service.spec.type +",\t clusterIP:"+ context.outputs.service.spec.clusterIP+",\t ports:"+ "\(context.outputs.service.spec.ports[0].port)"+",\t domain"+context.outputs.ingress.spec.rules[0].host
+    healthPolicy: |
+      isHealth: len(context.outputs.service.spec.clusterIP) > 0
+  podDisruptive: false
+  schematic:
+    cue:
+      template: |
+        parameter: {
+        	domain: string
+        	http: [string]: int
+        }
+        // trait template can have multiple outputs in one trait
+        outputs: service: {
+        	apiVersion: "v1"
+        	kind:       "Service"
+        	spec: {
+        		selector:
+        			app: context.name
+        		ports: [
+        			for k, v in parameter.http {
+        				port:       v
+        				targetPort: v
+        			},
+        		]
+        	}
+        }
+        outputs: ingress: {
+        	apiVersion: "networking.k8s.io/v1beta1"
+        	kind:       "Ingress"
+        	metadata:
+        		name: context.name
+        	spec: {
+        		rules: [{
+        			host: parameter.domain
+        			http: {
+        				paths: [
+        					for k, v in parameter.http {
+        						path: k
+        						backend: {
+        							serviceName: context.name
+        							servicePort: v
+        						}
+        					},
+        				]
+        			}
+        		}]
+        	}
+        }

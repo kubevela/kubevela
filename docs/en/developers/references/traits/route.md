@@ -1,4 +1,6 @@
-# Route
+---
+title:  Route
+---
 
 ## Description
 
@@ -9,17 +11,12 @@ Configures external access to your service.
 List of all configuration options for a `Route` trait.
 
 ```yaml
-name: my-app-name
-
-services:
-  my-service-name:
-    ...
-    route:
-      domain: example.com
-      issuer: tls
-      rules:
-        - path: /testapp
-          rewriteTarget: /
+...
+    domain: example.com
+    issuer: tls
+    rules:
+      - path: /testapp
+        rewriteTarget: /
 ```
 
 ## Properties

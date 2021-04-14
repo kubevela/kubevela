@@ -1,5 +1,5 @@
 /*
-
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,11 +18,11 @@ package application
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
+	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -31,23 +31,34 @@ import (
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 // RolloutReconcileWaitTime is the time to wait before reconcile again an application still in rollout phase
-const RolloutReconcileWaitTime = time.Second * 3
+const (
+	RolloutReconcileWaitTime      = time.Second * 3
+	resourceTrackerFinalizer      = "resourceTracker.finalizer.core.oam.dev"
+	errUpdateApplicationStatus    = "cannot update application status"
+	errUpdateApplicationFinalizer = "cannot update application finalizer"
+)
 
 // Reconciler reconciles a Application object
 type Reconciler struct {
 	client.Client
-	dm     discoverymapper.DiscoveryMapper
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	dm         discoverymapper.DiscoveryMapper
+	pd         *definition.PackageDiscover
+	Log        logr.Logger
+	Scheme     *runtime.Scheme
+	applicator apply.Applicator
 }
 
 // +kubebuilder:rbac:groups=core.oam.dev,resources=applications,verbs=get;list;watch;create;update;patch;delete
@@ -57,7 +68,7 @@ type Reconciler struct {
 func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	applog := r.Log.WithValues("application", req.NamespacedName)
-	app := new(v1alpha2.Application)
+	app := new(v1beta1.Application)
 	if err := r.Get(ctx, client.ObjectKey{
 		Name:      req.Name,
 		Namespace: req.Namespace,
@@ -68,23 +79,42 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
-	// TODO: check finalizer
-	if app.DeletionTimestamp != nil {
-		return ctrl.Result{}, nil
+	handler := &appHandler{
+		r:      r,
+		app:    app,
+		logger: applog,
+	}
+
+	if app.ObjectMeta.DeletionTimestamp.IsZero() {
+		if registerFinalizers(app) {
+			applog.Info("Register new finalizer", "application", app.Namespace+"/"+app.Name, "finalizers", app.ObjectMeta.Finalizers)
+			return reconcile.Result{}, errors.Wrap(r.Client.Update(ctx, app), errUpdateApplicationFinalizer)
+		}
+	} else {
+		needUpdate, err := handler.removeResourceTracker(ctx)
+		if err != nil {
+			applog.Error(err, "Failed to remove application resourceTracker")
+			app.Status.SetConditions(v1alpha1.ReconcileError(errors.Wrap(err, "error to  remove finalizer")))
+			return reconcile.Result{}, errors.Wrap(r.UpdateStatus(ctx, app), errUpdateApplicationStatus)
+		}
+		if needUpdate {
+			applog.Info("remove finalizer of application", "application", app.Namespace+"/"+app.Name, "finalizers", app.ObjectMeta.Finalizers)
+			return ctrl.Result{}, errors.Wrap(r.Update(ctx, app), errUpdateApplicationFinalizer)
+		}
+		// deleting and no need to handle finalizer
+		return reconcile.Result{}, nil
 	}
 
 	applog.Info("Start Rendering")
 
-	app.Status.Phase = v1alpha2.ApplicationRendering
-	handler := &appHandler{r, app, applog}
+	app.Status.Phase = common.ApplicationRendering
 
 	applog.Info("parse template")
 	// parse template
-	appParser := appfile.NewApplicationParser(r.Client, r.dm)
+	appParser := appfile.NewApplicationParser(r.Client, r.dm, r.pd)
 
 	ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
-
-	appfile, err := appParser.GenerateAppFile(ctx, app.Name, app)
+	generatedAppfile, err := appParser.GenerateAppFile(ctx, app)
 	if err != nil {
 		applog.Error(err, "[Handle Parse]")
 		app.Status.SetConditions(errorCondition("Parsed", err))
@@ -92,31 +122,50 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	app.Status.SetConditions(readyCondition("Parsed"))
+	handler.appfile = generatedAppfile
+
+	appRev, err := handler.GenerateAppRevision(ctx)
+	if err != nil {
+		applog.Error(err, "[Handle Calculate Revision]")
+		app.Status.SetConditions(errorCondition("Parsed", err))
+		return handler.handleErr(err)
+	}
+	// Record the revision so it can be used to render data in context.appRevision
+	generatedAppfile.RevisionName = appRev.Name
 
 	applog.Info("build template")
 	// build template to applicationconfig & component
-	ac, comps, err := appParser.GenerateApplicationConfiguration(appfile, app.Namespace)
+	ac, comps, err := generatedAppfile.GenerateApplicationConfiguration()
 	if err != nil {
 		applog.Error(err, "[Handle GenerateApplicationConfiguration]")
 		app.Status.SetConditions(errorCondition("Built", err))
 		return handler.handleErr(err)
 	}
+
+	err = handler.handleResourceTracker(ctx, comps, ac)
+	if err != nil {
+		applog.Error(err, "[Handle resourceTracker]")
+		app.Status.SetConditions(errorCondition("Handle resourceTracker", err))
+		return handler.handleErr(err)
+	}
+
 	// pass the App label and annotation to ac except some app specific ones
 	oamutil.PassLabelAndAnnotation(app, ac)
+
 	app.Status.SetConditions(readyCondition("Built"))
-	applog.Info("apply appConfig & component to the cluster")
-	// apply appConfig & component to the cluster
-	if err := handler.apply(ctx, ac, comps); err != nil {
+	applog.Info("apply application revision & component to the cluster")
+	// apply application revision & component to the cluster
+	if err := handler.apply(ctx, appRev, ac, comps); err != nil {
 		applog.Error(err, "[Handle apply]")
 		app.Status.SetConditions(errorCondition("Applied", err))
 		return handler.handleErr(err)
 	}
 
 	app.Status.SetConditions(readyCondition("Applied"))
-	app.Status.Phase = v1alpha2.ApplicationHealthChecking
+	app.Status.Phase = common.ApplicationHealthChecking
 	applog.Info("check application health status")
 	// check application health status
-	appCompStatus, healthy, err := handler.statusAggregate(appfile)
+	appCompStatus, healthy, err := handler.statusAggregate(generatedAppfile)
 	if err != nil {
 		applog.Error(err, "[status aggregate]")
 		app.Status.SetConditions(errorCondition("HealthCheck", err))
@@ -131,7 +180,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 	app.Status.Services = appCompStatus
 	app.Status.SetConditions(readyCondition("HealthCheck"))
-	app.Status.Phase = v1alpha2.ApplicationRunning
+	app.Status.Phase = common.ApplicationRunning
+	err = handler.garbageCollection(ctx)
+	if err != nil {
+		applog.Error(err, "[Garbage collection]")
+		app.Status.SetConditions(errorCondition("GarbageCollection", err))
+		return handler.handleErr(err)
+	}
 	// Gather status of components
 	var refComps []v1alpha1.TypedReference
 	for _, comp := range comps {
@@ -146,16 +201,25 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, r.UpdateStatus(ctx, app)
 }
 
+// if any finalizers newly registered, return true
+func registerFinalizers(app *v1beta1.Application) bool {
+	if !meta.FinalizerExists(&app.ObjectMeta, resourceTrackerFinalizer) && app.Status.ResourceTracker != nil {
+		meta.AddFinalizer(&app.ObjectMeta, resourceTrackerFinalizer)
+		return true
+	}
+	return false
+}
+
 // SetupWithManager install to manager
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// If Application Own these two child objects, AC status change will notify application controller and recursively update AC again, and trigger application event again...
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha2.Application{}).
+		For(&v1beta1.Application{}).
 		Complete(r)
 }
 
-// UpdateStatus updates v1alpha2.Application's Status with retry.RetryOnConflict
-func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1alpha2.Application, opts ...client.UpdateOption) error {
+// UpdateStatus updates v1beta1.Application's Status with retry.RetryOnConflict
+func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1beta1.Application, opts ...client.UpdateOption) error {
 	status := app.DeepCopy().Status
 	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
 		if err = r.Get(ctx, types.NamespacedName{Namespace: app.Namespace, Name: app.Name}, app); err != nil {
@@ -167,16 +231,14 @@ func (r *Reconciler) UpdateStatus(ctx context.Context, app *v1alpha2.Application
 }
 
 // Setup adds a controller that reconciles AppRollout.
-func Setup(mgr ctrl.Manager, _ core.Args, _ logging.Logger) error {
-	dm, err := discoverymapper.New(mgr.GetConfig())
-	if err != nil {
-		return fmt.Errorf("create discovery dm fail %w", err)
-	}
+func Setup(mgr ctrl.Manager, args core.Args, _ logging.Logger) error {
 	reconciler := Reconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("Application"),
-		Scheme: mgr.GetScheme(),
-		dm:     dm,
+		Client:     mgr.GetClient(),
+		Log:        ctrl.Log.WithName("Application"),
+		Scheme:     mgr.GetScheme(),
+		dm:         args.DiscoveryMapper,
+		pd:         args.PackageDiscover,
+		applicator: apply.NewAPIApplicator(mgr.GetClient()),
 	}
 	return reconciler.SetupWithManager(mgr)
 }

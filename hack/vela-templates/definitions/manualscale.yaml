@@ -1,4 +1,4 @@
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -12,6 +12,7 @@ spec:
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
+  podDisruptive: true
   schematic:
     cue:
       template: |

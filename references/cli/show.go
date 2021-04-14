@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package cli
 
 import (
@@ -7,14 +23,17 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/plugins"
@@ -41,7 +60,7 @@ const (
 var webSite bool
 
 // NewCapabilityShowCommand shows the reference doc for a workload type or trait
-func NewCapabilityShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "show",
 		Short:   "Show the reference doc for a workload type or trait",
@@ -71,7 +90,7 @@ func NewCapabilityShowCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.
 	return cmd
 }
 
-func startReferenceDocsSite(ctx context.Context, c types.Args, ioStreams cmdutil.IOStreams, capabilityName string) error {
+func startReferenceDocsSite(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string) error {
 	home, err := system.GetVelaHomeDir()
 	if err != nil {
 		return err
@@ -107,7 +126,7 @@ func startReferenceDocsSite(ctx context.Context, c types.Args, ioStreams cmdutil
 		}
 	}
 	if !capabilityIsValid {
-		return fmt.Errorf("%s is not a valid workload type or trait", capabilityName)
+		return fmt.Errorf("%s is not a valid component type or trait", capabilityName)
 	}
 	ref := &plugins.MarkdownReference{}
 	if err := ref.CreateMarkdown(capabilities, docsPath, plugins.ReferenceSourcePath); err != nil {
@@ -140,7 +159,8 @@ func startReferenceDocsSite(ctx context.Context, c types.Args, ioStreams cmdutil
 	case types.TypeTrait:
 		capabilityPath = plugins.TraitPath
 	case types.TypeScope:
-
+	case types.TypeComponentDefinition:
+		capabilityPath = plugins.ComponentDefinitionTypePath
 	}
 
 	url := fmt.Sprintf("http://127.0.0.1%s/#/%s/%s", Port, capabilityPath, capabilityName)
@@ -184,25 +204,25 @@ func launch(server *http.Server, errChan chan<- error) {
 
 func generateSideBar(capabilities []types.Capability, docsPath string) error {
 	sideBar := filepath.Join(docsPath, SideBar)
-	workloads, traits := getWorkloadsAndTraits(capabilities)
+	components, traits := getComponentsAndTraits(capabilities)
 	f, err := os.Create(sideBar)
 	if err != nil {
 		return err
 	}
-	if _, err := f.WriteString("- Workload Types\n"); err != nil {
-		return nil
+	if _, err := f.WriteString("- Components Types\n"); err != nil {
+		return err
 	}
-	for _, w := range workloads {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", w, plugins.WorkloadTypePath, w)); err != nil {
-			return nil
+	for _, c := range components {
+		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", c, plugins.ComponentDefinitionTypePath, c)); err != nil {
+			return err
 		}
 	}
 	if _, err := f.WriteString("- Traits\n"); err != nil {
-		return nil
+		return err
 	}
 	for _, t := range traits {
 		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", t, plugins.TraitPath, t)); err != nil {
-			return nil
+			return err
 		}
 	}
 	return nil
@@ -271,19 +291,19 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := f.WriteString("# KubeVela Reference Docs for Workload Types and Traits\n" +
+	if _, err := f.WriteString("# KubeVela Reference Docs for Component Types and Traits\n" +
 		"Click the navigation bar on the left or the links below to look into the detailed referennce of a Workload type or a Trait.\n"); err != nil {
 		return err
 	}
 
-	workloads, traits := getWorkloadsAndTraits(capabilities)
+	workloads, traits := getComponentsAndTraits(capabilities)
 
-	if _, err := f.WriteString("## Workload Types\n"); err != nil {
+	if _, err := f.WriteString("## Component Types\n"); err != nil {
 		return err
 	}
 
 	for _, w := range workloads {
-		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", w, plugins.WorkloadTypePath, w)); err != nil {
+		if _, err := f.WriteString(fmt.Sprintf("  - [%s](%s/%s.md)\n", w, plugins.ComponentDefinitionTypePath, w)); err != nil {
 			return err
 		}
 	}
@@ -299,22 +319,22 @@ func generateREADME(capabilities []types.Capability, docsPath string) error {
 	return nil
 }
 
-func getWorkloadsAndTraits(capabilities []types.Capability) ([]string, []string) {
-	var workloads, traits []string
+func getComponentsAndTraits(capabilities []types.Capability) ([]string, []string) {
+	var components, traits []string
 	for _, c := range capabilities {
 		switch c.Type {
-		case types.TypeWorkload:
-			workloads = append(workloads, c.Name)
+		case types.TypeComponentDefinition:
+			components = append(components, c.Name)
 		case types.TypeTrait:
 			traits = append(traits, c.Name)
 		case types.TypeScope:
-
+		case types.TypeWorkload:
 		}
 	}
-	return workloads, traits
+	return components, traits
 }
 
-func showReferenceConsole(ctx context.Context, c types.Args, ioStreams cmdutil.IOStreams, capabilityName string) error {
+func showReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string) error {
 	home, err := system.GetVelaHomeDir()
 	if err != nil {
 		return err
@@ -343,4 +363,21 @@ func showReferenceConsole(ctx context.Context, c types.Args, ioStreams cmdutil.I
 		ioStreams.Info("\n")
 	}
 	return nil
+}
+
+// OpenBrowser will open browser by url in different OS system
+// nolint:gosec
+func OpenBrowser(url string) error {
+	var err error
+	switch runtime.GOOS {
+	case "linux":
+		err = exec.Command("xdg-open", url).Start()
+	case "windows":
+		err = exec.Command("cmd", "/C", "start", url).Run()
+	case "darwin":
+		err = exec.Command("open", url).Start()
+	default:
+		err = fmt.Errorf("unsupported platform")
+	}
+	return err
 }

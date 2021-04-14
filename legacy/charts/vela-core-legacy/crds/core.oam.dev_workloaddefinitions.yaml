@@ -5,21 +5,17 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.4
-  creationTimestamp: null
   name: workloaddefinitions.core.oam.dev
 spec:
-  additionalPrinterColumns:
-  - JSONPath: .spec.definitionRef.name
-    name: DEFINITION-NAME
-    type: string
   group: core.oam.dev
   names:
     categories:
-    - crossplane
     - oam
     kind: WorkloadDefinition
     listKind: WorkloadDefinitionList
     plural: workloaddefinitions
+    shortNames:
+    - workload
     singular: workloaddefinition
   scope: Namespaced
   subresources: {}
@@ -93,6 +89,64 @@ spec:
                   required:
                   - template
                   type: object
+                helm:
+                  description: A Helm represents resources used by a Helm module
+                  properties:
+                    release:
+                      description: Release records a Helm release used by a Helm module workload.
+                      type: object
+                      
+                    repository:
+                      description: HelmRelease records a Helm repository used by a Helm module workload.
+                      type: object
+                      
+                  required:
+                  - release
+                  - repository
+                  type: object
+                kube:
+                  description: Kube defines the encapsulation in raw Kubernetes resource format
+                  properties:
+                    parameters:
+                      description: Parameters defines configurable parameters
+                      items:
+                        description: A KubeParameter defines a configurable parameter of a component.
+                        properties:
+                          description:
+                            description: Description of this parameter.
+                            type: string
+                          fieldPaths:
+                            description: "FieldPaths specifies an array of fields within this workload that will be overwritten by the value of this parameter. \tAll fields must be of the same type. Fields are specified as JSON field paths without a leading dot, for example 'spec.replicas'."
+                            items:
+                              type: string
+                            type: array
+                          name:
+                            description: Name of this parameter
+                            type: string
+                          required:
+                            
+                            description: Required specifies whether or not a value for this parameter must be supplied when authoring an Application.
+                            type: boolean
+                          type:
+                            description: 'ValueType indicates the type of the parameter value, and only supports basic data types: string, number, boolean.'
+                            enum:
+                            - string
+                            - number
+                            - boolean
+                            type: string
+                        required:
+                        - fieldPaths
+                        - name
+                        - type
+                        type: object
+                      type: array
+                    template:
+                      description: Template defines the raw Kubernetes resource
+                      type: object
+                      
+                  required:
+                  - template
+                  type: object
               type: object
             status:
               description: Status defines the custom health policy and status message for workload
@@ -108,7 +162,7 @@ spec:
           - definitionRef
           type: object
         status:
-          description: CapabilityStatus is the status of WorkloadDefinition and TraitDefinition
+          description: WorkloadDefinitionStatus is the status of WorkloadDefinition
           properties:
             conditions:
               description: Conditions of the resource.
@@ -143,6 +197,9 @@ spec:
   version: v1alpha2
   versions:
   - name: v1alpha2
+    served: true
+    storage: false
+  - name: v1beta1
     served: true
     storage: true
 status:

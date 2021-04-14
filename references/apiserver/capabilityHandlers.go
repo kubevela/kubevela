@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package apiserver
 
 import (
@@ -63,7 +79,8 @@ func (s *APIServer) DeleteCapabilityCenter(c *gin.Context) {
 // RemoveCapabilityFromCluster remove a specific capability from cluster
 func (s *APIServer) RemoveCapabilityFromCluster(c *gin.Context) {
 	capabilityCenterName := c.Param("capabilityName")
-	msg, err := common.RemoveCapabilityFromCluster(s.KubeClient, capabilityCenterName)
+	// TODO get namespace from env
+	msg, err := common.RemoveCapabilityFromCluster("default", s.c, s.KubeClient, capabilityCenterName)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return
@@ -74,7 +91,7 @@ func (s *APIServer) RemoveCapabilityFromCluster(c *gin.Context) {
 // ListCapabilities lists capabilities of a capability center
 func (s *APIServer) ListCapabilities(c *gin.Context) {
 	capabilityCenterName := c.Param("capabilityName")
-	capabilityList, err := common.ListCapabilities(capabilityCenterName)
+	capabilityList, err := common.ListCapabilities("default", s.c, capabilityCenterName)
 	if err != nil {
 		util.HandleError(c, util.StatusInternalServerError, err.Error())
 		return

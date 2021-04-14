@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package plugins
 
 import (
@@ -12,7 +28,7 @@ import (
 var (
 	deployment = types.Capability{
 		Name: "deployment",
-		Type: types.TypeWorkload,
+		Type: types.TypeComponentDefinition,
 		Parameters: []types.Parameter{
 			{
 				Name:     "image",
@@ -23,7 +39,7 @@ var (
 	}
 	statefulset = types.Capability{
 		Name: "statefulset",
-		Type: types.TypeWorkload,
+		Type: types.TypeComponentDefinition,
 		Parameters: []types.Parameter{
 			{
 				Name:     "image",
@@ -61,7 +77,7 @@ func TestLocalSink(t *testing.T) {
 		"Test Only Workload": {
 			dir:    "vela-test2",
 			tmps:   []types.Capability{deployment, statefulset},
-			Type:   types.TypeWorkload,
+			Type:   types.TypeComponentDefinition,
 			expDef: []types.Capability{deployment, statefulset},
 		},
 		"Test Only Trait": {
@@ -79,7 +95,7 @@ func TestLocalSink(t *testing.T) {
 		"Test Both have Workload and trait But want Workload": {
 			dir:    "vela-test4",
 			tmps:   []types.Capability{deployment, route, statefulset},
-			Type:   types.TypeWorkload,
+			Type:   types.TypeComponentDefinition,
 			expDef: []types.Capability{deployment, statefulset},
 		},
 		"Test Both have Workload and trait But want Trait": {

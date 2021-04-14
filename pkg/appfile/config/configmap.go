@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeVela Authors.
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -39,7 +40,12 @@ func ToConfigMap(s Store, name, envName string, configData map[string]string) (*
 	if err != nil {
 		return nil, err
 	}
-	var cm v1.ConfigMap
+	var cm = v1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "ConfigMap",
+		},
+	}
 	cm.SetName(name)
 	cm.SetNamespace(namespace)
 	cm.Data = configData

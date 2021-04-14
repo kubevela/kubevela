@@ -1,19 +1,36 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package plugins
 
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 
-	"cuelang.org/go/cue"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"cuelang.org/go/cue"
+	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 const (
@@ -24,28 +41,11 @@ const (
 )
 
 var _ = Describe("DefinitionFiles", func() {
-	route := types.Capability{
-		Name: RouteName,
-		Type: types.TypeTrait,
-		Parameters: []types.Parameter{
-			{
-				Name:     "domain",
-				Required: true,
-				Default:  "",
-				Type:     cue.StringKind,
-			},
-		},
-		Description: "description not defined",
-		CrdName:     "routes.standard.oam.dev",
-		CrdInfo: &types.CRDInfo{
-			APIVersion: "standard.oam.dev/v1alpha1",
-			Kind:       "Route",
-		},
-	}
 
 	deployment := types.Capability{
+		Namespace:   "testdef",
 		Name:        DeployName,
-		Type:        types.TypeWorkload,
+		Type:        types.TypeComponentDefinition,
 		CrdName:     "deployments.apps",
 		Description: "description not defined",
 		Parameters: []types.Parameter{
@@ -76,8 +76,9 @@ var _ = Describe("DefinitionFiles", func() {
 	}
 
 	websvc := types.Capability{
+		Namespace:   "testdef",
 		Name:        WebserviceName,
-		Type:        types.TypeWorkload,
+		Type:        types.TypeComponentDefinition,
 		Description: "description not defined",
 		Parameters: []types.Parameter{{
 			Name: "env", Type: cue.ListKind,
@@ -107,91 +108,25 @@ var _ = Describe("DefinitionFiles", func() {
 
 	// Notice!!  DefinitionPath Object is Cluster Scope object
 	// which means objects created in other DefinitionNamespace will also affect here.
-	It("gettrait", func() {
-		traitDefs, _, err := GetTraitsFromCluster(context.Background(), DefinitionNamespace, types.Args{Config: cfg, Schema: scheme}, definitionDir, selector)
+	It("getcomponents", func() {
+		workloadDefs, _, err := GetComponentsFromCluster(context.Background(), DefinitionNamespace, common.Args{Config: cfg, Schema: scheme}, selector)
 		Expect(err).Should(BeNil())
-		logf.Log.Info(fmt.Sprintf("Getting trait definitions %v", traitDefs))
-		for i := range traitDefs {
-			// CueTemplate should always be fulfilled, even those whose CueTemplateURI is assigend,
-			By("check CueTemplate is fulfilled")
-			Expect(traitDefs[i].CueTemplate).ShouldNot(BeEmpty())
-			traitDefs[i].CueTemplate = ""
-			traitDefs[i].DefinitionPath = ""
-		}
-		Expect(traitDefs).Should(Equal([]types.Capability{route}))
-	})
-
-	// Notice!!  DefinitionPath Object is Cluster Scope object
-	// which means objects created in other DefinitionNamespace will also affect here.
-	It("getworkload", func() {
-		workloadDefs, _, err := GetWorkloadsFromCluster(context.Background(), DefinitionNamespace, types.Args{Config: cfg, Schema: scheme}, definitionDir, selector)
-		Expect(err).Should(BeNil())
-		logf.Log.Info(fmt.Sprintf("Getting workload definitions  %v", workloadDefs))
+		logf.Log.Info(fmt.Sprintf("Getting component definitions  %v", workloadDefs))
 		for i := range workloadDefs {
 			// CueTemplate should always be fulfilled, even those whose CueTemplateURI is assigend,
 			By("check CueTemplate is fulfilled")
 			Expect(workloadDefs[i].CueTemplate).ShouldNot(BeEmpty())
 			workloadDefs[i].CueTemplate = ""
-			workloadDefs[i].DefinitionPath = ""
 		}
-		Expect(workloadDefs).Should(Equal([]types.Capability{deployment, websvc}))
+		Expect(cmp.Diff(workloadDefs, []types.Capability{deployment, websvc})).Should(BeEquivalentTo(""))
 	})
 	It("getall", func() {
-		alldef, err := GetCapabilitiesFromCluster(context.Background(), DefinitionNamespace, types.Args{Config: cfg, Schema: scheme}, definitionDir, selector)
+		alldef, err := GetCapabilitiesFromCluster(context.Background(), DefinitionNamespace, common.Args{Config: cfg, Schema: scheme}, selector)
 		Expect(err).Should(BeNil())
 		logf.Log.Info(fmt.Sprintf("Getting all definitions %v", alldef))
 		for i := range alldef {
 			alldef[i].CueTemplate = ""
-			alldef[i].DefinitionPath = ""
 		}
-		Expect(alldef).Should(Equal([]types.Capability{deployment, websvc, route}))
-	})
-	It("SyncDefinitionsToLocal", func() {
-		localDefinitionDir := "testdata/capabilities"
-		if _, err := os.Stat(localDefinitionDir); err != nil && os.IsNotExist(err) {
-			os.MkdirAll(localDefinitionDir, 0750)
-		}
-		syncedTemplates, _, err := SyncDefinitionsToLocal(context.Background(),
-			types.Args{Config: cfg, Schema: scheme}, localDefinitionDir)
-
-		var containRoute, containDeploy, containWebservice bool
-		for _, t := range syncedTemplates {
-			switch t.Name {
-			case RouteName:
-				containRoute = true
-			case DeployName:
-				containDeploy = true
-			case WebserviceName:
-				containWebservice = true
-			}
-		}
-		Expect(containRoute).Should(Equal(true))
-		Expect(containDeploy).Should(Equal(true))
-		Expect(containWebservice).Should(Equal(true))
-		Expect(err).Should(BeNil())
-		_, err = os.Stat(filepath.Join(localDefinitionDir, "workloads", DeployName))
-		Expect(err).Should(BeNil())
-		_, err = os.Stat(filepath.Join(localDefinitionDir, "workloads", WebserviceName))
-		Expect(err).Should(BeNil())
-		_, err = os.Stat(filepath.Join(localDefinitionDir, "traits", RouteName))
-		Expect(err).Should(BeNil())
-		if _, err := os.Stat(localDefinitionDir); err == nil {
-			os.RemoveAll(localDefinitionDir)
-		}
-	})
-	It("SyncDefinitionToLocal", func() {
-		localDefinitionDir := "testdata/capabilities"
-		if _, err := os.Stat(localDefinitionDir); err != nil && os.IsNotExist(err) {
-			os.MkdirAll(localDefinitionDir, 0750)
-		}
-		template, err := SyncDefinitionToLocal(context.Background(),
-			types.Args{Config: cfg, Schema: scheme}, localDefinitionDir, RouteName)
-		Expect(err).Should(BeNil())
-		Expect(template.Name).Should(Equal(RouteName))
-		_, err = os.Stat(filepath.Join(localDefinitionDir, fmt.Sprintf("%s.cue", RouteName)))
-		Expect(err).Should(BeNil())
-		if _, err := os.Stat(localDefinitionDir); err == nil {
-			os.RemoveAll(localDefinitionDir)
-		}
+		Expect(cmp.Diff(alldef, []types.Capability{deployment, websvc})).Should(BeEquivalentTo(""))
 	})
 })

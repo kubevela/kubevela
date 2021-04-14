@@ -1,0 +1,128 @@
+# Default values for podinfo.
+
+replicaCount: 1
+logLevel: info
+backend: #http://backend-podinfo:9898/echo
+backends: []
+
+ui:
+  color: "#34577c"
+  message: ""
+  logo: ""
+
+faults:
+  delay: false
+  error: false
+  unhealthy: false
+  unready: false
+  testFail: false
+  testTimeout: false
+
+h2c:
+  enabled: false
+
+image:
+  repository: ghcr.io/stefanprodan/podinfo
+  tag: 5.1.4
+  pullPolicy: IfNotPresent
+
+service:
+  enabled: true
+  type: ClusterIP
+  metricsPort: 9797
+  httpPort: 9898
+  externalPort: 9898
+  grpcPort: 9999
+  grpcService: podinfo
+  nodePort: 31198
+  # the port used to bind the http port to the host
+  # NOTE: requires privileged container with NET_BIND_SERVICE capability -- this is useful for testing
+  # in local clusters such as kind without port forwarding
+  hostPort:
+
+# enable tls on the podinfo service
+tls:
+  enabled: false
+  # the name of the secret used to mount the certificate key pair
+  secretName:
+  # the path where the certificate key pair will be mounted
+  certPath: /data/cert
+  # the port used to host the tls endpoint on the service
+  port: 9899
+  # the port used to bind the tls port to the host
+  # NOTE: requires privileged container with NET_BIND_SERVICE capability -- this is useful for testing
+  # in local clusters such as kind without port forwarding
+  hostPort:
+
+# create a certificate manager certificate
+certificate:
+  create: false
+  # the issuer used to issue the certificate
+  issuerRef:
+    kind: ClusterIssuer
+    name: self-signed
+  # the hostname / subject alternative names for the certificate
+  dnsNames:
+    - podinfo
+
+# metrics-server add-on required
+hpa:
+  enabled: false
+  maxReplicas: 10
+  # average total CPU usage per pod (1-100)
+  cpu:
+  # average memory usage per pod (100Mi-1Gi)
+  memory:
+  # average http requests per second per pod (k8s-prometheus-adapter)
+  requests:
+
+# Redis address in the format <host>:<port>
+cache: ""
+# Redis deployment
+redis:
+  enabled: false
+  repository: redis
+  tag: 6.0.8
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  enabled: false
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name:
+
+linkerd:
+  profile:
+    enabled: false
+
+serviceMonitor:
+  enabled: false
+  interval: 15s
+
+ingress:
+  enabled: false
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+  tls: []
+  #  - secretName: chart-example-tls
+  #    hosts:
+  #      - chart-example.local
+
+resources:
+  limits:
+  requests:
+    cpu: 1m
+    memory: 16Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+podAnnotations: {}

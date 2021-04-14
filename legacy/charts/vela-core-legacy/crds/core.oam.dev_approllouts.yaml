@@ -5,9 +5,27 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.4
-  creationTimestamp: null
   name: approllouts.core.oam.dev
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.rolloutTargetSize
+    name: TARGET
+    type: string
+  - JSONPath: .status.upgradedReplicas
+    name: UPGRADED
+    type: string
+  - JSONPath: .status.upgradedReadyReplicas
+    name: READY
+    type: string
+  - JSONPath: .status.batchRollingState
+    name: BATCH-STATE
+    type: string
+  - JSONPath: .status.rollingState
+    name: ROLLING-STATE
+    type: string
+  - JSONPath: .metadata.creationTimestamp
+    name: AGE
+    type: date
   group: core.oam.dev
   names:
     categories:
@@ -15,10 +33,10 @@ spec:
     kind: AppRollout
     listKind: AppRolloutList
     plural: approllouts
+    shortNames:
+    - approllout
     singular: approllout
   scope: Namespaced
-  subresources:
-    status: {}
   validation:
     openAPIV3Schema:
       description: AppRollout is the Schema for the AppRollout API
@@ -40,7 +58,7 @@ spec:
                 type: string
               type: array
             revertOnDelete:
-              description: RevertOnDelete revert the rollout when the rollout CR is deleted It will remove the target app from the kubernetes if it's set to true
+              description: RevertOnDelete revert the failed rollout when the rollout CR is deleted It will revert the change back to the source version at once (not in batches) Default is false
               type: boolean
             rolloutPlan:
               description: RolloutPlan is the details on how to rollout the resources
@@ -220,7 +238,7 @@ spec:
                     type: object
                   type: array
                 rolloutStrategy:
-                  description: RolloutStrategy defines strategies for the rollout plan
+                  description: RolloutStrategy defines strategies for the rollout plan The default is IncreaseFirstRolloutStrategyType
                   type: string
                 rolloutWebhooks:
                   description: RolloutWebhooks provide a way for the rollout to interact with an external process
@@ -320,6 +338,14 @@ spec:
             rollingState:
               description: RollingState is the Rollout State
               type: string
+            rolloutOriginalSize:
+              description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+              format: int32
+              type: integer
+            rolloutTargetSize:
+              description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+              format: int32
+              type: integer
             targetGeneration:
               description: NewPodTemplateIdentifier is a string that uniquely represent the new pod template each workload type could use different ways to identify that so we cannot compare between resources
               type: string
@@ -342,6 +368,9 @@ spec:
   version: v1alpha2
   versions:
   - name: v1alpha2
+    served: true
+    storage: false
+  - name: v1beta1
     served: true
     storage: true
 status:

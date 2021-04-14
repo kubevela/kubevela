@@ -1,4 +1,6 @@
-# Configuring Data/Env in Application
+---
+title:  Configuring data/env in Application
+---
 
 `vela` provides a `config` command to manage config data.
 

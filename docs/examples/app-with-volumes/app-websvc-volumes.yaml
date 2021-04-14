@@ -1,0 +1,38 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-webservice
+spec:
+  components:
+    - name: mywebsvc
+      type: webservice
+      properties:
+        image: "busybox"
+        cmd:
+          - sleep
+          - "1000"
+        volumes:
+          - name: "my-pvc"
+            mountPath: "/var/www/html1"
+            type: "pvc"
+            claimName: "myclaim"
+          - name: "my-cm"
+            mountPath: "/var/www/html2"
+            type: "configMap"
+            cmName: "myCmName"
+            items:
+              - key: "k1"
+                path: "./a1"
+              - key: "k2"
+                path: "./a2"
+          - name: "my-cm-noitems"
+            mountPath: "/var/www/html22"
+            type: "configMap"
+            cmName: "myCmName2"
+          - name: "mysecret"
+            type: "secret"
+            mountPath: "/var/www/html3"
+            secretName: "mysecret"
+          - name: "my-empty-dir"
+            type: "emptyDir"
+            mountPath: "/var/www/html4"

@@ -1,0 +1,23 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "add sidecar to the app"
+  name: sidecar
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  podDisruptive: true
+  schematic:
+    cue:
+      template: |-
+        patch: {
+           // +patchKey=name
+           spec: template: spec: containers: [parameter]
+        }
+        parameter: {
+           name: string
+           image: string
+           command?: [...string]
+        }

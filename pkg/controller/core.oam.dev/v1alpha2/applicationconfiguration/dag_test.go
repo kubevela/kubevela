@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeVela Authors.
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func Test_fillDatainput(t *testing.T) {
+func TestFillDatainput(t *testing.T) {
 	getObj1 := func() *unstructured.Unstructured {
 		return &unstructured.Unstructured{Object: map[string]interface{}{
 			"spec": map[string]interface{}{

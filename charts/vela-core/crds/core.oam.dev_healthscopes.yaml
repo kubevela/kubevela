@@ -5,13 +5,11 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.4
-  creationTimestamp: null
   name: healthscopes.core.oam.dev
 spec:
   group: core.oam.dev
   names:
     categories:
-    - crossplane
     - oam
     kind: HealthScope
     listKind: HealthScopeList

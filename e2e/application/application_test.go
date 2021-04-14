@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package e2e
 
 import (
@@ -71,13 +87,13 @@ var ApplicationStatusDeeplyContext = func(context string, applicationName, workl
 				return app.Status.LatestRevision != nil
 			}, 180*time.Second, 1*time.Second).Should(gomega.BeTrue())
 
-			ginkgo.By("check AppConfig reconciled ready")
+			ginkgo.By("check AppContext reconciled ready")
 			gomega.Eventually(func() int {
-				appConfig := &v1alpha2.ApplicationConfiguration{}
+				appContext := &v1alpha2.ApplicationContext{}
 				_ = k8sclient.Get(context2.Background(), client.ObjectKey{
-					Name:      app.Status.LatestRevision.Name,
-					Namespace: "default"}, appConfig)
-				return len(appConfig.Status.Workloads)
+					Name:      applicationName,
+					Namespace: "default"}, appContext)
+				return len(appContext.Status.Workloads)
 			}, 180*time.Second, 1*time.Second).ShouldNot(gomega.Equal(0))
 
 			cli := fmt.Sprintf("vela status %s", applicationName)
@@ -153,6 +169,10 @@ var ApplicationInitIntercativeCliContext = func(context string, appName string, 
 					{
 						q: "What would you like to name this webservice (required): ",
 						a: "mysvc",
+					},
+					{
+						q: "what would you configure for parameter 'addRevisionLabel' (optional, default is false):",
+						a: "N",
 					},
 					{
 						q: "Which image would you like to use for your service ",

@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package definition
 
 import (
@@ -11,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	mycue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/dsl/model"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/dsl/task"
@@ -39,15 +56,14 @@ const (
 
 // AbstractEngine defines Definition's Render interface
 type AbstractEngine interface {
-	Params(params interface{}) AbstractEngine
-	Complete(ctx process.Context, abstractTemplate string) error
+	Complete(ctx process.Context, abstractTemplate string, params interface{}) error
 	HealthCheck(ctx process.Context, cli client.Client, ns string, healthPolicyTemplate string) (bool, error)
 	Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string) (string, error)
 }
 
 type def struct {
-	name   string
-	params interface{}
+	name string
+	pd   *PackageDiscover
 }
 
 type workloadDef struct {
@@ -55,71 +71,76 @@ type workloadDef struct {
 }
 
 // NewWorkloadAbstractEngine create Workload Definition AbstractEngine
-func NewWorkloadAbstractEngine(name string) AbstractEngine {
+func NewWorkloadAbstractEngine(name string, pd *PackageDiscover) AbstractEngine {
 	return &workloadDef{
 		def: def{
-			name:   name,
-			params: nil,
+			name: name,
+			pd:   pd,
 		},
 	}
 }
 
-// Params set definition's params
-func (wd *workloadDef) Params(params interface{}) AbstractEngine {
-	wd.params = params
-	return wd
-}
-
 // Complete do workload definition's rendering
-func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string) error {
+func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := bi.AddFile("-", abstractTemplate); err != nil {
 		return errors.WithMessagef(err, "invalid cue template of workload %s", wd.name)
 	}
-	if wd.params != nil {
-		bt, err := json.Marshal(wd.params)
+	var paramFile = "parameter: {}"
+	if params != nil {
+		bt, err := json.Marshal(params)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of workload %s", wd.name)
 		}
-		if err := bi.AddFile("parameter", fmt.Sprintf("parameter: %s", string(bt))); err != nil {
-			return errors.WithMessagef(err, "invalid parameter of workload %s", wd.name)
+		if string(bt) != "null" {
+			paramFile = fmt.Sprintf("%s: %s", mycue.ParameterTag, string(bt))
 		}
 	}
+	if err := bi.AddFile("parameter", paramFile); err != nil {
+		return errors.WithMessagef(err, "invalid parameter of workload %s", wd.name)
+	}
 
-	if err := bi.AddFile("-", ctx.BaseContextFile()); err != nil {
+	if err := bi.AddFile("-", ctx.ExtendedContextFile()); err != nil {
 		return err
 	}
-	instances := cue.Build([]*build.Instance{bi})
-	for _, inst := range instances {
-		if err := inst.Value().Err(); err != nil {
-			return errors.WithMessagef(err, "invalid cue template of workload %s after merge parameter and context", wd.name)
-		}
-		output := inst.Lookup(OutputFieldName)
-		base, err := model.NewBase(output)
-		if err != nil {
-			return errors.WithMessagef(err, "invalid output of workload %s", wd.name)
-		}
-		ctx.SetBase(base)
 
-		// we will support outputs for workload composition, and it will become trait in AppConfig.
-		outputs := inst.Lookup(OutputsFieldName)
-		if !outputs.Exists() {
+	inst, err := wd.pd.ImportPackagesAndBuildInstance(bi)
+	if err != nil {
+		return err
+	}
+
+	if err := inst.Value().Err(); err != nil {
+		return errors.WithMessagef(err, "invalid cue template of workload %s after merge parameter and context", wd.name)
+	}
+	output := inst.Lookup(OutputFieldName)
+	base, err := model.NewBase(output)
+	if err != nil {
+		return errors.WithMessagef(err, "invalid output of workload %s", wd.name)
+	}
+	if err := ctx.SetBase(base); err != nil {
+		return err
+	}
+
+	// we will support outputs for workload composition, and it will become trait in AppConfig.
+	outputs := inst.Lookup(OutputsFieldName)
+	if !outputs.Exists() {
+		return nil
+	}
+	st, err := outputs.Struct()
+	if err != nil {
+		return errors.WithMessagef(err, "invalid outputs of workload %s", wd.name)
+	}
+	for i := 0; i < st.Len(); i++ {
+		fieldInfo := st.Field(i)
+		if fieldInfo.IsDefinition || fieldInfo.IsHidden || fieldInfo.IsOptional {
 			continue
 		}
-		st, err := outputs.Struct()
+		other, err := model.NewOther(fieldInfo.Value)
 		if err != nil {
-			return errors.WithMessagef(err, "invalid outputs of workload %s", wd.name)
+			return errors.WithMessagef(err, "invalid outputs(%s) of workload %s", fieldInfo.Name, wd.name)
 		}
-		for i := 0; i < st.Len(); i++ {
-			fieldInfo := st.Field(i)
-			if fieldInfo.IsDefinition || fieldInfo.IsHidden || fieldInfo.IsOptional {
-				continue
-			}
-			other, err := model.NewOther(fieldInfo.Value)
-			if err != nil {
-				return errors.WithMessagef(err, "invalid outputs(%s) of workload %s", fieldInfo.Name, wd.name)
-			}
-			ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: AuxiliaryWorkload, Name: fieldInfo.Name})
+		if err := ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: AuxiliaryWorkload, Name: fieldInfo.Name}); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -128,7 +149,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string) er
 func (wd *workloadDef) getTemplateContext(ctx process.Context, cli client.Reader, ns string) (map[string]interface{}, error) {
 
 	var root = initRoot(ctx.BaseContextLabels())
-	var commonLabels = getCommonLabels(ctx.BaseContextLabels())
+	var commonLabels = GetCommonLabels(ctx.BaseContextLabels())
 
 	base, assists := ctx.Output()
 	componentWorkload, err := base.Unstructured()
@@ -236,87 +257,90 @@ type traitDef struct {
 }
 
 // NewTraitAbstractEngine create Trait Definition AbstractEngine
-func NewTraitAbstractEngine(name string) AbstractEngine {
+func NewTraitAbstractEngine(name string, pd *PackageDiscover) AbstractEngine {
 	return &traitDef{
 		def: def{
 			name: name,
+			pd:   pd,
 		},
 	}
 }
 
-// Params set definition's params
-func (td *traitDef) Params(params interface{}) AbstractEngine {
-	td.params = params
-	return td
-}
-
 // Complete do trait definition's rendering
-func (td *traitDef) Complete(ctx process.Context, abstractTemplate string) error {
+func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := bi.AddFile("-", abstractTemplate); err != nil {
 		return errors.WithMessagef(err, "invalid template of trait %s", td.name)
 	}
-	if td.params != nil {
-		bt, err := json.Marshal(td.params)
+	var paramFile = "parameter: {}"
+	if params != nil {
+		bt, err := json.Marshal(params)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of trait %s", td.name)
 		}
-		if err := bi.AddFile("parameter", fmt.Sprintf("parameter: %s", string(bt))); err != nil {
-			return errors.WithMessagef(err, "invalid parameter of trait %s", td.name)
+		if string(bt) != "null" {
+			paramFile = fmt.Sprintf("%s: %s", mycue.ParameterTag, string(bt))
 		}
 	}
-
-	if err := bi.AddFile("context", ctx.BaseContextFile()); err != nil {
+	if err := bi.AddFile("parameter", paramFile); err != nil {
+		return errors.WithMessagef(err, "invalid parameter of trait %s", td.name)
+	}
+	if err := bi.AddFile("context", ctx.ExtendedContextFile()); err != nil {
 		return errors.WithMessagef(err, "invalid context of trait %s", td.name)
 	}
-	instances := cue.Build([]*build.Instance{bi})
-	for _, inst := range instances {
-		if err := inst.Value().Err(); err != nil {
-			return errors.WithMessagef(err, "invalid template of trait %s after merge with parameter and context", td.name)
-		}
-		processing := inst.Lookup("processing")
-		var err error
-		if processing.Exists() {
-			if inst, err = task.Process(inst); err != nil {
-				return errors.WithMessagef(err, "invalid process of trait %s", td.name)
-			}
-		}
 
-		outputs := inst.Lookup(OutputsFieldName)
-		if outputs.Exists() {
-			st, err := outputs.Struct()
-			if err != nil {
-				return errors.WithMessagef(err, "invalid outputs of trait %s", td.name)
-			}
-			for i := 0; i < st.Len(); i++ {
-				fieldInfo := st.Field(i)
-				if fieldInfo.IsDefinition || fieldInfo.IsHidden || fieldInfo.IsOptional {
-					continue
-				}
-				other, err := model.NewOther(fieldInfo.Value)
-				if err != nil {
-					return errors.WithMessagef(err, "invalid outputs(resource=%s) of trait %s", fieldInfo.Name, td.name)
-				}
-				ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, Name: fieldInfo.Name})
-			}
-		}
+	inst, err := td.pd.ImportPackagesAndBuildInstance(bi)
+	if err != nil {
+		return err
+	}
 
-		patcher := inst.Lookup(PatchFieldName)
-		if patcher.Exists() {
-			base, _ := ctx.Output()
-			p, err := model.NewOther(patcher)
-			if err != nil {
-				return errors.WithMessagef(err, "invalid patch of trait %s", td.name)
+	if err := inst.Value().Err(); err != nil {
+		return errors.WithMessagef(err, "invalid template of trait %s after merge with parameter and context", td.name)
+	}
+	processing := inst.Lookup("processing")
+	if processing.Exists() {
+		if inst, err = task.Process(inst); err != nil {
+			return errors.WithMessagef(err, "invalid process of trait %s", td.name)
+		}
+	}
+	outputs := inst.Lookup(OutputsFieldName)
+	if outputs.Exists() {
+		st, err := outputs.Struct()
+		if err != nil {
+			return errors.WithMessagef(err, "invalid outputs of trait %s", td.name)
+		}
+		for i := 0; i < st.Len(); i++ {
+			fieldInfo := st.Field(i)
+			if fieldInfo.IsDefinition || fieldInfo.IsHidden || fieldInfo.IsOptional {
+				continue
 			}
-			if err := base.Unify(p); err != nil {
-				return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
+			other, err := model.NewOther(fieldInfo.Value)
+			if err != nil {
+				return errors.WithMessagef(err, "invalid outputs(resource=%s) of trait %s", fieldInfo.Name, td.name)
+			}
+			if err := ctx.AppendAuxiliaries(process.Auxiliary{Ins: other, Type: td.name, Name: fieldInfo.Name}); err != nil {
+				return err
 			}
 		}
 	}
+
+	patcher := inst.Lookup(PatchFieldName)
+	if patcher.Exists() {
+		base, _ := ctx.Output()
+		p, err := model.NewOther(patcher)
+		if err != nil {
+			return errors.WithMessagef(err, "invalid patch of trait %s", td.name)
+		}
+		if err := base.Unify(p); err != nil {
+			return errors.WithMessagef(err, "invalid patch trait %s into workload", td.name)
+		}
+	}
+
 	return nil
 }
 
-func getCommonLabels(contextLabels map[string]string) map[string]string {
+// GetCommonLabels will convert context based labels to OAM standard labels
+func GetCommonLabels(contextLabels map[string]string) map[string]string {
 	var commonLabels = map[string]string{}
 	for k, v := range contextLabels {
 		switch k {
@@ -325,7 +349,7 @@ func getCommonLabels(contextLabels map[string]string) map[string]string {
 		case process.ContextName:
 			commonLabels[oam.LabelAppComponent] = v
 		case process.ContextAppRevision:
-			// TODO(wonderflow): do we need to add appRevision into common labels ? Actually it's appConfig name in our current design.
+			commonLabels[oam.LabelAppRevision] = v
 		}
 	}
 	return commonLabels
@@ -341,7 +365,7 @@ func initRoot(contextLabels map[string]string) map[string]interface{} {
 
 func (td *traitDef) getTemplateContext(ctx process.Context, cli client.Reader, ns string) (map[string]interface{}, error) {
 	var root = initRoot(ctx.BaseContextLabels())
-	var commonLabels = getCommonLabels(ctx.BaseContextLabels())
+	var commonLabels = GetCommonLabels(ctx.BaseContextLabels())
 
 	_, assists := ctx.Output()
 	outputs := make(map[string]interface{})

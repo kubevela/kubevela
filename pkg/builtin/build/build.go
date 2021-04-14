@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package build
 
 import (
@@ -8,6 +24,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/oam-dev/kubevela/pkg/builtin/kind"
 	"github.com/oam-dev/kubevela/pkg/builtin/registry"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -113,26 +130,9 @@ func (b *Build) pushImage(io cmdutil.IOStreams, image string) error {
 	io.Infof("pushing image (%s)...\n", image)
 	switch {
 	case b.Push.Local == "kind":
-		//nolint:gosec
-		cmd := exec.Command("kind", "load", "docker-image", image)
-		stdout, err := cmd.StdoutPipe()
+		err := kind.LoadDockerImage(image)
 		if err != nil {
-			io.Errorf("pushImage(kind) exec command error, message:%s\n", err.Error())
-			return err
-		}
-		stderr, err := cmd.StderrPipe()
-		if err != nil {
-			io.Errorf("pushImage(kind) exec command error, message:%s\n", err.Error())
-			return err
-		}
-		if err := cmd.Start(); err != nil {
-			io.Errorf("pushImage(kind) exec command error, message:%s\n", err.Error())
-			return err
-		}
-		go asyncLog(stdout, io)
-		go asyncLog(stderr, io)
-		if err := cmd.Wait(); err != nil {
-			io.Errorf("pushImage(kind) wait for command execution error:%s", err.Error())
+			io.Errorf("pushImage(kind) load docker image error, message:%s", err)
 			return err
 		}
 		return nil

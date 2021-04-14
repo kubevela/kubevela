@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Crossplane Authors.
+Copyright 2021 The Crossplane Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package applicationconfiguration
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -40,7 +41,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	oamtype "github.com/oam-dev/kubevela/apis/types"
+	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -95,8 +100,8 @@ func TestRender(t *testing.T) {
 	controlledTemplateAC := revAC.DeepCopy()
 	controlledTemplateAC.OwnerReferences = []metav1.OwnerReference{
 		{
-			APIVersion: v1alpha2.SchemeGroupVersion.String(),
-			Kind:       v1alpha2.ApplicationKind,
+			APIVersion: v1beta1.SchemeGroupVersion.String(),
+			Kind:       v1beta1.ApplicationKind,
 			Controller: pointer.BoolPtr(true),
 		},
 	}
@@ -106,8 +111,11 @@ func TestRender(t *testing.T) {
 		oam.AnnotationRollingComponent: componentName,
 		"keep":                         strconv.FormatBool(true),
 	})
-	controlledNoneTemplateAC := controlledTemplateAC.DeepCopy()
-	controlledNoneTemplateAC.Status.RollingStatus = v1alpha2.RollingTemplated
+	controlledTemplatedAC := controlledTemplateAC.DeepCopy()
+	controlledTemplatedAC.Status.RollingStatus = oamtype.RollingTemplated
+	// ac will render template again if the status is not templated
+	controlledForceTemplateAC := controlledTemplatedAC.DeepCopy()
+	controlledForceTemplateAC.Status.RollingStatus = oamtype.RollingTemplating
 
 	ref := metav1.NewControllerRef(ac, v1alpha2.ApplicationConfigurationGroupVersionKind)
 	errTrait := errors.New("errTrait")
@@ -195,7 +203,7 @@ func TestRender(t *testing.T) {
 				client: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
 					switch robj := obj.(type) {
 					case *v1alpha2.Component:
-						ccomp := v1alpha2.Component{Status: v1alpha2.ComponentStatus{LatestRevision: &v1alpha2.Revision{Name: revisionName2}}}
+						ccomp := v1alpha2.Component{Status: v1alpha2.ComponentStatus{LatestRevision: &common.Revision{Name: revisionName2}}}
 						ccomp.DeepCopyInto(robj)
 					case *v1alpha2.TraitDefinition:
 						return errTrait
@@ -372,7 +380,7 @@ func TestRender(t *testing.T) {
 				client: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
 					switch robj := obj.(type) {
 					case *v1alpha2.Component:
-						ccomp := v1alpha2.Component{Status: v1alpha2.ComponentStatus{LatestRevision: &v1alpha2.Revision{Name: revisionName2}}}
+						ccomp := v1alpha2.Component{Status: v1alpha2.ComponentStatus{LatestRevision: &common.Revision{Name: revisionName2}}}
 						ccomp.DeepCopyInto(robj)
 					case *v1alpha2.TraitDefinition:
 						ttrait := v1alpha2.TraitDefinition{ObjectMeta: metav1.ObjectMeta{Name: traitName}, Spec: v1alpha2.TraitDefinitionSpec{RevisionEnabled: true}}
@@ -552,7 +560,7 @@ func TestRender(t *testing.T) {
 					case *v1alpha2.Component:
 						ccomp := v1alpha2.Component{
 							Status: v1alpha2.ComponentStatus{
-								LatestRevision: &v1alpha2.Revision{Name: revisionName2},
+								LatestRevision: &common.Revision{Name: revisionName2},
 							},
 						}
 						ccomp.DeepCopyInto(defObj)
@@ -574,7 +582,7 @@ func TestRender(t *testing.T) {
 									},
 								},
 								Status: v1alpha2.ComponentStatus{
-									LatestRevision: &v1alpha2.Revision{Name: revisionName2},
+									LatestRevision: &common.Revision{Name: revisionName2},
 								},
 							}},
 							Revision: 2,
@@ -630,7 +638,7 @@ func TestRender(t *testing.T) {
 					case *v1alpha2.Component:
 						ccomp := v1alpha2.Component{
 							Status: v1alpha2.ComponentStatus{
-								LatestRevision: &v1alpha2.Revision{Name: revisionName2},
+								LatestRevision: &common.Revision{Name: revisionName2},
 							},
 						}
 						ccomp.DeepCopyInto(defObj)
@@ -652,7 +660,7 @@ func TestRender(t *testing.T) {
 									},
 								},
 								Status: v1alpha2.ComponentStatus{
-									LatestRevision: &v1alpha2.Revision{Name: revisionName2},
+									LatestRevision: &common.Revision{Name: revisionName2},
 								},
 							}},
 							Revision: 2,
@@ -708,7 +716,7 @@ func TestRender(t *testing.T) {
 					case *v1alpha2.Component:
 						ccomp := v1alpha2.Component{
 							Status: v1alpha2.ComponentStatus{
-								LatestRevision: &v1alpha2.Revision{Name: revisionName2},
+								LatestRevision: &common.Revision{Name: revisionName2},
 							},
 						}
 						ccomp.DeepCopyInto(defObj)
@@ -730,7 +738,7 @@ func TestRender(t *testing.T) {
 									},
 								},
 								Status: v1alpha2.ComponentStatus{
-									LatestRevision: &v1alpha2.Revision{Name: revisionName2},
+									LatestRevision: &common.Revision{Name: revisionName2},
 								},
 							}},
 							Revision: 2,
@@ -757,11 +765,90 @@ func TestRender(t *testing.T) {
 					return t, nil
 				}),
 			},
-			args: args{ac: controlledNoneTemplateAC},
+			args: args{ac: controlledTemplatedAC},
 			want: want{
 				w: []Workload{
 					{
 						SkipApply:             true,
+						ComponentName:         componentName,
+						ComponentRevisionName: revisionName2,
+						Workload: func() *unstructured.Unstructured {
+							w := &unstructured.Unstructured{}
+							w.SetNamespace(namespace)
+							w.SetName(revisionName2)
+							w.SetOwnerReferences([]metav1.OwnerReference{*ref})
+							w.SetAnnotations(map[string]string{
+								oam.AnnotationAppGeneration: "0",
+							})
+							return w
+						}(),
+						RevisionEnabled: true,
+					},
+				},
+			},
+		},
+		"Success-With-Force-Template-Deployment": {
+			reason: "We force render the workload as long as the status is not templated",
+			fields: fields{
+				client: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
+					switch defObj := obj.(type) {
+					case *v1alpha2.Component:
+						ccomp := v1alpha2.Component{
+							Status: v1alpha2.ComponentStatus{
+								LatestRevision: &common.Revision{Name: revisionName2},
+							},
+						}
+						ccomp.DeepCopyInto(defObj)
+					case *v1alpha2.TraitDefinition:
+						ttrait := v1alpha2.TraitDefinition{ObjectMeta: metav1.ObjectMeta{Name: traitName},
+							Spec: v1alpha2.TraitDefinitionSpec{RevisionEnabled: true}}
+						ttrait.DeepCopyInto(defObj)
+					case *v1.ControllerRevision:
+						rev := &v1.ControllerRevision{
+							ObjectMeta: metav1.ObjectMeta{Name: revisionName, Namespace: namespace},
+							Data: runtime.RawExtension{Object: &v1alpha2.Component{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      componentName,
+									Namespace: namespace,
+								},
+								Spec: v1alpha2.ComponentSpec{
+									Workload: runtime.RawExtension{
+										Object: &unstructured.Unstructured{},
+									},
+								},
+								Status: v1alpha2.ComponentStatus{
+									LatestRevision: &common.Revision{Name: revisionName2},
+								},
+							}},
+							Revision: 2,
+						}
+						rev.DeepCopyInto(defObj)
+					}
+					return nil
+				})},
+				params: ParameterResolveFn(func(_ []v1alpha2.ComponentParameter, _ []v1alpha2.ComponentParameterValue) ([]Parameter, error) {
+					return nil, nil
+				}),
+				workload: ResourceRenderFn(func(_ []byte, _ ...Parameter) (*unstructured.Unstructured, error) {
+					w := &unstructured.Unstructured{
+						Object: map[string]interface{}{
+							"apiVersion": "apps/v1",
+							"kind":       "Deployment",
+						},
+					}
+					return w, nil
+				}),
+				trait: ResourceRenderFn(func(_ []byte, _ ...Parameter) (*unstructured.Unstructured, error) {
+					t := &unstructured.Unstructured{}
+					t.SetName(traitName)
+					return t, nil
+				}),
+			},
+			args: args{ac: controlledForceTemplateAC},
+			want: want{
+				w: []Workload{
+					{
+						SkipApply:             false,
 						ComponentName:         componentName,
 						ComponentRevisionName: revisionName2,
 						Workload: func() *unstructured.Unstructured {
@@ -784,13 +871,12 @@ func TestRender(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			r := &components{tc.fields.client, mock.NewMockDiscoveryMapper(), tc.fields.params,
 				tc.fields.workload, tc.fields.trait}
-			needTemplating := tc.args.ac.Status.RollingStatus != v1alpha2.RollingTemplated
+			needTemplating := tc.args.ac.Status.RollingStatus != oamtype.RollingTemplated
 			_, isRolling := tc.args.ac.GetAnnotations()[oam.AnnotationAppRollout]
 			got, _, err := r.Render(context.Background(), tc.args.ac)
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nr.Render(...): -want error, +got error:\n%s\n", tc.reason, diff)
 			}
-
 			if isControlledByApp(tc.args.ac) {
 				// test the case of application generated AC
 				if diff := cmp.Diff(tc.want.w[0].ComponentName, got[0].ComponentName); diff != "" {
@@ -802,11 +888,11 @@ func TestRender(t *testing.T) {
 				if diff := cmp.Diff(tc.want.w[0].Workload.GetName(), got[0].Workload.GetName()); diff != "" {
 					t.Errorf("\n%s\nr.Render(...): -want, +got:\n%s\n", tc.reason, diff)
 				}
-				if _, exit := got[0].Workload.GetAnnotations()[oam.AnnotationAppRollout]; exit {
+				if _, exist := got[0].Workload.GetAnnotations()[oam.AnnotationAppRollout]; exist {
 					t.Errorf("\n%s\nr.Render(...) workload should not get annotation:%s\n", tc.reason,
 						oam.AnnotationAppRollout)
 				}
-				if _, exit := got[0].Workload.GetAnnotations()[oam.AnnotationRollingComponent]; exit {
+				if _, exist := got[0].Workload.GetAnnotations()[oam.AnnotationRollingComponent]; exist {
 					t.Errorf("\n%s\nr.Render(...) workload  should not get annotation:%s\n", tc.reason,
 						oam.AnnotationRollingComponent)
 				}
@@ -814,7 +900,7 @@ func TestRender(t *testing.T) {
 					t.Errorf("\n%s\nr.Render(...) workload should get annotation:%s\n", tc.reason,
 						"keep")
 				}
-				if _, exit := got[0].Traits[0].Object.GetAnnotations()[oam.AnnotationRollingComponent]; exit {
+				if _, exist := got[0].Traits[0].Object.GetAnnotations()[oam.AnnotationRollingComponent]; exist {
 					t.Errorf("\n%s\nr.Render(...): trait should not get annotation:%s\n", tc.reason,
 						oam.AnnotationRollingComponent)
 				}
@@ -830,9 +916,9 @@ func TestRender(t *testing.T) {
 						if got[0].SkipApply {
 							t.Errorf("\n%s\nr.Render(...): template workload should not be skipped\n", tc.reason)
 						}
-						if tc.args.ac.Status.RollingStatus != v1alpha2.RollingTemplated {
+						if tc.args.ac.Status.RollingStatus != oamtype.RollingTemplating {
 							t.Errorf("\n%s\nr.Render(...): ac status should be templated but got %s\n", tc.reason,
-								ac.Status.RollingStatus)
+								tc.args.ac.Status.RollingStatus)
 						}
 					}
 
@@ -906,7 +992,7 @@ func TestRenderComponent(t *testing.T) {
 				},
 			},
 			Status: v1alpha2.ComponentStatus{
-				LatestRevision: &v1alpha2.Revision{Name: revisionName},
+				LatestRevision: &common.Revision{Name: revisionName},
 			},
 		}},
 	}
@@ -1544,7 +1630,7 @@ func TestSetWorkloadInstanceName(t *testing.T) {
 					"name": "myname",
 				},
 			}},
-			c: &v1alpha2.Component{ObjectMeta: metav1.ObjectMeta{Name: "comp"}, Status: v1alpha2.ComponentStatus{LatestRevision: &v1alpha2.Revision{Name: "rev-1"}}},
+			c: &v1alpha2.Component{ObjectMeta: metav1.ObjectMeta{Name: "comp"}, Status: v1alpha2.ComponentStatus{LatestRevision: &common.Revision{Name: "rev-1"}}},
 			exp: &unstructured.Unstructured{Object: map[string]interface{}{
 				"metadata": map[string]interface{}{
 					"name": "myname",
@@ -1559,7 +1645,7 @@ func TestSetWorkloadInstanceName(t *testing.T) {
 				},
 			},
 			u: &unstructured.Unstructured{Object: map[string]interface{}{}},
-			c: &v1alpha2.Component{ObjectMeta: metav1.ObjectMeta{Name: "comp"}, Status: v1alpha2.ComponentStatus{LatestRevision: &v1alpha2.Revision{Name: "rev-2"}}},
+			c: &v1alpha2.Component{ObjectMeta: metav1.ObjectMeta{Name: "comp"}, Status: v1alpha2.ComponentStatus{LatestRevision: &common.Revision{Name: "rev-2"}}},
 			currentWorkload: &unstructured.Unstructured{Object: map[string]interface{}{
 				"metadata": map[string]interface{}{
 					"labels": map[string]string{
@@ -1581,7 +1667,7 @@ func TestSetWorkloadInstanceName(t *testing.T) {
 				},
 			},
 			u: &unstructured.Unstructured{Object: map[string]interface{}{}},
-			c: &v1alpha2.Component{ObjectMeta: metav1.ObjectMeta{Name: "comp"}, Status: v1alpha2.ComponentStatus{LatestRevision: &v1alpha2.Revision{Name: "rev-1"}}},
+			c: &v1alpha2.Component{ObjectMeta: metav1.ObjectMeta{Name: "comp"}, Status: v1alpha2.ComponentStatus{LatestRevision: &common.Revision{Name: "rev-1"}}},
 			currentWorkload: &unstructured.Unstructured{Object: map[string]interface{}{
 				"metadata": map[string]interface{}{
 					"labels": map[string]string{
@@ -1603,7 +1689,7 @@ func TestSetWorkloadInstanceName(t *testing.T) {
 				},
 			},
 			u: &unstructured.Unstructured{Object: map[string]interface{}{}},
-			c: &v1alpha2.Component{ObjectMeta: metav1.ObjectMeta{Name: "comp"}, Status: v1alpha2.ComponentStatus{LatestRevision: &v1alpha2.Revision{Name: "rev-1"}}},
+			c: &v1alpha2.Component{ObjectMeta: metav1.ObjectMeta{Name: "comp"}, Status: v1alpha2.ComponentStatus{LatestRevision: &common.Revision{Name: "rev-1"}}},
 			exp: &unstructured.Unstructured{Object: map[string]interface{}{
 				"metadata": map[string]interface{}{
 					"name": "comp",
@@ -1643,8 +1729,8 @@ func TestIsControlledByApp(t *testing.T) {
 	assert.False(t, isControlledByApp(ac))
 	// not true even the owner type checks right
 	ac.OwnerReferences = append(ac.OwnerReferences, metav1.OwnerReference{
-		APIVersion: v1alpha2.SchemeGroupVersion.String(),
-		Kind:       v1alpha2.ApplicationKind,
+		APIVersion: v1beta1.SchemeGroupVersion.String(),
+		Kind:       v1beta1.ApplicationKind,
 	})
 	assert.False(t, isControlledByApp(ac))
 	// only true when it's the controller
@@ -1652,8 +1738,8 @@ func TestIsControlledByApp(t *testing.T) {
 	assert.True(t, isControlledByApp(ac))
 	// still true when it's not the only the controller
 	ac.OwnerReferences = append(ac.OwnerReferences, metav1.OwnerReference{
-		APIVersion: v1alpha2.SchemeGroupVersion.String(),
-		Kind:       v1alpha2.AppRolloutKind,
+		APIVersion: v1beta1.SchemeGroupVersion.String(),
+		Kind:       v1beta1.AppRolloutKind,
 		Controller: pointer.BoolPtr(true),
 	})
 	assert.True(t, isControlledByApp(ac))
@@ -1675,6 +1761,21 @@ func TestSetTraitProperties(t *testing.T) {
 	expU.SetName("comp1")
 	expU.SetNamespace("ns")
 	expU.SetOwnerReferences([]metav1.OwnerReference{{Name: "comp1"}})
+	assert.Equal(t, expU, u)
+
+	u = &unstructured.Unstructured{}
+	u.SetOwnerReferences([]metav1.OwnerReference{
+		{
+			Name: "resourceTracker",
+		},
+	})
+	u.SetNamespace("another-ns")
+	setTraitProperties(u, "comp1", "ns", &metav1.OwnerReference{Name: "comp1"})
+	expU = &unstructured.Unstructured{}
+	expU.SetName("comp1")
+	expU.SetNamespace("another-ns")
+	expU.SetOwnerReferences([]metav1.OwnerReference{{Name: "resourceTracker"}})
+	assert.Equal(t, expU, u)
 }
 
 func TestRenderTraitName(t *testing.T) {
@@ -2141,6 +2242,131 @@ func TestMatchValue(t *testing.T) {
 				t.Error(diff)
 			}
 			assert.Equal(t, tc.want.reason, reason)
+		})
+	}
+}
+
+func TestDiscoverHelmModuleWorkload(t *testing.T) {
+	ns := "test-ns"
+	releaseName := "test-rls"
+	chartName := "test-chart"
+	release := &unstructured.Unstructured{}
+	release.SetGroupVersionKind(helmapi.HelmReleaseGVK)
+	release.SetName(releaseName)
+	unstructured.SetNestedMap(release.Object, map[string]interface{}{
+		"chart": map[string]interface{}{
+			"spec": map[string]interface{}{
+				"chart":   chartName,
+				"version": "1.0.0",
+			},
+		},
+	}, "spec")
+	releaseRaw, _ := release.MarshalJSON()
+
+	rlsWithoutChart := release.DeepCopy()
+	unstructured.SetNestedMap(rlsWithoutChart.Object, nil, "spec", "chart")
+	rlsWithoutChartRaw, _ := rlsWithoutChart.MarshalJSON()
+
+	wl := &unstructured.Unstructured{}
+	wl.SetLabels(map[string]string{
+		"app.kubernetes.io/managed-by": "Helm",
+	})
+	wl.SetAnnotations(map[string]string{
+		"meta.helm.sh/release-name":      releaseName,
+		"meta.helm.sh/release-namespace": ns,
+	})
+
+	tests := map[string]struct {
+		reason         string
+		c              client.Reader
+		helm           *common.Helm
+		workloadInComp *unstructured.Unstructured
+		wantWorkload   *unstructured.Unstructured
+		wantErr        error
+	}{
+		"CompHasNoHelm": {
+			reason:  "An error should occur because component has no Helm module",
+			wantErr: errors.New("the component has no valid helm module"),
+		},
+		"CannotGetReleaseFromComp": {
+			reason: "An error should occur because cannot get release",
+			helm: &common.Helm{
+				Release: runtime.RawExtension{Raw: []byte("boom")},
+			},
+			wantErr: errors.Wrap(errors.New("invalid character 'b' looking for beginning of value"),
+				"cannot get helm release from component"),
+		},
+		"CannotGetChartFromRelease": {
+			reason: "An error should occur because cannot get chart info",
+			helm: &common.Helm{
+				Release: runtime.RawExtension{Raw: rlsWithoutChartRaw},
+			},
+			wantErr: errors.New("cannot get helm chart name"),
+		},
+		"CannotGetWLFromComp": {
+			reason: "An error should occur because cannot get workload from component",
+			helm: &common.Helm{
+				Release: runtime.RawExtension{Raw: releaseRaw},
+			},
+			wantErr: errors.Wrap(errors.New("unexpected end of JSON input"),
+				"cannot get workload from component"),
+		},
+		"CannotGetWorkload": {
+			reason: "An error should occur because cannot get workload from k8s cluster",
+			helm: &common.Helm{
+				Release: runtime.RawExtension{Raw: releaseRaw},
+			},
+			workloadInComp: &unstructured.Unstructured{},
+			c:              &test.MockClient{MockGet: test.NewMockGetFn(errors.New("boom"))},
+			wantErr:        errors.New("boom"),
+		},
+		"GetNotMatchedWorkload": {
+			reason: "An error should occur because the found workload is not managed by Helm",
+			helm: &common.Helm{
+				Release: runtime.RawExtension{Raw: releaseRaw},
+			},
+			workloadInComp: &unstructured.Unstructured{},
+			c: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
+				o, _ := obj.(*unstructured.Unstructured)
+				*o = unstructured.Unstructured{}
+				o.SetLabels(map[string]string{
+					"app.kubernetes.io/managed-by": "non-helm",
+				})
+				return nil
+			})},
+			wantErr: fmt.Errorf("the workload is found but not match with helm info(meta.helm.sh/release-name: %s, meta.helm.sh/namespace: %s, app.kubernetes.io/managed-by: Helm)", "test-rls", "test-ns"),
+		},
+		"DiscoverSuccessfully": {
+			reason: "No error should occur and the workload shoud be returned",
+			c: &test.MockClient{MockGet: test.NewMockGetFn(nil, func(obj runtime.Object) error {
+				o, _ := obj.(*unstructured.Unstructured)
+				*o = *wl.DeepCopy()
+				return nil
+			})},
+			workloadInComp: wl.DeepCopy(),
+			helm: &common.Helm{
+				Release: runtime.RawExtension{Raw: releaseRaw},
+			},
+			wantWorkload: wl.DeepCopy(),
+			wantErr:      nil,
+		},
+	}
+
+	for caseName, tc := range tests {
+		t.Run(caseName, func(t *testing.T) {
+			comp := &v1alpha2.Component{}
+			if tc.workloadInComp != nil {
+				wlRaw, _ := tc.workloadInComp.MarshalJSON()
+				comp.Spec.Workload = runtime.RawExtension{Raw: wlRaw}
+			}
+			comp.Spec.Helm = tc.helm
+			wl, err := discoverHelmModuleWorkload(context.Background(), tc.c, comp, ns)
+			if diff := cmp.Diff(tc.wantWorkload, wl); diff != "" {
+				t.Errorf("\n%s\ndiscoverHelmModuleWorkload(...)(...): -want object, +got object\n%s\n", tc.reason, diff)
+			}
+			if diff := cmp.Diff(tc.wantErr, err, test.EquateErrors()); diff != "" {
+				t.Errorf("\n%s\nApply(...): -want , +got \n%s\n", tc.reason, diff)
+			}
 		})
 	}
 }

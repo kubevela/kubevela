@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package common
 
 import (
@@ -5,45 +21,110 @@ import (
 	"fmt"
 	"strings"
 
-	"cuelang.org/go/cue"
 	plur "github.com/gertd/go-pluralize"
-	"github.com/spf13/pflag"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	client2 "sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
-	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
-	"github.com/oam-dev/kubevela/references/appfile"
-	"github.com/oam-dev/kubevela/references/appfile/api"
+	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/references/plugins"
 )
 
 // ListTraitDefinitions will list all definition include traits and workloads
-func ListTraitDefinitions(workloadName *string) ([]types.Capability, error) {
+func ListTraitDefinitions(userNamespace string, c common.Args, workloadName *string) ([]types.Capability, error) {
 	var traitList []types.Capability
-	traits, err := plugins.LoadInstalledCapabilityWithType(types.TypeTrait)
+	traits, err := plugins.LoadInstalledCapabilityWithType(userNamespace, c, types.TypeTrait)
 	if err != nil {
 		return traitList, err
 	}
-	workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
+	workloads, err := plugins.LoadInstalledCapabilityWithType(userNamespace, c, types.TypeComponentDefinition)
 	if err != nil {
 		return traitList, err
 	}
-	traitList = convertAllAppliyToList(traits, workloads, workloadName)
+	traitList = convertAllApplyToList(traits, workloads, workloadName)
 	return traitList, nil
 }
 
+// ListRawTraitDefinitions will list raw definition
+func ListRawTraitDefinitions(userNamespace string, c common.Args) ([]v1beta1.TraitDefinition, error) {
+	client, err := c.GetClient()
+	if err != nil {
+		return nil, err
+	}
+	ctx := util.SetNamespaceInCtx(context.Background(), userNamespace)
+	traitList := v1beta1.TraitDefinitionList{}
+	ns := ctx.Value(util.AppDefinitionNamespace).(string)
+	if err = client.List(ctx, &traitList, client2.InNamespace(ns)); err != nil {
+		return nil, err
+	}
+	if ns == oam.SystemDefinitonNamespace {
+		return traitList.Items, nil
+	}
+	sysTraitList := v1beta1.TraitDefinitionList{}
+	if err = client.List(ctx, &sysTraitList, client2.InNamespace(oam.SystemDefinitonNamespace)); err != nil {
+		return nil, err
+	}
+	return append(traitList.Items, sysTraitList.Items...), nil
+}
+
+// ListRawWorkloadDefinitions will list raw definition
+func ListRawWorkloadDefinitions(userNamespace string, c common.Args) ([]v1beta1.WorkloadDefinition, error) {
+	client, err := c.GetClient()
+	if err != nil {
+		return nil, err
+	}
+	ctx := util.SetNamespaceInCtx(context.Background(), userNamespace)
+	workloadList := v1beta1.WorkloadDefinitionList{}
+	ns := ctx.Value(util.AppDefinitionNamespace).(string)
+	if err = client.List(ctx, &workloadList, client2.InNamespace(ns)); err != nil {
+		return nil, err
+	}
+	if ns == oam.SystemDefinitonNamespace {
+		return workloadList.Items, nil
+	}
+	sysWorkloadList := v1beta1.WorkloadDefinitionList{}
+	if err = client.List(ctx, &sysWorkloadList, client2.InNamespace(oam.SystemDefinitonNamespace)); err != nil {
+		return nil, err
+	}
+	return append(workloadList.Items, sysWorkloadList.Items...), nil
+}
+
+// ListRawComponentDefinitions will list raw component definition
+func ListRawComponentDefinitions(userNamespace string, c common.Args) ([]v1beta1.ComponentDefinition, error) {
+	client, err := c.GetClient()
+	if err != nil {
+		return nil, err
+	}
+	ctx := util.SetNamespaceInCtx(context.Background(), userNamespace)
+	ns := ctx.Value(util.AppDefinitionNamespace).(string)
+	componentList := v1beta1.ComponentDefinitionList{}
+	if err = client.List(ctx, &componentList, client2.InNamespace(ns)); err != nil {
+		return nil, err
+	}
+	if ns == oam.SystemDefinitonNamespace {
+		return componentList.Items, nil
+	}
+	sysComponentList := v1beta1.ComponentDefinitionList{}
+	if err = client.List(ctx, &sysComponentList, client2.InNamespace(oam.SystemDefinitonNamespace)); err != nil {
+		return nil, err
+	}
+	return append(componentList.Items, sysComponentList.Items...), nil
+}
+
 // GetTraitDefinition will get trait capability with applyTo converted
-func GetTraitDefinition(workloadName *string, traitType string) (types.Capability, error) {
+func GetTraitDefinition(userNamespace string, c common.Args, workloadName *string, traitType string) (types.Capability, error) {
 	var traitDef types.Capability
 	traitCap, err := plugins.GetInstalledCapabilityWithCapName(types.TypeTrait, traitType)
 	if err != nil {
 		return traitDef, err
 	}
-	workloadsCap, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
+	workloadsCap, err := plugins.LoadInstalledCapabilityWithType(userNamespace, c, types.TypeComponentDefinition)
 	if err != nil {
 		return traitDef, err
 	}
-	traitList := convertAllAppliyToList([]types.Capability{traitCap}, workloadsCap, workloadName)
+	traitList := convertAllApplyToList([]types.Capability{traitCap}, workloadsCap, workloadName)
 	if len(traitList) != 1 {
 		return traitDef, fmt.Errorf("could not get installed capability by %s", traitType)
 	}
@@ -51,7 +132,7 @@ func GetTraitDefinition(workloadName *string, traitType string) (types.Capabilit
 	return traitDef, nil
 }
 
-func convertAllAppliyToList(traits []types.Capability, workloads []types.Capability, workloadName *string) []types.Capability {
+func convertAllApplyToList(traits []types.Capability, workloads []types.Capability, workloadName *string) []types.Capability {
 	var traitList []types.Capability
 	for _, t := range traits {
 		convertedApplyTo := ConvertApplyTo(t.AppliesTo, workloads)
@@ -104,7 +185,7 @@ func in(l []string, v string) bool {
 	return false
 }
 
-// Parse will parse applyTo(with format apigroup/Version.Kind) to crd name by just calculate the plural of kind word.
+// Parse will parse applyTo(with format Group/Version.Kind) to crd name by just calculate the plural of kind word.
 // TODO we should use discoverymapper instead of calculate plural
 func Parse(applyTo string) string {
 	l := strings.Split(applyTo, "/")
@@ -117,113 +198,4 @@ func Parse(applyTo string) string {
 		return applyTo
 	}
 	return plur.NewClient().Plural(strings.ToLower(l[1])) + "." + apigroup
-}
-
-// ValidateAndMutateForCore was built in validate and mutate function for core workloads and traits
-func ValidateAndMutateForCore(traitType, workloadName string, flags *pflag.FlagSet, env *types.EnvMeta) error {
-	switch traitType {
-	case "route":
-		domain, _ := flags.GetString("domain")
-		if domain == "" {
-			if env.Domain == "" {
-				return fmt.Errorf("--domain is required if not contain in environment")
-			}
-			if strings.HasPrefix(env.Domain, "https://") {
-				env.Domain = strings.TrimPrefix(env.Domain, "https://")
-			}
-			if strings.HasPrefix(env.Domain, "http://") {
-				env.Domain = strings.TrimPrefix(env.Domain, "http://")
-			}
-			if err := flags.Set("domain", workloadName+"."+env.Domain); err != nil {
-				return fmt.Errorf("set flag for vela-core trait('route') err %w, please make sure your template is right", err)
-			}
-		}
-		issuer, _ := flags.GetString("issuer")
-		if issuer == "" && env.Issuer != "" {
-			if err := flags.Set("issuer", env.Issuer); err != nil {
-				return fmt.Errorf("set flag for vela-core trait('route') err %w, please make sure your template is right", err)
-			}
-		}
-	default:
-		// extend other trait here in the future
-	}
-	return nil
-}
-
-// AddOrUpdateTrait attach trait to workload
-func AddOrUpdateTrait(env *types.EnvMeta, appName string, componentName string, flagSet *pflag.FlagSet, template types.Capability) (*api.Application, error) {
-	err := ValidateAndMutateForCore(template.Name, componentName, flagSet, env)
-	if err != nil {
-		return nil, err
-	}
-	if appName == "" {
-		appName = componentName
-	}
-	app, err := appfile.LoadApplication(env.Name, appName)
-	if err != nil {
-		return app, err
-	}
-	traitAlias := template.Name
-	traitData, err := appfile.GetTraitsByType(app, componentName, traitAlias)
-	if err != nil {
-		return app, err
-	}
-	for _, v := range template.Parameters {
-		name := v.Name
-		if v.Alias != "" {
-			name = v.Alias
-		}
-		// nolint:exhaustive
-		switch v.Type {
-		case cue.IntKind:
-			traitData[v.Name], err = flagSet.GetInt64(name)
-		case cue.StringKind:
-			traitData[v.Name], err = flagSet.GetString(name)
-		case cue.BoolKind:
-			traitData[v.Name], err = flagSet.GetBool(name)
-		case cue.NumberKind, cue.FloatKind:
-			traitData[v.Name], err = flagSet.GetFloat64(name)
-		default:
-			// Currently we don't support get value from complex type
-			continue
-		}
-
-		if err != nil {
-			return nil, fmt.Errorf("get flag(s) \"%s\" err %w", name, err)
-		}
-	}
-	if err = appfile.SetTrait(app, componentName, traitAlias, traitData); err != nil {
-		return app, err
-	}
-	return app, appfile.Save(app, env.Name)
-}
-
-// TraitOperationRun will check if it's a stage operation before run
-func TraitOperationRun(ctx context.Context, c client.Client, env *types.EnvMeta, appObj *api.Application,
-	staging bool, io cmdutil.IOStreams) (string, error) {
-	if staging {
-		return "Staging saved", nil
-	}
-	err := BuildRun(ctx, appObj, c, env, io)
-	if err != nil {
-		return "", err
-	}
-	return "Deployed!", nil
-}
-
-// PrepareDetachTrait will detach trait in local AppFile
-func PrepareDetachTrait(envName string, traitType string, componentName string, appName string) (*api.Application, error) {
-	var appObj *api.Application
-	var err error
-	if appName == "" {
-		appName = componentName
-	}
-	if appObj, err = appfile.LoadApplication(envName, appName); err != nil {
-		return appObj, err
-	}
-
-	if err = appfile.RemoveTrait(appObj, componentName, traitType); err != nil {
-		return appObj, err
-	}
-	return appObj, appfile.Save(appObj, envName)
 }

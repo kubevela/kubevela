@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package discoverymapper
 
 import (
@@ -158,5 +174,52 @@ var _ = Describe("Mapper discovery resources", func() {
 		kinds, err = dism.KindsFor(schema.GroupVersionResource{Group: "example.com", Version: "v1", Resource: "foos"})
 		Expect(err).Should(BeNil())
 		Expect(kinds).Should(Equal([]schema.GroupVersionKind{{Group: "example.com", Version: "v1", Kind: "Foo"}}))
+	})
+
+	It("get GVK from k8s resource", func() {
+		dism, err := New(cfg)
+		Expect(err).Should(BeNil())
+
+		By("Test Pod")
+		podAPIVersion, podKind := "v1", "Pod"
+		podGV, err := schema.ParseGroupVersion(podAPIVersion)
+		Expect(err).Should(BeNil())
+		podGVR, err := dism.ResourcesFor(podGV.WithKind(podKind))
+		Expect(err).Should(BeNil())
+		Expect(podGVR).Should(Equal(schema.GroupVersionResource{
+			Version:  "v1",
+			Resource: "pods",
+		}))
+
+		By("Test Deployment")
+		deploymentAPIVersion, deploymentKind := "apps/v1", "Deployment"
+		deploymentGV, err := schema.ParseGroupVersion(deploymentAPIVersion)
+		Expect(err).Should(BeNil())
+		deploymentGVR, err := dism.ResourcesFor(deploymentGV.WithKind(deploymentKind))
+		Expect(err).Should(BeNil())
+		Expect(deploymentGVR).Should(Equal(schema.GroupVersionResource{
+			Group:    "apps",
+			Version:  "v1",
+			Resource: "deployments",
+		}))
+
+		By("Test CronJob")
+		cronJobAPIVersion, cronJobKind := "batch/v1", "Job"
+		cronJobGV, err := schema.ParseGroupVersion(cronJobAPIVersion)
+		Expect(err).Should(BeNil())
+		cronJobGVR, err := dism.ResourcesFor(cronJobGV.WithKind(cronJobKind))
+		Expect(err).Should(BeNil())
+		Expect(cronJobGVR).Should(Equal(schema.GroupVersionResource{
+			Group:    "batch",
+			Version:  "v1",
+			Resource: "jobs",
+		}))
+
+		By("Test Invalid GVK")
+		apiVersion, kind := "apps/v1", "Job"
+		gv, err := schema.ParseGroupVersion(apiVersion)
+		Expect(err).Should(BeNil())
+		_, err = dism.ResourcesFor(gv.WithKind(kind))
+		Expect(err).Should(HaveOccurred())
 	})
 })

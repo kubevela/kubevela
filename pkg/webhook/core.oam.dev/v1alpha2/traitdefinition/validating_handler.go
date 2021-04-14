@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package traitdefinition
 
 import (
@@ -5,8 +21,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/oam-dev/kubevela/pkg/oam/util"
-
+	"github.com/pkg/errors"
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -15,9 +30,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	"github.com/pkg/errors"
-
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/appfile"
+	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 )
 
@@ -27,7 +42,7 @@ const (
 	failInfoDefRefOmitted = "if definition reference is omitted, patch or output with GVK is required"
 )
 
-var traitDefGVR = v1alpha2.SchemeGroupVersion.WithResource("traitdefinitions")
+var traitDefGVR = v1beta1.SchemeGroupVersion.WithResource("traitdefinitions")
 
 // ValidatingHandler handles validation of trait definition
 type ValidatingHandler struct {
@@ -42,14 +57,14 @@ type ValidatingHandler struct {
 
 // TraitDefValidator validate trait definition
 type TraitDefValidator interface {
-	Validate(context.Context, v1alpha2.TraitDefinition) error
+	Validate(context.Context, v1beta1.TraitDefinition) error
 }
 
 // TraitDefValidatorFn implements TraitDefValidator
-type TraitDefValidatorFn func(context.Context, v1alpha2.TraitDefinition) error
+type TraitDefValidatorFn func(context.Context, v1beta1.TraitDefinition) error
 
 // Validate implements TraitDefValidator method
-func (fn TraitDefValidatorFn) Validate(ctx context.Context, td v1alpha2.TraitDefinition) error {
+func (fn TraitDefValidatorFn) Validate(ctx context.Context, td v1beta1.TraitDefinition) error {
 	return fn(ctx, td)
 }
 
@@ -57,7 +72,7 @@ var _ admission.Handler = &ValidatingHandler{}
 
 // Handle validate trait definition
 func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	obj := &v1alpha2.TraitDefinition{}
+	obj := &v1beta1.TraitDefinition{}
 	if req.Resource.String() != traitDefGVR.String() {
 		return admission.Errored(http.StatusBadRequest, fmt.Errorf("expect resource to be %s", traitDefGVR))
 	}
@@ -96,20 +111,15 @@ func (h *ValidatingHandler) InjectDecoder(d *admission.Decoder) error {
 }
 
 // RegisterValidatingHandler will register TraitDefinition validation to webhook
-func RegisterValidatingHandler(mgr manager.Manager) error {
+func RegisterValidatingHandler(mgr manager.Manager, args controller.Args) {
 	server := mgr.GetWebhookServer()
-	mapper, err := discoverymapper.New(mgr.GetConfig())
-	if err != nil {
-		return err
-	}
 	server.Register("/validating-core-oam-dev-v1alpha2-traitdefinitions", &webhook.Admission{Handler: &ValidatingHandler{
-		Mapper: mapper,
+		Mapper: args.DiscoveryMapper,
 		Validators: []TraitDefValidator{
 			TraitDefValidatorFn(ValidateDefinitionReference),
 			// add more validators here
 		},
 	}})
-	return nil
 }
 
 // ValidateDefinitionReference validates whether the trait definition is valid if
@@ -120,16 +130,17 @@ func RegisterValidatingHandler(mgr manager.Manager) error {
 // or it has a patch and outputs, and all outputs must have GVK
 // TODO(roywang) currently we only validate whether it contains CUE template.
 // Further validation, e.g., output with GVK, valid patch, etc, remains to be done.
-func ValidateDefinitionReference(_ context.Context, td v1alpha2.TraitDefinition) error {
+func ValidateDefinitionReference(_ context.Context, td v1beta1.TraitDefinition) error {
 	if len(td.Spec.Reference.Name) > 0 {
 		return nil
 	}
-	tmp, err := util.NewTemplate(td.Spec.Schematic, td.Spec.Status, td.Spec.Extension)
+	cap, err := appfile.ConvertTemplateJSON2Object(td.Name, td.Spec.Extension, td.Spec.Schematic)
 	if err != nil {
-		return errors.Wrap(err, errValidateDefRef)
+		return errors.WithMessage(err, errValidateDefRef)
 	}
-	if len(tmp.TemplateStr) == 0 {
+	if cap.CueTemplate == "" {
 		return errors.New(failInfoDefRefOmitted)
+
 	}
 	return nil
 }

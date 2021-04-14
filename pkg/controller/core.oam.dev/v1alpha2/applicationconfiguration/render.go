@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Crossplane Authors.
+Copyright 2021 The Crossplane Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/resource"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -39,6 +39,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	oamtype "github.com/oam-dev/kubevela/apis/types"
+	helmapi "github.com/oam-dev/kubevela/pkg/appfile/helm/flux2apis"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -111,11 +114,15 @@ func (r *components) Render(ctx context.Context, ac *v1alpha2.ApplicationConfigu
 				rollingComponents[componentName] = true
 			}
 		}
-		// we need to do a template roll out if it's not done yet
-		needRolloutTemplate = ac.Status.RollingStatus != v1alpha2.RollingTemplated
-	} else if ac.Status.RollingStatus == v1alpha2.RollingTemplated {
+		// we need to do a template roll out if it's not done yet or forced
+		needRolloutTemplate = ac.Status.RollingStatus != oamtype.RollingTemplated
+		if needRolloutTemplate {
+			klog.InfoS("need to template the ac ", "appConfig", klog.KRef(ac.Namespace, ac.Name),
+				"rolling status", ac.Status.RollingStatus)
+		}
+	} else if ac.Status.RollingStatus == oamtype.RollingTemplated {
 		klog.InfoS("mark the ac rolling status as completed", "appConfig", klog.KRef(ac.Namespace, ac.Name))
-		ac.Status.RollingStatus = v1alpha2.RollingCompleted
+		ac.Status.RollingStatus = oamtype.RollingCompleted
 	}
 
 	for _, acc := range ac.Spec.Components {
@@ -128,11 +135,11 @@ func (r *components) Render(ctx context.Context, ac *v1alpha2.ApplicationConfigu
 			return nil, nil, err
 		}
 		workloads = append(workloads, w)
+		// TODO: handle rolling status better when there are multiple components
 		if isComponentRolling && needRolloutTemplate {
-			ac.Status.RollingStatus = v1alpha2.RollingTemplating
+			ac.Status.RollingStatus = oamtype.RollingTemplating
 		}
 	}
-	workloadsAllClear := true
 	ds := &v1alpha2.DependencyStatus{}
 	res := make([]Workload, 0, len(ac.Spec.Components))
 	for i, acc := range ac.Spec.Components {
@@ -141,15 +148,7 @@ func (r *components) Render(ctx context.Context, ac *v1alpha2.ApplicationConfigu
 			return nil, nil, err
 		}
 		ds.Unsatisfied = append(ds.Unsatisfied, unsatisfied...)
-		if workloads[i].HasDep {
-			workloadsAllClear = false
-		}
 		res = append(res, *workloads[i])
-	}
-	// set the ac rollingStatus to be RollingTemplated if all workloads are going to be applied
-	if workloadsAllClear && ac.Status.RollingStatus == v1alpha2.RollingTemplating {
-		klog.InfoS("mark the ac rolling status as templated", "appConfig", klog.KRef(ac.Namespace, ac.Name))
-		ac.Status.RollingStatus = v1alpha2.RollingTemplated
 	}
 
 	return res, ds, nil
@@ -177,6 +176,7 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 	if err != nil {
 		return nil, errors.Wrapf(err, errFmtRenderWorkload, acc.ComponentName)
 	}
+
 	compInfoLabels := map[string]string{
 		oam.LabelAppName:              ac.Name,
 		oam.LabelAppComponent:         acc.ComponentName,
@@ -189,14 +189,20 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 		oam.AnnotationAppGeneration: strconv.Itoa(int(ac.Generation)),
 	}
 	util.AddAnnotations(w, compInfoAnnotations)
-
+	var inplaceUpgrade string
+	if acAnnotations := ac.GetAnnotations(); acAnnotations != nil {
+		inplaceUpgrade = acAnnotations[oam.AnnotationInplaceUpgrade]
+	}
 	// pass through labels and annotation from app-config to workload
 	util.PassLabelAndAnnotation(ac, w)
 	// don't pass the following annotation as those are for appConfig only
-	util.RemoveAnnotations(w, []string{oam.AnnotationAppRollout, oam.AnnotationRollingComponent})
-	ref := metav1.NewControllerRef(ac, v1alpha2.ApplicationConfigurationGroupVersionKind)
-	w.SetNamespace(ac.GetNamespace())
+	util.RemoveAnnotations(w, []string{oam.AnnotationAppRollout, oam.AnnotationRollingComponent, oam.AnnotationInplaceUpgrade})
+	ref := getOwnerFromAC(ac)
 
+	// Don't override if the resources already has namespace, it was set by user or the application controller which is by design.
+	if len(w.GetNamespace()) == 0 {
+		w.SetNamespace(ac.GetNamespace())
+	}
 	traits := make([]*Trait, 0, len(acc.Traits))
 	traitDefs := make([]v1alpha2.TraitDefinition, 0, len(acc.Traits))
 	compInfoLabels[oam.LabelOAMResourceType] = oam.ResourceTypeTrait
@@ -211,7 +217,7 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 
 		// pass through labels and annotation from app-config to trait
 		util.PassLabelAndAnnotation(ac, t)
-		util.RemoveAnnotations(t, []string{oam.AnnotationAppRollout, oam.AnnotationRollingComponent})
+		util.RemoveAnnotations(t, []string{oam.AnnotationAppRollout, oam.AnnotationRollingComponent, oam.AnnotationInplaceUpgrade})
 		traits = append(traits, &Trait{Object: *t, Definition: *traitDef})
 		traitDefs = append(traitDefs, *traitDef)
 	}
@@ -225,27 +231,47 @@ func (r *components) renderComponent(ctx context.Context, acc v1alpha2.Applicati
 			return nil, err
 		}
 	} else {
-		// we have a completely different approach on workload name for application generated appConfig
-		revision, err := utils.ExtractRevision(acc.RevisionName)
-		if err != nil {
-			return nil, err
-		}
-		SetAppWorkloadInstanceName(acc.ComponentName, w, revision)
-		if isComponentRolling && needRolloutTemplate {
-			// we have a special logic to emit the workload as a template so that the rollout
-			// controller can take over.
-			// TODO: We might need to add the owner reference to the existing object in case the resource
-			// is going to be shared (ie. CloneSet)
-			if err := prepWorkloadInstanceForRollout(w); err != nil {
+		// we have completely different approaches on workload name for application generated appConfig
+		if c.Spec.Helm != nil {
+			// for helm workload, make sure the workload is already generated by Helm successfully
+			existingWorkloadByHelm, err := discoverHelmModuleWorkload(ctx, r.client, c, ac.GetNamespace())
+			if err != nil {
+				klog.ErrorS(err, "Could not get the workload created by Helm module",
+					"component name", acc.ComponentName, "component revision", acc.RevisionName)
+				return nil, errors.Wrap(err, "cannot get the workload created by a Helm module")
+			}
+			klog.InfoS("Successfully discovered the workload created by Helm",
+				"component name", acc.ComponentName, "component revision", acc.RevisionName,
+				"workload name", existingWorkloadByHelm.GetName())
+			// use the name already generated instead of setting a new one
+			w.SetName(existingWorkloadByHelm.GetName())
+		} else {
+			// for non-helm workload, we generate a workload name based on component name and revision
+			revision, err := utils.ExtractRevision(acc.RevisionName)
+			if err != nil {
 				return nil, err
 			}
-			// yield the controller to the rollout
-			ref.Controller = pointer.BoolPtr(false)
-			klog.InfoS("Successfully rendered a workload instance for rollout", "workload", w.GetName())
+			// Pass inpalce upgrade into it
+			SetAppWorkloadInstanceName(acc.ComponentName, w, revision, inplaceUpgrade)
+			if isComponentRolling && needRolloutTemplate {
+				// we have a special logic to emit the workload as a template so that the rollout
+				// controller can take over.
+				// TODO: We might need to add the owner reference to the existing object in case the resource
+				// is going to be shared (ie. CloneSet)
+				if err := prepWorkloadInstanceForRollout(w); err != nil {
+					return nil, err
+				}
+				// yield the controller to the rollout
+				ref.Controller = pointer.BoolPtr(false)
+				klog.InfoS("Successfully rendered a workload instance for rollout", "workload", w.GetName())
+			}
 		}
 	}
 	// set the owner reference after its ref is edited
-	w.SetOwnerReferences([]metav1.OwnerReference{*ref})
+	// If workload is in different namespace with application set the ownerReference, otherwise the owner was set with a resourceTracker by application controller already.
+	if ac.GetNamespace() == w.GetNamespace() {
+		w.SetOwnerReferences([]metav1.OwnerReference{*ref})
+	}
 
 	// create the ref after the workload name is set
 	workloadRef := runtimev1alpha1.TypedReference{
@@ -290,7 +316,7 @@ func (r *components) renderTrait(ctx context.Context, ct v1alpha2.ComponentTrait
 	}
 	traitDef, err := util.FetchTraitDefinition(ctx, r.client, r.dm, t)
 	if err != nil {
-		if !apierrors.IsNotFound(err) {
+		if !kerrors.IsNotFound(err) {
 			return nil, nil, errors.Wrapf(err, errFmtGetTraitDefinition, t.GetAPIVersion(), t.GetKind(), t.GetName())
 		}
 		traitDef = util.GetDummyTraitDefinition(t)
@@ -321,9 +347,15 @@ func setTraitProperties(t *unstructured.Unstructured, traitName, namespace strin
 	if t.GetName() == "" {
 		t.SetName(traitName)
 	}
+	// Don't override if the resources already has namespace, it was set by user or the application controller which is by design.
+	if len(t.GetNamespace()) == 0 {
+		t.SetNamespace(namespace)
+	}
+	// If trait is in different namespace with application set the ownerReference, otherwise the owner was set with a resourceTracker by application controller already.
+	if t.GetNamespace() == namespace {
+		t.SetOwnerReferences([]metav1.OwnerReference{*ref})
+	}
 
-	t.SetOwnerReferences([]metav1.OwnerReference{*ref})
-	t.SetNamespace(namespace)
 }
 
 // setWorkloadInstanceName will set metadata.name for workload CR according to createRevision flag in traitDefinition
@@ -773,12 +805,24 @@ func (r *components) getDataInput(ctx context.Context, s *dagSource, ac *unstruc
 
 func isControlledByApp(ac *v1alpha2.ApplicationConfiguration) bool {
 	for _, owner := range ac.GetOwnerReferences() {
-		if owner.APIVersion == v1alpha2.SchemeGroupVersion.String() && owner.Kind == v1alpha2.ApplicationKind &&
+		if owner.APIVersion == v1beta1.SchemeGroupVersion.String() && owner.Kind == v1beta1.ApplicationKind &&
 			owner.Controller != nil && *owner.Controller {
 			return true
 		}
 	}
 	return false
+}
+
+// getOwnerFromAC will check and get the real owner, if the owner is Application, it will use ApplicationContext as owner
+// or it will make the AC as the owner
+func getOwnerFromAC(ac *v1alpha2.ApplicationConfiguration) *metav1.OwnerReference {
+	for _, owner := range ac.GetOwnerReferences() {
+		if owner.APIVersion == v1beta1.SchemeGroupVersion.String() && owner.Kind == v1beta1.ApplicationKind &&
+			owner.Controller != nil && *owner.Controller {
+			return metav1.NewControllerRef(ac, v1alpha2.ApplicationContextGroupVersionKind)
+		}
+	}
+	return metav1.NewControllerRef(ac, v1alpha2.ApplicationConfigurationGroupVersionKind)
 }
 
 func matchValue(conds []v1alpha2.ConditionRequirement, val string, paved, ac *fieldpath.Paved) (bool, string) {
@@ -905,4 +949,59 @@ func (r *components) getExistingWorkload(ctx context.Context, ac *v1alpha2.Appli
 		}
 	}
 	return existingWorkload, nil
+}
+
+// discoverHelmModuleWorkload will get the workload created by flux/helm-controller
+func discoverHelmModuleWorkload(ctx context.Context, c client.Reader, comp *v1alpha2.Component, ns string) (*unstructured.Unstructured, error) {
+	if comp == nil || comp.Spec.Helm == nil {
+		return nil, errors.New("the component has no valid helm module")
+	}
+
+	rls, err := util.RawExtension2Unstructured(&comp.Spec.Helm.Release)
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot get helm release from component")
+	}
+	rlsName := rls.GetName()
+
+	chartName, ok, err := unstructured.NestedString(rls.Object, helmapi.HelmChartNamePath...)
+	if err != nil || !ok {
+		return nil, errors.New("cannot get helm chart name")
+	}
+
+	// qualifiedFullName is used as the name of target workload.
+	// It strictly follows the convention that Helm generate default full name as below:
+	// > We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
+	// > If release name contains chart name it will be used as a full name.
+	qualifiedWorkloadName := rlsName
+	if !strings.Contains(rlsName, chartName) {
+		qualifiedWorkloadName = fmt.Sprintf("%s-%s", rlsName, chartName)
+		if len(qualifiedWorkloadName) > 63 {
+			qualifiedWorkloadName = strings.TrimSuffix(qualifiedWorkloadName[:63], "-")
+		}
+	}
+
+	wl, err := util.RawExtension2Unstructured(&comp.Spec.Workload)
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot get workload from component")
+	}
+
+	if err := c.Get(ctx, client.ObjectKey{Namespace: ns, Name: qualifiedWorkloadName}, wl); err != nil {
+		return nil, err
+	}
+
+	// check it's created by helm and match the release info
+	annots := wl.GetAnnotations()
+	labels := wl.GetLabels()
+	if annots == nil || labels == nil ||
+		annots["meta.helm.sh/release-name"] != rlsName ||
+		annots["meta.helm.sh/release-namespace"] != ns ||
+		labels["app.kubernetes.io/managed-by"] != "Helm" {
+		err := fmt.Errorf("the workload is found but not match with helm info(meta.helm.sh/release-name: %s, meta.helm.sh/namespace: %s, app.kubernetes.io/managed-by: Helm)",
+			rlsName, ns)
+		klog.ErrorS(err, "Found a name-matched workload but not managed by Helm", "name", qualifiedWorkloadName,
+			"annotations", annots, "labels", labels)
+		return nil, err
+	}
+
+	return wl, nil
 }

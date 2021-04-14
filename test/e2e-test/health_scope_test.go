@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package controllers_test
 
 import (
@@ -16,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -75,7 +92,7 @@ var _ = Describe("HealthScope", func() {
 			Spec: v1alpha2.ScopeDefinitionSpec{
 				AllowComponentOverlap: true,
 				WorkloadRefsPath:      "spec.workloadRefs",
-				Reference: v1alpha2.DefinitionReference{
+				Reference: common.DefinitionReference{
 					Name: "healthscope.core.oam.dev",
 				},
 			},
@@ -111,10 +128,10 @@ var _ = Describe("HealthScope", func() {
 				Labels:    label,
 			},
 			Spec: v1alpha2.WorkloadDefinitionSpec{
-				Reference: v1alpha2.DefinitionReference{
+				Reference: common.DefinitionReference{
 					Name: "containerizedworkloads.core.oam.dev",
 				},
-				ChildResourceKinds: []v1alpha2.ChildResourceKind{
+				ChildResourceKinds: []common.ChildResourceKind{
 					{
 						APIVersion: corev1.SchemeGroupVersion.String(),
 						Kind:       util.KindService,
@@ -300,6 +317,7 @@ var _ = Describe("HealthScope", func() {
 		By("Verify health scope")
 		Eventually(
 			func() v1alpha2.ScopeHealthCondition {
+				requestReconcileNow(ctx, &appConfig)
 				*healthScope = v1alpha2.HealthScope{}
 				k8sClient.Get(ctx, healthScopeObject, healthScope)
 				logf.Log.Info("Checking on health scope",
@@ -309,7 +327,7 @@ var _ = Describe("HealthScope", func() {
 					healthScope.Status.ScopeHealthCondition)
 				return healthScope.Status.ScopeHealthCondition
 			},
-			time.Second*120, time.Second*5).Should(Equal(v1alpha2.ScopeHealthCondition{
+			time.Second*150, time.Second*5).Should(Equal(v1alpha2.ScopeHealthCondition{
 			HealthStatus:     v1alpha2.StatusHealthy,
 			Total:            int64(2),
 			HealthyWorkloads: int64(2),

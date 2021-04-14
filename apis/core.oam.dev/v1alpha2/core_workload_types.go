@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeVela Authors.
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -389,7 +389,7 @@ var _ oam.Workload = &ContainerizedWorkload{}
 // +kubebuilder:object:root=true
 
 // A ContainerizedWorkload is a workload that runs OCI containers.
-// +kubebuilder:resource:categories={crossplane,oam}
+// +kubebuilder:resource:categories={oam}
 // +kubebuilder:subresource:status
 type ContainerizedWorkload struct {
 	metav1.TypeMeta   `json:",inline"`

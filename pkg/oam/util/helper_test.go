@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package util_test
 
 import (
@@ -23,8 +39,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -270,7 +289,7 @@ func TestScopeRelatedUtils(t *testing.T) {
 			Namespace: namespace,
 		},
 		Spec: v1alpha2.ScopeDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: scopeDefinitionRefName,
 			},
 			WorkloadRefsPath:      scopeDefinitionWorkloadRefsPath,
@@ -370,7 +389,7 @@ func TestTraitHelper(t *testing.T) {
 			Namespace: namespace,
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: traitDefinitionRefName,
 			},
 			RevisionEnabled:    false,
@@ -473,7 +492,7 @@ func TestUtils(t *testing.T) {
 			Name: workloadDefinitionName,
 		},
 		Spec: v1alpha2.WorkloadDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: workloadDefinitionName,
 			},
 		},
@@ -560,14 +579,14 @@ func TestChildResources(t *testing.T) {
 			Name: workloadDefinitionName,
 		},
 		Spec: v1alpha2.WorkloadDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: workloadDefinitionName,
 			},
 		},
 	}
 
 	log := ctrl.Log.WithName("ManualScalarTraitReconciler")
-	crkl := []v1alpha2.ChildResourceKind{
+	crkl := []common.ChildResourceKind{
 		{
 			Kind:       "Deployment",
 			APIVersion: "apps/v1",
@@ -778,7 +797,7 @@ func TestUnstructured(t *testing.T) {
 func TestGetGVKFromDef(t *testing.T) {
 	mapper := mock.NewMockDiscoveryMapper()
 	mapper.MockKindsFor = mock.NewMockKindsFor("Abc", "v1", "v2")
-	gvk, err := util.GetGVKFromDefinition(mapper, v1alpha2.DefinitionReference{Name: "abcs.example.com"})
+	gvk, err := util.GetGVKFromDefinition(mapper, common.DefinitionReference{Name: "abcs.example.com"})
 	assert.NoError(t, err)
 	assert.Equal(t, schema.GroupVersionKind{
 		Group:   "example.com",
@@ -786,7 +805,7 @@ func TestGetGVKFromDef(t *testing.T) {
 		Kind:    "Abc",
 	}, gvk)
 
-	gvk, err = util.GetGVKFromDefinition(mapper, v1alpha2.DefinitionReference{Name: "abcs.example.com", Version: "v2"})
+	gvk, err = util.GetGVKFromDefinition(mapper, common.DefinitionReference{Name: "abcs.example.com", Version: "v2"})
 	assert.NoError(t, err)
 	assert.Equal(t, schema.GroupVersionKind{
 		Group:   "example.com",
@@ -794,7 +813,7 @@ func TestGetGVKFromDef(t *testing.T) {
 		Kind:    "Abc",
 	}, gvk)
 
-	gvk, err = util.GetGVKFromDefinition(mapper, v1alpha2.DefinitionReference{})
+	gvk, err = util.GetGVKFromDefinition(mapper, common.DefinitionReference{})
 	assert.NoError(t, err)
 	assert.Equal(t, schema.GroupVersionKind{
 		Group:   "",
@@ -802,13 +821,40 @@ func TestGetGVKFromDef(t *testing.T) {
 		Kind:    "",
 	}, gvk)
 
-	gvk, err = util.GetGVKFromDefinition(mapper, v1alpha2.DefinitionReference{Name: "dummy"})
+	gvk, err = util.GetGVKFromDefinition(mapper, common.DefinitionReference{Name: "dummy"})
 	assert.NoError(t, err)
 	assert.Equal(t, schema.GroupVersionKind{
 		Group:   "",
 		Version: "",
 		Kind:    "",
 	}, gvk)
+}
+
+func TestConvertWorkloadGVK2Def(t *testing.T) {
+	mapper := mock.NewMockDiscoveryMapper()
+
+	mapper.MockRESTMapping = mock.NewMockRESTMapping("clonesets")
+	ref, err := util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "apps.kruise.io/v1alpha1",
+		Kind: "CloneSet"})
+	assert.NoError(t, err)
+	assert.Equal(t, common.DefinitionReference{
+		Name:    "clonesets.apps.kruise.io",
+		Version: "v1alpha1",
+	}, ref)
+
+	mapper.MockRESTMapping = mock.NewMockRESTMapping("deployments")
+	ref, err = util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "apps/v1",
+		Kind: "Deployment"})
+	assert.NoError(t, err)
+	assert.Equal(t, common.DefinitionReference{
+		Name:    "deployments.apps",
+		Version: "v1",
+	}, ref)
+
+	ref, err = util.ConvertWorkloadGVK2Definition(mapper, common.WorkloadGVK{APIVersion: "/apps/v1",
+		Kind: "Deployment"})
+	assert.Error(t, err)
+
 }
 
 func TestGenTraitName(t *testing.T) {
@@ -1029,7 +1075,7 @@ func TestComponentHelper(t *testing.T) {
 			},
 		}}}},
 		Status: v1alpha2.ComponentStatus{
-			LatestRevision: &v1alpha2.Revision{Name: revisionName2, Revision: 2},
+			LatestRevision: &common.Revision{Name: revisionName2, Revision: 2},
 		},
 	}
 
@@ -1324,7 +1370,7 @@ func TestGetDummy(t *testing.T) {
 			"kind":       u.GetKind(),
 			"name":       u.GetName(),
 		}},
-		Spec: v1alpha2.TraitDefinitionSpec{Reference: v1alpha2.DefinitionReference{Name: "dummy"}},
+		Spec: v1alpha2.TraitDefinitionSpec{Reference: common.DefinitionReference{Name: "dummy"}},
 	}, util.GetDummyTraitDefinition(u))
 	assert.Equal(t, &v1alpha2.WorkloadDefinition{
 		TypeMeta: metav1.TypeMeta{Kind: v1alpha2.WorkloadDefinitionKind, APIVersion: v1alpha2.SchemeGroupVersion.String()},
@@ -1333,7 +1379,7 @@ func TestGetDummy(t *testing.T) {
 			"kind":       u.GetKind(),
 			"name":       u.GetName(),
 		}},
-		Spec: v1alpha2.WorkloadDefinitionSpec{Reference: v1alpha2.DefinitionReference{Name: "dummy"}},
+		Spec: v1alpha2.WorkloadDefinitionSpec{Reference: common.DefinitionReference{Name: "dummy"}},
 	}, util.GetDummyWorkloadDefinition(u))
 }
 
@@ -1420,7 +1466,7 @@ func TestGetDefinitionWithClusterScope(t *testing.T) {
 			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "definitionrefrence.core.oam.dev",
 			},
 		},
@@ -1432,7 +1478,7 @@ func TestGetDefinitionWithClusterScope(t *testing.T) {
 			Namespace: "vela-app",
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "definitionrefrence",
 			},
 		},
@@ -1443,7 +1489,7 @@ func TestGetDefinitionWithClusterScope(t *testing.T) {
 			Name: "noNsDefinition",
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "definitionrefrence",
 			},
 		},
@@ -1539,7 +1585,7 @@ func TestGetWorkloadDefinition(t *testing.T) {
 			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.WorkloadDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "definitionrefrence.core.oam.dev",
 			},
 		},
@@ -1552,7 +1598,7 @@ func TestGetWorkloadDefinition(t *testing.T) {
 			Namespace: "vela-app",
 		},
 		Spec: v1alpha2.WorkloadDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "definitionrefrence.core.oam.dev",
 			},
 		},
@@ -1631,7 +1677,7 @@ func TestGetTraitDefinition(t *testing.T) {
 			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "definitionrefrence.core.oam.dev",
 			},
 		},
@@ -1644,7 +1690,7 @@ func TestGetTraitDefinition(t *testing.T) {
 			Namespace: "vela-app",
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "definitionrefrence.core.oam.dev",
 			},
 		},
@@ -1788,7 +1834,7 @@ func TestGetScopeDefiniton(t *testing.T) {
 			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.ScopeDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: scopeDefinitionRefName,
 			},
 			WorkloadRefsPath:      scopeDefinitionWorkloadRefsPath,
@@ -1806,7 +1852,7 @@ func TestGetScopeDefiniton(t *testing.T) {
 			Namespace: namespace,
 		},
 		Spec: v1alpha2.ScopeDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: scopeDefinitionRefName,
 			},
 			WorkloadRefsPath:      scopeDefinitionWorkloadRefsPath,
@@ -1869,4 +1915,142 @@ func TestGetScopeDefiniton(t *testing.T) {
 		assert.Equal(t, tc.want.err, err)
 		assert.Equal(t, tc.want.spd, got)
 	}
+}
+
+func TestConvertComponentDef2WorkloadDef(t *testing.T) {
+	var noNeedErr = errors.New("No need to convert ComponentDefinition")
+	var cd = v1beta1.ComponentDefinition{}
+	mapper := mock.NewMockDiscoveryMapper()
+
+	var componentDefWithWorkloadType = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: cd-with-workload-type
+spec:
+  workload:
+    type: worker
+`
+
+	err := yaml.Unmarshal([]byte(componentDefWithWorkloadType), &cd)
+	assert.Equal(t, nil, err)
+	err = util.ConvertComponentDef2WorkloadDef(mapper, &cd, &v1beta1.WorkloadDefinition{})
+	assert.Equal(t, noNeedErr.Error(), err.Error())
+
+	var componentDefWithWrongDefinition = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: worker
+spec:
+  workload:
+    definition:
+      apiVersion: /apps/v1/
+      kind: Deployment
+`
+	cd = v1beta1.ComponentDefinition{}
+	err = yaml.Unmarshal([]byte(componentDefWithWrongDefinition), &cd)
+	assert.Equal(t, nil, err)
+	err = util.ConvertComponentDef2WorkloadDef(mapper, &cd, &v1beta1.WorkloadDefinition{})
+	assert.Error(t, err)
+
+	mapper.MockRESTMapping = mock.NewMockRESTMapping("deployments")
+	var Template = `
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        		}
+        
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": context.name
+        			}
+        
+        			spec: {
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+        
+        					if parameter["cmd"] != _|_ {
+        						command: parameter.cmd
+        					}
+        				}]
+        			}
+        		}
+        	}
+        }
+        
+        parameter: {
+        	// +usage=Which image would you like to use for your service
+        	// +short=i
+        	image: string
+        	// +usage=Commands to run in the container
+        	cmd?: [...string]
+        }
+`
+	var componentDefWithDefinition = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: worker
+  namespace: vela-system
+  labels:
+    env: test
+  annotations:
+    definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend."
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  childResourceKinds:
+    - apiVersion: apps/v1
+      kind: Deployment
+  status:
+    healthPolicy: |
+      isHealth: (context.output.status.readyReplicas > 0) && (context.output.status.readyReplicas == context.output.status.replicas)` + Template
+
+	var expectWorkloadDef = `
+apiVersion: core.oam.dev/v1beta1
+kind: WorkloadDefinition
+metadata:
+  name: worker
+  namespace: vela-system
+  labels:
+    env: test
+  annotations:
+    definition.oam.dev/description: "Describes long-running, scalable, containerized services that running at backend."
+spec:
+  definitionRef:
+    name: deployments.apps
+    version: v1
+  childResourceKinds:
+    - apiVersion: apps/v1
+      kind: Deployment
+  status:
+    healthPolicy: |
+      isHealth: (context.output.status.readyReplicas > 0) && (context.output.status.readyReplicas == context.output.status.replicas)` + Template
+	cd = v1beta1.ComponentDefinition{}
+	wd := &v1beta1.WorkloadDefinition{}
+	err = yaml.Unmarshal([]byte(componentDefWithDefinition), &cd)
+	assert.NoError(t, err)
+	err = util.ConvertComponentDef2WorkloadDef(mapper, &cd, wd)
+	assert.NoError(t, err)
+	expectWd := v1beta1.WorkloadDefinition{}
+	err = yaml.Unmarshal([]byte(expectWorkloadDef), &expectWd)
+	assert.NoError(t, err)
+	assert.Equal(t, expectWd.Namespace, wd.Namespace)
+	assert.Equal(t, expectWd.Name, wd.Name)
+	assert.Equal(t, expectWd.Labels, wd.Labels)
+	assert.Equal(t, expectWd.Annotations, wd.Annotations)
+	assert.Equal(t, expectWd.Spec.Reference, wd.Spec.Reference)
+	assert.Equal(t, expectWd.Spec.ChildResourceKinds, wd.Spec.ChildResourceKinds)
+	assert.Equal(t, expectWd.Spec.Status, wd.Spec.Status)
+	assert.Equal(t, expectWd.Spec.Schematic, wd.Spec.Schematic)
 }

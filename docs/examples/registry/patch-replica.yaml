@@ -1,19 +1,22 @@
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "Manually scale the app"
-  name: scaler
+    definition.oam.dev/description: "patch replica to the app"
+  name: patch-replica
+  namespace: vela-system
 spec:
   appliesToWorkloads:
     - webservice
     - worker
-  extension:
-    template: |-
-      patch: {
-         spec: replicas: parameter.replicas
-      }
-      parameter: {
-      	//+short=r
-      	replicas: *1 | int
-      }
+  podDisruptive: true
+  schematic:
+    cue:
+      template: |-
+        patch: {
+           spec: replicas: parameter.replicas
+        }
+        parameter: {
+          //+short=r
+          replicas: *1 | int
+        }

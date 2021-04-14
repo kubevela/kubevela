@@ -1,0 +1,42 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: deployments.testapps
+  labels:
+    usecase: forplugintest
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  extension:
+    template: |
+      output: {
+      	apiVersion: "apps/v1"
+      	kind:       "Deployment"
+      	metadata: name: context.name
+      	spec: {
+      		containers: [{
+      			image: parameter.image
+      			name:  context.name
+      			env:   parameter.env
+      			ports: [{
+      				containerPort: parameter.port
+      				protocol:      "TCP"
+      				name:          "default"
+      			}]
+      		}]
+      	}
+      }
+      parameter: {
+      	// +usage=Which image would you like to use for your service
+      	// +short=i
+      	image: string
+      	// +usage=Which port do you want customer traffic sent to
+      	// +short=p
+      	port: *8080 | int
+      	env: [...{
+      		name:  string
+      		value: string
+      	}]
+      }

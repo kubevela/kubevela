@@ -1,8 +1,8 @@
 # Route Trait Design
 
-The main idea of route trait is to let users have an entrypoint to visit their App.
+The main idea of [route trait](https://github.com/oam-dev/catalog/tree/master/traits/routetrait) is to let users have an entrypoint to visit their App.
 
-In k8s world, if you want to do so, you have to understand K8s [Serivce](https://kubernetes.io/docs/concepts/services-networking/service/)
+In k8s world, if you want to do so, you have to understand K8s [Service](https://kubernetes.io/docs/concepts/services-networking/service/)
 , [Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/), [Ingress Controllers](https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/).
 It's not easy to get all of these things work well.
 

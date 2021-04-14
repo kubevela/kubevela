@@ -1,5 +1,5 @@
 /*
-
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
@@ -39,6 +41,8 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -50,6 +54,10 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 var testScheme = runtime.NewScheme()
 var decoder *admission.Decoder
+var dm discoverymapper.DiscoveryMapper
+var pd *definition.PackageDiscover
+var ctx = context.Background()
+var handler *ValidatingHandler
 
 func TestAPIs(t *testing.T) {
 
@@ -81,6 +89,9 @@ var _ = BeforeSuite(func(done Done) {
 	err = v1alpha2.SchemeBuilder.AddToScheme(testScheme)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = v1beta1.SchemeBuilder.AddToScheme(testScheme)
+	Expect(err).NotTo(HaveOccurred())
+
 	err = scheme.AddToScheme(testScheme)
 	Expect(err).NotTo(HaveOccurred())
 	// +kubebuilder:scaffold:scheme
@@ -89,6 +100,19 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 
+	dm, err = discoverymapper.New(cfg)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(dm).ToNot(BeNil())
+
+	pd, err = definition.NewPackageDiscover(cfg)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(pd).ToNot(BeNil())
+
+	handler = &ValidatingHandler{
+		dm: dm,
+		pd: pd,
+	}
+
 	decoder, err = admission.NewDecoder(testScheme)
 	Expect(err).Should(BeNil())
 	Expect(decoder).ToNot(BeNil())
@@ -96,12 +120,12 @@ var _ = BeforeSuite(func(done Done) {
 	ctx := context.Background()
 	ns := corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "vela-system"}}
 	Expect(k8sClient.Create(ctx, &ns)).Should(BeNil())
-	wd := &v1alpha2.WorkloadDefinition{}
-	wDDefJson, _ := yaml.YAMLToJSON([]byte(wDDefYaml))
+	wd := &v1beta1.ComponentDefinition{}
+	wDDefJson, _ := yaml.YAMLToJSON([]byte(cDDefYaml))
 	Expect(json.Unmarshal(wDDefJson, wd)).Should(BeNil())
 	Expect(k8sClient.Create(ctx, wd)).Should(BeNil())
 
-	td := &v1alpha2.TraitDefinition{}
+	td := &v1beta1.TraitDefinition{}
 	tDDefJson, _ := yaml.YAMLToJSON([]byte(tDDefYaml))
 	Expect(json.Unmarshal(tDDefJson, td)).Should(BeNil())
 	Expect(k8sClient.Create(ctx, td)).Should(BeNil())
@@ -116,17 +140,19 @@ var _ = AfterSuite(func() {
 })
 
 const (
-	wDDefYaml = `
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+	cDDefYaml = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 metadata:
   name: worker
   namespace: vela-system
   annotations:
     definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
 spec:
-  definitionRef:
-    name: deployments.apps
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
   extension:
     template: |
       output: {
@@ -168,7 +194,7 @@ spec:
       	cmd?: [...string]
       }`
 	tDDefYaml = `
-apiVersion: core.oam.dev/v1alpha2
+apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
@@ -195,6 +221,5 @@ spec:
       	//+short=r
       	replicas: *1 | int
       }
-
 `
 )

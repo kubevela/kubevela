@@ -1,8 +1,25 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package applicationconfiguration
 
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/openkruise/kruise-api/apps/v1alpha1"
@@ -11,6 +28,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
 const (
@@ -22,9 +40,14 @@ const (
 
 // SetAppWorkloadInstanceName sets the name of the workload instance depends on the component revision
 // and the workload kind
-func SetAppWorkloadInstanceName(componentName string, w *unstructured.Unstructured, revision int) {
-	// TODO: we can get the workloadDefinition name from w.GetLabels()["oam.WorkloadTypeLabel"]
-	// and use a special field like "use-inplace-upgrade" in the definition to allow configurable behavior
+func SetAppWorkloadInstanceName(componentName string, w *unstructured.Unstructured, revision int, inplaceUpgrade string) {
+
+	if inplaceUpgrade == strconv.FormatBool(true) {
+		klog.InfoS("we reuse the component name for resources that support in-place upgrade",
+			"GVK", w.GroupVersionKind(), "instance name", componentName, oam.AnnotationInplaceUpgrade, true)
+		w.SetName(componentName)
+		return
+	}
 
 	// we hard code the behavior depends on the workload group/kind for now. The only in-place upgradable resources
 	// we support is cloneset/statefulset for now. We can easily add more later.

@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Crossplane Authors.
+Copyright 2021 The Crossplane Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,8 +35,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
 	"github.com/oam-dev/kubevela/pkg/oam/mock"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
@@ -121,7 +121,7 @@ func TestApplyWorkloads(t *testing.T) {
 			Namespace: namespace,
 		},
 		Spec: v1alpha2.ScopeDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "scope-example.scope.oam.dev",
 			},
 			WorkloadRefsPath: "spec.workloadRefs",
@@ -436,7 +436,7 @@ func TestFinalizeWorkloadScopes(t *testing.T) {
 			Namespace: namespace,
 		},
 		Spec: v1alpha2.ScopeDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: common.DefinitionReference{
 				Name: "scope-example.scope.oam.dev",
 			},
 			WorkloadRefsPath: "spec.workloadRefs",

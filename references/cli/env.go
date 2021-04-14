@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package cli
 
 import (
@@ -9,13 +25,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
 // NewEnvCommand creates `env` command and its nested children
-func NewEnvCommand(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func NewEnvCommand(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                   "env",
 		DisableFlagsInUseLine: true,
@@ -51,7 +68,7 @@ func NewEnvListCommand(ioStream cmdutil.IOStreams) *cobra.Command {
 }
 
 // NewEnvInitCommand creates `env init` command for initializing environments
-func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewEnvInitCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 	var envArgs types.EnvMeta
 	ctx := context.Background()
 	cmd := &cobra.Command{
@@ -64,12 +81,8 @@ func NewEnvInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			newClient, err := c.GetClient()
 			if err != nil {
-				return err
-			}
-
-			if err := RefreshDefinitions(ctx, c, ioStreams, true, true); err != nil {
 				return err
 			}
 

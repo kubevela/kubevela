@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package plugins
 
 import (
@@ -6,8 +22,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/oam-dev/kubevela/pkg/utils/system"
 
 	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo"
@@ -24,10 +38,10 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-
+	coreoam "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/system"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -39,8 +53,9 @@ var scheme *runtime.Scheme
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var definitionDir string
-var td v1alpha2.TraitDefinition
-var wd, websvcWD v1alpha2.WorkloadDefinition
+var td corev1beta1.TraitDefinition
+var wd, websvcWD corev1beta1.WorkloadDefinition
+var cd, websvcCD corev1beta1.ComponentDefinition
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -65,7 +80,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
 	scheme = runtime.NewScheme()
-	Expect(corev1alpha2.AddToScheme(scheme)).NotTo(HaveOccurred())
+	Expect(coreoam.AddToScheme(scheme)).NotTo(HaveOccurred())
 	Expect(clientgoscheme.AddToScheme(scheme)).NotTo(HaveOccurred())
 	Expect(v1beta1.AddToScheme(scheme)).NotTo(HaveOccurred())
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
@@ -78,14 +93,6 @@ var _ = BeforeSuite(func(done Done) {
 
 	Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: DefinitionNamespace}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
-	traitdata, err := ioutil.ReadFile("testdata/traitDef.yaml")
-	Expect(err).Should(BeNil())
-	Expect(yaml.Unmarshal(traitdata, &td)).Should(BeNil())
-
-	td.Namespace = DefinitionNamespace
-	logf.Log.Info("Creating trait definition", "data", td)
-	Expect(k8sClient.Create(ctx, &td)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
 	workloaddata, err := ioutil.ReadFile("testdata/workloadDef.yaml")
 	Expect(err).Should(BeNil())
 
@@ -95,6 +102,15 @@ var _ = BeforeSuite(func(done Done) {
 	logf.Log.Info("Creating workload definition", "data", wd)
 	Expect(k8sClient.Create(ctx, &wd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
+	componentdata, err := ioutil.ReadFile("testdata/componentDef.yaml")
+	Expect(err).Should(BeNil())
+
+	Expect(yaml.Unmarshal(componentdata, &cd)).Should(BeNil())
+
+	cd.Namespace = DefinitionNamespace
+	logf.Log.Info("Creating component definition", "data", cd)
+	Expect(k8sClient.Create(ctx, &cd)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
 	websvcWorkloadData, err := ioutil.ReadFile("testdata/websvcWorkloadDef.yaml")
 	Expect(err).Should(BeNil())
 
@@ -102,6 +118,14 @@ var _ = BeforeSuite(func(done Done) {
 	websvcWD.Namespace = DefinitionNamespace
 	logf.Log.Info("Creating workload definition whose CUE template from remote", "data", &websvcWD)
 	Expect(k8sClient.Create(ctx, &websvcWD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+	websvcComponentDefData, err := ioutil.ReadFile("testdata/websvcComponentDef.yaml")
+	Expect(err).Should(BeNil())
+
+	Expect(yaml.Unmarshal(websvcComponentDefData, &websvcCD)).Should(BeNil())
+	websvcCD.Namespace = DefinitionNamespace
+	logf.Log.Info("Creating component definition whose CUE template from remote", "data", &websvcCD)
+	Expect(k8sClient.Create(ctx, &websvcCD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 	close(done)
 }, 60)

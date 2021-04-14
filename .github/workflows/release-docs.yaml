@@ -1,0 +1,23 @@
+name: docs
+on:
+  push:
+    paths:
+      - 'docs/**'
+    branches:
+      - master
+      - release-*
+jobs:
+  release-website:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/setup-node@v1
+        with:
+          node-version: '12.x'
+      - name: Sync to kubevela.io Repo
+        env:
+          SSH_DEPLOY_KEY: ${{ secrets.GH_PAGES_DEPLOY }}
+          VERSION: ${{ github.ref }}
+          COMMIT_ID: ${{ github.sha }}
+        run: |
+          bash ./hack/website/release.sh

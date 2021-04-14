@@ -1,7 +1,24 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package plugins
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -10,12 +27,14 @@ import (
 	"strings"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
 // LoadCapabilityByName will load capability from local by name
-func LoadCapabilityByName(name string) (types.Capability, error) {
-	caps, err := LoadAllInstalledCapability()
+func LoadCapabilityByName(name string, userNamespace string, c common.Args) (types.Capability, error) {
+	caps, err := LoadAllInstalledCapability(userNamespace, c)
 	if err != nil {
 		return types.Capability{}, err
 	}
@@ -28,26 +47,48 @@ func LoadCapabilityByName(name string) (types.Capability, error) {
 }
 
 // LoadAllInstalledCapability will list all capability
-func LoadAllInstalledCapability() ([]types.Capability, error) {
-	workloads, err := LoadInstalledCapabilityWithType(types.TypeWorkload)
+func LoadAllInstalledCapability(userNamespace string, c common.Args) ([]types.Capability, error) {
+	caps, err := GetCapabilitiesFromCluster(context.TODO(), userNamespace, c, nil)
 	if err != nil {
 		return nil, err
 	}
-	traits, err := LoadInstalledCapabilityWithType(types.TypeTrait)
+	systemCaps, err := GetCapabilitiesFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
 	if err != nil {
 		return nil, err
 	}
-	workloads = append(workloads, traits...)
-	return workloads, nil
+	caps = append(caps, systemCaps...)
+	return caps, nil
 }
 
 // LoadInstalledCapabilityWithType will load cap list by type
-func LoadInstalledCapabilityWithType(capT types.CapType) ([]types.Capability, error) {
-	dir, err := system.GetCapabilityDir()
-	if err != nil {
-		return nil, err
+func LoadInstalledCapabilityWithType(userNamespace string, c common.Args, capT types.CapType) ([]types.Capability, error) {
+	switch capT {
+	case types.TypeComponentDefinition:
+		caps, _, err := GetComponentsFromCluster(context.TODO(), userNamespace, c, nil)
+		if err != nil {
+			return nil, err
+		}
+		systemCaps, _, err := GetComponentsFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
+		if err != nil {
+			return nil, err
+		}
+		caps = append(caps, systemCaps...)
+		return caps, nil
+	case types.TypeTrait:
+		caps, _, err := GetTraitsFromCluster(context.TODO(), userNamespace, c, nil)
+		if err != nil {
+			return nil, err
+		}
+		systemCaps, _, err := GetTraitsFromCluster(context.TODO(), types.DefaultKubeVelaNS, c, nil)
+		if err != nil {
+			return nil, err
+		}
+		caps = append(caps, systemCaps...)
+		return caps, nil
+	case types.TypeScope:
+	case types.TypeWorkload:
 	}
-	return loadInstalledCapabilityWithType(dir, capT)
+	return nil, nil
 }
 
 // GetInstalledCapabilityWithCapName will get cap by alias
@@ -127,6 +168,8 @@ func GetSubDir(dir string, capT types.CapType) string {
 		return filepath.Join(dir, "traits")
 	case types.TypeScope:
 		return filepath.Join(dir, "scopes")
+	case types.TypeComponentDefinition:
+		return filepath.Join(dir, "components")
 	}
 	return dir
 }
@@ -157,7 +200,7 @@ func SinkTemp2Local(templates []types.Capability, dir string) int {
 func RemoveLegacyTemps(retainedTemps []types.Capability, dir string) int {
 	success := 0
 	var retainedFiles []string
-	subDirs := []string{GetSubDir(dir, types.TypeWorkload), GetSubDir(dir, types.TypeTrait)}
+	subDirs := []string{GetSubDir(dir, types.TypeComponentDefinition), GetSubDir(dir, types.TypeTrait)}
 	for _, tmp := range retainedTemps {
 		subDir := GetSubDir(dir, tmp.Type)
 		tmpFilePath := filepath.Join(subDir, tmp.Name)
@@ -189,7 +232,7 @@ func RemoveLegacyTemps(retainedTemps []types.Capability, dir string) int {
 }
 
 // LoadCapabilityFromSyncedCenter will load capability from dir
-func LoadCapabilityFromSyncedCenter(dir string) ([]types.Capability, error) {
+func LoadCapabilityFromSyncedCenter(mapper discoverymapper.DiscoveryMapper, dir string) ([]types.Capability, error) {
 	var tmps []types.Capability
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
@@ -210,7 +253,7 @@ func LoadCapabilityFromSyncedCenter(dir string) ([]types.Capability, error) {
 			fmt.Printf("read file %s err %v\n", f.Name(), err)
 			continue
 		}
-		tmp, err := ParseAndSyncCapability(data, filepath.Join(dir, ".tmp"))
+		tmp, err := ParseAndSyncCapability(mapper, data)
 		if err != nil {
 			fmt.Printf("get definition of %s err %v\n", f.Name(), err)
 			continue

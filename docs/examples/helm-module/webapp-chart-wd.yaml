@@ -1,0 +1,10 @@
+apiVersion: core.oam.dev/v1beta1
+kind: WorkloadDefinition
+metadata:
+  name: webapp-chart
+  annotations:
+    definition.oam.dev/description: helm chart for webapp
+spec:
+  definitionRef:
+    name: deployments.apps
+    version: v1

@@ -11,11 +11,12 @@ disableCaps: "metrics"
 image:
   repository: oamdev/vela-core
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
+useAppConfig: true
 
 serviceAccount:
   # Specifies whether a service account should be created
@@ -36,24 +37,6 @@ securityContext: {}
   # readOnlyRootFilesystem: true
   # runAsNonRoot: true
   # runAsUser: 1000
-
-service:
-  type: ClusterIP
-  port: 80
-
-ingress:
-  enabled: false
-  annotations: {}
-    # kubernetes.io/ingress.class: nginx
-    # kubernetes.io/tls-acme: "true"
-  hosts:
-    - host: chart-example.local
-      paths: []
-  tls: []
-  #  - secretName: chart-example-tls
-  #    hosts:
-  #      - chart-example.local
-
 
 resources:
   limits:
@@ -87,8 +70,8 @@ admissionWebhooks:
   patch:
     enabled: true
     image:
-      repository: jettech/kube-webhook-certgen
-      tag: v1.5.0
+      repository: wonderflow/kube-webhook-certgen
+      tag: v2.1
       pullPolicy: IfNotPresent
     affinity: {}
     tolerations: []

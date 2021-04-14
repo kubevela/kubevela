@@ -1,4 +1,6 @@
-# Autoscale
+---
+title:  Autoscale
+---
 
 ## Description
 
@@ -9,22 +11,16 @@ Automatically scales workloads by resource utilization metrics or cron triggers.
 List of all configuration options for a `Autoscale` trait.
 
 ```yaml
-name: testapp
-
-services:
-  express-server:
-    ...
-
-    autoscale:
-      min: 1
-      max: 4
-      cron:
-        startAt:  "14:00"
-        duration: "2h"
-        days:     "Monday, Thursday"
-        replicas: 2
-        timezone: "America/Los_Angeles"
-      cpuPercent: 10
+...
+	min: 1
+	max: 4
+	cron:
+	startAt:  "14:00"
+	duration: "2h"
+	days:     "Monday, Thursday"
+	replicas: 2
+	timezone: "America/Los_Angeles"
+	cpuPercent: 10
 ```
 
 ## Properties

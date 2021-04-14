@@ -1,16 +1,30 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package controllers_test
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/ghodss/yaml"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,8 +33,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
 
 var _ = Describe("Versioning mechanism of components", func() {
@@ -157,7 +173,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Get Component latest status after ControllerRevision created")
 			Eventually(
-				func() *v1alpha2.Revision {
+				func() *commontypes.Revision {
 					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, cmpV1)
 					return cmpV1.Status.LatestRevision
 				},
@@ -209,7 +225,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Get Component latest status after ControllerRevision created")
 			Eventually(
-				func() *v1alpha2.Revision {
+				func() *commontypes.Revision {
 					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, cmpV1)
 					return cmpV1.Status.LatestRevision
 				},
@@ -253,7 +269,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 			cmpV1 := &v1alpha2.Component{}
 			By("Get Component latest status after ControllerRevision created")
 			Eventually(
-				func() *v1alpha2.Revision {
+				func() *commontypes.Revision {
 					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, cmpV1)
 					return cmpV1.Status.LatestRevision
 				},
@@ -296,6 +312,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 			By("Check ContainerizedWorkload workload's image field has been changed to v2")
 			cwWlV2 := &v1alpha2.ContainerizedWorkload{}
 			Eventually(func() string {
+				requestReconcileNow(ctx, &appConfigWithRevisionName)
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, cwWlV2)
 				return cwWlV2.Spec.Containers[0].Image
 			}, time.Second*60, time.Microsecond*500).Should(Equal(imageV2))
@@ -307,7 +324,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Create trait definition")
 			var td v1alpha2.TraitDefinition
-			Expect(readYaml("testdata/revision/trait-def.yaml", &td)).Should(BeNil())
+			Expect(common.ReadYamlToObject("testdata/revision/trait-def.yaml", &td)).Should(BeNil())
 
 			var gtd v1alpha2.TraitDefinition
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: td.Name, Namespace: td.Namespace}, &gtd); err != nil {
@@ -319,17 +336,22 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Create Component v1")
 			var comp1 v1alpha2.Component
-			Expect(readYaml("testdata/revision/comp-v1.yaml", &comp1)).Should(BeNil())
+			Expect(common.ReadYamlToObject("testdata/revision/comp-v1.yaml", &comp1)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &comp1)).Should(Succeed())
+
+			By("Check component should already existed")
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Namespace: comp1.Namespace, Name: comp1.Name}, &v1alpha2.Component{})
+			}, time.Second*10, time.Microsecond*500).Should(BeNil())
 
 			By("Create AppConfig with component")
 			var appconfig v1alpha2.ApplicationConfiguration
-			Expect(readYaml("testdata/revision/app.yaml", &appconfig)).Should(BeNil())
+			Expect(common.ReadYamlToObject("testdata/revision/app.yaml", &appconfig)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &appconfig)).Should(Succeed())
 
 			By("Get Component latest status after ControllerRevision created")
 			Eventually(
-				func() *v1alpha2.Revision {
+				func() *commontypes.Revision {
 					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &comp1)
 					return comp1.Status.LatestRevision
 				},
@@ -341,6 +363,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 			var w1 unstructured.Unstructured
 			Eventually(
 				func() error {
+					requestReconcileNow(ctx, &appconfig)
 					w1.SetAPIVersion("example.com/v1")
 					w1.SetKind("Bar")
 					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: revisionNameV1}, &w1)
@@ -351,13 +374,13 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Create Component v2")
 			var comp2 v1alpha2.Component
-			Expect(readYaml("testdata/revision/comp-v2.yaml", &comp2)).Should(BeNil())
+			Expect(common.ReadYamlToObject("testdata/revision/comp-v2.yaml", &comp2)).Should(BeNil())
 			comp2.ResourceVersion = comp1.ResourceVersion
 			Expect(k8sClient.Update(ctx, &comp2)).Should(Succeed())
 
 			By("Get Component latest status after ControllerRevision created")
 			Eventually(
-				func() *v1alpha2.Revision {
+				func() *commontypes.Revision {
 					k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &comp2)
 					if comp2.Status.LatestRevision != nil && comp2.Status.LatestRevision.Revision > 1 {
 						return comp2.Status.LatestRevision
@@ -372,11 +395,12 @@ var _ = Describe("Versioning mechanism of components", func() {
 			var w2 unstructured.Unstructured
 			Eventually(
 				func() error {
+					requestReconcileNow(ctx, &appconfig)
 					w2.SetAPIVersion("example.com/v1")
 					w2.SetKind("Bar")
 					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: revisionNameV2}, &w2)
 				},
-				time.Second*60, time.Millisecond*500).Should(BeNil())
+				time.Second*30, time.Millisecond*500).Should(BeNil())
 			k2, _, _ := unstructured.NestedString(w2.Object, "spec", "key")
 			Expect(k2).Should(BeEquivalentTo("v2"), fmt.Sprintf("%v", w2.Object))
 
@@ -411,7 +435,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Create trait definition")
 			var td v1alpha2.TraitDefinition
-			Expect(readYaml("testdata/revision/trait-def-no-revision.yaml", &td)).Should(BeNil())
+			Expect(common.ReadYamlToObject("testdata/revision/trait-def-no-revision.yaml", &td)).Should(BeNil())
 			var gtd v1alpha2.TraitDefinition
 			if err := k8sClient.Get(ctx, client.ObjectKey{Name: td.Name, Namespace: td.Namespace}, &gtd); err != nil {
 				Expect(k8sClient.Create(ctx, &td)).Should(Succeed())
@@ -422,12 +446,12 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Create Component v1")
 			var comp1 v1alpha2.Component
-			Expect(readYaml("testdata/revision/comp-v1.yaml", &comp1)).Should(BeNil())
+			Expect(common.ReadYamlToObject("testdata/revision/comp-v1.yaml", &comp1)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &comp1)).Should(Succeed())
 
 			By("Create AppConfig with component")
 			var appconfig v1alpha2.ApplicationConfiguration
-			Expect(readYaml("testdata/revision/app.yaml", &appconfig)).Should(BeNil())
+			Expect(common.ReadYamlToObject("testdata/revision/app.yaml", &appconfig)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &appconfig)).Should(Succeed())
 
 			By("Workload created with component name")
@@ -445,15 +469,20 @@ var _ = Describe("Versioning mechanism of components", func() {
 
 			By("Create Component v2")
 			var comp2 v1alpha2.Component
-			Expect(readYaml("testdata/revision/comp-v2.yaml", &comp2)).Should(BeNil())
-			k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &comp1)
-			comp2.ResourceVersion = comp1.ResourceVersion
-			Expect(k8sClient.Update(ctx, &comp2)).Should(Succeed())
+			Expect(common.ReadYamlToObject("testdata/revision/comp-v2.yaml", &comp2)).Should(BeNil())
+			Eventually(func() error {
+				tmp := &v1alpha2.Component{}
+				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, tmp)
+				updatedComp := comp2.DeepCopy()
+				updatedComp.ResourceVersion = tmp.ResourceVersion
+				return k8sClient.Update(ctx, updatedComp)
+			}, 5*time.Second, time.Second).Should(Succeed())
 
 			By("Workload exist with revisionName v2")
 			var w2 unstructured.Unstructured
 			Eventually(
 				func() string {
+					requestReconcileNow(ctx, &appconfig)
 					w2.SetAPIVersion("example.com/v1")
 					w2.SetKind("Bar")
 					err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &w2)
@@ -463,7 +492,7 @@ var _ = Describe("Versioning mechanism of components", func() {
 					k2, _, _ := unstructured.NestedString(w2.Object, "spec", "key")
 					return k2
 				},
-				time.Second*120, time.Millisecond*500).Should(BeEquivalentTo("v2"))
+				time.Second*30, time.Millisecond*500).Should(BeEquivalentTo("v2"))
 
 			By("Check AppConfig status")
 			Eventually(
@@ -481,14 +510,6 @@ var _ = Describe("Versioning mechanism of components", func() {
 		})
 	})
 })
-
-func readYaml(path string, object runtime.Object) error {
-	data, err := ioutil.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	return yaml.Unmarshal(data, object)
-}
 
 var _ = Describe("Component revision", func() {
 	ctx := context.Background()
@@ -538,7 +559,7 @@ var _ = Describe("Component revision", func() {
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
 			RevisionEnabled: true,
-			Reference: v1alpha2.DefinitionReference{
+			Reference: commontypes.DefinitionReference{
 				Name: "manualscalertraits.core.oam.dev",
 			},
 			WorkloadRefPath: "spec.workloadRef",
@@ -574,8 +595,15 @@ var _ = Describe("Component revision", func() {
 
 	Context("Attach a revision-enable trait the first time, workload should not be recreated", func() {
 		It("should create Component and ApplicationConfiguration", func() {
-			By("submit ApplicationConfiguration")
+			By("submit Component")
 			Expect(k8sClient.Create(ctx, &component)).Should(Succeed())
+			By("check Component exist")
+			Eventually(
+				func() error {
+					return k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: componentName}, &v1alpha2.Component{})
+				},
+				time.Second*3, time.Millisecond*500).Should(BeNil())
+			By("submit ApplicationConfiguration")
 			Expect(k8sClient.Create(ctx, &appConfig)).Should(Succeed())
 
 			By("check workload")
@@ -589,8 +617,10 @@ var _ = Describe("Component revision", func() {
 			By("apply new ApplicationConfiguration with a revision enabled trait")
 			Expect(k8sClient.Create(ctx, &TraitDefinition)).Should(Succeed())
 			Expect(k8sClient.Get(ctx, appConfigObjKey, &appConfig)).Should(Succeed())
-			appConfig.Spec.Components[0].Traits = []v1alpha2.ComponentTrait{{Trait: runtime.RawExtension{Object: trait.DeepCopyObject()}}}
-			Expect(k8sClient.Update(ctx, &appConfig)).Should(Succeed())
+			updatedAppConfig := appConfig.DeepCopy()
+			updatedAppConfig.Spec.Components[0].Traits = []v1alpha2.ComponentTrait{{Trait: runtime.RawExtension{Object: trait.DeepCopyObject()}}}
+			updatedAppConfig.SetResourceVersion("")
+			Expect(k8sClient.Patch(ctx, updatedAppConfig, client.Merge)).Should(Succeed())
 
 			By("check current workload exists")
 			time.Sleep(3 * time.Second)
@@ -607,5 +637,6 @@ var _ = Describe("Component revision", func() {
 	AfterEach(func() {
 		k8sClient.Delete(ctx, &appConfig)
 		k8sClient.Delete(ctx, &component)
+		k8sClient.Delete(ctx, &TraitDefinition)
 	})
 })

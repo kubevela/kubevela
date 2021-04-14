@@ -5,7 +5,6 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.4
-  creationTimestamp: null
   name: components.core.oam.dev
 spec:
   additionalPrinterColumns:
@@ -18,7 +17,6 @@ spec:
   group: core.oam.dev
   names:
     categories:
-    - crossplane
     - oam
     kind: Component
     listKind: ComponentList
@@ -42,6 +40,21 @@ spec:
         spec:
           description: A ComponentSpec defines the desired state of a Component.
           properties:
+            helm:
+              description: HelmRelease records a Helm release used by a Helm module workload.
+              properties:
+                release:
+                  description: Release records a Helm release used by a Helm module workload.
+                  type: object
+                  
+                repository:
+                  description: HelmRelease records a Helm repository used by a Helm module workload.
+                  type: object
+                  
+              required:
+              - release
+              - repository
+              type: object
             parameters:
               description: Parameters exposed by this component. ApplicationConfigurations that reference this component may specify values for these parameters, which will in turn be injected into the embedded workload.
               items:
@@ -115,6 +128,7 @@ spec:
                   format: int64
                   type: integer
                 revisionHash:
+                  description: RevisionHash record the hash value of the spec of ApplicationRevision object.
                   type: string
               required:
               - name

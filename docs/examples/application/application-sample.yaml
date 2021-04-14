@@ -1,0 +1,25 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: application-sample
+spec:
+  components:
+    - name: myweb
+      type: worker
+      properties:
+        image: "busybox"
+        cmd:
+        - sleep
+        - "1000"
+      traits:
+        - type: scaler
+          properties:
+            replicas: 10
+        - type: sidecar
+          properties:
+            name: "sidecar-test"
+            image: "nginx"
+        - type: kservice
+          properties:
+            http:
+              server: 80

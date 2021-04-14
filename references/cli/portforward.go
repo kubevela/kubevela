@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package cli
 
 import (
@@ -23,12 +39,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
-	"github.com/oam-dev/kubevela/references/appfile/api"
 )
 
 // VelaPortForwardOptions for vela port-forward
@@ -38,9 +54,9 @@ type VelaPortForwardOptions struct {
 	ioStreams util.IOStreams
 
 	context.Context
-	VelaC types.Args
+	VelaC common.Args
 	Env   *types.EnvMeta
-	App   *api.Application
+	App   *v1beta1.Application
 
 	f                    k8scmdutil.Factory
 	kcPortForwardOptions *cmdpf.PortForwardOptions
@@ -50,7 +66,7 @@ type VelaPortForwardOptions struct {
 }
 
 // NewPortForwardCommand is vela port-forward command
-func NewPortForwardCommand(c types.Args, ioStreams util.IOStreams) *cobra.Command {
+func NewPortForwardCommand(c common.Args, ioStreams util.IOStreams) *cobra.Command {
 	o := &VelaPortForwardOptions{
 		ioStreams: ioStreams,
 		kcPortForwardOptions: &cmdpf.PortForwardOptions{
@@ -74,7 +90,7 @@ func NewPortForwardCommand(c types.Args, ioStreams util.IOStreams) *cobra.Comman
 				ioStreams.Error("Please specify application name.")
 				return nil
 			}
-			newClient, err := client.New(o.VelaC.Config, client.Options{Scheme: o.VelaC.Schema})
+			newClient, err := o.VelaC.GetClient()
 			if err != nil {
 				return err
 			}
@@ -114,7 +130,7 @@ func (o *VelaPortForwardOptions) Init(ctx context.Context, cmd *cobra.Command, a
 	}
 	o.Env = env
 
-	app, err := appfile.LoadApplication(env.Name, o.Args[0])
+	app, err := appfile.LoadApplication(env.Namespace, o.Args[0], o.VelaC)
 	if err != nil {
 		return err
 	}
@@ -191,7 +207,7 @@ func (o *VelaPortForwardOptions) Complete() error {
 	}
 	if len(o.Args) < 2 {
 		var found bool
-		_, configs := appfile.GetServiceConfig(o.App, svcName)
+		_, configs := appfile.GetApplicationSettings(o.App, svcName)
 		for k, v := range configs {
 			if k == "port" {
 				var val string

@@ -112,11 +112,15 @@ spec:
             - "--webhook-port={{ .Values.webhookService.port }}"
             - "--webhook-cert-dir={{ .Values.admissionWebhooks.certificate.mountPath }}"
             {{ end }}
+            {{ if not .Values.useAppConfig }}
+            - "--app-config-installed=false"
+            {{ end }}
             - "--health-addr=:{{ .Values.healthCheck.port }}"
             - "--apply-once-only={{ .Values.applyOnceOnly }}"
             {{ if ne .Values.disableCaps "" }}
             - "--disable-caps={{ .Values.disableCaps }}"
             {{ end }}
+            - "--system-definition-namespace={{ .Values.systemDefinitionNamespace }}"
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:

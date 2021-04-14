@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package api
 
 import (
@@ -5,7 +21,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/references/appfile/template"
 )
 
@@ -48,23 +64,23 @@ outerLoop:
 }
 
 // RenderServiceToApplicationComponent render all capabilities of a service to CUE values to KubeVela Application.
-func (s Service) RenderServiceToApplicationComponent(tm template.Manager, serviceName string) (v1alpha2.ApplicationComponent, error) {
+func (s Service) RenderServiceToApplicationComponent(tm template.Manager, serviceName string) (v1beta1.ApplicationComponent, error) {
 
 	// sort out configs by workload/trait
 	workloadKeys := map[string]interface{}{}
-	var traits []v1alpha2.ApplicationTrait
+	var traits []v1beta1.ApplicationTrait
 
 	wtype := s.GetType()
 
-	comp := v1alpha2.ApplicationComponent{
-		Name:         serviceName,
-		WorkloadType: wtype,
+	comp := v1beta1.ApplicationComponent{
+		Name: serviceName,
+		Type: wtype,
 	}
 
 	for k, v := range s.GetApplicationConfig() {
 		if tm.IsTrait(k) {
-			trait := v1alpha2.ApplicationTrait{
-				Name: k,
+			trait := v1beta1.ApplicationTrait{
+				Type: k,
 			}
 			pts := &runtime.RawExtension{}
 			jt, err := json.Marshal(v)
@@ -90,7 +106,7 @@ func (s Service) RenderServiceToApplicationComponent(tm template.Manager, servic
 	if err := settings.UnmarshalJSON(pt); err != nil {
 		return comp, err
 	}
-	comp.Settings = *settings
+	comp.Properties = *settings
 
 	if len(traits) > 0 {
 		comp.Traits = traits

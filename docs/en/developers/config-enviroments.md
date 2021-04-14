@@ -1,6 +1,9 @@
-# Setting Up Deployment Environment
+---
+title:  Setting Up Deployment Environment
+---
 
-A deployment environment is where you could configure the workspace, email for certificate issuer and domain for your applications globally. A typical set of deployment environment is `test`, `staging`, `prod`, etc.
+A deployment environment is where you could configure the workspace, email for contact and domain for your applications globally.
+A typical set of deployment environment is `test`, `staging`, `prod`, etc.
 
 ## Create environment
 

@@ -1,13 +1,15 @@
-apiVersion: core.oam.dev/v1alpha2
-kind: WorkloadDefinition
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
 metadata:
   name: task
   namespace: {{.Values.systemDefinitionNamespace}}
   annotations:
     definition.oam.dev/description: "Describes jobs that run code or a script to completion."
 spec:
-  definitionRef:
-    name: jobs.batch
+  workload:
+    definition:
+      apiVersion: batch/v1
+      kind: Job
   schematic:
     cue:
       template: |

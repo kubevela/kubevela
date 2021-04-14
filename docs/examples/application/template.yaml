@@ -1,0 +1,137 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: worker
+  annotations:
+    definition.oam.dev/description: "Long-running scalable backend worker without network endpoint"
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        output: {
+          apiVersion: "apps/v1"
+          kind:       "Deployment"
+          spec: {
+              selector: matchLabels: {
+                  "app.oam.dev/component": context.name
+              }
+
+              template: {
+                  metadata: labels: {
+                      "app.oam.dev/component": context.name
+                  }
+
+                  spec: {
+                      containers: [{
+                          name:  context.name
+                          image: parameter.image
+
+                          if parameter["cmd"] != _|_ {
+                              command: parameter.cmd
+                          }
+                      }]
+                  }
+              }
+
+              selector:
+                  matchLabels:
+                      "app.oam.dev/component": context.name
+          }
+        }
+
+        parameter: {
+          // +usage=Which image would you like to use for your service
+          // +short=i
+          image: string
+
+          cmd?: [...string]
+        }
+---
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "Manually scale the app"
+  name: scaler
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  schematic:
+    cue:
+      template: |-
+        patch: {
+           spec: replicas: parameter.replicas
+        }
+        parameter: {
+          //+short=r
+          replicas: *1 | int
+        }
+---
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "add sidecar to the app"
+  name: sidecar
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  schematic:
+    cue:
+      template: |-
+        patch: {
+           // +patchKey=name
+           spec: template: spec: containers: [parameter]
+        }
+        parameter: {
+           name: string
+           image: string
+           command?: [...string]
+        }
+---
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "service the app"
+  name: kservice
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  schematic:
+    cue:
+      template: |-
+        patch: {spec: template: metadata: labels: app: context.name}
+        outputs: service: {
+          apiVersion: "v1"
+          kind: "Service"
+          metadata: name: context.name
+          spec: {
+            selector:  app: context.name
+            ports: [
+              for k, v in parameter.http {
+                port: v
+                targetPort: v
+              }
+            ]
+          }
+        }
+        parameter: {
+          http: [string]: int
+        }
+---
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: services
+  namespace: default
+spec:
+  definitionRef:
+    name: services

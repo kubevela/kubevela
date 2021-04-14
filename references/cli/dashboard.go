@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package cli
 
 import (
@@ -7,13 +23,13 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 
 	"github.com/mholt/archiver/v3"
 	"github.com/spf13/cobra"
@@ -32,20 +48,21 @@ import (
 )
 
 // NewDashboardCommand creates `dashboard` command and its nested children commands
-func NewDashboardCommand(c types.Args, ioStreams cmdutil.IOStreams, frontendSource string) *cobra.Command {
+func NewDashboardCommand(c common.Args, ioStreams cmdutil.IOStreams, frontendSource string) *cobra.Command {
 	var o Options
 	o.frontendSource = frontendSource
 	cmd := &cobra.Command{
-		Hidden:  true,
-		Use:     "dashboard",
-		Short:   "Setup API Server and launch Dashboard",
-		Long:    "Setup API Server and launch Dashboard",
-		Example: `dashboard`,
+		Hidden:     true,
+		Use:        "dashboard",
+		Short:      "Setup API Server and launch Dashboard",
+		Long:       "Setup API Server and launch Dashboard",
+		Example:    `dashboard`,
+		Deprecated: "vela dashboard is deprecated, it will only launch APIServer without dashboard",
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
@@ -141,7 +158,7 @@ func (o *Options) GetStaticPath() error {
 }
 
 // SetupAPIServer starts a RESTfulAPI server
-func SetupAPIServer(c types.Args, cmd *cobra.Command, o Options) error {
+func SetupAPIServer(c common.Args, cmd *cobra.Command, o Options) error {
 	// setup logging
 	var w io.Writer
 	if len(o.logFilePath) > 0 {
@@ -198,23 +215,6 @@ func SetupAPIServer(c types.Args, cmd *cobra.Command, o Options) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	return server.Shutdown(ctx)
-}
-
-// OpenBrowser will open browser by url in different OS system
-// nolint:gosec
-func OpenBrowser(url string) error {
-	var err error
-	switch runtime.GOOS {
-	case "linux":
-		err = exec.Command("xdg-open", url).Start()
-	case "windows":
-		err = exec.Command("cmd", "/C", "start", url).Run()
-	case "darwin":
-		err = exec.Command("open", url).Start()
-	default:
-		err = fmt.Errorf("unsupported platform")
-	}
-	return err
 }
 
 // CheckVelaRuntimeInstalledAndReady checks whether vela-core runtime is installed and ready

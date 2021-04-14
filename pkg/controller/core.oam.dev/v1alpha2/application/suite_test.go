@@ -1,5 +1,5 @@
 /*
-
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -44,8 +44,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	// +kubebuilder:scaffold:imports
 )
@@ -106,20 +108,25 @@ var _ = BeforeSuite(func(done Done) {
 	err = v1alpha1.SchemeBuilder.AddToScheme(testScheme)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = v1beta1.SchemeBuilder.AddToScheme(testScheme)
+	Expect(err).NotTo(HaveOccurred())
+
 	err = scheme.AddToScheme(testScheme)
 	Expect(err).NotTo(HaveOccurred())
 	// +kubebuilder:scaffold:scheme
-
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(k8sClient).ToNot(BeNil())
 	dm, err := discoverymapper.New(cfg)
+	Expect(err).To(BeNil())
+	pd, err := definition.NewPackageDiscover(cfg)
 	Expect(err).To(BeNil())
 	reconciler = &Reconciler{
 		Client: k8sClient,
 		Log:    ctrl.Log.WithName("Application-Test"),
 		Scheme: testScheme,
 		dm:     dm,
+		pd:     pd,
 	}
 	// setup the controller manager since we need the component handler to run in the background
 	ctlManager, err = ctrl.NewManager(cfg, ctrl.Options{

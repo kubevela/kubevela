@@ -20,10 +20,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/oam-dev/kubevela/pkg/controller/common"
-	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/autoscaler"
-	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/metrics"
 	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/podspecworkload"
-	"github.com/oam-dev/kubevela/pkg/controller/standard.oam.dev/v1alpha1/routes"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 )
 
@@ -33,22 +30,13 @@ func Setup(mgr ctrl.Manager, disableCaps string) error {
 	switch disableCaps {
 	case common.DisableNoneCaps:
 		functions = []func(ctrl.Manager) error{
-			metrics.Setup, podspecworkload.Setup, routes.Setup, autoscaler.Setup,
+			podspecworkload.Setup,
 		}
 	case common.DisableAllCaps:
 	default:
 		disableCapsSet := utils.StoreInSet(disableCaps)
-		if !disableCapsSet.Contains(common.MetricsControllerName) {
-			functions = append(functions, metrics.Setup)
-		}
 		if !disableCapsSet.Contains(common.PodspecWorkloadControllerName) {
 			functions = append(functions, podspecworkload.Setup)
-		}
-		if !disableCapsSet.Contains(common.RouteControllerName) {
-			functions = append(functions, routes.Setup)
-		}
-		if !disableCapsSet.Contains(common.AutoscaleControllerName) {
-			functions = append(functions, autoscaler.Setup)
 		}
 	}
 

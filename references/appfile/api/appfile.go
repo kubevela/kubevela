@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package api
 
 import (
@@ -14,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile/config"
 	"github.com/oam-dev/kubevela/pkg/builtin"
@@ -128,7 +145,7 @@ func (app *AppFile) ExecuteAppfileTasks(io cmdutil.IOStreams) error {
 }
 
 // BuildOAMApplication renders Appfile into Application, Scopes and other K8s Resources.
-func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams, tm template.Manager, silence bool) (*v1alpha2.Application, []oam.Object, error) {
+func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams, tm template.Manager, silence bool) (*v1beta1.Application, []oam.Object, error) {
 	if err := app.ExecuteAppfileTasks(io); err != nil {
 		if strings.Contains(err.Error(), "'image' : not found") {
 			return nil, nil, ErrImageNotDefined
@@ -137,10 +154,10 @@ func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams
 	}
 	// auxiliaryObjects currently include OAM Scope Custom Resources and ConfigMaps
 	var auxiliaryObjects []oam.Object
-	servApp := new(v1alpha2.Application)
+	servApp := new(v1beta1.Application)
 	servApp.SetNamespace(env.Namespace)
 	servApp.SetName(app.Name)
-	servApp.Spec.Components = []v1alpha2.ApplicationComponent{}
+	servApp.Spec.Components = []v1beta1.ApplicationComponent{}
 	for serviceName, svc := range app.GetServices() {
 		if !silence {
 			io.Infof("\nRendering configs for service (%s)...\n", serviceName)
@@ -167,12 +184,12 @@ func (app *AppFile) BuildOAMApplication(env *types.EnvMeta, io cmdutil.IOStreams
 		}
 		servApp.Spec.Components = append(servApp.Spec.Components, comp)
 	}
-	servApp.SetGroupVersionKind(v1alpha2.SchemeGroupVersion.WithKind("Application"))
+	servApp.SetGroupVersionKind(v1beta1.SchemeGroupVersion.WithKind("Application"))
 	auxiliaryObjects = append(auxiliaryObjects, addDefaultHealthScopeToApplication(servApp))
 	return servApp, auxiliaryObjects, nil
 }
 
-func addDefaultHealthScopeToApplication(app *v1alpha2.Application) *v1alpha2.HealthScope {
+func addDefaultHealthScopeToApplication(app *v1beta1.Application) *v1alpha2.HealthScope {
 	health := &v1alpha2.HealthScope{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: v1alpha2.HealthScopeGroupVersionKind.GroupVersion().String(),

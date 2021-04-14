@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeVela Authors.
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package cli
 
 // constants used in `svc` command
 const (
-	App     = "app"
-	Service = "svc"
+	App       = "app"
+	Service   = "svc"
+	Namespace = "namespace"
 )

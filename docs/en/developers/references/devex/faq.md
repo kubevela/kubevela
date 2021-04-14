@@ -1,12 +1,13 @@
-# FAQ
+---
+title:  FAQ
+---
 
 - [Compare to X](#Compare-to-X)
   * [What is the difference between KubeVela and Helm?](#What-is-the-difference-between-KubeVela-and-Helm?)
 
-- [Issues](#iissues)
+- [Issues](#issues)
   * [Error: unable to create new content in namespace cert-manager because it is being terminated](#error-unable-to-create-new-content-in-namespace-cert-manager-because-it-is-being-terminated)
   * [Error: ScopeDefinition exists](#error-scopedefinition-exists)
-  * [Warning: capability rollout was not ready](#warning-capability-rollout-was-not-ready)
   * [You have reached your pull rate limit](#You-have-reached-your-pull-rate-limit)
   * [Warning: Namespace cert-manager exists](#warning-namespace-cert-manager-exists)
   * [How to fix issue: MutatingWebhookConfiguration mutating-webhook-configuration exists?](#how-to-fix-issue-mutatingwebhookconfiguration-mutating-webhook-configuration-exists)
@@ -133,38 +134,6 @@ TYPE       	CATEGORY	DESCRIPTION
 +scaler    	trait   	Manually scale the app
 
 - Finished successfully.
-```
-
-### Warning: capability rollout was not ready
-
-If you hit the issue as below, it means cert-manager is creating a certificate for Trait Rollout.
-Just wait a few minutes, and the issue will be self-healed.
-                               
-
-```
-$ vela install
-- Installing Vela Core Chart:
-created namespace vela-system
-install chart vela-core, version 0.1.0, desc : A Helm chart for Kube Vela core, contains 35 file
-Successfully installed the chart, status: deployed, last deployed time = 2020-12-02 22:16:03.504685599 +0800 CST m=+4.949923921
-- Vela-Core was installed successfully while some capabilities were still installing background, try running 'vela workloads' or 'vela traits' to check after a while, details timeout checking capability ready: capability 'rollout' was not ready: no matches for flagger.app/, Resource=canaries 
-
-
-$ kubectl get all -n vela-system
-NAME                                      READY   STATUS              RESTARTS   AGE
-pod/kubevela-vela-core-77f4494f8f-hmrc8   0/1     ContainerCreating   0          13m
-
-NAME                                 READY   UP-TO-DATE   AVAILABLE   AGE
-deployment.apps/kubevela-vela-core   0/1     1            0           13m
-
-$ kubectl describe deployment kubevela-vela-core -n vela-system
-Events:
-  Type     Reason       Age                         From               Message
-  ----     ------       ----                        ----               -------
-  Normal   Scheduled    15m                         default-scheduler  Successfully assigned vela-system/kubevela-vela-core-77f4494f8f-hmrc8 to node1
-  Warning  FailedMount  <invalid>                   kubelet, node1     Unable to attach or mount volumes: unmounted volumes=[tls-cert-vol], unattached volumes=[kubevela-vela-core-token-dztdl tls-cert-vol]: timed out waiting for the condition
-  Warning  FailedMount  <invalid> (x5 over 2m22s)   kubelet, node1     Unable to attach or mount volumes: unmounted volumes=[tls-cert-vol], unattached volumes=[tls-cert-vol kubevela-vela-core-token-dztdl]: timed out waiting for the condition
-  Warning  FailedMount  <invalid> (x15 over 4m25s)  kubelet, node1     MountVolume.SetUp failed for volume "tls-cert-vol" : secret "webhook-server-cert" not found
 ```
 
 ### You have reached your pull rate limit
@@ -332,4 +301,4 @@ $ minikube addons enable metrics-server
 ```
 
 
-Have fun to [set autoscale](../../extensions/set-autoscale.md) on your application.
+Have fun to [set autoscale](../../extensions/set-autoscale) on your application.

@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package env
 
 import (
@@ -9,21 +25,15 @@ import (
 	"os"
 	"path/filepath"
 
-	acmev1 "github.com/wonderflow/cert-manager-api/pkg/apis/acme/v1"
-	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
-	v1 "github.com/wonderflow/cert-manager-api/pkg/apis/meta/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
-
-// ProductionACMEServer is the production ACME Server from let's encrypt
-const ProductionACMEServer = "https://acme-v02.api.letsencrypt.org/directory"
 
 // GetEnvDirByName will get env dir from name
 func GetEnvDirByName(name string) string {
@@ -62,9 +72,6 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 		if envArgs.Email == "" {
 			envArgs.Email = old.Email
 		}
-		if envArgs.Issuer == "" {
-			envArgs.Issuer = old.Issuer
-		}
 		if envArgs.Namespace == "" {
 			envArgs.Namespace = old.Namespace
 		}
@@ -75,36 +82,15 @@ func CreateOrUpdateEnv(ctx context.Context, c client.Client, envName string, env
 	}
 
 	var message = ""
-	// Create Namespace
-	if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envArgs.Namespace}}); err != nil && !apierrors.IsAlreadyExists(err) {
-		return message, err
-	}
-
-	// Create Issuer For SSL if both email and domain are all set.
-	if envArgs.Email != "" && envArgs.Domain != "" {
-		issuerName := "oam-env-" + envArgs.Name
-		if err := c.Create(ctx, &certmanager.Issuer{
-			ObjectMeta: metav1.ObjectMeta{Name: issuerName, Namespace: envArgs.Namespace},
-			Spec: certmanager.IssuerSpec{
-				IssuerConfig: certmanager.IssuerConfig{
-					ACME: &acmev1.ACMEIssuer{
-						Email:  envArgs.Email,
-						Server: ProductionACMEServer,
-						PrivateKey: v1.SecretKeySelector{
-							LocalObjectReference: v1.LocalObjectReference{Name: "oam-env-" + envArgs.Name + ".key"},
-						},
-						Solvers: []acmev1.ACMEChallengeSolver{{
-							HTTP01: &acmev1.ACMEChallengeSolverHTTP01{
-								Ingress: &acmev1.ACMEChallengeSolverHTTP01Ingress{Class: pointer.StringPtr("nginx")},
-							},
-						}},
-					},
-				},
-			},
-		}); err != nil && !apierrors.IsAlreadyExists(err) {
+	// Check If Namespace Exists
+	if err := c.Get(ctx, k8stypes.NamespacedName{Name: envArgs.Namespace}, &corev1.Namespace{}); err != nil {
+		if !apierrors.IsNotFound(err) {
 			return message, err
 		}
-		envArgs.Issuer = issuerName
+		// Create Namespace if not found
+		if err := c.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: envArgs.Namespace}}); err != nil {
+			return message, err
+		}
 	}
 
 	data, err := json.Marshal(envArgs)

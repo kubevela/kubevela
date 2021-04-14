@@ -1,11 +1,25 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package plugins
 
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -13,14 +27,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	corev1alpha2 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
-	"github.com/oam-dev/kubevela/pkg/utils/system"
 	util2 "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -28,12 +43,12 @@ import (
 const DescriptionUndefined = "description not defined"
 
 // GetCapabilitiesFromCluster will get capability from K8s cluster
-func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c types.Args, syncDir string, selector labels.Selector) ([]types.Capability, error) {
-	workloads, _, err := GetWorkloadsFromCluster(ctx, namespace, c, syncDir, selector)
+func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, error) {
+	workloads, _, err := GetComponentsFromCluster(ctx, namespace, c, selector)
 	if err != nil {
 		return nil, err
 	}
-	traits, _, err := GetTraitsFromCluster(ctx, namespace, c, syncDir, selector)
+	traits, _, err := GetTraitsFromCluster(ctx, namespace, c, selector)
 	if err != nil {
 		return nil, err
 	}
@@ -41,9 +56,9 @@ func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c types.A
 	return workloads, nil
 }
 
-// GetWorkloadsFromCluster will get capability from K8s cluster
-func GetWorkloadsFromCluster(ctx context.Context, namespace string, c types.Args, syncDir string, selector labels.Selector) ([]types.Capability, []error, error) {
-	newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+// GetComponentsFromCluster will get capability from K8s cluster
+func GetComponentsFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, []error, error) {
+	newClient, err := c.GetClient()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -53,20 +68,26 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c types.Args
 	}
 
 	var templates []types.Capability
-	var workloadDefs corev1alpha2.WorkloadDefinitionList
-	err = newClient.List(ctx, &workloadDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
+	var componentsDefs v1beta1.ComponentDefinitionList
+	err = newClient.List(ctx, &componentsDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
 	if err != nil {
-		return nil, nil, fmt.Errorf("list WorkloadDefinition err: %w", err)
+		return nil, nil, fmt.Errorf("list ComponentDefinition err: %w", err)
 	}
 
 	var templateErrors []error
-	for _, wd := range workloadDefs.Items {
-		tmp, err := HandleDefinition(wd.Name, syncDir, wd.Spec.Reference.Name, wd.Annotations, wd.Spec.Extension, types.TypeWorkload, nil, wd.Spec.Schematic)
+	for _, cd := range componentsDefs.Items {
+		ref, err := util.ConvertWorkloadGVK2Definition(dm, cd.Spec.Workload.Definition)
 		if err != nil {
-			templateErrors = append(templateErrors, errors.Wrapf(err, "handle workload template `%s` failed", wd.Name))
+			templateErrors = append(templateErrors, errors.Wrapf(err, "convert workload definition `%s` failed", cd.Name))
 			continue
 		}
-		if tmp, err = validateCapabilities(tmp, dm, wd.Name, wd.Spec.Reference); err != nil {
+		tmp, err := HandleDefinition(cd.Name, ref.Name, cd.Annotations, cd.Spec.Extension, types.TypeComponentDefinition, nil, cd.Spec.Schematic)
+		if err != nil {
+			templateErrors = append(templateErrors, errors.Wrapf(err, "handle workload template `%s` failed", cd.Name))
+			continue
+		}
+		tmp.Namespace = namespace
+		if tmp, err = validateCapabilities(tmp, dm, cd.Name, ref); err != nil {
 			return nil, nil, err
 		}
 		templates = append(templates, tmp)
@@ -75,8 +96,8 @@ func GetWorkloadsFromCluster(ctx context.Context, namespace string, c types.Args
 }
 
 // GetTraitsFromCluster will get capability from K8s cluster
-func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, syncDir string, selector labels.Selector) ([]types.Capability, []error, error) {
-	newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+func GetTraitsFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, []error, error) {
+	newClient, err := c.GetClient()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -85,7 +106,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, s
 		return nil, nil, err
 	}
 	var templates []types.Capability
-	var traitDefs corev1alpha2.TraitDefinitionList
+	var traitDefs v1beta1.TraitDefinitionList
 	err = newClient.List(ctx, &traitDefs, &client.ListOptions{Namespace: namespace, LabelSelector: selector})
 	if err != nil {
 		return nil, nil, fmt.Errorf("list TraitDefinition err: %w", err)
@@ -93,11 +114,12 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, s
 
 	var templateErrors []error
 	for _, td := range traitDefs.Items {
-		tmp, err := HandleDefinition(td.Name, syncDir, td.Spec.Reference.Name, td.Annotations, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads, td.Spec.Schematic)
+		tmp, err := HandleDefinition(td.Name, td.Spec.Reference.Name, td.Annotations, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads, td.Spec.Schematic)
 		if err != nil {
 			templateErrors = append(templateErrors, errors.Wrapf(err, "handle trait template `%s` failed", td.Name))
 			continue
 		}
+		tmp.Namespace = namespace
 		if tmp, err = validateCapabilities(tmp, dm, td.Name, td.Spec.Reference); err != nil {
 			return nil, nil, err
 		}
@@ -107,7 +129,7 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c types.Args, s
 }
 
 // validateCapabilities validates whether helm charts are successful installed, GVK are successfully retrieved.
-func validateCapabilities(tmp types.Capability, dm discoverymapper.DiscoveryMapper, definitionName string, reference corev1alpha2.DefinitionReference) (types.Capability, error) {
+func validateCapabilities(tmp types.Capability, dm discoverymapper.DiscoveryMapper, definitionName string, reference commontypes.DefinitionReference) (types.Capability, error) {
 	var err error
 	if tmp.Install != nil {
 		tmp.Source = &types.Source{ChartName: tmp.Install.Helm.Name}
@@ -134,9 +156,9 @@ func validateCapabilities(tmp types.Capability, dm discoverymapper.DiscoveryMapp
 }
 
 // HandleDefinition will handle definition to capability
-func HandleDefinition(name, syncDir, crdName string, annotation map[string]string, extension *runtime.RawExtension, tp types.CapType, applyTo []string, schematic *corev1alpha2.Schematic) (types.Capability, error) {
+func HandleDefinition(name, crdName string, annotation map[string]string, extension *runtime.RawExtension, tp types.CapType, applyTo []string, schematic *commontypes.Schematic) (types.Capability, error) {
 	var tmp types.Capability
-	tmp, err := HandleTemplate(extension, schematic, name, syncDir)
+	tmp, err := HandleTemplate(extension, schematic, name)
 	if err != nil {
 		return types.Capability{}, err
 	}
@@ -158,12 +180,13 @@ func GetDescription(annotation map[string]string) string {
 	if !ok {
 		return DescriptionUndefined
 	}
+	desc = strings.ReplaceAll(desc, "\n", " ")
 	return desc
 }
 
 // HandleTemplate will handle definition template to capability
-func HandleTemplate(in *runtime.RawExtension, schematic *corev1alpha2.Schematic, name, syncDir string) (types.Capability, error) {
-	tmp, err := util.ConvertTemplateJSON2Object(name, in, schematic)
+func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, name string) (types.Capability, error) {
+	tmp, err := appfile.ConvertTemplateJSON2Object(name, in, schematic)
 	if err != nil {
 		return types.Capability{}, err
 	}
@@ -183,15 +206,10 @@ func HandleTemplate(in *runtime.RawExtension, schematic *corev1alpha2.Schematic,
 	if tmp.CueTemplate == "" {
 		return types.Capability{}, errors.New("template not exist in definition")
 	}
-	_, _ = system.CreateIfNotExist(syncDir)
-	filePath := filepath.Join(syncDir, name+".cue")
-	//nolint:gosec
-	err = ioutil.WriteFile(filePath, []byte(tmp.CueTemplate), 0644)
 	if err != nil {
 		return types.Capability{}, err
 	}
-	tmp.DefinitionPath = filePath
-	tmp.Parameters, err = cue.GetParameters(filePath)
+	tmp.Parameters, err = cue.GetParameters(tmp.CueTemplate)
 	if err != nil {
 		return types.Capability{}, err
 	}
@@ -199,23 +217,23 @@ func HandleTemplate(in *runtime.RawExtension, schematic *corev1alpha2.Schematic,
 }
 
 // SyncDefinitionsToLocal sync definitions to local
-func SyncDefinitionsToLocal(ctx context.Context, c types.Args, localDefinitionDir string) ([]types.Capability, []string, error) {
+func SyncDefinitionsToLocal(ctx context.Context, c common.Args, localDefinitionDir string) ([]types.Capability, []string, error) {
 	var syncedTemplates []types.Capability
 	var warnings []string
 
-	templates, templateErrors, err := GetWorkloadsFromCluster(ctx, types.DefaultKubeVelaNS, c, localDefinitionDir, nil)
+	templates, templateErrors, err := GetComponentsFromCluster(ctx, types.DefaultKubeVelaNS, c, nil)
 	if err != nil {
 		return nil, nil, err
 	}
 	if len(templateErrors) > 0 {
 		for _, e := range templateErrors {
-			warnings = append(warnings, fmt.Sprintf("WARN: %v, you will unable to use this workload capability\n", e))
+			warnings = append(warnings, fmt.Sprintf("WARN: %v, you will unable to use this component capability\n", e))
 		}
 	}
 	syncedTemplates = append(syncedTemplates, templates...)
 	SinkTemp2Local(templates, localDefinitionDir)
 
-	templates, templateErrors, err = GetTraitsFromCluster(ctx, types.DefaultKubeVelaNS, c, localDefinitionDir, nil)
+	templates, templateErrors, err = GetTraitsFromCluster(ctx, types.DefaultKubeVelaNS, c, nil)
 	if err != nil {
 		return nil, warnings, err
 	}
@@ -230,36 +248,44 @@ func SyncDefinitionsToLocal(ctx context.Context, c types.Args, localDefinitionDi
 }
 
 // SyncDefinitionToLocal sync definitions to local
-func SyncDefinitionToLocal(ctx context.Context, c types.Args, localDefinitionDir string, capabilityName string) (*types.Capability, error) {
+func SyncDefinitionToLocal(ctx context.Context, c common.Args, localDefinitionDir string, capabilityName string) (*types.Capability, error) {
 	var foundCapability bool
 
-	newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+	newClient, err := c.GetClient()
 	if err != nil {
 		return nil, err
 	}
-	var workloadDef corev1alpha2.WorkloadDefinition
-	err = newClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: capabilityName}, &workloadDef)
+	var componentDef v1beta1.ComponentDefinition
+	err = newClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: capabilityName}, &componentDef)
 	if err == nil {
 		// return nil, fmt.Errorf("get WorkloadDefinition err: %w", err)
 		foundCapability = true
 	}
 	if foundCapability {
-		template, err := HandleDefinition(capabilityName, localDefinitionDir, workloadDef.Spec.Reference.Name,
-			workloadDef.Annotations, workloadDef.Spec.Extension, types.TypeWorkload, nil, workloadDef.Spec.Schematic)
+		dm, err := c.GetDiscoveryMapper()
+		if err != nil {
+			return nil, err
+		}
+		ref, err := util.ConvertWorkloadGVK2Definition(dm, componentDef.Spec.Workload.Definition)
+		if err != nil {
+			return nil, err
+		}
+		template, err := HandleDefinition(capabilityName, ref.Name,
+			componentDef.Annotations, componentDef.Spec.Extension, types.TypeComponentDefinition, nil, componentDef.Spec.Schematic)
 		if err == nil {
 			return &template, nil
 		}
 	}
 
 	foundCapability = false
-	var traitDef corev1alpha2.TraitDefinition
+	var traitDef v1beta1.TraitDefinition
 	err = newClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: capabilityName}, &traitDef)
 	if err == nil {
 		foundCapability = true
 	}
 	if foundCapability {
-		template, err := HandleDefinition(capabilityName, localDefinitionDir, traitDef.Spec.Reference.Name,
-			traitDef.Annotations, traitDef.Spec.Extension, types.TypeTrait, nil, workloadDef.Spec.Schematic)
+		template, err := HandleDefinition(capabilityName, traitDef.Spec.Reference.Name,
+			traitDef.Annotations, traitDef.Spec.Extension, types.TypeTrait, nil, traitDef.Spec.Schematic)
 		if err == nil {
 			return &template, nil
 		}

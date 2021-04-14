@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package utils
 
 import (
@@ -18,7 +34,9 @@ import (
 	"k8s.io/utils/pointer"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -194,25 +212,25 @@ func TestGetAppRevison(t *testing.T) {
 	assert.Equal(t, revisionName, "")
 	assert.Equal(t, latestRevision, int64(0))
 	// the first is always 1
-	app := &v1alpha2.Application{}
+	app := &v1beta1.Application{}
 	app.Name = "myapp"
 	revisionName, latestRevision = GetAppNextRevision(app)
 	assert.Equal(t, revisionName, "myapp-v1")
 	assert.Equal(t, latestRevision, int64(1))
-	app.Status.LatestRevision = &v1alpha2.Revision{
+	app.Status.LatestRevision = &common.Revision{
 		Name:     "myapp-v1",
 		Revision: 1,
 	}
-	// we don't automatically advance the revision
+	// we always automatically advance the revision
 	revisionName, latestRevision = GetAppNextRevision(app)
-	assert.Equal(t, revisionName, "myapp-v1")
-	assert.Equal(t, latestRevision, int64(1))
+	assert.Equal(t, revisionName, "myapp-v2")
+	assert.Equal(t, latestRevision, int64(2))
 	// we generate new revisions if the app is rolling
 	app.SetAnnotations(map[string]string{oam.AnnotationAppRollout: strconv.FormatBool(true)})
 	revisionName, latestRevision = GetAppNextRevision(app)
 	assert.Equal(t, revisionName, "myapp-v2")
 	assert.Equal(t, latestRevision, int64(2))
-	app.Status.LatestRevision = &v1alpha2.Revision{
+	app.Status.LatestRevision = &common.Revision{
 		Name:     revisionName,
 		Revision: latestRevision,
 	}
@@ -220,13 +238,13 @@ func TestGetAppRevison(t *testing.T) {
 	revisionName, latestRevision = GetAppNextRevision(app)
 	assert.Equal(t, revisionName, "myapp-v3")
 	assert.Equal(t, latestRevision, int64(3))
-	app.Status.LatestRevision = &v1alpha2.Revision{
+	app.Status.LatestRevision = &common.Revision{
 		Name:     revisionName,
 		Revision: latestRevision,
 	}
-	// remove the annotation and it will stop
+	// remove the annotation and it will still advance
 	oamutil.RemoveAnnotations(app, []string{oam.AnnotationAppRollout})
 	revisionName, latestRevision = GetAppNextRevision(app)
-	assert.Equal(t, revisionName, "myapp-v3")
-	assert.Equal(t, latestRevision, int64(3))
+	assert.Equal(t, revisionName, "myapp-v4")
+	assert.Equal(t, latestRevision, int64(4))
 }

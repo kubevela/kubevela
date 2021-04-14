@@ -1,4 +1,6 @@
-# Metrics
+---
+title:  Metrics
+---
 
 ## Description
 
@@ -9,17 +11,12 @@ Configures monitoring metrics for your service.
 List of all configuration options for a `Metrics` trait.
 
 ```yaml
-name: my-app-name
-
-services:
-  my-service-name:
-    ...
-    metrics:
-      format: "prometheus"
-      port: 8080
-      path: "/metrics"
-      scheme:  "http"
-      enabled: true
+...
+    format: "prometheus"
+    port: 8080
+    path: "/metrics"
+    scheme:  "http"
+    enabled: true
 ```
 
 ## Properties

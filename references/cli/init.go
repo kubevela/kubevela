@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package cli
 
 import (
@@ -16,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/env"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/appfile"
@@ -28,6 +45,7 @@ type appInitOptions struct {
 	client client.Client
 	cmdutil.IOStreams
 	Env *types.EnvMeta
+	c   common2.Args
 
 	app          *api.Application
 	appName      string
@@ -37,8 +55,8 @@ type appInitOptions struct {
 }
 
 // NewInitCommand creates `init` command
-func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
-	o := &appInitOptions{IOStreams: ioStreams}
+func NewInitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	o := &appInitOptions{IOStreams: ioStreams, c: c}
 	cmd := &cobra.Command{
 		Use:                   "init",
 		DisableFlagsInUseLine: true,
@@ -49,7 +67,7 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
@@ -67,9 +85,6 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 				return err
 			}
 			if err = o.Workload(); err != nil {
-				return err
-			}
-			if err = o.Traits(); err != nil {
 				return err
 			}
 
@@ -96,14 +111,14 @@ func NewInitCommand(c types.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			deployStatus, err := printTrackingDeployStatus(ctx, o.client, o.IOStreams, o.workloadName, o.appName, o.Env)
+			deployStatus, err := printTrackingDeployStatus(c, o.IOStreams, o.appName, o.Env)
 			if err != nil {
 				return err
 			}
 			if deployStatus != compStatusDeployed {
 				return nil
 			}
-			return printAppStatus(context.Background(), newClient, ioStreams, o.appName, o.Env, cmd)
+			return printAppStatus(context.Background(), newClient, ioStreams, o.appName, o.Env, cmd, c)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -184,7 +199,7 @@ func formatAndGetUsage(p *types.Parameter) string {
 
 // Workload asks user to choose workload type from installed workloads
 func (o *appInitOptions) Workload() error {
-	workloads, err := plugins.LoadInstalledCapabilityWithType(types.TypeWorkload)
+	workloads, err := plugins.LoadInstalledCapabilityWithType(o.Env.Namespace, o.c, types.TypeComponentDefinition)
 	if err != nil {
 		return err
 	}
@@ -306,7 +321,7 @@ func (o *appInitOptions) Workload() error {
 			// other type not supported
 		}
 	}
-	o.app, err = common.BaseComplete(o.Env.Name, o.workloadName, o.appName, fs, o.workloadType)
+	o.app, err = common.BaseComplete(o.Env, o.c, o.workloadName, o.appName, fs, o.workloadType)
 	return err
 }
 
@@ -318,37 +333,4 @@ func GetCapabilityByName(name string, workloads []types.Capability) (types.Capab
 		}
 	}
 	return types.Capability{}, fmt.Errorf("%s not found", name)
-}
-
-// Traits attaches specific trait to service
-func (o *appInitOptions) Traits() error {
-	traits, err := plugins.LoadInstalledCapabilityWithType(types.TypeTrait)
-	if err != nil {
-		return err
-	}
-	switch o.workloadType {
-	case "webservice":
-		// TODO(wonderflow) this should get from workload definition to know which trait should be suggestions
-		var suggestTraits = []string{}
-		if o.Env.Domain != "" {
-			suggestTraits = append(suggestTraits, "route")
-		}
-		for _, tr := range suggestTraits {
-			trait, err := GetCapabilityByName(tr, traits)
-			if err != nil {
-				continue
-			}
-			tflags := pflag.NewFlagSet("trait", pflag.ContinueOnError)
-			for _, pa := range trait.Parameters {
-				types.SetFlagBy(tflags, pa)
-			}
-			// TODO(wonderflow): give a way to add parameter for trait
-			o.app, err = common.AddOrUpdateTrait(o.Env, o.appName, o.workloadName, tflags, trait)
-			if err != nil {
-				return err
-			}
-		}
-	default:
-	}
-	return nil
 }

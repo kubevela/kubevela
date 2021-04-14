@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The KubeVela Authors.
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,6 +15,11 @@ limitations under the License.
 */
 
 package core_oam_dev
+
+import (
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+)
 
 // ApplyOnceOnlyMode enumerates ApplyOnceOnly modes.
 type ApplyOnceOnlyMode string
@@ -36,6 +41,9 @@ const (
 
 // Args args used by controller
 type Args struct {
+	// ApplicationConfigurationInstalled indicates if we have installed the ApplicationConfiguration CRD
+	ApplicationConfigurationInstalled bool
+
 	// RevisionLimit is the maximum number of revisions that will be maintained.
 	// The default value is 50.
 	RevisionLimit int
@@ -47,4 +55,9 @@ type Args struct {
 	// CustomRevisionHookURL is a webhook which will let oam-runtime to call with AC+Component info
 	// The webhook server will return a customized component revision for oam-runtime
 	CustomRevisionHookURL string
+
+	// DiscoveryMapper used for CRD discovery in controller, a K8s client is contained in it.
+	DiscoveryMapper discoverymapper.DiscoveryMapper
+	// PackageDiscover used for CRD discovery in CUE packages, a K8s client is contained in it.
+	PackageDiscover *definition.PackageDiscover
 }

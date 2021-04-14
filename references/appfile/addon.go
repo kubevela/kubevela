@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package appfile
 
 import (
@@ -14,11 +30,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
-	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
+	util2 "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/util"
 )
@@ -31,13 +47,23 @@ const (
 )
 
 // ApplyTerraform deploys addon resources
-func ApplyTerraform(app *v1alpha2.Application, k8sClient client.Client, ioStream util.IOStreams, namespace string, dm discoverymapper.DiscoveryMapper) ([]v1alpha2.ApplicationComponent, error) {
+func ApplyTerraform(app *v1beta1.Application, k8sClient client.Client, ioStream util.IOStreams, namespace string, args common.Args) ([]v1beta1.ApplicationComponent, error) {
+	dm, err := args.GetDiscoveryMapper()
+	if err != nil {
+		return nil, err
+	}
+	pd, err := args.GetPackageDiscover()
+	if err != nil {
+		return nil, err
+	}
+
 	// TODO(zzxwill) Need to check whether authentication credentials of a specific cloud provider are exported as environment variables, like `ALICLOUD_ACCESS_KEY`
-	var nativeVelaComponents []v1alpha2.ApplicationComponent
+	var nativeVelaComponents []v1beta1.ApplicationComponent
 	// parse template
-	appParser := appfile.NewApplicationParser(k8sClient, dm)
-	// TODO(wangyike) this context only for compiling success, lately mabey surport setting sysNs and appNs in api-server or cli
-	appFile, err := appParser.GenerateAppFile(context.TODO(), app.Name, app)
+	appParser := appfile.NewApplicationParser(k8sClient, dm, pd)
+
+	ctx := util2.SetNamespaceInCtx(context.Background(), namespace)
+	appFile, err := appParser.GenerateAppFile(ctx, app)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse appfile: %w", err)
 	}
@@ -57,7 +83,7 @@ func ApplyTerraform(app *v1alpha2.Application, k8sClient client.Client, ioStream
 			name := wl.Name
 			ioStream.Infof("\nApplying cloud resources %s\n", name)
 
-			tf, err := getTerraformJSONFiles(k8sClient, wl, appFile.Name, revisionName, namespace)
+			tf, err := getTerraformJSONFiles(wl, appFile.Name, revisionName, namespace)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get Terraform JSON files from workload %s: %w", name, err)
 			}
@@ -171,8 +197,8 @@ func generateSecretFromTerraformOutput(k8sClient client.Client, outputList []str
 }
 
 // getTerraformJSONFiles gets Terraform JSON files or modules from workload
-func getTerraformJSONFiles(k8sClient client.Client, wl *appfile.Workload, applicationName, revisionName string, namespace string) ([]byte, error) {
-	pCtx, err := appfile.PrepareProcessContext(k8sClient, wl, applicationName, namespace, revisionName)
+func getTerraformJSONFiles(wl *appfile.Workload, applicationName, revisionName string, namespace string) ([]byte, error) {
+	pCtx, err := appfile.PrepareProcessContext(wl, applicationName, revisionName, namespace)
 	if err != nil {
 		return nil, err
 	}

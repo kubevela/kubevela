@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package driver
 
 import (
@@ -10,18 +26,15 @@ import (
 	"github.com/ghodss/yaml"
 
 	"github.com/oam-dev/kubevela/references/appfile/api"
-	"github.com/oam-dev/kubevela/references/appfile/template"
 )
 
 var dir string
-var tm template.Manager
 var afile *api.AppFile
 var appName = "testsvc"
 var envName = "default"
 
 func init() {
 	dir, _ = getApplicationDir(envName)
-	tm, _ = template.Load()
 	afile = api.NewAppFile()
 	afile.Name = appName
 	svcs := make(map[string]api.Service)
@@ -37,35 +50,7 @@ func init() {
 	_ = ioutil.WriteFile(filepath.Join(dir, appName+".yaml"), out, 0644)
 }
 
-func TestLocal_Get(t *testing.T) {
-	type args struct {
-		envName string
-		appName string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    *api.Application
-		wantErr bool
-	}{
-		{"TestLocal_Get1", args{envName: envName, appName: appName}, &api.Application{AppFile: afile, Tm: tm}, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			l := &Local{}
-			got, err := l.Get(tt.args.envName, tt.args.appName)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Get() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Get() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestLocal_Delete(t *testing.T) {
+func TestLocalDelete(t *testing.T) {
 	type args struct {
 		envName string
 		appName string
@@ -88,7 +73,7 @@ func TestLocal_Delete(t *testing.T) {
 	}
 }
 
-func TestLocal_Save(t *testing.T) {
+func TestLocalSave(t *testing.T) {
 	type args struct {
 		app     *api.Application
 		envName string
@@ -110,36 +95,7 @@ func TestLocal_Save(t *testing.T) {
 	}
 }
 
-func TestLocal_List(t *testing.T) {
-	type args struct {
-		envName string
-	}
-	want := make([]*api.Application, 0)
-	want = append(want, &api.Application{AppFile: afile, Tm: tm})
-	tests := []struct {
-		name    string
-		args    args
-		want    []*api.Application
-		wantErr bool
-	}{
-		{"TestLocal_List1", args{envName}, want, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			l := &Local{}
-			got, err := l.List(tt.args.envName)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("List() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if len(got) == 0 {
-				t.Errorf("List() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestLocal_Name(t *testing.T) {
+func TestLocalName(t *testing.T) {
 	tests := []struct {
 		name string
 		want string
@@ -172,7 +128,7 @@ func TestNewLocalStorage(t *testing.T) {
 	}
 }
 
-func Test_getApplicationDir(t *testing.T) {
+func TestGetApplicationDir(t *testing.T) {
 	type args struct {
 		envName string
 	}
@@ -193,32 +149,6 @@ func Test_getApplicationDir(t *testing.T) {
 			}
 			if !strings.Contains(got, tt.want) {
 				t.Errorf("getApplicationDir() got = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func Test_loadFromFile(t *testing.T) {
-	type args struct {
-		fileName string
-	}
-	tests := []struct {
-		name    string
-		args    args
-		want    *api.Application
-		wantErr bool
-	}{
-		{"testRespApp", args{fileName: filepath.Join(dir, appName+".yaml")}, &api.Application{AppFile: afile, Tm: tm}, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := loadFromFile(tt.args.fileName)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("loadFromFile() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if got.Name != tt.want.Name {
-				t.Errorf("loadFromFile() got = %v, want %v", got, tt.want)
 			}
 		})
 	}

@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package cli
 
 import (
@@ -18,6 +34,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/hack/utils"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/helm"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 	"github.com/oam-dev/kubevela/references/plugins"
@@ -41,7 +58,7 @@ type initCmd struct {
 	chartPath string
 	chartArgs chartArgs
 	waitReady string
-	c         types.Args
+	c         common.Args
 }
 
 type chartArgs struct {
@@ -56,7 +73,7 @@ type infoCmd struct {
 }
 
 // SystemCommandGroup creates `system` command and its nested children command
-func SystemCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command {
+func SystemCommandGroup(c common.Args, ioStream cmdutil.IOStreams) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "system",
 		Short: "System management utilities",
@@ -65,8 +82,10 @@ func SystemCommandGroup(c types.Args, ioStream cmdutil.IOStreams) *cobra.Command
 			types.TagCommandType: types.TypeSystem,
 		},
 	}
+	cmd.AddCommand(NewLiveDiffCommand(c, ioStream))
 	cmd.AddCommand(NewDryRunCommand(c, ioStream))
 	cmd.AddCommand(NewAdminInfoCommand(ioStream))
+	cmd.AddCommand(NewCUEPackageCommand(c, ioStream))
 	return cmd
 }
 
@@ -101,7 +120,7 @@ func (i *infoCmd) run(ioStreams cmdutil.IOStreams) error {
 }
 
 // NewInstallCommand creates `install` command
-func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOStreams) *cobra.Command {
+func NewInstallCommand(c common.Args, chartContent string, ioStreams cmdutil.IOStreams) *cobra.Command {
 	i := &initCmd{ioStreams: ioStreams}
 	cmd := &cobra.Command{
 		Use:   "install",
@@ -111,7 +130,7 @@ func NewInstallCommand(c types.Args, chartContent string, ioStreams cmdutil.IOSt
 			return c.SetConfig()
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			newClient, err := client.New(c.Config, client.Options{Scheme: c.Schema})
+			newClient, err := c.GetClient()
 			if err != nil {
 				return err
 			}
@@ -172,9 +191,6 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 			"try running 'vela workloads' or 'vela traits' to check after a while, details: %v", err)
 		return nil
 	}
-	if err := RefreshDefinitions(context.Background(), i.c, ioStreams, false, true); err != nil {
-		return err
-	}
 	ioStreams.Info("- Finished successfully.")
 
 	if waitDuration > 0 {
@@ -187,7 +203,7 @@ func (i *initCmd) run(ioStreams cmdutil.IOStreams, chartSource string) error {
 }
 
 // CheckCapabilityReady waits unitl capability is installed successfully
-func CheckCapabilityReady(ctx context.Context, c types.Args, timeout time.Duration) error {
+func CheckCapabilityReady(ctx context.Context, c common.Args, timeout time.Duration) error {
 	if timeout < 5*time.Minute {
 		timeout = 5 * time.Minute
 	}
@@ -204,7 +220,7 @@ func CheckCapabilityReady(ctx context.Context, c types.Args, timeout time.Durati
 	defer spiner.Stop()
 
 	for {
-		_, err = plugins.GetCapabilitiesFromCluster(ctx, types.DefaultKubeVelaNS, c, tmpdir, nil)
+		_, err = plugins.GetCapabilitiesFromCluster(ctx, types.DefaultKubeVelaNS, c, nil)
 		if err == nil {
 			return nil
 		}
@@ -283,7 +299,7 @@ func GetOAMReleaseVersion(ns string) (string, error) {
 			return result.Chart.AppVersion(), nil
 		}
 	}
-	return "", errors.New("kubevela chart not found in your kubernetes cluster,  refer to 'https://kubevela.io/#/en/install' for installation")
+	return "", errors.New("kubevela chart not found in your kubernetes cluster,  refer to 'https://kubevela.io/docs/install' for installation")
 }
 
 // PrintTrackVelaRuntimeStatus prints status of installing vela-core runtime

@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package rollout
 
 import (
@@ -16,7 +32,7 @@ import (
 
 const mockUrl = "127.0.0.1:4848"
 
-func Test_MakeHTTPRequest(t *testing.T) {
+func TestMakeHTTPRequest(t *testing.T) {
 	ctx := context.TODO()
 	type mockHTTPParameter struct {
 		method     string
@@ -94,7 +110,7 @@ func Test_MakeHTTPRequest(t *testing.T) {
 		},
 	}
 	for testName, tt := range tests {
-		t.Run(testName, func(t *testing.T) {
+		func(testName string) {
 			// generate a test server so we can capture and inspect the request
 			testServer := NewMock(tt.httpParameter.method, tt.httpParameter.statusCode, tt.httpParameter.body)
 			defer testServer.Close()
@@ -103,8 +119,8 @@ func Test_MakeHTTPRequest(t *testing.T) {
 			}
 			gotReply, gotCode, gotErr := makeHTTPRequest(ctx, "http://"+tt.url, tt.method, tt.payload)
 			if gotCode != tt.want.statusCode {
-				t.Errorf("\n%s\nr.Reconcile(...): want code `%d`, got code:`%d`\n", testName, tt.want.statusCode,
-					gotCode)
+				t.Errorf("\n%s\nr.Reconcile(...): want code `%d`, got code:`%d` got err: %v \n", testName, tt.want.statusCode,
+					gotCode, gotErr)
 			}
 			if gotCode == -1 {
 				// we don't know exactly what error we should get when the network call failed
@@ -123,11 +139,11 @@ func Test_MakeHTTPRequest(t *testing.T) {
 			if string(gotReply) != tt.want.body {
 				t.Errorf("\n%s\nr.Reconcile(...): want reply `%s`, got reply:`%s`\n", testName, tt.want.body, string(gotReply))
 			}
-		})
+		}(testName)
 	}
 }
 
-func Test_callWebhook(t *testing.T) {
+func TestCallWebhook(t *testing.T) {
 	ctx := context.TODO()
 	url := "http://" + mockUrl
 	body := "all good"

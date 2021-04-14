@@ -1,0 +1,10 @@
+name: Timed Task
+on:
+  schedule:
+    - cron: '0 16 * * *'
+jobs:
+  clean-image:
+    runs-on: aliyun
+    steps:
+      - name: Cleanup image
+        run: docker image prune -f

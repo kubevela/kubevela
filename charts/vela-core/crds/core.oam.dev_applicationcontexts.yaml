@@ -1,0 +1,304 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.4
+  name: applicationcontexts.core.oam.dev
+spec:
+  group: core.oam.dev
+  names:
+    categories:
+    - oam
+    kind: ApplicationContext
+    listKind: ApplicationContextList
+    plural: applicationcontexts
+    shortNames:
+    - appcontext
+    singular: applicationcontext
+  scope: Namespaced
+  versions:
+  - name: v1alpha2
+    schema:
+      openAPIV3Schema:
+        description: ApplicationContext is the Schema for the ApplicationContext API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ApplicationContextSpec is the spec of ApplicationContext
+            properties:
+              applicationRevisionName:
+                description: ApplicationRevisionName points to the snapshot of an Application with all its closure
+                type: string
+            required:
+            - applicationRevisionName
+            type: object
+          status:
+            description: we need to reuse the AC status
+            properties:
+              conditions:
+                description: Conditions of the resource.
+                items:
+                  description: A Condition that may apply to a resource.
+                  properties:
+                    lastTransitionTime:
+                      description: LastTransitionTime is the last time this condition transitioned from one status to another.
+                      format: date-time
+                      type: string
+                    message:
+                      description: A Message containing details about this condition's last transition from one status to another, if any.
+                      type: string
+                    reason:
+                      description: A Reason for this condition's last transition from one status to another.
+                      type: string
+                    status:
+                      description: Status of this condition; is it currently True, False, or Unknown?
+                      type: string
+                    type:
+                      description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+              dependency:
+                description: DependencyStatus represents the observed state of the dependency of an ApplicationConfiguration.
+                properties:
+                  unsatisfied:
+                    items:
+                      description: UnstaifiedDependency describes unsatisfied dependency flow between one pair of objects.
+                      properties:
+                        from:
+                          description: DependencyFromObject represents the object that dependency data comes from.
+                          properties:
+                            apiVersion:
+                              description: APIVersion of the referenced object.
+                              type: string
+                            fieldPath:
+                              type: string
+                            kind:
+                              description: Kind of the referenced object.
+                              type: string
+                            name:
+                              description: Name of the referenced object.
+                              type: string
+                            uid:
+                              description: UID of the referenced object.
+                              type: string
+                          required:
+                          - apiVersion
+                          - kind
+                          - name
+                          type: object
+                        reason:
+                          type: string
+                        to:
+                          description: DependencyToObject represents the object that dependency data goes to.
+                          properties:
+                            apiVersion:
+                              description: APIVersion of the referenced object.
+                              type: string
+                            fieldPaths:
+                              items:
+                                type: string
+                              type: array
+                            kind:
+                              description: Kind of the referenced object.
+                              type: string
+                            name:
+                              description: Name of the referenced object.
+                              type: string
+                            uid:
+                              description: UID of the referenced object.
+                              type: string
+                          required:
+                          - apiVersion
+                          - kind
+                          - name
+                          type: object
+                      required:
+                      - from
+                      - reason
+                      - to
+                      type: object
+                    type: array
+                type: object
+              historyWorkloads:
+                description: HistoryWorkloads will record history but still working revision workloads.
+                items:
+                  description: HistoryWorkload contain the old component revision that are still running
+                  properties:
+                    revision:
+                      description: Revision of this workload
+                      type: string
+                    workloadRef:
+                      description: Reference to running workload.
+                      properties:
+                        apiVersion:
+                          description: APIVersion of the referenced object.
+                          type: string
+                        kind:
+                          description: Kind of the referenced object.
+                          type: string
+                        name:
+                          description: Name of the referenced object.
+                          type: string
+                        uid:
+                          description: UID of the referenced object.
+                          type: string
+                      required:
+                      - apiVersion
+                      - kind
+                      - name
+                      type: object
+                  type: object
+                type: array
+              observedGeneration:
+                description: The generation observed by the appConfig controller.
+                format: int64
+                type: integer
+              rollingStatus:
+                description: RollingStatus indicates what phase are we in the rollout phase
+                type: string
+              status:
+                description: Status is a place holder for a customized controller to fill if it needs a single place to summarize the status of the entire application
+                type: string
+              workloads:
+                description: Workloads created by this ApplicationConfiguration.
+                items:
+                  description: A WorkloadStatus represents the status of a workload.
+                  properties:
+                    appliedComponentRevision:
+                      description: AppliedComponentRevision indicates the applied component revision name of this workload
+                      type: string
+                    componentName:
+                      description: ComponentName that produced this workload.
+                      type: string
+                    componentRevisionName:
+                      description: ComponentRevisionName of current component
+                      type: string
+                    dependencyUnsatisfied:
+                      description: DependencyUnsatisfied notify does the workload has dependency unsatisfied
+                      type: boolean
+                    scopes:
+                      description: Scopes associated with this workload.
+                      items:
+                        description: A WorkloadScope represents a scope associated with a workload and its status
+                        properties:
+                          scopeRef:
+                            description: Reference to a scope created by an ApplicationConfiguration.
+                            properties:
+                              apiVersion:
+                                description: APIVersion of the referenced object.
+                                type: string
+                              kind:
+                                description: Kind of the referenced object.
+                                type: string
+                              name:
+                                description: Name of the referenced object.
+                                type: string
+                              uid:
+                                description: UID of the referenced object.
+                                type: string
+                            required:
+                            - apiVersion
+                            - kind
+                            - name
+                            type: object
+                          status:
+                            description: Status is a place holder for a customized controller to fill if it needs a single place to summarize the status of the scope
+                            type: string
+                        required:
+                        - scopeRef
+                        type: object
+                      type: array
+                    status:
+                      description: Status is a place holder for a customized controller to fill if it needs a single place to summarize the entire status of the workload
+                      type: string
+                    traits:
+                      description: Traits associated with this workload.
+                      items:
+                        description: A WorkloadTrait represents a trait associated with a workload and its status
+                        properties:
+                          appliedGeneration:
+                            description: AppliedGeneration indicates the generation observed by the appConfig controller. The same field is also recorded in the annotations of traits. A trait is possible to be deleted from cluster after created. This field is useful to track the observed generation of traits after they are deleted.
+                            format: int64
+                            type: integer
+                          dependencyUnsatisfied:
+                            description: DependencyUnsatisfied notify does the trait has dependency unsatisfied
+                            type: boolean
+                          message:
+                            description: Message will allow controller to leave some additional information for this trait
+                            type: string
+                          status:
+                            description: Status is a place holder for a customized controller to fill if it needs a single place to summarize the status of the trait
+                            type: string
+                          traitRef:
+                            description: Reference to a trait created by an ApplicationConfiguration.
+                            properties:
+                              apiVersion:
+                                description: APIVersion of the referenced object.
+                                type: string
+                              kind:
+                                description: Kind of the referenced object.
+                                type: string
+                              name:
+                                description: Name of the referenced object.
+                                type: string
+                              uid:
+                                description: UID of the referenced object.
+                                type: string
+                            required:
+                            - apiVersion
+                            - kind
+                            - name
+                            type: object
+                        required:
+                        - traitRef
+                        type: object
+                      type: array
+                    workloadRef:
+                      description: Reference to a workload created by an ApplicationConfiguration.
+                      properties:
+                        apiVersion:
+                          description: APIVersion of the referenced object.
+                          type: string
+                        kind:
+                          description: Kind of the referenced object.
+                          type: string
+                        name:
+                          description: Name of the referenced object.
+                          type: string
+                        uid:
+                          description: UID of the referenced object.
+                          type: string
+                      required:
+                      - apiVersion
+                      - kind
+                      - name
+                      type: object
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

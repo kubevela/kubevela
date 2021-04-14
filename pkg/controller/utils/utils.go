@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package utils
 
 import (
@@ -12,18 +28,26 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	mapset "github.com/deckarep/golang-set"
-	v12 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	"github.com/mitchellh/hashstructure/v2"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
+	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -70,7 +94,7 @@ func DiscoveryFromPodSpec(w *unstructured.Unstructured, fieldPath string) ([]int
 	if err != nil {
 		return nil, fmt.Errorf("discovery podSpec from %s in workload %v err %w", fieldPath, w.GetName(), err)
 	}
-	var spec v1.PodSpec
+	var spec corev1.PodSpec
 	err = json.Unmarshal(data, &spec)
 	if err != nil {
 		return nil, fmt.Errorf("discovery podSpec from %s in workload %v err %w", fieldPath, w.GetName(), err)
@@ -92,7 +116,7 @@ func DiscoveryFromPodTemplate(w *unstructured.Unstructured, fields ...string) ([
 	if err != nil {
 		return nil, nil, fmt.Errorf("workload %v convert object err %w", w.GetName(), err)
 	}
-	var spec v1.PodTemplateSpec
+	var spec corev1.PodTemplateSpec
 	err = json.Unmarshal(data, &spec)
 	if err != nil {
 		return nil, nil, fmt.Errorf("workload %v convert object to PodTemplate err %w", w.GetName(), err)
@@ -104,7 +128,7 @@ func DiscoveryFromPodTemplate(w *unstructured.Unstructured, fields ...string) ([
 	return ports, spec.Labels, nil
 }
 
-func getContainerPorts(cs []v1.Container) []intstr.IntOrString {
+func getContainerPorts(cs []corev1.Container) []intstr.IntOrString {
 	var ports []intstr.IntOrString
 	// TODO(wonderflow): exclude some sidecars
 	for _, container := range cs {
@@ -159,19 +183,15 @@ func StoreInSet(disableCaps string) mapset.Set {
 }
 
 // GetAppNextRevision will generate the next revision name and revision number for application
-func GetAppNextRevision(app *v1alpha2.Application) (string, int64) {
+func GetAppNextRevision(app *v1beta1.Application) (string, int64) {
 	if app == nil {
 		// should never happen
 		return "", 0
 	}
 	var nextRevision int64 = 1
 	if app.Status.LatestRevision != nil {
-		// we only bump the version when we are rolling
-		if _, exist := app.GetAnnotations()[oam.AnnotationAppRollout]; exist {
-			nextRevision = app.Status.LatestRevision.Revision + 1
-		} else {
-			nextRevision = app.Status.LatestRevision.Revision
-		}
+		// revision will always bump and increment no matter what the way user is running.
+		nextRevision = app.Status.LatestRevision.Revision + 1
 	}
 	return ConstructRevisionName(app.Name, nextRevision), nextRevision
 }
@@ -198,11 +218,11 @@ func ExtractRevision(revisionName string) (int, error) {
 // CompareWithRevision compares a component's spec with the component's latest revision content
 func CompareWithRevision(ctx context.Context, c client.Client, logger logging.Logger, componentName, nameSpace,
 	latestRevision string, curCompSpec *v1alpha2.ComponentSpec) (bool, error) {
-	oldRev := &v12.ControllerRevision{}
+	oldRev := &appsv1.ControllerRevision{}
 	// retry on NotFound since we update the component last revision first
 	err := wait.ExponentialBackoff(retry.DefaultBackoff, func() (bool, error) {
 		err := c.Get(ctx, client.ObjectKey{Namespace: nameSpace, Name: latestRevision}, oldRev)
-		if err != nil && !errors.IsNotFound(err) {
+		if err != nil && !kerrors.IsNotFound(err) {
 			logger.Info(fmt.Sprintf("get old controllerRevision %s error %v",
 				latestRevision, err), "componentName", componentName)
 			return false, err
@@ -223,4 +243,54 @@ func CompareWithRevision(ctx context.Context, c client.Client, logger logging.Lo
 		return false, nil
 	}
 	return true, nil
+}
+
+// ComputeSpecHash computes the hash value of a k8s resource spec
+func ComputeSpecHash(spec interface{}) (string, error) {
+	// compute a hash value of any resource spec
+	specHash, err := hashstructure.Hash(spec, hashstructure.FormatV2, nil)
+	if err != nil {
+		return "", err
+	}
+	specHashLabel := strconv.FormatUint(specHash, 16)
+	return specHashLabel, nil
+}
+
+// RefreshPackageDiscover help refresh package discover
+func RefreshPackageDiscover(dm discoverymapper.DiscoveryMapper, pd *definition.PackageDiscover, workloadGVK commontypes.WorkloadGVK,
+	workloadref commontypes.DefinitionReference, def oamtypes.CapType) error {
+	var gvk schema.GroupVersionKind
+	var err error
+	switch def {
+	case oamtypes.TypeComponentDefinition:
+		gv, err := schema.ParseGroupVersion(workloadGVK.APIVersion)
+		if err != nil {
+			return err
+		}
+		gvk = gv.WithKind(workloadGVK.Kind)
+	case oamtypes.TypeTrait:
+		gvk, err = util.GetGVKFromDefinition(dm, workloadref)
+		if err != nil {
+			return err
+		}
+	case oamtypes.TypeWorkload, oamtypes.TypeScope:
+	}
+	targetGVK := metav1.GroupVersionKind{
+		Group:   gvk.Group,
+		Version: gvk.Version,
+		Kind:    gvk.Kind,
+	}
+	if exist := pd.Exist(targetGVK); exist {
+		return nil
+	}
+
+	if err := pd.RefreshKubePackagesFromCluster(); err != nil {
+		return err
+	}
+
+	// Test whether the refresh is successful
+	if exist := pd.Exist(targetGVK); !exist {
+		return fmt.Errorf("get CRD %s error", targetGVK.String())
+	}
+	return nil
 }

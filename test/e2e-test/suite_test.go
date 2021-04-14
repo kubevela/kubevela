@@ -1,4 +1,5 @@
 /*
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +19,9 @@ package controllers_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"math/rand"
+	"strconv"
 	"testing"
 	"time"
 
@@ -42,8 +46,10 @@ import (
 	controllerscheme "sigs.k8s.io/controller-runtime/pkg/scheme"
 
 	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -70,6 +76,7 @@ func TestAPIs(t *testing.T) {
 
 var _ = BeforeSuite(func(done Done) {
 	By("Bootstrapping test environment")
+	rand.Seed(time.Now().UnixNano())
 	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
 	err := clientgoscheme.AddToScheme(scheme)
 	Expect(err).Should(BeNil())
@@ -96,16 +103,6 @@ var _ = BeforeSuite(func(done Done) {
 		logf.Log.Error(err, "failed to create k8sClient")
 		Fail("setup failed")
 	}
-
-	// TODO: Remove this after we get rid of the integration test dir
-	By("Applying CRD of WorkloadDefinition and TraitDefinition")
-	var workloadDefinitionCRD crdv1.CustomResourceDefinition
-	Expect(readYaml("../../charts/vela-core/crds/core.oam.dev_workloaddefinitions.yaml", &workloadDefinitionCRD)).Should(BeNil())
-	Expect(k8sClient.Create(context.Background(), &workloadDefinitionCRD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-
-	var traitDefinitionCRD crdv1.CustomResourceDefinition
-	Expect(readYaml("../../charts/vela-core/crds/core.oam.dev_traitdefinitions.yaml", &traitDefinitionCRD)).Should(BeNil())
-	Expect(k8sClient.Create(context.Background(), &traitDefinitionCRD)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 	By("Finished setting up test environment")
 
 	// Create manual scaler trait definition
@@ -117,15 +114,13 @@ var _ = BeforeSuite(func(done Done) {
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
 			WorkloadRefPath: "spec.workloadRef",
-			Reference: v1alpha2.DefinitionReference{
+			Reference: commontypes.DefinitionReference{
 				Name: "manualscalertraits.core.oam.dev",
 			},
 		},
 	}
 	// For some reason, traitDefinition is created as a Cluster scope object
 	Expect(k8sClient.Create(context.Background(), &manualscalertrait)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
-	By("Created manual scalar trait definition")
-
 	// Create manual scaler trait definition with spec.extension field
 	definitionExtension := DefinitionExtension{
 		Alias: "ManualScaler",
@@ -141,7 +136,7 @@ var _ = BeforeSuite(func(done Done) {
 		},
 		Spec: v1alpha2.TraitDefinitionSpec{
 			WorkloadRefPath: "spec.workloadRef",
-			Reference: v1alpha2.DefinitionReference{
+			Reference: commontypes.DefinitionReference{
 				Name: "manualscalertraits-extended.core.oam.dev",
 			},
 			Extension: in,
@@ -160,10 +155,10 @@ var _ = BeforeSuite(func(done Done) {
 			Labels:    label,
 		},
 		Spec: v1alpha2.WorkloadDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: commontypes.DefinitionReference{
 				Name: "containerizedworkloads.core.oam.dev",
 			},
-			ChildResourceKinds: []v1alpha2.ChildResourceKind{
+			ChildResourceKinds: []commontypes.ChildResourceKind{
 				{
 					APIVersion: corev1.SchemeGroupVersion.String(),
 					Kind:       util.KindService,
@@ -185,7 +180,7 @@ var _ = BeforeSuite(func(done Done) {
 			Namespace: "vela-system",
 		},
 		Spec: v1alpha2.WorkloadDefinitionSpec{
-			Reference: v1alpha2.DefinitionReference{
+			Reference: commontypes.DefinitionReference{
 				Name: "deployments.apps",
 			},
 		},
@@ -271,7 +266,7 @@ var _ = BeforeSuite(func(done Done) {
 
 	By("Create workload definition for revision mechanism test")
 	var nwd v1alpha2.WorkloadDefinition
-	Expect(readYaml("testdata/revision/workload-def.yaml", &nwd)).Should(BeNil())
+	Expect(common.ReadYamlToObject("testdata/revision/workload-def.yaml", &nwd)).Should(BeNil())
 	Eventually(
 		func() error {
 			return k8sClient.Create(context.Background(), &nwd)
@@ -299,25 +294,27 @@ var _ = AfterSuite(func() {
 		},
 	}
 	Expect(k8sClient.Delete(context.Background(), &crd)).Should(BeNil())
-	By("Deleted the custom resource definition")
-
-	// TODO: Remove this after we get rid of the integration test dir
-	// Below is a CI hack so that the integration test can run. We need to migrate the integration test
-	// to this e2e dir and suite (https://github.com/oam-dev/kubevela/issues/1147)
-	By("Deleting all the definitions by deleting the definition CRDs")
-	crd = crdv1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "workloaddefinitions.core.oam.dev",
-		},
-	}
-	Expect(k8sClient.Delete(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
-	By("Deleted the workloaddefinitions CRD")
-
-	crd = crdv1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "traitdefinitions.core.oam.dev",
-		},
-	}
-	Expect(k8sClient.Delete(context.Background(), &crd)).Should(SatisfyAny(BeNil(), &util.NotFoundMatcher{}))
-	By("Deleted the workloaddefinitions CRD")
 })
+
+// requestReconcileNow will trigger an immediate reconciliation on K8s object.
+// Some test cases may fail for timeout to wait a scheduled reconciliation.
+// This is a workaround to avoid long-time wait before next scheduled
+// reconciliation.
+func requestReconcileNow(ctx context.Context, o runtime.Object) {
+	oCopy := o.DeepCopyObject()
+	oMeta, ok := oCopy.(metav1.Object)
+	Expect(ok).Should(BeTrue())
+	oMeta.SetAnnotations(map[string]string{
+		"app.oam.dev/requestreconcile": time.Now().String(),
+	})
+	oMeta.SetResourceVersion("")
+	By(fmt.Sprintf("Requset reconcile %q now", oMeta.GetName()))
+	Expect(k8sClient.Patch(ctx, oCopy, client.Merge)).Should(Succeed())
+}
+
+// randomNamespaceName generates a random name based on the basic name.
+// Running each ginkgo case in a new namespace with a random name can avoid
+// waiting a long time to GC namesapce.
+func randomNamespaceName(basic string) string {
+	return fmt.Sprintf("%s-%s", basic, strconv.FormatInt(rand.Int63(), 16))
+}

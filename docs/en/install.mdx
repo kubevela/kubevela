@@ -1,0 +1,193 @@
+---
+title:  Installation
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+> For upgrading existing KubeVela, please read the [upgrade guide](./advanced-install#upgrade).
+
+## 1. Choose Kubernetes Cluster
+
+Requirements:
+- Kubernetes cluster >= v1.15.0
+- `kubectl` installed and configured
+
+KubeVela is a simple custom controller that can be installed on any Kubernetes cluster including managed offerings or your own clusters. The only requirement is please ensure [ingress-nginx](https://kubernetes.github.io/ingress-nginx/deploy/) is installed and enabled.
+
+For for local deployment and test, you could use `minikube` or `kind`.
+
+<Tabs
+className="unique-tabs"
+defaultValue="minikube"
+values={[
+{label: 'Minikube', value: 'minikube'},
+{label: 'KinD', value: 'kind'},
+]}>
+<TabItem value="minikube">
+
+Follow the minikube [installation guide](https://minikube.sigs.k8s.io/docs/start/).
+
+Then spins up a minikube cluster
+
+```shell script
+minikube start
+```
+
+Install ingress:
+
+```shell script
+minikube addons enable ingress
+``` 
+
+  </TabItem>
+  <TabItem value="kind">
+
+Follow [this guide](https://kind.sigs.k8s.io/docs/user/quick-start/#installation) to install kind.
+
+Then spins up a kind cluster:
+
+```shell script
+cat <<EOF | kind create cluster --image=kindest/node:v1.18.15 --config=-
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+  extraPortMappings:
+  - containerPort: 80
+    hostPort: 80
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
+EOF
+```
+
+Then install [ingress for kind](https://kind.sigs.k8s.io/docs/user/ingress/#ingress-nginx):
+```shell script
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/master/deploy/static/provider/kind/deploy.yaml
+```
+
+  </TabItem>
+</Tabs>
+
+
+## 2. Install KubeVela Controller
+
+1. Add helm chart repo for KubeVela
+    ```shell script
+    helm repo add kubevela https://kubevelacharts.oss-cn-hangzhou.aliyuncs.com/core
+    ```
+
+2. Update the chart repo
+    ```shell script
+    helm repo update
+    ```
+   
+3. Install KubeVela
+    ```shell script
+    helm install --create-namespace -n vela-system kubevela kubevela/vela-core
+    ```
+    By default, it will enable the webhook with a self-signed certificate provided by [kube-webhook-certgen](https://github.com/jet/kube-webhook-certgen)
+
+## 3. Get KubeVela CLI
+
+Using KubeVela CLI gives you a simplified workflow with optimized output comparing to using `kubectl`. It is not mandatory though.
+
+Here are three ways to get KubeVela Cli:
+
+<Tabs
+    className="unique-tabs"
+    defaultValue="script"
+    values={[
+        {label: 'Script', value: 'script'},
+        {label: 'Homebrew', value: 'homebrew'},
+        {label: 'Download directly from releases', value: 'download'},
+    ]}>
+<TabItem value="script">
+
+** macOS/Linux **
+
+```shell script
+curl -fsSl https://kubevela.io/script/install.sh | bash
+```
+
+**Windows**
+
+```shell script
+powershell -Command "iwr -useb https://kubevela.io/script/install.ps1 | iex"
+```
+</TabItem>
+<TabItem value="homebrew">
+
+**macOS/Linux**
+
+Update your brew firstly.
+```shell script
+brew update
+```
+Then install kubevela client.
+
+```shell script
+brew install kubevela
+```
+</TabItem>
+<TabItem value="download">
+
+- Download the latest `vela` binary from the [releases page](https://github.com/oam-dev/kubevela/releases).
+- Unpack the `vela` binary and add it to `$PATH` to get started.
+
+```shell script
+sudo mv ./vela /usr/local/bin/vela
+```
+
+> Known Issue(https://github.com/oam-dev/kubevela/issues/625): 
+> If you're using mac, it will report that “vela” cannot be opened because the developer cannot be verified.
+>
+> The new version of MacOS is stricter about running software you've downloaded that isn't signed with an Apple developer key. And we haven't supported that for KubeVela yet.  
+> You can open your 'System Preference' -> 'Security & Privacy' -> General, click the 'Allow Anyway' to temporarily fix it.
+
+</TabItem>
+</Tabs>
+
+
+## 4. Enable Helm Support
+
+KubeVela leverages Helm controller from [Flux v2](https://github.com/fluxcd/flux2) to deploy [Helm](https://helm.sh/) based components.
+
+You can enable this feature by installing a minimal Flux v2 chart as below:
+
+```shell
+$ helm install --create-namespace -n flux-system helm-flux http://oam.dev/catalog/helm-flux2-0.1.0.tgz
+```
+
+Or you could install full Flux v2 following its own guide of course.
+
+
+## 5. Verify
+
+Checking available application components and traits by `vela` CLI tool:
+
+```shell script
+vela components
+```
+```console
+NAME      	NAMESPACE  	WORKLOAD        	DESCRIPTION
+task      	vela-system	jobs.batch      	Describes jobs that run code or a script to completion.
+webservice	vela-system	deployments.apps	Describes long-running, scalable, containerized services
+          	           	                	that have a stable network endpoint to receive external
+          	           	                	network traffic from customers.
+worker    	vela-system	deployments.apps	Describes long-running, scalable, containerized services
+          	           	                	that running at backend. They do NOT have network endpoint
+          	           	                	to receive external network traffic.
+```
+
+These capabilities are built-in so they are ready to use if showed up. KubeVela is designed to be programmable and fully self-service, so the assumption is more capabilities will be added later per your own needs. 
+
+Also, whenever new capabilities are added in the platform, you will immediately see them in above output.

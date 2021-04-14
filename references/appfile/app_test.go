@@ -1,10 +1,25 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package appfile
 
 import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/assert"
@@ -128,7 +143,6 @@ services:
 			continue
 		}
 		assert.Equal(t, c.ExpName, app.Name, caseName)
-		assert.Equal(t, c.ExpComponents, GetComponents(app), caseName)
 		workloadType, workload := GetWorkload(app, c.WantWorkload)
 		assert.Equal(t, c.ExpWorkload, workload, caseName)
 		assert.Equal(t, c.ExpWorkloadType, workloadType, caseName)
@@ -136,19 +150,4 @@ services:
 		assert.NoError(t, err, caseName)
 		assert.Equal(t, c.ExpTraits, traits, caseName)
 	}
-}
-
-func TestLoadNotExistsApplication(t *testing.T) {
-	caseName := "load not exists application"
-
-	now := time.Now().Unix()
-	appName := fmt.Sprintf("test-app-%d", now)
-
-	app, err := LoadApplication(types.DefaultEnvName, appName)
-
-	assert.Nil(t, app, caseName)
-	assert.Error(t, err, caseName)
-
-	errString := fmt.Sprintf(`application "%s" not found`, appName)
-	assert.EqualError(t, err, errString, caseName)
 }

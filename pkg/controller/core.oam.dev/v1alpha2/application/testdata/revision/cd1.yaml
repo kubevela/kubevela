@@ -1,0 +1,39 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: cd1
+  namespace: vela-system
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    cue:
+      template: |
+        output: {
+        	apiVersion: "apps/v1"
+        	kind:       "Deployment"
+        	spec: {
+        		selector: matchLabels: {
+        			"app.oam.dev/component": context.name
+        		}
+
+        		template: {
+        			metadata: labels: {
+        				"app.oam.dev/component": context.name
+                        "app.oam.dev/revision": context.appRevision
+        			}
+        			spec: {
+        				containers: [{
+        					name:  context.name
+        					image: parameter.image
+        				}]
+        			}
+        		}
+        	}
+        }
+
+        parameter: {
+        	image: string
+        }

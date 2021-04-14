@@ -1,6 +1,23 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package applicationconfiguration
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -19,6 +36,7 @@ func TestSetAppWorkloadInstanceName(t *testing.T) {
 		w        *unstructured.Unstructured
 		revision int
 		expName  string
+		inplace  string
 		reason   string
 	}{
 		"two resources case": {
@@ -64,10 +82,32 @@ func TestSetAppWorkloadInstanceName(t *testing.T) {
 			expName: "mysql-v2",
 			reason:  "we compare not only the kind but also the group name",
 		},
+		"use inplaceUpgrade = true": {
+			compName: "mysql",
+			revision: 2,
+			w: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "oam.dev/v1alpha1",
+				"kind":       "CloneSet",
+			}},
+			expName: "mysql",
+			inplace: strconv.FormatBool(true),
+			reason:  "we compare not only the kind but also the group name",
+		},
+		"use inplaceUpgrade = other value won't work": {
+			compName: "mysql",
+			revision: 2,
+			w: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "oam.dev/v1alpha1",
+				"kind":       "CloneSet",
+			}},
+			expName: "mysql-v2",
+			inplace: "t",
+			reason:  "we compare not only the kind but also the group name",
+		},
 	}
 	for name, ti := range tests {
 		t.Run(name, func(t *testing.T) {
-			SetAppWorkloadInstanceName(ti.compName, ti.w, ti.revision)
+			SetAppWorkloadInstanceName(ti.compName, ti.w, ti.revision, ti.inplace)
 			assert.Equal(t, ti.expName, ti.w.GetName(), ti.reason)
 		})
 	}

@@ -117,8 +117,8 @@ jobs:
         run: ./ossutil --config-file .ossutilconfig sync oss://$BUCKET/core $LOCAL_OSS_DIRECTORY
       - name: add artifacthub stuff to the repo
         run: |
-          rsync docs/en/install.md $HELM_CHART/README.md
-          rsync docs/en/install.md $LEGACY_HELM_CHART/README.md
+          rsync README.md $HELM_CHART/README.md
+          rsync README.md $LEGACY_HELM_CHART/README.md
           sed -i "s/ARTIFACT_HUB_REPOSITORY_ID/$ARTIFACT_HUB_REPOSITORY_ID/g" hack/artifacthub/artifacthub-repo.yml
           rsync hack/artifacthub/artifacthub-repo.yml $LOCAL_OSS_DIRECTORY
       - name: Package helm charts

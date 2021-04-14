@@ -1,0 +1,21 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: webapp-chart
+  namespace: vela-system
+  annotations:
+    definition.oam.dev/description: helm chart for webapp
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    helm:
+      release:
+        chart:
+          spec:
+            chart: "podinfo"
+            version: "5.1.4"
+      repository:
+        url: "http://oam.dev/catalog/"

@@ -1,4 +1,6 @@
-# KubeVela CLI
+---
+title:  KubeVela CLI
+---
 
 ### Auto-completion
 

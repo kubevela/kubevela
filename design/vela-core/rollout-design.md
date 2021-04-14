@@ -291,39 +291,48 @@ the following fields:
      - fetch the current traffic split
 
 ## State Transition
+Here is the state transition graph
+
+![](../../docs/resources/approllout-status-transition.jpg)
+
 Here are the various top-level states of the rollout 
 ```go
-	// Verifying verifies that the rollout setting is valid and the controller can locate both the
-	// target and the source
-	Verifying
-	// Initializing rollout is initializing all the new resources
-	Initializing
-	// Rolling rolling out
-	Rolling
-	// Finalising finalize the rolling, possibly clean up the old resources, adjust traffic
-	Finalising
-	// Succeed rollout successfully completed to match the desired target state
-	Succeed
-	// Failed rollout is failed, the target replica is not reached
-	// we can not move forward anymore
-	// we will let the client to decide when or whether to revert
-	Failed
+	// VerifyingSpecState indicates that the rollout is in the stage of verifying the rollout settings
+    // and the controller can locate both the target and the source
+    VerifyingSpecState RollingState = "verifyingSpec"
+    // InitializingState indicates that the rollout is initializing all the new resources
+    InitializingState RollingState = "initializing"
+    // RollingInBatchesState indicates that the rollout starts rolling
+    RollingInBatchesState RollingState = "rollingInBatches"
+    // FinalisingState indicates that the rollout is finalizing, possibly clean up the old resources, adjust traffic
+    FinalisingState RollingState = "finalising"
+    // RolloutFailingState indicates that the rollout is failing
+    // one needs to finalize it before mark it as failed by cleaning up the old resources, adjust traffic
+    RolloutFailingState RollingState = "rolloutFailing"
+    // RolloutSucceedState indicates that rollout successfully completed to match the desired target state
+    RolloutSucceedState RollingState = "rolloutSucceed"
+    // RolloutAbandoningState indicates that the rollout is abandoned, can be restarted. This is a terminal state
+    RolloutAbandoningState RollingState = "rolloutAbandoned"
+    // RolloutFailedState indicates that rollout is failed, the target replica is not reached
+    // we can not move forward anymore, we will let the client to decide when or whether to revert.
+    RolloutFailedState RollingState = "rolloutFailed"
 )
 ```
 
 These are the sub-states of the rollout when its in the rolling state.
 ```go
-	// BatchRolling still rolling the batch, the batch rolling is not completed yet
-	BatchRolling
-	// BatchStopped rollout is stopped, the batch rolling is not completed
-	BatchStopped
-	// BatchReady the pods in the batch are ready. Wait for auto or manual verification.
-	BatchReady
-	// BatchVerifying verifying if the application is ready to roll. This happens when it's either manual or
-	// automatic with analysis
-	BatchVerifying
-	// BatchAvailable one batch is ready, we could move to the batch
-	BatchAvailable 
+	// BatchInitializingState still rolling the batch, the batch rolling is not completed yet
+    BatchInitializingState BatchRollingState = "batchInitializing"
+    // BatchInRollingState still rolling the batch, the batch rolling is not completed yet
+    BatchInRollingState BatchRollingState = "batchInRolling"
+    // BatchVerifyingState verifying if the application is ready to roll.
+    BatchVerifyingState BatchRollingState = "batchVerifying"
+    // BatchRolloutFailedState indicates that the batch didn't get the manual or automatic approval
+    BatchRolloutFailedState BatchRollingState = "batchVerifyFailed"
+    // BatchFinalizingState indicates that all the pods in the are available, we can move on to the next batch
+    BatchFinalizingState BatchRollingState = "batchFinalizing"
+    // BatchReadyState indicates that all the pods in the are upgraded and its state is ready
+    BatchReadyState BatchRollingState = "batchReady"
 )
 ```
 

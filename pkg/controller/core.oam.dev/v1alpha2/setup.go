@@ -21,26 +21,31 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/appdeployment"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/application"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationdeployment"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationcontext"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/components/componentdefinition"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/scopes/healthscope"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/traits/manualscalertrait"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/traits/traitdefinition"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/workloads/containerizedworkload"
-	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core/workloads/workloaddefinition"
 )
 
 // Setup workload controllers.
 func Setup(mgr ctrl.Manager, args controller.Args, l logging.Logger) error {
 	for _, setup := range []func(ctrl.Manager, controller.Args, logging.Logger) error{
-		applicationconfiguration.Setup,
 		containerizedworkload.Setup, manualscalertrait.Setup, healthscope.Setup,
-		application.Setup, applicationdeployment.Setup, traitdefinition.Setup, workloaddefinition.Setup,
+		application.Setup, applicationrollout.Setup, applicationcontext.Setup, appdeployment.Setup,
+		traitdefinition.Setup, componentdefinition.Setup,
 	} {
 		if err := setup(mgr, args, l); err != nil {
 			return err
 		}
+	}
+	if args.ApplicationConfigurationInstalled {
+		return applicationconfiguration.Setup(mgr, args, l)
 	}
 	return nil
 }

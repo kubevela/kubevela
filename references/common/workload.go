@@ -1,10 +1,27 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package common
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 
 	"cuelang.org/go/cue"
 	"github.com/spf13/pflag"
@@ -28,27 +45,20 @@ type RunOptions struct {
 	util.IOStreams
 }
 
-// LoadIfExist will load Application from local dir
-func LoadIfExist(envName string, workloadName string, appGroup string) (*api.Application, error) {
+// InitApplication will load Application from cluster
+func InitApplication(env *types.EnvMeta, c common.Args, workloadName string, appGroup string) (*api.Application, error) {
 	var appName string
 	if appGroup != "" {
 		appName = appGroup
 	} else {
 		appName = workloadName
 	}
-	app, err := appfile.LoadApplication(envName, appName)
-
-	// can't handle
-	if err != nil && !appfile.IsNotFound(appName, err) {
-		return nil, err
-	}
-
+	// TODO(wonderflow): we should load the existing application from cluster and convert to appfile
+	// app, err := appfile.LoadApplication(env.Namespace, appName, c)
 	// compatible application not found
-	if app == nil {
-		app, err = appfile.NewEmptyApplication()
-		if err != nil {
-			return nil, err
-		}
+	app, err := appfile.NewEmptyApplication(env.Namespace, c)
+	if err != nil {
+		return nil, err
 	}
 	app.Name = appName
 
@@ -56,8 +66,8 @@ func LoadIfExist(envName string, workloadName string, appGroup string) (*api.App
 }
 
 // BaseComplete will construct an Application from cli parameters.
-func BaseComplete(envName string, workloadName string, appName string, flagSet *pflag.FlagSet, workloadType string) (*api.Application, error) {
-	app, err := LoadIfExist(envName, workloadName, appName)
+func BaseComplete(env *types.EnvMeta, c common.Args, workloadName string, appName string, flagSet *pflag.FlagSet, workloadType string) (*api.Application, error) {
+	app, err := InitApplication(env, c, workloadName, appName)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +79,7 @@ func BaseComplete(envName string, workloadName string, appName string, flagSet *
 		// Not exist
 		tp = workloadType
 	}
-	template, err := plugins.LoadCapabilityByName(tp)
+	template, err := plugins.LoadCapabilityByName(tp, env.Namespace, c)
 	if err != nil {
 		return nil, err
 	}
@@ -129,17 +139,5 @@ func BaseComplete(envName string, workloadName string, appName string, flagSet *
 	if err = appfile.SetWorkload(app, workloadName, tp, workloadData); err != nil {
 		return app, err
 	}
-	return app, appfile.Save(app, envName)
-}
-
-// BaseRun will check if it's a stating operation before run
-func BaseRun(staging bool, app *api.Application, kubeClient client.Client, env *types.EnvMeta, io util.IOStreams) (string, error) {
-	if staging {
-		return "Staging saved", nil
-	}
-	if err := BuildRun(context.Background(), app, kubeClient, env, io); err != nil {
-		err = fmt.Errorf("create app err: %w", err)
-		return "", err
-	}
-	return fmt.Sprintf("App %s deployed", app.Name), nil
+	return app, appfile.Save(app, env.Name)
 }

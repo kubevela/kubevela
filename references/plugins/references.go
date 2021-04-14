@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package plugins
 
 import (
@@ -22,6 +38,8 @@ const (
 	// ReferenceSourcePath is the location for source reference
 	ReferenceSourcePath = "hack/references"
 
+	// ComponentDefinitionTypePath is the URL path for component typed capability
+	ComponentDefinitionTypePath = "component-types"
 	// WorkloadTypePath is the URL path for workload typed capability
 	WorkloadTypePath = "workload-types"
 	// TraitPath is the URL path for trait typed capability
@@ -183,7 +201,11 @@ func setDisplayFormat(format string) {
 
 // GenerateReferenceDocs generates reference docs
 func (ref *MarkdownReference) GenerateReferenceDocs(baseRefPath string) error {
-	caps, err := LoadAllInstalledCapability()
+	c, err := common.InitBaseRestConfig()
+	if err != nil {
+		return err
+	}
+	caps, err := LoadAllInstalledCapability("default", c)
 	if err != nil {
 		return fmt.Errorf("failed to generate reference docs for all capabilities: %w", err)
 	}
@@ -203,9 +225,13 @@ func (ref *MarkdownReference) CreateMarkdown(caps []types.Capability, baseRefPat
 		case types.TypeWorkload:
 			capabilityType = WorkloadTypePath
 			specificationType = "workload type"
+		case types.TypeComponentDefinition:
+			capabilityType = ComponentDefinitionTypePath
+			specificationType = "component type"
 		case types.TypeTrait:
 			capabilityType = TraitPath
 			specificationType = "trait"
+
 		default:
 			return fmt.Errorf("the type of the capability is not right")
 		}
@@ -248,13 +274,12 @@ func (ref *MarkdownReference) CreateMarkdown(caps []types.Capability, baseRefPat
 		}
 		specification := fmt.Sprintf("\n\n## Specification\n\n%s\n\n%s", specificationIntro, specificationContent)
 
-		conflictWithAndMoreSection, err := ref.generateConflictWithAndMore(capName, referenceSourcePath)
-		if err != nil {
-			return err
-		}
+		// it's fine if the conflict info files not found
+		conflictWithAndMoreSection, _ := ref.generateConflictWithAndMore(capName, referenceSourcePath)
+
 		refContent = title + description + specification + refContent + conflictWithAndMoreSection
 		if _, err := f.WriteString(refContent); err != nil {
-			return nil
+			return err
 		}
 		if err := f.Close(); err != nil {
 			return err
@@ -399,7 +424,7 @@ func (ref *MarkdownReference) generateConflictWithAndMore(capabilityName string,
 	}
 	data, err := ioutil.ReadFile(filepath.Clean(conflictWithFile))
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 	return "\n" + string(data), nil
 }

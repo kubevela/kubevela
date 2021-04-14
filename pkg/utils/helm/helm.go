@@ -1,3 +1,19 @@
+/*
+Copyright 2021 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package helm
 
 import (
@@ -7,8 +23,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/oam-dev/kubevela/pkg/utils/common"
-
 	"github.com/pkg/errors"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
@@ -17,9 +31,9 @@ import (
 	"helm.sh/helm/v3/pkg/getter"
 	"helm.sh/helm/v3/pkg/release"
 	"helm.sh/helm/v3/pkg/repo"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
 )
 
@@ -39,7 +53,7 @@ func Install(ioStreams cmdutil.IOStreams, repoName, repoURL, chartName, version,
 		if err != nil {
 			return err
 		}
-		kubeClient, err := client.New(args.Config, client.Options{Scheme: args.Schema})
+		kubeClient, err := args.GetClient()
 		if err != nil {
 			return err
 		}

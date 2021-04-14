@@ -1,5 +1,5 @@
 /*
-
+Copyright 2021 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -43,7 +43,6 @@ type Capability struct {
 	CueTemplate    string      `json:"template,omitempty"`
 	CueTemplateURI string      `json:"templateURI,omitempty"`
 	Parameters     []Parameter `json:"parameters,omitempty"`
-	DefinitionPath string      `json:"definition"`
 	CrdName        string      `json:"crdName,omitempty"`
 	Center         string      `json:"center,omitempty"`
 	Status         string      `json:"status,omitempty"`
@@ -51,6 +50,9 @@ type Capability struct {
 
 	// trait only
 	AppliesTo []string `json:"appliesTo,omitempty"`
+
+	// Namespace represents it's a system-level or user-level capability.
+	Namespace string `json:"namespace,omitempty"`
 
 	// Plugin Source
 	Source  *Source       `json:"source,omitempty"`
@@ -78,6 +80,8 @@ type Installation struct {
 type CapType string
 
 const (
+	// TypeComponentDefinition represents OAM ComponentDefinition
+	TypeComponentDefinition CapType = "componentDefinition"
 	// TypeWorkload represents OAM Workload
 	TypeWorkload CapType = "workload"
 	// TypeTrait represents OAM Trait
@@ -97,9 +101,15 @@ const (
 // CapabilityCategory defines the category of a capability
 type CapabilityCategory string
 
+// categories of capability schematic
 const (
-	// TerraformCategory means the capability is in Terraform format
 	TerraformCategory CapabilityCategory = "terraform"
+
+	HelmCategory CapabilityCategory = "helm"
+
+	KubeCategory CapabilityCategory = "kube"
+
+	CUECategory CapabilityCategory = "cue"
 )
 
 // Parameter defines a parameter for cli from capability template

@@ -1,0 +1,16 @@
+apiVersion: core.oam.dev/v1beta1
+kind: AppRollout
+metadata:
+  name: rolling-example
+spec:
+  # application (revision) reference
+  sourceAppRevisionName: test-rolling-v2
+  targetAppRevisionName: test-rolling-v1
+  componentList:
+    - metrics-provider
+  rolloutPlan:
+    rolloutStrategy: "IncreaseFirst"
+    rolloutBatches:
+      - replicas: 20%
+      - replicas: 30%
+      - replicas: 50%
