@@ -67,6 +67,7 @@ func verifyBatchesWithScale(rolloutSpec *v1alpha1.RolloutPlan, originalSize, tar
 			totalRollout -= batchSize
 		}
 	}
+	//nolint ifElseChain
 	if targetSize > originalSize {
 		if totalRollout >= targetSize {
 			return fmt.Errorf("the rollout plan increased too much, total batch size = %d, targetSize size = %d",
@@ -75,8 +76,11 @@ func verifyBatchesWithScale(rolloutSpec *v1alpha1.RolloutPlan, originalSize, tar
 	} else if targetSize < originalSize {
 		if totalRollout <= targetSize {
 			return fmt.Errorf("the rollout plan reduced too much, total batch size = %d, targetSize size = %d",
-				totalRollout, originalSize)
+				totalRollout, targetSize)
 		}
+	} else if totalRollout != targetSize {
+		return fmt.Errorf("the rollout plan changed on no-op scale, total batch size = %d, targetSize size = %d",
+			totalRollout, targetSize)
 	}
 	// include the last batch if it has an int value
 	// we ignore the last batch percentage since it is very likely to cause rounding errors
