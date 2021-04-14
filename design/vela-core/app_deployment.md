@@ -105,7 +105,7 @@ In the following example, we are assuming the app has deployed v1 now and is upg
 
 We will make sure the spec works for the following environments:
 
-- K8s ingress + service (traffic split percetange determined by replica number)
+- K8s ingress + service (traffic split percentages determined by replica number)
 - Istio service mesh
 
 Here is the workflow with Istio:

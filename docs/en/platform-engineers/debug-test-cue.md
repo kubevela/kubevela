@@ -571,7 +571,7 @@ context:
 
 ## Dry-Run the `Application`
 
-When CUE template is good, we can use `vela system dry-run` to dry run and check the rendered resources in real Kubernetes cluster. This command will exactly execute the same render logic in KubeVela's `Application` Controller adn output the result for you.
+When CUE template is good, we can use `vela system dry-run` to dry run and check the rendered resources in real Kubernetes cluster. This command will exactly execute the same render logic in KubeVela's `Application` Controller and output the result for you.
 
 First, we need use `mergedef.sh` to merge the definition and cue files.
 
