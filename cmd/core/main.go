@@ -30,9 +30,6 @@ import (
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	injectorcontroller "github.com/oam-dev/trait-injector/controllers"
-	"github.com/oam-dev/trait-injector/pkg/injector"
-	"github.com/oam-dev/trait-injector/pkg/plugin"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -70,7 +67,7 @@ func main() {
 	var logRetainDate int
 	var certDir string
 	var webhookPort int
-	var useWebhook, useTraitInjector bool
+	var useWebhook bool
 	var controllerArgs oamcontroller.Args
 	var healthAddr string
 	var disableCaps string
@@ -79,7 +76,6 @@ func main() {
 	var applyOnceOnly string
 
 	flag.BoolVar(&useWebhook, "use-webhook", false, "Enable Admission Webhook")
-	flag.BoolVar(&useTraitInjector, "use-trait-injector", false, "Enable TraitInjector")
 	flag.StringVar(&certDir, "webhook-cert-dir", "/k8s-webhook-server/serving-certs", "Admission webhook cert/key dir.")
 	flag.IntVar(&webhookPort, "webhook-port", 9443, "admission webhook listen address")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
@@ -216,24 +212,6 @@ func main() {
 		}
 	}
 	setupLog.Info("use storage driver", "storageDriver", os.Getenv(system.StorageDriverEnv))
-
-	if useTraitInjector {
-		// register all service injectors
-		plugin.RegisterTargetInjectors(injector.Defaults()...)
-
-		tiWebhook := &injectorcontroller.ServiceBindingReconciler{
-			Client:   mgr.GetClient(),
-			Log:      ctrl.Log.WithName("controllers").WithName("ServiceBinding"),
-			Scheme:   mgr.GetScheme(),
-			Recorder: mgr.GetEventRecorderFor("servicebinding"),
-		}
-		if err = (tiWebhook).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "ServiceBinding")
-			os.Exit(1)
-		}
-		// this has hard coded requirement "./ssl/service-injector.pem", "./ssl/service-injector.key"
-		go tiWebhook.ServeAdmission()
-	}
 
 	setupLog.Info("starting the vela controller manager")
 

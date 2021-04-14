@@ -33,7 +33,6 @@ import (
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/ghodss/yaml"
-	injectorv1alpha1 "github.com/oam-dev/trait-injector/api/v1alpha1"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	istioclientv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
@@ -59,7 +58,6 @@ func init() {
 	_ = oamstandard.AddToScheme(Scheme)
 	_ = istioclientv1beta1.AddToScheme(Scheme)
 	_ = certmanager.AddToScheme(Scheme)
-	_ = injectorv1alpha1.AddToScheme(Scheme)
 	_ = kruise.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
