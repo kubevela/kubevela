@@ -64,4 +64,6 @@ const (
 	TypeCap = "Managing Capabilities"
 	// TypeSystem defines one category
 	TypeSystem = "System"
+	// TypePlugin defines one category used in Kubectl Plugin
+	TypePlugin = "Debug and Test"
 )

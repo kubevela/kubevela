@@ -56,8 +56,10 @@ type Option struct {
 // resoures but not persist them into cluster.
 func (d *Option) ExecuteDryRun(ctx context.Context, app *v1beta1.Application) (*v1alpha2.ApplicationConfiguration, []*v1alpha2.Component, error) {
 	parser := appfile.NewDryRunApplicationParser(d.Client, d.DiscoveryMapper, d.PackageDiscover, d.Auxiliaries)
-	ctxWithNamespace := oamutil.SetNamespaceInCtx(ctx, app.Namespace)
-	appFile, err := parser.GenerateAppFile(ctxWithNamespace, app)
+	if app.Namespace != "" {
+		ctx = oamutil.SetNamespaceInCtx(ctx, app.Namespace)
+	}
+	appFile, err := parser.GenerateAppFile(ctx, app)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "cannot generate appFile from application")
 	}
