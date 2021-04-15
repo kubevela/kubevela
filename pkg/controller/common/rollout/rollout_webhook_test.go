@@ -112,7 +112,7 @@ func TestMakeHTTPRequest(t *testing.T) {
 		},
 	}
 	for testName, tt := range tests {
-		t.Run(testName, func(t *testing.T) {
+		func(testName string) {
 			mockUrl := mockUrlBase + strconv.FormatInt(rand.Int63n(128)+1000, 10)
 			// generate a test server so we can capture and inspect the request
 			testServer := NewMock(tt.httpParameter.method, mockUrl, tt.httpParameter.statusCode, tt.httpParameter.body)
@@ -141,7 +141,7 @@ func TestMakeHTTPRequest(t *testing.T) {
 			if string(gotReply) != tt.want.body {
 				t.Errorf("\n%s\nr.Reconcile(...): want reply `%s`, got reply:`%s`\n", testName, tt.want.body, string(gotReply))
 			}
-		})
+		}(testName)
 	}
 }
 
@@ -206,8 +206,8 @@ func TestCallWebhook(t *testing.T) {
 		},
 	}
 	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			url := mockUrlBase + strconv.FormatInt(rand.Int63n(4848)+100, 10)
+		func(name string) {
+			url := mockUrlBase + strconv.FormatInt(rand.Int63n(4848)+1000, 10)
 			tt.args.rw.URL = "http://" + url
 			// generate a test server so we can capture and inspect the request
 			testServer := NewMock(http.MethodPost, url, tt.returnedStatusCode, body)
@@ -220,7 +220,7 @@ func TestCallWebhook(t *testing.T) {
 			if tt.wantErr != nil && gotErr != nil && gotErr.Error() != tt.wantErr.Error() {
 				t.Errorf("\n%s\nr.Reconcile(...): want error `%s`, got error:`%s`\n", name, tt.wantErr, gotErr)
 			}
-		})
+		}(name)
 	}
 }
 
