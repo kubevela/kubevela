@@ -181,6 +181,11 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 }
 
 func (h *appHandler) createOrUpdateAppRevision(ctx context.Context, appRev *v1beta1.ApplicationRevision) error {
+	if appRev.Labels == nil {
+		appRev.Labels = make(map[string]string)
+	}
+	appRev.SetLabels(oamutil.MergeMapOverrideWithDst(appRev.Labels, map[string]string{oam.LabelAppName: h.app.Name}))
+
 	if h.isNewRevision {
 		var revisionNum int64
 		appRev.Name, revisionNum = utils.GetAppNextRevision(h.app)
