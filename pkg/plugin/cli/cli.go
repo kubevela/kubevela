@@ -61,6 +61,7 @@ func NewCommand() *cobra.Command {
 	cmds.AddCommand(
 		NewDryRunCommand(commandArgs, ioStream),
 		NewLiveDiffCommand(commandArgs, ioStream),
+		NewCapabilityShowCommand(commandArgs, ioStream),
 		NewVersionCommand(),
 		NewHelpCommand(),
 	)
@@ -89,7 +90,7 @@ GolangVersion: %v
 				runtime.Version())
 		},
 		Annotations: map[string]string{
-			types.TagCommandType: types.TypeSystem,
+			types.TagCommandType: types.TypePlugin,
 		},
 	}
 }

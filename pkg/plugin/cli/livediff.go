@@ -59,7 +59,7 @@ func NewLiveDiffCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 	cmd.Flags().StringVarP(&o.DefinitionFile, "definition", "d", "", "specify a file or directory containing capability definitions, they will only be used in dry-run rather than applied to K8s cluster")
 	cmd.Flags().StringVarP(&o.Revision, "revision", "r", "", "specify an application revision name, by default, it will compare with the latest revision")
 	cmd.Flags().IntVarP(&o.Context, "context", "c", -1, "output number lines of context around changes, by default show all unchanged lines")
-	cmd.Flags().StringVarP(&env, "env", "n", "default", "specify namespace of the application to be compared, by default is default namespace")
+	cmd.Flags().StringVarP(&env, "namespace", "n", "default", "specify namespace of the application to be compared, by default is default namespace")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }

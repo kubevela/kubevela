@@ -78,7 +78,7 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 			if webSite {
 				return startReferenceDocsSite(ctx, c, ioStreams, capabilityName)
 			}
-			return showReferenceConsole(ctx, c, ioStreams, capabilityName)
+			return ShowReferenceConsole(ctx, c, ioStreams, capabilityName)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -334,7 +334,8 @@ func getComponentsAndTraits(capabilities []types.Capability) ([]string, []string
 	return components, traits
 }
 
-func showReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string) error {
+// ShowReferenceConsole will show capability reference in console
+func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string) error {
 	home, err := system.GetVelaHomeDir()
 	if err != nil {
 		return err

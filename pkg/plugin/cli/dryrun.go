@@ -53,7 +53,7 @@ func NewDryRunCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 
 	cmd.Flags().StringVarP(&o.ApplicationFile, "file", "f", "./app.yaml", "application file name")
 	cmd.Flags().StringVarP(&o.DefinitionFile, "definition", "d", "", "specify a definition file or directory, it will only be used in dry-run rather than applied to K8s cluster")
-	cmd.Flags().StringVarP(&env, "env", "n", "default", "specify namespace of the definition file, by default is default namespace")
+	cmd.Flags().StringVarP(&env, "namespace", "n", "default", "specify namespace of the definition file, by default is default namespace")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
