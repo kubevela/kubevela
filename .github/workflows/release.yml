@@ -34,47 +34,89 @@ jobs:
       - name: Get release
         id: get_release
         uses: bruceadams/get-release@v1.2.2
-      - name: Upload Linux amd64 tar.gz
+      - name: Upload Vela Linux amd64 tar.gz
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/vela-linux-amd64.tar.gz
+          asset_path: ./_bin/vela/vela-linux-amd64.tar.gz
           asset_name: vela-${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz
           asset_content_type: binary/octet-stream
-      - name: Upload Linux amd64 zip
+      - name: Upload Vela Linux amd64 zip
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/vela-linux-amd64.zip
+          asset_path: ./_bin/vela/vela-linux-amd64.zip
           asset_name: vela-${{ steps.get_version.outputs.VERSION }}-linux-amd64.zip
           asset_content_type: binary/octet-stream
-      - name: Upload MacOS tar.gz
+      - name: Upload Vela MacOS tar.gz
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/vela-darwin-amd64.tar.gz
+          asset_path: ./_bin/vela/vela-darwin-amd64.tar.gz
           asset_name: vela-${{ steps.get_version.outputs.VERSION }}-darwin-amd64.tar.gz
           asset_content_type: binary/octet-stream
-      - name: Upload MacOS zip
+      - name: Upload Vela MacOS zip
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/vela-darwin-amd64.zip
+          asset_path: ./_bin/vela/vela-darwin-amd64.zip
           asset_name: vela-${{ steps.get_version.outputs.VERSION }}-darwin-amd64.zip
           asset_content_type: binary/octet-stream
-      - name: Upload Windows tar.gz
+      - name: Upload Vela Windows tar.gz
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/vela-windows-amd64.tar.gz
+          asset_path: ./_bin/vela/vela-windows-amd64.tar.gz
           asset_name: vela-${{ steps.get_version.outputs.VERSION }}-windows-amd64.tar.gz
           asset_content_type: binary/octet-stream
-      - name: Upload Windows zip
+      - name: Upload Vela Windows zip
         uses: actions/upload-release-asset@v1.0.2
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
-          asset_path: ./_bin/vela-windows-amd64.zip
+          asset_path: ./_bin/vela/vela-windows-amd64.zip
           asset_name: vela-${{ steps.get_version.outputs.VERSION }}-windows-amd64.zip
+          asset_content_type: binary/octet-stream
+      - name: Upload Kubectl-Vela Linux amd64 tar.gz
+        uses: actions/upload-release-asset@v1.0.2
+        with:
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          asset_path: ./_bin/kubectl-vela/kubectl-vela-linux-amd64.tar.gz
+          asset_name: kubectl-vela-${{ steps.get_version.outputs.VERSION }}-linux-amd64.tar.gz
+          asset_content_type: binary/octet-stream
+      - name: Upload Kubectl-Vela Linux amd64 zip
+        uses: actions/upload-release-asset@v1.0.2
+        with:
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          asset_path: ./_bin/kubectl-vela/kubectl-vela-linux-amd64.zip
+          asset_name: kubectl-vela-${{ steps.get_version.outputs.VERSION }}-linux-amd64.zip
+          asset_content_type: binary/octet-stream
+      - name: Upload Kubectl-Vela MacOS tar.gz
+        uses: actions/upload-release-asset@v1.0.2
+        with:
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          asset_path: ./_bin/kubectl-vela/kubectl-vela-darwin-amd64.tar.gz
+          asset_name: kubectl-vela-${{ steps.get_version.outputs.VERSION }}-darwin-amd64.tar.gz
+          asset_content_type: binary/octet-stream
+      - name: Upload Kubectl-Vela MacOS zip
+        uses: actions/upload-release-asset@v1.0.2
+        with:
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          asset_path: ./_bin/kubectl-vela/kubectl-vela-darwin-amd64.zip
+          asset_name: kubectl-vela-${{ steps.get_version.outputs.VERSION }}-darwin-amd64.zip
+          asset_content_type: binary/octet-stream
+      - name: Upload Kubectl-Vela Windows tar.gz
+        uses: actions/upload-release-asset@v1.0.2
+        with:
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          asset_path: ./_bin/kubectl-vela/kubectl-vela-windows-amd64.tar.gz
+          asset_name: kubectl-vela-${{ steps.get_version.outputs.VERSION }}-windows-amd64.tar.gz
+          asset_content_type: binary/octet-stream
+      - name: Upload Kubectl-Vela Windows zip
+        uses: actions/upload-release-asset@v1.0.2
+        with:
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          asset_path: ./_bin/kubectl-vela/kubectl-vela-windows-amd64.zip
+          asset_name: kubectl-vela-${{ steps.get_version.outputs.VERSION }}-windows-amd64.zip
           asset_content_type: binary/octet-stream
       - name: Upload Checksums
         uses: actions/upload-release-asset@v1.0.2
