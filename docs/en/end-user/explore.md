@@ -75,8 +75,6 @@ Here are some highlight information that you need to know:
 
 ### List Application Revisions
 
-> Note: we currently don't support list by label selector until https://github.com/oam-dev/kubevela/issues/1476
-
 When we update an application, if there's any difference on spec, KubeVela will create a new revision.
 
 ```shell
