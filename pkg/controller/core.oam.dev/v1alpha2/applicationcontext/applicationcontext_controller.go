@@ -107,9 +107,9 @@ func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 	// call into the old ac Reconciler and copy the status back
 	acReconciler := ac.NewReconciler(r.mgr, dm, r.log, ac.WithRecorder(r.record), ac.WithApplyOnceOnlyMode(r.applyMode))
 	reconResult := acReconciler.ACReconcile(ctx, appConfig, r.log)
+	appContextPatch := client.MergeFrom(appContext.DeepCopy())
 	appContext.Status = appConfig.Status
-	// always update ac status and set the error
-	err = errors.Wrap(r.client.Status().Update(ctx, appContext), errUpdateAppContextStatus)
+	err = errors.Wrap(r.client.Status().Patch(ctx, appContext, appContextPatch), errUpdateAppContextStatus)
 	// use the controller build-in backoff mechanism if an error occurs
 	if err != nil {
 		reconResult.RequeueAfter = 0
