@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 )
 
@@ -32,6 +33,7 @@ func TestWorkloadTemplateComplete(t *testing.T) {
 		params           map[string]interface{}
 		expectObj        runtime.Object
 		expAssObjs       map[string]runtime.Object
+		category         types.CapabilityCategory
 	}{
 		"only contain an output": {
 			workloadTemplate: `
@@ -179,23 +181,39 @@ parameter: {
 				},
 			},
 		},
+		"terraform workload": {
+			workloadTemplate: "",
+			params: map[string]interface{}{
+				"variable": map[string]interface{}{
+					"bucket": "vela-website",
+					"acl":    "private",
+				},
+				"writeConnectionSecretToRef": map[string]interface{}{
+					"name":      "oss-conn",
+					"namespace": "default",
+				},
+			},
+			category: types.TerraformCategory,
+		},
 	}
 
 	for _, v := range testCases {
 		ctx := process.NewContext("default", "test", "myapp", "myapp-v1")
-		wt := NewWorkloadAbstractEngine("testworkload", &PackageDiscover{})
-		assert.NoError(t, wt.Complete(ctx, v.workloadTemplate, v.params))
+		wt := NewWorkloadAbstractEngine("testWorkload", &PackageDiscover{})
+		assert.NoError(t, wt.Complete(ctx, v.workloadTemplate, v.params, v.category))
 		base, assists := ctx.Output()
 		assert.Equal(t, len(v.expAssObjs), len(assists))
-		assert.NotNil(t, base)
-		baseObj, err := base.Unstructured()
-		assert.Equal(t, nil, err)
-		assert.Equal(t, v.expectObj, baseObj)
-		for _, ss := range assists {
-			assert.Equal(t, AuxiliaryWorkload, ss.Type)
-			got, err := ss.Ins.Unstructured()
-			assert.NoError(t, err)
-			assert.Equal(t, got, v.expAssObjs[ss.Name])
+		if v.category != types.TerraformCategory {
+			assert.NotNil(t, base)
+			baseObj, err := base.Unstructured()
+			assert.Equal(t, nil, err)
+			assert.Equal(t, v.expectObj, baseObj)
+			for _, ss := range assists {
+				assert.Equal(t, AuxiliaryWorkload, ss.Type)
+				got, err := ss.Ins.Unstructured()
+				assert.NoError(t, err)
+				assert.Equal(t, got, v.expAssObjs[ss.Name])
+			}
 		}
 	}
 
@@ -209,6 +227,7 @@ func TestTraitTemplateComplete(t *testing.T) {
 		params        map[string]interface{}
 		expWorkload   *unstructured.Unstructured
 		expAssObjs    map[string]runtime.Object
+		catelogy      types.CapabilityCategory
 	}{
 		"patch trait": {
 			traitTemplate: `
@@ -688,12 +707,12 @@ parameter: {
 			"enemies":  "enemies-data",
 			"lives":    "lives-data",
 			"port":     443,
-		}); err != nil {
+		}, ""); err != nil {
 			t.Error(err)
 			return
 		}
 		td := NewTraitAbstractEngine(v.traitName, &PackageDiscover{})
-		assert.NoError(t, td.Complete(ctx, v.traitTemplate, v.params))
+		assert.NoError(t, td.Complete(ctx, v.traitTemplate, v.params, v.catelogy))
 		base, assists := ctx.Output()
 		assert.Equal(t, len(v.expAssObjs), len(assists), cassinfo)
 		assert.NotNil(t, base)

@@ -106,8 +106,11 @@ type Terraform struct {
 
 	// Type specifies which Terraform configuration it is, HCL or JSON syntax
 	// +kubebuilder:default:=hcl
-	// +kubebuilder:validation:Enum:=hcl,json
+	// +kubebuilder:validation:Enum:=hcl;json
 	Type string `json:"type,omitempty"`
+
+	// Parameter is in CUE type, which will contain variable and writeConnectionSecretToRef
+	Parameter string `json:"parameter,omitempty"`
 
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Variable runtime.RawExtension `json:"variable"`

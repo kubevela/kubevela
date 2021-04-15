@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/dsl/model"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
@@ -56,7 +57,7 @@ const (
 
 // AbstractEngine defines Definition's Render interface
 type AbstractEngine interface {
-	Complete(ctx process.Context, abstractTemplate string, params interface{}) error
+	Complete(ctx process.Context, abstractTemplate string, params interface{}, category types.CapabilityCategory) error
 	HealthCheck(ctx process.Context, cli client.Client, ns string, healthPolicyTemplate string) (bool, error)
 	Status(ctx process.Context, cli client.Client, ns string, customStatusTemplate string) (string, error)
 }
@@ -81,7 +82,7 @@ func NewWorkloadAbstractEngine(name string, pd *PackageDiscover) AbstractEngine 
 }
 
 // Complete do workload definition's rendering
-func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
+func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, params interface{}, category types.CapabilityCategory) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := bi.AddFile("-", abstractTemplate); err != nil {
 		return errors.WithMessagef(err, "invalid cue template of workload %s", wd.name)
@@ -111,6 +112,11 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 
 	if err := inst.Value().Err(); err != nil {
 		return errors.WithMessagef(err, "invalid cue template of workload %s after merge parameter and context", wd.name)
+	}
+
+	// if the type of the workload is Terraform, skip to checking `output` or `outputs` in the template
+	if category == types.TerraformCategory {
+		return nil
 	}
 	output := inst.Lookup(OutputFieldName)
 	base, err := model.NewBase(output)
@@ -267,7 +273,7 @@ func NewTraitAbstractEngine(name string, pd *PackageDiscover) AbstractEngine {
 }
 
 // Complete do trait definition's rendering
-func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
+func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}, category types.CapabilityCategory) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := bi.AddFile("-", abstractTemplate); err != nil {
 		return errors.WithMessagef(err, "invalid template of trait %s", td.name)

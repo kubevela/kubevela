@@ -55,6 +55,7 @@ type Template struct {
 	Reference          common.WorkloadGVK
 	Helm               *common.Helm
 	Kube               *common.Kube
+	Terraform          *common.Terraform
 	// TODO: Add scope definition too
 	ComponentDefinition *v1beta1.ComponentDefinition
 	WorkloadDefinition  *v1beta1.WorkloadDefinition
@@ -216,6 +217,11 @@ func loadSchematicToTemplate(tmpl *Template, sts *common.Status, schem *common.S
 		if schem.KUBE != nil {
 			tmpl.CapabilityCategory = types.KubeCategory
 			tmpl.Kube = schem.KUBE
+			return nil
+		}
+		if schem.Terraform != nil {
+			tmpl.CapabilityCategory = types.TerraformCategory
+			tmpl.Terraform = schem.Terraform
 			return nil
 		}
 	}

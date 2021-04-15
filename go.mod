@@ -35,7 +35,7 @@ require (
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/mholt/archiver/v3 v3.3.0
 	github.com/mitchellh/hashstructure/v2 v2.0.1
-	github.com/oam-dev/terraform-controller v0.0.0-20210414093823-482b376c1fdd
+	github.com/oam-dev/terraform-controller v0.1.2
 	github.com/olekukonko/tablewriter v0.0.2
 	github.com/onsi/ginkgo v1.14.1
 	github.com/onsi/gomega v1.10.3

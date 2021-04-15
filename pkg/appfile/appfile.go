@@ -27,7 +27,9 @@ import (
 	json2cue "cuelang.org/go/encoding/json"
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
+	terrafromapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -45,7 +47,9 @@ import (
 
 // constant error information
 const (
-	errInvalidValueType = "require %q type parameter value"
+	errInvalidValueType                                  = "require %q type parameter value"
+	errTerraformConfigurationIsNotSet                    = "terraform configuration is not set"
+	errFailToConvertTerraformConfigurationToUnstructured = "failed to convert Terraform Configuration to unstructured"
 )
 
 // Workload is component
@@ -83,7 +87,7 @@ func (wl *Workload) GetUserConfigName() string {
 
 // EvalContext eval workload template and set result to context
 func (wl *Workload) EvalContext(ctx process.Context) error {
-	return wl.engine.Complete(ctx, wl.FullTemplate.TemplateStr, wl.Params)
+	return wl.engine.Complete(ctx, wl.FullTemplate.TemplateStr, wl.Params, wl.CapabilityCategory)
 }
 
 // EvalStatus eval workload status
@@ -136,7 +140,7 @@ type Trait struct {
 
 // EvalContext eval trait template and set result to context
 func (trait *Trait) EvalContext(ctx process.Context) error {
-	return trait.engine.Complete(ctx, trait.Template, trait.Params)
+	return trait.engine.Complete(ctx, trait.Template, trait.Params, "")
 }
 
 // EvalStatus eval trait status
@@ -194,8 +198,6 @@ func (af *Appfile) GenerateApplicationConfiguration() (*v1alpha2.ApplicationConf
 			if err != nil {
 				return nil, nil, err
 			}
-		case types.TerraformCategory:
-			comp, acComp, err = generateComponentFromTerraformModule(wl, af.Name, af.RevisionName, af.Namespace)
 		default:
 			comp, acComp, err = generateComponentFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
 			if err != nil {
@@ -244,7 +246,7 @@ func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string) 
 	}
 	var comp *v1alpha2.Component
 	var acComp *v1alpha2.ApplicationConfigurationComponent
-	comp, acComp, err = evalWorkloadWithContext(pCtx, wl, appName, wl.Name)
+	comp, acComp, err = evalWorkloadWithContext(pCtx, wl, ns, appName, wl.Name)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -271,16 +273,27 @@ func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string) 
 }
 
 // evalWorkloadWithContext evaluate the workload's template to generate component and ACComponent
-func evalWorkloadWithContext(pCtx process.Context, wl *Workload, appName, compName string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, compName string, ) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+	var (
+		commonLabels      map[string]string
+		componentWorkload *unstructured.Unstructured
+		err               error
+	)
 	base, assists := pCtx.Output()
-	componentWorkload, err := base.Unstructured()
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", compName, appName)
+	// if componentWorkload is nil, generated it based on Cue. Or set it directly in Terraform Schematic case
+	if wl.CapabilityCategory == types.TerraformCategory {
+		componentWorkload, err = generateTerraformConfigurationWorkload(wl, ns)
+		if err != nil {
+			return nil, nil, errors.Wrapf(err, "failed to generate Terraform Configuration workload for workload %s", wl.Name)
+		}
+	} else {
+		componentWorkload, err = base.Unstructured()
+		if err != nil {
+			return nil, nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", compName, appName)
+		}
+		commonLabels = definition.GetCommonLabels(pCtx.BaseContextLabels())
+		util.AddLabels(componentWorkload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: wl.Type}))
 	}
-
-	var commonLabels = definition.GetCommonLabels(pCtx.BaseContextLabels())
-	util.AddLabels(componentWorkload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: wl.Type}))
-
 	component := &v1alpha2.Component{}
 	// we need to marshal the workload to byte array before sending them to the k8s
 	component.Spec.Workload = util.Object2RawExtension(componentWorkload)
@@ -347,47 +360,34 @@ output: {
 	return comp, acComp, nil
 }
 
-func generateComponentFromTerraformModule(wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
-	var (
-		comp   *v1alpha2.Component
-		acComp *v1alpha2.ApplicationConfigurationComponent
-		err    error
-	)
-
-	pCtx, err := PrepareProcessContext(wl, appName, revision, ns)
+func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructured.Unstructured, error) {
+	if wl.FullTemplate.Terraform.Configuration == "" {
+		return nil, errors.New(errTerraformConfigurationIsNotSet)
+	}
+	params, err := json.Marshal(wl.Params)
 	if err != nil {
-		return nil, nil, err
-	}
-	for _, tr := range wl.Traits {
-		if err := tr.EvalContext(pCtx); err != nil {
-			return nil, nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
-		}
+		return nil, errors.Wrap(err, errFailToConvertTerraformConfigurationToUnstructured)
 	}
 
-	comp, acComp, err = evalWorkloadWithContext(pCtx, wl, appName, wl.Name)
-	if err != nil {
-		return nil, nil, err
+	configuration := terrafromapi.Configuration{
+		TypeMeta:   metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta1", Kind: "Configuration"},
+		ObjectMeta: metav1.ObjectMeta{Name: wl.Name, Namespace: ns},
 	}
-	comp.Name = wl.Name
-	acComp.ComponentName = comp.Name
 
-	for _, sc := range wl.Scopes {
-		acComp.Scopes = append(acComp.Scopes, v1alpha2.ComponentScope{ScopeReference: v1alpha1.TypedReference{
-			APIVersion: sc.GVK.GroupVersion().String(),
-			Kind:       sc.GVK.Kind,
-			Name:       sc.Name,
-		}})
+	switch wl.FullTemplate.Terraform.Type {
+	case "hcl":
+		configuration.Spec.HCL = wl.FullTemplate.Terraform.Configuration
+	case "json":
+		configuration.Spec.JSON = wl.FullTemplate.Terraform.Configuration
 	}
-	if len(comp.Namespace) == 0 {
-		comp.Namespace = ns
+	if err := json.Unmarshal(params, &configuration.Spec); err != nil {
+		return nil, errors.Wrap(err, errFailToConvertTerraformConfigurationToUnstructured)
 	}
-	if comp.Labels == nil {
-		comp.Labels = map[string]string{}
-	}
-	comp.Labels[oam.LabelAppName] = appName
-	comp.SetGroupVersionKind(v1alpha2.ComponentGroupVersionKind)
+	// set namespace for writeConnectionSecretToRef, developer needn't manually set it
+	configuration.Spec.WriteConnectionSecretToReference.Namespace = ns
 
-	return comp, acComp, nil
+	raw := util.Object2RawExtension(&configuration)
+	return util.RawExtension2Unstructured(&raw)
 }
 
 // a helper map whose key is parameter name
