@@ -56,8 +56,8 @@ When you add or modify the docs, these three files(`docs/en/`, `docs/en/resource
    
 ## Local Development
 
-You can preview the website locally with the `node` and `yarn` installed.
-Every time you modify the files under the docs, you need to re-run the following command, it will not sync automatically:
+You can preview the website locally with docker container. Every time you modify the files under the docs or sidebars.js, 
+it will sync automatically:
 
 ```shell
 make docs-start
