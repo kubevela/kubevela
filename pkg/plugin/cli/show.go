@@ -30,6 +30,7 @@ import (
 
 // NewCapabilityShowCommand shows the reference doc for a workload type or trait
 func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	var namespace string
 	cmd := &cobra.Command{
 		Use:     "show",
 		Short:   "Show the reference doc for a workload type or trait",
@@ -44,13 +45,14 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 			}
 			ctx := context.Background()
 			capabilityName := args[0]
-			return cli.ShowReferenceConsole(ctx, c, ioStreams, capabilityName)
+			return cli.ShowReferenceConsole(ctx, c, ioStreams, capabilityName, namespace)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypePlugin,
 		},
 	}
 
+	cmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "specify namespace of the definition to show")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }

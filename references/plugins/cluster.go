@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -248,7 +249,7 @@ func SyncDefinitionsToLocal(ctx context.Context, c common.Args, localDefinitionD
 }
 
 // SyncDefinitionToLocal sync definitions to local
-func SyncDefinitionToLocal(ctx context.Context, c common.Args, localDefinitionDir string, capabilityName string) (*types.Capability, error) {
+func SyncDefinitionToLocal(ctx context.Context, c common.Args, localDefinitionDir string, capabilityName string, ns string) (*types.Capability, error) {
 	var foundCapability bool
 
 	newClient, err := c.GetClient()
@@ -256,11 +257,16 @@ func SyncDefinitionToLocal(ctx context.Context, c common.Args, localDefinitionDi
 		return nil, err
 	}
 	var componentDef v1beta1.ComponentDefinition
-	err = newClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: capabilityName}, &componentDef)
+	err = newClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: capabilityName}, &componentDef)
 	if err == nil {
-		// return nil, fmt.Errorf("get WorkloadDefinition err: %w", err)
 		foundCapability = true
+	} else if kerrors.IsNotFound(err) {
+		err = newClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: capabilityName}, &componentDef)
+		if err == nil {
+			foundCapability = true
+		}
 	}
+
 	if foundCapability {
 		dm, err := c.GetDiscoveryMapper()
 		if err != nil {

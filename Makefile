@@ -48,7 +48,7 @@ test: vet lint staticcheck
 	@$(OK) unit-tests pass
 
 # Build vela cli binary
-build: fmt vet lint staticcheck vela-cli
+build: fmt vet lint staticcheck vela-cli kubectl-vela
 	@$(OK) build succeed
 
 vela-cli:

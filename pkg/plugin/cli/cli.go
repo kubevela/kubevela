@@ -17,13 +17,11 @@
 package cli
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"runtime"
 
 	"github.com/spf13/cobra"
-	"k8s.io/klog"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
@@ -65,11 +63,6 @@ func NewCommand() *cobra.Command {
 		NewVersionCommand(),
 		NewHelpCommand(),
 	)
-
-	// this is for mute klog
-	fset := flag.NewFlagSet("logs", flag.ContinueOnError)
-	klog.InitFlags(fset)
-	_ = fset.Set("v", "-1")
 
 	return cmds
 }
