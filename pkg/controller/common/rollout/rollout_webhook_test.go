@@ -19,9 +19,11 @@ package rollout
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,7 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam"
 )
 
-const mockUrl = "127.0.0.1:4848"
+const mockUrlBase = "127.0.0.1:"
 
 func TestMakeHTTPRequest(t *testing.T) {
 	ctx := context.TODO()
@@ -110,9 +112,10 @@ func TestMakeHTTPRequest(t *testing.T) {
 		},
 	}
 	for testName, tt := range tests {
-		func(testName string) {
+		t.Run(testName, func(t *testing.T) {
+			mockUrl := mockUrlBase + strconv.FormatInt(rand.Int63n(128)+1000, 10)
 			// generate a test server so we can capture and inspect the request
-			testServer := NewMock(tt.httpParameter.method, tt.httpParameter.statusCode, tt.httpParameter.body)
+			testServer := NewMock(tt.httpParameter.method, mockUrl, tt.httpParameter.statusCode, tt.httpParameter.body)
 			defer testServer.Close()
 			if len(tt.url) == 0 {
 				tt.url = mockUrl
@@ -134,18 +137,16 @@ func TestMakeHTTPRequest(t *testing.T) {
 				if tt.want.err != nil && gotErr != nil && gotErr.Error() != tt.want.err.Error() {
 					t.Errorf("\n%s\nr.Reconcile(...): want error `%s`, got error:`%s`\n", testName, tt.want.err, gotErr)
 				}
-
 			}
 			if string(gotReply) != tt.want.body {
 				t.Errorf("\n%s\nr.Reconcile(...): want reply `%s`, got reply:`%s`\n", testName, tt.want.body, string(gotReply))
 			}
-		}(testName)
+		})
 	}
 }
 
 func TestCallWebhook(t *testing.T) {
 	ctx := context.TODO()
-	url := "http://" + mockUrl
 	body := "all good"
 	res := v1alpha1.PodSpecWorkload{
 		ObjectMeta: metav1.ObjectMeta{
@@ -168,9 +169,7 @@ func TestCallWebhook(t *testing.T) {
 			args: args{
 				resource: &res,
 				phase:    string(v1alpha1.RollingInBatchesState),
-				rw: v1alpha1.RolloutWebhook{
-					URL: url,
-				},
+				rw:       v1alpha1.RolloutWebhook{},
 			},
 			wantErr: nil,
 		},
@@ -179,9 +178,7 @@ func TestCallWebhook(t *testing.T) {
 			args: args{
 				resource: &res,
 				phase:    string(v1alpha1.RollingInBatchesState),
-				rw: v1alpha1.RolloutWebhook{
-					URL: url,
-				},
+				rw:       v1alpha1.RolloutWebhook{},
 			},
 			wantErr: fmt.Errorf("we fail the webhook request based on status, http status = %d", http.StatusAlreadyReported),
 		},
@@ -191,7 +188,6 @@ func TestCallWebhook(t *testing.T) {
 				resource: &res,
 				phase:    string(v1alpha1.RollingInBatchesState),
 				rw: v1alpha1.RolloutWebhook{
-					URL:            url,
 					ExpectedStatus: []int{http.StatusNoContent, http.StatusAlreadyReported},
 				},
 			},
@@ -203,7 +199,6 @@ func TestCallWebhook(t *testing.T) {
 				resource: &res,
 				phase:    string(v1alpha1.RolloutFailedState),
 				rw: v1alpha1.RolloutWebhook{
-					URL:            url,
 					ExpectedStatus: []int{http.StatusNoContent, http.StatusAlreadyReported},
 				},
 			},
@@ -212,8 +207,10 @@ func TestCallWebhook(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
+			url := mockUrlBase + strconv.FormatInt(rand.Int63n(4848)+100, 10)
+			tt.args.rw.URL = "http://" + url
 			// generate a test server so we can capture and inspect the request
-			testServer := NewMock(http.MethodPost, tt.returnedStatusCode, body)
+			testServer := NewMock(http.MethodPost, url, tt.returnedStatusCode, body)
 			defer testServer.Close()
 
 			gotErr := callWebhook(ctx, tt.args.resource, tt.args.phase, tt.args.rw)
@@ -227,7 +224,7 @@ func TestCallWebhook(t *testing.T) {
 	}
 }
 
-func NewMock(method string, statusCode int, body string) *httptest.Server {
+func NewMock(method, mockUrl string, statusCode int, body string) *httptest.Server {
 	ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.Method == method {
 			w.WriteHeader(statusCode)
@@ -236,7 +233,10 @@ func NewMock(method string, statusCode int, body string) *httptest.Server {
 			w.WriteHeader(http.StatusBadRequest)
 		}
 	}))
-	l, _ := net.Listen("tcp", mockUrl)
+	l, err := net.Listen("tcp", mockUrl)
+	if err != nil {
+		panic(err)
+	}
 	ts.Listener.Close()
 	ts.Listener = l
 	ts.Start()
