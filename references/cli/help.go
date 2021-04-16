@@ -53,7 +53,6 @@ func RunHelp(cmd *cobra.Command, args []string) {
 
 // PrintHelpByTag print custom defined help message
 func PrintHelpByTag(cmd *cobra.Command, all []*cobra.Command, tag string) {
-	cmd.Printf("  %s:\n\n", tag)
 	table := newUITable()
 	for _, c := range all {
 		if val, ok := c.Annotations[types.TagCommandType]; ok && val == tag {

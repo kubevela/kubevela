@@ -40,9 +40,9 @@ func NewCommand() *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			allCommands := cmd.Commands()
 			cmd.Printf("A Highly Extensible Platform Engine based on Kubernetes and Open Application Model.\n\nUsage:\n  kubectl vela [flags]\n  kubectl vela [command]\n\nAvailable Commands:\n\n")
+			cli.PrintHelpByTag(cmd, allCommands, types.TypePlugin)
 			cmd.Println("Flags:")
 			cmd.Println("  -h, --help   help for vela")
-			cli.PrintHelpByTag(cmd, allCommands, types.TypePlugin)
 			cmd.Println()
 			cmd.Println(`Use "kubectl vela [command] --help" for more information about a command.`)
 		},
