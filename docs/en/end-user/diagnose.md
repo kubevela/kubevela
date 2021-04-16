@@ -2,29 +2,15 @@
 title: Debug and Test
 ---
 
-Now you can use the debug and test feature of vela through the kubectl plugin.
+You can make further debug and test for your application by using [vela kubectl plugin](./kubctlplugin).
 
-## Installation
+## Dry-Run the `Application`
 
-You can install kubectl plugin `kubectl vela` by:
+Dry run will help you to understand what are the real resources which will to be expanded and deployed
+to the Kubernetes cluster. In other words, it will mock to run the same logic as KubeVela's controller 
+and output the results locally.
 
-**macOS/Linux**
-```shell script
-curl -fsSl https://kubevela.io/script/install-kubectl-vela.sh | bash
-```
-
-## Debug and Test
-
-`kubectl vela` supports several killer debug features, you can view and compare the 
-rendering results of the Application through kubectl.
-
-### Dry-Run the `Application`
-
-You can use `kubectl vela` to dry run and check the rendered resources in real Kubernetes cluster. 
-This command will exactly execute the same render logic in KubeVela's Application Controller 
-and output the result for you.
-
-Suppose we have the following Application
+For example, let's dry-run the following application:
 
 ```yaml
 # app.yaml
@@ -46,8 +32,6 @@ spec:
             http:
               "/": 8000
 ```
-
-Through `kubectl vela dry-run`, you can see the k8s resources that the application will generate in the cluster.
 
 ```shell
 kubectl vela dry-run -f app.yaml
@@ -121,35 +105,31 @@ spec:
 ```
 
 In this example, the definitions(`webservice` and `ingress`) which `vela-app` depends on is the built-in 
-definitions of KubeVela. You can also use `-d `or `--definitions` to specify the local definition files.
+components and traits of KubeVela. You can also use `-d `or `--definitions` to specify your local definition files.
 
 `-d `or `--definitions` permitting user to provide capability definitions used in the application from local files.
 `dry-run` cmd will prioritize the provided capabilities than the living ones in the cluster.
 
-### Live-Diff the `Application`
+## Live-Diff the `Application`
 
-`kubectl vela live-diff` allows users to have a preview of what would change if upgrade an application. 
-It basically generates a diff between the specific revision of an application and the result of `kubectl vela dry-run`
+Live-diff helps you to have a preview of what would change if you're going to upgrade an application without making any changes
+to the living cluster.
+This feature is extremely useful for serious production deployment, and make the upgrade under control
+
+It basically generates a diff between the specific revision of running instance and the local candidate application.
 The result shows the changes (added/modified/removed/no_change) of the application as well as its sub-resources, 
-such as components and traits. `live-diff` will not make any changes to the living cluster, 
-so it's very helpful if you want to update an application but worry about the unknown results that may be produced.
+such as components and traits.
 
-Let's deploy the application `vela-app` mentioned [here](#dry-run-the-application).
-
-```shell
-kubectl apply -f app.yaml
-```
-
-Then you can see that the v1 version of Application is generated.
+Assume you have just deployed the application in dry-run section.
+Then you can list the revisions of the Application.
 
 ```shell
-$ kubectl get applicationrevisions.core.oam.dev
+$ kubectl get apprev -l app.oam.dev/name=vela-app
 NAME          AGE
 vela-app-v1   50s
 ```
 
-Then, assume we want to update the application with below configuration. To preview changes brought by updating 
-while not really apply updated configuration into the cluster, we can use `live-diff` here.
+Assume we're going to upgrade the application like below.
 
 ```yaml
 # new-app.yaml
@@ -178,6 +158,11 @@ spec:
               "/": 8080 # change port
 ```
 
+Run live-diff like this:
+
+```shell
+kubectl vela live-diff -f new-app.yaml -r vela-app-v1
+```
 
 `-r` or `--revision` is a flag that specifies the name of a living ApplicationRevision with which you want to compare the updated application.
 
@@ -185,11 +170,7 @@ spec:
 which are out of the context of a change will be omitted. It's useful if the diff result contains a lot of unchanged content 
 while you just want to focus on the changed ones.
 
-```shell
-kubectl vela live-diff -f new-app.yaml -r vela-app-v1
-```
-
-<details><summary> Click to view diff result </summary>
+<details><summary> Click to view the details of diff result </summary>
 
 ```bash
 ---

@@ -28,7 +28,9 @@ module.exports = {
         'rollout/appdeploy',
         {
           'More Operations': [
+            'end-user/kubectlplugin',
             'end-user/explore',
+            'end-user/diagnose',
             'end-user/expose',
             'end-user/scale',
             'end-user/labels',
