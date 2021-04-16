@@ -98,7 +98,7 @@ worker            Deployment      Describes long-running, scalable, containerize
 The component definition objects are namespace isolated align with application, while the `vela-system` is a common system namespace of KubeVela,
 definitions laid here can be used by every application. 
 
-You can use `kubectl vela show` to see the usage of specific component definition.
+You can use [vela kubectl plugin](./kubectlplugin) to view the detail usage of specific component definition.
 
 ```shell
 $ kubectl vela show webservice

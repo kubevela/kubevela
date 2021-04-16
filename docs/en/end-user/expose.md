@@ -6,6 +6,21 @@ title: Expose Application
 
 To expose your application publicly, you just need to add an `ingress` trait.
 
+View ingress schema by [vela kubectl plugin](./kubectlplugin).
+
+```shell
+$ kubectl vela show ingress
+# Properties
++--------+------------------------------------------------------------------------------+----------------+----------+---------+
+|  NAME  |                                 DESCRIPTION                                  |      TYPE      | REQUIRED | DEFAULT |
++--------+------------------------------------------------------------------------------+----------------+----------+---------+
+| http   | Specify the mapping relationship between the http path and the workload port | map[string]int | true     |         |
+| domain | Specify the domain you want to expose                                        | string         | true     |         |
++--------+------------------------------------------------------------------------------+----------------+----------+---------+
+```
+
+Then modify and deploy this application.
+
 ```yaml
 # vela-app.yaml
 apiVersion: core.oam.dev/v1beta1
@@ -26,8 +41,6 @@ spec:
             http:
               "/": 8000
 ```
-
-Apply this application:
 
 ```bash
 $ kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/vela-app.yaml
