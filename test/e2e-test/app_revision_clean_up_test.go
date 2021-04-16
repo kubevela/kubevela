@@ -291,7 +291,7 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 			},
 			Spec: v1beta1.AppRolloutSpec{
 				TargetAppRevisionName: appName + "-v3",
-				ComponentList:         []string{"comp-1"},
+				ComponentList:         []string{"comp1"},
 				RolloutPlan: v1alpha1.RolloutPlan{
 					RolloutBatches: []v1alpha1.RolloutBatch{
 						{
