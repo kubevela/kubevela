@@ -1,8 +1,3 @@
-parameter: {
-	domain: string
-	http: [string]: int
-}
-
 // trait template can have multiple outputs in one trait
 outputs: service: {
 	apiVersion: "v1"
@@ -43,4 +38,12 @@ outputs: ingress: {
 			}
 		}]
 	}
+}
+
+parameter: {
+	// +usage=Specify the domain you want to expose
+	domain: string
+
+	// +usage=Specify the mapping relationship between the http path and the workload port
+	http: [string]: int
 }
