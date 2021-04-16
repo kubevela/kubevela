@@ -111,80 +111,6 @@ spec:
 
 ```
 
-### Prepare TraitDefinition `service-binding` to do env-secret mapping
-
-As for data binding in Application, KubeVela recommends defining a trait to finish the job. We have prepared a common
-trait for convenience. This trait works well for binding resources' info into pod spec Env.
-
-```yaml
-apiVersion: core.oam.dev/v1beta1
-kind: TraitDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: "binding cloud resource secrets to pod env"
-  name: service-binding
-spec:
-  appliesToWorkloads:
-    - webservice
-    - worker
-  schematic:
-    cue:
-      template: |
-        patch: {
-        	spec: template: spec: {
-        		// +patchKey=name
-        		containers: [{
-        			name: context.name
-        			// +patchKey=name
-        			env: [
-        				for envName, v in parameter.envMappings {
-        					name: envName
-        					valueFrom: {
-        						secretKeyRef: {
-        							name: v.secret
-        							if v["key"] != _|_ {
-        								key: v.key
-        							}
-        							if v["key"] == _|_ {
-        								key: envName
-        							}
-        						}
-        					}
-        				},
-        			]
-        		}]
-        	}
-        }
-
-        parameter: {
-        	envMappings: [string]: [string]: string
-        }
-```
-
-With the help of this `service-binding` trait, developers can explicitly set parameter `envMappings` to mapping all
-environment names with secret key. Here is an example.
-
-```yaml
-...
-      traits:
-        - type: service-binding
-          properties:
-            envMappings:
-              # environments refer to db-conn secret
-              DB_PASSWORD:
-                secret: db-conn
-                key: password                                     # 1) If the env name is different from secret key, secret key has to be set.
-              endpoint:
-                secret: db-conn                                   # 2) If the env name is the same as the secret key, secret key can be omitted.
-              username:
-                secret: db-conn
-              # environments refer to oss-conn secret
-              BUCKET_NAME:
-                secret: oss-conn
-                key: Bucket
-...
-```
-
 ### Register ComponentDefinition `alibaba-oss` as OSS cloud resource producer
 
 ```yaml
@@ -337,3 +263,78 @@ the secret and bind the data into the CUE struct `dbConn`.
 
 Then the `output` can reference the `dbConn` struct for the data value. The name `dbConn` can be any name.
 It's just an example in this case. The `+insertSecretTo` is keyword, it defines the data binding mechanism.
+
+### Prepare TraitDefinition `service-binding` to do env-secret mapping
+
+As for data binding in Application, KubeVela recommends defining a trait to finish the job. We have prepared a common
+trait for convenience. This trait works well for binding resources' info into pod spec Env.
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "binding cloud resource secrets to pod env"
+  name: service-binding
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  schematic:
+    cue:
+      template: |
+        patch: {
+        	spec: template: spec: {
+        		// +patchKey=name
+        		containers: [{
+        			name: context.name
+        			// +patchKey=name
+        			env: [
+        				for envName, v in parameter.envMappings {
+        					name: envName
+        					valueFrom: {
+        						secretKeyRef: {
+        							name: v.secret
+        							if v["key"] != _|_ {
+        								key: v.key
+        							}
+        							if v["key"] == _|_ {
+        								key: envName
+        							}
+        						}
+        					}
+        				},
+        			]
+        		}]
+        	}
+        }
+
+        parameter: {
+        	envMappings: [string]: [string]: string
+        }
+
+```
+
+With the help of this `service-binding` trait, developers can explicitly set parameter `envMappings` to mapping all
+environment names with secret key. Here is an example.
+
+```yaml
+...
+      traits:
+        - type: service-binding
+          properties:
+            envMappings:
+              # environments refer to db-conn secret
+              DB_PASSWORD:
+                secret: db-conn
+                key: password                                     # 1) If the env name is different from secret key, secret key has to be set.
+              endpoint:
+                secret: db-conn                                   # 2) If the env name is the same as the secret key, secret key can be omitted.
+              username:
+                secret: db-conn
+              # environments refer to oss-conn secret
+              BUCKET_NAME:
+                secret: oss-conn
+                key: Bucket
+...
+```
