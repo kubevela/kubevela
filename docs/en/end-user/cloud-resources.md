@@ -9,14 +9,21 @@ title: Provision and Consume Cloud Resources
 Check the parameters of cloud resource component:
 
 ```shell
-kubectl vela show alibaba-rds
+$ kubectl vela show alibaba-rds
+
+# Properties
++---------------+------------------------------------------------+--------+----------+--------------------+
+|     NAME      |                  DESCRIPTION                   |  TYPE  | REQUIRED |      DEFAULT       |
++---------------+------------------------------------------------+--------+----------+--------------------+
+| engine        | RDS engine                                     | string | true     | mysql              |
+| engineVersion | The version of RDS engine                      | string | true     |                8.0 |
+| instanceClass | The instance class for the RDS                 | string | true     | rds.mysql.c1.large |
+| username      | RDS username                                   | string | true     |                    |
+| secretName    | Secret name which RDS connection will write to | string | true     |                    |
++---------------+------------------------------------------------+--------+----------+--------------------+
 ```
 
 Use the service binding trait to bind cloud resources into workload as ENV.
-
-```shell
-kubectl vela show service-binding
-```
 
 Create an application with a cloud resource provisioning component and a consuming component as below.
 

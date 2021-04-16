@@ -102,12 +102,18 @@ spec:
         	}
         }
         parameter: {
-        	engine:        *"mysql" | string
+        	// +usage=RDS engine
+        	engine: *"mysql" | string
+        	// +usage=The version of RDS engine
         	engineVersion: *"8.0" | string
+        	// +usage=The instance class for the RDS
         	instanceClass: *"rds.mysql.c1.large" | string
-        	username:      string
-        	secretName:    string
+        	// +usage=RDS username
+        	username: string
+        	// +usage=Secret name which RDS connection will write to
+        	secretName: string
         }
+
 
 ```
 
@@ -148,12 +154,18 @@ spec:
         	}
         }
         parameter: {
-        	name:               string
-        	acl:                *"private" | string
-        	storageClass:       *"Standard" | string
+        	// +usage=OSS bucket name
+        	name: string
+        	// +usage=The access control list of the OSS bucket
+        	acl: *"private" | string
+        	// +usage=The storage type of OSS bucket
+        	storageClass: *"Standard" | string
+        	// +usage=The data Redundancy type of OSS bucket
         	dataRedundancyType: *"LRS" | string
-        	secretName:         string
+        	// +usage=Secret name which RDS connection will write to
+        	secretName: string
         }
+
 ```
 
 ### Register ComponentDefinition `webconsumer` with Secret Reference
@@ -310,6 +322,7 @@ spec:
         }
 
         parameter: {
+        	// +usage=The mapping of environment variables to secret
         	envMappings: [string]: [string]: string
         }
 
