@@ -26,9 +26,6 @@ spec:
     - jsonPath: .metadata.annotations.definition\.oam\.dev/description
       name: DESCRIPTION
       type: string
-    - jsonPath: .metadata.creationTimestamp
-      name: AGE
-      type: date
     name: v1alpha2
     schema:
       openAPIV3Schema:
@@ -209,9 +206,6 @@ spec:
     - jsonPath: .metadata.annotations.definition\.oam\.dev/description
       name: DESCRIPTION
       type: string
-    - jsonPath: .metadata.creationTimestamp
-      name: AGE
-      type: date
     name: v1beta1
     schema:
       openAPIV3Schema:
