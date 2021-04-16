@@ -1,5 +1,5 @@
 ---
-title: Provision and Consume Cloud Resources
+title: Crossplane
 ---
 
 Cloud services is also part of your application deployment.
