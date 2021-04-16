@@ -27,14 +27,13 @@ import (
 )
 
 func TestWorkloadTemplateComplete(t *testing.T) {
-
-	testCases := []struct {
+	testCases := map[string]struct {
 		workloadTemplate string
 		params           map[string]interface{}
 		expectObj        runtime.Object
 		expAssObjs       map[string]runtime.Object
 	}{
-		{
+		"only contain an output": {
 			workloadTemplate: `
 output:{
 	apiVersion: "apps/v1"
@@ -53,9 +52,14 @@ parameter: {
 				"type":     "ClusterIP",
 				"host":     "example.com",
 			},
-			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "apps/v1", "kind": "Deployment", "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"replicas": int64(2)}}},
+			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata":   map[string]interface{}{"name": "test"},
+				"spec":       map[string]interface{}{"replicas": int64(2)},
+			}},
 		},
-		{
+		"contain output and outputs": {
 			workloadTemplate: `
 output:{
 	apiVersion: "apps/v1"
@@ -87,15 +91,37 @@ parameter: {
 				"type":     "ClusterIP",
 				"host":     "example.com",
 			},
-			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "apps/v1", "kind": "Deployment", "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"replicas": int64(2)}}},
+			expectObj: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "apps/v1", "kind": "Deployment", "metadata": map[string]interface{}{"name": "test"},
+					"spec": map[string]interface{}{
+						"replicas": int64(2),
+					},
+				},
+			},
 			expAssObjs: map[string]runtime.Object{
-				"service": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "v1", "kind": "Service", "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"type": "ClusterIP"}}},
-				"ingress": &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "extensions/v1beta1", "kind": "Ingress", "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"rules": []interface{}{map[string]interface{}{
-					"host": "example.com",
-				}}}}},
+				"service": &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "v1", "kind": "Service", "metadata": map[string]interface{}{"name": "test"},
+						"spec": map[string]interface{}{"type": "ClusterIP"},
+					},
+				},
+				"ingress": &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "extensions/v1beta1", "kind": "Ingress", "metadata": map[string]interface{}{
+							"name": "test",
+						}, "spec": map[string]interface{}{
+							"rules": []interface{}{
+								map[string]interface{}{
+									"host": "example.com",
+								},
+							},
+						},
+					},
+				},
 			},
 		},
-		{
+		"output needs context appRevision": {
 			workloadTemplate: `
 output:{
 	apiVersion: "apps/v1"
@@ -117,9 +143,19 @@ parameter: {
 				"type":     "ClusterIP",
 				"host":     "example.com",
 			},
-			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "apps/v1", "kind": "Deployment", "metadata": map[string]interface{}{"name": "test", "annotations": map[string]interface{}{"revision.oam.dev": "myapp-v1"}}, "spec": map[string]interface{}{"replicas": int64(2)}}},
+			expectObj: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "apps/v1", "kind": "Deployment", "metadata": map[string]interface{}{
+						"name": "test", "annotations": map[string]interface{}{
+							"revision.oam.dev": "myapp-v1",
+						},
+					}, "spec": map[string]interface{}{
+						"replicas": int64(2),
+					},
+				},
+			},
 		},
-		{
+		"output needs context replicas": {
 			workloadTemplate: `
 output:{
 	apiVersion: "apps/v1"
@@ -133,8 +169,15 @@ parameter: {
 	replicas: *1 | int
 }
 `,
-			params:    nil,
-			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{"apiVersion": "apps/v1", "kind": "Deployment", "metadata": map[string]interface{}{"name": "test"}, "spec": map[string]interface{}{"replicas": int64(1)}}},
+			params: nil,
+			expectObj: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "apps/v1", "kind": "Deployment", "metadata": map[string]interface{}{"name": "test"},
+					"spec": map[string]interface{}{
+						"replicas": int64(1),
+					},
+				},
+			},
 		},
 	}
 
