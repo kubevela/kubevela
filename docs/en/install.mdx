@@ -97,6 +97,37 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/mast
     By default, it will enable the webhook with a self-signed certificate provided by [kube-webhook-certgen](https://github.com/jet/kube-webhook-certgen).
     You can also [install it with `cert-manager`](./advanced-install#install-kubevela-with-cert-manager).
 
+4. Verify chart installed successfully
+    ```shell script
+    helm test kubevela -n vela-system
+    ```
+
+    <details> <summary> Click to see the expected output of helm test </summary>
+
+    ```shell
+    Pod kubevela-application-test pending
+    Pod kubevela-application-test pending
+    Pod kubevela-application-test running
+    Pod kubevela-application-test succeeded
+    NAME: kubevela
+    LAST DEPLOYED: Tue Apr 13 18:42:20 2021
+    NAMESPACE: vela-system
+    STATUS: deployed
+    REVISION: 1
+    TEST SUITE:     kubevela-application-test
+    Last Started:   Fri Apr 16 20:49:10 2021
+    Last Completed: Fri Apr 16 20:50:04 2021
+    Phase:          Succeeded
+    TEST SUITE:     first-vela-app
+    Last Started:   Fri Apr 16 20:49:10 2021
+    Last Completed: Fri Apr 16 20:49:10 2021
+    Phase:          Succeeded
+    NOTES:
+    Welcome to use the KubeVela! Enjoy your shipping application journey!
+    ```
+
+    </details>
+
 ## 3. Get KubeVela CLI
 
 Using KubeVela CLI gives you a simplified workflow with optimized output comparing to using `kubectl`. It is not mandatory though.

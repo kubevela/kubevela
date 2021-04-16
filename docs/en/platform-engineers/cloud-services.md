@@ -338,3 +338,5 @@ environment names with secret key. Here is an example.
                 key: Bucket
 ...
 ```
+
+You can see [the end user usage workflow](../end-user/cloud-resources) to know how it used. 

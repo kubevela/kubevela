@@ -8,6 +8,18 @@ In the [Deploy Application](../application) section, we use `cpuscaler` trait as
 
 You can use scale your application manually by using `scaler` trait.
 
+```shell
+$ kubectl vela show scaler 
+# Properties
++----------+--------------------------------+------+----------+---------+
+|   NAME   |          DESCRIPTION           | TYPE | REQUIRED | DEFAULT |
++----------+--------------------------------+------+----------+---------+
+| replicas | Specify replicas of workload   | int  | true     |       1 |
++----------+--------------------------------+------+----------+---------+
+```
+
+Deploy the application.
+
 ```yaml
 # sample-manual.yaml
 apiVersion: core.oam.dev/v1beta1
