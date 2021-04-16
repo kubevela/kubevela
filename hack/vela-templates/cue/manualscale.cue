@@ -2,6 +2,6 @@ patch: {
 	spec: replicas: parameter.replicas
 }
 parameter: {
-	//+short=r
+	// +usage=Specify the number of workload
 	replicas: *1 | int
 }

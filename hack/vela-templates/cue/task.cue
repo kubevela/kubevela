@@ -18,7 +18,7 @@ output: {
 	}
 }
 parameter: {
-	// +usage=specify number of tasks to run in parallel
+	// +usage=Specify number of tasks to run in parallel
 	// +short=c
 	count: *1 | int
 
