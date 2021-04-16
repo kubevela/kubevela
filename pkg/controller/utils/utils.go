@@ -294,3 +294,45 @@ func RefreshPackageDiscover(dm discoverymapper.DiscoveryMapper, pd *definition.P
 	}
 	return nil
 }
+
+// CheckAppDeploymentUsingAppRevision get all appDeployments using appRevisions related the app
+func CheckAppDeploymentUsingAppRevision(ctx context.Context, c client.Reader, appNs string, appName string) ([]string, error) {
+	deployOpts := []client.ListOption{
+		client.InNamespace(appNs),
+	}
+	var res []string
+	ads := new(v1beta1.AppDeploymentList)
+	if err := c.List(ctx, ads, deployOpts...); err != nil {
+		return nil, err
+	}
+	if len(ads.Items) == 0 {
+		return res, nil
+	}
+	relatedRevs := new(v1beta1.ApplicationRevisionList)
+	revOpts := []client.ListOption{
+		client.InNamespace(appNs),
+		client.MatchingLabels{oam.LabelAppName: appName},
+	}
+	if err := c.List(ctx, relatedRevs, revOpts...); err != nil {
+		return nil, err
+	}
+	if len(relatedRevs.Items) == 0 {
+		return res, nil
+	}
+	revName := map[string]bool{}
+	for _, rev := range relatedRevs.Items {
+		if len(rev.Name) != 0 {
+			revName[rev.Name] = true
+		}
+	}
+	for _, d := range ads.Items {
+		for _, dr := range d.Spec.AppRevisions {
+			if len(dr.RevisionName) != 0 {
+				if revName[dr.RevisionName] {
+					res = append(res, dr.RevisionName)
+				}
+			}
+		}
+	}
+	return res, nil
+}

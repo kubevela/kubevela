@@ -89,6 +89,8 @@ func main() {
 	flag.BoolVar(&logDebug, "log-debug", false, "Enable debug logs for development purpose")
 	flag.IntVar(&controllerArgs.RevisionLimit, "revision-limit", 50,
 		"RevisionLimit is the maximum number of revisions that will be maintained. The default value is 50.")
+	flag.IntVar(&controllerArgs.AppRevisionLimit, "application-revision-limit", 10,
+		"application-revision-limit is the maximum number of application useless revisions that will be maintained, if the useless revisions exceed this number, older ones will be GCed first.The default value is 10.")
 	flag.StringVar(&controllerArgs.CustomRevisionHookURL, "custom-revision-hook-url", "",
 		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
 	flag.BoolVar(&controllerArgs.ApplicationConfigurationInstalled, "app-config-installed", true,

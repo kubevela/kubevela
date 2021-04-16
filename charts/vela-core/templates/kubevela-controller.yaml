@@ -121,6 +121,7 @@ spec:
             - "--disable-caps={{ .Values.disableCaps }}"
             {{ end }}
             - "--system-definition-namespace={{ .Values.systemDefinitionNamespace }}"
+            - "--application-revision-limit={{ .Values.applicationRevisionLimit }}"
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ quote .Values.image.pullPolicy }}
           resources:

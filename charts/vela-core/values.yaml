@@ -80,3 +80,5 @@ admissionWebhooks:
 
 
 systemDefinitionNamespace: vela-system
+
+applicationRevisionLimit: 10

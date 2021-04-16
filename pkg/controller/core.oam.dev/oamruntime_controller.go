@@ -48,6 +48,10 @@ type Args struct {
 	// The default value is 50.
 	RevisionLimit int
 
+	// AppRevisionLimit is the maximum number of application revisions that will be maintained.
+	// The default value is 10.
+	AppRevisionLimit int
+
 	// ApplyMode indicates whether workloads and traits should be
 	// affected if no spec change is made in the ApplicationConfiguration.
 	ApplyMode ApplyOnceOnlyMode
