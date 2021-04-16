@@ -200,8 +200,6 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 	for _, wl := range appFile.Workloads {
 		var status = common.ApplicationComponentStatus{
 			Name: wl.Name,
-			// add workload definition to status, related issue:
-			// https://github.com/oam-dev/kubevela/issues/1351
 			WorkloadDefinition: wl.FullTemplate.Reference,
 			Healthy:            true,
 		}
