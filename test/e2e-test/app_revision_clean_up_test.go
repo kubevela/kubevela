@@ -28,6 +28,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	v1 "k8s.io/api/core/v1"
@@ -35,6 +36,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -289,6 +291,14 @@ var _ = Describe("Test application controller clean up appRevision", func() {
 			},
 			Spec: v1beta1.AppRolloutSpec{
 				TargetAppRevisionName: appName + "-v3",
+				ComponentList:         []string{"comp-1"},
+				RolloutPlan: v1alpha1.RolloutPlan{
+					RolloutBatches: []v1alpha1.RolloutBatch{
+						{
+							Replicas: intstr.FromInt(1),
+						},
+					},
+				},
 			},
 		}
 		Expect(k8sClient.Create(ctx, appRollout)).Should(BeNil())
