@@ -185,8 +185,6 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	err = garbageCollection(ctx, handler)
 	if err != nil {
 		applog.Error(err, "[Garbage collection]")
-		app.Status.SetConditions(errorCondition("GarbageCollection", err))
-		return handler.handleErr(err)
 	}
 	// Gather status of components
 	var refComps []v1alpha1.TypedReference
