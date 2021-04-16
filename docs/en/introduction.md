@@ -68,4 +68,4 @@ KubeVela is a Kubernetes add-on for building developer-centric deployment system
 
 ## Getting Started
 
-Now let's [get started](./quick-start.md) with KubeVela!
+Now let's [get started](./quick-start) with KubeVela!
