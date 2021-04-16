@@ -150,7 +150,7 @@ In this section, cloud resource will be provisioned in one application and consu
 
 ### Provision Cloud Resource
 
-Instantiate RDS component with `alibaba-rds` workload type in an [Application](../application.md) to provide cloud resources.
+Instantiate RDS component with `alibaba-rds` workload type in an [Application](../application) to provide cloud resources.
 
 As we have claimed an RDS instance with ComponentDefinition name `alibaba-rds`.
 The component in the application should refer to this type.
