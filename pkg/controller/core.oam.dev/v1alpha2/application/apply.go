@@ -199,7 +199,7 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 	var healthy = true
 	for _, wl := range appFile.Workloads {
 		var status = common.ApplicationComponentStatus{
-			Name: wl.Name,
+			Name:               wl.Name,
 			WorkloadDefinition: wl.FullTemplate.Reference,
 			Healthy:            true,
 		}
