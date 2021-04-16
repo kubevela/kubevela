@@ -2,10 +2,21 @@
 title: Provision and Consume Cloud Resources
 ---
 
-We assure that Crossplane controllers, ProviderConfig, ComponentDefinition and TraitDefinition are ready. If not, please
-refer to [section: Cloud Service for Platform Engineers](../platform-engineers/cloud-services.md)
+> ⚠️ This section requires your platform builder has already installed the [cloud resources related capabilities](../platform-engineers/cloud-services).
 
 ## Provision and consume cloud resource in a single application v1 (one cloud resource)
+
+Check the parameters of cloud resource component:
+
+```shell
+kubectl vela show alibaba-rds
+```
+
+Use the service binding trait to bind cloud resources into workload as ENV.
+
+```shell
+kubectl vela show service-binding
+```
 
 Create an application with a cloud resource provisioning component and a consuming component as below.
 
