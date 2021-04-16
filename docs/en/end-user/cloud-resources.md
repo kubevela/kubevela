@@ -62,7 +62,7 @@ Handling connection for 80
 
 ![](../resources/crossplane-visit-application.jpg)
 
-## Provisioning and consuming cloud resource in a single application v2 (two cloud resources)
+## Provision and consume cloud resource in a single application v2 (two cloud resources)
 
 Based on the section `Provisioning and consuming cloud resource in a single application v1 (one cloud resource)`, 
 
@@ -126,7 +126,7 @@ Handling connection for 80
 
 ![](../resources/crossplane-visit-application-v2.jpg)
 
-## Provisioning and consuming cloud resource in different applications
+## Provision and consume cloud resource in different applications
 
 In this section, cloud resource will be provisioned in one application and consumed in another application.
 
@@ -182,7 +182,7 @@ data:
 kind: Secret
 ```
 
-### Consuming the Cloud Resource
+### Consume the Cloud Resource
 
 In this section, we will show how another component consumes the RDS instance.
 
