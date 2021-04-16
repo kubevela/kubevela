@@ -1241,9 +1241,10 @@ spec:
 		}(), 5*time.Second, time.Second).Should(BeEquivalentTo(common.ApplicationRunning))
 		Expect(checkApp.Status.Services).Should(BeEquivalentTo([]common.ApplicationComponentStatus{
 			{
-				Name:    compName,
-				Healthy: true,
-				Message: "type: busybox,\t enemies:alien",
+				Name:               compName,
+				WorkloadDefinition: ncd.Spec.Workload.Definition,
+				Healthy:            true,
+				Message:            "type: busybox,\t enemies:alien",
 				Traits: []common.ApplicationTraitStatus{
 					{
 						Type:    "ingress",
