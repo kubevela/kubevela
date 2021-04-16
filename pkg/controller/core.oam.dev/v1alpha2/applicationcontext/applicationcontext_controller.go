@@ -109,8 +109,8 @@ func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 	reconResult := acReconciler.ACReconcile(ctx, appConfig, r.log)
 	appContextPatch := client.MergeFrom(appContext.DeepCopy())
 	appContext.Status = appConfig.Status
-         // always update ac status and set the error
-         // this should be the only place for status of AppContext to update, so we can patch to avoid update conflicts caused by `resourceVersion` changed by spec.
+	// always update ac status and set the error
+	// this should be the only place for status of AppContext to update, so we can patch to avoid update conflicts caused by `resourceVersion` changed by spec.
 	err = errors.Wrap(r.client.Status().Patch(ctx, appContext, appContextPatch), errUpdateAppContextStatus)
 	// use the controller build-in backoff mechanism if an error occurs
 	if err != nil {
