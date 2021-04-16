@@ -36,11 +36,6 @@ echo "clear en docs"
 rm -r git-page/docs/*
 #echo "clear zh docs"
 #rm -r git-page/i18n/zh/docusaurus-plugin-content-docs/*
-echo "clear resources"
-rm -r git-page/resources/*
-
-echo "update resources"
-cp -R docs/resources/* git-page/resources/
 
 echo "update docs"
 cp -R docs/en/* git-page/docs/

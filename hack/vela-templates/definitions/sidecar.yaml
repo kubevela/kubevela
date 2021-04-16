@@ -1,0 +1,14 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "inject a sidecar container into your app"
+  name: sidecar
+  namespace: {{.Values.systemDefinitionNamespace}}
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  schematic:
+    cue:
+      template: |-

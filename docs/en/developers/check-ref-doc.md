@@ -22,7 +22,7 @@ This command will automatically open the reference documentation for given workl
 
 Let's take `$ vela show webservice --web` as example. The detailed schema documentation for `Web Service` workload type will show up immediately as below:
 
-![](../../resources/vela_show_webservice.jpg)
+![](../resources/vela_show_webservice.jpg)
 
 Note that there's in the section named `Specification`, it even provides you with a full sample for the usage of this workload type with a fake name `my-service-name`.
 
@@ -30,7 +30,7 @@ Note that there's in the section named `Specification`, it even provides you wit
 
 Similarly, we can also do `$ vela show autoscale --web`:
 
-![](../../resources/vela_show_autoscale.jpg)
+![](../resources/vela_show_autoscale.jpg)
 
 With these auto-generated reference documentations, we could easily complete the application description by simple copy-paste, for example:
 

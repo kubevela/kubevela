@@ -61,6 +61,7 @@ var testScheme = runtime.NewScheme()
 var reconciler *Reconciler
 var stop = make(chan struct{})
 var ctlManager ctrl.Manager
+var appRevisionLimit = 5
 
 // TODO: create a mock client and add UT to cover all the failure cases
 
@@ -122,11 +123,12 @@ var _ = BeforeSuite(func(done Done) {
 	pd, err := definition.NewPackageDiscover(cfg)
 	Expect(err).To(BeNil())
 	reconciler = &Reconciler{
-		Client: k8sClient,
-		Log:    ctrl.Log.WithName("Application-Test"),
-		Scheme: testScheme,
-		dm:     dm,
-		pd:     pd,
+		Client:           k8sClient,
+		Log:              ctrl.Log.WithName("Application-Test"),
+		Scheme:           testScheme,
+		dm:               dm,
+		pd:               pd,
+		appRevisionLimit: appRevisionLimit,
 	}
 	// setup the controller manager since we need the component handler to run in the background
 	ctlManager, err = ctrl.NewManager(cfg, ctrl.Options{

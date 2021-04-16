@@ -1,5 +1,5 @@
 ---
-title:  Defining KEDA as Autoscaling Trait
+title:  KEDA as Autoscaling Trait
 ---
 
 > Before continue, make sure you have learned about the concepts of [Definition Objects](definition-and-templates) and [Defining Traits with CUE](/docs/cue/trait) section.

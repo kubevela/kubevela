@@ -181,6 +181,11 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 }
 
 func (h *appHandler) createOrUpdateAppRevision(ctx context.Context, appRev *v1beta1.ApplicationRevision) error {
+	if appRev.Labels == nil {
+		appRev.Labels = make(map[string]string)
+	}
+	appRev.SetLabels(oamutil.MergeMapOverrideWithDst(appRev.Labels, map[string]string{oam.LabelAppName: h.app.Name}))
+
 	if h.isNewRevision {
 		var revisionNum int64
 		appRev.Name, revisionNum = utils.GetAppNextRevision(h.app)
@@ -199,8 +204,9 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 	var healthy = true
 	for _, wl := range appFile.Workloads {
 		var status = common.ApplicationComponentStatus{
-			Name:    wl.Name,
-			Healthy: true,
+			Name:               wl.Name,
+			WorkloadDefinition: wl.FullTemplate.Reference,
+			Healthy:            true,
 		}
 
 		var (
@@ -581,9 +587,26 @@ func (h *appHandler) recodeTrackedResource(resourceName string, resource runtime
 	return nil
 }
 
+type garbageCollectFunc func(ctx context.Context, h *appHandler) error
+
+// 1. collect useless across-namespace resource
+// 2. collect appRevision
+func garbageCollection(ctx context.Context, h *appHandler) error {
+	collectFuncs := []garbageCollectFunc{
+		garbageCollectFunc(gcAcrossNamespaceResource),
+		garbageCollectFunc(cleanUpApplicationRevision),
+	}
+	for _, collectFunc := range collectFuncs {
+		if err := collectFunc(ctx, h); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Now if workloads or traits are in the same namespace with application, applicationContext will take over gc workloads and traits.
 // Here we cover the case in witch a cross namespace component or one of its cross namespace trait is removed from an application.
-func (h *appHandler) garbageCollection(ctx context.Context) error {
+func gcAcrossNamespaceResource(ctx context.Context, h *appHandler) error {
 	rt := new(v1beta1.ResourceTracker)
 	err := h.r.Get(ctx, ctypes.NamespacedName{Name: h.generateResourceTrackerName()}, rt)
 	if err != nil {

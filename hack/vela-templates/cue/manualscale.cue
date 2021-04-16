@@ -1,12 +1,7 @@
-outputs: scaler: {
-	apiVersion: "core.oam.dev/v1alpha2"
-	kind:       "ManualScalerTrait"
-	spec: {
-		replicaCount: parameter.replicas
-	}
+patch: {
+	spec: replicas: parameter.replicas
 }
 parameter: {
-	//+short=r
-	//+usage=Replicas of the workload
+	// +usage=Specify the number of workload
 	replicas: *1 | int
 }

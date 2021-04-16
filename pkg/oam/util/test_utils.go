@@ -18,6 +18,8 @@ package util
 
 import (
 	"encoding/json"
+	"reflect"
+	"sort"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
@@ -186,4 +188,25 @@ func UnMarshalStringToTraitDefinition(s string) (*v1beta1.TraitDefinition, error
 		return nil, err
 	}
 	return obj, nil
+}
+
+// CheckAppRevision check if appRevision list is right
+func CheckAppRevision(revs []v1beta1.ApplicationRevision, collection []int) (bool, error) {
+	if len(revs) != len(collection) {
+		return false, nil
+	}
+	var revNums []int
+	for _, rev := range revs {
+		num, err := ExtractRevisionNum(rev.Name)
+		if err != nil {
+			return false, err
+		}
+		revNums = append(revNums, num)
+	}
+	sort.Ints(revNums)
+	sort.Ints(collection)
+	if reflect.DeepEqual(revNums, collection) {
+		return true, nil
+	}
+	return false, nil
 }

@@ -2,14 +2,14 @@
 
 [Here](https://github.com/oam-dev/kubevela/tree/master/docs) is the source documentation of [Kubevela website](http://kubevela.io/).
 Any files modifid here will trigger the `check-docs` Github action to run and validate the docs could be build successfully into the website.
-Any changes on these files(`docs/en/*`, `resource/*`, `sidebars.js`) will be submitted to the corresponding locations of the repo 
+Any changes on these files(`docs/en/*`, `docs/en/resource/*`, `sidebars.js`) will be submitted to the corresponding locations of the repo 
 [kubevela.io](https://github.com/oam-dev/kubevela.io). The Github-Action there will parse the document and publish it to the Kubevela Website automatically.
 
 Please follow our guides below to learn how to write the docs in the right way.
 
 ## Add or Update Docs
 
-When you add or modify the docs, these three files(`docs/en/`, `resource/` and `sidebars.js`) should be taken into consideration.
+When you add or modify the docs, these three files(`docs/en/`, `docs/en/resource/` and `sidebars.js`) should be taken into consideration.
 
 1. `docs/en/`, the main English documentation files are mainly located in this folder. All markdown files need to follow the format,
    that the title at the beginning should be in the following format:
@@ -28,11 +28,11 @@ When you add or modify the docs, these three files(`docs/en/`, `resource/` and `
     [the definition and template concepts](../platform-engineers/definition-and-templates)
     ```
    
-2. `resource/`, image files are located in this folder. When you want to use link any image in documentation, 
+2. `docs/en/resource/`, image files are located in this folder. When you want to use link any image in documentation, 
    you should put the image resources here and use a relative path like below:
   
    ```markdown
-    ![alt](../resources/concepts.png)
+    ![alt](./resources/concepts.png)
     ```
 
 3. `sidebars.js`, this file contain the navigation information of the KubeVela website.

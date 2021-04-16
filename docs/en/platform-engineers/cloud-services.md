@@ -1,5 +1,5 @@
 ---
-title:  Crossplane
+title: Crossplane
 ---
 
 Cloud services is also part of your application deployment.
@@ -57,11 +57,11 @@ spec:
 Note: We currently just use Crossplane Alibaba provider. But we are about to use [Crossplane](https://crossplane.io/) as the
 cloud resource operator for Kubernetes in the near future.
 
-## Provisioning and consuming cloud resource in a single application v1 (one cloud resource)
+## Register ComponentDefinition and TraitDefinition
 
-### Step 1: Register ComponentDefinition `alibaba-rds` as RDS cloud resource producer
+### Register ComponentDefinition `alibaba-rds` as RDS cloud resource producer
 
-First, register the `alibaba-rds` workload type to KubeVela.
+Register the `alibaba-rds` workload type to KubeVela.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -102,149 +102,22 @@ spec:
         	}
         }
         parameter: {
-        	engine:        *"mysql" | string
+        	// +usage=RDS engine
+        	engine: *"mysql" | string
+        	// +usage=The version of RDS engine
         	engineVersion: *"8.0" | string
+        	// +usage=The instance class for the RDS
         	instanceClass: *"rds.mysql.c1.large" | string
-        	username:      string
-        	secretName:    string
+        	// +usage=RDS username
+        	username: string
+        	// +usage=Secret name which RDS connection will write to
+        	secretName: string
         }
 
-```
-
-### Step 2: Prepare TraitDefinition `service-binding` to do env-secret mapping
-
-As for data binding in Application, KubeVela recommends defining a trait to finish the job. We have prepared a common
-trait for convenience. This trait works well for binding resources' info into pod spec Env.
-
-```yaml
-apiVersion: core.oam.dev/v1beta1
-kind: TraitDefinition
-metadata:
-  annotations:
-    definition.oam.dev/description: "binding cloud resource secrets to pod env"
-  name: service-binding
-spec:
-  appliesToWorkloads:
-    - webservice
-    - worker
-  schematic:
-    cue:
-      template: |
-        patch: {
-        	spec: template: spec: {
-        		// +patchKey=name
-        		containers: [{
-        			name: context.name
-        			// +patchKey=name
-        			env: [
-        				for envName, v in parameter.envMappings {
-        					name: envName
-        					valueFrom: {
-        						secretKeyRef: {
-        							name: v.secret
-        							if v["key"] != _|_ {
-        								key: v.key
-        							}
-        							if v["key"] == _|_ {
-        								key: envName
-        							}
-        						}
-        					}
-        				},
-        			]
-        		}]
-        	}
-        }
-
-        parameter: {
-        	envMappings: [string]: [string]: string
-        }
-```
-
-With the help of this `service-binding` trait, developers can explicitly set parameter `envMappings` to mapping all environment names with secret key. Here is an example.
-
-```yaml
-...
-      traits:
-        - type: service-binding
-          properties:
-            envMappings:
-              # environments refer to db-conn secret
-              DB_PASSWORD:
-                secret: db-conn
-                key: password                                     # 1) If the env name is different from secret key, secret key has to be set.
-              endpoint:
-                secret: db-conn                                   # 2) If the env name is the same as the secret key, secret key can be omitted.
-              username:
-                secret: db-conn
-              # environments refer to oss-conn secret
-              BUCKET_NAME:
-                secret: oss-conn
-                key: Bucket
-...
-```
-
-### Step 3: Create an application to provision and consume cloud resource
-
-Create an application with a cloud resource provisioning component and a consuming component as below.
-
-```yaml
-apiVersion: core.oam.dev/v1beta1
-kind: Application
-metadata:
-  name: webapp
-spec:
-  components:
-    - name: express-server
-      type: webservice
-      properties:
-        image: zzxwill/flask-web-application:v0.3.1-crossplane
-        ports: 80
-      traits:
-        - type: service-binding
-          properties:
-            envMappings:
-              # environments refer to db-conn secret
-              DB_PASSWORD:
-                secret: db-conn
-                key: password                                     # 1) If the env name is different from secret key, secret key has to be set.
-              endpoint:
-                secret: db-conn                                   # 2) If the env name is the same as the secret key, secret key can be omitted.
-              username:
-                secret: db-conn
-
-    - name: sample-db
-      type: alibaba-rds
-      properties:
-        name: sample-db
-        engine: mysql
-        engineVersion: "8.0"
-        instanceClass: rds.mysql.c1.large
-        username: oamtest
-        secretName: db-conn
 
 ```
 
-Apply it and verify the application.
-
-```shell
-$ kubectl get application
-NAME     AGE
-webapp   46m
-
-$ kubectl port-forward deployment/express-server 80:80
-Forwarding from 127.0.0.1:80 -> 80
-Forwarding from [::1]:80 -> 80
-Handling connection for 80
-Handling connection for 80
-```
-
-![](../../resources/crossplane-visit-application.jpg)
-
-## Provisioning and consuming cloud resource in a single application v2 (two cloud resources)
-
-Based on the section `Provisioning and consuming cloud resource in a single application v1 (one cloud resource)`, register
-one more cloud resource workload type `alibaba-oss` to KubeVela.
+### Register ComponentDefinition `alibaba-oss` as OSS cloud resource producer
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -281,138 +154,21 @@ spec:
         	}
         }
         parameter: {
-        	name:               string
-        	acl:                *"private" | string
-        	storageClass:       *"Standard" | string
+        	// +usage=OSS bucket name
+        	name: string
+        	// +usage=The access control list of the OSS bucket
+        	acl: *"private" | string
+        	// +usage=The storage type of OSS bucket
+        	storageClass: *"Standard" | string
+        	// +usage=The data Redundancy type of OSS bucket
         	dataRedundancyType: *"LRS" | string
-        	secretName:         string
+        	// +usage=Secret name which RDS connection will write to
+        	secretName: string
         }
+
 ```
 
-Update the application to also consume cloud resource OSS.
-
-```yaml
-apiVersion: core.oam.dev/v1beta1
-kind: Application
-metadata:
-  name: webapp
-spec:
-  components:
-    - name: express-server
-      type: webservice
-      properties:
-        image: zzxwill/flask-web-application:v0.3.1-crossplane
-        ports: 80
-      traits:
-        - type: service-binding
-          properties:
-            envMappings:
-              # environments refer to db-conn secret
-              DB_PASSWORD:
-                secret: db-conn
-                key: password                                     # 1) If the env name is different from secret key, secret key has to be set.
-              endpoint:
-                secret: db-conn                                   # 2) If the env name is the same as the secret key, secret key can be omitted.
-              username:
-                secret: db-conn
-              # environments refer to oss-conn secret
-              BUCKET_NAME:
-                secret: oss-conn
-                key: Bucket
-
-    - name: sample-db
-      type: alibaba-rds
-      properties:
-        name: sample-db
-        engine: mysql
-        engineVersion: "8.0"
-        instanceClass: rds.mysql.c1.large
-        username: oamtest
-        secretName: db-conn
-
-    - name: sample-oss
-      type: alibaba-oss
-      properties:
-        name: velaweb
-        secretName: oss-conn
-```
-
-Apply it and verify the application.
-
-```shell
-$ kubectl port-forward deployment/express-server 80:80
-Forwarding from 127.0.0.1:80 -> 80
-Forwarding from [::1]:80 -> 80
-Handling connection for 80
-Handling connection for 80
-```
-
-![](../../resources/crossplane-visit-application-v2.jpg)
-
-## Provisioning and consuming cloud resource in different applications
-
-In this section, cloud resource will be provisioned in one application and consumed in another application.
-
-### Provision Cloud Resource
-
-Instantiate RDS component with `alibaba-rds` workload type in an [Application](../application.md) to provide cloud resources.
-
-As we have claimed an RDS instance with ComponentDefinition name `alibaba-rds`. 
-The component in the application should refer to this type.
-
-```yaml
-apiVersion: core.oam.dev/v1beta1
-kind: Application
-metadata:
-  name: baas-rds
-spec:
-  components:
-    - name: sample-db
-      type: alibaba-rds
-      properties:
-        name: sample-db
-        engine: mysql
-        engineVersion: "8.0"
-        instanceClass: rds.mysql.c1.large
-        username: oamtest
-        secretName: db-conn
-```
-
-Apply the application to Kubernetes and a RDS instance will be automatically provisioned (may take some time, ~2 mins).
-
-A secret `db-conn` will also be created in the same namespace as that of the application.
-
-```shell
-$ kubectl get application
-NAME       AGE
-baas-rds   9h
-
-$ kubectl get rdsinstance
-NAME           READY   SYNCED   STATE     ENGINE   VERSION   AGE
-sample-db-v1   True    True     Running   mysql    8.0       9h
-
-$ kubectl get secret
-NAME                                              TYPE                                  DATA   AGE
-db-conn                                           connection.crossplane.io/v1alpha1     4      9h
-
-$ ✗ kubectl get secret db-conn -o yaml
-apiVersion: v1
-data:
-  endpoint: xxx==
-  password: yyy
-  port: MzMwNg==
-  username: b2FtdGVzdA==
-kind: Secret
-```
-
-### Consuming the Cloud Resource
-
-In this section, we will show how another component consumes the RDS instance.
-
-> Note: we recommend defining the cloud resource claiming to an independent application if that cloud resource has 
-> standalone lifecycle.
-
-#### Step 1: Define a ComponentDefinition with Secret Reference
+### Register ComponentDefinition `webconsumer` with Secret Reference
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -517,39 +273,83 @@ spec:
 The key point is the annotation `//+insertSecretTo=dbConn`, KubeVela will know the parameter is a K8s secret, it will parse
 the secret and bind the data into the CUE struct `dbConn`.
 
-Then the `output` can reference the `dbConn` struct for the data value. The name `dbConn` can be any name. 
+Then the `output` can reference the `dbConn` struct for the data value. The name `dbConn` can be any name.
 It's just an example in this case. The `+insertSecretTo` is keyword, it defines the data binding mechanism.
 
-Now create the Application to consume the data.
+### Prepare TraitDefinition `service-binding` to do env-secret mapping
+
+As for data binding in Application, KubeVela recommends defining a trait to finish the job. We have prepared a common
+trait for convenience. This trait works well for binding resources' info into pod spec Env.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: Application
+kind: TraitDefinition
 metadata:
-  name: webapp
+  annotations:
+    definition.oam.dev/description: "binding cloud resource secrets to pod env"
+  name: service-binding
 spec:
-  components:
-    - name: express-server
-      type: webconsumer
-      properties:
-        image: zzxwill/flask-web-application:v0.3.1-crossplane
-        ports: 80
-        dbSecret: db-conn
+  appliesToWorkloads:
+    - webservice
+    - worker
+  schematic:
+    cue:
+      template: |
+        patch: {
+        	spec: template: spec: {
+        		// +patchKey=name
+        		containers: [{
+        			name: context.name
+        			// +patchKey=name
+        			env: [
+        				for envName, v in parameter.envMappings {
+        					name: envName
+        					valueFrom: {
+        						secretKeyRef: {
+        							name: v.secret
+        							if v["key"] != _|_ {
+        								key: v.key
+        							}
+        							if v["key"] == _|_ {
+        								key: envName
+        							}
+        						}
+        					}
+        				},
+        			]
+        		}]
+        	}
+        }
+
+        parameter: {
+        	// +usage=The mapping of environment variables to secret
+        	envMappings: [string]: [string]: string
+        }
+
 ```
 
-```shell
-$ kubectl get application
-NAME       AGE
-baas-rds   10h
-webapp     14h
+With the help of this `service-binding` trait, developers can explicitly set parameter `envMappings` to mapping all
+environment names with secret key. Here is an example.
 
-$ kubectl get deployment
-NAME                READY   UP-TO-DATE   AVAILABLE   AGE
-express-server-v1   1/1     1            1           9h
-
-$ kubectl port-forward deployment/express-server 80:80
+```yaml
+...
+      traits:
+        - type: service-binding
+          properties:
+            envMappings:
+              # environments refer to db-conn secret
+              DB_PASSWORD:
+                secret: db-conn
+                key: password                                     # 1) If the env name is different from secret key, secret key has to be set.
+              endpoint:
+                secret: db-conn                                   # 2) If the env name is the same as the secret key, secret key can be omitted.
+              username:
+                secret: db-conn
+              # environments refer to oss-conn secret
+              BUCKET_NAME:
+                secret: oss-conn
+                key: Bucket
+...
 ```
 
-We can see the cloud resource is successfully consumed by the application.
-
-![](../../resources/crossplane-visit-application.jpg)
+You can see [the end user usage workflow](../end-user/cloud-resources) to know how it used. 

@@ -72,7 +72,6 @@ type ComponentDefinitionStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="WORKLOAD-KIND",type=string,JSONPath=".spec.workload.definition.kind"
 // +kubebuilder:printcolumn:name="DESCRIPTION",type=string,JSONPath=".metadata.annotations.definition\\.oam\\.dev/description"
-// +kubebuilder:printcolumn:name="AGE",type=date,JSONPath=".metadata.creationTimestamp"
 type ComponentDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

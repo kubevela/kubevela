@@ -1,0 +1,14 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "Add annotations for your Workload."
+  name: annotations
+  namespace: {{.Values.systemDefinitionNamespace}}
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  schematic:
+    cue:
+      template: |-

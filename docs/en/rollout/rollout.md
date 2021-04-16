@@ -154,7 +154,7 @@ Here is the end to end user experience based on [CloneSet](https://openkruise.io
 ## State Transition
 Here is the high level state transition graph
 
-![](../../resources/approllout-status-transition.jpg)
+![](../resources/approllout-status-transition.jpg)
 
 ## Roadmap
 

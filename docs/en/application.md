@@ -17,7 +17,7 @@ KubeVela is a fully self-service platform. All capabilities an application deplo
 As user of this platform, you could check available components you can deploy, and available traits you can attach.
 
 ```console
-kubectl get componentdefinitions -n vela-system
+$ kubectl get componentdefinitions -n vela-system
 NAME         WORKLOAD-KIND   DESCRIPTION                                                                                                                                                AGE
 task         Job             Describes jobs that run code or a script to completion.                                                                                                    5h52m
 webservice   Deployment      Describes long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers.           5h52m
@@ -25,10 +25,10 @@ worker       Deployment      Describes long-running, scalable, containerized ser
 ```
 
 ```console
-kubectl get traitdefinitions -n vela-system
+$ kubectl get traitdefinitions -n vela-system
 NAME      APPLIES-TO                DESCRIPTION                                                                                                                           AGE
 ingress   ["webservice","worker"]   Configures K8s ingress and service to enable web traffic for your service. Please use route trait in cap center for advanced usage.   6h8m
-scaler    ["webservice","worker"]   Configures replicas for your service.                                                                                                 6h8m
+cpuscaler ["webservice","worker"]   Configure k8s HPA with CPU metrics for Deployment                                                                                          6h8m
 ```
 
 To show the specification for given capability, you could use `vela` CLI. For example, `vela show webservice` will return full schema of *Web Service* component and `vela show webservice --web` will open its capability reference documentation in your browser.
@@ -40,6 +40,7 @@ In KubeVela, `Application` is the main API to define your application deployment
 Now let's define an application composed by *Web Service* and *Worker* components.
 
 ```yaml
+# sample.yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
@@ -51,7 +52,7 @@ spec:
       properties:
         image: nginx
       traits:
-        - type: autoscaler
+        - type: cpuscaler
           properties:
             min: 1
             max: 10
@@ -69,14 +70,23 @@ spec:
           - '1000'
 ```
 
-In this sample, we also attached `sidecar` and `autoscaler` traits to the `frontend` component. So after deployed, the `frontend` component instance (a Kubernetes Deployment workload) will be automatically injected with a `fluentd` sidecar and automatically scale from 1-100 replicas based on CPU usage.
+In this sample, we also attached `sidecar` and `cpuscaler` traits to the `frontend` component.
+So after deployed, the `frontend` component instance (a Kubernetes Deployment workload) will be automatically injected
+with a `fluentd` sidecar and automatically scale from 1-10 replicas based on CPU usage.
 
 ### Deploy the Application
 
-Apply application YAML to Kubernetes, you'll get the application becomes `running`.
+Apply application YAML to Kubernetes:
 
 ```shell
-$ kubectl get application -o yaml
+$ kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/enduser/sample.yaml
+application.core.oam.dev/website created
+```
+
+You'll get the application becomes `running`.
+
+```shell
+$ kubectl get application website -o yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
@@ -102,7 +112,24 @@ You could see a Deployment named `frontend` is running, with port exposed, and w
 ```shell
 $ kubectl get deploy frontend
 NAME       READY   UP-TO-DATE   AVAILABLE   AGE
-frontend   1/1     1            1           100m
+frontend   1/1     1            1           97s
+```
+
+```shell
+$ kubectl get deploy frontend -o yaml
+...
+    spec:
+      containers:
+      - image: nginx
+        imagePullPolicy: Always
+        name: frontend
+        ports:
+        - containerPort: 80
+          protocol: TCP
+      - image: fluentd
+        imagePullPolicy: Always
+        name: sidecar-test
+...
 ```
 
 Another Deployment is also running named `backend`.
@@ -110,10 +137,10 @@ Another Deployment is also running named `backend`.
 ```shell
 $ kubectl get deploy backend
 NAME      READY   UP-TO-DATE   AVAILABLE   AGE
-backend   1/1     1            1           100m
+backend   1/1     1            1           111s
 ```
 
-An HPA was also created by the `autoscaler` trait. 
+An HPA was also created by the `cpuscaler` trait. 
 
 ```shell
 $ kubectl get HorizontalPodAutoscaler frontend

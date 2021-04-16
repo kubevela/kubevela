@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/oam-dev/kubevela/pkg/oam"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -119,7 +121,19 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: app.Name}, &app)
 				app.Spec = targetApp.Spec
 				return k8sClient.Update(ctx, &app)
-			}, time.Second*5, time.Millisecond*500).Should(Succeed())
+			}, time.Second*15, time.Millisecond*500).Should(Succeed())
+
+		By("Get Application Revision created with more than one")
+		Eventually(
+			func() bool {
+				var appRevList = &v1beta1.ApplicationRevisionList{}
+				_ = k8sClient.List(ctx, appRevList, client.MatchingLabels(map[string]string{oam.LabelAppName: targetApp.Name}))
+				if appRevList != nil {
+					return len(appRevList.Items) >= 2
+				}
+				return false
+			},
+			time.Second*30, time.Millisecond*500).Should(BeTrue())
 	}
 
 	createAppRolling := func(newAppRollout *v1beta1.AppRollout) {
@@ -250,7 +264,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				appRollout.Spec.RolloutPlan.BatchPartition = nil
 				return k8sClient.Update(ctx, &appRollout)
 			},
-			time.Second*5, time.Millisecond*500).Should(Succeed())
+			time.Second*15, time.Millisecond*500).Should(Succeed())
 
 		By("Wait for the rollout phase change to rolling in batches")
 		Eventually(
@@ -308,7 +322,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				appRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 2)
 				appRollout.Spec.RolloutPlan.BatchPartition = pointer.Int32Ptr(int32(batchPartition))
 				return k8sClient.Update(ctx, &appRollout)
-			}, time.Second*5, time.Millisecond*500).Should(Succeed())
+			}, time.Second*15, time.Millisecond*500).Should(Succeed())
 
 		By("Wait for the rollout phase change to rolling in batches")
 		Eventually(
@@ -382,7 +396,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				err := k8sClient.Update(ctx, &appRollout)
 				return err
 			},
-			time.Second*5, time.Millisecond*500).Should(Succeed())
+			time.Second*15, time.Millisecond*500).Should(Succeed())
 		By("Verify that the rollout pauses")
 		Eventually(
 			func() corev1.ConditionStatus {
@@ -465,7 +479,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				appRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 2)
 				appRollout.Spec.RolloutPlan.BatchPartition = nil
 				return k8sClient.Update(ctx, &appRollout)
-			}, time.Second*5, time.Millisecond*500).Should(Succeed())
+			}, time.Second*15, time.Millisecond*500).Should(Succeed())
 
 		By("Wait for the rollout phase change to rolling in batches")
 		Eventually(
@@ -535,7 +549,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				appRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 2)
 				appRollout.Spec.RolloutPlan.BatchPartition = nil
 				return k8sClient.Update(ctx, &appRollout)
-			}, time.Second*5, time.Millisecond*500).Should(Succeed())
+			}, time.Second*15, time.Millisecond*500).Should(Succeed())
 
 		By("Wait for the rollout phase change to rolling in batches")
 		Eventually(
@@ -555,7 +569,7 @@ var _ = Describe("Cloneset based rollout tests", func() {
 				appRollout.Spec.TargetAppRevisionName = utils.ConstructRevisionName(app.GetName(), 1)
 				appRollout.Spec.RolloutPlan.BatchPartition = nil
 				return k8sClient.Update(ctx, &appRollout)
-			}, time.Second*5, time.Millisecond*500).Should(Succeed())
+			}, time.Second*15, time.Millisecond*500).Should(Succeed())
 
 		verifyRolloutSucceeded(appRollout.Spec.TargetAppRevisionName)
 		verifyAppConfigInactive(appRollout.Spec.SourceAppRevisionName)
