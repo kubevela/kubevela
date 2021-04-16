@@ -14,9 +14,6 @@ spec:
   - JSONPath: .metadata.annotations.definition\.oam\.dev/description
     name: DESCRIPTION
     type: string
-  - JSONPath: .metadata.creationTimestamp
-    name: AGE
-    type: date
   group: core.oam.dev
   names:
     categories:

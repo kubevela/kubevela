@@ -7,14 +7,14 @@ We will introduce how to add labels and annotations to your Application.
 ## List Traits
 
 ```bash
-kubectl get trait -n vela-system
-NAME          APPLIES-TO                DESCRIPTION                                                                                                                           AGE
-annotations   ["webservice","worker"]   Add annotations for your Workload.                                                                                                    24h
-cpuscaler     ["webservice","worker"]   configure k8s HPA with CPU metrics for Deployment                                                                                     24h
-ingress       ["webservice","worker"]   Configures K8s ingress and service to enable web traffic for your service. Please use route trait in cap center for advanced usage.   24h
-labels        ["webservice","worker"]   Add labels for your Workload.                                                                                                         24h
-scaler        ["webservice","worker"]   Configures replicas for your service by patch replicas field.                                                                         24h
-sidecar       ["webservice","worker"]   inject a sidecar container into your app                                                                                              24h
+$ kubectl get trait -n vela-system
+NAME          APPLIES-TO                DESCRIPTION
+annotations   ["webservice","worker"]   Add annotations for your Workload.
+cpuscaler     ["webservice","worker"]   configure k8s HPA with CPU metrics for Deployment
+ingress       ["webservice","worker"]   Configures K8s ingress and service to enable web traffic for your service. Please use route trait in cap center for advanced usage.
+labels        ["webservice","worker"]   Add labels for your Workload.
+scaler        ["webservice","worker"]   Configures replicas for your service by patch replicas field.
+sidecar       ["webservice","worker"]   inject a sidecar container into your app
 ```
 
 You can use `label` and `annotations` traits to add labels and annotations for your workload.
