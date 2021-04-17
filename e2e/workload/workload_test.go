@@ -25,3 +25,9 @@ import (
 var _ = ginkgo.Describe("Workload", func() {
 	e2e.WorkloadCapabilityListContext()
 })
+
+var _ = ginkgo.Describe("Test vela show", func() {
+	e2e.ShowCapabilityReference("show webservice", "webservice", "")
+	e2e.ShowCapabilityReference("show webservice with namespace", "webservice", "vela-system")
+	e2e.ShowCapabilityReferenceAbnormally("abnormally show webservice", "webservice", "namespace-not-existed-xxxfwrr23erfm")
+})

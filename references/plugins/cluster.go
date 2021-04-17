@@ -259,7 +259,7 @@ func SyncDefinitionToLocal(ctx context.Context, c common.Args, capabilityName st
 	err = newClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: capabilityName}, &componentDef)
 	if err == nil {
 		foundCapability = true
-	} else if kerrors.IsNotFound(err) && ns != types.DefaultKubeVelaNS {
+	} else if kerrors.IsNotFound(err) && ns == types.DefaultNamespace {
 		err = newClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: capabilityName}, &componentDef)
 		if err == nil {
 			foundCapability = true
@@ -287,7 +287,7 @@ func SyncDefinitionToLocal(ctx context.Context, c common.Args, capabilityName st
 	err = newClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: capabilityName}, &traitDef)
 	if err == nil {
 		foundCapability = true
-	} else if kerrors.IsNotFound(err) && ns != types.DefaultKubeVelaNS {
+	} else if kerrors.IsNotFound(err) && ns == types.DefaultNamespace {
 		err = newClient.Get(ctx, client.ObjectKey{Namespace: types.DefaultKubeVelaNS, Name: capabilityName}, &traitDef)
 		if err == nil {
 			foundCapability = true

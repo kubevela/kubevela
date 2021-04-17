@@ -58,7 +58,7 @@ const (
 )
 
 var (
-	webSite bool
+	webSite   bool
 	namespace string
 )
 
