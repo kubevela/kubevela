@@ -100,8 +100,6 @@ func (c *DeploymentController) VerifySpec(ctx context.Context) (bool, error) {
 	if targetHash == c.rolloutStatus.LastAppliedPodTemplateIdentifier {
 		return false, fmt.Errorf("there is no difference between the source and target, hash = %s", targetHash)
 	}
-	// record the new pod template hash
-	c.rolloutStatus.NewPodTemplateIdentifier = targetHash
 
 	// check if the rollout batch replicas added up to the Deployment replicas
 	// we don't handle scale case in this controller
@@ -109,14 +107,14 @@ func (c *DeploymentController) VerifySpec(ctx context.Context) (bool, error) {
 		return false, verifyErr
 	}
 
-	if !c.sourceDeploy.Spec.Paused {
-		return false, fmt.Errorf("the source deployment %s is still being reconciled, need to be paused",
+	if !c.sourceDeploy.Spec.Paused || getDeployReplicaSize(&c.sourceDeploy) == c.sourceDeploy.Status.Replicas {
+		return false, fmt.Errorf("the source deployment %s is still being reconciled, need to be paused or stable",
 			c.sourceDeploy.GetName())
 	}
 
-	if !c.targetDeploy.Spec.Paused && c.targetDeploy.Spec.Replicas != pointer.Int32Ptr(0) {
-		return false, fmt.Errorf("the target deployment %s is not empty, need to be paused or empty",
-			c.sourceDeploy.GetName())
+	if !c.targetDeploy.Spec.Paused || getDeployReplicaSize(&c.targetDeploy) == c.targetDeploy.Status.Replicas {
+		return false, fmt.Errorf("the target deployment %s is still being reconciled, need to be paused or stable",
+			c.targetDeploy.GetName())
 	}
 
 	// check if the targetDeploy has any controller
@@ -134,6 +132,8 @@ func (c *DeploymentController) VerifySpec(ctx context.Context) (bool, error) {
 	// mark the rollout verified
 	c.recorder.Event(c.parentController, event.Normal("Rollout Verified",
 		"Rollout spec and the Deployment resource are verified"))
+	// record the new pod template hash on success
+	c.rolloutStatus.NewPodTemplateIdentifier = targetHash
 	return true, nil
 }
 
@@ -279,22 +279,13 @@ func (c *DeploymentController) calculateTargetTotalSize(ctx context.Context) (in
 		return *c.rolloutSpec.TargetSize, nil
 	}
 	// otherwise, we assume that the source is the total
-	// source default is 1
-	var sourceSize int32 = 1
-	if c.sourceDeploy.Spec.Replicas != nil {
-		sourceSize = *c.sourceDeploy.Spec.Replicas
-	}
-	return sourceSize, nil
+	return getDeployReplicaSize(&c.sourceDeploy), nil
 }
 
 // calculateInitialTargetSize calculates what the initial replica should be set to the target deploy
 func (c *DeploymentController) calculateInitialTargetSize(ctx context.Context) bool {
 	total, _ := c.calculateTargetTotalSize(ctx)
-	var sourceSize int32 = 1
-	if c.sourceDeploy.Spec.Replicas != nil {
-		sourceSize = *c.sourceDeploy.Spec.Replicas
-	}
-	return total == sourceSize
+	return total == getDeployReplicaSize(&c.sourceDeploy)
 }
 
 // check if the replicas in all the rollout batches add up to the right number
@@ -308,24 +299,21 @@ func (c *DeploymentController) verifyRolloutBatchReplicaValue(totalReplicas int3
 }
 
 func (c *DeploymentController) fetchDeployments(ctx context.Context) error {
-	var workload apps.Deployment
-	err := c.client.Get(ctx, c.sourceNamespacedName, &workload)
+	err := c.client.Get(ctx, c.sourceNamespacedName, &c.sourceDeploy)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			c.recorder.Event(c.parentController, event.Warning("Failed to get the Deployment", err))
 		}
 		return err
 	}
-	c.sourceDeploy = workload
 
-	err = c.client.Get(ctx, c.targetNamespacedName, &workload)
+	err = c.client.Get(ctx, c.targetNamespacedName, &c.targetDeploy)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			c.recorder.Event(c.parentController, event.Warning("Failed to get the Deployment", err))
 		}
 		return err
 	}
-	c.targetDeploy = workload
 	return nil
 }
 

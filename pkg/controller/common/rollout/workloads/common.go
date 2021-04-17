@@ -19,6 +19,7 @@ package workloads
 import (
 	"fmt"
 
+	apps "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
 
@@ -123,4 +124,12 @@ func calculateNewBatchTarget(rolloutSpec *v1alpha1.RolloutPlan, originalSize, ta
 	klog.InfoS("calculated the number of new pod size", "current batch", currentBatch,
 		"new pod target", newPodTarget)
 	return newPodTarget
+}
+
+func getDeployReplicaSize(deploy *apps.Deployment) int32 {
+	// replicas default is 1
+	if deploy.Spec.Replicas != nil {
+		return *deploy.Spec.Replicas
+	}
+	return 1
 }

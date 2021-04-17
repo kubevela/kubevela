@@ -86,8 +86,6 @@ func (c *CloneSetRolloutController) VerifySpec(ctx context.Context) (bool, error
 	if targetHash == c.rolloutStatus.LastAppliedPodTemplateIdentifier {
 		return false, fmt.Errorf("there is no difference between the source and target, hash = %s", targetHash)
 	}
-	// record the new pod template hash
-	c.rolloutStatus.NewPodTemplateIdentifier = targetHash
 
 	// check if the rollout batch replicas added up to the Cloneset replicas
 	if verifyErr = c.verifyRolloutBatchReplicaValue(currentReplicas); verifyErr != nil {
@@ -114,6 +112,8 @@ func (c *CloneSetRolloutController) VerifySpec(ctx context.Context) (bool, error
 	// mark the rollout verified
 	c.recorder.Event(c.parentController, event.Normal("Rollout Verified",
 		"Rollout spec and the CloneSet resource are verified"))
+	// record the new pod template hash only if it succeeds
+	c.rolloutStatus.NewPodTemplateIdentifier = targetHash
 	return true, nil
 }
 

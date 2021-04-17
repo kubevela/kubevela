@@ -207,6 +207,8 @@ var _ = Describe("cloneset controller", func() {
 			initialized, err := c.Initialize(ctx)
 			Expect(initialized).Should(BeTrue())
 			Expect(err).Should(BeNil())
+			Expect(k8sClient.Get(ctx, c.workloadNamespacedName, &cloneSet)).Should(Succeed())
+			Expect(len(cloneSet.GetOwnerReferences())).Should(BeEquivalentTo(1))
 		})
 
 		It("successfully initialized CloneSet", func() {
@@ -218,6 +220,8 @@ var _ = Describe("cloneset controller", func() {
 			initialized, err := c.Initialize(ctx)
 			Expect(initialized).Should(BeTrue())
 			Expect(err).Should(BeNil())
+			Expect(k8sClient.Get(ctx, c.workloadNamespacedName, &cloneSet)).Should(Succeed())
+			Expect(len(cloneSet.GetOwnerReferences())).Should(BeEquivalentTo(1))
 		})
 	})
 
@@ -250,6 +254,8 @@ var _ = Describe("cloneset controller", func() {
 			Expect(done).Should(BeTrue())
 			Expect(err).Should(BeNil())
 			Expect(c.rolloutStatus.UpgradedReplicas).Should(BeEquivalentTo(3))
+			Expect(k8sClient.Get(ctx, c.workloadNamespacedName, &cloneSet)).Should(Succeed())
+			Expect(cloneSet.Spec.UpdateStrategy.Partition.IntValue()).Should(BeEquivalentTo(7))
 		})
 	})
 
@@ -338,9 +344,17 @@ var _ = Describe("cloneset controller", func() {
 			cloneSet.Status.UpdatedReadyReplicas = 10
 			cloneSet.Status.UpdatedReplicas = 10
 			Expect(k8sClient.Status().Update(ctx, &cloneSet)).Should(Succeed())
-			By("checking one batch")
-			c.rolloutStatus.CurrentBatch = 2
+
+			By("the second batch should pass when there are more pods upgraded already")
+			c.rolloutStatus.CurrentBatch = 1
 			done, err := c.CheckOneBatchPods(ctx)
+			Expect(done).Should(BeTrue())
+			Expect(err).Should(BeNil())
+			Expect(c.rolloutStatus.UpgradedReadyReplicas).Should(BeEquivalentTo(cloneSet.Status.UpdatedReadyReplicas))
+
+			By("checking the last batch")
+			c.rolloutStatus.CurrentBatch = 2
+			done, err = c.CheckOneBatchPods(ctx)
 			Expect(done).Should(BeTrue())
 			Expect(err).Should(BeNil())
 			Expect(c.rolloutStatus.UpgradedReadyReplicas).Should(BeEquivalentTo(cloneSet.Status.UpdatedReadyReplicas))
