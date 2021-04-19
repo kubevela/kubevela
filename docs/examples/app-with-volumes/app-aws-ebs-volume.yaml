@@ -1,0 +1,19 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-worker
+spec:
+  components:
+    - name: myworker
+      type: worker
+      properties:
+        image: "busybox"
+        cmd:
+          - sleep
+          - "1000"
+      traits:
+        - type: aws-ebs-volume
+          properties:
+            name: "my-ebs"
+            mountPath: "/myebs"
+            volumeID: "my-ebs-id"

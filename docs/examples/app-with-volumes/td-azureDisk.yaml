@@ -1,0 +1,58 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: azure-disk-volume
+  namespace: vela-system
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  schematic:
+    cue:
+      template: |
+        patch: {
+          spec: template: spec: {
+            // +patchKey=name
+            containers: [ for c in context.output.spec.template.spec.containers {
+              {
+                name: c.name
+                // +patchKey=name
+                volumeMounts: [{
+                  name:      parameter.name
+                  mountPath: parameter.mountPath
+                }]
+              }
+            }]
+
+            // +patchKey=name
+            volumes: [{
+              name: parameter.name
+              azureDisk: {
+                diskName:    parameter.diskName
+                diskURI:     parameter.diskURI
+                fsType:      parameter.fsType
+                cachingMode: parameter.cachingMode
+                readOnly:    parameter.readOnly
+                kind:        parameter.kind
+              }
+            }]
+          }
+        }
+
+        parameter: {
+          // +usage=The name of volume
+          name:      string
+          mountPath: string
+          // +usage=The Name of the data disk in the blob storage.
+          diskName: string
+          // +usage=The URI of the data disk in the blob storage.
+          diskURI: string
+          // +usage=Filesystem type to mount.
+          fsType: *"ext4" | string
+          // +usage=Host Caching mode: None, Read Only, Read Write.
+          cachingMode: *"None" | "ReadOnly" | "ReadWrite"
+          // +usage=ReadOnly here will force the ReadOnly setting in VolumeMounts.
+          readOnly: *false | bool
+          // +usage=Expected values Shared: multiple blob disks per storage account  Dedicated: single blob disk per storage account  Managed: azure managed data disk (only in managed availability set). defaults to shared
+          kind: *"Shared" | "Managed" | "Dedicated"
+        }

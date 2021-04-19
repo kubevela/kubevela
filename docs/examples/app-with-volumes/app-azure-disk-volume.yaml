@@ -1,0 +1,20 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-worker
+spec:
+  components:
+    - name: myworker
+      type: worker
+      properties:
+        image: "busybox"
+        cmd:
+          - sleep
+          - "1000"
+      traits:
+        - type: azure-disk-volume
+          properties:
+            name: "my-azure-disk"
+            mountPath: "/myazuredisk"
+            diskName: "mydisk"
+            diskURI: "test.disk.uri"

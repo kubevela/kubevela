@@ -1,0 +1,54 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: aws-ebs-volume
+  namespace: vela-system
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  schematic:
+    cue:
+      template: |
+        patch: {
+          spec: template: spec: {
+            // +patchKey=name
+            containers: [ for c in context.output.spec.template.spec.containers {
+              {
+                name: c.name
+                // +patchKey=name
+                volumeMounts: [{
+                  name:      parameter.name
+                  mountPath: parameter.mountPath
+                }]
+              }
+            }]
+
+            // +patchKey=name
+            volumes: [{
+              name: parameter.name
+              awsElasticBlockStore: {
+                volumeID: parameter.volumeID
+                fsType:   parameter.fsType
+                if parameter.partition != _|_ {
+                  partition: parameter.partition
+                }
+                readOnly: parameter.readOnly
+              }
+            }, ...]
+          }
+        }
+
+        parameter: {
+          // +usage=The name of volume.
+          name:      string
+          mountPath: string
+          // +usage=Unique id of the persistent disk resource.
+          volumeID: string
+          // +usage=Filesystem type to mount.
+          fsType: *"ext4" | string
+          // +usage=Partition on the disk to mount.
+          partition?: int
+          // +usage=ReadOnly here will force the ReadOnly setting in VolumeMounts.
+          readOnly: *false | bool
+        }
