@@ -30,8 +30,9 @@ var _ = ginkgo.Describe("Test vela show", func() {
 	e2e.ShowCapabilityReference("show webservice", "webservice")
 
 	env := "namespace-not-existed-componentdefinition-xxxfwrr23erfm"
-	e2e.EnvInitContext("env init", env)
+	e2e.EnvInitWithNamespaceOptionContext("env init", env, env)
 	e2e.EnvSetContext("env switch", env)
 	e2e.ShowCapabilityReferenceAbnormally("abnormally show webservice", "webservice")
+	e2e.EnvSetContext("env switch", "default")
 	e2e.EnvDeleteContext("env delete", env)
 })

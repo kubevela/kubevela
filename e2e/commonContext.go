@@ -45,6 +45,18 @@ var (
 		})
 	}
 
+	EnvInitWithNamespaceOptionContext = func(context string, envName string, namespace string) bool {
+		return ginkgo.Context(context, func() {
+			ginkgo.It("should print environment initiation successful message", func() {
+				cli := fmt.Sprintf("vela env init %s --namespace %s", envName, namespace)
+				output, err := Exec(cli)
+				gomega.Expect(err).NotTo(gomega.HaveOccurred())
+				expectedOutput := fmt.Sprintf("environment %s created,", envName)
+				gomega.Expect(output).To(gomega.ContainSubstring(expectedOutput))
+			})
+		})
+	}
+
 	JsonAppFileContext = func(context, jsonAppFile string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("Start the application through the app file in JSON format.", func() {
