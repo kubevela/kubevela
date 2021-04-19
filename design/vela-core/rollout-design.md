@@ -293,7 +293,7 @@ the following fields:
 ## State Transition
 Here is the state transition graph
 
-![](../../docs/resources/approllout-status-transition.jpg)
+![](../../docs/en/resources/approllout-status-transition.jpg)
 
 Here are the various top-level states of the rollout 
 ```go
