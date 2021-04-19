@@ -27,7 +27,11 @@ var _ = ginkgo.Describe("Trait", func() {
 })
 
 var _ = ginkgo.Describe("Test vela show", func() {
-	e2e.ShowCapabilityReference("show ingress", "ingress", "")
-	e2e.ShowCapabilityReference("show ingress with namespace", "ingress", "vela-system")
-	e2e.ShowCapabilityReferenceAbnormally("abnormally show ingress", "ingress", "namespace-not-existed-xxxfwrr23erfm")
+	e2e.ShowCapabilityReference("show ingress", "ingress")
+
+	env := "namespace-not-existed-traitdefinition-xxxfwrr23erfm"
+	e2e.EnvInitContext("env init", env)
+	e2e.EnvSetContext("env switch", env)
+	e2e.ShowCapabilityReferenceAbnormally("abnormally show ingress", "ingress")
+	e2e.EnvDeleteContext("env delete", env)
 })

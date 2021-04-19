@@ -182,20 +182,20 @@ var (
 		})
 	}
 
-	ShowCapabilityReference = func(context string, capabilityName, namespace string) bool {
+	ShowCapabilityReference = func(context string, capabilityName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("should show capability reference", func() {
-				cli := fmt.Sprintf("vela show %s -n %s", capabilityName, namespace)
+				cli := fmt.Sprintf("vela show %s", capabilityName)
 				_, err := Exec(cli)
 				gomega.Expect(err).Should(gomega.BeNil())
 			})
 		})
 	}
 
-	ShowCapabilityReferenceAbnormally = func(context string, capabilityName, namespace string) bool {
+	ShowCapabilityReferenceAbnormally = func(context string, capabilityName string) bool {
 		return ginkgo.Context(context, func() {
 			ginkgo.It("abnormally show capability reference", func() {
-				cli := fmt.Sprintf("vela show %s -n %s", capabilityName, namespace)
+				cli := fmt.Sprintf("vela show %s", capabilityName)
 				output, err := Exec(cli)
 				gomega.Expect(err).Should(gomega.BeNil())
 				gomega.Expect(output).To(gomega.ContainSubstring(fmt.Sprintf("Error: %s is not a valid workload type or trait", capabilityName)))

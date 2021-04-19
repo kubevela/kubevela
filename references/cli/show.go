@@ -57,10 +57,7 @@ const (
 	Port = ":18081"
 )
 
-var (
-	webSite   bool
-	namespace string
-)
+var webSite bool
 
 // NewCapabilityShowCommand shows the reference doc for a workload type or trait
 func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
@@ -78,10 +75,14 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 			}
 			ctx := context.Background()
 			capabilityName := args[0]
+			velaEnv, err := GetEnv(cmd)
+			if err != nil {
+				return err
+			}
 			if webSite {
 				return startReferenceDocsSite(ctx, c, ioStreams, capabilityName)
 			}
-			return ShowReferenceConsole(ctx, c, ioStreams, capabilityName, namespace)
+			return ShowReferenceConsole(ctx, c, ioStreams, capabilityName, velaEnv.Namespace)
 		},
 		Annotations: map[string]string{
 			types.TagCommandType: types.TypeStart,
@@ -89,7 +90,6 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 	}
 
 	cmd.Flags().BoolVarP(&webSite, "web", "", false, " start web doc site")
-	cmd.Flags().StringVarP(&namespace, "namespace", "n", "default", "namespace of the workload type or trait")
 	cmd.SetOut(ioStreams.Out)
 	return cmd
 }
