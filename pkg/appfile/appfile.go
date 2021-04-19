@@ -273,7 +273,7 @@ func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string) 
 }
 
 // evalWorkloadWithContext evaluate the workload's template to generate component and ACComponent
-func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, compName string, ) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, compName string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
 	var (
 		commonLabels      map[string]string
 		componentWorkload *unstructured.Unstructured

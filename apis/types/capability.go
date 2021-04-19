@@ -59,6 +59,9 @@ type Capability struct {
 	Source  *Source       `json:"source,omitempty"`
 	Install *Installation `json:"install,omitempty"`
 	CrdInfo *CRDInfo      `json:"crdInfo,omitempty"`
+
+	// Terraform
+	TerraformConfiguration string `json:"terraformConfiguration,omitempty"`
 }
 
 // Chart defines all necessary information to install a whole chart

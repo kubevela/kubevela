@@ -159,24 +159,8 @@ spec:
                         - hcl
                         - json
                         type: string
-                      variable:
-                        type: object
-                        x-kubernetes-preserve-unknown-fields: true
-                      writeConnectionSecretToRef:
-                        description: WriteConnectionSecretToReference specifies the namespace and name of a Secret to which any connection details for this managed resource should be written. Connection details frequently include the endpoint, username, and password required to connect to the managed resource.
-                        properties:
-                          name:
-                            description: Name of the secret.
-                            type: string
-                          namespace:
-                            description: Namespace of the secret.
-                            type: string
-                        required:
-                        - name
-                        type: object
                     required:
                     - configuration
-                    - variable
                     type: object
                 type: object
               status:
@@ -405,24 +389,8 @@ spec:
                         - hcl
                         - json
                         type: string
-                      variable:
-                        type: object
-                        x-kubernetes-preserve-unknown-fields: true
-                      writeConnectionSecretToRef:
-                        description: WriteConnectionSecretToReference specifies the namespace and name of a Secret to which any connection details for this managed resource should be written. Connection details frequently include the endpoint, username, and password required to connect to the managed resource.
-                        properties:
-                          name:
-                            description: Name of the secret.
-                            type: string
-                          namespace:
-                            description: Namespace of the secret.
-                            type: string
-                        required:
-                        - name
-                        type: object
                     required:
                     - configuration
-                    - variable
                     type: object
                 type: object
               status:

@@ -18,7 +18,6 @@ package common
 
 import (
 	v1alpha12 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
-	terraform "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -108,19 +107,6 @@ type Terraform struct {
 	// +kubebuilder:default:=hcl
 	// +kubebuilder:validation:Enum:=hcl;json
 	Type string `json:"type,omitempty"`
-
-	// Parameter is in CUE type, which will contain variable and writeConnectionSecretToRef
-	Parameter string `json:"parameter,omitempty"`
-
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Variable runtime.RawExtension `json:"variable"`
-
-	// WriteConnectionSecretToReference specifies the namespace and name of a
-	// Secret to which any connection details for this managed resource should
-	// be written. Connection details frequently include the endpoint, username,
-	// and password required to connect to the managed resource.
-	// +optional
-	WriteConnectionSecretToReference *terraform.SecretReference `json:"writeConnectionSecretToRef,omitempty"`
 }
 
 // A WorkloadTypeDescriptor refer to a Workload Type

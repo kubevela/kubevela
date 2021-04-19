@@ -43,6 +43,9 @@ const (
 	StatusStaging = "Staging"
 )
 
+// TerraformConfigurationKind is the Kind for Terraform Configuration resource
+const TerraformConfigurationKind = "Configuration"
+
 // EnvMeta stores the info for app environment
 type EnvMeta struct {
 	Name      string `json:"name"`
