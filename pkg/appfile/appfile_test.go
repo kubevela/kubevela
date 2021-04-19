@@ -573,3 +573,90 @@ func TestSetParameterValuesToKubeObj(t *testing.T) {
 	}
 
 }
+
+var _ = Describe("Test evalWorkloadWithContext", func() {
+	It("workload capability is Terraform", func() {
+		var (
+			ns       = "default"
+			compName = "sample-db"
+			comp     *v1alpha2.Component
+			acc      *v1alpha2.ApplicationConfigurationComponent
+			err      error
+		)
+		type appArgs struct {
+			wl      *Workload
+			appName string
+		}
+
+		args := appArgs{
+			wl: &Workload{
+				Name: "sample-db",
+				FullTemplate: &Template{
+					Terraform: &common.Terraform{
+						Configuration: `
+module "rds" {
+  source = "terraform-alicloud-modules/rds/alicloud"
+  engine = "MySQL"
+  engine_version = "8.0"
+  instance_type = "rds.mysql.c1.large"
+  instance_storage = "20"
+  instance_name = var.instance_name
+  account_name = var.account_name
+  password = var.password
+}
+
+output "DB_NAME" {
+  value = module.rds.this_db_instance_name
+}
+output "DB_USER" {
+  value = module.rds.this_db_database_account
+}
+output "DB_PORT" {
+  value = module.rds.this_db_instance_port
+}
+output "DB_HOST" {
+  value = module.rds.this_db_instance_connection_string
+}
+output "DB_PASSWORD" {
+  value = module.rds.this_db_instance_port
+}
+
+variable "instance_name" {
+  description = "RDS instance name"
+  type = string
+  default = "poc"
+}
+
+variable "account_name" {
+  description = "RDS instance user account name"
+  type = "string"
+  default = "oam"
+}
+
+variable "password" {
+  description = "RDS instance account password"
+  type = "string"
+  default = "Xyfff83jfewGGfaked"
+}
+`,
+						Type: "hcl",
+					},
+				},
+				CapabilityCategory: oamtypes.TerraformCategory,
+				engine:             definition.NewWorkloadAbstractEngine(compName, pd),
+				Params: map[string]interface{}{
+					"variable": map[string]interface{}{
+						"account_name": "oamtest",
+					},
+				},
+			},
+			appName: "webapp",
+		}
+
+		pCtx, _ := PrepareProcessContext(args.wl, args.appName, "", ns)
+		comp, acc, err = evalWorkloadWithContext(pCtx, args.wl, ns, args.appName, compName)
+		Expect(comp.Spec.Workload).ShouldNot(BeNil())
+		Expect(acc.ComponentName).Should(Equal(""))
+		Expect(err).Should(BeNil())
+	})
+})

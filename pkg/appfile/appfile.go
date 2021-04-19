@@ -27,7 +27,7 @@ import (
 	json2cue "cuelang.org/go/encoding/json"
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/fieldpath"
-	terrafromapi "github.com/oam-dev/terraform-controller/api/v1beta1"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -280,7 +280,7 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, co
 		err               error
 	)
 	base, assists := pCtx.Output()
-	// if componentWorkload is nil, generated it based on Cue. Or set it directly in Terraform Schematic case
+	// if componentWorkload is nil, generated it based on Cue, or directly set it in Terraform Schematic case
 	if wl.CapabilityCategory == types.TerraformCategory {
 		componentWorkload, err = generateTerraformConfigurationWorkload(wl, ns)
 		if err != nil {
@@ -369,7 +369,7 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 		return nil, errors.Wrap(err, errFailToConvertTerraformConfigurationToUnstructured)
 	}
 
-	configuration := terrafromapi.Configuration{
+	configuration := terraformapi.Configuration{
 		TypeMeta:   metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta1", Kind: "Configuration"},
 		ObjectMeta: metav1.ObjectMeta{Name: wl.Name, Namespace: ns},
 	}
@@ -384,8 +384,9 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 		return nil, errors.Wrap(err, errFailToConvertTerraformConfigurationToUnstructured)
 	}
 	// set namespace for writeConnectionSecretToRef, developer needn't manually set it
-	configuration.Spec.WriteConnectionSecretToReference.Namespace = ns
-
+	if configuration.Spec.WriteConnectionSecretToReference != nil {
+		configuration.Spec.WriteConnectionSecretToReference.Namespace = ns
+	}
 	raw := util.Object2RawExtension(&configuration)
 	return util.RawExtension2Unstructured(&raw)
 }
