@@ -18,11 +18,16 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/pkg/errors"
+
+	"k8s.io/apimachinery/pkg/api/meta"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -55,6 +60,7 @@ import (
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 var cfg *rest.Config
+var recorder = NewFakeRecorder(10000)
 var k8sClient client.Client
 var testEnv *envtest.Environment
 var testScheme = runtime.NewScheme()
@@ -128,6 +134,7 @@ var _ = BeforeSuite(func(done Done) {
 		Scheme:           testScheme,
 		dm:               dm,
 		pd:               pd,
+		Recorder:         recorder,
 		appRevisionLimit: appRevisionLimit,
 	}
 	// setup the controller manager since we need the component handler to run in the background
@@ -168,3 +175,71 @@ var _ = AfterSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 	close(stop)
 })
+
+type FakeRecorder struct {
+	Events  chan string
+	Message map[string][]*Events
+}
+
+type Events struct {
+	Name      string
+	Namespace string
+	EventType string
+	Reason    string
+	Message   string
+}
+
+func (f *FakeRecorder) Event(object runtime.Object, eventtype, reason, message string) {
+	if f.Events != nil {
+		objectMeta, err := meta.Accessor(object)
+		if err != nil {
+			return
+		}
+
+		event := &Events{
+			Name:      objectMeta.GetName(),
+			Namespace: objectMeta.GetNamespace(),
+			EventType: eventtype,
+			Reason:    reason,
+			Message:   message,
+		}
+
+		records, ok := f.Message[objectMeta.GetName()]
+		if !ok {
+			f.Message[objectMeta.GetName()] = []*Events{event}
+			return
+		}
+
+		records = append(records, event)
+		f.Message[objectMeta.GetName()] = records
+
+	}
+}
+
+func (f *FakeRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
+	if f.Events != nil {
+		f.Events <- fmt.Sprintf(eventtype+" "+reason+" "+messageFmt, args...)
+	}
+}
+
+func (f *FakeRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
+	f.Eventf(object, eventtype, reason, messageFmt, args...)
+}
+
+func (f *FakeRecorder) GetEventsWithName(name string) ([]*Events, error) {
+	records, ok := f.Message[name]
+	if !ok {
+		return nil, errors.New("not found events")
+	}
+
+	return records, nil
+}
+
+// NewFakeRecorder creates new fake event recorder with event channel with
+// buffer of given size.
+func NewFakeRecorder(bufferSize int) *FakeRecorder {
+	return &FakeRecorder{
+		Events:  make(chan string, bufferSize),
+		Message: make(map[string][]*Events),
+	}
+}
