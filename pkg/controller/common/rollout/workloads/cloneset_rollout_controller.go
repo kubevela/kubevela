@@ -210,7 +210,6 @@ func (c *CloneSetRolloutController) CheckOneBatchPods(ctx context.Context) (bool
 		klog.InfoS("all pods in current batch are ready", "current batch", c.rolloutStatus.CurrentBatch)
 		c.recorder.Event(c.parentController, event.Normal("Batch Available",
 			fmt.Sprintf("Batch %d is available", c.rolloutStatus.CurrentBatch)))
-		c.rolloutStatus.LastAppliedPodTemplateIdentifier = c.rolloutStatus.NewPodTemplateIdentifier
 		return true, nil
 	}
 	// continue to verify
@@ -288,6 +287,7 @@ func (c *CloneSetRolloutController) Finalize(ctx context.Context, succeed bool) 
 	// mark the resource finalized
 	c.recorder.Event(c.parentController, event.Normal("Rollout Finalized",
 		fmt.Sprintf("Rollout resource are finalized, succeed := %t", succeed)))
+	c.rolloutStatus.LastAppliedPodTemplateIdentifier = c.rolloutStatus.NewPodTemplateIdentifier
 	return true
 }
 

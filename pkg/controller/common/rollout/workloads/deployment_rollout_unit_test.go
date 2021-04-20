@@ -17,78 +17,80 @@
 package workloads
 
 import (
-	"fmt"
 	"testing"
-
-	"github.com/crossplane/crossplane-runtime/pkg/test"
-	"github.com/google/go-cmp/cmp"
-	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
-func TestVerifyRolloutBatchReplicaValue4Deployment(t *testing.T) {
+func TestCalculateCurrentSource(t *testing.T) {
 	cases := map[string]struct {
-		c             *DeploymentController
-		totalReplicas int32
-		want          error
+		rolloutSpec  *v1alpha1.RolloutPlan
+		currentBatch int32
+		totalSize    int32
+		want         int32
 	}{
-		"BatchSizeMismatchesDeploymentSize": {
-			c: &DeploymentController{
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{{
-						Replicas: intstr.FromInt(1),
-					},
-					},
-				},
-			},
-			totalReplicas: 3,
-			want:          fmt.Errorf("the rollout plan batch size mismatch, total batch size = 1, totalReplicas size = 3"),
+		"PercentBatch0": {
+			rolloutSpec:  rolloutPercentSpec,
+			currentBatch: 0,
+			totalSize:    10,
+			want:         8,
 		},
-		"TheSizeOfAllBatchesExceptTheLastOneExceedTotalReplicas": {
-			c: &DeploymentController{
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{
-						{
-							Replicas: intstr.FromInt(1),
-						},
-						{
-							Replicas: intstr.FromInt(3),
-						},
-						{
-							Replicas: intstr.FromInt(2),
-						},
-					},
-				},
-			},
-			totalReplicas: 3,
-			want:          fmt.Errorf("the rollout plan batch size mismatch, total batch size = 4, totalReplicas size = 3"),
+		"PercentBatch1": {
+			rolloutSpec:  rolloutPercentSpec,
+			currentBatch: 1,
+			totalSize:    10,
+			want:         4,
 		},
-		"BatchSizeMatchesDeploymentSize": {
-			c: &DeploymentController{
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{
-						{
-							Replicas: intstr.FromInt(1),
-						},
-						{
-							Replicas: intstr.FromInt(2),
-						},
-					},
-				},
-			},
-			totalReplicas: 3,
-			want:          nil,
+		"PercentBatch2": {
+			rolloutSpec:  rolloutPercentSpec,
+			currentBatch: 2,
+			totalSize:    100,
+			want:         10,
+		},
+		"PercentBatch3": {
+			rolloutSpec:  rolloutPercentSpec,
+			currentBatch: 3,
+			totalSize:    1000,
+			want:         0,
+		},
+		"MixedBatch0": {
+			rolloutSpec:  rolloutMixedSpec,
+			currentBatch: 0,
+			totalSize:    100,
+			want:         99,
+		},
+		"MixedBatch1": {
+			rolloutSpec:  rolloutMixedSpec,
+			currentBatch: 1,
+			totalSize:    100,
+			want:         79,
+		},
+		"MixedBatch2": {
+			rolloutSpec:  rolloutMixedSpec,
+			currentBatch: 2,
+			totalSize:    15,
+			want:         3,
+		},
+		"RelaxedBatch3": {
+			rolloutSpec:  rolloutRelaxSpec,
+			currentBatch: 3,
+			totalSize:    15,
+			want:         0,
 		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			err := tc.c.verifyRolloutBatchReplicaValue(tc.totalReplicas)
-			if diff := cmp.Diff(tc.want, err, test.EquateErrors()); diff != "" {
-				t.Errorf("\n%s\nverifyRolloutBatchReplicaValue(...): -want error, +got error:\n%s", name, diff)
+			controller := DeploymentController{
+				rolloutSpec: tc.rolloutSpec,
+				rolloutStatus: &v1alpha1.RolloutStatus{
+					CurrentBatch: tc.currentBatch,
+				},
+			}
+			ct := controller.calculateCurrentSource(tc.totalSize)
+			if tc.want-ct != 0 {
+				t.Errorf("\n%s\ncalculateCurrentTarget(...): -want count, +got count:\n%d, %d", name, tc.want, ct)
 			}
 		})
 	}
-
 }

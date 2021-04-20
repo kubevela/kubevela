@@ -19,11 +19,11 @@
 package workloads
 
 import (
-	"github.com/crossplane/crossplane-runtime/pkg/event"
-	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	v1 "k8s.io/api/apps/v1"
+
+	"github.com/crossplane/crossplane-runtime/pkg/event"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -32,6 +32,7 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
+	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -42,8 +43,8 @@ var _ = Describe("deployment controller", func() {
 		namespaceName        string
 		sourceName           string
 		targetName           string
-		sourceDeploy         v1.Deployment
-		targetDeploy         v1.Deployment
+		sourceDeploy         appsv1.Deployment
+		targetDeploy         appsv1.Deployment
 		sourceNamespacedName client.ObjectKey
 		targetNamespacedName client.ObjectKey
 	)
@@ -79,10 +80,10 @@ var _ = Describe("deployment controller", func() {
 				WithAnnotations("controller", "AppRollout"),
 		}
 
-		targetDeploy = v1.Deployment{
-			TypeMeta:   metav1.TypeMeta{APIVersion: v1.SchemeGroupVersion.String(), Kind: "Deployment"},
+		targetDeploy = appsv1.Deployment{
+			TypeMeta:   metav1.TypeMeta{APIVersion: appsv1.SchemeGroupVersion.String(), Kind: "Deployment"},
 			ObjectMeta: metav1.ObjectMeta{Namespace: namespaceName, Name: targetName},
-			Spec: v1.DeploymentSpec{
+			Spec: appsv1.DeploymentSpec{
 				Selector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{"env": "staging"},
 				},
@@ -94,10 +95,10 @@ var _ = Describe("deployment controller", func() {
 			},
 		}
 
-		sourceDeploy = v1.Deployment{
-			TypeMeta:   metav1.TypeMeta{APIVersion: v1.SchemeGroupVersion.String(), Kind: "Deployment"},
+		sourceDeploy = appsv1.Deployment{
+			TypeMeta:   metav1.TypeMeta{APIVersion: appsv1.SchemeGroupVersion.String(), Kind: "Deployment"},
 			ObjectMeta: metav1.ObjectMeta{Namespace: namespaceName, Name: sourceName},
-			Spec: v1.DeploymentSpec{
+			Spec: appsv1.DeploymentSpec{
 				Replicas: pointer.Int32Ptr(10),
 				Selector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{"env": "staging"},
@@ -163,6 +164,18 @@ var _ = Describe("deployment controller", func() {
 			Expect(consistent).Should(BeFalse())
 		})
 
+		It("verify target size value", func() {
+			By("Create the deployments, source size is 10")
+			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			c.rolloutSpec.TargetSize = pointer.Int32Ptr(8)
+			consistent, err := c.VerifySpec(ctx)
+			Expect(consistent).Should(BeFalse())
+			Expect(err.Error()).Should(ContainSubstring("less than source size"))
+			Expect(c.rolloutStatus.RolloutTargetSize).Should(BeEquivalentTo(0))
+			Expect(c.rolloutStatus.NewPodTemplateIdentifier).Should(BeEmpty())
+		})
+
 		It("verify rollout spec hash", func() {
 			By("Create the deployments")
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
@@ -189,7 +202,7 @@ var _ = Describe("deployment controller", func() {
 					Replicas: intstr.FromInt(2),
 				},
 				{
-					Replicas: intstr.FromInt(3),
+					Replicas: intstr.FromInt(13),
 				},
 			}
 			consistent, err := c.VerifySpec(ctx)
@@ -199,15 +212,15 @@ var _ = Describe("deployment controller", func() {
 			Expect(c.rolloutStatus.NewPodTemplateIdentifier).Should(BeEmpty())
 
 			By("set the correct rollout target size")
-			c.rolloutSpec.TargetSize = pointer.Int32Ptr(5)
+			c.rolloutSpec.TargetSize = pointer.Int32Ptr(15)
 			consistent, err = c.VerifySpec(ctx)
 			Expect(consistent).Should(BeFalse())
 			Expect(err.Error()).ShouldNot(ContainSubstring("the rollout plan batch size mismatch"))
-			Expect(c.rolloutStatus.RolloutTargetSize).Should(BeEquivalentTo(5))
+			Expect(c.rolloutStatus.RolloutTargetSize).Should(BeEquivalentTo(15))
 			Expect(c.rolloutStatus.NewPodTemplateIdentifier).Should(BeEmpty())
 		})
 
-		It("the deployment need to be stable", func() {
+		It("the deployment need to be stable if not paused", func() {
 			By("create the source deployment with many pods")
 			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(50)
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
@@ -275,39 +288,452 @@ var _ = Describe("deployment controller", func() {
 	})
 
 	Context("TestInitialize", func() {
-		BeforeEach(func() {
-			By("Create paused deployments")
-
-		})
-
 		It("failed to fetch Deployment", func() {
-			sourceDeploy.Spec.Paused = true
-			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(Succeed())
 			initialized, err := c.Initialize(ctx)
 			Expect(initialized).Should(BeFalse())
 			Expect(err).Should(BeNil())
 		})
 
-		It("failed to claim Deployment", func() {
-			sourceDeploy.Spec.Paused = true
+		It("failed to claim Deployment as the owner reference is ill-formated", func() {
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(Succeed())
-			targetDeploy.Spec.Paused = true
 			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(Succeed())
 			initialized, err := c.Initialize(ctx)
 			Expect(initialized).Should(BeFalse())
 			Expect(err).Should(BeNil())
 		})
 
-		FIt("successfully initialized Deployment", func() {
-			sourceDeploy.Spec.Paused = true
+		It("successfully initialized Deployment", func() {
 			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(Succeed())
-			targetDeploy.Spec.Paused = true
 			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(Succeed())
 			c.parentController.SetUID("abcdedg")
+			c.rolloutStatus.RolloutTargetSize = 12
 			initialized, err := c.Initialize(ctx)
 			Expect(initialized).Should(BeTrue())
 			Expect(err).Should(BeNil())
+			By("Verify the source deployment is claimed")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(len(sourceDeploy.GetOwnerReferences())).Should(Equal(1))
+			Expect(sourceDeploy.GetOwnerReferences()[0].Kind).Should(Equal(v1beta1.AppRolloutKindVersionKind.Kind))
+			Expect(sourceDeploy.GetOwnerReferences()[0].UID).Should(BeEquivalentTo(c.parentController.GetUID()))
+			Expect(sourceDeploy.Spec.Paused).Should(BeFalse())
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(10))
+			By("Verify the target deployment is claimed and init to zero")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(len(targetDeploy.GetOwnerReferences())).Should(Equal(1))
+			Expect(targetDeploy.GetOwnerReferences()[0].Kind).Should(Equal(v1beta1.AppRolloutKindVersionKind.Kind))
+			Expect(targetDeploy.GetOwnerReferences()[0].UID).Should(BeEquivalentTo(c.parentController.GetUID()))
+			Expect(targetDeploy.Spec.Paused).Should(BeFalse())
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(2))
 		})
 
+		It("successfully initialized deployment on resume/revert case", func() {
+			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(7)
+			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(Succeed())
+			targetDeploy.Spec.Replicas = pointer.Int32Ptr(5)
+			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(Succeed())
+			c.parentController.SetUID("abcdedg")
+			c.rolloutStatus.RolloutTargetSize = 10
+			initialized, err := c.Initialize(ctx)
+			Expect(initialized).Should(BeTrue())
+			Expect(err).Should(BeNil())
+			By("Verify the source deployment is claimed")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(len(sourceDeploy.GetOwnerReferences())).Should(Equal(1))
+			Expect(sourceDeploy.GetOwnerReferences()[0].Kind).Should(Equal(v1beta1.AppRolloutKindVersionKind.Kind))
+			Expect(sourceDeploy.GetOwnerReferences()[0].UID).Should(BeEquivalentTo(c.parentController.GetUID()))
+			Expect(sourceDeploy.Spec.Paused).Should(BeFalse())
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(7))
+			By("Verify the target deployment is claimed with the right amount of replicas")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(len(targetDeploy.GetOwnerReferences())).Should(Equal(1))
+			Expect(targetDeploy.GetOwnerReferences()[0].Kind).Should(Equal(v1beta1.AppRolloutKindVersionKind.Kind))
+			Expect(targetDeploy.GetOwnerReferences()[0].UID).Should(BeEquivalentTo(c.parentController.GetUID()))
+			Expect(targetDeploy.Spec.Paused).Should(BeFalse())
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(
+				c.rolloutStatus.RolloutTargetSize - *sourceDeploy.Spec.Replicas))
+		})
+	})
+
+	Context("TestRolloutOneBatchPods", func() {
+		It("failed to fetch Deployment", func() {
+			initialized, err := c.RolloutOneBatchPods(ctx)
+			Expect(initialized).Should(BeFalse())
+			Expect(err).Should(BeNil())
+		})
+
+		It("rollout increase first, first batch", func() {
+			By("Create the source deployment")
+			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(10)
+			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			By("Create the target deployment")
+			targetDeploy.Spec.Replicas = pointer.Int32Ptr(0)
+			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			By("rollout the first half")
+			// rolloutRelaxSpec doesn't set the RolloutStrategy
+			c.rolloutSpec = rolloutRelaxSpec
+			c.rolloutStatus.CurrentBatch = 0
+			c.rolloutStatus.RolloutTargetSize = *sourceDeploy.Spec.Replicas
+			rolloutDone, err := c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeFalse())
+			Expect(err).Should(BeNil())
+			By("Verify the source deployment is not touched")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(10))
+			By("Verify the target deployment is scaled up first")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(2))
+			By("try to rollout the second half, fail because target status didn't change")
+			rolloutDone, err = c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeFalse())
+			Expect(err).Should(BeNil())
+			By("rollout the second half after fake target status update")
+			// Replicas has to be more than ReadyReplicas
+			targetDeploy.Status.Replicas = *targetDeploy.Spec.Replicas
+			targetDeploy.Status.ReadyReplicas = *targetDeploy.Spec.Replicas
+			Expect(k8sClient.Status().Update(ctx, &targetDeploy)).Should(Succeed())
+			rolloutDone, err = c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeTrue())
+			Expect(err).Should(BeNil())
+			By("Verify the source deployment is scaled down")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(8))
+			By("Verify the target deployment is not touched")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(2))
+			Expect(c.rolloutStatus.UpgradedReplicas).Should(BeEquivalentTo(2))
+		})
+
+		It("rollout decrease first, first batch", func() {
+			By("Create the source deployment")
+			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(10)
+			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			By("Create the target deployment")
+			targetDeploy.Spec.Replicas = pointer.Int32Ptr(0)
+			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			By("rollout the first half to decrease first")
+			c.rolloutSpec = rolloutRelaxSpec
+			c.rolloutSpec.RolloutStrategy = v1alpha1.DecreaseFirstRolloutStrategyType
+			c.rolloutStatus.CurrentBatch = 0
+			c.rolloutStatus.RolloutTargetSize = *sourceDeploy.Spec.Replicas
+			rolloutDone, err := c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeFalse())
+			Expect(err).Should(BeNil())
+			By("Verify the source deployment is scaled down first")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(8))
+			By("Verify the target deployment is not touched")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(0))
+			By("try to rollout the second half, fail because target status didn't change")
+			rolloutDone, err = c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeFalse())
+			Expect(err).Should(BeNil())
+			By("rollout the second half after fake target status update")
+			sourceDeploy.Status.Replicas = *sourceDeploy.Spec.Replicas
+			Expect(k8sClient.Status().Update(ctx, &sourceDeploy)).Should(Succeed())
+			rolloutDone, err = c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeTrue())
+			Expect(err).Should(BeNil())
+			By("Verify the source deployment is not touched")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(8))
+			By("Verify the target deployment is scaled up")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(2))
+			Expect(c.rolloutStatus.UpgradedReplicas).Should(BeEquivalentTo(2))
+		})
+
+		It("rollout increase first, last batch", func() {
+			By("Create the source deployment")
+			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(4)
+			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			By("Create the target deployment")
+			targetDeploy.Spec.Replicas = pointer.Int32Ptr(6)
+			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			By("rollout the first half, omit strategy")
+			c.rolloutSpec = rolloutRelaxSpec
+			c.rolloutSpec.RolloutStrategy = v1alpha1.IncreaseFirstRolloutStrategyType
+			c.rolloutStatus.CurrentBatch = 3
+			c.rolloutStatus.RolloutTargetSize = *sourceDeploy.Spec.Replicas + *targetDeploy.Spec.Replicas
+			rolloutDone, err := c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeFalse())
+			Expect(err).Should(BeNil())
+			By("Verify the source deployment is not touched")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(4))
+			By("Verify the target deployment is scaled up first")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(10))
+			By("try to rollout the second half, fail because target status didn't change")
+			rolloutDone, err = c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeFalse())
+			Expect(err).Should(BeNil())
+			By("try to rollout the second half, fail because target status didn't meet")
+			targetDeploy.Status.Replicas = *targetDeploy.Spec.Replicas
+			targetDeploy.Status.ReadyReplicas = *targetDeploy.Spec.Replicas - 1
+			Expect(k8sClient.Status().Update(ctx, &sourceDeploy)).Should(Succeed())
+			rolloutDone, err = c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeFalse())
+			Expect(err).Should(BeNil())
+			By("rollout the second half after fake target status update")
+			targetDeploy.Status.Replicas = *targetDeploy.Spec.Replicas
+			targetDeploy.Status.ReadyReplicas = *targetDeploy.Spec.Replicas
+			Expect(k8sClient.Status().Update(ctx, &targetDeploy)).Should(Succeed())
+			rolloutDone, err = c.RolloutOneBatchPods(ctx)
+			Expect(err).Should(BeNil())
+			Expect(rolloutDone).Should(BeTrue())
+			By("Verify the source deployment is scaled down")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(0))
+			By("Verify the target deployment is not touched")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(10))
+			Expect(c.rolloutStatus.UpgradedReplicas).Should(BeEquivalentTo(10))
+		})
+
+		It("rollout decrease first, last batch", func() {
+			By("Create the source deployment")
+			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(4)
+			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			// set status as default is 0
+			sourceDeploy.Status.Replicas = *sourceDeploy.Spec.Replicas
+			Expect(k8sClient.Status().Update(ctx, &sourceDeploy)).Should(Succeed())
+			By("Create the target deployment")
+			targetDeploy.Spec.Replicas = pointer.Int32Ptr(6)
+			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			By("rollout the first half to decrease first")
+			c.rolloutSpec = rolloutRelaxSpec
+			c.rolloutSpec.RolloutStrategy = v1alpha1.DecreaseFirstRolloutStrategyType
+			c.rolloutStatus.CurrentBatch = 3
+			c.rolloutStatus.RolloutTargetSize = *sourceDeploy.Spec.Replicas + *targetDeploy.Spec.Replicas
+			rolloutDone, err := c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeFalse())
+			Expect(err).Should(BeNil())
+			By("Verify the source deployment is scaled down first")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(0))
+			By("Verify the target deployment is not touched")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(6))
+			By("try to rollout the second half, fail because target status didn't change")
+			rolloutDone, err = c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeFalse())
+			Expect(err).Should(BeNil())
+			By("try to rollout the second half, fail because target status didn't meet")
+			sourceDeploy.Status.Replicas = *sourceDeploy.Spec.Replicas + 1
+			Expect(k8sClient.Status().Update(ctx, &sourceDeploy)).Should(Succeed())
+			rolloutDone, err = c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeFalse())
+			Expect(err).Should(BeNil())
+			By("rollout the second half after fake source status update")
+			sourceDeploy.Status.Replicas = *sourceDeploy.Spec.Replicas
+			Expect(k8sClient.Status().Update(ctx, &sourceDeploy)).Should(Succeed())
+			c.sourceDeploy = appsv1.Deployment{}
+			rolloutDone, err = c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeTrue())
+			Expect(err).Should(BeNil())
+			By("Verify the source deployment is not touched")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(0))
+			By("Verify the target deployment is scaled up")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(10))
+			Expect(c.rolloutStatus.UpgradedReplicas).Should(BeEquivalentTo(10))
+		})
+
+		It("rollout increase first, revert case", func() {
+			By("Create the deployments in the middle of rolling out")
+			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(6)
+			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			sourceDeploy.Status.Replicas = *sourceDeploy.Spec.Replicas
+			Expect(k8sClient.Status().Update(ctx, &sourceDeploy)).Should(Succeed())
+			By("Create the target deployment")
+			targetDeploy.Spec.Replicas = pointer.Int32Ptr(14)
+			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			targetDeploy.Status.Replicas = *targetDeploy.Spec.Replicas
+			targetDeploy.Status.ReadyReplicas = *targetDeploy.Spec.Replicas
+			Expect(k8sClient.Status().Update(ctx, &targetDeploy)).Should(Succeed())
+			By("rollout the first batch to start the revert")
+			c.rolloutSpec = rolloutRelaxSpec
+			c.rolloutSpec.RolloutStrategy = v1alpha1.IncreaseFirstRolloutStrategyType
+			c.rolloutStatus.CurrentBatch = 0
+			c.rolloutStatus.RolloutTargetSize = 20
+			rolloutDone, err := c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeTrue())
+			Expect(err).Should(BeNil())
+			By("Verify the source deployment is not touched")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(6))
+			By("Verify the target deployment is not touched")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(14))
+			Expect(c.rolloutStatus.UpgradedReplicas).Should(BeEquivalentTo(4))
+			By("rollout the second batch")
+			c.rolloutStatus.CurrentBatch = 1
+			rolloutDone, err = c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeTrue())
+			Expect(err).Should(BeNil())
+			By("Verify the source deployment is not touched")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(6))
+			By("Verify the target deployment is not touched")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(14))
+			Expect(c.rolloutStatus.UpgradedReplicas).Should(BeEquivalentTo(6))
+			By("rollout the third batch")
+			c.rolloutStatus.CurrentBatch = 2
+			rolloutDone, err = c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeTrue())
+			Expect(err).Should(BeNil())
+			By("Verify the source deployment is not touched")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(6))
+			By("Verify the target deployment is not touched")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(14))
+			Expect(c.rolloutStatus.UpgradedReplicas).Should(BeEquivalentTo(8))
+			By("rollout the fourth batch")
+			c.rolloutStatus.CurrentBatch = 3
+			rolloutDone, err = c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeFalse())
+			Expect(err).Should(BeNil())
+			By("Verify the source deployment is not touched")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(6))
+			By("Verify the target deployment is scaled up")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(20))
+			Expect(c.rolloutStatus.UpgradedReplicas).Should(BeEquivalentTo(8))
+		})
+
+		It("rollout decrease first, revert case", func() {
+			By("Create the deployments in the middle of rolling out")
+			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(14)
+			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			sourceDeploy.Status.Replicas = *sourceDeploy.Spec.Replicas
+			Expect(k8sClient.Status().Update(ctx, &sourceDeploy)).Should(Succeed())
+			By("Create the target deployment")
+			targetDeploy.Spec.Replicas = pointer.Int32Ptr(6)
+			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			targetDeploy.Status.Replicas = *targetDeploy.Spec.Replicas
+			targetDeploy.Status.ReadyReplicas = *targetDeploy.Spec.Replicas
+			Expect(k8sClient.Status().Update(ctx, &targetDeploy)).Should(Succeed())
+			By("rollout the first batch to start the revert")
+			c.rolloutSpec = rolloutRelaxSpec
+			c.rolloutSpec.RolloutStrategy = v1alpha1.DecreaseFirstRolloutStrategyType
+			c.rolloutStatus.CurrentBatch = 0
+			c.rolloutStatus.RolloutTargetSize = 20
+			rolloutDone, err := c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeTrue())
+			Expect(err).Should(BeNil())
+			By("Verify the source deployment is not touched")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(14))
+			By("Verify the target deployment is not touched")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(6))
+			Expect(c.rolloutStatus.UpgradedReplicas).Should(BeEquivalentTo(4))
+			By("rollout the second batch")
+			c.rolloutStatus.CurrentBatch = 1
+			rolloutDone, err = c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeTrue())
+			Expect(err).Should(BeNil())
+			By("Verify the source deployment is not touched")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(14))
+			By("Verify the target deployment is not touched")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(6))
+			Expect(c.rolloutStatus.UpgradedReplicas).Should(BeEquivalentTo(6))
+			By("rollout the third batch")
+			c.rolloutStatus.CurrentBatch = 2
+			rolloutDone, err = c.RolloutOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeFalse())
+			Expect(err).Should(BeNil())
+			By("Verify the source deployment is not touched")
+			Expect(k8sClient.Get(ctx, sourceNamespacedName, &sourceDeploy))
+			Expect(*sourceDeploy.Spec.Replicas).Should(BeEquivalentTo(12))
+			By("Verify the target deployment is scaled up")
+			Expect(k8sClient.Get(ctx, targetNamespacedName, &targetDeploy))
+			Expect(*targetDeploy.Spec.Replicas).Should(BeEquivalentTo(6))
+			Expect(c.rolloutStatus.UpgradedReplicas).Should(BeEquivalentTo(6))
+		})
+	})
+
+	Context("TestCheckOneBatchPods", func() {
+		It("failed to fetch Deployment", func() {
+			initialized, err := c.CheckOneBatchPods(ctx)
+			Expect(initialized).Should(BeFalse())
+			Expect(err).Should(BeNil())
+		})
+
+		It("check batches with rollout increase first", func() {
+			By("Create the source deployment")
+			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			By("Create the target deployment")
+			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			By("check first batch")
+			c.rolloutSpec = rolloutRelaxSpec
+			c.rolloutSpec.RolloutStrategy = v1alpha1.IncreaseFirstRolloutStrategyType
+			c.rolloutStatus.CurrentBatch = 0
+			c.rolloutStatus.RolloutTargetSize = 20
+			By("source more than goal")
+			sourceDeploy.Status.Replicas = 17
+			Expect(k8sClient.Status().Update(ctx, &sourceDeploy)).Should(Succeed())
+			rolloutDone, err := c.CheckOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeFalse())
+			Expect(err).Should(BeNil())
+			By("source meet goal")
+			sourceDeploy.Status.Replicas = 16
+			Expect(k8sClient.Status().Update(ctx, &sourceDeploy)).Should(Succeed())
+			rolloutDone, err = c.CheckOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeTrue())
+			Expect(err).Should(BeNil())
+			By("source less than goal")
+			sourceDeploy.Status.Replicas = 15
+			Expect(k8sClient.Status().Update(ctx, &sourceDeploy)).Should(Succeed())
+			rolloutDone, err = c.CheckOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeTrue())
+			Expect(err).Should(BeNil())
+		})
+
+		It("check batches with rollout decrease first", func() {
+			By("Create the source deployment")
+			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			By("Create the target deployment")
+			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			By("check first batch")
+			c.rolloutSpec = rolloutRelaxSpec
+			c.rolloutSpec.RolloutStrategy = v1alpha1.DecreaseFirstRolloutStrategyType
+			c.rolloutStatus.CurrentBatch = 1
+			c.rolloutStatus.RolloutTargetSize = 20
+			By("target more than goal")
+			targetDeploy.Status.Replicas = 9
+			targetDeploy.Status.ReadyReplicas = 7
+			Expect(k8sClient.Status().Update(ctx, &targetDeploy)).Should(Succeed())
+			rolloutDone, err := c.CheckOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeTrue())
+			Expect(err).Should(BeNil())
+			By("target meet goal")
+			targetDeploy.Status.Replicas = 7
+			targetDeploy.Status.ReadyReplicas = 6
+			Expect(k8sClient.Status().Update(ctx, &targetDeploy)).Should(Succeed())
+			rolloutDone, err = c.CheckOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeTrue())
+			Expect(err).Should(BeNil())
+			By("target less than goal")
+			targetDeploy.Status.Replicas = 6
+			targetDeploy.Status.ReadyReplicas = 5
+			Expect(k8sClient.Status().Update(ctx, &targetDeploy)).Should(Succeed())
+			rolloutDone, err = c.CheckOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeFalse())
+			Expect(err).Should(BeNil())
+			By("target less than goal but unavailable allowed")
+			unavil := intstr.FromString("10%")
+			c.rolloutSpec.RolloutBatches[1].MaxUnavailable = &unavil
+			rolloutDone, err = c.CheckOneBatchPods(ctx)
+			Expect(rolloutDone).Should(BeTrue())
+			Expect(err).Should(BeNil())
+		})
 	})
 })
