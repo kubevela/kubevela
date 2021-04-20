@@ -39,7 +39,7 @@ require (
 	github.com/oam-dev/terraform-config-inspect v0.0.0-20210418082552-fc72d929aa28
 	github.com/oam-dev/terraform-controller v0.1.2
 	github.com/olekukonko/tablewriter v0.0.2
-	github.com/onsi/ginkgo v1.14.1
+	github.com/onsi/ginkgo v1.13.0
 	github.com/onsi/gomega v1.10.3
 	github.com/openkruise/kruise-api v0.7.0
 	github.com/pkg/errors v0.9.1
