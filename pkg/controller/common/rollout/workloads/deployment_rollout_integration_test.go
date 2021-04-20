@@ -736,4 +736,73 @@ var _ = Describe("deployment controller", func() {
 			Expect(err).Should(BeNil())
 		})
 	})
+
+	Context("TestFinalizeOneBatch", func() {
+		It("failed to fetch Deployment", func() {
+			finalized, err := c.FinalizeOneBatch(ctx)
+			Expect(finalized).Should(BeFalse())
+			Expect(err).Should(BeNil())
+		})
+
+		It("test rollout batch configured correctly", func() {
+			By("Create the deployments")
+			sourceDeploy.Spec.Replicas = pointer.Int32Ptr(8)
+			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			targetDeploy.Spec.Replicas = pointer.Int32Ptr(5)
+			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			By("Fail if the targets don't add up")
+			c.rolloutSpec = rolloutRelaxSpec
+			c.rolloutSpec.RolloutStrategy = v1alpha1.DecreaseFirstRolloutStrategyType
+			c.rolloutStatus.CurrentBatch = 1
+			c.rolloutStatus.RolloutTargetSize = 10
+			finalized, err := c.FinalizeOneBatch(ctx)
+			Expect(finalized).Should(BeFalse())
+			Expect(err.Error()).Should(ContainSubstring("deployment targets don't match total rollout"))
+			By("Success if they do")
+			// sum of target and source
+			c.rolloutStatus.RolloutTargetSize = 13
+			finalized, err = c.FinalizeOneBatch(ctx)
+			Expect(finalized).Should(BeTrue())
+			Expect(err).Should(BeNil())
+		})
+	})
+
+	Context("TestFinalize", func() {
+		It("failed to fetch deployment", func() {
+			finalized := c.Finalize(ctx, true)
+			Expect(finalized).Should(BeFalse())
+		})
+
+		It("release success without ownership", func() {
+			By("Create the deployments")
+			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			By("no op success if we are not the owner")
+			finalized := c.Finalize(ctx, true)
+			Expect(finalized).Should(BeTrue())
+		})
+
+		It("release success as the owner", func() {
+			By("Create the deployments")
+			sourceDeploy.SetOwnerReferences([]metav1.OwnerReference{{
+				APIVersion: v1beta1.SchemeGroupVersion.String(),
+				Kind:       v1beta1.AppRolloutKind,
+				Name:       "def",
+				UID:        "123456",
+				Controller: pointer.BoolPtr(true),
+			}})
+			Expect(k8sClient.Create(ctx, &sourceDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			targetDeploy.SetOwnerReferences([]metav1.OwnerReference{{
+				APIVersion: v1beta1.SchemeGroupVersion.String(),
+				Kind:       v1beta1.ApplicationKind,
+				Name:       "def",
+				UID:        "123456",
+				Controller: pointer.BoolPtr(true),
+			}})
+			Expect(k8sClient.Create(ctx, &targetDeploy)).Should(SatisfyAny(Succeed(), &util.AlreadyExistMatcher{}))
+			By("success if we are the owner")
+			finalized := c.Finalize(ctx, true)
+			Expect(finalized).Should(BeTrue())
+		})
+	})
 })

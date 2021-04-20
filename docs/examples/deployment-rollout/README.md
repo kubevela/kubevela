@@ -12,24 +12,13 @@ kubectl apply -f docs/examples/deployment-rollout/webservice-definition.yaml
 ```shell
 kubectl apply -f docs/examples/deployment-rollout/app-source.yaml
 ```
-Wait for the application's status to be "running"
 
-3. Prepare the application for rolling out
-```shell
-kubectl apply -f docs/examples/deployment-rollout/app-source-prep.yaml
-```
-
-4. Modify the application image and apply
+3. Modify the application image and apply
 ```shell
 kubectl apply -f docs/examples/deployment-rollout/app-target.yaml
 ```
 
-5. Mark the application as normal
-```shell
-kubectl apply -f docs/examples/deployment-rollout/app-target-done.yaml
-```
-
-6. Apply the application deployment with pause
+4. Apply the application deployment with pause
 ```shell
 kubectl apply -f docs/examples/deployment-rollout/app-rollout-pause.yaml
 ```

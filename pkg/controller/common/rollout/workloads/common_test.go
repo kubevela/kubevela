@@ -362,9 +362,14 @@ func Test_VerifyBatchesWithScaleFailCases(t *testing.T) {
 			originalSize: 16,
 			targetSize:   32,
 		},
-		"numeric decrease": {
+		"numeric decrease 1": {
 			rolloutSpec:  rolloutNumericSpec,
 			originalSize: 13,
+			targetSize:   10,
+		},
+		"numeric decrease 2": {
+			rolloutSpec:  rolloutNumericSpec,
+			originalSize: 16,
 			targetSize:   10,
 		},
 	}

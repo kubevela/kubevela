@@ -258,7 +258,7 @@ func (c *DeploymentController) FinalizeOneBatch(ctx context.Context) (bool, erro
 	sourceTarget := getDeployReplicaSize(&c.sourceDeploy)
 	targetTarget := getDeployReplicaSize(&c.targetDeploy)
 	if sourceTarget+targetTarget != c.rolloutStatus.RolloutTargetSize {
-		err = fmt.Errorf("deployment targest don't match total rollout, sourceTarget = %d, targetTarget = %d, "+
+		err = fmt.Errorf("deployment targets don't match total rollout, sourceTarget = %d, targetTarget = %d, "+
 			"rolloutTargetSize = %d", sourceTarget, targetTarget, c.rolloutStatus.RolloutTargetSize)
 		klog.ErrorS(err, "the batch is not valid", "current batch", c.rolloutStatus.CurrentBatch)
 		return false, err
