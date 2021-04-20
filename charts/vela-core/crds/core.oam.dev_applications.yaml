@@ -443,6 +443,28 @@ spec:
                       type: string
                     name:
                       type: string
+                    scopes:
+                      items:
+                        description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
+                        properties:
+                          apiVersion:
+                            description: APIVersion of the referenced object.
+                            type: string
+                          kind:
+                            description: Kind of the referenced object.
+                            type: string
+                          name:
+                            description: Name of the referenced object.
+                            type: string
+                          uid:
+                            description: UID of the referenced object.
+                            type: string
+                        required:
+                        - apiVersion
+                        - kind
+                        - name
+                        type: object
+                      type: array
                     traits:
                       items:
                         description: ApplicationTraitStatus records the trait health status
@@ -912,6 +934,28 @@ spec:
                       type: string
                     name:
                       type: string
+                    scopes:
+                      items:
+                        description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
+                        properties:
+                          apiVersion:
+                            description: APIVersion of the referenced object.
+                            type: string
+                          kind:
+                            description: Kind of the referenced object.
+                            type: string
+                          name:
+                            description: Name of the referenced object.
+                            type: string
+                          uid:
+                            description: UID of the referenced object.
+                            type: string
+                        required:
+                        - apiVersion
+                        - kind
+                        - name
+                        type: object
+                      type: array
                     traits:
                       items:
                         description: ApplicationTraitStatus records the trait health status

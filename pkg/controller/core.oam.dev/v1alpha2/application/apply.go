@@ -266,6 +266,7 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 			traitStatusList = append(traitStatusList, traitStatus)
 		}
 		status.Traits = traitStatusList
+		status.Scopes = generateScopeReference(wl.Scopes)
 		appStatus = append(appStatus, status)
 	}
 	return appStatus, healthy, nil
@@ -707,4 +708,16 @@ outLoop:
 		return err
 	}
 	return nil
+}
+
+func generateScopeReference(scopes []appfile.Scope) []runtimev1alpha1.TypedReference {
+	var references []runtimev1alpha1.TypedReference
+	for _, scope := range scopes {
+		references = append(references, runtimev1alpha1.TypedReference{
+			APIVersion: scope.GVK.GroupVersion().String(),
+			Kind:       scope.GVK.Kind,
+			Name:       scope.Name,
+		})
+	}
+	return references
 }
