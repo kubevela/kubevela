@@ -34,7 +34,7 @@ Perfect in flexibility though, X-as-Code tends to lead to configuration drift. T
 
 With developer experience in mind, KubeVela exposes those programmable platform capabilities as application-centric API shown as below:
 - Components - deployable/provisionable entities that composed your application deployment
-  - e.g. a Kubernetes workload, a MySQL database, or a AWS OSS bucket
+  - e.g. a Kubernetes workload, a MySQL database, or a AWS S3 bucket
 - Traits - attachable operational features per your needs
   - e.g. autoscaling rules, rollout strategies, ingress rules, sidecars, security policies etc
 - Application - full description of your application deployment assembled with components and traits.
