@@ -22,19 +22,18 @@ import (
 	"strings"
 	"time"
 
-	types2 "github.com/oam-dev/kubevela/apis/types"
-
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/types"
+	ktype "k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/types"
 	core "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	ac "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
@@ -82,7 +81,7 @@ func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 	}
 	// fetch the appRevision it points to
 	appRevision := &v1alpha2.ApplicationRevision{}
-	key := types.NamespacedName{Namespace: appContext.Namespace, Name: appContext.Spec.ApplicationRevisionName}
+	key := ktype.NamespacedName{Namespace: appContext.Namespace, Name: appContext.Spec.ApplicationRevisionName}
 	if err := r.client.Get(ctx, key, appRevision); err != nil {
 		if apierrors.IsNotFound(err) {
 			// stop processing this resource
@@ -115,7 +114,7 @@ func (r *Reconciler) Reconcile(request reconcile.Request) (reconcile.Result, err
 	// use the controller build-in backoff mechanism if an error occurs
 	if err != nil {
 		reconResult.RequeueAfter = 0
-	} else if appContext.Status.RollingStatus == types2.RollingTemplated {
+	} else if appContext.Status.RollingStatus == types.RollingTemplated {
 		// makes sure that we can will reconcile shortly after the annotation is removed
 		reconResult.RequeueAfter = time.Second * 5
 	}

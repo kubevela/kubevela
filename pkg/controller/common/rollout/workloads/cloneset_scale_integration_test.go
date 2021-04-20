@@ -265,6 +265,8 @@ var _ = Describe("cloneset controller", func() {
 			Expect(done).Should(BeTrue())
 			Expect(err).Should(BeNil())
 			Expect(s.rolloutStatus.UpgradedReplicas).Should(BeEquivalentTo(3))
+			Expect(k8sClient.Get(ctx, s.workloadNamespacedName, &cloneSet)).Should(Succeed())
+			Expect(*cloneSet.Spec.Replicas).Should(BeEquivalentTo(3))
 		})
 	})
 
