@@ -69,11 +69,13 @@ parameter: {
 					Name:        workloadName,
 					Type:        types.TypeWorkload,
 					CueTemplate: workloadCueTemplate,
+					Category:    types.CUECategory,
 				},
 				{
 					Name:        traitName,
 					Type:        types.TypeTrait,
 					CueTemplate: traitCueTemplate,
+					Category:    types.CUECategory,
 				},
 			},
 			want: nil,
