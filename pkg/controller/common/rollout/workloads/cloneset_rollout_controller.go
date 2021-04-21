@@ -43,12 +43,14 @@ func NewCloneSetRolloutController(client client.Client, recorder event.Recorder,
 	rolloutSpec *v1alpha1.RolloutPlan, rolloutStatus *v1alpha1.RolloutStatus, workloadName types.NamespacedName) *CloneSetRolloutController {
 	return &CloneSetRolloutController{
 		cloneSetController: cloneSetController{
-			client:                 client,
-			recorder:               recorder,
-			parentController:       parentController,
-			rolloutSpec:            rolloutSpec,
-			rolloutStatus:          rolloutStatus,
-			workloadNamespacedName: workloadName,
+			workloadController: workloadController{
+				client:           client,
+				recorder:         recorder,
+				parentController: parentController,
+				rolloutSpec:      rolloutSpec,
+				rolloutStatus:    rolloutStatus,
+			},
+			targetNamespacedName: workloadName,
 		},
 	}
 }

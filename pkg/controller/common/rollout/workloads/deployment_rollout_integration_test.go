@@ -38,7 +38,7 @@ import (
 
 var _ = Describe("deployment controller", func() {
 	var (
-		c                    DeploymentController
+		c                    DeploymentRolloutController
 		ns                   corev1.Namespace
 		namespaceName        string
 		sourceName           string
@@ -57,27 +57,29 @@ var _ = Describe("deployment controller", func() {
 		appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: "test-rollout"}}
 		sourceNamespacedName = client.ObjectKey{Name: sourceName, Namespace: namespaceName}
 		targetNamespacedName = client.ObjectKey{Name: targetName, Namespace: namespaceName}
-		c = DeploymentController{
-			client: k8sClient,
-			rolloutSpec: &v1alpha1.RolloutPlan{
-				RolloutBatches: []v1alpha1.RolloutBatch{
-					{
-						Replicas: intstr.FromInt(2),
-					},
-					{
-						Replicas: intstr.FromInt(3),
-					},
-					{
-						Replicas: intstr.FromString("50%"),
+		c = DeploymentRolloutController{
+			workloadController: workloadController{
+				client: k8sClient,
+				rolloutSpec: &v1alpha1.RolloutPlan{
+					RolloutBatches: []v1alpha1.RolloutBatch{
+						{
+							Replicas: intstr.FromInt(2),
+						},
+						{
+							Replicas: intstr.FromInt(3),
+						},
+						{
+							Replicas: intstr.FromString("50%"),
+						},
 					},
 				},
+				rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
+				parentController: &appRollout,
+				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+					WithAnnotations("controller", "AppRollout"),
 			},
-			rolloutStatus:        &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
-			parentController:     &appRollout,
-			sourceNamespacedName: sourceNamespacedName,
 			targetNamespacedName: targetNamespacedName,
-			recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
-				WithAnnotations("controller", "AppRollout"),
+			sourceNamespacedName: sourceNamespacedName,
 		}
 
 		targetDeploy = appsv1.Deployment{
@@ -141,14 +143,16 @@ var _ = Describe("deployment controller", func() {
 			workloadNamespacedName := client.ObjectKey{Name: sourceName, Namespace: namespaceName}
 			got := NewDeploymentController(k8sClient, recorder, parentController, rolloutSpec, rolloutStatus,
 				workloadNamespacedName, workloadNamespacedName)
-			c := &DeploymentController{
-				client:               k8sClient,
-				recorder:             recorder,
-				parentController:     parentController,
-				rolloutSpec:          rolloutSpec,
-				rolloutStatus:        rolloutStatus,
-				sourceNamespacedName: workloadNamespacedName,
+			c := &DeploymentRolloutController{
+				workloadController: workloadController{
+					client:           k8sClient,
+					recorder:         recorder,
+					parentController: parentController,
+					rolloutSpec:      rolloutSpec,
+					rolloutStatus:    rolloutStatus,
+				},
 				targetNamespacedName: workloadNamespacedName,
+				sourceNamespacedName: workloadNamespacedName,
 			}
 			Expect(got).Should(Equal(c))
 		})

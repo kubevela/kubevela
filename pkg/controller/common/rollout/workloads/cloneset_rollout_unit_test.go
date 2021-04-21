@@ -38,12 +38,14 @@ func TestVerifyRolloutBatchReplicaValue4CloneSet(t *testing.T) {
 	}{
 		"ClonsetTargetSizeIsNotAvaialbe": {
 			c: &CloneSetRolloutController{
-				cloneSetController{
-					rolloutSpec: &v1alpha1.RolloutPlan{
-						TargetSize: &int2,
-						RolloutBatches: []v1alpha1.RolloutBatch{{
-							Replicas: intstr.FromInt(1),
-						},
+				cloneSetController: cloneSetController{
+					workloadController: workloadController{
+						rolloutSpec: &v1alpha1.RolloutPlan{
+							TargetSize: &int2,
+							RolloutBatches: []v1alpha1.RolloutBatch{{
+								Replicas: intstr.FromInt(1),
+							},
+							},
 						},
 					},
 				},
@@ -53,11 +55,13 @@ func TestVerifyRolloutBatchReplicaValue4CloneSet(t *testing.T) {
 		},
 		"BatchSizeMismatchesClonesetSize": {
 			c: &CloneSetRolloutController{
-				cloneSetController{
-					rolloutSpec: &v1alpha1.RolloutPlan{
-						RolloutBatches: []v1alpha1.RolloutBatch{{
-							Replicas: intstr.FromInt(1),
-						},
+				cloneSetController: cloneSetController{
+					workloadController: workloadController{
+						rolloutSpec: &v1alpha1.RolloutPlan{
+							RolloutBatches: []v1alpha1.RolloutBatch{{
+								Replicas: intstr.FromInt(1),
+							},
+							},
 						},
 					},
 				},
@@ -67,14 +71,16 @@ func TestVerifyRolloutBatchReplicaValue4CloneSet(t *testing.T) {
 		},
 		"BatchSizeMatchesCloneSetSize": {
 			c: &CloneSetRolloutController{
-				cloneSetController{
-					rolloutSpec: &v1alpha1.RolloutPlan{
-						RolloutBatches: []v1alpha1.RolloutBatch{
-							{
-								Replicas: intstr.FromInt(1),
-							},
-							{
-								Replicas: intstr.FromInt(2),
+				cloneSetController: cloneSetController{
+					workloadController: workloadController{
+						rolloutSpec: &v1alpha1.RolloutPlan{
+							RolloutBatches: []v1alpha1.RolloutBatch{
+								{
+									Replicas: intstr.FromInt(1),
+								},
+								{
+									Replicas: intstr.FromInt(2),
+								},
 							},
 						},
 					},
