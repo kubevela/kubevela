@@ -60,16 +60,20 @@ type WorkloadController interface {
 	Finalize(ctx context.Context, succeed bool) bool
 }
 
-// cloneSetController is the place to hold fields needed for handle Cloneset type of workloads
-type cloneSetController struct {
+type workloadController struct {
 	client           client.Client
 	recorder         event.Recorder
 	parentController oam.Object
 
-	rolloutSpec            *v1alpha1.RolloutPlan
-	rolloutStatus          *v1alpha1.RolloutStatus
-	workloadNamespacedName types.NamespacedName
-	cloneSet               *kruise.CloneSet
+	rolloutSpec   *v1alpha1.RolloutPlan
+	rolloutStatus *v1alpha1.RolloutStatus
+}
+
+// cloneSetController is the place to hold fields needed for handle Cloneset type of workloads
+type cloneSetController struct {
+	workloadController
+	targetNamespacedName types.NamespacedName
+	cloneSet             *kruise.CloneSet
 }
 
 // size fetches the Cloneset and returns the replicas (not the actual number of pods)
@@ -90,7 +94,7 @@ func (c *cloneSetController) size(ctx context.Context) (int32, error) {
 func (c *cloneSetController) fetchCloneSet(ctx context.Context) error {
 	// get the cloneSet
 	workload := kruise.CloneSet{}
-	err := c.client.Get(ctx, c.workloadNamespacedName, &workload)
+	err := c.client.Get(ctx, c.targetNamespacedName, &workload)
 	if err != nil {
 		if !apierrors.IsNotFound(err) {
 			c.recorder.Event(c.parentController, event.Warning("Failed to get the Cloneset", err))

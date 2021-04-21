@@ -43,12 +43,14 @@ type CloneSetScaleController struct {
 func NewCloneSetScaleController(client client.Client, recorder event.Recorder, parentController oam.Object, rolloutSpec *v1alpha1.RolloutPlan, rolloutStatus *v1alpha1.RolloutStatus, workloadName types.NamespacedName) *CloneSetScaleController {
 	return &CloneSetScaleController{
 		cloneSetController: cloneSetController{
-			client:                 client,
-			recorder:               recorder,
-			parentController:       parentController,
-			rolloutSpec:            rolloutSpec,
-			rolloutStatus:          rolloutStatus,
-			workloadNamespacedName: workloadName,
+			workloadController: workloadController{
+				client:           client,
+				recorder:         recorder,
+				parentController: parentController,
+				rolloutSpec:      rolloutSpec,
+				rolloutStatus:    rolloutStatus,
+			},
+			targetNamespacedName: workloadName,
 		},
 	}
 }
@@ -66,7 +68,7 @@ func (s *CloneSetScaleController) VerifySpec(ctx context.Context) (bool, error) 
 	// the rollout has to have a target size in the scale case
 	if s.rolloutSpec.TargetSize == nil {
 		return false, fmt.Errorf("the rollout plan is attempting to scale the cloneset %s without a target",
-			s.workloadNamespacedName.Name)
+			s.targetNamespacedName.Name)
 	}
 	// record the target size
 	s.rolloutStatus.RolloutTargetSize = *s.rolloutSpec.TargetSize

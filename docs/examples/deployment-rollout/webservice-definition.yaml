@@ -13,14 +13,18 @@ spec:
   schematic:
     cue:
       template: |
+        import (
+            apps "kube/apps/v1"
+        )
+        output: apps.#Deployment
         output: {
-        	apiVersion: "apps/v1"
-        	kind:       "Deployment"
         	spec: {
         		selector: matchLabels: {
         			"app.oam.dev/component": context.name
         		}
-                replicas: parameter.replicas
+                if parameter["replicas"] != _|_ {
+                    replicas: parameter.replicas
+                }
         		template: {
         			metadata: labels: {
         				"app.oam.dev/component": context.name
@@ -91,6 +95,6 @@ spec:
         	// +usage=Number of CPU units for the service, like `0.5` (0.5 CPU core), `1` (1 CPU core)
         	cpu?: string
             // +usage=Number of pods in the deployment
-            replicas: *5 | int
+            replicas?: int
         }
         
