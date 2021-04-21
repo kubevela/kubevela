@@ -132,8 +132,18 @@ func startReferenceDocsSite(ctx context.Context, c common.Args, ioStreams cmduti
 	if !capabilityIsValid {
 		return fmt.Errorf("%s is not a valid component type or trait", capabilityName)
 	}
-	ref := &plugins.MarkdownReference{}
-	if err := ref.CreateMarkdown(capabilities, docsPath, plugins.ReferenceSourcePath); err != nil {
+
+	cli, err := c.GetClient()
+	if err != nil {
+		return err
+	}
+	ref := &plugins.MarkdownReference{
+		ParseReference: plugins.ParseReference{
+			Client: cli,
+		},
+	}
+
+	if err := ref.CreateMarkdown(ctx, capabilities, docsPath, plugins.ReferenceSourcePath); err != nil {
 		return err
 	}
 
@@ -357,15 +367,20 @@ func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.
 		return err
 	}
 
-	ref := &plugins.ConsoleReference{}
+	cli, err := c.GetClient()
+	if err != nil {
+		return err
+	}
+	ref := &plugins.ConsoleReference{
+		ParseReference: plugins.ParseReference{
+			Client: cli,
+		},
+	}
+
 	var propertyConsole []plugins.ConsoleReference
 	switch capability.Category {
 	case types.HelmCategory:
-		cli, err := c.GetClient()
-		if err != nil {
-			return err
-		}
-		propertyConsole, err = ref.GenerateHELMProperties(ctx, cli, capability)
+		_, propertyConsole, err = ref.GenerateHELMProperties(ctx, capability)
 		if err != nil {
 			return err
 		}

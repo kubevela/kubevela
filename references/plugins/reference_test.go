@@ -17,6 +17,7 @@ limitations under the License.
 package plugins
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -89,9 +90,10 @@ parameter: {
 		},
 	}
 	ref := &MarkdownReference{}
+	ctx := context.Background()
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got := ref.CreateMarkdown(tc.capabilities, RefTestDir, ReferenceSourcePath)
+			got := ref.CreateMarkdown(ctx, tc.capabilities, RefTestDir, ReferenceSourcePath)
 			if diff := cmp.Diff(tc.want, got, test.EquateErrors()); diff != "" {
 				t.Errorf("\n%s\nCreateMakrdown(...): -want error, +got error:\n%s", tc.reason, diff)
 			}
@@ -113,7 +115,7 @@ func TestPrepareParameterTable(t *testing.T) {
 	parameterName := "cpu"
 	parameterList[0].Name = parameterName
 	parameterList[0].Required = true
-	refContent := ref.prepareParameter(tableName, parameterList)
+	refContent := ref.prepareParameter(tableName, parameterList, types.CUECategory)
 	assert.Contains(t, refContent, parameterName)
 	assert.Contains(t, refContent, "cpu")
 }
