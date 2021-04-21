@@ -8,7 +8,7 @@ In this documentation, we will explain the core idea of KubeVela and clarify som
 
 First of all, KubeVela introduces a workflow with separate of concerns as below:
 - **Platform Team**
-  - Model deployment environments and platform capabilities as reusable templates, then register them into the platform.
+  - Model deployment environments and platform capabilities as reusable templates, then register them into Kubernetes.
 - **End Users**
   - Choose a deployment environment, assemble the app with available templates per needs, and then deploy the app to target environment.
 
@@ -16,7 +16,7 @@ Below is how this workflow looks like:
 
 ![alt](resources/how-it-works.png)
 
-This design make it possible for platform team to enforce best practices by *coding* platform capabilities into templates, and leverage them to expose end users with a *PaaS-like* experience (*i.e. app-centric abstractions, self-service workflow etc*).
+This design make it possible for platform team to enforce best practices by *coding* platform capabilities into templates, and leverage them to expose a *PaaS-like* experience (*i.e. app-centric abstractions, self-service workflow etc*) to end users.
 
 Also, as programmable components, these templates can be updated or extended easily per your needs at any time.
 
@@ -98,7 +98,7 @@ Essentially:
   - e.g. a Kubernetes workload, a MySQL database, or a AWS S3 bucket
 - Traits - attachable operational features per your needs
   - e.g. autoscaling rules, rollout strategies, ingress rules, sidecars, security policies etc
-- Application - full description of your application deployment assembled with components and traits.
+- Application - full description of your application deployment assembled with components and traits
 - Environment - the target environments to deploy this application
 
 ## Architecture
