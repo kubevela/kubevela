@@ -20,6 +20,7 @@ KubeVela is a modern application engine that adapts to your application's needs,
 
 - Slack:  [CNCF Slack](https://slack.cncf.io/) #kubevela channel
 - Gitter: [Discussion](https://gitter.im/oam-dev/community)
+- [DingTalk](https://page.dingtalk.com/wow/dingtalk/act/en-home): 23310022 (Recommend for users speaking Chinese)
 - Bi-weekly Community Call: [Meeting Notes](https://docs.google.com/document/d/1nqdFEyULekyksFHtFvgvFAYE-0AMHKoS3RMnaKsarjs)
 
 ## Introduction
