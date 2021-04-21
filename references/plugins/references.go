@@ -17,6 +17,8 @@ limitations under the License.
 package plugins
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -25,7 +27,11 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/olekukonko/tablewriter"
+	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
@@ -181,6 +187,23 @@ services:
 `,
 }
 
+// BaseOpenAPIV3Template is Standard OpenAPIV3 Template
+var BaseOpenAPIV3Template = `{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "definition-parameter",
+        "version": "1.0"
+    },
+    "paths": {},
+    "components": {
+        "schemas": {
+			"parameter": %s
+		}
+	}
+}`
+
+var helmRefs []HELMReference
+
 // ReferenceParameter is the parameter section of CUE template
 type ReferenceParameter struct {
 	types.Parameter `json:",inline,omitempty"`
@@ -294,21 +317,31 @@ func (ref *MarkdownReference) prepareParameter(tableName string, parameterList [
 	refContent += "Name | Description | Type | Required | Default \n"
 	refContent += "------------ | ------------- | ------------- | ------------- | ------------- \n"
 	for _, p := range parameterList {
-		printableDefaultValue := ref.getPrintableDefaultValue(p.Default)
+		printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
 		refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, p.Usage, p.PrintableType, p.Required, printableDefaultValue)
 	}
 	return refContent
 }
 
 // prepareParameter prepares the table content for each property
-func (ref *ConsoleReference) prepareParameter(tableName string, parameterList []ReferenceParameter) ConsoleReference {
+func (ref *ConsoleReference) prepareParameter(tableName string, parameterList []ReferenceParameter, category types.CapabilityCategory) ConsoleReference {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetColWidth(100)
 	table.SetHeader([]string{"Name", "Description", "Type", "Required", "Default"})
-	for _, p := range parameterList {
-		printableDefaultValue := ref.getPrintableDefaultValue(p.Default)
-		table.Append([]string{p.Name, p.Usage, p.PrintableType, strconv.FormatBool(p.Required), printableDefaultValue})
+	switch category {
+	case types.CUECategory:
+		for _, p := range parameterList {
+			printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
+			table.Append([]string{p.Name, p.Usage, p.PrintableType, strconv.FormatBool(p.Required), printableDefaultValue})
+		}
+	case types.HelmCategory:
+		for _, p := range parameterList {
+			printableDefaultValue := ref.getHELMPrintableDefaultValue(p.JSONType, p.Default)
+			table.Append([]string{p.Name, p.Usage, p.PrintableType, strconv.FormatBool(p.Required), printableDefaultValue})
+		}
+	default:
 	}
+
 	return ConsoleReference{TableName: tableName, TableObject: table}
 }
 
@@ -386,14 +419,14 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 	case "console":
 		ref := ConsoleReference{}
 		tableName := fmt.Sprintf("%s %s", strings.Repeat("#", depth+1), paramKey)
-		console := ref.prepareParameter(tableName, params)
+		console := ref.prepareParameter(tableName, params, types.CUECategory)
 		propertyConsole = append([]ConsoleReference{console}, propertyConsole...)
 	}
 	return nil
 }
 
-// getPrintableDefaultValue converts the value in `interface{}` type to be printable
-func (ref *ParseReference) getPrintableDefaultValue(v interface{}) string {
+// getCUEPrintableDefaultValue converts the value in `interface{}` type to be printable
+func (ref *ParseReference) getCUEPrintableDefaultValue(v interface{}) string {
 	if v == nil {
 		return ""
 	}
@@ -409,6 +442,20 @@ func (ref *ParseReference) getPrintableDefaultValue(v interface{}) string {
 		return strconv.FormatBool(value)
 	}
 	return ""
+}
+
+func (ref *ParseReference) getHELMPrintableDefaultValue(dataType string, value interface{}) string {
+	if value != nil {
+		return strings.TrimSpace(fmt.Sprintf("%v", value))
+	}
+	defaultValueMap := map[string]string{
+		"number":  "0",
+		"boolean": "false",
+		"string":  "",
+		"object":  "{}",
+		"array":   "[]",
+	}
+	return defaultValueMap[dataType]
 }
 
 // generateSpecification generates Specification part for reference docs
@@ -429,8 +476,8 @@ func (ref *MarkdownReference) generateConflictWithAndMore(capabilityName string,
 	return "\n" + string(data), nil
 }
 
-// GenerateCapabilityProperties get all properties of a capability
-func (ref *ConsoleReference) GenerateCapabilityProperties(capability *types.Capability) ([]ConsoleReference, error) {
+// GenerateCUETemplateProperties get all properties of a capability
+func (ref *ConsoleReference) GenerateCUETemplateProperties(capability *types.Capability) ([]ConsoleReference, error) {
 	setDisplayFormat("console")
 	capName := capability.Name
 
@@ -445,4 +492,90 @@ func (ref *ConsoleReference) GenerateCapabilityProperties(capability *types.Capa
 	}
 
 	return propertyConsole, nil
+}
+
+// HELMReference contains parameters info of HelmCategory type capability
+type HELMReference struct {
+	TableName  string
+	Parameters []ReferenceParameter
+}
+
+// HELMSchema is a struct contains *openapi3.Schema style parameter
+type HELMSchema struct {
+	Name    string
+	Schemas *openapi3.Schema
+}
+
+// GenerateHELMProperties get all properties of a HelmCategory type capability
+func (ref *ConsoleReference) GenerateHELMProperties(ctx context.Context, cli client.Client, capability *types.Capability) ([]ConsoleReference, error) {
+	cmName := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, capability.Name)
+	var cm v1.ConfigMap
+	helmRefs = make([]HELMReference, 0)
+	if err := cli.Get(ctx, client.ObjectKey{Namespace: capability.Namespace, Name: cmName}, &cm); err != nil {
+		return nil, err
+	}
+	data, ok := cm.Data[types.OpenapiV3JSONSchema]
+	if !ok {
+		return nil, errors.Errorf("configMap doesn't have openapi-v3-json-schema data")
+	}
+	parameterJSON := fmt.Sprintf(BaseOpenAPIV3Template, data)
+	swagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromData(json.RawMessage(parameterJSON))
+	if err != nil {
+		return nil, err
+	}
+	parameters := swagger.Components.Schemas["parameter"].Value
+	WalkParameterSchema(parameters, "Properties")
+
+	var consoleRefs []ConsoleReference
+	for _, item := range helmRefs {
+		consoleRefs = append(consoleRefs, ref.prepareParameter(item.TableName, item.Parameters, types.HelmCategory))
+	}
+	return consoleRefs, err
+}
+
+// WalkParameterSchema will extract properties from *openapi3.Schema
+func WalkParameterSchema(parameters *openapi3.Schema, name string) {
+	if parameters == nil {
+		return
+	}
+	var schemas []HELMSchema
+	var helmParameters []ReferenceParameter
+	for k, v := range parameters.Properties {
+		p := ReferenceParameter{
+			Parameter: types.Parameter{
+				Name:     k,
+				Default:  v.Value.Default,
+				Usage:    v.Value.Description,
+				JSONType: v.Value.Type,
+			},
+			PrintableType: v.Value.Type,
+		}
+		required := false
+		for _, requiredType := range parameters.Required {
+			if k == requiredType {
+				required = true
+				break
+			}
+		}
+		p.Required = required
+		if v.Value.Type == "object" {
+			if v.Value.Properties != nil {
+				schemas = append(schemas, HELMSchema{
+					Name:    k,
+					Schemas: v.Value,
+				})
+			}
+			p.PrintableType += fmt.Sprintf("(%s)", k)
+		}
+		helmParameters = append(helmParameters, p)
+	}
+
+	helmRefs = append(helmRefs, HELMReference{
+		TableName:  name,
+		Parameters: helmParameters,
+	})
+
+	for _, schema := range schemas {
+		WalkParameterSchema(schema.Schemas, schema.Name)
+	}
 }

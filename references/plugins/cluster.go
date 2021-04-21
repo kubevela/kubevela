@@ -205,15 +205,17 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 		tmp.CueTemplate = string(b)
 	}
 	if tmp.CueTemplate == "" {
+		if schematic != nil && schematic.HELM != nil {
+			tmp.Category = types.HelmCategory
+			return tmp, nil
+		}
 		return types.Capability{}, errors.New("template not exist in definition")
-	}
-	if err != nil {
-		return types.Capability{}, err
 	}
 	tmp.Parameters, err = cue.GetParameters(tmp.CueTemplate)
 	if err != nil {
 		return types.Capability{}, err
 	}
+	tmp.Category = types.CUECategory
 	return tmp, nil
 }
 
@@ -279,6 +281,7 @@ func SyncDefinitionToLocal(ctx context.Context, c common.Args, localDefinitionDi
 		template, err := HandleDefinition(capabilityName, ref.Name,
 			componentDef.Annotations, componentDef.Spec.Extension, types.TypeComponentDefinition, nil, componentDef.Spec.Schematic)
 		if err == nil {
+			template.Namespace = componentDef.Namespace
 			return &template, nil
 		}
 	}
@@ -293,6 +296,7 @@ func SyncDefinitionToLocal(ctx context.Context, c common.Args, localDefinitionDi
 		template, err := HandleDefinition(capabilityName, traitDef.Spec.Reference.Name,
 			traitDef.Annotations, traitDef.Spec.Extension, types.TypeTrait, nil, traitDef.Spec.Schematic)
 		if err == nil {
+			template.Namespace = traitDef.Namespace
 			return &template, nil
 		}
 	}

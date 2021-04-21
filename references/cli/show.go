@@ -358,9 +358,24 @@ func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.
 	}
 
 	ref := &plugins.ConsoleReference{}
-	propertyConsole, err := ref.GenerateCapabilityProperties(capability)
-	if err != nil {
-		return err
+	var propertyConsole []plugins.ConsoleReference
+	switch capability.Category {
+	case types.HelmCategory:
+		cli, err := c.GetClient()
+		if err != nil {
+			return err
+		}
+		propertyConsole, err = ref.GenerateHELMProperties(ctx, cli, capability)
+		if err != nil {
+			return err
+		}
+	case types.CUECategory:
+		propertyConsole, err = ref.GenerateCUETemplateProperties(capability)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupport capability category %s", capability.Category)
 	}
 	for _, p := range propertyConsole {
 		ioStreams.Info(p.TableName)
