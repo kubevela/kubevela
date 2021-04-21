@@ -22,11 +22,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
@@ -217,7 +215,7 @@ func main() {
 
 	setupLog.Info("starting the vela controller manager")
 
-	if err := mgr.Start(makeSignalHandler()); err != nil {
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
@@ -279,22 +277,4 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 			}
 		}
 	}
-}
-
-func makeSignalHandler() (stopCh <-chan struct{}) {
-	stop := make(chan struct{})
-	c := make(chan os.Signal, 2)
-
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		<-c
-		close(stop)
-
-		// second signal. Exit directly.
-		<-c
-		os.Exit(1)
-	}()
-
-	return stop
 }
