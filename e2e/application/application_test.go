@@ -50,7 +50,6 @@ var _ = ginkgo.Describe("Test Vela Application", func() {
 	e2e.JsonAppFileContext("deploy app-basic", appbasicJsonAppFile)
 	e2e.JsonAppFileContext("update app-basic, add scaler trait with replicas 2", appbasicAddTraitJsonAppFile)
 	e2e.ComponentListContext("ls", applicationName, workloadType, traitAlias)
-	ApplicationShowContext("show", applicationName, workloadType)
 	ApplicationStatusContext("status", applicationName, workloadType)
 	ApplicationStatusDeeplyContext("status", applicationName, workloadType, envName)
 	ApplicationExecContext("exec -- COMMAND", applicationName)
@@ -101,19 +100,6 @@ var ApplicationStatusDeeplyContext = func(context string, applicationName, workl
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			gomega.Expect(output).To(gomega.ContainSubstring("Checking health status"))
 			// TODO(zzxwill) need to check workloadType after app status is refined
-		})
-	})
-}
-
-var ApplicationShowContext = func(context string, applicationName string, workloadType string) bool {
-	return ginkgo.Context(context, func() {
-		ginkgo.It("should show app information", func() {
-			cli := fmt.Sprintf("vela show %s", applicationName)
-			output, err := e2e.Exec(cli)
-			gomega.Expect(err).NotTo(gomega.HaveOccurred())
-			// TODO(zzxwill) need to check workloadType after app show is refined
-			//gomega.Expect(output).To(gomega.ContainSubstring(workloadType))
-			gomega.Expect(output).To(gomega.ContainSubstring(applicationName))
 		})
 	})
 }

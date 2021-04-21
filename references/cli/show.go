@@ -340,19 +340,7 @@ func getComponentsAndTraits(capabilities []types.Capability) ([]string, []string
 
 // ShowReferenceConsole will show capability reference in console
 func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string, ns string) error {
-	home, err := system.GetVelaHomeDir()
-	if err != nil {
-		return err
-	}
-	referenceHome := filepath.Join(home, "reference")
-
-	definitionPath := filepath.Join(referenceHome, "capabilities")
-	if _, err := os.Stat(definitionPath); err != nil && os.IsNotExist(err) {
-		if err := os.MkdirAll(definitionPath, 0750); err != nil {
-			return err
-		}
-	}
-	capability, err := plugins.SyncDefinitionToLocal(ctx, c, definitionPath, capabilityName, ns)
+	capability, err := plugins.SyncDefinitionToLocal(ctx, c, capabilityName, ns)
 	if err != nil {
 		return err
 	}
