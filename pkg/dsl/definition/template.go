@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	mycue "github.com/oam-dev/kubevela/pkg/cue"
 	"github.com/oam-dev/kubevela/pkg/dsl/model"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/dsl/task"
@@ -40,6 +39,8 @@ const (
 	OutputFieldName = process.OutputFieldName
 	// OutputsFieldName is the name of the struct contains the map[string]CR data
 	OutputsFieldName = process.OutputsFieldName
+	// ParameterFieldName is the name of the struct contains configurable content
+	ParameterFieldName = "parameter"
 	// PatchFieldName is the name of the struct contains the patch of CR data
 	PatchFieldName = "patch"
 	// CustomMessage defines the custom message in definition template
@@ -86,17 +87,17 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	if err := bi.AddFile("-", abstractTemplate); err != nil {
 		return errors.WithMessagef(err, "invalid cue template of workload %s", wd.name)
 	}
-	var paramFile = "parameter: {}"
+	var paramFile = fmt.Sprintf("%s: {}", ParameterFieldName)
 	if params != nil {
 		bt, err := json.Marshal(params)
 		if err != nil {
 			return errors.WithMessagef(err, "marshal parameter of workload %s", wd.name)
 		}
 		if string(bt) != "null" {
-			paramFile = fmt.Sprintf("%s: %s", mycue.ParameterTag, string(bt))
+			paramFile = fmt.Sprintf("%s: %s", ParameterFieldName, string(bt))
 		}
 	}
-	if err := bi.AddFile("parameter", paramFile); err != nil {
+	if err := bi.AddFile(ParameterFieldName, paramFile); err != nil {
 		return errors.WithMessagef(err, "invalid parameter of workload %s", wd.name)
 	}
 
@@ -279,7 +280,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 			return errors.WithMessagef(err, "marshal parameter of trait %s", td.name)
 		}
 		if string(bt) != "null" {
-			paramFile = fmt.Sprintf("%s: %s", mycue.ParameterTag, string(bt))
+			paramFile = fmt.Sprintf("%s: %s", ParameterFieldName, string(bt))
 		}
 	}
 	if err := bi.AddFile("parameter", paramFile); err != nil {

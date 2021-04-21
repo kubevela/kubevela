@@ -1,0 +1,48 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: mydeploy-adopted
+  namespace: default
+spec:
+  components:
+  - name: mydeploy
+    type: nomad
+    properties:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: mydeploy
+        namespace: default
+      spec:
+        progressDeadlineSeconds: 600
+        replicas: 1
+        revisionHistoryLimit: 10
+        selector:
+          matchLabels:
+            app: nginx
+        strategy:
+          rollingUpdate:
+            maxSurge: 25%
+            maxUnavailable: 25%
+          type: RollingUpdate
+        template:
+          metadata:
+            creationTimestamp: null
+            labels:
+              app: nginx
+          spec:
+            containers:
+            - image: nginx:1.14.2
+              imagePullPolicy: IfNotPresent
+              name: nginx
+              ports:
+              - containerPort: 80
+                protocol: TCP
+              resources: {}
+              terminationMessagePath: /dev/termination-log
+              terminationMessagePolicy: File
+            dnsPolicy: ClusterFirst
+            restartPolicy: Always
+            schedulerName: default-scheduler
+            securityContext: {}
+            terminationGracePeriodSeconds: 30

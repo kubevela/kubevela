@@ -85,6 +85,7 @@ func NewCommand() *cobra.Command {
 		NewLogsCommand(commandArgs, ioStream),
 		NewEnvCommand(commandArgs, ioStream),
 		NewConfigCommand(ioStream),
+		NewAdoptCommand(commandArgs, ioStream),
 
 		// Capabilities
 		CapabilityCommandGroup(commandArgs, ioStream),

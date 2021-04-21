@@ -43,6 +43,12 @@ const (
 	StatusStaging = "Staging"
 )
 
+const (
+	// NomadComponentDefinition is the name of a built-in component definition
+	// used to adopt nomadic workload into an application
+	NomadComponentDefinition = "nomad"
+)
+
 // EnvMeta stores the info for app environment
 type EnvMeta struct {
 	Name      string `json:"name"`

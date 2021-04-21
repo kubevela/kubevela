@@ -1,0 +1,45 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: mycloneset-adopted
+  namespace: default
+spec:
+  components:
+  - name: mycloneset
+    properties:
+      apiVersion: apps.kruise.io/v1alpha1
+      kind: CloneSet
+      metadata:
+        name: mycloneset
+        namespace: default
+      spec:
+        replicas: 5
+        revisionHistoryLimit: 10
+        scaleStrategy: {}
+        selector:
+          matchLabels:
+            app: sample
+        template:
+          metadata:
+            creationTimestamp: null
+            labels:
+              app: sample
+          spec:
+            containers:
+            - image: nginx:alpine
+              imagePullPolicy: Always
+              name: nginx
+              resources: {}
+              terminationMessagePath: /dev/termination-log
+              terminationMessagePolicy: File
+            dnsPolicy: ClusterFirst
+            restartPolicy: Always
+            schedulerName: default-scheduler
+            securityContext: {}
+            terminationGracePeriodSeconds: 30
+        updateStrategy:
+          maxSurge: 0
+          maxUnavailable: 20%
+          partition: 0
+          type: ReCreate
+    type: nomad

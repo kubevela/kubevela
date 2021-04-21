@@ -25,9 +25,11 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
@@ -112,6 +114,17 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComp
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
 	}
+	if templ.ComponentDefinition != nil &&
+		templ.ComponentDefinition.GetName() == types.NomadComponentDefinition {
+		// for nomad component, we should extract GVK from component
+		// properties instead of component definition
+		wl := &unstructured.Unstructured{Object: settings}
+		gvk := wl.GetObjectKind().GroupVersionKind()
+		templ.Reference = common.WorkloadGVK{
+			APIVersion: gvk.GroupVersion().String(),
+			Kind:       gvk.Kind,
+		}
+	}
 	workload := &Workload{
 		Traits:             []*Trait{},
 		Name:               comp.Name,
@@ -169,10 +182,10 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComp
 
 func (p *Parser) parseTrait(ctx context.Context, name string, properties map[string]interface{}) (*Trait, error) {
 	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, name, types.TypeTrait)
-	if kerrors.IsNotFound(err) {
-		return nil, errors.Errorf("trait definition of %s not found", name)
-	}
 	if err != nil {
+		if kerrors.IsNotFound(err) {
+			return nil, errors.Errorf("trait definition of %s not found", name)
+		}
 		return nil, err
 	}
 	return &Trait{
