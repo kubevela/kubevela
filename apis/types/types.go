@@ -19,8 +19,6 @@ package types
 const (
 	// DefaultKubeVelaNS defines the default KubeVela namespace in Kubernetes
 	DefaultKubeVelaNS = "vela-system"
-	// DefaultNamespace defines the default namespace
-	DefaultNamespace = "default"
 	// DefaultKubeVelaReleaseName defines the default name of KubeVela Release
 	DefaultKubeVelaReleaseName = "kubevela"
 	// DefaultKubeVelaChartName defines the default chart name of KubeVela, this variable MUST align to the chart name of this repo
