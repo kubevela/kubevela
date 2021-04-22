@@ -254,7 +254,6 @@ spec:
         	cmd?: [...string]
         }
 `
-
 			var def v1beta1.ComponentDefinition
 			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &def)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())

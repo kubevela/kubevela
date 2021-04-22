@@ -102,6 +102,11 @@ const (
 
 	// ErrRefreshPackageDiscover is the error while refresh PackageDiscover
 	ErrRefreshPackageDiscover = "cannot discover the open api of the CRD : %v"
+
+	// ErrGenerateDefinitionRevision is the error while generate DefinitionRevision
+	ErrGenerateDefinitionRevision = "cannot generate DefinitionRevision of %s: %v"
+	// ErrCreateOrUpdateDefinitionRevision is the error while create or update DefinitionRevision
+	ErrCreateOrUpdateDefinitionRevision = "cannot create or update DefinitionRevision %s: %v"
 )
 
 // WorkloadType describe the workload type of ComponentDefinition
