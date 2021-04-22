@@ -4,7 +4,7 @@
 
 # KubeVela
 
-KubeVela is a modern application platform that adapts to your application's needs, not the other way around.
+KubeVela is a modern application platform that adapts to your needs, not the other way around.
 
 ## Community
 
