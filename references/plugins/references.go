@@ -295,8 +295,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 				return fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
 			}
 			for _, property := range properties {
-				tableName := fmt.Sprintf("%s %s", strings.Repeat("#", property.Depth+2), property.Name)
-				refContent += ref.prepareParameter(tableName, property.Parameters, types.HelmCategory)
+				refContent += ref.prepareParameter("#"+property.Name, property.Parameters, types.HelmCategory)
 			}
 		default:
 			return fmt.Errorf("unsupport capability category %s", c.Category)
@@ -336,7 +335,7 @@ func (ref *MarkdownReference) prepareParameter(tableName string, parameterList [
 	case types.HelmCategory:
 		for _, p := range parameterList {
 			printableDefaultValue := ref.getHELMPrintableDefaultValue(p.JSONType, p.Default)
-			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, p.Usage, p.PrintableType, p.Required, printableDefaultValue)
+			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, strings.ReplaceAll(p.Usage, "\n", ""), p.PrintableType, p.Required, printableDefaultValue)
 		}
 	default:
 	}
@@ -586,13 +585,13 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 					Schemas: v.Value,
 				})
 			}
-			p.PrintableType += fmt.Sprintf("(%s)", k)
+			p.PrintableType = fmt.Sprintf("[%s](#%s)", k, k)
 		}
 		helmParameters = append(helmParameters, p)
 	}
 
 	helmRefs = append(helmRefs, HELMReference{
-		Name:       name,
+		Name:       fmt.Sprintf("%s %s", strings.Repeat("#", depth+1), name),
 		Parameters: helmParameters,
 		Depth:      depth + 1,
 	})
