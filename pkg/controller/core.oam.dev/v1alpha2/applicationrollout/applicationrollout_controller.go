@@ -94,6 +94,15 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	klog.InfoS("Start to reconcile ", "appRollout", klog.KObj(&appRollout))
+	reconRes, err := r.DoReconcile(ctx, &appRollout)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	return reconRes, r.updateStatus(ctx, &appRollout)
+}
+
+// DoReconcile is real reconcile logic for appRollout
+func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRollout) (res reconcile.Result, retErr error) {
 	if len(appRollout.Status.RollingState) == 0 {
 		appRollout.Status.ResetStatus()
 	}
@@ -101,22 +110,22 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	sourceAppRevisionName := appRollout.Spec.SourceAppRevisionName
 
 	// handle app Finalizer
-	doneReconcile, res, retErr := r.handleFinalizer(ctx, &appRollout)
+	doneReconcile, res, retErr := r.handleFinalizer(ctx, appRollout)
 	if doneReconcile {
 		return res, retErr
 	}
 
 	// no need to proceed if rollout is already in a terminal state and there is no source/target change
-	doneReconcile = r.handleRollingTerminated(appRollout, targetAppRevisionName, sourceAppRevisionName)
+	doneReconcile = r.handleRollingTerminated(*appRollout, targetAppRevisionName, sourceAppRevisionName)
 	if doneReconcile {
 		return reconcile.Result{}, nil
 	}
 
 	// handle rollout target/source change (only if it's not deleting already)
-	if isRolloutModified(appRollout) {
+	if isRolloutModified(*appRollout) {
 		klog.InfoS("rollout target changed, restart the rollout", "new source", sourceAppRevisionName,
 			"new target", targetAppRevisionName)
-		r.record.Event(&appRollout, event.Normal("Rollout Restarted",
+		r.record.Event(appRollout, event.Normal("Rollout Restarted",
 			"rollout target changed, restart the rollout", "new source", sourceAppRevisionName,
 			"new target", targetAppRevisionName))
 		// we are okay to move directly to restart the rollout since we are at the terminal state
@@ -142,7 +151,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 
 	if appRollout.Status.RollingState == v1alpha1.RolloutDeletingState {
 		if sourceAppRevisionName == "" {
-			klog.InfoS("source app fields not filled, this is a scale operation", "appRollout", klog.KRef(req.Namespace, req.Name))
+			klog.InfoS("source app fields not filled, this is a scale operation", "appRollout", klog.KRef(appRollout.Namespace, appRollout.Name))
 		} else {
 			sourceApRev, sourceApp, err = r.getSourceAppContexts(ctx,
 				appRollout.Spec.ComponentList, appRollout.Status.RollingState, sourceAppRevisionName)
@@ -158,10 +167,10 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 		}
 		if sourceApp == nil && targetApp == nil {
 			klog.InfoS("Both the target and the source app are gone", "appRollout",
-				klog.KRef(req.Namespace, req.Name), "rolling state", appRollout.Status.RollingState)
+				klog.KRef(appRollout.Namespace, appRollout.Name), "rolling state", appRollout.Status.RollingState)
 			appRollout.Status.StateTransition(v1alpha1.RollingFinalizedEvent)
 			// update the appRollout status
-			return ctrl.Result{}, r.updateStatus(ctx, &appRollout)
+			return ctrl.Result{}, nil
 		}
 	} else {
 		// TODO: try to refactor this into a method with reasonable number of parameters and output
@@ -176,9 +185,9 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 			// check if the app is templated
 			if sourceApp.Status.RollingStatus != types.RollingTemplated {
 				klog.Info("source app revision is not ready for rolling yet", "application revision", sourceAppRevisionName)
-				r.record.Event(&appRollout, event.Normal("Rollout Paused",
+				r.record.Event(appRollout, event.Normal("Rollout Paused",
 					"source app revision is not ready for rolling yet", "application revision", sourceApp.GetName()))
-				return ctrl.Result{RequeueAfter: 3 * time.Second}, r.updateStatus(ctx, &appRollout)
+				return ctrl.Result{RequeueAfter: 3 * time.Second}, nil
 			}
 		}
 
@@ -193,9 +202,9 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 
 		// check if the app is templated
 		if targetApp.Status.RollingStatus != types.RollingTemplated {
-			r.record.Event(&appRollout, event.Normal("Rollout Paused",
+			r.record.Event(appRollout, event.Normal("Rollout Paused",
 				"target app revision is not ready for rolling yet", "application revision", targetApp.GetName()))
-			return ctrl.Result{RequeueAfter: 3 * time.Second}, r.updateStatus(ctx, &appRollout)
+			return ctrl.Result{RequeueAfter: 3 * time.Second}, nil
 		}
 	}
 
@@ -203,16 +212,16 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	targetWorkload, sourceWorkload, err := r.extractWorkloads(ctx, appRollout.Spec.ComponentList, targetAppRev, sourceApRev)
 	if err != nil {
 		klog.ErrorS(err, "cannot fetch the workloads to upgrade", "target application",
-			klog.KRef(req.Namespace, targetAppRevisionName), "source application", klog.KRef(req.Namespace, sourceAppRevisionName),
+			klog.KRef(appRollout.Namespace, targetAppRevisionName), "source application", klog.KRef(appRollout.Namespace, sourceAppRevisionName),
 			"commonComponent", appRollout.Spec.ComponentList)
-		return ctrl.Result{RequeueAfter: 5 * time.Second}, r.updateStatus(ctx, &appRollout)
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, r.updateStatus(ctx, appRollout)
 	}
 	klog.InfoS("get the target workload we need to work on", "targetWorkload", klog.KObj(targetWorkload))
 	if sourceWorkload != nil {
 		klog.InfoS("get the source workload we need to work on", "sourceWorkload", klog.KObj(sourceWorkload))
 	}
 	// reconcile the rollout part of the spec given the target and source workload
-	rolloutPlanController := rollout.NewRolloutPlanController(r, &appRollout, r.record,
+	rolloutPlanController := rollout.NewRolloutPlanController(r, appRollout, r.record,
 		&appRollout.Spec.RolloutPlan, &appRollout.Status.RolloutStatus, targetWorkload, sourceWorkload)
 	result, rolloutStatus := rolloutPlanController.Reconcile(ctx)
 	// make sure that the new status is copied back
@@ -234,7 +243,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 
 	}
 	// update the appRollout status
-	return result, r.updateStatus(ctx, &appRollout)
+	return result, nil
 }
 
 // check if either the source or the target of the appRollout has changed
