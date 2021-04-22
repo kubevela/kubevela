@@ -162,10 +162,11 @@ const (
 type ApplicationComponentStatus struct {
 	Name string `json:"name"`
 	// WorkloadDefinition is the definition of a WorkloadDefinition, such as deployments/apps.v1
-	WorkloadDefinition WorkloadGVK              `json:"workloadDefinition,omitempty"`
-	Healthy            bool                     `json:"healthy"`
-	Message            string                   `json:"message,omitempty"`
-	Traits             []ApplicationTraitStatus `json:"traits,omitempty"`
+	WorkloadDefinition WorkloadGVK                `json:"workloadDefinition,omitempty"`
+	Healthy            bool                       `json:"healthy"`
+	Message            string                     `json:"message,omitempty"`
+	Traits             []ApplicationTraitStatus   `json:"traits,omitempty"`
+	Scopes             []v1alpha12.TypedReference `json:"scopes,omitempty"`
 }
 
 // ApplicationTraitStatus records the trait health status
