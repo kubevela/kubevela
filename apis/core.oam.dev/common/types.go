@@ -196,7 +196,9 @@ type RawComponent struct {
 type AppStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	v1alpha1.RolloutStatus `json:",inline"`
+	v1alpha12.ConditionedStatus `json:",inline"`
+
+	Rollout AppRolloutStatus `json:"rollout,omitempty"`
 
 	Phase ApplicationPhase `json:"status,omitempty"`
 
@@ -225,3 +227,16 @@ const (
 	// TraitType represents DefinitionRevision refer to type TraitDefinition
 	TraitType DefinitionType = "Trait"
 )
+
+// AppRolloutStatus defines the observed state of AppRollout
+type AppRolloutStatus struct {
+	v1alpha1.RolloutStatus `json:",inline"`
+
+	// LastUpgradedTargetAppRevision contains the name of the app that we upgraded to
+	// We will restart the rollout if this is not the same as the spec
+	LastUpgradedTargetAppRevision string `json:"lastTargetAppRevision"`
+
+	// LastSourceAppRevision contains the name of the app that we need to upgrade from.
+	// We will restart the rollout if this is not the same as the spec
+	LastSourceAppRevision string `json:"LastSourceAppRevision,omitempty"`
+}

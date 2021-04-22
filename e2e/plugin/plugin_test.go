@@ -551,6 +551,7 @@ var livediffResult = `---
   status:
     batchRollingState: ""
     currentBatch: 0
+    lastTargetAppRevision: ""
     rollingState: ""
     upgradedReadyReplicas: 0
     upgradedReplicas: 0

@@ -18,19 +18,18 @@ package application
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
+
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -62,7 +61,7 @@ type Reconciler struct {
 	pd               *definition.PackageDiscover
 	Log              logr.Logger
 	Scheme           *runtime.Scheme
-	Recorder         record.EventRecorder
+	Recorder         event.Recorder
 	applicator       apply.Applicator
 	appRevisionLimit int
 }
@@ -124,7 +123,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		applog.Error(err, "[Handle Parse]")
 		app.Status.SetConditions(errorCondition("Parsed", err))
-		r.Recorder.Event(app, corev1.EventTypeWarning, velatypes.ReasonFailedParse, fmt.Sprintf(velatypes.MessageFailedParse, err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
 		return handler.handleErr(err)
 	}
 
@@ -135,11 +134,10 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		applog.Error(err, "[Handle Calculate Revision]")
 		app.Status.SetConditions(errorCondition("Parsed", err))
-		r.Recorder.Event(app, corev1.EventTypeWarning, velatypes.ReasonFailedParse, fmt.Sprintf(velatypes.MessageFailedParse, err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedParse, err))
 		return handler.handleErr(err)
 	}
-
-	r.Recorder.Event(app, corev1.EventTypeNormal, velatypes.ReasonParsed, velatypes.MessageParsed)
+	r.Recorder.Event(app, event.Normal(velatypes.ReasonParsed, velatypes.MessageParsed))
 	// Record the revision so it can be used to render data in context.appRevision
 	generatedAppfile.RevisionName = appRev.Name
 
@@ -149,7 +147,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		applog.Error(err, "[Handle GenerateApplicationConfiguration]")
 		app.Status.SetConditions(errorCondition("Built", err))
-		r.Recorder.Event(app, corev1.EventTypeWarning, velatypes.ReasonFailedRender, fmt.Sprintf(velatypes.MessageFailedRender, err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return handler.handleErr(err)
 	}
 
@@ -157,7 +155,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		applog.Error(err, "[Handle resourceTracker]")
 		app.Status.SetConditions(errorCondition("Handle resourceTracker", err))
-		r.Recorder.Event(app, corev1.EventTypeWarning, velatypes.ReasonFailedRender, fmt.Sprintf(velatypes.MessageFailedRender, err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return handler.handleErr(err)
 	}
 
@@ -165,18 +163,40 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	oamutil.PassLabelAndAnnotation(app, ac)
 
 	app.Status.SetConditions(readyCondition("Built"))
-	r.Recorder.Event(app, corev1.EventTypeNormal, velatypes.ReasonRendered, velatypes.MessageRendered)
+	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 	applog.Info("apply application revision & component to the cluster")
 	// apply application revision & component to the cluster
 	if err := handler.apply(ctx, appRev, ac, comps); err != nil {
 		applog.Error(err, "[Handle apply]")
 		app.Status.SetConditions(errorCondition("Applied", err))
-		r.Recorder.Event(app, corev1.EventTypeWarning, velatypes.ReasonFailedApply, fmt.Sprintf(velatypes.MessageFailedApply, err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
 		return handler.handleErr(err)
 	}
 
+	// if rolloutPlan is nil, user should create a AppRollout object to rollout the application
+	if !handler.inplace && handler.app.Spec.RolloutPlan != nil {
+		res, err := handler.handleRollout(ctx)
+		if err != nil {
+			applog.Error(err, "[handle rollout]")
+			app.Status.SetConditions(errorCondition("Rollout", err))
+			r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRollout, err))
+			return handler.handleErr(err)
+		}
+		// skip health check and garbage collection if rollout have not finished
+		// start next reconcile immediately
+		if res.Requeue || res.RequeueAfter > 0 {
+			app.Status.Phase = common.ApplicationRollingOut
+			return res, r.UpdateStatus(ctx, app)
+		}
+
+		// there is no need reconcile immediately, that means the rollout operation have finished
+		r.Recorder.Event(app, event.Normal(velatypes.ReasonRollout, velatypes.MessageRollout))
+		app.Status.SetConditions(readyCondition("Rollout"))
+		applog.Info("rollout finished")
+	}
+
 	app.Status.SetConditions(readyCondition("Applied"))
-	r.Recorder.Event(app, corev1.EventTypeNormal, velatypes.ReasonApplied, velatypes.MessageApplied)
+	r.Recorder.Event(app, event.Normal(velatypes.ReasonFailedApply, velatypes.MessageApplied))
 	app.Status.Phase = common.ApplicationHealthChecking
 	applog.Info("check application health status")
 	// check application health status
@@ -184,7 +204,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		applog.Error(err, "[status aggregate]")
 		app.Status.SetConditions(errorCondition("HealthCheck", err))
-		r.Recorder.Event(app, corev1.EventTypeWarning, velatypes.ReasonFailedHealthCheck, fmt.Sprintf(velatypes.MessageFailedHealthCheck, err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedHealthCheck, err))
 		return handler.handleErr(err)
 	}
 	if !healthy {
@@ -196,13 +216,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 	app.Status.Services = appCompStatus
 	app.Status.SetConditions(readyCondition("HealthCheck"))
-	r.Recorder.Event(app, corev1.EventTypeNormal, velatypes.ReasonHealthCheck, velatypes.MessageHealthCheck)
+	r.Recorder.Event(app, event.Normal(velatypes.ReasonHealthCheck, velatypes.MessageHealthCheck))
 	app.Status.Phase = common.ApplicationRunning
 
 	err = garbageCollection(ctx, handler)
 	if err != nil {
 		applog.Error(err, "[Garbage collection]")
-		r.Recorder.Event(app, corev1.EventTypeWarning, velatypes.ReasonFailedGC, fmt.Sprintf(velatypes.MessageFailedGC, err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedGC, err))
 	}
 
 	// Gather status of components
@@ -216,7 +236,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		})
 	}
 	app.Status.Components = refComps
-	r.Recorder.Event(app, corev1.EventTypeNormal, velatypes.ReasonDeployed, velatypes.MessageDeployed)
+	r.Recorder.Event(app, event.Normal(velatypes.ReasonDeployed, velatypes.MessageDeployed))
 	return ctrl.Result{}, r.UpdateStatus(ctx, app)
 }
 
@@ -255,7 +275,7 @@ func Setup(mgr ctrl.Manager, args core.Args, _ logging.Logger) error {
 		Client:           mgr.GetClient(),
 		Log:              ctrl.Log.WithName("Application"),
 		Scheme:           mgr.GetScheme(),
-		Recorder:         mgr.GetEventRecorderFor("Application"),
+		Recorder:         event.NewAPIRecorder(mgr.GetEventRecorderFor("Application")),
 		dm:               args.DiscoveryMapper,
 		pd:               args.PackageDiscover,
 		applicator:       apply.NewAPIApplicator(mgr.GetClient()),
