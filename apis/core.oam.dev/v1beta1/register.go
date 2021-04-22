@@ -61,6 +61,14 @@ var (
 	TraitDefinitionGroupVersionKind = SchemeGroupVersion.WithKind(TraitDefinitionKind)
 )
 
+// DefinitionRevision type metadata.
+var (
+	DefinitionRevisionKind             = reflect.TypeOf(DefinitionRevision{}).Name()
+	DefinitionRevisionGroupKind        = schema.GroupKind{Group: Group, Kind: DefinitionRevisionKind}.String()
+	DefinitionRevisionKindAPIVersion   = DefinitionRevisionKind + "." + SchemeGroupVersion.String()
+	DefinitionRevisionGroupVersionKind = SchemeGroupVersion.WithKind(DefinitionRevisionKind)
+)
+
 // Application type metadata.
 var (
 	ApplicationKind            = reflect.TypeOf(Application{}).Name()
@@ -121,6 +129,7 @@ func init() {
 	SchemeBuilder.Register(&ComponentDefinition{}, &ComponentDefinitionList{})
 	SchemeBuilder.Register(&WorkloadDefinition{}, &WorkloadDefinitionList{})
 	SchemeBuilder.Register(&TraitDefinition{}, &TraitDefinitionList{})
+	SchemeBuilder.Register(&DefinitionRevision{}, &DefinitionRevisionList{})
 	SchemeBuilder.Register(&ScopeDefinition{}, &ScopeDefinitionList{})
 	SchemeBuilder.Register(&Application{}, &ApplicationList{})
 	SchemeBuilder.Register(&AppRollout{}, &AppRolloutList{})

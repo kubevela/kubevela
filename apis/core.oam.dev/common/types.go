@@ -213,3 +213,15 @@ type AppStatus struct {
 	// +optional
 	LatestRevision *Revision `json:"latestRevision,omitempty"`
 }
+
+// DefinitionType describes the type of DefinitionRevision.
+// +kubebuilder:validation:Enum=Component;Trait
+type DefinitionType string
+
+const (
+	// ComponentType represents DefinitionRevision refer to type ComponentDefinition
+	ComponentType DefinitionType = "Component"
+
+	// TraitType represents DefinitionRevision refer to type TraitDefinition
+	TraitType DefinitionType = "Trait"
+)

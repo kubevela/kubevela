@@ -62,6 +62,9 @@ type ComponentDefinitionStatus struct {
 	runtimev1alpha1.ConditionedStatus `json:",inline"`
 	// ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
 	ConfigMapRef string `json:"configMapRef,omitempty"`
+	// LatestRevision of the component definition
+	// +optional
+	LatestRevision *common.Revision `json:"latestRevision,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -1,0 +1,455 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.2.4
+  name: definitionrevisions.core.oam.dev
+spec:
+  group: core.oam.dev
+  names:
+    categories:
+    - oam
+    kind: DefinitionRevision
+    listKind: DefinitionRevisionList
+    plural: definitionrevisions
+    shortNames:
+    - comprev
+    singular: definitionrevision
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.revision
+      name: REVISION
+      type: integer
+    - jsonPath: .spec.revisionHash
+      name: HASH
+      type: string
+    - jsonPath: .spec.definitionType
+      name: TYPE
+      type: string
+    name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: DefinitionRevision is the Schema for the DefinitionRevision API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: DefinitionRevisionSpec is the spec of DefinitionRevision
+            properties:
+              componentDefinition:
+                description: ComponentDefinition records the snapshot of the created/modified ComponentDefinition
+                properties:
+                  apiVersion:
+                    description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+                    type: string
+                  kind:
+                    description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+                    type: string
+                  metadata:
+                    type: object
+                  spec:
+                    description: ComponentDefinitionSpec defines the desired state of ComponentDefinition
+                    properties:
+                      childResourceKinds:
+                        description: ChildResourceKinds are the list of GVK of the child resources this workload generates
+                        items:
+                          description: A ChildResourceKind defines a child Kubernetes resource kind with a selector
+                          properties:
+                            apiVersion:
+                              description: APIVersion of the child resource
+                              type: string
+                            kind:
+                              description: Kind of the child resource
+                              type: string
+                            selector:
+                              additionalProperties:
+                                type: string
+                              description: Selector to select the child resources that the workload wants to expose to traits
+                              type: object
+                          required:
+                          - apiVersion
+                          - kind
+                          type: object
+                        type: array
+                      extension:
+                        description: Extension is used for extension needs by OAM platform builders
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      podSpecPath:
+                        description: PodSpecPath indicates where/if this workload has K8s podSpec field if one workload has podSpec, trait can do lot's of assumption such as port, env, volume fields.
+                        type: string
+                      revisionLabel:
+                        description: RevisionLabel indicates which label for underlying resources(e.g. pods) of this workload can be used by trait to create resource selectors(e.g. label selector for pods).
+                        type: string
+                      schematic:
+                        description: Schematic defines the data format and template of the encapsulation of the workload
+                        properties:
+                          cue:
+                            description: CUE defines the encapsulation in CUE format
+                            properties:
+                              template:
+                                description: Template defines the abstraction template data of the capability, it will replace the old CUE template in extension field. Template is a required field if CUE is defined in Capability Definition.
+                                type: string
+                            required:
+                            - template
+                            type: object
+                          helm:
+                            description: A Helm represents resources used by a Helm module
+                            properties:
+                              release:
+                                description: Release records a Helm release used by a Helm module workload.
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                              repository:
+                                description: HelmRelease records a Helm repository used by a Helm module workload.
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                            required:
+                            - release
+                            - repository
+                            type: object
+                          kube:
+                            description: Kube defines the encapsulation in raw Kubernetes resource format
+                            properties:
+                              parameters:
+                                description: Parameters defines configurable parameters
+                                items:
+                                  description: A KubeParameter defines a configurable parameter of a component.
+                                  properties:
+                                    description:
+                                      description: Description of this parameter.
+                                      type: string
+                                    fieldPaths:
+                                      description: "FieldPaths specifies an array of fields within this workload that will be overwritten by the value of this parameter. \tAll fields must be of the same type. Fields are specified as JSON field paths without a leading dot, for example 'spec.replicas'."
+                                      items:
+                                        type: string
+                                      type: array
+                                    name:
+                                      description: Name of this parameter
+                                      type: string
+                                    required:
+                                      default: false
+                                      description: Required specifies whether or not a value for this parameter must be supplied when authoring an Application.
+                                      type: boolean
+                                    type:
+                                      description: 'ValueType indicates the type of the parameter value, and only supports basic data types: string, number, boolean.'
+                                      enum:
+                                      - string
+                                      - number
+                                      - boolean
+                                      type: string
+                                  required:
+                                  - fieldPaths
+                                  - name
+                                  - type
+                                  type: object
+                                type: array
+                              template:
+                                description: Template defines the raw Kubernetes resource
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                            required:
+                            - template
+                            type: object
+                        type: object
+                      status:
+                        description: Status defines the custom health policy and status message for workload
+                        properties:
+                          customStatus:
+                            description: CustomStatus defines the custom status message that could display to user
+                            type: string
+                          healthPolicy:
+                            description: HealthPolicy defines the health check policy for the abstraction
+                            type: string
+                        type: object
+                      workload:
+                        description: Workload is a workload type descriptor
+                        properties:
+                          definition:
+                            description: Definition mutually exclusive to workload.type, a embedded WorkloadDefinition
+                            properties:
+                              apiVersion:
+                                type: string
+                              kind:
+                                type: string
+                            required:
+                            - apiVersion
+                            - kind
+                            type: object
+                          type:
+                            description: Type ref to a WorkloadDefinition via name
+                            type: string
+                        type: object
+                    required:
+                    - workload
+                    type: object
+                  status:
+                    description: ComponentDefinitionStatus is the status of ComponentDefinition
+                    properties:
+                      conditions:
+                        description: Conditions of the resource.
+                        items:
+                          description: A Condition that may apply to a resource.
+                          properties:
+                            lastTransitionTime:
+                              description: LastTransitionTime is the last time this condition transitioned from one status to another.
+                              format: date-time
+                              type: string
+                            message:
+                              description: A Message containing details about this condition's last transition from one status to another, if any.
+                              type: string
+                            reason:
+                              description: A Reason for this condition's last transition from one status to another.
+                              type: string
+                            status:
+                              description: Status of this condition; is it currently True, False, or Unknown?
+                              type: string
+                            type:
+                              description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
+                              type: string
+                          required:
+                          - lastTransitionTime
+                          - reason
+                          - status
+                          - type
+                          type: object
+                        type: array
+                      configMapRef:
+                        description: ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
+                        type: string
+                      latestRevision:
+                        description: LatestRevision of the component definition
+                        properties:
+                          name:
+                            type: string
+                          revision:
+                            format: int64
+                            type: integer
+                          revisionHash:
+                            description: RevisionHash record the hash value of the spec of ApplicationRevision object.
+                            type: string
+                        required:
+                        - name
+                        - revision
+                        type: object
+                    type: object
+                type: object
+              definitionType:
+                description: DefinitionType
+                enum:
+                - Component
+                - Trait
+                type: string
+              revision:
+                description: Revision record revision number of DefinitionRevision
+                format: int64
+                type: integer
+              revisionHash:
+                description: RevisionHash record the hash value of the spec of DefinitionRevision object.
+                type: string
+              traitDefinition:
+                description: TraitDefinition records the snapshot of the created/modified TraitDefinition
+                properties:
+                  apiVersion:
+                    description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+                    type: string
+                  kind:
+                    description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+                    type: string
+                  metadata:
+                    type: object
+                  spec:
+                    description: A TraitDefinitionSpec defines the desired state of a TraitDefinition.
+                    properties:
+                      appliesToWorkloads:
+                        description: AppliesToWorkloads specifies the list of workload kinds this trait applies to. Workload kinds are specified in kind.group/version format, e.g. server.core.oam.dev/v1alpha2. Traits that omit this field apply to all workload kinds.
+                        items:
+                          type: string
+                        type: array
+                      conflictsWith:
+                        description: 'ConflictsWith specifies the list of traits(CRD name, Definition name, CRD group) which could not apply to the same workloads with this trait. Traits that omit this field can work with any other traits. Example rules: "service" # Trait definition name "services.k8s.io" # API resource/crd name "*.networking.k8s.io" # API group "labelSelector:foo=bar" # label selector labelSelector format: https://pkg.go.dev/k8s.io/apimachinery/pkg/labels#Parse'
+                        items:
+                          type: string
+                        type: array
+                      definitionRef:
+                        description: Reference to the CustomResourceDefinition that defines this trait kind.
+                        properties:
+                          name:
+                            description: Name of the referenced CustomResourceDefinition.
+                            type: string
+                          version:
+                            description: Version indicate which version should be used if CRD has multiple versions by default it will use the first one if not specified
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      extension:
+                        description: Extension is used for extension needs by OAM platform builders
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                      podDisruptive:
+                        description: PodDisruptive specifies whether using the trait will cause the pod to restart or not.
+                        type: boolean
+                      revisionEnabled:
+                        description: Revision indicates whether a trait is aware of component revision
+                        type: boolean
+                      schematic:
+                        description: Schematic defines the data format and template of the encapsulation of the trait
+                        properties:
+                          cue:
+                            description: CUE defines the encapsulation in CUE format
+                            properties:
+                              template:
+                                description: Template defines the abstraction template data of the capability, it will replace the old CUE template in extension field. Template is a required field if CUE is defined in Capability Definition.
+                                type: string
+                            required:
+                            - template
+                            type: object
+                          helm:
+                            description: A Helm represents resources used by a Helm module
+                            properties:
+                              release:
+                                description: Release records a Helm release used by a Helm module workload.
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                              repository:
+                                description: HelmRelease records a Helm repository used by a Helm module workload.
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                            required:
+                            - release
+                            - repository
+                            type: object
+                          kube:
+                            description: Kube defines the encapsulation in raw Kubernetes resource format
+                            properties:
+                              parameters:
+                                description: Parameters defines configurable parameters
+                                items:
+                                  description: A KubeParameter defines a configurable parameter of a component.
+                                  properties:
+                                    description:
+                                      description: Description of this parameter.
+                                      type: string
+                                    fieldPaths:
+                                      description: "FieldPaths specifies an array of fields within this workload that will be overwritten by the value of this parameter. \tAll fields must be of the same type. Fields are specified as JSON field paths without a leading dot, for example 'spec.replicas'."
+                                      items:
+                                        type: string
+                                      type: array
+                                    name:
+                                      description: Name of this parameter
+                                      type: string
+                                    required:
+                                      default: false
+                                      description: Required specifies whether or not a value for this parameter must be supplied when authoring an Application.
+                                      type: boolean
+                                    type:
+                                      description: 'ValueType indicates the type of the parameter value, and only supports basic data types: string, number, boolean.'
+                                      enum:
+                                      - string
+                                      - number
+                                      - boolean
+                                      type: string
+                                  required:
+                                  - fieldPaths
+                                  - name
+                                  - type
+                                  type: object
+                                type: array
+                              template:
+                                description: Template defines the raw Kubernetes resource
+                                type: object
+                                x-kubernetes-preserve-unknown-fields: true
+                            required:
+                            - template
+                            type: object
+                        type: object
+                      status:
+                        description: Status defines the custom health policy and status message for trait
+                        properties:
+                          customStatus:
+                            description: CustomStatus defines the custom status message that could display to user
+                            type: string
+                          healthPolicy:
+                            description: HealthPolicy defines the health check policy for the abstraction
+                            type: string
+                        type: object
+                      workloadRefPath:
+                        description: WorkloadRefPath indicates where/if a trait accepts a workloadRef object
+                        type: string
+                    type: object
+                  status:
+                    description: TraitDefinitionStatus is the status of TraitDefinition
+                    properties:
+                      conditions:
+                        description: Conditions of the resource.
+                        items:
+                          description: A Condition that may apply to a resource.
+                          properties:
+                            lastTransitionTime:
+                              description: LastTransitionTime is the last time this condition transitioned from one status to another.
+                              format: date-time
+                              type: string
+                            message:
+                              description: A Message containing details about this condition's last transition from one status to another, if any.
+                              type: string
+                            reason:
+                              description: A Reason for this condition's last transition from one status to another.
+                              type: string
+                            status:
+                              description: Status of this condition; is it currently True, False, or Unknown?
+                              type: string
+                            type:
+                              description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
+                              type: string
+                          required:
+                          - lastTransitionTime
+                          - reason
+                          - status
+                          - type
+                          type: object
+                        type: array
+                      configMapRef:
+                        description: ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
+                        type: string
+                      latestRevision:
+                        description: LatestRevision of the component definition
+                        properties:
+                          name:
+                            type: string
+                          revision:
+                            format: int64
+                            type: integer
+                          revisionHash:
+                            description: RevisionHash record the hash value of the spec of ApplicationRevision object.
+                            type: string
+                        required:
+                        - name
+                        - revision
+                        type: object
+                    type: object
+                type: object
+            required:
+            - definitionType
+            - revision
+            - revisionHash
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
