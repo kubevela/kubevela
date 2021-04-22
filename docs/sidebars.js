@@ -38,6 +38,7 @@ module.exports = {
             'end-user/cloud-resources',
             'end-user/volumes',
             'end-user/monitoring',
+            'end-user/health',
           ]
         },
       ]

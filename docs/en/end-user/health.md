@@ -44,8 +44,10 @@ spec:
         healthscopes.core.oam.dev: health-check
 ```
 3. Check app status, will see health scope in `status.service.scopes`
+```shell
+$ kubectl get app vela-app -o yaml
+```
 ```yaml
-#kubectl get app vela-app -o yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
@@ -62,8 +64,10 @@ status:
          name: health-check
 ```
 4.Check health scope status
+```shell
+$ kubectl get healthscope health-check -o yaml
+```
 ```yaml
-#kubectl get healthscope health-check -o yaml
 apiVersion: core.oam.dev/v1alpha2
 kind: HealthScope
 metadata:
@@ -88,22 +92,4 @@ status:
     healthStatus: HEALTHY
     healthyWorkloads: 1
     total: 1
-```
-5. Use vela cli check application status
-```yaml
-#vela status vela-app
-About:
-
-  Name:         vela-app
-  Namespace:    default
-  Created at:   2021-04-21 20:40:36 +0800 CST
-
-Services:
-- Name: express-server
-  Type: webservice
-  HEALTHY Ready:1/1
-  Traits:
-
-  Last Deployment:
-    Created at: 2021-04-21 20:40:36 +0800 CST
 ```
