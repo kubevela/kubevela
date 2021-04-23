@@ -18,12 +18,15 @@ package plugins
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
@@ -126,5 +129,199 @@ func TestDeleteRefTestDir(t *testing.T) {
 	if _, err := os.Stat(RefTestDir); err == nil {
 		err := os.RemoveAll(RefTestDir)
 		assert.NoError(t, err)
+	}
+}
+
+func TestWalkParameterSchema(t *testing.T) {
+	testcases := []struct {
+		data       string
+		ExpectRefs map[string]map[string]ReferenceParameter
+	}{
+		{
+			data: `{
+    "properties": {
+        "cmd": {
+            "description": "Commands to run in the container", 
+            "items": {
+                "type": "string"
+            }, 
+            "title": "cmd", 
+            "type": "array"
+        }, 
+        "image": {
+            "description": "Which image would you like to use for your service", 
+            "title": "image", 
+            "type": "string"
+        }
+    }, 
+    "required": [
+        "image"
+    ], 
+    "type": "object"
+}`,
+			ExpectRefs: map[string]map[string]ReferenceParameter{
+				"# Properties": {
+					"cmd": ReferenceParameter{
+						Parameter: types.Parameter{
+							Name:     "cmd",
+							Usage:    "Commands to run in the container",
+							JSONType: "array",
+						},
+						PrintableType: "array",
+					},
+					"image": ReferenceParameter{
+						Parameter: types.Parameter{
+							Name:     "image",
+							Required: true,
+							Usage:    "Which image would you like to use for your service",
+							JSONType: "string",
+						},
+						PrintableType: "string",
+					},
+				},
+			},
+		},
+		{
+			data: `{
+    "properties": { 
+        "obj": {
+            "properties": {
+                "f0": {
+                    "default": "v0", 
+                    "type": "string"
+                }, 
+                "f1": {
+                    "default": "v1", 
+                    "type": "string"
+                }, 
+                "f2": {
+                    "default": "v2", 
+                    "type": "string"
+                }
+            }, 
+            "type": "object"
+        },
+    }, 
+    "type": "object"
+}`,
+			ExpectRefs: map[string]map[string]ReferenceParameter{
+				"# Properties": {
+					"obj": ReferenceParameter{
+						Parameter: types.Parameter{
+							Name:     "obj",
+							JSONType: "object",
+						},
+						PrintableType: "[obj](#obj)",
+					},
+				},
+				"## obj": {
+					"f0": ReferenceParameter{
+						Parameter: types.Parameter{
+							Name:     "f0",
+							Default:  "v0",
+							JSONType: "string",
+						},
+						PrintableType: "string",
+					},
+					"f1": ReferenceParameter{
+						Parameter: types.Parameter{
+							Name:     "f1",
+							Default:  "v1",
+							JSONType: "string",
+						},
+						PrintableType: "string",
+					},
+					"f2": ReferenceParameter{
+						Parameter: types.Parameter{
+							Name:     "f2",
+							Default:  "v2",
+							JSONType: "string",
+						},
+						PrintableType: "string",
+					},
+				},
+			},
+		},
+		{
+			data: `{
+    "properties": {
+        "obj": {
+            "properties": {
+                "f0": {
+                    "default": "v0", 
+                    "type": "string"
+                }, 
+                "f1": {
+                    "default": "v1", 
+                    "type": "object", 
+                    "properties": {
+                        "g0": {
+                            "default": "v2", 
+                            "type": "string"
+                        }
+                    }
+                }
+            }, 
+            "type": "object"
+        }
+    }, 
+    "type": "object"
+}`,
+			ExpectRefs: map[string]map[string]ReferenceParameter{
+				"# Properties": {
+					"obj": ReferenceParameter{
+						Parameter: types.Parameter{
+							Name:     "obj",
+							JSONType: "object",
+						},
+						PrintableType: "[obj](#obj)",
+					},
+				},
+				"## obj": {
+					"f0": ReferenceParameter{
+						Parameter: types.Parameter{
+							Name:     "f0",
+							Default:  "v0",
+							JSONType: "string",
+						},
+						PrintableType: "string",
+					},
+					"f1": ReferenceParameter{
+						Parameter: types.Parameter{
+							Name:     "f1",
+							Default:  "v1",
+							JSONType: "object",
+						},
+						PrintableType: "[f1](#f1)",
+					},
+				},
+				"### f1": {
+					"g0": ReferenceParameter{
+						Parameter: types.Parameter{
+							Name:     "g0",
+							Default:  "v2",
+							JSONType: "string",
+						},
+						PrintableType: "string",
+					},
+				},
+			},
+		},
+	}
+	for _, cases := range testcases {
+		helmRefs = make([]HELMReference, 0)
+		parameterJSON := fmt.Sprintf(BaseOpenAPIV3Template, cases.data)
+		swagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromData(json.RawMessage(parameterJSON))
+		assert.Equal(t, nil, err)
+		parameters := swagger.Components.Schemas["parameter"].Value
+		WalkParameterSchema(parameters, "Properties", 0)
+		refs := make(map[string]map[string]ReferenceParameter)
+		for _, items := range helmRefs {
+			refs[items.Name] = make(map[string]ReferenceParameter)
+			for _, item := range items.Parameters {
+				refs[items.Name][item.Name] = item
+			}
+		}
+		assert.Equal(t, true, reflect.DeepEqual(cases.ExpectRefs, refs))
 	}
 }
