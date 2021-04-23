@@ -48,10 +48,11 @@ import (
 // Reconciler reconciles a TraitDefinition object
 type Reconciler struct {
 	client.Client
-	dm     discoverymapper.DiscoveryMapper
-	pd     *definition.PackageDiscover
-	Scheme *runtime.Scheme
-	record event.Recorder
+	dm          discoverymapper.DiscoveryMapper
+	pd          *definition.PackageDiscover
+	Scheme      *runtime.Scheme
+	record      event.Recorder
+	defRevLimit int
 }
 
 // Reconcile is the main logic for TraitDefinition controller
@@ -135,7 +136,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
-	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &def.TraitDefinition, 5); err != nil {
+	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &def.TraitDefinition, r.defRevLimit); err != nil {
 		klog.Error("[Garbage collection]")
 	}
 
@@ -187,10 +188,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Setup adds a controller that reconciles TraitDefinition.
 func Setup(mgr ctrl.Manager, args controller.Args, _ logging.Logger) error {
 	r := Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		dm:     args.DiscoveryMapper,
-		pd:     args.PackageDiscover,
+		Client:      mgr.GetClient(),
+		Scheme:      mgr.GetScheme(),
+		dm:          args.DiscoveryMapper,
+		pd:          args.PackageDiscover,
+		defRevLimit: args.DefRevisionLimit,
 	}
 	return r.SetupWithManager(mgr)
 }

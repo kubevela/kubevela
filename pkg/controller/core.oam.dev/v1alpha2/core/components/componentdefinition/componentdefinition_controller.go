@@ -48,10 +48,11 @@ import (
 // Reconciler reconciles a ComponentDefinition object
 type Reconciler struct {
 	client.Client
-	dm     discoverymapper.DiscoveryMapper
-	pd     *definition.PackageDiscover
-	Scheme *runtime.Scheme
-	record event.Recorder
+	dm          discoverymapper.DiscoveryMapper
+	pd          *definition.PackageDiscover
+	Scheme      *runtime.Scheme
+	record      event.Recorder
+	defRevLimit int
 }
 
 // Reconcile is the main logic for ComponentDefinition controller
@@ -162,7 +163,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
-	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &def.ComponentDefinition, 5); err != nil {
+	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &def.ComponentDefinition, r.defRevLimit); err != nil {
 		klog.Error("[Garbage collection]")
 	}
 
@@ -214,10 +215,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Setup adds a controller that reconciles ComponentDefinition.
 func Setup(mgr ctrl.Manager, args controller.Args, _ logging.Logger) error {
 	r := Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		dm:     args.DiscoveryMapper,
-		pd:     args.PackageDiscover,
+		Client:      mgr.GetClient(),
+		Scheme:      mgr.GetScheme(),
+		dm:          args.DiscoveryMapper,
+		pd:          args.PackageDiscover,
+		defRevLimit: args.DefRevisionLimit,
 	}
 	return r.SetupWithManager(mgr)
 }

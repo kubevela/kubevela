@@ -42,7 +42,7 @@ const (
 	TraitResource = "trait.oam.dev/resource"
 
 	// LabelComponentDefinitionName records the name of ComponentDefinition
-	LabelComponentDefinitionName = "component.oam.dev/name"
+	LabelComponentDefinitionName = "componentdefinition.oam.dev/name"
 	// LabelComponentDefinitionName records the name of TraitDefinition
 	LabelTraitDefinitionName = "trait.oam.dev/name"
 )
