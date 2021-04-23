@@ -336,6 +336,16 @@ func (r *Reconciler) updateStatus(ctx context.Context, appRollout *v1beta1.AppRo
 	})
 }
 
+// NewReconciler render a applicationRollout reconciler
+func NewReconciler(c client.Client, dm discoverymapper.DiscoveryMapper, record event.Recorder, scheme *runtime.Scheme) *Reconciler {
+	return &Reconciler{
+		c,
+		dm,
+		record,
+		scheme,
+	}
+}
+
 // SetupWithManager setup the controller with manager
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.record = event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
