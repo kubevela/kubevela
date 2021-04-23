@@ -39,10 +39,12 @@ spec:
       traits:
         - type: labels
           properties:
-            "release": "stable"
+            labels:
+              "release": "stable"
         - type: annotations
           properties:
-            "description": "web application"
+            annotations
+              "description": "web application"
 ```
 
 Apply this Application.
