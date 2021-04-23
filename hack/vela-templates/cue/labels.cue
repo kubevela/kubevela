@@ -1,8 +1,10 @@
 patch: {
 	spec: template: metadata: labels: {
-		for k, v in parameter {
+		for k, v in parameter.labels {
 			"\(k)": v
 		}
 	}
 }
-parameter: [string]: string
+parameter: {
+	labels: [string]: string
+}
