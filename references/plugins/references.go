@@ -17,6 +17,8 @@ limitations under the License.
 package plugins
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -25,7 +27,11 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/olekukonko/tablewriter"
+	"github.com/pkg/errors"
+	v1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/oam-dev/kubevela/apis/types"
 	mycue "github.com/oam-dev/kubevela/pkg/cue"
@@ -62,6 +68,7 @@ type Reference interface {
 
 // ParseReference is used to include the common function `parseParameter`
 type ParseReference struct {
+	Client client.Client
 }
 
 // MarkdownReference is the struct for capability information in
@@ -181,6 +188,21 @@ services:
 `,
 }
 
+// BaseOpenAPIV3Template is Standard OpenAPIV3 Template
+var BaseOpenAPIV3Template = `{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "definition-parameter",
+        "version": "1.0"
+    },
+    "paths": {},
+    "components": {
+        "schemas": {
+			"parameter": %s
+		}
+	}
+}`
+
 // ReferenceParameter is the parameter section of CUE template
 type ReferenceParameter struct {
 	types.Parameter `json:",inline,omitempty"`
@@ -194,13 +216,14 @@ var refContent string
 var recurseDepth *int
 var propertyConsole []ConsoleReference
 var displayFormat *string
+var helmRefs []HELMReference
 
 func setDisplayFormat(format string) {
 	displayFormat = &format
 }
 
 // GenerateReferenceDocs generates reference docs
-func (ref *MarkdownReference) GenerateReferenceDocs(baseRefPath string) error {
+func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, baseRefPath string) error {
 	c, err := common.InitBaseRestConfig()
 	if err != nil {
 		return err
@@ -212,15 +235,15 @@ func (ref *MarkdownReference) GenerateReferenceDocs(baseRefPath string) error {
 	if baseRefPath == "" {
 		baseRefPath = BaseRefPath
 	}
-	return ref.CreateMarkdown(caps, baseRefPath, ReferenceSourcePath)
+	return ref.CreateMarkdown(ctx, caps, baseRefPath, ReferenceSourcePath)
 }
 
 // CreateMarkdown creates markdown based on capabilities
-func (ref *MarkdownReference) CreateMarkdown(caps []types.Capability, baseRefPath, referenceSourcePath string) error {
+func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.Capability, baseRefPath, referenceSourcePath string) error {
 	setDisplayFormat("markdown")
 	var capabilityType string
 	var specificationType string
-	for _, c := range caps {
+	for i, c := range caps {
 		switch c.Type {
 		case types.TypeWorkload:
 			capabilityType = WorkloadTypePath
@@ -253,25 +276,35 @@ func (ref *MarkdownReference) CreateMarkdown(caps []types.Capability, baseRefPat
 			return fmt.Errorf("failed to truncate file %s: %w", markdownFile, err)
 		}
 		capName := c.Name
-
-		cueValue, err := common.GetCUEParameterValue(c.CueTemplate)
-		if err != nil {
-			return fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
-		}
 		refContent = ""
-		var defaultDepth = 0
-		recurseDepth = &defaultDepth
 		capNameInTitle := strings.Title(capName)
-		if err := ref.parseParameters(cueValue, "Properties", defaultDepth); err != nil {
-			return err
+		switch c.Category {
+		case types.CUECategory:
+			cueValue, err := common.GetCUEParameterValue(c.CueTemplate)
+			if err != nil {
+				return fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
+			}
+			var defaultDepth = 0
+			recurseDepth = &defaultDepth
+			if err := ref.parseParameters(cueValue, "Properties", defaultDepth); err != nil {
+				return err
+			}
+		case types.HelmCategory:
+			properties, _, err := ref.GenerateHELMProperties(ctx, &caps[i])
+			if err != nil {
+				return fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
+			}
+			for _, property := range properties {
+				refContent += ref.prepareParameter("#"+property.Name, property.Parameters, types.HelmCategory)
+			}
+		default:
+			return fmt.Errorf("unsupport capability category %s", c.Category)
 		}
+
 		title := fmt.Sprintf("# %s", capNameInTitle)
 		description := fmt.Sprintf("\n\n## Description\n\n%s", c.Description)
 		specificationIntro := fmt.Sprintf("List of all configuration options for a `%s` %s.", capNameInTitle, specificationType)
 		specificationContent := ref.generateSpecification(capName)
-		if err != nil {
-			return err
-		}
 		specification := fmt.Sprintf("\n\n## Specification\n\n%s\n\n%s", specificationIntro, specificationContent)
 
 		// it's fine if the conflict info files not found
@@ -289,26 +322,45 @@ func (ref *MarkdownReference) CreateMarkdown(caps []types.Capability, baseRefPat
 }
 
 // prepareParameter prepares the table content for each property
-func (ref *MarkdownReference) prepareParameter(tableName string, parameterList []ReferenceParameter) string {
+func (ref *MarkdownReference) prepareParameter(tableName string, parameterList []ReferenceParameter, category types.CapabilityCategory) string {
 	refContent := fmt.Sprintf("\n\n%s\n\n", tableName)
 	refContent += "Name | Description | Type | Required | Default \n"
 	refContent += "------------ | ------------- | ------------- | ------------- | ------------- \n"
-	for _, p := range parameterList {
-		printableDefaultValue := ref.getPrintableDefaultValue(p.Default)
-		refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, p.Usage, p.PrintableType, p.Required, printableDefaultValue)
+	switch category {
+	case types.CUECategory:
+		for _, p := range parameterList {
+			printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
+			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, p.Usage, p.PrintableType, p.Required, printableDefaultValue)
+		}
+	case types.HelmCategory:
+		for _, p := range parameterList {
+			printableDefaultValue := ref.getHELMPrintableDefaultValue(p.JSONType, p.Default)
+			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, strings.ReplaceAll(p.Usage, "\n", ""), p.PrintableType, p.Required, printableDefaultValue)
+		}
+	default:
 	}
 	return refContent
 }
 
 // prepareParameter prepares the table content for each property
-func (ref *ConsoleReference) prepareParameter(tableName string, parameterList []ReferenceParameter) ConsoleReference {
+func (ref *ParseReference) prepareParameter(tableName string, parameterList []ReferenceParameter, category types.CapabilityCategory) ConsoleReference {
 	table := tablewriter.NewWriter(os.Stdout)
 	table.SetColWidth(100)
 	table.SetHeader([]string{"Name", "Description", "Type", "Required", "Default"})
-	for _, p := range parameterList {
-		printableDefaultValue := ref.getPrintableDefaultValue(p.Default)
-		table.Append([]string{p.Name, p.Usage, p.PrintableType, strconv.FormatBool(p.Required), printableDefaultValue})
+	switch category {
+	case types.CUECategory:
+		for _, p := range parameterList {
+			printableDefaultValue := ref.getCUEPrintableDefaultValue(p.Default)
+			table.Append([]string{p.Name, p.Usage, p.PrintableType, strconv.FormatBool(p.Required), printableDefaultValue})
+		}
+	case types.HelmCategory:
+		for _, p := range parameterList {
+			printableDefaultValue := ref.getHELMPrintableDefaultValue(p.JSONType, p.Default)
+			table.Append([]string{p.Name, p.Usage, p.PrintableType, strconv.FormatBool(p.Required), printableDefaultValue})
+		}
+	default:
 	}
+
 	return ConsoleReference{TableName: tableName, TableObject: table}
 }
 
@@ -382,18 +434,18 @@ func (ref *ParseReference) parseParameters(paraValue cue.Value, paramKey string,
 	case "markdown":
 		tableName := fmt.Sprintf("%s %s", strings.Repeat("#", depth+2), paramKey)
 		ref := MarkdownReference{}
-		refContent = ref.prepareParameter(tableName, params) + refContent
+		refContent = ref.prepareParameter(tableName, params, types.CUECategory) + refContent
 	case "console":
 		ref := ConsoleReference{}
 		tableName := fmt.Sprintf("%s %s", strings.Repeat("#", depth+1), paramKey)
-		console := ref.prepareParameter(tableName, params)
+		console := ref.prepareParameter(tableName, params, types.CUECategory)
 		propertyConsole = append([]ConsoleReference{console}, propertyConsole...)
 	}
 	return nil
 }
 
-// getPrintableDefaultValue converts the value in `interface{}` type to be printable
-func (ref *ParseReference) getPrintableDefaultValue(v interface{}) string {
+// getCUEPrintableDefaultValue converts the value in `interface{}` type to be printable
+func (ref *ParseReference) getCUEPrintableDefaultValue(v interface{}) string {
 	if v == nil {
 		return ""
 	}
@@ -409,6 +461,20 @@ func (ref *ParseReference) getPrintableDefaultValue(v interface{}) string {
 		return strconv.FormatBool(value)
 	}
 	return ""
+}
+
+func (ref *ParseReference) getHELMPrintableDefaultValue(dataType string, value interface{}) string {
+	if value != nil {
+		return strings.TrimSpace(fmt.Sprintf("%v", value))
+	}
+	defaultValueMap := map[string]string{
+		"number":  "0",
+		"boolean": "false",
+		"string":  "\"\"",
+		"object":  "{}",
+		"array":   "[]",
+	}
+	return defaultValueMap[dataType]
 }
 
 // generateSpecification generates Specification part for reference docs
@@ -429,8 +495,8 @@ func (ref *MarkdownReference) generateConflictWithAndMore(capabilityName string,
 	return "\n" + string(data), nil
 }
 
-// GenerateCapabilityProperties get all properties of a capability
-func (ref *ConsoleReference) GenerateCapabilityProperties(capability *types.Capability) ([]ConsoleReference, error) {
+// GenerateCUETemplateProperties get all properties of a capability
+func (ref *ConsoleReference) GenerateCUETemplateProperties(capability *types.Capability) ([]ConsoleReference, error) {
 	setDisplayFormat("console")
 	capName := capability.Name
 
@@ -445,4 +511,92 @@ func (ref *ConsoleReference) GenerateCapabilityProperties(capability *types.Capa
 	}
 
 	return propertyConsole, nil
+}
+
+// HELMReference contains parameters info of HelmCategory type capability
+type HELMReference struct {
+	Name       string
+	Parameters []ReferenceParameter
+	Depth      int
+}
+
+// HELMSchema is a struct contains *openapi3.Schema style parameter
+type HELMSchema struct {
+	Name    string
+	Schemas *openapi3.Schema
+}
+
+// GenerateHELMProperties get all properties of a HelmCategory type capability
+func (ref *ParseReference) GenerateHELMProperties(ctx context.Context, capability *types.Capability) ([]HELMReference, []ConsoleReference, error) {
+	cmName := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, capability.Name)
+	var cm v1.ConfigMap
+	helmRefs = make([]HELMReference, 0)
+	if err := ref.Client.Get(ctx, client.ObjectKey{Namespace: capability.Namespace, Name: cmName}, &cm); err != nil {
+		return nil, nil, err
+	}
+	data, ok := cm.Data[types.OpenapiV3JSONSchema]
+	if !ok {
+		return nil, nil, errors.Errorf("configMap doesn't have openapi-v3-json-schema data")
+	}
+	parameterJSON := fmt.Sprintf(BaseOpenAPIV3Template, data)
+	swagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromData(json.RawMessage(parameterJSON))
+	if err != nil {
+		return nil, nil, err
+	}
+	parameters := swagger.Components.Schemas["parameter"].Value
+	WalkParameterSchema(parameters, "Properties", 0)
+
+	var consoleRefs []ConsoleReference
+	for _, item := range helmRefs {
+		consoleRefs = append(consoleRefs, ref.prepareParameter(item.Name, item.Parameters, types.HelmCategory))
+	}
+	return helmRefs, consoleRefs, err
+}
+
+// WalkParameterSchema will extract properties from *openapi3.Schema
+func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
+	if parameters == nil {
+		return
+	}
+	var schemas []HELMSchema
+	var helmParameters []ReferenceParameter
+	for k, v := range parameters.Properties {
+		p := ReferenceParameter{
+			Parameter: types.Parameter{
+				Name:     k,
+				Default:  v.Value.Default,
+				Usage:    v.Value.Description,
+				JSONType: v.Value.Type,
+			},
+			PrintableType: v.Value.Type,
+		}
+		required := false
+		for _, requiredType := range parameters.Required {
+			if k == requiredType {
+				required = true
+				break
+			}
+		}
+		p.Required = required
+		if v.Value.Type == "object" {
+			if v.Value.Properties != nil {
+				schemas = append(schemas, HELMSchema{
+					Name:    k,
+					Schemas: v.Value,
+				})
+			}
+			p.PrintableType = fmt.Sprintf("[%s](#%s)", k, k)
+		}
+		helmParameters = append(helmParameters, p)
+	}
+
+	helmRefs = append(helmRefs, HELMReference{
+		Name:       fmt.Sprintf("%s %s", strings.Repeat("#", depth+1), name),
+		Parameters: helmParameters,
+		Depth:      depth + 1,
+	})
+
+	for _, schema := range schemas {
+		WalkParameterSchema(schema.Schemas, schema.Name, depth+1)
+	}
 }

@@ -38,15 +38,16 @@ type CRDInfo struct {
 
 // Capability defines the content of a capability
 type Capability struct {
-	Name           string      `json:"name"`
-	Type           CapType     `json:"type"`
-	CueTemplate    string      `json:"template,omitempty"`
-	CueTemplateURI string      `json:"templateURI,omitempty"`
-	Parameters     []Parameter `json:"parameters,omitempty"`
-	CrdName        string      `json:"crdName,omitempty"`
-	Center         string      `json:"center,omitempty"`
-	Status         string      `json:"status,omitempty"`
-	Description    string      `json:"description,omitempty"`
+	Name           string             `json:"name"`
+	Type           CapType            `json:"type"`
+	CueTemplate    string             `json:"template,omitempty"`
+	CueTemplateURI string             `json:"templateURI,omitempty"`
+	Parameters     []Parameter        `json:"parameters,omitempty"`
+	CrdName        string             `json:"crdName,omitempty"`
+	Center         string             `json:"center,omitempty"`
+	Status         string             `json:"status,omitempty"`
+	Description    string             `json:"description,omitempty"`
+	Category       CapabilityCategory `json:"category,omitempty"`
 
 	// trait only
 	AppliesTo []string `json:"appliesTo,omitempty"`
@@ -121,6 +122,7 @@ type Parameter struct {
 	Usage    string      `json:"usage,omitempty"`
 	Type     cue.Kind    `json:"type,omitempty"`
 	Alias    string      `json:"alias,omitempty"`
+	JSONType string      `json:"jsonType,omitempty"`
 }
 
 // SetFlagBy set cli flag from Parameter

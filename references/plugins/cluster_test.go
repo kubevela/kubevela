@@ -48,6 +48,7 @@ var _ = Describe("DefinitionFiles", func() {
 		Type:        types.TypeComponentDefinition,
 		CrdName:     "deployments.apps",
 		Description: "description not defined",
+		Category:    types.CUECategory,
 		Parameters: []types.Parameter{
 			{
 				Type: cue.ListKind,
@@ -80,6 +81,7 @@ var _ = Describe("DefinitionFiles", func() {
 		Name:        WebserviceName,
 		Type:        types.TypeComponentDefinition,
 		Description: "description not defined",
+		Category:    types.CUECategory,
 		Parameters: []types.Parameter{{
 			Name: "env", Type: cue.ListKind,
 		}, {
