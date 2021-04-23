@@ -94,6 +94,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 	klog.InfoS("Start to reconcile ", "appRollout", klog.KObj(&appRollout))
+
+	// handle app Finalizer
+	doneReconcile, res, retErr := r.handleFinalizer(ctx, &appRollout)
+	if doneReconcile {
+		return res, retErr
+	}
+
 	reconRes, err := r.DoReconcile(ctx, &appRollout)
 	if err != nil {
 		return reconcile.Result{}, err
@@ -109,14 +116,8 @@ func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRol
 	targetAppRevisionName := appRollout.Spec.TargetAppRevisionName
 	sourceAppRevisionName := appRollout.Spec.SourceAppRevisionName
 
-	// handle app Finalizer
-	doneReconcile, res, retErr := r.handleFinalizer(ctx, appRollout)
-	if doneReconcile {
-		return res, retErr
-	}
-
 	// no need to proceed if rollout is already in a terminal state and there is no source/target change
-	doneReconcile = r.handleRollingTerminated(*appRollout, targetAppRevisionName, sourceAppRevisionName)
+	doneReconcile := r.handleRollingTerminated(*appRollout, targetAppRevisionName, sourceAppRevisionName)
 	if doneReconcile {
 		return reconcile.Result{}, nil
 	}
