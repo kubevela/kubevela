@@ -69,11 +69,11 @@ These building blocks named `ComponentDefinition` and `TraitDefinition`.
 
 ### `ComponentDefinition`
 
-`ComponentDefinition` is an object that models a deployable entity in your platform, for example, a *Long Running Web Service*, a *Helm chart* or a *Alibaba Cloud RDS*. In detail, a component definition contains workload type description, template, and a parameter list based on this template.
+`ComponentDefinition` is an object that models a deployable entity in your platform, for example, a *Long Running Web Service*, a *Helm chart* or a *Alibaba Cloud RDS*. A typical `ComponentDefinition` carries workload type description (i.e. `WorkloadDefinition`) of this component, and the configurable parameter list this component exposed to users.
 
-Hence, component definition is designed to be shareable and reusable. For example, by referencing the same *Alibaba Cloud RDS* component definition and setting different parameter values, users could easily provision Alibaba Cloud RDS instances of different sizes in different zones.
+Hence, components are designed to be shareable and reusable. For example, by referencing the same *Alibaba Cloud RDS* component and setting different parameter values, users could easily provision Alibaba Cloud RDS instances of different sizes in different availability zones.
 
-The `Application` abstraction is where users declare how they want to **instantiate and deploy** certain component definitions in target environments. Specifically, the `.type` field references the name of a `ComponentDefinition` and `.properties` are user provided parameter values to instantiate it. 
+Users will use the `Application` entity to declare how they want to instantiate and deploy certain component definitions. Specifically, the `.type` field references the name of a `ComponentDefinition` and `.properties` are user provided parameter values to instantiate it. 
 
 All component definitions expected to be provided by component providers such as 3rd-party software vendors, or pre-installed in the system by platform team.
 
@@ -93,7 +93,7 @@ These main concepts of KubeVela could be shown as below:
 
 Essentially:
 - Components - deployable/provisionable entities that composed your application
-  - e.g. a Kubernetes workload, a MySQL database, or a AWS S3 bucket
+  - e.g. a Helm chart, a stateless workload, a MySQL database, or a AWS S3 bucket
 - Traits - attachable operational features per your needs
   - e.g. autoscaling rules, rollout strategies, ingress rules, sidecars, security policies etc
 - Application - full description of your application deployment assembled with components and traits
@@ -110,4 +110,4 @@ The overall architecture of KubeVela is shown as below:
 
 ![alt](resources/arch.png)
 
-Specifically, the application controller is responsible for application abstraction and deployment. The rollout controller will handle progressive rollout strategy with the whole application as a unit. The multi-cluster deployment engine is responsible for deploying the application across multiple clusters and environments with traffic shifting features supported. 
+In nutshell, in *control plane cluster*, the application controller is responsible for application deployment orchestration and the placement controller is responsible for deploying the application across multiple *runtime clusters* with traffic shifting features supported out-of-box. The needed addons in runtime cluster are automatically discovered and installed with leverage of [CRD Lifecycle Management (CLM)](https://github.com/cloudnativeapp/CLM).
