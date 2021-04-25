@@ -242,7 +242,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 					return fmt.Errorf("haven't clean up the oldest revision")
 				}
 				return nil
-			}, time.Second*10, time.Second).Should(BeNil())
+			}, time.Second*30, time.Microsecond*300).Should(BeNil())
 
 			By("update app again will continue to delete the oldest revision")
 			Eventually(func() error {
@@ -269,7 +269,7 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 					return fmt.Errorf("haven't clean up the oldest revision")
 				}
 				return nil
-			}, time.Second*10, time.Second).Should(BeNil())
+			}, time.Second*30, time.Microsecond*300).Should(BeNil())
 		})
 	})
 })
