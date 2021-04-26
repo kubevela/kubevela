@@ -24,7 +24,6 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
 	corev1 "k8s.io/api/core/v1"
 	crdv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -254,7 +253,6 @@ spec:
         	cmd?: [...string]
         }
 `
-
 			var def v1beta1.ComponentDefinition
 			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &def)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &def)).Should(Succeed())

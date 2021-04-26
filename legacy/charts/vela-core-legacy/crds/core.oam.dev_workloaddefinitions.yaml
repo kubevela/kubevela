@@ -196,10 +196,21 @@ spec:
       type: object
   version: v1alpha2
   versions:
-  - name: v1alpha2
+  - additionalPrinterColumns:
+    - JSONPath: .spec.definitionRef.name
+      name: DEFINITION-NAME
+      type: string
+    name: v1alpha2
     served: true
     storage: false
-  - name: v1beta1
+  - additionalPrinterColumns:
+    - JSONPath: .spec.definitionRef.name
+      name: DEFINITION-NAME
+      type: string
+    - JSONPath: .metadata.annotations.definition\.oam\.dev/description
+      name: DESCRIPTION
+      type: string
+    name: v1beta1
     served: true
     storage: true
 status:

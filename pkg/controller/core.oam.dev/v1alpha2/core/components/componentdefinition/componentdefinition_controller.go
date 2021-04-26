@@ -25,9 +25,11 @@ import (
 	cpv1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -35,8 +37,10 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
+	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -44,11 +48,11 @@ import (
 // Reconciler reconciles a ComponentDefinition object
 type Reconciler struct {
 	client.Client
-	dm discoverymapper.DiscoveryMapper
-	// TODO support package discover refresh in definition
-	pd     *definition.PackageDiscover
-	Scheme *runtime.Scheme
-	record event.Recorder
+	dm          discoverymapper.DiscoveryMapper
+	pd          *definition.PackageDiscover
+	Scheme      *runtime.Scheme
+	record      event.Recorder
+	defRevLimit int
 }
 
 // Reconcile is the main logic for ComponentDefinition controller
@@ -59,7 +63,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	var componentDefinition v1beta1.ComponentDefinition
 	if err := r.Get(ctx, req.NamespacedName, &componentDefinition); err != nil {
-		if kerrors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			err = nil
 		}
 		return ctrl.Result{}, err
@@ -76,6 +80,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		cd:     &componentDefinition,
 	}
 
+	// refresh package discover when componentDefinition is registered
 	if handler.cd.Spec.Workload.Type == "" {
 		err := utils.RefreshPackageDiscover(r.dm, r.pd, handler.cd.Spec.Workload.Definition,
 			common.DefinitionReference{}, types.TypeComponentDefinition)
@@ -85,6 +90,25 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
 				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
 		}
+	}
+
+	// generate DefinitionRevision from componentDefinition
+	defRev, isNewRevision, err := coredef.GenerateDefinitionRevision(ctx, r.Client, &componentDefinition)
+	if err != nil {
+		klog.ErrorS(err, "cannot generate DefinitionRevision", "ComponentDefinitionName", componentDefinition.Name)
+		r.record.Event(handler.cd, event.Warning("cannot generate DefinitionRevision", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
+			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, componentDefinition.Name, err)))
+	}
+
+	if !isNewRevision {
+		if err = r.createOrUpdateComponentDefRevision(ctx, req.Namespace, &componentDefinition, defRev); err != nil {
+			klog.ErrorS(err, "cannot update DefinitionRevision")
+			r.record.Event(&(componentDefinition), event.Warning("cannot update DefinitionRevision", err))
+			return ctrl.Result{}, util.PatchCondition(ctx, r, &(componentDefinition),
+				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
+		}
+		return ctrl.Result{}, nil
 	}
 
 	workloadType, err := handler.CreateWorkloadDefinition(ctx)
@@ -109,22 +133,74 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		def.Kube = componentDefinition.Spec.Schematic.KUBE
 	default:
 	}
-	err = def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name)
+
+	// Store the parameter of componentDefinition to configMap
+	err = def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name, defRev.Name)
 	if err != nil {
 		klog.ErrorS(err, "cannot store capability in ConfigMap")
 		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot store capability in ConfigMap", err))
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.ComponentDefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrStoreCapabilityInConfigMap, def.Name, err)))
 	}
-
-	if err := r.Status().Update(ctx, &def.ComponentDefinition); err != nil {
-		klog.ErrorS(err, "cannot update componentDefinition ConfigMapRef Field")
-		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot update ComponentDefinition ConfigMapRef Field", err))
-		return ctrl.Result{}, nil
-	}
 	klog.Info("Successfully stored Capability Schema in ConfigMap")
 
+	if err = r.createOrUpdateComponentDefRevision(ctx, req.Namespace, &def.ComponentDefinition, defRev); err != nil {
+		klog.ErrorS(err, "cannot create DefinitionRevision")
+		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot create DefinitionRevision", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.ComponentDefinition),
+			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
+	}
+
+	def.ComponentDefinition.Status.LatestRevision = &common.Revision{
+		Name:         defRev.Name,
+		Revision:     defRev.Spec.Revision,
+		RevisionHash: defRev.Spec.RevisionHash,
+	}
+
+	if err := r.Status().Update(ctx, &def.ComponentDefinition); err != nil {
+		klog.ErrorS(err, "cannot update componentDefinition Status")
+		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot update ComponentDefinition Status", err))
+		return ctrl.Result{}, nil
+	}
+
+	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &def.ComponentDefinition, r.defRevLimit); err != nil {
+		klog.Error("[Garbage collection]")
+	}
+
 	return ctrl.Result{}, nil
+}
+
+func (r *Reconciler) createOrUpdateComponentDefRevision(ctx context.Context, namespace string,
+	componentDef *v1beta1.ComponentDefinition, defRev *v1beta1.DefinitionRevision) error {
+
+	ownerReference := []metav1.OwnerReference{{
+		APIVersion:         componentDef.APIVersion,
+		Kind:               componentDef.Kind,
+		Name:               componentDef.Name,
+		UID:                componentDef.GetUID(),
+		Controller:         pointer.BoolPtr(true),
+		BlockOwnerDeletion: pointer.BoolPtr(true),
+	}}
+
+	defRev.SetLabels(componentDef.GetLabels())
+	defRev.SetLabels(util.MergeMapOverrideWithDst(defRev.Labels,
+		map[string]string{oam.LabelComponentDefinitionName: componentDef.Name}))
+	defRev.SetNamespace(namespace)
+	defRev.SetAnnotations(componentDef.GetAnnotations())
+	defRev.SetOwnerReferences(ownerReference)
+
+	rev := &v1beta1.DefinitionRevision{}
+	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: namespace, Name: defRev.Name}, rev); err != nil {
+		if apierrors.IsNotFound(err) {
+			return r.Create(ctx, defRev)
+		}
+		return err
+	}
+
+	rev.SetAnnotations(defRev.GetAnnotations())
+	rev.SetLabels(defRev.GetLabels())
+	rev.SetOwnerReferences(ownerReference)
+	return r.Update(ctx, rev)
 }
 
 // SetupWithManager will setup with event recorder
@@ -139,10 +215,11 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 // Setup adds a controller that reconciles ComponentDefinition.
 func Setup(mgr ctrl.Manager, args controller.Args, _ logging.Logger) error {
 	r := Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		dm:     args.DiscoveryMapper,
-		pd:     args.PackageDiscover,
+		Client:      mgr.GetClient(),
+		Scheme:      mgr.GetScheme(),
+		dm:          args.DiscoveryMapper,
+		pd:          args.PackageDiscover,
+		defRevLimit: args.DefRevisionLimit,
 	}
 	return r.SetupWithManager(mgr)
 }

@@ -43,6 +43,7 @@ var k8sClient client.Client
 var testEnv *envtest.Environment
 var controllerDone chan struct{}
 var r Reconciler
+var defRevisionLimit = 5
 
 func TestTraitDefinition(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -87,10 +88,11 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 
 	r = Reconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		dm:     dm,
-		pd:     pd,
+		Client:      mgr.GetClient(),
+		Scheme:      mgr.GetScheme(),
+		dm:          dm,
+		pd:          pd,
+		defRevLimit: defRevisionLimit,
 	}
 	Expect(r.SetupWithManager(mgr)).ToNot(HaveOccurred())
 	controllerDone = make(chan struct{}, 1)

@@ -692,6 +692,21 @@ spec:
                         configMapRef:
                           description: ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
                           type: string
+                        latestRevision:
+                          description: LatestRevision of the component definition
+                          properties:
+                            name:
+                              type: string
+                            revision:
+                              format: int64
+                              type: integer
+                            revisionHash:
+                              description: RevisionHash record the hash value of the spec of ApplicationRevision object.
+                              type: string
+                          required:
+                          - name
+                          - revision
+                          type: object
                       type: object
                   type: object
                 description: ComponentDefinitions records the snapshot of the componentDefinitions related with the created/modified Application
@@ -918,6 +933,21 @@ spec:
                         configMapRef:
                           description: ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
                           type: string
+                        latestRevision:
+                          description: LatestRevision of the trait definition
+                          properties:
+                            name:
+                              type: string
+                            revision:
+                              format: int64
+                              type: integer
+                            revisionHash:
+                              description: RevisionHash record the hash value of the spec of ApplicationRevision object.
+                              type: string
+                          required:
+                          - name
+                          - revision
+                          type: object
                       type: object
                   type: object
                 description: TraitDefinitions records the snapshot of the traitDefinitions related with the created/modified Application
@@ -1780,6 +1810,21 @@ spec:
                         configMapRef:
                           description: ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
                           type: string
+                        latestRevision:
+                          description: LatestRevision of the component definition
+                          properties:
+                            name:
+                              type: string
+                            revision:
+                              format: int64
+                              type: integer
+                            revisionHash:
+                              description: RevisionHash record the hash value of the spec of ApplicationRevision object.
+                              type: string
+                          required:
+                          - name
+                          - revision
+                          type: object
                       type: object
                   type: object
                 description: ComponentDefinitions records the snapshot of the componentDefinitions related with the created/modified Application
@@ -2007,6 +2052,21 @@ spec:
                         configMapRef:
                           description: ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
                           type: string
+                        latestRevision:
+                          description: LatestRevision of the component definition
+                          properties:
+                            name:
+                              type: string
+                            revision:
+                              format: int64
+                              type: integer
+                            revisionHash:
+                              description: RevisionHash record the hash value of the spec of ApplicationRevision object.
+                              type: string
+                          required:
+                          - name
+                          - revision
+                          type: object
                       type: object
                   type: object
                 description: TraitDefinitions records the snapshot of the traitDefinitions related with the created/modified Application
