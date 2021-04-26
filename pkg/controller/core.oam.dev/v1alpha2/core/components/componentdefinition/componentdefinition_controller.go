@@ -160,7 +160,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err := r.Status().Update(ctx, &def.ComponentDefinition); err != nil {
 		klog.ErrorS(err, "cannot update componentDefinition Status")
 		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot update ComponentDefinition Status", err))
-		return ctrl.Result{}, nil
+		return ctrl.Result{}, err
 	}
 
 	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &def.ComponentDefinition, r.defRevLimit); err != nil {
