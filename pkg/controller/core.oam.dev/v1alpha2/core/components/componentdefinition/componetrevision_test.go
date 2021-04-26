@@ -169,6 +169,8 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 
 	Context("Test ComponentDefinition Controller clean up", func() {
 		It("Test clean up definitionRevision", func() {
+			var revKey client.ObjectKey
+			var defRev v1beta1.DefinitionRevision
 			cdName := "test-clean-up"
 			revisionNum := 1
 			defKey := client.ObjectKey{Namespace: namespace, Name: cdName}
@@ -179,17 +181,10 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 			cd.Name = cdName
 			cd.Spec.Schematic.CUE.Template = fmt.Sprintf(cdTemplate, fmt.Sprintf("test-v%d", revisionNum))
 			Expect(k8sClient.Create(ctx, cd)).Should(BeNil())
-			reconcileRetry(&r, req)
-			revKey := client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", cdName, revisionNum)}
-			revisionNum++
-			var defRev v1beta1.DefinitionRevision
-			Eventually(func() error {
-				return k8sClient.Get(ctx, revKey, &defRev)
-			}, 10*time.Second, time.Second).Should(BeNil())
 
 			By("update componentDefinition")
 			checkComp := new(v1beta1.ComponentDefinition)
-			for i := 0; i < defRevisionLimit; i++ {
+			for i := 0; i < defRevisionLimit+1; i++ {
 				Eventually(func() error {
 					err := k8sClient.Get(ctx, defKey, checkComp)
 					if err != nil {
@@ -217,8 +212,13 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 				checkComp.Spec.Schematic.CUE.Template = fmt.Sprintf(cdTemplate, fmt.Sprintf("test-v%d", revisionNum))
 				return k8sClient.Update(ctx, checkComp)
 			}, 10*time.Second, time.Second).Should(BeNil())
-			revisionNum++
 			reconcileRetry(&r, req)
+
+			revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", cdName, revisionNum)}
+			revisionNum++
+			Eventually(func() error {
+				return k8sClient.Get(ctx, revKey, &defRev)
+			}, 10*time.Second, time.Second).Should(BeNil())
 
 			deletedRevision := new(v1beta1.DefinitionRevision)
 			deleteRevKey := types.NamespacedName{Namespace: namespace, Name: cdName + "-v1"}
@@ -254,6 +254,11 @@ var _ = Describe("Test DefinitionRevision created by ComponentDefinition", func(
 				return k8sClient.Update(ctx, checkComp)
 			}, 10*time.Second, time.Second).Should(BeNil())
 			reconcileRetry(&r, req)
+
+			revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", cdName, revisionNum)}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, revKey, &defRev)
+			}, 10*time.Second, time.Second).Should(BeNil())
 
 			deleteRevKey = types.NamespacedName{Namespace: namespace, Name: cdName + "-v2"}
 			Eventually(func() error {

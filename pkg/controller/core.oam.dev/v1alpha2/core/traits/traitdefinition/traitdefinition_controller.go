@@ -28,6 +28,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -101,6 +102,12 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			return ctrl.Result{}, util.PatchCondition(ctx, r, &(traitdefinition),
 				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 		}
+		klog.InfoS("Successfully update DefinitionRevision", "name", defRev.Name)
+
+		if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &traitdefinition, r.defRevLimit); err != nil {
+			klog.Error("[Garbage collection]")
+			r.record.Event(&traitdefinition, event.Warning("failed to garbage collect DefinitionRevision of type TraitDefinition", err))
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -123,6 +130,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.TraitDefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 	}
+	klog.InfoS("Successfully create DefinitionRevision", "name", defRev.Name)
 
 	def.TraitDefinition.Status.LatestRevision = &common.Revision{
 		Name:         defRev.Name,
@@ -130,14 +138,16 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		RevisionHash: defRev.Spec.RevisionHash,
 	}
 
-	if err := r.Status().Update(ctx, &def.TraitDefinition); err != nil {
+	if err := r.UpdateStatus(ctx, &def.TraitDefinition); err != nil {
 		klog.ErrorS(err, "cannot update TraitDefinition Status")
 		r.record.Event(&(def.TraitDefinition), event.Warning("cannot update TraitDefinition Status", err))
-		return ctrl.Result{}, err
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.TraitDefinition),
+			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrUpdateTraitDefinition, def.TraitDefinition.Name, err)))
 	}
 
 	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &def.TraitDefinition, r.defRevLimit); err != nil {
 		klog.Error("[Garbage collection]")
+		r.record.Event(&def.TraitDefinition, event.Warning("failed to garbage collect DefinitionRevision of type TraitDefinition", err))
 	}
 
 	return ctrl.Result{}, nil
@@ -174,6 +184,18 @@ func (r *Reconciler) createOrUpdateTraitDefRevision(ctx context.Context, namespa
 	rev.SetLabels(defRev.GetLabels())
 	rev.SetOwnerReferences(ownerReference)
 	return r.Update(ctx, rev)
+}
+
+// UpdateStatus updates v1beta1.TraitDefinition's Status with retry.RetryOnConflict
+func (r *Reconciler) UpdateStatus(ctx context.Context, def *v1beta1.TraitDefinition, opts ...client.UpdateOption) error {
+	status := def.DeepCopy().Status
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+		if err = r.Get(ctx, client.ObjectKey{Namespace: def.Namespace, Name: def.Name}, def); err != nil {
+			return
+		}
+		def.Status = status
+		return r.Status().Update(ctx, def, opts...)
+	})
 }
 
 // SetupWithManager will setup with event recorder

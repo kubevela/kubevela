@@ -28,6 +28,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -108,6 +109,12 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			return ctrl.Result{}, util.PatchCondition(ctx, r, &(componentDefinition),
 				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 		}
+		klog.InfoS("Successfully update DefinitionRevision", "name", defRev.Name)
+
+		if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &componentDefinition, r.defRevLimit); err != nil {
+			klog.Error("[Garbage collection]")
+			r.record.Event(&componentDefinition, event.Warning("failed to garbage collect DefinitionRevision of type ComponentDefinition", err))
+		}
 		return ctrl.Result{}, nil
 	}
 
@@ -150,6 +157,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.ComponentDefinition),
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateOrUpdateDefinitionRevision, defRev.Name, err)))
 	}
+	klog.InfoS("Successfully create DefinitionRevision", "name", defRev.Name)
 
 	def.ComponentDefinition.Status.LatestRevision = &common.Revision{
 		Name:         defRev.Name,
@@ -157,14 +165,16 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		RevisionHash: defRev.Spec.RevisionHash,
 	}
 
-	if err := r.Status().Update(ctx, &def.ComponentDefinition); err != nil {
+	if err := r.UpdateStatus(ctx, &def.ComponentDefinition); err != nil {
 		klog.ErrorS(err, "cannot update componentDefinition Status")
 		r.record.Event(&(def.ComponentDefinition), event.Warning("cannot update ComponentDefinition Status", err))
-		return ctrl.Result{}, err
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &(def.ComponentDefinition),
+			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrUpdateComponentDefinition, def.ComponentDefinition.Name, err)))
 	}
 
 	if err := coredef.CleanUpDefinitionRevision(ctx, r.Client, &def.ComponentDefinition, r.defRevLimit); err != nil {
 		klog.Error("[Garbage collection]")
+		r.record.Event(&def.ComponentDefinition, event.Warning("failed to garbage collect DefinitionRevision of type ComponentDefinition", err))
 	}
 
 	return ctrl.Result{}, nil
@@ -201,6 +211,18 @@ func (r *Reconciler) createOrUpdateComponentDefRevision(ctx context.Context, nam
 	rev.SetLabels(defRev.GetLabels())
 	rev.SetOwnerReferences(ownerReference)
 	return r.Update(ctx, rev)
+}
+
+// UpdateStatus updates v1beta1.ComponentDefinition's Status with retry.RetryOnConflict
+func (r *Reconciler) UpdateStatus(ctx context.Context, def *v1beta1.ComponentDefinition, opts ...client.UpdateOption) error {
+	status := def.DeepCopy().Status
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() (err error) {
+		if err = r.Get(ctx, client.ObjectKey{Namespace: def.Namespace, Name: def.Name}, def); err != nil {
+			return
+		}
+		def.Status = status
+		return r.Status().Update(ctx, def, opts...)
+	})
 }
 
 // SetupWithManager will setup with event recorder
