@@ -149,7 +149,7 @@ jobs:
       - name: Setup Kind Cluster
         run: |
           kind delete cluster
-          kind create cluster
+          kind create cluster --image kindest/node:v1.18.15@sha256:5c1b980c4d0e0e8e7eb9f36f7df525d079a96169c8a8f20d8bd108c0d0889cc4
           kubectl version
           kubectl cluster-info
 
@@ -178,6 +178,20 @@ jobs:
 
       - name: Run e2e tests
         run: make e2e-test
+
+      - name: Stop kubevela, get profile
+        run: make end-e2e
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: /tmp/e2e-profile.out
+          flags: e2etests
+          name: codecov-umbrella
+
+      - name: Clean e2e profile
+        run: rm /tmp/e2e-profile.out
 
       - name: Cleanup image
         if: ${{ always() }}
