@@ -22,7 +22,6 @@ import (
 	"os"
 	"strings"
 
-	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -170,6 +169,7 @@ func HandleDefinition(name, crdName string, annotation map[string]string, extens
 	}
 	tmp.CrdName = crdName
 	tmp.Description = GetDescription(annotation)
+
 	return tmp, nil
 }
 
@@ -194,9 +194,16 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 	}
 	tmp.Name = name
 	// if spec.template is not empty it should has the highest priority
-	if schematic != nil && schematic.CUE != nil {
-		tmp.CueTemplate = schematic.CUE.Template
-		tmp.CueTemplateURI = ""
+	if schematic != nil {
+		if schematic.CUE != nil {
+			tmp.CueTemplate = schematic.CUE.Template
+			tmp.CueTemplateURI = ""
+		}
+		if schematic.Terraform != nil {
+			tmp.Category = types.TerraformCategory
+			tmp.TerraformConfiguration = schematic.Terraform.Configuration
+			return tmp, nil
+		}
 	}
 	if tmp.CueTemplateURI != "" {
 		b, err := common.HTTPGet(context.Background(), tmp.CueTemplateURI)
@@ -283,15 +290,10 @@ func SyncDefinitionToLocal(ctx context.Context, c common.Args, capabilityName st
 		if err != nil {
 			return nil, err
 		}
-		if strings.Contains(componentDef.Spec.Workload.Definition.APIVersion, terraformapi.GroupVersion.String()) &&
-			componentDef.Spec.Workload.Definition.Kind == types.TerraformConfigurationKind {
-			template.TerraformConfiguration = componentDef.Spec.Schematic.Terraform.Configuration
-		} else {
-			template, err = HandleDefinition(capabilityName, ref.Name,
-				componentDef.Annotations, componentDef.Spec.Extension, types.TypeComponentDefinition, nil, componentDef.Spec.Schematic)
-			if err != nil {
-				return nil, errors.Wrap(err, "failed to handle ComponentDefinition")
-			}
+		template, err = HandleDefinition(capabilityName, ref.Name,
+			componentDef.Annotations, componentDef.Spec.Extension, types.TypeComponentDefinition, nil, componentDef.Spec.Schematic)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to handle ComponentDefinition")
 		}
 		template.Namespace = componentDef.Namespace
 		return &template, nil

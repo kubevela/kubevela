@@ -273,7 +273,7 @@ func NewTraitAbstractEngine(name string, pd *PackageDiscover) AbstractEngine {
 }
 
 // Complete do trait definition's rendering
-func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}) error {
+func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, params interface{}, category types.CapabilityCategory) error {
 	bi := build.NewContext().NewInstance("", nil)
 	if err := bi.AddFile("-", abstractTemplate); err != nil {
 		return errors.WithMessagef(err, "invalid template of trait %s", td.name)

@@ -634,29 +634,16 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 // application developers need to set two sections `variable` and `writeConnectionSecretToRef` in an application
 func (ref *ConsoleReference) GenerateTerraformCapabilityProperties(capability *types.Capability) ([]ConsoleReference, error) {
 	var (
-		variableReferenceParameter                   ReferenceParameter
 		writeConnectionSecretToRefReferenceParameter ReferenceParameter
 		propertiesConsoleReference                   ConsoleReference
-		variableConsoleReference                     ConsoleReference
 		writeSecretConsoleReference                  ConsoleReference
 	)
-
-	// prepare `# Properties`
-	variableReferenceParameter.Name = TerraformVariableName
-	variableReferenceParameter.PrintableType = TerraformVariableType
-	variableReferenceParameter.Required = false
-	variableReferenceParameter.Usage = "Terraform variable"
 
 	writeConnectionSecretToRefReferenceParameter.Name = TerraformWriteConnectionSecretToRefName
 	writeConnectionSecretToRefReferenceParameter.PrintableType = TerraformWriteConnectionSecretToRefType
 	writeConnectionSecretToRefReferenceParameter.Required = false
 	writeConnectionSecretToRefReferenceParameter.Usage = "The secret which the cloud resource connection will be written to"
 
-	propertiesTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 1), PropertiesName)
-	propertiesConsoleReference = ref.prepareParameter(propertiesTableName, []ReferenceParameter{
-		variableReferenceParameter, writeConnectionSecretToRefReferenceParameter}, types.CUECategory)
-
-	// prepare `## variable`
 	variables, err := ref.parseTerraformVariables(capability.TerraformConfiguration)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to generate capability properties")
@@ -671,8 +658,10 @@ func (ref *ConsoleReference) GenerateTerraformCapabilityProperties(capability *t
 		refParam.Required = true
 		refParameterList = append(refParameterList, refParam)
 	}
-	variableTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 2), TerraformVariableName)
-	variableConsoleReference = ref.prepareParameter(variableTableName, refParameterList, types.CUECategory)
+	refParameterList = append(refParameterList, writeConnectionSecretToRefReferenceParameter)
+
+	propertiesTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 1), PropertiesName)
+	propertiesConsoleReference = ref.prepareParameter(propertiesTableName, refParameterList, types.CUECategory)
 
 	var (
 		writeSecretRefNameParam      ReferenceParameter
@@ -692,7 +681,7 @@ func (ref *ConsoleReference) GenerateTerraformCapabilityProperties(capability *t
 
 	writeSecretRefParameterList := []ReferenceParameter{writeSecretRefNameParam, writeSecretRefNameSpaceParam}
 	writeSecretTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 2), TerraformWriteConnectionSecretToRefName)
-	writeSecretConsoleReference = ref.prepareParameter(writeSecretTableName, writeSecretRefParameterList)
+	writeSecretConsoleReference = ref.prepareParameter(writeSecretTableName, writeSecretRefParameterList, types.CUECategory)
 
-	return []ConsoleReference{propertiesConsoleReference, variableConsoleReference, writeSecretConsoleReference}, nil
+	return []ConsoleReference{propertiesConsoleReference, writeSecretConsoleReference}, nil
 }

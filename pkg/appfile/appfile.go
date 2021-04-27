@@ -47,10 +47,14 @@ import (
 
 // constant error information
 const (
-	errInvalidValueType                                  = "require %q type parameter value"
-	errTerraformConfigurationIsNotSet                    = "terraform configuration is not set"
-	errFailToConvertTerraformConfigurationToUnstructured = "failed to convert Terraform Configuration to unstructured"
+	errInvalidValueType                                = "require %q type parameter value"
+	errTerraformConfigurationIsNotSet                  = "terraform configuration is not set"
+	errFailToConvertTerraformComponentProperties       = "failed to convert Terraform component properties"
+	errTerraformNameOfWriteConnectionSecretToRefNotSet = "the name of writeConnectionSecretToRef of terraform component is not set"
 )
+
+// WriteConnectionSecretToRefKey is the information which is required to create secret for cloud resource connection
+const WriteConnectionSecretToRefKey = "writeConnectionSecretToRef"
 
 // Workload is component
 type Workload struct {
@@ -366,7 +370,7 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 	}
 	params, err := json.Marshal(wl.Params)
 	if err != nil {
-		return nil, errors.Wrap(err, errFailToConvertTerraformConfigurationToUnstructured)
+		return nil, errors.Wrap(err, errFailToConvertTerraformComponentProperties)
 	}
 
 	configuration := terraformapi.Configuration{
@@ -380,13 +384,39 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 	case "json":
 		configuration.Spec.JSON = wl.FullTemplate.Terraform.Configuration
 	}
+
+	// 1. parse writeConnectionSecretToRef
 	if err := json.Unmarshal(params, &configuration.Spec); err != nil {
-		return nil, errors.Wrap(err, errFailToConvertTerraformConfigurationToUnstructured)
+		return nil, errors.Wrap(err, errFailToConvertTerraformComponentProperties)
 	}
-	// set namespace for writeConnectionSecretToRef, developer needn't manually set it
+
 	if configuration.Spec.WriteConnectionSecretToReference != nil {
-		configuration.Spec.WriteConnectionSecretToReference.Namespace = ns
+		if configuration.Spec.WriteConnectionSecretToReference.Name == "" {
+			return nil, errors.Wrap(err, errTerraformNameOfWriteConnectionSecretToRefNotSet)
+		}
+		// set namespace for writeConnectionSecretToRef, developer needn't manually set it
+		if configuration.Spec.WriteConnectionSecretToReference.Namespace == "" {
+			configuration.Spec.WriteConnectionSecretToReference.Namespace = ns
+		}
 	}
+
+	// 2. parse variable
+	variableRaw := &runtime.RawExtension{}
+	if err := json.Unmarshal(params, &variableRaw); err != nil {
+		return nil, errors.Wrap(err, errFailToConvertTerraformComponentProperties)
+	}
+
+	variableMap, err := util.RawExtension2Map(variableRaw)
+	if err != nil {
+		return nil, errors.Wrap(err, errFailToConvertTerraformComponentProperties)
+	}
+	delete(variableMap, WriteConnectionSecretToRefKey)
+
+	data, err := json.Marshal(variableMap)
+	if err != nil {
+		return nil, errors.Wrap(err, errFailToConvertTerraformComponentProperties)
+	}
+	configuration.Spec.Variable = &runtime.RawExtension{Raw: data}
 	raw := util.Object2RawExtension(&configuration)
 	return util.RawExtension2Unstructured(&raw)
 }

@@ -165,9 +165,6 @@ spec:
                             configuration:
                               description: Configuration is Terraform Configuration
                               type: string
-                            parameter:
-                              description: Parameter is in CUE type, which will contain variable and writeConnectionSecretToRef
-                              type: string
                             type:
                               default: hcl
                               description: Type specifies which Terraform configuration it is, HCL or JSON syntax
@@ -175,24 +172,8 @@ spec:
                               - hcl
                               - json
                               type: string
-                            variable:
-                              type: object
-                              
-                            writeConnectionSecretToRef:
-                              description: WriteConnectionSecretToReference specifies the namespace and name of a Secret to which any connection details for this managed resource should be written. Connection details frequently include the endpoint, username, and password required to connect to the managed resource.
-                              properties:
-                                name:
-                                  description: Name of the secret.
-                                  type: string
-                                namespace:
-                                  description: Namespace of the secret.
-                                  type: string
-                              required:
-                              - name
-                              type: object
                           required:
                           - configuration
-                          - variable
                           type: object
                       type: object
                     status:
@@ -412,9 +393,6 @@ spec:
                             configuration:
                               description: Configuration is Terraform Configuration
                               type: string
-                            parameter:
-                              description: Parameter is in CUE type, which will contain variable and writeConnectionSecretToRef
-                              type: string
                             type:
                               default: hcl
                               description: Type specifies which Terraform configuration it is, HCL or JSON syntax
@@ -422,24 +400,8 @@ spec:
                               - hcl
                               - json
                               type: string
-                            variable:
-                              type: object
-                              
-                            writeConnectionSecretToRef:
-                              description: WriteConnectionSecretToReference specifies the namespace and name of a Secret to which any connection details for this managed resource should be written. Connection details frequently include the endpoint, username, and password required to connect to the managed resource.
-                              properties:
-                                name:
-                                  description: Name of the secret.
-                                  type: string
-                                namespace:
-                                  description: Namespace of the secret.
-                                  type: string
-                              required:
-                              - name
-                              type: object
                           required:
                           - configuration
-                          - variable
                           type: object
                       type: object
                     status:
