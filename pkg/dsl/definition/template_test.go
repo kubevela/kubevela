@@ -193,14 +193,13 @@ parameter: {
 					"namespace": "default",
 				},
 			},
-			category: types.TerraformCategory,
 		},
 	}
 
 	for _, v := range testCases {
 		ctx := process.NewContext("default", "test", "myapp", "myapp-v1")
 		wt := NewWorkloadAbstractEngine("testWorkload", &PackageDiscover{})
-		assert.NoError(t, wt.Complete(ctx, v.workloadTemplate, v.params, v.category))
+		assert.NoError(t, wt.Complete(ctx, v.workloadTemplate, v.params))
 		base, assists := ctx.Output()
 		assert.Equal(t, len(v.expAssObjs), len(assists))
 		if v.category != types.TerraformCategory {
@@ -707,12 +706,12 @@ parameter: {
 			"enemies":  "enemies-data",
 			"lives":    "lives-data",
 			"port":     443,
-		}, ""); err != nil {
+		}); err != nil {
 			t.Error(err)
 			return
 		}
 		td := NewTraitAbstractEngine(v.traitName, &PackageDiscover{})
-		assert.NoError(t, td.Complete(ctx, v.traitTemplate, v.params, v.catelogy))
+		assert.NoError(t, td.Complete(ctx, v.traitTemplate, v.params))
 		base, assists := ctx.Output()
 		assert.Equal(t, len(v.expAssObjs), len(assists), cassinfo)
 		assert.NotNil(t, base)

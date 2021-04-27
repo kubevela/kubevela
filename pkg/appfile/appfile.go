@@ -91,7 +91,7 @@ func (wl *Workload) GetUserConfigName() string {
 
 // EvalContext eval workload template and set result to context
 func (wl *Workload) EvalContext(ctx process.Context) error {
-	return wl.engine.Complete(ctx, wl.FullTemplate.TemplateStr, wl.Params, wl.CapabilityCategory)
+	return wl.engine.Complete(ctx, wl.FullTemplate.TemplateStr, wl.Params)
 }
 
 // EvalStatus eval workload status
@@ -144,7 +144,7 @@ type Trait struct {
 
 // EvalContext eval trait template and set result to context
 func (trait *Trait) EvalContext(ctx process.Context) error {
-	return trait.engine.Complete(ctx, trait.Template, trait.Params, "")
+	return trait.engine.Complete(ctx, trait.Template, trait.Params)
 }
 
 // EvalStatus eval trait status
