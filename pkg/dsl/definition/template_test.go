@@ -184,15 +184,14 @@ parameter: {
 		"terraform workload": {
 			workloadTemplate: "",
 			params: map[string]interface{}{
-				"variable": map[string]interface{}{
-					"bucket": "vela-website",
-					"acl":    "private",
-				},
+				"bucket": "vela-website",
+				"acl":    "private",
 				"writeConnectionSecretToRef": map[string]interface{}{
 					"name":      "oss-conn",
 					"namespace": "default",
 				},
 			},
+			category: types.TerraformCategory,
 		},
 	}
 

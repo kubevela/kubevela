@@ -53,7 +53,7 @@ const (
 	errTerraformNameOfWriteConnectionSecretToRefNotSet = "the name of writeConnectionSecretToRef of terraform component is not set"
 )
 
-// WriteConnectionSecretToRefKey is the information which is required to create secret for cloud resource connection
+// WriteConnectionSecretToRefKey is used to create a secret for cloud resource connection
 const WriteConnectionSecretToRefKey = "writeConnectionSecretToRef"
 
 // Workload is component
