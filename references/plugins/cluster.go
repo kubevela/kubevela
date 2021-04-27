@@ -169,7 +169,6 @@ func HandleDefinition(name, crdName string, annotation map[string]string, extens
 	}
 	tmp.CrdName = crdName
 	tmp.Description = GetDescription(annotation)
-
 	return tmp, nil
 }
 
@@ -319,5 +318,5 @@ func SyncDefinitionToLocal(ctx context.Context, c common.Args, capabilityName st
 		template.Namespace = traitDef.Namespace
 		return &template, nil
 	}
-	return nil, fmt.Errorf("%s is not a valid workload type or trait", capabilityName)
+	return nil, fmt.Errorf("cloud not find %s is namespace %s, or %s", capabilityName, ns, types.DefaultKubeVelaNS)
 }

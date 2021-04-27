@@ -226,7 +226,6 @@ func TestTraitTemplateComplete(t *testing.T) {
 		params        map[string]interface{}
 		expWorkload   *unstructured.Unstructured
 		expAssObjs    map[string]runtime.Object
-		catelogy      types.CapabilityCategory
 	}{
 		"patch trait": {
 			traitTemplate: `
