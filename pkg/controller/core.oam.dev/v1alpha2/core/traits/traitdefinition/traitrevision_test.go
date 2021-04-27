@@ -131,6 +131,8 @@ var _ = Describe("Test DefinitionRevision created by TraitDefinition", func() {
 
 	Context("Test TraitDefinition Controller clean up", func() {
 		It("Test clean up definitionRevision", func() {
+			var revKey client.ObjectKey
+			var defRev v1beta1.DefinitionRevision
 			tdName := "test-clean-up"
 			revisionNum := 1
 			defKey := client.ObjectKey{Namespace: namespace, Name: tdName}
@@ -141,17 +143,10 @@ var _ = Describe("Test DefinitionRevision created by TraitDefinition", func() {
 			td.Name = tdName
 			td.Spec.Schematic.CUE.Template = fmt.Sprintf(tdTemplate, fmt.Sprintf("test-v%d", revisionNum))
 			Expect(k8sClient.Create(ctx, td)).Should(BeNil())
-			reconcileRetry(&r, req)
-			revKey := client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", tdName, revisionNum)}
-			revisionNum++
-			var defRev v1beta1.DefinitionRevision
-			Eventually(func() error {
-				return k8sClient.Get(ctx, revKey, &defRev)
-			}, 10*time.Second, time.Second).Should(BeNil())
 
 			By("update TraitDefinition")
 			checkComp := new(v1beta1.TraitDefinition)
-			for i := 0; i < defRevisionLimit; i++ {
+			for i := 0; i < defRevisionLimit+1; i++ {
 				Eventually(func() error {
 					err := k8sClient.Get(ctx, defKey, checkComp)
 					if err != nil {
@@ -179,8 +174,13 @@ var _ = Describe("Test DefinitionRevision created by TraitDefinition", func() {
 				checkComp.Spec.Schematic.CUE.Template = fmt.Sprintf(tdTemplate, fmt.Sprintf("test-v%d", revisionNum))
 				return k8sClient.Update(ctx, checkComp)
 			}, 10*time.Second, time.Second).Should(BeNil())
-			revisionNum++
 			reconcileRetry(&r, req)
+
+			revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", tdName, revisionNum)}
+			revisionNum++
+			Eventually(func() error {
+				return k8sClient.Get(ctx, revKey, &defRev)
+			}, 10*time.Second, time.Second).Should(BeNil())
 
 			deletedRevision := new(v1beta1.DefinitionRevision)
 			deleteRevKey := types.NamespacedName{Namespace: namespace, Name: tdName + "-v1"}
@@ -216,6 +216,11 @@ var _ = Describe("Test DefinitionRevision created by TraitDefinition", func() {
 				return k8sClient.Update(ctx, checkComp)
 			}, 10*time.Second, time.Second).Should(BeNil())
 			reconcileRetry(&r, req)
+
+			revKey = client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v%d", tdName, revisionNum)}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, revKey, &defRev)
+			}, 10*time.Second, time.Second).Should(BeNil())
 
 			deleteRevKey = types.NamespacedName{Namespace: namespace, Name: tdName + "-v2"}
 			Eventually(func() error {
