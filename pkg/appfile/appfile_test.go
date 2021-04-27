@@ -19,12 +19,12 @@ package appfile
 import (
 	"encoding/json"
 	"fmt"
-	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/ghodss/yaml"
 	"github.com/google/go-cmp/cmp"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
@@ -702,7 +702,6 @@ variable "acl" {
 
 	type args struct {
 		wl *Workload
-		ns string
 	}
 
 	type want struct {
