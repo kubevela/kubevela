@@ -54,8 +54,6 @@ const (
 	AuxiliaryWorkload = "AuxiliaryWorkload"
 )
 
-const errOutputNotFound = "_|_ // value \"output\" not found"
-
 // AbstractEngine defines Definition's Render interface
 type AbstractEngine interface {
 	Complete(ctx process.Context, abstractTemplate string, params interface{}) error
@@ -117,9 +115,6 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 	output := inst.Lookup(OutputFieldName)
 	base, err := model.NewBase(output)
 	if err != nil {
-		if err.Error() == errOutputNotFound {
-			return nil
-		}
 		return errors.WithMessagef(err, "invalid output of workload %s", wd.name)
 	}
 	if err := ctx.SetBase(base); err != nil {

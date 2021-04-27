@@ -181,18 +181,6 @@ parameter: {
 				},
 			},
 		},
-		"terraform workload": {
-			workloadTemplate: "",
-			params: map[string]interface{}{
-				"bucket": "vela-website",
-				"acl":    "private",
-				"writeConnectionSecretToRef": map[string]interface{}{
-					"name":      "oss-conn",
-					"namespace": "default",
-				},
-			},
-			category: types.TerraformCategory,
-		},
 	}
 
 	for _, v := range testCases {
@@ -201,17 +189,15 @@ parameter: {
 		assert.NoError(t, wt.Complete(ctx, v.workloadTemplate, v.params))
 		base, assists := ctx.Output()
 		assert.Equal(t, len(v.expAssObjs), len(assists))
-		if v.category != types.TerraformCategory {
-			assert.NotNil(t, base)
-			baseObj, err := base.Unstructured()
-			assert.Equal(t, nil, err)
-			assert.Equal(t, v.expectObj, baseObj)
-			for _, ss := range assists {
-				assert.Equal(t, AuxiliaryWorkload, ss.Type)
-				got, err := ss.Ins.Unstructured()
-				assert.NoError(t, err)
-				assert.Equal(t, got, v.expAssObjs[ss.Name])
-			}
+		assert.NotNil(t, base)
+		baseObj, err := base.Unstructured()
+		assert.Equal(t, nil, err)
+		assert.Equal(t, v.expectObj, baseObj)
+		for _, ss := range assists {
+			assert.Equal(t, AuxiliaryWorkload, ss.Type)
+			got, err := ss.Ins.Unstructured()
+			assert.NoError(t, err)
+			assert.Equal(t, got, v.expAssObjs[ss.Name])
 		}
 	}
 

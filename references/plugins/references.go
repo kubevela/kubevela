@@ -372,6 +372,12 @@ func (ref *ParseReference) prepareParameter(tableName string, parameterList []Re
 			printableDefaultValue := ref.getHELMPrintableDefaultValue(p.JSONType, p.Default)
 			table.Append([]string{p.Name, p.Usage, p.PrintableType, strconv.FormatBool(p.Required), printableDefaultValue})
 		}
+	case types.TerraformCategory:
+		// Terraform doesn't have default value
+		for _, p := range parameterList {
+			table.Append([]string{p.Name, p.Usage, p.PrintableType, strconv.FormatBool(p.Required), ""})
+		}
+
 	default:
 	}
 
@@ -648,7 +654,6 @@ func (ref *ConsoleReference) GenerateTerraformCapabilityProperties(capability *t
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to generate capability properties")
 	}
-
 	var refParameterList []ReferenceParameter
 	for _, v := range variables {
 		var refParam ReferenceParameter

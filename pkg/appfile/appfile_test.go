@@ -17,7 +17,9 @@ limitations under the License.
 package appfile
 
 import (
+	"encoding/json"
 	"fmt"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"testing"
 
 	"github.com/crossplane/crossplane-runtime/pkg/test"
@@ -584,8 +586,9 @@ var _ = Describe("Test evalWorkloadWithContext", func() {
 			err      error
 		)
 		type appArgs struct {
-			wl      *Workload
-			appName string
+			wl       *Workload
+			appName  string
+			revision string
 		}
 
 		args := appArgs{
@@ -650,13 +653,89 @@ variable "password" {
 					},
 				},
 			},
-			appName: "webapp",
+			appName:  "webapp",
+			revision: "v1",
 		}
 
-		pCtx, _ := PrepareProcessContext(args.wl, args.appName, "", ns)
+		pCtx := newContext(args.wl, args.appName, args.revision, ns)
 		comp, acc, err = evalWorkloadWithContext(pCtx, args.wl, ns, args.appName, compName)
 		Expect(comp.Spec.Workload).ShouldNot(BeNil())
 		Expect(acc.ComponentName).Should(Equal(""))
 		Expect(err).Should(BeNil())
 	})
 })
+
+func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
+	var (
+		hcl = `
+resource "alicloud_oss_bucket" "bucket-acl" {
+  bucket = var.bucket
+  acl = var.acl
+}
+
+output "BUCKET_NAME" {
+  value = "${alicloud_oss_bucket.bucket-acl.bucket}.${alicloud_oss_bucket.bucket-acl.extranet_endpoint}"
+}
+
+variable "acl" {
+  description = "OSS bucket ACL, supported 'private', 'public-read', 'public-read-write'"
+  default = "private"
+  type = string
+}
+`
+		variable = map[string]interface{}{
+			"acl": "private",
+		}
+		fullTemplate = &Template{
+			Terraform: &common.Terraform{
+				Configuration: hcl,
+				Type:          "hcl",
+			},
+		}
+
+		ns = "default"
+	)
+
+	data, _ := json.Marshal(variable)
+	raw := &runtime.RawExtension{}
+	raw.Raw = data
+
+	type args struct {
+		wl *Workload
+		ns string
+	}
+
+	type want struct {
+		conf *terraformapi.Configuration
+		err  error
+	}
+	testcases := map[string]struct {
+		args args
+		want want
+	}{
+		"valid workload": {
+			args: args{wl: &Workload{FullTemplate: fullTemplate, Name: "oss",
+				Params: variable}},
+			want: want{conf: &terraformapi.Configuration{
+				TypeMeta:   metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta1", Kind: "Configuration"},
+				ObjectMeta: metav1.ObjectMeta{Name: "oss", Namespace: ns},
+				Spec: terraformapi.ConfigurationSpec{
+					HCL:      hcl,
+					Variable: raw,
+				},
+			}, err: nil}},
+	}
+
+	for name, tc := range testcases {
+		raw := util.Object2RawExtension(tc.want.conf)
+		uns, _ := util.RawExtension2Unstructured(&raw)
+		got, err := generateTerraformConfigurationWorkload(tc.args.wl, "default")
+		if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
+			t.Errorf("\n%s\ngenerateTerraformConfigurationWorkload(...): -want error, +got error:\n%s\n", name, diff)
+		}
+		if diff := cmp.Diff(uns, got); diff != "" {
+			t.Errorf("\n%s\ngenerateTerraformConfigurationWorkload(...): -want, +got:\n%s\n", name, diff)
+		}
+
+	}
+}

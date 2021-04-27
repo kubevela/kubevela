@@ -165,11 +165,6 @@ type Appfile struct {
 	Workloads    []*Workload
 }
 
-// TemplateValidate validate Template format
-func (af *Appfile) TemplateValidate() error {
-	return nil
-}
-
 // GenerateApplicationConfiguration converts an appFile to applicationConfig & Components
 func (af *Appfile) GenerateApplicationConfiguration() (*v1alpha2.ApplicationConfiguration,
 	[]*v1alpha2.Component, error) {
@@ -202,6 +197,11 @@ func (af *Appfile) GenerateApplicationConfiguration() (*v1alpha2.ApplicationConf
 			if err != nil {
 				return nil, nil, err
 			}
+		case types.TerraformCategory:
+			comp, acComp, err = generateComponentFromTerraformModule(wl, af.Name, af.RevisionName, af.Namespace)
+			if err != nil {
+				return nil, nil, err
+			}
 		default:
 			comp, acComp, err = generateComponentFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
 			if err != nil {
@@ -216,18 +216,37 @@ func (af *Appfile) GenerateApplicationConfiguration() (*v1alpha2.ApplicationConf
 
 // PrepareProcessContext prepares a DSL process Context
 func PrepareProcessContext(wl *Workload, applicationName, revision, namespace string) (process.Context, error) {
-	pCtx := process.NewContext(namespace, wl.Name, applicationName, revision)
-	pCtx.InsertSecrets(wl.OutputSecretName, wl.RequiredSecrets)
-	if len(wl.UserConfigs) > 0 {
-		pCtx.SetConfigs(wl.UserConfigs)
-	}
+	pCtx := newContext(wl, applicationName, revision, namespace)
 	if err := wl.EvalContext(pCtx); err != nil {
 		return nil, errors.Wrapf(err, "evaluate base template app=%s in namespace=%s", applicationName, namespace)
 	}
 	return pCtx, nil
 }
 
+// newContext prepares a basic DSL process Context
+func newContext(wl *Workload, applicationName, revision, namespace string) process.Context {
+	pCtx := process.NewContext(namespace, wl.Name, applicationName, revision)
+	pCtx.InsertSecrets(wl.OutputSecretName, wl.RequiredSecrets)
+	if len(wl.UserConfigs) > 0 {
+		pCtx.SetConfigs(wl.UserConfigs)
+	}
+	return pCtx
+}
+
 func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+	pCtx, err := PrepareProcessContext(wl, appName, revision, ns)
+	if err != nil {
+		return nil, nil, err
+	}
+	return baseGenerateComponent(pCtx, wl, appName, ns)
+}
+
+func generateComponentFromTerraformModule(wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+	pCtx := newContext(wl, appName, revision, ns)
+	return baseGenerateComponent(pCtx, wl, appName, ns)
+}
+
+func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
 	var (
 		outputSecretName string
 		err              error
@@ -239,10 +258,7 @@ func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string) 
 		}
 		wl.OutputSecretName = outputSecretName
 	}
-	pCtx, err := PrepareProcessContext(wl, appName, revision, ns)
-	if err != nil {
-		return nil, nil, err
-	}
+
 	for _, tr := range wl.Traits {
 		if err := tr.EvalContext(pCtx); err != nil {
 			return nil, nil, errors.Wrapf(err, "evaluate template trait=%s app=%s", tr.Name, wl.Name)
@@ -284,13 +300,13 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, co
 		err               error
 	)
 	base, assists := pCtx.Output()
-	// if componentWorkload is nil, generated it based on Cue, or directly set it in Terraform Schematic case
-	if wl.CapabilityCategory == types.TerraformCategory {
+	switch wl.CapabilityCategory {
+	case types.TerraformCategory:
 		componentWorkload, err = generateTerraformConfigurationWorkload(wl, ns)
 		if err != nil {
 			return nil, nil, errors.Wrapf(err, "failed to generate Terraform Configuration workload for workload %s", wl.Name)
 		}
-	} else {
+	default:
 		componentWorkload, err = base.Unstructured()
 		if err != nil {
 			return nil, nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", compName, appName)
