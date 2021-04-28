@@ -55,7 +55,7 @@ const (
 
 const (
 	// PropertiesName is the name of `Properties`
-	PropertiesName = "Properties"
+	PropertiesName = "properties"
 	// TerraformVariableName is the name for Terraform Variable
 	TerraformVariableName = "variable"
 	// TerraformWriteConnectionSecretToRefName is the name for Terraform WriteConnectionSecretToRef
