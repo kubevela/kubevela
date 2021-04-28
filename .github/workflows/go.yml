@@ -294,3 +294,5 @@ jobs:
         run: make cross-build
       - name: Run compress binary
         run: make compress
+      - name: Run make reviewable
+        run: make reviewable
