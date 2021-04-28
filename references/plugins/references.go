@@ -579,7 +579,7 @@ func (ref *ParseReference) GenerateHELMProperties(ctx context.Context, capabilit
 		return nil, nil, err
 	}
 	parameters := swagger.Components.Schemas["parameter"].Value
-	WalkParameterSchema(parameters, "Properties", 0)
+	WalkParameterSchema(parameters, PropertiesName, 0)
 
 	var consoleRefs []ConsoleReference
 	for _, item := range helmRefs {
