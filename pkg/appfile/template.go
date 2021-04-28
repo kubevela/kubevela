@@ -198,30 +198,30 @@ func newTemplateOfWorkloadDefinition(wlDef *v1beta1.WorkloadDefinition) (*Templa
 }
 
 // loadSchematicToTemplate loads common data that all kind definitions have.
-func loadSchematicToTemplate(tmpl *Template, sts *common.Status, schem *common.Schematic, ext *runtime.RawExtension) error {
-	if sts != nil {
-		tmpl.CustomStatus = sts.CustomStatus
-		tmpl.Health = sts.HealthPolicy
+func loadSchematicToTemplate(tmpl *Template, status *common.Status, schematic *common.Schematic, ext *runtime.RawExtension) error {
+	if status != nil {
+		tmpl.CustomStatus = status.CustomStatus
+		tmpl.Health = status.HealthPolicy
 	}
 
-	if schem != nil {
-		if schem.CUE != nil {
+	if schematic != nil {
+		if schematic.CUE != nil {
 			tmpl.CapabilityCategory = types.CUECategory
-			tmpl.TemplateStr = schem.CUE.Template
+			tmpl.TemplateStr = schematic.CUE.Template
 		}
-		if schem.HELM != nil {
+		if schematic.HELM != nil {
 			tmpl.CapabilityCategory = types.HelmCategory
-			tmpl.Helm = schem.HELM
+			tmpl.Helm = schematic.HELM
 			return nil
 		}
-		if schem.KUBE != nil {
+		if schematic.KUBE != nil {
 			tmpl.CapabilityCategory = types.KubeCategory
-			tmpl.Kube = schem.KUBE
+			tmpl.Kube = schematic.KUBE
 			return nil
 		}
-		if schem.Terraform != nil {
+		if schematic.Terraform != nil {
 			tmpl.CapabilityCategory = types.TerraformCategory
-			tmpl.Terraform = schem.Terraform
+			tmpl.Terraform = schematic.Terraform
 			return nil
 		}
 	}
