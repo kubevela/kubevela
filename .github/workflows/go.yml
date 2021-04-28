@@ -274,9 +274,6 @@ jobs:
       - name: Check code formatting
         run: go install golang.org/x/tools/cmd/goimports && make fmt
 
-      - name: Run make reviewable
-        run: make reviewable
-
       - name: Check Diff
         run: make check-diff
 
