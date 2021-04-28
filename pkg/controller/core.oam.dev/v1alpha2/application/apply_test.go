@@ -18,7 +18,6 @@ package application
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -221,7 +220,6 @@ var _ = Describe("Test Application apply", func() {
 		reconcileRetry(reconciler, reconcile.Request{NamespacedName: types.NamespacedName{Name: app.Name, Namespace: app.Namespace}})
 		testapp := v1beta1.Application{}
 		err = k8sClient.Get(ctx, types.NamespacedName{Name: app.Name, Namespace: app.Namespace}, &testapp)
-		fmt.Printf("%+v", testapp)
 		Expect(err).Should(BeNil())
 		Expect(testapp.Status.LatestRevision != nil).Should(BeTrue())
 
