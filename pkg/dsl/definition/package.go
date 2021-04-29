@@ -42,6 +42,9 @@ const (
 	BuiltinPackageDomain = "kube"
 	// K8sResourcePrefix Indicates that the definition comes from kubernetes
 	K8sResourcePrefix = "io_k8s_api_"
+
+	// ParseJSONSchemaErr describes the error that occurs when cue parses json
+	ParseJSONSchemaErr ParseErrType = "parse json schema of k8s crds error"
 )
 
 // PackageDiscover defines the inner CUE packages loaded from K8s cluster
@@ -59,6 +62,25 @@ type VersionKind struct {
 	Kind           string
 }
 
+// ParseErrType represents the type of CUEParseError
+type ParseErrType string
+
+// CUEParseError describes an error when CUE parse error
+type CUEParseError struct {
+	err     error
+	errType ParseErrType
+}
+
+// Error implements the Error interface.
+func (cueErr CUEParseError) Error() string {
+	return fmt.Sprintf("%s: %s", cueErr.errType, cueErr.err.Error())
+}
+
+// IsCUEParseErr returns true if the specified error is CUEParseError type.
+func IsCUEParseErr(err error) bool {
+	return errors.As(err, &CUEParseError{})
+}
+
 // NewPackageDiscover will create a PackageDiscover client with the K8s config file.
 func NewPackageDiscover(config *rest.Config) (*PackageDiscover, error) {
 	client, err := getClusterOpenAPIClient(config)
@@ -70,7 +92,7 @@ func NewPackageDiscover(config *rest.Config) (*PackageDiscover, error) {
 		pkgKinds: make(map[string][]VersionKind),
 	}
 	if err = pd.RefreshKubePackagesFromCluster(); err != nil {
-		return nil, err
+		return pd, err
 	}
 	return pd, nil
 }
@@ -197,7 +219,10 @@ func (pd *PackageDiscover) addKubeCUEPackagesFromCluster(apiSchema string) error
 		Map:  openAPIMapping(dgvkMapper),
 	})
 	if err != nil {
-		return err
+		return CUEParseError{
+			err:     err,
+			errType: ParseJSONSchemaErr,
+		}
 	}
 	kubePkg := newPackage("kube")
 	kubePkg.processOpenAPIFile(oaFile)

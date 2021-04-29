@@ -182,7 +182,9 @@ func main() {
 	pd, err := definition.NewPackageDiscover(mgr.GetConfig())
 	if err != nil {
 		setupLog.Error(err, "failed to create CRD discovery for CUE package client")
-		os.Exit(1)
+		if !definition.IsCUEParseErr(err) {
+			os.Exit(1)
+		}
 	}
 	controllerArgs.PackageDiscover = pd
 
