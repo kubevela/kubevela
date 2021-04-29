@@ -405,17 +405,11 @@ spec:
 var _ = Describe("Test Terraform schematic appfile", func() {
 	It("workload capability is Terraform", func() {
 		var (
-			ns       = "default"
-			compName = "sample-db"
-			appName  = "webapp"
-			revision = "v1"
-		)
-
-		wl := &Workload{
-			Name: "sample-db",
-			FullTemplate: &Template{
-				Terraform: &common.Terraform{
-					Configuration: `
+			ns            = "default"
+			compName      = "sample-db"
+			appName       = "webapp"
+			revision      = "v1"
+			configuration = `
 module "rds" {
   source = "terraform-alicloud-modules/rds/alicloud"
   engine = "MySQL"
@@ -460,16 +454,23 @@ variable "password" {
   type = "string"
   default = "Xyfff83jfewGGfaked"
 }
-`,
-					Type: "hcl",
+`
+		)
+
+		wl := &Workload{
+			Name: "sample-db",
+			FullTemplate: &Template{
+				Terraform: &common.Terraform{
+					Configuration: configuration,
+					Type:          "hcl",
 				},
 			},
 			CapabilityCategory: oamtypes.TerraformCategory,
 			Params: map[string]interface{}{
-				"variable": map[string]interface{}{
-					"account_name": "oamtest",
+				"account_name": "oamtest",
+				"writeConnectionSecretToRef": map[string]interface{}{
+					"name": "db",
 				},
-				"writeConnectionSecretToReference": terraformtypes.SecretReference{},
 			},
 		}
 
@@ -497,7 +498,36 @@ variable "password" {
 				},
 			},
 		}
-		expectComponent := &v1alpha2.Component{
+		variable := map[string]interface{}{"account_name": "oamtest"}
+		data, _ := json.Marshal(variable)
+		raw := &runtime.RawExtension{}
+		raw.Raw = data
+
+		workload := terraformapi.Configuration{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "terraform.core.oam.dev/v1beta1",
+				Kind:       "Configuration",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"app.oam.dev/appRevision": "v1",
+					"app.oam.dev/component":   "sample-db",
+					"app.oam.dev/name":        "webapp",
+					"workload.oam.dev/type":   "",
+				},
+				Name:      "sample-db",
+				Namespace: "default",
+			},
+
+			Spec: terraformapi.ConfigurationSpec{
+				HCL:                              configuration,
+				Variable:                         raw,
+				WriteConnectionSecretToReference: &terraformtypes.SecretReference{Name: "db", Namespace: "default"},
+			},
+			Status: terraformapi.ConfigurationStatus{},
+		}
+
+		expectedComponent := &v1alpha2.Component{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "Component",
 				APIVersion: "core.oam.dev/v1alpha2",
@@ -507,13 +537,15 @@ variable "password" {
 				Labels:    map[string]string{oam.LabelAppName: appName},
 			},
 			Spec: v1alpha2.ComponentSpec{
-				Workload: util.Object2RawExtension(*wl),
+				Workload: util.Object2RawExtension(workload),
 			},
 		}
 
 		acc, comp, err := af.GenerateApplicationConfiguration()
 		Expect(acc).Should(Equal(expectedAppConfig))
-		Expect(comp).Should(Equal(expectComponent))
+		Expect(comp[0].Spec.Workload.Raw).Should(Equal(expectedComponent.Spec.Workload.Raw))
+		diff := cmp.Diff(comp[0], expectedComponent)
+		Expect(diff).ShouldNot(BeEmpty())
 		Expect(err).Should(BeNil())
 	})
 })
