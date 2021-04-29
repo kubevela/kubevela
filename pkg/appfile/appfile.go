@@ -165,6 +165,11 @@ type Appfile struct {
 	Workloads    []*Workload
 }
 
+// TemplateValidate validate Template format
+func (af *Appfile) TemplateValidate() error {
+	return nil
+}
+
 // GenerateApplicationConfiguration converts an appFile to applicationConfig & Components
 func (af *Appfile) GenerateApplicationConfiguration() (*v1alpha2.ApplicationConfiguration,
 	[]*v1alpha2.Component, error) {
@@ -311,9 +316,9 @@ func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, co
 		if err != nil {
 			return nil, nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", compName, appName)
 		}
-		commonLabels = definition.GetCommonLabels(pCtx.BaseContextLabels())
-		util.AddLabels(componentWorkload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: wl.Type}))
 	}
+	commonLabels = definition.GetCommonLabels(pCtx.BaseContextLabels())
+	util.AddLabels(componentWorkload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: wl.Type}))
 	component := &v1alpha2.Component{}
 	// we need to marshal the workload to byte array before sending them to the k8s
 	component.Spec.Workload = util.Object2RawExtension(componentWorkload)
@@ -408,7 +413,7 @@ func generateTerraformConfigurationWorkload(wl *Workload, ns string) (*unstructu
 
 	if configuration.Spec.WriteConnectionSecretToReference != nil {
 		if configuration.Spec.WriteConnectionSecretToReference.Name == "" {
-			return nil, errors.Wrap(err, errTerraformNameOfWriteConnectionSecretToRefNotSet)
+			return nil, errors.New(errTerraformNameOfWriteConnectionSecretToRefNotSet)
 		}
 		// set namespace for writeConnectionSecretToRef, developer needn't manually set it
 		if configuration.Spec.WriteConnectionSecretToReference.Namespace == "" {

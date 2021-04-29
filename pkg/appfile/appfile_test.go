@@ -24,6 +24,7 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/test"
 	"github.com/ghodss/yaml"
 	"github.com/google/go-cmp/cmp"
+	terraformtypes "github.com/oam-dev/terraform-controller/api/types/crossplane-runtime"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -401,6 +402,122 @@ spec:
 	})
 })
 
+var _ = Describe("Test Terraform schematic appfile", func() {
+	It("workload capability is Terraform", func() {
+		var (
+			ns       = "default"
+			compName = "sample-db"
+			appName  = "webapp"
+			revision = "v1"
+		)
+
+		wl := &Workload{
+			Name: "sample-db",
+			FullTemplate: &Template{
+				Terraform: &common.Terraform{
+					Configuration: `
+module "rds" {
+  source = "terraform-alicloud-modules/rds/alicloud"
+  engine = "MySQL"
+  engine_version = "8.0"
+  instance_type = "rds.mysql.c1.large"
+  instance_storage = "20"
+  instance_name = var.instance_name
+  account_name = var.account_name
+  password = var.password
+}
+
+output "DB_NAME" {
+  value = module.rds.this_db_instance_name
+}
+output "DB_USER" {
+  value = module.rds.this_db_database_account
+}
+output "DB_PORT" {
+  value = module.rds.this_db_instance_port
+}
+output "DB_HOST" {
+  value = module.rds.this_db_instance_connection_string
+}
+output "DB_PASSWORD" {
+  value = module.rds.this_db_instance_port
+}
+
+variable "instance_name" {
+  description = "RDS instance name"
+  type = string
+  default = "poc"
+}
+
+variable "account_name" {
+  description = "RDS instance user account name"
+  type = "string"
+  default = "oam"
+}
+
+variable "password" {
+  description = "RDS instance account password"
+  type = "string"
+  default = "Xyfff83jfewGGfaked"
+}
+`,
+					Type: "hcl",
+				},
+			},
+			CapabilityCategory: oamtypes.TerraformCategory,
+			Params: map[string]interface{}{
+				"variable": map[string]interface{}{
+					"account_name": "oamtest",
+				},
+				"writeConnectionSecretToReference": terraformtypes.SecretReference{},
+			},
+		}
+
+		af := &Appfile{
+			Workloads:    []*Workload{wl},
+			Name:         appName,
+			RevisionName: revision,
+			Namespace:    ns,
+		}
+
+		expectedAppConfig := &v1alpha2.ApplicationConfiguration{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ApplicationConfiguration",
+				APIVersion: "core.oam.dev/v1alpha2",
+			}, ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: ns,
+				Labels:    map[string]string{oam.LabelAppName: appName},
+			},
+			Spec: v1alpha2.ApplicationConfigurationSpec{
+				Components: []v1alpha2.ApplicationConfigurationComponent{
+					{
+						ComponentName: compName,
+					},
+				},
+			},
+		}
+		expectComponent := &v1alpha2.Component{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Component",
+				APIVersion: "core.oam.dev/v1alpha2",
+			}, ObjectMeta: metav1.ObjectMeta{
+				Name:      compName,
+				Namespace: "default",
+				Labels:    map[string]string{oam.LabelAppName: appName},
+			},
+			Spec: v1alpha2.ComponentSpec{
+				Workload: util.Object2RawExtension(*wl),
+			},
+		}
+
+		acc, comp, err := af.GenerateApplicationConfiguration()
+		Expect(acc).Should(Equal(expectedAppConfig))
+		Expect(comp).Should(Equal(expectComponent))
+		Expect(err).Should(BeNil())
+	})
+})
+
 func TestResolveKubeParameters(t *testing.T) {
 	stringParam := &common.KubeParameter{
 		Name:       "strParam",
@@ -667,74 +784,140 @@ variable "password" {
 
 func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 	var (
-		hcl = `
-resource "alicloud_oss_bucket" "bucket-acl" {
-  bucket = var.bucket
-  acl = var.acl
-}
-
-output "BUCKET_NAME" {
-  value = "${alicloud_oss_bucket.bucket-acl.bucket}.${alicloud_oss_bucket.bucket-acl.extranet_endpoint}"
-}
-
-variable "acl" {
-  description = "OSS bucket ACL, supported 'private', 'public-read', 'public-read-write'"
-  default = "private"
-  type = string
-}
-`
-		variable = map[string]interface{}{
-			"acl": "private",
-		}
-		fullTemplate = &Template{
-			Terraform: &common.Terraform{
-				Configuration: hcl,
-				Type:          "hcl",
-			},
-		}
-
-		ns = "default"
+		name     = "oss"
+		ns       = "default"
+		variable = map[string]interface{}{"acl": "private"}
 	)
 
-	data, _ := json.Marshal(variable)
-	raw := &runtime.RawExtension{}
-	raw.Raw = data
+	ch := make(chan string)
+	badParam := map[string]interface{}{"abc": ch}
+	_, badParamMarshalError := json.Marshal(badParam)
 
 	type args struct {
-		wl *Workload
+		writeConnectionSecretToRef *terraformtypes.SecretReference
+		json                       string
+		hcl                        string
+		params                     map[string]interface{}
 	}
 
 	type want struct {
-		conf *terraformapi.Configuration
-		err  error
+		err error
 	}
+
 	testcases := map[string]struct {
 		args args
 		want want
 	}{
-		"valid workload": {
-			args: args{wl: &Workload{FullTemplate: fullTemplate, Name: "oss",
-				Params: variable}},
-			want: want{conf: &terraformapi.Configuration{
-				TypeMeta:   metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta1", Kind: "Configuration"},
-				ObjectMeta: metav1.ObjectMeta{Name: "oss", Namespace: ns},
-				Spec: terraformapi.ConfigurationSpec{
-					HCL:      hcl,
-					Variable: raw,
-				},
-			}, err: nil}},
+		"json workload with invalid secret": {
+			args: args{
+				json:   "abc",
+				params: map[string]interface{}{"acl": "private", "writeConnectionSecretToRef": map[string]interface{}{"name": "", "namespace": ""}},
+			},
+			want: want{err: errors.New(errTerraformNameOfWriteConnectionSecretToRefNotSet)}},
+
+		"json workload with secret": {
+			args: args{
+
+				json: "abc",
+				params: map[string]interface{}{"acl": "private",
+					"writeConnectionSecretToRef": map[string]interface{}{"name": "oss", "namespace": ""}},
+				writeConnectionSecretToRef: &terraformtypes.SecretReference{Name: "oss", Namespace: "default"},
+			},
+			want: want{err: nil}},
+
+		"valid hcl workload": {
+			args: args{
+				hcl: "abc",
+				params: map[string]interface{}{"acl": "private",
+					"writeConnectionSecretToRef": map[string]interface{}{"name": "oss", "namespace": "default"}},
+				writeConnectionSecretToRef: &terraformtypes.SecretReference{Name: "oss", Namespace: "default"},
+			},
+			want: want{err: nil}},
+
+		"workload's TF configuration is empty": {
+			args: args{
+				params: variable,
+			},
+			want: want{err: errors.New(errTerraformConfigurationIsNotSet)},
+		},
+
+		"workload's params is bad": {
+
+			args: args{
+				params: badParam,
+				hcl:    "abc",
+			},
+			want: want{err: errors.Wrap(badParamMarshalError, errFailToConvertTerraformComponentProperties)}},
 	}
 
-	for name, tc := range testcases {
-		raw := util.Object2RawExtension(tc.want.conf)
-		uns, _ := util.RawExtension2Unstructured(&raw)
-		got, err := generateTerraformConfigurationWorkload(tc.args.wl, "default")
-		if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
-			t.Errorf("\n%s\ngenerateTerraformConfigurationWorkload(...): -want error, +got error:\n%s\n", name, diff)
+	for tcName, tc := range testcases {
+		var (
+			template   *Template
+			configSpec terraformapi.ConfigurationSpec
+		)
+		data, _ := json.Marshal(variable)
+		raw := &runtime.RawExtension{}
+		raw.Raw = data
+		if tc.args.hcl != "" {
+			template = &Template{
+				Terraform: &common.Terraform{
+					Configuration: tc.args.hcl,
+					Type:          "hcl",
+				},
+			}
+			configSpec = terraformapi.ConfigurationSpec{
+				HCL:                              tc.args.hcl,
+				Variable:                         raw,
+				WriteConnectionSecretToReference: tc.args.writeConnectionSecretToRef,
+			}
 		}
-		if diff := cmp.Diff(uns, got); diff != "" {
-			t.Errorf("\n%s\ngenerateTerraformConfigurationWorkload(...): -want, +got:\n%s\n", name, diff)
+		if tc.args.json != "" {
+			template = &Template{
+				Terraform: &common.Terraform{
+					Configuration: tc.args.json,
+					Type:          "json",
+				},
+			}
+			configSpec = terraformapi.ConfigurationSpec{
+				JSON:                             tc.args.json,
+				Variable:                         raw,
+				WriteConnectionSecretToReference: tc.args.writeConnectionSecretToRef,
+			}
+		}
+		if tc.args.hcl == "" && tc.args.json == "" {
+			template = &Template{
+				Terraform: &common.Terraform{},
+			}
+
+			configSpec = terraformapi.ConfigurationSpec{
+				Variable:                         raw,
+				WriteConnectionSecretToReference: tc.args.writeConnectionSecretToRef,
+			}
 		}
 
+		wl := &Workload{
+			FullTemplate: template,
+			Name:         name,
+			Params:       tc.args.params,
+		}
+
+		got, err := generateTerraformConfigurationWorkload(wl, ns)
+		if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
+			t.Errorf("\n%s\ngenerateTerraformConfigurationWorkload(...): -want error, +got error:\n%s\n", tcName, diff)
+		}
+
+		if err == nil {
+			tfConfiguration := terraformapi.Configuration{
+				TypeMeta:   metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta1", Kind: "Configuration"},
+				ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+				Spec:       configSpec,
+			}
+			rawConf := util.Object2RawExtension(tfConfiguration)
+			wantWL, _ := util.RawExtension2Unstructured(&rawConf)
+
+			if diff := cmp.Diff(wantWL, got); diff != "" {
+				t.Errorf("\n%s\ngenerateTerraformConfigurationWorkload(...): -want, +got:\n%s\n", tcName, diff)
+			}
+		}
 	}
 }
