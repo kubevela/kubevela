@@ -1,6 +1,8 @@
 ---
 title: Install kubectl plugin
 ---
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
 
 Install vela kubectl plugin can help you to ship applications more easily!
 
@@ -9,34 +11,36 @@ Install vela kubectl plugin can help you to ship applications more easily!
 You can install kubectl plugin `kubectl vela` by:
 
 <Tabs
-    className="unique-tabs"
-    defaultValue="krew"
-    values={[
-        {label: 'Krew', value: 'krew'},
-        {label: 'Script', value: 'script'},
-    ]}>
-    <TabItem value="krew">
+className="unique-tabs"
+defaultValue="krew"
+values={[
+    {label: 'Krew', value: 'krew'},
+    {label: 'Script', value: 'script'},
+]}>
+<TabItem value="krew">
 
-        1. [Install and set up](https://krew.sigs.k8s.io/docs/user-guide/setup/install/) Krew on your machine.
-        2. Discover plugins available on Krew:
-        ```shell
-        kubectl krew update
-        ```
-        3. install kubectl vela:
-        ```shell script
-        kubectl krew install vela
-        ```
+1. [Install and set up](https://krew.sigs.k8s.io/docs/user-guide/setup/install/) Krew on your machine.
+2. Discover plugins available on Krew:
+```shell
+kubectl krew update
+```
+3. install kubectl vela:
+```shell script
+kubectl krew install vela
+```
 
-    </TabItem>
-    <TabItem value="script">
-        **macOS/Linux**
-        ```shell script
-        curl -fsSl https://kubevela.io/script/install-kubectl-vela.sh | bash
-        ```
+</TabItem>
+<TabItem value="script">
 
-        You can also download the binary from [release pages ( >= v1.0.3)](https://github.com/oam-dev/kubevela/releases) manually.
-        Kubectl will discover it from your system path automatically.
-    </TabItem>
+**macOS/Linux**
+```shell script
+curl -fsSl https://kubevela.io/script/install-kubectl-vela.sh | bash
+```
+
+You can also download the binary from [release pages ( >= v1.0.3)](https://github.com/oam-dev/kubevela/releases) manually.
+Kubectl will discover it from your system path automatically.
+
+</TabItem>
 </Tabs>
 
 
