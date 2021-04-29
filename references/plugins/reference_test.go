@@ -160,7 +160,7 @@ func TestWalkParameterSchema(t *testing.T) {
     "type": "object"
 }`,
 			ExpectRefs: map[string]map[string]ReferenceParameter{
-				"# properties": {
+				"# Properties": {
 					"cmd": ReferenceParameter{
 						Parameter: types.Parameter{
 							Name:     "cmd",
@@ -205,7 +205,7 @@ func TestWalkParameterSchema(t *testing.T) {
     "type": "object"
 }`,
 			ExpectRefs: map[string]map[string]ReferenceParameter{
-				"# properties": {
+				"# Properties": {
 					"obj": ReferenceParameter{
 						Parameter: types.Parameter{
 							Name:     "obj",
@@ -268,7 +268,7 @@ func TestWalkParameterSchema(t *testing.T) {
     "type": "object"
 }`,
 			ExpectRefs: map[string]map[string]ReferenceParameter{
-				"# properties": {
+				"# Properties": {
 					"obj": ReferenceParameter{
 						Parameter: types.Parameter{
 							Name:     "obj",
@@ -314,7 +314,7 @@ func TestWalkParameterSchema(t *testing.T) {
 		swagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromData(json.RawMessage(parameterJSON))
 		assert.Equal(t, nil, err)
 		parameters := swagger.Components.Schemas["parameter"].Value
-		WalkParameterSchema(parameters, PropertiesName, 0)
+		WalkParameterSchema(parameters, "Properties", 0)
 		refs := make(map[string]map[string]ReferenceParameter)
 		for _, items := range helmRefs {
 			refs[items.Name] = make(map[string]ReferenceParameter)

@@ -54,8 +54,6 @@ const (
 )
 
 const (
-	// PropertiesName is the name of `Properties`
-	PropertiesName = "properties"
 	// TerraformVariableName is the name for Terraform Variable
 	TerraformVariableName = "variable"
 	// TerraformWriteConnectionSecretToRefName is the name for Terraform WriteConnectionSecretToRef
@@ -300,7 +298,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 			}
 			var defaultDepth = 0
 			recurseDepth = &defaultDepth
-			if err := ref.parseParameters(cueValue, PropertiesName, defaultDepth); err != nil {
+			if err := ref.parseParameters(cueValue, "Properties", defaultDepth); err != nil {
 				return err
 			}
 		case types.HelmCategory:
@@ -541,7 +539,7 @@ func (ref *ConsoleReference) GenerateCUETemplateProperties(capability *types.Cap
 	}
 	var defaultDepth = 0
 	recurseDepth = &defaultDepth
-	if err := ref.parseParameters(cueValue, PropertiesName, defaultDepth); err != nil {
+	if err := ref.parseParameters(cueValue, "Properties", defaultDepth); err != nil {
 		return nil, err
 	}
 
@@ -579,7 +577,7 @@ func (ref *ParseReference) GenerateHELMProperties(ctx context.Context, capabilit
 		return nil, nil, err
 	}
 	parameters := swagger.Components.Schemas["parameter"].Value
-	WalkParameterSchema(parameters, PropertiesName, 0)
+	WalkParameterSchema(parameters, "Properties", 0)
 
 	var consoleRefs []ConsoleReference
 	for _, item := range helmRefs {
@@ -665,7 +663,7 @@ func (ref *ConsoleReference) GenerateTerraformCapabilityProperties(capability *t
 	}
 	refParameterList = append(refParameterList, writeConnectionSecretToRefReferenceParameter)
 
-	propertiesTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 1), PropertiesName)
+	propertiesTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 1), "Properties")
 	propertiesConsoleReference = ref.prepareParameter(propertiesTableName, refParameterList, types.CUECategory)
 
 	var (
