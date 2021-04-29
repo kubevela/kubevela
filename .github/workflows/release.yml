@@ -135,3 +135,5 @@ jobs:
           COMMIT_ID: ${{ github.sha }}
         run: |
           bash ./hack/website/release.sh
+      - name: Update kubectl plugin version in krew-index
+        uses: rajatjindal/krew-release-bot@v0.0.38
