@@ -1,36 +1,32 @@
 ---
-title:  The Reference Documentation Guide of Capabilities
+title:  Overview
 ---
 
-In this documentation, we will show how to check the detailed schema of a given capability (i.e. workload type or trait). 
+In this documentation, we will show how to check the detailed schema of a given capability (i.e. component type or trait). 
 
 This may sound challenging because every capability is a "plug-in" in KubeVela (even for the built-in ones), also, it's by design that KubeVela allows platform administrators to modify the capability templates at any time. In this case, do we need to manually write documentation for every newly installed capability? And how can we ensure those documentations for the system is up-to-date?
 
 ## Using Browser
 
-Actually, as a important part of its "extensibility" design, KubeVela will always **automatically generate** reference documentation for every workload type or trait registered in your Kubernetes cluster, based on its template in definition of course. This feature works for any capability: either built-in ones or your own workload types/traits.
+Actually, as a important part of its "extensibility" design, KubeVela will always **automatically generate** reference documentation for every workload type or trait registered in your Kubernetes cluster, based on the template in its definition of course. This feature works for any capability: either built-in ones or your own workload types/traits.
 
 Thus, as an end user, the only thing you need to do is:
 
 ```console
-$ vela show WORKLOAD_TYPE or TRAIT --web
+$ vela show COMPONENT_TYPE or TRAIT --web
 ```
 
-This command will automatically open the reference documentation for given workload type or trait in your default browser.
+This command will automatically open the reference documentation for given component type or trait in your default browser.
 
-### For Workload Types
+Let's take `$ vela show webservice --web` as example. The detailed schema documentation for `Web Service` component type will show up immediately as below:
 
-Let's take `$ vela show webservice --web` as example. The detailed schema documentation for `Web Service` workload type will show up immediately as below:
-
-![](../resources/vela_show_webservice.jpg)
+![](../../resources/vela_show_webservice.jpg)
 
 Note that there's in the section named `Specification`, it even provides you with a full sample for the usage of this workload type with a fake name `my-service-name`.
 
-### For Traits
+Similarly, we can also do `$ vela show autoscale`:
 
-Similarly, we can also do `$ vela show autoscale --web`:
-
-![](../resources/vela_show_autoscale.jpg)
+![](../../resources/vela_show_autoscale.jpg)
 
 With these auto-generated reference documentations, we could easily complete the application description by simple copy-paste, for example:
 
@@ -100,4 +96,18 @@ $ vela show webservice
 +------+------------------------------------------------------------------+--------+----------+---------+
 ```
 
-> Note that for all the built-in capabilities, we already published their reference docs [here](https://kubevela.io/#/en/developers/references/) based on the same doc generation mechanism.
+## For Built-in Capabilities
+
+Note that for all the built-in capabilities, we already published their reference docs below based on the same doc generation mechanism.
+
+
+- Workload Types
+	- [webservice](component-types/webservice)
+	- [task](component-types/task)
+	- [worker](component-types/worker)
+- Traits
+	- [route](traits/route)
+	- [autoscale](traits/autoscale)
+	- [rollout](traits/rollout)
+	- [metrics](traits/metrics)
+	- [scaler](traits/scaler)

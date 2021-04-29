@@ -8,7 +8,7 @@ The `ingress` trait exposes a component to public Internet via a valid domain.
 
 ```shell
 $ kubectl vela show ingress
-# Properties
+# properties
 +--------+------------------------------------------------------------------------------+----------------+----------+---------+
 |  NAME  |                                 DESCRIPTION                                  |      TYPE      | REQUIRED | DEFAULT |
 +--------+------------------------------------------------------------------------------+----------------+----------+---------+

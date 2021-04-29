@@ -6,7 +6,7 @@ The `scaler` trait allows you to scale your component instance manually.
 
 ```shell
 $ kubectl vela show scaler 
-# Properties
+# properties
 +----------+--------------------------------+------+----------+---------+
 |   NAME   |          DESCRIPTION           | TYPE | REQUIRED | DEFAULT |
 +----------+--------------------------------+------+----------+---------+

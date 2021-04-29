@@ -121,7 +121,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			cdName := "test-webapp-chart"
 			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", cdName))
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).Should(ContainSubstring("Properties"))
+			Expect(output).Should(ContainSubstring("properties"))
 		})
 	})
 })
@@ -794,7 +794,7 @@ spec:
         }
 `
 
-var showCdResult = `# Properties
+var showCdResult = `# properties
 +---------+--------------------------------------------------------------------------------------------------+----------+----------+---------+
 |  NAME   |                                           DESCRIPTION                                            |   TYPE   | REQUIRED | DEFAULT |
 +---------+--------------------------------------------------------------------------------------------------+----------+----------+---------+
@@ -807,7 +807,7 @@ var showCdResult = `# Properties
 
 `
 
-var showTdResult = `# Properties
+var showTdResult = `# properties
 +---------+-------------+----------+----------+---------+
 |  NAME   | DESCRIPTION |   TYPE   | REQUIRED | DEFAULT |
 +---------+-------------+----------+----------+---------+

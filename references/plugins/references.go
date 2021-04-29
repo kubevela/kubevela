@@ -64,6 +64,9 @@ const (
 	TerraformWriteConnectionSecretToRefType = "[writeConnectionSecretToRef](#writeConnectionSecretToRef)"
 )
 
+// PropertiesName is the name of `properties`
+const PropertiesName = "properties"
+
 // Int64Type is int64 type
 type Int64Type = int64
 
@@ -298,7 +301,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 			}
 			var defaultDepth = 0
 			recurseDepth = &defaultDepth
-			if err := ref.parseParameters(cueValue, "Properties", defaultDepth); err != nil {
+			if err := ref.parseParameters(cueValue, PropertiesName, defaultDepth); err != nil {
 				return err
 			}
 		case types.HelmCategory:
@@ -539,7 +542,7 @@ func (ref *ConsoleReference) GenerateCUETemplateProperties(capability *types.Cap
 	}
 	var defaultDepth = 0
 	recurseDepth = &defaultDepth
-	if err := ref.parseParameters(cueValue, "Properties", defaultDepth); err != nil {
+	if err := ref.parseParameters(cueValue, PropertiesName, defaultDepth); err != nil {
 		return nil, err
 	}
 
@@ -577,7 +580,7 @@ func (ref *ParseReference) GenerateHELMProperties(ctx context.Context, capabilit
 		return nil, nil, err
 	}
 	parameters := swagger.Components.Schemas["parameter"].Value
-	WalkParameterSchema(parameters, "Properties", 0)
+	WalkParameterSchema(parameters, PropertiesName, 0)
 
 	var consoleRefs []ConsoleReference
 	for _, item := range helmRefs {
