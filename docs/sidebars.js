@@ -39,6 +39,7 @@ module.exports = {
             'end-user/volumes',
             'end-user/monitoring',
             'end-user/health',
+            'end-user/rollout-app'
           ]
         },
       ]

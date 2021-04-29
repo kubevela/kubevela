@@ -722,8 +722,6 @@ var livediffResult = `---
 +         path: /
   
 
-
-
 `
 
 var testShowComponentDef = `
