@@ -70,7 +70,7 @@ func NewPackageDiscover(config *rest.Config) (*PackageDiscover, error) {
 		pkgKinds: make(map[string][]VersionKind),
 	}
 	if err = pd.RefreshKubePackagesFromCluster(); err != nil {
-		return nil, err
+		return pd, err
 	}
 	return pd, nil
 }
