@@ -1,5 +1,5 @@
 ---
-title: Provision and Consume Cloud Resources
+title: Provision and Consume Cloud Resources by Crossplane
 ---
 
 > ⚠️ This section requires your platform builder has already installed the [cloud resources related capabilities](../platform-engineers/cloud-services).

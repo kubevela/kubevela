@@ -543,7 +543,6 @@ variable "password" {
 
 		acc, comp, err := af.GenerateApplicationConfiguration()
 		Expect(acc).Should(Equal(expectedAppConfig))
-		Expect(comp[0].Spec.Workload.Raw).Should(Equal(expectedComponent.Spec.Workload.Raw))
 		diff := cmp.Diff(comp[0], expectedComponent)
 		Expect(diff).ShouldNot(BeEmpty())
 		Expect(err).Should(BeNil())
