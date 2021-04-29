@@ -49,21 +49,10 @@ spec:
 ```
 
 ## User Workflow
-Here is the end to end user experience based on [CloneSet](https://openkruise.io/en-us/docs/cloneset.html)
 
-1. Install CloneSet and its `ComponentDefinition`.
+Here is the end to end user experience based on Deployment
 
-  Since CloneSet is an customized workload for Kubernetes, we need to install its controller and component definition manually to KubeVela platform.
-
-  ```shell
-  helm install kruise https://github.com/openkruise/kruise/releases/download/v0.7.0/kruise-chart.tgz
-  ```
-
-  ```shell
-  kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/cloneset-rollout/clonesetDefinition.yaml
-  ```
-
-2. Deploy application to the cluster
+1. Deploy application to the cluster
   ```yaml
   apiVersion: core.oam.dev/v1beta1
   kind: Application
@@ -75,18 +64,23 @@ Here is the end to end user experience based on [CloneSet](https://openkruise.io
   spec:
     components:
       - name: metrics-provider
-        type: clonesetservice
+        type: worker
         properties:
           cmd:
             - ./podinfo
             - stress-cpu=1
           image: stefanprodan/podinfo:4.0.6
           port: 8080
-          updateStrategyType: InPlaceIfPossible
           replicas: 5
   ```
+Verify AppRevision `test-rolling-v1` have generated
+```shell
+$ kubectl get apprev test-rolling-v1
+NAME              AGE
+test-rolling-v1   9s
+```
 
-3. Attach the following rollout plan to upgrade the application to v1
+2. Attach the following rollout plan to upgrade the application to v1
   ```yaml
   apiVersion: core.oam.dev/v1beta1
   kind: AppRollout
@@ -106,7 +100,7 @@ Here is the end to end user experience based on [CloneSet](https://openkruise.io
   ```
   Use can check the status of the ApplicationRollout and wait for the rollout to complete.
 
-4. User can continue to modify the application image tag and apply
+3. User can continue to modify the application image tag and apply.This will generate new AppRevision `test-rolling-v2`
   ```yaml
   apiVersion: core.oam.dev/v1beta1
   kind: Application
@@ -118,16 +112,22 @@ Here is the end to end user experience based on [CloneSet](https://openkruise.io
   spec:
     components:
       - name: metrics-provider
-        type: clonesetservice
+        type: worker
         properties:
           cmd:
             - ./podinfo
             - stress-cpu=1
           image: stefanprodan/podinfo:5.0.2
           port: 8080
-          updateStrategyType: InPlaceIfPossible
           replicas: 5
   ```
+
+Verify AppRevision `test-rolling-v2` have generated
+```shell
+$ kubectl get apprev test-rolling-v2
+NAME              AGE
+test-rolling-v2   7s
+```
 
 5. Apply the application rollout that upgrade the application from v1 to v2
   ```yaml
@@ -176,7 +176,7 @@ apiVersion: core.oam.dev/v1beta1
 
 ### Skip revision rollout
 
-7. User can continue to modify the application image tag.This will generate new AppRevision `test-rolling-v3`
+7. User can apply this yaml continue to modify the application image tag.This will generate new AppRevision `test-rolling-v3`
 ```yaml
   apiVersion: core.oam.dev/v1beta1
   kind: Application
@@ -188,15 +188,21 @@ apiVersion: core.oam.dev/v1beta1
   spec:
     components:
       - name: metrics-provider
-        type: clonesetservice
+        type: worker
         properties:
           cmd:
             - ./podinfo
             - stress-cpu=1
           image: stefanprodan/podinfo:5.2.0
           port: 8080
-          updateStrategyType: InPlaceIfPossible
           replicas: 5
+```
+
+Verify AppRevision `test-rolling-v3` have generated
+```shell
+$ kubectl get apprev test-rolling-v3
+NAME              AGE
+test-rolling-v3   7s
 ```
 
 8. Apply the application rollout that rollout the application from v1 to v3

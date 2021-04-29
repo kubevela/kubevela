@@ -109,12 +109,14 @@ func (c *DeploymentRolloutController) VerifySpec(ctx context.Context) (bool, err
 		return false, verifyErr
 	}
 
-	if !c.sourceDeploy.Spec.Paused || getDeployReplicaSize(&c.sourceDeploy) == c.sourceDeploy.Status.Replicas {
+	if !c.sourceDeploy.Spec.Paused ||
+		(getDeployReplicaSize(&c.sourceDeploy) != c.sourceDeploy.Status.Replicas && c.sourceDeploy.Status.Replicas != 0) {
 		return false, fmt.Errorf("the source deployment %s is still being reconciled, need to be paused or stable",
 			c.sourceDeploy.GetName())
 	}
 
-	if !c.targetDeploy.Spec.Paused || getDeployReplicaSize(&c.targetDeploy) == c.targetDeploy.Status.Replicas {
+	if !c.targetDeploy.Spec.Paused ||
+		(getDeployReplicaSize(&c.targetDeploy) != c.targetDeploy.Status.Replicas && c.targetDeploy.Status.Replicas != 0) {
 		return false, fmt.Errorf("the target deployment %s is still being reconciled, need to be paused or stable",
 			c.targetDeploy.GetName())
 	}

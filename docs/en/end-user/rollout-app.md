@@ -9,21 +9,10 @@ By default, when we update the spec of Application, KubeVela will update workloa
 KubeVela provides a unified progressive rollout mechanism, you can specify the `spec.rolloutPlan` in application to do so.
 
 ## User Workflow
-Here is the end to end user experience based on [CloneSet](https://openkruise.io/en-us/docs/cloneset.html)
+Here is the end to end user experience based on Deployment
 
-1. Install CloneSet and its `ComponentDefinition`.
 
-Since CloneSet is an customized workload for Kubernetes, we need to install its controller and component definition manually to KubeVela platform.
-
-  ```shell
-  helm install kruise https://github.com/openkruise/kruise/releases/download/v0.7.0/kruise-chart.tgz
-  ```
-
-  ```shell
-  kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/cloneset-rollout/clonesetDefinition.yaml
-  ```
-
-2. Deploy application to the cluster
+1. Deploy application to the cluster
   ```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Application
@@ -32,7 +21,7 @@ metadata:
 spec:
   components:
     - name: metrics-provider
-      type: clonesetservice
+      type: worker
       properties:
         cmd:
           - ./podinfo
@@ -47,7 +36,7 @@ spec:
     targetSize: 6
   ```
 
-3. User can  modify the application container command and apply
+2. User can  modify the application container command and apply
   ```yaml
 apiVersion: core.oam.dev/v1beta1
 kind: Application
@@ -56,7 +45,7 @@ metadata:
 spec:
   components:
     - name: metrics-provider
-      type: clonesetservice
+      type: worker
       properties:
         cmd:
           - ./podinfo
@@ -92,7 +81,7 @@ metadata:
 spec:
   components:
     - name: metrics-provider
-      type: clonesetservice
+      type: worker
       properties:
         cmd:
           - ./podinfo
