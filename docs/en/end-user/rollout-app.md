@@ -69,7 +69,7 @@ Sometimes, we want to use [AppRollout](../rollout/rollout) to adopt the Applicat
 
 If you want to let `AppRollout` adopt the Application with `rolloutPlan`, please add the annotations in application to tell `AppRollout` to adopt rollout, and clean the strategy in `spec.rolloutPlan` to avoid conflicts.
 
-eg. update application before, by apply this yaml
+eg. to let AppRollout adopt the application above, you should update the application like below:
 ```shell
 apiVersion: core.oam.dev/v1beta1
 kind: Application
@@ -90,7 +90,7 @@ spec:
         port: 8080
 ```
 
-
+Please refer to [AppRollout](../rollout/rollout) to learn more details.
 
 
 

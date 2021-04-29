@@ -129,7 +129,7 @@ NAME              AGE
 test-rolling-v2   7s
 ```
 
-5. Apply the application rollout that upgrade the application from v1 to v2
+4. Apply the application rollout that upgrade the application from v1 to v2
   ```yaml
   apiVersion: core.oam.dev/v1beta1
   kind: AppRollout
@@ -153,7 +153,7 @@ test-rolling-v2   7s
 
 ### Revert
 
-6. Apply the application rollout that revert the application from v2 to v1
+5. Apply the application rollout that revert the application from v2 to v1
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -176,7 +176,7 @@ apiVersion: core.oam.dev/v1beta1
 
 ### Skip revision rollout
 
-7. User can apply this yaml continue to modify the application image tag.This will generate new AppRevision `test-rolling-v3`
+6. User can apply this yaml continue to modify the application image tag.This will generate new AppRevision `test-rolling-v3`
 ```yaml
   apiVersion: core.oam.dev/v1beta1
   kind: Application
@@ -205,7 +205,7 @@ NAME              AGE
 test-rolling-v3   7s
 ```
 
-8. Apply the application rollout that rollout the application from v1 to v3
+7. Apply the application rollout that rollout the application from v1 to v3
 ```yaml
 apiVersion: core.oam.dev/v1beta1
   kind: AppRollout
