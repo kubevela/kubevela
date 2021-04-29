@@ -173,7 +173,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return handler.handleErr(err)
 	}
 
-	// if rolloutPlan is nil, user should create a AppRollout object to rollout the application
+	// if inplace is false and rolloutPlan is nil, it means the user will use an outer AppRollout object to rollout the application
 	if !handler.inplace && handler.app.Spec.RolloutPlan != nil {
 		res, err := handler.handleRollout(ctx)
 		if err != nil {
@@ -195,6 +195,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		applog.Info("rollout finished")
 	}
 
+	// The following logic will be skipped if rollout have not finished
 	app.Status.SetConditions(readyCondition("Applied"))
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonFailedApply, velatypes.MessageApplied))
 	app.Status.Phase = common.ApplicationHealthChecking

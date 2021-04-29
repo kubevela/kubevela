@@ -108,7 +108,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (res reconcile.Result, retErr e
 	return reconRes, r.updateStatus(ctx, &appRollout)
 }
 
-// DoReconcile is real reconcile logic for appRollout
+// DoReconcile is real reconcile logic for appRollout.
+// !!! Note the AppRollout object should not be updated in this function as it could be logically used in Application reconcile loop which does not have real AppRollout object.
 func (r *Reconciler) DoReconcile(ctx context.Context, appRollout *v1beta1.AppRollout) (res reconcile.Result, retErr error) {
 	if len(appRollout.Status.RollingState) == 0 {
 		appRollout.Status.ResetStatus()

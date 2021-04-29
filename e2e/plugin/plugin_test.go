@@ -553,6 +553,13 @@ var livediffResult = `---
         type: test-ingress
       type: test-webservice
   status:
+    rollout:
+      batchRollingState: ""
+      currentBatch: 0
+      lastTargetAppRevision: ""
+      rollingState: ""
+      upgradedReadyReplicas: 0
+      upgradedReplicas: 0
   
 ---
 ## Component (express-server) has been removed(-)
@@ -714,6 +721,8 @@ var livediffResult = `---
 +           servicePort: 8080
 +         path: /
   
+
+
 
 `
 
