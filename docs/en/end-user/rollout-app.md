@@ -78,7 +78,7 @@ Application's `status.rollout.rollingState` becomes `rolloutSucceed`
 
 Sometimes, we want to use [AppRollout](../rollout/rollout) to adopt the Application Rollout, so we can use the `AppRollout` to specify more specific revision. The `AppRollout` can both rollout or revert the version of application.
 
-Before doing this, user should guarantee the `spec.rolloutPlan` of application have been set empty, and add the annotations in application to tell `AppRollout` to adopt rollout.
+If you want to let `AppRollout` adopt the Application with `rolloutPlan`, please add the annotations in application to tell `AppRollout` to adopt rollout, and clean the strategy in `spec.rolloutPlan` to avoid conflicts.
 
 eg. update application before, by apply this yaml
 ```shell

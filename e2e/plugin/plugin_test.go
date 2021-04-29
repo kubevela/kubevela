@@ -94,10 +94,6 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			output, err := e2e.Exec("kubectl-vela live-diff -f live-diff-app.yaml")
 			Expect(err).NotTo(HaveOccurred())
-			fmt.Println("only-for-test-output----")
-			fmt.Println(output)
-			fmt.Println("only-for-test-livediff-result")
-			fmt.Println(livediffResult)
 			Expect(output).Should(Equal(livediffResult))
 		})
 
