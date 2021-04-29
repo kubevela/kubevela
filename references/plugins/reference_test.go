@@ -370,7 +370,7 @@ variable "acl" {
 			},
 			want: want{
 				errMsg:     "",
-				tableName1: "# properties",
+				tableName1: "# Properties",
 				tableName2: "## writeConnectionSecretToRef",
 			},
 		},
