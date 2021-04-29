@@ -9,7 +9,7 @@ To enable end users to be able to create application by Terraform, please follow
 
 ## Install Terraform Controller chart
 
-Download the latest chart, like `terraform-controller-0.1.2.tgz`, from the latest [releases](https://github.com/oam-dev/terraform-controller/releases) and install it.
+Download the latest chart, like `terraform-controller-chart-0.1.4.tgz`, from the latest [releases](https://github.com/oam-dev/terraform-controller/releases) and install it.
 
 ```shell
 $ helm install terraform-controller terraform-controller-0.1.2.tgz
@@ -27,7 +27,7 @@ For more detailed instruction, please refer to [Terraform controller getting sta
 
 ### Register ComponentDefinition `alibaba-rds` as RDS cloud resource producer
 
-Register [alibaba-rds](../../examples/terraform/cloud-resource-provision-and-consume/ComponentDefinition-alibaba-rds.yaml) Component type to KubeVela.
+Register [alibaba-rds](https://github.com/oam-dev/kubevela/tree/master/docs/examples/terraform/cloud-resource-provision-and-consume/ComponentDefinition-alibaba-rds.yaml) Component type to KubeVela.
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -94,7 +94,7 @@ spec:
 
 ### Register ComponentDefinition `alibaba-oss` as OSS cloud resource producer
 
-Register [alibaba-oss](../../examples/terraform/cloud-resource-provision-and-consume/ComponentDefinition-alibaba-oss.yaml) Component type to KubeVela.
+Register [alibaba-oss](https://github.com/oam-dev/kubevela/tree/master/docs/examples/terraform/cloud-resource-provision-and-consume/ComponentDefinition-alibaba-oss.yaml) Component type to KubeVela.
 
 
 ```yaml
@@ -139,7 +139,7 @@ spec:
 
 ### Prepare TraitDefinition `service-binding` to do env-secret mapping
 
-Apply [service-binding](../../examples/terraform/cloud-resource-provision-and-consume/TraitDefinition-service-binding.yaml) to apply service binding trait.
+Apply [service-binding](https://github.com/oam-dev/kubevela/tree/master/docs/examples/terraform/cloud-resource-provision-and-consume/TraitDefinition-service-binding.yaml) to apply service binding trait.
 
 For more detailed introduction, please refer to [Crossplane](https://kubevela.io/docs/platform-engineers/cloud-services#prepare-traitdefinition-service-binding-to-do-env-secret-mapping).
 

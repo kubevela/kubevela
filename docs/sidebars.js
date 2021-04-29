@@ -80,7 +80,7 @@ module.exports = {
               label: 'Defining Cloud Service',
               items: [
                 'platform-engineers/cloud-services',
-                  'platform-engineers/terraform'
+                'platform-engineers/terraform',
               ]
             },
           ]

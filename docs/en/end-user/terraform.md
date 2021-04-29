@@ -36,7 +36,7 @@ $ kubectl vela show service-binding
 +-------------+------------------------------------------------+------------------+----------+---------+
 ```
 
-Now apply an [application](../../examples/terraform/cloud-resource-provision-and-consume/application.yaml) as below.
+Now apply an [application](https://github.com/oam-dev/kubevela/tree/master/docs/examples/terraform/cloud-resource-provision-and-consume/application.yaml) as below.
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
