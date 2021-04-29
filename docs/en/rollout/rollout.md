@@ -151,6 +151,74 @@ Here is the end to end user experience based on [CloneSet](https://openkruise.io
   User can check the status of the ApplicationRollout and see the rollout completes, and the
   ApplicationRollout's "Rolling State" becomes `rolloutSucceed`
 
+### Revert
+
+6. Apply the application rollout that revert the application from v2 to v1
+
+```yaml
+apiVersion: core.oam.dev/v1beta1
+  kind: AppRollout
+  metadata:
+    name: rolling-example
+  spec:
+    # application (revision) reference
+    sourceAppRevisionName: test-rolling-v2
+    targetAppRevisionName: test-rolling-v1
+    componentList:
+      - metrics-provider
+    rolloutPlan:
+      rolloutStrategy: "IncreaseFirst"
+      rolloutBatches:
+        - replicas: 1
+        - replicas: 2
+        - replicas: 2
+```
+
+### Skip revision rollout
+
+7. User can continue to modify the application image tag.This will generate new AppRevision `test-rolling-v3`
+```yaml
+  apiVersion: core.oam.dev/v1beta1
+  kind: Application
+  metadata:
+    name: test-rolling
+    annotations:
+      "app.oam.dev/rolling-components": "metrics-provider"
+      "app.oam.dev/rollout-template": "true"
+  spec:
+    components:
+      - name: metrics-provider
+        type: clonesetservice
+        properties:
+          cmd:
+            - ./podinfo
+            - stress-cpu=1
+          image: stefanprodan/podinfo:5.2.0
+          port: 8080
+          updateStrategyType: InPlaceIfPossible
+          replicas: 5
+```
+
+8. Apply the application rollout that rollout the application from v1 to v3
+```yaml
+apiVersion: core.oam.dev/v1beta1
+  kind: AppRollout
+  metadata:
+    name: rolling-example
+  spec:
+    # application (revision) reference
+    sourceAppRevisionName: test-rolling-v1
+    targetAppRevisionName: test-rolling-v3
+    componentList:
+      - metrics-provider
+    rolloutPlan:
+      rolloutStrategy: "IncreaseFirst"
+      rolloutBatches:
+        - replicas: 1
+        - replicas: 2
+        - replicas: 2
+```
+
 ## State Transition
 Here is the high level state transition graph
 
