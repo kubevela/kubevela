@@ -2,7 +2,7 @@
 title: Provision and Consume Cloud Resources by Terraform
 ---
 
-> ⚠️ This section requires your platform builder has already installed the [Terraform related capabilities](../platform-engineers/terraform.md).
+> ⚠️ This section requires your platform builder has already installed the [Terraform related capabilities](../platform-engineers/terraform).
 
 Check the parameters of cloud resource components and trait.
 
