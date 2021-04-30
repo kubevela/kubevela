@@ -254,7 +254,7 @@ var _ = Describe("deployment controller", func() {
 			Expect(err).Should(BeNil())
 			Expect(consistent).Should(BeTrue())
 			Expect(c.rolloutStatus.RolloutTargetSize).Should(BeEquivalentTo(sourceReplica))
-			Expect(c.rolloutStatus.NewPodTemplateIdentifier).Should(BeEmpty())
+			Expect(c.rolloutStatus.NewPodTemplateIdentifier).ShouldNot(BeEmpty())
 		})
 
 		It("deployment should not have controller", func() {
