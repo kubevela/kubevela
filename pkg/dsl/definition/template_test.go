@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 )
 
@@ -32,6 +33,7 @@ func TestWorkloadTemplateComplete(t *testing.T) {
 		params           map[string]interface{}
 		expectObj        runtime.Object
 		expAssObjs       map[string]runtime.Object
+		category         types.CapabilityCategory
 	}{
 		"only contain an output": {
 			workloadTemplate: `
@@ -183,7 +185,7 @@ parameter: {
 
 	for _, v := range testCases {
 		ctx := process.NewContext("default", "test", "myapp", "myapp-v1")
-		wt := NewWorkloadAbstractEngine("testworkload", &PackageDiscover{})
+		wt := NewWorkloadAbstractEngine("testWorkload", &PackageDiscover{})
 		assert.NoError(t, wt.Complete(ctx, v.workloadTemplate, v.params))
 		base, assists := ctx.Output()
 		assert.Equal(t, len(v.expAssObjs), len(assists))

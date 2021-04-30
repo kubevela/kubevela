@@ -147,6 +147,22 @@ spec:
                     required:
                     - template
                     type: object
+                  terraform:
+                    description: Terraform is the struct to describe cloud resources managed by Hashicorp Terraform
+                    properties:
+                      configuration:
+                        description: Configuration is Terraform Configuration
+                        type: string
+                      type:
+                        default: hcl
+                        description: Type specifies which Terraform configuration it is, HCL or JSON syntax
+                        enum:
+                        - hcl
+                        - json
+                        type: string
+                    required:
+                    - configuration
+                    type: object
                 type: object
               status:
                 description: Status defines the custom health policy and status message for trait
@@ -332,6 +348,22 @@ spec:
                         
                     required:
                     - template
+                    type: object
+                  terraform:
+                    description: Terraform is the struct to describe cloud resources managed by Hashicorp Terraform
+                    properties:
+                      configuration:
+                        description: Configuration is Terraform Configuration
+                        type: string
+                      type:
+                        default: hcl
+                        description: Type specifies which Terraform configuration it is, HCL or JSON syntax
+                        enum:
+                        - hcl
+                        - json
+                        type: string
+                    required:
+                    - configuration
                     type: object
                 type: object
               status:

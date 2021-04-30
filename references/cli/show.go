@@ -377,6 +377,11 @@ func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.
 		if err != nil {
 			return err
 		}
+	case types.TerraformCategory:
+		propertyConsole, err = ref.GenerateTerraformCapabilityProperties(capability)
+		if err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unsupport capability category %s", capability.Category)
 	}
