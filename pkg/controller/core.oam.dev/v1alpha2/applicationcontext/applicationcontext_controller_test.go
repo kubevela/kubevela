@@ -105,21 +105,21 @@ var _ = Describe("Test ApplicationContext Controller", func() {
 			Expect(k8sClient.Create(ctx, &comp)).Should(Succeed())
 
 			By("create an application revision")
-			app := v1beta1.Application{
+			app := v1alpha2.Application{
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Application",
-					APIVersion: "core.oam.dev/v1beta1",
+					APIVersion: "core.oam.dev/v1alpha2",
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      appContextName,
 					Namespace: ns,
 				},
-				Spec: v1beta1.ApplicationSpec{
-					Components: []v1beta1.ApplicationComponent{
+				Spec: v1alpha2.ApplicationSpec{
+					Components: []v1alpha2.ApplicationComponent{
 						{
-							Name:       componentName,
-							Type:       "worker",
-							Properties: runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","config":"myconfig"}`)},
+							Name:         componentName,
+							WorkloadType: "worker",
+							Settings:     runtime.RawExtension{Raw: []byte(`{"cmd":["sleep","1000"],"image":"busybox","config":"myconfig"}`)},
 						},
 					},
 				},
@@ -138,12 +138,12 @@ var _ = Describe("Test ApplicationContext Controller", func() {
 					Components: []v1alpha2.ApplicationConfigurationComponent{{ComponentName: "comp1"}}},
 			}
 
-			appRevision := v1beta1.ApplicationRevision{
+			appRevision := v1alpha2.ApplicationRevision{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      appRevisionName,
 					Namespace: ns,
 				},
-				Spec: v1beta1.ApplicationRevisionSpec{
+				Spec: v1alpha2.ApplicationRevisionSpec{
 					Application:              app,
 					ApplicationConfiguration: util.Object2RawExtension(appConfig),
 				},
