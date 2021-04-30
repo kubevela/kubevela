@@ -55,7 +55,7 @@ then
 
   version=${major}.${minor}
   echo "updating website for version $version"
-  sed -i.bak "s#lastVersion: 'v${version}'#lastVersion: 'current'#g" docusaurus.config.js
+  sed -i.bak "s#lastVersion: '${version}'#lastVersion: 'current'#g" docusaurus.config.js
 
   if grep -q $version versions.json; then
     rm -r versioned_docs/version-${version}/
@@ -74,7 +74,8 @@ then
   fi
 
   yarn run docusaurus docs:version $version
-  sed -i.bak "s#lastVersion: 'current'#lastVersion: '${version}'#g" docusaurus.config.js
+  git checkout docusaurus.config.js
+  rm docusaurus.config.js.bak
 fi
 
 # Check for release branch update only
@@ -85,7 +86,7 @@ then
   # release-x.y -> vx.y
   version=$(echo $VERSION|sed -e 's/\/*.*\/*-/v/g')
   echo "updating website for version $version"
-  sed -i.bak "s#lastVersion: 'v${version}'#lastVersion: 'current'#g" docusaurus.config.js
+  sed -i.bak "s#lastVersion: '${version}'#lastVersion: 'current'#g" docusaurus.config.js
 
   if grep -q $version versions.json; then
     rm -r versioned_docs/version-${version}/
@@ -104,7 +105,8 @@ then
   fi
 
   yarn run docusaurus docs:version $version
-  sed -i.bak "s#lastVersion: 'current'#lastVersion: '${version}'#g" docusaurus.config.js
+  git checkout docusaurus.config.js
+  rm docusaurus.config.js.bak
 fi
 
 
