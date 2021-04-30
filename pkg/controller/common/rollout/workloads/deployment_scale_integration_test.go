@@ -212,7 +212,6 @@ var _ = Describe("deployment controller", func() {
 			Expect(s.rolloutStatus.RolloutTargetSize).Should(BeEquivalentTo(10))
 			Expect(s.rolloutStatus.RolloutOriginalSize).Should(BeEquivalentTo(1))
 		})
-
 	})
 
 	Context("TestInitialize", func() {

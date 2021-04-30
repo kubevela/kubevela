@@ -355,4 +355,7 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 		updateAppWithCpuAndPlan(app, "3", plan)
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 3), "3")
 	})
+	// TODO add more corner case tests
+	// 1.update application in the middle of a rollout process
+	// 2.update application by clean rolloutPlan strategy in the middle of a rollout process
 })

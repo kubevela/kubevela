@@ -174,7 +174,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// if inplace is false and rolloutPlan is nil, it means the user will use an outer AppRollout object to rollout the application
-	if !handler.inplace && handler.app.Spec.RolloutPlan != nil {
+	if handler.app.Spec.RolloutPlan != nil {
 		res, err := handler.handleRollout(ctx)
 		if err != nil {
 			applog.Error(err, "[handle rollout]")
