@@ -313,9 +313,6 @@ spec:
                   status:
                     description: AppStatus defines the observed state of Application
                     properties:
-                      batchRollingState:
-                        description: BatchRollingState only meaningful when the Status is rolling
-                        type: string
                       components:
                         description: Components record the related Components created by Application Controller
                         items:
@@ -367,13 +364,6 @@ spec:
                           - type
                           type: object
                         type: array
-                      currentBatch:
-                        description: The current batch the rollout is working on/blocked it starts from 0
-                        format: int32
-                        type: integer
-                      lastAppliedPodTemplateIdentifier:
-                        description: lastAppliedPodTemplateIdentifier is a string that uniquely represent the last pod template each workload type could use different ways to identify that so we cannot compare between resources We update this field only after a successful rollout
-                        type: string
                       latestRevision:
                         description: LatestRevision of the application configuration it generates
                         properties:
@@ -409,17 +399,82 @@ spec:
                         - kind
                         - name
                         type: object
-                      rollingState:
-                        description: RollingState is the Rollout State
-                        type: string
-                      rolloutOriginalSize:
-                        description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
-                        format: int32
-                        type: integer
-                      rolloutTargetSize:
-                        description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
-                        format: int32
-                        type: integer
+                      rollout:
+                        description: AppRolloutStatus defines the observed state of AppRollout
+                        properties:
+                          LastSourceAppRevision:
+                            description: LastSourceAppRevision contains the name of the app that we need to upgrade from. We will restart the rollout if this is not the same as the spec
+                            type: string
+                          batchRollingState:
+                            description: BatchRollingState only meaningful when the Status is rolling
+                            type: string
+                          conditions:
+                            description: Conditions of the resource.
+                            items:
+                              description: A Condition that may apply to a resource.
+                              properties:
+                                lastTransitionTime:
+                                  description: LastTransitionTime is the last time this condition transitioned from one status to another.
+                                  format: date-time
+                                  type: string
+                                message:
+                                  description: A Message containing details about this condition's last transition from one status to another, if any.
+                                  type: string
+                                reason:
+                                  description: A Reason for this condition's last transition from one status to another.
+                                  type: string
+                                status:
+                                  description: Status of this condition; is it currently True, False, or Unknown?
+                                  type: string
+                                type:
+                                  description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
+                                  type: string
+                              required:
+                              - lastTransitionTime
+                              - reason
+                              - status
+                              - type
+                              type: object
+                            type: array
+                          currentBatch:
+                            description: The current batch the rollout is working on/blocked it starts from 0
+                            format: int32
+                            type: integer
+                          lastAppliedPodTemplateIdentifier:
+                            description: lastAppliedPodTemplateIdentifier is a string that uniquely represent the last pod template each workload type could use different ways to identify that so we cannot compare between resources We update this field only after a successful rollout
+                            type: string
+                          lastTargetAppRevision:
+                            description: LastUpgradedTargetAppRevision contains the name of the app that we upgraded to We will restart the rollout if this is not the same as the spec
+                            type: string
+                          rollingState:
+                            description: RollingState is the Rollout State
+                            type: string
+                          rolloutOriginalSize:
+                            description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+                            format: int32
+                            type: integer
+                          rolloutTargetSize:
+                            description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+                            format: int32
+                            type: integer
+                          targetGeneration:
+                            description: NewPodTemplateIdentifier is a string that uniquely represent the new pod template each workload type could use different ways to identify that so we cannot compare between resources
+                            type: string
+                          upgradedReadyReplicas:
+                            description: UpgradedReadyReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
+                            format: int32
+                            type: integer
+                          upgradedReplicas:
+                            description: UpgradedReplicas is the number of Pods upgraded by the rollout controller
+                            format: int32
+                            type: integer
+                        required:
+                        - currentBatch
+                        - lastTargetAppRevision
+                        - rollingState
+                        - upgradedReadyReplicas
+                        - upgradedReplicas
+                        type: object
                       services:
                         description: Services record the status of the application services
                         items:
@@ -431,6 +486,28 @@ spec:
                               type: string
                             name:
                               type: string
+                            scopes:
+                              items:
+                                description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
+                                properties:
+                                  apiVersion:
+                                    description: APIVersion of the referenced object.
+                                    type: string
+                                  kind:
+                                    description: Kind of the referenced object.
+                                    type: string
+                                  name:
+                                    description: Name of the referenced object.
+                                    type: string
+                                  uid:
+                                    description: UID of the referenced object.
+                                    type: string
+                                required:
+                                - apiVersion
+                                - kind
+                                - name
+                                type: object
+                              type: array
                             traits:
                               items:
                                 description: ApplicationTraitStatus records the trait health status
@@ -465,22 +542,6 @@ spec:
                       status:
                         description: ApplicationPhase is a label for the condition of a application at the current time
                         type: string
-                      targetGeneration:
-                        description: NewPodTemplateIdentifier is a string that uniquely represent the new pod template each workload type could use different ways to identify that so we cannot compare between resources
-                        type: string
-                      upgradedReadyReplicas:
-                        description: UpgradedReadyReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
-                        format: int32
-                        type: integer
-                      upgradedReplicas:
-                        description: UpgradedReplicas is the number of Pods upgraded by the rollout controller
-                        format: int32
-                        type: integer
-                    required:
-                    - currentBatch
-                    - rollingState
-                    - upgradedReadyReplicas
-                    - upgradedReplicas
                     type: object
                 type: object
               applicationConfiguration:
@@ -604,6 +665,22 @@ spec:
                               required:
                               - template
                               type: object
+                            terraform:
+                              description: Terraform is the struct to describe cloud resources managed by Hashicorp Terraform
+                              properties:
+                                configuration:
+                                  description: Configuration is Terraform Configuration
+                                  type: string
+                                type:
+                                  default: hcl
+                                  description: Type specifies which Terraform configuration it is, HCL or JSON syntax
+                                  enum:
+                                  - hcl
+                                  - json
+                                  type: string
+                              required:
+                              - configuration
+                              type: object
                           type: object
                         status:
                           description: Status defines the custom health policy and status message for workload
@@ -670,6 +747,21 @@ spec:
                         configMapRef:
                           description: ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
                           type: string
+                        latestRevision:
+                          description: LatestRevision of the component definition
+                          properties:
+                            name:
+                              type: string
+                            revision:
+                              format: int64
+                              type: integer
+                            revisionHash:
+                              description: RevisionHash record the hash value of the spec of ApplicationRevision object.
+                              type: string
+                          required:
+                          - name
+                          - revision
+                          type: object
                       type: object
                   type: object
                 description: ComponentDefinitions records the snapshot of the componentDefinitions related with the created/modified Application
@@ -847,6 +939,22 @@ spec:
                               required:
                               - template
                               type: object
+                            terraform:
+                              description: Terraform is the struct to describe cloud resources managed by Hashicorp Terraform
+                              properties:
+                                configuration:
+                                  description: Configuration is Terraform Configuration
+                                  type: string
+                                type:
+                                  default: hcl
+                                  description: Type specifies which Terraform configuration it is, HCL or JSON syntax
+                                  enum:
+                                  - hcl
+                                  - json
+                                  type: string
+                              required:
+                              - configuration
+                              type: object
                           type: object
                         status:
                           description: Status defines the custom health policy and status message for trait
@@ -896,6 +1004,21 @@ spec:
                         configMapRef:
                           description: ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
                           type: string
+                        latestRevision:
+                          description: LatestRevision of the trait definition
+                          properties:
+                            name:
+                              type: string
+                            revision:
+                              format: int64
+                              type: integer
+                            revisionHash:
+                              description: RevisionHash record the hash value of the spec of ApplicationRevision object.
+                              type: string
+                          required:
+                          - name
+                          - revision
+                          type: object
                       type: object
                   type: object
                 description: TraitDefinitions records the snapshot of the traitDefinitions related with the created/modified Application
@@ -1027,6 +1150,22 @@ spec:
                                   x-kubernetes-preserve-unknown-fields: true
                               required:
                               - template
+                              type: object
+                            terraform:
+                              description: Terraform is the struct to describe cloud resources managed by Hashicorp Terraform
+                              properties:
+                                configuration:
+                                  description: Configuration is Terraform Configuration
+                                  type: string
+                                type:
+                                  default: hcl
+                                  description: Type specifies which Terraform configuration it is, HCL or JSON syntax
+                                  enum:
+                                  - hcl
+                                  - json
+                                  type: string
+                              required:
+                              - configuration
                               type: object
                           type: object
                         status:
@@ -1379,9 +1518,6 @@ spec:
                   status:
                     description: AppStatus defines the observed state of Application
                     properties:
-                      batchRollingState:
-                        description: BatchRollingState only meaningful when the Status is rolling
-                        type: string
                       components:
                         description: Components record the related Components created by Application Controller
                         items:
@@ -1433,13 +1569,6 @@ spec:
                           - type
                           type: object
                         type: array
-                      currentBatch:
-                        description: The current batch the rollout is working on/blocked it starts from 0
-                        format: int32
-                        type: integer
-                      lastAppliedPodTemplateIdentifier:
-                        description: lastAppliedPodTemplateIdentifier is a string that uniquely represent the last pod template each workload type could use different ways to identify that so we cannot compare between resources We update this field only after a successful rollout
-                        type: string
                       latestRevision:
                         description: LatestRevision of the application configuration it generates
                         properties:
@@ -1475,17 +1604,82 @@ spec:
                         - kind
                         - name
                         type: object
-                      rollingState:
-                        description: RollingState is the Rollout State
-                        type: string
-                      rolloutOriginalSize:
-                        description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
-                        format: int32
-                        type: integer
-                      rolloutTargetSize:
-                        description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
-                        format: int32
-                        type: integer
+                      rollout:
+                        description: AppRolloutStatus defines the observed state of AppRollout
+                        properties:
+                          LastSourceAppRevision:
+                            description: LastSourceAppRevision contains the name of the app that we need to upgrade from. We will restart the rollout if this is not the same as the spec
+                            type: string
+                          batchRollingState:
+                            description: BatchRollingState only meaningful when the Status is rolling
+                            type: string
+                          conditions:
+                            description: Conditions of the resource.
+                            items:
+                              description: A Condition that may apply to a resource.
+                              properties:
+                                lastTransitionTime:
+                                  description: LastTransitionTime is the last time this condition transitioned from one status to another.
+                                  format: date-time
+                                  type: string
+                                message:
+                                  description: A Message containing details about this condition's last transition from one status to another, if any.
+                                  type: string
+                                reason:
+                                  description: A Reason for this condition's last transition from one status to another.
+                                  type: string
+                                status:
+                                  description: Status of this condition; is it currently True, False, or Unknown?
+                                  type: string
+                                type:
+                                  description: Type of this condition. At most one of each condition type may apply to a resource at any point in time.
+                                  type: string
+                              required:
+                              - lastTransitionTime
+                              - reason
+                              - status
+                              - type
+                              type: object
+                            type: array
+                          currentBatch:
+                            description: The current batch the rollout is working on/blocked it starts from 0
+                            format: int32
+                            type: integer
+                          lastAppliedPodTemplateIdentifier:
+                            description: lastAppliedPodTemplateIdentifier is a string that uniquely represent the last pod template each workload type could use different ways to identify that so we cannot compare between resources We update this field only after a successful rollout
+                            type: string
+                          lastTargetAppRevision:
+                            description: LastUpgradedTargetAppRevision contains the name of the app that we upgraded to We will restart the rollout if this is not the same as the spec
+                            type: string
+                          rollingState:
+                            description: RollingState is the Rollout State
+                            type: string
+                          rolloutOriginalSize:
+                            description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+                            format: int32
+                            type: integer
+                          rolloutTargetSize:
+                            description: RolloutTargetSize is the size of the target resources. This is determined once the initial spec verification and does not change until the rollout is restarted
+                            format: int32
+                            type: integer
+                          targetGeneration:
+                            description: NewPodTemplateIdentifier is a string that uniquely represent the new pod template each workload type could use different ways to identify that so we cannot compare between resources
+                            type: string
+                          upgradedReadyReplicas:
+                            description: UpgradedReadyReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
+                            format: int32
+                            type: integer
+                          upgradedReplicas:
+                            description: UpgradedReplicas is the number of Pods upgraded by the rollout controller
+                            format: int32
+                            type: integer
+                        required:
+                        - currentBatch
+                        - lastTargetAppRevision
+                        - rollingState
+                        - upgradedReadyReplicas
+                        - upgradedReplicas
+                        type: object
                       services:
                         description: Services record the status of the application services
                         items:
@@ -1497,6 +1691,28 @@ spec:
                               type: string
                             name:
                               type: string
+                            scopes:
+                              items:
+                                description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
+                                properties:
+                                  apiVersion:
+                                    description: APIVersion of the referenced object.
+                                    type: string
+                                  kind:
+                                    description: Kind of the referenced object.
+                                    type: string
+                                  name:
+                                    description: Name of the referenced object.
+                                    type: string
+                                  uid:
+                                    description: UID of the referenced object.
+                                    type: string
+                                required:
+                                - apiVersion
+                                - kind
+                                - name
+                                type: object
+                              type: array
                             traits:
                               items:
                                 description: ApplicationTraitStatus records the trait health status
@@ -1531,22 +1747,6 @@ spec:
                       status:
                         description: ApplicationPhase is a label for the condition of a application at the current time
                         type: string
-                      targetGeneration:
-                        description: NewPodTemplateIdentifier is a string that uniquely represent the new pod template each workload type could use different ways to identify that so we cannot compare between resources
-                        type: string
-                      upgradedReadyReplicas:
-                        description: UpgradedReadyReplicas is the number of Pods upgraded by the rollout controller that have a Ready Condition.
-                        format: int32
-                        type: integer
-                      upgradedReplicas:
-                        description: UpgradedReplicas is the number of Pods upgraded by the rollout controller
-                        format: int32
-                        type: integer
-                    required:
-                    - currentBatch
-                    - rollingState
-                    - upgradedReadyReplicas
-                    - upgradedReplicas
                     type: object
                 type: object
               applicationConfiguration:
@@ -1670,6 +1870,22 @@ spec:
                               required:
                               - template
                               type: object
+                            terraform:
+                              description: Terraform is the struct to describe cloud resources managed by Hashicorp Terraform
+                              properties:
+                                configuration:
+                                  description: Configuration is Terraform Configuration
+                                  type: string
+                                type:
+                                  default: hcl
+                                  description: Type specifies which Terraform configuration it is, HCL or JSON syntax
+                                  enum:
+                                  - hcl
+                                  - json
+                                  type: string
+                              required:
+                              - configuration
+                              type: object
                           type: object
                         status:
                           description: Status defines the custom health policy and status message for workload
@@ -1736,6 +1952,21 @@ spec:
                         configMapRef:
                           description: ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
                           type: string
+                        latestRevision:
+                          description: LatestRevision of the component definition
+                          properties:
+                            name:
+                              type: string
+                            revision:
+                              format: int64
+                              type: integer
+                            revisionHash:
+                              description: RevisionHash record the hash value of the spec of ApplicationRevision object.
+                              type: string
+                          required:
+                          - name
+                          - revision
+                          type: object
                       type: object
                   type: object
                 description: ComponentDefinitions records the snapshot of the componentDefinitions related with the created/modified Application
@@ -1914,6 +2145,22 @@ spec:
                               required:
                               - template
                               type: object
+                            terraform:
+                              description: Terraform is the struct to describe cloud resources managed by Hashicorp Terraform
+                              properties:
+                                configuration:
+                                  description: Configuration is Terraform Configuration
+                                  type: string
+                                type:
+                                  default: hcl
+                                  description: Type specifies which Terraform configuration it is, HCL or JSON syntax
+                                  enum:
+                                  - hcl
+                                  - json
+                                  type: string
+                              required:
+                              - configuration
+                              type: object
                           type: object
                         status:
                           description: Status defines the custom health policy and status message for trait
@@ -1963,6 +2210,21 @@ spec:
                         configMapRef:
                           description: ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
                           type: string
+                        latestRevision:
+                          description: LatestRevision of the component definition
+                          properties:
+                            name:
+                              type: string
+                            revision:
+                              format: int64
+                              type: integer
+                            revisionHash:
+                              description: RevisionHash record the hash value of the spec of ApplicationRevision object.
+                              type: string
+                          required:
+                          - name
+                          - revision
+                          type: object
                       type: object
                   type: object
                 description: TraitDefinitions records the snapshot of the traitDefinitions related with the created/modified Application
@@ -2094,6 +2356,22 @@ spec:
                                   x-kubernetes-preserve-unknown-fields: true
                               required:
                               - template
+                              type: object
+                            terraform:
+                              description: Terraform is the struct to describe cloud resources managed by Hashicorp Terraform
+                              properties:
+                                configuration:
+                                  description: Configuration is Terraform Configuration
+                                  type: string
+                                type:
+                                  default: hcl
+                                  description: Type specifies which Terraform configuration it is, HCL or JSON syntax
+                                  enum:
+                                  - hcl
+                                  - json
+                                  type: string
+                              required:
+                              - configuration
                               type: object
                           type: object
                         status:

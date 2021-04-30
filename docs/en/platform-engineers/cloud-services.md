@@ -126,7 +126,7 @@ metadata:
   name: alibaba-oss
   namespace: vela-system
   annotations:
-    definition.oam.dev/description: "Alibaba Cloud RDS Resource"
+    definition.oam.dev/description: "Alibaba Cloud OSS Resource"
 spec:
   workload:
     definition:

@@ -4,7 +4,7 @@
 
 # KubeVela
 
-KubeVela is a modern application engine that adapts to your application's needs, not the other way around.
+KubeVela is a modern application platform that is fully self-service, and adapts to your needs when you grow.
 
 ## Community
 

@@ -144,6 +144,22 @@ spec:
                     required:
                     - template
                     type: object
+                  terraform:
+                    description: Terraform is the struct to describe cloud resources managed by Hashicorp Terraform
+                    properties:
+                      configuration:
+                        description: Configuration is Terraform Configuration
+                        type: string
+                      type:
+                        default: hcl
+                        description: Type specifies which Terraform configuration it is, HCL or JSON syntax
+                        enum:
+                        - hcl
+                        - json
+                        type: string
+                    required:
+                    - configuration
+                    type: object
                 type: object
               status:
                 description: Status defines the custom health policy and status message for trait
@@ -193,6 +209,21 @@ spec:
               configMapRef:
                 description: ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
                 type: string
+              latestRevision:
+                description: LatestRevision of the trait definition
+                properties:
+                  name:
+                    type: string
+                  revision:
+                    format: int64
+                    type: integer
+                  revisionHash:
+                    description: RevisionHash record the hash value of the spec of ApplicationRevision object.
+                    type: string
+                required:
+                - name
+                - revision
+                type: object
             type: object
         type: object
     served: true
@@ -324,6 +355,22 @@ spec:
                     required:
                     - template
                     type: object
+                  terraform:
+                    description: Terraform is the struct to describe cloud resources managed by Hashicorp Terraform
+                    properties:
+                      configuration:
+                        description: Configuration is Terraform Configuration
+                        type: string
+                      type:
+                        default: hcl
+                        description: Type specifies which Terraform configuration it is, HCL or JSON syntax
+                        enum:
+                        - hcl
+                        - json
+                        type: string
+                    required:
+                    - configuration
+                    type: object
                 type: object
               status:
                 description: Status defines the custom health policy and status message for trait
@@ -373,6 +420,21 @@ spec:
               configMapRef:
                 description: ConfigMapRef refer to a ConfigMap which contains OpenAPI V3 JSON schema of Component parameters.
                 type: string
+              latestRevision:
+                description: LatestRevision of the component definition
+                properties:
+                  name:
+                    type: string
+                  revision:
+                    format: int64
+                    type: integer
+                  revisionHash:
+                    description: RevisionHash record the hash value of the spec of ApplicationRevision object.
+                    type: string
+                required:
+                - name
+                - revision
+                type: object
             type: object
         type: object
     served: true

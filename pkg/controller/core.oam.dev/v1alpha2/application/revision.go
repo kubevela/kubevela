@@ -91,6 +91,8 @@ func (h *appHandler) gatherRevisionSpec() (*v1beta1.ApplicationRevision, string,
 	copiedApp := h.app.DeepCopy()
 	// We better to remove all object status in the appRevision
 	copiedApp.Status = common.AppStatus{}
+	// AppRevision shouldn't contain RolloutPlan
+	copiedApp.Spec.RolloutPlan = nil
 	appRev := &v1beta1.ApplicationRevision{
 		Spec: v1beta1.ApplicationRevisionSpec{
 			Application:          *copiedApp,

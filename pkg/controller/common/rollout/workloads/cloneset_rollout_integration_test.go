@@ -53,21 +53,24 @@ var _ = Describe("cloneset controller", func() {
 		appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
 		namespacedName = client.ObjectKey{Name: name, Namespace: namespace}
 		c = CloneSetRolloutController{
-			cloneSetController{
-				client: k8sClient,
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					RolloutBatches: []v1alpha1.RolloutBatch{
-						{
-							Replicas: intstr.FromInt(1),
+			cloneSetController: cloneSetController{
+				workloadController: workloadController{
+					client: k8sClient,
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						RolloutBatches: []v1alpha1.RolloutBatch{
+							{
+								Replicas: intstr.FromInt(1),
+							},
 						},
 					},
+					rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
+					parentController: &appRollout,
+					recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+						WithAnnotations("controller", "AppRollout"),
 				},
-				rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
-				parentController: &appRollout,
-				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
-					WithAnnotations("controller", "AppRollout"),
-				workloadNamespacedName: namespacedName,
-			}}
+				targetNamespacedName: namespacedName,
+			},
+		}
 
 		cloneSet = kruise.CloneSet{
 			TypeMeta:   metav1.TypeMeta{APIVersion: kruise.GroupVersion.String(), Kind: "CloneSet"},
@@ -112,14 +115,17 @@ var _ = Describe("cloneset controller", func() {
 			workloadNamespacedName := client.ObjectKey{Name: name, Namespace: namespace}
 			got := NewCloneSetRolloutController(k8sClient, recorder, parentController, rolloutSpec, rolloutStatus, workloadNamespacedName)
 			c := &CloneSetRolloutController{
-				cloneSetController{
-					client:                 k8sClient,
-					recorder:               recorder,
-					parentController:       parentController,
-					rolloutSpec:            rolloutSpec,
-					rolloutStatus:          rolloutStatus,
-					workloadNamespacedName: workloadNamespacedName,
-				}}
+				cloneSetController: cloneSetController{
+					workloadController: workloadController{
+						client:           k8sClient,
+						recorder:         recorder,
+						parentController: parentController,
+						rolloutSpec:      rolloutSpec,
+						rolloutStatus:    rolloutStatus,
+					},
+					targetNamespacedName: workloadNamespacedName,
+				},
+			}
 			Expect(got).Should(Equal(c))
 		})
 	})
@@ -207,6 +213,8 @@ var _ = Describe("cloneset controller", func() {
 			initialized, err := c.Initialize(ctx)
 			Expect(initialized).Should(BeTrue())
 			Expect(err).Should(BeNil())
+			Expect(k8sClient.Get(ctx, c.targetNamespacedName, &cloneSet)).Should(Succeed())
+			Expect(len(cloneSet.GetOwnerReferences())).Should(BeEquivalentTo(1))
 		})
 
 		It("successfully initialized CloneSet", func() {
@@ -218,6 +226,8 @@ var _ = Describe("cloneset controller", func() {
 			initialized, err := c.Initialize(ctx)
 			Expect(initialized).Should(BeTrue())
 			Expect(err).Should(BeNil())
+			Expect(k8sClient.Get(ctx, c.targetNamespacedName, &cloneSet)).Should(Succeed())
+			Expect(len(cloneSet.GetOwnerReferences())).Should(BeEquivalentTo(1))
 		})
 	})
 
@@ -250,6 +260,8 @@ var _ = Describe("cloneset controller", func() {
 			Expect(done).Should(BeTrue())
 			Expect(err).Should(BeNil())
 			Expect(c.rolloutStatus.UpgradedReplicas).Should(BeEquivalentTo(3))
+			Expect(k8sClient.Get(ctx, c.targetNamespacedName, &cloneSet)).Should(Succeed())
+			Expect(cloneSet.Spec.UpdateStrategy.Partition.IntValue()).Should(BeEquivalentTo(7))
 		})
 	})
 
@@ -338,9 +350,17 @@ var _ = Describe("cloneset controller", func() {
 			cloneSet.Status.UpdatedReadyReplicas = 10
 			cloneSet.Status.UpdatedReplicas = 10
 			Expect(k8sClient.Status().Update(ctx, &cloneSet)).Should(Succeed())
-			By("checking one batch")
-			c.rolloutStatus.CurrentBatch = 2
+
+			By("the second batch should pass when there are more pods upgraded already")
+			c.rolloutStatus.CurrentBatch = 1
 			done, err := c.CheckOneBatchPods(ctx)
+			Expect(done).Should(BeTrue())
+			Expect(err).Should(BeNil())
+			Expect(c.rolloutStatus.UpgradedReadyReplicas).Should(BeEquivalentTo(cloneSet.Status.UpdatedReadyReplicas))
+
+			By("checking the last batch")
+			c.rolloutStatus.CurrentBatch = 2
+			done, err = c.CheckOneBatchPods(ctx)
 			Expect(done).Should(BeTrue())
 			Expect(err).Should(BeNil())
 			Expect(c.rolloutStatus.UpgradedReadyReplicas).Should(BeEquivalentTo(cloneSet.Status.UpdatedReadyReplicas))
@@ -443,7 +463,7 @@ var _ = Describe("cloneset controller", func() {
 			By("finalizing with patch")
 			finalized := c.Finalize(ctx, false)
 			Expect(finalized).Should(BeTrue())
-			Expect(k8sClient.Get(ctx, c.workloadNamespacedName, &cloneSet)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, c.targetNamespacedName, &cloneSet)).Should(Succeed())
 			Expect(len(cloneSet.GetOwnerReferences())).Should(BeEquivalentTo(1))
 			Expect(cloneSet.GetOwnerReferences()[0].Kind).Should(Equal("Deployment"))
 			Expect(cloneSet.Spec.UpdateStrategy.Paused).Should(BeTrue())

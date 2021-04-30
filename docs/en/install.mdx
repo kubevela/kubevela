@@ -82,7 +82,7 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/mast
 
 1. Add helm chart repo for KubeVela
     ```shell script
-    helm repo add kubevela https://kubevelacharts.oss-cn-hangzhou.aliyuncs.com/core
+    helm repo add kubevela https://kubevelacharts.oss-accelerate.aliyuncs.com/core
     ```
 
 2. Update the chart repo
@@ -196,7 +196,7 @@ KubeVela leverages Helm controller from [Flux v2](https://github.com/fluxcd/flux
 You can enable this feature by installing a minimal Flux v2 chart as below:
 
 ```shell
-$ helm install --create-namespace -n flux-system helm-flux http://oam.dev/catalog/helm-flux2-0.1.0.tgz
+helm install --create-namespace -n flux-system helm-flux http://oam.dev/catalog/helm-flux2-0.1.0.tgz
 ```
 
 Or you could install full Flux v2 following its own guide of course.

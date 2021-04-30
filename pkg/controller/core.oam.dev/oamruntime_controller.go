@@ -52,6 +52,10 @@ type Args struct {
 	// The default value is 10.
 	AppRevisionLimit int
 
+	// DefRevisionLimit is the maximum number of component/trait definition revisions that will be maintained.
+	// The default value is 20.
+	DefRevisionLimit int
+
 	// ApplyMode indicates whether workloads and traits should be
 	// affected if no spec change is made in the ApplicationConfiguration.
 	ApplyMode ApplyOnceOnlyMode

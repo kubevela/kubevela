@@ -349,9 +349,13 @@ func (r *Controller) GetWorkloadController() (workloads.WorkloadController, erro
 
 	if r.targetWorkload.GroupVersionKind().Group == apps.GroupName {
 		if r.targetWorkload.GetKind() == reflect.TypeOf(apps.Deployment{}).Name() {
-			// TODO: create deployment scale controller when current rollout plan is for scale
-			return workloads.NewDeploymentController(r.client, r.recorder, r.parentController,
-				r.rolloutSpec, r.rolloutStatus, source, target), nil
+			// check whether current rollout plan is for workload rolling or scaling
+			if r.sourceWorkload != nil {
+				return workloads.NewDeploymentController(r.client, r.recorder, r.parentController,
+					r.rolloutSpec, r.rolloutStatus, source, target), nil
+			}
+			return workloads.NewDeploymentScaleController(r.client, r.recorder, r.parentController,
+				r.rolloutSpec, r.rolloutStatus, target), nil
 		}
 	}
 	return nil, fmt.Errorf("the workload kind `%s` is not supported", kind)

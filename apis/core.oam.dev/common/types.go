@@ -17,7 +17,7 @@ limitations under the License.
 package common
 
 import (
-	v1alpha12 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
+	runtimev1alpha1 "github.com/crossplane/crossplane-runtime/apis/core/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -84,7 +84,7 @@ type Schematic struct {
 
 	HELM *Helm `json:"helm,omitempty"`
 
-	// TODO(wonderflow): support HCL(terraform)here.
+	Terraform *Terraform `json:"terraform,omitempty"`
 }
 
 // A Helm represents resources used by a Helm module
@@ -96,6 +96,17 @@ type Helm struct {
 	// HelmRelease records a Helm repository used by a Helm module workload.
 	// +kubebuilder:pruning:PreserveUnknownFields
 	Repository runtime.RawExtension `json:"repository"`
+}
+
+// Terraform is the struct to describe cloud resources managed by Hashicorp Terraform
+type Terraform struct {
+	// Configuration is Terraform Configuration
+	Configuration string `json:"configuration"`
+
+	// Type specifies which Terraform configuration it is, HCL or JSON syntax
+	// +kubebuilder:default:=hcl
+	// +kubebuilder:validation:Enum:=hcl;json
+	Type string `json:"type,omitempty"`
 }
 
 // A WorkloadTypeDescriptor refer to a Workload Type
@@ -162,10 +173,11 @@ const (
 type ApplicationComponentStatus struct {
 	Name string `json:"name"`
 	// WorkloadDefinition is the definition of a WorkloadDefinition, such as deployments/apps.v1
-	WorkloadDefinition WorkloadGVK              `json:"workloadDefinition,omitempty"`
-	Healthy            bool                     `json:"healthy"`
-	Message            string                   `json:"message,omitempty"`
-	Traits             []ApplicationTraitStatus `json:"traits,omitempty"`
+	WorkloadDefinition WorkloadGVK                      `json:"workloadDefinition,omitempty"`
+	Healthy            bool                             `json:"healthy"`
+	Message            string                           `json:"message,omitempty"`
+	Traits             []ApplicationTraitStatus         `json:"traits,omitempty"`
+	Scopes             []runtimev1alpha1.TypedReference `json:"scopes,omitempty"`
 }
 
 // ApplicationTraitStatus records the trait health status
@@ -195,20 +207,47 @@ type RawComponent struct {
 type AppStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	v1alpha1.RolloutStatus `json:",inline"`
+	runtimev1alpha1.ConditionedStatus `json:",inline"`
+
+	Rollout AppRolloutStatus `json:"rollout,omitempty"`
 
 	Phase ApplicationPhase `json:"status,omitempty"`
 
 	// Components record the related Components created by Application Controller
-	Components []v1alpha12.TypedReference `json:"components,omitempty"`
+	Components []runtimev1alpha1.TypedReference `json:"components,omitempty"`
 
 	// Services record the status of the application services
 	Services []ApplicationComponentStatus `json:"services,omitempty"`
 
 	// ResourceTracker record the status of the ResourceTracker
-	ResourceTracker *v1alpha12.TypedReference `json:"resourceTracker,omitempty"`
+	ResourceTracker *runtimev1alpha1.TypedReference `json:"resourceTracker,omitempty"`
 
 	// LatestRevision of the application configuration it generates
 	// +optional
 	LatestRevision *Revision `json:"latestRevision,omitempty"`
+}
+
+// DefinitionType describes the type of DefinitionRevision.
+// +kubebuilder:validation:Enum=Component;Trait
+type DefinitionType string
+
+const (
+	// ComponentType represents DefinitionRevision refer to type ComponentDefinition
+	ComponentType DefinitionType = "Component"
+
+	// TraitType represents DefinitionRevision refer to type TraitDefinition
+	TraitType DefinitionType = "Trait"
+)
+
+// AppRolloutStatus defines the observed state of AppRollout
+type AppRolloutStatus struct {
+	v1alpha1.RolloutStatus `json:",inline"`
+
+	// LastUpgradedTargetAppRevision contains the name of the app that we upgraded to
+	// We will restart the rollout if this is not the same as the spec
+	LastUpgradedTargetAppRevision string `json:"lastTargetAppRevision"`
+
+	// LastSourceAppRevision contains the name of the app that we need to upgrade from.
+	// We will restart the rollout if this is not the same as the spec
+	LastSourceAppRevision string `json:"LastSourceAppRevision,omitempty"`
 }

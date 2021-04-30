@@ -117,6 +117,12 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(Equal(showTdResult))
 		})
+		It("Test show componentDefinition use Helm Charts as Workload", func() {
+			cdName := "test-webapp-chart"
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", cdName))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Properties"))
+		})
 	})
 })
 
@@ -344,6 +350,30 @@ spec:
 
 `
 
+var componentDefWithHelm = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: test-webapp-chart
+  namespace: default
+  annotations:
+    definition.oam.dev/description: helm chart for webapp
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    helm:
+      release:
+        chart:
+          spec:
+            chart: "podinfo"
+            version: "5.1.4"
+      repository:
+        url: "http://oam.dev/catalog/"
+`
+
 var traitDef = `
 apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
@@ -519,11 +549,13 @@ var livediffResult = `---
         type: test-ingress
       type: test-webservice
   status:
-    batchRollingState: ""
-    currentBatch: 0
-    rollingState: ""
-    upgradedReadyReplicas: 0
-    upgradedReplicas: 0
+    rollout:
+      batchRollingState: ""
+      currentBatch: 0
+      lastTargetAppRevision: ""
+      rollingState: ""
+      upgradedReadyReplicas: 0
+      upgradedReplicas: 0
   
 ---
 ## Component (express-server) has been removed(-)

@@ -22,11 +22,9 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
@@ -91,6 +89,8 @@ func main() {
 		"RevisionLimit is the maximum number of revisions that will be maintained. The default value is 50.")
 	flag.IntVar(&controllerArgs.AppRevisionLimit, "application-revision-limit", 10,
 		"application-revision-limit is the maximum number of application useless revisions that will be maintained, if the useless revisions exceed this number, older ones will be GCed first.The default value is 10.")
+	flag.IntVar(&controllerArgs.DefRevisionLimit, "definition-revision-limit", 20,
+		"definition-revision-limit is the maximum number of component/trait definition useless revisions that will be maintained, if the useless revisions exceed this number, older ones will be GCed first.The default value is 20.")
 	flag.StringVar(&controllerArgs.CustomRevisionHookURL, "custom-revision-hook-url", "",
 		"custom-revision-hook-url is a webhook url which will let KubeVela core to call with applicationConfiguration and component info and return a customized component revision")
 	flag.BoolVar(&controllerArgs.ApplicationConfigurationInstalled, "app-config-installed", true,
@@ -182,7 +182,9 @@ func main() {
 	pd, err := definition.NewPackageDiscover(mgr.GetConfig())
 	if err != nil {
 		setupLog.Error(err, "failed to create CRD discovery for CUE package client")
-		os.Exit(1)
+		if !definition.IsCUEParseErr(err) {
+			os.Exit(1)
+		}
 	}
 	controllerArgs.PackageDiscover = pd
 
@@ -217,7 +219,7 @@ func main() {
 
 	setupLog.Info("starting the vela controller manager")
 
-	if err := mgr.Start(makeSignalHandler()); err != nil {
+	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
@@ -279,22 +281,4 @@ func waitWebhookSecretVolume(certDir string, timeout, interval time.Duration) er
 			}
 		}
 	}
-}
-
-func makeSignalHandler() (stopCh <-chan struct{}) {
-	stop := make(chan struct{})
-	c := make(chan os.Signal, 2)
-
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		<-c
-		close(stop)
-
-		// second signal. Exit directly.
-		<-c
-		os.Exit(1)
-	}()
-
-	return stop
 }

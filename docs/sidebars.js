@@ -36,8 +36,11 @@ module.exports = {
             'end-user/labels',
             'end-user/sidecar',
             'end-user/cloud-resources',
+            'end-user/terraform',
             'end-user/volumes',
             'end-user/monitoring',
+            'end-user/health',
+            'end-user/rollout-app'
           ]
         },
       ]
@@ -77,7 +80,8 @@ module.exports = {
               type: 'category',
               label: 'Defining Cloud Service',
               items: [
-                'platform-engineers/cloud-services'
+                'platform-engineers/cloud-services',
+                'platform-engineers/terraform',
               ]
             },
           ]

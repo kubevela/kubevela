@@ -51,28 +51,31 @@ var _ = Describe("cloneset controller", func() {
 		appRollout := v1beta1.AppRollout{ObjectMeta: metav1.ObjectMeta{Name: name}}
 		namespacedName = client.ObjectKey{Name: name, Namespace: namespace}
 		s = CloneSetScaleController{
-			cloneSetController{
-				client: k8sClient,
-				rolloutSpec: &v1alpha1.RolloutPlan{
-					TargetSize: pointer.Int32Ptr(10),
-					RolloutBatches: []v1alpha1.RolloutBatch{
-						{
-							Replicas: intstr.FromInt(1),
-						},
-						{
-							Replicas: intstr.FromString("20%"),
-						},
-						{
-							Replicas: intstr.FromString("80%"),
+			cloneSetController: cloneSetController{
+				workloadController: workloadController{
+					client: k8sClient,
+					rolloutSpec: &v1alpha1.RolloutPlan{
+						TargetSize: pointer.Int32Ptr(10),
+						RolloutBatches: []v1alpha1.RolloutBatch{
+							{
+								Replicas: intstr.FromInt(1),
+							},
+							{
+								Replicas: intstr.FromString("20%"),
+							},
+							{
+								Replicas: intstr.FromString("80%"),
+							},
 						},
 					},
+					rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
+					parentController: &appRollout,
+					recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
+						WithAnnotations("controller", "AppRollout"),
 				},
-				rolloutStatus:    &v1alpha1.RolloutStatus{RollingState: v1alpha1.RolloutSucceedState},
-				parentController: &appRollout,
-				recorder: event.NewAPIRecorder(mgr.GetEventRecorderFor("AppRollout")).
-					WithAnnotations("controller", "AppRollout"),
-				workloadNamespacedName: namespacedName,
-			}}
+				targetNamespacedName: namespacedName,
+			},
+		}
 
 		cloneSet = kruise.CloneSet{
 			TypeMeta:   metav1.TypeMeta{APIVersion: kruise.GroupVersion.String(), Kind: "CloneSet"},
@@ -117,13 +120,15 @@ var _ = Describe("cloneset controller", func() {
 			workloadNamespacedName := client.ObjectKey{Name: name, Namespace: namespace}
 			got := NewCloneSetScaleController(k8sClient, recorder, parentController, rolloutSpec, rolloutStatus, workloadNamespacedName)
 			controller := &CloneSetScaleController{
-				cloneSetController{
-					client:                 k8sClient,
-					recorder:               recorder,
-					parentController:       parentController,
-					rolloutSpec:            rolloutSpec,
-					rolloutStatus:          rolloutStatus,
-					workloadNamespacedName: workloadNamespacedName,
+				cloneSetController: cloneSetController{
+					workloadController: workloadController{
+						client:           k8sClient,
+						recorder:         recorder,
+						parentController: parentController,
+						rolloutSpec:      rolloutSpec,
+						rolloutStatus:    rolloutStatus,
+					},
+					targetNamespacedName: workloadNamespacedName,
 				}}
 			Expect(got).Should(Equal(controller))
 		})
@@ -265,6 +270,8 @@ var _ = Describe("cloneset controller", func() {
 			Expect(done).Should(BeTrue())
 			Expect(err).Should(BeNil())
 			Expect(s.rolloutStatus.UpgradedReplicas).Should(BeEquivalentTo(3))
+			Expect(k8sClient.Get(ctx, s.targetNamespacedName, &cloneSet)).Should(Succeed())
+			Expect(*cloneSet.Spec.Replicas).Should(BeEquivalentTo(3))
 		})
 	})
 
@@ -469,7 +476,7 @@ var _ = Describe("cloneset controller", func() {
 			By("finalizing with patch")
 			finalized := s.Finalize(ctx, false)
 			Expect(finalized).Should(BeTrue())
-			Expect(k8sClient.Get(ctx, s.workloadNamespacedName, &cloneSet)).Should(Succeed())
+			Expect(k8sClient.Get(ctx, s.targetNamespacedName, &cloneSet)).Should(Succeed())
 			Expect(len(cloneSet.GetOwnerReferences())).Should(BeEquivalentTo(1))
 			Expect(cloneSet.GetOwnerReferences()[0].Kind).Should(Equal("Deployment"))
 		})

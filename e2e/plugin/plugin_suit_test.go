@@ -43,6 +43,7 @@ var app v1beta1.Application
 var testShowCdDef v1beta1.ComponentDefinition
 var testShowTdDef v1beta1.TraitDefinition
 var testCdDef v1beta1.ComponentDefinition
+var testCdDefWithHelm v1beta1.ComponentDefinition
 var testTdDef v1beta1.TraitDefinition
 
 func TestKubectlPlugin(t *testing.T) {
@@ -75,6 +76,10 @@ var _ = BeforeSuite(func(done Done) {
 	err = k8sClient.Create(ctx, &testCdDef)
 	Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
+	Expect(yaml.Unmarshal([]byte(componentDefWithHelm), &testCdDefWithHelm)).Should(BeNil())
+	err = k8sClient.Create(ctx, &testCdDefWithHelm)
+	Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
 	Expect(yaml.Unmarshal([]byte(traitDef), &testTdDef)).Should(BeNil())
 	err = k8sClient.Create(ctx, &testTdDef)
 	Expect(err).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -99,6 +104,7 @@ var _ = AfterSuite(func() {
 	By("delete application and definitions")
 	Expect(k8sClient.Delete(ctx, &app)).Should(BeNil())
 	Expect(k8sClient.Delete(ctx, &testCdDef)).Should(BeNil())
+	Expect(k8sClient.Delete(ctx, &testCdDefWithHelm)).Should(BeNil())
 	Expect(k8sClient.Delete(ctx, &testTdDef)).Should(BeNil())
 	Expect(k8sClient.Delete(ctx, &testShowCdDef)).Should(BeNil())
 	Expect(k8sClient.Delete(ctx, &testShowTdDef)).Should(BeNil())

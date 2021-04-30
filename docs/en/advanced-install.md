@@ -108,7 +108,6 @@ Then clean up CRDs (CRDs are not removed via helm by default):
   appdeployments.core.oam.dev \
   applicationconfigurations.core.oam.dev \
   applicationcontexts.core.oam.dev \
-  applicationdeployments.core.oam.dev \
   applicationrevisions.core.oam.dev \
   applications.core.oam.dev \
   approllouts.core.oam.dev \

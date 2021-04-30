@@ -8,36 +8,27 @@
 [![Twitter](https://img.shields.io/twitter/url?style=social&url=https%3A%2F%2Ftwitter.com%2Foam_dev)](https://twitter.com/oam_dev)
 [![Artifact HUB](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/kubevela)](https://artifacthub.io/packages/search?repo=kubevela)
 
-![alt](docs/resources/KubeVela-03.png)
+![alt](docs/en/resources/KubeVela-03.png)
 
 *Make shipping applications more enjoyable.*
 
 # KubeVela
 
-KubeVela is a modern application engine that adapts to your application's needs, not the other way around.
-
-## Community
-
-- Slack:  [CNCF Slack](https://slack.cncf.io/) #kubevela channel
-- Gitter: [Discussion](https://gitter.im/oam-dev/community)
-- Bi-weekly Community Call: [Meeting Notes](https://docs.google.com/document/d/1nqdFEyULekyksFHtFvgvFAYE-0AMHKoS3RMnaKsarjs)
-
-## Introduction
-
 *Developers simply want to deploy.*
 
-Traditional Platform-as-a-Service (PaaS) systems enable easy application deployments, but this happiness disappears when your application outgrows the capabilities of your platform. This is inevitable regardless of your PaaS is built on Kubernetes or not - the root cause is its inflexibility.
+Traditional *Platform-as-a-Service (PaaS)* systems enable easy application deployments, but this happiness disappears when your application outgrows the capabilities of your platform. This is inevitable regardless of your PaaS is built on Kubernetes or not - the root cause is its inflexibility.
 
-KubeVela is a modern application deployment system that adapts to your needs. Essentially, KubeVela enables you to define platform capabilities (such as workloads, operational behaviors, and cloud services) as reusable [CUE](https://cuelang.org/) or [Helm](https://helm.sh) components, per needs of your application deployment. And when your needs grow, your platform capabilities expand naturally in a programmable approach.
+KubeVela is a modern application platform that is fully self-service, and adapts to your needs when you grow.
 
-Perfect in flexibility though, X-as-Code tends to lead to configuration drift. That's why KubeVela is fully built as a [Kubernetes Controller](https://kubernetes.io/docs/concepts/architecture/controller/) instead of a client-side tool, i.e. all its capabilities are modeled as code but enforced with battle tested reconciling loops which will never leave inconsistency in your clusters. Think about *Platform-as-Code* enabled by Kubernetes, CUE and Helm.
+Leveraging Kubernetes as control plane, KubeVela itself is runtime agnostic. It allows you to deploy (and manage) containerized workloads, cloud functions, databases, or even EC2 instances with a consistent workflow.
 
-With developer experience in mind, KubeVela exposes those programmable platform capabilities as application-centric API shown as below:
-- Components - deployable/provisionable entities that composed your application deployment
-  - e.g. a Kubernetes workload, a MySQL database, or a AWS OSS bucket
-- Traits - attachable operational features per your needs
-  - e.g. autoscaling rules, rollout strategies, ingress rules, sidecars, security policies etc
-- Application - full description of your application deployment assembled with components and traits.
+## Features
+
+**Developer Centric** - KubeVela introduces higher level API to capture a full deployment of microservices, and builds features around the application needs only. Progressive rollout and multi-cluster deployment are provided out-of-box. No infrastructure level concerns, simply deploy.
+
+**Self-service** - KubeVela models platform features (such as workloads, operational behaviors, and cloud services) as reusable [CUE](https://github.com/cuelang/cue) and/or [Helm](https://helm.sh/) components, and expose them to end users as self-service building blocks. When your needs grow, these capabilities can extend naturally in a programmable approach. No restriction, fully flexible.
+
+**Simple yet Reliable** - KubeVela is built with Kubernetes as control plane so unlike traditional X-as-Code solutions, it never leaves configuration drift in your clusters. Also, this makes KubeVela work with any CI/CD or GitOps tools via declarative API without any integration burden.
 
 ## Getting Started
 
@@ -45,22 +36,22 @@ With developer experience in mind, KubeVela exposes those programmable platform 
 - [Quick start](https://kubevela.io/docs/quick-start)
 - [How it works](https://kubevela.io/docs/concepts)
 
-## Features
-
-- **Zero-restriction application deployment system** - design and express platform capabilities with CUE and Helm per needs of your application, and let Kubernetes controller guarantee the determinism in the application deployment. GUI forms are automatically generated for capabilities so even your dashboard are fully extensible.
-- **Generic progressive rollout framework** - built-in rollout framework and strategies to upgrade your microservice regardless of its workload type (e.g. stateless, stateful, or even custom operators etc).
-- **Multi-cluster multi-revision application deployment** - built-in model to deploy or rollout your apps across hybrid infrastructures, with Service Mesh for traffic shifting. 
-- **Simple and native** - KubeVela is a just simple Kubernetes custom controller, all its capabilities are defined as [Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) so they naturally work with any CI/CD or GitOps tools which work with Kubernetes.
-
 ## Documentation
 
-Visit the [KubeVela documentation site](https://kubevela.io/) to find *Installation Instruction*, *Platform Builder Guide* and *Developer Experience Guide*.
+Full documentation is available on the [KubeVela website](https://kubevela.io/).
+
+## Community
+
+- Slack:  [CNCF Slack](https://slack.cncf.io/) #kubevela channel (*English*)
+- Gitter: [oam-dev](https://gitter.im/oam-dev/community) (*English*)
+- [DingTalk Group](https://page.dingtalk.com/wow/dingtalk/act/en-home): `23310022` (*Chinese*)
+- Bi-weekly Community Call: [Meeting Notes](https://docs.google.com/document/d/1nqdFEyULekyksFHtFvgvFAYE-0AMHKoS3RMnaKsarjs)
 
 ## Talks and Conferences
 
 | Engagement | Link        |
 |:-----------|:------------|
-| 🎤  Talks | - [KubeVela - The Modern App Delivery System in Alibaba](https://docs.google.com/presentation/d/1CWCLcsKpDQB3bBDTfdv2BZ8ilGGJv2E8L-iOA5HMrV0/edit?usp=sharing) |
+| 🎤  Talks | - [KubeVela - The Modern App Delivery System in Alibaba](https://docs.google.com/presentation/d/1CWCLcsKpDQB3bBDTfdv2BZ8ilGGJv2E8L-iOA5HMrV0/edit?usp=sharing) <br> - [Cloud-Native Apps With Open Application Model (OAM) And KubeVela](https://www.youtube.com/watch?v=2CBu6sOTtwk)  |
 | 🌎 KubeCon | - [ [NA 2020] Standardizing Cloud Native Application Delivery Across Different Clouds](https://www.youtube.com/watch?v=0yhVuBIbHcI) <br> - [ [EU 2021] Zero Pain Microservice Development and Deployment with Dapr and KubeVela](https://sched.co/iE4S) |
 | 📺 Conferences | - [Dapr, Rudr, OAM: Mark Russinovich presents next gen app development & deployment](https://www.youtube.com/watch?v=eJCu6a-x9uo) <br> - [Mark Russinovich presents "The Future of Cloud Native Applications with OAM and Dapr"](https://myignite.techcommunity.microsoft.com/sessions/82059)|
 

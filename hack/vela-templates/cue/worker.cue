@@ -25,15 +25,6 @@ output: {
 							{
 								mountPath: v.mountPath
 								name:      v.name
-							}
-						}]
-					}
-
-					if parameter["volumes"] != _|_ {
-						volumeMounts: [ for v in parameter.volumes {
-							{
-								mountPath: v.mountPath
-								name:      v.name
 							}}]
 					}
 				}]

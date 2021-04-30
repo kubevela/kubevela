@@ -132,8 +132,18 @@ func startReferenceDocsSite(ctx context.Context, c common.Args, ioStreams cmduti
 	if !capabilityIsValid {
 		return fmt.Errorf("%s is not a valid component type or trait", capabilityName)
 	}
-	ref := &plugins.MarkdownReference{}
-	if err := ref.CreateMarkdown(capabilities, docsPath, plugins.ReferenceSourcePath); err != nil {
+
+	cli, err := c.GetClient()
+	if err != nil {
+		return err
+	}
+	ref := &plugins.MarkdownReference{
+		ParseReference: plugins.ParseReference{
+			Client: cli,
+		},
+	}
+
+	if err := ref.CreateMarkdown(ctx, capabilities, docsPath, plugins.ReferenceSourcePath); err != nil {
 		return err
 	}
 
@@ -340,27 +350,40 @@ func getComponentsAndTraits(capabilities []types.Capability) ([]string, []string
 
 // ShowReferenceConsole will show capability reference in console
 func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string, ns string) error {
-	home, err := system.GetVelaHomeDir()
+	capability, err := plugins.SyncDefinitionToLocal(ctx, c, capabilityName, ns)
 	if err != nil {
 		return err
 	}
-	referenceHome := filepath.Join(home, "reference")
 
-	definitionPath := filepath.Join(referenceHome, "capabilities")
-	if _, err := os.Stat(definitionPath); err != nil && os.IsNotExist(err) {
-		if err := os.MkdirAll(definitionPath, 0750); err != nil {
+	cli, err := c.GetClient()
+	if err != nil {
+		return err
+	}
+	ref := &plugins.ConsoleReference{
+		ParseReference: plugins.ParseReference{
+			Client: cli,
+		},
+	}
+
+	var propertyConsole []plugins.ConsoleReference
+	switch capability.Category {
+	case types.HelmCategory:
+		_, propertyConsole, err = ref.GenerateHELMProperties(ctx, capability)
+		if err != nil {
 			return err
 		}
-	}
-	capability, err := plugins.SyncDefinitionToLocal(ctx, c, definitionPath, capabilityName, ns)
-	if err != nil {
-		return err
-	}
-
-	ref := &plugins.ConsoleReference{}
-	propertyConsole, err := ref.GenerateCapabilityProperties(capability)
-	if err != nil {
-		return err
+	case types.CUECategory:
+		propertyConsole, err = ref.GenerateCUETemplateProperties(capability)
+		if err != nil {
+			return err
+		}
+	case types.TerraformCategory:
+		propertyConsole, err = ref.GenerateTerraformCapabilityProperties(capability)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupport capability category %s", capability.Category)
 	}
 	for _, p := range propertyConsole {
 		ioStreams.Info(p.TableName)

@@ -24,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"k8s.io/utils/pointer"
 
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -49,14 +50,13 @@ func TestRollout(t *testing.T) {
 
 var _ = BeforeSuite(func(done Done) {
 	By("Bootstrapping test environment")
-	useExistCluster := false
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("../../../../..", "charts/vela-core/crds"),
 			"testdata",
 		},
 		ErrorIfCRDPathMissing: true,
-		UseExistingCluster:    &useExistCluster,
+		UseExistingCluster:    pointer.BoolPtr(false),
 	}
 	var err error
 	cfg, err = testEnv.Start()
