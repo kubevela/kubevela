@@ -97,6 +97,7 @@ test-rolling-v1   9s
         - replicas: 10%
         - replicas: 40%
         - replicas: 50%
+      # specific rollout targetSize
       targetSize: 5
   ```
   Use can check the status of the ApplicationRollout and wait for the rollout to complete.
