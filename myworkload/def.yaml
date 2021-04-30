@@ -1,0 +1,9 @@
+apiVersion: core.oam.dev/v1alpha2
+kind: WorkloadDefinition
+metadata:
+  name: mydeploy
+spec:
+  definitionRef:
+    name: deployments.apps
+  extension:
+    template: |
