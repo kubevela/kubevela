@@ -39,12 +39,14 @@ import (
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
+	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -708,6 +710,49 @@ outLoop:
 		return err
 	}
 	return nil
+}
+
+func (h *appHandler) handleRollout(ctx context.Context) (reconcile.Result, error) {
+	var comps []string
+	for _, component := range h.app.Spec.Components {
+		comps = append(comps, component.Name)
+	}
+
+	// targetRevision should always points to LatestRevison
+	targetRevision := h.app.Status.LatestRevision.Name
+	var srcRevision string
+	target, _ := oamutil.ExtractRevisionNum(targetRevision)
+	// if target == 1 this is a initial scale operation, sourceRevision should be empty
+	// otherwise source revision always is targetRevision - 1
+	if target > 1 {
+		srcRevision = utils.ConstructRevisionName(h.app.Name, int64(target-1))
+	}
+
+	appRollout := v1beta1.AppRollout{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      h.app.Name,
+			Namespace: h.app.Namespace,
+			UID:       h.app.UID,
+		},
+		Spec: v1beta1.AppRolloutSpec{
+			SourceAppRevisionName: srcRevision,
+			TargetAppRevisionName: targetRevision,
+			ComponentList:         comps,
+			RolloutPlan:           *h.app.Spec.RolloutPlan,
+		},
+		Status: h.app.Status.Rollout,
+	}
+
+	// construct a fake rollout object and call rollout.DoReconcile
+	r := applicationrollout.NewReconciler(h.r.Client, h.r.dm, h.r.Recorder, h.r.Scheme)
+	res, err := r.DoReconcile(ctx, &appRollout)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// write back rollout status to application
+	h.app.Status.Rollout = appRollout.Status
+	return res, nil
 }
 
 func generateScopeReference(scopes []appfile.Scope) []runtimev1alpha1.TypedReference {

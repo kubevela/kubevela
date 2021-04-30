@@ -549,11 +549,13 @@ var livediffResult = `---
         type: test-ingress
       type: test-webservice
   status:
-    batchRollingState: ""
-    currentBatch: 0
-    rollingState: ""
-    upgradedReadyReplicas: 0
-    upgradedReplicas: 0
+    rollout:
+      batchRollingState: ""
+      currentBatch: 0
+      lastTargetAppRevision: ""
+      rollingState: ""
+      upgradedReadyReplicas: 0
+      upgradedReplicas: 0
   
 ---
 ## Component (express-server) has been removed(-)

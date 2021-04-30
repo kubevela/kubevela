@@ -197,6 +197,21 @@ var _ = Describe("deployment controller", func() {
 			Expect(s.rolloutStatus.RolloutTargetSize).Should(BeEquivalentTo(10))
 			Expect(s.rolloutStatus.RolloutOriginalSize).Should(BeEquivalentTo(1))
 		})
+
+		It("spec is valid, if it's paused but replicas not consistent", func() {
+			By("Create a Deployment and set as paused")
+			deployment.Spec.Paused = true
+			Expect(k8sClient.Create(ctx, &deployment)).Should(Succeed())
+
+			// do not update status
+
+			By("verify should pass and record the size")
+			consistent, err := s.VerifySpec(ctx)
+			Expect(err).Should(BeNil())
+			Expect(consistent).Should(BeTrue())
+			Expect(s.rolloutStatus.RolloutTargetSize).Should(BeEquivalentTo(10))
+			Expect(s.rolloutStatus.RolloutOriginalSize).Should(BeEquivalentTo(1))
+		})
 	})
 
 	Context("TestInitialize", func() {

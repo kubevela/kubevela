@@ -94,7 +94,7 @@ func (s *DeploymentScaleController) VerifySpec(ctx context.Context) (bool, error
 	}
 
 	// check if the deployment is scaling
-	if originalSize != s.deploy.Status.Replicas {
+	if !s.deploy.Spec.Paused && originalSize != s.deploy.Status.Replicas {
 		verifyErr = fmt.Errorf("the deployment %s is in the middle of scaling, target size = %d, real size = %d",
 			s.deploy.GetName(), originalSize, s.deploy.Status.Replicas)
 		// do not fail the rollout, we can wait

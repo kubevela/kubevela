@@ -23,12 +23,14 @@ const (
 	ReasonApplied     = "Applied"
 	ReasonHealthCheck = "HealthChecked"
 	ReasonDeployed    = "Deployed"
+	ReasonRollout     = "Rollout"
 
 	ReasonFailedParse       = "FailedParse"
 	ReasonFailedRender      = "FailedRender"
 	ReasonFailedApply       = "FailedApply"
 	ReasonFailedHealthCheck = "FailedHealthCheck"
 	ReasonFailedGC          = "FailedGC"
+	ReasonFailedRollout     = "FailedRollout"
 )
 
 // event message for Application
@@ -38,6 +40,7 @@ const (
 	MessageApplied     = "Applied successfully"
 	MessageHealthCheck = "Health checked healthy"
 	MessageDeployed    = "Deployed successfully"
+	MessageRollout     = "Rollout successfully"
 
 	MessageFailedParse       = "fail to parse application, err: %v"
 	MessageFailedRender      = "fail to render application, err: %v"
