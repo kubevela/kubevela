@@ -2,14 +2,14 @@
 title: Terraform
 ---
 
-In addition to provisioning and consuming cloud resources by [Crossplane](./cloud-services.md), we can also use Terraform,
+In addition to provisioning and consuming cloud resources by [Crossplane](./cloud-services), we can also use Terraform,
 which is one of four ComponentDefinition schematic types `cue`, `kube`, `helm` and `terraform`.
 
 To enable end users to be able to create application by Terraform, please follow these steps.
 
-## Install Terraform Controller chart
+## Install Terraform Controller
 
-Download the latest chart, like `terraform-controller-chart-0.1.4.tgz`, from the latest [releases](https://github.com/oam-dev/terraform-controller/releases) and install it.
+Download the latest chart, like `terraform-controller-chart-0.1.4.tgz`, from the latest [releases list](https://github.com/oam-dev/terraform-controller/releases) and install it.
 
 ```shell
 $ helm install terraform-controller terraform-controller-0.1.2.tgz
@@ -21,7 +21,12 @@ REVISION: 1
 TEST SUITE: None
 ```
 
-For more detailed instruction, please refer to [Terraform controller getting started](https://github.com/oam-dev/terraform-controller/blob/master/getting-started.md).
+## Apply Provider credentials
+
+By applying Terraform Provider credentials, Terraform controller can be authenticated to deploy and manage cloud resources.
+
+Please refer to [Terraform controller getting started](https://github.com/oam-dev/terraform-controller/blob/master/getting-started.md) on how to apply Provider for Alibaba Cloud or AWS.
+
 
 ## Register ComponentDefinition and TraitDefinition
 
@@ -145,4 +150,4 @@ For more detailed introduction, please refer to [Crossplane](https://kubevela.io
 
 
 ## Next
-Now You can refer to [Terraform for end users](../end-user/terraform.md) to provision and consume cloud resource by Terraform.
+Now You can refer to [Terraform for end users](../end-user/terraform) to provision and consume cloud resource by Terraform.

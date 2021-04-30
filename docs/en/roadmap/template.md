@@ -4,7 +4,7 @@ title:  Roadmap
 
 Date: 2021-01-01 to 2021-03-30
 
-> Note: add roadmap entry to to `roadmap/README.md`
+> Note: add roadmap entry to `roadmap/README.md`
 
 ## Core Platform
 
