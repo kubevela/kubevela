@@ -2059,43 +2059,52 @@ func TestExtractRevisionNum(t *testing.T) {
 	testcases := []struct {
 		appRevision     string
 		wantRevisionNum int
+		delimiter       string
 		hasError        bool
 	}{{
 		appRevision:     "myapp-v1",
 		wantRevisionNum: 1,
+		delimiter:       "-",
 		hasError:        false,
 	}, {
 		appRevision:     "new-app-v2",
 		wantRevisionNum: 2,
+		delimiter:       "-",
 		hasError:        false,
 	}, {
 		appRevision:     "v1-v10",
 		wantRevisionNum: 10,
+		delimiter:       "-",
 		hasError:        false,
 	}, {
 		appRevision:     "v10-v1-v1",
 		wantRevisionNum: 1,
+		delimiter:       "-",
 		hasError:        false,
 	}, {
 		appRevision:     "myapp-v1-v2",
 		wantRevisionNum: 2,
+		delimiter:       "-",
 		hasError:        false,
 	}, {
 		appRevision:     "myapp-v1-vv",
 		wantRevisionNum: 0,
+		delimiter:       "-",
 		hasError:        true,
 	}, {
 		appRevision:     "v1",
 		wantRevisionNum: 0,
+		delimiter:       "-",
 		hasError:        true,
 	}, {
 		appRevision:     "myapp-a1",
 		wantRevisionNum: 0,
+		delimiter:       "-",
 		hasError:        true,
 	}}
 
 	for _, tt := range testcases {
-		revision, err := util.ExtractRevisionNum(tt.appRevision)
+		revision, err := util.ExtractRevisionNum(tt.appRevision, tt.delimiter)
 		hasError := err != nil
 		assert.Equal(t, tt.wantRevisionNum, revision)
 		assert.Equal(t, tt.hasError, hasError)
