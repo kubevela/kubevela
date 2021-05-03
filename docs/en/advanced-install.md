@@ -1,5 +1,5 @@
 ---
-title:  Advanced Topics for Installation
+title:  Other Install Topics
 ---
 
 ## Install KubeVela with cert-manager

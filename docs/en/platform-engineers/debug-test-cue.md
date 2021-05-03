@@ -160,7 +160,7 @@ outputs.service.spec.selector.app: reference "context" not found:
     ./def.cue:70:11
 ```
 
-The `reference "context" not found` is a common error in this step as [`context`](/docs/cue/component?id=cue-context) is a runtime information that only exist in KubeVela controllers. In order to validate the CUE template end-to-end, we can add a mock `context` in `def.cue`.
+The `reference "context" not found` is a common error in this step as [`context`](cue/component?id=cue-context) is a runtime information that only exist in KubeVela controllers. In order to validate the CUE template end-to-end, we can add a mock `context` in `def.cue`.
 
 > Note that you need to remove all mock data when you finished the validation.
 

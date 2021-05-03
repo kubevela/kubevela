@@ -1,5 +1,5 @@
 ---
-title:  Programmable Building Blocks
+title:  Definition Objects
 ---
 
 This documentation explains `ComponentDefinition` and `TraitDefinition` in detail.
@@ -233,4 +233,4 @@ spec:
 
 The specification of `schematic` is explained in following CUE and Helm specific documentations.
 
-Also, the `schematic` filed enables you to render UI forms directly based on them, please check the [Generate Forms from Definitions](/docs/platform-engineers/openapi-v3-json-schema) section about how to.
+Also, the `schematic` filed enables you to render UI forms directly based on them, please check the [Generate Forms from Definitions](openapi-v3-json-schema) section about how to.
