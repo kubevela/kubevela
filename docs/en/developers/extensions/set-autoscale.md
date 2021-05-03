@@ -55,7 +55,7 @@ Introduce how to automatically scale workloads by cron.
           timezone: "America/Los_Angeles"
   ```
 
-> The full specification of `autoscale` could show up by `$ vela show autoscale` or be found on [its reference documentation](../references/traits/autoscale)
+> The full specification of `autoscale` could show up by `$ vela show autoscale`.
 
 2. Deploy an application
   

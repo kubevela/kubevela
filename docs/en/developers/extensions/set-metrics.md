@@ -55,7 +55,7 @@ The app will emit random latencies as metrics.
     EOF
   ```
 
-> The full specification of `metrics` could show up by `$ vela show metrics` or be found on [its reference documentation](../references/traits/metrics)
+> The full specification of `metrics` could show up by `$ vela show metrics`.
 
 2. Deploy the application:
 

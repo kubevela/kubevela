@@ -22,15 +22,15 @@ In the end, developers complain those platforms are too rigid and slow in respon
 
 For platform builders, KubeVela serves as a framework that relieves the pains of building developer focused platforms by doing the following:
 
-- Developer Centric. KubeVela introduces the Application as the main API to capture a full deployment of microservices, and builds features around the application needs only. Progressive rollout and multi-cluster deployment are provided out-of-box. No infrastructure level concerns, simply deploy.
- 
-- Extending Natively. In KubeVela, all platform features (such as workloads, operational behaviors, and cloud services) are defined as reusable [CUE](https://github.com/cuelang/cue) and/or [Helm](https://helm.sh) components, per needs of the application deployment. And when application's needs grow, your platform capabilities expand naturally in a programmable approach.
+**Developer Centric** - KubeVela introduces higher level API to capture a full deployment of microservices, and builds features around the application needs only. Multi-cluster application deployment and rolling update is provided out-of-box. No infrastructure level concerns, simply deploy.
 
-- Simple yet Reliable. Perfect in flexibility though, X-as-Code may lead to configuration drift (i.e. the running instances are not in line with the expected configuration). KubeVela solves this by modeling its capabilities as code but enforce them via Kubernetes control loop which will never leave inconsistency in your clusters. This also makes KubeVela work with any CI/CD or GitOps tools via declarative API without integration burden.
+**Natively Extensible** - KubeVela models platform features (such as workloads, operational behaviors, and cloud services) as reusable [CUE](https://github.com/cuelang/cue) and/or [Helm](https://helm.sh/) components, and expose them to end users as self-service building blocks. When your needs grow, these capabilities can extend naturally in a programmable approach. No restriction, fully flexible.
 
-With KubeVela, the platform builders finally have the tooling supports to design easy-to-use abstractions and ship them to end-users with high confidence and low turn around time. 
+**Simple yet Reliable** - KubeVela is built with Kubernetes as control plane so unlike traditional X-as-Code solutions, it never leaves configuration drift in your clusters. Also, this makes KubeVela work with any CI/CD or GitOps tools via declarative API without any integration burden.
 
-For end-users (e.g. app developers and operators), these abstractions will enable them to design and ship applications to Kubernetes clusters with minimal effort, and instead of managing a handful infrastructure details, a simple application definition that can be easily integrated with any CI/CD pipeline is all they need.
+With KubeVela, the platform builders finally have the tooling supports to design easy-to-use application platform with high confidence and low turn around time. 
+
+For end-users (e.g. app developers and operators), this platform will enable them to design and ship applications to Kubernetes clusters with minimal effort, and instead of managing a handful infrastructure details, a simple application definition that can be easily integrated with any CI/CD pipeline is all they need.
 
 ## Comparisons
 
@@ -40,7 +40,7 @@ The typical examples are Heroku and Cloud Foundry. They provide full application
 
 Though the biggest difference lies in **flexibility**.
 
-KubeVela is a Kubernetes add-on that enabling you to serve end users with programmable building blocks which are fully flexible and coded by yourself. Comparing to this mechanism, traditional PaaS systems are highly restricted, i.e. they have to enforce constraints in the type of supported applications and capabilities, and as application needs grows, you always outgrow the capabilities of the PaaS system - this will never happen in KubeVela platform.
+KubeVela enables you to serve end users with programmable building blocks which are fully flexible and coded by yourself. Comparing to this mechanism, traditional PaaS systems are highly restricted, i.e. they have to enforce constraints in the type of supported applications and capabilities, and as application needs grows, you always outgrow the capabilities of the PaaS system - this will never happen in KubeVela platform.
 
 So think of KubeVela as a Heroku that is fully extensible to serve your needs as you grow.
 

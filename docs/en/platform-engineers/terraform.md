@@ -2,12 +2,13 @@
 title: Terraform
 ---
 
-In addition to provisioning and consuming cloud resources by [Crossplane](./cloud-services), we can also use Terraform,
-which is one of four ComponentDefinition schematic types `cue`, `kube`, `helm` and `terraform`.
+In this documentation, we will use Alibaba Cloud's RDS (Relational Database Service), and Alibaba Cloud's OSS (Object Storage System) as examples to show how to enable cloud services as part of the application deployment.
 
-To enable end users to be able to create application by Terraform, please follow these steps.
+These cloud services are provided by Terraform.
 
-## Install Terraform Controller
+## Prepare Terraform Controller
+
+<details>
 
 Download the latest chart, like `terraform-controller-chart-0.1.4.tgz`, from the latest [releases list](https://github.com/oam-dev/terraform-controller/releases) and install it.
 
@@ -21,18 +22,17 @@ REVISION: 1
 TEST SUITE: None
 ```
 
-## Apply Provider credentials
+### Apply Provider Credentials
 
 By applying Terraform Provider credentials, Terraform controller can be authenticated to deploy and manage cloud resources.
 
 Please refer to [Terraform controller getting started](https://github.com/oam-dev/terraform-controller/blob/master/getting-started.md) on how to apply Provider for Alibaba Cloud or AWS.
 
+</details>
 
-## Register ComponentDefinition and TraitDefinition
+## Register `alibaba-rds` Component
 
-### Register ComponentDefinition `alibaba-rds` as RDS cloud resource producer
-
-Register [alibaba-rds](https://github.com/oam-dev/kubevela/tree/master/docs/examples/terraform/cloud-resource-provision-and-consume/ComponentDefinition-alibaba-rds.yaml) Component type to KubeVela.
+Register [alibaba-rds](https://github.com/oam-dev/kubevela/tree/master/docs/examples/terraform/cloud-resource-provision-and-consume/ComponentDefinition-alibaba-rds.yaml) to KubeVela.
 
 ```yaml
 apiVersion: core.oam.dev/v1alpha2
@@ -97,9 +97,9 @@ spec:
 
 ```
 
-### Register ComponentDefinition `alibaba-oss` as OSS cloud resource producer
+### Register `alibaba-oss` Component
 
-Register [alibaba-oss](https://github.com/oam-dev/kubevela/tree/master/docs/examples/terraform/cloud-resource-provision-and-consume/ComponentDefinition-alibaba-oss.yaml) Component type to KubeVela.
+Register [alibaba-oss](https://github.com/oam-dev/kubevela/tree/master/docs/examples/terraform/cloud-resource-provision-and-consume/ComponentDefinition-alibaba-oss.yaml) to KubeVela.
 
 
 ```yaml
@@ -141,13 +141,3 @@ spec:
 
 
 ```
-
-### Prepare TraitDefinition `service-binding` to do env-secret mapping
-
-Apply [service-binding](https://github.com/oam-dev/kubevela/tree/master/docs/examples/terraform/cloud-resource-provision-and-consume/TraitDefinition-service-binding.yaml) to apply service binding trait.
-
-For more detailed introduction, please refer to [Crossplane](https://kubevela.io/docs/platform-engineers/cloud-services#prepare-traitdefinition-service-binding-to-do-env-secret-mapping).
-
-
-## Next
-Now You can refer to [Terraform for end users](../end-user/terraform) to provision and consume cloud resource by Terraform.

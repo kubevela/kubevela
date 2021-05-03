@@ -4,7 +4,7 @@
 
 # KubeVela
 
-KubeVela is a modern application platform that is fully self-service, and adapts to your needs when you grow.
+KubeVela is a modern application platform that makes deploying and managing applications across today's hybrid, multi-cloud environments easier and faster.
 
 ## Community
 

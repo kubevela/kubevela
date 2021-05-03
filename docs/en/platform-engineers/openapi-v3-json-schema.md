@@ -51,8 +51,8 @@ data:
 
 Specifically, this schema is generated based on `parameter` section in capability definition:
 
-* For CUE based definition: the [`parameter`](../cue/component#Write-ComponentDefinition) is a keyword in CUE template.
-* For Helm based definition: the [`parameter`](../helm/component#Write-ComponentDefinition) is generated from `values.yaml` in Helm chart.
+* For CUE based definition: the `parameter` is a keyword in CUE template.
+* For Helm based definition: the `parameter` is generated from `values.yaml` in Helm chart.
 
 ## Render Form
 
@@ -61,6 +61,10 @@ You can render above schema into a form by [form-render](https://github.com/alib
 Below is a form rendered with `form-render`:
 
 ![](../resources/json-schema-render-example.jpg)
+
+### Helm Based Components
+
+If a Helm based component definition is installed in KubeVela, it will also generate OpenAPI v3 JSON schema based on the [`values.schema.json`](https://helm.sh/docs/topics/charts/#schema-files) in the Helm chart, and store it in the `ConfigMap` following convention above. If `values.schema.json` is not provided by the chart author, KubeVela will automatically generate OpenAPI v3 JSON schema based on its `values.yaml` file automatically. 
 
 # What's Next
 
