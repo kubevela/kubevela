@@ -193,9 +193,16 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 	}
 	tmp.Name = name
 	// if spec.template is not empty it should has the highest priority
-	if schematic != nil && schematic.CUE != nil {
-		tmp.CueTemplate = schematic.CUE.Template
-		tmp.CueTemplateURI = ""
+	if schematic != nil {
+		if schematic.CUE != nil {
+			tmp.CueTemplate = schematic.CUE.Template
+			tmp.CueTemplateURI = ""
+		}
+		if schematic.Terraform != nil {
+			tmp.Category = types.TerraformCategory
+			tmp.TerraformConfiguration = schematic.Terraform.Configuration
+			return tmp, nil
+		}
 	}
 	if tmp.CueTemplateURI != "" {
 		b, err := common.HTTPGet(context.Background(), tmp.CueTemplateURI)
@@ -205,15 +212,17 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 		tmp.CueTemplate = string(b)
 	}
 	if tmp.CueTemplate == "" {
+		if schematic != nil && schematic.HELM != nil {
+			tmp.Category = types.HelmCategory
+			return tmp, nil
+		}
 		return types.Capability{}, errors.New("template not exist in definition")
-	}
-	if err != nil {
-		return types.Capability{}, err
 	}
 	tmp.Parameters, err = cue.GetParameters(tmp.CueTemplate)
 	if err != nil {
 		return types.Capability{}, err
 	}
+	tmp.Category = types.CUECategory
 	return tmp, nil
 }
 
@@ -250,7 +259,12 @@ func SyncDefinitionsToLocal(ctx context.Context, c common.Args, localDefinitionD
 
 // SyncDefinitionToLocal sync definitions to local
 func SyncDefinitionToLocal(ctx context.Context, c common.Args, capabilityName string, ns string) (*types.Capability, error) {
-	var foundCapability bool
+	var (
+		foundCapability bool
+		template        types.Capability
+		err             error
+	)
+
 	newClient, err := c.GetClient()
 	if err != nil {
 		return nil, err
@@ -275,11 +289,13 @@ func SyncDefinitionToLocal(ctx context.Context, c common.Args, capabilityName st
 		if err != nil {
 			return nil, err
 		}
-		template, err := HandleDefinition(capabilityName, ref.Name,
+		template, err = HandleDefinition(capabilityName, ref.Name,
 			componentDef.Annotations, componentDef.Spec.Extension, types.TypeComponentDefinition, nil, componentDef.Spec.Schematic)
-		if err == nil {
-			return &template, nil
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to handle ComponentDefinition")
 		}
+		template.Namespace = componentDef.Namespace
+		return &template, nil
 	}
 
 	foundCapability = false
@@ -294,11 +310,13 @@ func SyncDefinitionToLocal(ctx context.Context, c common.Args, capabilityName st
 		}
 	}
 	if foundCapability {
-		template, err := HandleDefinition(capabilityName, traitDef.Spec.Reference.Name,
+		template, err = HandleDefinition(capabilityName, traitDef.Spec.Reference.Name,
 			traitDef.Annotations, traitDef.Spec.Extension, types.TypeTrait, nil, traitDef.Spec.Schematic)
-		if err == nil {
-			return &template, nil
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to handle TraitDefinition")
 		}
+		template.Namespace = traitDef.Namespace
+		return &template, nil
 	}
-	return nil, fmt.Errorf("%s is not a valid workload type or trait", capabilityName)
+	return nil, fmt.Errorf("cloud not find %s is namespace %s, or %s", capabilityName, ns, types.DefaultKubeVelaNS)
 }

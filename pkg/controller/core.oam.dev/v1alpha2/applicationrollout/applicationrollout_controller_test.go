@@ -19,6 +19,7 @@ package applicationrollout
 import (
 	"testing"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
@@ -34,7 +35,7 @@ func Test_isRolloutModified(t *testing.T) {
 					TargetAppRevisionName: "target1",
 					SourceAppRevisionName: "source1",
 				},
-				Status: v1beta1.AppRolloutStatus{
+				Status: common.AppRolloutStatus{
 					RolloutStatus: v1alpha1.RolloutStatus{
 						RollingState: v1alpha1.RollingInBatchesState,
 					},
@@ -47,7 +48,7 @@ func Test_isRolloutModified(t *testing.T) {
 				Spec: v1beta1.AppRolloutSpec{
 					TargetAppRevisionName: "target1",
 				},
-				Status: v1beta1.AppRolloutStatus{
+				Status: common.AppRolloutStatus{
 					RolloutStatus: v1alpha1.RolloutStatus{
 						RollingState: v1alpha1.RollingInBatchesState,
 					},
@@ -62,7 +63,7 @@ func Test_isRolloutModified(t *testing.T) {
 					TargetAppRevisionName: "target1",
 					SourceAppRevisionName: "source1",
 				},
-				Status: v1beta1.AppRolloutStatus{
+				Status: common.AppRolloutStatus{
 					RolloutStatus: v1alpha1.RolloutStatus{
 						RollingState: v1alpha1.RollingInBatchesState,
 					},
@@ -77,7 +78,7 @@ func Test_isRolloutModified(t *testing.T) {
 				Spec: v1beta1.AppRolloutSpec{
 					TargetAppRevisionName: "target2",
 				},
-				Status: v1beta1.AppRolloutStatus{
+				Status: common.AppRolloutStatus{
 					RolloutStatus: v1alpha1.RolloutStatus{
 						RollingState: v1alpha1.RollingInBatchesState,
 					},
@@ -92,7 +93,7 @@ func Test_isRolloutModified(t *testing.T) {
 					TargetAppRevisionName: "target2",
 					SourceAppRevisionName: "source1",
 				},
-				Status: v1beta1.AppRolloutStatus{
+				Status: common.AppRolloutStatus{
 					RolloutStatus: v1alpha1.RolloutStatus{
 						RollingState: v1alpha1.RollingInBatchesState,
 					},
@@ -108,7 +109,7 @@ func Test_isRolloutModified(t *testing.T) {
 					TargetAppRevisionName: "target2",
 					SourceAppRevisionName: "source2",
 				},
-				Status: v1beta1.AppRolloutStatus{
+				Status: common.AppRolloutStatus{
 					RolloutStatus: v1alpha1.RolloutStatus{
 						RollingState: v1alpha1.RollingInBatchesState,
 					},
@@ -124,7 +125,7 @@ func Test_isRolloutModified(t *testing.T) {
 					TargetAppRevisionName: "target2",
 					SourceAppRevisionName: "source2",
 				},
-				Status: v1beta1.AppRolloutStatus{
+				Status: common.AppRolloutStatus{
 					RolloutStatus: v1alpha1.RolloutStatus{
 						RollingState: v1alpha1.RolloutDeletingState,
 					},

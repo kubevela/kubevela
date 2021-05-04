@@ -156,6 +156,7 @@ docker-push:
 e2e-setup:
 	helm install --create-namespace -n flux-system helm-flux http://oam.dev/catalog/helm-flux2-0.1.0.tgz
 	helm install kruise https://github.com/openkruise/kruise/releases/download/v0.7.0/kruise-chart.tgz
+	sh ./hack/e2e/modify_charts.sh
 	helm upgrade --install --create-namespace --namespace vela-system --set image.pullPolicy=IfNotPresent --set image.repository=vela-core-test --set applicationRevisionLimit=5 --set image.tag=$(GIT_COMMIT) --wait kubevela ./charts/vela-core
 	ginkgo version
 	ginkgo -v -r e2e/setup
@@ -197,9 +198,12 @@ ifneq ($(shell docker images -q $(VELA_CORE_TEST_IMAGE)),)
 	docker rmi -f $(VELA_CORE_TEST_IMAGE)
 endif
 
+end-e2e:
+	sh ./hack/e2e/end_e2e.sh
+
 # load docker image to the kind cluster
 kind-load:
-	docker build -t $(VELA_CORE_TEST_IMAGE) .
+	docker build -t $(VELA_CORE_TEST_IMAGE) -f Dockerfile.e2e .
 	kind load docker-image $(VELA_CORE_TEST_IMAGE) || { echo >&2 "kind not installed or error loading image: $(VELA_CORE_TEST_IMAGE)"; exit 1; }
 
 # Run tests

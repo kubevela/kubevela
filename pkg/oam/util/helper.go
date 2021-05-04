@@ -97,11 +97,21 @@ const (
 	// ErrUpdateCapabilityInConfigMap is the error while creating or updating a capability
 	ErrUpdateCapabilityInConfigMap = "cannot create or update capability %s in ConfigMap: %v"
 
+	// ErrUpdateComponentDefinition is the error while update ComponentDefinition
+	ErrUpdateComponentDefinition = "cannot update ComponentDefinition %s: %v"
+	// ErrUpdateTraitDefinition is the error while update TraitDefinition
+	ErrUpdateTraitDefinition = "cannot update TraitDefinition %s: %v"
+
 	// ErrCreateConvertedWorklaodDefinition is the error while apply a WorkloadDefinition
 	ErrCreateConvertedWorklaodDefinition = "cannot create converted WorkloadDefinition %s: %v"
 
 	// ErrRefreshPackageDiscover is the error while refresh PackageDiscover
 	ErrRefreshPackageDiscover = "cannot discover the open api of the CRD : %v"
+
+	// ErrGenerateDefinitionRevision is the error while generate DefinitionRevision
+	ErrGenerateDefinitionRevision = "cannot generate DefinitionRevision of %s: %v"
+	// ErrCreateOrUpdateDefinitionRevision is the error while create or update DefinitionRevision
+	ErrCreateOrUpdateDefinitionRevision = "cannot create or update DefinitionRevision %s: %v"
 )
 
 // WorkloadType describe the workload type of ComponentDefinition

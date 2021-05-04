@@ -19,6 +19,7 @@ package v1beta1
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
 )
 
@@ -48,19 +49,6 @@ type AppRolloutSpec struct {
 	RevertOnDelete bool `json:"revertOnDelete,omitempty"`
 }
 
-// AppRolloutStatus defines the observed state of AppRollout
-type AppRolloutStatus struct {
-	v1alpha1.RolloutStatus `json:",inline"`
-
-	// LastUpgradedTargetAppRevision contains the name of the app that we upgraded to
-	// We will restart the rollout if this is not the same as the spec
-	LastUpgradedTargetAppRevision string `json:"lastTargetAppRevision"`
-
-	// LastSourceAppRevision contains the name of the app that we need to upgrade from.
-	// We will restart the rollout if this is not the same as the spec
-	LastSourceAppRevision string `json:"LastSourceAppRevision,omitempty"`
-}
-
 // AppRollout is the Schema for the AppRollout API
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:categories={oam},shortName=approllout
@@ -76,8 +64,8 @@ type AppRollout struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   AppRolloutSpec   `json:"spec,omitempty"`
-	Status AppRolloutStatus `json:"status,omitempty"`
+	Spec   AppRolloutSpec          `json:"spec,omitempty"`
+	Status common.AppRolloutStatus `json:"status,omitempty"`
 }
 
 // AppRolloutList contains a list of AppRollout

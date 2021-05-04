@@ -1,9 +1,11 @@
 patch: {
 	// +patchKey=name
 	spec: template: spec: containers: [{
-		name:    parameter.name
-		image:   parameter.image
-		command: parameter.cmd
+		name:  parameter.name
+		image: parameter.image
+		if parameter.cmd != _|_ {
+			command: parameter.cmd
+		}
 		if parameter["volumes"] != _|_ {
 			volumeMounts: [ for v in parameter.volumes {
 				{

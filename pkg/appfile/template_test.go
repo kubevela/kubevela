@@ -365,13 +365,13 @@ spec:
 
 func TestLoadSchematicToTemplate(t *testing.T) {
 	testCases := map[string]struct {
-		schem  *common.Schematic
-		status *common.Status
-		ext    *runtime.RawExtension
-		want   *Template
+		schematic *common.Schematic
+		status    *common.Status
+		ext       *runtime.RawExtension
+		want      *Template
 	}{
 		"only tmp": {
-			schem: &common.Schematic{CUE: &common.CUE{Template: "t1"}},
+			schematic: &common.Schematic{CUE: &common.CUE{Template: "t1"}},
 			want: &Template{
 				TemplateStr:        "t1",
 				CapabilityCategory: types.CUECategory,
@@ -392,7 +392,7 @@ func TestLoadSchematicToTemplate(t *testing.T) {
 			},
 		},
 		"tmp with status": {
-			schem: &common.Schematic{CUE: &common.CUE{Template: "t1"}},
+			schematic: &common.Schematic{CUE: &common.CUE{Template: "t1"}},
 			status: &common.Status{
 				CustomStatus: "s1",
 				HealthPolicy: "h1",
@@ -414,10 +414,31 @@ func TestLoadSchematicToTemplate(t *testing.T) {
 				Health:       "h1",
 			},
 		},
+		"terraform schematic": {
+			schematic: &common.Schematic{Terraform: &common.Terraform{}},
+			want: &Template{
+				CapabilityCategory: types.TerraformCategory,
+				Terraform:          &common.Terraform{},
+			},
+		},
+		"helm schematic": {
+			schematic: &common.Schematic{HELM: &common.Helm{}},
+			want: &Template{
+				CapabilityCategory: types.HelmCategory,
+				Helm:               &common.Helm{},
+			},
+		},
+		"kube schematic": {
+			schematic: &common.Schematic{KUBE: &common.Kube{}},
+			want: &Template{
+				CapabilityCategory: types.KubeCategory,
+				Kube:               &common.Kube{},
+			},
+		},
 	}
 	for reason, casei := range testCases {
 		gtmp := &Template{}
-		err := loadSchematicToTemplate(gtmp, casei.status, casei.schem, casei.ext)
+		err := loadSchematicToTemplate(gtmp, casei.status, casei.schematic, casei.ext)
 		assert.NoError(t, err, reason)
 		assert.Equal(t, casei.want, gtmp, reason)
 	}

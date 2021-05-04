@@ -14,22 +14,21 @@
 
 # KubeVela
 
-KubeVela is a modern application platform that adapts to your application's needs, not the other way around.
-
-## Community
-
-- Slack:  [CNCF Slack](https://slack.cncf.io/) #kubevela channel
-- Gitter: [Discussion](https://gitter.im/oam-dev/community)
-- [DingTalk](https://page.dingtalk.com/wow/dingtalk/act/en-home): 23310022 (Recommend for users speaking Chinese)
-- Bi-weekly Community Call: [Meeting Notes](https://docs.google.com/document/d/1nqdFEyULekyksFHtFvgvFAYE-0AMHKoS3RMnaKsarjs)
-
-## Introduction
-
 *Developers simply want to deploy.*
 
-Traditional Platform-as-a-Service (PaaS) systems enable easy application deployments, but this happiness disappears when your application outgrows the capabilities of your platform. This is inevitable regardless of your PaaS is built on Kubernetes or not - the root cause is its inflexibility.
+Traditional *Platform-as-a-Service (PaaS)* systems enable easy application deployments, but this happiness disappears when your application outgrows the capabilities of your platform. This is inevitable regardless of your PaaS is built on Kubernetes or not - the root cause is its inflexibility.
 
-KubeVela solves this problem with an easy-to-use yet highly extensible approach.
+KubeVela is a modern application platform that is fully self-service, and adapts to your needs when you grow.
+
+Leveraging Kubernetes as control plane, KubeVela itself is runtime agnostic. It allows you to deploy (and manage) containerized workloads, cloud functions, databases, or even EC2 instances with a consistent workflow.
+
+## Features
+
+**Developer Centric** - KubeVela introduces higher level API to capture a full deployment of microservices, and builds features around the application needs only. Progressive rollout and multi-cluster deployment are provided out-of-box. No infrastructure level concerns, simply deploy.
+
+**Self-service** - KubeVela models platform features (such as workloads, operational behaviors, and cloud services) as reusable [CUE](https://github.com/cuelang/cue) and/or [Helm](https://helm.sh/) components, and expose them to end users as self-service building blocks. When your needs grow, these capabilities can extend naturally in a programmable approach. No restriction, fully flexible.
+
+**Simple yet Reliable** - KubeVela is built with Kubernetes as control plane so unlike traditional X-as-Code solutions, it never leaves configuration drift in your clusters. Also, this makes KubeVela work with any CI/CD or GitOps tools via declarative API without any integration burden.
 
 ## Getting Started
 
@@ -37,23 +36,16 @@ KubeVela solves this problem with an easy-to-use yet highly extensible approach.
 - [Quick start](https://kubevela.io/docs/quick-start)
 - [How it works](https://kubevela.io/docs/concepts)
 
-## Features
-
-**Developer Centric**
-
-KubeVela introduces the *Application* as the main API to capture a full deployment of microservices, and builds features around the application needs only. Progressive rollout and multi-cluster deployment are provided out-of-box. No infrastructure level concerns, simply deploy.
-
-**Platform-as-Code**
-
-KubeVela models platform features (such as workloads, operational behaviors, and cloud services) as reusable [CUE](https://github.com/cuelang/cue) and/or [Helm](https://helm.sh/) components, per needs of your application. And when your needs grow, these capabilities can expand naturally in a programmable approach. No restriction, fully extensible.
-
-**Simple yet Reliable**
-
-KubeVela enforces those programmable components with [Kubernetes Control Loop](https://kubernetes.io/docs/concepts/architecture/controller/) so they will never leave configuration drift in your clusters. Also, this makes KubeVela work with any CI/CD or GitOps tools via declarative API without any integration burden.
-
 ## Documentation
 
-Visit the [KubeVela documentation site](https://kubevela.io/) to find *Installation Instruction*, *Platform Builder Guide* and *Developer Experience Guide*.
+Full documentation is available on the [KubeVela website](https://kubevela.io/).
+
+## Community
+
+- Slack:  [CNCF Slack](https://slack.cncf.io/) #kubevela channel (*English*)
+- Gitter: [oam-dev](https://gitter.im/oam-dev/community) (*English*)
+- [DingTalk Group](https://page.dingtalk.com/wow/dingtalk/act/en-home): `23310022` (*Chinese*)
+- Bi-weekly Community Call: [Meeting Notes](https://docs.google.com/document/d/1nqdFEyULekyksFHtFvgvFAYE-0AMHKoS3RMnaKsarjs)
 
 ## Talks and Conferences
 

@@ -710,6 +710,13 @@ spec:
 		Expect(k8sClient.Get(ctx, appKey, curApp)).Should(BeNil())
 		Expect(curApp.Status.Phase).Should(Equal(common.ApplicationRunning))
 
+		By("Check App scope status")
+		scopes := curApp.Status.Services[0].Scopes
+		Expect(len(scopes)).Should(BeEquivalentTo(1))
+		Expect(scopes[0].APIVersion).Should(BeEquivalentTo("core.oam.dev/v1alpha2"))
+		Expect(scopes[0].Kind).Should(BeEquivalentTo("HealthScope"))
+		Expect(scopes[0].Name).Should(BeEquivalentTo("appWithTraitAndScope-default-health"))
+
 		By("Check AppConfig and trait created as expected")
 		appContext := &v1alpha2.ApplicationContext{}
 		Expect(k8sClient.Get(ctx, client.ObjectKey{

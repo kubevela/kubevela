@@ -145,7 +145,8 @@ func (def *CapabilityComponentDefinition) GetKubeSchematicOpenAPISchema(params [
 }
 
 // StoreOpenAPISchema stores OpenAPI v3 schema in ConfigMap from WorkloadDefinition
-func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client, pd *definition.PackageDiscover, namespace, name string) error {
+func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context, k8sClient client.Client,
+	pd *definition.PackageDiscover, namespace, name, revName string) error {
 	var jsonSchema []byte
 	var err error
 	switch def.WorkloadType {
@@ -173,19 +174,24 @@ func (def *CapabilityComponentDefinition) StoreOpenAPISchema(ctx context.Context
 		return err
 	}
 	def.ComponentDefinition.Status.ConfigMapRef = cmName
+
+	_, err = def.CreateOrUpdateConfigMap(ctx, k8sClient, namespace, revName, jsonSchema, ownerReference)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 // CapabilityTraitDefinition is the Capability struct for TraitDefinition
 type CapabilityTraitDefinition struct {
-	Name            string                   `json:"name"`
-	TraitDefinition v1alpha2.TraitDefinition `json:"traitDefinition"`
+	Name            string                  `json:"name"`
+	TraitDefinition v1beta1.TraitDefinition `json:"traitDefinition"`
 	CapabilityBaseDefinition
 }
 
 // GetCapabilityObject gets types.Capability object by TraitDefinition name
 func (def *CapabilityTraitDefinition) GetCapabilityObject(ctx context.Context, k8sClient client.Client, namespace, name string) (*types.Capability, error) {
-	var traitDefinition v1alpha2.TraitDefinition
+	var traitDefinition v1beta1.TraitDefinition
 	var capability types.Capability
 	capability.Name = def.Name
 	objectKey := client.ObjectKey{
@@ -249,7 +255,7 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 		types.OpenapiV3JSONSchema: string(jsonSchema),
 	}
 	// No need to check the existence of namespace, if it doesn't exist, API server will return the error message
-	// before it's to be reconciled by WorkloadDefinition/TraitDefinition controller.
+	// before it's to be reconciled by ComponentDefinition/TraitDefinition controller.
 	err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: cmName}, &cm)
 	if err != nil && apierrors.IsNotFound(err) {
 		cm = v1.ConfigMap{

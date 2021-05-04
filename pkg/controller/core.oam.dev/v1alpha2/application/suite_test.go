@@ -18,7 +18,6 @@ package application
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -32,6 +31,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -134,7 +134,7 @@ var _ = BeforeSuite(func(done Done) {
 		Scheme:           testScheme,
 		dm:               dm,
 		pd:               pd,
-		Recorder:         recorder,
+		Recorder:         event.NewAPIRecorder(recorder),
 		appRevisionLimit: appRevisionLimit,
 	}
 	// setup the controller manager since we need the component handler to run in the background
@@ -217,9 +217,7 @@ func (f *FakeRecorder) Event(object runtime.Object, eventtype, reason, message s
 }
 
 func (f *FakeRecorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
-	if f.Events != nil {
-		f.Events <- fmt.Sprintf(eventtype+" "+reason+" "+messageFmt, args...)
-	}
+	f.Event(object, eventtype, reason, messageFmt)
 }
 
 func (f *FakeRecorder) AnnotatedEventf(object runtime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {

@@ -40,6 +40,11 @@ const (
 	TraitTypeLabel = "trait.oam.dev/type"
 	// TraitResource indicates which resource it is when a trait is composed by multiple resources in KubeVela
 	TraitResource = "trait.oam.dev/resource"
+
+	// LabelComponentDefinitionName records the name of ComponentDefinition
+	LabelComponentDefinitionName = "componentdefinition.oam.dev/name"
+	// LabelComponentDefinitionName records the name of TraitDefinition
+	LabelTraitDefinitionName = "trait.oam.dev/name"
 )
 
 const (
