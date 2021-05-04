@@ -20,34 +20,46 @@ module.exports = {
     },
     {
       type: 'category',
-      label: 'Application Deployment',
+      label: 'Application Team Guide',
       collapsed: false,
       items:[
-        'application',
-        "rollout/rollout",
-        'rollout/appdeploy',
+        'end-user/application',
         {
-          'More Operations': [
-            'end-user/kubectlplugin',
-            'end-user/explore',
-            'end-user/diagnose',
-            'end-user/expose',
-            'end-user/scale',
-            'end-user/labels',
-            'end-user/sidecar',
-            'end-user/cloud-resources',
-            'end-user/terraform',
-            'end-user/volumes',
-            'end-user/monitoring',
-            'end-user/health',
-            'end-user/rollout-app'
+          'Components': [
+            'end-user/components/webservice',
+            'end-user/components/task',
+            'end-user/components/worker',
+            'end-user/components/cloud-services',
+            'end-user/components/more',
+          ]
+        },
+        {
+          'Traits': [
+            'end-user/traits/ingress',
+            'end-user/traits/scale',
+            'end-user/traits/labels',
+            'end-user/traits/sidecar',
+            'end-user/traits/volumes',
+            'end-user/traits/more',
+          ]
+        },
+        'end-user/scopes/appdeploy',
+        'end-user/scopes/rollout-plan',
+        {
+          'Observability': [
+            'end-user/scopes/health',
+          ]
+        },
+        {
+          'Debugging': [
+            'end-user/debug',
           ]
         },
       ]
     },
     {
       type: 'category',
-      label: 'Platform Operation Guide',
+      label: 'Platform Team Guide',
       collapsed: false,
       items: [
         'platform-engineers/overview',
@@ -59,29 +71,30 @@ module.exports = {
           items: [
             {
               'CUE': [
-                'cue/component',
-                'cue/basic',
+                'platform-engineers/cue/component',
+                'platform-engineers/cue/basic',
               ]
             },
             {
               'Helm': [
-                  'helm/component',
-                  'helm/trait',
-                  'helm/known-issues'
+                  'platform-engineers/helm/component',
+                  'platform-engineers/helm/trait',
+                  'platform-engineers/helm/known-issues'
               ]
             },
             {
-              'Raw Template': [
-                  'kube/component',
-                  'kube/trait',
+              'Simple Template': [
+                  'platform-engineers/kube/component',
+                  'platform-engineers/kube/trait',
               ]
             },
             {
               type: 'category',
-              label: 'Defining Cloud Service',
+              label: 'Cloud Services',
               items: [
                 'platform-engineers/cloud-services',
                 'platform-engineers/terraform',
+                'platform-engineers/crossplane',
               ]
             },
           ]
@@ -90,10 +103,10 @@ module.exports = {
           type: 'category',
           label: 'Defining Traits',
           items: [
-            'cue/trait',
-            'cue/patch-trait',
-            'cue/status',
-            'cue/advanced',
+            'platform-engineers/cue/trait',
+            'platform-engineers/cue/patch-trait',
+            'platform-engineers/cue/status',
+            'platform-engineers/cue/advanced',
           ]
         },
         {
@@ -155,20 +168,7 @@ module.exports = {
             'cli/vela_cap',
           ],
         },
-        {
-          type: 'category',
-          label: 'Capabilities',
-          items: [
-            'developers/references/README',
-            'developers/references/component-types/webservice',
-            'developers/references/component-types/task',
-            'developers/references/component-types/worker',
-            'developers/references/traits/route',
-            'developers/references/traits/metrics',
-            'developers/references/traits/scaler',
-            'developers/references/restful-api/rest',
-          ],
-        },
+        'developers/references/restful-api/rest',
       ],
     },
     {

@@ -26,7 +26,7 @@ services:
       domain: "example.com"
 ```
 
-> The full specification of `rollout` could show up by `$ vela show rollout` or be found on [its reference documentation](../references/traits/rollout)
+> The full specification of `rollout` could show up by `$ vela show rollout`.
 
 Apply this `appfile.yaml`:
 

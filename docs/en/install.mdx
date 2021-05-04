@@ -78,7 +78,7 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/mast
 </Tabs>
 
 
-## 2. Install KubeVela Controller
+## 2. Install KubeVela
 
 1. Add helm chart repo for KubeVela
     ```shell script
@@ -130,9 +130,9 @@ kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/mast
 
 ## 3. Get KubeVela CLI
 
-Using KubeVela CLI gives you a simplified workflow with optimized output comparing to using `kubectl`. It is not mandatory though.
+KubeVela CLI gives you a simplified workflow to manage applications with optimized output. It is not mandatory though.
 
-Here are three ways to get KubeVela Cli:
+KubeVela CLI could be [installed as kubectl plugin](./kubectl-plugin.mdx), or install as standalone binary.
 
 <Tabs
     className="unique-tabs"
@@ -187,7 +187,6 @@ sudo mv ./vela /usr/local/bin/vela
 
 </TabItem>
 </Tabs>
-
 
 ## 4. Enable Helm Support
 
