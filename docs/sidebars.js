@@ -109,6 +109,7 @@ module.exports = {
             'platform-engineers/cue/advanced',
           ]
         },
+        'platform-engineers/definition-revision',
         {
           type: 'category',
           label: 'Hands-on Lab',
