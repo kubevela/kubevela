@@ -21,20 +21,18 @@ import (
 	"context"
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
-	ctrl "sigs.k8s.io/controller-runtime"
-
-	core_oam_dev "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	core_oam_dev "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
