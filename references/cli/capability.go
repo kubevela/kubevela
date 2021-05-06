@@ -74,7 +74,7 @@ func NewCapCenterConfigCommand(ioStreams cmdutil.IOStreams) *cobra.Command {
 		Use:     "config <centerName> <centerURL>",
 		Short:   "Configure (add if not exist) a capability center, default is local (built-in capabilities)",
 		Long:    "Configure (add if not exist) a capability center, default is local (built-in capabilities)",
-		Example: `vela cap center config mycenter https://github.com/oam-dev/catalog/cap-center`,
+		Example: `vela cap center config mycenter https://github.com/oam-dev/catalog/tree/master/registry`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			argsLength := len(args)
 			if argsLength < 2 {
