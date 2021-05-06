@@ -22,21 +22,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/ghodss/yaml"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 const workloadDefinition = `
@@ -233,5 +234,51 @@ var _ = Describe("Test Application apply", func() {
 		applabel, exist := apprev.Labels["app.oam.dev/name"]
 		Expect(exist).Should(BeTrue())
 		Expect(strings.Compare(applabel, app.Name) == 0).Should(BeTrue())
+	})
+})
+
+var _ = Describe("Test applyHelmModuleResources", func() {
+	var handler appHandler
+	var app *v1beta1.Application
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = context.TODO()
+		app = &v1beta1.Application{}
+		handler = appHandler{
+			r:      reconciler,
+			app:    app,
+			logger: reconciler.Log.WithValues("application", "unit-test"),
+		}
+		handler.r.applicator = apply.NewAPIApplicator(reconciler.Client)
+	})
+
+	It("helm component is complete", func() {
+		release := map[string]interface{}{"chart": map[string]interface{}{"spec": map[string]interface{}{"chart": "abc", "version": "v1"}}}
+		repo := map[string]interface{}{"url": "http://abc.com"}
+		comp := &v1alpha2.Component{Spec: v1alpha2.ComponentSpec{Helm: &common.Helm{
+			Release:    util.Object2RawExtension(release),
+			Repository: util.Object2RawExtension(repo),
+		}}}
+		err := handler.applyHelmModuleResources(ctx, comp, nil)
+		Expect(err).Should(HaveOccurred())
+
+	})
+
+	It("helm repo format is invalid", func() {
+		comp := &v1alpha2.Component{Spec: v1alpha2.ComponentSpec{Helm: &common.Helm{
+			Repository: runtime.RawExtension{Raw: []byte("abc")}}}}
+		err := handler.applyHelmModuleResources(ctx, comp, nil)
+		Expect(err).Should(HaveOccurred())
+	})
+
+	It("helm release format is invalid", func() {
+		repo := map[string]interface{}{"url": "http://abc.com"}
+		comp := &v1alpha2.Component{Spec: v1alpha2.ComponentSpec{Helm: &common.Helm{
+			Release:    runtime.RawExtension{Raw: []byte("abc")},
+			Repository: util.Object2RawExtension(repo),
+		}}}
+		err := handler.applyHelmModuleResources(ctx, comp, nil)
+		Expect(err).Should(HaveOccurred())
 	})
 })
