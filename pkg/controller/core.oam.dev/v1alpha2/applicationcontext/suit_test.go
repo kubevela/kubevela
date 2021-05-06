@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	. "github.com/onsi/ginkgo"
@@ -47,6 +49,7 @@ var testEnv *envtest.Environment
 var controllerDone chan struct{}
 var r Reconciler
 var defRevisionLimit = 5
+var mgr manager.Manager
 
 func TestComponentDefinition(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -77,7 +80,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(k8sClient).ToNot(BeNil())
 
 	By("Starting the controller in the background")
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+	mgr, err = ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:             scheme.Scheme,
 		MetricsBindAddress: "0",
 		Port:               48082,
