@@ -43,8 +43,7 @@ var _ = Describe("Test ApplicationContext Controller", func() {
 		Context("appContext not found", func() {
 			By("reconciling")
 			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: "not-existed-appContext", Namespace: "ns1"}}
-			_, err := r.Reconcile(req)
-			Expect(err).Should(BeNil())
+			reconcileRetry(&r, req)
 		})
 
 		Context("appContext rollingStatus is completed", func() {
