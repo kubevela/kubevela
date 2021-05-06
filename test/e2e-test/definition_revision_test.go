@@ -81,7 +81,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(labelDefRevList.Items))
 			}
 			return nil
-		}, 15*time.Second, time.Second).Should(BeNil())
+		}, 20*time.Second, time.Second).Should(BeNil())
 
 	})
 
@@ -144,7 +144,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(workerDefRevList.Items))
 			}
 			return nil
-		}, 15*time.Second, time.Second).Should(BeNil())
+		}, 20*time.Second, time.Second).Should(BeNil())
 
 		webserviceV1 := webServiceWithNoTemplate.DeepCopy()
 		webserviceV1.Spec.Schematic.CUE.Template = webServiceV1Template
@@ -175,7 +175,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(webserviceDefRevList.Items))
 			}
 			return nil
-		}, 15*time.Second, time.Second).Should(BeNil())
+		}, 20*time.Second, time.Second).Should(BeNil())
 
 		app := v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
@@ -314,6 +314,187 @@ var _ = Describe("Test application of the specified definition version", func() 
 		Expect(webServiceV1Deploy.Labels["traitdefinition.oam.dev/version"]).Should(Equal("v1"))
 	})
 
+	It("Test deploy application which containing helm module", func() {
+		var (
+			appName  = "test-helm"
+			compName = "worker"
+		)
+
+		helmworkerV1 := HELMWorker.DeepCopy()
+		helmworkerV1.SetNamespace(namespace)
+		helmworkerV1.Spec.Workload.Definition = common.WorkloadGVK{
+			APIVersion: "batch/v1beta1",
+			Kind:       "CronJob",
+		}
+		helmworkerV1.Spec.Schematic = &common.Schematic{
+			HELM: &common.Helm{
+				Release: util.Object2RawExtension(map[string]interface{}{
+					"chart": map[string]interface{}{
+						"spec": map[string]interface{}{
+							"chart":   "podinfo",
+							"version": "5.1.4",
+						},
+					},
+				}),
+				Repository: util.Object2RawExtension(map[string]interface{}{
+					"url": "https://stefanprodan.github.io/podinfo",
+				}),
+			},
+		}
+		Expect(k8sClient.Create(ctx, helmworkerV1)).Should(Succeed())
+		Eventually(func() error {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: "helm-worker", Namespace: namespace}, helmworkerV1)
+			if err != nil {
+				return err
+			}
+			helmworkerV1.Spec.Workload.Definition = common.WorkloadGVK{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+			}
+			helmworkerV1.Spec.Schematic = &common.Schematic{
+				HELM: &common.Helm{
+					Release: util.Object2RawExtension(map[string]interface{}{
+						"chart": map[string]interface{}{
+							"spec": map[string]interface{}{
+								"chart":   "podinfo",
+								"version": "5.2.0",
+							},
+						},
+					}),
+					Repository: util.Object2RawExtension(map[string]interface{}{
+						"url": "https://stefanprodan.github.io/podinfo",
+					}),
+				},
+			}
+			return k8sClient.Update(ctx, helmworkerV1)
+		}, 15*time.Second, time.Second).Should(BeNil())
+
+		helmworkerDefRevList := new(v1beta1.DefinitionRevisionList)
+		helmworkerDefRevListOpts := []client.ListOption{
+			client.InNamespace(namespace),
+			client.MatchingLabels{
+				oam.LabelComponentDefinitionName: "helm-worker",
+			},
+		}
+		Eventually(func() error {
+			err := k8sClient.List(ctx, helmworkerDefRevList, helmworkerDefRevListOpts...)
+			if err != nil {
+				return err
+			}
+			if len(helmworkerDefRevList.Items) != 2 {
+				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(helmworkerDefRevList.Items))
+			}
+			return nil
+		}, 20*time.Second, time.Second).Should(BeNil())
+
+		app := v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
+					{
+						Name: compName,
+						Type: "helm-worker",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": map[string]interface{}{
+								"tag": "5.1.2",
+							},
+						}),
+						Traits: []v1beta1.ApplicationTrait{
+							{
+								Type: "label",
+								Properties: util.Object2RawExtension(map[string]interface{}{
+									"labels": map[string]string{
+										"hello": "world",
+									},
+								}),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		By("Create application")
+		Expect(k8sClient.Create(ctx, &app)).Should(Succeed())
+
+		ac := &v1alpha2.ApplicationContext{}
+		acName := appName
+		By("Verify the ApplicationContext is created successfully")
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac)
+		}, 30*time.Second, time.Second).Should(Succeed())
+
+		By("Verify the workload(deployment) is created successfully by Helm")
+		deploy := &appsv1.Deployment{}
+		deployName := fmt.Sprintf("%s-%s-podinfo", appName, compName)
+		Eventually(func() bool {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
+			if err != nil {
+				return false
+			}
+			DeployLabels := deploy.GetLabels()
+			return DeployLabels["helm.sh/chart"] == "podinfo-5.2.0"
+		}, 120*time.Second, 5*time.Second).Should(BeTrue())
+
+		By("Verify trait is applied to the workload")
+		Eventually(func() bool {
+			requestReconcileNow(ctx, ac)
+			deploy := &appsv1.Deployment{}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy); err != nil {
+				return false
+			}
+			By("Verify patch trait is applied")
+			templateLabels := deploy.GetLabels()
+			return templateLabels["hello"] != "world"
+		}, 120*time.Second, 10*time.Second).Should(BeTrue())
+
+		app = v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
+					{
+						Name: compName,
+						Type: "helm-worker@v1",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": map[string]interface{}{
+								"tag": "5.1.2",
+							},
+						}),
+					},
+				},
+			},
+		}
+
+		By("Create application")
+		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(Succeed())
+
+		By("Verify the ApplicationContext is updated")
+		Eventually(func() bool {
+			ac = &v1alpha2.ApplicationContext{}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: acName, Namespace: namespace}, ac); err != nil {
+				return false
+			}
+			return ac.GetGeneration() == 2
+		}, 15*time.Second, 3*time.Second).Should(BeTrue())
+
+		By("Verify the workload(deployment) is update successfully by Helm")
+		deploy = &appsv1.Deployment{}
+		Eventually(func() bool {
+			err := k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
+			if err != nil {
+				return false
+			}
+			DeployLabels := deploy.GetLabels()
+			return DeployLabels["helm.sh/chart"] != "podinfo-5.1.4"
+		}, 120*time.Second, 5*time.Second).Should(BeTrue())
+	})
+
 	It("Test deploy application which containing kube module", func() {
 		var (
 			appName  = "test-kube-app"
@@ -383,7 +564,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(kubeworkerDefRevList.Items))
 			}
 			return nil
-		}, 15*time.Second, time.Second).Should(BeNil())
+		}, 20*time.Second, time.Second).Should(BeNil())
 
 		app := v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
@@ -537,6 +718,16 @@ var KUBEWorker = &v1beta1.ComponentDefinition{
 	},
 	ObjectMeta: metav1.ObjectMeta{
 		Name: "kube-worker",
+	},
+}
+
+var HELMWorker = &v1beta1.ComponentDefinition{
+	TypeMeta: metav1.TypeMeta{
+		Kind:       "ComponentDefinition",
+		APIVersion: "core.oam.dev/v1beta1",
+	},
+	ObjectMeta: metav1.ObjectMeta{
+		Name: "helm-worker",
 	},
 }
 
