@@ -42,11 +42,11 @@ import (
 
 const (
 	// BaseRefPath is the target path for reference docs
-	BaseRefPath = "docs/en/developers/references"
+	BaseRefPath = "docs/en/end-user"
 	// ReferenceSourcePath is the location for source reference
 	ReferenceSourcePath = "hack/references"
 	// ComponentDefinitionTypePath is the URL path for component typed capability
-	ComponentDefinitionTypePath = "component-types"
+	ComponentDefinitionTypePath = "components"
 	// WorkloadTypePath is the URL path for workload typed capability
 	WorkloadTypePath = "workload-types"
 	// TraitPath is the URL path for trait typed capability
@@ -97,106 +97,224 @@ type ConsoleReference struct {
 
 // ConfigurationYamlSample stores the configuration yaml sample for capabilities
 var ConfigurationYamlSample = map[string]string{
-	"autoscale": `
-name: testapp
-
-services:
-  express-server:
-    ...
-
-    autoscale:
-      min: 1
-      max: 4
-      cron:
-        startAt:  "14:00"
-        duration: "2h"
-        days:     "Monday, Thursday"
-        replicas: 2
-        timezone: "America/Los_Angeles"
-      cpuPercent: 10
+	"annotations": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: myapp
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+      traits:
+        - type: labels
+          properties:
+            "release": "stable"
+        - type: annotations
+          properties:
+            "description": "web application"
 `,
+
+	"ingress": `
+kind: Application
+metadata:
+  name: first-vela-app
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+      traits:
+        - type: ingress
+          properties:
+            domain: testsvc.example.com
+            http:
+              "/": 8000
+`,
+
+	"labels": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: myapp
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+      traits:
+        - type: labels
+          properties:
+            "release": "stable"
+        - type: annotations
+          properties:
+            "description": "web application"
+`,
+
 	"metrics": `
-name: my-app-name
-
-services:
-  my-service-name:
-    ...
-    metrics:
-      format: "prometheus"
-      port: 8080
-      path: "/metrics"
-      scheme:  "http"
-      enabled: true
-`,
-	"rollout": `
-servcies:
-  express-server:
-    ...
-
-    rollout:
-      replicas: 2
-      stepWeight: 50
-      interval: "10s"
-`,
-	"route": `
-name: my-app-name
-
-services:
-  my-service-name:
-    ...
-    route:
-      domain: example.com
-      issuer: tls
-      rules:
-        - path: /testapp
-          rewriteTarget: /
-`,
-	"scaler": `
-name: my-app-name
-
-services:
-  my-service-name:
-    ...
-    scaler:
-      replicas: 100
-`,
-	"task": `
-name: my-app-name
-
-services:
-  my-service-name:
-    type: task
-    image: perl
-    count: 10
-    cmd: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
-`,
-	"webservice": `
-name: my-app-name
-
-services:
-  my-service-name:
-    type: webservice # could be skipped
-    image: oamdev/testapp:v1
-    cmd: ["node", "server.js"]
+...
+    format: "prometheus"
     port: 8080
-    cpu: "0.1"
-    env:
-      - name: FOO
-        value: bar
-      - name: FOO
-        valueFrom:
-          secretKeyRef:
-            name: bar
-            key: bar
+    path: "/metrics"
+    scheme:  "http"
+    enabled: true
+`,
+
+	"route": `
+...
+    domain: example.com
+    issuer: tls
+    rules:
+      - path: /testapp
+        rewriteTarget: /
+`,
+
+	"scaler": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: website
+spec:
+  components:
+    - name: frontend
+      type: webservice
+      properties:
+        image: nginx
+      traits:
+        - type: scaler
+          properties:
+            replicas: 2
+        - type: sidecar
+          properties:
+            name: "sidecar-test"
+            image: "fluentd"
+    - name: backend
+      type: worker
+      properties:
+        image: busybox
+        cmd:
+          - sleep
+          - '1000'
+`,
+
+	"sidecar": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: vela-app-with-sidecar
+spec:
+  components:
+    - name: log-gen-worker
+      type: worker
+      properties:
+        image: busybox
+        cmd:
+          - /bin/sh
+          - -c
+          - >
+            i=0;
+            while true;
+            do
+              echo "$i: $(date)" >> /var/log/date.log;
+              i=$((i+1));
+              sleep 1;
+            done
+        volumes:
+          - name: varlog
+            mountPath: /var/log
+            type: emptyDir
+      traits:
+        - type: sidecar
+          properties:
+            name: count-log
+            image: busybox
+            cmd: [ /bin/sh, -c, 'tail -n+1 -f /var/log/date.log']
+            volumes:
+              - name: varlog
+                path: /var/log
+`,
+
+	"task": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-worker
+spec:
+  components:
+    - name: mytask
+      type: task
+      properties:
+        image: perl
+	    count: 10
+	    cmd: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+`,
+
+	"volumes": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-worker
+spec:
+  components:
+    - name: myworker
+      type: worker
+      properties:
+        image: "busybox"
+        cmd:
+          - sleep
+          - "1000"
+      traits:
+        - type: aws-ebs-volume
+          properties:
+            name: "my-ebs"
+            mountPath: "/myebs"
+            volumeID: "my-ebs-id"
+`,
+
+	"webservice": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: website
+spec:
+  components:
+    - name: frontend
+      type: webservice
+      properties:
+        image: oamdev/testapp:v1
+        cmd: ["node", "server.js"]
+        port: 8080
+        cpu: "0.1"
+        env:
+          - name: FOO
+            value: bar
+          - name: FOO
+            valueFrom:
+              secretKeyRef:
+                name: bar
+                key: bar
 `,
 	"worker": `
-name: my-app-name
-
-services:
-  my-service-name:
-    type: worker
-    image: oamdev/testapp:v1
-    cmd: ["node", "server.js"]
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-worker
+spec:
+  components:
+    - name: myworker
+      type: worker
+      properties:
+        image: "busybox"
+        cmd:
+          - sleep
+          - "1000"
 `,
 }
 
@@ -254,19 +372,14 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, baseRef
 func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.Capability, baseRefPath, referenceSourcePath string) error {
 	setDisplayFormat("markdown")
 	var capabilityType string
-	var specificationType string
 	for i, c := range caps {
 		switch c.Type {
 		case types.TypeWorkload:
 			capabilityType = WorkloadTypePath
-			specificationType = "workload type"
 		case types.TypeComponentDefinition:
 			capabilityType = ComponentDefinitionTypePath
-			specificationType = "component type"
 		case types.TypeTrait:
 			capabilityType = TraitPath
-			specificationType = "trait"
-
 		default:
 			return fmt.Errorf("the type of the capability is not right")
 		}
@@ -309,20 +422,28 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 			for _, property := range properties {
 				refContent += ref.prepareParameter("#"+property.Name, property.Parameters, types.HelmCategory)
 			}
+		case types.TerraformCategory:
+			// No Terraform capability is built in.
+			continue
 		default:
 			return fmt.Errorf("unsupport capability category %s", c.Category)
 		}
+		title := fmt.Sprintf(`---
+title:  %s
+---`, capNameInTitle)
 
-		title := fmt.Sprintf("# %s", capNameInTitle)
-		description := fmt.Sprintf("\n\n## Description\n\n%s", c.Description)
-		specificationIntro := fmt.Sprintf("List of all configuration options for a `%s` %s.", capNameInTitle, specificationType)
-		specificationContent := ref.generateSpecification(capName)
-		specification := fmt.Sprintf("\n\n## Specification\n\n%s\n\n%s", specificationIntro, specificationContent)
+		description := fmt.Sprintf("\n\n# Description\n\n%s", c.Description)
+		var sample string
+		sampleContent := ref.generateSample(capName)
+		if sampleContent != "" {
+			sample = fmt.Sprintf("\n\n# Samples\n\n%s", sampleContent)
+		}
+		specification := fmt.Sprintf("\n\n# Specification\n%s", refContent)
 
 		// it's fine if the conflict info files not found
 		conflictWithAndMoreSection, _ := ref.generateConflictWithAndMore(capName, referenceSourcePath)
 
-		refContent = title + description + specification + refContent + conflictWithAndMoreSection
+		refContent = title + description + sample + conflictWithAndMoreSection + specification
 		if _, err := f.WriteString(refContent); err != nil {
 			return err
 		}
@@ -510,9 +631,12 @@ func (ref *ParseReference) getHELMPrintableDefaultValue(dataType string, value i
 	return defaultValueMap[dataType]
 }
 
-// generateSpecification generates Specification part for reference docs
-func (ref *MarkdownReference) generateSpecification(capabilityName string) string {
-	return fmt.Sprintf("```yaml%s```", ConfigurationYamlSample[capabilityName])
+// generateSample generates Specification part for reference docs
+func (ref *MarkdownReference) generateSample(capabilityName string) string {
+	if _, ok := ConfigurationYamlSample[capabilityName]; ok {
+		return fmt.Sprintf("```yaml%s```", ConfigurationYamlSample[capabilityName])
+	}
+	return ""
 }
 
 // generateConflictWithAndMore generates Section `Conflicts With` and more like `How xxx works` in reference docs
