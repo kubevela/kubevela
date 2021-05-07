@@ -70,7 +70,7 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 	switch capType {
 	case types.TypeComponentDefinition:
 		cd := new(v1beta1.ComponentDefinition)
-		err := oamutil.GetDefinition(ctx, cli, cd, capName)
+		err := oamutil.GetCapabilityDefinition(ctx, cli, cd, capName)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
 				wd := new(v1beta1.WorkloadDefinition)
@@ -101,7 +101,7 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 
 	case types.TypeTrait:
 		td := new(v1beta1.TraitDefinition)
-		err := oamutil.GetDefinition(ctx, cli, td, capName)
+		err := oamutil.GetCapabilityDefinition(ctx, cli, td, capName)
 		if err != nil {
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", capName)
 		}

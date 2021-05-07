@@ -112,10 +112,15 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComp
 	if err != nil {
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
 	}
+
+	wlType, err := util.ConvertDefinitionRevName(comp.Type)
+	if err != nil {
+		wlType = comp.Type
+	}
 	workload := &Workload{
 		Traits:             []*Trait{},
 		Name:               comp.Name,
-		Type:               comp.Type,
+		Type:               wlType,
 		CapabilityCategory: templ.CapabilityCategory,
 		FullTemplate:       templ,
 		Params:             settings,

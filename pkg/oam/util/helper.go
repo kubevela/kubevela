@@ -145,6 +145,9 @@ type ConditionedObject interface {
 	oam.Conditioned
 }
 
+// ErrBadRevisionName represents an error when the revision name is not standardized
+var ErrBadRevisionName = fmt.Errorf("bad revision name")
+
 // LocateParentAppConfig locate the parent application configuration object
 func LocateParentAppConfig(ctx context.Context, client client.Client, oamObject oam.Object) (oam.Object, error) {
 
@@ -331,6 +334,55 @@ func GetDefinition(ctx context.Context, cli client.Reader, definition runtime.Ob
 		return err
 	}
 	return nil
+}
+
+// GetCapabilityDefinition can get different versions of ComponentDefinition/TraitDefinition
+func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition runtime.Object,
+	definitionName string) error {
+	isLatestRevision, defRev, err := fetchDefinitionRev(ctx, cli, definitionName)
+	if err != nil {
+		return err
+	}
+	if isLatestRevision {
+		return GetDefinition(ctx, cli, definition, definitionName)
+	}
+	switch def := definition.(type) {
+	case *v1beta1.ComponentDefinition:
+		*def = defRev.Spec.ComponentDefinition
+	case *v1beta1.TraitDefinition:
+		*def = defRev.Spec.TraitDefinition
+	default:
+	}
+	return nil
+}
+
+func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName string) (bool, *v1beta1.DefinitionRevision, error) {
+	defRevName, err := ConvertDefinitionRevName(definitionName)
+	if err != nil {
+		if errors.As(err, &ErrBadRevisionName) {
+			return true, nil, nil
+		}
+		return false, nil, err
+	}
+	defRev := new(v1beta1.DefinitionRevision)
+	if err = GetDefinition(ctx, cli, defRev, defRevName); err != nil {
+		return false, nil, err
+	}
+	return false, defRev, err
+}
+
+// ConvertDefinitionRevName can help convert definition type defined in Application to DefinitionRevision Name
+// e.g., worker@v2 will be convert to worker-v2
+func ConvertDefinitionRevName(definitionName string) (string, error) {
+	revNum, err := ExtractRevisionNum(definitionName, "@")
+	if err != nil {
+		return "", err
+	}
+	defName := strings.TrimSuffix(definitionName, fmt.Sprintf("@v%d", revNum))
+	if defName == "" {
+		return "", fmt.Errorf("invalid definition defName %s", definitionName)
+	}
+	return fmt.Sprintf("%s-v%d", defName, revNum), nil
 }
 
 // when get a  namespaced scope object without namespace, would get an error request namespace
@@ -732,16 +784,16 @@ func ConvertComponentDef2WorkloadDef(dm discoverymapper.DiscoveryMapper, compone
 	return nil
 }
 
-// ExtractRevisionNum  extract revision number from appRevision name
-func ExtractRevisionNum(appRevision string) (int, error) {
-	splits := strings.Split(appRevision, "-")
+// ExtractRevisionNum  extract revision number
+func ExtractRevisionNum(appRevision string, delimiter string) (int, error) {
+	splits := strings.Split(appRevision, delimiter)
 	// check some bad appRevision name, eg:v1, appv2
 	if len(splits) == 1 {
-		return 0, fmt.Errorf("bad revison name")
+		return 0, ErrBadRevisionName
 	}
 	// check some bad appRevision name, eg:myapp-a1
 	if !strings.HasPrefix(splits[len(splits)-1], "v") {
-		return 0, fmt.Errorf("bad revison name")
+		return 0, ErrBadRevisionName
 	}
 	return strconv.Atoi(strings.TrimPrefix(splits[len(splits)-1], "v"))
 }

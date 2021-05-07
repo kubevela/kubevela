@@ -721,7 +721,7 @@ func (h *appHandler) handleRollout(ctx context.Context) (reconcile.Result, error
 	// targetRevision should always points to LatestRevison
 	targetRevision := h.app.Status.LatestRevision.Name
 	var srcRevision string
-	target, _ := oamutil.ExtractRevisionNum(targetRevision)
+	target, _ := oamutil.ExtractRevisionNum(targetRevision, "-")
 	// if target == 1 this is a initial scale operation, sourceRevision should be empty
 	// otherwise source revision always is targetRevision - 1
 	if target > 1 {
