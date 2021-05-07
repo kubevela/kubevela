@@ -633,6 +633,7 @@ func (ref *ParseReference) getHELMPrintableDefaultValue(dataType string, value i
 
 // generateSample generates Specification part for reference docs
 func (ref *MarkdownReference) generateSample(capabilityName string) string {
+       // TODO(zzxwill): we should generate the sample automatically instead of maintain hardcode example.
 	if _, ok := ConfigurationYamlSample[capabilityName]; ok {
 		return fmt.Sprintf("```yaml%s```", ConfigurationYamlSample[capabilityName])
 	}
