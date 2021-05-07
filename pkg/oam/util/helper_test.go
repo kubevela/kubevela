@@ -2057,47 +2057,110 @@ spec:
 
 func TestExtractRevisionNum(t *testing.T) {
 	testcases := []struct {
-		appRevision     string
+		revName         string
 		wantRevisionNum int
+		delimiter       string
 		hasError        bool
 	}{{
-		appRevision:     "myapp-v1",
+		revName:         "myapp-v1",
 		wantRevisionNum: 1,
+		delimiter:       "-",
 		hasError:        false,
 	}, {
-		appRevision:     "new-app-v2",
+		revName:         "new-app-v2",
 		wantRevisionNum: 2,
+		delimiter:       "-",
 		hasError:        false,
 	}, {
-		appRevision:     "v1-v10",
+		revName:         "v1-v10",
 		wantRevisionNum: 10,
+		delimiter:       "-",
 		hasError:        false,
 	}, {
-		appRevision:     "v10-v1-v1",
+		revName:         "v10-v1-v1",
 		wantRevisionNum: 1,
+		delimiter:       "-",
 		hasError:        false,
 	}, {
-		appRevision:     "myapp-v1-v2",
+		revName:         "myapp-v1-v2",
 		wantRevisionNum: 2,
+		delimiter:       "-",
 		hasError:        false,
 	}, {
-		appRevision:     "myapp-v1-vv",
+		revName:         "myapp-v1-vv",
 		wantRevisionNum: 0,
+		delimiter:       "-",
 		hasError:        true,
 	}, {
-		appRevision:     "v1",
+		revName:         "v1",
 		wantRevisionNum: 0,
+		delimiter:       "-",
 		hasError:        true,
 	}, {
-		appRevision:     "myapp-a1",
+		revName:         "myapp-a1",
 		wantRevisionNum: 0,
+		delimiter:       "-",
+		hasError:        true,
+	}, {
+		revName:         "worker@v1",
+		wantRevisionNum: 1,
+		delimiter:       "@",
+		hasError:        false,
+	}, {
+		revName:         "worke@10r@v1",
+		wantRevisionNum: 1,
+		delimiter:       "@",
+		hasError:        false,
+	}, {
+		revName:         "webservice@a10",
+		wantRevisionNum: 0,
+		delimiter:       "@",
 		hasError:        true,
 	}}
 
 	for _, tt := range testcases {
-		revision, err := util.ExtractRevisionNum(tt.appRevision)
+		revision, err := util.ExtractRevisionNum(tt.revName, tt.delimiter)
 		hasError := err != nil
 		assert.Equal(t, tt.wantRevisionNum, revision)
+		assert.Equal(t, tt.hasError, hasError)
+	}
+}
+
+func TestExtractDefinitionRevName(t *testing.T) {
+	testcases := []struct {
+		defName     string
+		wantRevName string
+		hasError    bool
+	}{{
+		defName:     "worker@v2",
+		wantRevName: "worker-v2",
+		hasError:    false,
+	}, {
+		defName:     "worker@v10",
+		wantRevName: "worker-v10",
+		hasError:    false,
+	}, {
+		defName:     "worker",
+		wantRevName: "",
+		hasError:    true,
+	}, {
+		defName:     "webservice@@v2",
+		wantRevName: "webservice@-v2",
+		hasError:    false,
+	}, {
+		defName:     "webservice@v10@v3",
+		wantRevName: "webservice@v10-v3",
+		hasError:    false,
+	}, {
+		defName:     "@v10",
+		wantRevName: "",
+		hasError:    true,
+	}}
+
+	for _, tt := range testcases {
+		revName, err := util.ConvertDefinitionRevName(tt.defName)
+		hasError := err != nil
+		assert.Equal(t, tt.wantRevName, revName)
 		assert.Equal(t, tt.hasError, hasError)
 	}
 }
