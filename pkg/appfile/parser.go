@@ -113,7 +113,7 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComp
 		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
 	}
 
-	wlType, err := util.ExtractDefinitionRevName(comp.Type)
+	wlType, err := util.ConvertDefinitionRevName(comp.Type)
 	if err != nil {
 		wlType = comp.Type
 	}

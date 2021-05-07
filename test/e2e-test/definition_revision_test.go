@@ -312,6 +312,29 @@ var _ = Describe("Test application of the specified definition version", func() 
 		By("Check Application is rendered by the specified version of the Definition")
 		Expect(webServiceV1Deploy.Labels["componentdefinition.oam.dev/version"]).Should(Equal("v1"))
 		Expect(webServiceV1Deploy.Labels["traitdefinition.oam.dev/version"]).Should(Equal("v1"))
+
+		By("Application specifies the wrong version of the Definition, it will raise an error")
+		app = v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
+					{
+						Name: comp1Name,
+						Type: "webservice@v10",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "nginx",
+						}),
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(Succeed())
+
+		apprev := &v1beta1.ApplicationRevision{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v3", appName)}, apprev)).Should(HaveOccurred())
 	})
 
 	It("Test deploy application which containing helm module", func() {
@@ -667,6 +690,29 @@ var _ = Describe("Test application of the specified definition version", func() 
 		By("Verify trait is applied to the workload")
 		webserviceV1Labels := deploy.GetLabels()
 		Expect(webserviceV1Labels["hello"]).Should(Equal("kubevela"))
+
+		By("Application specifies the wrong version of the Definition, it will raise an error")
+		app = v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
+					{
+						Name: compName,
+						Type: "kube-worker@a1",
+						Properties: util.Object2RawExtension(map[string]interface{}{
+							"image": "nginx",
+						}),
+					},
+				},
+			},
+		}
+		Expect(k8sClient.Patch(ctx, &app, client.Merge)).Should(Succeed())
+
+		apprev := &v1beta1.ApplicationRevision{}
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: fmt.Sprintf("%s-v3", appName)}, apprev)).Should(HaveOccurred())
 	})
 
 })

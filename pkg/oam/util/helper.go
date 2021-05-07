@@ -357,9 +357,9 @@ func GetCapabilityDefinition(ctx context.Context, cli client.Reader, definition 
 }
 
 func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName string) (bool, *v1beta1.DefinitionRevision, error) {
-	defRevName, err := ExtractDefinitionRevName(definitionName)
+	defRevName, err := ConvertDefinitionRevName(definitionName)
 	if err != nil {
-		if err.Error() == ErrBadRevisionName.Error() {
+		if errors.As(err, &ErrBadRevisionName) {
 			return true, nil, nil
 		}
 		return false, nil, err
@@ -371,9 +371,9 @@ func fetchDefinitionRev(ctx context.Context, cli client.Reader, definitionName s
 	return false, defRev, err
 }
 
-// ExtractDefinitionRevName can help convert definition type defined in Application to DefinitionRevision Name
+// ConvertDefinitionRevName can help convert definition type defined in Application to DefinitionRevision Name
 // e.g., worker@v2 will be convert to worker-v2
-func ExtractDefinitionRevName(definitionName string) (string, error) {
+func ConvertDefinitionRevName(definitionName string) (string, error) {
 	revNum, err := ExtractRevisionNum(definitionName, "@")
 	if err != nil {
 		return "", err

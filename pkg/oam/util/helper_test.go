@@ -2158,7 +2158,7 @@ func TestExtractDefinitionRevName(t *testing.T) {
 	}}
 
 	for _, tt := range testcases {
-		revName, err := util.ExtractDefinitionRevName(tt.defName)
+		revName, err := util.ConvertDefinitionRevName(tt.defName)
 		hasError := err != nil
 		assert.Equal(t, tt.wantRevName, revName)
 		assert.Equal(t, tt.hasError, hasError)
