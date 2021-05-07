@@ -36,7 +36,7 @@ module.exports = {
         {
           'Traits': [
             'end-user/traits/ingress',
-            'end-user/traits/scale',
+            'end-user/traits/scaler',
             'end-user/traits/labels',
             'end-user/traits/sidecar',
             'end-user/traits/volumes',
