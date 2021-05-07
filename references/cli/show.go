@@ -350,7 +350,7 @@ func getComponentsAndTraits(capabilities []types.Capability) ([]string, []string
 
 // ShowReferenceConsole will show capability reference in console
 func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string, ns string) error {
-	capability, err := plugins.SyncDefinitionToLocal(ctx, c, capabilityName, ns)
+	capability, err := plugins.GetCapabilityByName(ctx, c, capabilityName, ns)
 	if err != nil {
 		return err
 	}

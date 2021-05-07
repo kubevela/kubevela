@@ -257,8 +257,8 @@ func SyncDefinitionsToLocal(ctx context.Context, c common.Args, localDefinitionD
 	return syncedTemplates, warnings, nil
 }
 
-// SyncDefinitionToLocal sync definitions to local
-func SyncDefinitionToLocal(ctx context.Context, c common.Args, capabilityName string, ns string) (*types.Capability, error) {
+// GetCapabilityByName gets capability by definition name
+func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName string, ns string) (*types.Capability, error) {
 	var (
 		foundCapability bool
 		template        types.Capability
