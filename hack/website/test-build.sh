@@ -17,6 +17,8 @@
 
 set -e
 
+source hack/website/helpers.sh
+
 docs_path="./docs"
 
 git clone --single-branch --depth 1 https://github.com/oam-dev/kubevela.io.git git-page
@@ -75,4 +77,5 @@ then
   fi
 
   yarn run docusaurus docs:version $version
+  checkDocusaurus versioned_docs/version-${version}
 fi

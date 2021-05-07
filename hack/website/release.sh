@@ -17,6 +17,8 @@
 
 set -e
 
+source hack/website/helpers.sh
+
 if [[ -n "$SSH_DEPLOY_KEY" ]]
 then
   mkdir -p ~/.ssh
@@ -76,6 +78,7 @@ then
   yarn run docusaurus docs:version $version
   git checkout docusaurus.config.js
   rm docusaurus.config.js.bak
+  checkDocusaurus versioned_docs/version-${version}
 fi
 
 # Check for release branch update only
@@ -107,6 +110,7 @@ then
   yarn run docusaurus docs:version $version
   git checkout docusaurus.config.js
   rm docusaurus.config.js.bak
+  checkDocusaurus versioned_docs/version-${version}
 fi
 
 
