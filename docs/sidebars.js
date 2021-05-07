@@ -43,6 +43,7 @@ module.exports = {
             'end-user/traits/more',
           ]
         },
+        'end-user/definition-revision',
         'end-user/scopes/appdeploy',
         'end-user/scopes/rollout-plan',
         {
@@ -109,7 +110,6 @@ module.exports = {
             'platform-engineers/cue/advanced',
           ]
         },
-        'platform-engineers/definition-revision',
         {
           type: 'category',
           label: 'Hands-on Lab',
