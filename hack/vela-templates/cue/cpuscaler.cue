@@ -1,4 +1,4 @@
-outputs: cpuhpa: {
+outputs: cpuscaler: {
 	apiVersion: "autoscaling/v2beta2"
 	kind:       "HorizontalPodAutoscaler"
 	metadata: name: context.name
