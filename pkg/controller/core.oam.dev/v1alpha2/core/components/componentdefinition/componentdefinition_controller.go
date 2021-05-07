@@ -82,7 +82,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// refresh package discover when componentDefinition is registered
-	if handler.cd.Spec.Workload.Type == "" {
+	if handler.cd.Spec.Workload.Definition != (common.WorkloadGVK{}) {
 		err := utils.RefreshPackageDiscover(r.dm, r.pd, handler.cd.Spec.Workload.Definition,
 			common.DefinitionReference{}, types.TypeComponentDefinition)
 		if err != nil {
