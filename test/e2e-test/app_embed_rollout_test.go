@@ -284,26 +284,26 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 		time.Sleep(15 * time.Second)
 		Eventually(func() error {
 			checkApp := new(v1beta1.Application)
-			if err := k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: appName}, checkApp); err != nil {
+			if err := k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: namespaceName}, checkApp); err != nil {
 				return err
 			}
-			if app.Status.Rollout.LastUpgradedTargetAppRevision != utils.ConstructRevisionName(appName, 2) {
+			if checkApp.Status.Rollout.LastUpgradedTargetAppRevision != utils.ConstructRevisionName(appName, 2) {
 				return fmt.Errorf("app status lastTargetRevision mismatch")
 			}
-			if app.Status.Rollout.LastSourceAppRevision != utils.ConstructRevisionName(appName, 1) {
-				return fmt.Errorf("app status lastTargetRevision mismatch")
+			if checkApp.Status.Rollout.LastSourceAppRevision != utils.ConstructRevisionName(appName, 1) {
+				return fmt.Errorf("app status lastSourceRevision mismatch")
 			}
 			if checkApp.Status.Rollout.RollingState != v1alpha1.RollingInBatchesState {
 				return fmt.Errorf("app status rolling state mismatch")
 			}
-			if app.Status.Rollout.UpgradedReplicas != 3 || app.Status.Rollout.UpgradedReadyReplicas != 3 {
+			if checkApp.Status.Rollout.UpgradedReplicas != 3 || checkApp.Status.Rollout.UpgradedReadyReplicas != 3 {
 				return fmt.Errorf("app status upgraded status error")
 			}
-			if app.Status.Phase != apicommon.ApplicationRollingOut {
+			if checkApp.Status.Phase != apicommon.ApplicationRollingOut {
 				return fmt.Errorf("app status phase error")
 			}
 			return nil
-		}, time.Second*120, time.Microsecond*300)
+		}, time.Second*120, time.Microsecond*300).Should(BeNil())
 		clonesetName := app.Spec.Components[0].Name
 		Eventually(
 			func() error {
@@ -355,7 +355,49 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 		updateAppWithCpuAndPlan(app, "3", plan)
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 3), "3")
 	})
-	// TODO add more corner case tests
-	// 1.update application in the middle of a rollout process
-	// 2.update application by clean rolloutPlan strategy in the middle of a rollout process
+
+	It("Test upgrade application in middle of  rolling out", func() {
+		plan := &v1alpha1.RolloutPlan{
+			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
+			RolloutBatches: []v1alpha1.RolloutBatch{
+				{
+					Replicas: intstr.FromString("50%"),
+				},
+				{
+					Replicas: intstr.FromString("50%"),
+				},
+			},
+			TargetSize: pointer.Int32Ptr(6),
+		}
+		appName = "app-rollout-3"
+		app := generateNewApp(appName, namespaceName, "clonesetservice", plan)
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 1), "1")
+		updateAppWithCpuAndPlan(app, "2", plan)
+
+		By("Wait for the rollout phase change to rolling in batches")
+		Eventually(func() error {
+			checkApp := new(v1beta1.Application)
+			if err := k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: namespaceName}, checkApp); err != nil {
+				return err
+			}
+			if checkApp.Status.Rollout.LastUpgradedTargetAppRevision != utils.ConstructRevisionName(appName, 2) {
+				return fmt.Errorf("app status lastTargetRevision mismatch actually %s ", checkApp.Status.Rollout.LastUpgradedTargetAppRevision)
+			}
+			if checkApp.Status.Rollout.LastSourceAppRevision != utils.ConstructRevisionName(appName, 1) {
+				return fmt.Errorf("app status lastSourceRevision mismatch actually %s ", checkApp.Status.Rollout.LastSourceAppRevision)
+			}
+			if checkApp.Status.Rollout.RollingState != v1alpha1.RollingInBatchesState {
+				return fmt.Errorf("app status rolling state mismatch")
+			}
+			return nil
+		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+
+		By("update app in middle of rollout and verify status")
+		updateAppWithCpuAndPlan(app, "3", plan)
+		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 3), "3")
+	})
+
+	//  TODO add more corner case tests
+	//  update application by clean rolloutPlan strategy in the middle of rollout process
 })
