@@ -18,13 +18,17 @@ package plugins
 
 import (
 	"context"
+	"cuelang.org/go/cue"
 	"fmt"
-
+	"github.com/ghodss/yaml"
+	"github.com/google/go-cmp/cmp"
+	corev1beta1 "github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"cuelang.org/go/cue"
-	"github.com/google/go-cmp/cmp"
+	"io/ioutil"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -35,7 +39,6 @@ import (
 
 const (
 	TestDir        = "testdata"
-	RouteName      = "routes.test"
 	DeployName     = "deployments.testapps"
 	WebserviceName = "webservice.testapps"
 )
@@ -130,5 +133,90 @@ var _ = Describe("DefinitionFiles", func() {
 			alldef[i].CueTemplate = ""
 		}
 		Expect(cmp.Diff(alldef, []types.Capability{deployment, websvc})).Should(BeEquivalentTo(""))
+	})
+})
+
+var _ = Describe("test GetCapabilityByName", func() {
+	var (
+		ctx        context.Context
+		c          common.Args
+		ns         string
+		defaultNS  string
+		cd1        corev1beta1.ComponentDefinition
+		cd2        corev1beta1.ComponentDefinition
+		td1        corev1beta1.TraitDefinition
+		td2        corev1beta1.TraitDefinition
+		component1 string
+		component2 string
+		trait1     string
+		trait2     string
+	)
+	BeforeEach(func() {
+		c = common.Args{
+			Client: k8sClient,
+			Config: cfg,
+			Schema: scheme,
+		}
+		ctx = context.Background()
+		ns = "cluster-test-ns"
+		defaultNS = types.DefaultKubeVelaNS
+		component1 = "cd1"
+		component2 = "cd2"
+		trait1 = "td1"
+		trait2 = "td2"
+
+		By("create namespace")
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+		Expect(k8sClient.Create(ctx, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: defaultNS}})).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		By("create ComponentDefinition")
+		data, _ := ioutil.ReadFile("testdata/componentDef.yaml")
+		yaml.Unmarshal(data, &cd1)
+		yaml.Unmarshal(data, &cd2)
+		cd1.Namespace = ns
+		cd1.Name = component1
+		Expect(k8sClient.Create(ctx, &cd1)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		cd2.Namespace = defaultNS
+		cd2.Name = component2
+		Expect(k8sClient.Create(ctx, &cd2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		By("create TraitDefinition")
+		data, _ = ioutil.ReadFile("testdata/manualscalars.yaml")
+		yaml.Unmarshal(data, &td1)
+		yaml.Unmarshal(data, &td2)
+		td1.Namespace = ns
+		td1.Name = trait1
+		Expect(k8sClient.Create(ctx, &td1)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		td2.Namespace = defaultNS
+		td2.Name = trait2
+		Expect(k8sClient.Create(ctx, &td2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+	})
+
+	It("get capability", func() {
+		Context("ComponentDefinition is in the current namespace", func() {
+			_, err := GetCapabilityByName(ctx, c, component1, ns)
+			Expect(err).Should(BeNil())
+		})
+		Context("ComponentDefinition is in the default namespace", func() {
+			_, err := GetCapabilityByName(ctx, c, component2, ns)
+			Expect(err).Should(BeNil())
+		})
+
+		Context("TraitDefinition is in the current namespace", func() {
+			_, err := GetCapabilityByName(ctx, c, trait1, ns)
+			Expect(err).Should(BeNil())
+		})
+		Context("TraitDefinitionDefinition is in the default namespace", func() {
+			_, err := GetCapabilityByName(ctx, c, trait2, ns)
+			Expect(err).Should(BeNil())
+		})
+
+		Context("capability cloud not be found", func() {
+			_, err := GetCapabilityByName(ctx, c, "a-component-definition-not-existed", ns)
+			Expect(err).Should(HaveOccurred())
+		})
 	})
 })

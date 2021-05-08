@@ -268,37 +268,6 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 	return tmp, nil
 }
 
-// SyncDefinitionsToLocal sync definitions to local
-func SyncDefinitionsToLocal(ctx context.Context, c common.Args, localDefinitionDir string) ([]types.Capability, []string, error) {
-	var syncedTemplates []types.Capability
-	var warnings []string
-
-	templates, templateErrors, err := GetComponentsFromCluster(ctx, types.DefaultKubeVelaNS, c, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(templateErrors) > 0 {
-		for _, e := range templateErrors {
-			warnings = append(warnings, fmt.Sprintf("WARN: %v, you will unable to use this component capability\n", e))
-		}
-	}
-	syncedTemplates = append(syncedTemplates, templates...)
-	SinkTemp2Local(templates, localDefinitionDir)
-
-	templates, templateErrors, err = GetTraitsFromCluster(ctx, types.DefaultKubeVelaNS, c, nil)
-	if err != nil {
-		return nil, warnings, err
-	}
-	if len(templateErrors) > 0 {
-		for _, e := range templateErrors {
-			warnings = append(warnings, fmt.Sprintf("WARN: %v, you will unable to use this trait capability\n", e))
-		}
-	}
-	syncedTemplates = append(syncedTemplates, templates...)
-	SinkTemp2Local(templates, localDefinitionDir)
-	return syncedTemplates, warnings, nil
-}
-
 // GetCapabilityByName gets capability by definition name
 func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName string, ns string) (*types.Capability, error) {
 	var (
