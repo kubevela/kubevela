@@ -54,12 +54,8 @@ const (
 )
 
 const (
-	// TerraformVariableName is the name for Terraform Variable
-	TerraformVariableName = "variable"
 	// TerraformWriteConnectionSecretToRefName is the name for Terraform WriteConnectionSecretToRef
 	TerraformWriteConnectionSecretToRefName = "writeConnectionSecretToRef"
-	// TerraformVariableType is the type for Terraform Variable
-	TerraformVariableType = "[variable](#variable)"
 	// TerraformWriteConnectionSecretToRefType is the type for Terraform WriteConnectionSecretToRef
 	TerraformWriteConnectionSecretToRefType = "[writeConnectionSecretToRef](#writeConnectionSecretToRef)"
 )
@@ -338,8 +334,13 @@ type ReferenceParameter struct {
 	types.Parameter `json:",inline,omitempty"`
 	// PrintableType is same to `parameter.Type` which could be printable
 	PrintableType string `json:"printableType"`
-	// Depth marks the depth for calling of function `parseParameters`
-	Depth *int `json:"depth"`
+}
+
+// ReferenceParameterTable stores the information of a bunch of ReferenceParameter in a table style
+type ReferenceParameterTable struct {
+	Name       string
+	Parameters []ReferenceParameter
+	Depth      *int
 }
 
 var refContent string
@@ -423,14 +424,14 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 				refContent += ref.prepareParameter("#"+property.Name, property.Parameters, types.HelmCategory)
 			}
 		case types.TerraformCategory:
-			// No Terraform capability is built in.
-			continue
+			refContent, err = ref.GenerateTerraformCapabilityProperties(c)
+			if err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("unsupport capability category %s", c.Category)
 		}
-		title := fmt.Sprintf(`---
-title:  %s
----`, capNameInTitle)
+		title := fmt.Sprintf("%s\n===============", capNameInTitle)
 
 		description := fmt.Sprintf("\n\n# Description\n\n%s", c.Description)
 		var sample string
@@ -470,6 +471,11 @@ func (ref *MarkdownReference) prepareParameter(tableName string, parameterList [
 			printableDefaultValue := ref.getHELMPrintableDefaultValue(p.JSONType, p.Default)
 			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, strings.ReplaceAll(p.Usage, "\n", ""), p.PrintableType, p.Required, printableDefaultValue)
 		}
+	case types.TerraformCategory:
+		// Terraform doesn't have default value
+		for _, p := range parameterList {
+			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, strings.ReplaceAll(p.Usage, "\n", ""), p.PrintableType, p.Required, "")
+		}
 	default:
 	}
 	return refContent
@@ -496,7 +502,6 @@ func (ref *ParseReference) prepareParameter(tableName string, parameterList []Re
 		for _, p := range parameterList {
 			table.Append([]string{p.Name, p.Usage, p.PrintableType, strconv.FormatBool(p.Required), ""})
 		}
-
 	default:
 	}
 
@@ -633,7 +638,7 @@ func (ref *ParseReference) getHELMPrintableDefaultValue(dataType string, value i
 
 // generateSample generates Specification part for reference docs
 func (ref *MarkdownReference) generateSample(capabilityName string) string {
-       // TODO(zzxwill): we should generate the sample automatically instead of maintain hardcode example.
+	// TODO(zzxwill): we should generate the sample automatically instead of maintain hardcode example.
 	if _, ok := ConfigurationYamlSample[capabilityName]; ok {
 		return fmt.Sprintf("```yaml%s```", ConfigurationYamlSample[capabilityName])
 	}
@@ -711,6 +716,66 @@ func (ref *ParseReference) GenerateHELMProperties(ctx context.Context, capabilit
 	return helmRefs, consoleRefs, err
 }
 
+// GenerateTerraformCapabilityProperties generates Capability properties for Terraform ComponentDefinition
+func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.Capability) ([]ReferenceParameterTable, error) {
+	var (
+		tables                                       []ReferenceParameterTable
+		refParameterList                             []ReferenceParameter
+		writeConnectionSecretToRefReferenceParameter ReferenceParameter
+	)
+
+	writeConnectionSecretToRefReferenceParameter.Name = TerraformWriteConnectionSecretToRefName
+	writeConnectionSecretToRefReferenceParameter.PrintableType = TerraformWriteConnectionSecretToRefType
+	writeConnectionSecretToRefReferenceParameter.Required = false
+	writeConnectionSecretToRefReferenceParameter.Usage = "The secret which the cloud resource connection will be written to"
+
+	variables, err := ref.parseTerraformVariables(capability.TerraformConfiguration)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to generate capability properties")
+	}
+	for _, v := range variables {
+		var refParam ReferenceParameter
+		refParam.Name = v.Name
+		refParam.PrintableType = v.Type
+		refParam.Usage = v.Description
+		refParam.Required = true
+		refParameterList = append(refParameterList, refParam)
+	}
+	refParameterList = append(refParameterList, writeConnectionSecretToRefReferenceParameter)
+
+	propertiesTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 1), "Properties")
+	tables = append(tables, ReferenceParameterTable{
+		Name:       propertiesTableName,
+		Parameters: refParameterList,
+	})
+
+	var (
+		writeSecretRefNameParam      ReferenceParameter
+		writeSecretRefNameSpaceParam ReferenceParameter
+	)
+
+	// prepare `## writeConnectionSecretToRef`
+	writeSecretRefNameParam.Name = "name"
+	writeSecretRefNameParam.PrintableType = "string"
+	writeSecretRefNameParam.Required = true
+	writeSecretRefNameParam.Usage = "The secret name which the cloud resource connection will be written to"
+
+	writeSecretRefNameSpaceParam.Name = "namespace"
+	writeSecretRefNameSpaceParam.PrintableType = "string"
+	writeSecretRefNameSpaceParam.Required = false
+	writeSecretRefNameSpaceParam.Usage = "The secret namespace which the cloud resource connection will be written to"
+
+	writeSecretRefParameterList := []ReferenceParameter{writeSecretRefNameParam, writeSecretRefNameSpaceParam}
+	writeSecretTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 2), TerraformWriteConnectionSecretToRefName)
+
+	tables = append(tables, ReferenceParameterTable{
+		Name:       writeSecretTableName,
+		Parameters: writeSecretRefParameterList,
+	})
+
+	return tables, nil
+}
+
 // WalkParameterSchema will extract properties from *openapi3.Schema
 func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 	if parameters == nil {
@@ -759,57 +824,30 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 	}
 }
 
-// GenerateTerraformCapabilityProperties generates Capability properties for Terraform ComponentDefinition
-// application developers need to set two sections `variable` and `writeConnectionSecretToRef` in an application
-func (ref *ConsoleReference) GenerateTerraformCapabilityProperties(capability *types.Capability) ([]ConsoleReference, error) {
-	var (
-		writeConnectionSecretToRefReferenceParameter ReferenceParameter
-		propertiesConsoleReference                   ConsoleReference
-		writeSecretConsoleReference                  ConsoleReference
-	)
+// GenerateTerraformCapabilityProperties generates Capability properties for Terraform ComponentDefinition in Cli console
+func (ref *ConsoleReference) GenerateTerraformCapabilityProperties(capability types.Capability) ([]ConsoleReference, error) {
+	var references []ConsoleReference
 
-	writeConnectionSecretToRefReferenceParameter.Name = TerraformWriteConnectionSecretToRefName
-	writeConnectionSecretToRefReferenceParameter.PrintableType = TerraformWriteConnectionSecretToRefType
-	writeConnectionSecretToRefReferenceParameter.Required = false
-	writeConnectionSecretToRefReferenceParameter.Usage = "The secret which the cloud resource connection will be written to"
-
-	variables, err := ref.parseTerraformVariables(capability.TerraformConfiguration)
+	tables, err := ref.parseTerraformCapabilityParameters(capability)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to generate capability properties")
+		return nil, err
 	}
-	var refParameterList []ReferenceParameter
-	for _, v := range variables {
-		var refParam ReferenceParameter
-		refParam.Name = v.Name
-		refParam.PrintableType = v.Type
-		refParam.Usage = v.Description
-		refParam.Required = true
-		refParameterList = append(refParameterList, refParam)
+	for _, t := range tables {
+		references = append(references, ref.prepareParameter(t.Name, t.Parameters, types.TerraformCategory))
 	}
-	refParameterList = append(refParameterList, writeConnectionSecretToRefReferenceParameter)
+	return references, nil
+}
 
-	propertiesTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 1), "Properties")
-	propertiesConsoleReference = ref.prepareParameter(propertiesTableName, refParameterList, types.CUECategory)
+// GenerateTerraformCapabilityProperties generates Capability properties for Terraform ComponentDefinition in a local website
+func (ref *MarkdownReference) GenerateTerraformCapabilityProperties(capability types.Capability) (string, error) {
+	var references string
 
-	var (
-		writeSecretRefNameParam      ReferenceParameter
-		writeSecretRefNameSpaceParam ReferenceParameter
-	)
-
-	// prepare `## writeConnectionSecretToRef`
-	writeSecretRefNameParam.Name = "name"
-	writeSecretRefNameParam.PrintableType = "string"
-	writeSecretRefNameParam.Required = true
-	writeSecretRefNameParam.Usage = "The secret name which the cloud resource connection will be written to"
-
-	writeSecretRefNameSpaceParam.Name = "namespace"
-	writeSecretRefNameSpaceParam.PrintableType = "string"
-	writeSecretRefNameSpaceParam.Required = false
-	writeSecretRefNameSpaceParam.Usage = "The secret namespace which the cloud resource connection will be written to"
-
-	writeSecretRefParameterList := []ReferenceParameter{writeSecretRefNameParam, writeSecretRefNameSpaceParam}
-	writeSecretTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 2), TerraformWriteConnectionSecretToRefName)
-	writeSecretConsoleReference = ref.prepareParameter(writeSecretTableName, writeSecretRefParameterList, types.CUECategory)
-
-	return []ConsoleReference{propertiesConsoleReference, writeSecretConsoleReference}, nil
+	tables, err := ref.parseTerraformCapabilityParameters(capability)
+	if err != nil {
+		return "", err
+	}
+	for _, t := range tables {
+		references += ref.prepareParameter(t.Name, t.Parameters, types.CUECategory)
+	}
+	return references, nil
 }

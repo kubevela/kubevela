@@ -110,11 +110,9 @@ parameter: {
 func TestPrepareParameterTable(t *testing.T) {
 	ref := MarkdownReference{}
 	tableName := "hello"
-	var depth int = 1
 	parameterList := []ReferenceParameter{
 		{
 			PrintableType: "string",
-			Depth:         &depth,
 		},
 	}
 	parameterName := "cpu"
@@ -329,7 +327,7 @@ func TestWalkParameterSchema(t *testing.T) {
 func TestGenerateTerraformCapabilityProperties(t *testing.T) {
 	ref := &ConsoleReference{}
 	type args struct {
-		cap *types.Capability
+		cap types.Capability
 	}
 
 	type want struct {
@@ -343,7 +341,7 @@ func TestGenerateTerraformCapabilityProperties(t *testing.T) {
 	}{
 		"normal": {
 			args: args{
-				cap: &types.Capability{
+				cap: types.Capability{
 					TerraformConfiguration: `
 resource "alicloud_oss_bucket" "bucket-acl" {
   bucket = var.bucket
@@ -376,7 +374,7 @@ variable "acl" {
 		},
 		"configuration is not valid": {
 			args: args{
-				cap: &types.Capability{
+				cap: types.Capability{
 					TerraformConfiguration: `abc`,
 				},
 			},
