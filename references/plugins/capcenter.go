@@ -189,16 +189,16 @@ func ParseAndSyncCapability(mapper discoverymapper.DiscoveryMapper, data []byte)
 	}
 	switch obj.GetKind() {
 	case "ComponentDefinition":
-		var rd v1beta1.ComponentDefinition
-		err = yaml.Unmarshal(data, &rd)
+		var cd v1beta1.ComponentDefinition
+		err = yaml.Unmarshal(data, &cd)
 		if err != nil {
 			return types.Capability{}, err
 		}
-		ref, err := util.ConvertWorkloadGVK2Definition(mapper, rd.Spec.Workload.Definition)
+		ref, err := util.ConvertWorkloadGVK2Definition(mapper, cd.Spec.Workload.Definition)
 		if err != nil {
 			return types.Capability{}, err
 		}
-		return HandleDefinition(rd.Name, ref.Name, rd.Annotations, rd.Spec.Extension, types.TypeComponentDefinition, nil, rd.Spec.Schematic)
+		return HandleDefinition(cd.Name, ref.Name, cd.Annotations, cd.Spec.Extension, types.TypeComponentDefinition, nil, cd.Spec.Schematic)
 	case "TraitDefinition":
 		var td v1beta1.TraitDefinition
 		err = yaml.Unmarshal(data, &td)
@@ -237,51 +237,117 @@ func NewGithubCenter(ctx context.Context, token, centerName string, r *GithubCon
 // SyncCapabilityFromCenter will sync capability from github cap center
 // TODO(wonderflow): currently we only sync by create, we also need to delete which not exist remotely.
 func (g *GithubCenter) SyncCapabilityFromCenter() error {
-	_, dirs, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, g.cfg.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
-	if err != nil {
-		return err
-	}
 	dir, err := system.GetCapCenterDir()
 	if err != nil {
 		return err
 	}
 	repoDir := filepath.Join(dir, g.centerName)
-	_, _ = system.CreateIfNotExist(repoDir)
-	c := &common.Args{}
-	dm, err := c.GetDiscoveryMapper()
+	var success int
+	items, err := g.getRepoFile()
 	if err != nil {
 		return err
 	}
-	var success, total int
-	for _, addon := range dirs {
-		if *addon.Type != "file" {
-			continue
-		}
-		total++
-		fileContent, _, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, *addon.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
+	for _, item := range items {
+		addon, err := item.toAddon()
 		if err != nil {
 			return err
 		}
-		var data = []byte(*fileContent.Content)
-		if *fileContent.Encoding == "base64" {
-			data, err = base64.StdEncoding.DecodeString(*fileContent.Content)
-			if err != nil {
-				return fmt.Errorf("decode github content %s err %w", *fileContent.Path, err)
-			}
-		}
-		tmp, err := ParseAndSyncCapability(dm, data)
-		if err != nil {
-			fmt.Printf("parse definition of %s err %v\n", *fileContent.Name, err)
-			continue
-		}
 		//nolint:gosec
-		err = ioutil.WriteFile(filepath.Join(repoDir, tmp.Name+".yaml"), data, 0644)
+		err = ioutil.WriteFile(filepath.Join(repoDir, addon.Name+".yaml"), item.data, 0644)
 		if err != nil {
-			fmt.Printf("write definition %s to %s err %v\n", tmp.Name+".yaml", repoDir, err)
+			fmt.Printf("write definition %s to %s err %v\n", addon.Name+".yaml", repoDir, err)
 			continue
 		}
 		success++
 	}
-	fmt.Printf("successfully sync %d/%d from %s remote center\n", success, total, g.centerName)
+	fmt.Printf("successfully sync %d from %s remote center\n", success, g.centerName)
 	return nil
+}
+
+// GetCapAndFileContent will return a certain yaml file's content and cap object
+func (g *GithubCenter) GetCapAndFileContent(addonName string) (types.Capability, []byte, error) {
+	rawRepoItems, err := g.getRepoFile()
+	if err != nil {
+		return types.Capability{}, []byte{}, err
+	}
+	for _, item := range rawRepoItems {
+		addon, err := item.toAddon()
+		if err != nil {
+			fmt.Printf("parse definition of %s err %v\n", item.name, err)
+			continue
+		}
+		if addon.Name == addonName {
+			return addon, item.data, nil
+		}
+	}
+	return types.Capability{}, []byte{}, fmt.Errorf("%s addon Not found", addonName)
+
+}
+
+// GetCaps will return all capabilities from this githubCenter
+func (g *GithubCenter) GetCaps() ([]types.Capability, error) {
+	var addons []types.Capability
+
+	itemContents, err := g.getRepoFile()
+	if err != nil {
+		return []types.Capability{}, err
+	}
+	for _, item := range itemContents {
+		capa, err := item.toAddon()
+		if err != nil {
+			fmt.Printf("parse definition of %s err %v\n", item.name, err)
+			continue
+		}
+		addons = append(addons, capa)
+	}
+	return addons, nil
+}
+
+func (g *GithubCenter) getRepoFile() ([]RepoFile, error) {
+	var items []RepoFile
+	_, dirs, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, g.cfg.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
+	if err != nil {
+		return []RepoFile{}, err
+	}
+	for _, repoItem := range dirs {
+		if *repoItem.Type != "file" {
+			continue
+		}
+		fileContent, _, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, *repoItem.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
+		if err != nil {
+			fmt.Printf("Getting content URL %s error: %s\n", repoItem.GetURL(), err)
+			continue
+		}
+		var data []byte
+		if *fileContent.Encoding == "base64" {
+			data, err = base64.StdEncoding.DecodeString(*fileContent.Content)
+			if err != nil {
+				fmt.Printf("decode github content %s err %s\n", fileContent.GetPath(), err)
+				continue
+			}
+		}
+		items = append(items, RepoFile{
+			data: data,
+			name: *fileContent.Name,
+		})
+	}
+	return items, nil
+}
+
+func (item RepoFile) toAddon() (types.Capability, error) {
+	dm, err := (&common.Args{}).GetDiscoveryMapper()
+	if err != nil {
+		return types.Capability{}, err
+	}
+	capability, err := ParseAndSyncCapability(dm, item.data)
+	if err != nil {
+		return types.Capability{}, err
+	}
+	return capability, nil
+}
+
+// RepoFile contains a file item in github repo
+type RepoFile struct {
+	data []byte // file content
+	name string // file's name
 }

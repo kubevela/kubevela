@@ -17,10 +17,17 @@ limitations under the License.
 package cli
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
@@ -83,5 +90,92 @@ func printComponentList(userNamespace string, c common2.Args, ioStreams cmdutil.
 		table.AddRow(r.Name, r.Namespace, workload, plugins.GetDescription(r.Annotations))
 	}
 	ioStreams.Info(table.String())
+	return nil
+}
+
+// PrintDefaultCapComponentList print a table which shows all components from default registry
+func PrintDefaultCapComponentList(isDiscover bool, ioStreams cmdutil.IOStreams) error {
+	var scheme = runtime.NewScheme()
+	err := core.AddToScheme(scheme)
+	if err != nil {
+		return err
+	}
+	err = clientgoscheme.AddToScheme(scheme)
+	if err != nil {
+		return err
+	}
+	k8sClient, err := client.New(config.GetConfigOrDie(), client.Options{Scheme: scheme})
+	if err != nil {
+		return err
+	}
+
+	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing components from default registry:%s\n", defaultCenter)))
+	g, err := getDefaultGithubCenter()
+	if err != nil {
+		return err
+	}
+	caps, err := g.GetCaps()
+	if err != nil {
+		return err
+	}
+
+	var installedList v1beta1.ComponentDefinitionList
+	err = k8sClient.List(context.Background(), &installedList, client.InNamespace(types.DefaultKubeVelaNS))
+	if err != nil {
+		return err
+	}
+	table := newUITable()
+	if isDiscover {
+		table.AddRow("NAME", "REGISTRY", "DEFINITION")
+	} else {
+		table.AddRow("NAME", "DEFINITION")
+	}
+	for _, c := range caps {
+		c.Status = uninstalled
+		if c.Type != types.TypeComponentDefinition {
+			continue
+		}
+		for _, ins := range installedList.Items {
+			if ins.Name == c.Name {
+				c.Status = installed
+			}
+		}
+
+		if c.Status == uninstalled && isDiscover {
+			table.AddRow(c.Name, "default", c.CrdName)
+		}
+		if c.Status == installed && !isDiscover {
+			table.AddRow(c.Name, c.CrdName)
+		}
+	}
+	ioStreams.Info(table.String())
+
+	return nil
+}
+
+// InstallCompByName will install given componentName comp to cluter from default registry
+func InstallCompByName(args common2.Args, ioStream cmdutil.IOStreams, compName string) error {
+
+	g, err := getDefaultGithubCenter()
+	if err != nil {
+		return err
+	}
+	capObj, data, err := g.GetCapAndFileContent(compName)
+	if err != nil {
+		return err
+	}
+
+	client, err := args.GetClient()
+	if err != nil {
+		return err
+	}
+
+	err = common.InstallComponentDefinition(client, data, ioStream, &capObj)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Successfully install component: %s", compName)
+
 	return nil
 }

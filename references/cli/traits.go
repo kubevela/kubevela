@@ -17,10 +17,18 @@ limitations under the License.
 package cli
 
 import (
+	"context"
+	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	core "github.com/oam-dev/kubevela/apis/core.oam.dev"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
@@ -70,3 +78,114 @@ func printTraitList(userNamespace string, c common2.Args, ioStreams cmdutil.IOSt
 	ioStreams.Info(table.String())
 	return nil
 }
+
+// PrintTraitList print a table which shows all traits from default registry
+func PrintTraitList(isDiscover bool, ioStreams cmdutil.IOStreams) error {
+	var scheme = runtime.NewScheme()
+	err := core.AddToScheme(scheme)
+	if err != nil {
+		return err
+	}
+	err = clientgoscheme.AddToScheme(scheme)
+	if err != nil {
+		return err
+	}
+	k8sClient, err := client.New(config.GetConfigOrDie(), client.Options{Scheme: scheme})
+	if err != nil {
+		return err
+	}
+
+	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing traits from default registry:%s\n", defaultCenter)))
+	caps, err := getCapsFromDefaultCenter()
+	if err != nil {
+		return err
+	}
+
+	table := newUITable()
+
+	var installedList v1beta1.TraitDefinitionList
+	err = k8sClient.List(context.Background(), &installedList, client.InNamespace(types.DefaultKubeVelaNS))
+	if err != nil {
+		return err
+	}
+	if isDiscover {
+		table.AddRow("NAME", "REGISTRY", "DEFINITION", "APPLIES-TO")
+	} else {
+		table.AddRow("NAME", "DEFINITION", "APPLIES-TO")
+	}
+	for _, c := range caps {
+		if c.Type != types.TypeTrait {
+			continue
+		}
+		c.Status = uninstalled
+		for _, ins := range installedList.Items {
+			if ins.Name == c.Name {
+				c.Status = installed
+			}
+		}
+		if c.Status == uninstalled && isDiscover {
+			table.AddRow(c.Name, "default", c.CrdName, c.AppliesTo)
+		}
+		if c.Status == installed && !isDiscover {
+			table.AddRow(c.Name, c.CrdName, c.AppliesTo)
+		}
+	}
+	ioStreams.Info(table.String())
+
+	return nil
+}
+
+// getCapsFromDefaultCenter will retrieve caps from default registry
+func getCapsFromDefaultCenter() ([]types.Capability, error) {
+	g, err := getDefaultGithubCenter()
+	if err != nil {
+		return []types.Capability{}, err
+	}
+	caps, err := g.GetCaps()
+	if err != nil {
+		return []types.Capability{}, err
+	}
+	return caps, nil
+}
+
+// getDefaultGithubCenter will return GH center object for defaultCenter
+func getDefaultGithubCenter() (*plugins.GithubCenter, error) {
+	_, ghContent, _ := plugins.Parse(defaultCenter)
+	g, err := plugins.NewGithubCenter(context.Background(), "", "default-cap-center", ghContent)
+	return g, err
+}
+
+// InstallTraitByName will install given traitName trait to cluter
+func InstallTraitByName(args common2.Args, ioStream cmdutil.IOStreams, traitName string) error {
+
+	g, err := getDefaultGithubCenter()
+	if err != nil {
+		return err
+	}
+	capObj, data, err := g.GetCapAndFileContent(traitName)
+	if err != nil {
+		return err
+	}
+
+	client, err := args.GetClient()
+	if err != nil {
+		return err
+	}
+	mapper, err := args.GetDiscoveryMapper()
+	if err != nil {
+		return err
+	}
+
+	err = common.InstallTraitDefinition(client, mapper, data, ioStream, &capObj)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Successfully install trait: %s", traitName)
+	return nil
+}
+
+// defaultCenter is default capability center of kubectl-vela
+var defaultCenter = "https://github.com/oam-dev/catalog/tree/master/registry"
+
+const installed = "installed"
+const uninstalled = "uninstalled"

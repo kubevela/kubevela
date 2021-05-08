@@ -19,6 +19,7 @@ package plugin
 import (
 	"fmt"
 	"io/ioutil"
+	"os/exec"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -122,6 +123,66 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", cdName))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("Properties"))
+		})
+	})
+
+	Context("Test kubectl vela comp discover", func() {
+		It("Test list components in default registry", func() {
+			output, err := e2e.Exec("kubectl-vela comp --discover")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Showing components from default registry"))
+			Expect(output).Should(ContainSubstring("cloneset"))
+			Expect(output).Should(ContainSubstring("kruise-statefulset"))
+			Expect(output).Should(ContainSubstring("openfaas"))
+		})
+	})
+	Context("Test kubectl vela trait discover", func() {
+		It("Test list traits in default registry", func() {
+			output, err := e2e.Exec("kubectl-vela trait --discover")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Showing traits from default registry"))
+			Expect(output).Should(ContainSubstring("[deployments.apps]"))
+			Expect(output).Should(ContainSubstring("metrics"))
+			Expect(output).Should(ContainSubstring("route"))
+			Expect(output).Should(ContainSubstring("virtualgroup"))
+		})
+	})
+	Context("Test kubectl vela comp and trait install", func() {
+		It("Test install a sample component", func() {
+			output, err := e2e.Exec("kubectl-vela comp get cloneset")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Successfully install component: cloneset"))
+		})
+		It("Test install a sample trait", func() {
+			output, err := e2e.Exec("kubectl-vela trait get init-container")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("Successfully install trait: init-container"))
+		})
+	})
+	Context("Test kubectl vela list installed comp and trait", func() {
+		It("Test list installed component", func() {
+			output, err := e2e.Exec("kubectl-vela comp")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("cloneset"))
+		})
+		It("Test list installed trait", func() {
+			output, err := e2e.Exec("kubectl-vela trait")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("init-container"))
+		})
+	})
+	Context("Test uninstall vela trait", func() {
+		It("Clean the sample component", func() {
+			cmd := exec.Command("kubectl", "delete", "componentDefinition", "cloneset", "-n", "vela-system")
+			output, err := cmd.Output()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("componentdefinition.core.oam.dev \"cloneset\" deleted"))
+		})
+		It("Clean the sample trait", func() {
+			cmd := exec.Command("kubectl", "delete", "traitDefinition", "init-container", "-n", "vela-system")
+			output, err := cmd.Output()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(output).Should(ContainSubstring("traitdefinition.core.oam.dev \"init-container\" deleted"))
 		})
 	})
 })

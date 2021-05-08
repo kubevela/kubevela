@@ -1,0 +1,71 @@
+/*
+ Copyright 2021. The KubeVela Authors.
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+*/
+
+package cli
+
+import (
+	"github.com/spf13/cobra"
+
+	"github.com/oam-dev/kubevela/apis/types"
+	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
+	cmdutil "github.com/oam-dev/kubevela/pkg/utils/util"
+	"github.com/oam-dev/kubevela/references/cli"
+)
+
+// NewCompCommand creates `comp` command
+func NewCompCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	var discoverFlag bool
+	cmd := &cobra.Command{
+		Use:                   "comp",
+		DisableFlagsInUseLine: true,
+		Short:                 "Show components in cap center",
+		Long:                  "Show components in cap center",
+		Example:               "kubectl vela comp",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			isDiscover, _ := cmd.Flags().GetBool("discover")
+			err := cli.PrintDefaultCapComponentList(isDiscover, ioStreams)
+			return err
+		},
+		Annotations: map[string]string{
+			types.TagCommandType: types.TypePlugin,
+		},
+	}
+	cmd.SetOut(ioStreams.Out)
+	cmd.Flags().Bool("discover", discoverFlag, "discover traits in registries")
+	cmd.AddCommand(
+		NewCompGetCommand(c, ioStreams),
+	)
+	return cmd
+}
+
+// NewCompGetCommand creates `comp get` command
+func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "get <component>",
+		Short:   "get component from default registry",
+		Long:    "get component from default registry",
+		Example: "kubectl vela comp get <component>",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 1 {
+				ioStreams.Error("you must specify the component name")
+				return nil
+			}
+			name := args[0]
+			return cli.InstallCompByName(c, ioStreams, name)
+		},
+	}
+	return cmd
+}
