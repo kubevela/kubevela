@@ -260,6 +260,72 @@ parameter: {
 				},
 			},
 		},
+
+		"patch trait with strategic merge": {
+			traitTemplate: `
+patch: {
+      // +patchKey=name
+      spec: template: spec: {
+		// +patchStrategy=retainKeys
+		containers: [{
+			name:  "main"
+			image: parameter.image
+			ports: [{containerPort: parameter.port}]
+			envFrom: [{
+				configMapRef: name: context.name + "game-config"
+			}]
+			if parameter["command"] != _|_ {
+				command: parameter.command
+			}
+	  }]	
+	}
+}
+
+parameter: {
+	image: string
+	port: int
+	command?: [...string]
+}
+`,
+			params: map[string]interface{}{
+				"image":   "website:0.2",
+				"port":    8080,
+				"command": []string{"server", "start"},
+			},
+			expWorkload: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "apps/v1",
+					"kind":       "Deployment",
+					"spec": map[string]interface{}{
+						"replicas": int64(2),
+						"selector": map[string]interface{}{
+							"matchLabels": map[string]interface{}{
+								"app.oam.dev/component": "test"}},
+						"template": map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{"app.oam.dev/component": "test"},
+							},
+							"spec": map[string]interface{}{
+								"containers": []interface{}{map[string]interface{}{
+									"envFrom": []interface{}{map[string]interface{}{
+										"configMapRef": map[string]interface{}{"name": "testgame-config"},
+									}},
+									"image":   "website:0.2",
+									"name":    "main",
+									"command": []interface{}{"server", "start"},
+									"ports":   []interface{}{map[string]interface{}{"containerPort": int64(8080)}}},
+								}}}}},
+			},
+			expAssObjs: map[string]runtime.Object{
+				"AuxiliaryWorkloadgameconfig": &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"apiVersion": "v1",
+						"kind":       "ConfigMap",
+						"metadata":   map[string]interface{}{"name": "testgame-config"}, "data": map[string]interface{}{"enemies": "enemies-data", "lives": "lives-data"}},
+				},
+			},
+		},
+
 		"output trait": {
 			traitTemplate: `
 outputs: service: {
@@ -700,7 +766,7 @@ parameter: {
 		assert.Equal(t, len(v.expAssObjs), len(assists), cassinfo)
 		assert.NotNil(t, base)
 		obj, err := base.Unstructured()
-		assert.NoError(t, err)
+		assert.NoError(t, err, base.String())
 		assert.Equal(t, v.expWorkload, obj, cassinfo)
 		for _, ss := range assists {
 			got, err := ss.Ins.Unstructured()
