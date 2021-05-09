@@ -57,7 +57,7 @@ var td corev1beta1.TraitDefinition
 var wd, websvcWD corev1beta1.WorkloadDefinition
 var cd, websvcCD corev1beta1.ComponentDefinition
 
-func TestAPIs(t *testing.T) {
+func TestReferencePlugins(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	RunSpecsWithDefaultAndCustomReporters(t,

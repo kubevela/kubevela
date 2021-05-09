@@ -57,13 +57,43 @@ func GetCapabilitiesFromCluster(ctx context.Context, namespace string, c common.
 	return workloads, nil
 }
 
+// GetNamespacedCapabilitiesFromCluster will get capability from K8s cluster in the specified namespace and default namespace
+// If the definition could be found from `namespace`, try to find in namespace `types.DefaultKubeVelaNS`
+func GetNamespacedCapabilitiesFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, error) {
+	var capabilities []types.Capability
+
+	if workloads, _, err := GetComponentsFromClusterWithValidateOption(ctx, namespace, c, selector, false); err == nil {
+		capabilities = append(capabilities, workloads...)
+	}
+
+	if traits, _, err := GetTraitsFromClusterWithValidateOption(ctx, namespace, c, selector, false); err == nil {
+		capabilities = append(capabilities, traits...)
+	}
+
+	// get components from default namespace
+	if workloads, _, err := GetComponentsFromClusterWithValidateOption(ctx, types.DefaultKubeVelaNS, c, selector, false); err == nil {
+		capabilities = append(capabilities, workloads...)
+	}
+
+	// get traits from default namespace
+	if traits, _, err := GetTraitsFromClusterWithValidateOption(ctx, types.DefaultKubeVelaNS, c, selector, false); err == nil {
+		capabilities = append(capabilities, traits...)
+	}
+
+	if len(capabilities) > 0 {
+		return capabilities, nil
+	}
+	return nil, fmt.Errorf("could not find any components or traits from namespace %s and %s", namespace, types.DefaultKubeVelaNS)
+}
+
 // GetComponentsFromCluster will get capability from K8s cluster
 func GetComponentsFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, []error, error) {
+	return GetComponentsFromClusterWithValidateOption(ctx, namespace, c, selector, true)
+}
+
+// GetComponentsFromClusterWithValidateOption will get capability from K8s cluster with an option whether to valid Components
+func GetComponentsFromClusterWithValidateOption(ctx context.Context, namespace string, c common.Args, selector labels.Selector, validateFlag bool) ([]types.Capability, []error, error) {
 	newClient, err := c.GetClient()
-	if err != nil {
-		return nil, nil, err
-	}
-	dm, err := discoverymapper.New(c.Config)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -77,27 +107,37 @@ func GetComponentsFromCluster(ctx context.Context, namespace string, c common.Ar
 
 	var templateErrors []error
 	for _, cd := range componentsDefs.Items {
-		ref, err := util.ConvertWorkloadGVK2Definition(dm, cd.Spec.Workload.Definition)
+		dm, err := c.GetDiscoveryMapper()
 		if err != nil {
-			templateErrors = append(templateErrors, errors.Wrapf(err, "convert workload definition `%s` failed", cd.Name))
-			continue
-		}
-		tmp, err := HandleDefinition(cd.Name, ref.Name, cd.Annotations, cd.Spec.Extension, types.TypeComponentDefinition, nil, cd.Spec.Schematic)
-		if err != nil {
-			templateErrors = append(templateErrors, errors.Wrapf(err, "handle workload template `%s` failed", cd.Name))
-			continue
-		}
-		tmp.Namespace = namespace
-		if tmp, err = validateCapabilities(tmp, dm, cd.Name, ref); err != nil {
 			return nil, nil, err
 		}
-		templates = append(templates, tmp)
+		ref, err := util.ConvertWorkloadGVK2Definition(dm, cd.Spec.Workload.Definition)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		tmp, err := GetCapabilityByComponentDefinitionObject(cd, ref.Name)
+		if err != nil {
+			templateErrors = append(templateErrors, err)
+			continue
+		}
+		if validateFlag {
+			if err = validateCapabilities(tmp, dm, cd.Name, ref); err != nil {
+				return nil, nil, err
+			}
+		}
+		templates = append(templates, *tmp)
 	}
 	return templates, templateErrors, nil
 }
 
 // GetTraitsFromCluster will get capability from K8s cluster
 func GetTraitsFromCluster(ctx context.Context, namespace string, c common.Args, selector labels.Selector) ([]types.Capability, []error, error) {
+	return GetTraitsFromClusterWithValidateOption(ctx, namespace, c, selector, true)
+}
+
+// GetTraitsFromClusterWithValidateOption will get capability from K8s cluster with an option whether to valid Traits
+func GetTraitsFromClusterWithValidateOption(ctx context.Context, namespace string, c common.Args, selector labels.Selector, validateFlag bool) ([]types.Capability, []error, error) {
 	newClient, err := c.GetClient()
 	if err != nil {
 		return nil, nil, err
@@ -115,28 +155,30 @@ func GetTraitsFromCluster(ctx context.Context, namespace string, c common.Args, 
 
 	var templateErrors []error
 	for _, td := range traitDefs.Items {
-		tmp, err := HandleDefinition(td.Name, td.Spec.Reference.Name, td.Annotations, td.Spec.Extension, types.TypeTrait, td.Spec.AppliesToWorkloads, td.Spec.Schematic)
+		tmp, err := GetCapabilityByTraitDefinitionObject(td)
 		if err != nil {
 			templateErrors = append(templateErrors, errors.Wrapf(err, "handle trait template `%s` failed", td.Name))
 			continue
 		}
 		tmp.Namespace = namespace
-		if tmp, err = validateCapabilities(tmp, dm, td.Name, td.Spec.Reference); err != nil {
-			return nil, nil, err
+		if validateFlag {
+			if err = validateCapabilities(tmp, dm, td.Name, td.Spec.Reference); err != nil {
+				return nil, nil, err
+			}
 		}
-		templates = append(templates, tmp)
+		templates = append(templates, *tmp)
 	}
 	return templates, templateErrors, nil
 }
 
 // validateCapabilities validates whether helm charts are successful installed, GVK are successfully retrieved.
-func validateCapabilities(tmp types.Capability, dm discoverymapper.DiscoveryMapper, definitionName string, reference commontypes.DefinitionReference) (types.Capability, error) {
+func validateCapabilities(tmp *types.Capability, dm discoverymapper.DiscoveryMapper, definitionName string, reference commontypes.DefinitionReference) error {
 	var err error
 	if tmp.Install != nil {
 		tmp.Source = &types.Source{ChartName: tmp.Install.Helm.Name}
 		ioStream := util2.IOStreams{In: os.Stdin, Out: os.Stdout, ErrOut: os.Stderr}
 		if err = helm.InstallHelmChart(ioStream, tmp.Install.Helm); err != nil {
-			return tmp, fmt.Errorf("unable to install helm chart dependency %s(%s from %s) for this trait '%s': %w ", tmp.Install.Helm.Name, tmp.Install.Helm.Version, tmp.Install.Helm.URL, definitionName, err)
+			return fmt.Errorf("unable to install helm chart dependency %s(%s from %s) for this trait '%s': %w ", tmp.Install.Helm.Name, tmp.Install.Helm.Version, tmp.Install.Helm.URL, definitionName, err)
 		}
 	}
 	gvk, err := util.GetGVKFromDefinition(dm, reference)
@@ -146,14 +188,14 @@ func validateCapabilities(tmp types.Capability, dm discoverymapper.DiscoveryMapp
 		if strings.Contains(errMsg, substr) {
 			err = fmt.Errorf("expected provider: %s", strings.Split(errMsg, substr)[1])
 		}
-		return tmp, fmt.Errorf("installing capability '%s'... %w", definitionName, err)
+		return fmt.Errorf("installing capability '%s'... %w", definitionName, err)
 	}
 	tmp.CrdInfo = &types.CRDInfo{
 		APIVersion: gvk.GroupVersion().String(),
 		Kind:       gvk.Kind,
 	}
 
-	return tmp, nil
+	return nil
 }
 
 // HandleDefinition will handle definition to capability
@@ -226,42 +268,11 @@ func HandleTemplate(in *runtime.RawExtension, schematic *commontypes.Schematic, 
 	return tmp, nil
 }
 
-// SyncDefinitionsToLocal sync definitions to local
-func SyncDefinitionsToLocal(ctx context.Context, c common.Args, localDefinitionDir string) ([]types.Capability, []string, error) {
-	var syncedTemplates []types.Capability
-	var warnings []string
-
-	templates, templateErrors, err := GetComponentsFromCluster(ctx, types.DefaultKubeVelaNS, c, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	if len(templateErrors) > 0 {
-		for _, e := range templateErrors {
-			warnings = append(warnings, fmt.Sprintf("WARN: %v, you will unable to use this component capability\n", e))
-		}
-	}
-	syncedTemplates = append(syncedTemplates, templates...)
-	SinkTemp2Local(templates, localDefinitionDir)
-
-	templates, templateErrors, err = GetTraitsFromCluster(ctx, types.DefaultKubeVelaNS, c, nil)
-	if err != nil {
-		return nil, warnings, err
-	}
-	if len(templateErrors) > 0 {
-		for _, e := range templateErrors {
-			warnings = append(warnings, fmt.Sprintf("WARN: %v, you will unable to use this trait capability\n", e))
-		}
-	}
-	syncedTemplates = append(syncedTemplates, templates...)
-	SinkTemp2Local(templates, localDefinitionDir)
-	return syncedTemplates, warnings, nil
-}
-
 // GetCapabilityByName gets capability by definition name
 func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName string, ns string) (*types.Capability, error) {
 	var (
 		foundCapability bool
-		template        types.Capability
+		capability      *types.Capability
 		err             error
 	)
 
@@ -289,13 +300,11 @@ func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName stri
 		if err != nil {
 			return nil, err
 		}
-		template, err = HandleDefinition(capabilityName, ref.Name,
-			componentDef.Annotations, componentDef.Spec.Extension, types.TypeComponentDefinition, nil, componentDef.Spec.Schematic)
+		capability, err = GetCapabilityByComponentDefinitionObject(componentDef, ref.Name)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to handle ComponentDefinition")
+			return nil, err
 		}
-		template.Namespace = componentDef.Namespace
-		return &template, nil
+		return capability, nil
 	}
 
 	foundCapability = false
@@ -310,13 +319,37 @@ func GetCapabilityByName(ctx context.Context, c common.Args, capabilityName stri
 		}
 	}
 	if foundCapability {
-		template, err = HandleDefinition(capabilityName, traitDef.Spec.Reference.Name,
-			traitDef.Annotations, traitDef.Spec.Extension, types.TypeTrait, nil, traitDef.Spec.Schematic)
+		capability, err = GetCapabilityByTraitDefinitionObject(traitDef)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to handle TraitDefinition")
+			return nil, err
 		}
-		template.Namespace = traitDef.Namespace
-		return &template, nil
+		return capability, nil
 	}
 	return nil, fmt.Errorf("cloud not find %s is namespace %s, or %s", capabilityName, ns, types.DefaultKubeVelaNS)
+}
+
+// GetCapabilityByComponentDefinitionObject gets capability by ComponentDefinition object
+func GetCapabilityByComponentDefinitionObject(componentDef v1beta1.ComponentDefinition, referenceName string) (*types.Capability, error) {
+	capability, err := HandleDefinition(componentDef.Name, referenceName,
+		componentDef.Annotations, componentDef.Spec.Extension, types.TypeComponentDefinition, nil, componentDef.Spec.Schematic)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to handle ComponentDefinition")
+	}
+	capability.Namespace = componentDef.Namespace
+	return &capability, nil
+}
+
+// GetCapabilityByTraitDefinitionObject gets capability by TraitDefinition object
+func GetCapabilityByTraitDefinitionObject(traitDef v1beta1.TraitDefinition) (*types.Capability, error) {
+	var (
+		capability types.Capability
+		err        error
+	)
+	capability, err = HandleDefinition(traitDef.Name, traitDef.Spec.Reference.Name,
+		traitDef.Annotations, traitDef.Spec.Extension, types.TypeTrait, nil, traitDef.Spec.Schematic)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to handle TraitDefinition")
+	}
+	capability.Namespace = traitDef.Namespace
+	return &capability, nil
 }

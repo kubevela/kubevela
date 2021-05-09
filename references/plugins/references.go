@@ -42,11 +42,11 @@ import (
 
 const (
 	// BaseRefPath is the target path for reference docs
-	BaseRefPath = "docs/en/developers/references"
+	BaseRefPath = "docs/en/end-user"
 	// ReferenceSourcePath is the location for source reference
 	ReferenceSourcePath = "hack/references"
 	// ComponentDefinitionTypePath is the URL path for component typed capability
-	ComponentDefinitionTypePath = "component-types"
+	ComponentDefinitionTypePath = "components"
 	// WorkloadTypePath is the URL path for workload typed capability
 	WorkloadTypePath = "workload-types"
 	// TraitPath is the URL path for trait typed capability
@@ -54,12 +54,8 @@ const (
 )
 
 const (
-	// TerraformVariableName is the name for Terraform Variable
-	TerraformVariableName = "variable"
 	// TerraformWriteConnectionSecretToRefName is the name for Terraform WriteConnectionSecretToRef
 	TerraformWriteConnectionSecretToRefName = "writeConnectionSecretToRef"
-	// TerraformVariableType is the type for Terraform Variable
-	TerraformVariableType = "[variable](#variable)"
 	// TerraformWriteConnectionSecretToRefType is the type for Terraform WriteConnectionSecretToRef
 	TerraformWriteConnectionSecretToRefType = "[writeConnectionSecretToRef](#writeConnectionSecretToRef)"
 )
@@ -97,106 +93,224 @@ type ConsoleReference struct {
 
 // ConfigurationYamlSample stores the configuration yaml sample for capabilities
 var ConfigurationYamlSample = map[string]string{
-	"autoscale": `
-name: testapp
-
-services:
-  express-server:
-    ...
-
-    autoscale:
-      min: 1
-      max: 4
-      cron:
-        startAt:  "14:00"
-        duration: "2h"
-        days:     "Monday, Thursday"
-        replicas: 2
-        timezone: "America/Los_Angeles"
-      cpuPercent: 10
+	"annotations": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: myapp
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+      traits:
+        - type: labels
+          properties:
+            "release": "stable"
+        - type: annotations
+          properties:
+            "description": "web application"
 `,
+
+	"ingress": `
+kind: Application
+metadata:
+  name: first-vela-app
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+      traits:
+        - type: ingress
+          properties:
+            domain: testsvc.example.com
+            http:
+              "/": 8000
+`,
+
+	"labels": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: myapp
+spec:
+  components:
+    - name: express-server
+      type: webservice
+      properties:
+        image: crccheck/hello-world
+        port: 8000
+      traits:
+        - type: labels
+          properties:
+            "release": "stable"
+        - type: annotations
+          properties:
+            "description": "web application"
+`,
+
 	"metrics": `
-name: my-app-name
-
-services:
-  my-service-name:
-    ...
-    metrics:
-      format: "prometheus"
-      port: 8080
-      path: "/metrics"
-      scheme:  "http"
-      enabled: true
-`,
-	"rollout": `
-servcies:
-  express-server:
-    ...
-
-    rollout:
-      replicas: 2
-      stepWeight: 50
-      interval: "10s"
-`,
-	"route": `
-name: my-app-name
-
-services:
-  my-service-name:
-    ...
-    route:
-      domain: example.com
-      issuer: tls
-      rules:
-        - path: /testapp
-          rewriteTarget: /
-`,
-	"scaler": `
-name: my-app-name
-
-services:
-  my-service-name:
-    ...
-    scaler:
-      replicas: 100
-`,
-	"task": `
-name: my-app-name
-
-services:
-  my-service-name:
-    type: task
-    image: perl
-    count: 10
-    cmd: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
-`,
-	"webservice": `
-name: my-app-name
-
-services:
-  my-service-name:
-    type: webservice # could be skipped
-    image: oamdev/testapp:v1
-    cmd: ["node", "server.js"]
+...
+    format: "prometheus"
     port: 8080
-    cpu: "0.1"
-    env:
-      - name: FOO
-        value: bar
-      - name: FOO
-        valueFrom:
-          secretKeyRef:
-            name: bar
-            key: bar
+    path: "/metrics"
+    scheme:  "http"
+    enabled: true
+`,
+
+	"route": `
+...
+    domain: example.com
+    issuer: tls
+    rules:
+      - path: /testapp
+        rewriteTarget: /
+`,
+
+	"scaler": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: website
+spec:
+  components:
+    - name: frontend
+      type: webservice
+      properties:
+        image: nginx
+      traits:
+        - type: scaler
+          properties:
+            replicas: 2
+        - type: sidecar
+          properties:
+            name: "sidecar-test"
+            image: "fluentd"
+    - name: backend
+      type: worker
+      properties:
+        image: busybox
+        cmd:
+          - sleep
+          - '1000'
+`,
+
+	"sidecar": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: vela-app-with-sidecar
+spec:
+  components:
+    - name: log-gen-worker
+      type: worker
+      properties:
+        image: busybox
+        cmd:
+          - /bin/sh
+          - -c
+          - >
+            i=0;
+            while true;
+            do
+              echo "$i: $(date)" >> /var/log/date.log;
+              i=$((i+1));
+              sleep 1;
+            done
+        volumes:
+          - name: varlog
+            mountPath: /var/log
+            type: emptyDir
+      traits:
+        - type: sidecar
+          properties:
+            name: count-log
+            image: busybox
+            cmd: [ /bin/sh, -c, 'tail -n+1 -f /var/log/date.log']
+            volumes:
+              - name: varlog
+                path: /var/log
+`,
+
+	"task": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-worker
+spec:
+  components:
+    - name: mytask
+      type: task
+      properties:
+        image: perl
+	    count: 10
+	    cmd: ["perl",  "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+`,
+
+	"volumes": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-worker
+spec:
+  components:
+    - name: myworker
+      type: worker
+      properties:
+        image: "busybox"
+        cmd:
+          - sleep
+          - "1000"
+      traits:
+        - type: aws-ebs-volume
+          properties:
+            name: "my-ebs"
+            mountPath: "/myebs"
+            volumeID: "my-ebs-id"
+`,
+
+	"webservice": `
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: website
+spec:
+  components:
+    - name: frontend
+      type: webservice
+      properties:
+        image: oamdev/testapp:v1
+        cmd: ["node", "server.js"]
+        port: 8080
+        cpu: "0.1"
+        env:
+          - name: FOO
+            value: bar
+          - name: FOO
+            valueFrom:
+              secretKeyRef:
+                name: bar
+                key: bar
 `,
 	"worker": `
-name: my-app-name
-
-services:
-  my-service-name:
-    type: worker
-    image: oamdev/testapp:v1
-    cmd: ["node", "server.js"]
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: app-worker
+spec:
+  components:
+    - name: myworker
+      type: worker
+      properties:
+        image: "busybox"
+        cmd:
+          - sleep
+          - "1000"
 `,
 }
 
@@ -220,8 +334,13 @@ type ReferenceParameter struct {
 	types.Parameter `json:",inline,omitempty"`
 	// PrintableType is same to `parameter.Type` which could be printable
 	PrintableType string `json:"printableType"`
-	// Depth marks the depth for calling of function `parseParameters`
-	Depth *int `json:"depth"`
+}
+
+// ReferenceParameterTable stores the information of a bunch of ReferenceParameter in a table style
+type ReferenceParameterTable struct {
+	Name       string
+	Parameters []ReferenceParameter
+	Depth      *int
 }
 
 var refContent string
@@ -254,19 +373,14 @@ func (ref *MarkdownReference) GenerateReferenceDocs(ctx context.Context, baseRef
 func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.Capability, baseRefPath, referenceSourcePath string) error {
 	setDisplayFormat("markdown")
 	var capabilityType string
-	var specificationType string
 	for i, c := range caps {
 		switch c.Type {
 		case types.TypeWorkload:
 			capabilityType = WorkloadTypePath
-			specificationType = "workload type"
 		case types.TypeComponentDefinition:
 			capabilityType = ComponentDefinitionTypePath
-			specificationType = "component type"
 		case types.TypeTrait:
 			capabilityType = TraitPath
-			specificationType = "trait"
-
 		default:
 			return fmt.Errorf("the type of the capability is not right")
 		}
@@ -309,20 +423,28 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 			for _, property := range properties {
 				refContent += ref.prepareParameter("#"+property.Name, property.Parameters, types.HelmCategory)
 			}
+		case types.TerraformCategory:
+			refContent, err = ref.GenerateTerraformCapabilityProperties(c)
+			if err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("unsupport capability category %s", c.Category)
 		}
+		title := fmt.Sprintf("%s\n===============", capNameInTitle)
 
-		title := fmt.Sprintf("# %s", capNameInTitle)
-		description := fmt.Sprintf("\n\n## Description\n\n%s", c.Description)
-		specificationIntro := fmt.Sprintf("List of all configuration options for a `%s` %s.", capNameInTitle, specificationType)
-		specificationContent := ref.generateSpecification(capName)
-		specification := fmt.Sprintf("\n\n## Specification\n\n%s\n\n%s", specificationIntro, specificationContent)
+		description := fmt.Sprintf("\n\n# Description\n\n%s", c.Description)
+		var sample string
+		sampleContent := ref.generateSample(capName)
+		if sampleContent != "" {
+			sample = fmt.Sprintf("\n\n# Samples\n\n%s", sampleContent)
+		}
+		specification := fmt.Sprintf("\n\n# Specification\n%s", refContent)
 
 		// it's fine if the conflict info files not found
 		conflictWithAndMoreSection, _ := ref.generateConflictWithAndMore(capName, referenceSourcePath)
 
-		refContent = title + description + specification + refContent + conflictWithAndMoreSection
+		refContent = title + description + sample + conflictWithAndMoreSection + specification
 		if _, err := f.WriteString(refContent); err != nil {
 			return err
 		}
@@ -348,6 +470,11 @@ func (ref *MarkdownReference) prepareParameter(tableName string, parameterList [
 		for _, p := range parameterList {
 			printableDefaultValue := ref.getHELMPrintableDefaultValue(p.JSONType, p.Default)
 			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, strings.ReplaceAll(p.Usage, "\n", ""), p.PrintableType, p.Required, printableDefaultValue)
+		}
+	case types.TerraformCategory:
+		// Terraform doesn't have default value
+		for _, p := range parameterList {
+			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, strings.ReplaceAll(p.Usage, "\n", ""), p.PrintableType, p.Required, "")
 		}
 	default:
 	}
@@ -375,7 +502,6 @@ func (ref *ParseReference) prepareParameter(tableName string, parameterList []Re
 		for _, p := range parameterList {
 			table.Append([]string{p.Name, p.Usage, p.PrintableType, strconv.FormatBool(p.Required), ""})
 		}
-
 	default:
 	}
 
@@ -510,9 +636,13 @@ func (ref *ParseReference) getHELMPrintableDefaultValue(dataType string, value i
 	return defaultValueMap[dataType]
 }
 
-// generateSpecification generates Specification part for reference docs
-func (ref *MarkdownReference) generateSpecification(capabilityName string) string {
-	return fmt.Sprintf("```yaml%s```", ConfigurationYamlSample[capabilityName])
+// generateSample generates Specification part for reference docs
+func (ref *MarkdownReference) generateSample(capabilityName string) string {
+	// TODO(zzxwill): we should generate the sample automatically instead of maintain hardcode example.
+	if _, ok := ConfigurationYamlSample[capabilityName]; ok {
+		return fmt.Sprintf("```yaml%s```", ConfigurationYamlSample[capabilityName])
+	}
+	return ""
 }
 
 // generateConflictWithAndMore generates Section `Conflicts With` and more like `How xxx works` in reference docs
@@ -586,6 +716,66 @@ func (ref *ParseReference) GenerateHELMProperties(ctx context.Context, capabilit
 	return helmRefs, consoleRefs, err
 }
 
+// GenerateTerraformCapabilityProperties generates Capability properties for Terraform ComponentDefinition
+func (ref *ParseReference) parseTerraformCapabilityParameters(capability types.Capability) ([]ReferenceParameterTable, error) {
+	var (
+		tables                                       []ReferenceParameterTable
+		refParameterList                             []ReferenceParameter
+		writeConnectionSecretToRefReferenceParameter ReferenceParameter
+	)
+
+	writeConnectionSecretToRefReferenceParameter.Name = TerraformWriteConnectionSecretToRefName
+	writeConnectionSecretToRefReferenceParameter.PrintableType = TerraformWriteConnectionSecretToRefType
+	writeConnectionSecretToRefReferenceParameter.Required = false
+	writeConnectionSecretToRefReferenceParameter.Usage = "The secret which the cloud resource connection will be written to"
+
+	variables, err := ref.parseTerraformVariables(capability.TerraformConfiguration)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to generate capability properties")
+	}
+	for _, v := range variables {
+		var refParam ReferenceParameter
+		refParam.Name = v.Name
+		refParam.PrintableType = v.Type
+		refParam.Usage = v.Description
+		refParam.Required = true
+		refParameterList = append(refParameterList, refParam)
+	}
+	refParameterList = append(refParameterList, writeConnectionSecretToRefReferenceParameter)
+
+	propertiesTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 1), "Properties")
+	tables = append(tables, ReferenceParameterTable{
+		Name:       propertiesTableName,
+		Parameters: refParameterList,
+	})
+
+	var (
+		writeSecretRefNameParam      ReferenceParameter
+		writeSecretRefNameSpaceParam ReferenceParameter
+	)
+
+	// prepare `## writeConnectionSecretToRef`
+	writeSecretRefNameParam.Name = "name"
+	writeSecretRefNameParam.PrintableType = "string"
+	writeSecretRefNameParam.Required = true
+	writeSecretRefNameParam.Usage = "The secret name which the cloud resource connection will be written to"
+
+	writeSecretRefNameSpaceParam.Name = "namespace"
+	writeSecretRefNameSpaceParam.PrintableType = "string"
+	writeSecretRefNameSpaceParam.Required = false
+	writeSecretRefNameSpaceParam.Usage = "The secret namespace which the cloud resource connection will be written to"
+
+	writeSecretRefParameterList := []ReferenceParameter{writeSecretRefNameParam, writeSecretRefNameSpaceParam}
+	writeSecretTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 2), TerraformWriteConnectionSecretToRefName)
+
+	tables = append(tables, ReferenceParameterTable{
+		Name:       writeSecretTableName,
+		Parameters: writeSecretRefParameterList,
+	})
+
+	return tables, nil
+}
+
 // WalkParameterSchema will extract properties from *openapi3.Schema
 func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 	if parameters == nil {
@@ -634,57 +824,30 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 	}
 }
 
-// GenerateTerraformCapabilityProperties generates Capability properties for Terraform ComponentDefinition
-// application developers need to set two sections `variable` and `writeConnectionSecretToRef` in an application
-func (ref *ConsoleReference) GenerateTerraformCapabilityProperties(capability *types.Capability) ([]ConsoleReference, error) {
-	var (
-		writeConnectionSecretToRefReferenceParameter ReferenceParameter
-		propertiesConsoleReference                   ConsoleReference
-		writeSecretConsoleReference                  ConsoleReference
-	)
+// GenerateTerraformCapabilityProperties generates Capability properties for Terraform ComponentDefinition in Cli console
+func (ref *ConsoleReference) GenerateTerraformCapabilityProperties(capability types.Capability) ([]ConsoleReference, error) {
+	var references []ConsoleReference
 
-	writeConnectionSecretToRefReferenceParameter.Name = TerraformWriteConnectionSecretToRefName
-	writeConnectionSecretToRefReferenceParameter.PrintableType = TerraformWriteConnectionSecretToRefType
-	writeConnectionSecretToRefReferenceParameter.Required = false
-	writeConnectionSecretToRefReferenceParameter.Usage = "The secret which the cloud resource connection will be written to"
-
-	variables, err := ref.parseTerraformVariables(capability.TerraformConfiguration)
+	tables, err := ref.parseTerraformCapabilityParameters(capability)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to generate capability properties")
+		return nil, err
 	}
-	var refParameterList []ReferenceParameter
-	for _, v := range variables {
-		var refParam ReferenceParameter
-		refParam.Name = v.Name
-		refParam.PrintableType = v.Type
-		refParam.Usage = v.Description
-		refParam.Required = true
-		refParameterList = append(refParameterList, refParam)
+	for _, t := range tables {
+		references = append(references, ref.prepareParameter(t.Name, t.Parameters, types.TerraformCategory))
 	}
-	refParameterList = append(refParameterList, writeConnectionSecretToRefReferenceParameter)
+	return references, nil
+}
 
-	propertiesTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 1), "Properties")
-	propertiesConsoleReference = ref.prepareParameter(propertiesTableName, refParameterList, types.CUECategory)
+// GenerateTerraformCapabilityProperties generates Capability properties for Terraform ComponentDefinition in a local website
+func (ref *MarkdownReference) GenerateTerraformCapabilityProperties(capability types.Capability) (string, error) {
+	var references string
 
-	var (
-		writeSecretRefNameParam      ReferenceParameter
-		writeSecretRefNameSpaceParam ReferenceParameter
-	)
-
-	// prepare `## writeConnectionSecretToRef`
-	writeSecretRefNameParam.Name = "name"
-	writeSecretRefNameParam.PrintableType = "string"
-	writeSecretRefNameParam.Required = true
-	writeSecretRefNameParam.Usage = "The secret name which the cloud resource connection will be written to"
-
-	writeSecretRefNameSpaceParam.Name = "namespace"
-	writeSecretRefNameSpaceParam.PrintableType = "string"
-	writeSecretRefNameSpaceParam.Required = false
-	writeSecretRefNameSpaceParam.Usage = "The secret namespace which the cloud resource connection will be written to"
-
-	writeSecretRefParameterList := []ReferenceParameter{writeSecretRefNameParam, writeSecretRefNameSpaceParam}
-	writeSecretTableName := fmt.Sprintf("%s %s", strings.Repeat("#", 2), TerraformWriteConnectionSecretToRefName)
-	writeSecretConsoleReference = ref.prepareParameter(writeSecretTableName, writeSecretRefParameterList, types.CUECategory)
-
-	return []ConsoleReference{propertiesConsoleReference, writeSecretConsoleReference}, nil
+	tables, err := ref.parseTerraformCapabilityParameters(capability)
+	if err != nil {
+		return "", err
+	}
+	for _, t := range tables {
+		references += ref.prepareParameter(t.Name, t.Parameters, types.CUECategory)
+	}
+	return references, nil
 }
