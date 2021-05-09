@@ -46,6 +46,7 @@ func TestCreateMarkdown(t *testing.T) {
 	workloadName := "workload1"
 	traitName := "trait1"
 	scopeName := "scope1"
+	workloadName2 := "workload2"
 
 	workloadCueTemplate := `
 parameter: {
@@ -57,6 +58,29 @@ parameter: {
 	traitCueTemplate := `
 parameter: {
 	replicas: int
+}
+`
+
+	configuration := `
+resource "alicloud_oss_bucket" "bucket-acl" {
+  bucket = var.bucket
+  acl = var.acl
+}
+
+output "BUCKET_NAME" {
+  value = "${alicloud_oss_bucket.bucket-acl.bucket}.${alicloud_oss_bucket.bucket-acl.extranet_endpoint}"
+}
+
+variable "bucket" {
+  description = "OSS bucket name"
+  default = "vela-website"
+  type = string
+}
+
+variable "acl" {
+  description = "OSS bucket ACL, supported 'private', 'public-read', 'public-read-write'"
+  default = "private"
+  type = string
 }
 `
 
@@ -79,6 +103,12 @@ parameter: {
 					Type:        types.TypeTrait,
 					CueTemplate: traitCueTemplate,
 					Category:    types.CUECategory,
+				},
+				{
+					Name:                   workloadName2,
+					TerraformConfiguration: configuration,
+					Type:                   types.TypeWorkload,
+					Category:               types.TerraformCategory,
 				},
 			},
 			want: nil,
@@ -110,11 +140,9 @@ parameter: {
 func TestPrepareParameterTable(t *testing.T) {
 	ref := MarkdownReference{}
 	tableName := "hello"
-	var depth int = 1
 	parameterList := []ReferenceParameter{
 		{
 			PrintableType: "string",
-			Depth:         &depth,
 		},
 	}
 	parameterName := "cpu"
@@ -329,7 +357,7 @@ func TestWalkParameterSchema(t *testing.T) {
 func TestGenerateTerraformCapabilityProperties(t *testing.T) {
 	ref := &ConsoleReference{}
 	type args struct {
-		cap *types.Capability
+		cap types.Capability
 	}
 
 	type want struct {
@@ -343,7 +371,7 @@ func TestGenerateTerraformCapabilityProperties(t *testing.T) {
 	}{
 		"normal": {
 			args: args{
-				cap: &types.Capability{
+				cap: types.Capability{
 					TerraformConfiguration: `
 resource "alicloud_oss_bucket" "bucket-acl" {
   bucket = var.bucket
@@ -376,7 +404,7 @@ variable "acl" {
 		},
 		"configuration is not valid": {
 			args: args{
-				cap: &types.Capability{
+				cap: types.Capability{
 					TerraformConfiguration: `abc`,
 				},
 			},
