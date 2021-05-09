@@ -301,7 +301,7 @@ KUSTOMIZE_VERSION ?= 3.8.2
 
 .PHONY: kustomize
 kustomize:
-ifeq (, $(shell kustomize version | grep $(KUSTOMIZE_VERSION)))
+ifeq (, $(shell kustomize version | grep "Version:kustomize"))
 	@{ \
 	set -e ;\
 	echo 'installing kustomize-v$(KUSTOMIZE_VERSION) into $(GOBIN)' ;\
