@@ -438,6 +438,9 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 		By("pause app in middle of rollout and verify status")
 		plan.Paused = true
 		updateAppWithCpuAndPlan(app, "2", plan)
+		By("verify update rolloutPlan shouldn't create new revision")
+		Expect(k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: namespaceName}, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(utils.ConstructRevisionName(appName, 2)))
 		By("Verify that the app rollout pauses")
 		Eventually(func() error {
 			if err := k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: namespaceName}, checkApp); err != nil {
@@ -462,6 +465,9 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 		By("continue rollout and verify status ")
 		plan.Paused = false
 		updateAppWithCpuAndPlan(app, "2", plan)
+		By("verify update rolloutPlan shouldn't create new revision")
+		Expect(k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: namespaceName}, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(utils.ConstructRevisionName(appName, 2)))
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 2), "2")
 	})
 
