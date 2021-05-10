@@ -398,6 +398,79 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 3), "3")
 	})
 
+	It("Test pause  in middle of embed app rolling out", func() {
+		plan := &v1alpha1.RolloutPlan{
+			RolloutStrategy: v1alpha1.IncreaseFirstRolloutStrategyType,
+			RolloutBatches: []v1alpha1.RolloutBatch{
+				{
+					Replicas: intstr.FromString("50%"),
+				},
+				{
+					Replicas: intstr.FromString("50%"),
+				},
+			},
+			TargetSize: pointer.Int32Ptr(6),
+		}
+		appName = "app-rollout-4"
+		app := generateNewApp(appName, namespaceName, "clonesetservice", plan)
+		Expect(k8sClient.Create(ctx, app)).Should(BeNil())
+		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 1), "1")
+		updateAppWithCpuAndPlan(app, "2", plan)
+
+		By("Wait for the rollout phase change to rolling in batches")
+		checkApp := new(v1beta1.Application)
+		Eventually(func() error {
+			if err := k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: namespaceName}, checkApp); err != nil {
+				return err
+			}
+			if checkApp.Status.Rollout.LastUpgradedTargetAppRevision != utils.ConstructRevisionName(appName, 2) {
+				return fmt.Errorf("app status lastTargetRevision mismatch actually %s ", checkApp.Status.Rollout.LastUpgradedTargetAppRevision)
+			}
+			if checkApp.Status.Rollout.LastSourceAppRevision != utils.ConstructRevisionName(appName, 1) {
+				return fmt.Errorf("app status lastSourceRevision mismatch actually %s ", checkApp.Status.Rollout.LastSourceAppRevision)
+			}
+			if checkApp.Status.Rollout.RollingState != v1alpha1.RollingInBatchesState {
+				return fmt.Errorf("app status rolling state mismatch")
+			}
+			return nil
+		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+
+		By("pause app in middle of rollout and verify status")
+		plan.Paused = true
+		updateAppWithCpuAndPlan(app, "2", plan)
+		By("verify update rolloutPlan shouldn't create new revision")
+		Expect(k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: namespaceName}, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(utils.ConstructRevisionName(appName, 2)))
+		By("Verify that the app rollout pauses")
+		Eventually(func() error {
+			if err := k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: namespaceName}, checkApp); err != nil {
+				return err
+			}
+			if checkApp.Status.Rollout.GetCondition(v1alpha1.BatchPaused).Status != corev1.ConditionTrue {
+				return fmt.Errorf("rollout status not paused")
+			}
+			return nil
+		}, time.Second*30, time.Microsecond*300).Should(BeNil())
+		preBatch := checkApp.Status.Rollout.CurrentBatch
+		sleepTime := 10 * time.Second
+		time.Sleep(sleepTime)
+		Expect(k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: namespaceName}, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.Rollout.RollingState).Should(BeEquivalentTo(v1alpha1.RollingInBatchesState))
+		Expect(checkApp.Status.Rollout.CurrentBatch).Should(BeEquivalentTo(preBatch))
+		transitTime := checkApp.Status.Rollout.GetCondition(v1alpha1.BatchPaused).LastTransitionTime
+		beforeSleep := metav1.Time{
+			Time: time.Now().Add(sleepTime),
+		}
+		Expect(transitTime.Before(&beforeSleep)).Should(BeTrue())
+		By("continue rollout and verify status ")
+		plan.Paused = false
+		updateAppWithCpuAndPlan(app, "2", plan)
+		By("verify update rolloutPlan shouldn't create new revision")
+		Expect(k8sClient.Get(ctx, ctypes.NamespacedName{Name: appName, Namespace: namespaceName}, checkApp)).Should(BeNil())
+		Expect(checkApp.Status.LatestRevision.Name).Should(BeEquivalentTo(utils.ConstructRevisionName(appName, 2)))
+		verifyRolloutSucceeded(utils.ConstructRevisionName(appName, 2), "2")
+	})
+
 	//  TODO add more corner case tests
 	//  update application by clean rolloutPlan strategy in the middle of rollout process
 })
