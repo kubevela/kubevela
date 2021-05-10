@@ -102,7 +102,7 @@ Note that for all the built-in capabilities, we already published their referenc
 
 
 - Workload Types
-	- [webservice](component-types/webservice)
+	- [webservice](../../end-user/components/webservice)
 	- [task](component-types/task)
 	- [worker](component-types/worker)
 - Traits
