@@ -334,6 +334,40 @@ containers: [{
 	}]
 }]
 `},
+
+
+		{
+			base: `
+spec: containers: [{
+	name: "c1"
+	image: "image1"
+},
+{
+	name: "c2"
+	envs:[{name: "e1",value: "v1"}]
+}]
+`,
+			patch: `
+// +patchKey=name
+// +patchStrategy=retainKeys
+spec: {
+	containers: [{
+		name: "c2"
+		envs:[{name: "e1",value: "v2"}]
+}]}
+`,
+			result: `// +patchKey=name
+// +patchStrategy=retainKeys
+spec: {
+	containers: [{
+		name: "c2"
+		envs: [{
+			name:  "e1"
+			value: "v2"
+		}]
+	}]
+}
+`},
 	}
 
 	for i, tcase := range testCase {
