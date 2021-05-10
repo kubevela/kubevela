@@ -41,7 +41,67 @@ var (
 
 type interceptor func(node ast.Node) (ast.Node, error)
 
-func strategyMerge(baseNode ast.Node) interceptor {
+func listMergeProcess(field *ast.Field, key string, baseList, patchList *ast.ListLit) {
+	kmaps := map[string]ast.Expr{}
+	nElts := []ast.Expr{}
+
+	for i, elt := range patchList.Elts {
+		if _, ok := elt.(*ast.Ellipsis); ok {
+			continue
+		}
+		nodev, err := lookUp(elt, key)
+		if err != nil {
+			return
+		}
+		blit, ok := nodev.(*ast.BasicLit)
+		if !ok {
+			return
+		}
+		kmaps[blit.Value] = patchList.Elts[i]
+	}
+
+	hasStrategyRetainKeys := isStrategyRetainKeys(field)
+
+	for i, elt := range baseList.Elts {
+		if _, ok := elt.(*ast.Ellipsis); ok {
+			continue
+		}
+
+		nodev, err := lookUp(elt, key)
+		if err != nil {
+			return
+		}
+		blit, ok := nodev.(*ast.BasicLit)
+		if !ok {
+			return
+		}
+
+		if v, ok := kmaps[blit.Value]; ok {
+			if hasStrategyRetainKeys {
+				baseList.Elts[i] = ast.NewStruct()
+			}
+			nElts = append(nElts, v)
+			delete(kmaps, blit.Value)
+		} else {
+			nElts = append(nElts, ast.NewStruct())
+		}
+
+	}
+
+	for _, elt := range patchList.Elts {
+		for _, v := range kmaps {
+			if elt == v {
+				nElts = append(nElts, v)
+				break
+			}
+		}
+	}
+
+	nElts = append(nElts, &ast.Ellipsis{})
+	patchList.Elts = nElts
+}
+
+func strategyPatchHandle(baseNode ast.Node) interceptor {
 	return func(lnode ast.Node) (ast.Node, error) {
 		walker := newWalker(func(node ast.Node, ctx walkCtx) {
 			field, ok := node.(*ast.Field)
@@ -49,9 +109,9 @@ func strategyMerge(baseNode ast.Node) interceptor {
 				return
 			}
 
-			value :=peelCloseExpr(field.Value)
+			value := peelCloseExpr(field.Value)
 
-			switch val:=value.(type) {
+			switch val := value.(type) {
 			case *ast.ListLit:
 				key := ctx.Tags()[TagPatchKey]
 
@@ -74,64 +134,8 @@ func strategyMerge(baseNode ast.Node) interceptor {
 				if !ok {
 					return
 				}
+				listMergeProcess(field, key, baselist, val)
 
-				kmaps := map[string]ast.Expr{}
-				nElts := []ast.Expr{}
-
-				for i, elt := range val.Elts {
-					if _, ok := elt.(*ast.Ellipsis); ok {
-						continue
-					}
-					nodev, err := lookUp(elt, key)
-					if err != nil {
-						return
-					}
-					blit, ok := nodev.(*ast.BasicLit)
-					if !ok {
-						return
-					}
-					kmaps[blit.Value] = val.Elts[i]
-				}
-
-				hasStrategyRetainKeys := isStrategyRetainKeys(field)
-
-				for i, elt := range baselist.Elts {
-					if _, ok := elt.(*ast.Ellipsis); ok {
-						continue
-					}
-
-					nodev, err := lookUp(elt, key)
-					if err != nil {
-						return
-					}
-					blit, ok := nodev.(*ast.BasicLit)
-					if !ok {
-						return
-					}
-
-					if v, ok := kmaps[blit.Value]; ok {
-						if hasStrategyRetainKeys {
-							baselist.Elts[i] = ast.NewStruct()
-						}
-						nElts = append(nElts, v)
-						delete(kmaps, blit.Value)
-					} else {
-						nElts = append(nElts, ast.NewStruct())
-					}
-
-				}
-
-				for _, elt := range val.Elts {
-					for _, v := range kmaps {
-						if elt == v {
-							nElts = append(nElts, v)
-							break
-						}
-					}
-				}
-
-				nElts = append(nElts, &ast.Ellipsis{})
-				val.Elts = nElts
 			case *ast.StructLit:
 				if !isStrategyRetainKeys(field) {
 					return
@@ -164,8 +168,6 @@ func strategyMerge(baseNode ast.Node) interceptor {
 	}
 }
 
-
-
 func isStrategyRetainKeys(node *ast.Field) bool {
 	tags := findCommentTag(node.Comments())
 	for tk, tv := range tags {
@@ -187,7 +189,7 @@ func StrategyUnify(base, patch string) (string, error) {
 		return "", errors.WithMessage(err, "invalid patch cue file")
 	}
 
-	return strategyUnify(baseFile, patchFile, strategyMerge(baseFile))
+	return strategyUnify(baseFile, patchFile, strategyPatchHandle(baseFile))
 }
 
 func strategyUnify(baseFile *ast.File, patchFile *ast.File, patchOpts ...interceptor) (string, error) {
