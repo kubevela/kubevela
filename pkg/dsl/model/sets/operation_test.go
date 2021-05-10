@@ -70,6 +70,14 @@ containers: [{
 		},
 
 		{
+			base: `containers: [close({namex: "x1"}),...]`,
+			patch: `
+// +patchKey=name
+containers: [{name: "x2"},{name: "x1"}]`,
+			result: "_|_\n",
+		},
+
+		{
 			base: `containers: [{name: "x1"},{name: "x2"},...]`,
 			patch: `
 // +patchKey=name
@@ -314,7 +322,7 @@ containers: [{
 containers: [{
 	name: "c2"
 	// +patchStrategy=retainKeys
-	envs:[{name: "e1",value: "v2"}]
+	envs:[{name: "e1",value: "v2"},...]
 }]
 `,
 			result: `// +patchKey=name
