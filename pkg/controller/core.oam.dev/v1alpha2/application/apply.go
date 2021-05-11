@@ -115,7 +115,8 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 		UID:        h.app.UID,
 		Controller: pointer.BoolPtr(true),
 	}}
-	if value := h.app.GetAnnotations()[oam.AnnotationAppRollout]; value != "true" && h.app.Spec.RolloutPlan == nil {
+
+	if _, exist := h.app.GetAnnotations()[oam.AnnotationAppRollout]; !exist && h.app.Spec.RolloutPlan == nil {
 		h.setInplace(true)
 	} else {
 		h.setInplace(false)
