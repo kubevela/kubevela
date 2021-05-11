@@ -103,7 +103,7 @@ Strategy Patch is effective by adding annotation, and supports the following two
 
 #### 1. With `+patchKey=<key_name>` annotation
 
-this is useful for patching array list, merging logic of two array lists will not follow the CUE behavior. Instead, it will treat the list as object and use a strategy merge approach:
+This is useful for patching array list, merging logic of two array lists will not follow the CUE behavior. Instead, it will treat the list as object and use a strategy merge approach:
  - if a duplicated key is found, the patch data will be merge with the existing values; 
  - if no duplication found, the patch will append into the array list.
 
