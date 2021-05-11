@@ -32,9 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	oamcomm "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/common"
 )
@@ -161,20 +159,10 @@ var _ = Describe("Application Normal tests", func() {
 	})
 
 	It("Test app have rollout-template false annotation", func() {
-		applyApp("app5.yaml")
-		appContext := new(v1alpha2.ApplicationContext)
-		Eventually(func() error {
-			if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespaceName, Name: "app-e2e"}, appContext); err != nil {
-				return err
-			}
-			if appContext.Annotations[oam.AnnotationAppRollout] != "false" {
-				return fmt.Errorf("appContext annotation app.oam.dev/rollout-template mismatch")
-			}
-			if appContext.Annotations[oam.AnnotationInplaceUpgrade] != "true" {
-				return fmt.Errorf("appContext annotation app.oam.dev/inplace-upgrade mismatch")
-			}
-			return nil
-		}, time.Second*30, time.Microsecond*300).Should(BeNil())
-		verifyWorkloadRunningExpected("myweb", 1, "stefanprodan/podinfo:4.0.3")
+		By("Apply an application")
+		var newApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app5.yaml", &newApp)).Should(BeNil())
+		newApp.Namespace = namespaceName
+		Expect(k8sClient.Create(ctx, &newApp)).ShouldNot(BeNil())
 	})
 })
