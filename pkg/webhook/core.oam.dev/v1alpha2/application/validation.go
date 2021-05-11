@@ -42,7 +42,7 @@ func (h *ValidatingHandler) ValidateCreate(ctx context.Context, app *v1beta1.App
 		componentErrs = append(componentErrs, field.Invalid(field.NewPath("schematic"), app, err.Error()))
 	}
 	if v := app.GetAnnotations()[oam.AnnotationAppRollout]; len(v) != 0 && v != "true" {
-		componentErrs = append(componentErrs, field.Invalid(field.NewPath("annotation:app.oam.dev/rollout-template"), app, "true is the only valid value"))
+		componentErrs = append(componentErrs, field.Invalid(field.NewPath("annotation:app.oam.dev/rollout-template"), app, "the annotation value of rollout-template must be true"))
 	}
 	return componentErrs
 }
