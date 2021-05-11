@@ -158,4 +158,11 @@ var _ = Describe("Application Normal tests", func() {
 		verifyWorkloadRunningExpected("myweb", 1, "stefanprodan/podinfo:5.0.2")
 	})
 
+	It("Test app have rollout-template false annotation", func() {
+		By("Apply an application")
+		var newApp v1beta1.Application
+		Expect(common.ReadYamlToObject("testdata/app/app5.yaml", &newApp)).Should(BeNil())
+		newApp.Namespace = namespaceName
+		Expect(k8sClient.Create(ctx, &newApp)).ShouldNot(BeNil())
+	})
 })
