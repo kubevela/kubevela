@@ -110,7 +110,7 @@ var _ = Describe("Test Application Validator", func() {
 		Expect(resp.Allowed).Should(BeFalse())
 	})
 
-	It("Test Application Validator [Allow]", func() {
+	It("Test Application Validator rollout-template annotation [error]", func() {
 		req := admission.Request{
 			AdmissionRequest: admissionv1beta1.AdmissionRequest{
 				Operation: admissionv1beta1.Create,
