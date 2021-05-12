@@ -128,4 +128,24 @@ var _ = Describe("Test Application Validator", func() {
 		resp := handler.Handle(ctx, req)
 		Expect(resp.Allowed).Should(BeFalse())
 	})
+
+	It("Test Application Validator rolloutPlan [error]", func() {
+		req := admission.Request{
+			AdmissionRequest: admissionv1beta1.AdmissionRequest{
+				Operation: admissionv1beta1.Create,
+				Resource:  metav1.GroupVersionResource{Group: "core.oam.dev", Version: "v1alpha2", Resource: "applications"},
+				Object: runtime.RawExtension{
+					Raw: []byte(`
+{"kind":"Application","metadata":{"name":"test-rolling","annotations":null},
+"spec":{"components":[{"name":"metrics-provider","type":"worker",
+"properties":{"cmd":["./podinfo","stress-cpu=3.0"],
+"image":"stefanprodan/podinfo:4.0.6","port":8080}}],
+"rolloutPlan":{"rolloutStrategy":"IncreaseFirst","targetSize":3}}}
+`),
+				},
+			},
+		}
+		resp := handler.Handle(ctx, req)
+		Expect(resp.Allowed).Should(BeFalse())
+	})
 })
