@@ -70,6 +70,14 @@ containers: [{
 		},
 
 		{
+			base: `containers: [close({namex: "x1"}),...]`,
+			patch: `
+// +patchKey=name
+containers: [{name: "x2"},{name: "x1"}]`,
+			result: "_|_\n",
+		},
+
+		{
 			base: `containers: [{name: "x1"},{name: "x2"},...]`,
 			patch: `
 // +patchKey=name
@@ -173,6 +181,196 @@ containers: [{
 }, ...]
 `,
 		},
+	}
+
+	for i, tcase := range testCase {
+		v, _ := StrategyUnify(tcase.base, tcase.patch)
+		assert.Equal(t, v, tcase.result, fmt.Sprintf("testPatch for case(no:%d) %s", i, v))
+	}
+}
+
+func TestStrategyPatch(t *testing.T) {
+	testCase := []struct {
+		base   string
+		patch  string
+		result string
+	}{
+		{
+			base: `
+spec: {
+  strategy: {
+    type: "rollingUpdate"
+    rollingUpdate: maxSurge: "30%"
+	}
+}
+`,
+			patch: `
+spec: {
+  // +patchStrategy=retainKeys
+  strategy: type: "recreate"
+}
+`,
+			result: `spec: {
+	strategy: {
+		// +patchStrategy=retainKeys
+		type: "recreate"
+	}
+}
+`},
+
+		{
+			base: `
+spec: {
+  strategy: close({
+    type: "rollingUpdate"
+    rollingUpdate: maxSurge: "30%"
+	})
+}
+`,
+			patch: `
+spec: {
+  // +patchStrategy=retainKeys
+  strategy: type: "recreate"
+}
+`,
+			result: `spec: {
+	strategy: {
+		// +patchStrategy=retainKeys
+		type: "recreate"
+	}
+}
+`},
+
+		{
+			base: `
+volumes: [{
+	name: "test-volume"
+	cinder: {
+		volumeID: "<volume id>"
+		fsType: "ext4"
+	}
+}]
+`,
+			patch: `
+// +patchStrategy=retainKeys
+// +patchKey=name
+volumes: [
+{
+	name: "test-volume"
+	configMap: name: "conf-name"
+}]
+`,
+			result: `// +patchStrategy=retainKeys
+// +patchKey=name
+volumes: [{
+	name: "test-volume"
+	configMap: {
+		name: "conf-name"
+	}
+}]
+`},
+
+		{
+			base: `
+volumes: [{
+	name: "empty-volume"
+	emptyDir: {}
+},
+{
+	name: "test-volume"
+	cinder: {
+		volumeID: "<volume id>"
+		fsType: "ext4"
+	}
+}]
+`,
+			patch: `
+// +patchStrategy=retainKeys
+// +patchKey=name
+volumes: [
+{
+	name: "test-volume"
+	configMap: name: "conf-name"
+}]
+`,
+			result: `// +patchStrategy=retainKeys
+// +patchKey=name
+volumes: [{
+	name: "empty-volume"
+	emptyDir: {}
+}, {
+	name: "test-volume"
+	configMap: {
+		name: "conf-name"
+	}
+}]
+`},
+
+		{
+			base: `
+containers: [{
+	name: "c1"
+	image: "image1"
+},
+{
+	name: "c2"
+	envs:[{name: "e1",value: "v1"}]
+}]
+`,
+			patch: `
+// +patchKey=name
+containers: [{
+	name: "c2"
+	// +patchStrategy=retainKeys
+	envs:[{name: "e1",value: "v2"},...]
+}]
+`,
+			result: `// +patchKey=name
+containers: [{
+	name:  "c1"
+	image: "image1"
+}, {
+	name: "c2"
+	// +patchStrategy=retainKeys
+	envs: [{
+		name:  "e1"
+		value: "v2"
+	}]
+}]
+`},
+
+		{
+			base: `
+spec: containers: [{
+	name: "c1"
+	image: "image1"
+},
+{
+	name: "c2"
+	envs:[{name: "e1",value: "v1"}]
+}]
+`,
+			patch: `
+// +patchKey=name
+// +patchStrategy=retainKeys
+spec: {
+	containers: [{
+		name: "c2"
+		envs:[{name: "e1",value: "v2"}]
+}]}
+`,
+			result: `// +patchKey=name
+// +patchStrategy=retainKeys
+spec: {
+	containers: [{
+		name: "c2"
+		envs: [{
+			name:  "e1"
+			value: "v2"
+		}]
+	}]
+}
+`},
 	}
 
 	for i, tcase := range testCase {
