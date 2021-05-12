@@ -372,6 +372,11 @@ func Test_VerifyBatchesWithScaleFailCases(t *testing.T) {
 			originalSize: 16,
 			targetSize:   10,
 		},
+		"empty rollingBatches": {
+			rolloutSpec:  &v1alpha1.RolloutPlan{},
+			targetSize:   3,
+			originalSize: 2,
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
