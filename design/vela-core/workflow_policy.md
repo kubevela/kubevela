@@ -13,7 +13,6 @@ The current model consists of mainly Components and Traits. While this enables t
 - There is no application-level config, but only per-component config. In some scenarios, users want to have app-level policies like:
   - Security: RBAC rules, audit settings, secret backend types.
   - Insights: app delivery lead time, frequence, MTTR.
-  - GitOps: git repo, branch, credentials.
 
 ## Proposal
 
@@ -37,11 +36,6 @@ spec:
         leadTime: enabled
         frequency: enabled
         mttr: enabled
-
-    - type: gitops
-      properties:
-        source: git-repo-url
-        branch: main
 
   # workflow is used to customize the control logic.
   # If workflow is specified, Vela won't apply any resource, but provide rendered output in AppRevision.
@@ -72,7 +66,7 @@ This also implicates we will add two Definition CRDs -- `PolicyDefinition` and `
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
-kind: PolicyDefinition
+kind: WorkflowStepDefinition
 metadata:
   name: gitops
 spec:
@@ -80,21 +74,21 @@ spec:
     cue:
       template: |
         output: {
-          apiVersion: argoproj.io/v1alpha1
-          kind: Application
+          kind: GitOps
           spec:
             source:
               repoURL: parameter.source
-              targetRevision: HEAD
+              branch: parameter.branch
             ...
         }
         parameters: {
           source: string
+          branch: string
         }
 
 ---
 apiVersion: core.oam.dev/v1beta1
-kind: WorkflowStepDefinition
+kind: PolicyDefinition
 spec:
   schematic:
     cue:
@@ -106,13 +100,13 @@ spec:
 To support policies and workflow, the application controller will be modified as the following:
 
 - Before rendering the components, the controller will first execute the `stage: pre-render` steps.
-- When generating AppRevision, the controller will put final resources (including policies) into a field `resources`:
+- When generating AppRevision, the controller will put final resources, including Components and Policies, into a field `resources`:
 
   ```yaml
   kind: ApplicationRevision
   spec:
     ...
-    resources:
+    resources: # Components and Policies resources
       - raw:
           apiVersion: apps/v1
           kind: Deployment
@@ -135,8 +129,9 @@ To support policies and workflow, the application controller will be modified as
         kind: Rollout
         name: ...
   ```
+- Note that each workflow step must be idempotent, which means it should be able to process an object that are already submitted and processed. A non-idempotent example would be a controller that keeps appending item to an array field.
 
-For each workflow step, it has the following interactions with the app controller:
+Each workflow step has the following interactions with the app controller:
 - The controller will apply the workflow object with annotation `app.oam.dev/workflow-context`. This annotation will pass in the context marshalled in json defined as the following:
   ```go
   type WorkflowContext struct {
@@ -273,14 +268,7 @@ workflow:
 
 In this case, users just want Vela to provide final k8s resources and push them to Git, and then integrate with ArgoCD/Flux to do final rollout. Users will setup a GitOps workflow like below:
 
-
 ```yaml
-policies:
-- type: gitops # This part configures how ArgoCD/Flux watches the repo
-  properties:
-    source: git-repo-url
-    branch: main
-
 workflow:
 - type: gitops # This part configures how to push resources to Git repo
   properties:
@@ -291,8 +279,7 @@ workflow:
 
 The process goes as:
 
-- The GitOps policy will be applied first, making ArgoCD/Flux watch the Git repo to sync any updates.
-- Everytime an Appliation event is triggered, the GitOps workflow controller will push the rendered resources to a Git repo to trigger continuous deployment.
+- Everytime an Appliation event is triggered, the GitOps workflow controller will push the rendered resources to a Git repo. This will trigger ArgoCD/Flux to do continuous deployment.
 
 ### Case 5: Template-based rollout
 
@@ -331,4 +318,8 @@ The process goes as:
 
 ## Considerations
 
+### Comparison with Argo Workflow/Tekton
 
+The workflow defined here are k8s resource based and very simple one direction workflow. It's mainly used to customize Vela control logic to do more complex deployment operations.
+
+While Argo Workflow/Tekton shares similar idea to provide workflow functionalities, they are container based and provide more complex features like parameters sharing (using volumes and sidecars). More importantly, these projects couldn't satisfy our needs. Otherwise we can just use them in our implementation.
