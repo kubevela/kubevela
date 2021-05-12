@@ -19,6 +19,8 @@ package workloads
 import (
 	"testing"
 
+	"k8s.io/utils/pointer"
+
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -217,6 +219,15 @@ func TestVerifyBatchesWithRolloutRelaxed(t *testing.T) {
 	}
 }
 
+func TestVerifyEmptyRolloutBatches(t *testing.T) {
+	plan := &v1alpha1.RolloutPlan{
+		TargetSize: pointer.Int32Ptr(2),
+	}
+	if err := verifyBatchesWithRollout(plan, 3); err == nil {
+		t.Errorf("verifyBatchesWithRollout() = %v, want error", nil)
+	}
+}
+
 func TestVerifyBatchesWithRolloutNumeric(t *testing.T) {
 	// test hard number
 	if err := verifyBatchesWithRollout(rolloutNumericSpec, 6); err == nil {
@@ -371,6 +382,11 @@ func Test_VerifyBatchesWithScaleFailCases(t *testing.T) {
 			rolloutSpec:  rolloutNumericSpec,
 			originalSize: 16,
 			targetSize:   10,
+		},
+		"empty rollingBatches": {
+			rolloutSpec:  &v1alpha1.RolloutPlan{},
+			targetSize:   3,
+			originalSize: 2,
 		},
 	}
 	for name, tt := range tests {
