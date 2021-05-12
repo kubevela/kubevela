@@ -43,7 +43,6 @@ module.exports = {
             'end-user/traits/more',
           ]
         },
-        'end-user/definition-revision',
         'end-user/scopes/appdeploy',
         'end-user/scopes/rollout-plan',
         {
