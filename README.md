@@ -52,5 +52,9 @@ Full documentation is available on the [KubeVela website](https://kubevela.io/).
 ## Contributing
 Check out [CONTRIBUTING](./CONTRIBUTING.md) to see how to develop with KubeVela.
 
+## Report Vulnerability
+
+Security is a first priority thing for us at KubeVela. If you come across a related issue, please send email to security@mail.kubevela.io .
+
 ## Code of Conduct
 KubeVela adopts [CNCF Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md).
