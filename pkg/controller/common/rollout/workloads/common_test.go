@@ -19,6 +19,8 @@ package workloads
 import (
 	"testing"
 
+	"k8s.io/utils/pointer"
+
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/oam-dev/kubevela/apis/standard.oam.dev/v1alpha1"
@@ -213,6 +215,15 @@ func TestVerifyBatchesWithRolloutRelaxed(t *testing.T) {
 		t.Errorf("verifyBatchesWithRollout() = %v, want error", nil)
 	}
 	if err := verifyBatchesWithRollout(rolloutOverFlowSpec, 0); err == nil {
+		t.Errorf("verifyBatchesWithRollout() = %v, want error", nil)
+	}
+}
+
+func TestVerifyEmptyRolloutBatches(t *testing.T) {
+	plan := &v1alpha1.RolloutPlan{
+		TargetSize: pointer.Int32Ptr(2),
+	}
+	if err := verifyBatchesWithRollout(plan, 3); err == nil {
 		t.Errorf("verifyBatchesWithRollout() = %v, want error", nil)
 	}
 }
