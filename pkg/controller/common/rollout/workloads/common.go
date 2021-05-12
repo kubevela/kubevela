@@ -29,6 +29,10 @@ import (
 // verifyBatchesWithRollout verifies that the the sum of all the batch replicas is valid given the total replica
 // each batch replica can be absolute or a percentage
 func verifyBatchesWithRollout(rolloutSpec *v1alpha1.RolloutPlan, totalReplicas int32) error {
+	// If rolloutBatches length equal to zero will cause index out of bounds panic, guarantee don't crash whole vela controller
+	if len(rolloutSpec.RolloutBatches) == 0 {
+		return fmt.Errorf("the rolloutPlan must have batches")
+	}
 	// if not set, the sum of all the batch sizes minus the last batch cannot be more than the totalReplicas
 	totalRollout := 0
 	for i := 0; i < len(rolloutSpec.RolloutBatches)-1; i++ {
@@ -57,6 +61,10 @@ func verifyBatchesWithRollout(rolloutSpec *v1alpha1.RolloutPlan, totalReplicas i
 
 // verifyBatchesWithScale verifies that executing batches finally reach the target size starting from original size
 func verifyBatchesWithScale(rolloutSpec *v1alpha1.RolloutPlan, originalSize, targetSize int) error {
+	// If rolloutBatches length equal to zero will cause index out of bounds panic, guarantee don't crash whole vela controller
+	if len(rolloutSpec.RolloutBatches) == 0 {
+		return fmt.Errorf("the rolloutPlan must have batches")
+	}
 	totalRollout := originalSize
 	for i := 0; i < len(rolloutSpec.RolloutBatches)-1; i++ {
 		rb := rolloutSpec.RolloutBatches[i]
