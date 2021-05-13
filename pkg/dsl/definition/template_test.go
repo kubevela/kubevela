@@ -34,6 +34,7 @@ func TestWorkloadTemplateComplete(t *testing.T) {
 		expectObj        runtime.Object
 		expAssObjs       map[string]runtime.Object
 		category         types.CapabilityCategory
+		hasCompileErr    bool
 	}{
 		"only contain an output": {
 			workloadTemplate: `
@@ -60,6 +61,7 @@ parameter: {
 				"metadata":   map[string]interface{}{"name": "test"},
 				"spec":       map[string]interface{}{"replicas": int64(2)},
 			}},
+			hasCompileErr: false,
 		},
 		"contain output and outputs": {
 			workloadTemplate: `
@@ -122,6 +124,7 @@ parameter: {
 					},
 				},
 			},
+			hasCompileErr: false,
 		},
 		"output needs context appRevision": {
 			workloadTemplate: `
@@ -156,6 +159,7 @@ parameter: {
 					},
 				},
 			},
+			hasCompileErr: false,
 		},
 		"output needs context replicas": {
 			workloadTemplate: `
@@ -180,13 +184,46 @@ parameter: {
 					},
 				},
 			},
+			hasCompileErr: false,
+		},
+		"parameter type doesn't match will raise error": {
+			workloadTemplate: `
+output:{
+	apiVersion: "apps/v1"
+    kind: "Deployment"
+	metadata: name: context.name
+    spec: replicas: parameter.replicas
+}
+parameter: {
+	replicas: *1 | int
+	type: string
+	host: string
+}
+`,
+			params: map[string]interface{}{
+				"replicas": "2",
+				"type":     "ClusterIP",
+				"host":     "example.com",
+			},
+			expectObj: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "apps/v1",
+				"kind":       "Deployment",
+				"metadata":   map[string]interface{}{"name": "test"},
+				"spec":       map[string]interface{}{"replicas": int64(2)},
+			}},
+			hasCompileErr: true,
 		},
 	}
 
 	for _, v := range testCases {
 		ctx := process.NewContext("default", "test", "myapp", "myapp-v1")
 		wt := NewWorkloadAbstractEngine("testWorkload", &PackageDiscover{})
-		assert.NoError(t, wt.Complete(ctx, v.workloadTemplate, v.params))
+		err := wt.Complete(ctx, v.workloadTemplate, v.params)
+		hasError := err != nil
+		assert.Equal(t, v.hasCompileErr, hasError)
+		if v.hasCompileErr {
+			continue
+		}
 		base, assists := ctx.Output()
 		assert.Equal(t, len(v.expAssObjs), len(assists))
 		assert.NotNil(t, base)
@@ -211,6 +248,7 @@ func TestTraitTemplateComplete(t *testing.T) {
 		params        map[string]interface{}
 		expWorkload   *unstructured.Unstructured
 		expAssObjs    map[string]runtime.Object
+		hasCompileErr bool
 	}{
 		"patch trait": {
 			traitTemplate: `
@@ -691,6 +729,32 @@ parameter: {
 					"spec":     map[string]interface{}{"maxReplicas": int64(10), "minReplicas": int64(1)}}},
 			},
 		},
+		"parameter type doesn't match will raise error": {
+			traitTemplate: `
+      parameter: {
+        exposePort: int
+      }
+      // trait template can have multiple outputs in one trait
+      outputs: service: {
+        apiVersion: "v1"
+        kind: "Service"
+        spec: {
+          selector:
+            app: context.name
+          ports: [
+            {
+              port: parameter.exposePort
+              targetPort: parameter.exposePort
+            }
+          ]
+        }
+      }
+`,
+			params: map[string]interface{}{
+				"exposePort": "1080",
+			},
+			hasCompileErr: true,
+		},
 	}
 
 	for cassinfo, v := range tds {
@@ -761,7 +825,12 @@ parameter: {
 			return
 		}
 		td := NewTraitAbstractEngine(v.traitName, &PackageDiscover{})
-		assert.NoError(t, td.Complete(ctx, v.traitTemplate, v.params))
+		err := td.Complete(ctx, v.traitTemplate, v.params)
+		hasError := err != nil
+		assert.Equal(t, v.hasCompileErr, hasError)
+		if v.hasCompileErr {
+			continue
+		}
 		base, assists := ctx.Output()
 		assert.Equal(t, len(v.expAssObjs), len(assists), cassinfo)
 		assert.NotNil(t, base)
