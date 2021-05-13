@@ -27,6 +27,8 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/go-logr/logr"
+	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -44,6 +46,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
@@ -214,8 +217,9 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 		var (
 			outputSecretName string
 			err              error
+			pCtx             process.Context
 		)
-		pCtx := process.NewContext(h.app.Namespace, wl.Name, appFile.Name, appFile.RevisionName)
+
 		if wl.IsCloudResourceProducer() {
 			outputSecretName, err = appfile.GetOutputSecretNames(wl)
 			if err != nil {
@@ -223,29 +227,49 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 			}
 			pCtx.InsertSecrets(outputSecretName, wl.RequiredSecrets)
 		}
-		if err := wl.EvalContext(pCtx); err != nil {
-			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate context error", appFile.Name, wl.Name)
+
+		switch wl.CapabilityCategory {
+		case types.TerraformCategory:
+			pCtx = appfile.NewBasicContext(wl, appFile.Name, appFile.RevisionName, appFile.Namespace)
+			ctx := context.Background()
+			var configuration terraformapi.Configuration
+			if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: h.app.Namespace}, &configuration); err != nil {
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appFile.Name, wl.Name)
+			}
+			if configuration.Status.State != terraformtypes.Available {
+				healthy = false
+				status.Healthy = false
+			} else {
+				status.Healthy = true
+			}
+			status.Message = configuration.Status.Message
+		default:
+			pCtx = process.NewContext(h.app.Namespace, wl.Name, appFile.Name, appFile.RevisionName)
+			if err := wl.EvalContext(pCtx); err != nil {
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate context error", appFile.Name, wl.Name)
+			}
+			workloadHealth, err := wl.EvalHealth(pCtx, h.r, h.app.Namespace)
+			if err != nil {
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appFile.Name, wl.Name)
+			}
+			if !workloadHealth {
+				// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
+				status.Healthy = false
+				healthy = false
+			}
+
+			status.Message, err = wl.EvalStatus(pCtx, h.r, h.app.Namespace)
+			if err != nil {
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appFile.Name, wl.Name)
+			}
 		}
+
 		for _, tr := range wl.Traits {
 			if err := tr.EvalContext(pCtx); err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate context error", appFile.Name, wl.Name, tr.Name)
 			}
 		}
 
-		workloadHealth, err := wl.EvalHealth(pCtx, h.r, h.app.Namespace)
-		if err != nil {
-			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appFile.Name, wl.Name)
-		}
-		if !workloadHealth {
-			// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
-			status.Healthy = false
-			healthy = false
-		}
-
-		status.Message, err = wl.EvalStatus(pCtx, h.r, h.app.Namespace)
-		if err != nil {
-			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appFile.Name, wl.Name)
-		}
 		var traitStatusList []common.ApplicationTraitStatus
 		for _, trait := range wl.Traits {
 			var traitStatus = common.ApplicationTraitStatus{
