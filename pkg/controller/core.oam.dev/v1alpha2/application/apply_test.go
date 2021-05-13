@@ -24,7 +24,6 @@ import (
 
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/ghodss/yaml"
-	"github.com/oam-dev/kubevela/pkg/appfile"
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo"
@@ -40,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	velatypes "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
