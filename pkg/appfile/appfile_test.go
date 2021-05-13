@@ -29,6 +29,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"
+	"gotest.tools/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,6 +39,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
+	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
@@ -471,6 +473,7 @@ variable "password" {
 				"writeConnectionSecretToRef": map[string]interface{}{
 					"name": "db",
 				},
+				process.OutputSecretName: "db-conn",
 			},
 		}
 
@@ -805,7 +808,7 @@ variable "password" {
 			revision: "v1",
 		}
 
-		pCtx := newContext(args.wl, args.appName, args.revision, ns)
+		pCtx := NewBasicContext(args.wl, args.appName, args.revision, ns)
 		comp, acc, err = evalWorkloadWithContext(pCtx, args.wl, ns, args.appName, compName)
 		Expect(comp.Spec.Workload).ShouldNot(BeNil())
 		Expect(acc.ComponentName).Should(Equal(""))
@@ -951,4 +954,16 @@ func TestGenerateTerraformConfigurationWorkload(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestGetUserConfigName(t *testing.T) {
+	wl1 := &Workload{Params: nil}
+	assert.Equal(t, wl1.GetUserConfigName(), "")
+
+	wl2 := &Workload{Params: map[string]interface{}{AppfileBuiltinConfig: 1}}
+	assert.Equal(t, wl2.GetUserConfigName(), "")
+
+	config := "abc"
+	wl3 := &Workload{Params: map[string]interface{}{AppfileBuiltinConfig: config}}
+	assert.Equal(t, wl3.GetUserConfigName(), config)
 }

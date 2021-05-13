@@ -24,17 +24,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
-
-	"k8s.io/apimachinery/pkg/api/meta"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-
 	"github.com/crossplane/crossplane-runtime/pkg/event"
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/go-logr/logr"
+	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -101,7 +99,7 @@ var _ = BeforeSuite(func(done Done) {
 	logf.Log.Info("start application suit test", "yaml_path", yamlPath)
 	testEnv = &envtest.Environment{
 		UseExistingCluster: pointer.BoolPtr(false),
-		CRDDirectoryPaths:  []string{yamlPath},
+		CRDDirectoryPaths:  []string{yamlPath, "./testdata/crds/terraform.core.oam.dev_configurations.yaml"},
 	}
 
 	var err error
@@ -120,6 +118,9 @@ var _ = BeforeSuite(func(done Done) {
 
 	err = scheme.AddToScheme(testScheme)
 	Expect(err).NotTo(HaveOccurred())
+
+	terraformv1beta1.AddToScheme(testScheme)
+
 	// +kubebuilder:scaffold:scheme
 	k8sClient, err = client.New(cfg, client.Options{Scheme: testScheme})
 	Expect(err).ToNot(HaveOccurred())
