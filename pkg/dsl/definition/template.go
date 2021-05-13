@@ -109,7 +109,7 @@ func (wd *workloadDef) Complete(ctx process.Context, abstractTemplate string, pa
 		return err
 	}
 
-	if err := inst.Value().Err(); err != nil {
+	if err := inst.Value().Validate(); err != nil {
 		return errors.WithMessagef(err, "invalid cue template of workload %s after merge parameter and context", wd.name)
 	}
 	output := inst.Lookup(OutputFieldName)
@@ -294,7 +294,7 @@ func (td *traitDef) Complete(ctx process.Context, abstractTemplate string, param
 		return err
 	}
 
-	if err := inst.Value().Err(); err != nil {
+	if err := inst.Value().Validate(); err != nil {
 		return errors.WithMessagef(err, "invalid template of trait %s after merge with parameter and context", td.name)
 	}
 	processing := inst.Lookup("processing")
