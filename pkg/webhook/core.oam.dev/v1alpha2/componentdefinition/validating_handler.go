@@ -100,7 +100,7 @@ func ValidateWorkload(dm discoverymapper.DiscoveryMapper, cd *v1beta1.ComponentD
 		}
 	}
 
-	if cd.Spec.Schematic.HELM != nil && cd.Spec.Workload.Definition == (common.WorkloadGVK{}) {
+	if cd.Spec.Schematic != nil && cd.Spec.Schematic.HELM != nil && cd.Spec.Workload.Definition == (common.WorkloadGVK{}) {
 		return fmt.Errorf("the definition of the workload field should be set when you use HELM in ComponentDefinition %s", cd.Name)
 	}
 	return nil
