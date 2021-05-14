@@ -41,7 +41,7 @@ spec:
   # If workflow is specified, Vela won't apply any resource, but provide rendered output in AppRevision.
   # workflow steps are executed in array order, and each step:
   # - will have a context in annotation.
-  # - should mark "finish" phase in annotation.
+  # - should mark "finish" phase in status.conditions.
   workflow:
   
     # blue-green rollout
@@ -140,10 +140,20 @@ Each workflow step has the following interactions with the app controller:
     WorkflowIndex int
   }
   ```
-- The controller will wait for the workflow object's annotation `app.oam.dev/workflow-phase` to have value:
-  - `succeeded`: the controller will run the next step.
-  - `stopped`: the controller will stop the workflow.
-  - `failed`: the controller will stop the workflow and report error status.
+- The controller will wait for the workflow object's `status.conditions` to have this condition:
+
+  ```yaml
+  conditions:
+    - type: workflow-finish
+      status: 'True'
+      reason: 'Succeeded'
+    - ...
+  ```
+
+  The reason could be one of the following:
+  - `Succeeded`: This will make the controller run the next step.
+  - `Stopped`: This will make the controller stop the workflow.
+  - `Failed`: This will make the controller stop the workflow and report error in `message`.
 
 ## Use Cases
 
