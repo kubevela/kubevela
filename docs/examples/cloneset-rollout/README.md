@@ -18,7 +18,7 @@ kubectl apply -f docs/examples/cloneset-rollout/clonesetDefinition.yaml
 
 2. Apply an application for rolling out
 ```shell
-kubectl apply -f docs/examples/cloneset-rollout/app-source.yaml
+kubectl apply -f docs/examples/cloneset-rollout/app-scale.yaml
 kubectl apply -f docs/examples/cloneset-rollout/appRollout-scale.yaml
 ```
 Check the status of the ApplicationRollout and wait for the rollout to complete.
