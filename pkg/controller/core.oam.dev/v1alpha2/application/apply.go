@@ -565,7 +565,7 @@ func (h *appHandler) getWorkloadName(w runtime.RawExtension, componentName strin
 	if err != nil {
 		return "", err
 	}
-	var revision int = 0
+	revision := 0
 	if len(revisionName) != 0 {
 		r, err := utils.ExtractRevision(revisionName)
 		if err != nil {
