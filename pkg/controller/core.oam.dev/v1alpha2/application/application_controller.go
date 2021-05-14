@@ -208,6 +208,8 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedHealthCheck, err))
 		return handler.handleErr(err)
 	}
+	// add another event when health check passed.
+	r.Recorder.Event(app, event.Normal(velatypes.ReasonFailedHealthCheck, velatypes.MessageHealthCheck))
 	if !healthy {
 		app.Status.SetConditions(errorCondition("HealthCheck", errors.New("not healthy")))
 
