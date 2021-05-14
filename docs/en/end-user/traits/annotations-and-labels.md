@@ -38,7 +38,9 @@ kubectl apply -f myapp.yaml
 On runtime cluster, check the workload has been created successfully.
 
 ```bash
-$ kubectl get deployments
+kubectl get deployments
+```
+```console
 NAME             READY   UP-TO-DATE   AVAILABLE   AGE
 express-server   1/1     1            1           15s
 ```
@@ -46,13 +48,17 @@ express-server   1/1     1            1           15s
 Check the `labels`.
 
 ```bash
-$ kubectl get deployments express-server -o jsonpath='{.spec.template.metadata.labels}'
+kubectl get deployments express-server -o jsonpath='{.spec.template.metadata.labels}'
+```
+```console
 {"app.oam.dev/component":"express-server","release": "stable"}
 ```
 
 Check the `annotations`.
 
 ```bash
-$ kubectl get deployments express-server -o jsonpath='{.spec.template.metadata.annotations}'
+kubectl get deployments express-server -o jsonpath='{.spec.template.metadata.annotations}'
+```
+```console
 {"description":"web application"}
 ```

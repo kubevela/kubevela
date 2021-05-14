@@ -11,11 +11,16 @@ KubeVela is able to discover OAM definition files in this repo automatically and
 Add and sync a capability center in KubeVela:
 
 ```bash
-$ vela cap center config my-center https://github.com/oam-dev/catalog/tree/master/registry
+vela cap center config my-center https://github.com/oam-dev/catalog/tree/master/registry
+```
+```console
 successfully sync 1/1 from my-center remote center
 Successfully configured capability center my-center and sync from remote
-
-$ vela cap center sync my-center
+```
+```bash
+vela cap center sync my-center
+```
+```console
 successfully sync 1/1 from my-center remote center
 sync finished
 ```
@@ -27,7 +32,9 @@ Now, this capability center `my-center` is ready to use.
 You are allowed to add more capability centers and list them.
 
 ```bash
-$ vela cap center ls
+vela cap center ls
+```
+```console
 NAME     	ADDRESS
 my-center	https://github.com/oam-dev/catalog/tree/master/registry
 ```
@@ -37,7 +44,7 @@ my-center	https://github.com/oam-dev/catalog/tree/master/registry
 Or, remove one.
 
 ```bash
-$ vela cap center remove my-center
+vela cap center remove my-center
 ```
 
 ## List all available capabilities in capability center
@@ -45,7 +52,9 @@ $ vela cap center remove my-center
 Or, list all available capabilities in certain center.
 
 ```bash
-$ vela cap ls my-center
+vela cap ls my-center
+```
+```console
 NAME               	CENTER   	TYPE               	DEFINITION                    	STATUS     	APPLIES-TO
 clonesetservice    	my-center	componentDefinition	clonesets.apps.kruise.io      	uninstalled	[]
 ```
@@ -63,7 +72,9 @@ helm install kruise https://github.com/openkruise/kruise/releases/download/v0.7.
 Install `clonesetservice` component from `my-center`.
 
 ```bash
-$ vela cap install my-center/clonesetservice
+vela cap install my-center/clonesetservice
+```
+```console
 Installing component capability clonesetservice
 Successfully installed capability clonesetservice from my-center
 ```
@@ -73,7 +84,9 @@ Successfully installed capability clonesetservice from my-center
 Let's check the `clonesetservice` appears in your platform firstly:
 
 ```bash
-$ vela components
+vela components
+```
+```console
 NAME           	NAMESPACE  	WORKLOAD                	DESCRIPTION
 clonesetservice	vela-system	clonesets.apps.kruise.io	Describes long-running, scalable, containerized services
                	           	                        	that have a stable network endpoint to receive external
@@ -85,7 +98,7 @@ clonesetservice	vela-system	clonesets.apps.kruise.io	Describes long-running, sca
 Great! Now let's deploy an app via Appfile.
 
 ```bash
-$ cat << EOF > vela.yaml
+cat << EOF > vela.yaml
 name: testapp
 services:
   testsvc:
@@ -96,7 +109,9 @@ EOF
 ```
 
 ```bash
-$ vela up
+vela up
+```
+```console
 Parsing vela appfile ...
 Load Template ...
 
@@ -118,7 +133,9 @@ Updating:  core.oam.dev/v1alpha2, Kind=HealthScope in default
 then you can Get a cloneset in your environment.
 
 ```shell
-$ kubectl get clonesets.apps.kruise.io
+kubectl get clonesets.apps.kruise.io
+```
+```console
 NAME      DESIRED   UPDATED   UPDATED_READY   READY   TOTAL   AGE
 testsvc   1         1         1               1       1       46s
 ```
@@ -128,6 +145,8 @@ testsvc   1         1         1               1       1       46s
 > NOTE: make sure no apps are using the capability before uninstalling.
 
 ```bash
-$ vela cap uninstall my-center/clonesetservice
+vela cap uninstall my-center/clonesetservice
+```
+```console
 Successfully uninstalled capability clonesetservice
 ```

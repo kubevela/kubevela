@@ -10,11 +10,13 @@ Cloud volumes are not built-in capabilities in KubeVela so you need to enable th
 Install and check the `TraitDefinition` for AWS EBS volume trait.
 
 ```shell
-$ kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/app-with-volumes/td-awsEBS.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/app-with-volumes/td-awsEBS.yaml
 ```
 
 ```shell
-$ kubectl vela show aws-ebs-volume
+kubectl vela show aws-ebs-volume
+```
+```console
 +-----------+----------------------------------------------------------------+--------+----------+---------+
 |   NAME    |                          DESCRIPTION                           |  TYPE  | REQUIRED | DEFAULT |
 +-----------+----------------------------------------------------------------+--------+----------+---------+

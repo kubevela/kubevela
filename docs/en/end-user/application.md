@@ -14,6 +14,8 @@ Let's check the available components in fresh new KubeVela.
 
 ```shell
 kubectl get comp -n vela-system
+```
+```console
 NAME              WORKLOAD-KIND   DESCRIPTION                        
 task              Job             Describes jobs that run code or a script to completion.                                                                                          
 webservice        Deployment      Describes long-running, scalable, containerized services that have a stable network endpoint to receive external network traffic from customers. 
@@ -23,7 +25,9 @@ worker            Deployment      Describes long-running, scalable, containerize
 To show the specification for given component, you could use `vela show`. 
 
 ```shell
-$ kubectl vela show webservice
+kubectl vela show webservice
+```
+```console
 # Properties
 +------------------+----------------------------------------------------------------------------------+-----------------------+----------+---------+
 |       NAME       |                                   DESCRIPTION                                    |         TYPE          | REQUIRED | DEFAULT |
@@ -73,7 +77,9 @@ spec:
 Traits are platform provided features that could *overlay* a given component with extra operational behaviors.
 
 ```shell
-$ kubectl get trait -n vela-system
+kubectl get trait -n vela-system
+```
+```console
 NAME                                       APPLIES-TO            DESCRIPTION                                     
 cpuscaler                                  [webservice worker]   configure k8s HPA with CPU metrics for Deployment
 ingress                                    [webservice worker]   Configures K8s ingress and service to enable web traffic for your service. Please use route trait in cap center for advanced usage.
@@ -84,7 +90,9 @@ sidecar                                    [webservice worker]   inject a sideca
 Let's check the specification of `sidecar` trait.
 
 ```shell
-$ kubectl vela show sidecar
+kubectl vela show sidecar
+```
+```console
 # Properties
 +---------+-----------------------------------------+----------+----------+---------+
 |  NAME   |               DESCRIPTION               |   TYPE   | REQUIRED | DEFAULT |
@@ -137,14 +145,18 @@ spec:
 ## Step 4: Deploy the Application
 
 ```shell
-$ kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/enduser/sample.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/enduser/sample.yaml
+```
+```console
 application.core.oam.dev/website created
 ```
 
 You'll get the application becomes `running`.
 
 ```shell
-$ kubectl get application
+kubectl get application
+```
+```console
 NAME        COMPONENT   TYPE         PHASE     HEALTHY   STATUS   AGE
 website     frontend    webservice   running   true               4m54s
 ```
@@ -152,7 +164,9 @@ website     frontend    webservice   running   true               4m54s
 Check the details of the application.
 
 ```shell
-$ kubectl get app website -o yaml
+kubectl get app website -o yaml
+```
+```console
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
@@ -212,7 +226,9 @@ Specifically:
 When updating an application entity, KubeVela will create a new revision for this change.
 
 ```shell
-$ kubectl get apprev -l app.oam.dev/name=website
+kubectl get apprev -l app.oam.dev/name=website
+```
+```console
 NAME           AGE
 website-v1     35m
 ```
@@ -225,13 +241,17 @@ Furthermore, the system will decide how to/whether to rollout the application ba
 On the runtime cluster, you could see a Kubernetes Deployment named `frontend` is running, with port exposed, and with a container `fluentd` injected.
 
 ```shell
-$ kubectl get deploy frontend
+kubectl get deploy frontend
+```
+```console
 NAME       READY   UP-TO-DATE   AVAILABLE   AGE
 frontend   1/1     1            1           97s
 ```
 
 ```shell
-$ kubectl get deploy frontend -o yaml
+kubectl get deploy frontend -o yaml
+```
+```console
 ...
     spec:
       containers:
@@ -250,7 +270,9 @@ $ kubectl get deploy frontend -o yaml
 Another Deployment is also running named `backend`.
 
 ```shell
-$ kubectl get deploy backend
+kubectl get deploy backend
+```
+```console
 NAME      READY   UP-TO-DATE   AVAILABLE   AGE
 backend   1/1     1            1           111s
 ```
@@ -258,7 +280,9 @@ backend   1/1     1            1           111s
 An HPA was also created by the `cpuscaler` trait. 
 
 ```shell
-$ kubectl get HorizontalPodAutoscaler frontend
+kubectl get HorizontalPodAutoscaler frontend
+```
+```console
 NAME       REFERENCE             TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
 frontend   Deployment/frontend   <unknown>/50%   1         10        1          101m
 ```

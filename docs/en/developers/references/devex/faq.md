@@ -30,7 +30,9 @@ Also, KubeVela is by design a Kubernetes controller (i.e. works on server side),
 Occasionally you might hit the issue as below. It happens when the last KubeVela release deletion hasn't completed.
 
 ```
-$ vela install
+vela install
+```
+```console
 - Installing Vela Core Chart:
 install chart vela-core, version 0.1.0, desc : A Helm chart for Kube Vela core, contains 35 file
 Failed to install the chart with error: serviceaccounts "cert-manager-cainjector" is forbidden: unable to create new content in namespace cert-manager because it is being terminated
@@ -44,7 +46,9 @@ Error: failed to create resource: serviceaccounts "cert-manager-cainjector" is f
 Take a break and try again in a few seconds.
 
 ```
-$ vela install
+vela install
+```
+```console
 - Installing Vela Core Chart:
 Vela system along with OAM runtime already exist.
 Automatically discover capabilities successfully ✅ Add(0) Update(0) Delete(8)
@@ -65,7 +69,9 @@ TYPE       	CATEGORY	DESCRIPTION
 And manually apply all WorkloadDefinition and TraitDefinition manifests to have all capabilities back.
 
 ```
-$ kubectl apply -f charts/vela-core/templates/defwithtemplate
+kubectl apply -f charts/vela-core/templates/defwithtemplate
+```
+```console
 traitdefinition.core.oam.dev/autoscale created
 traitdefinition.core.oam.dev/scaler created
 traitdefinition.core.oam.dev/metrics created
@@ -74,8 +80,11 @@ traitdefinition.core.oam.dev/route created
 workloaddefinition.core.oam.dev/task created
 workloaddefinition.core.oam.dev/webservice created
 workloaddefinition.core.oam.dev/worker created
-
-$ vela workloads
+```
+```
+vela workloads
+```
+```console
 Automatically discover capabilities successfully ✅ Add(8) Update(0) Delete(0)
 
 TYPE       	CATEGORY	DESCRIPTION
@@ -99,7 +108,9 @@ worker    	Long-running scalable backend worker without network endpoint
 Occasionally you might hit the issue as below. It happens when there is an old OAM Kubernetes Runtime release, or you applied `ScopeDefinition` before.
 
 ```
-$ vela install
+vela install
+```
+```console
   - Installing Vela Core Chart:
   install chart vela-core, version 0.1.0, desc : A Helm chart for Kube Vela core, contains 35 file
   Failed to install the chart with error: ScopeDefinition "healthscopes.core.oam.dev" in namespace "" exists and cannot be imported into the current release: invalid ownership metadata; annotation validation error: key "meta.helm.sh/release-name" must equal "kubevela": current value is "oam"; annotation validation error: key "meta.helm.sh/release-namespace" must equal "vela-system": current value is "oam-system"
@@ -113,10 +124,15 @@ $ vela install
 Delete `ScopeDefinition` "healthscopes.core.oam.dev" and try again.
 
 ```
-$ kubectl delete ScopeDefinition "healthscopes.core.oam.dev"
+kubectl delete ScopeDefinition "healthscopes.core.oam.dev"
+```
+```console
 scopedefinition.core.oam.dev "healthscopes.core.oam.dev" deleted
-
-$ vela install
+```
+```
+vela install
+```
+```console
 - Installing Vela Core Chart:
 install chart vela-core, version 0.1.0, desc : A Helm chart for Kube Vela core, contains 35 file
 Successfully installed the chart, status: deployed, last deployed time = 2020-12-03 16:26:41.491426 +0800 CST m=+4.026069452
@@ -141,7 +157,9 @@ TYPE       	CATEGORY	DESCRIPTION
 When you look into the logs of Pod kubevela-vela-core and found the issue as below.
 
 ```
-$ kubectl get pod -n vela-system -l app.kubernetes.io/name=vela-core
+kubectl get pod -n vela-system -l app.kubernetes.io/name=vela-core
+```
+```console
 NAME                                 READY   STATUS    RESTARTS   AGE
 kubevela-vela-core-f8b987775-wjg25   0/1     -         0          35m
 ```
@@ -152,7 +170,7 @@ kubevela-vela-core-f8b987775-wjg25   0/1     -         0          35m
 You can use github container registry instead.
 
 ```
-$ docker pull ghcr.io/oam-dev/kubevela/vela-core:latest
+docker pull ghcr.io/oam-dev/kubevela/vela-core:latest
 ```
 
 ### Warning: Namespace cert-manager exists
@@ -161,7 +179,9 @@ If you hit the issue as below, an `cert-manager` release might exist whose names
 with KubeVela.
 
 ```
-$ vela install
+vela install
+```
+```console
 - Installing Vela Core Chart:
 install chart vela-core, version 0.1.0, desc : A Helm chart for Kube Vela core, contains 35 file
 Failed to install the chart with error: Namespace "cert-manager" in namespace "" exists and cannot be imported into the current release: invalid ownership metadata; label validation error: missing key "app.kubernetes.io/managed-by": must be set to "Helm"; annotation validation error: missing key "meta.helm.sh/release-name": must be set to "kubevela"; annotation validation error: missing key "meta.helm.sh/release-namespace": must be set to "vela-system"
@@ -180,13 +200,21 @@ Try these steps to fix the problem.
 - Install KubeVela again
 
 ```
-$ helm delete cert-manager -n cert-manager
+helm delete cert-manager -n cert-manager
+```
+```console
 release "cert-manager" uninstalled
-
-$ kubectl delete ns cert-manager
+```
+```
+kubectl delete ns cert-manager
+```
+```console
 namespace "cert-manager" deleted
-
-$ vela install
+```
+```
+vela install
+```
+```console
 - Installing Vela Core Chart:
 install chart vela-core, version 0.1.0, desc : A Helm chart for Kube Vela core, contains 35 file
 Successfully installed the chart, status: deployed, last deployed time = 2020-12-04 10:46:46.782617 +0800 CST m=+4.248889379
@@ -249,12 +277,17 @@ is enabled with command `kubectl top nodes` or `kubectl top pods`.
 If the output is similar as below, the metrics is enabled.
 
 ```shell
-$ kubectl top nodes
+kubectl top nodes
+```
+```console
 NAME                     CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%
 cn-hongkong.10.0.1.237   288m         7%     5378Mi          78%
 cn-hongkong.10.0.1.238   351m         8%     5113Mi          74%
-
-$ kubectl top pods
+```
+```
+kubectl top pods
+```
+```console
 NAME                          CPU(cores)   MEMORY(bytes)
 php-apache-65f444bf84-cjbs5   0m           1Mi
 wordpress-55c59ccdd5-lf59d    1m           66Mi
@@ -279,7 +312,7 @@ Please refer to [metrics server debug guide](https://help.aliyun.com/document_de
 Install metrics server as below, or you can install the [latest version](https://github.com/kubernetes-sigs/metrics-server#installation).
 
 ```shell
-$ kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.3.7/components.yaml
+kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.3.7/components.yaml
 ```
 
 Also add the following part under `.spec.template.spec.containers` in the yaml file loaded by `kubectl edit deploy -n kube-system metrics-server`.
@@ -297,7 +330,7 @@ command:
 Enable it with following command.
 
 ```shell
-$ minikube addons enable metrics-server
+minikube addons enable metrics-server
 ```
 
 

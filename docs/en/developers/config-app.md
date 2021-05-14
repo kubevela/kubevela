@@ -7,7 +7,9 @@ title:  Configuring data/env in Application
 ## `vela config set`
 
 ```bash
-$ vela config set test a=b c=d
+vela config set test a=b c=d
+```
+```console
 reading existing config data and merging with user input
 config data saved successfully ✅
 ```
@@ -15,7 +17,9 @@ config data saved successfully ✅
 ## `vela config get`
 
 ```bash
-$ vela config get test
+vela config get test
+```
+```console
 Data:
   a: b
   c: d
@@ -24,16 +28,20 @@ Data:
 ## `vela config del`
 
 ```bash
-$ vela config del test
+vela config del test
+```
+```console
 config (test) deleted successfully
 ```
 
 ## `vela config ls`
 
 ```bash
-$ vela config set test a=b
-$ vela config set test2 c=d
-$ vela config ls
+vela config set test a=b
+vela config set test2 c=d
+vela config ls
+```
+```console
 NAME
 test
 test2
@@ -44,7 +52,7 @@ test2
 The config data can be set as the env in applications.
 
 ```bash
-$ vela config set demo DEMO_HELLO=helloworld
+vela config set demo DEMO_HELLO=helloworld
 ```
 
 Save the following to `vela.yaml` in current directory:
@@ -59,7 +67,9 @@ services:
 
 Then run:
 ```bash
-$ vela up
+vela up
+```
+```console
 Parsing vela.yaml ...
 Loading templates ...
 
@@ -80,6 +90,8 @@ App has not been deployed, creating a new deployment...
 Check env var:
 
 ```
-$ vela exec testapp -- printenv | grep DEMO_HELLO
+vela exec testapp -- printenv | grep DEMO_HELLO
+```
+```console
 DEMO_HELLO=helloworld
 ```

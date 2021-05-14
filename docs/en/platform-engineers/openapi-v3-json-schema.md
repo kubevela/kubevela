@@ -13,7 +13,9 @@ KubeVela will automatically generate OpenAPI v3 JSON schema based on its paramet
 This `ConfigMap` will have a common label `definition.oam.dev=schema`, so you can find easily by:
 
 ```shell
-$ kubectl get configmap -n vela-system -l definition.oam.dev=schema
+kubectl get configmap -n vela-system -l definition.oam.dev=schema
+```
+```console
 NAME                DATA   AGE
 schema-ingress      1      19s
 schema-scaler       1      19s
@@ -28,7 +30,9 @@ and the data key is `openapi-v3-json-schema`.
 For example, we can use the following command to get the JSON schema of `webservice`.
 
 ```shell
-$ kubectl get configmap schema-webservice -n vela-system -o yaml
+kubectl get configmap schema-webservice -n vela-system -o yaml
+```
+```console
 apiVersion: v1
 kind: ConfigMap
 metadata:

@@ -8,14 +8,18 @@ A typical set of deployment environment is `test`, `staging`, `prod`, etc.
 ## Create environment
 
 ```bash
-$ vela env init demo --email my@email.com
+vela env init demo --email my@email.com
+```
+```console
 environment demo created, Namespace: default, Email: my@email.com
 ```
 
 ## Check the deployment environment metadata
 
 ```bash
-$ vela env ls
+vela env ls
+```
+```console
 NAME   	CURRENT	NAMESPACE	EMAIL                	DOMAIN
 default	       	default  	
 demo   	*      	default  	my@email.com
@@ -28,12 +32,16 @@ By default, the environment will use `default` namespace in K8s.
 You could change the config by executing the environment again.
 
 ```bash
-$ vela env init demo --namespace demo
+vela env init demo --namespace demo
+```
+```console
 environment demo created, Namespace: demo, Email: my@email.com
 ```
 
 ```bash
-$ vela env ls
+vela env ls
+```
+```console
 NAME   	CURRENT	NAMESPACE	EMAIL                	DOMAIN
 default	       	default  	
 demo   	*      	demo     	my@email.com
@@ -50,7 +58,9 @@ your app by this domain with an mTLS supported automatically.
 For example, you could get the public IP from ingress service.  
 
 ```bash
-$ kubectl get svc -A | grep LoadBalancer
+kubectl get svc -A | grep LoadBalancer
+```
+```console
 NAME                         TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)                      AGE
 nginx-ingress-lb             LoadBalancer   172.21.2.174    123.57.10.233   80:32740/TCP,443:32086/TCP   41d
 ```
@@ -66,7 +76,9 @@ You could also use `123.57.10.233.xip.io` as your domain, if you don't have a cu
 
 
 ```bash
-$ vela env init demo --domain 123.57.10.233.xip.io
+vela env init demo --domain 123.57.10.233.xip.io
+```
+```console
 environment demo updated, Namespace: demo, Email: my@email.com
 ```
 
@@ -87,7 +99,9 @@ servcies:
 ```
 
 ```
-$ curl http://123.57.10.233.xip.io/testapp
+curl http://123.57.10.233.xip.io/testapp
+```
+```console
 Hello World
 ```
 

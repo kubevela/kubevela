@@ -7,7 +7,9 @@ title: Ingress
 The `ingress` trait exposes a component to public Internet via a valid domain.
 
 ```shell
-$ kubectl vela show ingress
+kubectl vela show ingress
+```
+```console
 # Properties
 +--------+------------------------------------------------------------------------------+----------------+----------+---------+
 |  NAME  |                                 DESCRIPTION                                  |      TYPE      | REQUIRED | DEFAULT |
@@ -41,14 +43,18 @@ spec:
 ```
 
 ```bash
-$ kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/vela-app.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/vela-app.yaml
+```
+```console
 application.core.oam.dev/first-vela-app created
 ```
 
 Check the status until we see `status` is `running` and services are `healthy`:
 
 ```bash
-$ kubectl get application first-vela-app -w
+kubectl get application first-vela-app -w
+```
+```console
 NAME             COMPONENT        TYPE         PHASE            HEALTHY   STATUS   AGE
 first-vela-app   express-server   webservice   healthChecking                      14s
 first-vela-app   express-server   webservice   running          true               42s
@@ -57,7 +63,9 @@ first-vela-app   express-server   webservice   running          true            
 Check the trait detail for the its visiting url:
 
 ```shell
-$ kubectl get application first-vela-app -o yaml
+kubectl get application first-vela-app -o yaml
+```
+```console
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
@@ -79,7 +87,9 @@ spec:
 Then you will be able to visit this application via its domain.
 
 ```
-$ curl -H "Host:testsvc.example.com" http://<your ip address>/
+curl -H "Host:testsvc.example.com" http://<your ip address>/
+```
+```console
 <xmp>
 Hello World
 

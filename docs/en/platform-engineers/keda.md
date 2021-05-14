@@ -105,7 +105,7 @@ This is a CUE based template which only exposes `type` and `value` as trait prop
 As long as the definition file is ready, you just need to apply it to Kubernetes.
 
 ```bash
-$ kubectl apply -f https://raw.githubusercontent.com/oam-dev/catalog/master/registry/keda-scaler.yaml
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/catalog/master/registry/keda-scaler.yaml
 ```
 
 And the new trait will immediately become available for end users to use in `Application` resource.
