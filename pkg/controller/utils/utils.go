@@ -34,6 +34,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -43,7 +44,6 @@ import (
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	oamtypes "github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/controller/common"
 	"github.com/oam-dev/kubevela/pkg/dsl/definition"
 	"github.com/oam-dev/kubevela/pkg/oam"
@@ -257,23 +257,35 @@ func ComputeSpecHash(spec interface{}) (string, error) {
 }
 
 // RefreshPackageDiscover help refresh package discover
-func RefreshPackageDiscover(dm discoverymapper.DiscoveryMapper, pd *definition.PackageDiscover, workloadGVK commontypes.WorkloadGVK,
-	workloadref commontypes.DefinitionReference, def oamtypes.CapType) error {
+func RefreshPackageDiscover(ctx context.Context, k8sClient client.Client, dm discoverymapper.DiscoveryMapper,
+	pd *definition.PackageDiscover, definition runtime.Object) error {
 	var gvk schema.GroupVersionKind
 	var err error
-	switch def {
-	case oamtypes.TypeComponentDefinition:
-		gv, err := schema.ParseGroupVersion(workloadGVK.APIVersion)
+	switch def := definition.(type) {
+	case *v1beta1.ComponentDefinition:
+		if def.Spec.Workload.Definition == (commontypes.WorkloadGVK{}) {
+			workloadDef := new(v1beta1.WorkloadDefinition)
+			err = k8sClient.Get(ctx, client.ObjectKey{Name: def.Spec.Workload.Type, Namespace: def.Namespace}, workloadDef)
+			if err != nil {
+				return err
+			}
+			gvk, err = util.GetGVKFromDefinition(dm, workloadDef.Spec.Reference)
+			if err != nil {
+				return err
+			}
+		} else {
+			gv, err := schema.ParseGroupVersion(def.Spec.Workload.Definition.APIVersion)
+			if err != nil {
+				return err
+			}
+			gvk = gv.WithKind(def.Spec.Workload.Definition.Kind)
+		}
+	case *v1beta1.TraitDefinition:
+		gvk, err = util.GetGVKFromDefinition(dm, def.Spec.Reference)
 		if err != nil {
 			return err
 		}
-		gvk = gv.WithKind(workloadGVK.Kind)
-	case oamtypes.TypeTrait:
-		gvk, err = util.GetGVKFromDefinition(dm, workloadref)
-		if err != nil {
-			return err
-		}
-	case oamtypes.TypeWorkload, oamtypes.TypeScope:
+	default:
 	}
 	targetGVK := metav1.GroupVersionKind{
 		Group:   gvk.Group,

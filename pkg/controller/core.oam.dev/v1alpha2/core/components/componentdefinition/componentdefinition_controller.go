@@ -36,7 +36,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -82,15 +81,12 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// refresh package discover when componentDefinition is registered
-	if handler.cd.Spec.Workload.Definition != (common.WorkloadGVK{}) {
-		err := utils.RefreshPackageDiscover(r.dm, r.pd, handler.cd.Spec.Workload.Definition,
-			common.DefinitionReference{}, types.TypeComponentDefinition)
-		if err != nil {
-			klog.ErrorS(err, "cannot discover the open api of the CRD")
-			r.record.Event(&componentDefinition, event.Warning("cannot discover the open api of the CRD", err))
-			return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
-				cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
-		}
+	err := utils.RefreshPackageDiscover(ctx, r.Client, r.dm, r.pd, &componentDefinition)
+	if err != nil {
+		klog.ErrorS(err, "cannot discover the open api of the CRD")
+		r.record.Event(&componentDefinition, event.Warning("cannot discover the open api of the CRD", err))
+		return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
+			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrRefreshPackageDiscover, err)))
 	}
 
 	// generate DefinitionRevision from componentDefinition
