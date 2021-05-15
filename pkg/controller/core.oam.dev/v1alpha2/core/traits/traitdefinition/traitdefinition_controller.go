@@ -36,7 +36,6 @@ import (
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
-	"github.com/oam-dev/kubevela/apis/types"
 	controller "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	coredef "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/core"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
@@ -77,8 +76,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	// refresh package discover when traitDefinition is registered
 	if traitdefinition.Spec.Reference.Name != "" {
-		err := utils.RefreshPackageDiscover(r.dm, r.pd, common.WorkloadGVK{},
-			traitdefinition.Spec.Reference, types.TypeTrait)
+		err := utils.RefreshPackageDiscover(ctx, r.Client, r.dm, r.pd, &traitdefinition)
 		if err != nil {
 			klog.ErrorS(err, "cannot refresh packageDiscover")
 			r.record.Event(&traitdefinition, event.Warning("cannot refresh packageDiscover", err))
