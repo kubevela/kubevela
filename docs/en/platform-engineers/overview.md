@@ -121,8 +121,7 @@ metadata:
   name: hpa
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   schematic:
     cue:
       template: |
@@ -168,8 +167,7 @@ metadata:
   name: sidecar
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   schematic:
     cue:
       template: |-

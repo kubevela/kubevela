@@ -5,8 +5,7 @@ metadata:
   namespace: vela-system
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   schematic:
     cue:
       template: |

@@ -315,8 +315,7 @@ spec:
     healthPolicy: |
       isHealth: len(context.outputs.service.spec.clusterIP) > 0
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   schematic:
     cue:
       template: |
@@ -472,8 +471,7 @@ spec:
     customStatus: testCustomStatus
     healthPolicy: testHealthPolicy 
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   schematic:
     cue:
       template: testCUE `

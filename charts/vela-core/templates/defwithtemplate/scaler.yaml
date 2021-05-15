@@ -8,8 +8,7 @@ metadata:
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   podDisruptive: false
   schematic:
     cue:

@@ -19,8 +19,7 @@ metadata:
   name: node-affinity
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   podDisruptive: true
   schematic:
     cue:
@@ -118,8 +117,7 @@ metadata:
   name: sidecar
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   podDisruptive: true
   schematic:
     cue:
@@ -148,8 +146,7 @@ metadata:
   name: expose
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   podDisruptive: true
   schematic:
     cue:
@@ -263,8 +260,7 @@ metadata:
   name: virtualgroup
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   podDisruptive: true
   schematic:
     cue:
@@ -314,8 +310,7 @@ metadata:
   name: kautoscale
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   podDisruptive: false
   schematic:
     cue:
@@ -351,8 +346,7 @@ metadata:
   name: env
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   podDisruptive: true
   schematic:
     cue:
@@ -393,8 +387,7 @@ metadata:
   name: service-account
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   podDisruptive: true
   schematic:
     cue:
@@ -440,8 +433,7 @@ metadata:
   name: init-container
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   podDisruptive: true
   schematic:
     cue:
