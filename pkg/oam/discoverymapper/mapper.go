@@ -19,6 +19,8 @@ package discoverymapper
 import (
 	"sync"
 
+	"github.com/pkg/errors"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
@@ -125,4 +127,15 @@ func (d *DefaultDiscoveryMapper) ResourcesFor(input schema.GroupVersionKind) (sc
 	}
 	gvr = mapping.Resource
 	return gvr, nil
+}
+
+// IsNamespacedScope discover the resources supported by API server and check
+// whether a resource is namespaced-scope.
+func IsNamespacedScope(dm DiscoveryMapper, gk schema.GroupKind) (bool, error) {
+	restMapping, err := dm.RESTMapping(gk)
+	if err != nil {
+		return false, errors.WithMessage(err, "cannot check resource scope")
+	}
+	isNamespaced := restMapping.Scope.Name() == meta.RESTScopeNameNamespace
+	return isNamespaced, nil
 }
