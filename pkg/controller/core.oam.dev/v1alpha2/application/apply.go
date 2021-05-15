@@ -53,6 +53,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -463,7 +464,11 @@ func (h *appHandler) checkAndSetResourceTracker(resource *runtime.RawExtension) 
 	if err != nil {
 		return false, err
 	}
-	if checkResourceDiffWithApp(u, h.app.Namespace) {
+	inDiffNamespace, err := h.checkCrossNamespace(u)
+	if err != nil {
+		return false, err
+	}
+	if inDiffNamespace {
 		needTracker = true
 		ref := h.genResourceTrackerOwnerReference()
 		// set resourceTracker as the ownerReference of workload/trait
@@ -485,8 +490,22 @@ func (h *appHandler) generateResourceTrackerName() string {
 	return fmt.Sprintf("%s-%s", h.app.Namespace, h.app.Name)
 }
 
-func checkResourceDiffWithApp(u *unstructured.Unstructured, appNs string) bool {
-	return len(u.GetNamespace()) != 0 && u.GetNamespace() != appNs
+// return true if the resource is cluser-scoped or is not in the same namespace
+// with application
+func (h *appHandler) checkCrossNamespace(u *unstructured.Unstructured) (bool, error) {
+	gk := u.GetObjectKind().GroupVersionKind().GroupKind()
+	isNamespacedScope, err := discoverymapper.IsNamespacedScope(h.r.dm, gk)
+	if err != nil {
+		return false, err
+	}
+	if !isNamespacedScope {
+		// it's cluster-scoped resource
+		return true, nil
+	}
+	// for a namespace-scoped resource, if its namespace is empty,
+	// we will set application's namespace to it latter,
+	// so only check non-empty namespace here
+	return len(u.GetNamespace()) != 0 && u.GetNamespace() != h.app.Namespace, nil
 }
 
 // finalizeResourceTracker func return whether need to update application
@@ -694,7 +713,11 @@ func (h *appHandler) handleResourceTracker(ctx context.Context, components []*v1
 		if err != nil {
 			return err
 		}
-		if checkResourceDiffWithApp(u, h.app.Namespace) {
+		inDiffNamespace, err := h.checkCrossNamespace(u)
+		if err != nil {
+			return err
+		}
+		if inDiffNamespace {
 			needTracker = true
 			break
 		}
@@ -706,7 +729,11 @@ outLoop:
 			if err != nil {
 				return err
 			}
-			if checkResourceDiffWithApp(u, h.app.Namespace) {
+			inDiffNamespace, err := h.checkCrossNamespace(u)
+			if err != nil {
+				return err
+			}
+			if inDiffNamespace {
 				needTracker = true
 				break outLoop
 			}

@@ -166,7 +166,7 @@ var _ = Describe("Mapper discovery resources", func() {
 		Eventually(func() []schema.GroupVersionKind {
 			kinds, _ = dism.KindsFor(schema.GroupVersionResource{Group: "example.com", Version: "", Resource: "foos"})
 			return kinds
-		}, time.Second*30, time.Millisecond*300).Should(Equal([]schema.GroupVersionKind{
+		}, time.Second*60, time.Second*3).Should(Equal([]schema.GroupVersionKind{
 			{Group: "example.com", Version: "v1", Kind: "Foo"},
 			{Group: "example.com", Version: "v1beta1", Kind: "Foo"},
 		}))
@@ -220,5 +220,115 @@ var _ = Describe("Mapper discovery resources", func() {
 		Expect(err).Should(BeNil())
 		_, err = dism.ResourcesFor(gv.WithKind(kind))
 		Expect(err).Should(HaveOccurred())
+	})
+
+	It("check API resource scope", func() {
+		dism, err := New(cfg)
+		Expect(err).Should(BeNil())
+
+		var (
+			clusterCRKind   = "ImClusterScope"
+			namespaceCRKind = "ImNamespaceScope"
+		)
+
+		By("Register a cluster-scoped CRD")
+		clusterScopeCRD := crdv1.CustomResourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "imclusterscopes.example.com",
+			},
+			Spec: crdv1.CustomResourceDefinitionSpec{
+				Scope: crdv1.ClusterScoped,
+				Group: "example.com",
+				Names: crdv1.CustomResourceDefinitionNames{
+					Kind:   clusterCRKind,
+					Plural: "imclusterscopes",
+				},
+				Versions: []crdv1.CustomResourceDefinitionVersion{{
+					Name:    "v1",
+					Served:  true,
+					Storage: true,
+					Schema: &crdv1.CustomResourceValidation{
+						OpenAPIV3Schema: &crdv1.JSONSchemaProps{
+							Type: "object",
+						}},
+				}},
+			},
+		}
+		Expect(k8sClient.Create(context.Background(), &clusterScopeCRD)).Should(BeNil())
+
+		By("Register a namespace-scoped CRD")
+		namespaceScopeCRD := crdv1.CustomResourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "imnamespacescopes.example.com",
+			},
+			Spec: crdv1.CustomResourceDefinitionSpec{
+				Scope: crdv1.NamespaceScoped,
+				Group: "example.com",
+				Names: crdv1.CustomResourceDefinitionNames{
+					Kind:   namespaceCRKind,
+					Plural: "imnamespacescopes",
+				},
+				Versions: []crdv1.CustomResourceDefinitionVersion{{
+					Name:    "v1",
+					Served:  true,
+					Storage: true,
+					Schema: &crdv1.CustomResourceValidation{
+						OpenAPIV3Schema: &crdv1.JSONSchemaProps{
+							Type: "object",
+						}},
+				}},
+			},
+		}
+		Expect(k8sClient.Create(context.Background(), &namespaceScopeCRD)).Should(BeNil())
+
+		By("Verify checking built-in cluster-scoped resource")
+		clusterBuiltInRsc := schema.GroupKind{
+			Group: "",
+			Kind:  "PersistentVolume",
+		}
+		isNamespaced, err := IsNamespacedScope(dism, clusterBuiltInRsc)
+		Expect(err).Should(BeNil())
+		Expect(isNamespaced).Should(BeFalse())
+
+		By("Verify checking built-in namespace-scoped resource")
+		namespaceBuiltInRsc := schema.GroupKind{
+			Group: "apps",
+			Kind:  "Deployment",
+		}
+		isNamespaced, err = IsNamespacedScope(dism, namespaceBuiltInRsc)
+		Expect(err).Should(BeNil())
+		Expect(isNamespaced).Should(BeTrue())
+
+		By("Verify checking cluster-scoped custom resource")
+		clusterCR := schema.GroupKind{
+			Group: "example.com",
+			Kind:  clusterCRKind,
+		}
+		By("Wait for refreshing DiscoveryMapper")
+		Eventually(func() error {
+			isNamespaced, err = IsNamespacedScope(dism, clusterCR)
+			return err
+		}, time.Second*2, time.Millisecond*300).Should(BeNil())
+		Expect(isNamespaced).Should(BeFalse())
+
+		By("Verify checking namespace-scoped custom resource")
+		namespaceCR := schema.GroupKind{
+			Group: "example.com",
+			Kind:  namespaceCRKind,
+		}
+		By("Wait for refreshing DiscoveryMapper")
+		Eventually(func() error {
+			isNamespaced, err = IsNamespacedScope(dism, namespaceCR)
+			return err
+		}, time.Second*2, time.Millisecond*300).Should(BeNil())
+		Expect(isNamespaced).Should(BeTrue())
+
+		By("Cannot check an unknown resource")
+		unknownCR := schema.GroupKind{
+			Group: "unknow.com",
+			Kind:  "Unknown",
+		}
+		_, err = IsNamespacedScope(dism, unknownCR)
+		Expect(err).ShouldNot(BeNil())
 	})
 })
