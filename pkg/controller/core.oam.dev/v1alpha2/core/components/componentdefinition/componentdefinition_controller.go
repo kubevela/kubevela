@@ -74,12 +74,6 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
-	handler := handler{
-		Client: r.Client,
-		dm:     r.dm,
-		cd:     &componentDefinition,
-	}
-
 	// refresh package discover when componentDefinition is registered
 	err := utils.RefreshPackageDiscover(ctx, r.Client, r.dm, r.pd, &componentDefinition)
 	if err != nil {
@@ -93,7 +87,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	defRev, isNewRevision, err := coredef.GenerateDefinitionRevision(ctx, r.Client, &componentDefinition)
 	if err != nil {
 		klog.ErrorS(err, "cannot generate DefinitionRevision", "ComponentDefinitionName", componentDefinition.Name)
-		r.record.Event(handler.cd, event.Warning("cannot generate DefinitionRevision", err))
+		r.record.Event(&componentDefinition, event.Warning("cannot generate DefinitionRevision", err))
 		return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
 			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrGenerateDefinitionRevision, componentDefinition.Name, err)))
 	}
@@ -114,28 +108,7 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
-	workloadType, err := handler.CreateWorkloadDefinition(ctx)
-	if err != nil {
-		klog.ErrorS(err, "cannot create converted WorkloadDefinition")
-		r.record.Event(&componentDefinition, event.Warning("cannot store capability in ConfigMap", err))
-		return ctrl.Result{}, util.PatchCondition(ctx, r, &componentDefinition,
-			cpv1alpha1.ReconcileError(fmt.Errorf(util.ErrCreateConvertedWorklaodDefinition, componentDefinition.Name, err)))
-	}
-	klog.InfoS("Successfully create WorkloadDefinition", "name", componentDefinition.Name)
-
-	var def utils.CapabilityComponentDefinition
-	def.Name = req.NamespacedName.Name
-	def.WorkloadType = workloadType
-	def.ComponentDefinition = componentDefinition
-	switch workloadType {
-	case util.ReferWorkload:
-		def.WorkloadDefName = componentDefinition.Spec.Workload.Type
-	case util.HELMDef:
-		def.Helm = componentDefinition.Spec.Schematic.HELM
-	case util.KubeDef:
-		def.Kube = componentDefinition.Spec.Schematic.KUBE
-	default:
-	}
+	def := utils.NewCapabilityComponentDef(&componentDefinition)
 
 	// Store the parameter of componentDefinition to configMap
 	err = def.StoreOpenAPISchema(ctx, r.Client, r.pd, req.Namespace, req.Name, defRev.Name)

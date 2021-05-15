@@ -34,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	commontypes "github.com/oam-dev/kubevela/apis/core.oam.dev/common"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
@@ -67,6 +66,26 @@ type CapabilityComponentDefinition struct {
 	CapabilityBaseDefinition
 }
 
+// NewCapabilityComponentDef will create a CapabilityComponentDefinition
+func NewCapabilityComponentDef(componentDefinition *v1beta1.ComponentDefinition) CapabilityComponentDefinition {
+	var def CapabilityComponentDefinition
+	def.Name = componentDefinition.Name
+	if componentDefinition.Spec.Workload.Definition == (commontypes.WorkloadGVK{}) && componentDefinition.Spec.Workload.Type != "" {
+		def.WorkloadType = util.ReferWorkload
+		def.WorkloadDefName = componentDefinition.Spec.Workload.Type
+	}
+	if componentDefinition.Spec.Schematic != nil && componentDefinition.Spec.Schematic.HELM != nil {
+		def.WorkloadType = util.HELMDef
+		def.Helm = componentDefinition.Spec.Schematic.HELM
+	}
+	if componentDefinition.Spec.Schematic != nil && componentDefinition.Spec.Schematic.KUBE != nil {
+		def.WorkloadType = util.KubeDef
+		def.Kube = componentDefinition.Spec.Schematic.KUBE
+	}
+	def.ComponentDefinition = *componentDefinition.DeepCopy()
+	return def
+}
+
 // GetCapabilityObject gets types.Capability object by WorkloadDefinition name
 func (def *CapabilityComponentDefinition) GetCapabilityObject(ctx context.Context, k8sClient client.Client, namespace, name string) (*types.Capability, error) {
 	var componentDefinition v1beta1.ComponentDefinition
@@ -81,20 +100,11 @@ func (def *CapabilityComponentDefinition) GetCapabilityObject(ctx context.Contex
 	}
 	def.ComponentDefinition = componentDefinition
 
-	switch def.WorkloadType {
-	case util.ReferWorkload:
-		var wd = new(v1alpha2.WorkloadDefinition)
-		objectKey.Name = def.WorkloadDefName
-		if err := k8sClient.Get(ctx, objectKey, wd); err != nil {
-			return nil, fmt.Errorf("failed to get WorkloadDefinition that ComponentDefinition refers to")
-		}
-		capability, err = appfile.ConvertTemplateJSON2Object(name, wd.Spec.Extension, wd.Spec.Schematic)
-	default:
-		capability, err = appfile.ConvertTemplateJSON2Object(name, componentDefinition.Spec.Extension, componentDefinition.Spec.Schematic)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert ComponentDefinition to Capability Object")
-		}
+	capability, err = appfile.ConvertTemplateJSON2Object(name, componentDefinition.Spec.Extension, componentDefinition.Spec.Schematic)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert ComponentDefinition to Capability Object")
 	}
+
 	return &capability, err
 }
 
