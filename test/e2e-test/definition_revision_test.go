@@ -371,6 +371,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				APIVersion: "apps/v1",
 				Kind:       "Deployment",
 			}
+			helmworkerV1.Spec.Workload.Type = "deployments.apps"
 			helmworkerV1.Spec.Schematic = &common.Schematic{
 				HELM: &common.Helm{
 					Release: util.Object2RawExtension(map[string]interface{}{
@@ -551,6 +552,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				APIVersion: "batch/v1",
 				Kind:       "Job",
 			}
+			kubeworkerV1.Spec.Workload.Type = "jobs.batch"
 			kubeworkerV1.Spec.Schematic = &common.Schematic{
 				KUBE: &common.Kube{
 					Template: generateTemplate(KUBEWorkerV2Template),
