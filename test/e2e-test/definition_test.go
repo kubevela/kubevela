@@ -59,7 +59,41 @@ var _ = Describe("ComponentDefinition Normal tests", func() {
 	})
 
 	Context("Test dynamic admission control for componentDefinition", func() {
-		It("Test componentDefinition only set definition fields", func() {
+
+		It("Test componentDefinition which only set type field", func() {
+			workDef := &v1beta1.WorkloadDefinition{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ComponentDefinition",
+					APIVersion: "core.oam.dev/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "deployments.apps",
+				},
+				Spec: v1beta1.WorkloadDefinitionSpec{
+					Reference: common.DefinitionReference{
+						Name:    "deployments.apps",
+						Version: "v1",
+					},
+				},
+			}
+			workDef.SetNamespace(namespace)
+			Expect(k8sClient.Create(ctx, workDef)).Should(BeNil())
+
+			cd := webServiceWithNoTemplate.DeepCopy()
+			cd.Spec.Workload.Definition = common.WorkloadGVK{}
+			cd.Spec.Workload.Type = "deployments.apps"
+			cd.SetNamespace(namespace)
+			cd.SetName("test-componentdef")
+			cd.Spec.Schematic.CUE.Template = webServiceV1Template
+			Expect(k8sClient.Create(ctx, cd)).Should(Succeed())
+
+			defRev := new(v1beta1.DefinitionRevision)
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Name: "test-componentdef-v1", Namespace: namespace}, defRev)
+			}).Should(BeNil())
+		})
+
+		It("Test componentDefinition only set definition field", func() {
 			testCd := webServiceWithNoTemplate.DeepCopy()
 			testCd.Spec.Schematic.CUE.Template = webServiceV1Template
 			testCd.SetName("test-componentdef-v1")

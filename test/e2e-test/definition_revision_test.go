@@ -81,7 +81,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(labelDefRevList.Items))
 			}
 			return nil
-		}, 40*time.Second, time.Second).Should(BeNil())
+		}, 60*time.Second, time.Second).Should(BeNil())
 
 	})
 
@@ -144,7 +144,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(workerDefRevList.Items))
 			}
 			return nil
-		}, 40*time.Second, time.Second).Should(BeNil())
+		}, 60*time.Second, time.Second).Should(BeNil())
 
 		webserviceV1 := webServiceWithNoTemplate.DeepCopy()
 		webserviceV1.Spec.Schematic.CUE.Template = webServiceV1Template
@@ -175,7 +175,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(webserviceDefRevList.Items))
 			}
 			return nil
-		}, 40*time.Second, time.Second).Should(BeNil())
+		}, 60*time.Second, time.Second).Should(BeNil())
 
 		app := v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
@@ -406,7 +406,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(helmworkerDefRevList.Items))
 			}
 			return nil
-		}, 40*time.Second, time.Second).Should(BeNil())
+		}, 60*time.Second, time.Second).Should(BeNil())
 
 		app := v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
@@ -586,7 +586,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(kubeworkerDefRevList.Items))
 			}
 			return nil
-		}, 40*time.Second, time.Second).Should(BeNil())
+		}, 60*time.Second, time.Second).Should(BeNil())
 
 		app := v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
