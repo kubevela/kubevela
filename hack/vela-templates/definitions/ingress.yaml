@@ -2,8 +2,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "Configures K8s ingress and service to enable web traffic for your service.
-    Please use route trait in cap center for advanced usage."
+    definition.oam.dev/description: "Enable public web traffic for the component."
   name: ingress
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:
