@@ -17,8 +17,28 @@ contributing to `kubevela` or build a PoC (Proof of Concept).
 2. Kubernetes version v1.16+ with `~/.kube/config` configured.
 3. ginkgo 1.14.0+ (just for [E2E test](./CONTRIBUTING.md#e2e-test))
 4. golangci-lint 1.31.0+, it will install automatically if you run `make`, you can [install it manually](https://golangci-lint.run/usage/install/#local-installation) if the installation is too slow.
+5. kubebuilder v2.X.X
 
-We also recommend you to learn about KubeVela's [design](https://kubevela.io/docs/concepts) before dive into its code.
+##### kubebuilder install:
+
+linux:
+```
+wget https://github.com/kubernetes-sigs/kubebuilder/releases/download/v2.0.0-alpha.1/kubebuilder_2.0.0-alpha.1_linux_amd64.tar.gz
+tar -zxvf  kubebuilder_2.0.0-alpha.1_linux_amd64.tar.gz
+sudo mv kubebuilder_2.0.0-alpha.1_linux_amd64 /usr/local/kubebuilder
+export PATH="/usr/local/kubebuilder/bin:$PATH"
+```
+
+macOS:
+```
+wget https://github.com/kubernetes-sigs/kubebuilder/releases/download/v2.3.2/kubebuilder_2.3.2_darwin_amd64.tar.gz
+tar -zxvf  kubebuilder_2.3.2_darwin_amd64.tar.gz
+sudo mv kubebuilder_2.3.2_darwin_amd64 /usr/local/kubebuilder
+export PATH="/usr/local/kubebuilder/bin:$PATH"
+```
+
+
+##### We also recommend you to learn about KubeVela's [design](https://kubevela.io/docs/concepts) before dive into its code.
 
 ### Build
 
