@@ -203,6 +203,11 @@ jobs:
     if: needs.detect-noop.outputs.noop != 'true'
 
     steps:
+      - name: Setup Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
       - name: Checkout
         uses: actions/checkout@v2
         with:
@@ -215,8 +220,11 @@ jobs:
           key: ${{ runner.os }}-pkg-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-pkg-
 
+      - name: Install StaticCheck
+        run: GO111MODULE=off go get honnef.co/go/tools/cmd/staticcheck
+      
       - name: Static Check
-        run: go run honnef.co/go/tools/cmd/staticcheck -- ./...
+        run: staticcheck ./...
 
       - name: License Header Check
         run: make check-license-header

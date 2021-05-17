@@ -347,6 +347,16 @@ func setTraitProperties(t *unstructured.Unstructured, traitName, namespace strin
 	if t.GetName() == "" {
 		t.SetName(traitName)
 	}
+
+	if controller := metav1.GetControllerOf(t); controller != nil {
+		if controller.APIVersion == v1beta1.SchemeGroupVersion.String() &&
+			controller.Kind == v1beta1.ResourceTrackerKind {
+			// if a resource is controlled by a ResourceTracker,
+			// it's cluster-scoped or in the different namespace with
+			// application, so no need to check/set namespace
+			return
+		}
+	}
 	// Don't override if the resources already has namespace, it was set by user or the application controller which is by design.
 	if len(t.GetNamespace()) == 0 {
 		t.SetNamespace(namespace)

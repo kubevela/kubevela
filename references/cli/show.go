@@ -80,7 +80,7 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 				return err
 			}
 			if webSite {
-				return startReferenceDocsSite(ctx, c, ioStreams, capabilityName)
+				return startReferenceDocsSite(ctx, velaEnv.Namespace, c, ioStreams, capabilityName)
 			}
 			return ShowReferenceConsole(ctx, c, ioStreams, capabilityName, velaEnv.Namespace)
 		},
@@ -94,7 +94,7 @@ func NewCapabilityShowCommand(c common.Args, ioStreams cmdutil.IOStreams) *cobra
 	return cmd
 }
 
-func startReferenceDocsSite(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string) error {
+func startReferenceDocsSite(ctx context.Context, ns string, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string) error {
 	home, err := system.GetVelaHomeDir()
 	if err != nil {
 		return err
@@ -113,13 +113,11 @@ func startReferenceDocsSite(ctx context.Context, c common.Args, ioStreams cmduti
 			return err
 		}
 	}
-
-	capabilities, _, err := plugins.SyncDefinitionsToLocal(ctx, c, definitionPath)
+	capabilities, err := plugins.GetNamespacedCapabilitiesFromCluster(ctx, ns, c, nil)
 	if err != nil {
 		return err
 	}
-
-	// check input capability is valid
+	// check whether input capability is valid
 	var capabilityIsValid bool
 	var capabilityType types.CapType
 	for _, c := range capabilities {
@@ -350,7 +348,7 @@ func getComponentsAndTraits(capabilities []types.Capability) ([]string, []string
 
 // ShowReferenceConsole will show capability reference in console
 func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.IOStreams, capabilityName string, ns string) error {
-	capability, err := plugins.SyncDefinitionToLocal(ctx, c, capabilityName, ns)
+	capability, err := plugins.GetCapabilityByName(ctx, c, capabilityName, ns)
 	if err != nil {
 		return err
 	}
@@ -378,7 +376,7 @@ func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.
 			return err
 		}
 	case types.TerraformCategory:
-		propertyConsole, err = ref.GenerateTerraformCapabilityProperties(capability)
+		propertyConsole, err = ref.GenerateTerraformCapabilityProperties(*capability)
 		if err != nil {
 			return err
 		}

@@ -85,9 +85,10 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 		if err := h.Decoder.DecodeRaw(req.AdmissionRequest.OldObject, oldApp); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
-
-		if allErrs := h.ValidateUpdate(ctx, app, oldApp); len(allErrs) > 0 {
-			return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
+		if app.ObjectMeta.DeletionTimestamp.IsZero() {
+			if allErrs := h.ValidateUpdate(ctx, app, oldApp); len(allErrs) > 0 {
+				return admission.Errored(http.StatusUnprocessableEntity, allErrs.ToAggregate())
+			}
 		}
 	default:
 		// Do nothing for DELETE and CONNECT
@@ -98,5 +99,5 @@ func (h *ValidatingHandler) Handle(ctx context.Context, req admission.Request) a
 // RegisterValidatingHandler will register application validate handler to the webhook
 func RegisterValidatingHandler(mgr manager.Manager, args controller.Args) {
 	server := mgr.GetWebhookServer()
-	server.Register("/validating-core-oam-dev-v1alpha2-applications", &webhook.Admission{Handler: &ValidatingHandler{dm: args.DiscoveryMapper, pd: args.PackageDiscover}})
+	server.Register("/validating-core-oam-dev-v1beta1-applications", &webhook.Admission{Handler: &ValidatingHandler{dm: args.DiscoveryMapper, pd: args.PackageDiscover}})
 }

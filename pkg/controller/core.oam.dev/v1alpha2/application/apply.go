@@ -27,6 +27,8 @@ import (
 	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/crossplane/crossplane-runtime/pkg/meta"
 	"github.com/go-logr/logr"
+	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -44,12 +46,14 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationconfiguration"
 	"github.com/oam-dev/kubevela/pkg/controller/core.oam.dev/v1alpha2/applicationrollout"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
 	"github.com/oam-dev/kubevela/pkg/dsl/process"
 	"github.com/oam-dev/kubevela/pkg/oam"
+	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -214,8 +218,9 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 		var (
 			outputSecretName string
 			err              error
+			pCtx             process.Context
 		)
-		pCtx := process.NewContext(h.app.Namespace, wl.Name, appFile.Name, appFile.RevisionName)
+
 		if wl.IsCloudResourceProducer() {
 			outputSecretName, err = appfile.GetOutputSecretNames(wl)
 			if err != nil {
@@ -223,29 +228,49 @@ func (h *appHandler) statusAggregate(appFile *appfile.Appfile) ([]common.Applica
 			}
 			pCtx.InsertSecrets(outputSecretName, wl.RequiredSecrets)
 		}
-		if err := wl.EvalContext(pCtx); err != nil {
-			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate context error", appFile.Name, wl.Name)
+
+		switch wl.CapabilityCategory {
+		case types.TerraformCategory:
+			pCtx = appfile.NewBasicContext(wl, appFile.Name, appFile.RevisionName, appFile.Namespace)
+			ctx := context.Background()
+			var configuration terraformapi.Configuration
+			if err := h.r.Client.Get(ctx, client.ObjectKey{Name: wl.Name, Namespace: h.app.Namespace}, &configuration); err != nil {
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appFile.Name, wl.Name)
+			}
+			if configuration.Status.State != terraformtypes.Available {
+				healthy = false
+				status.Healthy = false
+			} else {
+				status.Healthy = true
+			}
+			status.Message = configuration.Status.Message
+		default:
+			pCtx = process.NewContext(h.app.Namespace, wl.Name, appFile.Name, appFile.RevisionName)
+			if err := wl.EvalContext(pCtx); err != nil {
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate context error", appFile.Name, wl.Name)
+			}
+			workloadHealth, err := wl.EvalHealth(pCtx, h.r, h.app.Namespace)
+			if err != nil {
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appFile.Name, wl.Name)
+			}
+			if !workloadHealth {
+				// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
+				status.Healthy = false
+				healthy = false
+			}
+
+			status.Message, err = wl.EvalStatus(pCtx, h.r, h.app.Namespace)
+			if err != nil {
+				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appFile.Name, wl.Name)
+			}
 		}
+
 		for _, tr := range wl.Traits {
 			if err := tr.EvalContext(pCtx); err != nil {
 				return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, trait=%s, evaluate context error", appFile.Name, wl.Name, tr.Name)
 			}
 		}
 
-		workloadHealth, err := wl.EvalHealth(pCtx, h.r, h.app.Namespace)
-		if err != nil {
-			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, check health error", appFile.Name, wl.Name)
-		}
-		if !workloadHealth {
-			// TODO(wonderflow): we should add a custom way to let the template say why it's unhealthy, only a bool flag is not enough
-			status.Healthy = false
-			healthy = false
-		}
-
-		status.Message, err = wl.EvalStatus(pCtx, h.r, h.app.Namespace)
-		if err != nil {
-			return nil, false, errors.WithMessagef(err, "app=%s, comp=%s, evaluate workload status message error", appFile.Name, wl.Name)
-		}
 		var traitStatusList []common.ApplicationTraitStatus
 		for _, trait := range wl.Traits {
 			var traitStatus = common.ApplicationTraitStatus{
@@ -439,7 +464,11 @@ func (h *appHandler) checkAndSetResourceTracker(resource *runtime.RawExtension) 
 	if err != nil {
 		return false, err
 	}
-	if checkResourceDiffWithApp(u, h.app.Namespace) {
+	inDiffNamespace, err := h.checkCrossNamespace(u)
+	if err != nil {
+		return false, err
+	}
+	if inDiffNamespace {
 		needTracker = true
 		ref := h.genResourceTrackerOwnerReference()
 		// set resourceTracker as the ownerReference of workload/trait
@@ -461,8 +490,22 @@ func (h *appHandler) generateResourceTrackerName() string {
 	return fmt.Sprintf("%s-%s", h.app.Namespace, h.app.Name)
 }
 
-func checkResourceDiffWithApp(u *unstructured.Unstructured, appNs string) bool {
-	return len(u.GetNamespace()) != 0 && u.GetNamespace() != appNs
+// return true if the resource is cluser-scoped or is not in the same namespace
+// with application
+func (h *appHandler) checkCrossNamespace(u *unstructured.Unstructured) (bool, error) {
+	gk := u.GetObjectKind().GroupVersionKind().GroupKind()
+	isNamespacedScope, err := discoverymapper.IsNamespacedScope(h.r.dm, gk)
+	if err != nil {
+		return false, err
+	}
+	if !isNamespacedScope {
+		// it's cluster-scoped resource
+		return true, nil
+	}
+	// for a namespace-scoped resource, if its namespace is empty,
+	// we will set application's namespace to it latter,
+	// so only check non-empty namespace here
+	return len(u.GetNamespace()) != 0 && u.GetNamespace() != h.app.Namespace, nil
 }
 
 // finalizeResourceTracker func return whether need to update application
@@ -541,7 +584,7 @@ func (h *appHandler) getWorkloadName(w runtime.RawExtension, componentName strin
 	if err != nil {
 		return "", err
 	}
-	var revision int = 0
+	var revision = 0
 	if len(revisionName) != 0 {
 		r, err := utils.ExtractRevision(revisionName)
 		if err != nil {
@@ -670,7 +713,11 @@ func (h *appHandler) handleResourceTracker(ctx context.Context, components []*v1
 		if err != nil {
 			return err
 		}
-		if checkResourceDiffWithApp(u, h.app.Namespace) {
+		inDiffNamespace, err := h.checkCrossNamespace(u)
+		if err != nil {
+			return err
+		}
+		if inDiffNamespace {
 			needTracker = true
 			break
 		}
@@ -682,7 +729,11 @@ outLoop:
 			if err != nil {
 				return err
 			}
-			if checkResourceDiffWithApp(u, h.app.Namespace) {
+			inDiffNamespace, err := h.checkCrossNamespace(u)
+			if err != nil {
+				return err
+			}
+			if inDiffNamespace {
 				needTracker = true
 				break outLoop
 			}
@@ -721,7 +772,7 @@ func (h *appHandler) handleRollout(ctx context.Context) (reconcile.Result, error
 	// targetRevision should always points to LatestRevison
 	targetRevision := h.app.Status.LatestRevision.Name
 	var srcRevision string
-	target, _ := oamutil.ExtractRevisionNum(targetRevision)
+	target, _ := oamutil.ExtractRevisionNum(targetRevision, "-")
 	// if target == 1 this is a initial scale operation, sourceRevision should be empty
 	// otherwise source revision always is targetRevision - 1
 	if target > 1 {

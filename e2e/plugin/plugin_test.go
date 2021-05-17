@@ -160,7 +160,7 @@ spec:
       properties:
         image: crccheck/hello-world
         port: 5000
-        cpu: 0.5
+        cpu: "0.5"
       traits:
         - type: test-ingress
           properties:
@@ -535,7 +535,7 @@ var livediffResult = `---
 -   - name: express-server
 +   - name: new-express-server
       properties:
-+       cpu: 0.5
++       cpu: "0.5"
         image: crccheck/hello-world
 -       port: 80
 +       port: 5000
@@ -671,6 +671,11 @@ var livediffResult = `---
 +             name: new-express-server
 +             ports:
 +             - containerPort: 5000
++             resources:
++               limits:
++                 cpu: "0.5"
++               requests:
++                 cpu: "0.5"
 + status:
 +   observedGeneration: 0
   

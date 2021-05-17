@@ -19,6 +19,7 @@ package controllers_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -81,6 +82,162 @@ var _ = Describe("Test application cross namespace resource", func() {
 			}
 			return nil
 		}, time.Second*60, time.Microsecond*300).Should(BeNil())
+	})
+
+	It("Test application containing cluster-scoped trait", func() {
+		By("Install TraitDefinition")
+		traitDef := &v1beta1.TraitDefinition{}
+		Expect(yaml.Unmarshal([]byte(clusterScopeTraitDefYAML), traitDef)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, traitDef)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		By("Create Application")
+		var (
+			appName       = "cluster-scope-trait-app"
+			app           = new(v1beta1.Application)
+			componentName = "cluster-scope-trait-comp"
+		)
+		app = &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
+					{
+						Name:       componentName,
+						Type:       "worker",
+						Properties: runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
+						Traits: []v1beta1.ApplicationTrait{{
+							Type:       "cluster-scope-trait",
+							Properties: runtime.RawExtension{Raw: []byte("{}")},
+						}},
+					},
+				},
+			},
+		}
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 20*time.Second, 2*time.Second).Should(Succeed())
+
+		By("Verify the trait is created")
+		// sample cluster-scoped trait is PersistentVolume
+		pv := &corev1.PersistentVolume{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "pv-" + componentName, Namespace: namespace}, pv)
+		}, 20*time.Second, 500*time.Millisecond).Should(Succeed())
+		By("Verify cluster-scoped trait's controller is ResourceTracker")
+		controller := metav1.GetControllerOf(pv)
+		Expect(controller.Kind == v1beta1.ResourceTrackerKind).Should(BeTrue())
+
+		By("Delete Application")
+		Expect(k8sClient.Delete(ctx, app)).Should(Succeed())
+		By("Verify cluster-scoped trait is deleted cascadingly")
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "pv-" + componentName, Namespace: namespace}, pv)
+		}, 20*time.Second, 500*time.Millisecond).Should(SatisfyAll(&util.NotFoundMatcher{}))
+	})
+
+	It("Test GC for cluster-scoped trait", func() {
+		By("Install cluster-scoped trait's TraitDefinition")
+		clusterTraitDef := &v1beta1.TraitDefinition{}
+		Expect(yaml.Unmarshal([]byte(clusterScopeTraitDefYAML), clusterTraitDef)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, clusterTraitDef)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		By("Install namespace-scoped trait's TraitDefinition")
+		crossNamespaceTraitDef := &v1beta1.TraitDefinition{}
+		Expect(yaml.Unmarshal([]byte(crossNsTdYaml), crossNamespaceTraitDef)).Should(Succeed())
+		Expect(k8sClient.Create(ctx, crossNamespaceTraitDef)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		By("Create Application")
+		var (
+			appName       = "cluster-scope-trait-app"
+			app           = new(v1beta1.Application)
+			componentName = "cluster-scope-trait-comp"
+		)
+		app = &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
+					{
+						Name:       componentName,
+						Type:       "worker",
+						Properties: runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
+						Traits: []v1beta1.ApplicationTrait{
+							{
+								Type:       "cluster-scope-trait",
+								Properties: runtime.RawExtension{Raw: []byte("{}")},
+							},
+							{
+								Type:       "cross-scaler",
+								Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
+							},
+						},
+					},
+				},
+			},
+		}
+		Eventually(func() error {
+			return k8sClient.Create(ctx, app)
+		}, 20*time.Second, 2*time.Second).Should(Succeed())
+
+		By("Verify the cluster-scoped trait is created")
+		// sample cluster-scoped trait is PersistentVolume
+		pv := &corev1.PersistentVolume{}
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "pv-" + componentName, Namespace: namespace}, pv)
+		}, 20*time.Second, 500*time.Millisecond).Should(Succeed())
+		By("Verify cluster-scoped trait's controller is ResourceTracker")
+		controller := metav1.GetControllerOf(pv)
+		Expect(controller.Kind == v1beta1.ResourceTrackerKind).Should(BeTrue())
+
+		By("Remove the cluster-scope trait from application")
+		app = &v1beta1.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      appName,
+				Namespace: namespace,
+			},
+			Spec: v1beta1.ApplicationSpec{
+				Components: []v1beta1.ApplicationComponent{
+					{
+						Name:       componentName,
+						Type:       "worker",
+						Properties: runtime.RawExtension{Raw: []byte(`{"image": "nginx:latest"}`)},
+						Traits: []v1beta1.ApplicationTrait{
+							// remove the cluster-scoped trait and keep the
+							// cross-namespaced trait.
+							// if remove both, the resouce tracker will be deleted,
+							// we intends to test the gc of cluster-scoped trait but
+							// not cascading deletion
+							{
+								Type:       "cross-scaler",
+								Properties: runtime.RawExtension{Raw: []byte(`{"replicas": 1}`)},
+							}},
+					},
+				},
+			},
+		}
+		Eventually(func() error {
+			if err := k8sClient.Patch(ctx, app.DeepCopy(), client.Merge); err != nil {
+				return err
+			}
+			updatedApp := &v1beta1.Application{}
+			if err := k8sClient.Get(ctx, client.ObjectKey{Name: appName, Namespace: namespace}, updatedApp); err != nil {
+				return err
+			}
+			if len(updatedApp.Spec.Components) > 0 && len(updatedApp.Spec.Components[0].Traits) == 1 {
+				return nil
+			}
+			return errors.New("the cluster-scope trait has not been removed from application")
+		}, 30*time.Second, 2*time.Second).Should(Succeed())
+
+		By("Verify cluster-scoped trait is deleted")
+		Eventually(func() error {
+			requestReconcileNow(ctx, app)
+			return k8sClient.Get(ctx, client.ObjectKey{Name: "pv-" + componentName, Namespace: namespace}, pv)
+		}, 20*time.Second, 2*time.Second).Should(SatisfyAll(&util.NotFoundMatcher{}))
 	})
 
 	It("Test application have  cross-namespace workload", func() {
@@ -1335,6 +1492,38 @@ spec:
       parameter: {
       	//+short=r
       	replicas: *1 | int
+      }
+`
+	clusterScopeTraitDefYAML = `
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  name: cluster-scope-trait
+  namespace: app-resource-tracker-test-ns
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  extension:
+    template: |-
+      outputs: pv: { 
+        apiVersion: "v1"
+        kind:       "PersistentVolume"
+        metadata: name: "pv-\(context.name)"
+        spec: {
+           accessModes: ["ReadWriteOnce"]
+           capacity: storage: "5Gi"
+           persistentVolumeReclaimPolicy: "Retain"
+           storageClassName:              "test-sc"
+           csi: {
+           	driver:       "gcs.csi.ofek.dev"
+           	volumeHandle: "csi-gcs"
+           	nodePublishSecretRef: {
+           	    name:      "bucket-sa-\(context.name)"
+           	    namespace: context.namespace
+           	}
+           }
+        }
       }
 `
 )

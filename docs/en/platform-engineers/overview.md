@@ -6,7 +6,11 @@ This documentation will explain the core resource model of KubeVela which is ful
 
 ## Application
 
-KubeVela introduces an `Application` CRD as its main API that captures a full application deployment. Every application is composed by multiple components with attachable operational behaviors (traits). For example:
+The *Application* is the core API of KubeVela. It allows application team to work with a single artifact to capture the complete application deployment with simplified primitives. 
+
+This provides a simpler path for on-boarding application team to the platform without leaking low level details in runtime infrastructure. For example, they will be able to declare a "web service" without defining a detailed Kubernetes Deployment + Service combo each time, or claim the auto-scaling requirements without referring to the underlying KEDA ScaleObject. They can also declare a cloud database with same API if they want.
+
+Every application is composed by multiple components with attachable operational behaviors (traits). For example:
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -35,17 +39,18 @@ spec:
       bucket: "my-bucket"
 ```
 
+The `Application` resource in KubeVela is a LEGO-style entity and does not even have fixed schema. Instead, it is assembled by below building block entities that are maintained by the platform team.
 Though the application object doesn't have fixed schema, it is a composition object assembled by several *programmable building blocks* as shown below.
 
 ## Component
 
-The component model in KubeVela is designed to allow *component providers* to encapsulate deployable/provisionable entities by leveraging widely adopted tools such as CUE, Helm etc, and give a easier path to developers to deploy complicated microservices with ease.
-
-Templates based encapsulation is probably the mostly widely used approach to enable efficient application deployment and exposes easier interfaces to end users. For example, many tools today encapsulate Kubernetes *Deployment* and *Service* into a *Web Service* module, and then instantiate this module by simply providing parameters such as *image=foo* and *ports=80*. This pattern can be found in cdk8s (e.g. [`web-service.ts` ](https://github.com/awslabs/cdk8s/blob/master/examples/typescript/web-service/web-service.ts)), CUE (e.g. [`kube.cue`](https://github.com/cuelang/cue/blob/b8b489251a3f9ea318830788794c1b4a753031c0/doc/tutorial/kubernetes/quick/services/kube.cue#L70)), and many widely used Helm charts (e.g. [Web Service](https://docs.bitnami.com/tutorials/create-your-first-helm-chart/)).
+The component model (`ComponentDefinition` API) is designed to allow *component providers* to encapsulate deployable/provisionable entities with a wide range of tools, and hence give a easier path to application team to deploy complicated microservices across hybrid environments at ease. A component normally carries its workload type description (i.e. `WorkloadDefinition`), a encapsulation module with a parameter list.
 
 > Hence, a components provider could be anyone who packages software components in form of Helm chart of CUE modules. Think about 3rd-party software distributor, DevOps team, or even your CI pipeline.
 
-In above example, it describes an application composed with Kubernetes stateless workload (component `foo`) and a Alibaba Cloud OSS bucket (component `bar`) alongside.
+Components are shareable and reusable. For example, by referencing the same *Alibaba Cloud RDS* component and setting different parameter values, application team could easily provision Alibaba Cloud RDS instances of different sizes in different availability zones.
+
+Application team will use the `Application` entity to declare how they want to instantiate and deploy a group of certain components. In above example, it describes an application composed with Kubernetes stateless workload (component `foo`) and a Alibaba Cloud OSS bucket (component `bar`) alongside.
 
 ### How it Works?
 
@@ -99,11 +104,13 @@ spec:
 
 Hence, the `properties` section of `backend` only exposes two parameters to fill: `image` and `cmd`, this is enforced by the `parameter` list of the `.spec.template` field of the definition.
 
-
 ## Traits
 
-Traits are operational features that can be attached to component per needs. Traits are normally considered as platform features and maintained by platform team. In the above example, `type: autoscaler` in `frontend` means the specification (i.e. `properties` section)
-of this trait will be enforced by a `TraitDefinition` object named `autoscaler` as below:
+Traits (`TraitDefinition` API) are operational features provided by the platform. A trait augments the component instance with operational behaviors such as load balancing policy, network ingress routing, auto-scaling policies, or upgrade strategies, etc.
+
+To attach a trait to component instance, the user will declare `.type` field to reference the specific `TraitDefinition`, and `.properties` field to set property values of the given trait. Similarly, `TraitDefiniton` also allows you to define *template* for operational features.
+
+In the above example, `type: autoscaler` in `frontend` means the specification (i.e. `properties` section) of this trait will be enforced by a `TraitDefinition` object named `autoscaler` as below:
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -177,7 +184,7 @@ spec:
         }
 ```
 
-Please note that the end users of KubeVela do NOT need to know about definition objects, they learn how to use a given capability with visualized forms (or the JSON schema of parameters if they prefer). Please check the [Generate Forms from Definitions](/docs/platform-engineers/openapi-v3-json-schema) section about how this is achieved.
+Please note that the application team do NOT need to know about definition objects, they learn how to use a given capability with visualized forms (or the JSON schema of parameters if they prefer). Please check the [Generate Forms from Definitions](openapi-v3-json-schema) section about how this is achieved.
 
 ## Standard Contract Behind The Abstractions
 

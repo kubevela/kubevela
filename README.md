@@ -14,27 +14,21 @@
 
 # KubeVela
 
-*Developers simply want to deploy.*
-
-Traditional *Platform-as-a-Service (PaaS)* systems enable easy application deployments, but this happiness disappears when your application outgrows the capabilities of your platform. This is inevitable regardless of your PaaS is built on Kubernetes or not - the root cause is its inflexibility.
-
-KubeVela is a modern application platform that is fully self-service, and adapts to your needs when you grow.
-
-Leveraging Kubernetes as control plane, KubeVela itself is runtime agnostic. It allows you to deploy (and manage) containerized workloads, cloud functions, databases, or even EC2 instances with a consistent workflow.
+KubeVela is a modern application platform that makes deploying and managing applications across today's hybrid, multi-cloud environments easier and faster.
 
 ## Features
 
-**Developer Centric** - KubeVela introduces higher level API to capture a full deployment of microservices, and builds features around the application needs only. Progressive rollout and multi-cluster deployment are provided out-of-box. No infrastructure level concerns, simply deploy.
+**Application Centric** - Leveraging Open Application Model (OAM), KubeVela introduces consistent yet higher level API to capture a full deployment of microservices on top of hybrid environments. Placement strategy and patch, traffic shifting and rolling update are all declared at application level. No infrastructure level concern, simply deploy.
 
-**Self-service** - KubeVela models platform features (such as workloads, operational behaviors, and cloud services) as reusable [CUE](https://github.com/cuelang/cue) and/or [Helm](https://helm.sh/) components, and expose them to end users as self-service building blocks. When your needs grow, these capabilities can extend naturally in a programmable approach. No restriction, fully flexible.
+**Natively Extensible** - KubeVela uses [CUE](https://github.com/cuelang/cue) to glue capabilities (e.g. workload types, operational behaviors, and cloud services) provided by runtime infrastructure and expose them to users via self-service API. When users' needs grow, these API can naturally expand in programmable approach. No restriction, fully flexible.
 
-**Simple yet Reliable** - KubeVela is built with Kubernetes as control plane so unlike traditional X-as-Code solutions, it never leaves configuration drift in your clusters. Also, this makes KubeVela work with any CI/CD or GitOps tools via declarative API without any integration burden.
+**Runtime Agnostic** - KubeVela is built with Kubernetes as control plane but adaptable to any runtime as data-plane. It can deploy (and manage) diverse workload types such as container, cloud functions, databases, or even EC2 instances across hybrid environments. Also, this means KubeVela seamlessly works with any Kubernetes compatible CI/CD or GitOps tools via declarative API.
 
 ## Getting Started
 
 - [Installation](https://kubevela.io/docs/install)
-- [Quick start](https://kubevela.io/docs/quick-start)
 - [How it works](https://kubevela.io/docs/concepts)
+- [Deploy an Application](https://kubevela.io/docs/application)
 
 ## Documentation
 

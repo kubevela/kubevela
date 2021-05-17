@@ -19,19 +19,20 @@ package applicationcontext
 
 import (
 	"context"
-	"time"
 
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	core_oam_dev "github.com/oam-dev/kubevela/pkg/controller/core.oam.dev"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -39,11 +40,17 @@ var _ = Describe("Test ApplicationContext Controller", func() {
 	ctx := context.Background()
 
 	It("Applying ApplicationContext", func() {
-		Context("appContext doesn't exist", func() {
+		Context("appContext not found", func() {
+			By("reconciling")
+			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: "not-existed-appContext", Namespace: "ns1"}}
+			reconcileRetry(&r, req)
+		})
+
+		Context("appContext rollingStatus is completed", func() {
 			By("apply an ApplicationContext")
 			var (
 				appContextName  = "app1"
-				appRevisionName = "xxx-v1"
+				appRevisionName = "app1-v1"
 				componentName   = "comp1"
 				ns              = "default"
 				appContext      = v1alpha2.ApplicationContext{
@@ -135,7 +142,7 @@ var _ = Describe("Test ApplicationContext Controller", func() {
 					Namespace: ns,
 				},
 				Spec: v1alpha2.ApplicationConfigurationSpec{
-					Components: []v1alpha2.ApplicationConfigurationComponent{{ComponentName: "comp1"}}},
+					Components: []v1alpha2.ApplicationConfigurationComponent{{ComponentName: componentName}}},
 			}
 
 			appRevision := v1alpha2.ApplicationRevision{
@@ -149,19 +156,12 @@ var _ = Describe("Test ApplicationContext Controller", func() {
 				},
 			}
 			Expect(k8sClient.Create(ctx, &appRevision)).Should(Succeed())
-			Eventually(func() int {
-				By("Reconcile")
-				reconcileRetry(&r, req)
-				if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: appRevisionName}, &v1beta1.ApplicationRevision{}); err != nil {
-					return 0
-				}
-				return 1
-			}, 5*time.Second, time.Second).Should(Equal(1))
-
-			By("check application context")
-			var ac v1alpha2.ApplicationContext
-			Expect(k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: appContextName}, &ac)).Should(BeNil())
-			Expect(string(ac.Status.ConditionedStatus.Conditions[0].Status)).Should(Equal("False"))
+			reconcileRetry(&r, req)
 		})
+	})
+
+	It("Testing Setup", func() {
+		logr := ctrl.Log.WithName("ApplicationContext")
+		Expect(Setup(mgr, core_oam_dev.Args{}, logging.NewLogrLogger(logr).WithValues("suitTest", "Setup"))).Should(BeNil())
 	})
 })

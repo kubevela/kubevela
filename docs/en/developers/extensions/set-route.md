@@ -42,7 +42,7 @@ services:
           rewriteTarget: /
 ```
 
-> The full specification of `route` could show up by `$ vela show route` or be found on [its reference documentation](../references/traits/route)
+> The full specification of `route` could show up by `$ vela show route`.
 
 Apply again:
 

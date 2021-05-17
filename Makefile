@@ -65,7 +65,6 @@ dashboard-build:
 doc-gen:
 	rm -r docs/en/cli/*
 	go run hack/docgen/gen.go
-	go run hack/references/generate.go
 
 docs-build:
 ifneq ($(wildcard git-page),)

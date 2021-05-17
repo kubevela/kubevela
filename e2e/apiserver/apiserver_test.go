@@ -64,7 +64,7 @@ var (
 			svcName: map[string]interface{}{
 				"type":  workloadType,
 				"image": "wordpress:php7.4-apache",
-				"port":  "80",
+				"port":  80,
 				"cpu":   "1",
 			},
 		},

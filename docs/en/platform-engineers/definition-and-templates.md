@@ -1,5 +1,5 @@
 ---
-title:  Programmable Building Blocks
+title:  Definition Objects
 ---
 
 This documentation explains `ComponentDefinition` and `TraitDefinition` in detail.
@@ -233,4 +233,87 @@ spec:
 
 The specification of `schematic` is explained in following CUE and Helm specific documentations.
 
-Also, the `schematic` filed enables you to render UI forms directly based on them, please check the [Generate Forms from Definitions](/docs/platform-engineers/openapi-v3-json-schema) section about how to.
+Also, the `schematic` filed enables you to render UI forms directly based on them, please check the [Generate Forms from Definitions](openapi-v3-json-schema) section about how to.
+
+## Definition Revisions
+
+In KubeVela, definition entities are mutable. Each time a `ComponentDefinition` or `TraitDefinition` is updated, a corresponding `DefinitionRevision` will be generated to snapshot this change. Hence, KubeVela allows user to reference a specific revision of definition to declare an application.
+
+For example, we can design a new parameter named `args` for the `webservice` component definition by applying a new definition with same name as below.
+
+```shell
+$ kubectl vela show webservice
+# Properties
++-------+----------------------------------------------------+----------+----------+---------+
+| NAME  |                    DESCRIPTION                     |   TYPE   | REQUIRED | DEFAULT |
++-------+----------------------------------------------------+----------+----------+---------+
+| cmd   | Commands to run in the container                   | []string | false    |         |
+... // skip
+```
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/oam-dev/kubevela/master/docs/examples/definition-revision/webservice-v2.yaml
+```
+
+The change will take effect immediately.
+
+```shell
+$ kubectl vela show webservice
+# Properties
++-------+----------------------------------------------------+----------+----------+---------+
+| NAME  |                    DESCRIPTION                     |   TYPE   | REQUIRED | DEFAULT |
++-------+----------------------------------------------------+----------+----------+---------+
+| cmd   | Commands to run in the container                   | []string | false    |         |
+| args  | Arguments to the cmd                               | []string | false    |         |
+... // skip
+```
+
+We will see a new definition revision will be automatically generated, `v2` is the latest version, `v1` is the previous one.
+
+```shell
+$  kubectl get definitionrevision -l="componentdefinition.oam.dev/name=webservice" -n vela-system
+NAME            REVISION   HASH               TYPE
+webservice-v1   1          3f6886d9832021ba   Component
+webservice-v2   2          b3b9978e7164d973   Component
+```
+
+### Specify Definition Revision in Application
+
+Users can specify the revision with `@version` approach, for example, if a user want to stick to using the `v1` revision of `webservice` component:
+
+```yaml
+# testapp.yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: testapp
+spec:
+  components:
+  - name: server
+    type: webservice@v1
+    properties:
+      image: foo
+      cmd:
+        - sleep
+        - '1000'
+```
+If no revision is specified, KubeVela will always use the latest revision for a given component definition.
+
+```yaml
+# testapp.yaml
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: testapp
+spec:
+  components:
+  - name: server
+    type: webservice # type: webservice@v2
+    properties:
+      image: foo
+      cmd:
+        - sleep
+        - '1000'
+      args:
+        - wait
+```

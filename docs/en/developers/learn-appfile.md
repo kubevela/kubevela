@@ -72,7 +72,7 @@ services:
   
 ```
 
-> To learn about how to set the properties of specific workload type or trait, please check the [reference documentation guide](./check-ref-doc).
+> To learn about how to set the properties of specific workload type or trait, please use `vela show <TYPE | TRAIT>`.
 
 ## Example Workflow
 
@@ -221,7 +221,7 @@ spec:
 
 ### [Optional] Configure another workload type
 
-By now we have deployed a *[Web Service](references/component-types/webservice)*, which is the default workload type in KubeVela. We can also add another service of *[Task](references/component-types/task)* type in the same app:
+By now we have deployed a *[Web Service](../end-user/components/webservice)*, which is the default workload type in KubeVela. We can also add another service of *[Task](../end-user/components/task)* type in the same app:
 
 ```yaml
 services:

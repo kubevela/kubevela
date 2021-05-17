@@ -26,12 +26,12 @@ cat ${docs_path}/sidebars.js > git-page/sidebars.js
 
 echo "clear en docs"
 rm -r git-page/docs/*
-echo "clear zh docs"
-rm -r git-page/i18n/zh/docusaurus-plugin-content-docs/*
+# echo "clear zh docs"
+# rm -r git-page/i18n/zh/docusaurus-plugin-content-docs/*
 
 echo "update docs"
 cp -R ${docs_path}/en/* git-page/docs/
-cp -R ${docs_path}/zh-CN/* git-page/i18n/zh/docusaurus-plugin-content-docs/
+# cp -R ${docs_path}/zh-CN/* git-page/i18n/zh/docusaurus-plugin-content-docs/
 
 echo "check docs"
 cd git-page

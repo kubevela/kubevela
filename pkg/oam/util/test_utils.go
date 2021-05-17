@@ -197,7 +197,7 @@ func CheckAppRevision(revs []v1beta1.ApplicationRevision, collection []int) (boo
 	}
 	var revNums []int
 	for _, rev := range revs {
-		num, err := ExtractRevisionNum(rev.Name)
+		num, err := ExtractRevisionNum(rev.Name, "-")
 		if err != nil {
 			return false, err
 		}
