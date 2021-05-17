@@ -33,6 +33,7 @@ import (
 	"cuelang.org/go/encoding/openapi"
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/ghodss/yaml"
+	terraformv1beta1 "github.com/oam-dev/terraform-controller/api/v1beta1"
 	kruise "github.com/openkruise/kruise-api/apps/v1alpha1"
 	certmanager "github.com/wonderflow/cert-manager-api/pkg/apis/certmanager/v1"
 	istioclientv1beta1 "istio.io/client-go/pkg/apis/networking/v1beta1"
@@ -59,6 +60,7 @@ func init() {
 	_ = istioclientv1beta1.AddToScheme(Scheme)
 	_ = certmanager.AddToScheme(Scheme)
 	_ = kruise.AddToScheme(Scheme)
+	_ = terraformv1beta1.AddToScheme(Scheme)
 	// +kubebuilder:scaffold:scheme
 }
 

@@ -22,21 +22,27 @@ import (
 	"strings"
 	"time"
 
+	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	"github.com/ghodss/yaml"
-	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
+	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
+	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/crossplane/crossplane-runtime/pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
+	velatypes "github.com/oam-dev/kubevela/apis/types"
+	"github.com/oam-dev/kubevela/pkg/appfile"
 	"github.com/oam-dev/kubevela/pkg/controller/utils"
+	"github.com/oam-dev/kubevela/pkg/oam/util"
+	"github.com/oam-dev/kubevela/pkg/utils/apply"
 )
 
 const workloadDefinition = `
@@ -233,5 +239,105 @@ var _ = Describe("Test Application apply", func() {
 		applabel, exist := apprev.Labels["app.oam.dev/name"]
 		Expect(exist).Should(BeTrue())
 		Expect(strings.Compare(applabel, app.Name) == 0).Should(BeTrue())
+	})
+})
+
+var _ = Describe("Test applyHelmModuleResources", func() {
+	var handler appHandler
+	var app *v1beta1.Application
+	var ctx context.Context
+
+	BeforeEach(func() {
+		ctx = context.TODO()
+		app = &v1beta1.Application{}
+		handler = appHandler{
+			r:      reconciler,
+			app:    app,
+			logger: reconciler.Log.WithValues("application", "unit-test"),
+		}
+		handler.r.applicator = apply.NewAPIApplicator(reconciler.Client)
+	})
+
+	It("helm component is complete", func() {
+		release := map[string]interface{}{"chart": map[string]interface{}{"spec": map[string]interface{}{"chart": "abc", "version": "v1"}}}
+		repo := map[string]interface{}{"url": "http://abc.com"}
+		comp := &v1alpha2.Component{Spec: v1alpha2.ComponentSpec{Helm: &common.Helm{
+			Release:    util.Object2RawExtension(release),
+			Repository: util.Object2RawExtension(repo),
+		}}}
+		err := handler.applyHelmModuleResources(ctx, comp, nil)
+		Expect(err).Should(HaveOccurred())
+
+	})
+
+	It("helm repo format is invalid", func() {
+		comp := &v1alpha2.Component{Spec: v1alpha2.ComponentSpec{Helm: &common.Helm{
+			Repository: runtime.RawExtension{Raw: []byte("abc")}}}}
+		err := handler.applyHelmModuleResources(ctx, comp, nil)
+		Expect(err).Should(HaveOccurred())
+	})
+
+	It("helm release format is invalid", func() {
+		repo := map[string]interface{}{"url": "http://abc.com"}
+		comp := &v1alpha2.Component{Spec: v1alpha2.ComponentSpec{Helm: &common.Helm{
+			Release:    runtime.RawExtension{Raw: []byte("abc")},
+			Repository: util.Object2RawExtension(repo),
+		}}}
+		err := handler.applyHelmModuleResources(ctx, comp, nil)
+		Expect(err).Should(HaveOccurred())
+	})
+})
+
+var _ = Describe("Test statusAggregate", func() {
+	It("the component is Terraform type", func() {
+		var (
+			ctx           = context.TODO()
+			componentName = "sample-oss"
+			ns            = "default"
+			h             = &appHandler{r: reconciler, app: &v1beta1.Application{
+				TypeMeta:   metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{Namespace: ns},
+			}}
+			appFile = &appfile.Appfile{
+				Workloads: []*appfile.Workload{
+					{
+						Name:               componentName,
+						FullTemplate:       &appfile.Template{Reference: common.WorkloadGVK{APIVersion: "v1", Kind: "A1"}},
+						CapabilityCategory: velatypes.TerraformCategory,
+					},
+				},
+			}
+		)
+
+		By("aggregate status")
+		statuses, healthy, err := h.statusAggregate(appFile)
+		Expect(statuses).Should(BeNil())
+		Expect(healthy).Should(Equal(false))
+		Expect(err).Should(HaveOccurred())
+
+		By("create Terraform configuration")
+		configuration := terraformapi.Configuration{
+			TypeMeta:   metav1.TypeMeta{APIVersion: "terraform.core.oam.dev/v1beta1", Kind: "Configuration"},
+			ObjectMeta: metav1.ObjectMeta{Name: componentName, Namespace: ns},
+		}
+		k8sClient.Create(ctx, &configuration)
+
+		By("aggregate status again")
+		statuses, healthy, err = h.statusAggregate(appFile)
+		Expect(len(statuses)).Should(Equal(1))
+		Expect(healthy).Should(Equal(false))
+		Expect(err).Should(BeNil())
+
+		By("set status for Terraform configuration")
+		var gotConfiguration terraformapi.Configuration
+		k8sClient.Get(ctx, client.ObjectKey{Namespace: ns, Name: componentName}, &gotConfiguration)
+		gotConfiguration.Status.State = terraformtypes.Available
+		k8sClient.Status().Update(ctx, &gotConfiguration)
+
+		By("aggregate status one more time")
+		statuses, healthy, err = h.statusAggregate(appFile)
+		Expect(len(statuses)).Should(Equal(1))
+		Expect(healthy).Should(Equal(true))
+		Expect(err).Should(BeNil())
 	})
 })

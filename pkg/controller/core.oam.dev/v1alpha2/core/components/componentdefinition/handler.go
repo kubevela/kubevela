@@ -26,6 +26,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
@@ -40,7 +41,7 @@ type handler struct {
 func (h *handler) CreateWorkloadDefinition(ctx context.Context) (util.WorkloadType, error) {
 	var workloadType = util.ComponentDef
 	var workloadName = h.cd.Name
-	if h.cd.Spec.Workload.Type != "" {
+	if h.cd.Spec.Workload.Type != "" && h.cd.Spec.Workload.Definition == (common.WorkloadGVK{}) {
 		workloadType = util.ReferWorkload
 		workloadName = h.cd.Spec.Workload.Type
 	}
