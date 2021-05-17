@@ -1,0 +1,21 @@
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: application-gitops-sample
+spec:
+  components:
+    - name: myrepo
+      type: worker
+      properties:
+        image: "busybox"
+        cmd:
+          - sleep
+          - "1000"
+        lives: "3"
+        enemies: "alien"
+      traits:
+        - type: ingress
+          properties:
+            domain: "www.example-gitops.com"
+            http:
+              "/": 80

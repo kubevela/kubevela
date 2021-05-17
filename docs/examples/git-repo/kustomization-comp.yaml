@@ -1,0 +1,29 @@
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: myrepo
+  namespace: default
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment # so the system know this is a deployment type workoad
+  schematic:
+    kube:
+      template:
+        apiVersion: kustomize.toolkit.fluxcd.io/v1beta1
+        kind: Kustomization
+        spec:
+          interval: 10m0s
+          sourceRef:
+            kind: GitRepository
+            name: podinfo  # ref to a GitRepository resource
+          path: "./deploy/overlays/dev/"
+          prune: true
+          validation: client
+      parameters:
+        - name: branch
+          required: true
+          type: string
+          fieldPaths:
+            - "master"
