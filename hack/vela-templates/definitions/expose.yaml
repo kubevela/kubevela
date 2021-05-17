@@ -1,0 +1,15 @@
+apiVersion: core.oam.dev/v1beta1
+kind: TraitDefinition
+metadata:
+  annotations:
+    definition.oam.dev/description: "expose port to enable web traffic for your service."
+  name: expose
+  namespace: {{.Values.systemDefinitionNamespace}}
+spec:
+  appliesToWorkloads:
+    - webservice
+    - worker
+  podDisruptive: false
+  schematic:
+    cue:
+      template: |
