@@ -14,12 +14,23 @@ This `ConfigMap` will have a common label `definition.oam.dev=schema`, so you ca
 
 ```shell
 $ kubectl get configmap -n vela-system -l definition.oam.dev=schema
-NAME                DATA   AGE
-schema-ingress      1      19s
-schema-scaler       1      19s
-schema-task         1      19s
-schema-webservice   1      19s
-schema-worker       1      20s
+NAME                   DATA     AGE
+schema-ingress         1        46m
+schema-scaler          1        50m
+schema-webservice      1        2m26s
+schema-webservice-v1   1        40s
+schema-worker          1        1m45s 
+schema-worker-v1       1        55s
+schema-worker-v2       1        20s
+```
+For the sake of convenience, we also specify a unified label for the `ConfigMap` which stores the parameter information of the same Definition. 
+And we can list the ConfigMap which stores the parameter of the same Definition by specifying the label like `definition.oam.dev/name=definitionName`, where the `definitionName` is the specific name of your component or trait. 
+```shell
+$ kubectl get configmap -l definition.oam.dev/name=worker
+NAME                   DATA     AGE
+schema-worker          1        1m50s
+schema-worker-v1       1        1m
+schema-worker-v2       1        25s
 ```
 
 The `ConfigMap` name is in the format of `schema-<your-definition-name>`,
