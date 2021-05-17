@@ -23,17 +23,17 @@ contributing to `kubevela` or build a PoC (Proof of Concept).
 
 linux:
 ```
-wget https://github.com/kubernetes-sigs/kubebuilder/releases/download/v2.0.0-alpha.1/kubebuilder_2.0.0-alpha.1_linux_amd64.tar.gz
-tar -zxvf  kubebuilder_2.0.0-alpha.1_linux_amd64.tar.gz
-sudo mv kubebuilder_2.0.0-alpha.1_linux_amd64 /usr/local/kubebuilder
+wget https://github.com/kubernetes-sigs/kubebuilder/releases/download/v2.3.1/kubebuilder_2.3.1_linux_amd64.tar.gz
+tar -zxvf  kubebuilder_2.3.1_linux_amd64.tar.gz
+sudo mv kubebuilder_2.3.1_linux_amd64 /usr/local/kubebuilder
 export PATH="/usr/local/kubebuilder/bin:$PATH"
 ```
 
 macOS:
 ```
-wget https://github.com/kubernetes-sigs/kubebuilder/releases/download/v2.3.2/kubebuilder_2.3.2_darwin_amd64.tar.gz
-tar -zxvf  kubebuilder_2.3.2_darwin_amd64.tar.gz
-sudo mv kubebuilder_2.3.2_darwin_amd64 /usr/local/kubebuilder
+wget https://github.com/kubernetes-sigs/kubebuilder/releases/download/v2.3.1/kubebuilder_2.3.1_darwin_amd64.tar.gz
+tar -zxvf  kubebuilder_2.3.1_darwin_amd64.tar.gz
+sudo mv kubebuilder_2.3.1_darwin_amd64 /usr/local/kubebuilder
 export PATH="/usr/local/kubebuilder/bin:$PATH"
 ```
 
