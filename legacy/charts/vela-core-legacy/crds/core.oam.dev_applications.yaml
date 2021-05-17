@@ -602,6 +602,20 @@ spec:
                   - type
                   type: object
                 type: array
+              policies:
+                description: Policies defines the global policies for all components in the app, e.g. security, metrics, gitops, multi-cluster placement rules, etc. Policies are applied after components are rendered and before workflow steps are executed.
+                items:
+                  description: AppPolicy defines a global policy for all components in the app.
+                  properties:
+                    properties:
+                      type: object
+                      
+                    type:
+                      type: string
+                  required:
+                  - type
+                  type: object
+                type: array
               rolloutPlan:
                 description: RolloutPlan is the details on how to rollout the resources The controller simply replace the old resources with the new one if there is no rollout plan involved
                 properties:
@@ -820,6 +834,23 @@ spec:
                     format: int32
                     type: integer
                 type: object
+              workflow:
+                description: 'Workflow defines how to customize the control logic. If workflow is specified, Vela won''t apply any resource, but provide rendered output in AppRevision. Workflow steps are executed in array order, and each step: - will have a context in annotation. - should mark "finish" phase in status.conditions.'
+                items:
+                  description: WorkflowStep defines how to execute a workflow step.
+                  properties:
+                    properties:
+                      type: object
+                      
+                    stage:
+                      description: The stage is the running stage this workflow runs. It could be `pre-render` or `post-render` (default).
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - type
+                  type: object
+                type: array
             required:
             - components
             type: object
