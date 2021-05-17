@@ -54,7 +54,7 @@ When you add or modify the docs, these three files(`docs/en/`, `docs/en/resource
 
 [comment]: <> (TODO: ADD how to translate into Chinese or other language here.)
    
-## Local Development
+## Preview Website
 
 You can preview the website locally with docker container. Every time you modify the files under the docs or sidebars.js, 
 it will sync automatically:
@@ -63,10 +63,20 @@ it will sync automatically:
 make docs-start
 ```
 
-## Build in Local
+## Build Website
 
 You can build Kubevela website in local to test the correctness of docs, only run the following cmd:
 
 ```shell
 make docs-build
+```
+
+If you don't want to use docker to preview and build the website, we provide simple scripts in the `hack/website` to help you develop and debug locally.
+
+```
+# preview the website
+sh hack/website/docs-start.sh
+
+# build the website 
+sh hack/website/test-build.sh
 ```
