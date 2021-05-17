@@ -127,6 +127,11 @@ var _ = Describe("Cloneset based app embed rollout tests", func() {
 
 	AfterEach(func() {
 		By("Clean up resources after a test")
+		k8sClient.DeleteAllOf(ctx, &v1beta1.Application{}, client.InNamespace(namespaceName))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.ComponentDefinition{}, client.InNamespace(namespaceName))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.WorkloadDefinition{}, client.InNamespace(namespaceName))
+		k8sClient.DeleteAllOf(ctx, &v1beta1.TraitDefinition{}, client.InNamespace(namespaceName))
+
 		By(fmt.Sprintf("Delete the entire namespaceName %s", ns.Name))
 		// delete the namespaceName with all its resources
 		Expect(k8sClient.Delete(ctx, &ns, client.PropagationPolicy(metav1.DeletePropagationBackground))).Should(BeNil())

@@ -32,7 +32,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
-var _ = Describe("Test application of the specified definition version", func() {
+var _ = Describe("ComponentDefinition Normal tests", func() {
 	ctx := context.Background()
 
 	var namespace string
@@ -59,7 +59,41 @@ var _ = Describe("Test application of the specified definition version", func() 
 	})
 
 	Context("Test dynamic admission control for componentDefinition", func() {
-		It("Test componentDefinition only set definition fields", func() {
+
+		It("Test componentDefinition which only set type field", func() {
+			workDef := &v1beta1.WorkloadDefinition{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ComponentDefinition",
+					APIVersion: "core.oam.dev/v1beta1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "deployments.apps",
+				},
+				Spec: v1beta1.WorkloadDefinitionSpec{
+					Reference: common.DefinitionReference{
+						Name:    "deployments.apps",
+						Version: "v1",
+					},
+				},
+			}
+			workDef.SetNamespace(namespace)
+			Expect(k8sClient.Create(ctx, workDef)).Should(BeNil())
+
+			cd := webServiceWithNoTemplate.DeepCopy()
+			cd.Spec.Workload.Definition = common.WorkloadGVK{}
+			cd.Spec.Workload.Type = "deployments.apps"
+			cd.SetNamespace(namespace)
+			cd.SetName("test-componentdef")
+			cd.Spec.Schematic.CUE.Template = webServiceV1Template
+			Expect(k8sClient.Create(ctx, cd)).Should(Succeed())
+
+			defRev := new(v1beta1.DefinitionRevision)
+			Eventually(func() error {
+				return k8sClient.Get(ctx, client.ObjectKey{Name: "test-componentdef-v1", Namespace: namespace}, defRev)
+			}).Should(BeNil())
+		})
+
+		It("Test componentDefinition only set definition field", func() {
 			testCd := webServiceWithNoTemplate.DeepCopy()
 			testCd.Spec.Schematic.CUE.Template = webServiceV1Template
 			testCd.SetName("test-componentdef-v1")
@@ -86,30 +120,30 @@ var _ = Describe("Test application of the specified definition version", func() 
 		})
 
 		It("Test componentDefinition which definition and type fields are all empty", func() {
-			testCd := webServiceWithNoTemplate.DeepCopy()
-			testCd.SetName("test-componentdef-v2")
-			testCd.Spec.Workload.Definition = common.WorkloadGVK{}
-			testCd.Spec.Schematic.CUE.Template = webServiceV1Template
-			testCd.SetNamespace(namespace)
-			Expect(k8sClient.Create(ctx, testCd)).Should(HaveOccurred())
+			testCd1 := webServiceWithNoTemplate.DeepCopy()
+			testCd1.SetName("test-componentdef-v2")
+			testCd1.Spec.Workload.Definition = common.WorkloadGVK{}
+			testCd1.Spec.Schematic.CUE.Template = webServiceV1Template
+			testCd1.SetNamespace(namespace)
+			Expect(k8sClient.Create(ctx, testCd1)).Should(HaveOccurred())
 		})
 
 		It("Test componentDefinition which definition and type point to same workload type", func() {
-			testCd := webServiceWithNoTemplate.DeepCopy()
-			testCd.SetName("test-componentdef-v3")
-			testCd.Spec.Workload.Type = "deployments.apps"
-			testCd.Spec.Schematic.CUE.Template = webServiceV1Template
-			testCd.SetNamespace(namespace)
-			Expect(k8sClient.Create(ctx, testCd)).Should(Succeed())
+			testCd2 := webServiceWithNoTemplate.DeepCopy()
+			testCd2.SetName("test-componentdef-v3")
+			testCd2.Spec.Workload.Type = "deployments.apps"
+			testCd2.Spec.Schematic.CUE.Template = webServiceV1Template
+			testCd2.SetNamespace(namespace)
+			Expect(k8sClient.Create(ctx, testCd2)).Should(Succeed())
 		})
 
 		It("Test componentDefinition which definition and type point to different workload type", func() {
-			testCd := webServiceWithNoTemplate.DeepCopy()
-			testCd.SetName("test-componentdef-v4")
-			testCd.Spec.Workload.Type = "jobs.batch"
-			testCd.Spec.Schematic.CUE.Template = webServiceV1Template
-			testCd.SetNamespace(namespace)
-			Expect(k8sClient.Create(ctx, testCd)).Should(HaveOccurred())
+			testCd3 := webServiceWithNoTemplate.DeepCopy()
+			testCd3.SetName("test-componentdef-v4")
+			testCd3.Spec.Workload.Type = "jobs.batch"
+			testCd3.Spec.Schematic.CUE.Template = webServiceV1Template
+			testCd3.SetNamespace(namespace)
+			Expect(k8sClient.Create(ctx, testCd3)).Should(HaveOccurred())
 		})
 	})
 })
