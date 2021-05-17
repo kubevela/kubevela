@@ -77,7 +77,7 @@ KubeVela is a Kubernetes add-on for building developer-centric deployment system
 
 Here are some recommended next steps:
 - [Get started](./quick-start) with KubeVela.
-- Learn KubeVela's [core concepts](./concepts)
+- Learn KubeVela's [core concepts](./concepts).
 - Learn how to [deploy an application](end-user/application) in detail and understand how it works.
 - Join `#kubevela` channel in CNCF [Slack](https://cloud-native.slack.com) and/or [Gitter](https://gitter.im/oam-dev/community)
 
