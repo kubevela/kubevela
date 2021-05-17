@@ -7,13 +7,13 @@ import TabItem from '@theme/TabItem';
 
 > For upgrading existing KubeVela, please read the [upgrade guide](./advanced-install#upgrade).
 
-## 1. Choose Kubernetes Cluster
+## 1. Choose Control Plane Cluster
 
 Requirements:
 - Kubernetes cluster >= v1.15.0
 - `kubectl` installed and configured
 
-KubeVela is a simple custom controller that can be installed on any Kubernetes cluster including managed offerings or your own clusters. The only requirement is please ensure [ingress-nginx](https://kubernetes.github.io/ingress-nginx/deploy/) is installed and enabled.
+KubeVela relies on Kubernetes as control plane. The control plane could be any managed Kubernetes offering or your own cluster. The only requirement is please ensure [ingress-nginx](https://kubernetes.github.io/ingress-nginx/deploy/) is installed and enabled.
 
 For for local deployment and test, you could use `minikube` or `kind`.
 
