@@ -7,7 +7,7 @@ outputs: service: {
 		selector:
 			"app.oam.dev/component": context.name
 		ports: [
-			for p in parameter.http {
+			for p in parameter.port {
 				port:       p
 				targetPort: p
 			},
@@ -15,5 +15,6 @@ outputs: service: {
 	}
 }
 parameter: {
-	http: [...int]
+	// +usage=Specify the exposion ports
+	port: [...int]
 }
