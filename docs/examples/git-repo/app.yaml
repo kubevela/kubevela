@@ -1,21 +1,24 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: application-gitops-sample
+  name: example-gitops
+  namespace: default
 spec:
   components:
-    - name: myrepo
-      type: worker
+    - name: repo-instance
+      type: kustomize-control-repo
       properties:
-        image: "busybox"
-        cmd:
-          - sleep
-          - "1000"
-        lives: "3"
-        enemies: "alien"
-      traits:
-        - type: ingress
-          properties:
-            domain: "www.example-gitops.com"
-            http:
-              "/": 80
+        repo : "podinfo"
+        path : "./deploy/overlays/dev/"
+
+
+#        image: "busybox"
+#        cmd:
+#          - sleep
+#          - "1000"
+#      traits:
+#        - type: ingress
+#          properties:
+#            domain: "www.example-gitops.com"
+#            http:
+#              "/": 80

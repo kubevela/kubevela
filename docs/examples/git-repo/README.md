@@ -1,6 +1,8 @@
-## Usage (shall we declare use flux kustomize example?)
+## Usage 
+This example is modified on the basis of kustomized controller provided by flux.
 The kustomize-controller is part of a composable GitOps toolkit and depends on source-controller 
 to acquire the Kubernetes manifests from Git repositories and S3 compatible storage buckets.
+
 ### 1. Install toolkit controllers
 Download the flux CLI:
 ```shell
@@ -10,6 +12,7 @@ Install the toolkit controllers in the flux-system namespace
 ```shell
 flux install
 ```
+
 ### 2. Define a Git repository source
 Create a source object that points to a Git repository containing Kubernetes and Kustomize manifests
 Cause we want to verify the gitops logic through git commit && git push to our own repository,
@@ -31,6 +34,7 @@ The source controller will check for new commits in the master branch every minu
 ```shell
 kubectl -n flux-system annotate --overwrite gitrepository/podinfo reconcile.fluxcd.io/requestedAt="$(date +%s)"
 ```
+
 ### 3. Define a kustomization component
 Create a kustomization component that uses the git repository defined above
 ```shell
@@ -45,6 +49,7 @@ When the controller finishes the reconciliation, it will log the applied objects
 kubectl -n flux-system logs -f deploy/kustomize-controller
 ```
 ![img.png](img.png)
+
 ### 4. Verify Gitops logic
 First we should apply the application we defined
 ```shell
@@ -60,7 +65,7 @@ git add .
 git commit -m "change image version for gitops verify"
 git push -f origin
 ```
-This push will trigger the continuous delivery process, you can use
+This push will trigger the continuous delivery process, you can see by using
 ```shell
 kubectl -n flux-system logs -f deploy/kustomize-controller | grep revision
 ```

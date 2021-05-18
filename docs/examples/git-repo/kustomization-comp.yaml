@@ -1,29 +1,37 @@
 apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
-  name: myrepo
+  name: kustomize-control-repo
   namespace: default
 spec:
   workload:
     definition:
       apiVersion: apps/v1
-      kind: Deployment # so the system know this is a deployment type workoad
+      kind: Deployment # so the system know this is a deployment type workload
   schematic:
     kube:
       template:
         apiVersion: kustomize.toolkit.fluxcd.io/v1beta1
         kind: Kustomization
+        metadata:
+          name: mykustomization
         spec:
           interval: 10m0s
           sourceRef:
             kind: GitRepository
             name: podinfo  # ref to a GitRepository resource
-          path: "./deploy/overlays/dev/"
+          path: "./deploy/overlays/dev/" # the path in podinfo project and redirect to the yaml path which describe backend, frontend and cache
           prune: true
           validation: client
+          timeout: 80s
       parameters:
-        - name: branch
+        - name: repo
           required: true
           type: string
           fieldPaths:
-            - "master"
+            - "spec.sourceRef.name"
+        - name: path
+          required: true
+          type: string
+          fieldPaths:
+            - "spec.path"
