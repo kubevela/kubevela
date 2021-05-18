@@ -177,6 +177,7 @@ spec:
 				return err == nil
 			}, 10*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(componentDefinitionName))
 
 			By("Check whether ConfigMapRef refer to right")
 			Eventually(func() string {
@@ -267,6 +268,7 @@ spec:
 				return err == nil
 			}, 10*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(componentDefinitionName))
 
 			By("Check whether ConfigMapRef refer to right")
 			Eventually(func() string {
@@ -497,7 +499,7 @@ spec:
 	})
 
 	Context("When the CUE Template in ComponentDefinition import new added CRD", func() {
-		var componentDefinationName = "test-refresh"
+		var componentDefinitionName = "test-refresh"
 		var namespace = "default"
 		It("Applying ComponentDefinition import new crd in CUE Template, should create a ConfigMap", func() {
 			By("create new crd")
@@ -571,17 +573,18 @@ spec:
 			var cd v1beta1.ComponentDefinition
 			Expect(yaml.Unmarshal([]byte(componentDef), &cd)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
-			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinationName, Namespace: namespace}}
+			req := reconcile.Request{NamespacedName: client.ObjectKey{Name: componentDefinitionName, Namespace: namespace}}
 
 			By("Check whether ConfigMap is created")
 			var cm corev1.ConfigMap
-			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinationName)
+			name := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, componentDefinitionName)
 			Eventually(func() bool {
 				reconcileRetry(&r, req)
 				err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, &cm)
 				return err == nil
 			}, 30*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(componentDefinitionName))
 		})
 
 	})

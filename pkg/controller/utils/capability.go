@@ -278,7 +278,8 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 				Namespace:       namespace,
 				OwnerReferences: ownerReferences,
 				Labels: map[string]string{
-					"definition.oam.dev": "schema",
+					"definition.oam.dev":      "schema",
+					"definition.oam.dev/name": definitionName,
 				},
 			},
 			Data: data,
