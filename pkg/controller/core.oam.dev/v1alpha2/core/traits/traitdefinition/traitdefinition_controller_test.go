@@ -146,6 +146,7 @@ spec:
 				return err == nil
 			}, 15*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(traitDefinitionName))
 
 			By("Check whether ConfigMapRef refer to right")
 			Eventually(func() string {
@@ -217,6 +218,7 @@ spec:
 				return err == nil
 			}, 10*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(traitDefinitionName))
 
 			By("Check whether ConfigMapRef refer to right")
 			Eventually(func() string {
@@ -366,6 +368,7 @@ spec:
 				return err == nil
 			}, 30*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(traitDefinitionName))
 		})
 	})
 
