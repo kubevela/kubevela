@@ -3,7 +3,7 @@ apiVersion: core.oam.dev/v1beta1
 kind: TraitDefinition
 metadata:
   annotations:
-    definition.oam.dev/description: "inject a sidecar container into your app"
+    definition.oam.dev/description: "Inject a sidecar container to the component."
   name: sidecar
   namespace: {{.Values.systemDefinitionNamespace}}
 spec:

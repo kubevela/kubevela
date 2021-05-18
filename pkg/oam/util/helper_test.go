@@ -1918,24 +1918,8 @@ func TestGetScopeDefiniton(t *testing.T) {
 }
 
 func TestConvertComponentDef2WorkloadDef(t *testing.T) {
-	var noNeedErr = errors.New("No need to convert ComponentDefinition")
 	var cd = v1beta1.ComponentDefinition{}
 	mapper := mock.NewMockDiscoveryMapper()
-
-	var componentDefWithWorkloadType = `
-apiVersion: core.oam.dev/v1beta1
-kind: ComponentDefinition
-metadata:
-  name: cd-with-workload-type
-spec:
-  workload:
-    type: worker
-`
-
-	err := yaml.Unmarshal([]byte(componentDefWithWorkloadType), &cd)
-	assert.Equal(t, nil, err)
-	err = util.ConvertComponentDef2WorkloadDef(mapper, &cd, &v1beta1.WorkloadDefinition{})
-	assert.Equal(t, noNeedErr.Error(), err.Error())
 
 	var componentDefWithWrongDefinition = `
 apiVersion: core.oam.dev/v1beta1
@@ -1949,7 +1933,7 @@ spec:
       kind: Deployment
 `
 	cd = v1beta1.ComponentDefinition{}
-	err = yaml.Unmarshal([]byte(componentDefWithWrongDefinition), &cd)
+	err := yaml.Unmarshal([]byte(componentDefWithWrongDefinition), &cd)
 	assert.Equal(t, nil, err)
 	err = util.ConvertComponentDef2WorkloadDef(mapper, &cd, &v1beta1.WorkloadDefinition{})
 	assert.Error(t, err)

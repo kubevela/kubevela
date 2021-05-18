@@ -26,8 +26,8 @@ KubeVela is a modern application platform that makes deploying and managing appl
 
 ## Getting Started
 
+- [Introduction](https://kubevela.io/docs)
 - [Installation](https://kubevela.io/docs/install)
-- [How it works](https://kubevela.io/docs/concepts)
 - [Deploy an Application](https://kubevela.io/docs/application)
 
 ## Documentation
