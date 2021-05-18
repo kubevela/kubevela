@@ -9,9 +9,10 @@ KubeVela will automatically generate OpenAPI v3 JSON schema based on its paramet
 
 
 ## List Schema
-
-This `ConfigMap` will have a common label `definition.oam.dev=schema`, so you can find easily by:
-
+KubeVela support generate different versions of Component/Trait Definition.
+Thus, we use `ConfigMap` to store the parameter information of different versions of Definition.
+This `ConfigMap` will have a common label `definition.oam.dev=schema`, the default `ConfigMap` without a version suffix will point to the latest version,
+you can find easily by:
 ```shell
 $ kubectl get configmap -n vela-system -l definition.oam.dev=schema
 NAME                   DATA     AGE
@@ -23,7 +24,7 @@ schema-worker          1        1m45s
 schema-worker-v1       1        55s
 schema-worker-v2       1        20s
 ```
-For the sake of convenience, we also specify a unified label for the `ConfigMap` which stores the parameter information of the same Definition. 
+For the sack of convenience, we also specify a unified label for the `ConfigMap` which stores the parameter information of the same Definition. 
 And we can list the ConfigMap which stores the parameter of the same Definition by specifying the label like `definition.oam.dev/name=definitionName`, where the `definitionName` is the specific name of your component or trait. 
 ```shell
 $ kubectl get configmap -l definition.oam.dev/name=worker
