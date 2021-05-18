@@ -75,8 +75,8 @@ If you don't want to use docker to preview and build the website, we provide sim
 
 ```
 # preview the website
-sh hack/website/docs-start.sh
+bash hack/website/docs-start.sh
 
 # build the website 
-sh hack/website/test-build.sh
+bash hack/website/test-build.sh
 ```
