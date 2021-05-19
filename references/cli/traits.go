@@ -167,7 +167,7 @@ func InstallTraitByName(args common2.Args, ioStream cmdutil.IOStreams, traitName
 		return err
 	}
 
-	client, err := args.GetClient()
+	k8sClient, err := args.GetClient()
 	if err != nil {
 		return err
 	}
@@ -176,7 +176,7 @@ func InstallTraitByName(args common2.Args, ioStream cmdutil.IOStreams, traitName
 		return err
 	}
 
-	err = common.InstallTraitDefinition(client, mapper, data, ioStream, &capObj)
+	err = common.InstallTraitDefinition(k8sClient, mapper, data, ioStream, &capObj)
 	if err != nil {
 		return err
 	}
