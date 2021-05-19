@@ -44,34 +44,72 @@ func TestGetOpenAPISchema(t *testing.T) {
 		err  error
 	}
 	cases := map[string]struct {
-		reason   string
-		name     string
-		fileDir  string
-		fileName string
-		want     want
+		reason string
+		name   string
+		data   string
+		want   want
 	}{
-		"PrepareANormalParameterCueFile": {
-			reason:   "Prepare a normal parameter cue file",
-			name:     "workload1",
-			fileDir:  TestDir,
-			fileName: "workload1.cue",
-			want:     want{data: "{\"properties\":{\"min\":{\"title\":\"min\",\"type\":\"integer\"}},\"required\":[\"min\"],\"type\":\"object\"}", err: nil},
+		"parameter in cue is a structure type,": {
+			reason: "Prepare a normal parameter cue file",
+			name:   "workload1",
+			data: `
+project: {
+	name: string
+}
+
+	parameter: {
+	min: int
+}
+`,
+			want: want{data: "{\"properties\":{\"min\":{\"title\":\"min\",\"type\":\"integer\"}},\"required\":[\"min\"],\"type\":\"object\"}", err: nil},
 		},
-		"CueFileNotContainParameter": {
-			reason:   "Prepare a cue file which doesn't contain `parameter` section",
-			name:     "invalidWorkload",
-			fileDir:  TestDir,
-			fileName: "workloadNoParameter.cue",
-			want:     want{data: "", err: fmt.Errorf("capability invalidWorkload doesn't contain section `parameter`")},
+		"parameter in cue is a dict type,": {
+			reason: "Prepare a normal parameter cue file",
+			name:   "workload2",
+			data: `
+annotations: {
+	for k, v in parameter {
+		"\(k)": v
+	}
+}
+
+parameter: [string]: string
+`,
+			want: want{data: "{\"additionalProperties\":{\"type\":\"string\"},\"type\":\"object\"}", err: nil},
+		},
+		"parameter in cue is a string type,": {
+			reason: "Prepare a normal parameter cue file",
+			name:   "workload3",
+			data: `
+annotations: {
+	"test":parameter
+}
+
+   parameter:string
+`,
+			want: want{data: "{\"type\":\"string\"}", err: nil},
+		},
+		"cue doesn't contain parameter section": {
+			reason: "Prepare a cue file which doesn't contain `parameter` section",
+			name:   "invalidWorkload",
+			data: `
+project: {
+	name: string
+}
+
+noParameter: {
+	min: int
+}
+`,
+			want: want{data: "", err: fmt.Errorf("capability invalidWorkload doesn't contain section `parameter`")},
 		},
 	}
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			data, _ := ioutil.ReadFile(filepath.Join(tc.fileDir, tc.fileName))
 			schematic := &common.Schematic{
 				CUE: &common.CUE{
-					Template: string(data),
+					Template: tc.data,
 				},
 			}
 			capability, _ := appfile.ConvertTemplateJSON2Object(tc.name, nil, schematic)
