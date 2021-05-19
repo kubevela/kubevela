@@ -145,10 +145,12 @@ var _ = Describe("test GetCapabilityByName", func() {
 		defaultNS  string
 		cd1        corev1beta1.ComponentDefinition
 		cd2        corev1beta1.ComponentDefinition
+		cd3        corev1beta1.ComponentDefinition
 		td1        corev1beta1.TraitDefinition
 		td2        corev1beta1.TraitDefinition
 		component1 string
 		component2 string
+		component3 string
 		trait1     string
 		trait2     string
 	)
@@ -163,6 +165,7 @@ var _ = Describe("test GetCapabilityByName", func() {
 		defaultNS = types.DefaultKubeVelaNS
 		component1 = "cd1"
 		component2 = "cd2"
+		component3 = "cd3"
 		trait1 = "td1"
 		trait2 = "td2"
 
@@ -174,6 +177,8 @@ var _ = Describe("test GetCapabilityByName", func() {
 		data, _ := ioutil.ReadFile("testdata/componentDef.yaml")
 		yaml.Unmarshal(data, &cd1)
 		yaml.Unmarshal(data, &cd2)
+		data2, _ := ioutil.ReadFile("testdata/kube-worker.yaml")
+		yaml.Unmarshal(data2, &cd3)
 		cd1.Namespace = ns
 		cd1.Name = component1
 		Expect(k8sClient.Create(ctx, &cd1)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
@@ -181,6 +186,10 @@ var _ = Describe("test GetCapabilityByName", func() {
 		cd2.Namespace = defaultNS
 		cd2.Name = component2
 		Expect(k8sClient.Create(ctx, &cd2)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
+
+		cd3.Namespace = ns
+		cd3.Name = component3
+		Expect(k8sClient.Create(ctx, &cd3)).Should(SatisfyAny(BeNil(), &util.AlreadyExistMatcher{}))
 
 		By("create TraitDefinition")
 		data, _ = ioutil.ReadFile("testdata/manualscalars.yaml")
@@ -203,6 +212,10 @@ var _ = Describe("test GetCapabilityByName", func() {
 		})
 		Context("ComponentDefinition is in the default namespace", func() {
 			_, err := GetCapabilityByName(ctx, c, component2, ns)
+			Expect(err).Should(BeNil())
+		})
+		Context("ComponentDefinition is in the default namespace", func() {
+			_, err := GetCapabilityByName(ctx, c, component3, ns)
 			Expect(err).Should(BeNil())
 		})
 

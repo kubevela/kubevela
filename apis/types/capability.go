@@ -19,6 +19,9 @@ package types
 import (
 	"encoding/json"
 
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"cuelang.org/go/cue"
 	"github.com/google/go-cmp/cmp"
 	"github.com/spf13/pflag"
@@ -62,6 +65,10 @@ type Capability struct {
 
 	// Terraform
 	TerraformConfiguration string `json:"terraformConfiguration,omitempty"`
+
+	// KubeTemplate
+	KubeTemplate  runtime.RawExtension   `json:"template,omitempty"`
+	KubeParameter []common.KubeParameter `json:"kubeparameter,omitempty"`
 }
 
 // Chart defines all necessary information to install a whole chart

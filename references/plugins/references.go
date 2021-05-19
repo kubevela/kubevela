@@ -416,7 +416,7 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 				return err
 			}
 		case types.HelmCategory:
-			properties, _, err := ref.GenerateHELMProperties(ctx, &caps[i])
+			properties, _, err := ref.GenerateHelmAndKubeProperties(ctx, &caps[i])
 			if err != nil {
 				return fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
 			}
@@ -689,8 +689,8 @@ type HELMSchema struct {
 	Schemas *openapi3.Schema
 }
 
-// GenerateHELMProperties get all properties of a HelmCategory type capability
-func (ref *ParseReference) GenerateHELMProperties(ctx context.Context, capability *types.Capability) ([]HELMReference, []ConsoleReference, error) {
+// GenerateHelmAndKubeProperties get all properties of a Helm/Kube Category type capability
+func (ref *ParseReference) GenerateHelmAndKubeProperties(ctx context.Context, capability *types.Capability) ([]HELMReference, []ConsoleReference, error) {
 	cmName := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, capability.Name)
 	var cm v1.ConfigMap
 	helmRefs = make([]HELMReference, 0)

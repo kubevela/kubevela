@@ -366,7 +366,12 @@ func ShowReferenceConsole(ctx context.Context, c common.Args, ioStreams cmdutil.
 	var propertyConsole []plugins.ConsoleReference
 	switch capability.Category {
 	case types.HelmCategory:
-		_, propertyConsole, err = ref.GenerateHELMProperties(ctx, capability)
+		_, propertyConsole, err = ref.GenerateHelmAndKubeProperties(ctx, capability)
+		if err != nil {
+			return err
+		}
+	case types.KubeCategory:
+		_, propertyConsole, err = ref.GenerateHelmAndKubeProperties(ctx, capability)
 		if err != nil {
 			return err
 		}
