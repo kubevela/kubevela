@@ -67,7 +67,7 @@ type Capability struct {
 	TerraformConfiguration string `json:"terraformConfiguration,omitempty"`
 
 	// KubeTemplate
-	KubeTemplate  runtime.RawExtension   `json:"template,omitempty"`
+	KubeTemplate  runtime.RawExtension   `json:"kubetemplate,omitempty"`
 	KubeParameter []common.KubeParameter `json:"kubeparameter,omitempty"`
 }
 
