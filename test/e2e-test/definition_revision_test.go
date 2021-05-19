@@ -57,14 +57,28 @@ var _ = Describe("Test application of the specified definition version", func() 
 		labelV1.Spec.Schematic.CUE.Template = labelV1Template
 		labelV1.SetNamespace(namespace)
 		Expect(k8sClient.Create(ctx, labelV1)).Should(Succeed())
+
+		labelDefRevV1 := new(v1beta1.DefinitionRevision)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-v1", labelV1.Name),
+				Namespace: namespace}, labelDefRevV1)
+		}, 15*time.Second, time.Microsecond*300)
+
+		labelDefRevV2 := new(v1beta1.DefinitionRevision)
 		Eventually(func() error {
 			err := k8sClient.Get(ctx, client.ObjectKey{Name: "label", Namespace: namespace}, labelV1)
 			if err != nil {
 				return err
 			}
 			labelV1.Spec.Schematic.CUE.Template = labelV2Template
-			return k8sClient.Update(ctx, labelV1)
-		}, 15*time.Second, time.Second).Should(BeNil())
+			err = k8sClient.Update(ctx, labelV1)
+			if err != nil {
+				return err
+			}
+			return k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-v2", labelV1.Name),
+				Namespace: namespace}, labelDefRevV2)
+		}, 60*time.Second, time.Second).Should(BeNil())
+
 		labelDefRevList := new(v1beta1.DefinitionRevisionList)
 		labelDefRevListOpts := []client.ListOption{
 			client.InNamespace(namespace),
@@ -81,7 +95,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(labelDefRevList.Items))
 			}
 			return nil
-		}, 60*time.Second, time.Second).Should(BeNil())
+		}, 30*time.Second, time.Second).Should(BeNil())
 
 	})
 
@@ -114,6 +128,14 @@ var _ = Describe("Test application of the specified definition version", func() 
 		workerV1.Spec.Schematic.CUE.Template = workerV1Template
 		workerV1.SetNamespace(namespace)
 		Expect(k8sClient.Create(ctx, workerV1)).Should(Succeed())
+
+		workerDefRevV1 := new(v1beta1.DefinitionRevision)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-v1", workerV1.Name),
+				Namespace: namespace}, workerDefRevV1)
+		}, 15*time.Second, time.Microsecond*300)
+
+		workerDefRevV2 := new(v1beta1.DefinitionRevision)
 		Eventually(func() error {
 			err := k8sClient.Get(ctx, client.ObjectKey{Name: "worker", Namespace: namespace}, workerV1)
 			if err != nil {
@@ -126,8 +148,14 @@ var _ = Describe("Test application of the specified definition version", func() 
 				},
 			}
 			workerV1.Spec.Schematic.CUE.Template = workerV2Template
-			return k8sClient.Update(ctx, workerV1)
-		}, 15*time.Second, time.Second).Should(BeNil())
+			err = k8sClient.Update(ctx, workerV1)
+			if err != nil {
+				return err
+			}
+			return k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-v2", workerV1.Name),
+				Namespace: namespace}, workerDefRevV2)
+		}, 30*time.Second, time.Second).Should(BeNil())
+
 		workerDefRevList := new(v1beta1.DefinitionRevisionList)
 		workerDefRevListOpts := []client.ListOption{
 			client.InNamespace(namespace),
@@ -144,20 +172,33 @@ var _ = Describe("Test application of the specified definition version", func() 
 				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(workerDefRevList.Items))
 			}
 			return nil
-		}, 60*time.Second, time.Second).Should(BeNil())
+		}, 30*time.Second, time.Second).Should(BeNil())
 
 		webserviceV1 := webServiceWithNoTemplate.DeepCopy()
 		webserviceV1.Spec.Schematic.CUE.Template = webServiceV1Template
 		webserviceV1.SetNamespace(namespace)
 		Expect(k8sClient.Create(ctx, webserviceV1)).Should(Succeed())
+
+		webserviceDefRevV1 := new(v1beta1.DefinitionRevision)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-v1", webserviceV1.Name),
+				Namespace: namespace}, webserviceDefRevV1)
+		}, 15*time.Second, time.Microsecond*300)
+
+		webserviceDefRevV2 := new(v1beta1.DefinitionRevision)
 		Eventually(func() error {
 			err := k8sClient.Get(ctx, client.ObjectKey{Name: "webservice", Namespace: namespace}, webserviceV1)
 			if err != nil {
 				return err
 			}
 			webserviceV1.Spec.Schematic.CUE.Template = webServiceV2Template
-			return k8sClient.Update(ctx, webserviceV1)
-		}, 15*time.Second, time.Second).Should(BeNil())
+			err = k8sClient.Update(ctx, webserviceV1)
+			if err != nil {
+				return err
+			}
+			return k8sClient.Get(ctx, client.ObjectKey{Name: fmt.Sprintf("%s-v2", webserviceV1.Name),
+				Namespace: namespace}, webserviceDefRevV2)
+		}, 30*time.Second, time.Second).Should(BeNil())
 
 		webserviceDefRevList := new(v1beta1.DefinitionRevisionList)
 		webserviceDefRevListOpts := []client.ListOption{
@@ -175,7 +216,7 @@ var _ = Describe("Test application of the specified definition version", func() 
 				return fmt.Errorf("error defRevison number wants %d, actually %d", 2, len(webserviceDefRevList.Items))
 			}
 			return nil
-		}, 60*time.Second, time.Second).Should(BeNil())
+		}, 30*time.Second, time.Second).Should(BeNil())
 
 		app := v1beta1.Application{
 			ObjectMeta: metav1.ObjectMeta{
