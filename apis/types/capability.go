@@ -19,12 +19,13 @@ package types
 import (
 	"encoding/json"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"cuelang.org/go/cue"
 	"github.com/google/go-cmp/cmp"
 	"github.com/spf13/pflag"
+
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )
 
 // Source record the source of Capability

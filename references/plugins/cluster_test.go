@@ -297,7 +297,7 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 	It("get namespaced capabilities", func() {
 		Context("found all capabilities", func() {
 			capabilities, err := GetNamespacedCapabilitiesFromCluster(ctx, ns, c, nil)
-			Expect(len(capabilities)).Should(Equal(4))
+			Expect(len(capabilities)).Should(Equal(5))
 			Expect(err).Should(BeNil())
 		})
 
