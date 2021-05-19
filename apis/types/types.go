@@ -29,6 +29,8 @@ const (
 	DefaultEnvName = "default"
 	// DefaultAppNamespace defines the default K8s namespace for Apps created by KubeVela
 	DefaultAppNamespace = "default"
+	// AutoDetectWorkloadDefinition defines the default WorkloadDefinition for ComponentDefinition which doesn't specify a workload
+	AutoDetectWorkloadDefinition = "autodetect.core.oam.dev"
 )
 
 const (

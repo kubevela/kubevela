@@ -1,0 +1,8 @@
+apiVersion: core.oam.dev/v1beta1
+kind: WorkloadDefinition
+metadata:
+  name: autodetect.core.oam.dev
+  namespace: {{.Values.systemDefinitionNamespace}}
+spec:
+  definitionRef:
+    name: autodetect.core.oam.dev
