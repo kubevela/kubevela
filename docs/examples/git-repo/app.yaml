@@ -1,24 +1,12 @@
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
-  name: example-gitops
+  name: example-CD
   namespace: default
 spec:
   components:
-    - name: repo-instance
-      type: kustomize-control-repo
+    - name: podinfo-monitored
+      type: GitRepo
       properties:
         repo : "podinfo"
         path : "./deploy/overlays/dev/"
-
-
-#        image: "busybox"
-#        cmd:
-#          - sleep
-#          - "1000"
-#      traits:
-#        - type: ingress
-#          properties:
-#            domain: "www.example-gitops.com"
-#            http:
-#              "/": 80

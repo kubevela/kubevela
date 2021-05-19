@@ -1,13 +1,13 @@
 apiVersion: core.oam.dev/v1beta1
 kind: ComponentDefinition
 metadata:
-  name: kustomize-control-repo
+  name: GitRepo
   namespace: default
 spec:
   workload:
     definition:
       apiVersion: apps/v1
-      kind: Deployment # so the system know this is a deployment type workload
+      kind: Deployment # the type of workload should be null
   schematic:
     kube:
       template:
