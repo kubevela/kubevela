@@ -2,7 +2,10 @@
 title:  Service Binding
 ---
 
-Service binding trait will bind data from Kubernetes `Secret` to the application container's ENV. Here is an example.
+# Description
+Service binding trait will bind data from Kubernetes `Secret` to the application container's ENV. 
+
+## Sample
 
 ```yaml
 apiVersion: core.oam.dev/v1beta1
@@ -39,4 +42,17 @@ spec:
         username: oamtest
         secretName: db-conn
 
+```
+
+For more detailed samples, please reference to [cloud resource](../components/cloud-services)
+
+## Specification
+
+```console
+# Properties
++-------------+------------------------------------------------+------------------+----------+---------+
+|    NAME     |                  DESCRIPTION                   |       TYPE       | REQUIRED | DEFAULT |
++-------------+------------------------------------------------+------------------+----------+---------+
+| envMappings | The mapping of environment variables to secret | map[string]{...} | true     |         |
++-------------+------------------------------------------------+------------------+----------+---------+
 ```
