@@ -180,7 +180,7 @@ func InstallTraitByName(args common2.Args, ioStream cmdutil.IOStreams, traitName
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Successfully install trait: %s", traitName)
+	fmt.Printf("Successfully install trait: %s\n", traitName)
 	return nil
 }
 

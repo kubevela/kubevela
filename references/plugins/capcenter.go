@@ -266,22 +266,26 @@ func (g *GithubCenter) SyncCapabilityFromCenter() error {
 
 // GetCapAndFileContent will return a certain yaml file's content and cap object
 func (g *GithubCenter) GetCapAndFileContent(addonName string) (types.Capability, []byte, error) {
-	rawRepoItems, err := g.getRepoFile()
+	fileContent, _, _, err := g.client.Repositories.GetContents(context.Background(), g.cfg.Owner, g.cfg.Repo, fmt.Sprintf("%s/%s.yaml", g.cfg.Path, addonName), &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
 	if err != nil {
 		return types.Capability{}, []byte{}, err
 	}
-	for _, item := range rawRepoItems {
-		addon, err := item.toAddon()
+	var data []byte
+	if *fileContent.Encoding == "base64" {
+		data, err = base64.StdEncoding.DecodeString(*fileContent.Content)
 		if err != nil {
-			fmt.Printf("parse definition of %s err %v\n", item.name, err)
-			continue
-		}
-		if addon.Name == addonName {
-			return addon, item.data, nil
+			fmt.Printf("decode github content %s err %s\n", fileContent.GetPath(), err)
 		}
 	}
-	return types.Capability{}, []byte{}, fmt.Errorf("%s addon Not found", addonName)
-
+	repoFile := RepoFile{
+		data: data,
+		name: *fileContent.Name,
+	}
+	addon, err := repoFile.toAddon()
+	if err != nil {
+		return types.Capability{}, []byte{}, err
+	}
+	return addon, data, nil
 }
 
 // GetCaps will return all capabilities from this githubCenter

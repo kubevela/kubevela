@@ -175,7 +175,7 @@ func InstallCompByName(args common2.Args, ioStream cmdutil.IOStreams, compName s
 		return err
 	}
 
-	fmt.Printf("Successfully install component: %s", compName)
+	fmt.Printf("Successfully install component: %s\n", compName)
 
 	return nil
 }
