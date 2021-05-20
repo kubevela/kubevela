@@ -1477,8 +1477,7 @@ metadata:
   namespace: app-resource-tracker-test-ns
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
@@ -1507,8 +1506,7 @@ metadata:
   namespace: app-resource-tracker-test-ns
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   extension:
     template: |-
       outputs: pv: { 

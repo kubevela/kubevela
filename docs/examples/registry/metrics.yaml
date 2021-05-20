@@ -7,9 +7,8 @@ metadata:
     definition.oam.dev/description: "Configures monitoring metrics for your service."
 spec:
   appliesToWorkloads:
-    - webservice
-    - backend
-    - task
+    - deployments.apps
+    - jobs.batch
   definitionRef:
     name: metricstraits.standard.oam.dev
   workloadRefPath: spec.workloadRef

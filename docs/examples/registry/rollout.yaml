@@ -7,7 +7,7 @@ metadata:
     definition.oam.dev/description: "Configures Canary deployment strategy for your application."
 spec:
   appliesToWorkloads:
-    - webservice
+    - deployments.apps
   definitionRef:
     name: canaries.flagger.app
   workloadRefPath: spec.targetRef

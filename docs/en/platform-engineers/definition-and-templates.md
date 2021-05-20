@@ -70,7 +70,6 @@ metadata:
 spec:
   appliesToWorkloads: 
     - deployments.apps
-    - webservice
   conflictsWith: 
     - service
   workloadRefPath: spec.wrokloadRef
@@ -85,16 +84,15 @@ This field defines the constraints that what kinds of workloads this trait is al
 - It accepts an array of string as value.
 - Each item in the array refers to one or a group of workload types to which this trait is allowded to apply.
 
-There are four approaches to denote one or a group of workload types.
+There are three approaches to denote one or a group of workload types.
 
-- `ComponentDefinition` name, e.g., `webservice`, `worker`
 - `ComponentDefinition` definition reference (CRD name), e.g., `deployments.apps`
 - Resource group of `ComponentDefinition` definition reference prefixed with `*.`, e.g., `*.apps`, `*.oam.dev`. This means the trait is allowded to apply to any workloads in this group.
 - `*` means this trait is allowded to apply to any workloads
 
 If this field is omitted, it means this trait is allowded to apply to any workload types.
 
-KubeVela will raise an error if a trait is applied to a workload which is NOT included in the `appliesToWorkloads`.
+KubeVela will raise an error if a trait is applied to a workload type which is NOT included in the `appliesToWorkloads`.
 
 
 ##### `.spec.conflictsWith` 

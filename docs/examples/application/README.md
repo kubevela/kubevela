@@ -156,8 +156,7 @@ metadata:
   name: kservice
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   schematic:
     cue:
       template: |-
@@ -250,8 +249,7 @@ metadata:
   name: scaler
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   schematic:
     cue:
       template: |-
@@ -320,8 +318,7 @@ metadata:
   name: sidecar
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   schematic:
     cue:
       template: |-

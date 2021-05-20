@@ -395,8 +395,7 @@ spec:
     healthPolicy: |
       isHealth: len(context.outputs.service.spec.clusterIP) > 0
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   podDisruptive: false
   schematic:
     cue:
@@ -783,8 +782,7 @@ metadata:
   namespace: vela-system
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   schematic:
     cue:
       template: |-

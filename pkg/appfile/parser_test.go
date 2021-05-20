@@ -128,8 +128,7 @@ metadata:
   name: scaler
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
