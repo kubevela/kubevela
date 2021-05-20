@@ -37,7 +37,6 @@ import (
 	"github.com/oam-dev/kubevela/apis/types"
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
-	"github.com/oam-dev/kubevela/pkg/utils/common"
 	"github.com/oam-dev/kubevela/pkg/utils/system"
 )
 
@@ -264,49 +263,6 @@ func (g *GithubCenter) SyncCapabilityFromCenter() error {
 	return nil
 }
 
-// GetCapAndFileContent will return a certain yaml file's content and cap object
-func (g *GithubCenter) GetCapAndFileContent(addonName string) (types.Capability, []byte, error) {
-	fileContent, _, _, err := g.client.Repositories.GetContents(context.Background(), g.cfg.Owner, g.cfg.Repo, fmt.Sprintf("%s/%s.yaml", g.cfg.Path, addonName), &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
-	if err != nil {
-		return types.Capability{}, []byte{}, err
-	}
-	var data []byte
-	if *fileContent.Encoding == "base64" {
-		data, err = base64.StdEncoding.DecodeString(*fileContent.Content)
-		if err != nil {
-			fmt.Printf("decode github content %s err %s\n", fileContent.GetPath(), err)
-		}
-	}
-	repoFile := RepoFile{
-		data: data,
-		name: *fileContent.Name,
-	}
-	addon, err := repoFile.toAddon()
-	if err != nil {
-		return types.Capability{}, []byte{}, err
-	}
-	return addon, data, nil
-}
-
-// GetCaps will return all capabilities from this githubCenter
-func (g *GithubCenter) GetCaps() ([]types.Capability, error) {
-	var addons []types.Capability
-
-	itemContents, err := g.getRepoFile()
-	if err != nil {
-		return []types.Capability{}, err
-	}
-	for _, item := range itemContents {
-		capa, err := item.toAddon()
-		if err != nil {
-			fmt.Printf("parse definition of %s err %v\n", item.name, err)
-			continue
-		}
-		addons = append(addons, capa)
-	}
-	return addons, nil
-}
-
 func (g *GithubCenter) getRepoFile() ([]RepoFile, error) {
 	var items []RepoFile
 	_, dirs, _, err := g.client.Repositories.GetContents(g.ctx, g.cfg.Owner, g.cfg.Repo, g.cfg.Path, &github.RepositoryContentGetOptions{Ref: g.cfg.Ref})
@@ -336,22 +292,4 @@ func (g *GithubCenter) getRepoFile() ([]RepoFile, error) {
 		})
 	}
 	return items, nil
-}
-
-func (item RepoFile) toAddon() (types.Capability, error) {
-	dm, err := (&common.Args{}).GetDiscoveryMapper()
-	if err != nil {
-		return types.Capability{}, err
-	}
-	capability, err := ParseAndSyncCapability(dm, item.data)
-	if err != nil {
-		return types.Capability{}, err
-	}
-	return capability, nil
-}
-
-// RepoFile contains a file item in github repo
-type RepoFile struct {
-	data []byte // file content
-	name string // file's name
 }

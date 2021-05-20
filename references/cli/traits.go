@@ -95,8 +95,8 @@ func PrintTraitList(isDiscover bool, ioStreams cmdutil.IOStreams) error {
 		return err
 	}
 
-	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing traits from default registry:%s\n", defaultCenter)))
-	caps, err := getCapsFromDefaultCenter()
+	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing traits from default registry:%s\n", defaultRegistry)))
+	caps, err := getCapsFromDefaultRegistry()
 	if err != nil {
 		return err
 	}
@@ -135,34 +135,34 @@ func PrintTraitList(isDiscover bool, ioStreams cmdutil.IOStreams) error {
 	return nil
 }
 
-// getCapsFromDefaultCenter will retrieve caps from default registry
-func getCapsFromDefaultCenter() ([]types.Capability, error) {
-	g, err := getDefaultGithubCenter()
+// getCapsFromDefaultRegistry will retrieve caps from default registry
+func getCapsFromDefaultRegistry() ([]types.Capability, error) {
+	g, err := getDefaultGithubRegistry()
 	if err != nil {
 		return []types.Capability{}, err
 	}
-	caps, err := g.GetCaps()
+	caps, err := g.ListCaps()
 	if err != nil {
 		return []types.Capability{}, err
 	}
 	return caps, nil
 }
 
-// getDefaultGithubCenter will return GH center object for defaultCenter
-func getDefaultGithubCenter() (*plugins.GithubCenter, error) {
-	_, ghContent, _ := plugins.Parse(defaultCenter)
-	g, err := plugins.NewGithubCenter(context.Background(), "", "default-cap-center", ghContent)
+// getDefaultGithubRegistry will return GH registry object for defaultRegistry
+func getDefaultGithubRegistry() (*plugins.GithubRegistry, error) {
+	_, ghContent, _ := plugins.Parse(defaultRegistry)
+	g, err := plugins.NewGithubRegistry(context.Background(), "", "default-cap-center", ghContent)
 	return g, err
 }
 
-// InstallTraitByName will install given traitName trait to cluter
+// InstallTraitByName will install given traitName trait to cluster
 func InstallTraitByName(args common2.Args, ioStream cmdutil.IOStreams, traitName string) error {
 
-	g, err := getDefaultGithubCenter()
+	g, err := getDefaultGithubRegistry()
 	if err != nil {
 		return err
 	}
-	capObj, data, err := g.GetCapAndFileContent(traitName)
+	capObj, data, err := g.GetCap(traitName)
 	if err != nil {
 		return err
 	}
@@ -184,8 +184,8 @@ func InstallTraitByName(args common2.Args, ioStream cmdutil.IOStreams, traitName
 	return nil
 }
 
-// defaultCenter is default capability center of kubectl-vela
-var defaultCenter = "https://github.com/oam-dev/catalog/tree/master/registry"
+// defaultRegistry is default capability center of kubectl-vela
+var defaultRegistry = "https://github.com/oam-dev/catalog/tree/master/registry"
 
 const installed = "installed"
 const uninstalled = "uninstalled"

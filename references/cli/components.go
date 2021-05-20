@@ -109,12 +109,8 @@ func PrintDefaultCapComponentList(isDiscover bool, ioStreams cmdutil.IOStreams) 
 		return err
 	}
 
-	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing components from default registry:%s\n", defaultCenter)))
-	g, err := getDefaultGithubCenter()
-	if err != nil {
-		return err
-	}
-	caps, err := g.GetCaps()
+	_, _ = ioStreams.Out.Write([]byte(fmt.Sprintf("Showing components from default registry:%s\n", defaultRegistry)))
+	caps, err := getCapsFromDefaultRegistry()
 	if err != nil {
 		return err
 	}
@@ -153,24 +149,24 @@ func PrintDefaultCapComponentList(isDiscover bool, ioStreams cmdutil.IOStreams) 
 	return nil
 }
 
-// InstallCompByName will install given componentName comp to cluter from default registry
+// InstallCompByName will install given componentName comp to cluster from default registry
 func InstallCompByName(args common2.Args, ioStream cmdutil.IOStreams, compName string) error {
 
-	g, err := getDefaultGithubCenter()
+	g, err := getDefaultGithubRegistry()
 	if err != nil {
 		return err
 	}
-	capObj, data, err := g.GetCapAndFileContent(compName)
-	if err != nil {
-		return err
-	}
-
-	client, err := args.GetClient()
+	capObj, data, err := g.GetCap(compName)
 	if err != nil {
 		return err
 	}
 
-	err = common.InstallComponentDefinition(client, data, ioStream, &capObj)
+	k8sClient, err := args.GetClient()
+	if err != nil {
+		return err
+	}
+
+	err = common.InstallComponentDefinition(k8sClient, data, ioStream, &capObj)
 	if err != nil {
 		return err
 	}
