@@ -18,6 +18,7 @@ package plugins
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 
@@ -139,20 +140,21 @@ var _ = Describe("DefinitionFiles", func() {
 
 var _ = Describe("test GetCapabilityByName", func() {
 	var (
-		ctx        context.Context
-		c          common.Args
-		ns         string
-		defaultNS  string
-		cd1        corev1beta1.ComponentDefinition
-		cd2        corev1beta1.ComponentDefinition
-		cd3        corev1beta1.ComponentDefinition
-		td1        corev1beta1.TraitDefinition
-		td2        corev1beta1.TraitDefinition
-		component1 string
-		component2 string
-		component3 string
-		trait1     string
-		trait2     string
+		ctx             context.Context
+		c               common.Args
+		ns              string
+		defaultNS       string
+		cd1             corev1beta1.ComponentDefinition
+		cd2             corev1beta1.ComponentDefinition
+		cd3             corev1beta1.ComponentDefinition
+		td1             corev1beta1.TraitDefinition
+		td2             corev1beta1.TraitDefinition
+		component1      string
+		component2      string
+		component3      string
+		trait1          string
+		trait2          string
+		expectParameter string
 	)
 	BeforeEach(func() {
 		c = common.Args{
@@ -161,11 +163,13 @@ var _ = Describe("test GetCapabilityByName", func() {
 			Schema: scheme,
 		}
 		ctx = context.Background()
-		ns = "cluster-test-ns"
+		ns = "cluster-test-ns-suffix"
 		defaultNS = types.DefaultKubeVelaNS
 		component1 = "cd1"
 		component2 = "cd2"
 		component3 = "cd3"
+		expectParameter = "[{\"name\":\"image\",\"type\":\"string\",\"fieldPaths\":[\"spec.template.spec.containers[0].image\"],\"required\":true},{\"name\":\"port\",\"type\":\"string\",\"fieldPaths\":[\"spec.template.spec.containers[0].ports[0].containerPort\"],\"required\":true}]"
+
 		trait1 = "td1"
 		trait2 = "td2"
 
@@ -215,8 +219,11 @@ var _ = Describe("test GetCapabilityByName", func() {
 			Expect(err).Should(BeNil())
 		})
 		Context("ComponentDefinition is in the default namespace", func() {
-			_, err := GetCapabilityByName(ctx, c, component3, ns)
+			cap, err := GetCapabilityByName(ctx, c, component3, ns)
 			Expect(err).Should(BeNil())
+			jsontmp, err := json.Marshal(cap.KubeParameter)
+			Expect(err).Should(BeNil())
+			Expect(string(jsontmp)).Should(Equal(expectParameter))
 		})
 
 		Context("TraitDefinition is in the current namespace", func() {
@@ -297,7 +304,7 @@ var _ = Describe("test GetNamespacedCapabilitiesFromCluster", func() {
 	It("get namespaced capabilities", func() {
 		Context("found all capabilities", func() {
 			capabilities, err := GetNamespacedCapabilitiesFromCluster(ctx, ns, c, nil)
-			Expect(len(capabilities)).Should(Equal(5))
+			Expect(len(capabilities)).Should(Equal(4))
 			Expect(err).Should(BeNil())
 		})
 

@@ -19,6 +19,7 @@ package plugin
 import (
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -122,6 +123,23 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", cdName))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("Properties"))
+		})
+		It("Test show componentDefinition def with raw Kube mode", func() {
+			cdName := "kube-worker"
+			output, err := e2e.Exec(fmt.Sprintf("kubectl-vela show %s", cdName))
+			Expect(err).NotTo(HaveOccurred())
+			arr := strings.Split(output, "\n")
+			k1 := strings.Split(arr[4], "|")[1]
+			v1 := strings.Split(arr[4], "|")[2]
+			k2 := strings.Split(arr[5], "|")[1]
+			v2 := strings.Split(arr[5], "|")[2]
+			paraMap := make(map[string]string)
+			paraMap[k1] = v1
+			paraMap[k2] = v2
+			Expect(paraMap).Should(Equal(map[string]string{
+				" image ": " The value will be applied to fields: [spec.template.spec.containers[0].image].                  ",
+				" port  ": " The value will be applied to fields: [spec.template.spec.containers[0].ports[0].containerPort]. ",
+			}))
 		})
 	})
 })
@@ -372,6 +390,48 @@ spec:
             version: "5.1.4"
       repository:
         url: "http://oam.dev/catalog/"
+`
+
+var componentDefWithKube = `
+apiVersion: core.oam.dev/v1beta1
+kind: ComponentDefinition
+metadata:
+  name: kube-worker
+  namespace: default
+spec:
+  workload:
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+  schematic:
+    kube:
+      template:
+        apiVersion: apps/v1
+        kind: Deployment
+        spec:
+          selector:
+            matchLabels:
+              app: nginx
+          template:
+            metadata:
+              labels:
+                app: nginx
+            spec:
+              containers:
+                - name: nginx
+                  ports:
+                    - containerPort: 80
+      parameters:
+        - name: image
+          required: true
+          type: string
+          fieldPaths:
+            - "spec.template.spec.containers[0].image"
+        - name: port
+          required: true
+          type: string
+          fieldPaths:
+            - "spec.template.spec.containers[0].ports[0].containerPort"
 `
 
 var traitDef = `

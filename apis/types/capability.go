@@ -19,11 +19,10 @@ package types
 import (
 	"encoding/json"
 
-	"k8s.io/apimachinery/pkg/runtime"
-
 	"cuelang.org/go/cue"
 	"github.com/google/go-cmp/cmp"
 	"github.com/spf13/pflag"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/common"
 )

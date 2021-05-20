@@ -347,7 +347,7 @@ var refContent string
 var recurseDepth *int
 var propertyConsole []ConsoleReference
 var displayFormat *string
-var helmRefs []HELMReference
+var commonRefs []CommonReference
 
 func setDisplayFormat(format string) {
 	displayFormat = &format
@@ -423,6 +423,14 @@ func (ref *MarkdownReference) CreateMarkdown(ctx context.Context, caps []types.C
 			for _, property := range properties {
 				refContent += ref.prepareParameter("#"+property.Name, property.Parameters, types.HelmCategory)
 			}
+		case types.KubeCategory:
+			properties, _, err := ref.GenerateHelmAndKubeProperties(ctx, &caps[i])
+			if err != nil {
+				return fmt.Errorf("failed to retrieve `parameters` value from %s with err: %w", c.Name, err)
+			}
+			for _, property := range properties {
+				refContent += ref.prepareParameter("#"+property.Name, property.Parameters, types.KubeCategory)
+			}
 		case types.TerraformCategory:
 			refContent, err = ref.GenerateTerraformCapabilityProperties(c)
 			if err != nil {
@@ -468,7 +476,12 @@ func (ref *MarkdownReference) prepareParameter(tableName string, parameterList [
 		}
 	case types.HelmCategory:
 		for _, p := range parameterList {
-			printableDefaultValue := ref.getHELMPrintableDefaultValue(p.JSONType, p.Default)
+			printableDefaultValue := ref.getJSONPrintableDefaultValue(p.JSONType, p.Default)
+			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, strings.ReplaceAll(p.Usage, "\n", ""), p.PrintableType, p.Required, printableDefaultValue)
+		}
+	case types.KubeCategory:
+		for _, p := range parameterList {
+			printableDefaultValue := ref.getJSONPrintableDefaultValue(p.JSONType, p.Default)
 			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, strings.ReplaceAll(p.Usage, "\n", ""), p.PrintableType, p.Required, printableDefaultValue)
 		}
 	case types.TerraformCategory:
@@ -494,8 +507,13 @@ func (ref *ParseReference) prepareParameter(tableName string, parameterList []Re
 		}
 	case types.HelmCategory:
 		for _, p := range parameterList {
-			printableDefaultValue := ref.getHELMPrintableDefaultValue(p.JSONType, p.Default)
+			printableDefaultValue := ref.getJSONPrintableDefaultValue(p.JSONType, p.Default)
 			table.Append([]string{p.Name, p.Usage, p.PrintableType, strconv.FormatBool(p.Required), printableDefaultValue})
+		}
+	case types.KubeCategory:
+		for _, p := range parameterList {
+			printableDefaultValue := ref.getJSONPrintableDefaultValue(p.JSONType, p.Default)
+			refContent += fmt.Sprintf(" %s | %s | %s | %t | %s \n", p.Name, strings.ReplaceAll(p.Usage, "\n", ""), p.PrintableType, p.Required, printableDefaultValue)
 		}
 	case types.TerraformCategory:
 		// Terraform doesn't have default value
@@ -622,7 +640,7 @@ func (ref *ParseReference) getCUEPrintableDefaultValue(v interface{}) string {
 	return ""
 }
 
-func (ref *ParseReference) getHELMPrintableDefaultValue(dataType string, value interface{}) string {
+func (ref *ParseReference) getJSONPrintableDefaultValue(dataType string, value interface{}) string {
 	if value != nil {
 		return strings.TrimSpace(fmt.Sprintf("%v", value))
 	}
@@ -676,24 +694,24 @@ func (ref *ConsoleReference) GenerateCUETemplateProperties(capability *types.Cap
 	return propertyConsole, nil
 }
 
-// HELMReference contains parameters info of HelmCategory type capability
-type HELMReference struct {
+// CommonReference contains parameters info of HelmCategory and KubuCategory type capability at present
+type CommonReference struct {
 	Name       string
 	Parameters []ReferenceParameter
 	Depth      int
 }
 
-// HELMSchema is a struct contains *openapi3.Schema style parameter
-type HELMSchema struct {
+// CommonSchema is a struct contains *openapi3.Schema style parameter
+type CommonSchema struct {
 	Name    string
 	Schemas *openapi3.Schema
 }
 
 // GenerateHelmAndKubeProperties get all properties of a Helm/Kube Category type capability
-func (ref *ParseReference) GenerateHelmAndKubeProperties(ctx context.Context, capability *types.Capability) ([]HELMReference, []ConsoleReference, error) {
+func (ref *ParseReference) GenerateHelmAndKubeProperties(ctx context.Context, capability *types.Capability) ([]CommonReference, []ConsoleReference, error) {
 	cmName := fmt.Sprintf("%s%s", types.CapabilityConfigMapNamePrefix, capability.Name)
 	var cm v1.ConfigMap
-	helmRefs = make([]HELMReference, 0)
+	commonRefs = make([]CommonReference, 0)
 	if err := ref.Client.Get(ctx, client.ObjectKey{Namespace: capability.Namespace, Name: cmName}, &cm); err != nil {
 		return nil, nil, err
 	}
@@ -710,10 +728,10 @@ func (ref *ParseReference) GenerateHelmAndKubeProperties(ctx context.Context, ca
 	WalkParameterSchema(parameters, "Properties", 0)
 
 	var consoleRefs []ConsoleReference
-	for _, item := range helmRefs {
+	for _, item := range commonRefs {
 		consoleRefs = append(consoleRefs, ref.prepareParameter(item.Name, item.Parameters, types.HelmCategory))
 	}
-	return helmRefs, consoleRefs, err
+	return commonRefs, consoleRefs, err
 }
 
 // GenerateTerraformCapabilityProperties generates Capability properties for Terraform ComponentDefinition
@@ -781,8 +799,8 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 	if parameters == nil {
 		return
 	}
-	var schemas []HELMSchema
-	var helmParameters []ReferenceParameter
+	var schemas []CommonSchema
+	var commonParameters []ReferenceParameter
 	for k, v := range parameters.Properties {
 		p := ReferenceParameter{
 			Parameter: types.Parameter{
@@ -803,19 +821,19 @@ func WalkParameterSchema(parameters *openapi3.Schema, name string, depth int) {
 		p.Required = required
 		if v.Value.Type == "object" {
 			if v.Value.Properties != nil {
-				schemas = append(schemas, HELMSchema{
+				schemas = append(schemas, CommonSchema{
 					Name:    k,
 					Schemas: v.Value,
 				})
 			}
 			p.PrintableType = fmt.Sprintf("[%s](#%s)", k, k)
 		}
-		helmParameters = append(helmParameters, p)
+		commonParameters = append(commonParameters, p)
 	}
 
-	helmRefs = append(helmRefs, HELMReference{
+	commonRefs = append(commonRefs, CommonReference{
 		Name:       fmt.Sprintf("%s %s", strings.Repeat("#", depth+1), name),
-		Parameters: helmParameters,
+		Parameters: commonParameters,
 		Depth:      depth + 1,
 	})
 

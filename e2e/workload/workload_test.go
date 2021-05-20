@@ -28,13 +28,11 @@ var _ = ginkgo.Describe("Workload", func() {
 
 var _ = ginkgo.Describe("Test vela show", func() {
 	e2e.ShowCapabilityReference("show webservice", "webservice")
-	e2e.ShowCapabilityReference("show kube-worker", "kube-worker")
 
 	env := "namespace-xxxfwrr23erfm"
 	e2e.EnvInitWithNamespaceOptionContext("env init", env, env)
 	e2e.EnvSetContext("env switch", env)
 	e2e.ShowCapabilityReference("show webservice", "webservice")
-	e2e.ShowCapabilityReference("show kube-worker", "kube-worker")
 	e2e.EnvSetContext("env switch", "default")
 	e2e.EnvDeleteContext("env delete", env)
 })

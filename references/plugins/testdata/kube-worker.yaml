@@ -32,3 +32,8 @@ spec:
           type: string
           fieldPaths:
             - "spec.template.spec.containers[0].image"
+        - name: port
+          required: true
+          type: string
+          fieldPaths:
+            - "spec.template.spec.containers[0].ports[0].containerPort"
