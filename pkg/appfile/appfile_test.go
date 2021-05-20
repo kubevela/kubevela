@@ -89,9 +89,11 @@ var _ = Describe("Test Helm schematic appfile", func() {
 						},
 					},
 					FullTemplate: &Template{
-						Reference: common.WorkloadGVK{
-							APIVersion: "apps/v1",
-							Kind:       "Deployment",
+						Reference: common.WorkloadTypeDescriptor{
+							Definition: common.WorkloadGVK{
+								APIVersion: "apps/v1",
+								Kind:       "Deployment",
+							},
 						},
 						Helm: &common.Helm{
 							Release: util.Object2RawExtension(map[string]interface{}{
@@ -316,9 +318,11 @@ spec:
 								},
 							},
 						},
-						Reference: common.WorkloadGVK{
-							APIVersion: "apps/v1",
-							Kind:       "Deployment",
+						Reference: common.WorkloadTypeDescriptor{
+							Definition: common.WorkloadGVK{
+								APIVersion: "apps/v1",
+								Kind:       "Deployment",
+							},
 						},
 					},
 				},

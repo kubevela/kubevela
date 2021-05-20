@@ -337,6 +337,58 @@ var _ = Describe("Test application containing helm module", func() {
 		}, 240*time.Second, 5*time.Second).Should(Succeed())
 	})
 
+	It("Test deploy an application containing helm module and the componet refer to autodetect type worklaod", func() {
+		cd := v1alpha2.ComponentDefinition{}
+		cd.SetName("wrong-cd")
+		cd.SetNamespace(namespace)
+		cd.Spec.Schematic = &common.Schematic{
+			HELM: &common.Helm{
+				Release: util.Object2RawExtension(map[string]interface{}{
+					"chart": map[string]interface{}{
+						"spec": map[string]interface{}{
+							"chart":   "podinfo",
+							"version": "5.1.4",
+						},
+					},
+				}),
+				Repository: util.Object2RawExtension(map[string]interface{}{
+					"url": "http://oam.dev/catalog/",
+				}),
+			},
+		}
+		Expect(k8sClient.Create(ctx, &cd)).Should(Succeed())
+
+		newAppName := "test-autodetect"
+		newApp := v1alpha2.Application{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      newAppName,
+				Namespace: namespace,
+			},
+			Spec: v1alpha2.ApplicationSpec{
+				Components: []v1alpha2.ApplicationComponent{
+					{
+						Name:         compName,
+						WorkloadType: "wrong-cd",
+						Settings: util.Object2RawExtension(map[string]interface{}{
+							"image": map[string]interface{}{
+								"tag": "5.1.2",
+							},
+						}),
+					},
+				},
+			},
+		}
+		By("Create application")
+		Expect(k8sClient.Create(ctx, &newApp)).Should(Succeed())
+
+		By("Verify the workload(deployment) is created successfully by Helm")
+		deploy := &appsv1.Deployment{}
+		deployName := fmt.Sprintf("%s-%s-podinfo", newAppName, compName)
+		Eventually(func() error {
+			return k8sClient.Get(ctx, client.ObjectKey{Name: deployName, Namespace: namespace}, deploy)
+		}, 120*time.Second, 5*time.Second).Should(Succeed())
+	})
+
 	It("Test store JSON schema of Helm Chart in ConfigMap", func() {
 		By("Get the ConfigMap")
 		cmName := fmt.Sprintf("schema-%s", cdName)
