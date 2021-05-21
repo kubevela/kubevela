@@ -56,8 +56,7 @@ metadata:
   name: scaler1
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
@@ -110,8 +109,7 @@ metadata:
   name: scaler-no-ns
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
@@ -146,6 +144,7 @@ spec:
 				return err == nil
 			}, 15*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(traitDefinitionName))
 
 			By("Check whether ConfigMapRef refer to right")
 			Eventually(func() string {
@@ -182,8 +181,7 @@ metadata:
   name: scaler1
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
@@ -217,6 +215,7 @@ spec:
 				return err == nil
 			}, 10*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(traitDefinitionName))
 
 			By("Check whether ConfigMapRef refer to right")
 			Eventually(func() string {
@@ -251,8 +250,7 @@ metadata:
   name: invalid-tr1
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   definitionRef:
     name: manualscalertraits.core.oam.dev
   workloadRefPath: spec.workloadRef
@@ -332,8 +330,7 @@ metadata:
   namespace: default
 spec:
   appliesToWorkloads:
-    - webservice
-    - worker
+    - deployments.apps
   definitionRef:
     name: foo.example.com
   schematic:
@@ -366,6 +363,7 @@ spec:
 				return err == nil
 			}, 30*time.Second, time.Second).Should(BeTrue())
 			Expect(cm.Data[types.OpenapiV3JSONSchema]).Should(Not(Equal("")))
+			Expect(cm.Labels["definition.oam.dev/name"]).Should(Equal(traitDefinitionName))
 		})
 	})
 

@@ -278,7 +278,8 @@ func (def *CapabilityBaseDefinition) CreateOrUpdateConfigMap(ctx context.Context
 				Namespace:       namespace,
 				OwnerReferences: ownerReferences,
 				Labels: map[string]string{
-					"definition.oam.dev": "schema",
+					"definition.oam.dev":      "schema",
+					"definition.oam.dev/name": definitionName,
 				},
 			},
 			Data: data,
@@ -358,12 +359,14 @@ func GenerateOpenAPISchemaFromDefinition(definitionName, cueTemplate string) ([]
 func prepareParameterCue(capabilityName, capabilityTemplate string) (string, error) {
 	var template string
 	var withParameterFlag bool
-	r := regexp.MustCompile("[[:space:]]*parameter:[[:space:]]*{.*")
+	r := regexp.MustCompile(`[[:space:]]*parameter:[[:space:]]*`)
+	trimRe := regexp.MustCompile(`\s+`)
 
 	for _, text := range strings.Split(capabilityTemplate, "\n") {
 		if r.MatchString(text) {
 			// a variable has to be refined as a definition which starts with "#"
-			text = fmt.Sprintf("parameter: #parameter\n#%s", text)
+			// text may be start with space or tab, we should clean up text
+			text = fmt.Sprintf("parameter: #parameter\n#%s", trimRe.ReplaceAllString(text, ""))
 			withParameterFlag = true
 		}
 		template += fmt.Sprintf("%s\n", text)

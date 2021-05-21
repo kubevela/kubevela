@@ -70,12 +70,12 @@ PWD := $(shell pwd)
 docs-build:
 	docker run -it -v $(PWD)/docs/sidebars.js:/workspace/kubevela.io/sidebars.js \
 	 -v $(PWD)/docs/en:/workspace/kubevela.io/docs \
-	 yangsoon/kubevela.io:v1 -t build
+	 oamdev/vela-webtool:v1 -t build
 
 docs-start:
 	docker run -it -p 3000:3000 -v $(PWD)/docs/sidebars.js:/workspace/kubevela.io/sidebars.js \
 	 -v $(PWD)/docs/en:/workspace/kubevela.io/docs \
-	 yangsoon/kubevela.io:v1 -t start
+	 oamdev/vela-webtool:v1 -t start
 
 api-gen:
 	swag init -g references/apiserver/route.go --output references/apiserver/docs

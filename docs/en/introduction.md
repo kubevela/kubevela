@@ -8,17 +8,17 @@ slug: /
 
 ## Motivation
 
-The trend of cloud-native technology is moving towards pursuing consistent application delivery across clouds and on-premises infrastructures using Kubernetes as the common layer. Kubernetes, although excellent in abstracting low-level infrastructure details, does not introduce abstractions to model software deployment on top of hybrid environments. We’ve seen the lack of such application level context have impacted user experiences, slowed down productivity, led to unexpected errors or misconfigurations in production.
+The trend of cloud-native technology is moving towards pursuing consistent application delivery across clouds and on-premises infrastructures using Kubernetes as the common layer. Kubernetes, although excellent in abstracting low-level infrastructure details, does not introduce abstractions to model software deployment on top of hybrid environments. We’ve seen the lack of application level context have impacted user experiences, slowed down productivity, led to unexpected errors or misconfigurations in production.
 
-On the other hand, modeling a deployment of a modern microservice application is a highly opinionated and fragmented process today. Thus, most solutions aim to solve above problem (although built with Kubernetes) are essentially restricted systems and barely extensible. As the needs of your application grow, they are almost certain to outgrow the capabilities of such systems. Application teams complain they are too rigid and slow in response to feature requests or improvements. The platform team do want to help but the engineering effort is daunting: any simple API change in the platform could easily become a marathon negotiation around the opinionated abstraction design.
+On the other hand, modeling the deployment of a microservice application is a highly opinionated and fragmented process. Thus, many solutions tried to solve above problem so far essentially became restricted systems and barely extensible (regardless of whether they are built with Kubernetes or not). As the needs of your application grow, they are almost certain to outgrow the capabilities of such systems. Application teams complain they are too rigid and slow in response to feature requests or improvements. The platform team do want to help but the engineering effort is daunting: any simple change to such platform could easily become a marathon negotiation around system level design and implementation.
 
 ## What is KubeVela?
 
-KubeVela is a modern application platform that aims to make deploying and managing applications across hybrid, multi-cloud environments easier and faster by doing the following:
+KubeVela is a modern application platform that makes deploying and managing applications across today's hybrid, multi-cloud environments easier and faster without introducing another layer of restriction. This is achieved by doing the following:
 
-**Application Centric** - KubeVela introduces consistent yet application centric API to capture a full deployment of microservices on top of hybrid environments. No infrastructure level concern, simply deploy.
+**Application Centric** - KubeVela introduces consistent yet higher level API to capture a full deployment of microservices on top of hybrid environments. No infrastructure level concern, simply deploy.
 
-**Natively Extensible** - KubeVela uses CUE to glue capabilities provided by runtime infrastructure and expose them to users via self-service API. When users' needs grow, these API can naturally expand in programmable approach.
+**Natively Extensible** - KubeVela uses [CUE](https://cuelang.org/) as super glue to assemble capabilities provided by runtime infrastructures and expose them to users via application-centric APIs. When users' needs grow, these APIs can naturally expand in programmable approach.
 
 **Runtime Agnostic** - KubeVela is built with Kubernetes as control plane but adaptable to any runtime as data-plane. It can deploy (and manage) diverse workload types such as container, cloud functions, databases, or even EC2 instances across hybrid environments.
 
@@ -44,7 +44,7 @@ The typical examples are Heroku and Cloud Foundry. They provide full application
 
 Though the biggest difference lies in **flexibility**.
 
-KubeVela enables you to serve end users with programmable building blocks (based on [CUE](https://cuelang.org/)) which are fully flexible and can be extended at any time. Comparing to this mechanism, traditional PaaS systems are highly restricted, i.e. they have to enforce constraints in the type of supported applications and capabilities, and as application needs grows, you always outgrow the capabilities of the PaaS system - this will never happen in KubeVela platform.
+KubeVela enables you to serve end users with programmable building blocks (based on CUE) which are fully flexible and can be extended at any time. Comparing to this mechanism, traditional PaaS systems are highly restricted, i.e. they have to enforce constraints in the type of supported applications and capabilities, and as application needs grows, you always outgrow the capabilities of the PaaS system - this will never happen in KubeVela platform.
 
 So think of KubeVela as a Heroku but it is fully extensible when your needs grow.
 
@@ -52,26 +52,23 @@ So think of KubeVela as a Heroku but it is fully extensible when your needs grow
 
 Serverless platform such as AWS Lambda provides extraordinary user experience and agility to deploy serverless applications. However, those platforms impose even more constraints in extensibility. They are arguably "hard-coded" PaaS.
 
-KubeVela can easily deploy both Kubernetes based serverless workloads such as Knative/OpenFaaS, or cloud functions such as AWS Lambda. Simply register what you want to deploy as a "component".
+KubeVela can easily deploy both Kubernetes based serverless workloads such as Knative/OpenFaaS, or cloud based functions such as AWS Lambda. Simply register them as a "component" in KubeVela platform.
 
 ### KubeVela vs. Platform agnostic developer tools
 
 The typical example is Hashicorp's Waypoint. Waypoint is a developer facing tool which introduces a consistent workflow (i.e., build, deploy, release) to ship applications on top of different platforms.
 
-KubeVela can be integrated with such tools seamlessly. In this case, developers would use the Waypoint workflow as the UI to deploy and manage applications across hybrid environments with KubeVela's abstractions (e.g. applications, components, traits etc).
+KubeVela can be integrated with such tools seamlessly. In this case, developers would use the Waypoint workflow as the UI to deploy and manage applications across hybrid environments leveraging KubeVela as core deployment engine.
 
 ### KubeVela vs. Helm 
 
 Helm is a package manager for Kubernetes that provides package, install, and upgrade a set of YAML files for Kubernetes as a unit. 
 
-KubeVela as a modern deployment system can naturally deploys Helm charts across hybrid environments. For example, you could easily use KubeVela to declare and deploy an application which is composed by a WordPress Helm chart and a AWS RDS instance defined by Terraform, or distribute the Helm chart to multiple clusters.
-
-KubeVela also leverages Helm to manage the capability addons in runtime clusters.
+KubeVela as a modern deployment system can naturally deploys Helm charts across hybrid environments. For example, you could easily use KubeVela to declare and deploy an application which is composed by a WordPress Helm chart and a AWS RDS instance defined by Terraform, attach traits to the chart, or distribute the chart to multiple clusters. KubeVela itself also leverages Helm to manage the capability addons in runtime Kubernetes clusters.
 
 ### KubeVela vs. Kubernetes
 
-KubeVela is a Kubernetes add-on for building developer-centric deployment system. It leverages [Open Application Model](https://github.com/oam-dev/spec) and the native Kubernetes extensibility to resolve a hard problem - making shipping applications enjoyable on Kubernetes.
-
+KubeVela is a Kubernetes add-on for building modern application deployment system. It leverages [Open Application Model](https://github.com/oam-dev/spec) and Kubernetes as control plane to resolve a hard problem - making shipping applications enjoyable.
 
 ## What's Next
 

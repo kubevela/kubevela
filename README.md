@@ -20,7 +20,7 @@ KubeVela is a modern application platform that makes deploying and managing appl
 
 **Application Centric** - Leveraging Open Application Model (OAM), KubeVela introduces consistent yet higher level API to capture a full deployment of microservices on top of hybrid environments. Placement strategy and patch, traffic shifting and rolling update are all declared at application level. No infrastructure level concern, simply deploy.
 
-**Natively Extensible** - KubeVela uses [CUE](https://github.com/cuelang/cue) to glue capabilities (e.g. workload types, operational behaviors, and cloud services) provided by runtime infrastructure and expose them to users via self-service API. When users' needs grow, these API can naturally expand in programmable approach. No restriction, fully flexible.
+**Natively Extensible** - KubeVela uses [CUE](https://github.com/cuelang/cue) as super glue to assemble capabilities (e.g. workload types, operational behaviors, and cloud services) provided by runtime infrastructures and expose them to users via application-centric APIs. When users' needs grow, these APIs can naturally expand in programmable approach. No restriction, fully flexible.
 
 **Runtime Agnostic** - KubeVela is built with Kubernetes as control plane but adaptable to any runtime as data-plane. It can deploy (and manage) diverse workload types such as container, cloud functions, databases, or even EC2 instances across hybrid environments. Also, this means KubeVela seamlessly works with any Kubernetes compatible CI/CD or GitOps tools via declarative API.
 
