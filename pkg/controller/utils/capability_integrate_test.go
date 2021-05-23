@@ -27,7 +27,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/yaml"
 
-	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1alpha2"
+	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	"github.com/oam-dev/kubevela/pkg/oam/util"
 )
 
@@ -102,21 +102,17 @@ spec:
         }
 
 `
-			var componentDefinition v1alpha2.ComponentDefinition
+			var componentDefinition v1beta1.ComponentDefinition
 			Expect(yaml.Unmarshal([]byte(validComponentDefinition), &componentDefinition)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &componentDefinition)).Should(Succeed())
 
 			By("Test GetCapabilityObject")
-			def := &CapabilityComponentDefinition{Name: componentDefinitionName}
-			capability, err := def.GetCapabilityObject(ctx, k8sClient, namespace, componentDefinitionName)
-			Expect(err).Should(BeNil())
-			Expect(capability).Should(Not(BeNil()))
+			def := &CapabilityComponentDefinition{Name: componentDefinitionName, ComponentDefinition: *componentDefinition.DeepCopy()}
 
 			By("Test GetOpenAPISchema")
-			schema, err := def.GetOpenAPISchema(ctx, k8sClient, pd, namespace, componentDefinitionName)
+			schema, err := def.GetOpenAPISchema(pd, namespace)
 			Expect(err).Should(BeNil())
 			Expect(schema).Should(Not(BeNil()))
-
 		})
 	})
 
@@ -166,19 +162,15 @@ spec:
         }
 `
 
-			var traitDefinition v1alpha2.TraitDefinition
+			var traitDefinition v1beta1.TraitDefinition
 			Expect(yaml.Unmarshal([]byte(validTraitDefinition), &traitDefinition)).Should(BeNil())
 			Expect(k8sClient.Create(ctx, &traitDefinition)).Should(Succeed())
 
-			By("Test GetCapabilityObject")
-			def := &CapabilityTraitDefinition{Name: traitDefinitionName}
-			capability, err := def.GetCapabilityObject(ctx, k8sClient, namespace, traitDefinitionName)
-			Expect(err).Should(BeNil())
-			Expect(capability).Should(Not(BeNil()))
+			def := &CapabilityTraitDefinition{Name: traitDefinitionName, TraitDefinition: *traitDefinition.DeepCopy()}
 
 			By("Test GetOpenAPISchema")
 			var expectedSchema = "{\"properties\":{\"replicas\":{\"default\":1,\"description\":\"Replicas of the workload\",\"title\":\"replicas\",\"type\":\"integer\"}},\"required\":[\"replicas\"],\"type\":\"object\"}"
-			schema, err := def.GetOpenAPISchema(ctx, k8sClient, pd, namespace, traitDefinitionName)
+			schema, err := def.GetOpenAPISchema(pd, traitDefinitionName)
 			Expect(err).Should(BeNil())
 			Expect(string(schema)).Should(Equal(expectedSchema))
 		})
