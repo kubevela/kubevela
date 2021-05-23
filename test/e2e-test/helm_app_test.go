@@ -339,7 +339,7 @@ var _ = Describe("Test application containing helm module", func() {
 
 	It("Test deploy an application containing helm module and the componet refer to autodetect type worklaod", func() {
 		cd := v1alpha2.ComponentDefinition{}
-		cd.SetName("wrong-cd")
+		cd.SetName("podinfo")
 		cd.SetNamespace(namespace)
 		cd.Spec.Schematic = &common.Schematic{
 			HELM: &common.Helm{
@@ -368,7 +368,7 @@ var _ = Describe("Test application containing helm module", func() {
 				Components: []v1alpha2.ApplicationComponent{
 					{
 						Name:         compName,
-						WorkloadType: "wrong-cd",
+						WorkloadType: "podinfo",
 						Settings: util.Object2RawExtension(map[string]interface{}{
 							"image": map[string]interface{}{
 								"tag": "5.1.2",

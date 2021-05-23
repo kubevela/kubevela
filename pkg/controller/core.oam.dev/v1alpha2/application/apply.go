@@ -137,7 +137,10 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 	var err error
 	for _, comp := range comps {
 		comp.SetOwnerReferences(owners)
-		if h.checkAutoDetect(comp) && h.isNewRevision {
+
+		// If the helm mode component doesn't specify the workload
+		// we just install a helm chart resources
+		if h.checkAutoDetect(comp) {
 			if err = h.applyHelmModuleResources(ctx, comp, owners); err != nil {
 				return errors.Wrap(err, "cannot apply Helm module resources")
 			}
@@ -184,7 +187,7 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 
 	if h.autodetect {
 		// TODO(yangsoon) autodetect is temporarily not implemented
-		return fmt.Errorf("helm mode component doesn't specify workload")
+		return fmt.Errorf("helm mode component doesn't specify workload, the traits attached to the helm mode component will fail to work")
 	}
 
 	if err := h.createOrUpdateAppRevision(ctx, appRev); err != nil {
