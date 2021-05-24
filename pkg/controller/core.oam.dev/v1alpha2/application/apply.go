@@ -30,7 +30,7 @@ import (
 	terraformtypes "github.com/oam-dev/terraform-controller/api/types"
 	terraformapi "github.com/oam-dev/terraform-controller/api/v1beta1"
 	"github.com/pkg/errors"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -60,7 +60,7 @@ import (
 func errorCondition(tpy string, err error) runtimev1alpha1.Condition {
 	return runtimev1alpha1.Condition{
 		Type:               runtimev1alpha1.ConditionType(tpy),
-		Status:             v1.ConditionFalse,
+		Status:             corev1.ConditionFalse,
 		LastTransitionTime: metav1.NewTime(time.Now()),
 		Reason:             runtimev1alpha1.ReasonReconcileError,
 		Message:            err.Error(),
@@ -70,7 +70,7 @@ func errorCondition(tpy string, err error) runtimev1alpha1.Condition {
 func readyCondition(tpy string) runtimev1alpha1.Condition {
 	return runtimev1alpha1.Condition{
 		Type:               runtimev1alpha1.ConditionType(tpy),
-		Status:             v1.ConditionTrue,
+		Status:             corev1.ConditionTrue,
 		Reason:             runtimev1alpha1.ReasonAvailable,
 		LastTransitionTime: metav1.NewTime(time.Now()),
 	}
@@ -112,7 +112,7 @@ func (h *appHandler) handleErr(err error) (ctrl.Result, error) {
 // 2. update AC's components using the component revision name
 // 3. update or create the AC with new revision and remember it in the application status
 // 4. garbage collect unused components
-func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevision, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) error {
+func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevision, ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component, policies []*unstructured.Unstructured) error {
 	owners := []metav1.OwnerReference{{
 		APIVersion: v1beta1.SchemeGroupVersion.String(),
 		Kind:       v1beta1.ApplicationKind,
@@ -128,8 +128,8 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 	}
 
 	// don't create components and AC if revision-only annotation is set
-	if ac.Annotations[oam.AnnotationAppRevisionOnly] == "true" {
-		h.FinalizeAppRevision(appRev, ac, comps)
+	if h.app.Spec.Workflow != nil || ac.Annotations[oam.AnnotationAppRevisionOnly] == "true" {
+		h.FinalizeAppRevision(appRev, ac, comps, policies)
 		return h.createOrUpdateAppRevision(ctx, appRev)
 	}
 
@@ -183,7 +183,7 @@ func (h *appHandler) apply(ctx context.Context, appRev *v1beta1.ApplicationRevis
 		}
 	}
 	ac.SetOwnerReferences(owners)
-	h.FinalizeAppRevision(appRev, ac, comps)
+	h.FinalizeAppRevision(appRev, ac, comps, policies)
 
 	if h.autodetect {
 		// TODO(yangsoon) autodetect is temporarily not implemented

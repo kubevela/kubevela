@@ -50,6 +50,9 @@ type ApplicationRevisionSpec struct {
 	// +kubebuilder:validation:EmbeddedResource
 	// +kubebuilder:pruning:PreserveUnknownFields
 	ApplicationConfiguration runtime.RawExtension `json:"applicationConfiguration"`
+
+	// Resources records the finalized resources from Application.
+	Resources []common.RawComponent `json:"resources,omitempty"`
 }
 
 // +kubebuilder:object:root=true

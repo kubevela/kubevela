@@ -163,11 +163,40 @@ type Appfile struct {
 	Namespace    string
 	RevisionName string
 	Workloads    []*Workload
+
+	Policies      []*Workload
+	WorkflowSteps []*Workload
+}
+
+// GenerateWorkflowAndPolicy generates workflow steps and policies from an appFile
+func (af *Appfile) GenerateWorkflowAndPolicy() (policies, steps []*unstructured.Unstructured, err error) {
+	policies, err = af.generateUnstructureds(af.Policies)
+	if err != nil {
+		return
+	}
+	steps, err = af.generateUnstructureds(af.WorkflowSteps)
+	if err != nil {
+		return
+	}
+	return
+}
+
+func (af *Appfile) generateUnstructureds(workloads []*Workload) ([]*unstructured.Unstructured, error) {
+	uns := []*unstructured.Unstructured{}
+	for _, wl := range workloads {
+		un, err := generateUnstructuredFromCUEModule(wl, af.Name, af.RevisionName, af.Namespace)
+		if err != nil {
+			return nil, err
+		}
+		uns = append(uns, un)
+	}
+	return uns, nil
 }
 
 // GenerateApplicationConfiguration converts an appFile to applicationConfig & Components
 func (af *Appfile) GenerateApplicationConfiguration() (*v1alpha2.ApplicationConfiguration,
 	[]*v1alpha2.Component, error) {
+
 	appconfig := &v1alpha2.ApplicationConfiguration{}
 	appconfig.SetGroupVersionKind(v1alpha2.ApplicationConfigurationGroupVersionKind)
 	appconfig.Name = af.Name
@@ -211,6 +240,7 @@ func (af *Appfile) GenerateApplicationConfiguration() (*v1alpha2.ApplicationConf
 		components = append(components, comp)
 		appconfig.Spec.Components = append(appconfig.Spec.Components, *acComp)
 	}
+
 	return appconfig, components, nil
 }
 
@@ -239,6 +269,14 @@ func generateComponentFromCUEModule(wl *Workload, appName, revision, ns string) 
 		return nil, nil, err
 	}
 	return baseGenerateComponent(pCtx, wl, appName, ns)
+}
+
+func generateUnstructuredFromCUEModule(wl *Workload, appName, revision, ns string) (*unstructured.Unstructured, error) {
+	pCtx, err := PrepareProcessContext(wl, appName, revision, ns)
+	if err != nil {
+		return nil, err
+	}
+	return makeWorkloadWithContext(pCtx, wl, ns, appName)
 }
 
 func generateComponentFromTerraformModule(wl *Workload, appName, revision, ns string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
@@ -292,31 +330,42 @@ func baseGenerateComponent(pCtx process.Context, wl *Workload, appName, ns strin
 	return comp, acComp, nil
 }
 
-// evalWorkloadWithContext evaluate the workload's template to generate component and ACComponent
-func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, compName string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+// makeWorkloadWithContext evaluate the workload's template to unstructured resource.
+func makeWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName string) (*unstructured.Unstructured, error) {
 	var (
-		commonLabels      map[string]string
-		componentWorkload *unstructured.Unstructured
-		err               error
+		workload *unstructured.Unstructured
+		err      error
 	)
-	base, assists := pCtx.Output()
+	base, _ := pCtx.Output()
 	switch wl.CapabilityCategory {
 	case types.TerraformCategory:
-		componentWorkload, err = generateTerraformConfigurationWorkload(wl, ns)
+		workload, err = generateTerraformConfigurationWorkload(wl, ns)
 		if err != nil {
-			return nil, nil, errors.Wrapf(err, "failed to generate Terraform Configuration workload for workload %s", wl.Name)
+			return nil, errors.Wrapf(err, "failed to generate Terraform Configuration workload for workload %s", wl.Name)
 		}
 	default:
-		componentWorkload, err = base.Unstructured()
+		workload, err = base.Unstructured()
 		if err != nil {
-			return nil, nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", compName, appName)
+			return nil, errors.Wrapf(err, "evaluate base template component=%s app=%s", wl.Name, appName)
 		}
 	}
-	commonLabels = definition.GetCommonLabels(pCtx.BaseContextLabels())
-	util.AddLabels(componentWorkload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: wl.Type}))
+	commonLabels := definition.GetCommonLabels(pCtx.BaseContextLabels())
+	util.AddLabels(workload, util.MergeMapOverrideWithDst(commonLabels, map[string]string{oam.WorkloadTypeLabel: wl.Type}))
+	return workload, nil
+}
+
+// evalWorkloadWithContext evaluate the workload's template to generate component and ACComponent
+func evalWorkloadWithContext(pCtx process.Context, wl *Workload, ns, appName, compName string) (*v1alpha2.Component, *v1alpha2.ApplicationConfigurationComponent, error) {
+	componentWorkload, err := makeWorkloadWithContext(pCtx, wl, ns, appName)
+	if err != nil {
+		return nil, nil, err
+	}
 	component := &v1alpha2.Component{}
 	// we need to marshal the workload to byte array before sending them to the k8s
 	component.Spec.Workload = util.Object2RawExtension(componentWorkload)
+
+	_, assists := pCtx.Output()
+	commonLabels := definition.GetCommonLabels(pCtx.BaseContextLabels())
 
 	acComponent := &v1alpha2.ApplicationConfigurationComponent{}
 	for _, assist := range assists {

@@ -38,6 +38,12 @@ type DefinitionRevisionSpec struct {
 
 	// TraitDefinition records the snapshot of the created/modified TraitDefinition
 	TraitDefinition TraitDefinition `json:"traitDefinition,omitempty"`
+
+	// PolicyDefinition records the snapshot of the created/modified PolicyDefinition
+	PolicyDefinition PolicyDefinition `json:"policyDefinition,omitempty"`
+
+	// WorkflowStepDefinition records the snapshot of the created/modified WorkflowStepDefinition
+	WorkflowStepDefinition WorkflowStepDefinition `json:"workflowStepDefinition,omitempty"`
 }
 
 // +kubebuilder:object:root=true

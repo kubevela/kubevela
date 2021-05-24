@@ -44,11 +44,12 @@ import (
 	"github.com/oam-dev/kubevela/pkg/oam/discoverymapper"
 	oamutil "github.com/oam-dev/kubevela/pkg/oam/util"
 	"github.com/oam-dev/kubevela/pkg/utils/apply"
+	"github.com/oam-dev/kubevela/pkg/workflow"
 )
 
-// RolloutReconcileWaitTime is the time to wait before reconcile again an application still in rollout phase
 const (
-	RolloutReconcileWaitTime      = time.Second * 3
+	// workflowReconcileWaitTime is the time to wait before reconcile again workflow running
+	workflowReconcileWaitTime     = time.Second * 3
 	resourceTrackerFinalizer      = "resourceTracker.finalizer.core.oam.dev"
 	errUpdateApplicationStatus    = "cannot update application status"
 	errUpdateApplicationFinalizer = "cannot update application finalizer"
@@ -150,6 +151,13 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
 		return handler.handleErr(err)
 	}
+	policies, wfSteps, err := generatedAppfile.GenerateWorkflowAndPolicy()
+	if err != nil {
+		applog.Error(err, "[Handle GenerateWorkflowAndPolicy]")
+		app.Status.SetConditions(errorCondition("Built", err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedRender, err))
+		return handler.handleErr(err)
+	}
 
 	err = handler.handleResourceTracker(ctx, comps, ac)
 	if err != nil {
@@ -166,11 +174,24 @@ func (r *Reconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	r.Recorder.Event(app, event.Normal(velatypes.ReasonRendered, velatypes.MessageRendered))
 	applog.Info("apply application revision & component to the cluster")
 	// apply application revision & component to the cluster
-	if err := handler.apply(ctx, appRev, ac, comps); err != nil {
+	if err := handler.apply(ctx, appRev, ac, comps, policies); err != nil {
 		applog.Error(err, "[Handle apply]")
 		app.Status.SetConditions(errorCondition("Applied", err))
 		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedApply, err))
 		return handler.handleErr(err)
+	}
+
+	wf := workflow.NewWorkflow(app, handler.r.applicator)
+
+	done, err := wf.ExecuteSteps(ctx, appRev.Name, wfSteps)
+	if err != nil {
+		applog.Error(err, "[handle workflow]")
+		app.Status.SetConditions(errorCondition("Workflow", err))
+		r.Recorder.Event(app, event.Warning(velatypes.ReasonFailedWorkflow, err))
+		return handler.handleErr(err)
+	}
+	if !done {
+		return reconcile.Result{RequeueAfter: workflowReconcileWaitTime}, r.UpdateStatus(ctx, app)
 	}
 
 	// if inplace is false and rolloutPlan is nil, it means the user will use an outer AppRollout object to rollout the application

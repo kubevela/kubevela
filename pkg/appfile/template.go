@@ -57,9 +57,11 @@ type Template struct {
 	Kube               *common.Kube
 	Terraform          *common.Terraform
 	// TODO: Add scope definition too
-	ComponentDefinition *v1beta1.ComponentDefinition
-	WorkloadDefinition  *v1beta1.WorkloadDefinition
-	TraitDefinition     *v1beta1.TraitDefinition
+	ComponentDefinition    *v1beta1.ComponentDefinition
+	WorkloadDefinition     *v1beta1.WorkloadDefinition
+	TraitDefinition        *v1beta1.TraitDefinition
+	PolicyDefinition       *v1beta1.PolicyDefinition
+	WorkflowStepDefinition *v1beta1.WorkflowStepDefinition
 }
 
 // LoadTemplate gets the capability definition from cluster and resolve it.
@@ -108,6 +110,28 @@ func LoadTemplate(ctx context.Context, dm discoverymapper.DiscoveryMapper, cli c
 			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", capName)
 		}
 		tmpl, err := newTemplateOfTraitDefinition(td)
+		if err != nil {
+			return nil, err
+		}
+		return tmpl, nil
+	case types.TypePolicy:
+		d := new(v1beta1.PolicyDefinition)
+		err := oamutil.GetCapabilityDefinition(ctx, cli, d, capName)
+		if err != nil {
+			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", capName)
+		}
+		tmpl, err := newTemplateOfPolicyDefinition(d)
+		if err != nil {
+			return nil, err
+		}
+		return tmpl, nil
+	case types.TypeWorkflowStep:
+		d := new(v1beta1.WorkflowStepDefinition)
+		err := oamutil.GetCapabilityDefinition(ctx, cli, d, capName)
+		if err != nil {
+			return nil, errors.WithMessagef(err, "LoadTemplate [%s] ", capName)
+		}
+		tmpl, err := newTemplateOfWorkflowStepDefinition(d)
 		if err != nil {
 			return nil, err
 		}
@@ -184,6 +208,26 @@ func newTemplateOfTraitDefinition(traitDef *v1beta1.TraitDefinition) (*Template,
 		TraitDefinition: traitDef,
 	}
 	if err := loadSchematicToTemplate(tmpl, traitDef.Spec.Status, traitDef.Spec.Schematic, traitDef.Spec.Extension); err != nil {
+		return nil, errors.WithMessage(err, "cannot load template")
+	}
+	return tmpl, nil
+}
+
+func newTemplateOfPolicyDefinition(def *v1beta1.PolicyDefinition) (*Template, error) {
+	tmpl := &Template{
+		PolicyDefinition: def,
+	}
+	if err := loadSchematicToTemplate(tmpl, nil, def.Spec.Schematic, nil); err != nil {
+		return nil, errors.WithMessage(err, "cannot load template")
+	}
+	return tmpl, nil
+}
+
+func newTemplateOfWorkflowStepDefinition(def *v1beta1.WorkflowStepDefinition) (*Template, error) {
+	tmpl := &Template{
+		WorkflowStepDefinition: def,
+	}
+	if err := loadSchematicToTemplate(tmpl, nil, def.Spec.Schematic, nil); err != nil {
 		return nil, errors.WithMessage(err, "cannot load template")
 	}
 	return tmpl, nil

@@ -43,8 +43,15 @@ const (
 
 	// LabelComponentDefinitionName records the name of ComponentDefinition
 	LabelComponentDefinitionName = "componentdefinition.oam.dev/name"
+
 	// LabelComponentDefinitionName records the name of TraitDefinition
 	LabelTraitDefinitionName = "trait.oam.dev/name"
+
+	// LabelPolicyDefinitionName records the name of PolicyDefinition
+	LabelPolicyDefinitionName = "policydefinition.oam.dev/name"
+
+	// LabelWorkflowStepDefinitionName records the name of WorkflowStepDefinition
+	LabelWorkflowStepDefinitionName = "workflowstepdefinition.oam.dev/name"
 )
 
 const (
@@ -82,4 +89,7 @@ const (
 	// AnnotationAppRevisionOnly the Application update should only generate revision,
 	// not any appContexts or components.
 	AnnotationAppRevisionOnly = "app.oam.dev/revision-only"
+
+	// AnnotationWorkflowContext is used to pass in the workflow context marshalled in json format.
+	AnnotationWorkflowContext = "app.oam.dev/workflow-context"
 )

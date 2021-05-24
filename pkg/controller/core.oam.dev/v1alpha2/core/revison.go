@@ -68,6 +68,16 @@ func gatherRevisionInfo(def runtime.Object) (*v1beta1.DefinitionRevision, *commo
 		defRev.Spec.DefinitionType = common.TraitType
 		defRev.Spec.TraitDefinition = *copiedTraitDef
 		LastRevision = copiedTraitDef.Status.LatestRevision
+	case *v1beta1.PolicyDefinition:
+		defCopy := definition.DeepCopy()
+		defRev.Spec.DefinitionType = common.PolicyType
+		defRev.Spec.PolicyDefinition = *defCopy
+		LastRevision = defCopy.Status.LatestRevision
+	case *v1beta1.WorkflowStepDefinition:
+		defCopy := definition.DeepCopy()
+		defRev.Spec.DefinitionType = common.WorkflowStepType
+		defRev.Spec.WorkflowStepDefinition = *defCopy
+		LastRevision = defCopy.Status.LatestRevision
 	default:
 		return nil, nil, fmt.Errorf("unsupported type %v", definition)
 	}
@@ -93,6 +103,16 @@ func computeDefinitionRevisionHash(defRev *v1beta1.DefinitionRevision) (string, 
 		if err != nil {
 			return defHash, err
 		}
+	case common.PolicyType:
+		defHash, err = utils.ComputeSpecHash(&defRev.Spec.PolicyDefinition.Spec)
+		if err != nil {
+			return defHash, err
+		}
+	case common.WorkflowStepType:
+		defHash, err = utils.ComputeSpecHash(&defRev.Spec.WorkflowStepDefinition.Spec)
+		if err != nil {
+			return defHash, err
+		}
 	}
 	return defHash, nil
 }
@@ -115,6 +135,10 @@ func compareWithLastDefRevisionSpec(ctx context.Context, cli client.Client,
 		namespace = newDefRev.Spec.ComponentDefinition.Namespace
 	case common.TraitType:
 		namespace = newDefRev.Spec.TraitDefinition.Namespace
+	case common.PolicyType:
+		namespace = newDefRev.Spec.PolicyDefinition.Namespace
+	case common.WorkflowStepType:
+		namespace = newDefRev.Spec.WorkflowStepDefinition.Namespace
 	}
 	if err := cli.Get(ctx, client.ObjectKey{Name: lastRevision.Name,
 		Namespace: namespace}, defRev); err != nil {
@@ -138,6 +162,12 @@ func deepEqualDefRevision(old, new *v1beta1.DefinitionRevision) bool {
 	if !apiequality.Semantic.DeepEqual(old.Spec.TraitDefinition.Spec, new.Spec.TraitDefinition.Spec) {
 		return false
 	}
+	if !apiequality.Semantic.DeepEqual(old.Spec.PolicyDefinition.Spec, new.Spec.PolicyDefinition.Spec) {
+		return false
+	}
+	if !apiequality.Semantic.DeepEqual(old.Spec.WorkflowStepDefinition.Spec, new.Spec.WorkflowStepDefinition.Spec) {
+		return false
+	}
 	return true
 }
 
@@ -152,6 +182,10 @@ func getDefNextRevision(defRev *v1beta1.DefinitionRevision, lastRevision *common
 		name = defRev.Spec.ComponentDefinition.Name
 	case common.TraitType:
 		name = defRev.Spec.TraitDefinition.Name
+	case common.PolicyType:
+		name = defRev.Spec.PolicyDefinition.Name
+	case common.WorkflowStepType:
+		name = defRev.Spec.WorkflowStepDefinition.Name
 	}
 	defRevName := strings.Join([]string{name, fmt.Sprintf("v%d", nextRevision)}, "-")
 	return defRevName, nextRevision
@@ -173,6 +207,18 @@ func CleanUpDefinitionRevision(ctx context.Context, cli client.Client, def runti
 		listOpts = []client.ListOption{
 			client.InNamespace(definition.Namespace),
 			client.MatchingLabels{oam.LabelTraitDefinitionName: definition.Name},
+		}
+		usingRevision = definition.Status.LatestRevision.Name
+	case *v1beta1.PolicyDefinition:
+		listOpts = []client.ListOption{
+			client.InNamespace(definition.Namespace),
+			client.MatchingLabels{oam.LabelPolicyDefinitionName: definition.Name},
+		}
+		usingRevision = definition.Status.LatestRevision.Name
+	case *v1beta1.WorkflowStepDefinition:
+		listOpts = []client.ListOption{
+			client.InNamespace(definition.Namespace),
+			client.MatchingLabels{oam.LabelWorkflowStepDefinitionName: definition.Name},
 		}
 		usingRevision = definition.Status.LatestRevision.Name
 	}

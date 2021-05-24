@@ -25,6 +25,7 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -98,33 +99,67 @@ func (p *Parser) GenerateAppFile(ctx context.Context, app *v1beta1.Application) 
 		wds = append(wds, wd)
 	}
 	appfile.Workloads = wds
+
+	var err error
+
+	appfile.Policies, err = p.parsePolicies(ctx, appName, ns, app.Spec.Policies)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parsePolicies: %w", err)
+	}
+
+	appfile.WorkflowSteps, err = p.parseWorkflow(ctx, appName, ns, app.Spec.Workflow)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parseWorkflow: %w", err)
+	}
 	return appfile, nil
 }
 
-// parseWorkload resolve an ApplicationComponent and generate a Workload
-// containing ALL information required by an Appfile.
-func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComponent, appName, ns string) (*Workload, error) {
-	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, comp.Type, types.TypeComponentDefinition)
-	if err != nil && !kerrors.IsNotFound(err) {
-		return nil, errors.WithMessagef(err, "fetch type of %s", comp.Name)
+func (p *Parser) parsePolicies(ctx context.Context, appName, ns string, policies []v1beta1.AppPolicy) ([]*Workload, error) {
+	ws := []*Workload{}
+	for _, policy := range policies {
+		w, err := p.makeWorkload(ctx, appName, ns, policy.Name, policy.Type, types.TypePolicy, policy.Properties)
+		if err != nil {
+			return nil, err
+		}
+		ws = append(ws, w)
 	}
-	settings, err := util.RawExtension2Map(&comp.Properties)
+	return ws, nil
+}
+
+func (p *Parser) parseWorkflow(ctx context.Context, appName, ns string, steps []v1beta1.WorkflowStep) ([]*Workload, error) {
+	ws := []*Workload{}
+	for _, step := range steps {
+		w, err := p.makeWorkload(ctx, appName, ns, step.Name, step.Type, types.TypeWorkflowStep, step.Properties)
+		if err != nil {
+			return nil, err
+		}
+		ws = append(ws, w)
+	}
+	return ws, nil
+}
+
+func (p *Parser) makeWorkload(ctx context.Context, appName, ns, name, typ string, capType types.CapType, props runtime.RawExtension) (*Workload, error) {
+	templ, err := p.tmplLoader.LoadTemplate(ctx, p.dm, p.client, typ, capType)
+	if err != nil && !kerrors.IsNotFound(err) {
+		return nil, errors.WithMessagef(err, "fetch type of %s", name)
+	}
+	settings, err := util.RawExtension2Map(&props)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "fail to parse settings for %s", comp.Name)
+		return nil, errors.WithMessagef(err, "fail to parse settings for %s", name)
 	}
 
-	wlType, err := util.ConvertDefinitionRevName(comp.Type)
+	wlType, err := util.ConvertDefinitionRevName(typ)
 	if err != nil {
-		wlType = comp.Type
+		wlType = typ
 	}
 	workload := &Workload{
 		Traits:             []*Trait{},
-		Name:               comp.Name,
+		Name:               name,
 		Type:               wlType,
 		CapabilityCategory: templ.CapabilityCategory,
 		FullTemplate:       templ,
 		Params:             settings,
-		engine:             definition.NewWorkloadAbstractEngine(comp.Name, p.pd),
+		engine:             definition.NewWorkloadAbstractEngine(name, p.pd),
 	}
 
 	if workload.IsCloudResourceConsumer() {
@@ -145,6 +180,16 @@ func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComp
 			return nil, errors.Wrapf(err, "get config=%s for app=%s in namespace=%s", userConfig, appName, ns)
 		}
 		workload.UserConfigs = data
+	}
+	return workload, nil
+}
+
+// parseWorkload resolve an ApplicationComponent and generate a Workload
+// containing ALL information required by an Appfile.
+func (p *Parser) parseWorkload(ctx context.Context, comp v1beta1.ApplicationComponent, appName, ns string) (*Workload, error) {
+	workload, err := p.makeWorkload(ctx, appName, ns, comp.Name, comp.Type, types.TypeComponentDefinition, comp.Properties)
+	if err != nil {
+		return nil, err
 	}
 
 	for _, traitValue := range comp.Traits {

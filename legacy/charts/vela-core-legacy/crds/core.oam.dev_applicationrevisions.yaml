@@ -544,6 +544,40 @@ spec:
                       status:
                         description: ApplicationPhase is a label for the condition of a application at the current time
                         type: string
+                      workflow:
+                        description: Workflow record the status of workflow steps
+                        items:
+                          description: WorkflowStepStatus record the status of a workflow step
+                          properties:
+                            name:
+                              type: string
+                            phase:
+                              description: WorkflowStepPhase describes the phase of a workflow step.
+                              type: string
+                            resourceRef:
+                              description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
+                              properties:
+                                apiVersion:
+                                  description: APIVersion of the referenced object.
+                                  type: string
+                                kind:
+                                  description: Kind of the referenced object.
+                                  type: string
+                                name:
+                                  description: Name of the referenced object.
+                                  type: string
+                                uid:
+                                  description: UID of the referenced object.
+                                  type: string
+                              required:
+                              - apiVersion
+                              - kind
+                              - name
+                              type: object
+                            type:
+                              type: string
+                          type: object
+                        type: array
                     type: object
                 type: object
               applicationConfiguration:
@@ -1296,12 +1330,16 @@ spec:
                         items:
                           description: AppPolicy defines a global policy for all components in the app.
                           properties:
+                            name:
+                              description: Name is the unique name of the policy.
+                              type: string
                             properties:
                               type: object
                               
                             type:
                               type: string
                           required:
+                          - name
                           - type
                           type: object
                         type: array
@@ -1528,15 +1566,16 @@ spec:
                         items:
                           description: WorkflowStep defines how to execute a workflow step.
                           properties:
+                            name:
+                              description: Name is the unique name of the workflow step.
+                              type: string
                             properties:
                               type: object
                               
-                            stage:
-                              description: The stage is the running stage this workflow runs. It could be `pre-render` or `post-render` (default).
-                              type: string
                             type:
                               type: string
                           required:
+                          - name
                           - type
                           type: object
                         type: array
@@ -1775,6 +1814,40 @@ spec:
                       status:
                         description: ApplicationPhase is a label for the condition of a application at the current time
                         type: string
+                      workflow:
+                        description: Workflow record the status of workflow steps
+                        items:
+                          description: WorkflowStepStatus record the status of a workflow step
+                          properties:
+                            name:
+                              type: string
+                            phase:
+                              description: WorkflowStepPhase describes the phase of a workflow step.
+                              type: string
+                            resourceRef:
+                              description: A TypedReference refers to an object by Name, Kind, and APIVersion. It is commonly used to reference cluster-scoped objects or objects where the namespace is already known.
+                              properties:
+                                apiVersion:
+                                  description: APIVersion of the referenced object.
+                                  type: string
+                                kind:
+                                  description: Kind of the referenced object.
+                                  type: string
+                                name:
+                                  description: Name of the referenced object.
+                                  type: string
+                                uid:
+                                  description: UID of the referenced object.
+                                  type: string
+                              required:
+                              - apiVersion
+                              - kind
+                              - name
+                              type: object
+                            type:
+                              type: string
+                          type: object
+                        type: array
                     type: object
                 type: object
               applicationConfiguration:
@@ -2001,6 +2074,19 @@ spec:
                 type: object
               components:
                 description: Components records the rendered components from Application, it will contains the whole K8s CR of workload in it.
+                items:
+                  description: RawComponent record raw component
+                  properties:
+                    raw:
+                      type: object
+                      
+                      
+                  required:
+                  - raw
+                  type: object
+                type: array
+              resources:
+                description: Resources records the finalized resources from Application.
                 items:
                   description: RawComponent record raw component
                   properties:

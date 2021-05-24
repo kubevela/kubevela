@@ -147,13 +147,13 @@ Each workflow step has the following interactions with the app controller:
     - type: workflow-finish
       status: 'True'
       reason: 'Succeeded'
-    - ...
+      message: '{"observedGeneration":1}'
   ```
 
   The reason could be one of the following:
-  - `Succeeded`: This will make the controller run the next step.
+  - `Succeeded`: This will make the controller run the next step. The observed generation number should be written in `message` since Vela will check it to detect the newer decision on spec change.
   - `Stopped`: This will make the controller stop the workflow.
-  - `Failed`: This will make the controller stop the workflow and report error in `message`.
+  - `Failed`: This will make the controller stop the workflow. The error should be reported in `message`.
 
 ## Use Cases
 

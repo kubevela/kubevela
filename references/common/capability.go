@@ -127,6 +127,8 @@ func InstallCapability(client client.Client, mapper discoverymapper.DiscoveryMap
 		// TODO(wonderflow): support install scope here
 	case types.TypeWorkload:
 		return fmt.Errorf("unsupported capability type %v", types.TypeWorkload)
+	default:
+		return fmt.Errorf("unsupported type: %v", tp.Type)
 	}
 
 	success := plugins.SinkTemp2Local([]types.Capability{tp}, defDir)
@@ -331,6 +333,8 @@ func uninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 		return fmt.Errorf("uninstall scope capability was not supported yet")
 	case types.TypeComponentDefinition:
 		obj = &v1beta1.ComponentDefinition{ObjectMeta: v1.ObjectMeta{Name: cap.Name, Namespace: types.DefaultKubeVelaNS}}
+	default:
+		return fmt.Errorf("unsupported type: %v", cap.Type)
 	}
 	if err := client.Delete(ctx, obj); err != nil {
 		return err
@@ -363,6 +367,8 @@ func uninstallCap(client client.Client, cap types.Capability, ioStreams cmdutil.
 		if err := os.Remove(filepath.Join(capdir, "components", cap.Name)); err != nil {
 			return err
 		}
+	default:
+		return fmt.Errorf("unsupported type: %v", cap.Type)
 	}
 	ioStreams.Infof("Successfully uninstalled capability %s", cap.Name)
 	return nil

@@ -24,6 +24,8 @@ import (
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -80,9 +82,34 @@ func (h *appHandler) setRevisionMetadata(appRev *v1beta1.ApplicationRevision) {
 // setRevisionWithRenderedResult will set the ApplicationRevision with the rendered result
 // it's ApplicationConfiguration and Component for now
 func (h *appHandler) setRevisionWithRenderedResult(appRev *v1beta1.ApplicationRevision, ac *v1alpha2.ApplicationConfiguration,
-	comps []*v1alpha2.Component) {
-	appRev.Spec.Components = ConvertComponent2RawRevision(comps)
+	comps []*v1alpha2.Component, policies []*unstructured.Unstructured) {
+	appRev.Spec.Components = ConvertComponents2RawRevisions(comps)
 	appRev.Spec.ApplicationConfiguration = util.Object2RawExtension(ac)
+
+	resources := []common.RawComponent{}
+	for _, c := range comps {
+		resources = append(resources, common.RawComponent{Raw: component2RawExtension(c)})
+	}
+	for _, acc := range ac.Spec.Components {
+		for _, tr := range acc.Traits {
+			resources = append(resources, common.RawComponent{Raw: util.Object2RawExtension(tr.Trait)})
+		}
+	}
+	for _, policy := range policies {
+		resources = append(resources, common.RawComponent{Raw: util.Object2RawExtension(policy)})
+	}
+
+	appRev.Spec.Resources = resources
+}
+
+func component2RawExtension(c *v1alpha2.Component) runtime.RawExtension {
+	u, err := util.Object2Unstructured(c.Spec.Workload)
+	if err != nil {
+		panic(err)
+	}
+	u.SetName(c.Name)
+	u.SetNamespace(c.Namespace)
+	return util.Object2RawExtension(u)
 }
 
 // gatherRevisionSpec will gather all revision spec withouth metadata and rendered result.
@@ -189,15 +216,14 @@ func (h *appHandler) GenerateAppRevision(ctx context.Context) (*v1beta1.Applicat
 
 // FinalizeAppRevision will finalize the AppRevision with metadata and rendered result revision for an Application when created/updated
 func (h *appHandler) FinalizeAppRevision(appRev *v1beta1.ApplicationRevision,
-	ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component) {
+	ac *v1alpha2.ApplicationConfiguration, comps []*v1alpha2.Component, policies []*unstructured.Unstructured) {
 
 	h.setRevisionMetadata(appRev)
-	h.setRevisionWithRenderedResult(appRev, ac, comps)
-
+	h.setRevisionWithRenderedResult(appRev, ac, comps, policies)
 }
 
-// ConvertComponent2RawRevision convert to ComponentMap
-func ConvertComponent2RawRevision(comps []*v1alpha2.Component) []common.RawComponent {
+// ConvertComponents2RawRevisions convert to ComponentMap
+func ConvertComponents2RawRevisions(comps []*v1alpha2.Component) []common.RawComponent {
 	var objs []common.RawComponent
 	for _, comp := range comps {
 		obj := comp.DeepCopy()
