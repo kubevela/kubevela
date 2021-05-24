@@ -2,7 +2,7 @@
 title:  Want More?
 ---
 
-Components in KubeVela are designed to be brought by users. You could design one by yourself, or try some maintained by KubeVela developers.
+Components in KubeVela are designed to be brought by users.
 
 ## 1. Get from capability center
 
@@ -23,7 +23,7 @@ cloneset          	default	clonesets.apps.kruise.io
 kruise-statefulset	default	statefulsets.apps.kruise.io
 openfaas          	default	functions.openfaas.com
 ````
-Note that the `--discover` flag means show all uninstalled components. Otherwise, it'll show all installed component(except for inner component) 
+Note that the `--discover` flag means show all uninstalled components.
 
 ### 2. install
 Then you can install component like:

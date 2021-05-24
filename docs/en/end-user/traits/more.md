@@ -2,8 +2,7 @@
 title:  Want More?
 ---
 
-Traits in KubeVela are designed as modularized building blocks, they are fully customizable and pluggable. You could
-design one by yourself, or try some maintained by KubeVela developers.
+Traits in KubeVela are designed as modularized building blocks, they are fully customizable and pluggable.
 
 ## 1. Get from capability canter
 
@@ -30,7 +29,7 @@ node-affinity  	default		                              		[webservice worker]
 route          	default   routes.standard.oam.dev       		[webservice]             
 virtualgroup   	default		                              		[webservice worker] 
 ```
-Note that the `--discover` flag means show all uninstalled traits. Otherwise, it'll show all installed component(except inner component) 
+Note that the `--discover` flag means show all uninstalled traits.
 
 ### 2. install
 
