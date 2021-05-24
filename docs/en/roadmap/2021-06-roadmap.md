@@ -33,3 +33,4 @@ Date: 2021-04-01 to 2021-06-30
 1. Integrate with Open Cluster Management.
 2. Integrate with Flux CD
 3. Integrate with Dapr to enable end-to-end microservice application development and deployment workflow.
+4. Integrate with Tilt for local development.
