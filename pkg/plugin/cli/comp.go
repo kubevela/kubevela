@@ -44,11 +44,11 @@ func NewCompCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command 
 		},
 	}
 	cmd.SetOut(ioStreams.Out)
-	cmd.Flags().Bool("discover", false, "discover traits in registries")
-	cmd.PersistentFlags().String("url", cli.DefaultRegistry, "specify the registry URL")
 	cmd.AddCommand(
 		NewCompGetCommand(c, ioStreams),
 	)
+	cmd.Flags().Bool("discover", false, "discover traits in registries")
+	cmd.PersistentFlags().String("url", cli.DefaultRegistry, "specify the registry URL")
 	return cmd
 }
 
@@ -65,7 +65,7 @@ func NewCompGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comma
 				return nil
 			}
 			name := args[0]
-			url, _ := cmd.PersistentFlags().GetString("url")
+			url, _ := cmd.Flags().GetString("url")
 
 			return cli.InstallCompByName(c, ioStreams, name, url)
 		},

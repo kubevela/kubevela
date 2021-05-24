@@ -44,11 +44,11 @@ func NewTraitCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Command
 		},
 	}
 	cmd.SetOut(ioStreams.Out)
-	cmd.Flags().Bool("discover", false, "discover traits in registries")
-	cmd.PersistentFlags().String("url", cli.DefaultRegistry, "specify the registry URL")
 	cmd.AddCommand(
 		NewTraitGetCommand(c, ioStreams),
 	)
+	cmd.Flags().Bool("discover", false, "discover traits in registries")
+	cmd.PersistentFlags().String("url", cli.DefaultRegistry, "specify the registry URL")
 	return cmd
 }
 
@@ -65,7 +65,7 @@ func NewTraitGetCommand(c common2.Args, ioStreams cmdutil.IOStreams) *cobra.Comm
 				return nil
 			}
 			name := args[0]
-			url, _ := cmd.PersistentFlags().GetString("url")
+			url, _ := cmd.Flags().GetString("url")
 
 			return cli.InstallTraitByName(c, ioStreams, name, url)
 		},

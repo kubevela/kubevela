@@ -130,9 +130,9 @@ var _ = Describe("Test Kubectl Plugin", func() {
 		It("Test list components in local registry", func() {
 			output, err := e2e.Exec("kubectl-vela comp --discover --url=" + testRegistryPath)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).Should(ContainSubstring("Showing components from default registry"))
+			Expect(output).Should(ContainSubstring("Showing components from registry"))
 			Expect(output).Should(ContainSubstring("cloneset"))
-			Expect(output).Should(ContainSubstring("kruise-statefulset"))
+			Expect(output).Should(ContainSubstring("kruise-sts"))
 			Expect(output).Should(ContainSubstring("openfaas"))
 		})
 	})
@@ -140,7 +140,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 		It("Test list traits in local registry", func() {
 			output, err := e2e.Exec("kubectl-vela trait --discover --url=" + testRegistryPath)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(output).Should(ContainSubstring("Showing traits from default registry"))
+			Expect(output).Should(ContainSubstring("Showing traits from registry"))
 			Expect(output).Should(ContainSubstring("[deployments.apps]"))
 			Expect(output).Should(ContainSubstring("metrics"))
 			Expect(output).Should(ContainSubstring("route"))
@@ -166,7 +166,7 @@ var _ = Describe("Test Kubectl Plugin", func() {
 			Expect(output).Should(ContainSubstring("cloneset"))
 		})
 		It("Test list installed trait", func() {
-			output, err := e2e.Exec("kubectl-vela trait --url" + testRegistryPath)
+			output, err := e2e.Exec("kubectl-vela trait --url=" + testRegistryPath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(output).Should(ContainSubstring("init-container"))
 		})
